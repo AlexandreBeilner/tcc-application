@@ -16,6 +16,8 @@ Toda decisão de produto e arquitetura já está fechada nestes três documentos
 | `.claude/inventario-telas-plataforma-investimentos.md` | As 28 telas da aplicação — objetivo, conteúdo, ações e navegação de cada uma |
 | `.claude/backlog-plataforma-investimentos.md` | Quebra de tarefas executáveis, organizada pelas 8 semanas do roadmap, com critérios de aceite e dependências |
 | `.claude/identidade-visual-tokens.md` | Tokens de design (tarefa 1.0): paleta dark/light, tipografia, espaçamento, raio/elevação — toda estilização de componente/tela deve seguir este documento |
+| `.claude/arquitetura-backend-ddd-lite.md` | Arquitetura obrigatória do `backend/` (DDD lite): estrutura de módulos (domain/application/infrastructure/interfaces), regra de dependência, casos de uso, validação com Zod, testes sempre junto da implementação, SOLID aplicado. `modules/auth` é a referência viva — leia o código antes do documento. |
+| `.claude/arquitetura-engine-go.md` | Arquitetura obrigatória do `engine/` (Go idiomático — não é o mesmo padrão do backend Node): domínio isolado de infraestrutura, interfaces pequenas declaradas no ponto de consumo, pacote por conceito de domínio, fórmulas financeiras como funções puras testáveis. |
 
 Ao pegar uma tarefa, sempre confira a numeração (ex: RF17, tela 4.5, tarefa 5.4) contra esses documentos — as referências cruzadas são intencionais e existem pra evitar retrabalho.
 
@@ -53,8 +55,29 @@ Estas são decisões já fechadas que geram retrabalho se ignoradas:
 4. Tarefas marcadas como "tela âncora" no backlog (Mapa da Trilha, Detalhe de Ativo + Confirmação de Ordem) merecem um mockup/rascunho de layout antes da implementação — elas definem um padrão visual reaproveitado em outras telas.
 5. Se uma tarefa exigir uma decisão de produto que não está em nenhum dos três documentos, pare e pergunte — não assuma. Documente a decisão tomada de volta nos arquivos correspondentes depois.
 
+## Checklist obrigatório — toda tarefa que toca o backend (Node) ou o motor (Go)
+
+### `backend/` (Node/TS, DDD lite — detalhe completo em `.claude/arquitetura-backend-ddd-lite.md`)
+
+- [ ] Regra de negócio nova vive em `modules/<módulo>/domain/` ou `application/useCases/` — nunca dentro de um router (`interfaces/http/`) ou de um adapter (`infrastructure/`).
+- [ ] Todo acesso a banco, hash, token ou serviço externo passa por uma `port` (interface em `application/ports/`), implementada em `infrastructure/` — nunca chamado direto de `domain/`/`application/`.
+- [ ] A única peça de código que instancia infraestrutura concreta (`new DrizzleXRepository`, `createBcryptPasswordHasher`, etc.) é a composição — `app.ts`/`server.ts`/script de seed.
+- [ ] Rota HTTP nova valida a entrada com Zod antes de chamar o caso de uso.
+- [ ] Caso de uso, adapter e router novos têm teste no mesmo commit/sessão (não depois) — caso de uso com fakes de `test/fakes/`, adapter testando a implementação real, router via supertest.
+- [ ] `npm run lint` (as regras de `no-restricted-imports` em `eslint.config.mjs` bloqueiam mecanicamente `domain/`/`application/` importando infraestrutura — se o lint falhar por isso, é sinal de camada errada, não suprimir a regra), `npm run build` e `npm test` passam.
+- [ ] Validação de ponta a ponta via `docker compose up` antes de marcar a tarefa como concluída no backlog.
+
+### `engine/` (Go idiomático — detalhe completo em `.claude/arquitetura-engine-go.md`, **não** é o mesmo padrão do backend Node)
+
+- [ ] Fórmula/regra de negócio nova é função pura em `internal/domain/` (ou subpacote de domínio) — sem `net/http`, `database/sql`, nem import de `internal/infra`.
+- [ ] Se o domínio precisa de um colaborador externo (persistência, feed de dados), a interface é pequena (1–3 métodos) e declarada dentro do próprio `internal/domain/`, nunca numa pasta `ports/` central — o adapter concreto fica em `internal/infra/`.
+- [ ] A única peça de código que instancia adapter concreto é `cmd/api/main.go`.
+- [ ] Toda fórmula financeira tem teste (idealmente table-driven) no mesmo commit/sessão — exigência já valia desde a 1.1a (TCC cap. 7.2.4).
+- [ ] `golangci-lint run` passa (a regra `depguard` em `.golangci.yml` bloqueia mecanicamente `internal/domain/` importando infraestrutura — se falhar por isso, é sinal de camada errada, não suprimir a regra), `go build` e `go test ./...` passam.
+- [ ] Validação de ponta a ponta via `docker compose up` antes de marcar a tarefa como concluída no backlog.
+
 ## Convenções de código
 
-- **Go (motor de simulação):** `golangci-lint`, domínio separado de infraestrutura, testes unitários obrigatórios para toda fórmula financeira (cap. 7.2.4 do TCC).
-- **Node.js/TypeScript (backend gamificado):** ESLint + Prettier.
+- **Go (motor de simulação):** `golangci-lint`, domínio separado de infraestrutura, testes unitários obrigatórios para toda fórmula financeira (cap. 7.2.4 do TCC). Padrão de arquitetura em `.claude/arquitetura-engine-go.md` — Go idiomático (interfaces pequenas no ponto de consumo, pacote por conceito de domínio), não o DDD lite do backend Node.
+- **Node.js/TypeScript (backend gamificado):** ESLint + Prettier. Arquitetura DDD lite obrigatória (ver `.claude/arquitetura-backend-ddd-lite.md`) — domínio separado de infraestrutura, casos de uso injetados com ports (inversão de dependência), validação de entrada com Zod na borda HTTP, teste sempre criado junto com a implementação (não depois), sem god classes/métodos gigantes.
 - **React/TypeScript (frontend):** Vite, componentes seguindo os tokens de identidade visual (tarefa 1.0 do backlog) antes de estilizar qualquer tela.

@@ -56,6 +56,11 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-tcc}:${POSTGRES_PASSWORD:-tcc}@postgres:5432/gamification?sslmode=disable
       REDIS_URL: redis://redis:6379/1
       ENGINE_URL: http://engine:8080
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-troque-em-producao}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       postgres:
         condition: service_healthy

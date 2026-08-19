@@ -1,0 +1,34 @@
+import type { User, UserRole } from '../../domain/user'
+
+export interface NewUserInput {
+  name: string
+  email: string
+  username: string
+  passwordHash: string | null
+  // Só o script de seed (src/db/seed.ts) passa `role: 'admin'` — os casos de
+  // uso de autocadastro (RegisterUserUseCase, LoginWithGoogleUseCase) nunca
+  // definem esse campo (RNF07).
+  role?: UserRole
+}
+
+export interface IdentityRecord {
+  id: string
+  userId: string
+  providerName: string
+  providerAccountId: string
+}
+
+export interface NewIdentityInput {
+  userId: string
+  providerName: string
+  providerAccountId: string
+}
+
+export interface UserRepository {
+  findByEmail(email: string): Promise<User | undefined>
+  findByUsername(username: string): Promise<User | undefined>
+  findById(id: string): Promise<User | undefined>
+  createUser(input: NewUserInput): Promise<User>
+  findIdentity(providerName: string, providerAccountId: string): Promise<IdentityRecord | undefined>
+  createIdentity(input: NewIdentityInput): Promise<IdentityRecord>
+}

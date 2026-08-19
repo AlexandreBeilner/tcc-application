@@ -12,6 +12,28 @@ linters:
     - errcheck
     - bodyclose
     - unconvert
+    - depguard
+  settings:
+    # domain/ nunca importa infraestrutura — ver .claude/arquitetura-engine-go.md.
+    # Reforço mecânico da mesma regra que o backend Node aplica via ESLint
+    # (no-restricted-imports); aqui quebra `golangci-lint run`, não só o
+    # code review.
+    depguard:
+      rules:
+        domain:
+          files:
+            - "**/internal/domain/**"
+          deny:
+            - pkg: "net/http"
+              desc: "domain não pode depender de infraestrutura HTTP — ver .claude/arquitetura-engine-go.md"
+            - pkg: "database/sql"
+              desc: "domain não pode depender de acesso a banco direto — ver .claude/arquitetura-engine-go.md"
+            - pkg: "tcc-investimentos/engine/internal/infra"
+              desc: "domain não pode importar internal/infra — injete via interface definida no próprio domain — ver .claude/arquitetura-engine-go.md"
+            - pkg: "github.com/lib/pq"
+              desc: "domain não pode depender de driver de banco — ver .claude/arquitetura-engine-go.md"
+            - pkg: "github.com/golang-migrate/migrate"
+              desc: "domain não pode depender de ferramenta de migration — ver .claude/arquitetura-engine-go.md"
 
 issues:
   exclude-dirs:

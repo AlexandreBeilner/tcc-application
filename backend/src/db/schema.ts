@@ -48,7 +48,9 @@ export const userIdentities = pgTable(
     refreshToken: text('refresh_token'),
     tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
   },
-  (table) => [unique('user_identities_provider_unique').on(table.providerName, table.providerAccountId)],
+  (table) => [
+    unique('user_identities_provider_unique').on(table.providerName, table.providerAccountId),
+  ],
 )
 
 export const achievements = pgTable('achievements', {
@@ -87,7 +89,10 @@ export const lessons = pgTable(
     unlocksDescription: text('unlocks_description'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [unique('lessons_code_unique').on(table.code), unique('lessons_sort_order_unique').on(table.sortOrder)],
+  (table) => [
+    unique('lessons_code_unique').on(table.code),
+    unique('lessons_sort_order_unique').on(table.sortOrder),
+  ],
 )
 
 export const userLessonProgress = pgTable(

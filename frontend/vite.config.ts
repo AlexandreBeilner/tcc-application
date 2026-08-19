@@ -14,6 +14,7 @@ export default defineConfig({
     proxy: {
       '/health': GATEWAY_URL,
       '/status': GATEWAY_URL,
+      '/auth': GATEWAY_URL,
     },
   },
   test: {

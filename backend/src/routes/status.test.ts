@@ -22,10 +22,7 @@ describe('GET /status', () => {
   })
 
   it('reporta engine unreachable quando a chamada falha', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('connection refused')),
-    )
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connection refused')))
 
     const res = await request(createApp()).get('/status')
     expect(res.status).toBe(200)
