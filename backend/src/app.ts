@@ -10,6 +10,7 @@ import { GetCurrentUserUseCase } from './modules/auth/application/useCases/getCu
 import { LoginUserUseCase } from './modules/auth/application/useCases/loginUser'
 import { LoginWithGoogleUseCase } from './modules/auth/application/useCases/loginWithGoogle'
 import { RegisterUserUseCase } from './modules/auth/application/useCases/registerUser'
+import { createEngineAccountProvisioner } from './modules/auth/infrastructure/engine/engineAccountProvisioner'
 import {
   createDisabledGoogleIdentityProvider,
   createGoogleIdentityProvider,
@@ -54,14 +55,23 @@ export function createApp(deps: AppDeps = {}): Express {
     createJwtTokenIssuer(process.env.JWT_SECRET ?? 'dev-secret-troque-em-producao')
   const googleIdentityProvider = deps.googleIdentityProvider ?? resolveGoogleIdentityProvider()
   const passwordHasher = createBcryptPasswordHasher()
+  const accountProvisioner = createEngineAccountProvisioner(
+    process.env.ENGINE_URL ?? 'http://localhost:8080',
+  )
 
-  const registerUser = new RegisterUserUseCase(userRepository, passwordHasher, tokenIssuer)
+  const registerUser = new RegisterUserUseCase(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+    accountProvisioner,
+  )
   const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
   const loginWithGoogle = new LoginWithGoogleUseCase(
     userRepository,
     googleIdentityProvider,
     tokenIssuer,
+    accountProvisioner,
   )
   const authMiddleware = createAuthMiddleware(tokenIssuer)
 

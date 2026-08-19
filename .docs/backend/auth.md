@@ -18,7 +18,8 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `400` — payload não bate com o schema (campo faltando, e-mail inválido, senha curta, username com caractere inválido etc).
   - `409` — e-mail já cadastrado.
   - `409` — username já em uso.
-- **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). Emite JWT válido por 7 dias assinado com `{ sub: userId, role }`.
+  - `500` — motor de simulação indisponível ao abrir a conta (ver regra abaixo) — cai no handler de erro padrão do Express.
+- **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). Em seguida abre a conta do usuário no motor de simulação (`POST /accounts`, ver `.docs/engine/account.md`) com o capital inicial padronizado (RNF06) — se essa chamada falhar, o cadastro inteiro falha (não fica usuário sem conta). Emite JWT válido por 7 dias assinado com `{ sub: userId, role }`.
 
 ---
 
@@ -52,7 +53,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Erros:**
   - `400` — `code` ausente na query.
   - `502` — falha ao trocar o `code` por token junto ao Google, ou payload do Google incompleto (sem `sub`/`email`).
-- **Regra:** `LoginWithGoogleUseCase`. Se já existe `user_identities` pra esse `(google, sub)`, reaproveita o usuário. Senão, tenta casar por e-mail com uma conta já existente (criada via e-mail/senha) — se achar, só cria a identidade nova, sem duplicar o usuário. Se não achar nada, cria usuário novo com `password_hash: null` e username derivado do e-mail (com sufixo numérico se já estiver em uso). Sempre `role: 'user'`.
+- **Regra:** `LoginWithGoogleUseCase`. Se já existe `user_identities` pra esse `(google, sub)`, reaproveita o usuário. Senão, tenta casar por e-mail com uma conta já existente (criada via e-mail/senha) — se achar, só cria a identidade nova, sem duplicar o usuário. Se não achar nada, cria usuário novo com `password_hash: null` e username derivado do e-mail (com sufixo numérico se já estiver em uso) — só nesse caso (usuário novo) abre conta no motor de simulação com o capital inicial padronizado (RNF06), igual ao `POST /auth/register`. Sempre `role: 'user'`.
 
 ---
 

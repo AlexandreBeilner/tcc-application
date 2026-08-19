@@ -1,5 +1,6 @@
 import { EmailAlreadyInUseError, UsernameAlreadyInUseError } from '../../domain/errors'
 import type { User } from '../../domain/user'
+import type { AccountProvisioner } from '../ports/accountProvisioner'
 import type { PasswordHasher } from '../ports/passwordHasher'
 import type { TokenIssuer } from '../ports/tokenIssuer'
 import type { UserRepository } from '../ports/userRepository'
@@ -21,6 +22,7 @@ export class RegisterUserUseCase {
     private readonly userRepository: UserRepository,
     private readonly passwordHasher: PasswordHasher,
     private readonly tokenIssuer: TokenIssuer,
+    private readonly accountProvisioner: AccountProvisioner,
   ) {}
 
   async execute(input: RegisterUserInput): Promise<RegisterUserResult> {
@@ -40,6 +42,10 @@ export class RegisterUserUseCase {
       username: input.username,
       passwordHash,
     })
+
+    // Capital inicial padronizado (RNF06) — toda conta nova nasce com o
+    // mesmo saldo simulado, aberta no motor de simulação.
+    await this.accountProvisioner.provision(user.id)
 
     const token = this.tokenIssuer.issue({ sub: user.id, role: user.role })
     return { user, token }

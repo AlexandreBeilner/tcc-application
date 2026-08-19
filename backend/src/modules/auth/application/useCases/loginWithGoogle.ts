@@ -1,4 +1,5 @@
 import type { User } from '../../domain/user'
+import type { AccountProvisioner } from '../ports/accountProvisioner'
 import type { GoogleIdentityProvider } from '../ports/googleIdentityProvider'
 import type { TokenIssuer } from '../ports/tokenIssuer'
 import type { UserRepository } from '../ports/userRepository'
@@ -18,6 +19,7 @@ export class LoginWithGoogleUseCase {
     private readonly userRepository: UserRepository,
     private readonly googleIdentityProvider: GoogleIdentityProvider,
     private readonly tokenIssuer: TokenIssuer,
+    private readonly accountProvisioner: AccountProvisioner,
   ) {}
 
   async execute(input: LoginWithGoogleInput): Promise<LoginWithGoogleResult> {
@@ -45,6 +47,9 @@ export class LoginWithGoogleUseCase {
         username,
         passwordHash: null,
       })
+      // Capital inicial padronizado (RNF06) — só na criação, nunca ao
+      // reaproveitar uma conta/identidade já existente.
+      await this.accountProvisioner.provision(user.id)
     }
 
     if (!existingIdentity) {

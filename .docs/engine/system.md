@@ -1,6 +1,6 @@
 # `system` — health check
 
-Rota de infraestrutura, fora de qualquer pacote de domínio (`engine/internal/infra/httpserver/`). Este é o único endpoint do motor até agora — a partir da Semana 2 (motor de renda fixa), cada pacote de domínio novo ganha seu arquivo aqui (ver `.claude/arquitetura-engine-go.md` e o template em `.docs/README.md`).
+Rota de infraestrutura, fora de qualquer pacote de domínio (`engine/internal/infra/httpserver/`). A partir da Semana 2 (motor de renda fixa), cada pacote de domínio novo ganha seu arquivo aqui (ver `.claude/arquitetura-engine-go.md` e o template em `.docs/README.md`) — o primeiro é `account` (tarefa 1.5), documentado em `.docs/engine/account.md`.
 
 ---
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { InvalidCredentialsError } from '../../domain/errors'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
+import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
 import { RegisterUserUseCase } from './registerUser'
 import { LoginUserUseCase } from './loginUser'
@@ -10,7 +11,12 @@ function build() {
   const userRepository = createFakeUserRepository()
   const passwordHasher = createFakePasswordHasher()
   const tokenIssuer = createFakeTokenIssuer()
-  const registerUser = new RegisterUserUseCase(userRepository, passwordHasher, tokenIssuer)
+  const registerUser = new RegisterUserUseCase(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+    createFakeAccountProvisioner(),
+  )
   const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
   return { registerUser, loginUser }
 }

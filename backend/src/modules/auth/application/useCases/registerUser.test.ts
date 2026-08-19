@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EmailAlreadyInUseError, UsernameAlreadyInUseError } from '../../domain/errors'
+import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
@@ -7,12 +8,14 @@ import { RegisterUserUseCase } from './registerUser'
 
 function build() {
   const userRepository = createFakeUserRepository()
+  const accountProvisioner = createFakeAccountProvisioner()
   const useCase = new RegisterUserUseCase(
     userRepository,
     createFakePasswordHasher(),
     createFakeTokenIssuer(),
+    accountProvisioner,
   )
-  return { userRepository, useCase }
+  return { userRepository, accountProvisioner, useCase }
 }
 
 describe('RegisterUserUseCase', () => {
@@ -29,6 +32,19 @@ describe('RegisterUserUseCase', () => {
     expect(result.user.role).toBe('user')
     expect(result.user.passwordHash).toBe('hashed:senha-forte-123')
     expect(result.token).toBe(`fake-token:${result.user.id}:user`)
+  })
+
+  it('abre conta no motor de simulação com capital inicial padronizado (RNF06)', async () => {
+    const { accountProvisioner, useCase } = build()
+
+    const result = await useCase.execute({
+      name: 'Alexandre',
+      email: 'alexandre@example.com',
+      username: 'alexandreb',
+      password: 'senha-forte-123',
+    })
+
+    expect(accountProvisioner.provisionedUserIds).toEqual([result.user.id])
   })
 
   it('rejeita e-mail já cadastrado', async () => {

@@ -9,9 +9,12 @@ import (
 )
 
 // New monta o *http.Server com as rotas do motor de simulação registradas.
-func New(addr string) *http.Server {
+// accounts pode ser nil (ex: sem DATABASE_URL configurado) — POST
+// /accounts responde 503 nesse caso, em vez de panicar.
+func New(addr string, accounts accountOpener) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
+	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
 
 	return &http.Server{
 		Addr:         addr,
@@ -23,8 +26,8 @@ func New(addr string) *http.Server {
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string) error {
-	srv := New(addr)
+func Run(addr string, accounts accountOpener) error {
+	srv := New(addr, accounts)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
 }

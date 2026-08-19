@@ -6,6 +6,7 @@ import { GetCurrentUserUseCase } from '../../application/useCases/getCurrentUser
 import { LoginUserUseCase } from '../../application/useCases/loginUser'
 import { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
 import { RegisterUserUseCase } from '../../application/useCases/registerUser'
+import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeGoogleIdentityProvider } from '../../test/fakes/fakeGoogleIdentityProvider'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
@@ -16,6 +17,7 @@ function buildApp() {
   const userRepository = createFakeUserRepository()
   const passwordHasher = createFakePasswordHasher()
   const tokenIssuer = createFakeTokenIssuer()
+  const accountProvisioner = createFakeAccountProvisioner()
   const googleIdentityProvider = createFakeGoogleIdentityProvider({
     providerAccountId: 'google-123',
     email: 'google@example.com',
@@ -27,13 +29,19 @@ function buildApp() {
   app.use(express.json())
   app.use(
     createAuthRouter({
-      registerUser: new RegisterUserUseCase(userRepository, passwordHasher, tokenIssuer),
+      registerUser: new RegisterUserUseCase(
+        userRepository,
+        passwordHasher,
+        tokenIssuer,
+        accountProvisioner,
+      ),
       loginUser: new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer),
       getCurrentUser: new GetCurrentUserUseCase(userRepository),
       loginWithGoogle: new LoginWithGoogleUseCase(
         userRepository,
         googleIdentityProvider,
         tokenIssuer,
+        accountProvisioner,
       ),
       googleIdentityProvider,
       authMiddleware,
