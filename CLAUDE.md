@@ -21,6 +21,10 @@ Toda decisão de produto e arquitetura já está fechada nestes três documentos
 
 Ao pegar uma tarefa, sempre confira a numeração (ex: RF17, tela 4.5, tarefa 5.4) contra esses documentos — as referências cruzadas são intencionais e existem pra evitar retrabalho.
 
+## Documentação de endpoints (`.docs/`)
+
+Diferente de `.claude/` (decisão de produto/arquitetura fechada), `.docs/` documenta o contrato HTTP atual — payload, resposta de sucesso, erros possíveis e regra de negócio resumida de cada endpoint. `.docs/backend/` (um arquivo por módulo, ex: `auth.md`) e `.docs/engine/` (idem, ainda quase vazio). Template e regra de atualização em `.docs/README.md`. **Toda rota nova ou alterada é documentada no mesmo commit/sessão que a cria** — não é um passo à parte.
+
 ## Arquitetura — resumo rápido
 
 | Serviço | Stack | Container? |
@@ -65,6 +69,7 @@ Estas são decisões já fechadas que geram retrabalho se ignoradas:
 - [ ] Rota HTTP nova valida a entrada com Zod antes de chamar o caso de uso.
 - [ ] Caso de uso, adapter e router novos têm teste no mesmo commit/sessão (não depois) — caso de uso com fakes de `test/fakes/`, adapter testando a implementação real, router via supertest.
 - [ ] `npm run lint` (as regras de `no-restricted-imports` em `eslint.config.mjs` bloqueiam mecanicamente `domain/`/`application/` importando infraestrutura — se o lint falhar por isso, é sinal de camada errada, não suprimir a regra), `npm run build` e `npm test` passam.
+- [ ] Rota HTTP nova ou alterada está documentada em `.docs/backend/<módulo>.md` (payload, sucesso, erros, regra — template em `.docs/README.md`).
 - [ ] Validação de ponta a ponta via `docker compose up` antes de marcar a tarefa como concluída no backlog.
 
 ### `engine/` (Go idiomático — detalhe completo em `.claude/arquitetura-engine-go.md`, **não** é o mesmo padrão do backend Node)
@@ -74,6 +79,7 @@ Estas são decisões já fechadas que geram retrabalho se ignoradas:
 - [ ] A única peça de código que instancia adapter concreto é `cmd/api/main.go`.
 - [ ] Toda fórmula financeira tem teste (idealmente table-driven) no mesmo commit/sessão — exigência já valia desde a 1.1a (TCC cap. 7.2.4).
 - [ ] `golangci-lint run` passa (a regra `depguard` em `.golangci.yml` bloqueia mecanicamente `internal/domain/` importando infraestrutura — se falhar por isso, é sinal de camada errada, não suprimir a regra), `go build` e `go test ./...` passam.
+- [ ] Rota HTTP nova ou alterada está documentada em `.docs/engine/<pacote>.md` (payload, sucesso, erros, regra — template em `.docs/README.md`).
 - [ ] Validação de ponta a ponta via `docker compose up` antes de marcar a tarefa como concluída no backlog.
 
 ## Convenções de código
