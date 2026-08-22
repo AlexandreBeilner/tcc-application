@@ -1,0 +1,56 @@
+name: Engine CI
+
+# Motor de simulação (Go) — tarefa 2.6 do backlog: suíte de testes das
+# fórmulas de renda fixa (cap. 7.2.4 do TCC) rodando em CI. Escopo
+# restrito a engine/ via `paths` — backend/frontend têm seus próprios
+# pipelines de CI quando existirem.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine-ci.yml"
+  pull_request:
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine-ci.yml"
+
+jobs:
+  test:
+    name: gofmt, vet, lint, build e testes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: engine/go.sum
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Arquivos fora do padrão gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      # golangci-lint v2, não v1 — o schema `version: "2"` de
+      # engine/.golangci.yml só é interpretado corretamente pela major v2
+      # (v1.x ignora as regras de depguard silenciosamente e falso-positiva
+      # todo o projeto). Versão pinada, não `:latest`, pra reprodutibilidade.
+      - name: golangci-lint
+        run: docker run --rm -v "${{ github.workspace }}/engine:/app" -w /app golangci/golangci-lint:v2.12.2 golangci-lint run ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test ./... -cover -v
