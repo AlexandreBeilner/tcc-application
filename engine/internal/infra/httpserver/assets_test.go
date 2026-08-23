@@ -90,7 +90,7 @@ func getCatalog(t *testing.T, reader catalogReader, path string) *httptest.Respo
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

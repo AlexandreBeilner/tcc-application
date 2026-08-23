@@ -2,6 +2,9 @@ import express, { Express } from 'express'
 import { createDb } from './db/client'
 import { healthRouter } from './routes/health'
 import { statusRouter } from './routes/status'
+import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
+import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/triggerMacroEvent'
+import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
@@ -55,9 +58,9 @@ export function createApp(deps: AppDeps = {}): Express {
     createJwtTokenIssuer(process.env.JWT_SECRET ?? 'dev-secret-troque-em-producao')
   const googleIdentityProvider = deps.googleIdentityProvider ?? resolveGoogleIdentityProvider()
   const passwordHasher = createBcryptPasswordHasher()
-  const accountProvisioner = createEngineAccountProvisioner(
-    process.env.ENGINE_URL ?? 'http://localhost:8080',
-  )
+  const engineUrl = process.env.ENGINE_URL ?? 'http://localhost:8080'
+  const accountProvisioner = createEngineAccountProvisioner(engineUrl)
+  const macroEventTrigger = createEngineMacroEventTrigger(engineUrl)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -74,6 +77,7 @@ export function createApp(deps: AppDeps = {}): Express {
     accountProvisioner,
   )
   const authMiddleware = createAuthMiddleware(tokenIssuer)
+  const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
 
   const app = express()
   app.use(express.json())
@@ -90,5 +94,6 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminPingRouter(authMiddleware))
+  app.use(createAdminMacroEventsRouter({ triggerMacroEvent, authMiddleware }))
   return app
 }

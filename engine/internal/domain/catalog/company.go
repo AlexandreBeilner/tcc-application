@@ -20,6 +20,14 @@ var validSectors = map[Sector]bool{
 	SectorVarejo: true, SectorEnergia: true, SectorTecnologia: true,
 }
 
+// IsValidSector indica se sector é um dos 6 valores fixos da spec 3.3.2 —
+// usado pela tarefa 4.4 (disparo de evento macro) pra devolver 400 num
+// setor desconhecido em vez de repassar a string direto pro enum do banco,
+// mesmo padrão de IsValidAssetType (tarefa 3.10).
+func IsValidSector(sector Sector) bool {
+	return validSectors[sector]
+}
+
 // DefaultReportFrequencyDays é o default do schema (company_fundamentals
 // migration 000001) e o valor fixado pela spec 3.3.1 (ciclo quinzenal
 // global, tarefa 3.6) — não configurável por empresa nesta fase.

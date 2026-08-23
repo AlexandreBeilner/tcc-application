@@ -1,0 +1,213 @@
+// Package macroeventtrigger orquestra macroevent.NewEvent/NewTarget (4.1),
+// o catálogo de templates (macroevent.Templates, 4.3) e o sorteio de
+// efeitos por banda (macroevent.magnitude.go, 4.2) contra o dia simulado
+// corrente do Temporizador (3.11) e a persistência real — o disparo de um
+// evento macro ponta a ponta (tarefa 4.4). Mesma relação que
+// orderexecution tem com orderbook, ou fixedincomeexecution com
+// fixedincomeposition: o pacote "puro" (macroevent) não sabe de
+// persistência nem de dia simulado, este pacote junta os dois.
+package macroeventtrigger
+
+import (
+	"context"
+	"errors"
+	"math/rand"
+	"time"
+
+	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/macroevent"
+)
+
+var (
+	// ErrUnknownTemplate é devolvido quando TemplateKey não bate com
+	// nenhum macroevent.Templates conhecido.
+	ErrUnknownTemplate = errors.New("template de evento macro desconhecido")
+	// ErrMissingFields é devolvido quando TemplateKey não foi informado e
+	// algum dos campos obrigatórios do evento avulso também não foi —
+	// segunda camada de validação (o backend já valida isso com Zod antes
+	// de chamar esta rota; esta checagem não é redundância acidental, é
+	// defesa em profundidade documentada no critério de aceite da 4.4).
+	ErrMissingFields = errors.New("evento macro avulso exige title, narrative, direction, magnitude_band, affects_price e affects_fundamentals")
+	// ErrUnknownSector é devolvido quando um Target de escopo setor não
+	// bate com nenhum dos 6 setores fixos da spec 3.3.2.
+	ErrUnknownSector = errors.New("setor de alvo de evento macro desconhecido")
+)
+
+// TargetInput é um alvo recebido no payload de disparo, antes de validado
+// — mesma forma de macroevent.Target, exatamente um dos três preenchido.
+type TargetInput struct {
+	Sector    *string
+	RiskClass *string
+	AssetID   *string
+}
+
+// Request é o disparo recebido via POST /macro-events (tarefa 4.4). Com
+// TemplateKey preenchido, só Targets/CreatedBy vêm do payload — os demais
+// campos são resolvidos do catálogo (macroevent.FindTemplate) e qualquer
+// valor enviado neles é ignorado. Sem TemplateKey, todos os campos textuais
+// e de efeito são obrigatórios (evento avulso, tela 10.2, RF13).
+type Request struct {
+	TemplateKey         *string
+	Title               *string
+	Narrative           *string
+	Direction           *macroevent.Direction
+	MagnitudeBand       *macroevent.Band
+	AffectsPrice        *bool
+	AffectsFundamentals *bool
+	Targets             []TargetInput
+	CreatedBy           *string
+}
+
+// Repository é o colaborador que Service precisa pra ler o dia simulado
+// corrente (Temporizador, 3.11) e persistir o evento disparado —
+// implementado por *db.MacroEventRepository, injetado em NewService.
+type Repository interface {
+	// LoadCurrentDay lê market_calendar.current_day — erro (tipicamente
+	// db.ErrMarketCalendarNotInitialized) se o Temporizador nunca rodou.
+	LoadCurrentDay(ctx context.Context) (int, error)
+	// Persist grava o evento + seus alvos numa única transação e devolve
+	// o id gerado pelo banco.
+	Persist(ctx context.Context, event macroevent.Event) (string, error)
+}
+
+// Service dispara um evento macro ponta a ponta (tarefa 4.4).
+type Service struct {
+	repo Repository
+	rng  *rand.Rand
+}
+
+// NewService monta o Service. Diferente do padrão SIMULATION_SEED usado
+// pelo resto do motor (Selic/preço/fundamentos do Mercado Ao Vivo, cuja
+// reprodutibilidade dia a dia é decisão de engenharia, não RNF08 — que é
+// sobre a trilha sandbox de lições, não o Mercado Ao Vivo, spec seção 8),
+// o sorteio do efeito de um evento macro disparado pelo admin não tem um
+// índice determinístico natural (não é "o N-ésimo dia" nem "o N-ésimo
+// ciclo") — é uma ação humana pontual, não um passo de uma série simulada.
+// Por isso o rng usado aqui deriva do relógio real (time.Now().UnixNano())
+// em vez de SIMULATION_SEED, mesmo raciocínio de "rolar um dado" a cada
+// disparo em vez de reproduzir uma série.
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo, rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
+}
+
+// Trigger resolve o evento (template ou avulso), valida a definição
+// (macroevent.NewEvent/NewTarget), lê o dia simulado corrente, deriva a
+// duração e sorteia os efeitos habilitados (macroevent magnitude.go/
+// lag.go, tarefa 4.2), calcula o dia de relatório de fundamentos quando
+// aplicável e persiste tudo numa transação. Devolve o id gerado e o Event
+// completo (já com os campos de disparo preenchidos).
+func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.Event, error) {
+	title, narrative := req.Title, req.Narrative
+	direction, band := req.Direction, req.MagnitudeBand
+	affectsPrice, affectsFundamentals := req.AffectsPrice, req.AffectsFundamentals
+
+	if req.TemplateKey != nil {
+		tpl, found := macroevent.FindTemplate(*req.TemplateKey)
+		if !found {
+			return "", macroevent.Event{}, ErrUnknownTemplate
+		}
+		title, narrative = &tpl.Title, &tpl.Narrative
+		direction, band = &tpl.Direction, &tpl.Band
+		affectsPrice, affectsFundamentals = &tpl.AffectsPrice, &tpl.AffectsFundamentals
+	}
+
+	if title == nil || narrative == nil || direction == nil || band == nil || affectsPrice == nil || affectsFundamentals == nil {
+		return "", macroevent.Event{}, ErrMissingFields
+	}
+
+	targets := make([]macroevent.Target, 0, len(req.Targets))
+	for _, t := range req.Targets {
+		var sector *catalog.Sector
+		if t.Sector != nil {
+			s := catalog.Sector(*t.Sector)
+			if !catalog.IsValidSector(s) {
+				return "", macroevent.Event{}, ErrUnknownSector
+			}
+			sector = &s
+		}
+
+		target, err := macroevent.NewTarget(sector, t.RiskClass, t.AssetID, targetMetric(*affectsPrice, *affectsFundamentals))
+		if err != nil {
+			return "", macroevent.Event{}, err
+		}
+		targets = append(targets, target)
+	}
+
+	event, err := macroevent.NewEvent(req.TemplateKey, *title, *narrative, *direction, *band, *affectsPrice, *affectsFundamentals, targets, req.CreatedBy)
+	if err != nil {
+		return "", macroevent.Event{}, err
+	}
+
+	currentDay, err := s.repo.LoadCurrentDay(ctx)
+	if err != nil {
+		return "", macroevent.Event{}, err
+	}
+	event.TriggeredOnDay = currentDay
+
+	durationDays, err := macroevent.DurationDays(event.MagnitudeBand)
+	if err != nil {
+		return "", macroevent.Event{}, err
+	}
+	event.DurationDays = durationDays
+
+	if event.AffectsPrice {
+		pct, err := macroevent.SamplePriceEffectPct(event.MagnitudeBand, event.Direction, s.rng)
+		if err != nil {
+			return "", macroevent.Event{}, err
+		}
+		event.PriceEffectPct = &pct
+	}
+
+	if event.AffectsFundamentals {
+		pct, err := macroevent.SampleFundamentalsEffectPct(event.MagnitudeBand, event.Direction, s.rng)
+		if err != nil {
+			return "", macroevent.Event{}, err
+		}
+		event.FundamentalsEffectPct = &pct
+
+		reportDay := macroevent.AssignReportDay(currentDay, fundamentals.DefaultReportFrequencyDays, nextGlobalReportDay(currentDay))
+		event.FundamentalsReportDay = &reportDay
+	}
+
+	id, err := s.repo.Persist(ctx, event)
+	if err != nil {
+		return "", macroevent.Event{}, err
+	}
+	return id, event, nil
+}
+
+// targetMetric deriva o Metric obrigatório de um Target (coluna NOT NULL
+// affected_metric, herdada do DER original) a partir dos efeitos
+// habilitados no evento — não é escolhido pelo admin (o payload de target
+// só tem sector/risk_class/asset_id, spec da tarefa 4.4). Decisão de
+// implementação: nossa aplicação nunca lê esse campo de volta pra decidir
+// comportamento (o efeito de fundamentos vai inteiro pra net_revenue via
+// fundamentals.ActualGrowthWithMacroEffect, tarefa 4.2, não é dividido por
+// indicador contábil) — price quando o evento afeta preço (ainda que
+// também afete fundamentos, é o efeito mais imediato/visível), senão
+// net_income como rótulo genérico de fundamentos.
+func targetMetric(affectsPrice, affectsFundamentals bool) macroevent.Metric {
+	if affectsPrice {
+		return macroevent.MetricPrice
+	}
+	if affectsFundamentals {
+		return macroevent.MetricNetIncome
+	}
+	return macroevent.MetricPrice
+}
+
+// nextGlobalReportDay devolve o próximo dia simulado (1-based, podendo ser
+// o próprio currentDay se ele já for um dia de relatório) em que o ciclo
+// de relatório global fecha — spec 3.3.1: todas as empresas compartilham o
+// mesmo ciclo, disparado de uma vez pelo Temporizador, por isso não é
+// necessário resolver a agenda de relatório por empresa/setor individual
+// pra calcular macro_events.fundamentals_report_day (um único valor por
+// evento, não por alvo).
+func nextGlobalReportDay(currentDay int) int {
+	freq := fundamentals.DefaultReportFrequencyDays
+	if currentDay%freq == 0 {
+		return currentDay
+	}
+	return (currentDay/freq + 1) * freq
+}
