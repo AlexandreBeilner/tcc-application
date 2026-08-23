@@ -48,11 +48,12 @@ func toAssetSummaryResponse(rec catalog.AssetRecord) assetSummaryResponse {
 // fixedIncomeDetailResponse é o payload extra de GET /assets/:id pra
 // qualquer um dos 8 asset_type de renda fixa (RF21).
 type fixedIncomeDetailResponse struct {
-	InterestRate     *float64   `json:"interest_rate,omitempty"`
-	MaturityDate     *time.Time `json:"maturity_date,omitempty"`
-	IssuerType       string     `json:"issuer_type"`
-	TaxExempt        bool       `json:"tax_exempt"`
-	CreditRiskRating *string    `json:"credit_risk_rating,omitempty"`
+	InterestRate      *float64   `json:"interest_rate,omitempty"`
+	MaturityDate      *time.Time `json:"maturity_date,omitempty"`
+	IssuerType        string     `json:"issuer_type"`
+	TaxExempt         bool       `json:"tax_exempt"`
+	CreditRiskRating  *string    `json:"credit_risk_rating,omitempty"`
+	MinimumInvestment float64    `json:"minimum_investment"`
 }
 
 // equityCompanyResponse é a empresa emissora embutida no payload de ação —
@@ -225,11 +226,12 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 			}
 			if found {
 				resp.FixedIncome = &fixedIncomeDetailResponse{
-					InterestRate:     spec.InterestRate,
-					MaturityDate:     spec.MaturityDate,
-					IssuerType:       string(spec.IssuerType),
-					TaxExempt:        spec.TaxExempt,
-					CreditRiskRating: spec.CreditRiskRating,
+					InterestRate:      spec.InterestRate,
+					MaturityDate:      spec.MaturityDate,
+					IssuerType:        string(spec.IssuerType),
+					TaxExempt:         spec.TaxExempt,
+					CreditRiskRating:  spec.CreditRiskRating,
+					MinimumInvestment: spec.MinimumInvestment,
 				}
 			}
 		}

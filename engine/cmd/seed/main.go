@@ -47,14 +47,14 @@ func main() {
 	seedFIITijolo(ctx, repo)
 	seedFIIPapel(ctx, repo)
 
-	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 10.50)
-	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75)
-	seedFixedIncome(ctx, repo, "NTNB2035", "Tesouro IPCA+ 2035", fixedincome.ProductTesouroIPCA, "", 6.00)
-	seedFixedIncome(ctx, repo, "CDB2027", "CDB Banco Invest 2027", fixedincome.ProductCDB, "", 12.00)
-	seedFixedIncome(ctx, repo, "LCI2026", "LCI Banco Invest 2026", fixedincome.ProductLCI, "", 9.50)
-	seedFixedIncome(ctx, repo, "LCA2026", "LCA Banco Invest 2026", fixedincome.ProductLCA, "", 9.50)
-	seedFixedIncome(ctx, repo, "CRI2028", "CRI Securitizadora X 2028", fixedincome.ProductCRI, "AA", 11.00)
-	seedFixedIncome(ctx, repo, "CRA2028", "CRA Securitizadora X 2028", fixedincome.ProductCRA, "A", 10.50)
+	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 10.50, 30.00)
+	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75, 30.00)
+	seedFixedIncome(ctx, repo, "NTNB2035", "Tesouro IPCA+ 2035", fixedincome.ProductTesouroIPCA, "", 6.00, 30.00)
+	seedFixedIncome(ctx, repo, "CDB2027", "CDB Banco Invest 2027", fixedincome.ProductCDB, "", 12.00, 100.00)
+	seedFixedIncome(ctx, repo, "LCI2026", "LCI Banco Invest 2026", fixedincome.ProductLCI, "", 9.50, 500.00)
+	seedFixedIncome(ctx, repo, "LCA2026", "LCA Banco Invest 2026", fixedincome.ProductLCA, "", 9.50, 500.00)
+	seedFixedIncome(ctx, repo, "CRI2028", "CRI Securitizadora X 2028", fixedincome.ProductCRI, "AA", 11.00, 1000.00)
+	seedFixedIncome(ctx, repo, "CRA2028", "CRA Securitizadora X 2028", fixedincome.ProductCRA, "A", 10.50, 1000.00)
 
 	log.Print("seed do catálogo mínimo concluído")
 }
@@ -200,7 +200,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) {
 	}
 }
 
-func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, name string, productType fixedincome.ProductType, creditRiskRating string, interestRate float64) {
+func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, name string, productType fixedincome.ProductType, creditRiskRating string, interestRate, minimumInvestment float64) {
 	assetType := catalog.AssetType(productType)
 	id, existed := ensureAsset(ctx, repo, ticker, name, assetType, nil)
 	if existed {
@@ -213,7 +213,7 @@ func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, na
 	}
 
 	maturityDate := time.Now().AddDate(2, 0, 0)
-	if err := repo.CreateFixedIncomeAsset(ctx, id, product, interestRate, maturityDate); err != nil {
+	if err := repo.CreateFixedIncomeAsset(ctx, id, product, interestRate, maturityDate, minimumInvestment); err != nil {
 		log.Fatalf("erro ao criar fixed_income_assets pra %s: %v", ticker, err)
 	}
 }

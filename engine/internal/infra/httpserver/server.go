@@ -20,10 +20,12 @@ type catalogReader interface {
 
 // New monta o *http.Server com as rotas do motor de simulação registradas.
 // accounts pode ser nil (ex: sem DATABASE_URL configurado) — POST
-// /accounts responde 503 nesse caso; catalog, temporizador e orders podem
-// ser nil também — GET /assets, /assets/:id, /companies/:id, POST
-// /admin/tick e POST /orders respondem 503 nesse caso, em vez de panicar.
-func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter) *http.Server {
+// /accounts responde 503 nesse caso; catalog, temporizador, orders e
+// fixedIncome podem ser nil também — GET /assets, /assets/:id,
+// /companies/:id, POST /admin/tick, POST /orders e POST
+// /fixed-income/purchases|redemptions respondem 503 nesse caso, em vez de
+// panicar.
+func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
@@ -32,6 +34,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /companies/{id}", handleGetCompany(catalog))
 	mux.HandleFunc("POST /admin/tick", handleAdminTick(temporizador))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
+	mux.HandleFunc("POST /fixed-income/purchases", handleFixedIncomePurchase(catalog, fixedIncome))
+	mux.HandleFunc("POST /fixed-income/redemptions", handleFixedIncomeRedemption(catalog, fixedIncome))
 
 	return &http.Server{
 		Addr:         addr,
@@ -43,8 +47,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter) error {
-	srv := New(addr, accounts, catalog, temporizador, orders)
+func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor) error {
+	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
 }

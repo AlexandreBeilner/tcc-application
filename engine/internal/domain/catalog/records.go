@@ -37,13 +37,16 @@ type IssuedAsset struct {
 // fixedincome.IssuerType pra classificação e acrescenta
 // interest_rate/maturity_date, dado ilustrativo de catálogo sem fórmula de
 // geração ainda (mesma nota da tarefa 3.9), que não faz parte da regra de
-// negócio modelada em fixedincome.
+// negócio modelada em fixedincome. MinimumInvestment (tarefa 3.13) não é
+// ponteiro — a coluna é NOT NULL desde a migration 000006, todo produto
+// tem uma aplicação mínima.
 type FixedIncomeSpecialization struct {
-	InterestRate     *float64
-	MaturityDate     *time.Time
-	IssuerType       fixedincome.IssuerType
-	TaxExempt        bool
-	CreditRiskRating *string
+	InterestRate      *float64
+	MaturityDate      *time.Time
+	IssuerType        fixedincome.IssuerType
+	TaxExempt         bool
+	CreditRiskRating  *string
+	MinimumInvestment float64
 }
 
 // EquitySpecialization é a especialização de ação lida do catálogo

@@ -96,19 +96,19 @@ func (r *CatalogRepository) CreateVariableIncomeAsset(ctx context.Context, v cat
 }
 
 // CreateFixedIncomeAsset persiste a especialização de renda fixa de um
-// asset_id já existente. interestRate e maturityDate são dados de
-// catálogo ilustrativos (não há fórmula de geração ainda — spec não fecha
-// esses números, mesmo tratamento dado a outros parâmetros "sujeitos à
-// calibração da tarefa 8.1" nas tarefas 3.5/3.6).
-func (r *CatalogRepository) CreateFixedIncomeAsset(ctx context.Context, assetID string, product fixedincome.FixedIncomeProduct, interestRate float64, maturityDate time.Time) error {
+// asset_id já existente. interestRate, maturityDate e minimumInvestment
+// são dados de catálogo ilustrativos (não há fórmula de geração ainda —
+// spec não fecha esses números, mesmo tratamento dado a outros parâmetros
+// "sujeitos à calibração da tarefa 8.1" nas tarefas 3.5/3.6/3.13).
+func (r *CatalogRepository) CreateFixedIncomeAsset(ctx context.Context, assetID string, product fixedincome.FixedIncomeProduct, interestRate float64, maturityDate time.Time, minimumInvestment float64) error {
 	var creditRiskRating *string
 	if product.CreditRiskRating != "" {
 		creditRiskRating = &product.CreditRiskRating
 	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO fixed_income_assets (asset_id, interest_rate, maturity_date, issuer_type, tax_exempt, credit_risk_rating)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		assetID, interestRate, maturityDate, string(product.IssuerType), product.TaxExempt, creditRiskRating,
+		`INSERT INTO fixed_income_assets (asset_id, interest_rate, maturity_date, issuer_type, tax_exempt, credit_risk_rating, minimum_investment)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		assetID, interestRate, maturityDate, string(product.IssuerType), product.TaxExempt, creditRiskRating, minimumInvestment,
 	)
 	return err
 }
@@ -204,9 +204,9 @@ func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, a
 	var issuerType string
 	var creditRiskRating sql.NullString
 	err := r.db.QueryRowContext(ctx,
-		`SELECT interest_rate, maturity_date, issuer_type, tax_exempt, credit_risk_rating
+		`SELECT interest_rate, maturity_date, issuer_type, tax_exempt, credit_risk_rating, minimum_investment
 		 FROM fixed_income_assets WHERE asset_id = $1`, assetID,
-	).Scan(&spec.InterestRate, &spec.MaturityDate, &issuerType, &spec.TaxExempt, &creditRiskRating)
+	).Scan(&spec.InterestRate, &spec.MaturityDate, &issuerType, &spec.TaxExempt, &creditRiskRating, &spec.MinimumInvestment)
 	if err == sql.ErrNoRows {
 		return catalog.FixedIncomeSpecialization{}, false, nil
 	}

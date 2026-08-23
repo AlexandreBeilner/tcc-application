@@ -22,7 +22,7 @@ Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincom
 - **Autenticação:** interno, mesma observação de `GET /assets`.
 - **Payload:** `id` no path — UUID do ativo.
 - **Sucesso:** `200` → `{ id, ticker, name, type, risk_class?, is_sandbox }` mais **um** bloco extra, dependendo de `type` (RF21 — nunca reaproveita o layout de um bloco pro outro):
-  - renda fixa (8 tipos): `fixed_income: { interest_rate?, maturity_date?, issuer_type, tax_exempt, credit_risk_rating? }`.
+  - renda fixa (8 tipos): `fixed_income: { interest_rate?, maturity_date?, issuer_type, tax_exempt, credit_risk_rating?, minimum_investment }`. `minimum_investment` (tarefa 3.13) é a aplicação mínima do produto, em R$ — valor ilustrativo por tipo, sujeito à calibração da tarefa 8.1 (mesmo precedente de `interest_rate`/`maturity_date`).
   - `acao`: `equity: { company: { id, name, cnpj, sector }, share_class?, outstanding_shares? }`.
   - `etf`: `etf: { benchmark_index, methodology_summary?, holdings: [{ constituent_name, weight_pct }] }`.
   - `fii`: `fii: { fii_type, segment?, net_worth?, vacancy_rate?, indexador? }` — `vacancy_rate` só em tijolo, `indexador` só em papel (exclusão mútua de `fii.NewDetails`, tarefa 3.8).

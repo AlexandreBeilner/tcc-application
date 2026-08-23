@@ -2,7 +2,7 @@
 
 Pacote de domínio: `engine/internal/domain/orderexecution/` (`Execute`/`Service`, orquestrando `orderbook.Book`, tarefa 3.2) + `engine/internal/domain/position/` (`ApplyBuy`/`ApplySell`, recálculo de `average_price`). Persistência em `internal/infra/db/order_execution_repository.go`. Ver `.claude/arquitetura-engine-go.md` pra divisão domínio/infra.
 
-Só ativos de renda variável do mercado ao vivo (`acao`/`etf`/`fii`, `is_sandbox = false`) passam por esta rota — renda fixa tem fluxo próprio (`.docs/engine` da tarefa 3.13, ainda não implementada) e o sandbox de aprendizagem (RF12) também, ambos fora do escopo da 3.12.
+Só ativos de renda variável do mercado ao vivo (`acao`/`etf`/`fii`, `is_sandbox = false`) passam por esta rota — renda fixa tem fluxo próprio (`.docs/engine/fixedincome.md`, tarefa 3.13) e o sandbox de aprendizagem (RF12) também, ambos fora do escopo da 3.12.
 
 ---
 
