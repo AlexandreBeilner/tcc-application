@@ -18,9 +18,10 @@ func main() {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts
-		// responde 503 (ver internal/infra/httpserver/account.go).
-		if err := httpserver.Run(addr, nil); err != nil {
+		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts e
+		// as rotas de catálogo respondem 503 (ver
+		// internal/infra/httpserver/account.go e assets.go).
+		if err := httpserver.Run(addr, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -38,8 +39,9 @@ func main() {
 	defer func() { _ = pool.Close() }()
 
 	accountService := account.NewService(db.NewAccountRepository(pool))
+	catalogRepository := db.NewCatalogRepository(pool)
 
-	if err := httpserver.Run(addr, accountService); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

@@ -31,6 +31,14 @@ var validAssetTypes = map[AssetType]bool{
 	AssetAcao: true, AssetETF: true, AssetFII: true,
 }
 
+// IsValidAssetType indica se assetType é um dos 11 valores do enum Postgres
+// asset_type — usado pelo filtro `type` de GET /assets (tarefa 3.10) pra
+// devolver 400 num tipo desconhecido em vez de repassar a string direto pro
+// enum do banco.
+func IsValidAssetType(assetType AssetType) bool {
+	return validAssetTypes[assetType]
+}
+
 var (
 	ErrMissingTicker    = errors.New("ticker do ativo é obrigatório")
 	ErrMissingName      = errors.New("nome do ativo é obrigatório")
