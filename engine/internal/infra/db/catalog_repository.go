@@ -351,3 +351,29 @@ func (r *CatalogRepository) ListAssetsByCompany(ctx context.Context, companyID s
 	}
 	return assets, rows.Err()
 }
+
+// ListFundamentalsByCompany devolve o histórico de company_fundamentals de
+// companyID, mais recente primeiro — usado por GET /companies/:id (tarefa
+// 3.14) pra expor as linhas geradas pelo ciclo de relatórios conectado ao
+// Temporizador.
+func (r *CatalogRepository) ListFundamentalsByCompany(ctx context.Context, companyID string) ([]catalog.FundamentalsEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT period_date, net_revenue FROM company_fundamentals
+		 WHERE company_id = $1
+		 ORDER BY period_date DESC, created_at DESC`, companyID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var entries []catalog.FundamentalsEntry
+	for rows.Next() {
+		var e catalog.FundamentalsEntry
+		if err := rows.Scan(&e.PeriodDate, &e.NetRevenue); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}

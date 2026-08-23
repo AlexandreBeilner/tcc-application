@@ -45,6 +45,9 @@ type fakeCatalogReader struct {
 
 	companyAssets    []catalog.IssuedAsset
 	companyAssetsErr error
+
+	companyFundamentals    []catalog.FundamentalsEntry
+	companyFundamentalsErr error
 }
 
 func (f *fakeCatalogReader) ListAssets(_ context.Context, _ string) ([]catalog.AssetRecord, error) {
@@ -77,6 +80,10 @@ func (f *fakeCatalogReader) FindCompanyByID(_ context.Context, _ string) (catalo
 
 func (f *fakeCatalogReader) ListAssetsByCompany(_ context.Context, _ string) ([]catalog.IssuedAsset, error) {
 	return f.companyAssets, f.companyAssetsErr
+}
+
+func (f *fakeCatalogReader) ListFundamentalsByCompany(_ context.Context, _ string) ([]catalog.FundamentalsEntry, error) {
+	return f.companyFundamentals, f.companyFundamentalsErr
 }
 
 func getCatalog(t *testing.T, reader catalogReader, path string) *httptest.ResponseRecorder {

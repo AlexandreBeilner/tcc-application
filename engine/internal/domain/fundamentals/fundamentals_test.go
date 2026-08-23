@@ -119,6 +119,54 @@ func TestGrowthSeries_SemSelicRatesRetornaNil(t *testing.T) {
 	}
 }
 
+func TestNextGrowth_PrimeiroCicloBateComGrowthSeries(t *testing.T) {
+	// cycleIndex=0 deriva a rng de cfg.Seed+0 = cfg.Seed, o mesmo ponto de
+	// partida que GrowthSeries usa pro primeiro elemento — mesmo invariante
+	// já coberto por equity.TestNextPrice/selic.TestNextCalendarRate pro
+	// dayIndex=0 batendo com Series/CalendarSeries.
+	cfg := Config{BaseGrowth: 0.03, Sensitivity: 0.05, NoiseStdDev: 0.02, Seed: 42}
+
+	got := NextGrowth(cfg, 0, 15, 10)
+	want := GrowthSeries(cfg, []float64{15}, 10)[0]
+
+	if got != want {
+		t.Errorf("NextGrowth(cycleIndex=0) = %v, want %v (== GrowthSeries[0])", got, want)
+	}
+}
+
+func TestNextGrowth_DeterministicaPorSeedECycleIndex(t *testing.T) {
+	cfg := Config{BaseGrowth: 0.03, Sensitivity: 0.05, NoiseStdDev: 0.02, Seed: 7}
+
+	a := NextGrowth(cfg, 3, 12, 10)
+	b := NextGrowth(cfg, 3, 12, 10)
+
+	if a != b {
+		t.Fatalf("NextGrowth divergiu com mesmos parâmetros: %v != %v", a, b)
+	}
+}
+
+func TestNextGrowth_CycleIndexDiferenteGeraCrescimentoDiferente(t *testing.T) {
+	cfg := Config{BaseGrowth: 0.03, Sensitivity: 0.05, NoiseStdDev: 0.02, Seed: 7}
+
+	a := NextGrowth(cfg, 0, 12, 10)
+	b := NextGrowth(cfg, 1, 12, 10)
+
+	if a == b {
+		t.Error("NextGrowth com cycleIndex diferentes veio idêntico — ruído deveria variar por ciclo")
+	}
+}
+
+func TestNextGrowth_SemRuidoBateComExpectedGrowth(t *testing.T) {
+	cfg := Config{BaseGrowth: 0.03, Sensitivity: 0.05, NoiseStdDev: 0, Seed: 1}
+
+	got := NextGrowth(cfg, 5, 15, 10)
+	want := ExpectedGrowth(cfg, 15, 10)
+
+	if got != want {
+		t.Errorf("NextGrowth(sem ruído) = %v, want %v (== ExpectedGrowth)", got, want)
+	}
+}
+
 func TestRevenueSeries_Composicao(t *testing.T) {
 	got := RevenueSeries(1000, []float64{0.03, -0.01})
 	want := []float64{1030, 1019.7}

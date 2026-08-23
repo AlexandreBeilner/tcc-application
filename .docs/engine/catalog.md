@@ -38,8 +38,8 @@ Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincom
 
 - **Autenticação:** interno, mesma observação de `GET /assets`.
 - **Payload:** `id` no path — UUID da empresa.
-- **Sucesso:** `200` → `{ id, name, cnpj, sector, assets: [{ id, ticker, name, share_class? }] }` — `assets` é a lista de ações emitidas pela empresa (ETFs/FIIs nunca aparecem aqui, não têm `company_id`).
+- **Sucesso:** `200` → `{ id, name, cnpj, sector, assets: [{ id, ticker, name, share_class? }], fundamentals: [{ period_date, net_revenue }] }` — `assets` é a lista de ações emitidas pela empresa (ETFs/FIIs nunca aparecem aqui, não têm `company_id`); `fundamentals` (tarefa 3.14) é o histórico de `company_fundamentals`, mais recente primeiro, vazio até o primeiro ciclo de relatório rodar (a cada 14 dias simulados, via Temporizador). `net_revenue` pode vir `null` numa linha sem essa coluna preenchida (não deveria acontecer pro fluxo atual, que sempre grava `net_revenue`); os demais indicadores fundamentalistas (`net_income`/`ebit`/`net_equity`/`gross_debt`/`cash_equivalents`) ainda não têm fórmula de geração e não aparecem na resposta.
 - **Erros:**
   - `404` — nenhuma empresa com esse `id`.
-  - `503` / `500` — mesmos casos de `GET /assets`.
-- **Regra:** nenhuma fórmula — dado cadastral de `companies` + join em `variable_income_assets`/`assets`. Sem histórico de fundamentos (`company_fundamentals` ainda não é populada — isso é o ciclo de relatórios conectado ao Temporizador, tarefa 3.14).
+  - `503` / `500` — mesmos casos de `GET /assets` (`500` inclui falha ao listar o histórico de fundamentos).
+- **Regra:** nenhuma fórmula — dado cadastral de `companies` + join em `variable_income_assets`/`assets`, mais o histórico de `company_fundamentals` (`CatalogRepository.ListFundamentalsByCompany`, ordenado por `period_date` desc). A geração de fato das linhas de `company_fundamentals` é responsabilidade do ciclo de relatórios conectado ao Temporizador (tarefa 3.14, `POST /admin/tick` — ver `.docs/engine/tick.md`), não desta rota de leitura.

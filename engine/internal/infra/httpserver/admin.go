@@ -26,11 +26,12 @@ type ticker interface {
 }
 
 type tickResponse struct {
-	Day         int     `json:"day"`
-	SelicRate   float64 `json:"selic_rate"`
-	QuotesCount int     `json:"quotes_count"`
-	IsCopomDay  bool    `json:"is_copom_day"`
-	IsReportDay bool    `json:"is_report_day"`
+	Day               int     `json:"day"`
+	SelicRate         float64 `json:"selic_rate"`
+	QuotesCount       int     `json:"quotes_count"`
+	FundamentalsCount int     `json:"fundamentals_count"`
+	IsCopomDay        bool    `json:"is_copom_day"`
+	IsReportDay       bool    `json:"is_report_day"`
 }
 
 // handleAdminTick serve POST /admin/tick — força um tick fora do
@@ -50,11 +51,12 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, tickResponse{
-			Day:         result.State.Day,
-			SelicRate:   result.State.SelicRate,
-			QuotesCount: len(result.Quotes),
-			IsCopomDay:  result.IsCopomDay,
-			IsReportDay: result.IsReportDay,
+			Day:               result.State.Day,
+			SelicRate:         result.State.SelicRate,
+			QuotesCount:       len(result.Quotes),
+			FundamentalsCount: len(result.Fundamentals),
+			IsCopomDay:        result.IsCopomDay,
+			IsReportDay:       result.IsReportDay,
 		})
 	}
 }

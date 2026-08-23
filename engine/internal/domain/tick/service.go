@@ -44,7 +44,12 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	result := Advance(current, assets, s.selicCfg, s.seed)
+	companies, err := s.repo.ListCompaniesForFundamentals(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+
+	result := Advance(current, assets, companies, s.selicCfg, s.seed)
 
 	if err := s.repo.SaveTick(ctx, result); err != nil {
 		return Result{}, err

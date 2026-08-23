@@ -3,16 +3,18 @@ package httpserver
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 )
 
 // companyCatalogReader é o colaborador que o handler de /companies/:id
 // precisa pra ler o catálogo — implementado por *db.CatalogRepository,
-// injetado em New (tarefa 3.10).
+// injetado em New (tarefa 3.10; ListFundamentalsByCompany desde a 3.14).
 type companyCatalogReader interface {
 	FindCompanyByID(ctx context.Context, id string) (catalog.CompanyRecord, bool, error)
 	ListAssetsByCompany(ctx context.Context, companyID string) ([]catalog.IssuedAsset, error)
+	ListFundamentalsByCompany(ctx context.Context, companyID string) ([]catalog.FundamentalsEntry, error)
 }
 
 type companyAssetResponse struct {
@@ -22,12 +24,18 @@ type companyAssetResponse struct {
 	ShareClass *string `json:"share_class,omitempty"`
 }
 
+type companyFundamentalsResponse struct {
+	PeriodDate time.Time `json:"period_date"`
+	NetRevenue *float64  `json:"net_revenue"`
+}
+
 type companyDetailResponse struct {
-	ID     string                 `json:"id"`
-	Name   string                 `json:"name"`
-	CNPJ   string                 `json:"cnpj"`
-	Sector string                 `json:"sector"`
-	Assets []companyAssetResponse `json:"assets"`
+	ID           string                        `json:"id"`
+	Name         string                        `json:"name"`
+	CNPJ         string                        `json:"cnpj"`
+	Sector       string                        `json:"sector"`
+	Assets       []companyAssetResponse        `json:"assets"`
+	Fundamentals []companyFundamentalsResponse `json:"fundamentals"`
 }
 
 // handleGetCompany serve GET /companies/:id — dados cadastrais da empresa
@@ -67,12 +75,27 @@ func handleGetCompany(catalogReader companyCatalogReader) http.HandlerFunc {
 			})
 		}
 
+		history, err := catalogReader.ListFundamentalsByCompany(r.Context(), company.ID)
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar histórico de fundamentos")
+			return
+		}
+
+		fundamentals := make([]companyFundamentalsResponse, 0, len(history))
+		for _, f := range history {
+			fundamentals = append(fundamentals, companyFundamentalsResponse{
+				PeriodDate: f.PeriodDate,
+				NetRevenue: f.NetRevenue,
+			})
+		}
+
 		writeJSON(w, http.StatusOK, companyDetailResponse{
-			ID:     company.ID,
-			Name:   company.Name,
-			CNPJ:   company.CNPJ,
-			Sector: string(company.Sector),
-			Assets: assets,
+			ID:           company.ID,
+			Name:         company.Name,
+			CNPJ:         company.CNPJ,
+			Sector:       string(company.Sector),
+			Assets:       assets,
+			Fundamentals: fundamentals,
 		})
 	}
 }

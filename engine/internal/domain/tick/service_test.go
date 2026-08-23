@@ -9,14 +9,16 @@ import (
 )
 
 type fakeRepository struct {
-	state       State
-	stateFound  bool
-	loadErr     error
-	assets      []AssetForPricing
-	listErr     error
-	saveErr     error
-	savedResult Result
-	saveCalls   int
+	state            State
+	stateFound       bool
+	loadErr          error
+	assets           []AssetForPricing
+	listErr          error
+	companies        []CompanyForFundamentals
+	listCompaniesErr error
+	saveErr          error
+	savedResult      Result
+	saveCalls        int
 }
 
 func (f *fakeRepository) LoadState(_ context.Context) (State, bool, error) {
@@ -25,6 +27,10 @@ func (f *fakeRepository) LoadState(_ context.Context) (State, bool, error) {
 
 func (f *fakeRepository) ListPricingAssets(_ context.Context) ([]AssetForPricing, error) {
 	return f.assets, f.listErr
+}
+
+func (f *fakeRepository) ListCompaniesForFundamentals(_ context.Context) ([]CompanyForFundamentals, error) {
+	return f.companies, f.listCompaniesErr
 }
 
 func (f *fakeRepository) SaveTick(_ context.Context, result Result) error {
@@ -101,6 +107,35 @@ func TestService_Run_PropagaErroDeListPricingAssets(t *testing.T) {
 
 	if _, err := svc.Run(context.Background()); err == nil {
 		t.Fatal("Run() err = nil, want erro propagado de ListPricingAssets")
+	}
+}
+
+func TestService_Run_PropagaErroDeListCompaniesForFundamentals(t *testing.T) {
+	repo := &fakeRepository{listCompaniesErr: errors.New("falha de conexão")}
+	svc := NewService(repo, testSelicConfigService(), 1)
+
+	if _, err := svc.Run(context.Background()); err == nil {
+		t.Fatal("Run() err = nil, want erro propagado de ListCompaniesForFundamentals")
+	}
+}
+
+func TestService_Run_PersisteFundamentalsNoDiaDeRelatorio(t *testing.T) {
+	repo := &fakeRepository{
+		state:      State{Day: 13, SelicRate: 10},
+		stateFound: true,
+		companies:  []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: 14}},
+	}
+	svc := NewService(repo, testSelicConfigService(), 1)
+
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+	if len(result.Fundamentals) != 1 {
+		t.Fatalf("len(Fundamentals) = %d, want 1", len(result.Fundamentals))
+	}
+	if len(repo.savedResult.Fundamentals) != 1 {
+		t.Errorf("SaveTick recebeu %d Fundamentals, want 1", len(repo.savedResult.Fundamentals))
 	}
 }
 

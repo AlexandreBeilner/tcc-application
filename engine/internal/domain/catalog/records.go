@@ -63,3 +63,15 @@ type EquitySpecialization struct {
 	ShareClass        *string
 	OutstandingShares *int64
 }
+
+// FundamentalsEntry é uma linha já persistida de company_fundamentals,
+// gerada pelo ciclo de relatórios trimestrais conectado ao Temporizador
+// (tarefa 3.14) — usada por GET /companies/:id (tarefa 3.10) pra expor o
+// histórico de fundamentos. Só NetRevenue vem preenchido hoje (mesma nota
+// de escopo de tick.FundamentalsRecord: net_income/ebit/net_equity/
+// gross_debt/cash_equivalents ainda não têm fórmula de geração), por isso é
+// ponteiro — nullable tanto no schema quanto na prática.
+type FundamentalsEntry struct {
+	PeriodDate time.Time
+	NetRevenue *float64
+}

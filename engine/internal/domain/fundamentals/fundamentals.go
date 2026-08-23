@@ -11,6 +11,32 @@ import (
 	"tcc-investimentos/engine/internal/domain/equity"
 )
 
+// Valores ilustrativos do ciclo de relatórios (tarefa 3.14) — a spec 3.2.2/
+// 3.3 não fecha estes números como fechou pro GBM (tabela da tarefa 3.1),
+// só os invariantes qualitativos (Sofisticado mais sensível à Selic,
+// surpresa positiva sobe o preço/negativa desce). Mesmo tratamento de
+// SensitivityByRiskClass/selic.DefaultNeutralRate/tick.DefaultInitialPrice:
+// sujeitos à calibração fina da tarefa 8.1.
+const (
+	// DefaultBaseGrowth é o crescimento_base ilustrativo aplicado a toda
+	// empresa seedada, na ausência de uma calibração por empresa (a spec
+	// não define currículo de crescimento por empresa nesta fase).
+	DefaultBaseGrowth = 0.03
+	// DefaultNoiseStdDev é o desvio-padrão ilustrativo do ruído
+	// idiossincrático por ciclo de relatório.
+	DefaultNoiseStdDev = 0.02
+	// DefaultReportPriceSensitivity converte ReportSurprise num efeito de
+	// preço no dia do relatório (ReportDayPriceEffect) — 1.5 amplifica a
+	// surpresa de crescimento um pouco além de 1:1, coerente com o "efeito
+	// alívio" qualitativo descrito na spec 3.3.
+	DefaultReportPriceSensitivity = 1.5
+	// DefaultBaseRevenue é a receita líquida de partida de uma empresa sem
+	// nenhuma linha de company_fundamentals gerada ainda — mesmo papel que
+	// tick.DefaultInitialPrice cumpre pro preço de um ativo sem cotação
+	// anterior.
+	DefaultBaseRevenue = 1_000_000.0
+)
+
 // SensitivityByRiskClass são valores ilustrativos de sensibilidade a
 // desvios da Selic por `risk_class` do ativo vinculado à empresa (spec
 // 3.2.2: setores cíclicos/mais alavancados — Sofisticado — são mais
@@ -77,6 +103,24 @@ func GrowthSeries(cfg Config, selicAnnualRates []float64, selicNeutral float64) 
 		growth[i] = ExpectedGrowth(cfg, selicRate, selicNeutral) + noise
 	}
 	return growth
+}
+
+// NextGrowth avança o crescimento trimestral de uma empresa por um único
+// ciclo de relatório, a partir do estado persistido — usado pelo
+// Temporizador (tarefa 3.14) em vez de GrowthSeries, que nunca regenera a
+// série do zero a cada ciclo (mesma decisão de arquitetura de
+// selic.NextCalendarRate/equity.NextPrice, tarefa 3.11). cycleIndex
+// (0-based, um por ciclo de fundamentals.IsReportDay verdadeiro — não por
+// dia simulado) entra na derivação da rng junto com cfg.Seed pra que o
+// ruído desse ciclo seja determinístico sem precisar repassar pelos ciclos
+// anteriores (RNF08: mesmos cfg.Seed e cycleIndex sempre produzem o mesmo
+// crescimento). selicAnnualRate/selicNeutral são a Selic simulada do dia do
+// relatório e a âncora de reversão à média, mesma fonte que GrowthSeries
+// usa via selicAnnualRates/selicNeutral.
+func NextGrowth(cfg Config, cycleIndex int, selicAnnualRate, selicNeutral float64) float64 {
+	rng := rand.New(rand.NewSource(cfg.Seed + int64(cycleIndex)))
+	noise := rng.NormFloat64() * cfg.NoiseStdDev
+	return ExpectedGrowth(cfg, selicAnnualRate, selicNeutral) + noise
 }
 
 // RevenueSeries encadeia uma série de crescimento (GrowthSeries) numa
