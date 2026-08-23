@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -49,5 +50,20 @@ func TestHandleGetCompany_SemCatalogReader(t *testing.T) {
 	rec := getCatalog(t, nil, "/companies/c1")
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHandleGetCompany_ErroBuscarEmpresa(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{companyErr: context.DeadlineExceeded}, "/companies/c1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetCompany_ErroListarAtivos(t *testing.T) {
+	reader := &fakeCatalogReader{companyFound: true, companyAssetsErr: context.DeadlineExceeded}
+	rec := getCatalog(t, reader, "/companies/c1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }

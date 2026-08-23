@@ -120,6 +120,44 @@ func TestHandleListAssets_SemCatalogReader(t *testing.T) {
 	}
 }
 
+func TestHandleListAssets_ErroInterno(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{assetsErr: context.DeadlineExceeded}, "/assets")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAsset_ErroBuscarAtivo(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{assetErr: context.DeadlineExceeded}, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAsset_ErroEspecializacao(t *testing.T) {
+	tests := map[string]struct {
+		assetType catalog.AssetType
+		reader    *fakeCatalogReader
+	}{
+		"renda fixa": {catalog.AssetCDB, &fakeCatalogReader{fixedIncomeErr: context.DeadlineExceeded}},
+		"ação":       {catalog.AssetAcao, &fakeCatalogReader{equityErr: context.DeadlineExceeded}},
+		"etf":        {catalog.AssetETF, &fakeCatalogReader{etfErr: context.DeadlineExceeded}},
+		"fii":        {catalog.AssetFII, &fakeCatalogReader{fiiErr: context.DeadlineExceeded}},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tt.reader.asset = catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "X", Name: "X", Type: tt.assetType}}
+			tt.reader.assetFound = true
+
+			rec := getCatalog(t, tt.reader, "/assets/1")
+			if rec.Code != http.StatusInternalServerError {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+			}
+		})
+	}
+}
+
 func TestHandleGetAsset_RendaFixa(t *testing.T) {
 	interestRate := 12.0
 	rating := "AA"
