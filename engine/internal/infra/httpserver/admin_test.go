@@ -23,7 +23,7 @@ func postTick(t *testing.T, ticker ticker) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/admin/tick", nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, ticker).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, ticker, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

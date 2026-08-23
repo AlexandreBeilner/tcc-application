@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/db"
@@ -33,7 +34,7 @@ func main() {
 		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
 		// as rotas de catálogo e POST /admin/tick respondem 503 (ver
 		// internal/infra/httpserver/account.go, assets.go e admin.go).
-		if err := httpserver.Run(addr, nil, nil, nil); err != nil {
+		if err := httpserver.Run(addr, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -52,6 +53,7 @@ func main() {
 
 	accountService := account.NewService(db.NewAccountRepository(pool))
 	catalogRepository := db.NewCatalogRepository(pool)
+	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool))
 
 	seed := int64(defaultSimulationSeed)
 	if raw := os.Getenv("SIMULATION_SEED"); raw != "" {
@@ -74,7 +76,7 @@ func main() {
 		return err
 	})
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }
