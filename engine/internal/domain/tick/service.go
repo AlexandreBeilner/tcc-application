@@ -54,7 +54,17 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	result := Advance(current, assets, companies, macroEvents, s.selicCfg, s.seed)
+	dividendPayers, err := s.repo.ListDividendPayerAssets(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+
+	pendingDividends, err := s.repo.ListPendingDividendPayments(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+
+	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.seed)
 
 	if err := s.repo.SaveTick(ctx, result); err != nil {
 		return Result{}, err

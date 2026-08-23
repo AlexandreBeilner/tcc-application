@@ -14,6 +14,7 @@ import (
 	"context"
 	"hash/fnv"
 
+	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/macroevent"
@@ -131,6 +132,64 @@ type Quote struct {
 	Price   float64
 }
 
+// PositionHolder é a posição de um usuário num ativo pagador de provento,
+// no momento em que o Temporizador roda o tick de geração — vira o
+// snapshot de elegibilidade de um DividendRecord (a "data ex", tarefa
+// 4.9): só quem está nesta lista recebe o pagamento no dia de pagamento,
+// mesmo que compre/venda o ativo depois.
+type PositionHolder struct {
+	UserID   string
+	Quantity int
+}
+
+// DividendPayerAsset é o insumo do catálogo que Advance precisa por ativo
+// pagador de provento (ação ou FII, tarefa 4.9, RF21) — Type é "acao" ou
+// "fii" cru (mesma convenção de AssetForPricing.Sector: tick não importa
+// catalog só pra isso). CompanyID só vem preenchido pra "acao" (usado por
+// Advance pra achar o net_income do ciclo, já calculado no loop de
+// empresas); NetWorth só pra "fii" (fii_details.net_worth — ver
+// dividend.FIIValuePerShare). Holders é a posição de cada usuário nesse
+// ativo, carregada eagerly pelo Repository — vira Recipients de um
+// DividendRecord se o ativo gerar provento neste tick.
+type DividendPayerAsset struct {
+	AssetID           string
+	Type              string
+	OutstandingShares *int64
+	CompanyID         *string
+	NetWorth          *float64
+	Holders           []PositionHolder
+}
+
+// DividendRecord é um novo dividend_events pronto pra persistir — gerado
+// no dia de relatório (mesmo calendário quinzenal de fundamentals, tarefa
+// 3.14) de um ativo pagador. PaymentDay é o dia simulado (não a data de
+// calendário real — diferente de company_fundamentals.period_date, este
+// campo precisa ser determinístico e alcançável em poucos ticks de teste,
+// porque governa quando um tick futuro credita os Recipients) em que o
+// Temporizador paga o provento — sempre newDay + dividend.
+// DefaultPaymentLagDays. Recipients é o snapshot de PositionHolder
+// capturado na data ex (este mesmo tick), garantindo que só quem tinha
+// posição nesse momento recebe, mesmo que a posição mude antes do dia de
+// pagamento (critério de aceite da tarefa 4.9).
+type DividendRecord struct {
+	AssetID       string
+	ValuePerShare float64
+	PaymentDay    int
+	Recipients    []PositionHolder
+}
+
+// PendingDividendPayment é um dividend_events com paid = false —
+// Repository.ListPendingDividendPayments devolve todos, Advance filtra os
+// que vencem em newDay (PaymentDay == newDay), mesmo padrão de
+// MacroEventForApplication/ListPendingMacroEvents.
+type PendingDividendPayment struct {
+	ID            string
+	AssetID       string
+	ValuePerShare float64
+	PaymentDay    int
+	Recipients    []PositionHolder
+}
+
 // Result é o resultado de um tick — o novo estado do calendário, as
 // cotações e as novas linhas de company_fundamentals (Fundamentals, tarefa
 // 3.14) geradas nesse dia, prontos pra persistir atomicamente
@@ -153,6 +212,17 @@ type Result struct {
 	// correspondente. SaveTick marca status = 'aplicado' pra cada um,
 	// atomicamente com o resto do tick.
 	AppliedMacroEventIDs []string
+	// NewDividends são os novos dividend_events gerados neste tick (tarefa
+	// 4.9), no dia de relatório de cada ativo pagador — SaveTick insere a
+	// linha e o snapshot de Recipients (dividend_event_recipients)
+	// atomicamente com o resto do tick.
+	NewDividends []DividendRecord
+	// DuePayments são os PendingDividendPayment cujo PaymentDay é
+	// exatamente este tick (newDay) — SaveTick credita
+	// current_balance/total_dividends_received de cada Recipient, gravando
+	// o evento dividend_payment em market_events **antes** de projetar o
+	// saldo (Event Sourcing, CLAUDE.md), e marca paid = true.
+	DuePayments []PendingDividendPayment
 }
 
 // Repository é o colaborador que Advance precisa pra ler o último estado
@@ -176,6 +246,19 @@ type Repository interface {
 	// 4.5) pra aplicar o efeito de preço/fundamentos a cada tick e decidir
 	// quando marcar status = 'aplicado' (Result.AppliedMacroEventIDs).
 	ListPendingMacroEvents(ctx context.Context) ([]MacroEventForApplication, error)
+	// ListDividendPayerAssets devolve todo ativo pagador de provento (ação
+	// ou FII, is_sandbox = false) com outstanding_shares/net_worth do
+	// catálogo e a posição de cada usuário nesse ativo — usado por Advance
+	// (tarefa 4.9) pra decidir, no dia de relatório, o valor por ação/cota
+	// do ciclo e o snapshot de elegibilidade (posição na data ex) de um
+	// novo dividend_events.
+	ListDividendPayerAssets(ctx context.Context) ([]DividendPayerAsset, error)
+	// ListPendingDividendPayments devolve todo dividend_events com paid =
+	// false, com seus Recipients (dividend_event_recipients) — usado por
+	// Advance (tarefa 4.9) pra decidir quais vencem (PaymentDay == newDay)
+	// e creditar accounts.current_balance/total_dividends_received de cada
+	// Recipient.
+	ListPendingDividendPayments(ctx context.Context) ([]PendingDividendPayment, error)
 	// SaveTick persiste o novo estado do calendário e as cotações geradas,
 	// atomicamente — nem calendário nem cotações são escrita de
 	// saldo/posição de usuário, por isso não passa por Event Sourcing
@@ -374,6 +457,74 @@ func macroEventDone(ev MacroEventForApplication, newDay int) bool {
 	return priceDone && fundamentalsDone
 }
 
+// dividendRecordsForCycle monta os novos dividend_events do dia de
+// relatório (tarefa 4.9) — ação usa o net_income já calculado no loop de
+// empresas deste mesmo tick (netIncomeByCompany, só preenchido pras
+// empresas que bateram IsReportDay agora); FII usa NetWorth e o mesmo
+// calendário global de relatório (fundamentals.DefaultReportFrequencyDays),
+// porque não é vinculado a uma company (spec 3.6) e não tem
+// report_frequency_days próprio. Ativo sem outstanding_shares no catálogo,
+// ou (só ação) cuja empresa não bateu relatório neste tick, não gera
+// dividendo nenhum agora — nem FII sem NetWorth: o catálogo (fii_details,
+// spec 3.6) só modela net_worth pro perfil tijolo, então FII papel (só
+// indexador, sem grandeza numérica própria) nunca gera provento nesta
+// fase, mesmo tratamento de "indicador omitido, não erro nem 0" já dado a
+// dado de origem ausente em outros lugares do RF21.
+func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
+	fiiReportDay := fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays)
+
+	records := make([]DividendRecord, 0)
+	for _, a := range payers {
+		if a.OutstandingShares == nil {
+			continue
+		}
+
+		var value float64
+		var ok bool
+		switch a.Type {
+		case "acao":
+			if a.CompanyID == nil {
+				continue
+			}
+			netIncome, reported := netIncomeByCompany[*a.CompanyID]
+			if !reported {
+				continue
+			}
+			value, ok = dividend.EquityValuePerShare(netIncome, *a.OutstandingShares)
+		case "fii":
+			if !fiiReportDay || a.NetWorth == nil {
+				continue
+			}
+			value, ok = dividend.FIIValuePerShare(*a.NetWorth, *a.OutstandingShares)
+		}
+		if !ok {
+			continue
+		}
+
+		records = append(records, DividendRecord{
+			AssetID:       a.AssetID,
+			ValuePerShare: value,
+			PaymentDay:    newDay + dividend.DefaultPaymentLagDays,
+			Recipients:    a.Holders,
+		})
+	}
+	return records
+}
+
+// duePaymentsForDay filtra, de todo PendingDividendPayment ainda não pago,
+// os que vencem exatamente em newDay — mesmo padrão de
+// macroFundamentalsEffectsByCompany filtrando por FundamentalsReportDay ==
+// newDay.
+func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDividendPayment {
+	due := make([]PendingDividendPayment, 0)
+	for _, p := range pending {
+		if p.PaymentDay == newDay {
+			due = append(due, p)
+		}
+	}
+	return due
+}
+
 // Advance calcula o próximo tick a partir do estado persistido — nunca
 // regenera a série do zero (ver doc do pacote). selicCfg parametriza a
 // reversão à média da Selic (mesmo Config de selic.Series/CalendarSeries,
@@ -390,8 +541,13 @@ func macroEventDone(ev MacroEventForApplication, newDay int) bool {
 // ativo, e seu efeito de fundamentos entra no crescimento real do ciclo
 // (fundamentals.ActualGrowthWithMacroEffect) no dia de relatório atribuído;
 // Result.AppliedMacroEventIDs sinaliza quais desses eventos já podem virar
-// status = 'aplicado'.
-func Advance(current State, assets []AssetForPricing, companies []CompanyForFundamentals, macroEvents []MacroEventForApplication, selicCfg selic.Config, seed int64) Result {
+// status = 'aplicado'. dividendPayers/pendingDividends alimentam a geração
+// e o pagamento de proventos (tarefa 4.9, RF21/lição 2.7):
+// dividendRecordsForCycle gera um novo dividend_events por ativo pagador
+// no dia de relatório (Result.NewDividends), e duePaymentsForDay filtra os
+// PendingDividendPayment cujo pagamento vence exatamente em newDay
+// (Result.DuePayments).
+func Advance(current State, assets []AssetForPricing, companies []CompanyForFundamentals, macroEvents []MacroEventForApplication, dividendPayers []DividendPayerAsset, pendingDividends []PendingDividendPayment, selicCfg selic.Config, seed int64) Result {
 	newDay := current.Day + 1
 	dayIndex := newDay - 1 // 0-based, mesma convenção de IsCopomMeetingDay/IsReportDay
 
@@ -403,6 +559,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 
 	reportEffects := make(map[string]companyReportEffect, len(companies))
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
+	netIncomeByCompany := make(map[string]float64, len(companies))
 	for _, c := range companies {
 		if !fundamentals.IsReportDay(dayIndex, c.ReportFrequencyDays) {
 			continue
@@ -422,6 +579,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		}
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
 		financials := fundamentals.DeriveFinancials(netRevenue)
+		netIncomeByCompany[c.CompanyID] = financials.NetIncome
 
 		reportEffects[c.CompanyID] = companyReportEffect{
 			NetRevenue: netRevenue,
@@ -482,5 +640,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		IsCopomDay:           selic.IsCopomMeetingDay(dayIndex),
 		IsReportDay:          fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
 		AppliedMacroEventIDs: appliedMacroEventIDs,
+		NewDividends:         dividendRecordsForCycle(dividendPayers, netIncomeByCompany, dayIndex, newDay),
+		DuePayments:          duePaymentsForDay(pendingDividends, newDay),
 	}
 }

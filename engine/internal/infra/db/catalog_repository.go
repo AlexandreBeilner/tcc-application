@@ -513,3 +513,29 @@ func (r *CatalogRepository) FindLatestFundamentals(ctx context.Context, companyI
 	}
 	return f, true, nil
 }
+
+// ListDividendHistory devolve o histórico de dividend_events de assetID,
+// mais recente primeiro — usado por GET /assets/:id (tarefa 4.9) pra
+// ação/FII, tanto pra exibir a lista quanto pra somar os últimos 12 meses
+// e calcular o Dividend Yield (RF21). Não filtra por paid: a spec quer o
+// histórico de proventos gerados, não só os já efetivamente pagos. Lista
+// vazia (não erro) se o ativo nunca gerou provento nenhum.
+func (r *CatalogRepository) ListDividendHistory(ctx context.Context, assetID string) ([]catalog.DividendHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT value_per_share, ex_date, payment_date FROM dividend_events WHERE asset_id = $1 ORDER BY payment_date DESC`, assetID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]catalog.DividendHistoryEntry, 0)
+	for rows.Next() {
+		var e catalog.DividendHistoryEntry
+		if err := rows.Scan(&e.ValuePerShare, &e.ExDate, &e.PaymentDate); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}

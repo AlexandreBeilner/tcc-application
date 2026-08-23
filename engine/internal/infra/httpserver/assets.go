@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
@@ -34,6 +35,11 @@ type assetCatalogReader interface {
 	// empresa emissora — usado só pelo bloco de especialização de ação de
 	// GET /assets/:id, pra calcular os indicadores de RF21 (tarefa 4.8).
 	FindLatestFundamentals(ctx context.Context, companyID string) (catalog.FundamentalsSnapshot, bool, error)
+	// ListDividendHistory devolve o histórico de dividend_events do ativo
+	// — usado só pelo bloco de ação/FII de GET /assets/:id, pra expor o
+	// histórico de proventos e calcular o Dividend Yield (RF21, tarefa
+	// 4.9).
+	ListDividendHistory(ctx context.Context, assetID string) ([]catalog.DividendHistoryEntry, error)
 }
 
 type assetSummaryResponse struct {
@@ -101,6 +107,11 @@ type equityIndicatorsResponse struct {
 	EBITMargin        *float64 `json:"ebit_margin,omitempty"`
 	NetMargin         *float64 `json:"net_margin,omitempty"`
 	NetDebtToEBIT     *float64 `json:"net_debt_to_ebit,omitempty"`
+	// DividendYield (tarefa 4.9) é o 9º indicador de RF21 — soma dos
+	// proventos por ação pagos nos últimos 12 meses sobre o preço
+	// corrente (dividend.Yield), calculado independentemente dos outros 8
+	// (que dependem de company_fundamentals, não de dividend_events).
+	DividendYield *float64 `json:"dividend_yield,omitempty"`
 }
 
 // toEquityIndicatorsResponse combina o fundamento mais recente da empresa
@@ -163,6 +174,45 @@ type equityDetailResponse struct {
 	ShareClass        *string                   `json:"share_class,omitempty"`
 	OutstandingShares *int64                    `json:"outstanding_shares,omitempty"`
 	Indicators        *equityIndicatorsResponse `json:"indicators,omitempty"`
+	// DividendHistory (tarefa 4.9) é o histórico de dividend_events do
+	// ativo (RF21, tela 4.5) — sempre presente, lista vazia se a empresa
+	// nunca gerou provento nenhum.
+	DividendHistory []dividendHistoryEntryResponse `json:"dividend_history"`
+}
+
+// dividendHistoryEntryResponse é uma linha do histórico de proventos
+// (dividend_events) de uma ação ou FII — tarefa 4.9, RF21/tela 4.5.
+type dividendHistoryEntryResponse struct {
+	ValuePerShare float64   `json:"value_per_share"`
+	ExDate        time.Time `json:"ex_date"`
+	PaymentDate   time.Time `json:"payment_date"`
+}
+
+func toDividendHistoryResponse(history []catalog.DividendHistoryEntry) []dividendHistoryEntryResponse {
+	entries := make([]dividendHistoryEntryResponse, 0, len(history))
+	for _, h := range history {
+		entries = append(entries, dividendHistoryEntryResponse{
+			ValuePerShare: h.ValuePerShare,
+			ExDate:        h.ExDate,
+			PaymentDate:   h.PaymentDate,
+		})
+	}
+	return entries
+}
+
+// sumDividendsLast12Months soma value_per_share de todo DividendHistoryEntry
+// pago (PaymentDate, relógio real — mesma convenção de company_fundamentals.
+// period_date) nos últimos 12 meses a partir de now — insumo de
+// dividend.Yield.
+func sumDividendsLast12Months(history []catalog.DividendHistoryEntry, now time.Time) float64 {
+	cutoff := now.AddDate(-1, 0, 0)
+	var sum float64
+	for _, h := range history {
+		if h.PaymentDate.After(cutoff) {
+			sum += h.ValuePerShare
+		}
+	}
+	return sum
 }
 
 type etfHoldingResponse struct {
@@ -188,6 +238,12 @@ type fiiDetailResponse struct {
 	NetWorth    *float64 `json:"net_worth,omitempty"`
 	VacancyRate *float64 `json:"vacancy_rate,omitempty"`
 	Indexador   *string  `json:"indexador,omitempty"`
+	// DividendYield/DividendHistory (tarefa 4.9, RF21) — mesma fonte
+	// (dividend_events) e mesmo cálculo (dividend.Yield) do bloco de ação,
+	// nunca o layout de equityIndicatorsResponse (RF21, CLAUDE.md: FII não
+	// mostra indicador de empresa nenhum).
+	DividendYield   *float64                       `json:"dividend_yield,omitempty"`
+	DividendHistory []dividendHistoryEntryResponse `json:"dividend_history"`
 }
 
 type assetDetailResponse struct {
@@ -299,13 +355,34 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 					OutstandingShares: spec.OutstandingShares,
 				}
 
+				var indicators equityIndicatorsResponse
+				var hasIndicators bool
+
 				latestFundamentals, fundamentalsFound, err := catalogReader.FindLatestFundamentals(r.Context(), spec.CompanyID)
 				if err != nil {
 					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar fundamentos da empresa")
 					return
 				}
 				if fundamentalsFound {
-					indicators := toEquityIndicatorsResponse(latestFundamentals, spec.OutstandingShares, quotePtr)
+					indicators = toEquityIndicatorsResponse(latestFundamentals, spec.OutstandingShares, quotePtr)
+					hasIndicators = true
+				}
+
+				dividendHistory, err := catalogReader.ListDividendHistory(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar histórico de proventos")
+					return
+				}
+				equityDetail.DividendHistory = toDividendHistoryResponse(dividendHistory)
+				if quotePtr != nil {
+					sum := sumDividendsLast12Months(dividendHistory, time.Now())
+					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
+						indicators.DividendYield = &v
+						hasIndicators = true
+					}
+				}
+
+				if hasIndicators {
 					equityDetail.Indicators = &indicators
 				}
 
@@ -335,13 +412,27 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				return
 			}
 			if found {
-				resp.FII = &fiiDetailResponse{
-					FIIType:     string(details.Type),
-					Segment:     details.Segment,
-					NetWorth:    details.NetWorth,
-					VacancyRate: details.VacancyRate,
-					Indexador:   details.Indexador,
+				dividendHistory, err := catalogReader.ListDividendHistory(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar histórico de proventos")
+					return
 				}
+
+				fiiDetail := &fiiDetailResponse{
+					FIIType:         string(details.Type),
+					Segment:         details.Segment,
+					NetWorth:        details.NetWorth,
+					VacancyRate:     details.VacancyRate,
+					Indexador:       details.Indexador,
+					DividendHistory: toDividendHistoryResponse(dividendHistory),
+				}
+				if quotePtr != nil {
+					sum := sumDividendsLast12Months(dividendHistory, time.Now())
+					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
+						fiiDetail.DividendYield = &v
+					}
+				}
+				resp.FII = fiiDetail
 			}
 		default:
 			spec, found, err := catalogReader.FindFixedIncomeSpecialization(r.Context(), rec.ID)

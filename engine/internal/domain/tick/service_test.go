@@ -18,6 +18,10 @@ type fakeRepository struct {
 	listCompaniesErr error
 	macroEvents      []MacroEventForApplication
 	listMacroErr     error
+	dividendPayers   []DividendPayerAsset
+	listPayersErr    error
+	pendingDividends []PendingDividendPayment
+	listPendingErr   error
 	saveErr          error
 	savedResult      Result
 	saveCalls        int
@@ -37,6 +41,14 @@ func (f *fakeRepository) ListCompaniesForFundamentals(_ context.Context) ([]Comp
 
 func (f *fakeRepository) ListPendingMacroEvents(_ context.Context) ([]MacroEventForApplication, error) {
 	return f.macroEvents, f.listMacroErr
+}
+
+func (f *fakeRepository) ListDividendPayerAssets(_ context.Context) ([]DividendPayerAsset, error) {
+	return f.dividendPayers, f.listPayersErr
+}
+
+func (f *fakeRepository) ListPendingDividendPayments(_ context.Context) ([]PendingDividendPayment, error) {
+	return f.pendingDividends, f.listPendingErr
 }
 
 func (f *fakeRepository) SaveTick(_ context.Context, result Result) error {
@@ -131,6 +143,24 @@ func TestService_Run_PropagaErroDeListPendingMacroEvents(t *testing.T) {
 
 	if _, err := svc.Run(context.Background()); err == nil {
 		t.Fatal("Run() err = nil, want erro propagado de ListPendingMacroEvents")
+	}
+}
+
+func TestService_Run_PropagaErroDeListDividendPayerAssets(t *testing.T) {
+	repo := &fakeRepository{listPayersErr: errors.New("falha de conexão")}
+	svc := NewService(repo, testSelicConfigService(), 1)
+
+	if _, err := svc.Run(context.Background()); err == nil {
+		t.Fatal("Run() err = nil, want erro propagado de ListDividendPayerAssets")
+	}
+}
+
+func TestService_Run_PropagaErroDeListPendingDividendPayments(t *testing.T) {
+	repo := &fakeRepository{listPendingErr: errors.New("falha de conexão")}
+	svc := NewService(repo, testSelicConfigService(), 1)
+
+	if _, err := svc.Run(context.Background()); err == nil {
+		t.Fatal("Run() err = nil, want erro propagado de ListPendingDividendPayments")
 	}
 }
 

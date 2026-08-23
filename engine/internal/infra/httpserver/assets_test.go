@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/etf"
@@ -62,6 +63,9 @@ type fakeCatalogReader struct {
 	latestFundamentals    catalog.FundamentalsSnapshot
 	latestFundamentalsOK  bool
 	latestFundamentalsErr error
+
+	dividendHistory    []catalog.DividendHistoryEntry
+	dividendHistoryErr error
 }
 
 func (f *fakeCatalogReader) ListAssets(_ context.Context, _ string) ([]catalog.AssetRecord, error) {
@@ -102,6 +106,10 @@ func (f *fakeCatalogReader) ListQuoteHistory(_ context.Context, _ string, _ int)
 
 func (f *fakeCatalogReader) FindLatestFundamentals(_ context.Context, _ string) (catalog.FundamentalsSnapshot, bool, error) {
 	return f.latestFundamentals, f.latestFundamentalsOK, f.latestFundamentalsErr
+}
+
+func (f *fakeCatalogReader) ListDividendHistory(_ context.Context, _ string) ([]catalog.DividendHistoryEntry, error) {
+	return f.dividendHistory, f.dividendHistoryErr
 }
 
 func (f *fakeCatalogReader) FindCompanyByID(_ context.Context, _ string) (catalog.CompanyRecord, bool, error) {
@@ -272,6 +280,9 @@ func TestHandleGetAsset_Acao(t *testing.T) {
 	if body.Equity.Indicators != nil {
 		t.Errorf("Indicators = %+v, want nil (empresa sem ciclo de relatório rodado nesta fake)", body.Equity.Indicators)
 	}
+	if body.Equity.DividendHistory == nil {
+		t.Error("DividendHistory = nil, want slice vazia (não nil) — ativo sem provento gerado ainda")
+	}
 }
 
 // TestHandleGetAsset_AcaoComIndicadores é o critério de aceite central da
@@ -366,6 +377,68 @@ func TestHandleGetAsset_AcaoErroFundamentos(t *testing.T) {
 	}
 }
 
+// TestHandleGetAsset_AcaoComDividendYield confere o Dividend Yield (tarefa
+// 4.9, 9º indicador de RF21, calculado independentemente dos outros 8) —
+// só o provento pago dentro dos últimos 12 meses entra na soma.
+func TestHandleGetAsset_AcaoComDividendYield(t *testing.T) {
+	now := time.Now()
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao},
+		},
+		assetFound:        true,
+		equity:            catalog.EquitySpecialization{CompanyID: "c1"},
+		equityOK:          true,
+		currentQuote:      catalog.Quote{Price: 100},
+		currentQuoteFound: true,
+		dividendHistory: []catalog.DividendHistoryEntry{
+			{ValuePerShare: 2, ExDate: now.AddDate(0, -1, 0), PaymentDate: now.AddDate(0, -1, 0)},
+			{ValuePerShare: 3, ExDate: now.AddDate(-2, 0, 0), PaymentDate: now.AddDate(-2, 0, 0)},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Equity.DividendHistory) != 2 {
+		t.Fatalf("len(DividendHistory) = %d, want 2 (histórico completo, não só os últimos 12 meses)", len(body.Equity.DividendHistory))
+	}
+	if body.Equity.Indicators == nil || body.Equity.Indicators.DividendYield == nil {
+		t.Fatalf("DividendYield = nil, want preenchido")
+	}
+	if *body.Equity.Indicators.DividendYield != 0.02 {
+		t.Errorf("DividendYield = %v, want 0.02 (2/100 — o provento de 2 anos atrás fica fora da janela de 12 meses)", *body.Equity.Indicators.DividendYield)
+	}
+}
+
+// TestHandleGetAsset_AcaoErroHistoricoDividendos confere que erro na
+// leitura do histórico de dividend_events devolve 500, mesmo padrão dos
+// demais colaboradores de handleGetAsset.
+func TestHandleGetAsset_AcaoErroHistoricoDividendos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao},
+		},
+		assetFound:         true,
+		equity:             catalog.EquitySpecialization{CompanyID: "c1"},
+		equityOK:           true,
+		dividendHistoryErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
 func floatPtr(v float64) *float64 { return &v }
 
 func TestHandleGetAsset_ETF(t *testing.T) {
@@ -442,6 +515,74 @@ func TestHandleGetAsset_FII(t *testing.T) {
 	}
 	if body.FixedIncome != nil || body.Equity != nil || body.ETF != nil {
 		t.Errorf("classes erradas preenchidas: %+v", body)
+	}
+	if body.FII.DividendHistory == nil {
+		t.Error("DividendHistory = nil, want slice vazia (não nil) — ativo sem provento gerado ainda")
+	}
+	if body.FII.DividendYield != nil {
+		t.Errorf("DividendYield = %v, want nil (sem cotação corrente nesta fake)", *body.FII.DividendYield)
+	}
+}
+
+// TestHandleGetAsset_FIIComDividendYield confere o Dividend Yield de FII
+// (tarefa 4.9, RF21) — mesmo cálculo do bloco de ação, mas exposto direto
+// em fiiDetailResponse (nunca reaproveita equityIndicatorsResponse,
+// CLAUDE.md).
+func TestHandleGetAsset_FIIComDividendYield(t *testing.T) {
+	now := time.Now()
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "TJLO11", Name: "FII Tijolo Corporativo", Type: catalog.AssetFII},
+		},
+		assetFound:        true,
+		fiiDetails:        fii.Details{Type: fii.TypeTijolo},
+		fiiOK:             true,
+		currentQuote:      catalog.Quote{Price: 100},
+		currentQuoteFound: true,
+		dividendHistory: []catalog.DividendHistoryEntry{
+			{ValuePerShare: 1, ExDate: now.AddDate(0, -1, 0), PaymentDate: now.AddDate(0, -1, 0)},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.FII == nil || body.FII.DividendYield == nil {
+		t.Fatalf("FII.DividendYield = nil, want preenchido")
+	}
+	if *body.FII.DividendYield != 0.01 {
+		t.Errorf("DividendYield = %v, want 0.01 (1/100)", *body.FII.DividendYield)
+	}
+	if len(body.FII.DividendHistory) != 1 {
+		t.Errorf("len(DividendHistory) = %d, want 1", len(body.FII.DividendHistory))
+	}
+}
+
+// TestHandleGetAsset_FIIErroHistoricoDividendos confere que erro na
+// leitura do histórico de dividend_events devolve 500, mesmo padrão do
+// equivalente de ação.
+func TestHandleGetAsset_FIIErroHistoricoDividendos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "TJLO11", Name: "FII Tijolo Corporativo", Type: catalog.AssetFII},
+		},
+		assetFound:         true,
+		fiiDetails:         fii.Details{Type: fii.TypeTijolo},
+		fiiOK:              true,
+		dividendHistoryErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
 

@@ -108,3 +108,17 @@ type FundamentalsSnapshot struct {
 	GrossDebt       *float64
 	CashEquivalents *float64
 }
+
+// DividendHistoryEntry é uma linha já persistida de dividend_events — usada
+// por GET /assets/:id (tarefa 4.9) pra expor o histórico de proventos de
+// uma ação ou FII (RF21, tela 4.5) e calcular o Dividend Yield (soma dos
+// últimos 12 meses sobre o preço corrente, dividend.Yield). ExDate/
+// PaymentDate são o relógio real de quando o Temporizador gerou/pagou o
+// provento (mesma decisão de company_fundamentals.period_date) — não o
+// dia simulado que governa quando o pagamento de fato acontece
+// internamente (ver doc de tick.DividendRecord).
+type DividendHistoryEntry struct {
+	ValuePerShare float64
+	ExDate        time.Time
+	PaymentDate   time.Time
+}

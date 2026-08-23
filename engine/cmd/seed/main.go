@@ -155,7 +155,12 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) {
 		return
 	}
 
-	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, nil)
+	// outstanding_shares (cotas em circulação) — sem fórmula de geração
+	// ainda (mesmo tratamento ilustrativo de interest_rate/maturity_date,
+	// tarefa 3.9), mas precisa estar preenchido desde a tarefa 4.9: é o
+	// denominador de dividend.FIIValuePerShare (provento por cota).
+	outstandingShares := int64(1_000_000)
+	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, &outstandingShares)
 	if err != nil {
 		log.Fatalf("variable_income_assets inválido pra %s: %v", ticker, err)
 	}
@@ -182,7 +187,9 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) {
 		return
 	}
 
-	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, nil)
+	// outstanding_shares — ver nota de seedFIITijolo (tarefa 4.9).
+	outstandingShares := int64(1_000_000)
+	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, &outstandingShares)
 	if err != nil {
 		log.Fatalf("variable_income_assets inválido pra %s: %v", ticker, err)
 	}
