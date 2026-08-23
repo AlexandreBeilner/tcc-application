@@ -35,9 +35,9 @@ func main() {
 	if databaseURL == "" {
 		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
 		// as rotas de catálogo, POST /admin/tick, as rotas de renda fixa e
-		// POST /macro-events respondem 503 (ver internal/infra/httpserver/
+		// POST/GET /macro-events respondem 503 (ver internal/infra/httpserver/
 		// account.go, assets.go, admin.go, fixedincome.go e macroevents.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil); err != nil {
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -58,7 +58,8 @@ func main() {
 	catalogRepository := db.NewCatalogRepository(pool)
 	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool))
 	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool))
-	macroEventTriggerService := macroeventtrigger.NewService(db.NewMacroEventRepository(pool))
+	macroEventRepository := db.NewMacroEventRepository(pool)
+	macroEventTriggerService := macroeventtrigger.NewService(macroEventRepository)
 
 	seed := int64(defaultSimulationSeed)
 	if raw := os.Getenv("SIMULATION_SEED"); raw != "" {
@@ -81,7 +82,7 @@ func main() {
 		return err
 	})
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

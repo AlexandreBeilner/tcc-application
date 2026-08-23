@@ -37,10 +37,13 @@ func (r *TickRepository) LoadState(ctx context.Context) (tick.State, bool, error
 // ListPricingAssets devolve todo ativo de renda variável ativo (is_sandbox
 // = false, type em acao/etf/fii) com sua última cotação conhecida, via
 // LEFT JOIN LATERAL — price fica nil quando o ativo nunca teve tick gerado
-// (Advance aplica tick.DefaultInitialPrice nesse caso).
+// (Advance aplica tick.DefaultInitialPrice nesse caso). Sector (setor da
+// empresa emissora, via companies, tarefa 4.5) fica nil pra ETF/FII, sem
+// CompanyID — usado por Advance pra resolver o fan-out de um evento macro
+// de alvo setorial.
 func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetForPricing, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.risk_class, q.price, via.company_id
+		`SELECT a.id, a.risk_class, q.price, via.company_id, co.sector
 		 FROM assets a
 		 LEFT JOIN LATERAL (
 		   SELECT price FROM asset_quotes
@@ -49,6 +52,7 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 		   LIMIT 1
 		 ) q ON true
 		 LEFT JOIN variable_income_assets via ON via.asset_id = a.id
+		 LEFT JOIN companies co ON co.id = via.company_id
 		 WHERE a.is_sandbox = false AND a.type IN ('acao', 'etf', 'fii')
 		 ORDER BY a.ticker`,
 	)
@@ -60,7 +64,7 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 	var assets []tick.AssetForPricing
 	for rows.Next() {
 		var a tick.AssetForPricing
-		if err := rows.Scan(&a.AssetID, &a.RiskClass, &a.LastPrice, &a.CompanyID); err != nil {
+		if err := rows.Scan(&a.AssetID, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)
@@ -77,7 +81,7 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, f.net_revenue
+		`SELECT c.id, c.report_frequency_days, c.sector, f.net_revenue
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -95,12 +99,68 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	var companies []tick.CompanyForFundamentals
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.LastRevenue); err != nil {
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.LastRevenue); err != nil {
 			return nil, err
 		}
 		companies = append(companies, c)
 	}
 	return companies, rows.Err()
+}
+
+// ListPendingMacroEvents devolve todo evento macro com status = 'pendente'
+// (macroevent.StatusPendente), com seus alvos (macro_event_targets) —
+// usado por Advance (tarefa 4.5) pra aplicar o efeito de preço/fundamentos
+// a cada tick. Um evento sem nenhum target não deveria existir
+// (macroevent.NewEvent exige pelo menos um), mas o INNER JOIN reflete
+// exatamente essa garantia: nenhuma linha de macro_events sem
+// macro_event_targets correspondente aparece aqui.
+func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.MacroEventForApplication, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT e.id, e.triggered_on_day, e.duration_days, e.affects_price, e.affects_fundamentals,
+		        e.price_effect_pct, e.fundamentals_effect_pct, e.fundamentals_report_day,
+		        t.sector, t.risk_class, t.asset_id
+		 FROM macro_events e
+		 JOIN macro_event_targets t ON t.macro_event_id = e.id
+		 WHERE e.status = 'pendente'
+		 ORDER BY e.triggered_on_day, e.id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	byID := make(map[string]*tick.MacroEventForApplication)
+	var order []string
+	for rows.Next() {
+		var id string
+		var target tick.MacroEventTargetForApplication
+		ev := tick.MacroEventForApplication{}
+		if err := rows.Scan(
+			&id, &ev.TriggeredOnDay, &ev.DurationDays, &ev.AffectsPrice, &ev.AffectsFundamentals,
+			&ev.PriceEffectPct, &ev.FundamentalsEffectPct, &ev.FundamentalsReportDay,
+			&target.Sector, &target.RiskClass, &target.AssetID,
+		); err != nil {
+			return nil, err
+		}
+
+		existing, seen := byID[id]
+		if !seen {
+			ev.ID = id
+			byID[id] = &ev
+			existing = &ev
+			order = append(order, id)
+		}
+		existing.Targets = append(existing.Targets, target)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	events := make([]tick.MacroEventForApplication, 0, len(order))
+	for _, id := range order {
+		events = append(events, *byID[id])
+	}
+	return events, nil
 }
 
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
@@ -150,6 +210,15 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 			); err != nil {
 				return err
 			}
+		}
+	}
+
+	for _, id := range result.AppliedMacroEventIDs {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE macro_events SET status = 'aplicado' WHERE id = $1`,
+			id,
+		); err != nil {
+			return err
 		}
 	}
 

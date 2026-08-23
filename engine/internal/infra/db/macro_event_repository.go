@@ -84,3 +84,45 @@ func (r *MacroEventRepository) Persist(ctx context.Context, event macroevent.Eve
 	}
 	return id, nil
 }
+
+// List devolve o histórico de eventos macro (mais recentes primeiro, por
+// created_at), paginado — usado por GET /macro-events (tarefa 4.5,
+// consumido por GET /admin/macro-events no backend). status já reflete a
+// aplicação contínua do efeito (tick.Service.Run/SaveTick atualizam a
+// coluna a cada tick), não um valor congelado da criação — não é preciso
+// recalcular nada aqui, só ler a linha.
+func (r *MacroEventRepository) List(ctx context.Context, limit, offset int) ([]macroevent.Record, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, template_key, title, narrative, direction, magnitude_band,
+		        affects_price, affects_fundamentals, status, created_by,
+		        triggered_on_day, duration_days, price_effect_pct,
+		        fundamentals_effect_pct, fundamentals_report_day
+		 FROM macro_events
+		 ORDER BY created_at DESC, id
+		 LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var records []macroevent.Record
+	for rows.Next() {
+		var rec macroevent.Record
+		var direction, band, status string
+		if err := rows.Scan(
+			&rec.ID, &rec.TemplateKey, &rec.Title, &rec.Narrative, &direction, &band,
+			&rec.AffectsPrice, &rec.AffectsFundamentals, &status, &rec.CreatedBy,
+			&rec.TriggeredOnDay, &rec.DurationDays, &rec.PriceEffectPct,
+			&rec.FundamentalsEffectPct, &rec.FundamentalsReportDay,
+		); err != nil {
+			return nil, err
+		}
+		rec.Direction = macroevent.Direction(direction)
+		rec.MagnitudeBand = macroevent.Band(band)
+		rec.Status = macroevent.Status(status)
+		records = append(records, rec)
+	}
+	return records, rows.Err()
+}

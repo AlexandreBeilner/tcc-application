@@ -5,7 +5,9 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { InvalidMacroEventError } from '../../domain/errors'
 import { TriggerMacroEventUseCase } from '../../application/useCases/triggerMacroEvent'
+import { ListMacroEventsUseCase } from '../../application/useCases/listMacroEvents'
 import { createFakeMacroEventTrigger } from '../../test/fakes/fakeMacroEventTrigger'
+import { createFakeMacroEventReader } from '../../test/fakes/fakeMacroEventReader'
 import { createAdminMacroEventsRouter } from './adminMacroEventsRouter'
 
 const sampleResult = {
@@ -30,14 +32,18 @@ const validTemplateBody = {
   targets: [{ sector: 'Mineração' }],
 }
 
-function buildApp(macroEventTrigger = createFakeMacroEventTrigger(sampleResult)) {
+function buildApp(
+  macroEventTrigger = createFakeMacroEventTrigger(sampleResult),
+  macroEventReader = createFakeMacroEventReader({ events: [sampleResult] }),
+) {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
+  const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
   const app = express()
   app.use(express.json())
-  app.use(createAdminMacroEventsRouter({ triggerMacroEvent, authMiddleware }))
-  return { app, tokenIssuer, macroEventTrigger }
+  app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
+  return { app, tokenIssuer, macroEventTrigger, macroEventReader }
 }
 
 describe('POST /admin/macro-events', () => {
@@ -142,5 +148,55 @@ describe('POST /admin/macro-events', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.error).toBe('template de evento macro desconhecido')
+  })
+})
+
+describe('GET /admin/macro-events', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    const res = await request(app).get('/admin/macro-events')
+    expect(res.status).toBe(401)
+  })
+
+  it('retorna 403 para usuário comum', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app).get('/admin/macro-events').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('retorna 200 para admin com o histórico de eventos', async () => {
+    const { app, tokenIssuer, macroEventReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app).get('/admin/macro-events').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ events: [sampleResult] })
+    expect(macroEventReader.calls).toEqual([{}])
+  })
+
+  it('repassa limit/offset da query pro motor', async () => {
+    const { app, tokenIssuer, macroEventReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app)
+      .get('/admin/macro-events?limit=5&offset=10')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(macroEventReader.calls).toEqual([{ limit: 5, offset: 10 }])
+  })
+
+  it('retorna 400 para limit/offset inválidos', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app)
+      .get('/admin/macro-events?limit=0')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
   })
 })

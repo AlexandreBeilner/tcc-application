@@ -35,3 +35,12 @@ const macroEventAdHocSchema = z.object({
 })
 
 export const triggerMacroEventBodySchema = z.union([macroEventFromTemplateSchema, macroEventAdHocSchema])
+
+// Paginação simples de GET /admin/macro-events (tarefa 4.5) — limit/offset
+// chegam como string na query, coeridos pro tipo numérico esperado pelo
+// motor (GET /macro-events); ambos opcionais, o motor aplica o default
+// (20, máximo 100) quando ausentes.
+export const listMacroEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+})

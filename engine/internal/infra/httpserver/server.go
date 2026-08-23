@@ -21,11 +21,11 @@ type catalogReader interface {
 // New monta o *http.Server com as rotas do motor de simulação registradas.
 // accounts pode ser nil (ex: sem DATABASE_URL configurado) — POST
 // /accounts responde 503 nesse caso; catalog, temporizador, orders,
-// fixedIncome e macroEvents podem ser nil também — GET /assets, /assets/:id,
-// /companies/:id, POST /admin/tick, POST /orders, POST
-// /fixed-income/purchases|redemptions e POST /macro-events respondem 503
-// nesse caso, em vez de panicar.
-func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer) *http.Server {
+// fixedIncome, macroEvents e macroEventReader podem ser nil também — GET
+// /assets, /assets/:id, /companies/:id, POST /admin/tick, POST /orders,
+// POST /fixed-income/purchases|redemptions, POST /macro-events e GET
+// /macro-events respondem 503 nesse caso, em vez de panicar.
+func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
@@ -37,6 +37,7 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("POST /fixed-income/purchases", handleFixedIncomePurchase(catalog, fixedIncome))
 	mux.HandleFunc("POST /fixed-income/redemptions", handleFixedIncomeRedemption(catalog, fixedIncome))
 	mux.HandleFunc("POST /macro-events", handleTriggerMacroEvent(macroEvents))
+	mux.HandleFunc("GET /macro-events", handleListMacroEvents(macroEventReader))
 
 	return &http.Server{
 		Addr:         addr,
@@ -48,8 +49,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer) error {
-	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents)
+func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister) error {
+	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
 }

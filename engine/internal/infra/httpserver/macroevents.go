@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
@@ -133,6 +134,79 @@ func handleTriggerMacroEvent(macroEvents macroEventTriggerer) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusCreated, toMacroEventResponse(id, event))
+	}
+}
+
+// macroEventLister é o colaborador que GET /macro-events precisa pra ler o
+// histórico — implementado por *db.MacroEventRepository, injetado em New
+// (tarefa 4.5). Rota interna do motor, mesma convenção de POST
+// /macro-events: o gate de role = admin acontece no backend (GET
+// /admin/macro-events), esta rota só é alcançável de dentro da rede do
+// Compose.
+type macroEventLister interface {
+	List(ctx context.Context, limit, offset int) ([]macroevent.Record, error)
+}
+
+// defaultMacroEventListLimit/maxMacroEventListLimit balizam a paginação
+// simples pedida pelo critério de aceite da tarefa 4.5 (?limit=&offset=,
+// "default razoável" — não fixado por nenhum critério anterior, só evita
+// devolver a tabela inteira sem limite).
+const (
+	defaultMacroEventListLimit = 20
+	maxMacroEventListLimit     = 100
+)
+
+type macroEventListResponse struct {
+	Events []macroEventResponse `json:"events"`
+}
+
+// parsePaginationParam lê um parâmetro de paginação (?limit=/?offset=) da
+// query string — devolve def se ausente, erro se presente mas não for um
+// inteiro >= min (e <= max, quando max > 0).
+func parsePaginationParam(raw string, def, min, max int) (int, bool) {
+	if raw == "" {
+		return def, true
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed < min || (max > 0 && parsed > max) {
+		return 0, false
+	}
+	return parsed, true
+}
+
+// handleListMacroEvents serve GET /macro-events — histórico de eventos
+// macro (tela 10.1, RF14), status já refletindo a aplicação contínua do
+// efeito (tarefa 4.5: tick.Service.Run/SaveTick atualizam a coluna a cada
+// tick), não um valor congelado da criação.
+func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if macroEvents == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "serviço de eventos macro indisponível")
+			return
+		}
+
+		limit, ok := parsePaginationParam(r.URL.Query().Get("limit"), defaultMacroEventListLimit, 1, maxMacroEventListLimit)
+		if !ok {
+			writeCatalogError(w, http.StatusBadRequest, "limit inválido")
+			return
+		}
+		offset, ok := parsePaginationParam(r.URL.Query().Get("offset"), 0, 0, 0)
+		if !ok {
+			writeCatalogError(w, http.StatusBadRequest, "offset inválido")
+			return
+		}
+
+		records, err := macroEvents.List(r.Context(), limit, offset)
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao listar eventos macro")
+			return
+		}
+
+		events := make([]macroEventResponse, 0, len(records))
+		for _, rec := range records {
+			events = append(events, toMacroEventResponse(rec.ID, rec.Event))
+		}
+		writeJSON(w, http.StatusOK, macroEventListResponse{Events: events})
 	}
 }
 

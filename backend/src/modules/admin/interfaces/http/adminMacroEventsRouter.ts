@@ -3,10 +3,12 @@ import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { InvalidMacroEventError } from '../../domain/errors'
 import type { TriggerMacroEventUseCase } from '../../application/useCases/triggerMacroEvent'
-import { triggerMacroEventBodySchema } from './schemas'
+import type { ListMacroEventsUseCase } from '../../application/useCases/listMacroEvents'
+import { listMacroEventsQuerySchema, triggerMacroEventBodySchema } from './schemas'
 
 export interface AdminMacroEventsRouterDeps {
   triggerMacroEvent: TriggerMacroEventUseCase
+  listMacroEvents: ListMacroEventsUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -36,6 +38,24 @@ export function createAdminMacroEventsRouter(deps: AdminMacroEventsRouterDeps): 
         }
         throw err
       }
+    },
+  )
+
+  router.get(
+    '/admin/macro-events',
+    deps.authMiddleware.authenticate,
+    deps.authMiddleware.requireRole('admin'),
+    async (req, res) => {
+      const parsed = listMacroEventsQuerySchema.safeParse(req.query)
+      if (!parsed.success) {
+        res
+          .status(400)
+          .json({ error: 'parâmetros de paginação inválidos', details: z.flattenError(parsed.error) })
+        return
+      }
+
+      const result = await deps.listMacroEvents.execute(parsed.data)
+      res.status(200).json(result)
     },
   )
 

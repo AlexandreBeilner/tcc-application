@@ -131,6 +131,15 @@ type Event struct {
 	FundamentalsReportDay *int
 }
 
+// Record é um Event já persistido, pareado com o id gerado pelo banco —
+// Event em si deliberadamente não carrega Id (ver doc do pacote), então
+// qualquer leitura que precise do id (GET /macro-events, tarefa 4.5) usa
+// este tipo, não Event sozinho.
+type Record struct {
+	ID string
+	Event
+}
+
 // NewEvent valida a definição de um evento macro: título/narrativa não
 // vazios, pelo menos um efeito habilitado (evento que não afeta nada não
 // faz sentido existir) e pelo menos um alvo. Não valida nada sobre o
