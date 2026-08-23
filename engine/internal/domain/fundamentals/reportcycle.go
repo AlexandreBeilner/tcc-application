@@ -22,6 +22,26 @@ func IsReportDay(i, reportFrequencyDays int) bool {
 	return (i+1)%reportFrequencyDays == 0
 }
 
+// ActualGrowthWithMacroEffect incorpora o efeito agregado de eventos
+// macro pendentes (macroevent.CombinePendingEffects, tarefa 4.2 — já
+// somado e limitado a ±macroevent.DefaultFundamentalsCapPct) no
+// crescimento real de um ciclo, antes de ReportSurprise: a "surpresa" que
+// move o preço na divulgação (spec 3.3) precisa comparar o resultado real
+// já com o efeito macro embutido contra a expectativa sistêmica
+// (ExpectedGrowth), não o crescimento sintético puro sem o evento.
+// combinedMacroEffectPct vem em escala percentual (ex: -12.5 para
+// -12,5%, mesma convenção de macroevent.EffectRange/price_effect_pct/
+// fundamentals_effect_pct); baseGrowth vem em fração decimal (ex: 0.03
+// para 3%, mesma convenção de GrowthSeries/NextGrowth/ExpectedGrowth) —
+// por isso a divisão por 100 antes de somar. Não importa o pacote
+// macroevent (só o parâmetro já combinado) pelo mesmo motivo de
+// equity.Series não importar selic: mantém fundamentals decoplado,
+// função pura e testável sem depender de outro conceito de domínio.
+// baseGrowth normalmente vem de GrowthSeries/NextGrowth já chamada antes.
+func ActualGrowthWithMacroEffect(baseGrowth, combinedMacroEffectPct float64) float64 {
+	return baseGrowth + combinedMacroEffectPct/100
+}
+
 // ReportSurprise é a diferença entre o crescimento efetivamente divulgado
 // no relatório (actualGrowth — um elemento de GrowthSeries, já com o
 // ruído idiossincrático) e o que já era esperado antes da divulgação
