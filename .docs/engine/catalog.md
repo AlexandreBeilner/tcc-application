@@ -1,6 +1,6 @@
 # `catalog` — leitura do catálogo de mercado
 
-Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincome` pras especializações, `internal/infra/db/catalog_repository.go` pra persistência). Ver `.claude/arquitetura-engine-go.md` pra entender a divisão em domínio/infra — aqui é só o contrato HTTP. Sem cotação corrente nestas rotas — a tabela de preços existe desde a tarefa 3.11 (`asset_quotes`, ver `.docs/engine/tick.md`), mas ainda não é exposta aqui, só o dado cadastral/quase-estático populado pelo seed (tarefa 3.9).
+Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincome` pras especializações, `internal/infra/db/catalog_repository.go` pra persistência). Ver `.claude/arquitetura-engine-go.md` pra entender a divisão em domínio/infra — aqui é só o contrato HTTP. Cotação corrente (`asset_quotes`, tarefa 3.11) exposta desde a tarefa 4.6 em `GET /assets`/`GET /assets/:id` (`current_price`/`daily_change_pct`, só pra `acao`/`etf`/`fii`) e o histórico em `GET /assets/:id/quotes` — antes disso a tabela existia mas não tinha rota nenhuma expondo.
 
 ---
 
@@ -8,12 +8,12 @@ Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincom
 
 - **Autenticação:** interno — chamado pelo backend gamificado, nunca exposto direto ao navegador via gateway.
 - **Payload:** query `type` (opcional) — um dos 11 valores do enum `asset_type` (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb`, `lci`, `lca`, `cri`, `cra`, `acao`, `etf`, `fii`). Ausente = lista todos.
-- **Sucesso:** `200` → array de `{ id, ticker, name, type, risk_class?, is_sandbox }`, ordenado por `ticker`.
+- **Sucesso:** `200` → array de `{ id, ticker, name, type, risk_class?, is_sandbox, current_price?, daily_change_pct? }`, ordenado por `ticker`. `current_price`/`daily_change_pct` (tarefa 4.6) só aparecem pra `acao`/`etf`/`fii` — renda fixa não tem cotação de mercado nesse sentido (usa `interest_rate`/`minimum_investment`, ver `GET /assets/:id`), então o campo fica **omitido**, nunca `null`. Mesmo pra essas três classes, fica omitido se o Temporizador ainda não gerou nenhuma cotação pro ativo (`asset_quotes` vazio); `daily_change_pct` especificamente fica omitido quando só existe uma cotação (sem dia anterior pra comparar).
 - **Erros:**
   - `400` — `type` não é um dos 11 valores válidos.
   - `503` — motor subiu sem `DATABASE_URL` configurado (serviço de catálogo indisponível).
-  - `500` — falha inesperada de leitura.
-- **Regra:** listagem sem regra de negócio — projeção direta de `assets`. Não inclui indicadores por classe (isso só aparece no detalhe, RF21).
+  - `500` — falha inesperada de leitura (catálogo ou cotações).
+- **Regra:** projeção direta de `assets` + a cotação mais recente por ativo, lida de `asset_quotes` numa única consulta (`CatalogRepository.ListCurrentQuotes`, `LAG`/`ROW_NUMBER` particionado por `asset_id`) pra não fazer uma query por ativo. Não inclui indicadores por classe (isso só aparece no detalhe, RF21).
 
 ---
 
@@ -21,16 +21,29 @@ Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincom
 
 - **Autenticação:** interno, mesma observação de `GET /assets`.
 - **Payload:** `id` no path — UUID do ativo.
-- **Sucesso:** `200` → `{ id, ticker, name, type, risk_class?, is_sandbox }` mais **um** bloco extra, dependendo de `type` (RF21 — nunca reaproveita o layout de um bloco pro outro):
+- **Sucesso:** `200` → `{ id, ticker, name, type, risk_class?, is_sandbox, current_price?, daily_change_pct? }` (`current_price`/`daily_change_pct`, tarefa 4.6, mesma regra de omissão de `GET /assets` acima) mais **um** bloco extra, dependendo de `type` (RF21 — nunca reaproveita o layout de um bloco pro outro):
   - renda fixa (8 tipos): `fixed_income: { interest_rate?, maturity_date?, issuer_type, tax_exempt, credit_risk_rating?, minimum_investment }`. `minimum_investment` (tarefa 3.13) é a aplicação mínima do produto, em R$ — valor ilustrativo por tipo, sujeito à calibração da tarefa 8.1 (mesmo precedente de `interest_rate`/`maturity_date`).
-  - `acao`: `equity: { company: { id, name, cnpj, sector }, share_class?, outstanding_shares? }`.
+  - `acao`: `equity: { company: { id, name, cnpj, sector }, share_class?, outstanding_shares?, indicators? }`. `indicators` (tarefa 4.8) é `{ price_to_earnings?, price_to_book_value?, earnings_per_share?, book_value_per_share?, roe?, ebit_margin?, net_margin?, net_debt_to_ebit? }` — os 8 indicadores fundamentalistas de RF21 (Dividend Yield fica pra 4.9), calculados a partir do ciclo de relatório mais recente da empresa (`company_fundamentals`), `outstanding_shares` e o preço corrente do ativo. O bloco `indicators` fica **ausente** se a empresa nunca teve nenhum ciclo de relatório rodado ainda; cada campo dentro dele fica **omitido** (não `0`) independentemente dos demais, sempre que o dado de origem falta — `outstanding_shares` ausente (LPA/VPA/P-L/P-VP), ativo sem cotação corrente ainda (P/L, P/VP) ou um denominador zero/negativo na fórmula (ex: EBIT = 0 pra Dívida Líquida/EBIT).
   - `etf`: `etf: { benchmark_index, methodology_summary?, holdings: [{ constituent_name, weight_pct }] }`.
   - `fii`: `fii: { fii_type, segment?, net_worth?, vacancy_rate?, indexador? }` — `vacancy_rate` só em tijolo, `indexador` só em papel (exclusão mútua de `fii.NewDetails`, tarefa 3.8).
   - O bloco extra fica ausente se a especialização ainda não foi persistida pra esse ativo (não deveria acontecer com dado vindo do seed — todo ativo tem sua especialização).
 - **Erros:**
   - `404` — nenhum ativo com esse `id`.
   - `503` / `500` — mesmos casos de `GET /assets`.
-- **Regra:** nenhuma fórmula — monta a resposta lendo a especialização correspondente ao `type` do ativo já carregado (`fixed_income_assets`/`variable_income_assets`+`companies`/`etf_details`+`etf_holdings`/`fii_details`). Indicadores fundamentalistas de Ações que dependem de preço (P/L, P/VP, Dividend Yield) e Dividend Yield/cota-valor patrimonial de FII ainda não aparecem aqui — dependem da tabela de cotações da tarefa 3.11.
+- **Regra:** monta a resposta lendo a especialização correspondente ao `type` do ativo já carregado (`fixed_income_assets`/`variable_income_assets`+`companies`/`etf_details`+`etf_holdings`/`fii_details`) mais a cotação corrente (`CatalogRepository.FindCurrentQuote`, tarefa 4.6). Pra `acao`, também lê o ciclo de relatório mais recente da empresa (`CatalogRepository.FindLatestFundamentals`, tarefa 4.8) e calcula os 8 indicadores (`fundamentals.LPA`/`VPA`/`ROE`/`EBITMargin`/`NetMargin`/`NetDebtToEBIT`/`PriceToEarnings`/`PriceToBookValue`, funções puras) combinando esse fundamento com `outstanding_shares` (catálogo) e o preço corrente. Dividend Yield (Ações e FII) ainda não aparece aqui — depende de `dividend_events`, que só a tarefa 4.9 preenche.
+
+---
+
+### `GET /assets/{id}/quotes`
+
+- **Autenticação:** interno, mesma observação de `GET /assets`.
+- **Payload:** `id` no path — UUID do ativo. Query `days` (opcional, inteiro ≥ 1, default `30`) — quantos dias simulados mais recentes vêm na resposta.
+- **Sucesso:** `200` → array `[{ simulated_day, price }, ...]`, ordenado cronologicamente (mais antigo primeiro) — base do gráfico de preço da tela 4.5 (RF04). Lista **vazia** (não erro) se o ativo existe mas o Temporizador nunca gerou cotação pra ele (renda fixa, ou renda variável antes do primeiro tick).
+- **Erros:**
+  - `400` — `days` não é um inteiro ≥ 1.
+  - `404` — nenhum ativo com esse `id`.
+  - `503` / `500` — mesmos casos de `GET /assets`.
+- **Regra:** nenhuma fórmula — `CatalogRepository.ListQuoteHistory` lê os `days` dias mais recentes de `asset_quotes` pra esse `asset_id`, reordenados cronologicamente antes de responder (a consulta em si busca do mais recente pro mais antigo, pra `LIMIT` pegar os últimos `days` dias, não os primeiros).
 
 ---
 

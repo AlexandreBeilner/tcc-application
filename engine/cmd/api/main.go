@@ -34,10 +34,12 @@ func main() {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
-		// as rotas de catálogo, POST /admin/tick, as rotas de renda fixa e
-		// POST/GET /macro-events respondem 503 (ver internal/infra/httpserver/
-		// account.go, assets.go, admin.go, fixedincome.go e macroevents.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		// as rotas de catálogo (incl. cotações, tarefa 4.6), POST /admin/tick,
+		// as rotas de renda fixa, POST/GET /macro-events e as rotas de leitura
+		// de conta/posições/extrato (tarefa 4.7) respondem 503 (ver
+		// internal/infra/httpserver/account.go, assets.go, admin.go,
+		// fixedincome.go, macroevents.go e positions.go).
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -54,7 +56,8 @@ func main() {
 	}
 	defer func() { _ = pool.Close() }()
 
-	accountService := account.NewService(db.NewAccountRepository(pool))
+	accountRepository := db.NewAccountRepository(pool)
+	accountService := account.NewService(accountRepository)
 	catalogRepository := db.NewCatalogRepository(pool)
 	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool))
 	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool))
@@ -82,7 +85,7 @@ func main() {
 		return err
 	})
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

@@ -35,6 +35,33 @@ const (
 	// tick.DefaultInitialPrice cumpre pro preço de um ativo sem cotação
 	// anterior.
 	DefaultBaseRevenue = 1_000_000.0
+
+	// Os cinco coeficientes abaixo (tarefa 4.8) derivam net_income/ebit/
+	// net_equity/gross_debt/cash_equivalents a partir de net_revenue já
+	// calculado (RevenueSeries/NextGrowth) — igual a DefaultBaseGrowth e
+	// SensitivityByRiskClass, são margens/alavancagem ilustrativas sem
+	// tabela numérica fechada pela spec, sujeitas à calibração da tarefa
+	// 8.1. EBITMargin > NetMargin reflete o efeito de impostos/juros entre
+	// os dois indicadores, mesmo invariante contábil qualquer companhia
+	// real respeita.
+
+	// DefaultNetMarginPct é a margem líquida ilustrativa (net_income /
+	// net_revenue) aplicada a toda empresa seedada.
+	DefaultNetMarginPct = 0.10
+	// DefaultEBITMarginPct é a margem EBIT ilustrativa (ebit / net_revenue)
+	// — maior que DefaultNetMarginPct pelo mesmo motivo que EBIT > net
+	// income numa demonstração de resultado real (antes de juros/impostos).
+	DefaultEBITMarginPct = 0.18
+	// DefaultEquityToRevenueRatio converte net_revenue em net_equity
+	// ilustrativo (patrimônio líquido tipicamente maior que a receita de um
+	// único ciclo trimestral).
+	DefaultEquityToRevenueRatio = 1.2
+	// DefaultDebtToEquityRatio converte net_equity em gross_debt ilustrativo
+	// — alavancagem moderada (dívida bruta menor que o patrimônio líquido).
+	DefaultDebtToEquityRatio = 0.4
+	// DefaultCashToRevenueRatio converte net_revenue em cash_equivalents
+	// ilustrativo.
+	DefaultCashToRevenueRatio = 0.15
 )
 
 // SensitivityByRiskClass são valores ilustrativos de sensibilidade a
@@ -128,9 +155,8 @@ func NextGrowth(cfg Config, cycleIndex int, selicAnnualRate, selicNeutral float6
 // aplicando cada taxa multiplicativamente sobre o ciclo anterior — mesmo
 // papel que fixedincome.VNAMonthlySeries cumpre pro VNA do Tesouro IPCA+
 // (tarefa 3.4): transforma uma série de taxas numa série de nível.
-// Derivar net_income/ebit/gross_debt/cash_equivalents a partir da receita
-// (margens, alavancagem) é fora do escopo desta tarefa — fica pra quem
-// popular `company_fundamentals` de fato (seed/ciclo de relatórios).
+// Derivar net_income/ebit/net_equity/gross_debt/cash_equivalents a partir
+// da receita é DeriveFinancials (tarefa 4.8).
 func RevenueSeries(baseRevenue float64, growth []float64) []float64 {
 	revenues := make([]float64, len(growth))
 	revenue := baseRevenue
@@ -139,4 +165,36 @@ func RevenueSeries(baseRevenue float64, growth []float64) []float64 {
 		revenues[i] = revenue
 	}
 	return revenues
+}
+
+// Financials são os seis campos de uma linha de company_fundamentals já
+// derivados (tarefa 4.8) — insumo dos indicadores de ação de RF21
+// (indicators.go).
+type Financials struct {
+	NetRevenue      float64
+	NetIncome       float64
+	EBIT            float64
+	NetEquity       float64
+	GrossDebt       float64
+	CashEquivalents float64
+}
+
+// DeriveFinancials deriva net_income/ebit/net_equity/gross_debt/
+// cash_equivalents a partir de net_revenue já calculado (RevenueSeries/
+// NextGrowth), aplicando os coeficientes ilustrativos DefaultNetMarginPct/
+// DefaultEBITMarginPct/DefaultEquityToRevenueRatio/
+// DefaultDebtToEquityRatio/DefaultCashToRevenueRatio — mesmo tratamento
+// "sujeito à calibração 8.1" já dado a SensitivityByRiskClass/
+// priceSensitivity (tarefa 3.5/3.6). Usada pelo Temporizador (tarefa 3.14)
+// a cada ciclo de relatório, junto de RevenueSeries/NextGrowth.
+func DeriveFinancials(netRevenue float64) Financials {
+	netEquity := netRevenue * DefaultEquityToRevenueRatio
+	return Financials{
+		NetRevenue:      netRevenue,
+		NetIncome:       netRevenue * DefaultNetMarginPct,
+		EBIT:            netRevenue * DefaultEBITMarginPct,
+		NetEquity:       netEquity,
+		GrossDebt:       netEquity * DefaultDebtToEquityRatio,
+		CashEquivalents: netRevenue * DefaultCashToRevenueRatio,
+	}
 }

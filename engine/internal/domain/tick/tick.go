@@ -111,13 +111,17 @@ type MacroEventForApplication struct {
 
 // FundamentalsRecord é a nova linha de company_fundamentals gerada no dia
 // de relatório de uma empresa, pronta pra persistir (Repository.SaveTick).
-// Só NetRevenue é preenchido — derivar net_income/ebit/gross_debt/
-// cash_equivalents a partir da receita (margens, alavancagem) segue fora de
-// escopo, mesma nota já deixada em fundamentals.RevenueSeries (tarefa 3.5):
-// a spec não fecha fórmula nenhuma pra esses indicadores.
+// Os cinco campos além de NetRevenue vêm de fundamentals.DeriveFinancials
+// (tarefa 4.8) — antes disso só NetRevenue era preenchido, os demais
+// ficavam NULL pra sempre.
 type FundamentalsRecord struct {
-	CompanyID  string
-	NetRevenue float64
+	CompanyID       string
+	NetRevenue      float64
+	NetIncome       float64
+	EBIT            float64
+	NetEquity       float64
+	GrossDebt       float64
+	CashEquivalents float64
 }
 
 // Quote é o novo preço gerado pra um ativo num tick, pronto pra persistir
@@ -417,6 +421,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			baseRevenue = *c.LastRevenue
 		}
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
+		financials := fundamentals.DeriveFinancials(netRevenue)
 
 		reportEffects[c.CompanyID] = companyReportEffect{
 			NetRevenue: netRevenue,
@@ -425,7 +430,15 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 				fundamentals.DefaultReportPriceSensitivity,
 			),
 		}
-		fundamentalsRecords = append(fundamentalsRecords, FundamentalsRecord{CompanyID: c.CompanyID, NetRevenue: netRevenue})
+		fundamentalsRecords = append(fundamentalsRecords, FundamentalsRecord{
+			CompanyID:       c.CompanyID,
+			NetRevenue:      financials.NetRevenue,
+			NetIncome:       financials.NetIncome,
+			EBIT:            financials.EBIT,
+			NetEquity:       financials.NetEquity,
+			GrossDebt:       financials.GrossDebt,
+			CashEquivalents: financials.CashEquivalents,
+		})
 	}
 
 	quotes := make([]Quote, 0, len(assets))

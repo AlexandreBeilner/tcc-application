@@ -165,14 +165,13 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
 // as cotações geradas e as novas linhas de company_fundamentals (tarefa
-// 3.14), na mesma transação — nem calendário, cotações nem fundamentos são
-// escrita de saldo/posição de usuário, por isso não passa por Event
-// Sourcing (mesma distinção de catalog_repository.go pra dado cadastral).
-// period_date usa o relógio real (time.Now()), não o dia simulado — mesma
-// decisão já tomada pra DU restante de renda fixa na tarefa 3.13 (coerente
-// com "1 tick = 1 dia real"). Só net_revenue é gravado; net_income/ebit/
-// net_equity/gross_debt/cash_equivalents ficam NULL (schema permite,
-// mesma nota de escopo de FundamentalsRecord).
+// 3.14, os 6 campos desde a tarefa 4.8), na mesma transação — nem
+// calendário, cotações nem fundamentos são escrita de saldo/posição de
+// usuário, por isso não passa por Event Sourcing (mesma distinção de
+// catalog_repository.go pra dado cadastral). period_date usa o relógio
+// real (time.Now()), não o dia simulado — mesma decisão já tomada pra DU
+// restante de renda fixa na tarefa 3.13 (coerente com "1 tick = 1 dia
+// real").
 func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -205,8 +204,10 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		periodDate := time.Now()
 		for _, f := range result.Fundamentals {
 			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO company_fundamentals (company_id, period_date, net_revenue) VALUES ($1, $2, $3)`,
-				f.CompanyID, periodDate, f.NetRevenue,
+				`INSERT INTO company_fundamentals
+				   (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+				f.CompanyID, periodDate, f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
 			); err != nil {
 				return err
 			}

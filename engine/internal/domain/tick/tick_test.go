@@ -153,6 +153,39 @@ func TestAdvance_DiaDeRelatorioGeraFundamentals(t *testing.T) {
 	}
 }
 
+// TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals é o critério de
+// aceite central da tarefa 4.8: antes só NetRevenue vinha preenchido, os
+// outros 5 campos de FundamentalsRecord ficavam sempre no zero value (nunca
+// persistidos). fundamentals.DeriveFinancials é determinística a partir de
+// NetRevenue, então o valor exato pode ser conferido contra ela.
+func TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals(t *testing.T) {
+	companies := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, testSelicConfig(), 1)
+
+	if len(result.Fundamentals) != 1 {
+		t.Fatalf("len(Fundamentals) = %d, want 1", len(result.Fundamentals))
+	}
+	f := result.Fundamentals[0]
+	want := fundamentals.DeriveFinancials(f.NetRevenue)
+
+	if f.NetIncome != want.NetIncome {
+		t.Errorf("NetIncome = %v, want %v", f.NetIncome, want.NetIncome)
+	}
+	if f.EBIT != want.EBIT {
+		t.Errorf("EBIT = %v, want %v", f.EBIT, want.EBIT)
+	}
+	if f.NetEquity != want.NetEquity {
+		t.Errorf("NetEquity = %v, want %v", f.NetEquity, want.NetEquity)
+	}
+	if f.GrossDebt != want.GrossDebt {
+		t.Errorf("GrossDebt = %v, want %v", f.GrossDebt, want.GrossDebt)
+	}
+	if f.CashEquivalents != want.CashEquivalents {
+		t.Errorf("CashEquivalents = %v, want %v", f.CashEquivalents, want.CashEquivalents)
+	}
+}
+
 func TestAdvance_EmpresaSemAtivoVinculadoAindaGeraFundamentals(t *testing.T) {
 	// Nenhum AssetForPricing aponta pra "sem-ativo" — Sensitivity cai pro
 	// zero value de SensitivityByRiskClass, mas o ciclo de relatório não

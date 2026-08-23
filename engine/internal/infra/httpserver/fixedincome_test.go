@@ -43,7 +43,7 @@ func postFixedIncome(t *testing.T, path string, reader catalogReader, exec fixed
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

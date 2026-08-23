@@ -40,3 +40,16 @@ func ApplySell(current Position, quantity int) (Position, error) {
 	}
 	return Position{Quantity: current.Quantity - quantity, AveragePrice: current.AveragePrice}, nil
 }
+
+// Record é uma Position enriquecida com a identificação do ativo (ticker,
+// nome, tipo) pra leitura (GET /positions, tarefa 4.7) — os três campos
+// vêm crus (não catalog.AssetType) pra este pacote não precisar importar
+// catalog só pra exibição, mesma convenção já usada em
+// tick.AssetForPricing.Sector.
+type Record struct {
+	AssetID     string
+	AssetTicker string
+	AssetName   string
+	AssetType   string
+	Position
+}

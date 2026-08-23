@@ -30,7 +30,7 @@ func postOrder(t *testing.T, reader catalogReader, orders orderSubmitter, body s
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, orders, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, orders, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
