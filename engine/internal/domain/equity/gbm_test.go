@@ -182,3 +182,52 @@ func TestSeries_SofisticadoMaisVolatilQueConservador(t *testing.T) {
 		t.Error("volatilidade realizada de Sofisticado deveria ser maior que a de Conservador")
 	}
 }
+
+func TestNextPrice_RiskClassDesconhecidaRetornaOkFalse(t *testing.T) {
+	cfg := Config{RiskClass: RiskClass("Inexistente"), Seed: 1}
+
+	if _, ok := NextPrice(cfg, 0, 100, 10); ok {
+		t.Error("NextPrice(risk_class desconhecida) ok = true, want false")
+	}
+}
+
+func TestNextPrice_DeterministicaPorSeedEDayIndex(t *testing.T) {
+	cfg := Config{RiskClass: RiskClassConservador, Seed: 42}
+
+	a, okA := NextPrice(cfg, 5, 100, 10)
+	b, okB := NextPrice(cfg, 5, 100, 10)
+
+	if !okA || !okB {
+		t.Fatalf("okA = %v, okB = %v, want true", okA, okB)
+	}
+	if a != b {
+		t.Fatalf("NextPrice divergiu com mesmos parâmetros: %v != %v", a, b)
+	}
+}
+
+func TestNextPrice_DayIndexDiferenteGeraPrecoDiferente(t *testing.T) {
+	cfg := Config{RiskClass: RiskClassConservador, Seed: 42}
+
+	a, _ := NextPrice(cfg, 5, 100, 10)
+	b, _ := NextPrice(cfg, 6, 100, 10)
+
+	if a == b {
+		t.Error("NextPrice com dayIndex diferentes veio idêntico — ruído deveria variar por dia")
+	}
+}
+
+func TestNextPrice_PrecoNuncaZeroOuNegativo(t *testing.T) {
+	cfg := Config{RiskClass: RiskClassSofisticado, Seed: 7}
+
+	price := 50.0
+	for day := 0; day < 5000; day++ {
+		next, ok := NextPrice(cfg, day, price, 20)
+		if !ok {
+			t.Fatalf("NextPrice(dia %d) ok = false, want true", day)
+		}
+		if next <= 0 {
+			t.Fatalf("NextPrice(dia %d) = %v, GBM nunca deveria gerar preço <= 0", day, next)
+		}
+		price = next
+	}
+}

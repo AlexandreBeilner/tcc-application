@@ -1,6 +1,6 @@
 # `catalog` — leitura do catálogo de mercado
 
-Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincome` pras especializações, `internal/infra/db/catalog_repository.go` pra persistência). Ver `.claude/arquitetura-engine-go.md` pra entender a divisão em domínio/infra — aqui é só o contrato HTTP. Sem cotação corrente (preço/histórico é a tarefa 3.11, ainda não existe) — só o dado cadastral/quase-estático populado pelo seed (tarefa 3.9).
+Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincome` pras especializações, `internal/infra/db/catalog_repository.go` pra persistência). Ver `.claude/arquitetura-engine-go.md` pra entender a divisão em domínio/infra — aqui é só o contrato HTTP. Sem cotação corrente nestas rotas — a tabela de preços existe desde a tarefa 3.11 (`asset_quotes`, ver `.docs/engine/tick.md`), mas ainda não é exposta aqui, só o dado cadastral/quase-estático populado pelo seed (tarefa 3.9).
 
 ---
 

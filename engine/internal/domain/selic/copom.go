@@ -32,7 +32,7 @@ func CalendarSeries(cfg Config, days int) []float64 {
 	curve := make([]float64, days)
 	rate := cfg.Initial
 	for i := range curve {
-		if isCopomMeetingDay(i) {
+		if IsCopomMeetingDay(i) {
 			noise := rng.NormFloat64() * cfg.Volatility
 			rate += cfg.ReversionSpeed*(cfg.Neutral-rate) + noise
 			if rate < 0 {
@@ -44,11 +44,39 @@ func CalendarSeries(cfg Config, days int) []float64 {
 	return curve
 }
 
-// isCopomMeetingDay confere se o dia de índice i (0-based) é uma reunião do
+// IsCopomMeetingDay confere se o dia de índice i (0-based) é uma reunião do
 // Copom — o 21º, 42º, 63º... dia real da simulação, contagem 1-based (o
 // dia 1 nunca é reunião; a primeira decisão só sai depois de 21 dias
 // correndo, consistente com "a cada 21 dias reais" da spec 3.2.1, não uma
-// decisão já no primeiro dia).
-func isCopomMeetingDay(i int) bool {
+// decisão já no primeiro dia). Exportada (era isCopomMeetingDay até a
+// tarefa 3.11) porque o Temporizador (pacote tick) precisa sinalizar
+// "hoje é dia de reunião" sem duplicar essa regra.
+func IsCopomMeetingDay(i int) bool {
 	return (i+1)%CopomMeetingIntervalDays == 0
+}
+
+// NextCalendarRate avança a curva de juros por um único dia, a partir da
+// taxa persistida no fim do dia anterior — usado pelo Temporizador (tarefa
+// 3.11), que nunca regenera a série do zero a cada tick (decisão de
+// arquitetura confirmada em 2026-08-22, backlog 3.11): diferente de
+// CalendarSeries (que recalcula a curva inteira desde o dia 0 com uma única
+// rng contínua), aqui cada dia deriva sua própria rng de
+// (cfg.Seed, dayIndex) — determinístico por dia sem precisar repassar por
+// todos os dias anteriores, condição necessária pra ler só o último estado
+// persistido e continuar dali (RNF08 continua valendo: mesmos cfg.Seed e
+// dayIndex sempre produzem a mesma taxa). A taxa só muda em dia de reunião
+// do Copom (IsCopomMeetingDay); nos demais dias devolve currentRate
+// inalterada, mesma regra de CalendarSeries. Nunca fica negativa.
+func NextCalendarRate(cfg Config, dayIndex int, currentRate float64) float64 {
+	if !IsCopomMeetingDay(dayIndex) {
+		return currentRate
+	}
+
+	rng := rand.New(rand.NewSource(cfg.Seed + int64(dayIndex)))
+	noise := rng.NormFloat64() * cfg.Volatility
+	rate := currentRate + cfg.ReversionSpeed*(cfg.Neutral-currentRate) + noise
+	if rate < 0 {
+		rate = 0
+	}
+	return rate
 }

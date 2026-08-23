@@ -81,6 +81,52 @@ func TestCalendarSeries_NuncaNegativa(t *testing.T) {
 	}
 }
 
+func TestNextCalendarRate_ForaDeDiaDeReuniaoDevolveTaxaInalterada(t *testing.T) {
+	cfg := Config{Neutral: 10, ReversionSpeed: 0.5, Volatility: 1, Seed: 1}
+
+	for i := 0; i < CopomMeetingIntervalDays-1; i++ {
+		if got := NextCalendarRate(cfg, i, 20); got != 20 {
+			t.Fatalf("NextCalendarRate(dia %d, sem reunião) = %v, want 20 (inalterada)", i, got)
+		}
+	}
+}
+
+func TestNextCalendarRate_DiaDeReuniaoMudaATaxa(t *testing.T) {
+	cfg := Config{Neutral: 10, ReversionSpeed: 0.5, Volatility: 0, Seed: 1}
+
+	dayIndex := CopomMeetingIntervalDays - 1 // primeiro dia de reunião
+	got := NextCalendarRate(cfg, dayIndex, 20)
+
+	want := 20 + 0.5*(10-20) // sem ruído (Volatility=0), só a reversão à média
+	if got != want {
+		t.Errorf("NextCalendarRate(dia de reunião) = %v, want %v", got, want)
+	}
+}
+
+func TestNextCalendarRate_DeterministicaPorSeedEDayIndex(t *testing.T) {
+	cfg := Config{Neutral: 10, ReversionSpeed: 0.5, Volatility: 1, Seed: 1}
+	dayIndex := CopomMeetingIntervalDays - 1
+
+	a := NextCalendarRate(cfg, dayIndex, 20)
+	b := NextCalendarRate(cfg, dayIndex, 20)
+
+	if a != b {
+		t.Fatalf("NextCalendarRate divergiu com mesmos parâmetros: %v != %v", a, b)
+	}
+}
+
+func TestNextCalendarRate_NuncaNegativa(t *testing.T) {
+	cfg := Config{Neutral: 0, ReversionSpeed: 0.1, Volatility: 5, Seed: 7}
+
+	rate := 0.5
+	for day := 0; day < 1000; day++ {
+		rate = NextCalendarRate(cfg, day, rate)
+		if rate < 0 {
+			t.Fatalf("NextCalendarRate(dia %d) = %v, curva de juros simulada não pode ser negativa", day, rate)
+		}
+	}
+}
+
 func TestCalendarSeries_DiasNaoPositivoRetornaNil(t *testing.T) {
 	tests := []int{0, -1, -10}
 	for _, days := range tests {
@@ -111,7 +157,7 @@ func TestCalendarSeries_CurvaReflecteRendimentoDaRendaFixaPosFixada(t *testing.T
 		factorToday := dailyAccrualFactor(curve[i])
 		factorYesterday := dailyAccrualFactor(curve[i-1])
 
-		if isCopomMeetingDay(i) {
+		if IsCopomMeetingDay(i) {
 			if factorToday == factorYesterday {
 				t.Fatalf("dia %d é reunião do Copom, mas o fator de capitalização do pós-fixado não mudou", i+1)
 			}

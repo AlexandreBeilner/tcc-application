@@ -2,13 +2,25 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/selic"
+	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/db"
 	"tcc-investimentos/engine/internal/infra/httpserver"
+	"tcc-investimentos/engine/internal/infra/scheduler"
 )
+
+// defaultSimulationSeed é usada quando SIMULATION_SEED não está configurada
+// — RNF08 exige série determinística mesmo entre reinícios, então qualquer
+// ambiente sem a env var explícita ainda precisa de uma seed fixa, nunca
+// aleatória por processo.
+const defaultSimulationSeed = 42
 
 func main() {
 	addr := os.Getenv("ENGINE_ADDR")
@@ -18,10 +30,10 @@ func main() {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts e
-		// as rotas de catálogo respondem 503 (ver
-		// internal/infra/httpserver/account.go e assets.go).
-		if err := httpserver.Run(addr, nil, nil); err != nil {
+		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
+		// as rotas de catálogo e POST /admin/tick respondem 503 (ver
+		// internal/infra/httpserver/account.go, assets.go e admin.go).
+		if err := httpserver.Run(addr, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -41,7 +53,28 @@ func main() {
 	accountService := account.NewService(db.NewAccountRepository(pool))
 	catalogRepository := db.NewCatalogRepository(pool)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository); err != nil {
+	seed := int64(defaultSimulationSeed)
+	if raw := os.Getenv("SIMULATION_SEED"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			log.Fatalf("SIMULATION_SEED inválida: %v", err)
+		}
+		seed = parsed
+	}
+	selicConfig := selic.DefaultConfig(selic.DefaultNeutralRate, seed)
+	tickService := tick.NewService(db.NewTickRepository(pool), selicConfig, seed)
+
+	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
+	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick
+	// (handleAdminTick) dispara o mesmo Run fora do agendamento.
+	tickerCtx, stopTicker := context.WithCancel(context.Background())
+	defer stopTicker()
+	go scheduler.RunDaily(tickerCtx, 24*time.Hour, func(ctx context.Context) error {
+		_, err := tickService.Run(ctx)
+		return err
+	})
+
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

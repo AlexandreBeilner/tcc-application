@@ -79,3 +79,30 @@ func Series(cfg Config) []float64 {
 	}
 	return prices
 }
+
+// NextPrice avança o preço de um ativo por um único dia útil, a partir do
+// último preço persistido — usado pelo Temporizador (tarefa 3.11) em vez de
+// Series, que nunca regenera a série do zero a cada tick (mesma decisão de
+// arquitetura de selic.NextCalendarRate). dayIndex (0-based) entra na
+// derivação da rng junto com cfg.Seed pra que o ruído desse dia seja
+// determinístico sem precisar repassar pelos dias anteriores (RNF08:
+// mesmos cfg.Seed e dayIndex sempre produzem o mesmo preço a partir do
+// mesmo currentPrice). selicAnnualRate é a Selic simulada do dia (drift),
+// mesma fonte que Series usa via SelicAnnualRates. RiskClass desconhecida
+// devolve ok = false, mesmo tratamento de Series pra parâmetro inválido.
+func NextPrice(cfg Config, dayIndex int, currentPrice, selicAnnualRate float64) (price float64, ok bool) {
+	params, known := paramsByRiskClass[cfg.RiskClass]
+	if !known {
+		return 0, false
+	}
+
+	rng := rand.New(rand.NewSource(cfg.Seed + int64(dayIndex)))
+	const dt = 1.0 / BusinessDaysPerYear
+	dailyVolatility := params.AnnualVolatility / math.Sqrt(BusinessDaysPerYear)
+
+	annualDrift := selicAnnualRate/100 + params.DriftPremiumOverSelic
+	logReturn := (annualDrift-0.5*params.AnnualVolatility*params.AnnualVolatility)*dt +
+		dailyVolatility*rng.NormFloat64()
+
+	return currentPrice * math.Exp(logReturn), true
+}

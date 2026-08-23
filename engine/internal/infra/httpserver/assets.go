@@ -13,8 +13,9 @@ import (
 
 // assetCatalogReader é o colaborador que os handlers de /assets precisam
 // pra ler o catálogo — implementado por *db.CatalogRepository, injetado em
-// New (tarefa 3.10). Sem cotação corrente (tabela de preços é a tarefa
-// 3.11) — só dado cadastral/quase-estático do seed da 3.9.
+// New (tarefa 3.10). Sem cotação corrente (asset_quotes existe desde a
+// tarefa 3.11, mas ainda não é exposta por essas rotas) — só dado
+// cadastral/quase-estático do seed da 3.9.
 type assetCatalogReader interface {
 	ListAssets(ctx context.Context, assetType string) ([]catalog.AssetRecord, error)
 	FindAssetByID(ctx context.Context, id string) (catalog.AssetRecord, bool, error)

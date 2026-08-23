@@ -20,16 +20,17 @@ type catalogReader interface {
 
 // New monta o *http.Server com as rotas do motor de simulação registradas.
 // accounts pode ser nil (ex: sem DATABASE_URL configurado) — POST
-// /accounts responde 503 nesse caso; catalog pode ser nil também — GET
-// /assets, /assets/:id e /companies/:id respondem 503 nesse caso, em vez
-// de panicar.
-func New(addr string, accounts accountOpener, catalog catalogReader) *http.Server {
+// /accounts responde 503 nesse caso; catalog e temporizador podem ser nil
+// também — GET /assets, /assets/:id, /companies/:id e POST /admin/tick
+// respondem 503 nesse caso, em vez de panicar.
+func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
 	mux.HandleFunc("GET /assets", handleListAssets(catalog))
 	mux.HandleFunc("GET /assets/{id}", handleGetAsset(catalog))
 	mux.HandleFunc("GET /companies/{id}", handleGetCompany(catalog))
+	mux.HandleFunc("POST /admin/tick", handleAdminTick(temporizador))
 
 	return &http.Server{
 		Addr:         addr,
@@ -41,8 +42,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader) *http.Serve
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountOpener, catalog catalogReader) error {
-	srv := New(addr, accounts, catalog)
+func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker) error {
+	srv := New(addr, accounts, catalog, temporizador)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
 }
