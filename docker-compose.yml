@@ -37,6 +37,10 @@ services:
       ENGINE_ADDR: ":8080"
       DATABASE_URL: postgres://${POSTGRES_USER:-tcc}:${POSTGRES_PASSWORD:-tcc}@postgres:5432/market?sslmode=disable
       REDIS_URL: redis://redis:6379/0
+      # Seed fixa da simulação (Temporizador, tarefa 3.11) — RNF08 exige
+      # série determinística mesmo entre reinícios, por isso nunca é
+      # aleatória por processo.
+      SIMULATION_SEED: ${SIMULATION_SEED:-42}
     depends_on:
       postgres:
         condition: service_healthy
