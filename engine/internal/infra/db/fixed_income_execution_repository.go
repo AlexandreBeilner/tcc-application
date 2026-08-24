@@ -81,13 +81,11 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 	pctx.CurrentPosition = pos
 
 	if isSandbox {
-		if script, ok := sandbox.RateScriptForTicker(ticker); ok {
-			dayIndex := 0
-			if positionCreatedAt.Valid {
-				dayIndex = sandbox.DaysSince(positionCreatedAt.Time, time.Now())
-			}
-			pctx.AnnualRatePct = sandbox.RateOnDay(script, dayIndex)
+		script, ok := sandbox.RateScriptForTicker(ticker)
+		if !ok {
+			return fixedincomeexecution.PurchaseContext{}, ErrSandboxScriptNotFound
 		}
+		pctx.AnnualRatePct = sandbox.RateOnDay(script, sandboxDayIndex(positionCreatedAt, pos.Quantity))
 	}
 
 	return pctx, nil
@@ -127,11 +125,13 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 	}
 
 	if isSandbox {
-		if script, ok := sandbox.RateScriptForTicker(ticker); ok {
-			dayIndex := sandbox.DaysSince(positionCreatedAt, time.Now())
-			rctx.CurrentMarketRatePct = sandbox.RateOnDay(script, dayIndex)
-			return rctx, nil
+		script, ok := sandbox.RateScriptForTicker(ticker)
+		if !ok {
+			return fixedincomeexecution.RedeemContext{}, ErrSandboxScriptNotFound
 		}
+		dayIndex := sandbox.DaysSince(positionCreatedAt, time.Now())
+		rctx.CurrentMarketRatePct = sandbox.RateOnDay(script, dayIndex)
+		return rctx, nil
 	}
 
 	if err := r.db.QueryRowContext(ctx,

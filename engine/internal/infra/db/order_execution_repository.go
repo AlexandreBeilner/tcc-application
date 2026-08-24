@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/orderbook"
@@ -51,7 +50,7 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
-	referencePrice, err := r.referencePrice(ctx, assetID, positionCreatedAt)
+	referencePrice, err := r.referencePrice(ctx, assetID, positionQty, positionCreatedAt)
 	if err != nil {
 		return orderexecution.Context{}, err
 	}
@@ -74,12 +73,13 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 // (RF12, tarefa 4.11) usa sandbox.PriceScript, indexado pelo ticker (não dá
 // pra indexar por assetID em tempo de compilação — gerado pelo Postgres) e
 // pelo dia decorrido desde a primeira operação do usuário da ordem *nesse
-// ativo* (positionCreatedAt — dia 0 se ele ainda não tinha posição nenhuma,
-// ou seja, esta é a primeira operação), nunca asset_quotes — o Temporizador
+// ativo* (positionCreatedAt/positionQty — sandboxDayIndex reinicia em dia 0
+// se ele ainda não tinha posição nenhuma OU se a posição existente está
+// zerada, ver doc de sandboxDayIndex), nunca asset_quotes — o Temporizador
 // nunca gera cotação pra ativo sandbox (ver tick.md). Ativo do Mercado Ao
 // Vivo mantém o comportamento original: última linha de asset_quotes
 // (tarefa 3.11), tick.DefaultInitialPrice se ainda não há nenhuma.
-func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionCreatedAt sql.NullTime) (float64, error) {
+func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionQty int, positionCreatedAt sql.NullTime) (float64, error) {
 	var ticker string
 	var isSandbox bool
 	if err := r.db.QueryRowContext(ctx,
@@ -89,13 +89,11 @@ func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID s
 	}
 
 	if isSandbox {
-		if script, ok := sandbox.PriceScriptForTicker(ticker); ok {
-			dayIndex := 0
-			if positionCreatedAt.Valid {
-				dayIndex = sandbox.DaysSince(positionCreatedAt.Time, time.Now())
-			}
-			return sandbox.PriceOnDay(script, dayIndex), nil
+		script, ok := sandbox.PriceScriptForTicker(ticker)
+		if !ok {
+			return 0, ErrSandboxScriptNotFound
 		}
+		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
 	}
 
 	referencePrice := tick.DefaultInitialPrice
