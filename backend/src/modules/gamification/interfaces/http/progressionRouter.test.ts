@@ -42,7 +42,14 @@ describe('progression routes', () => {
     const res = await request(app).get('/me/progression').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ userId: 'u1', xp: 150, level: 2 })
+    expect(res.body).toEqual({
+      userId: 'u1',
+      xp: 150,
+      level: 2,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastQualifyingActivityDate: null,
+    })
   })
 
   it('GET /users/:id/progression não exige token e nunca inclui patrimônio', async () => {
@@ -52,7 +59,14 @@ describe('progression routes', () => {
     const res = await request(app).get('/users/u2/progression')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ userId: 'u2', xp: 50, level: 1 })
+    expect(res.body).toEqual({
+      userId: 'u2',
+      xp: 50,
+      level: 1,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastQualifyingActivityDate: null,
+    })
     expect(res.body).not.toHaveProperty('netWorth')
     expect(res.body).not.toHaveProperty('balance')
   })

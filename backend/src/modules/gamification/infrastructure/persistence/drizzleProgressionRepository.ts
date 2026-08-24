@@ -5,7 +5,14 @@ import type { ProgressionRepository } from '../../application/ports/progressionR
 import type { Progression } from '../../domain/progression'
 
 function toDomain(row: typeof userProgression.$inferSelect): Progression {
-  return { userId: row.userId, xp: row.xp, level: row.level }
+  return {
+    userId: row.userId,
+    xp: row.xp,
+    level: row.level,
+    currentStreak: row.currentStreak,
+    longestStreak: row.longestStreak,
+    lastQualifyingActivityDate: row.lastQualifyingActivityDate,
+  }
 }
 
 export function createDrizzleProgressionRepository(db: Database): ProgressionRepository {
@@ -20,12 +27,20 @@ export function createDrizzleProgressionRepository(db: Database): ProgressionRep
     },
 
     async upsert(progression: Progression) {
+      const values = {
+        userId: progression.userId,
+        xp: progression.xp,
+        level: progression.level,
+        currentStreak: progression.currentStreak,
+        longestStreak: progression.longestStreak,
+        lastQualifyingActivityDate: progression.lastQualifyingActivityDate,
+      }
       const [row] = await db
         .insert(userProgression)
-        .values({ userId: progression.userId, xp: progression.xp, level: progression.level })
+        .values(values)
         .onConflictDoUpdate({
           target: userProgression.userId,
-          set: { xp: progression.xp, level: progression.level, updatedAt: new Date() },
+          set: { ...values, updatedAt: new Date() },
         })
         .returning()
       return toDomain(row)

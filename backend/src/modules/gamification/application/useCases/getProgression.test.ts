@@ -10,7 +10,14 @@ describe('GetProgressionUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1' })
 
-    expect(result).toEqual({ userId: 'u1', xp: 0, level: 1 })
+    expect(result).toEqual({
+      userId: 'u1',
+      xp: 0,
+      level: 1,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastQualifyingActivityDate: null,
+    })
   })
 
   it('devolve a progressão persistida depois de um crédito de xp', async () => {
@@ -21,6 +28,13 @@ describe('GetProgressionUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1' })
 
-    expect(result).toEqual({ userId: 'u1', xp: 150, level: 2 })
+    expect(result).toEqual({
+      userId: 'u1',
+      xp: 150,
+      level: 2,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastQualifyingActivityDate: null,
+    })
   })
 })

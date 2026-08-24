@@ -1,5 +1,5 @@
 import { InvalidXpAmountError } from '../../domain/errors'
-import { levelForXp } from '../../domain/progression'
+import { defaultProgression, levelForXp } from '../../domain/progression'
 import type { ProgressionRepository } from '../ports/progressionRepository'
 
 export interface AwardXpInput {
@@ -28,18 +28,17 @@ export class AwardXpUseCase {
       throw new InvalidXpAmountError('quantidade de xp deve ser positiva')
     }
 
-    const current = (await this.progressionRepository.findByUserId(input.userId)) ?? {
-      userId: input.userId,
-      xp: 0,
-      level: 1,
-    }
+    const current =
+      (await this.progressionRepository.findByUserId(input.userId)) ??
+      defaultProgression(input.userId)
 
     // Nível sempre recalculado a partir do xp acumulado, nunca incrementado
     // à parte — evita dessincronização e sustenta saltos de 2+ níveis num
-    // único crédito grande.
+    // único crédito grande. Campos de streak preservados como estão — este
+    // caso de uso não é dono deles (ver TouchStreakUseCase, 5.3).
     const xp = current.xp + input.amount
     const level = levelForXp(xp)
-    await this.progressionRepository.upsert({ userId: input.userId, xp, level })
+    await this.progressionRepository.upsert({ ...current, xp, level })
 
     return { xp, level, leveledUp: level > current.level }
   }

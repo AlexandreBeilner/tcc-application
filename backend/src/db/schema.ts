@@ -149,6 +149,11 @@ export const userProgression = pgTable('user_progression', {
     .references(() => users.id),
   xp: integer('xp').notNull().default(0),
   level: integer('level').notNull().default(1),
+  currentStreak: integer('current_streak').notNull().default(0),
+  longestStreak: integer('longest_streak').notNull().default(0),
+  // Dia calendário em UTC (tarefa 5.3) — nullable até a primeira atividade
+  // qualificada (lição/missão concluída).
+  lastQualifyingActivityDate: date('last_qualifying_activity_date'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

@@ -1,7 +1,25 @@
+// Uma linha de `user_progression` por usuário — XP/nível (5.1) e streak
+// (5.3) vivem na mesma entidade porque vivem na mesma tabela; cada caso de
+// uso só lê-modifica-escreve os campos que é dono, preservando os outros.
 export interface Progression {
   userId: string
   xp: number
   level: number
+  currentStreak: number
+  longestStreak: number
+  // Dia calendário em UTC, formato YYYY-MM-DD — ver domain/streak.ts.
+  lastQualifyingActivityDate: string | null
+}
+
+export function defaultProgression(userId: string): Progression {
+  return {
+    userId,
+    xp: 0,
+    level: 1,
+    currentStreak: 0,
+    longestStreak: 0,
+    lastQualifyingActivityDate: null,
+  }
 }
 
 // Curva ilustrativa, sujeita à calibração da tarefa 8.1 (mesmo tratamento

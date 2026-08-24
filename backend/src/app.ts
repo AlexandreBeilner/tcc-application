@@ -11,6 +11,7 @@ import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRoute
 import { GetProgressionUseCase } from './modules/gamification/application/useCases/getProgression'
 import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
 import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
+import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
 import type { UserRepository } from './modules/auth/application/ports/userRepository'
@@ -106,5 +107,6 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createAdminPingRouter(authMiddleware))
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
+  app.use(createStreakRouter({ getProgression, authMiddleware }))
   return app
 }

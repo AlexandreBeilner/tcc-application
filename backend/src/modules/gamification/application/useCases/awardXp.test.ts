@@ -26,7 +26,14 @@ describe('AwardXpUseCase', () => {
 
     expect(result.xp).toBe(120)
     const stored = await progressionRepository.findByUserId('u1')
-    expect(stored).toEqual({ userId: 'u1', xp: 120, level: 2 })
+    expect(stored).toEqual({
+      userId: 'u1',
+      xp: 120,
+      level: 2,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastQualifyingActivityDate: null,
+    })
   })
 
   it('sinaliza leveledUp ao cruzar o limiar do próximo nível', async () => {
