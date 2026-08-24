@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
-    "db:seed:admin": "tsx src/db/seed.ts"
+    "db:seed:admin": "tsx src/db/seed.ts",
+    "db:seed:lessons": "tsx src/db/seedLessons.ts"
   },
   "keywords": [],
   "author": "",
