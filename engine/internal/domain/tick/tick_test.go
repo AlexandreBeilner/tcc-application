@@ -550,6 +550,46 @@ func TestAdvance_Dividendos_FIIGeraProventoNoCalendarioGlobalDeRelatorio(t *test
 	}
 }
 
+// TestAdvance_Dividendos_FIIPapelUsaPortfolioValue confere que FII papel
+// (sem NetWorth, tarefa 4.10) gera provento a partir de PortfolioValue,
+// pela mesma dividend.FIIValuePerShare já usada pro tijolo — achado da
+// tarefa 4.9 (FII papel nunca gerava provento por falta dessa grandeza).
+func TestAdvance_Dividendos_FIIPapelUsaPortfolioValue(t *testing.T) {
+	portfolioValue := 300_000_000.0
+	shares := int64(1_000_000)
+	holders := []PositionHolder{{UserID: "u1", Quantity: 50}}
+	payer := DividendPayerAsset{AssetID: "fii2", Type: "fii", PortfolioValue: &portfolioValue, OutstandingShares: &shares, Holders: holders}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.NewDividends) != 1 {
+		t.Fatalf("len(NewDividends) = %d, want 1", len(result.NewDividends))
+	}
+	wantValue, ok := dividend.FIIValuePerShare(portfolioValue, shares)
+	if !ok {
+		t.Fatal("dividend.FIIValuePerShare() ok = false, want true")
+	}
+	if result.NewDividends[0].ValuePerShare != wantValue {
+		t.Errorf("ValuePerShare = %v, want %v", result.NewDividends[0].ValuePerShare, wantValue)
+	}
+}
+
+// TestAdvance_Dividendos_FIISemNetWorthNemPortfolioValueNaoGera confere que
+// FII sem nenhuma das duas grandezas (nem NetWorth nem PortfolioValue) não
+// gera provento nenhum, mesmo no dia de relatório global.
+func TestAdvance_Dividendos_FIISemNetWorthNemPortfolioValueNaoGera(t *testing.T) {
+	shares := int64(1_000_000)
+	payer := DividendPayerAsset{AssetID: "fii3", Type: "fii", OutstandingShares: &shares}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.NewDividends) != 0 {
+		t.Errorf("len(NewDividends) = %d, want 0 (sem NetWorth nem PortfolioValue)", len(result.NewDividends))
+	}
+}
+
 func TestAdvance_Dividendos_FIINaoGeraForaDoDiaDeRelatorioGlobal(t *testing.T) {
 	netWorth := 100_000_000.0
 	shares := int64(1_000_000)

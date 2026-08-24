@@ -524,6 +524,49 @@ func TestHandleGetAsset_FII(t *testing.T) {
 	}
 }
 
+// TestHandleGetAsset_FIIPapel confere que FII papel (tarefa 4.10) expõe
+// PortfolioValue (nunca NetWorth/VacancyRate) — o achado da tarefa 4.9 era
+// que FII papel nunca tinha grandeza numérica própria no catálogo.
+func TestHandleGetAsset_FIIPapel(t *testing.T) {
+	indexador := "CDI"
+	portfolioValue := 300_000_000.00
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "2",
+			Asset: catalog.Asset{Ticker: "PAPL11", Name: "FII Papel Recebíveis", Type: catalog.AssetFII},
+		},
+		assetFound: true,
+		fiiDetails: fii.Details{
+			Type:           fii.TypePapel,
+			Indexador:      &indexador,
+			PortfolioValue: &portfolioValue,
+		},
+		fiiOK: true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/2")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.FII == nil {
+		t.Fatalf("FII = nil, want preenchido")
+	}
+	if body.FII.FIIType != string(fii.TypePapel) {
+		t.Errorf("FIIType = %v, want %v", body.FII.FIIType, fii.TypePapel)
+	}
+	if body.FII.PortfolioValue == nil || *body.FII.PortfolioValue != portfolioValue {
+		t.Errorf("PortfolioValue = %v, want %v", body.FII.PortfolioValue, portfolioValue)
+	}
+	if body.FII.NetWorth != nil || body.FII.VacancyRate != nil {
+		t.Errorf("FII = %+v, tijolo-only fields deveriam estar nil pro perfil papel", body.FII)
+	}
+}
+
 // TestHandleGetAsset_FIIComDividendYield confere o Dividend Yield de FII
 // (tarefa 4.9, RF21) — mesmo cálculo do bloco de ação, mas exposto direto
 // em fiiDetailResponse (nunca reaproveita equityIndicatorsResponse,

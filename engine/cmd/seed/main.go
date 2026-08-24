@@ -171,7 +171,7 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) {
 	segment := "Lajes Corporativas"
 	netWorth := 500_000_000.00
 	vacancyRate := 5.2
-	details, err := fii.NewDetails(fii.TypeTijolo, &segment, &netWorth, &vacancyRate, nil)
+	details, err := fii.NewDetails(fii.TypeTijolo, &segment, &netWorth, &vacancyRate, nil, nil)
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
 	}
@@ -197,8 +197,13 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) {
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
 
+	// portfolio_value (tarefa 4.10) — valor ilustrativo da carteira de
+	// recebíveis, mesmo tratamento "sujeito à calibração 8.1" de net_worth
+	// (seedFIITijolo) — é o denominador ausente que fazia PAPL11 nunca gerar
+	// provento/Dividend Yield antes desta tarefa.
 	indexador := "CDI"
-	details, err := fii.NewDetails(fii.TypePapel, nil, nil, nil, &indexador)
+	portfolioValue := 300_000_000.00
+	details, err := fii.NewDetails(fii.TypePapel, nil, nil, nil, &indexador, &portfolioValue)
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
 	}

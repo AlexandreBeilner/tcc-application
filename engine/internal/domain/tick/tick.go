@@ -147,9 +147,12 @@ type PositionHolder struct {
 // "fii" cru (mesma convenção de AssetForPricing.Sector: tick não importa
 // catalog só pra isso). CompanyID só vem preenchido pra "acao" (usado por
 // Advance pra achar o net_income do ciclo, já calculado no loop de
-// empresas); NetWorth só pra "fii" (fii_details.net_worth — ver
-// dividend.FIIValuePerShare). Holders é a posição de cada usuário nesse
-// ativo, carregada eagerly pelo Repository — vira Recipients de um
+// empresas); NetWorth/PortfolioValue só pra "fii" — mutuamente exclusivos
+// por perfil (fii_details.net_worth pra tijolo, fii_details.portfolio_value
+// pra papel desde a tarefa 4.10), ambos consumidos por
+// dividend.FIIValuePerShare como a mesma grandeza numérica de origem
+// (fórmula não muda, só a coluna). Holders é a posição de cada usuário
+// nesse ativo, carregada eagerly pelo Repository — vira Recipients de um
 // DividendRecord se o ativo gerar provento neste tick.
 type DividendPayerAsset struct {
 	AssetID           string
@@ -157,6 +160,7 @@ type DividendPayerAsset struct {
 	OutstandingShares *int64
 	CompanyID         *string
 	NetWorth          *float64
+	PortfolioValue    *float64
 	Holders           []PositionHolder
 }
 
@@ -247,8 +251,10 @@ type Repository interface {
 	// quando marcar status = 'aplicado' (Result.AppliedMacroEventIDs).
 	ListPendingMacroEvents(ctx context.Context) ([]MacroEventForApplication, error)
 	// ListDividendPayerAssets devolve todo ativo pagador de provento (ação
-	// ou FII, is_sandbox = false) com outstanding_shares/net_worth do
-	// catálogo e a posição de cada usuário nesse ativo — usado por Advance
+	// ou FII, is_sandbox = false) com outstanding_shares/net_worth/
+	// portfolio_value (net_worth/portfolio_value mutuamente exclusivos por
+	// perfil de FII, tarefa 4.10) do catálogo e a posição de cada usuário
+	// nesse ativo — usado por Advance
 	// (tarefa 4.9) pra decidir, no dia de relatório, o valor por ação/cota
 	// do ciclo e o snapshot de elegibilidade (posição na data ex) de um
 	// novo dividend_events.
@@ -460,16 +466,17 @@ func macroEventDone(ev MacroEventForApplication, newDay int) bool {
 // dividendRecordsForCycle monta os novos dividend_events do dia de
 // relatório (tarefa 4.9) — ação usa o net_income já calculado no loop de
 // empresas deste mesmo tick (netIncomeByCompany, só preenchido pras
-// empresas que bateram IsReportDay agora); FII usa NetWorth e o mesmo
-// calendário global de relatório (fundamentals.DefaultReportFrequencyDays),
-// porque não é vinculado a uma company (spec 3.6) e não tem
-// report_frequency_days próprio. Ativo sem outstanding_shares no catálogo,
-// ou (só ação) cuja empresa não bateu relatório neste tick, não gera
-// dividendo nenhum agora — nem FII sem NetWorth: o catálogo (fii_details,
-// spec 3.6) só modela net_worth pro perfil tijolo, então FII papel (só
-// indexador, sem grandeza numérica própria) nunca gera provento nesta
-// fase, mesmo tratamento de "indicador omitido, não erro nem 0" já dado a
-// dado de origem ausente em outros lugares do RF21.
+// empresas que bateram IsReportDay agora); FII usa o mesmo calendário
+// global de relatório (fundamentals.DefaultReportFrequencyDays), porque não
+// é vinculado a uma company (spec 3.6) e não tem report_frequency_days
+// próprio, e NetWorth (tijolo) ou PortfolioValue (papel, tarefa 4.10) como
+// grandeza numérica de origem — mutuamente exclusivos por perfil, a mesma
+// dividend.FIIValuePerShare consome qualquer um dos dois sem mudar a
+// fórmula. Ativo sem outstanding_shares no catálogo, ou (só ação) cuja
+// empresa não bateu relatório neste tick, não gera dividendo nenhum agora —
+// nem FII sem NetWorth nem PortfolioValue preenchidos, mesmo tratamento de
+// "indicador omitido, não erro nem 0" já dado a dado de origem ausente em
+// outros lugares do RF21.
 func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
 	fiiReportDay := fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays)
 
@@ -492,10 +499,17 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 			}
 			value, ok = dividend.EquityValuePerShare(netIncome, *a.OutstandingShares)
 		case "fii":
-			if !fiiReportDay || a.NetWorth == nil {
+			if !fiiReportDay {
 				continue
 			}
-			value, ok = dividend.FIIValuePerShare(*a.NetWorth, *a.OutstandingShares)
+			baseValue := a.NetWorth
+			if baseValue == nil {
+				baseValue = a.PortfolioValue
+			}
+			if baseValue == nil {
+				continue
+			}
+			value, ok = dividend.FIIValuePerShare(*baseValue, *a.OutstandingShares)
 		}
 		if !ok {
 			continue

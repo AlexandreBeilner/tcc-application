@@ -12,9 +12,10 @@
 // à calibração da tarefa 8.1" já dado às margens/alavancagem ilustrativas
 // de fundamentals. FII não é vinculado a uma company (spec 3.6: só ação
 // tem company_id) e por isso não tem net_income nenhum — usa em vez disso
-// uma fração ilustrativa de net_worth (fii_details), a única grandeza
-// própria de FII já modelada no catálogo, como proxy do resultado
-// distribuído nesse ciclo.
+// uma fração ilustrativa da grandeza numérica própria de cada perfil
+// (fii_details): net_worth pro perfil tijolo, portfolio_value pro perfil
+// papel (tarefa 4.10 — mesma fórmula, só a coluna de origem muda por
+// perfil), como proxy do resultado distribuído nesse ciclo.
 package dividend
 
 const (
@@ -47,13 +48,16 @@ func EquityValuePerShare(netIncome float64, outstandingShares int64) (float64, b
 	return netIncome * DefaultEquityPayoutRatio / float64(outstandingShares), true
 }
 
-// FIIValuePerShare deriva o provento por cota do ciclo a partir de
-// net_worth (fii_details) — ver nota de implementação no doc do pacote.
-func FIIValuePerShare(netWorth float64, outstandingShares int64) (float64, bool) {
+// FIIValuePerShare deriva o provento por cota do ciclo a partir da
+// grandeza numérica própria do perfil de FII (fii_details.net_worth pro
+// tijolo, fii_details.portfolio_value pro papel desde a tarefa 4.10) — ver
+// nota de implementação no doc do pacote. A fórmula é a mesma pros dois
+// perfis, só a coluna de origem que o chamador passa muda.
+func FIIValuePerShare(baseValue float64, outstandingShares int64) (float64, bool) {
 	if outstandingShares <= 0 {
 		return 0, false
 	}
-	return netWorth * DefaultFIIYieldPerCyclePct / 100 / float64(outstandingShares), true
+	return baseValue * DefaultFIIYieldPerCyclePct / 100 / float64(outstandingShares), true
 }
 
 // Yield (Dividend Yield, RF21 — exigido tanto pra Ações quanto pros dois

@@ -233,11 +233,12 @@ type etfDetailResponse struct {
 // mutuamente exclusivos — mesma regra de fii.NewDetails), nunca o layout de
 // equityDetailResponse (RF21, CLAUDE.md).
 type fiiDetailResponse struct {
-	FIIType     string   `json:"fii_type"`
-	Segment     *string  `json:"segment,omitempty"`
-	NetWorth    *float64 `json:"net_worth,omitempty"`
-	VacancyRate *float64 `json:"vacancy_rate,omitempty"`
-	Indexador   *string  `json:"indexador,omitempty"`
+	FIIType        string   `json:"fii_type"`
+	Segment        *string  `json:"segment,omitempty"`
+	NetWorth       *float64 `json:"net_worth,omitempty"`
+	VacancyRate    *float64 `json:"vacancy_rate,omitempty"`
+	Indexador      *string  `json:"indexador,omitempty"`
+	PortfolioValue *float64 `json:"portfolio_value,omitempty"`
 	// DividendYield/DividendHistory (tarefa 4.9, RF21) — mesma fonte
 	// (dividend_events) e mesmo cálculo (dividend.Yield) do bloco de ação,
 	// nunca o layout de equityIndicatorsResponse (RF21, CLAUDE.md: FII não
@@ -424,6 +425,7 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 					NetWorth:        details.NetWorth,
 					VacancyRate:     details.VacancyRate,
 					Indexador:       details.Indexador,
+					PortfolioValue:  details.PortfolioValue,
 					DividendHistory: toDividendHistoryResponse(dividendHistory),
 				}
 				if quotePtr != nil {

@@ -144,9 +144,9 @@ func (r *CatalogRepository) CreateETFDetails(ctx context.Context, assetID string
 
 func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string, details fii.Details) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador,
+		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador, details.PortfolioValue,
 	)
 	return err
 }
@@ -295,8 +295,8 @@ func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) 
 	var d fii.Details
 	var fiiType string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador FROM fii_details WHERE asset_id = $1`, assetID,
-	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador)
+		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value FROM fii_details WHERE asset_id = $1`, assetID,
+	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue)
 	if err == sql.ErrNoRows {
 		return fii.Details{}, false, nil
 	}

@@ -176,7 +176,7 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // — não é pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth
+		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -193,7 +193,7 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue); err != nil {
 			return nil, err
 		}
 		a.Type = assetType
