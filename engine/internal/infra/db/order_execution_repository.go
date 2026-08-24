@@ -9,6 +9,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/position"
+	"tcc-investimentos/engine/internal/domain/sandbox"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
@@ -29,9 +30,7 @@ func NewOrderExecutionRepository(db *sql.DB) *OrderExecutionRepository {
 // checagem de saldo/posição definitiva acontece de novo, com lock, dentro
 // da transação de Persist), tudo que orderexecution.Execute precisa: saldo
 // e posição atuais do usuário da ordem recebida, o preço de referência
-// corrente (última linha de asset_quotes, tarefa 3.11 — DefaultInitialPrice
-// se o Temporizador ainda não gerou nenhuma cotação pra esse ativo) e as
-// ordens reais pendentes desse ativo, em ordem de chegada.
+// corrente e as ordens reais pendentes desse ativo, em ordem de chegada.
 func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, userID string) (orderexecution.Context, error) {
 	var balance float64
 	if err := r.db.QueryRowContext(ctx,
@@ -44,16 +43,15 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 	}
 
 	var positionQty int
+	var positionCreatedAt sql.NullTime
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT quantity FROM positions WHERE user_id = $1 AND asset_id = $2`, userID, assetID,
-	).Scan(&positionQty); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		`SELECT quantity, created_at FROM positions WHERE user_id = $1 AND asset_id = $2`, userID, assetID,
+	).Scan(&positionQty, &positionCreatedAt); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return orderexecution.Context{}, err
 	}
 
-	referencePrice := tick.DefaultInitialPrice
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT price FROM asset_quotes WHERE asset_id = $1 ORDER BY simulated_day DESC LIMIT 1`, assetID,
-	).Scan(&referencePrice); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	referencePrice, err := r.referencePrice(ctx, assetID, positionQty, positionCreatedAt)
+	if err != nil {
 		return orderexecution.Context{}, err
 	}
 
@@ -68,6 +66,43 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		IncomingUserBalance:  balance,
 		IncomingUserPosition: positionQty,
 	}, nil
+}
+
+// referencePrice resolve o preço de referência (usado pelo preenchimento
+// sintético de ordem a mercado — orderexecution.Execute): ativo sandbox
+// (RF12, tarefa 4.11) usa sandbox.PriceScript, indexado pelo ticker (não dá
+// pra indexar por assetID em tempo de compilação — gerado pelo Postgres) e
+// pelo dia decorrido desde a primeira operação do usuário da ordem *nesse
+// ativo* (positionCreatedAt/positionQty — sandboxDayIndex reinicia em dia 0
+// se ele ainda não tinha posição nenhuma OU se a posição existente está
+// zerada, ver doc de sandboxDayIndex), nunca asset_quotes — o Temporizador
+// nunca gera cotação pra ativo sandbox (ver tick.md). Ativo do Mercado Ao
+// Vivo mantém o comportamento original: última linha de asset_quotes
+// (tarefa 3.11), tick.DefaultInitialPrice se ainda não há nenhuma.
+func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionQty int, positionCreatedAt sql.NullTime) (float64, error) {
+	var ticker string
+	var isSandbox bool
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT ticker, is_sandbox FROM assets WHERE id = $1`, assetID,
+	).Scan(&ticker, &isSandbox); err != nil {
+		return 0, err
+	}
+
+	if isSandbox {
+		script, ok := sandbox.PriceScriptForTicker(ticker)
+		if !ok {
+			return 0, ErrSandboxScriptNotFound
+		}
+		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
+	}
+
+	referencePrice := tick.DefaultInitialPrice
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT price FROM asset_quotes WHERE asset_id = $1 ORDER BY simulated_day DESC LIMIT 1`, assetID,
+	).Scan(&referencePrice); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	return referencePrice, nil
 }
 
 func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetID string) ([]orderexecution.RestingOrder, error) {

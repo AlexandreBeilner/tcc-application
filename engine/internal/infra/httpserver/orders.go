@@ -19,9 +19,11 @@ type orderSubmitter interface {
 }
 
 // tradableAssetTypes são os únicos tipos de ativo que passam por matching
-// de book — renda fixa (compra/resgate) e o sandbox de aprendizagem (RF12)
-// têm fluxos próprios, fora do escopo desta rota (3.13 e futura,
-// respectivamente).
+// de book — renda fixa (compra/resgate) tem fluxo próprio, fora do escopo
+// desta rota (3.13). Ativo sandbox (`is_sandbox = true`) de um desses três
+// tipos é aceito normalmente desde a tarefa 4.11 — só o preço de referência
+// muda de fonte (sandbox.PriceScript em vez de asset_quotes,
+// order_execution_repository.go), a rota e o matching continuam os mesmos.
 var tradableAssetTypes = map[catalog.AssetType]bool{
 	catalog.AssetAcao: true,
 	catalog.AssetETF:  true,
@@ -99,8 +101,8 @@ func handleSubmitOrder(catalogReader assetCatalogReader, orders orderSubmitter) 
 			writeCatalogError(w, http.StatusNotFound, "ativo não encontrado")
 			return
 		}
-		if asset.IsSandbox || !tradableAssetTypes[asset.Type] {
-			writeCatalogError(w, http.StatusBadRequest, "execução de ordem só é suportada pra ativo de renda variável do mercado ao vivo (ação, ETF, FII)")
+		if !tradableAssetTypes[asset.Type] {
+			writeCatalogError(w, http.StatusBadRequest, "execução de ordem só é suportada pra ativo de renda variável (ação, ETF, FII)")
 			return
 		}
 

@@ -64,6 +64,23 @@ type EquitySpecialization struct {
 	OutstandingShares *int64
 }
 
+// Quote é a cotação corrente de um ativo de renda variável (acao/etf/fii),
+// lida de asset_quotes (tarefa 3.11) — usada por GET /assets e GET
+// /assets/:id (tarefa 4.6). DailyChangePct fica nil quando só existe uma
+// cotação (sem dia anterior pra comparar), não quando ela é zero.
+type Quote struct {
+	Price          float64
+	DailyChangePct *float64
+}
+
+// QuoteHistoryEntry é uma linha da série histórica de asset_quotes de um
+// ativo, ordenada cronologicamente — usada por GET /assets/:id/quotes
+// (tarefa 4.6, base do gráfico de preço da tela 4.5, RF04).
+type QuoteHistoryEntry struct {
+	SimulatedDay int
+	Price        float64
+}
+
 // FundamentalsEntry é uma linha já persistida de company_fundamentals,
 // gerada pelo ciclo de relatórios trimestrais conectado ao Temporizador
 // (tarefa 3.14) — usada por GET /companies/:id (tarefa 3.10) pra expor o
@@ -74,4 +91,34 @@ type EquitySpecialization struct {
 type FundamentalsEntry struct {
 	PeriodDate time.Time
 	NetRevenue *float64
+}
+
+// FundamentalsSnapshot é o ciclo de relatório mais recente de uma empresa
+// (company_fundamentals) — usado por GET /assets/:id (tarefa 4.8) pra
+// calcular os indicadores de ação (RF21). Cada campo continua ponteiro
+// porque uma linha gravada antes da tarefa 4.8 só tem NetRevenue
+// preenchido (os outros cinco ficaram NULL) — nesse caso os indicadores
+// que dependem deles ficam omitidos, não 0 (mesmo critério de aceite de
+// "empresa sem ciclo de relatório ainda").
+type FundamentalsSnapshot struct {
+	NetRevenue      *float64
+	NetIncome       *float64
+	EBIT            *float64
+	NetEquity       *float64
+	GrossDebt       *float64
+	CashEquivalents *float64
+}
+
+// DividendHistoryEntry é uma linha já persistida de dividend_events — usada
+// por GET /assets/:id (tarefa 4.9) pra expor o histórico de proventos de
+// uma ação ou FII (RF21, tela 4.5) e calcular o Dividend Yield (soma dos
+// últimos 12 meses sobre o preço corrente, dividend.Yield). ExDate/
+// PaymentDate são o relógio real de quando o Temporizador gerou/pagou o
+// provento (mesma decisão de company_fundamentals.period_date) — não o
+// dia simulado que governa quando o pagamento de fato acontece
+// internamente (ver doc de tick.DividendRecord).
+type DividendHistoryEntry struct {
+	ValuePerShare float64
+	ExDate        time.Time
+	PaymentDate   time.Time
 }

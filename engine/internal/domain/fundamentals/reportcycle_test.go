@@ -81,6 +81,86 @@ func TestReportDayPriceEffect_SurpresaPositivaSobeENegativaDesce(t *testing.T) {
 	}
 }
 
+func TestActualGrowthWithMacroEffect_SemEfeitoNaoAlteraOCrescimento(t *testing.T) {
+	const baseGrowth = 0.03
+	if got := ActualGrowthWithMacroEffect(baseGrowth, 0); got != baseGrowth {
+		t.Errorf("ActualGrowthWithMacroEffect(%v, 0) = %v, want %v (sem efeito macro pendente, crescimento inalterado)", baseGrowth, got, baseGrowth)
+	}
+}
+
+func TestActualGrowthWithMacroEffect_ConverteEscalaPercentualParaFracao(t *testing.T) {
+	// combinedMacroEffectPct=10 (10%, escala percentual de
+	// macroevent.EffectRange) deve somar 0.10 em fração, não 10.
+	got := ActualGrowthWithMacroEffect(0.03, 10)
+	want := 0.13
+	if diff := got - want; diff > 1e-12 || diff < -1e-12 {
+		t.Errorf("ActualGrowthWithMacroEffect(0.03, 10) = %v, want %v", got, want)
+	}
+}
+
+// TestReportCycle_SurpresaIncluiEfeitoMacro estende o critério de aceite
+// central da tarefa 3.6 (TestReportCycle_PrecoSoReageNoDiaDoRelatorio)
+// pro critério de aceite da tarefa 4.2: "no dia do relatório, o preço
+// reage só pela diferença entre o resultado real (já incorporando o
+// efeito macro) e o que já havia sido precificado" — cenários de surpresa
+// positiva/negativa/nula (mesmos três já cobertos em
+// TestReportSurprise_SinalReflecteSeVeioMelhorOuPiorQueOEsperado), agora
+// com ActualGrowthWithMacroEffect entre o crescimento sintético e
+// ReportSurprise.
+func TestReportCycle_SurpresaIncluiEfeitoMacro(t *testing.T) {
+	const expectedGrowth = 0.03 // ExpectedGrowth do ciclo, sem ruído nem efeito macro
+	const priceSensitivity = 1.5
+
+	tests := []struct {
+		name                   string
+		baseActualGrowth       float64 // crescimento sintético já realizado (com ruído), sem efeito macro
+		combinedMacroEffectPct float64
+		wantSurpriseSign       int // -1, 0, 1
+	}{
+		{
+			name:                   "efeito macro negativo faz o resultado real vir pior que o esperado",
+			baseActualGrowth:       expectedGrowth, // sem o evento, bateria exatamente com o esperado
+			combinedMacroEffectPct: -20,            // -20% aplicado sobre a fração, puxa bem abaixo do esperado
+			wantSurpriseSign:       -1,
+		},
+		{
+			name:                   "efeito macro positivo faz o resultado real vir melhor que o esperado",
+			baseActualGrowth:       expectedGrowth,
+			combinedMacroEffectPct: 20,
+			wantSurpriseSign:       1,
+		},
+		{
+			name:                   "sem efeito macro pendente, resultado bate com o esperado — sem surpresa",
+			baseActualGrowth:       expectedGrowth,
+			combinedMacroEffectPct: 0,
+			wantSurpriseSign:       0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actualWithMacro := ActualGrowthWithMacroEffect(tt.baseActualGrowth, tt.combinedMacroEffectPct)
+			surprise := ReportSurprise(actualWithMacro, expectedGrowth)
+			priceEffect := ReportDayPriceEffect(surprise, priceSensitivity)
+
+			switch tt.wantSurpriseSign {
+			case -1:
+				if surprise >= 0 || priceEffect >= 0 {
+					t.Errorf("surprise=%v priceEffect=%v, want ambos negativos", surprise, priceEffect)
+				}
+			case 1:
+				if surprise <= 0 || priceEffect <= 0 {
+					t.Errorf("surprise=%v priceEffect=%v, want ambos positivos", surprise, priceEffect)
+				}
+			case 0:
+				if surprise != 0 || priceEffect != 0 {
+					t.Errorf("surprise=%v priceEffect=%v, want ambos 0", surprise, priceEffect)
+				}
+			}
+		})
+	}
+}
+
 // TestReportCycle_PrecoSoReageNoDiaDoRelatorio é o critério de aceite
 // central da tarefa 3.6: aplicando o efeito de surpresa só nos dias de
 // relatório (IsReportDay) ao longo de um ciclo simulado — nos demais dias

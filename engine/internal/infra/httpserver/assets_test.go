@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/etf"
@@ -48,6 +49,23 @@ type fakeCatalogReader struct {
 
 	companyFundamentals    []catalog.FundamentalsEntry
 	companyFundamentalsErr error
+
+	currentQuote      catalog.Quote
+	currentQuoteFound bool
+	currentQuoteErr   error
+
+	currentQuotes    map[string]catalog.Quote
+	currentQuotesErr error
+
+	quoteHistory    []catalog.QuoteHistoryEntry
+	quoteHistoryErr error
+
+	latestFundamentals    catalog.FundamentalsSnapshot
+	latestFundamentalsOK  bool
+	latestFundamentalsErr error
+
+	dividendHistory    []catalog.DividendHistoryEntry
+	dividendHistoryErr error
 }
 
 func (f *fakeCatalogReader) ListAssets(_ context.Context, _ string) ([]catalog.AssetRecord, error) {
@@ -74,6 +92,26 @@ func (f *fakeCatalogReader) FindFIIDetails(_ context.Context, _ string) (fii.Det
 	return f.fiiDetails, f.fiiOK, f.fiiErr
 }
 
+func (f *fakeCatalogReader) FindCurrentQuote(_ context.Context, _ string) (catalog.Quote, bool, error) {
+	return f.currentQuote, f.currentQuoteFound, f.currentQuoteErr
+}
+
+func (f *fakeCatalogReader) ListCurrentQuotes(_ context.Context) (map[string]catalog.Quote, error) {
+	return f.currentQuotes, f.currentQuotesErr
+}
+
+func (f *fakeCatalogReader) ListQuoteHistory(_ context.Context, _ string, _ int) ([]catalog.QuoteHistoryEntry, error) {
+	return f.quoteHistory, f.quoteHistoryErr
+}
+
+func (f *fakeCatalogReader) FindLatestFundamentals(_ context.Context, _ string) (catalog.FundamentalsSnapshot, bool, error) {
+	return f.latestFundamentals, f.latestFundamentalsOK, f.latestFundamentalsErr
+}
+
+func (f *fakeCatalogReader) ListDividendHistory(_ context.Context, _ string) ([]catalog.DividendHistoryEntry, error) {
+	return f.dividendHistory, f.dividendHistoryErr
+}
+
 func (f *fakeCatalogReader) FindCompanyByID(_ context.Context, _ string) (catalog.CompanyRecord, bool, error) {
 	return f.company, f.companyFound, f.companyErr
 }
@@ -90,7 +128,7 @@ func getCatalog(t *testing.T, reader catalogReader, path string) *httptest.Respo
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -239,7 +277,169 @@ func TestHandleGetAsset_Acao(t *testing.T) {
 	if body.FixedIncome != nil || body.ETF != nil || body.FII != nil {
 		t.Errorf("classes erradas preenchidas: %+v", body)
 	}
+	if body.Equity.Indicators != nil {
+		t.Errorf("Indicators = %+v, want nil (empresa sem ciclo de relatório rodado nesta fake)", body.Equity.Indicators)
+	}
+	if body.Equity.DividendHistory == nil {
+		t.Error("DividendHistory = nil, want slice vazia (não nil) — ativo sem provento gerado ainda")
+	}
 }
+
+// TestHandleGetAsset_AcaoComIndicadores é o critério de aceite central da
+// tarefa 4.8: os 8 indicadores calculados corretamente contra um cenário
+// de teste com números conhecidos.
+func TestHandleGetAsset_AcaoComIndicadores(t *testing.T) {
+	outstandingShares := int64(10_000)
+	netRevenue, netIncome, ebit, netEquity, grossDebt, cash := 1_000_000.0, 100_000.0, 180_000.0, 1_200_000.0, 480_000.0, 150_000.0
+
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao},
+		},
+		assetFound: true,
+		equity: catalog.EquitySpecialization{
+			CompanyID:         "c1",
+			CompanyName:       "Mineradora Vale do Rio S.A.",
+			CompanyCNPJ:       "11222333000181",
+			CompanySector:     catalog.SectorMineracao,
+			OutstandingShares: &outstandingShares,
+		},
+		equityOK:          true,
+		currentQuote:      catalog.Quote{Price: 150},
+		currentQuoteFound: true,
+		latestFundamentals: catalog.FundamentalsSnapshot{
+			NetRevenue:      &netRevenue,
+			NetIncome:       &netIncome,
+			EBIT:            &ebit,
+			NetEquity:       &netEquity,
+			GrossDebt:       &grossDebt,
+			CashEquivalents: &cash,
+		},
+		latestFundamentalsOK: true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Equity == nil || body.Equity.Indicators == nil {
+		t.Fatalf("Equity.Indicators = nil, want preenchido")
+	}
+	ind := body.Equity.Indicators
+
+	want := map[string]struct {
+		got, want *float64
+	}{
+		"earnings_per_share":   {ind.EarningsPerShare, floatPtr(10)},                 // 100.000 / 10.000
+		"book_value_per_share": {ind.BookValuePerShare, floatPtr(120)},               // 1.200.000 / 10.000
+		"roe":                  {ind.ROE, floatPtr(100_000.0 / 1_200_000.0)},         // net_income / net_equity
+		"ebit_margin":          {ind.EBITMargin, floatPtr(0.18)},                     // 180.000 / 1.000.000
+		"net_margin":           {ind.NetMargin, floatPtr(0.1)},                       // 100.000 / 1.000.000
+		"net_debt_to_ebit":     {ind.NetDebtToEBIT, floatPtr(330_000.0 / 180_000.0)}, // (480.000 - 150.000) / 180.000
+		"price_to_earnings":    {ind.PriceToEarnings, floatPtr(15)},                  // 150 / 10 (LPA)
+		"price_to_book_value":  {ind.PriceToBookValue, floatPtr(1.25)},               // 150 / 120 (VPA)
+	}
+	for name, tt := range want {
+		if tt.got == nil {
+			t.Errorf("%s = nil, want %v", name, *tt.want)
+			continue
+		}
+		if *tt.got != *tt.want {
+			t.Errorf("%s = %v, want %v", name, *tt.got, *tt.want)
+		}
+	}
+}
+
+// TestHandleGetAsset_AcaoErroFundamentos confere que erro na leitura do
+// fundamento mais recente da empresa devolve 500, mesmo padrão dos demais
+// colaboradores de handleGetAsset.
+func TestHandleGetAsset_AcaoErroFundamentos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao},
+		},
+		assetFound:            true,
+		equity:                catalog.EquitySpecialization{CompanyID: "c1"},
+		equityOK:              true,
+		latestFundamentalsErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+// TestHandleGetAsset_AcaoComDividendYield confere o Dividend Yield (tarefa
+// 4.9, 9º indicador de RF21, calculado independentemente dos outros 8) —
+// só o provento pago dentro dos últimos 12 meses entra na soma.
+func TestHandleGetAsset_AcaoComDividendYield(t *testing.T) {
+	now := time.Now()
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao},
+		},
+		assetFound:        true,
+		equity:            catalog.EquitySpecialization{CompanyID: "c1"},
+		equityOK:          true,
+		currentQuote:      catalog.Quote{Price: 100},
+		currentQuoteFound: true,
+		dividendHistory: []catalog.DividendHistoryEntry{
+			{ValuePerShare: 2, ExDate: now.AddDate(0, -1, 0), PaymentDate: now.AddDate(0, -1, 0)},
+			{ValuePerShare: 3, ExDate: now.AddDate(-2, 0, 0), PaymentDate: now.AddDate(-2, 0, 0)},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Equity.DividendHistory) != 2 {
+		t.Fatalf("len(DividendHistory) = %d, want 2 (histórico completo, não só os últimos 12 meses)", len(body.Equity.DividendHistory))
+	}
+	if body.Equity.Indicators == nil || body.Equity.Indicators.DividendYield == nil {
+		t.Fatalf("DividendYield = nil, want preenchido")
+	}
+	if *body.Equity.Indicators.DividendYield != 0.02 {
+		t.Errorf("DividendYield = %v, want 0.02 (2/100 — o provento de 2 anos atrás fica fora da janela de 12 meses)", *body.Equity.Indicators.DividendYield)
+	}
+}
+
+// TestHandleGetAsset_AcaoErroHistoricoDividendos confere que erro na
+// leitura do histórico de dividend_events devolve 500, mesmo padrão dos
+// demais colaboradores de handleGetAsset.
+func TestHandleGetAsset_AcaoErroHistoricoDividendos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao},
+		},
+		assetFound:         true,
+		equity:             catalog.EquitySpecialization{CompanyID: "c1"},
+		equityOK:           true,
+		dividendHistoryErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func floatPtr(v float64) *float64 { return &v }
 
 func TestHandleGetAsset_ETF(t *testing.T) {
 	reader := &fakeCatalogReader{
@@ -316,11 +516,290 @@ func TestHandleGetAsset_FII(t *testing.T) {
 	if body.FixedIncome != nil || body.Equity != nil || body.ETF != nil {
 		t.Errorf("classes erradas preenchidas: %+v", body)
 	}
+	if body.FII.DividendHistory == nil {
+		t.Error("DividendHistory = nil, want slice vazia (não nil) — ativo sem provento gerado ainda")
+	}
+	if body.FII.DividendYield != nil {
+		t.Errorf("DividendYield = %v, want nil (sem cotação corrente nesta fake)", *body.FII.DividendYield)
+	}
+}
+
+// TestHandleGetAsset_FIIPapel confere que FII papel (tarefa 4.10) expõe
+// PortfolioValue (nunca NetWorth/VacancyRate) — o achado da tarefa 4.9 era
+// que FII papel nunca tinha grandeza numérica própria no catálogo.
+func TestHandleGetAsset_FIIPapel(t *testing.T) {
+	indexador := "CDI"
+	portfolioValue := 300_000_000.00
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "2",
+			Asset: catalog.Asset{Ticker: "PAPL11", Name: "FII Papel Recebíveis", Type: catalog.AssetFII},
+		},
+		assetFound: true,
+		fiiDetails: fii.Details{
+			Type:           fii.TypePapel,
+			Indexador:      &indexador,
+			PortfolioValue: &portfolioValue,
+		},
+		fiiOK: true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/2")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.FII == nil {
+		t.Fatalf("FII = nil, want preenchido")
+	}
+	if body.FII.FIIType != string(fii.TypePapel) {
+		t.Errorf("FIIType = %v, want %v", body.FII.FIIType, fii.TypePapel)
+	}
+	if body.FII.PortfolioValue == nil || *body.FII.PortfolioValue != portfolioValue {
+		t.Errorf("PortfolioValue = %v, want %v", body.FII.PortfolioValue, portfolioValue)
+	}
+	if body.FII.NetWorth != nil || body.FII.VacancyRate != nil {
+		t.Errorf("FII = %+v, tijolo-only fields deveriam estar nil pro perfil papel", body.FII)
+	}
+}
+
+// TestHandleGetAsset_FIIComDividendYield confere o Dividend Yield de FII
+// (tarefa 4.9, RF21) — mesmo cálculo do bloco de ação, mas exposto direto
+// em fiiDetailResponse (nunca reaproveita equityIndicatorsResponse,
+// CLAUDE.md).
+func TestHandleGetAsset_FIIComDividendYield(t *testing.T) {
+	now := time.Now()
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "TJLO11", Name: "FII Tijolo Corporativo", Type: catalog.AssetFII},
+		},
+		assetFound:        true,
+		fiiDetails:        fii.Details{Type: fii.TypeTijolo},
+		fiiOK:             true,
+		currentQuote:      catalog.Quote{Price: 100},
+		currentQuoteFound: true,
+		dividendHistory: []catalog.DividendHistoryEntry{
+			{ValuePerShare: 1, ExDate: now.AddDate(0, -1, 0), PaymentDate: now.AddDate(0, -1, 0)},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.FII == nil || body.FII.DividendYield == nil {
+		t.Fatalf("FII.DividendYield = nil, want preenchido")
+	}
+	if *body.FII.DividendYield != 0.01 {
+		t.Errorf("DividendYield = %v, want 0.01 (1/100)", *body.FII.DividendYield)
+	}
+	if len(body.FII.DividendHistory) != 1 {
+		t.Errorf("len(DividendHistory) = %d, want 1", len(body.FII.DividendHistory))
+	}
+}
+
+// TestHandleGetAsset_FIIErroHistoricoDividendos confere que erro na
+// leitura do histórico de dividend_events devolve 500, mesmo padrão do
+// equivalente de ação.
+func TestHandleGetAsset_FIIErroHistoricoDividendos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "TJLO11", Name: "FII Tijolo Corporativo", Type: catalog.AssetFII},
+		},
+		assetFound:         true,
+		fiiDetails:         fii.Details{Type: fii.TypeTijolo},
+		fiiOK:              true,
+		dividendHistoryErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
 }
 
 func TestHandleGetAsset_NaoEncontrado(t *testing.T) {
 	rec := getCatalog(t, &fakeCatalogReader{assetFound: false}, "/assets/inexistente")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleListAssets_ComCotacao(t *testing.T) {
+	changePct := 2.5
+	reader := &fakeCatalogReader{
+		assets: []catalog.AssetRecord{
+			{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+			{ID: "2", Asset: catalog.Asset{Ticker: "CDB2028", Name: "CDB Banco X", Type: catalog.AssetCDB}},
+		},
+		currentQuotes: map[string]catalog.Quote{
+			"1": {Price: 105.0, DailyChangePct: &changePct},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body []assetSummaryResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body[0].CurrentPrice == nil || *body[0].CurrentPrice != 105.0 || body[0].DailyChangePct == nil || *body[0].DailyChangePct != 2.5 {
+		t.Errorf("ativo com cotação = %+v, inesperado", body[0])
+	}
+	if body[1].CurrentPrice != nil || body[1].DailyChangePct != nil {
+		t.Errorf("renda fixa não deveria ter cotação: %+v", body[1])
+	}
+}
+
+func TestHandleListAssets_ErroCotacoes(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{currentQuotesErr: context.DeadlineExceeded}, "/assets")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAsset_ComCotacao(t *testing.T) {
+	changePct := -1.2
+	reader := &fakeCatalogReader{
+		asset:             catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound:        true,
+		equityOK:          true,
+		currentQuote:      catalog.Quote{Price: 98.8, DailyChangePct: &changePct},
+		currentQuoteFound: true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.CurrentPrice == nil || *body.CurrentPrice != 98.8 || body.DailyChangePct == nil || *body.DailyChangePct != -1.2 {
+		t.Errorf("cotação = %+v, inesperado", body.assetSummaryResponse)
+	}
+}
+
+func TestHandleGetAsset_SemCotacao(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound: true,
+		equityOK:   true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.CurrentPrice != nil || body.DailyChangePct != nil {
+		t.Errorf("sem tick gerado ainda, cotação deveria vir omitida: %+v", body.assetSummaryResponse)
+	}
+}
+
+func TestHandleGetAsset_ErroCotacao(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{
+		asset:           catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound:      true,
+		currentQuoteErr: context.DeadlineExceeded,
+	}, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAssetQuoteHistory(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound: true,
+		quoteHistory: []catalog.QuoteHistoryEntry{
+			{SimulatedDay: 1, Price: 100.0},
+			{SimulatedDay: 2, Price: 101.5},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets/1/quotes?days=10")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body []quoteHistoryEntryResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body) != 2 || body[0].SimulatedDay != 1 || body[1].SimulatedDay != 2 {
+		t.Errorf("body = %+v, want série cronológica de 2 dias", body)
+	}
+}
+
+func TestHandleGetAssetQuoteHistory_VazioSemTick(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound: true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1/quotes")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body []quoteHistoryEntryResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body) != 0 {
+		t.Errorf("body = %+v, want lista vazia", body)
+	}
+}
+
+func TestHandleGetAssetQuoteHistory_NaoEncontrado(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{assetFound: false}, "/assets/inexistente/quotes")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleGetAssetQuoteHistory_DaysInvalido(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{}, "/assets/1/quotes?days=0")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleGetAssetQuoteHistory_SemCatalogReader(t *testing.T) {
+	rec := getCatalog(t, nil, "/assets/1/quotes")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHandleGetAssetQuoteHistory_ErroInterno(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{
+		asset:           catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound:      true,
+		quoteHistoryErr: context.DeadlineExceeded,
+	}, "/assets/1/quotes")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }

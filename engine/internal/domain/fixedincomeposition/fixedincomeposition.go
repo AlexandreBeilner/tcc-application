@@ -49,3 +49,16 @@ func ApplyBuy(current Position, quantity, price, rate float64) Position {
 		AverageRate:  newAverageRate,
 	}
 }
+
+// Record é uma Position enriquecida com a identificação do ativo (ticker,
+// nome, tipo) pra leitura (GET /fixed-income/positions, tarefa 4.7) — mesma
+// convenção de position.Record (campos crus, sem importar catalog).
+// IsSandbox (tarefa 4.11, RF12) — mesmo raciocínio de position.Record.
+type Record struct {
+	AssetID     string
+	AssetTicker string
+	AssetName   string
+	AssetType   string
+	IsSandbox   bool
+	Position
+}

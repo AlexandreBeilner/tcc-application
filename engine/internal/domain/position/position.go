@@ -40,3 +40,20 @@ func ApplySell(current Position, quantity int) (Position, error) {
 	}
 	return Position{Quantity: current.Quantity - quantity, AveragePrice: current.AveragePrice}, nil
 }
+
+// Record é uma Position enriquecida com a identificação do ativo (ticker,
+// nome, tipo) pra leitura (GET /positions, tarefa 4.7) — os três campos
+// vêm crus (não catalog.AssetType) pra este pacote não precisar importar
+// catalog só pra exibição, mesma convenção já usada em
+// tick.AssetForPricing.Sector. IsSandbox (tarefa 4.11, RF12) distingue
+// posição de sandbox de posição do Mercado Ao Vivo — insumo pra tela 2.1
+// (inventário) separar visualmente as duas, e pro futuro replay de ranking
+// (backlog 5.x) filtrar sandbox fora do cálculo.
+type Record struct {
+	AssetID     string
+	AssetTicker string
+	AssetName   string
+	AssetType   string
+	IsSandbox   bool
+	Position
+}

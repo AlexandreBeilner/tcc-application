@@ -144,9 +144,9 @@ func (r *CatalogRepository) CreateETFDetails(ctx context.Context, assetID string
 
 func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string, details fii.Details) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador,
+		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador, details.PortfolioValue,
 	)
 	return err
 }
@@ -295,8 +295,8 @@ func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) 
 	var d fii.Details
 	var fiiType string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador FROM fii_details WHERE asset_id = $1`, assetID,
-	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador)
+		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value FROM fii_details WHERE asset_id = $1`, assetID,
+	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue)
 	if err == sql.ErrNoRows {
 		return fii.Details{}, false, nil
 	}
@@ -305,6 +305,118 @@ func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) 
 	}
 	d.Type = fii.Type(fiiType)
 	return d, true, nil
+}
+
+// dailyChangePct calcula a variação percentual entre o preço corrente e o
+// anterior — nil se não houver dia anterior pra comparar (ativo com uma só
+// cotação, ainda). Reaproveitada por FindCurrentQuote/ListCurrentQuotes.
+func dailyChangePct(current float64, previous *float64) *float64 {
+	if previous == nil || *previous == 0 {
+		return nil
+	}
+	pct := (current - *previous) / *previous * 100
+	return &pct
+}
+
+// FindCurrentQuote devolve a cotação mais recente de assetID (asset_quotes,
+// tarefa 3.11) e sua variação percentual contra o dia simulado anterior —
+// usado por GET /assets/:id (tarefa 4.6). found = false se o ativo nunca
+// teve cotação gerada (Temporizador nunca rodou pra ele, ou é renda fixa,
+// que não tem cotação de mercado nesse sentido).
+func (r *CatalogRepository) FindCurrentQuote(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT price FROM asset_quotes WHERE asset_id = $1 ORDER BY simulated_day DESC LIMIT 2`, assetID,
+	)
+	if err != nil {
+		return catalog.Quote{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var prices []float64
+	for rows.Next() {
+		var price float64
+		if err := rows.Scan(&price); err != nil {
+			return catalog.Quote{}, false, err
+		}
+		prices = append(prices, price)
+	}
+	if err := rows.Err(); err != nil {
+		return catalog.Quote{}, false, err
+	}
+	if len(prices) == 0 {
+		return catalog.Quote{}, false, nil
+	}
+
+	quote := catalog.Quote{Price: prices[0]}
+	if len(prices) == 2 {
+		quote.DailyChangePct = dailyChangePct(prices[0], &prices[1])
+	}
+	return quote, true, nil
+}
+
+// ListCurrentQuotes devolve a cotação corrente de todo ativo com pelo menos
+// uma linha em asset_quotes, indexada por asset_id — usado por GET /assets
+// (tarefa 4.6) pra não fazer uma consulta por ativo (N+1). Ativo sem
+// cotação nenhuma (renda fixa, ou renda variável que o Temporizador ainda
+// não precificou) simplesmente não aparece no mapa.
+func (r *CatalogRepository) ListCurrentQuotes(ctx context.Context) (map[string]catalog.Quote, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT asset_id, price, previous_price FROM (
+		   SELECT asset_id, price,
+		          LAG(price) OVER (PARTITION BY asset_id ORDER BY simulated_day) AS previous_price,
+		          ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY simulated_day DESC) AS rn
+		   FROM asset_quotes
+		 ) ranked WHERE rn = 1`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	quotes := make(map[string]catalog.Quote)
+	for rows.Next() {
+		var assetID string
+		var price float64
+		var previousPrice *float64
+		if err := rows.Scan(&assetID, &price, &previousPrice); err != nil {
+			return nil, err
+		}
+		quotes[assetID] = catalog.Quote{Price: price, DailyChangePct: dailyChangePct(price, previousPrice)}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return quotes, nil
+}
+
+// ListQuoteHistory devolve a série histórica de asset_quotes de assetID,
+// ordenada cronologicamente e limitada aos days dias mais recentes — usada
+// por GET /assets/:id/quotes (tarefa 4.6, base do gráfico de preço, RF04).
+// Lista vazia (não erro) se o ativo nunca teve cotação gerada.
+func (r *CatalogRepository) ListQuoteHistory(ctx context.Context, assetID string, days int) ([]catalog.QuoteHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT simulated_day, price FROM (
+		   SELECT simulated_day, price FROM asset_quotes
+		   WHERE asset_id = $1
+		   ORDER BY simulated_day DESC
+		   LIMIT $2
+		 ) recent ORDER BY simulated_day ASC`,
+		assetID, days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]catalog.QuoteHistoryEntry, 0)
+	for rows.Next() {
+		var e catalog.QuoteHistoryEntry
+		if err := rows.Scan(&e.SimulatedDay, &e.Price); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
 }
 
 // FindCompanyByID devolve a empresa de id id, se existir — usado por GET
@@ -371,6 +483,56 @@ func (r *CatalogRepository) ListFundamentalsByCompany(ctx context.Context, compa
 	for rows.Next() {
 		var e catalog.FundamentalsEntry
 		if err := rows.Scan(&e.PeriodDate, &e.NetRevenue); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+// FindLatestFundamentals devolve o ciclo de relatório mais recente
+// (company_fundamentals) de companyID — found = false se a empresa nunca
+// teve nenhum ciclo de relatório rodado ainda (Temporizador nunca chegou
+// no dia de relatório dela). Usado por GET /assets/:id (tarefa 4.8) pra
+// calcular os indicadores de ação — mesma ordenação de
+// ListFundamentalsByCompany, só a primeira linha.
+func (r *CatalogRepository) FindLatestFundamentals(ctx context.Context, companyID string) (catalog.FundamentalsSnapshot, bool, error) {
+	var f catalog.FundamentalsSnapshot
+	err := r.db.QueryRowContext(ctx,
+		`SELECT net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents
+		 FROM company_fundamentals
+		 WHERE company_id = $1
+		 ORDER BY period_date DESC, created_at DESC
+		 LIMIT 1`, companyID,
+	).Scan(&f.NetRevenue, &f.NetIncome, &f.EBIT, &f.NetEquity, &f.GrossDebt, &f.CashEquivalents)
+	if err == sql.ErrNoRows {
+		return catalog.FundamentalsSnapshot{}, false, nil
+	}
+	if err != nil {
+		return catalog.FundamentalsSnapshot{}, false, err
+	}
+	return f, true, nil
+}
+
+// ListDividendHistory devolve o histórico de dividend_events de assetID,
+// mais recente primeiro — usado por GET /assets/:id (tarefa 4.9) pra
+// ação/FII, tanto pra exibir a lista quanto pra somar os últimos 12 meses
+// e calcular o Dividend Yield (RF21). Não filtra por paid: a spec quer o
+// histórico de proventos gerados, não só os já efetivamente pagos. Lista
+// vazia (não erro) se o ativo nunca gerou provento nenhum.
+func (r *CatalogRepository) ListDividendHistory(ctx context.Context, assetID string) ([]catalog.DividendHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT value_per_share, ex_date, payment_date FROM dividend_events WHERE asset_id = $1 ORDER BY payment_date DESC`, assetID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]catalog.DividendHistoryEntry, 0)
+	for rows.Next() {
+		var e catalog.DividendHistoryEntry
+		if err := rows.Scan(&e.ValuePerShare, &e.ExDate, &e.PaymentDate); err != nil {
 			return nil, err
 		}
 		entries = append(entries, e)

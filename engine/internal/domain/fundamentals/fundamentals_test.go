@@ -221,3 +221,35 @@ func TestRevenueSeries_ReageDeFormaPlausivelAMudancasDeSelic(t *testing.T) {
 		t.Errorf("queda de receita do Sofisticado (%v) deveria ser maior que a do Conservador (%v) sob o mesmo choque de juros", quedaSofisticado, quedaConservador)
 	}
 }
+
+// TestDeriveFinancials_NumerosConhecidos é o critério de aceite central da
+// tarefa 4.8, com números conhecidos: net_revenue = 1.000.000 deveria
+// derivar exatamente os 5 campos a partir dos coeficientes ilustrativos
+// (DefaultNetMarginPct etc.), não aproximadamente.
+func TestDeriveFinancials_NumerosConhecidos(t *testing.T) {
+	got := DeriveFinancials(1_000_000)
+
+	want := Financials{
+		NetRevenue:      1_000_000,
+		NetIncome:       100_000,   // 1.000.000 × 0.10
+		EBIT:            180_000,   // 1.000.000 × 0.18
+		NetEquity:       1_200_000, // 1.000.000 × 1.2
+		GrossDebt:       480_000,   // 1.200.000 × 0.4
+		CashEquivalents: 150_000,   // 1.000.000 × 0.15
+	}
+
+	if got != want {
+		t.Errorf("DeriveFinancials(1_000_000) = %+v, want %+v", got, want)
+	}
+}
+
+func TestDeriveFinancials_EBITMarginMaiorQueNetMargin(t *testing.T) {
+	// Invariante contábil que qualquer calibração futura (tarefa 8.1)
+	// precisa continuar respeitando: EBIT vem antes de juros/impostos, por
+	// isso é sempre >= net_income pra receita positiva.
+	got := DeriveFinancials(500_000)
+
+	if got.EBIT <= got.NetIncome {
+		t.Errorf("EBIT (%v) deveria ser maior que NetIncome (%v)", got.EBIT, got.NetIncome)
+	}
+}

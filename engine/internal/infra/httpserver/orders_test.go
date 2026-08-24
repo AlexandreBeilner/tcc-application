@@ -30,7 +30,7 @@ func postOrder(t *testing.T, reader catalogReader, orders orderSubmitter, body s
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, orders, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, orders, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -108,7 +108,6 @@ func TestHandleSubmitOrder_AtivoNaoEncontrado(t *testing.T) {
 func TestHandleSubmitOrder_AtivoNaoNegociavel(t *testing.T) {
 	tests := map[string]catalog.AssetRecord{
 		"renda fixa": {ID: validAssetID, Asset: catalog.Asset{Ticker: "TS-01", Name: "Tesouro Selic", Type: catalog.AssetTesouroSelic}},
-		"sandbox":    {ID: validAssetID, Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao, IsSandbox: true}},
 	}
 
 	for name, asset := range tests {
@@ -119,6 +118,26 @@ func TestHandleSubmitOrder_AtivoNaoNegociavel(t *testing.T) {
 				t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestHandleSubmitOrder_AtivoSandboxAceito confirma que ativo sandbox de
+// renda variável não é mais rejeitado (RF12, tarefa 4.11) — antes desta
+// tarefa, is_sandbox = true caía no mesmo 400 de ativo não negociável. O
+// preço de referência sourced de sandbox.PriceScript (em vez de
+// asset_quotes) só existe no OrderExecutionRepository real
+// (order_execution_repository.go) — orderSubmitter aqui é fake, então este
+// teste cobre só o portão de aceitação da rota, não o roteiro em si.
+func TestHandleSubmitOrder_AtivoSandboxAceito(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "SAND3", Name: "Ação Sandbox", Type: catalog.AssetAcao, IsSandbox: true}},
+		assetFound: true,
+	}
+	submitter := &fakeOrderSubmitter{outcome: orderexecution.Outcome{FilledQuantity: 10, Fills: []orderexecution.Fill{{Price: 100, Quantity: 10}}}}
+
+	rec := postOrder(t, reader, submitter, validOrderBody())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 }
 

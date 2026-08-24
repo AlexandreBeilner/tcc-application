@@ -32,6 +32,11 @@ type tickResponse struct {
 	FundamentalsCount int     `json:"fundamentals_count"`
 	IsCopomDay        bool    `json:"is_copom_day"`
 	IsReportDay       bool    `json:"is_report_day"`
+	// DividendsGeneratedCount/DividendsPaidCount (tarefa 4.9) são quantos
+	// dividend_events foram gerados (dia de relatório de um ativo pagador)
+	// e quantos venceram e foram pagos (payment_day == day) neste tick.
+	DividendsGeneratedCount int `json:"dividends_generated_count"`
+	DividendsPaidCount      int `json:"dividends_paid_count"`
 }
 
 // handleAdminTick serve POST /admin/tick — força um tick fora do
@@ -51,12 +56,14 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, tickResponse{
-			Day:               result.State.Day,
-			SelicRate:         result.State.SelicRate,
-			QuotesCount:       len(result.Quotes),
-			FundamentalsCount: len(result.Fundamentals),
-			IsCopomDay:        result.IsCopomDay,
-			IsReportDay:       result.IsReportDay,
+			Day:                     result.State.Day,
+			SelicRate:               result.State.SelicRate,
+			QuotesCount:             len(result.Quotes),
+			FundamentalsCount:       len(result.Fundamentals),
+			IsCopomDay:              result.IsCopomDay,
+			IsReportDay:             result.IsReportDay,
+			DividendsGeneratedCount: len(result.NewDividends),
+			DividendsPaidCount:      len(result.DuePayments),
 		})
 	}
 }

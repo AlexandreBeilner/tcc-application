@@ -1,0 +1,262 @@
+package macroeventtrigger
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"tcc-investimentos/engine/internal/domain/macroevent"
+)
+
+func ptr[T any](v T) *T { return &v }
+
+type fakeRepository struct {
+	currentDay     int
+	loadErr        error
+	persistErr     error
+	persistedEvent macroevent.Event
+	persistCalled  bool
+}
+
+func (f *fakeRepository) LoadCurrentDay(_ context.Context) (int, error) {
+	return f.currentDay, f.loadErr
+}
+
+func (f *fakeRepository) Persist(_ context.Context, event macroevent.Event) (string, error) {
+	f.persistCalled = true
+	f.persistedEvent = event
+	if f.persistErr != nil {
+		return "", f.persistErr
+	}
+	return "event-1", nil
+}
+
+func TestTrigger_ComTemplateReaproveitaCatalogo(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+
+	req := Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{Sector: ptr("Mineração")}},
+	}
+
+	id, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if id == "" {
+		t.Error("id vazio")
+	}
+
+	tpl, found := macroevent.FindTemplate("legislacao-ambiental-mineracao")
+	if !found {
+		t.Fatal("template de apoio não encontrado")
+	}
+	if event.Title != tpl.Title || event.Narrative != tpl.Narrative {
+		t.Errorf("Title/Narrative não vieram do template: got %q/%q", event.Title, event.Narrative)
+	}
+	if event.Direction != tpl.Direction || event.MagnitudeBand != tpl.Band {
+		t.Errorf("Direction/MagnitudeBand não vieram do template")
+	}
+	if event.AffectsPrice != tpl.AffectsPrice || event.AffectsFundamentals != tpl.AffectsFundamentals {
+		t.Errorf("efeitos habilitados não vieram do template")
+	}
+	if len(event.Targets) != 1 {
+		t.Fatalf("len(Targets) = %d, want 1 (só targets vem do payload)", len(event.Targets))
+	}
+	if !repo.persistCalled {
+		t.Error("Persist não foi chamado")
+	}
+}
+
+func TestTrigger_TemplateDesconhecido(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+
+	_, _, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("evento-que-nao-existe"),
+		Targets:     []TargetInput{{RiskClass: ptr("Conservador")}},
+	})
+	if !errors.Is(err, ErrUnknownTemplate) {
+		t.Errorf("err = %v, want %v", err, ErrUnknownTemplate)
+	}
+	if repo.persistCalled {
+		t.Error("Persist não deveria ser chamado com template desconhecido")
+	}
+}
+
+func TestTrigger_AvulsoSemCampoObrigatorioEhRejeitado(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	band := macroevent.BandLeve
+
+	req := Request{
+		Title:               ptr("título"),
+		Narrative:           ptr("narrativa"),
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{RiskClass: ptr("Conservador")}},
+		// Direction ausente — evento avulso incompleto.
+	}
+
+	_, _, err := svc.Trigger(context.Background(), req)
+	if !errors.Is(err, ErrMissingFields) {
+		t.Errorf("err = %v, want %v", err, ErrMissingFields)
+	}
+	if repo.persistCalled {
+		t.Error("Persist não deveria ser chamado com campo obrigatório ausente")
+	}
+}
+
+func TestTrigger_AvulsoValidoSoAfetaPreco(t *testing.T) {
+	repo := &fakeRepository{currentDay: 3}
+	svc := NewService(repo)
+	direction := macroevent.DirectionNegativo
+	band := macroevent.BandModerado
+
+	req := Request{
+		Title:               ptr("título avulso"),
+		Narrative:           ptr("narrativa avulsa"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{AssetID: ptr("asset-1")}},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if event.TriggeredOnDay != 3 {
+		t.Errorf("TriggeredOnDay = %d, want 3", event.TriggeredOnDay)
+	}
+	if event.DurationDays != 2 {
+		t.Errorf("DurationDays = %d, want 2 (BandModerado)", event.DurationDays)
+	}
+	if event.PriceEffectPct == nil {
+		t.Fatal("PriceEffectPct = nil, want amostrado (affects_price = true)")
+	}
+	if *event.PriceEffectPct > 0 {
+		t.Errorf("PriceEffectPct = %v, want negativo (direction negativo)", *event.PriceEffectPct)
+	}
+	if event.FundamentalsEffectPct != nil || event.FundamentalsReportDay != nil {
+		t.Error("FundamentalsEffectPct/FundamentalsReportDay deveriam ser nil — evento não afeta fundamentos")
+	}
+	if event.Status != macroevent.StatusPendente {
+		t.Errorf("Status = %v, want %v", event.Status, macroevent.StatusPendente)
+	}
+}
+
+// TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte cobre o critério
+// de aceite "fundamentals_report_day calculado respeita a regra de corte
+// de 2 dias" — os dois lados do corte, com o ciclo global de 14 dias
+// (fundamentals.DefaultReportFrequencyDays).
+func TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte(t *testing.T) {
+	tests := []struct {
+		name       string
+		currentDay int
+		want       int
+	}{
+		{"exatamente 2 dias de antecedência vai pro relatório mais próximo (dia 14)", 12, 14},
+		{"1 dia de antecedência empurra pro próximo ciclo (dia 28)", 13, 28},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{currentDay: tt.currentDay}
+			svc := NewService(repo)
+			direction := macroevent.DirectionNegativo
+			band := macroevent.BandLeve
+
+			req := Request{
+				Title:               ptr("t"),
+				Narrative:           ptr("n"),
+				Direction:           &direction,
+				MagnitudeBand:       &band,
+				AffectsPrice:        ptr(false),
+				AffectsFundamentals: ptr(true),
+				Targets:             []TargetInput{{RiskClass: ptr("Conservador")}},
+			}
+
+			_, event, err := svc.Trigger(context.Background(), req)
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if event.FundamentalsReportDay == nil || *event.FundamentalsReportDay != tt.want {
+				t.Errorf("FundamentalsReportDay = %v, want %d", event.FundamentalsReportDay, tt.want)
+			}
+		})
+	}
+}
+
+func TestTrigger_SetorDesconhecidoEhRejeitado(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+
+	_, _, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{Sector: ptr("Inexistente")}},
+	})
+	if !errors.Is(err, ErrUnknownSector) {
+		t.Errorf("err = %v, want %v", err, ErrUnknownSector)
+	}
+}
+
+func TestTrigger_AlvoComEscopoAmbiguoPropagaErro(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+
+	_, _, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{RiskClass: ptr("Conservador"), AssetID: ptr("asset-1")}},
+	})
+	if !errors.Is(err, macroevent.ErrTargetScopeAmbiguous) {
+		t.Errorf("err = %v, want %v", err, macroevent.ErrTargetScopeAmbiguous)
+	}
+	if repo.persistCalled {
+		t.Error("Persist não deveria ser chamado com alvo de escopo ambíguo")
+	}
+}
+
+func TestTrigger_SemAlvoPropagaErro(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+
+	_, _, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+	})
+	if !errors.Is(err, macroevent.ErrNoTarget) {
+		t.Errorf("err = %v, want %v", err, macroevent.ErrNoTarget)
+	}
+}
+
+func TestTrigger_ErroAoCarregarDiaCorrentePropaga(t *testing.T) {
+	repo := &fakeRepository{loadErr: errors.New("falha de leitura")}
+	svc := NewService(repo)
+
+	_, _, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{RiskClass: ptr("Conservador")}},
+	})
+	if err == nil {
+		t.Fatal("err = nil, want erro propagado de LoadCurrentDay")
+	}
+	if repo.persistCalled {
+		t.Error("Persist não deveria ser chamado quando LoadCurrentDay falha")
+	}
+}
+
+func TestTrigger_ErroAoPersistirPropaga(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1, persistErr: errors.New("falha de escrita")}
+	svc := NewService(repo)
+
+	_, _, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{RiskClass: ptr("Conservador")}},
+	})
+	if err == nil {
+		t.Fatal("err = nil, want erro propagado de Persist")
+	}
+}

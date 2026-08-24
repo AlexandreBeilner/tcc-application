@@ -43,7 +43,7 @@ func postFixedIncome(t *testing.T, path string, reader catalogReader, exec fixed
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -107,7 +107,6 @@ func TestHandleFixedIncomePurchase_AtivoNaoEncontrado(t *testing.T) {
 func TestHandleFixedIncomePurchase_AtivoNaoRendaFixa(t *testing.T) {
 	tests := map[string]catalog.AssetRecord{
 		"renda variável": {ID: validAssetID, Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
-		"sandbox":        {ID: validAssetID, Asset: catalog.Asset{Ticker: "CDB2027", Name: "CDB", Type: catalog.AssetCDB, IsSandbox: true}},
 	}
 
 	for name, asset := range tests {
@@ -118,6 +117,25 @@ func TestHandleFixedIncomePurchase_AtivoNaoRendaFixa(t *testing.T) {
 				t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestHandleFixedIncomePurchase_AtivoSandboxAceito confirma que ativo
+// sandbox de renda fixa não é mais rejeitado (RF12, tarefa 4.11) — antes
+// desta tarefa, is_sandbox = true caía no mesmo 400 de tipo de ativo
+// errado. A taxa contratada sourced de sandbox.RateScript (em vez de
+// fixed_income_assets.interest_rate) só existe no
+// FixedIncomeExecutionRepository real (fixed_income_execution_repository.go)
+// — exec aqui é fake, então este teste cobre só o portão de aceitação da
+// rota, não o roteiro em si.
+func TestHandleFixedIncomePurchase_AtivoSandboxAceito(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "SANDPRE", Name: "Tesouro Prefixado Sandbox", Type: catalog.AssetTesouroPrefixado, IsSandbox: true}},
+		assetFound: true,
+	}
+	rec := postFixedIncome(t, "/fixed-income/purchases", reader, &fakeFixedIncomeExecutor{}, validPurchaseBody())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 }
 
@@ -212,6 +230,19 @@ func TestHandleFixedIncomeRedemption_AtivoNaoRendaFixa(t *testing.T) {
 	rec := postFixedIncome(t, "/fixed-income/redemptions", reader, &fakeFixedIncomeExecutor{}, validRedeemBody())
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+// TestHandleFixedIncomeRedemption_AtivoSandboxAceito — mesma nota de
+// TestHandleFixedIncomePurchase_AtivoSandboxAceito, pro resgate.
+func TestHandleFixedIncomeRedemption_AtivoSandboxAceito(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "SANDPRE", Name: "Tesouro Prefixado Sandbox", Type: catalog.AssetTesouroPrefixado, IsSandbox: true}},
+		assetFound: true,
+	}
+	rec := postFixedIncome(t, "/fixed-income/redemptions", reader, &fakeFixedIncomeExecutor{}, validRedeemBody())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 }
 

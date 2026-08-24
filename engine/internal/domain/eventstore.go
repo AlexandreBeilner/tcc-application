@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // MarketEventType espelha o enum Postgres market_event_type (migration
 // 000001) — mantido aqui como constantes tipadas pra evitar strings soltas
@@ -26,6 +29,17 @@ type MarketEvent struct {
 	EventType MarketEventType
 	Quantity  *int
 	UnitValue *float64
+}
+
+// MarketEventRecord é um MarketEvent já persistido — ID e Timestamp só
+// existem depois da escrita (mesmo raciocínio de catalog.AssetRecord),
+// usado pelo extrato de leitura (GET /accounts/:user_id/events, tarefa 4.7,
+// RF05). EventStore.Append nunca precisa desses dois campos, por isso não
+// fazem parte de MarketEvent.
+type MarketEventRecord struct {
+	ID string
+	MarketEvent
+	Timestamp time.Time
 }
 
 // EventStore grava eventos imutáveis em market_events. Toda escrita de

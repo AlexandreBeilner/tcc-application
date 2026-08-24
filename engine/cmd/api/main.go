@@ -10,6 +10,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
+	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
@@ -33,10 +34,12 @@ func main() {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
-		// as rotas de catálogo, POST /admin/tick e as rotas de renda fixa
-		// respondem 503 (ver internal/infra/httpserver/account.go,
-		// assets.go, admin.go e fixedincome.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil); err != nil {
+		// as rotas de catálogo (incl. cotações, tarefa 4.6), POST /admin/tick,
+		// as rotas de renda fixa, POST/GET /macro-events e as rotas de leitura
+		// de conta/posições/extrato (tarefa 4.7) respondem 503 (ver
+		// internal/infra/httpserver/account.go, assets.go, admin.go,
+		// fixedincome.go, macroevents.go e positions.go).
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -53,10 +56,13 @@ func main() {
 	}
 	defer func() { _ = pool.Close() }()
 
-	accountService := account.NewService(db.NewAccountRepository(pool))
+	accountRepository := db.NewAccountRepository(pool)
+	accountService := account.NewService(accountRepository)
 	catalogRepository := db.NewCatalogRepository(pool)
 	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool))
 	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool))
+	macroEventRepository := db.NewMacroEventRepository(pool)
+	macroEventTriggerService := macroeventtrigger.NewService(macroEventRepository)
 
 	seed := int64(defaultSimulationSeed)
 	if raw := os.Getenv("SIMULATION_SEED"); raw != "" {
@@ -79,7 +85,7 @@ func main() {
 		return err
 	})
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }
