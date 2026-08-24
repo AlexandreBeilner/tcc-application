@@ -143,6 +143,15 @@ export const dailyMissions = pgTable('daily_missions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const userProgression = pgTable('user_progression', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  xp: integer('xp').notNull().default(0),
+  level: integer('level').notNull().default(1),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const userMissionProgress = pgTable(
   'user_mission_progress',
   {

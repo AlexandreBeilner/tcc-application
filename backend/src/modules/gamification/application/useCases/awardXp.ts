@@ -1,0 +1,46 @@
+import { InvalidXpAmountError } from '../../domain/errors'
+import { levelForXp } from '../../domain/progression'
+import type { ProgressionRepository } from '../ports/progressionRepository'
+
+export interface AwardXpInput {
+  userId: string
+  amount: number
+  reason: string
+}
+
+export interface AwardXpResult {
+  xp: number
+  level: number
+  leveledUp: boolean
+}
+
+// Dono único de XP/nível do sistema — nenhum outro módulo escreve
+// `user_progression` direto. Módulos consumidores (missões, lições) vão
+// depender de uma port própria e mínima (`xpAwarder`, um método `award`)
+// implementada, na composição (app.ts), por um adapter fino que chama
+// `execute` aqui em processo (mesmo runtime Node, sem HTTP) — ver
+// .claude/backlog-plataforma-investimentos.md, tarefa 5.1.
+export class AwardXpUseCase {
+  constructor(private readonly progressionRepository: ProgressionRepository) {}
+
+  async execute(input: AwardXpInput): Promise<AwardXpResult> {
+    if (input.amount <= 0) {
+      throw new InvalidXpAmountError('quantidade de xp deve ser positiva')
+    }
+
+    const current = (await this.progressionRepository.findByUserId(input.userId)) ?? {
+      userId: input.userId,
+      xp: 0,
+      level: 1,
+    }
+
+    // Nível sempre recalculado a partir do xp acumulado, nunca incrementado
+    // à parte — evita dessincronização e sustenta saltos de 2+ níveis num
+    // único crédito grande.
+    const xp = current.xp + input.amount
+    const level = levelForXp(xp)
+    await this.progressionRepository.upsert({ userId: input.userId, xp, level })
+
+    return { xp, level, leveledUp: level > current.level }
+  }
+}

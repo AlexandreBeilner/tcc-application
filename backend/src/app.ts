@@ -8,6 +8,9 @@ import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/t
 import { ListMacroEventsUseCase } from './modules/admin/application/useCases/listMacroEvents'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
+import { GetProgressionUseCase } from './modules/gamification/application/useCases/getProgression'
+import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
+import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
 import type { UserRepository } from './modules/auth/application/ports/userRepository'
@@ -48,10 +51,11 @@ function resolveGoogleIdentityProvider(): GoogleIdentityProvider {
 // .claude/arquitetura-backend-ddd-lite.md.
 export function createApp(deps: AppDeps = {}): Express {
   // Testes de rotas que não tocam o banco (health/status) podem chamar
-  // createApp() sem argumentos — o Pool só conecta no primeiro uso.
-  const userRepository =
-    deps.userRepository ??
-    createDrizzleUserRepository(createDb(process.env.DATABASE_URL ?? 'postgres://unconfigured'))
+  // createApp() sem argumentos — o Pool só conecta no primeiro uso. Uma
+  // única `Database`/Pool é compartilhada por todos os repositórios Drizzle
+  // do banco `gamification` (um schema só, ver .claude/arquitetura-backend-ddd-lite.md).
+  const db = createDb(process.env.DATABASE_URL ?? 'postgres://unconfigured')
+  const userRepository = deps.userRepository ?? createDrizzleUserRepository(db)
   // Fallback só cobre createApp() sem args (ex: health/status.test.ts); em
   // qualquer ambiente real, JWT_SECRET vem do .env (docker-compose.yml já
   // define um default de dev).
@@ -82,6 +86,8 @@ export function createApp(deps: AppDeps = {}): Express {
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
+  const progressionRepository = createDrizzleProgressionRepository(db)
+  const getProgression = new GetProgressionUseCase(progressionRepository)
 
   const app = express()
   app.use(express.json())
@@ -99,5 +105,6 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   app.use(createAdminPingRouter(authMiddleware))
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
+  app.use(createProgressionRouter({ getProgression, authMiddleware }))
   return app
 }

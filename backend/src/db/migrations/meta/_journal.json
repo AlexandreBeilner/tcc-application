@@ -8,6 +8,13 @@
       "when": 1787097388002,
       "tag": "0000_fixed_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787613955732,
+      "tag": "0001_lush_rachel_grey",
+      "breakpoints": true
     }
   ]
 }
