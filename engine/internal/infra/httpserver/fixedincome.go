@@ -20,9 +20,13 @@ type fixedIncomeExecutor interface {
 }
 
 // fixedIncomeAssetTypes são os únicos tipos de ativo que passam por essas
-// rotas — o inverso de tradableAssetTypes (orders.go): renda variável e o
-// sandbox de aprendizagem (RF12) têm fluxos próprios, fora do escopo desta
-// tarefa.
+// rotas — o inverso de tradableAssetTypes (orders.go): renda variável tem
+// fluxo próprio, fora do escopo desta tarefa. Ativo sandbox
+// (`is_sandbox = true`) de um desses 8 tipos é aceito normalmente desde a
+// tarefa 4.11 — só a taxa contratada/de mercado muda de fonte
+// (sandbox.RateScript em vez de fixed_income_assets.interest_rate/
+// market_calendar.selic_rate, fixed_income_execution_repository.go), a
+// rota e as fórmulas continuam as mesmas.
 var fixedIncomeAssetTypes = map[catalog.AssetType]bool{
 	catalog.AssetTesouroSelic:     true,
 	catalog.AssetTesouroPrefixado: true,
@@ -98,8 +102,8 @@ func handleFixedIncomePurchase(catalogReader assetCatalogReader, exec fixedIncom
 			writeCatalogError(w, http.StatusNotFound, "ativo não encontrado")
 			return
 		}
-		if asset.IsSandbox || !fixedIncomeAssetTypes[asset.Type] {
-			writeCatalogError(w, http.StatusBadRequest, "compra só é suportada pra ativo de renda fixa do mercado ao vivo")
+		if !fixedIncomeAssetTypes[asset.Type] {
+			writeCatalogError(w, http.StatusBadRequest, "compra só é suportada pra ativo de renda fixa")
 			return
 		}
 
@@ -151,8 +155,8 @@ func handleFixedIncomeRedemption(catalogReader assetCatalogReader, exec fixedInc
 			writeCatalogError(w, http.StatusNotFound, "ativo não encontrado")
 			return
 		}
-		if asset.IsSandbox || !fixedIncomeAssetTypes[asset.Type] {
-			writeCatalogError(w, http.StatusBadRequest, "resgate só é suportado pra ativo de renda fixa do mercado ao vivo")
+		if !fixedIncomeAssetTypes[asset.Type] {
+			writeCatalogError(w, http.StatusBadRequest, "resgate só é suportado pra ativo de renda fixa")
 			return
 		}
 

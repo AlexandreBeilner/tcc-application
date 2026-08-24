@@ -49,7 +49,7 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.
 - **Payload:** query `user_id` (obrigatório) — UUID do usuário.
-- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, quantity, average_price }, ...]` — posições de renda variável (`positions`) do usuário, cada uma já enriquecida com a identificação do ativo via join com `assets` (não só o `asset_id` cru). Lista vazia (não erro) pra usuário sem posição nenhuma.
+- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, is_sandbox, quantity, average_price }, ...]` — posições de renda variável (`positions`) do usuário, cada uma já enriquecida com a identificação do ativo via join com `assets` (não só o `asset_id` cru). `is_sandbox` (tarefa 4.11, RF12) distingue posição de sandbox da de Mercado Ao Vivo — insumo pra tela 2.1 (inventário) separar as duas visualmente. Lista vazia (não erro) pra usuário sem posição nenhuma.
 - **Erros:**
   - `400` — `user_id` ausente ou não é um UUID válido.
   - `503` / `500` — mesmos casos de `GET /accounts/:user_id`.
@@ -61,7 +61,7 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.
 - **Payload:** query `user_id` (obrigatório) — UUID do usuário.
-- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, quantity, average_price, average_rate }, ...]` — mesmo padrão de `GET /positions`, pra `fixed_income_positions`, incluindo `average_rate` (a taxa contratada ajustada pela média ponderada — `fixedincomeposition.ApplyBuy`, tarefa 3.13). Lista vazia (não erro) pra usuário sem posição nenhuma.
+- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, is_sandbox, quantity, average_price, average_rate }, ...]` — mesmo padrão de `GET /positions` (incluindo `is_sandbox`, tarefa 4.11), pra `fixed_income_positions`, incluindo `average_rate` (a taxa contratada ajustada pela média ponderada — `fixedincomeposition.ApplyBuy`, tarefa 3.13). Lista vazia (não erro) pra usuário sem posição nenhuma.
 - **Erros:**
   - `400` — `user_id` ausente ou não é um UUID válido.
   - `503` / `500` — mesmos casos de `GET /accounts/:user_id`.

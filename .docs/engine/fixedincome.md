@@ -1,8 +1,8 @@
-# `fixedincome` — compra e resgate de renda fixa ponta a ponta (Mercado Ao Vivo)
+# `fixedincome` — compra e resgate de renda fixa ponta a ponta (Mercado Ao Vivo + Sandbox)
 
-Pacotes de domínio: `engine/internal/domain/fixedincomeexecution/` (`Purchase`/`Redeem`/`Service`, orquestrando as fórmulas puras de `fixedincome` — `PrefixedPrice`, `EarlyRedemption`) + `engine/internal/domain/fixedincomeposition/` (`ApplyBuy`, blend de posição). Persistência em `internal/infra/db/fixed_income_execution_repository.go`. Ver `.claude/arquitetura-engine-go.md` pra divisão domínio/infra.
+Pacotes de domínio: `engine/internal/domain/fixedincomeexecution/` (`Purchase`/`Redeem`/`Service`, orquestrando as fórmulas puras de `fixedincome` — `PrefixedPrice`, `EarlyRedemption`) + `engine/internal/domain/fixedincomeposition/` (`ApplyBuy`, blend de posição) + `engine/internal/domain/sandbox/` (`RateScript`/`RateOnDay`/`DaysSince`, tarefa 4.11). Persistência em `internal/infra/db/fixed_income_execution_repository.go`. Ver `.claude/arquitetura-engine-go.md` pra divisão domínio/infra.
 
-Só ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb`, `lci`, `lca`, `cri`, `cra`; `is_sandbox = false`) passam por estas rotas — renda variável tem fluxo próprio (`.docs/engine/orders.md`, tarefa 3.12).
+Ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb`, `lci`, `lca`, `cri`, `cra`) passam por estas rotas — renda variável tem fluxo próprio (`.docs/engine/orders.md`, tarefa 3.12). Até a tarefa 4.11, ativo `is_sandbox = true` também era rejeitado aqui (`400`); agora é aceito normalmente — só a taxa contratada/de mercado muda de fonte (ver "Sandbox" abaixo), o resto das rotas é idêntico.
 
 ---
 
@@ -15,7 +15,7 @@ Só ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, 
   - `amount` — número > 0, obrigatório — valor do aporte em R$ (a compra é por valor, não por quantidade de títulos — tela 4.3 do inventário).
 - **Sucesso:** `201` → `{ unit_price, quantity_purchased, position: { quantity, average_price, average_rate } }`. `position` já reflete a posição agregada **depois** da compra (soma com qualquer compra anterior do mesmo título pelo mesmo usuário).
 - **Erros:**
-  - `400` — corpo inválido; `user_id`/`asset_id` não são UUID; `amount <= 0`; ativo não encontrado é `404`, mas ativo encontrado e não sendo um dos 8 tipos de renda fixa (ou `is_sandbox = true`) é `400`.
+  - `400` — corpo inválido; `user_id`/`asset_id` não são UUID; `amount <= 0`; ativo não encontrado é `404`, mas ativo encontrado e não sendo um dos 8 tipos de renda fixa é `400`.
   - `404` — ativo não encontrado; conta do usuário não encontrada (`fixedincomeexecution.ErrAccountNotFound`).
   - `422` — `amount` abaixo da aplicação mínima do produto (`minimum_investment`, `.docs/engine/catalog.md`) ou saldo insuficiente — nada é persistido nesse caso.
   - `503` — motor subiu sem `DATABASE_URL` configurado.
@@ -32,7 +32,7 @@ Só ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, 
 - **Payload (JSON):** `user_id`, `asset_id` — ambos UUID, obrigatórios. Sem campo de quantidade/valor — resgate é sempre **integral** da posição agregada (ver "Escopo não coberto" abaixo).
 - **Sucesso:** `200` → `{ total_value, mark_to_market: { mark_to_market_price, realized_return_pct, vs_contracted_rate } }`. `total_value` é o valor total resgatado, em R$; os três campos de `mark_to_market` espelham `fixedincome.EarlyRedemptionResult` (tarefa 2.4).
 - **Erros:**
-  - `400` — corpo inválido; `user_id`/`asset_id` não são UUID; ativo não encontrado é `404`, ativo não sendo renda fixa (ou sandbox) é `400`.
+  - `400` — corpo inválido; `user_id`/`asset_id` não são UUID; ativo não encontrado é `404`, ativo não sendo renda fixa é `400`.
   - `404` — ativo não encontrado; usuário sem posição nesse título (`fixedincomeexecution.ErrPositionNotFound`).
   - `503` / `500` — mesmos casos de `POST /fixed-income/purchases`.
 - **Regra:** `fixedincomeexecution.Service.Redeem` → `fixedincomeexecution.Redeem`. Marca a mercado a posição inteira (`fixedincome.EarlyRedemption`, taxa de mercado corrente = Selic simulada do dia — `market_calendar.selic_rate`, Temporizador da tarefa 3.11) e converte pro valor total (`position.Quantity × MarkToMarketPrice`).
@@ -40,6 +40,16 @@ Só ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, 
   **Event Sourcing:** grava o evento imutável `fixed_income_redemption` em `market_events` (`quantity = NULL`, `unit_value = total_value`) **antes** de creditar `current_balance` (sem decrementar `total_invested` — mesmo precedente do lado de venda em `orders.md`) e remover a linha de `fixed_income_positions` (resgate sempre integral).
 
 ---
+
+### Sandbox (RF12/RNF08, tarefa 4.11)
+
+Ativo `is_sandbox = true` passa pelas mesmas `fixedincomeexecution.Purchase`/`Redeem` — mesma validação, mesmas fórmulas (`PrefixedPrice`/`EarlyRedemption`), mesma persistência/Event Sourcing. A diferença fica só em `FixedIncomeExecutionRepository.LoadPurchaseContext`/`LoadRedeemContext`: em vez de `fixed_income_assets.interest_rate` (compra) ou `market_calendar.selic_rate` (resgate), a taxa vem de `sandbox.RateScript` — um roteiro fixo e pré-computado por ticker (não por `asset_id`, gerado pelo Postgres em tempo de execução), a mesma curva pra todo usuário. `RateScript` serve as **duas** grandezas: lido no dia da compra, é a taxa contratada; lido no dia do resgate, é a taxa de mercado corrente pra marcação a mercado — mesma dualidade que o Mercado Ao Vivo já tinha (`interest_rate` do catálogo vs. `market_calendar.selic_rate`), só que as duas leituras agora saem do mesmo roteiro em dias diferentes. `maturity_date`/`minimum_investment` continuam vindo do catálogo mesmo pra sandbox — só a taxa (a grandeza simulada) troca de fonte.
+
+O "dia" do roteiro conta a partir da primeira operação do usuário *naquele título* — `fixed_income_positions.created_at` (existente desde a migration `000006`, nunca lido antes desta tarefa; preservado por `ON CONFLICT ... DO UPDATE` numa compra seguinte, mas a linha é **apagada inteira** num resgate — nota 5 abaixo — então uma recompra depois de um resgate reinicia a contagem, legitimamente: é uma primeira operação nova), convertido em índice de dia por `sandbox.DaysSince` (relógio de parede, mesmo precedente da nota 4 abaixo). `sandbox.RateOnDay` clampa no último valor da série se o dia calculado for maior. Nenhuma migration nova foi necessária.
+
+O roteiro seedado (`SANDPRE`, Tesouro Prefixado sandbox) existe pra reproduzir a lição 1.7 de forma controlada: taxa contratada 10% no dia da compra (dia 0), sobe pra 15% nos dias 1–3 (resgatar nesse intervalo marca a mercado com perda — taxa de mercado acima da contratada), cai pra 6% do dia 4 em diante (resgatar aí marca a mercado com ganho extraordinário — taxa de mercado abaixo da contratada).
+
+**Tesouro IPCA+ sandbox não foi seedado nesta tarefa:** `sandbox.IPCAScript` existe e é testado isoladamente por simetria com `PriceScript`/`RateScript`, mas sem consumidor real — mesma decisão de escopo já tomada pro Mercado Ao Vivo (nota 2 abaixo, `PrefixedPrice` reaproveitada em vez da projeção real de VNA). Um Tesouro IPCA+ sandbox, se seedado, usaria `RateScript` como qualquer um dos outros 7 tipos.
 
 ### Modelagem da posição (decisão confirmada com o usuário, 2026-08-23)
 

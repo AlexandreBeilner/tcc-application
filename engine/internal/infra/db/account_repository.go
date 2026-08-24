@@ -85,7 +85,7 @@ func (r *AccountRepository) FindByUserID(ctx context.Context, userID string) (ac
 // tem posição nenhuma.
 func (r *AccountRepository) ListPositionsByUser(ctx context.Context, userID string) ([]position.Record, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT p.asset_id, a.ticker, a.name, a.type, p.quantity, p.average_price
+		`SELECT p.asset_id, a.ticker, a.name, a.type, a.is_sandbox, p.quantity, p.average_price
 		 FROM positions p
 		 JOIN assets a ON a.id = p.asset_id
 		 WHERE p.user_id = $1
@@ -99,7 +99,7 @@ func (r *AccountRepository) ListPositionsByUser(ctx context.Context, userID stri
 	records := make([]position.Record, 0)
 	for rows.Next() {
 		var rec position.Record
-		if err := rows.Scan(&rec.AssetID, &rec.AssetTicker, &rec.AssetName, &rec.AssetType, &rec.Quantity, &rec.AveragePrice); err != nil {
+		if err := rows.Scan(&rec.AssetID, &rec.AssetTicker, &rec.AssetName, &rec.AssetType, &rec.IsSandbox, &rec.Quantity, &rec.AveragePrice); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)
@@ -112,7 +112,7 @@ func (r *AccountRepository) ListPositionsByUser(ctx context.Context, userID stri
 // /fixed-income/positions (tarefa 4.7), incluindo average_rate.
 func (r *AccountRepository) ListFixedIncomePositionsByUser(ctx context.Context, userID string) ([]fixedincomeposition.Record, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT p.asset_id, a.ticker, a.name, a.type, p.quantity, p.average_price, p.average_rate
+		`SELECT p.asset_id, a.ticker, a.name, a.type, a.is_sandbox, p.quantity, p.average_price, p.average_rate
 		 FROM fixed_income_positions p
 		 JOIN assets a ON a.id = p.asset_id
 		 WHERE p.user_id = $1
@@ -126,7 +126,7 @@ func (r *AccountRepository) ListFixedIncomePositionsByUser(ctx context.Context, 
 	records := make([]fixedincomeposition.Record, 0)
 	for rows.Next() {
 		var rec fixedincomeposition.Record
-		if err := rows.Scan(&rec.AssetID, &rec.AssetTicker, &rec.AssetName, &rec.AssetType, &rec.Quantity, &rec.AveragePrice, &rec.AverageRate); err != nil {
+		if err := rows.Scan(&rec.AssetID, &rec.AssetTicker, &rec.AssetName, &rec.AssetType, &rec.IsSandbox, &rec.Quantity, &rec.AveragePrice, &rec.AverageRate); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)

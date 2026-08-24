@@ -27,6 +27,7 @@ type positionResponse struct {
 	Ticker       string  `json:"ticker"`
 	Name         string  `json:"name"`
 	Type         string  `json:"type"`
+	IsSandbox    bool    `json:"is_sandbox"`
 	Quantity     int     `json:"quantity"`
 	AveragePrice float64 `json:"average_price"`
 }
@@ -36,6 +37,7 @@ type userFixedIncomePositionResponse struct {
 	Ticker       string  `json:"ticker"`
 	Name         string  `json:"name"`
 	Type         string  `json:"type"`
+	IsSandbox    bool    `json:"is_sandbox"`
 	Quantity     float64 `json:"quantity"`
 	AveragePrice float64 `json:"average_price"`
 	AverageRate  float64 `json:"average_rate"`
@@ -55,8 +57,9 @@ func requireUserIDParam(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 // handleListPositions serve GET /positions?user_id= — posições de renda
 // variável do usuário, cada uma já enriquecida com ticker/nome/tipo do
-// ativo (tarefa 4.7). Lista vazia (não erro) pra usuário sem posição
-// nenhuma.
+// ativo (tarefa 4.7) e is_sandbox (tarefa 4.11, RF12 — distingue posição de
+// sandbox da de Mercado Ao Vivo, tela 2.1). Lista vazia (não erro) pra
+// usuário sem posição nenhuma.
 func handleListPositions(positions positionLister) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if positions == nil {
@@ -82,6 +85,7 @@ func handleListPositions(positions positionLister) http.HandlerFunc {
 				Ticker:       rec.AssetTicker,
 				Name:         rec.AssetName,
 				Type:         rec.AssetType,
+				IsSandbox:    rec.IsSandbox,
 				Quantity:     rec.Quantity,
 				AveragePrice: rec.AveragePrice,
 			})
@@ -92,7 +96,7 @@ func handleListPositions(positions positionLister) http.HandlerFunc {
 
 // handleListFixedIncomePositions serve GET /fixed-income/positions?user_id=
 // — mesmo padrão de handleListPositions, pra fixed_income_positions,
-// incluindo average_rate (tarefa 4.7).
+// incluindo average_rate (tarefa 4.7) e is_sandbox (tarefa 4.11).
 func handleListFixedIncomePositions(positions fixedIncomePositionLister) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if positions == nil {
@@ -118,6 +122,7 @@ func handleListFixedIncomePositions(positions fixedIncomePositionLister) http.Ha
 				Ticker:       rec.AssetTicker,
 				Name:         rec.AssetName,
 				Type:         rec.AssetType,
+				IsSandbox:    rec.IsSandbox,
 				Quantity:     rec.Quantity,
 				AveragePrice: rec.AveragePrice,
 				AverageRate:  rec.AverageRate,

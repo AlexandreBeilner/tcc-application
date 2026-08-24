@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
+	"tcc-investimentos/engine/internal/domain/sandbox"
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
 
@@ -34,7 +36,15 @@ func NewFixedIncomeExecutionRepository(db *sql.DB) *FixedIncomeExecutionReposito
 
 // LoadPurchaseContext lê saldo do usuário, dado de catálogo do título
 // (taxa, vencimento, aplicação mínima) e a posição já existente do usuário
-// nesse título (zero value se ainda não existe — primeira compra).
+// nesse título (zero value se ainda não existe — primeira compra). Ativo
+// sandbox (RF12, tarefa 4.11) tem AnnualRatePct sobrescrito pela taxa
+// contratada do dia (sandbox.RateScript, indexado pelo ticker — não dá pra
+// indexar por assetID em tempo de compilação, gerado pelo Postgres — e pelo
+// dia decorrido desde a primeira operação do usuário nesse título, dia 0 se
+// ele ainda não tinha posição nenhuma); maturity_date/minimum_investment
+// continuam vindo do catálogo mesmo pra sandbox — só a grandeza simulada
+// (taxa) é que troca de fonte, mesmo raciocínio de
+// OrderExecutionRepository.referencePrice.
 func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context, userID, assetID string) (fixedincomeexecution.PurchaseContext, error) {
 	var balance float64
 	if err := r.db.QueryRowContext(ctx,
@@ -48,35 +58,57 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 
 	var pctx fixedincomeexecution.PurchaseContext
 	pctx.AccountBalance = balance
+
+	var ticker string
+	var isSandbox bool
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT interest_rate, maturity_date, minimum_investment FROM fixed_income_assets WHERE asset_id = $1`, assetID,
-	).Scan(&pctx.AnnualRatePct, &pctx.MaturityDate, &pctx.MinimumInvestment); err != nil {
+		`SELECT fia.interest_rate, fia.maturity_date, fia.minimum_investment, a.ticker, a.is_sandbox
+		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
+		 WHERE fia.asset_id = $1`, assetID,
+	).Scan(&pctx.AnnualRatePct, &pctx.MaturityDate, &pctx.MinimumInvestment, &ticker, &isSandbox); err != nil {
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
 
 	var pos fixedincomeposition.Position
+	var positionCreatedAt sql.NullTime
 	err := r.db.QueryRowContext(ctx,
-		`SELECT quantity, average_price, average_rate FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
+		`SELECT quantity, average_price, average_rate, created_at FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
 		userID, assetID,
-	).Scan(&pos.Quantity, &pos.AveragePrice, &pos.AverageRate)
+	).Scan(&pos.Quantity, &pos.AveragePrice, &pos.AverageRate, &positionCreatedAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
 	pctx.CurrentPosition = pos
 
+	if isSandbox {
+		if script, ok := sandbox.RateScriptForTicker(ticker); ok {
+			dayIndex := 0
+			if positionCreatedAt.Valid {
+				dayIndex = sandbox.DaysSince(positionCreatedAt.Time, time.Now())
+			}
+			pctx.AnnualRatePct = sandbox.RateOnDay(script, dayIndex)
+		}
+	}
+
 	return pctx, nil
 }
 
 // LoadRedeemContext lê a posição do usuário no título (ErrPositionNotFound
-// se não existir), o vencimento do título e a taxa Selic simulada corrente
-// (market_calendar, tarefa 3.11) — usada como taxa de mercado pra marcação
-// a mercado (ver nota 3 do doc de fixedincomeexecution).
+// se não existir), o vencimento do título e a taxa de mercado corrente pra
+// marcação a mercado (ver nota 3 do doc de fixedincomeexecution). Ativo
+// sandbox (RF12, tarefa 4.11) usa sandbox.RateScript (mesmo roteiro lido na
+// compra — RateScript serve tanto de taxa contratada quanto de taxa de
+// mercado, ver doc do pacote sandbox) no dia decorrido desde a primeira
+// operação do usuário (fixed_income_positions.created_at — sempre existe
+// aqui, a posição já foi encontrada acima), nunca market_calendar.selic_rate
+// — o Temporizador nunca avança nada de sandbox.
 func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, userID, assetID string) (fixedincomeexecution.RedeemContext, error) {
 	var rctx fixedincomeexecution.RedeemContext
+	var positionCreatedAt time.Time
 	err := r.db.QueryRowContext(ctx,
-		`SELECT quantity, average_price, average_rate FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
+		`SELECT quantity, average_price, average_rate, created_at FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
 		userID, assetID,
-	).Scan(&rctx.Position.Quantity, &rctx.Position.AveragePrice, &rctx.Position.AverageRate)
+	).Scan(&rctx.Position.Quantity, &rctx.Position.AveragePrice, &rctx.Position.AverageRate, &positionCreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fixedincomeexecution.RedeemContext{}, fixedincomeexecution.ErrPositionNotFound
 	}
@@ -84,10 +116,22 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 		return fixedincomeexecution.RedeemContext{}, err
 	}
 
+	var ticker string
+	var isSandbox bool
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT maturity_date FROM fixed_income_assets WHERE asset_id = $1`, assetID,
-	).Scan(&rctx.MaturityDate); err != nil {
+		`SELECT fia.maturity_date, a.ticker, a.is_sandbox
+		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
+		 WHERE fia.asset_id = $1`, assetID,
+	).Scan(&rctx.MaturityDate, &ticker, &isSandbox); err != nil {
 		return fixedincomeexecution.RedeemContext{}, err
+	}
+
+	if isSandbox {
+		if script, ok := sandbox.RateScriptForTicker(ticker); ok {
+			dayIndex := sandbox.DaysSince(positionCreatedAt, time.Now())
+			rctx.CurrentMarketRatePct = sandbox.RateOnDay(script, dayIndex)
+			return rctx, nil
+		}
 	}
 
 	if err := r.db.QueryRowContext(ctx,

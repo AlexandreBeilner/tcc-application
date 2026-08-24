@@ -12,7 +12,8 @@ import (
 
 func TestHandleListPositions(t *testing.T) {
 	reader := &fakeUserMarketDataReader{positions: []position.Record{
-		{AssetID: "a1", AssetTicker: "VALR3", AssetName: "Vale ON", AssetType: "acao", Position: position.Position{Quantity: 10, AveragePrice: 100.5}},
+		{AssetID: "a1", AssetTicker: "VALR3", AssetName: "Vale ON", AssetType: "acao", IsSandbox: false, Position: position.Position{Quantity: 10, AveragePrice: 100.5}},
+		{AssetID: "a2", AssetTicker: "SAND3", AssetName: "Ação Sandbox", AssetType: "acao", IsSandbox: true, Position: position.Position{Quantity: 5, AveragePrice: 101}},
 	}}
 
 	rec := getUserMarketData(t, reader, "/positions?user_id="+validUserID)
@@ -24,8 +25,11 @@ func TestHandleListPositions(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if len(body) != 1 || body[0].Ticker != "VALR3" || body[0].Quantity != 10 || body[0].AveragePrice != 100.5 {
-		t.Errorf("body = %+v, inesperado", body)
+	if len(body) != 2 || body[0].Ticker != "VALR3" || body[0].Quantity != 10 || body[0].AveragePrice != 100.5 || body[0].IsSandbox {
+		t.Errorf("body[0] = %+v, inesperado", body[0])
+	}
+	if body[1].Ticker != "SAND3" || !body[1].IsSandbox {
+		t.Errorf("body[1] = %+v, esperava is_sandbox = true", body[1])
 	}
 }
 
@@ -76,8 +80,12 @@ func TestHandleListPositions_SemUserMarketDataReader(t *testing.T) {
 func TestHandleListFixedIncomePositions(t *testing.T) {
 	reader := &fakeUserMarketDataReader{fixedIncomePositions: []fixedincomeposition.Record{
 		{
-			AssetID: "a2", AssetTicker: "LFT2029", AssetName: "Tesouro Selic 2029", AssetType: "tesouro_selic",
+			AssetID: "a2", AssetTicker: "LFT2029", AssetName: "Tesouro Selic 2029", AssetType: "tesouro_selic", IsSandbox: false,
 			Position: fixedincomeposition.Position{Quantity: 3.5, AveragePrice: 1000.10, AverageRate: 12.3},
+		},
+		{
+			AssetID: "a3", AssetTicker: "SANDPRE", AssetName: "Tesouro Prefixado Sandbox", AssetType: "tesouro_prefixado", IsSandbox: true,
+			Position: fixedincomeposition.Position{Quantity: 1, AveragePrice: 900, AverageRate: 10},
 		},
 	}}
 
@@ -90,8 +98,11 @@ func TestHandleListFixedIncomePositions(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if len(body) != 1 || body[0].Ticker != "LFT2029" || body[0].AverageRate != 12.3 {
-		t.Errorf("body = %+v, inesperado", body)
+	if len(body) != 2 || body[0].Ticker != "LFT2029" || body[0].AverageRate != 12.3 || body[0].IsSandbox {
+		t.Errorf("body[0] = %+v, inesperado", body[0])
+	}
+	if body[1].Ticker != "SANDPRE" || !body[1].IsSandbox {
+		t.Errorf("body[1] = %+v, esperava is_sandbox = true", body[1])
 	}
 }
 
