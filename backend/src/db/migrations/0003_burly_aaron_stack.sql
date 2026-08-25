@@ -1,0 +1,1 @@
+ALTER TABLE "daily_missions" ADD COLUMN "requires_lesson_completion" boolean DEFAULT false NOT NULL;

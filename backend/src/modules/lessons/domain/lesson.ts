@@ -61,3 +61,10 @@ export function buildLessonView(
 
   return { ...lesson, status, currentStep: progress?.currentStep ?? 0 }
 }
+
+// Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de
+// `gamification/domain/streak.ts` (5.3), usada aqui só pra comparar a data
+// de `completedAt` (missões, 5.4, precisam saber "concluiu uma lição hoje").
+export function utcDateString(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}

@@ -8,6 +8,7 @@
 // via API, nunca via SQL direto.
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   date,
   integer,
@@ -140,6 +141,11 @@ export const dailyMissions = pgTable('daily_missions', {
   description: text('description'),
   completionCriteria: text('completion_criteria').notNull(),
   xpReward: integer('xp_reward').notNull(),
+  // `completionCriteria` é texto livre — não sustenta uma verificação
+  // cruzada real em código (mesmo raciocínio de `achievements.required_points`
+  // → `criteria_type`/`criteria_value`, tarefa 5.2). Só a missão "complete
+  // uma lição" tem esse tratamento nesta fase (tarefa 5.4).
+  requiresLessonCompletion: boolean('requires_lesson_completion').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

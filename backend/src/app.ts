@@ -16,11 +16,19 @@ import { createProgressionRouter } from './modules/gamification/interfaces/http/
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
+import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
+import { CompleteMissionUseCase } from './modules/missions/application/useCases/completeMission'
+import { ListDailyMissionsUseCase } from './modules/missions/application/useCases/listDailyMissions'
+import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions } from './modules/missions/infrastructure/gamification/inProcessStreakTracker'
+import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
+import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
+import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
+import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
 import { GetNetWorthUseCase } from './modules/ranking/application/useCases/getNetWorth'
 import { GetRankingUseCase } from './modules/ranking/application/useCases/getRanking'
 import { createEngineAccountEventsReader } from './modules/ranking/infrastructure/engine/engineAccountEventsReader'
@@ -115,6 +123,16 @@ export function createApp(deps: AppDeps = {}): Express {
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(lessonRepository, xpAwarder, streakTracker)
+  const hasCompletedLessonToday = new HasCompletedLessonTodayUseCase(lessonRepository)
+
+  const missionRepository = createDrizzleMissionRepository(db)
+  const listDailyMissions = new ListDailyMissionsUseCase(missionRepository)
+  const completeMission = new CompleteMissionUseCase(
+    missionRepository,
+    createInProcessLessonCompletionChecker(hasCompletedLessonToday),
+    createInProcessXpAwarderForMissions(awardXp),
+    createInProcessStreakTrackerForMissions(touchStreak),
+  )
 
   const userDirectory = createDrizzleUserDirectory(db)
   const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
@@ -145,5 +163,6 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
   app.use(createRankingRouter({ getRanking, authMiddleware }))
+  app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   return app
 }

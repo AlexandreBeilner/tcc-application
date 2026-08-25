@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildLessonView, isUnlocked, lessonStatus } from './lesson'
+import { buildLessonView, isUnlocked, lessonStatus, utcDateString } from './lesson'
 
 describe('isUnlocked', () => {
   it.each([
@@ -62,5 +62,12 @@ describe('buildLessonView', () => {
     const view = buildLessonView(lesson, { currentStep: 3, completedAt: new Date() }, 0)
 
     expect(view.status).toBe('completed')
+  })
+})
+
+describe('utcDateString', () => {
+  it('formata a data em YYYY-MM-DD, UTC', () => {
+    expect(utcDateString(new Date('2026-08-24T23:59:59Z'))).toBe('2026-08-24')
+    expect(utcDateString(new Date('2026-08-25T00:00:00Z'))).toBe('2026-08-25')
   })
 })

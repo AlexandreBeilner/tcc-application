@@ -46,3 +46,7 @@ Steps de uma lição (spec 5.2): `0`=cenário, `1`=micro-decisão, `2`=revelaç�
 ## Seed mínimo (não é o currículo completo)
 
 `npm run db:seed:lessons` (idempotente, `ON CONFLICT (code) DO NOTHING`) — 6 lições reais da spec seção 5.1: `0.1`–`0.5` (Trilha 0 — Fundamentos, completa) + `1.1` (Trilha 1 — Renda Fixa, só a primeira). Suficiente pra exercitar a cadeia de desbloqueio entre trilhas ponta a ponta. Autoria das 33 lições do currículo completo é escopo da semana 7.
+
+## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
+
+`HasCompletedLessonTodayUseCase.execute({ userId })` (tarefa 5.4) — devolve `true` se `user_lesson_progress.completed_at` de qualquer lição do usuário cair no dia calendário de hoje (UTC, `domain/lesson.utcDateString`). Consumida em processo por `modules/missions` (a missão "complete uma lição da trilha" é a única com verificação cruzada real) via port própria (`LessonCompletionChecker`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.
