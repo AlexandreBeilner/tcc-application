@@ -22,6 +22,15 @@ import { createInProcessStreakTracker } from './modules/lessons/infrastructure/g
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
+import { ListFriendRequestsUseCase } from './modules/friendships/application/useCases/listFriendRequests'
+import { ListFriendsUseCase } from './modules/friendships/application/useCases/listFriends'
+import { RemoveFriendshipUseCase } from './modules/friendships/application/useCases/removeFriendship'
+import { RespondToFriendRequestUseCase } from './modules/friendships/application/useCases/respondToFriendRequest'
+import { SearchUsersUseCase } from './modules/friendships/application/useCases/searchUsers'
+import { SendFriendRequestUseCase } from './modules/friendships/application/useCases/sendFriendRequest'
+import { createDrizzleFriendshipRepository } from './modules/friendships/infrastructure/persistence/drizzleFriendshipRepository'
+import { createDrizzleUserDirectory as createDrizzleFriendshipUserDirectory } from './modules/friendships/infrastructure/persistence/drizzleUserDirectory'
+import { createFriendshipsRouter } from './modules/friendships/interfaces/http/friendshipsRouter'
 import { CompleteMissionUseCase } from './modules/missions/application/useCases/completeMission'
 import { ListDailyMissionsUseCase } from './modules/missions/application/useCases/listDailyMissions'
 import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions } from './modules/missions/infrastructure/gamification/inProcessStreakTracker'
@@ -134,6 +143,21 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessStreakTrackerForMissions(touchStreak),
   )
 
+  const friendshipRepository = createDrizzleFriendshipRepository(db)
+  const friendshipUserDirectory = createDrizzleFriendshipUserDirectory(db)
+  const searchUsers = new SearchUsersUseCase(friendshipUserDirectory)
+  const sendFriendRequest = new SendFriendRequestUseCase(
+    friendshipRepository,
+    friendshipUserDirectory,
+  )
+  const respondToFriendRequest = new RespondToFriendRequestUseCase(friendshipRepository)
+  const removeFriendship = new RemoveFriendshipUseCase(friendshipRepository)
+  const listFriends = new ListFriendsUseCase(friendshipRepository, friendshipUserDirectory)
+  const listFriendRequests = new ListFriendRequestsUseCase(
+    friendshipRepository,
+    friendshipUserDirectory,
+  )
+
   const userDirectory = createDrizzleUserDirectory(db)
   const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
   const getNetWorth = new GetNetWorthUseCase(
@@ -164,5 +188,16 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
+  app.use(
+    createFriendshipsRouter({
+      searchUsers,
+      sendFriendRequest,
+      respondToFriendRequest,
+      removeFriendship,
+      listFriends,
+      listFriendRequests,
+      authMiddleware,
+    }),
+  )
   return app
 }
