@@ -32,3 +32,7 @@ Catálogo (3 missões da spec 6.1, seed em `npm run db:seed:missions`, idempoten
 ## Verificação cruzada da missão de lição
 
 `HasCompletedLessonTodayUseCase` (`modules/lessons`, consumida em processo via `LessonCompletionChecker`, port própria de `missions`) — verifica se `user_lesson_progress.completed_at` de qualquer lição do usuário cai no dia calendário de hoje (UTC), reaproveitando `listProgressForUser` (nenhum método novo no repositório de lições).
+
+## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
+
+`ExportMissionProgressUseCase.execute({ userId })` (tarefa 5.11, portabilidade RNF04) — todo o histórico de `user_mission_progress` do usuário, qualquer data (diferente de `ListDailyMissionsUseCase`, que só lê o dia corrente). Único caso desta tarefa que exigiu um método novo no repositório (`listAllProgressForUser`) — nenhum caso de uso existente devolvia o histórico completo. Consumida em processo por `modules/auth` via port própria (`MissionProgressExporter`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.

@@ -24,11 +24,28 @@ export interface NewIdentityInput {
   providerAccountId: string
 }
 
+// `undefined` num campo = não altera; `null` só é válido pra `passwordHash`
+// (setar/limpar a senha local) — os demais campos nunca aceitam null (mesmas
+// colunas `NOT NULL` de `users`).
+export interface UpdateUserInput {
+  name?: string
+  email?: string
+  username?: string
+  passwordHash?: string | null
+}
+
 export interface UserRepository {
   findByEmail(email: string): Promise<User | undefined>
   findByUsername(username: string): Promise<User | undefined>
   findById(id: string): Promise<User | undefined>
   createUser(input: NewUserInput): Promise<User>
+  updateUser(id: string, input: UpdateUserInput): Promise<User>
   findIdentity(providerName: string, providerAccountId: string): Promise<IdentityRecord | undefined>
   createIdentity(input: NewIdentityInput): Promise<IdentityRecord>
+  // Sem tokens — usada por GET /me/identities (RNF04) e pela exportação de
+  // dados (ExportUserDataUseCase).
+  listIdentitiesForUser(userId: string): Promise<IdentityRecord[]>
+  // Usada só por AnonymizeAccountUseCase — "excluir conta" (tela 9.3) tira
+  // todos os provedores conectados, não desconecta um por vez.
+  deleteIdentitiesForUser(userId: string): Promise<void>
 }

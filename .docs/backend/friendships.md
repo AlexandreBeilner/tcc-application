@@ -76,3 +76,9 @@ Módulo: `backend/src/modules/friendships/`. Sobre a tabela `friendships` (já e
 - **Sucesso:** `200` → `{ received: [{ friendshipId, userId, username, name, createdAt }], sent: [...] }` — solicitações pendentes recebidas e enviadas, separadas.
 - **Erros:** `401` — token ausente ou inválido/expirado.
 - **Regra:** `ListFriendRequestsUseCase`.
+
+---
+
+## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
+
+`ExportFriendshipsUseCase.execute({ userId })` (tarefa 5.11, portabilidade RNF04) — junta `listAccepted`/`listReceivedPending`/`listSentPending` (linhas cruas de `friendships`, não o formato de UI de `ListFriendsUseCase`), nenhum método novo no repositório. Consumida em processo por `modules/auth` via port própria (`FriendshipsExporter`).

@@ -9,6 +9,7 @@ import { ListMacroEventsUseCase } from './modules/admin/application/useCases/lis
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { CheckAndUnlockAchievementsUseCase } from './modules/achievements/application/useCases/checkAndUnlockAchievements'
+import { ExportUnlockedAchievementsUseCase } from './modules/achievements/application/useCases/exportUnlockedAchievements'
 import { ListAchievementsUseCase } from './modules/achievements/application/useCases/listAchievements'
 import { createInProcessProgressSnapshotReader } from './modules/achievements/infrastructure/aggregation/inProcessProgressSnapshotReader'
 import { createDrizzleAchievementRepository } from './modules/achievements/infrastructure/persistence/drizzleAchievementRepository'
@@ -22,6 +23,7 @@ import { createProgressionRouter } from './modules/gamification/interfaces/http/
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
+import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
@@ -29,6 +31,7 @@ import { createInProcessStreakTracker } from './modules/lessons/infrastructure/g
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
+import { ExportFriendshipsUseCase } from './modules/friendships/application/useCases/exportFriendships'
 import { ListFriendRequestsUseCase } from './modules/friendships/application/useCases/listFriendRequests'
 import { ListFriendsUseCase } from './modules/friendships/application/useCases/listFriends'
 import { RemoveFriendshipUseCase } from './modules/friendships/application/useCases/removeFriendship'
@@ -39,6 +42,7 @@ import { createDrizzleFriendshipRepository } from './modules/friendships/infrast
 import { createDrizzleUserDirectory as createDrizzleFriendshipUserDirectory } from './modules/friendships/infrastructure/persistence/drizzleUserDirectory'
 import { createFriendshipsRouter } from './modules/friendships/interfaces/http/friendshipsRouter'
 import { CompleteMissionUseCase } from './modules/missions/application/useCases/completeMission'
+import { ExportMissionProgressUseCase } from './modules/missions/application/useCases/exportMissionProgress'
 import { ListDailyMissionsUseCase } from './modules/missions/application/useCases/listDailyMissions'
 import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions } from './modules/missions/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
@@ -64,18 +68,29 @@ import { createProfileRouter } from './modules/profile/interfaces/http/profileRo
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
 import type { UserRepository } from './modules/auth/application/ports/userRepository'
+import { AnonymizeAccountUseCase } from './modules/auth/application/useCases/anonymizeAccount'
+import { ChangePasswordUseCase } from './modules/auth/application/useCases/changePassword'
+import { ExportUserDataUseCase } from './modules/auth/application/useCases/exportUserData'
 import { GetCurrentUserUseCase } from './modules/auth/application/useCases/getCurrentUser'
+import { ListIdentitiesUseCase } from './modules/auth/application/useCases/listIdentities'
 import { LoginUserUseCase } from './modules/auth/application/useCases/loginUser'
 import { LoginWithGoogleUseCase } from './modules/auth/application/useCases/loginWithGoogle'
 import { RegisterUserUseCase } from './modules/auth/application/useCases/registerUser'
+import { UpdateProfileUseCase } from './modules/auth/application/useCases/updateProfile'
+import { createInProcessAchievementsExporter } from './modules/auth/infrastructure/achievements/inProcessAchievementsExporter'
 import { createEngineAccountProvisioner } from './modules/auth/infrastructure/engine/engineAccountProvisioner'
+import { createInProcessFriendshipsExporter } from './modules/auth/infrastructure/friendships/inProcessFriendshipsExporter'
+import { createInProcessProgressionExporter } from './modules/auth/infrastructure/gamification/inProcessProgressionExporter'
 import {
   createDisabledGoogleIdentityProvider,
   createGoogleIdentityProvider,
 } from './modules/auth/infrastructure/google/googleIdentityProviderAdapter'
+import { createInProcessLessonProgressExporter } from './modules/auth/infrastructure/lessons/inProcessLessonProgressExporter'
+import { createInProcessMissionProgressExporter } from './modules/auth/infrastructure/missions/inProcessMissionProgressExporter'
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createBcryptPasswordHasher } from './modules/auth/infrastructure/security/bcryptPasswordHasher'
 import { createJwtTokenIssuer } from './modules/auth/infrastructure/security/jwtTokenIssuer'
+import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 
@@ -218,6 +233,21 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
   )
 
+  const updateProfile = new UpdateProfileUseCase(userRepository)
+  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher)
+  const listIdentities = new ListIdentitiesUseCase(userRepository)
+  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository)
+  const exportUserData = new ExportUserDataUseCase(
+    userRepository,
+    createInProcessProgressionExporter(getProgression),
+    createInProcessLessonProgressExporter(new ExportLessonProgressUseCase(lessonRepository)),
+    createInProcessAchievementsExporter(
+      new ExportUnlockedAchievementsUseCase(achievementRepository),
+    ),
+    createInProcessFriendshipsExporter(new ExportFriendshipsUseCase(friendshipRepository)),
+    createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
+  )
+
   const app = express()
   app.use(express.json())
   app.use(healthRouter)
@@ -229,6 +259,16 @@ export function createApp(deps: AppDeps = {}): Express {
       getCurrentUser,
       loginWithGoogle,
       googleIdentityProvider,
+      authMiddleware,
+    }),
+  )
+  app.use(
+    createAccountRouter({
+      updateProfile,
+      changePassword,
+      listIdentities,
+      exportUserData,
+      anonymizeAccount,
       authMiddleware,
     }),
   )

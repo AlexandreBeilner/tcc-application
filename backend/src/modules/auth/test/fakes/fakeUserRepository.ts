@@ -3,6 +3,7 @@ import type {
   IdentityRecord,
   NewIdentityInput,
   NewUserInput,
+  UpdateUserInput,
   UserRepository,
 } from '../../application/ports/userRepository'
 import type { User } from '../../domain/user'
@@ -38,6 +39,22 @@ export function createFakeUserRepository(): UserRepository {
       return user
     },
 
+    async updateUser(id: string, input: UpdateUserInput) {
+      const current = usersById.get(id)
+      if (!current) {
+        throw new Error(`fake: usuário ${id} não encontrado`)
+      }
+      const updated: User = {
+        ...current,
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.email !== undefined && { email: input.email }),
+        ...(input.username !== undefined && { username: input.username }),
+        ...(input.passwordHash !== undefined && { passwordHash: input.passwordHash }),
+      }
+      usersById.set(id, updated)
+      return updated
+    },
+
     async findIdentity(providerName, providerAccountId) {
       return [...identities.values()].find(
         (identity) =>
@@ -50,6 +67,18 @@ export function createFakeUserRepository(): UserRepository {
       const identity: IdentityRecord = { id: randomUUID(), ...input }
       identities.set(identity.id, identity)
       return identity
+    },
+
+    async listIdentitiesForUser(userId: string) {
+      return [...identities.values()].filter((identity) => identity.userId === userId)
+    },
+
+    async deleteIdentitiesForUser(userId: string) {
+      for (const [id, identity] of identities) {
+        if (identity.userId === userId) {
+          identities.delete(id)
+        }
+      }
     },
   }
 }

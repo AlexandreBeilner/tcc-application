@@ -21,6 +21,10 @@ Desbloqueio é sempre automático, nunca por rota — `CheckAndUnlockAchievement
 
 ---
 
+## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
+
+`ExportUnlockedAchievementsUseCase.execute({ userId })` (tarefa 5.11, portabilidade RNF04) — reaproveita `listUnlockedForUser` direto (dump de `user_achievements`, sem juntar com o catálogo). Consumida em processo por `modules/auth` via port própria (`AchievementsExporter`).
+
 ## Seed mínimo (não é o currículo completo de conteúdo)
 
 `npm run db:seed:achievements` (idempotente por nome) — 8 conquistas ilustrativas cobrindo os 4 critérios (spec, tela 7.2): "Primeira Semana"/"Fiel" (`streak_days` 7/30), "Estudioso"/"Formado na Trilha" (`lessons_completed` 10/33), "Primeiro Patrimônio"/"Grande Investidor" (`net_worth` 12000/25000), "Primeira Operação"/"Trader Ativo" (`trades_executed` 1/20) — valores ilustrativos, sujeitos à calibração/autoria de conteúdo da semana 7/8.1, mesmo precedente de `macroevent.Templates` (4.3) e `MISSION_SEEDS` (5.4).

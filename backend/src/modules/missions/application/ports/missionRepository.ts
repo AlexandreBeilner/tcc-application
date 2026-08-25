@@ -1,4 +1,11 @@
-import type { Mission, MissionProgressSnapshot } from '../../domain/mission'
+import type { Mission, MissionProgressSnapshot, MissionStatus } from '../../domain/mission'
+
+export interface MissionProgressExportRecord {
+  missionId: string
+  missionDate: string
+  status: MissionStatus
+  completedAt: Date | null
+}
 
 export interface MissionRepository {
   listCatalog(): Promise<Mission[]>
@@ -17,4 +24,8 @@ export interface MissionRepository {
     missionDate: string,
   ): Promise<MissionProgressSnapshot | undefined>
   markCompleted(userId: string, missionId: string, missionDate: string): Promise<void>
+  // Todo o histórico do usuário, qualquer data — só pra exportação de dados
+  // (5.11, RNF04); `listProgressForDate` continua sendo o caminho de leitura
+  // do dia corrente (GET /missions).
+  listAllProgressForUser(userId: string): Promise<MissionProgressExportRecord[]>
 }

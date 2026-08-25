@@ -71,6 +71,19 @@ export function createDrizzleMissionRepository(db: Database): MissionRepository 
       return row ? ({ status: row.status } satisfies MissionProgressSnapshot) : undefined
     },
 
+    async listAllProgressForUser(userId: string) {
+      const rows = await db
+        .select()
+        .from(userMissionProgress)
+        .where(eq(userMissionProgress.userId, userId))
+      return rows.map((row) => ({
+        missionId: row.missionId,
+        missionDate: row.missionDate,
+        status: row.status,
+        completedAt: row.completedAt,
+      }))
+    },
+
     async markCompleted(userId: string, missionId: string, missionDate: string) {
       await db
         .insert(userMissionProgress)

@@ -37,5 +37,14 @@ export function createFakeMissionRepository(seedCatalog: Mission[] = []): Missio
     async markCompleted(userId: string, missionId: string, missionDate: string) {
       progress.set(`${userId}|${missionId}|${missionDate}`, { status: 'completed' })
     },
+
+    async listAllProgressForUser(userId: string) {
+      return [...progress.entries()]
+        .filter(([key]) => key.startsWith(`${userId}|`))
+        .map(([key, snapshot]) => {
+          const [, missionId, missionDate] = key.split('|')
+          return { missionId, missionDate, status: snapshot.status, completedAt: null }
+        })
+    },
   }
 }
