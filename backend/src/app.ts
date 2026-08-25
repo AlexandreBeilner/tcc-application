@@ -21,6 +21,14 @@ import { createInProcessStreakTracker } from './modules/lessons/infrastructure/g
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
+import { GetNetWorthUseCase } from './modules/ranking/application/useCases/getNetWorth'
+import { GetRankingUseCase } from './modules/ranking/application/useCases/getRanking'
+import { createEngineAccountEventsReader } from './modules/ranking/infrastructure/engine/engineAccountEventsReader'
+import { createEngineAssetPriceHistoryReader } from './modules/ranking/infrastructure/engine/engineAssetPriceHistoryReader'
+import { createEngineCurrentAccountStateReader } from './modules/ranking/infrastructure/engine/engineCurrentAccountStateReader'
+import { createEngineSandboxAssetReader } from './modules/ranking/infrastructure/engine/engineSandboxAssetReader'
+import { createDrizzleUserDirectory } from './modules/ranking/infrastructure/persistence/drizzleUserDirectory'
+import { createRankingRouter } from './modules/ranking/interfaces/http/rankingRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
 import type { UserRepository } from './modules/auth/application/ports/userRepository'
@@ -108,6 +116,15 @@ export function createApp(deps: AppDeps = {}): Express {
   const getLesson = new GetLessonUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(lessonRepository, xpAwarder, streakTracker)
 
+  const userDirectory = createDrizzleUserDirectory(db)
+  const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
+  const getNetWorth = new GetNetWorthUseCase(
+    createEngineAccountEventsReader(engineUrl),
+    createEngineAssetPriceHistoryReader(engineUrl),
+    createEngineCurrentAccountStateReader(engineUrl),
+  )
+  const getRanking = new GetRankingUseCase(userDirectory, sandboxAssetReader, getNetWorth)
+
   const app = express()
   app.use(express.json())
   app.use(healthRouter)
@@ -127,5 +144,6 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
+  app.use(createRankingRouter({ getRanking, authMiddleware }))
   return app
 }

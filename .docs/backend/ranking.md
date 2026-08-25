@@ -1,0 +1,27 @@
+# `ranking` — RF17 (janela fixa) e patrimônio por replay
+
+Módulo: `backend/src/modules/ranking/`. Núcleo do RF17 — rentabilidade % numa janela fixa (semana ISO ou mês calendário, alinhada ao calendário — não uma janela móvel). Nenhuma alteração em `engine/` — o patrimônio num instante passado é reconstruído no backend por *replay* de `market_events` (`domain/networth.replay`), em cima do que a semana 4 já expõe (`GET /accounts/:user_id/events`, `GET /assets/:id/quotes`), não em código novo do motor.
+
+---
+
+### `GET /ranking`
+
+- **Autenticação:** Bearer token (qualquer usuário autenticado).
+- **Payload:** query `window` — `week` ou `month`, obrigatório.
+- **Sucesso:** `200` → `{ window, entries: [{ userId, profitabilityPct }], requestingUserPosition }`. `entries` ordenado por `profitabilityPct` desc. `requestingUserPosition` é a posição (1-based) do usuário autenticado na lista, ou `null` se não encontrado (não deveria acontecer — todo usuário registrado entra na lista). **Nunca inclui patrimônio absoluto** (RNF09) — nem em `entries`, nem em nenhum outro campo; a resposta é estruturalmente incapaz de vazar isso, o valor não existe no tipo de retorno do caso de uso.
+- **Erros:**
+  - `400` — `window` ausente ou fora de `week`/`month`.
+  - `401` — token ausente ou inválido/expirado.
+- **Regra:** `GetRankingUseCase`. Pra cada usuário cadastrado, calcula `profitabilityPct(baseline, current)` — `current` via `GetNetWorthUseCase` sem `asOf` (estado já projetado, rápido); `baseline` via `GetNetWorthUseCase` com `asOf = MAX(windowStart, accountCreatedAt)`. Essa regra de `MAX` é o que garante resultado consistente independente de quando o usuário entrou — quem se cadastrou no meio da janela começa a janela dele em R$10.000 (RNF06), não com patrimônio zerado nem histórico anterior à conta.
+
+---
+
+## Patrimônio (`GetNetWorthUseCase`, sem endpoint HTTP próprio)
+
+`GetNetWorthUseCase.execute({ userId, asOf?, sandboxAssetIds })` — usada em processo pelo ranking (e, no futuro, por 5.2/achievements). `asOf` omitido usa o estado já projetado no motor (`CurrentAccountStateReader` — `GET /accounts/:id` + `GET /positions` + `GET /fixed-income/positions` + `GET /assets`, mais barato). `asOf` presente reconstrói por replay: lê o extrato completo (`AccountEventsReader`, pagina `GET /accounts/:id/events` até esgotar), filtra por `timestamp <= asOf` e roda `domain/networth.replay`.
+
+**Clamp pro primeiro evento (achado via validação ponta a ponta desta tarefa):** `asOf` pode, por uma diferença de poucos milissegundos entre o relógio do banco `gamification` (`users.created_at`, usado pelo ranking pro baseline de conta criada no meio da janela) e o relógio do motor (o `initial_deposit` só é gravado depois do round-trip HTTP de provisionamento — `RegisterUserUseCase` insere o usuário e só depois chama `POST /accounts`), acabar sendo anterior até ao primeiro evento do próprio usuário. Sem tratar isso, a baseline ficava zerada em vez de refletir o capital inicial — `profitabilityPct` calculava a partir de `baseline = 0`, disparando a guarda defensiva (`baseline === 0 → 0%`) mesmo com ganho real. `GetNetWorthUseCase` corrige isso internamente: se `asOf` for anterior ao timestamp do primeiro evento do usuário, usa esse primeiro evento como corte efetivo — garante que a baseline sempre inclui pelo menos o `initial_deposit`.
+
+**Metodologia de valorização** (mesma nos dois caminhos, "agora" e replay): renda variável usa a cotação corrente/histórica (`current_price`/`GET /assets/:id/quotes`); renda fixa usa **valor a custo, sem marcação a mercado** — decisão de escopo explícita (marcar a mercado o histórico inteiro exigiria a taxa de mercado em cada instante passado, desproporcional pro que o ranking precisa; a marcação a mercado real continua existindo no fluxo de resgate, `.docs/engine/fixedincome.md`). Posições de ativo sandbox nunca entram na valorização (`sandboxAssetIds`, resolvido uma vez por cálculo de ranking via `GET /assets`) — só Mercado Ao Vivo conta pro ranking (spec 3.1). O **caixa**, porém, reflete todo evento, incluindo os de ativo sandbox — o motor debita/credita `accounts.current_balance` de verdade numa operação sandbox (`.docs/engine/orders.md`), e isso precisa bater com o saldo real que `CurrentAccountStateReader` mostra "agora"; excluir sandbox do lado do caixa quebraria essa consistência passado↔presente. Decisão desta sessão, não confirmada explicitamente — sinalizar se a intenção for que gastar num ativo sandbox nunca afete patrimônio de forma alguma.
+
+**Aproximação de `priceAsOf` (decisão desta sessão, não confirmada):** o motor só expõe `simulated_day` (sem data real) em `GET /assets/:id/quotes` — sem tocar o motor de novo (premissa da semana 4), o preço num instante passado é aproximado mapeando `cutoff` (data real) pro índice do array assumindo 1 tick = 1 dia real (design do Temporizador), contando pra trás a partir do elemento mais recente ("hoje"). Ticks manuais (`POST /admin/tick`, usados em demo) quebram essa suposição — sinalizar se isso causar imprecisão perceptível na prática.
