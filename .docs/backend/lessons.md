@@ -50,3 +50,5 @@ Steps de uma lição (spec 5.2): `0`=cenário, `1`=micro-decisão, `2`=revelaç�
 ## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
 
 `HasCompletedLessonTodayUseCase.execute({ userId })` (tarefa 5.4) — devolve `true` se `user_lesson_progress.completed_at` de qualquer lição do usuário cair no dia calendário de hoje (UTC, `domain/lesson.utcDateString`). Consumida em processo por `modules/missions` (a missão "complete uma lição da trilha" é a única com verificação cruzada real) via port própria (`LessonCompletionChecker`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.
+
+`CountCompletedLessonsUseCase.execute({ userId })` (tarefa 5.2) — total de lições concluídas pelo usuário (`completedAt` preenchido), reaproveitando `listProgressForUser` sem método novo no repositório, mesmo padrão da anterior. Consumida em processo por `modules/achievements` (critério `lessons_completed`) dentro do adapter que agrega `ProgressSnapshotReader` — ver `.docs/backend/achievements.md`.

@@ -1,5 +1,6 @@
 import { InvalidXpAmountError } from '../../domain/errors'
 import { defaultProgression, levelForXp } from '../../domain/progression'
+import type { AchievementChecker } from '../ports/achievementChecker'
 import type { ProgressionRepository } from '../ports/progressionRepository'
 
 export interface AwardXpInput {
@@ -21,7 +22,10 @@ export interface AwardXpResult {
 // `execute` aqui em processo (mesmo runtime Node, sem HTTP) — ver
 // .claude/backlog-plataforma-investimentos.md, tarefa 5.1.
 export class AwardXpUseCase {
-  constructor(private readonly progressionRepository: ProgressionRepository) {}
+  constructor(
+    private readonly progressionRepository: ProgressionRepository,
+    private readonly achievementChecker: AchievementChecker,
+  ) {}
 
   async execute(input: AwardXpInput): Promise<AwardXpResult> {
     if (input.amount <= 0) {
@@ -39,6 +43,9 @@ export class AwardXpUseCase {
     const xp = current.xp + input.amount
     const level = levelForXp(xp)
     await this.progressionRepository.upsert({ ...current, xp, level })
+    // Qualquer crédito de xp pode satisfazer um critério de conquista
+    // (5.2) — checado em processo depois de persistir, nunca por polling.
+    await this.achievementChecker.checkAndUnlock(input.userId)
 
     return { xp, level, leveledUp: level > current.level }
   }

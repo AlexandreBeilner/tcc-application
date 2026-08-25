@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeProgressionRepository } from '../../test/fakes/fakeProgressionRepository'
 import { AwardXpUseCase } from './awardXp'
 import { TouchStreakUseCase } from './touchStreak'
 
 function build() {
   const progressionRepository = createFakeProgressionRepository()
-  const useCase = new TouchStreakUseCase(progressionRepository)
-  return { progressionRepository, useCase }
+  const achievementChecker = createFakeAchievementChecker()
+  const useCase = new TouchStreakUseCase(progressionRepository, achievementChecker)
+  return { progressionRepository, achievementChecker, useCase }
 }
 
 describe('TouchStreakUseCase', () => {
@@ -51,11 +53,21 @@ describe('TouchStreakUseCase', () => {
     expect(afterGap).toEqual({ currentStreak: 1, longestStreak: 2 })
   })
 
+  it('checa conquistas depois de tocar o streak', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T12:00:00Z'))
+    const { achievementChecker, useCase } = build()
+
+    await useCase.execute({ userId: 'u1' })
+
+    expect(achievementChecker.calls).toEqual(['u1'])
+  })
+
   it('preserva xp/nível ao tocar o streak — não é dono desses campos', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-24T12:00:00Z'))
     const { progressionRepository, useCase } = build()
-    const awardXp = new AwardXpUseCase(progressionRepository)
+    const awardXp = new AwardXpUseCase(progressionRepository, createFakeAchievementChecker())
     await awardXp.execute({ userId: 'u1', amount: 150, reason: 'licao' })
 
     await useCase.execute({ userId: 'u1' })

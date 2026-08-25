@@ -14,6 +14,7 @@
     "db:generate": "drizzle-kit generate",
     "db:seed:admin": "tsx src/db/seed.ts",
     "db:seed:lessons": "tsx src/db/seedLessons.ts",
+    "db:seed:achievements": "tsx src/db/seedAchievements.ts",
     "db:seed:missions": "tsx src/db/seedMissions.ts"
   },
   "keywords": [],

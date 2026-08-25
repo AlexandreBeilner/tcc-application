@@ -12,6 +12,7 @@ import {
   check,
   date,
   integer,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -24,6 +25,12 @@ import {
 export const userRole = pgEnum('user_role', ['user', 'admin'])
 export const friendshipStatus = pgEnum('friendship_status', ['pending', 'accepted', 'declined'])
 export const missionStatus = pgEnum('mission_status', ['pending', 'completed'])
+export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
+  'net_worth',
+  'streak_days',
+  'lessons_completed',
+  'trades_executed',
+])
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -58,7 +65,13 @@ export const achievements = pgTable('achievements', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 100 }).notNull(),
   description: varchar('description', { length: 255 }),
-  requiredPoints: integer('required_points').notNull(),
+  // Substitui `required_points` (int único, nunca consumido por código —
+  // confirmado por grep) — não sustentava critérios variados como
+  // patrimônio vs. uso contínuo (spec, tela 7.2). Divergência de schema
+  // documentada, trocada direto (sem migração em duas etapas) porque a
+  // coluna antiga nunca teve consumidor.
+  criteriaType: achievementCriteriaType('criteria_type').notNull(),
+  criteriaValue: numeric('criteria_value', { precision: 15, scale: 2 }).notNull(),
 })
 
 export const userAchievements = pgTable(

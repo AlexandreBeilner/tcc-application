@@ -8,13 +8,20 @@ import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/t
 import { ListMacroEventsUseCase } from './modules/admin/application/useCases/listMacroEvents'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
+import { CheckAndUnlockAchievementsUseCase } from './modules/achievements/application/useCases/checkAndUnlockAchievements'
+import { ListAchievementsUseCase } from './modules/achievements/application/useCases/listAchievements'
+import { createInProcessProgressSnapshotReader } from './modules/achievements/infrastructure/aggregation/inProcessProgressSnapshotReader'
+import { createDrizzleAchievementRepository } from './modules/achievements/infrastructure/persistence/drizzleAchievementRepository'
+import { createAchievementsRouter } from './modules/achievements/interfaces/http/achievementsRouter'
 import { AwardXpUseCase } from './modules/gamification/application/useCases/awardXp'
 import { GetProgressionUseCase } from './modules/gamification/application/useCases/getProgression'
 import { TouchStreakUseCase } from './modules/gamification/application/useCases/touchStreak'
+import { createInProcessAchievementChecker } from './modules/gamification/infrastructure/achievements/inProcessAchievementChecker'
 import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
 import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
+import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
@@ -123,10 +130,40 @@ export function createApp(deps: AppDeps = {}): Express {
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
   const progressionRepository = createDrizzleProgressionRepository(db)
   const getProgression = new GetProgressionUseCase(progressionRepository)
-  const awardXp = new AwardXpUseCase(progressionRepository)
-  const touchStreak = new TouchStreakUseCase(progressionRepository)
-
   const lessonRepository = createDrizzleLessonRepository(db)
+  const countCompletedLessons = new CountCompletedLessonsUseCase(lessonRepository)
+
+  // Readers de patrimônio/ranking (5.5) — precisam existir antes de
+  // `achievements` (5.2), que os consome pros critérios `net_worth`/
+  // `trades_executed`. Reaproveitados de novo mais abaixo por `getRanking`.
+  const userDirectory = createDrizzleUserDirectory(db)
+  const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
+  const getNetWorth = new GetNetWorthUseCase(
+    createEngineAccountEventsReader(engineUrl),
+    createEngineAssetPriceHistoryReader(engineUrl),
+    createEngineCurrentAccountStateReader(engineUrl),
+  )
+
+  const achievementRepository = createDrizzleAchievementRepository(db)
+  const progressSnapshotReader = createInProcessProgressSnapshotReader({
+    getProgression,
+    countCompletedLessons,
+    getNetWorth,
+    sandboxAssetReader,
+  })
+  const checkAndUnlockAchievements = new CheckAndUnlockAchievementsUseCase(
+    achievementRepository,
+    progressSnapshotReader,
+  )
+  const listAchievements = new ListAchievementsUseCase(
+    achievementRepository,
+    progressSnapshotReader,
+  )
+  const achievementChecker = createInProcessAchievementChecker(checkAndUnlockAchievements)
+
+  const awardXp = new AwardXpUseCase(progressionRepository, achievementChecker)
+  const touchStreak = new TouchStreakUseCase(progressionRepository, achievementChecker)
+
   const xpAwarder = createInProcessXpAwarder(awardXp)
   const streakTracker = createInProcessStreakTracker(touchStreak)
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
@@ -158,13 +195,6 @@ export function createApp(deps: AppDeps = {}): Express {
     friendshipUserDirectory,
   )
 
-  const userDirectory = createDrizzleUserDirectory(db)
-  const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
-  const getNetWorth = new GetNetWorthUseCase(
-    createEngineAccountEventsReader(engineUrl),
-    createEngineAssetPriceHistoryReader(engineUrl),
-    createEngineCurrentAccountStateReader(engineUrl),
-  )
   const getRanking = new GetRankingUseCase(userDirectory, sandboxAssetReader, getNetWorth)
 
   const app = express()
@@ -188,6 +218,7 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
+  app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(
     createFriendshipsRouter({
       searchUsers,

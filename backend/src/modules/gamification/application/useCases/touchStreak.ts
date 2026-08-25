@@ -1,5 +1,6 @@
 import { defaultProgression } from '../../domain/progression'
 import { todayUtc, touch } from '../../domain/streak'
+import type { AchievementChecker } from '../ports/achievementChecker'
 import type { ProgressionRepository } from '../ports/progressionRepository'
 
 export interface TouchStreakInput {
@@ -19,7 +20,10 @@ export interface TouchStreakResult {
 // fino que chama `execute` aqui — mesma decisão de composição de `xpAwarder`
 // (ver awardXp.ts).
 export class TouchStreakUseCase {
-  constructor(private readonly progressionRepository: ProgressionRepository) {}
+  constructor(
+    private readonly progressionRepository: ProgressionRepository,
+    private readonly achievementChecker: AchievementChecker,
+  ) {}
 
   async execute(input: TouchStreakInput): Promise<TouchStreakResult> {
     const current =
@@ -39,6 +43,9 @@ export class TouchStreakUseCase {
     // Campos de xp/nível preservados como estão — este caso de uso não é
     // dono deles (ver AwardXpUseCase, 5.1).
     await this.progressionRepository.upsert({ ...current, ...next })
+    // Qualquer toque de streak pode satisfazer um critério de conquista
+    // (5.2) — mesmo raciocínio de AwardXpUseCase.
+    await this.achievementChecker.checkAndUnlock(input.userId)
 
     return { currentStreak: next.currentStreak, longestStreak: next.longestStreak }
   }

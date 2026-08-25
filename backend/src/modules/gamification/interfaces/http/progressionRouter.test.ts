@@ -5,6 +5,7 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { AwardXpUseCase } from '../../application/useCases/awardXp'
 import { GetProgressionUseCase } from '../../application/useCases/getProgression'
+import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeProgressionRepository } from '../../test/fakes/fakeProgressionRepository'
 import { createProgressionRouter } from './progressionRouter'
 
@@ -13,7 +14,7 @@ function buildApp() {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const getProgression = new GetProgressionUseCase(progressionRepository)
-  const awardXp = new AwardXpUseCase(progressionRepository)
+  const awardXp = new AwardXpUseCase(progressionRepository, createFakeAchievementChecker())
 
   const app = express()
   app.use(express.json())

@@ -5,6 +5,7 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { GetProgressionUseCase } from '../../application/useCases/getProgression'
 import { TouchStreakUseCase } from '../../application/useCases/touchStreak'
+import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeProgressionRepository } from '../../test/fakes/fakeProgressionRepository'
 import { createStreakRouter } from './streakRouter'
 
@@ -13,7 +14,7 @@ function buildApp() {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const getProgression = new GetProgressionUseCase(progressionRepository)
-  const touchStreak = new TouchStreakUseCase(progressionRepository)
+  const touchStreak = new TouchStreakUseCase(progressionRepository, createFakeAchievementChecker())
 
   const app = express()
   app.use(express.json())

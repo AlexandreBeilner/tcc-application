@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeProgressionRepository } from '../../test/fakes/fakeProgressionRepository'
 import { AwardXpUseCase } from './awardXp'
 import { GetProgressionUseCase } from './getProgression'
@@ -22,7 +23,7 @@ describe('GetProgressionUseCase', () => {
 
   it('devolve a progressão persistida depois de um crédito de xp', async () => {
     const progressionRepository = createFakeProgressionRepository()
-    const awardXp = new AwardXpUseCase(progressionRepository)
+    const awardXp = new AwardXpUseCase(progressionRepository, createFakeAchievementChecker())
     const useCase = new GetProgressionUseCase(progressionRepository)
     await awardXp.execute({ userId: 'u1', amount: 150, reason: 'licao' })
 

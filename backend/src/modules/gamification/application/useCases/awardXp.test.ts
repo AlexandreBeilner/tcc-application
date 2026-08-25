@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { InvalidXpAmountError } from '../../domain/errors'
+import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeProgressionRepository } from '../../test/fakes/fakeProgressionRepository'
 import { AwardXpUseCase } from './awardXp'
 
 function build() {
   const progressionRepository = createFakeProgressionRepository()
-  const useCase = new AwardXpUseCase(progressionRepository)
-  return { progressionRepository, useCase }
+  const achievementChecker = createFakeAchievementChecker()
+  const useCase = new AwardXpUseCase(progressionRepository, achievementChecker)
+  return { progressionRepository, achievementChecker, useCase }
 }
 
 describe('AwardXpUseCase', () => {
@@ -51,6 +53,14 @@ describe('AwardXpUseCase', () => {
     const result = await useCase.execute({ userId: 'u1', amount: 700, reason: 'bonus' })
 
     expect(result).toEqual({ xp: 700, level: 4, leveledUp: true })
+  })
+
+  it('checa conquistas depois de creditar xp', async () => {
+    const { achievementChecker, useCase } = build()
+
+    await useCase.execute({ userId: 'u1', amount: 50, reason: 'licao' })
+
+    expect(achievementChecker.calls).toEqual(['u1'])
   })
 
   it('rejeita quantidade não positiva', async () => {
