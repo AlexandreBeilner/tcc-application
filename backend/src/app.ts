@@ -53,6 +53,12 @@ import { createEngineCurrentAccountStateReader } from './modules/ranking/infrast
 import { createEngineSandboxAssetReader } from './modules/ranking/infrastructure/engine/engineSandboxAssetReader'
 import { createDrizzleUserDirectory } from './modules/ranking/infrastructure/persistence/drizzleUserDirectory'
 import { createRankingRouter } from './modules/ranking/interfaces/http/rankingRouter'
+import { GetPublicProfileUseCase } from './modules/profile/application/useCases/getPublicProfile'
+import { createInProcessAchievementsReader } from './modules/profile/infrastructure/achievements/inProcessAchievementsReader'
+import { createInProcessGamificationReader } from './modules/profile/infrastructure/gamification/inProcessGamificationReader'
+import { createDrizzleUserDirectory as createDrizzleProfileUserDirectory } from './modules/profile/infrastructure/persistence/drizzleUserDirectory'
+import { createInProcessProfitabilityReader } from './modules/profile/infrastructure/ranking/inProcessProfitabilityReader'
+import { createProfileRouter } from './modules/profile/interfaces/http/profileRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
 import type { UserRepository } from './modules/auth/application/ports/userRepository'
@@ -197,6 +203,13 @@ export function createApp(deps: AppDeps = {}): Express {
 
   const getRanking = new GetRankingUseCase(userDirectory, sandboxAssetReader, getNetWorth)
 
+  const getPublicProfile = new GetPublicProfileUseCase(
+    createDrizzleProfileUserDirectory(db),
+    createInProcessGamificationReader(getProgression),
+    createInProcessAchievementsReader(listAchievements),
+    createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
+  )
+
   const app = express()
   app.use(express.json())
   app.use(healthRouter)
@@ -219,6 +232,7 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
+  app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
   app.use(
     createFriendshipsRouter({
       searchUsers,
