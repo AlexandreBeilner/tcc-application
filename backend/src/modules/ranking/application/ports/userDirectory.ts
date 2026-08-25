@@ -2,6 +2,7 @@
 // entre serviços (mesmo raciocínio do `UserDirectory` previsto pra 5.8).
 export interface RankingUserRecord {
   id: string
+  username: string
   createdAt: Date
 }
 

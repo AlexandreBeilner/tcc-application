@@ -5,7 +5,9 @@ import type { RankingUserRecord, UserDirectory } from '../../application/ports/u
 export function createDrizzleUserDirectory(db: Database): UserDirectory {
   return {
     async listAll(): Promise<RankingUserRecord[]> {
-      return db.select({ id: users.id, createdAt: users.createdAt }).from(users)
+      return db
+        .select({ id: users.id, username: users.username, createdAt: users.createdAt })
+        .from(users)
     },
   }
 }

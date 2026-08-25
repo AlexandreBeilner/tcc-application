@@ -7,12 +7,12 @@ Módulo: `backend/src/modules/ranking/`. Núcleo do RF17 — rentabilidade % num
 ### `GET /ranking`
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
-- **Payload:** query `window` — `week` ou `month`, obrigatório.
-- **Sucesso:** `200` → `{ window, entries: [{ userId, profitabilityPct }], requestingUserPosition }`. `entries` ordenado por `profitabilityPct` desc. `requestingUserPosition` é a posição (1-based) do usuário autenticado na lista, ou `null` se não encontrado (não deveria acontecer — todo usuário registrado entra na lista). **Nunca inclui patrimônio absoluto** (RNF09) — nem em `entries`, nem em nenhum outro campo; a resposta é estruturalmente incapaz de vazar isso, o valor não existe no tipo de retorno do caso de uso.
+- **Payload:** query `window` — `week` ou `month`, obrigatório. `scope` — `global` ou `friends`, opcional, default `global` (tarefa 5.9).
+- **Sucesso:** `200` → `{ window, scope, entries: [{ userId, username, level, profitabilityPct }], requestingUserPosition }`. `entries` ordenado por `profitabilityPct` desc. `username`/`level` (5.9) — sem isso a tela 7.1 (pódio + lista) não tem o que exibir além de um id cru; decisão de escopo desta sessão, não explícita na descrição original da 5.5, corrigida na 5.9. `requestingUserPosition` é a posição (1-based) do usuário autenticado na lista filtrada, ou `null` se não encontrado. **Nunca inclui patrimônio absoluto** (RNF09) — nem em `entries`, nem em nenhum outro campo; a resposta é estruturalmente incapaz de vazar isso, o valor não existe no tipo de retorno do caso de uso.
 - **Erros:**
-  - `400` — `window` ausente ou fora de `week`/`month`.
+  - `400` — `window` ausente ou fora de `week`/`month`, ou `scope` fora de `global`/`friends`.
   - `401` — token ausente ou inválido/expirado.
-- **Regra:** `GetRankingUseCase`. Pra cada usuário cadastrado, calcula `profitabilityPct(baseline, current)` — `current` via `GetNetWorthUseCase` sem `asOf` (estado já projetado, rápido); `baseline` via `GetNetWorthUseCase` com `asOf = MAX(windowStart, accountCreatedAt)`. Essa regra de `MAX` é o que garante resultado consistente independente de quando o usuário entrou — quem se cadastrou no meio da janela começa a janela dele em R$10.000 (RNF06), não com patrimônio zerado nem histórico anterior à conta.
+- **Regra:** `GetRankingUseCase`. Pra cada usuário no escopo, calcula `profitabilityPct(baseline, current)` — `current` via `GetNetWorthUseCase` sem `asOf` (estado já projetado, rápido); `baseline` via `GetNetWorthUseCase` com `asOf = MAX(windowStart, accountCreatedAt)`. Essa regra de `MAX` é o que garante resultado consistente independente de quando o usuário entrou — quem se cadastrou no meio da janela começa a janela dele em R$10.000 (RNF06), não com patrimônio zerado nem histórico anterior à conta. **Escopo `friends`** (5.9): filtra `{o próprio usuário} ∪ friendIds` **antes** de calcular patrimônio — nunca recalcula a lista global inteira pra depois descartar a maior parte; `friendIds` vem de `FriendGraphReader` (port própria sobre `modules/friendships`, 5.8, só `status = accepted`). Mesma janela fixa nos dois escopos (spec 8.3) — `scope` não influencia `weekWindow`/`monthWindow`. Sem nenhum amigo aceito, a lista tem só o próprio usuário — nunca erro (CTA de "buscar amigos" é do frontend, tela 7.1).
 
 ---
 

@@ -8,13 +8,15 @@ import { GetRankingUseCase } from '../../application/useCases/getRanking'
 import { createFakeAccountEventsReader } from '../../test/fakes/fakeAccountEventsReader'
 import { createFakeAssetPriceHistoryReader } from '../../test/fakes/fakeAssetPriceHistoryReader'
 import { createFakeCurrentAccountStateReader } from '../../test/fakes/fakeCurrentAccountStateReader'
+import { createFakeFriendGraphReader } from '../../test/fakes/fakeFriendGraphReader'
+import { createFakeLevelReader } from '../../test/fakes/fakeLevelReader'
 import { createFakeSandboxAssetReader } from '../../test/fakes/fakeSandboxAssetReader'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { createRankingRouter } from './rankingRouter'
 
 function buildApp() {
   const userDirectory = createFakeUserDirectory([
-    { id: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
+    { id: 'u1', username: 'alice', createdAt: new Date('2026-01-01T00:00:00Z') },
   ])
   const getNetWorth = new GetNetWorthUseCase(
     createFakeAccountEventsReader({
@@ -42,6 +44,8 @@ function buildApp() {
     userDirectory,
     createFakeSandboxAssetReader(),
     getNetWorth,
+    createFakeLevelReader({ u1: 2 }),
+    createFakeFriendGraphReader(),
   )
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -95,8 +99,25 @@ describe('ranking routes', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({
       window: 'week',
-      entries: [{ userId: 'u1', profitabilityPct: 10 }],
+      scope: 'global',
+      entries: [{ userId: 'u1', username: 'alice', level: 2, profitabilityPct: 10 }],
       requestingUserPosition: 1,
     })
+  })
+
+  it('GET /ranking?scope=friends usa o escopo Amigos (default é global)', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .get('/ranking?window=week&scope=friends')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.scope).toBe('friends')
+    // Sem amigos aceitos, só o próprio usuário aparece.
+    expect(res.body.entries).toEqual([
+      { userId: 'u1', username: 'alice', level: 2, profitabilityPct: 10 },
+    ])
   })
 })

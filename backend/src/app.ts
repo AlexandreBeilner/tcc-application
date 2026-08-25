@@ -51,6 +51,8 @@ import { createEngineAccountEventsReader } from './modules/ranking/infrastructur
 import { createEngineAssetPriceHistoryReader } from './modules/ranking/infrastructure/engine/engineAssetPriceHistoryReader'
 import { createEngineCurrentAccountStateReader } from './modules/ranking/infrastructure/engine/engineCurrentAccountStateReader'
 import { createEngineSandboxAssetReader } from './modules/ranking/infrastructure/engine/engineSandboxAssetReader'
+import { createInProcessFriendGraphReader } from './modules/ranking/infrastructure/friendships/inProcessFriendGraphReader'
+import { createInProcessLevelReader } from './modules/ranking/infrastructure/gamification/inProcessLevelReader'
 import { createDrizzleUserDirectory } from './modules/ranking/infrastructure/persistence/drizzleUserDirectory'
 import { createRankingRouter } from './modules/ranking/interfaces/http/rankingRouter'
 import { GetPublicProfileUseCase } from './modules/profile/application/useCases/getPublicProfile'
@@ -201,7 +203,13 @@ export function createApp(deps: AppDeps = {}): Express {
     friendshipUserDirectory,
   )
 
-  const getRanking = new GetRankingUseCase(userDirectory, sandboxAssetReader, getNetWorth)
+  const getRanking = new GetRankingUseCase(
+    userDirectory,
+    sandboxAssetReader,
+    getNetWorth,
+    createInProcessLevelReader(getProgression),
+    createInProcessFriendGraphReader(listFriends),
+  )
 
   const getPublicProfile = new GetPublicProfileUseCase(
     createDrizzleProfileUserDirectory(db),
