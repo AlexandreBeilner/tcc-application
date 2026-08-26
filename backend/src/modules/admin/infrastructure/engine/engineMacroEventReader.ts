@@ -14,7 +14,9 @@ export function createEngineMacroEventReader(engineUrl: string): MacroEventReade
 
       const res = await fetch(`${engineUrl}/macro-events${qs ? `?${qs}` : ''}`)
       if (!res.ok) {
-        throw new Error(`falha ao listar eventos macro no motor de simulação (status ${res.status})`)
+        throw new Error(
+          `falha ao listar eventos macro no motor de simulação (status ${res.status})`,
+        )
       }
 
       return (await res.json()) as ListMacroEventsResult

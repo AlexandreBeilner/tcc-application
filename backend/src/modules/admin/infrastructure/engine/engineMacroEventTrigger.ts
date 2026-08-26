@@ -22,7 +22,9 @@ export function createEngineMacroEventTrigger(engineUrl: string): MacroEventTrig
         throw new InvalidMacroEventError(body.error ?? 'evento macro inválido')
       }
       if (!res.ok) {
-        throw new Error(`falha ao disparar evento macro no motor de simulação (status ${res.status})`)
+        throw new Error(
+          `falha ao disparar evento macro no motor de simulação (status ${res.status})`,
+        )
       }
 
       return (await res.json()) as MacroEventResult

@@ -137,7 +137,9 @@ describe('POST /admin/macro-events', () => {
 
   it('retorna 400 quando o motor rejeita o evento (InvalidMacroEventError)', async () => {
     const macroEventTrigger = createFakeMacroEventTrigger(sampleResult)
-    macroEventTrigger.errorToThrow = new InvalidMacroEventError('template de evento macro desconhecido')
+    macroEventTrigger.errorToThrow = new InvalidMacroEventError(
+      'template de evento macro desconhecido',
+    )
     const { app, tokenIssuer } = buildApp(macroEventTrigger)
     const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
 
@@ -162,7 +164,9 @@ describe('GET /admin/macro-events', () => {
     const { app, tokenIssuer } = buildApp()
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
-    const res = await request(app).get('/admin/macro-events').set('Authorization', `Bearer ${token}`)
+    const res = await request(app)
+      .get('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(403)
   })
 
@@ -170,7 +174,9 @@ describe('GET /admin/macro-events', () => {
     const { app, tokenIssuer, macroEventReader } = buildApp()
     const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
 
-    const res = await request(app).get('/admin/macro-events').set('Authorization', `Bearer ${token}`)
+    const res = await request(app)
+      .get('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ events: [sampleResult] })

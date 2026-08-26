@@ -53,7 +53,9 @@ export class GetNetWorthUseCase implements NetWorthReader {
       firstEventTimestamp && firstEventTimestamp.getTime() > input.asOf.getTime()
         ? firstEventTimestamp
         : input.asOf
-    const events = allEvents.filter((event) => event.timestamp.getTime() <= effectiveCutoff.getTime())
+    const events = allEvents.filter(
+      (event) => event.timestamp.getTime() <= effectiveCutoff.getTime(),
+    )
 
     const variableIncomeAssetIds = new Set<string>()
     for (const event of events) {

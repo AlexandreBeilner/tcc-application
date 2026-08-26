@@ -126,7 +126,9 @@ describe('GetNetWorthUseCase', () => {
     // round-trip HTTP separado, depois do INSERT em `users`). Sem o clamp
     // pro primeiro evento, isso zerava a baseline em vez de refletir RNF06.
     const initialDepositAt = new Date('2026-08-25T00:01:33.769Z')
-    const events = [event({ eventType: 'initial_deposit', unitValue: 10000, timestamp: initialDepositAt })]
+    const events = [
+      event({ eventType: 'initial_deposit', unitValue: 10000, timestamp: initialDepositAt }),
+    ]
     const useCase = new GetNetWorthUseCase(
       createFakeAccountEventsReader({ u1: events }),
       createFakeAssetPriceHistoryReader(),

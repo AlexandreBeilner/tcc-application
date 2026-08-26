@@ -21,7 +21,10 @@ describe('TriggerMacroEventUseCase', () => {
     const macroEventTrigger = createFakeMacroEventTrigger(sampleResult)
     const useCase = new TriggerMacroEventUseCase(macroEventTrigger)
 
-    const input = { template_key: 'legislacao-ambiental-mineracao', targets: [{ sector: 'Mineração' }] }
+    const input = {
+      template_key: 'legislacao-ambiental-mineracao',
+      targets: [{ sector: 'Mineração' }],
+    }
     const result = await useCase.execute(input)
 
     expect(result).toEqual(sampleResult)
