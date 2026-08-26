@@ -1,3 +1,4 @@
+import cors from 'cors'
 import express, { Express } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
@@ -268,7 +269,15 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
   )
 
+  // Sem isso, o build de produção do frontend (vite build + preview, ou
+  // qualquer hospedagem estática — CLAUDE.md proíbe container pro
+  // frontend) fala com o gateway a partir de uma origem diferente, e o
+  // navegador bloqueia a resposta. Em dev, o proxy do Vite (vite.config.ts,
+  // tarefa 6.0.1) já torna a chamada same-origin, então isso não é
+  // observável rodando só `npm run dev` — só em `vite build && vite preview`.
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
   const app = express()
+  app.use(cors({ origin: frontendUrl }))
   app.use(express.json())
   app.use(healthRouter)
   app.use(statusRouter)
