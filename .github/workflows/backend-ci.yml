@@ -1,0 +1,47 @@
+name: Backend CI
+
+# Backend gamificado (Node/TypeScript) — lint, build e suíte de testes
+# (DDD lite, .claude/arquitetura-backend-ddd-lite.md) rodando em CI. Escopo
+# restrito a backend/ via `paths` — engine/frontend têm seus próprios
+# pipelines quando existirem (ver engine-ci.yml).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  test:
+    name: lint, format, build e testes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: eslint
+        run: npm run lint
+
+      - name: prettier --check
+        run: npm run format:check
+
+      - name: build (tsc)
+        run: npm run build
+
+      - name: testes (vitest)
+        run: npm test
