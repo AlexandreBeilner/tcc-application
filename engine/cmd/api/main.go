@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
+	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
 	"tcc-investimentos/engine/internal/infra/httpserver"
 	"tcc-investimentos/engine/internal/infra/scheduler"
@@ -24,6 +26,33 @@ import (
 // ambiente sem a env var explícita ainda precisa de uma seed fixa, nunca
 // aleatória por processo.
 const defaultSimulationSeed = 42
+
+// engineQuoteCache espelha a assinatura da porta quoteCache não-exportada
+// declarada em internal/infra/db (ponto de consumo) — precisa de um nome
+// aqui só porque main.go escolhe qual adapter concreto construir antes de
+// injetar; nenhum outro pacote precisa conhecer este tipo.
+type engineQuoteCache interface {
+	Get(ctx context.Context, assetID string) (catalog.Quote, bool, error)
+	Set(ctx context.Context, assetID string, quote catalog.Quote) error
+}
+
+// newQuoteCache resolve o cache de cotação (tarefa 5.7): Redis quando
+// REDIS_URL está configurada (sempre o caso sob docker-compose, CLAUDE.md —
+// container é obrigatório pro backend inteiro), NoopQuoteCache caso
+// contrário — nunca nil, pra nenhum dos repositórios precisar checar
+// ausência de cache (ver nota em NewCatalogRepository sobre a armadilha de
+// "typed nil").
+func newQuoteCache() engineQuoteCache {
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		return cache.NoopQuoteCache{}
+	}
+	client, err := cache.NewClient(redisURL)
+	if err != nil {
+		log.Fatalf("erro ao configurar client Redis (REDIS_URL): %v", err)
+	}
+	return cache.NewRedisQuoteCache(client)
+}
 
 func main() {
 	addr := os.Getenv("ENGINE_ADDR")
@@ -56,10 +85,12 @@ func main() {
 	}
 	defer func() { _ = pool.Close() }()
 
+	quoteCache := newQuoteCache()
+
 	accountRepository := db.NewAccountRepository(pool)
 	accountService := account.NewService(accountRepository)
-	catalogRepository := db.NewCatalogRepository(pool)
-	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool))
+	catalogRepository := db.NewCatalogRepository(pool, quoteCache)
+	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool, quoteCache))
 	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool))
 	macroEventRepository := db.NewMacroEventRepository(pool)
 	macroEventTriggerService := macroeventtrigger.NewService(macroEventRepository)
@@ -73,7 +104,7 @@ func main() {
 		seed = parsed
 	}
 	selicConfig := selic.DefaultConfig(selic.DefaultNeutralRate, seed)
-	tickService := tick.NewService(db.NewTickRepository(pool), selicConfig, seed)
+	tickService := tick.NewService(db.NewTickRepository(pool, quoteCache), selicConfig, seed)
 
 	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick

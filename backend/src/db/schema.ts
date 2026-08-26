@@ -8,9 +8,11 @@
 // via API, nunca via SQL direto.
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   date,
   integer,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -23,6 +25,12 @@ import {
 export const userRole = pgEnum('user_role', ['user', 'admin'])
 export const friendshipStatus = pgEnum('friendship_status', ['pending', 'accepted', 'declined'])
 export const missionStatus = pgEnum('mission_status', ['pending', 'completed'])
+export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
+  'net_worth',
+  'streak_days',
+  'lessons_completed',
+  'trades_executed',
+])
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -57,7 +65,13 @@ export const achievements = pgTable('achievements', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 100 }).notNull(),
   description: varchar('description', { length: 255 }),
-  requiredPoints: integer('required_points').notNull(),
+  // Substitui `required_points` (int único, nunca consumido por código —
+  // confirmado por grep) — não sustentava critérios variados como
+  // patrimônio vs. uso contínuo (spec, tela 7.2). Divergência de schema
+  // documentada, trocada direto (sem migração em duas etapas) porque a
+  // coluna antiga nunca teve consumidor.
+  criteriaType: achievementCriteriaType('criteria_type').notNull(),
+  criteriaValue: numeric('criteria_value', { precision: 15, scale: 2 }).notNull(),
 })
 
 export const userAchievements = pgTable(
@@ -140,7 +154,26 @@ export const dailyMissions = pgTable('daily_missions', {
   description: text('description'),
   completionCriteria: text('completion_criteria').notNull(),
   xpReward: integer('xp_reward').notNull(),
+  // `completionCriteria` é texto livre — não sustenta uma verificação
+  // cruzada real em código (mesmo raciocínio de `achievements.required_points`
+  // → `criteria_type`/`criteria_value`, tarefa 5.2). Só a missão "complete
+  // uma lição" tem esse tratamento nesta fase (tarefa 5.4).
+  requiresLessonCompletion: boolean('requires_lesson_completion').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const userProgression = pgTable('user_progression', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  xp: integer('xp').notNull().default(0),
+  level: integer('level').notNull().default(1),
+  currentStreak: integer('current_streak').notNull().default(0),
+  longestStreak: integer('longest_streak').notNull().default(0),
+  // Dia calendário em UTC (tarefa 5.3) — nullable até a primeira atividade
+  // qualificada (lição/missão concluída).
+  lastQualifyingActivityDate: date('last_qualifying_activity_date'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const userMissionProgress = pgTable(

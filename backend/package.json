@@ -12,7 +12,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
-    "db:seed:admin": "tsx src/db/seed.ts"
+    "db:seed:admin": "tsx src/db/seed.ts",
+    "db:seed:lessons": "tsx src/db/seedLessons.ts",
+    "db:seed:achievements": "tsx src/db/seedAchievements.ts",
+    "db:seed:missions": "tsx src/db/seedMissions.ts"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +25,7 @@
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "google-auth-library": "^11.0.2",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0",
     "zod": "^4.4.3"

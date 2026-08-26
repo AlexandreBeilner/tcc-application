@@ -32,7 +32,9 @@ describe('ListMacroEventsUseCase', () => {
 
   it('propaga erro lançado pela port', async () => {
     const macroEventReader = createFakeMacroEventReader(sampleResult)
-    macroEventReader.errorToThrow = new Error('falha ao listar eventos macro no motor de simulação (status 500)')
+    macroEventReader.errorToThrow = new Error(
+      'falha ao listar eventos macro no motor de simulação (status 500)',
+    )
     const useCase = new ListMacroEventsUseCase(macroEventReader)
 
     await expect(useCase.execute({})).rejects.toThrow(/falha ao listar eventos macro/)

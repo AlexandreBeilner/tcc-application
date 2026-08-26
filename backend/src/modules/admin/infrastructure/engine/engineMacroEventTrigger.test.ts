@@ -35,7 +35,10 @@ describe('engineMacroEventTrigger', () => {
     fetchMock.mockResolvedValue({ ok: true, status: 201, json: async () => sampleResult })
     const trigger = createEngineMacroEventTrigger('http://engine:8080')
 
-    const input = { template_key: 'legislacao-ambiental-mineracao', targets: [{ sector: 'Mineração' }] }
+    const input = {
+      template_key: 'legislacao-ambiental-mineracao',
+      targets: [{ sector: 'Mineração' }],
+    }
     const result = await trigger.trigger(input)
 
     expect(fetchMock).toHaveBeenCalledWith('http://engine:8080/macro-events', {

@@ -31,11 +31,19 @@ func scanAssetRecord(scan func(dest ...any) error) (catalog.AssetRecord, error) 
 // cadastral, não evento financeiro (mesma distinção documentada em
 // internal/domain/catalog/asset.go).
 type CatalogRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	cache quoteCache
 }
 
-func NewCatalogRepository(db *sql.DB) *CatalogRepository {
-	return &CatalogRepository{db: db}
+// NewCatalogRepository recebe cache já resolvido pelo chamador (main.go) —
+// infra/cache.RedisQuoteCache quando REDIS_URL está configurada,
+// infra/cache.NoopQuoteCache caso contrário (tarefa 5.7). Nunca nil: um
+// *RedisQuoteCache nil embrulhado na interface quoteCache cairia na
+// armadilha de "typed nil" (chamar Get/Set nele entraria no método com
+// receiver nil e estouraria em c.client) — por isso a ausência de cache é
+// sempre um valor concreto (NoopQuoteCache{}), nunca um ponteiro nil.
+func NewCatalogRepository(db *sql.DB, cache quoteCache) *CatalogRepository {
+	return &CatalogRepository{db: db, cache: cache}
 }
 
 // FindCompanyByCNPJ devolve o id da empresa já cadastrada com este CNPJ,
@@ -322,8 +330,19 @@ func dailyChangePct(current float64, previous *float64) *float64 {
 // tarefa 3.11) e sua variação percentual contra o dia simulado anterior —
 // usado por GET /assets/:id (tarefa 4.6). found = false se o ativo nunca
 // teve cotação gerada (Temporizador nunca rodou pra ele, ou é renda fixa,
-// que não tem cotação de mercado nesse sentido).
+// que não tem cotação de mercado nesse sentido). Cache de leitura (tarefa
+// 5.7): checa quoteCache primeiro — TickRepository.SaveTick já mantém essa
+// entrada quente via write-through a cada tick, então a leitura de mais
+// alta frequência do sistema (RF04, cutoff "agora" do net worth via
+// GET /assets do backend) normalmente nem chega no Postgres.
 func (r *CatalogRepository) FindCurrentQuote(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
+	return cachedQuote(ctx, r.cache, assetID, r.loadCurrentQuoteFromPostgres)
+}
+
+// loadCurrentQuoteFromPostgres é o load original de FindCurrentQuote, antes
+// da tarefa 5.7 — extraído pra ficar reaproveitável como o parâmetro func
+// de cachedQuote, sem duplicar a query de 2 linhas.
+func (r *CatalogRepository) loadCurrentQuoteFromPostgres(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT price FROM asset_quotes WHERE asset_id = $1 ORDER BY simulated_day DESC LIMIT 2`, assetID,
 	)

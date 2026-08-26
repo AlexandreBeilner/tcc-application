@@ -66,3 +66,62 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `401` — token ausente ou inválido/expirado.
   - `404` — token válido mas o usuário não existe mais (ex: deletado).
 - **Regra:** `GetCurrentUserUseCase`.
+
+---
+
+## Configurações de conta e LGPD (tarefa 5.11, RNF04, telas 9.2–9.3)
+
+`interfaces/http/accountRouter.ts` — router separado de `authRouter.ts` só por organização (mesmo módulo `auth`, mesmo precedente de `modules/admin` com `pingRouter.ts` + `adminMacroEventsRouter.ts`).
+
+### `PATCH /me`
+
+- **Autenticação:** Bearer token.
+- **Payload (JSON):** `name?`, `email?`, `username?` — mesmas regras de formato do cadastro; pelo menos um campo obrigatório.
+- **Sucesso:** `200` → `{ user: { id, name, email, username, role } }`.
+- **Erros:**
+  - `400` — payload inválido ou nenhum campo enviado.
+  - `401` — token ausente ou inválido/expirado.
+  - `409` — e-mail ou username já em uso por **outro** usuário (reenviar o próprio e-mail/username atual é permitido, não conflita consigo mesmo).
+- **Regra:** `UpdateProfileUseCase`. Checa conflito antes de persistir — a `UNIQUE` do banco é a garantia final, mas o caso de uso devolve um erro de negócio claro em vez de deixar o Postgres estourar a constraint crua.
+
+---
+
+### `POST /me/password`
+
+- **Autenticação:** Bearer token.
+- **Payload (JSON):** `currentPassword?` (obrigatória só se a conta já tem senha local), `newPassword` — 8–72 caracteres.
+- **Sucesso:** `200` → `{ status: 'senha atualizada' }`.
+- **Erros:**
+  - `400` — payload inválido.
+  - `401` — token ausente/inválido, `currentPassword` ausente numa conta com senha local, ou `currentPassword` incorreta (as duas últimas não trocam nada).
+- **Regra:** `ChangePasswordUseCase`. Conta só-OAuth (`password_hash IS NULL`) pode setar a primeira senha sem informar `currentPassword` — passa a ter os dois métodos de login disponíveis dali em diante, sem tirar o OAuth.
+
+---
+
+### `GET /me/identities`
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum.
+- **Sucesso:** `200` → `{ identities: [{ id, userId, providerName, providerAccountId }] }`. Nunca inclui `accessToken`/`refreshToken` — a query no repositório seleciona só essas 4 colunas, a blindagem é estrutural, não um campo omitido depois.
+- **Erros:** `401` — token ausente ou inválido/expirado.
+- **Regra:** `ListIdentitiesUseCase`.
+
+---
+
+### `GET /me/export`
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum.
+- **Sucesso:** `200` → `{ export: { user, identities, progression, lessonProgress, achievements, friendships, missionProgress } }`. Portabilidade (RNF04) — agrega em JSON os dados do próprio usuário nas tabelas que o backend já possui: `users` (sem `password_hash`), `user_identities` (sem tokens), `user_lesson_progress`, `user_achievements`, `user_progression`, `friendships`, `user_mission_progress`. **Dados financeiros (saldo/posições/extrato, banco `market`) ficam fora desta tarefa** — exigiria uma nova chamada ao motor sem nenhum critério de aceite pedindo isso explicitamente; decisão de escopo a revisitar se a intenção pedagógica exigir o extrato completo.
+- **Erros:** `401` — token ausente ou inválido/expirado.
+- **Regra:** `ExportUserDataUseCase`, agregando em processo 5 ports próprias e mínimas (mesmo padrão de composição do resto da semana) sobre `gamification`/`lessons`/`achievements`/`friendships`/`missions` — cada módulo produtor ganhou uma tiny "export use case" nova, reaproveitando repositórios já existentes (só `missions` ganhou um método novo no repositório, `listAllProgressForUser`, porque nenhum caso de uso existente devolvia o histórico completo, só o dia corrente).
+
+---
+
+### `DELETE /me`
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum.
+- **Sucesso:** `204`, sem corpo.
+- **Erros:** `401` — token ausente ou inválido/expirado.
+- **Regra:** `AnonymizeAccountUseCase`. **Nunca é um `DELETE` físico da linha de `users`** — decisão de modelagem desta sessão, não confirmada explicitamente: `market_events`/`positions`/`macro_events` (motor) e as tabelas de gamificação guardam `user_id` como referência a um histórico imutável (Event Sourcing, CLAUDE.md) que não pode perder a FK. Em vez disso, anonimiza (`name` → "Usuário removido", `email`/`username` → valores sintéticos únicos derivados do próprio `id`, `password_hash` → `NULL`) mantendo a linha e o `id` intactos, e remove todas as linhas de `user_identities` — o rastro financeiro/gamificado continua existindo (histórico de mercado, ranking passado), só a identidade pessoal some. Usuário anonimizado não consegue mais logar (sem senha local, sem OAuth).

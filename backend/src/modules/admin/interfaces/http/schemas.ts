@@ -7,7 +7,9 @@ const macroEventTargetSchema = z
     asset_id: z.uuid().optional(),
   })
   .refine(
-    (target) => [target.sector, target.risk_class, target.asset_id].filter((v) => v !== undefined).length === 1,
+    (target) =>
+      [target.sector, target.risk_class, target.asset_id].filter((v) => v !== undefined).length ===
+      1,
     { message: 'exatamente um entre sector, risk_class e asset_id deve ser informado' },
   )
 
@@ -34,7 +36,10 @@ const macroEventAdHocSchema = z.object({
   created_by: z.uuid().optional(),
 })
 
-export const triggerMacroEventBodySchema = z.union([macroEventFromTemplateSchema, macroEventAdHocSchema])
+export const triggerMacroEventBodySchema = z.union([
+  macroEventFromTemplateSchema,
+  macroEventAdHocSchema,
+])
 
 // Paginação simples de GET /admin/macro-events (tarefa 4.5) — limit/offset
 // chegam como string na query, coeridos pro tipo numérico esperado pelo

@@ -19,6 +19,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
+	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
 )
 
@@ -34,7 +35,9 @@ func main() {
 	}
 	defer func() { _ = pool.Close() }()
 
-	repo := db.NewCatalogRepository(pool)
+	// Script standalone de uma execução só — não serve leitura sob carga,
+	// então nunca precisa de Redis de verdade (tarefa 5.7).
+	repo := db.NewCatalogRepository(pool, cache.NoopQuoteCache{})
 	ctx := context.Background()
 
 	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao)

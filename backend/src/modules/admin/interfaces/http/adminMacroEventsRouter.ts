@@ -48,9 +48,10 @@ export function createAdminMacroEventsRouter(deps: AdminMacroEventsRouterDeps): 
     async (req, res) => {
       const parsed = listMacroEventsQuerySchema.safeParse(req.query)
       if (!parsed.success) {
-        res
-          .status(400)
-          .json({ error: 'parâmetros de paginação inválidos', details: z.flattenError(parsed.error) })
+        res.status(400).json({
+          error: 'parâmetros de paginação inválidos',
+          details: z.flattenError(parsed.error),
+        })
         return
       }
 

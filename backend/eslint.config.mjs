@@ -5,7 +5,15 @@ import prettierConfig from 'eslint-config-prettier'
 // Aplicações concretas de infraestrutura que domain/application nunca podem
 // importar direto — só via port + injeção em app.ts. Ver
 // .claude/arquitetura-backend-ddd-lite.md.
-const INFRA_PACKAGES = ['express', 'drizzle-orm', 'drizzle-orm/*', 'bcryptjs', 'jsonwebtoken', 'google-auth-library', 'pg']
+const INFRA_PACKAGES = [
+  'express',
+  'drizzle-orm',
+  'drizzle-orm/*',
+  'bcryptjs',
+  'jsonwebtoken',
+  'google-auth-library',
+  'pg',
+]
 
 const ARCHITECTURE_DOC_REF = 'ver .claude/arquitetura-backend-ddd-lite.md'
 
@@ -26,7 +34,13 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['**/infrastructure/**', '**/interfaces/**', '**/application/**', 'zod', ...INFRA_PACKAGES],
+              group: [
+                '**/infrastructure/**',
+                '**/interfaces/**',
+                '**/application/**',
+                'zod',
+                ...INFRA_PACKAGES,
+              ],
               message: `domain/ não pode depender de application, infrastructure, interfaces ou bibliotecas externas — ${ARCHITECTURE_DOC_REF}`,
             },
           ],
@@ -62,7 +76,15 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['**/infrastructure/**', 'drizzle-orm', 'drizzle-orm/*', 'bcryptjs', 'jsonwebtoken', 'google-auth-library', 'pg'],
+              group: [
+                '**/infrastructure/**',
+                'drizzle-orm',
+                'drizzle-orm/*',
+                'bcryptjs',
+                'jsonwebtoken',
+                'google-auth-library',
+                'pg',
+              ],
               message: `interfaces/http não pode importar infrastructure direto — só application (casos de uso) e ports — ${ARCHITECTURE_DOC_REF}`,
             },
           ],

@@ -2,8 +2,10 @@ import { and, eq } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { userIdentities, users } from '../../../../db/schema'
 import type {
+  IdentityRecord,
   NewIdentityInput,
   NewUserInput,
+  UpdateUserInput,
   UserRepository,
 } from '../../application/ports/userRepository'
 import type { User } from '../../domain/user'
@@ -53,6 +55,11 @@ export function createDrizzleUserRepository(db: Database): UserRepository {
       return toDomainUser(row)
     },
 
+    async updateUser(id: string, input: UpdateUserInput) {
+      const [row] = await db.update(users).set(input).where(eq(users.id, id)).returning()
+      return toDomainUser(row)
+    },
+
     async findIdentity(providerName, providerAccountId) {
       const [row] = await db
         .select()
@@ -77,6 +84,25 @@ export function createDrizzleUserRepository(db: Database): UserRepository {
         })
         .returning()
       return row
+    },
+
+    async listIdentitiesForUser(userId: string): Promise<IdentityRecord[]> {
+      // Select explícito (não `.select()` cru) — accessToken/refreshToken
+      // nunca saem daqui, mesmo por engano futuro num campo adicionado à
+      // tabela (GET /me/identities e a exportação de dados exigem isso).
+      return db
+        .select({
+          id: userIdentities.id,
+          userId: userIdentities.userId,
+          providerName: userIdentities.providerName,
+          providerAccountId: userIdentities.providerAccountId,
+        })
+        .from(userIdentities)
+        .where(eq(userIdentities.userId, userId))
+    },
+
+    async deleteIdentitiesForUser(userId: string) {
+      await db.delete(userIdentities).where(eq(userIdentities.userId, userId))
     },
   }
 }
