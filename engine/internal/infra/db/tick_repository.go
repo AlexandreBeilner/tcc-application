@@ -3,11 +3,13 @@ package db
 import (
 	"context"
 	"database/sql"
+	"log"
 	"time"
 
 	"github.com/lib/pq"
 
 	"tcc-investimentos/engine/internal/domain"
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/eventstore"
@@ -16,11 +18,15 @@ import (
 // TickRepository implementa tick.Repository contra o banco "market" —
 // market_calendar (linha singleton) e asset_quotes (tarefa 3.11).
 type TickRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	cache quoteCache
 }
 
-func NewTickRepository(db *sql.DB) *TickRepository {
-	return &TickRepository{db: db}
+// NewTickRepository recebe cache já resolvido pelo chamador — mesma
+// decisão de NewCatalogRepository (nunca nil, sempre um valor concreto:
+// RedisQuoteCache ou NoopQuoteCache).
+func NewTickRepository(db *sql.DB, cache quoteCache) *TickRepository {
+	return &TickRepository{db: db, cache: cache}
 }
 
 // LoadState lê a linha singleton de market_calendar — found = false se o
@@ -361,7 +367,34 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	r.refreshQuoteCache(ctx, result.Quotes)
+	return nil
+}
+
+// refreshQuoteCache espelha as cotações recém-geradas neste tick no cache
+// de leitura (tarefa 5.7, write-through) — só depois do Commit acima ter
+// sucesso, pra nunca cachear um preço que não foi de fato persistido
+// (fonte da verdade continua Postgres, CLAUDE.md). dailyChangePct é
+// recalculado a partir do preço que ainda está em cache de *antes* deste
+// tick (a cotação "atual" até agora) — sem nenhuma consulta a Postgres no
+// caminho de escrita; cache frio (miss, ex: logo após um restart do Redis)
+// grava só o preço, sem variação — se autocorrige no tick seguinte. Falha
+// de cache (Redis fora do ar) só é logada, nunca interrompe o tick.
+func (r *TickRepository) refreshQuoteCache(ctx context.Context, quotes []tick.Quote) {
+	for _, q := range quotes {
+		var dailyChangePct *float64
+		if previous, found, err := r.cache.Get(ctx, q.AssetID); err == nil && found && previous.Price != 0 {
+			pct := (q.Price - previous.Price) / previous.Price * 100
+			dailyChangePct = &pct
+		}
+		if err := r.cache.Set(ctx, q.AssetID, catalog.Quote{Price: q.Price, DailyChangePct: dailyChangePct}); err != nil {
+			log.Printf("cache de cotação: falha ao gravar asset_id=%s: %v", q.AssetID, err)
+		}
+	}
 }
 
 // saveNewDividends insere os dividend_events gerados neste tick (tarefa

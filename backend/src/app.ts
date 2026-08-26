@@ -1,5 +1,6 @@
 import express, { Express } from 'express'
 import { createDb } from './db/client'
+import { createRedisClient } from './infra/redisClient'
 import { healthRouter } from './routes/health'
 import { statusRouter } from './routes/status'
 import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
@@ -58,6 +59,8 @@ import { createEngineSandboxAssetReader } from './modules/ranking/infrastructure
 import { createInProcessFriendGraphReader } from './modules/ranking/infrastructure/friendships/inProcessFriendGraphReader'
 import { createInProcessLevelReader } from './modules/ranking/infrastructure/gamification/inProcessLevelReader'
 import { createDrizzleUserDirectory } from './modules/ranking/infrastructure/persistence/drizzleUserDirectory'
+import { createRedisNetWorthCache } from './modules/ranking/infrastructure/cache/redisNetWorthCache'
+import { createRedisNetWorthCacheStore } from './modules/ranking/infrastructure/cache/redisNetWorthCacheStore'
 import { createRankingRouter } from './modules/ranking/interfaces/http/rankingRouter'
 import { GetPublicProfileUseCase } from './modules/profile/application/useCases/getPublicProfile'
 import { createInProcessAchievementsReader } from './modules/profile/infrastructure/achievements/inProcessAchievementsReader'
@@ -120,6 +123,10 @@ export function createApp(deps: AppDeps = {}): Express {
   // única `Database`/Pool é compartilhada por todos os repositórios Drizzle
   // do banco `gamification` (um schema só, ver .claude/arquitetura-backend-ddd-lite.md).
   const db = createDb(process.env.DATABASE_URL ?? 'postgres://unconfigured')
+  // Mesmo comportamento "conecta só no primeiro uso" do Pool acima
+  // (createRedisClient usa lazyConnect) — tarefa 5.7, primeira consumidora
+  // real de REDIS_URL no backend.
+  const redisClient = createRedisClient(process.env.REDIS_URL ?? 'redis://localhost:6379')
   const userRepository = deps.userRepository ?? createDrizzleUserRepository(db)
   // Fallback só cobre createApp() sem args (ex: health/status.test.ts); em
   // qualquer ambiente real, JWT_SECRET vem do .env (docker-compose.yml já
@@ -218,10 +225,23 @@ export function createApp(deps: AppDeps = {}): Express {
     friendshipUserDirectory,
   )
 
+  // Cache de leitura (tarefa 5.7) só pra GetRankingUseCase — decora a
+  // mesma port NetWorthReader que achievements/profile usam sem cache
+  // (createInProcessProgressSnapshotReader/inProcessProfitabilityReader,
+  // acima), pra não atrasar o desbloqueio "instantâneo" de conquista já
+  // validado na 5.2 nem servir rentabilidade defasada no perfil público.
+  // Escopo Amigos (5.9) reaproveita as mesmas entradas de cache por
+  // usuário que o escopo Global já populou (chave por userId/asOf, não por
+  // window/scope — ver redisNetWorthCache.ts), então nunca precisa de
+  // cache próprio.
+  const cachedNetWorthForRanking = createRedisNetWorthCache(
+    getNetWorth,
+    createRedisNetWorthCacheStore(redisClient),
+  )
   const getRanking = new GetRankingUseCase(
     userDirectory,
     sandboxAssetReader,
-    getNetWorth,
+    cachedNetWorthForRanking,
     createInProcessLevelReader(getProgression),
     createInProcessFriendGraphReader(listFriends),
   )

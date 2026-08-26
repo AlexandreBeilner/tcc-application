@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"tcc-investimentos/engine/internal/domain"
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/position"
@@ -19,11 +20,15 @@ import (
 // pendente, preço de referência, saldo/posição do usuário) e persiste o
 // resultado do matching (tarefa 3.12).
 type OrderExecutionRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	cache quoteCache
 }
 
-func NewOrderExecutionRepository(db *sql.DB) *OrderExecutionRepository {
-	return &OrderExecutionRepository{db: db}
+// NewOrderExecutionRepository recebe cache já resolvido pelo chamador —
+// mesma decisão de NewCatalogRepository (nunca nil, sempre um valor
+// concreto: RedisQuoteCache ou NoopQuoteCache).
+func NewOrderExecutionRepository(db *sql.DB, cache quoteCache) *OrderExecutionRepository {
+	return &OrderExecutionRepository{db: db, cache: cache}
 }
 
 // LoadContext lê, fora de transação (leitura consistente o bastante — a
@@ -96,13 +101,31 @@ func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID s
 		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
 	}
 
-	referencePrice := tick.DefaultInitialPrice
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT price FROM asset_quotes WHERE asset_id = $1 ORDER BY simulated_day DESC LIMIT 1`, assetID,
-	).Scan(&referencePrice); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	// Cache de leitura (tarefa 5.7) — mesma última cotação que
+	// CatalogRepository.FindCurrentQuote/TickRepository.SaveTick mantêm
+	// quente; aqui só o Price importa, DailyChangePct é ignorado.
+	quote, found, err := cachedQuote(ctx, r.cache, assetID, r.loadLatestQuoteFromPostgres)
+	if err != nil {
 		return 0, err
 	}
-	return referencePrice, nil
+	if !found {
+		return tick.DefaultInitialPrice, nil
+	}
+	return quote.Price, nil
+}
+
+func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
+	var price float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT price FROM asset_quotes WHERE asset_id = $1 ORDER BY simulated_day DESC LIMIT 1`, assetID,
+	).Scan(&price)
+	if errors.Is(err, sql.ErrNoRows) {
+		return catalog.Quote{}, false, nil
+	}
+	if err != nil {
+		return catalog.Quote{}, false, err
+	}
+	return catalog.Quote{Price: price}, true, nil
 }
 
 func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetID string) ([]orderexecution.RestingOrder, error) {
