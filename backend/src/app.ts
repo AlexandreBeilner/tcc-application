@@ -96,6 +96,20 @@ import { createBcryptPasswordHasher } from './modules/auth/infrastructure/securi
 import { createJwtTokenIssuer } from './modules/auth/infrastructure/security/jwtTokenIssuer'
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
+import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
+import { GetAssetUseCase } from './modules/market/application/useCases/getAsset'
+import { GetCompanyUseCase } from './modules/market/application/useCases/getCompany'
+import { GetMyAccountUseCase } from './modules/market/application/useCases/getMyAccount'
+import { ListAssetsUseCase } from './modules/market/application/useCases/listAssets'
+import { ListMyEventsUseCase } from './modules/market/application/useCases/listMyEvents'
+import { PlaceOrderUseCase } from './modules/market/application/useCases/placeOrder'
+import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCases/purchaseFixedIncome'
+import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
+import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
+import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
+import { createEngineFixedIncomeExecutor } from './modules/market/infrastructure/engine/engineFixedIncomeExecutor'
+import { createEngineOrderExecutor } from './modules/market/infrastructure/engine/engineOrderExecutor'
+import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 
 export interface AppDeps {
@@ -141,6 +155,24 @@ export function createApp(deps: AppDeps = {}): Express {
   const accountProvisioner = createEngineAccountProvisioner(engineUrl)
   const macroEventTrigger = createEngineMacroEventTrigger(engineUrl)
   const macroEventReader = createEngineMacroEventReader(engineUrl)
+
+  // Módulo `market` (tarefa 6.0.3) — proxy fino de leitura/escrita do
+  // motor, autenticação à parte (o motor não conhece usuário). Não
+  // reaproveita `getNetWorth`/os readers do ranking abaixo — ver
+  // .docs/backend/market.md e o comentário em getMyAccount.ts.
+  const catalogReader = createEngineCatalogReader(engineUrl)
+  const accountReader = createEngineAccountReader(engineUrl)
+  const orderExecutor = createEngineOrderExecutor(engineUrl)
+  const fixedIncomeExecutor = createEngineFixedIncomeExecutor(engineUrl)
+  const listAssets = new ListAssetsUseCase(catalogReader)
+  const getAsset = new GetAssetUseCase(catalogReader)
+  const getAssetQuotes = new GetAssetQuotesUseCase(catalogReader)
+  const getCompany = new GetCompanyUseCase(catalogReader)
+  const getMyAccount = new GetMyAccountUseCase(accountReader)
+  const listMyEvents = new ListMyEventsUseCase(accountReader)
+  const placeOrder = new PlaceOrderUseCase(orderExecutor)
+  const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor)
+  const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -310,6 +342,20 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
+  app.use(
+    createMarketRouter({
+      listAssets,
+      getAsset,
+      getAssetQuotes,
+      getCompany,
+      getMyAccount,
+      listMyEvents,
+      placeOrder,
+      purchaseFixedIncome,
+      redeemFixedIncome,
+      authMiddleware,
+    }),
+  )
   app.use(
     createFriendshipsRouter({
       searchUsers,
