@@ -36,11 +36,14 @@ const BACKEND_ROUTE_NAMESPACES = [
 ]
 
 // Rotas de página do frontend que colidem, por prefixo, com um namespace
-// do backend acima — hoje só `/auth/callback` (tela 1.1, tarefa 6.2) vs.
-// `/auth/*` do backend (register/login/google/google/callback/me). Sem
-// isso, o proxy abaixo repassaria a navegação inteira do navegador pro
-// gateway em vez de deixar o Vite servir a SPA.
-const FRONTEND_ROUTES_SHADOWING_BACKEND = new Set(['/auth/callback'])
+// do backend acima — `/auth/callback` (tela 1.1, tarefa 6.2) vs. `/auth/*`
+// do backend (register/login/google/google/callback/me), e `/admin`
+// (Painel Administrativo, tarefa 6.1) vs. `/admin/*` do backend
+// (ping/macro-events). Sem isso, o proxy abaixo repassaria a navegação
+// inteira do navegador pro gateway em vez de deixar o Vite servir a SPA —
+// só o path exato entra aqui, então `/admin/macro-events` etc. continuam
+// proxiados normalmente.
+const FRONTEND_ROUTES_SHADOWING_BACKEND = new Set(['/auth/callback', '/admin'])
 
 // https://vite.dev/config/
 export default defineConfig({
