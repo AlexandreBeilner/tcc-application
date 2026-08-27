@@ -36,6 +36,8 @@ describe('engineFixedIncomeExecutor', () => {
   it('POST /fixed-income/redemptions com o corpo repassado como JSON', async () => {
     const result = {
       total_value: 1080,
+      net_value: 1060,
+      tax_rate: 0.175,
       mark_to_market: {
         mark_to_market_price: 1080,
         realized_return_pct: 0.08,
@@ -53,6 +55,26 @@ describe('engineFixedIncomeExecutor', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
+    expect(response).toEqual(result)
+  })
+
+  it('GET /fixed-income/simulate com asset_id/amount/days_held na query string', async () => {
+    const result = {
+      unit_price: 798.27,
+      quantity_purchased: 2.5,
+      gross_projected_value: 2100,
+      tax_rate: 0.2,
+      net_projected_value: 2080,
+    }
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => result })
+    const executor = createEngineFixedIncomeExecutor('http://engine:8080')
+
+    const input = { asset_id: 'asset-1', amount: 2000, days_held: 200 }
+    const response = await executor.simulate(input)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://engine:8080/fixed-income/simulate?asset_id=asset-1&amount=2000&days_held=200',
+    )
     expect(response).toEqual(result)
   })
 

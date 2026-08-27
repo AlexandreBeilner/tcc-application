@@ -6,6 +6,8 @@ describe('RedeemFixedIncomeUseCase', () => {
   it('repassa o resgate (já com user_id injetado pelo router) pro FixedIncomeExecutor', async () => {
     const result = {
       total_value: 1080,
+      net_value: 1060,
+      tax_rate: 0.175,
       mark_to_market: {
         mark_to_market_price: 1080,
         realized_return_pct: 0.08,

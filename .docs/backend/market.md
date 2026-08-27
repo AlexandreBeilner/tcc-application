@@ -77,6 +77,16 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente (traduzido do motor, nada é persistido).
 - **Regra:** `PlaceOrderUseCase` → `OrderExecutor.submit`. Validado ponta a ponta via `docker compose up`: uma ordem `market` real executa contra liquidez sintética e reflete em `GET /market/me/account`/`GET /market/me/events` imediatamente.
 
+### `GET /market/fixed-income/simulate`
+
+*(Tarefa 6.0.5 — proxy de `GET /fixed-income/simulate`, ver `.docs/engine/fixedincome.md`.)*
+
+- **Autenticação:** Bearer token — qualquer usuário autenticado, sem exigir dono de conta específica (a simulação não depende de `user_id`, diferente das duas rotas abaixo).
+- **Query params:** `asset_id` (UUID, obrigatório), `amount` (número > 0, obrigatório), `days_held` (inteiro > 0, obrigatório) — `simulateFixedIncomeQuerySchema`, coerção via `z.coerce` (query string chega sempre como string).
+- **Sucesso:** `200` → `{ unit_price, quantity_purchased, gross_projected_value, tax_rate, net_projected_value }`, corpo idêntico ao do motor. Nenhuma escrita — não passa por `market_events`.
+- **Erros:** `400` — query inválida (Zod) ou ativo não é de renda fixa (motor). `401`; `404` — ativo não encontrado.
+- **Regra:** `SimulateFixedIncomeUseCase` → `FixedIncomeExecutor.simulate`. Sustenta o simulador de aporte da tela 4.3 e a Calculadora em modo comparação (6.1/6.2, lição 3.3).
+
 ### `POST /market/fixed-income/purchases`
 
 - **Autenticação:** Bearer token.
@@ -89,6 +99,6 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 
 - **Autenticação:** Bearer token.
 - **Payload:** `asset_id` (UUID). Resgate é sempre integral (sem campo de quantidade/valor, mesma regra do motor).
-- **Sucesso:** `200` → `{ total_value, mark_to_market: {...} }`, corpo idêntico ao do motor.
+- **Sucesso:** `200` → `{ total_value, net_value, tax_rate, mark_to_market: {...} }`, corpo idêntico ao do motor. `net_value`/`tax_rate` (tarefa 6.0.5) são o líquido de IR regressivo e a alíquota aplicada — `net_value = total_value` se o ativo é isento ou não houve lucro no resgate.
 - **Erros:** `400` — payload inválido ou ativo não é de renda fixa. `401`; `404` — usuário sem posição nesse título.
 - **Regra:** `RedeemFixedIncomeUseCase` → `FixedIncomeExecutor.redeem`.

@@ -105,6 +105,7 @@ import { ListMyEventsUseCase } from './modules/market/application/useCases/listM
 import { PlaceOrderUseCase } from './modules/market/application/useCases/placeOrder'
 import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCases/purchaseFixedIncome'
 import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
+import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
 import { createEngineFixedIncomeExecutor } from './modules/market/infrastructure/engine/engineFixedIncomeExecutor'
@@ -173,6 +174,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const placeOrder = new PlaceOrderUseCase(orderExecutor)
   const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor)
   const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
+  const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -353,6 +355,7 @@ export function createApp(deps: AppDeps = {}): Express {
       placeOrder,
       purchaseFixedIncome,
       redeemFixedIncome,
+      simulateFixedIncome,
       authMiddleware,
     }),
   )

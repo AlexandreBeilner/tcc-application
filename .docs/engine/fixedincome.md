@@ -1,6 +1,6 @@
 # `fixedincome` — compra e resgate de renda fixa ponta a ponta (Mercado Ao Vivo + Sandbox)
 
-Pacotes de domínio: `engine/internal/domain/fixedincomeexecution/` (`Purchase`/`Redeem`/`Service`, orquestrando as fórmulas puras de `fixedincome` — `PrefixedPrice`, `EarlyRedemption`) + `engine/internal/domain/fixedincomeposition/` (`ApplyBuy`, blend de posição) + `engine/internal/domain/sandbox/` (`RateScript`/`RateOnDay`/`DaysSince`, tarefa 4.11). Persistência em `internal/infra/db/fixed_income_execution_repository.go`. Ver `.claude/arquitetura-engine-go.md` pra divisão domínio/infra.
+Pacotes de domínio: `engine/internal/domain/fixedincomeexecution/` (`Purchase`/`Redeem`/`Simulate`/`Service`, orquestrando as fórmulas puras de `fixedincome` — `PrefixedPrice`, `EarlyRedemption`, `RegressiveIncomeTaxRate`, tarefa 6.0.5) + `engine/internal/domain/fixedincomeposition/` (`ApplyBuy`, blend de posição) + `engine/internal/domain/sandbox/` (`RateScript`/`RateOnDay`/`DaysSince`, tarefa 4.11). Persistência em `internal/infra/db/fixed_income_execution_repository.go`. Ver `.claude/arquitetura-engine-go.md` pra divisão domínio/infra.
 
 Ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb`, `lci`, `lca`, `cri`, `cra`) passam por estas rotas — renda variável tem fluxo próprio (`.docs/engine/orders.md`, tarefa 3.12). Até a tarefa 4.11, ativo `is_sandbox = true` também era rejeitado aqui (`400`); agora é aceito normalmente — só a taxa contratada/de mercado muda de fonte (ver "Sandbox" abaixo), o resto das rotas é idêntico.
 
@@ -30,14 +30,49 @@ Ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb
 
 - **Autenticação:** interno, mesma observação de `POST /fixed-income/purchases`.
 - **Payload (JSON):** `user_id`, `asset_id` — ambos UUID, obrigatórios. Sem campo de quantidade/valor — resgate é sempre **integral** da posição agregada (ver "Escopo não coberto" abaixo).
-- **Sucesso:** `200` → `{ total_value, mark_to_market: { mark_to_market_price, realized_return_pct, vs_contracted_rate } }`. `total_value` é o valor total resgatado, em R$; os três campos de `mark_to_market` espelham `fixedincome.EarlyRedemptionResult` (tarefa 2.4).
+- **Sucesso:** `200` → `{ total_value, net_value, tax_rate, mark_to_market: { mark_to_market_price, realized_return_pct, vs_contracted_rate } }`. `total_value` é o valor bruto total resgatado, em R$; `net_value`/`tax_rate` (tarefa 6.0.5) são o líquido de IR regressivo e a alíquota aplicada (ver "IR regressivo" abaixo) — `net_value = total_value` sempre que o ativo é `tax_exempt` ou o resgate não teve lucro (`total_value <= valor efetivamente aplicado`); os três campos de `mark_to_market` espelham `fixedincome.EarlyRedemptionResult` (tarefa 2.4).
 - **Erros:**
   - `400` — corpo inválido; `user_id`/`asset_id` não são UUID; ativo não encontrado é `404`, ativo não sendo renda fixa é `400`.
   - `404` — ativo não encontrado; usuário sem posição nesse título (`fixedincomeexecution.ErrPositionNotFound`).
   - `503` / `500` — mesmos casos de `POST /fixed-income/purchases`.
-- **Regra:** `fixedincomeexecution.Service.Redeem` → `fixedincomeexecution.Redeem`. Marca a mercado a posição inteira (`fixedincome.EarlyRedemption`, taxa de mercado corrente = Selic simulada do dia — `market_calendar.selic_rate`, Temporizador da tarefa 3.11) e converte pro valor total (`position.Quantity × MarkToMarketPrice`).
+- **Regra:** `fixedincomeexecution.Service.Redeem` → `fixedincomeexecution.Redeem`. Marca a mercado a posição inteira (`fixedincome.EarlyRedemption`, taxa de mercado corrente = Selic simulada do dia — `market_calendar.selic_rate`, Temporizador da tarefa 3.11) e converte pro valor total (`position.Quantity × MarkToMarketPrice`). Aplica IR regressivo sobre o lucro (ver abaixo).
 
-  **Event Sourcing:** grava o evento imutável `fixed_income_redemption` em `market_events` (`quantity = NULL`, `unit_value = total_value`) **antes** de creditar `current_balance` (sem decrementar `total_invested` — mesmo precedente do lado de venda em `orders.md`) e remover a linha de `fixed_income_positions` (resgate sempre integral).
+  **Event Sourcing:** grava o evento imutável `fixed_income_redemption` em `market_events` (`quantity = NULL`, `unit_value = total_value` — valor **bruto**, não líquido) **antes** de creditar `current_balance` (com o valor bruto, sem decrementar `total_invested` — mesmo precedente do lado de venda em `orders.md`) e remover a linha de `fixed_income_positions` (resgate sempre integral).
+
+---
+
+### `GET /fixed-income/simulate`
+
+*(Tarefa 6.0.5, sem consumidor no `user_id`/conta — simulação stateless.)*
+
+- **Autenticação:** interno, mesma convenção das demais rotas deste módulo.
+- **Query params:** `asset_id` (UUID, obrigatório), `amount` (número > 0, obrigatório — valor hipotético do aporte em R$), `days_held` (inteiro > 0, obrigatório — dias corridos simulados de permanência, usados tanto pra projetar o preço futuro quanto pra escolher a faixa de IR regressivo).
+- **Sucesso:** `200` → `{ unit_price, quantity_purchased, gross_projected_value, tax_rate, net_projected_value }`. Nenhuma escrita: não grava `market_events`, não toca `fixed_income_positions`/`accounts` — puramente `fixedincomeexecution.Simulate`, que nem recebe um `Repository`.
+- **Erros:**
+  - `400` — `asset_id` ausente/não-UUID; `amount`/`days_held` ausentes, não numéricos ou `<= 0`; ativo não encontrado é `404`, ativo não sendo um dos 8 tipos de renda fixa é `400`.
+  - `404` — ativo não encontrado.
+  - `500` — especialização de renda fixa não encontrada pro ativo ou com `interest_rate`/`maturity_date` nulo (dado de catálogo incompleto — não deveria acontecer pra um ativo já filtrado como renda fixa); falha inesperada de leitura.
+  - `503` — motor subiu sem `DATABASE_URL` configurado.
+- **Regra:** `fixedincomeexecution.Simulate`. Lê `interest_rate`/`maturity_date`/`tax_exempt` via `assetCatalogReader.FindFixedIncomeSpecialization` (o mesmo leitor de catálogo de `GET /assets/:id`, tarefa 3.10 — nenhum repositório novo). Precifica a unidade pelo deságio nominal na data de hoje (`fixedincome.PrefixedPrice`, mesma fórmula de `POST /fixed-income/purchases`), projeta o preço da mesma unidade depois de `days_held` dias (DU restante até o vencimento encolhido pela conversão `dias corridos → DU`, mesma proporção 252/365 usada pra calcular o DU restante) e aplica o IR regressivo sobre o ganho projetado, se o produto não for isento.
+
+  Sustenta o simulador de aporte da tela 4.3 ("campo de valor → projeção de retorno até o vencimento") e a Calculadora em modo comparação (6.1/6.2, lição 3.3 — "CDB 110% CDI líquido vs. LCI 90% CDI isento") — nenhum dos dois tinha suporte de backend antes desta tarefa.
+
+---
+
+### IR regressivo (tarefa 6.0.5)
+
+`fixedincome.RegressiveIncomeTaxRate(daysHeld int) float64` — tabela fixa da legislação brasileira (Lei 11.033/2004), por **dias corridos** (não dias úteis, diferente das fórmulas de precificação deste módulo):
+
+| Prazo (dias corridos) | Alíquota |
+|---|---|
+| até 180 | 22,5% |
+| 181 a 360 | 20% |
+| 361 a 720 | 17,5% |
+| acima de 720 | 15% |
+
+Ativos com `tax_exempt = true` (LCI/LCA/CRI/CRA) nunca aplicam essa função — líquido = bruto sempre, verificado no ponto de chamada (`fixedincomeexecution.Redeem`/`Simulate`), não dentro de `RegressiveIncomeTaxRate`. O imposto incide só sobre o **lucro** (`valor resgatado/projetado − valor efetivamente aplicado`) — se não houver lucro (`profit <= 0`), líquido = bruto mesmo em produto tributado, nada é descontado.
+
+`days_held` tem duas origens diferentes conforme a rota: em `GET /fixed-income/simulate` é o parâmetro da query (prazo hipotético); em `POST /fixed-income/redemptions` é calculado a partir de `fixed_income_positions.created_at` (a mesma coluna já usada pelo Sandbox pra contar dias — ver "Sandbox" abaixo) até o momento do resgate.
 
 ---
 

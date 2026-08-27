@@ -168,3 +168,182 @@ func TestRemainingBusinessDays_NuncaMenorQueUm(t *testing.T) {
 		t.Errorf("remainingBusinessDays = %d, want 1 (piso pra vencimento no passado)", got)
 	}
 }
+
+func TestRedeem_AplicaImpostoRegressivoSobreOGanho(t *testing.T) {
+	purchaseRate := 0.10
+	purchasePrice := fixedincome.PrefixedPrice(purchaseRate, 252)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	maturity := now.AddDate(0, 0, 183)
+
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: purchaseRate},
+		MaturityDate:         maturity,
+		CurrentMarketRatePct: 6, // taxa caiu — ganho extraordinário, há lucro a tributar
+		PurchasedAt:          now.AddDate(0, 0, -200),
+	}
+
+	outcome, err := Redeem(ctx, now)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	wantTaxRate := fixedincome.RegressiveIncomeTaxRate(200)
+	if outcome.TaxRate != wantTaxRate {
+		t.Errorf("TaxRate = %v, want %v", outcome.TaxRate, wantTaxRate)
+	}
+	profit := outcome.TotalValue - ctx.Position.AveragePrice*ctx.Position.Quantity
+	if profit <= 0 {
+		t.Fatalf("cenário inválido: profit = %v, want positivo pra este teste fazer sentido", profit)
+	}
+	wantNetValue := outcome.TotalValue - profit*wantTaxRate
+	if !almostEqual(outcome.NetValue, wantNetValue, 1e-9) {
+		t.Errorf("NetValue = %v, want %v", outcome.NetValue, wantNetValue)
+	}
+	if outcome.NetValue >= outcome.TotalValue {
+		t.Errorf("NetValue = %v, want menor que TotalValue = %v (houve lucro tributável)", outcome.NetValue, outcome.TotalValue)
+	}
+}
+
+func TestRedeem_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
+	purchaseRate := 0.10
+	purchasePrice := fixedincome.PrefixedPrice(purchaseRate, 252)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	maturity := now.AddDate(0, 0, 183)
+
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: purchaseRate},
+		MaturityDate:         maturity,
+		CurrentMarketRatePct: 6,
+		PurchasedAt:          now.AddDate(0, 0, -200),
+		TaxExempt:            true,
+	}
+
+	outcome, err := Redeem(ctx, now)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.TaxRate != 0 {
+		t.Errorf("TaxRate = %v, want 0 (ativo isento)", outcome.TaxRate)
+	}
+	if outcome.NetValue != outcome.TotalValue {
+		t.Errorf("NetValue = %v, want igual a TotalValue = %v (ativo isento)", outcome.NetValue, outcome.TotalValue)
+	}
+}
+
+func TestSimulate_ValorInvalido(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	_, err := Simulate(SimulateRequest{Amount: 0, DaysHeld: 180}, ctx, purchaseNow)
+	if err != ErrInvalidAmount {
+		t.Fatalf("err = %v, want %v", err, ErrInvalidAmount)
+	}
+}
+
+func TestSimulate_DiasInvalidos(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	_, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 0}, ctx, purchaseNow)
+	if err != ErrInvalidDaysHeld {
+		t.Fatalf("err = %v, want %v", err, ErrInvalidDaysHeld)
+	}
+}
+
+func TestSimulate_PrecificaAUnidadeIgualAPurchase(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 180}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	wantUnitPrice := fixedincome.PrefixedPrice(0.10, 252)
+	if !almostEqual(outcome.UnitPrice, wantUnitPrice, 0.01) {
+		t.Errorf("UnitPrice = %v, want %v", outcome.UnitPrice, wantUnitPrice)
+	}
+	wantQuantity := 2000 / wantUnitPrice
+	if !almostEqual(outcome.QuantityPurchased, wantQuantity, 1e-6) {
+		t.Errorf("QuantityPurchased = %v, want %v", outcome.QuantityPurchased, wantQuantity)
+	}
+}
+
+func TestSimulate_ProjecaoAoLongoDoTempoValorizaPertoDoValorNominal(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	curto, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 30}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	longo, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	if !(longo.GrossProjectedValue > curto.GrossProjectedValue) {
+		t.Errorf("GrossProjectedValue não cresce com o tempo: 30d = %v, 360d = %v", curto.GrossProjectedValue, longo.GrossProjectedValue)
+	}
+}
+
+func TestSimulate_AlemDoVencimentoProjetaValorNominal(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 3650}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	wantGross := outcome.QuantityPurchased * fixedincome.FaceValue
+	if !almostEqual(outcome.GrossProjectedValue, wantGross, 1e-6) {
+		t.Errorf("GrossProjectedValue = %v, want %v (VN — dias simulados além do vencimento)", outcome.GrossProjectedValue, wantGross)
+	}
+}
+
+func TestSimulate_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity, TaxExempt: true}
+
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.TaxRate != 0 {
+		t.Errorf("TaxRate = %v, want 0 (ativo isento)", outcome.TaxRate)
+	}
+	if outcome.NetProjectedValue != outcome.GrossProjectedValue {
+		t.Errorf("NetProjectedValue = %v, want igual a GrossProjectedValue = %v (ativo isento)", outcome.NetProjectedValue, outcome.GrossProjectedValue)
+	}
+}
+
+func TestSimulate_AplicaAliquotaCorrespondenteAosDiasSimulados(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 200}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	wantTaxRate := fixedincome.RegressiveIncomeTaxRate(200)
+	if outcome.TaxRate != wantTaxRate {
+		t.Errorf("TaxRate = %v, want %v", outcome.TaxRate, wantTaxRate)
+	}
+	profit := outcome.GrossProjectedValue - 2000
+	if profit <= 0 {
+		t.Fatalf("cenário inválido: profit = %v, want positivo pra este teste fazer sentido", profit)
+	}
+	wantNet := outcome.GrossProjectedValue - profit*wantTaxRate
+	if !almostEqual(outcome.NetProjectedValue, wantNet, 1e-9) {
+		t.Errorf("NetProjectedValue = %v, want %v", outcome.NetProjectedValue, wantNet)
+	}
+}
+
+// TestSimulate_NaoRecebeRepositoryNemPersisteNada confere estruturalmente o
+// critério de aceite "endpoint de simulação nunca grava market_events":
+// Simulate só recebe SimulateRequest/SimulateContext (nenhum Repository,
+// nenhuma conexão de banco) — não há como persistir nada a partir daqui,
+// diferente de Purchase/Redeem (chamados só via Service, que sim recebe um
+// Repository). A garantia de zero linhas novas em market_events é validada
+// ponta a ponta via docker compose (.docs/engine/fixedincome.md).
+func TestSimulate_NaoRecebeRepositoryNemPersisteNada(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+	if _, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 180}, ctx, purchaseNow); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+}

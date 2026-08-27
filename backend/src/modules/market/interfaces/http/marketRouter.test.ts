@@ -13,6 +13,7 @@ import { ListMyEventsUseCase } from '../../application/useCases/listMyEvents'
 import { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
+import { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import { createFakeAccountReader } from '../../test/fakes/fakeAccountReader'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeFixedIncomeExecutor } from '../../test/fakes/fakeFixedIncomeExecutor'
@@ -24,18 +25,36 @@ function buildApp() {
   const authMiddleware = createAuthMiddleware(tokenIssuer)
 
   const catalogReader = createFakeCatalogReader({
-    assets: [{ id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false }],
+    assets: [
+      { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false },
+    ],
     asset: { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false },
     quotes: [{ simulated_day: 1, price: 100 }],
-    company: { id: 'company-1', name: 'Petrobras', cnpj: '1', sector: 'Energia', assets: [], fundamentals: [] },
+    company: {
+      id: 'company-1',
+      name: 'Petrobras',
+      cnpj: '1',
+      sector: 'Energia',
+      assets: [],
+      fundamentals: [],
+    },
   })
   const accountReader = createFakeAccountReader({
-    account: { user_id: 'user-1', current_balance: 10000, total_invested: 0, total_dividends_received: 0 },
+    account: {
+      user_id: 'user-1',
+      current_balance: 10000,
+      total_invested: 0,
+      total_dividends_received: 0,
+    },
     positions: [],
     fixedIncomePositions: [],
     events: [{ id: 'event-1', event_type: 'initial_deposit', timestamp: '2026-01-01T00:00:00Z' }],
   })
-  const orderExecutor = createFakeOrderExecutor({ filled_quantity: 10, remaining_quantity: 0, fills: [] })
+  const orderExecutor = createFakeOrderExecutor({
+    filled_quantity: 10,
+    remaining_quantity: 0,
+    fills: [],
+  })
   const fixedIncomeExecutor = createFakeFixedIncomeExecutor({
     purchase: {
       unit_price: 950.2,
@@ -44,7 +63,20 @@ function buildApp() {
     },
     redeem: {
       total_value: 1080,
-      mark_to_market: { mark_to_market_price: 1080, realized_return_pct: 0.08, vs_contracted_rate: -0.02 },
+      net_value: 1060,
+      tax_rate: 0.175,
+      mark_to_market: {
+        mark_to_market_price: 1080,
+        realized_return_pct: 0.08,
+        vs_contracted_rate: -0.02,
+      },
+    },
+    simulate: {
+      unit_price: 798.27,
+      quantity_purchased: 2.5,
+      gross_projected_value: 2100,
+      tax_rate: 0.2,
+      net_projected_value: 2080,
     },
   })
 
@@ -61,6 +93,7 @@ function buildApp() {
       placeOrder: new PlaceOrderUseCase(orderExecutor),
       purchaseFixedIncome: new PurchaseFixedIncomeUseCase(fixedIncomeExecutor),
       redeemFixedIncome: new RedeemFixedIncomeUseCase(fixedIncomeExecutor),
+      simulateFixedIncome: new SimulateFixedIncomeUseCase(fixedIncomeExecutor),
       authMiddleware,
     }),
   )
@@ -79,7 +112,9 @@ describe('GET /market/assets', () => {
     const { app, tokenIssuer } = buildApp()
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
-    const res = await request(app).get('/market/assets?type=acao').set('Authorization', `Bearer ${token}`)
+    const res = await request(app)
+      .get('/market/assets?type=acao')
+      .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
     expect(res.body.assets).toHaveLength(1)
@@ -235,7 +270,11 @@ describe('POST /market/fixed-income/purchases', () => {
     const res = await request(app)
       .post('/market/fixed-income/purchases')
       .set('Authorization', `Bearer ${token}`)
-      .send({ user_id: 'outro-usuario', asset_id: '11111111-1111-4111-8111-111111111111', amount: 1000 })
+      .send({
+        user_id: 'outro-usuario',
+        asset_id: '11111111-1111-4111-8111-111111111111',
+        amount: 1000,
+      })
 
     expect(res.status).toBe(201)
     expect(fixedIncomeExecutor.purchaseCalls[0].user_id).toBe('user-1')
@@ -258,7 +297,10 @@ describe('POST /market/fixed-income/redemptions', () => {
 
   it('traduz 404 (sem posição) do motor 1:1 pro cliente', async () => {
     const { app, tokenIssuer, fixedIncomeExecutor } = buildApp()
-    fixedIncomeExecutor.errorToThrow = new EngineRequestError(404, 'usuário sem posição nesse título')
+    fixedIncomeExecutor.errorToThrow = new EngineRequestError(
+      404,
+      'usuário sem posição nesse título',
+    )
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
@@ -268,5 +310,69 @@ describe('POST /market/fixed-income/redemptions', () => {
 
     expect(res.status).toBe(404)
     expect(res.body).toEqual({ error: 'usuário sem posição nesse título' })
+  })
+})
+
+describe('GET /market/fixed-income/simulate', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    const res = await request(app).get(
+      '/market/fixed-income/simulate?asset_id=11111111-1111-4111-8111-111111111111&amount=2000&days_held=200',
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('repassa asset_id/amount/days_held pro FixedIncomeExecutor, sem exigir user_id', async () => {
+    const { app, tokenIssuer, fixedIncomeExecutor } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get(
+        '/market/fixed-income/simulate?asset_id=11111111-1111-4111-8111-111111111111&amount=2000&days_held=200',
+      )
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      unit_price: 798.27,
+      quantity_purchased: 2.5,
+      gross_projected_value: 2100,
+      tax_rate: 0.2,
+      net_projected_value: 2080,
+    })
+    expect(fixedIncomeExecutor.simulateCalls).toEqual([
+      { asset_id: '11111111-1111-4111-8111-111111111111', amount: 2000, days_held: 200 },
+    ])
+  })
+
+  it('retorna 400 pra amount/days_held ausentes ou inválidos', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get(
+        '/market/fixed-income/simulate?asset_id=11111111-1111-4111-8111-111111111111&amount=0&days_held=200',
+      )
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('traduz 400 (ativo não é renda fixa) do motor 1:1 pro cliente', async () => {
+    const { app, tokenIssuer, fixedIncomeExecutor } = buildApp()
+    fixedIncomeExecutor.errorToThrow = new EngineRequestError(
+      400,
+      'simulação só é suportada pra ativo de renda fixa',
+    )
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get(
+        '/market/fixed-income/simulate?asset_id=11111111-1111-4111-8111-111111111111&amount=2000&days_held=200',
+      )
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'simulação só é suportada pra ativo de renda fixa' })
   })
 })

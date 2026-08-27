@@ -36,9 +36,10 @@ type userMarketDataReader interface {
 // fixedIncome, macroEvents, macroEventReader e userData podem ser nil
 // também — GET /assets, /assets/:id, /assets/:id/quotes, /companies/:id,
 // POST /admin/tick, POST /orders, POST
-// /fixed-income/purchases|redemptions, POST /macro-events, GET
-// /macro-events, GET /accounts/:user_id[/events], GET /positions e GET
-// /fixed-income/positions respondem 503 nesse caso, em vez de panicar.
+// /fixed-income/purchases|redemptions, GET /fixed-income/simulate, POST
+// /macro-events, GET /macro-events, GET /accounts/:user_id[/events], GET
+// /positions e GET /fixed-income/positions respondem 503 nesse caso, em
+// vez de panicar.
 func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
@@ -55,6 +56,7 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
 	mux.HandleFunc("POST /fixed-income/purchases", handleFixedIncomePurchase(catalog, fixedIncome))
 	mux.HandleFunc("POST /fixed-income/redemptions", handleFixedIncomeRedemption(catalog, fixedIncome))
+	mux.HandleFunc("GET /fixed-income/simulate", handleFixedIncomeSimulate(catalog))
 	mux.HandleFunc("POST /macro-events", handleTriggerMacroEvent(macroEvents))
 	mux.HandleFunc("GET /macro-events", handleListMacroEvents(macroEventReader))
 

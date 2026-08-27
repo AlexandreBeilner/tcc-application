@@ -54,3 +54,12 @@ export const purchaseFixedIncomeBodySchema = z.object({
 export const redeemFixedIncomeBodySchema = z.object({
   asset_id: z.uuid(),
 })
+
+// GET, não POST — parâmetros vêm de query string (tarefa 6.0.5), por isso
+// amount/days_held usam z.coerce (mesma convenção de
+// getAssetQuotesQuerySchema/listMyEventsQuerySchema acima).
+export const simulateFixedIncomeQuerySchema = z.object({
+  asset_id: z.uuid(),
+  amount: z.coerce.number().positive(),
+  days_held: z.coerce.number().int().positive(),
+})

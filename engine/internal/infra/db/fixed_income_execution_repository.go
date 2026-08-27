@@ -114,13 +114,15 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 		return fixedincomeexecution.RedeemContext{}, err
 	}
 
+	rctx.PurchasedAt = positionCreatedAt
+
 	var ticker string
 	var isSandbox bool
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT fia.maturity_date, a.ticker, a.is_sandbox
+		`SELECT fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox
 		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
 		 WHERE fia.asset_id = $1`, assetID,
-	).Scan(&rctx.MaturityDate, &ticker, &isSandbox); err != nil {
+	).Scan(&rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox); err != nil {
 		return fixedincomeexecution.RedeemContext{}, err
 	}
 

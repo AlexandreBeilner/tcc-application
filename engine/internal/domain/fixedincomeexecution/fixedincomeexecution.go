@@ -70,6 +70,9 @@ var (
 	// de invariante contra chamada incorreta (a validação de negócio já
 	// aconteceu no repositório).
 	ErrPositionNotFound = errors.New("posição não encontrada para resgate")
+	// ErrInvalidDaysHeld é devolvido por Simulate quando days_held não é
+	// maior que zero — não há projeção de retorno sem um prazo simulado.
+	ErrInvalidDaysHeld = errors.New("dias de permanência simulados devem ser maior que zero")
 )
 
 // Request é a compra recebida via HTTP, antes de qualquer persistência —
@@ -106,17 +109,58 @@ type PurchaseOutcome struct {
 }
 
 // RedeemContext é o insumo que Redeem precisa pra processar um resgate
-// antecipado — montado por Repository.LoadRedeemContext.
+// antecipado — montado por Repository.LoadRedeemContext. PurchasedAt (a
+// data da primeira operação do usuário nesse título,
+// fixed_income_positions.created_at) e TaxExempt (fixed_income_assets.
+// tax_exempt) sustentam o IR regressivo sobre o resgate (tarefa 6.0.5) —
+// nenhum dos dois existia antes dessa tarefa, que só marcava a mercado sem
+// calcular líquido de imposto.
 type RedeemContext struct {
 	Position             fixedincomeposition.Position
 	MaturityDate         time.Time
 	CurrentMarketRatePct float64
+	PurchasedAt          time.Time
+	TaxExempt            bool
 }
 
-// RedeemOutcome é o resultado de Redeem, pronto pra persistência.
+// RedeemOutcome é o resultado de Redeem, pronto pra persistência. NetValue
+// e TaxRate (tarefa 6.0.5) espelham o mesmo par de campos de
+// SimulateOutcome — o resgate de verdade também mostra líquido, não só a
+// simulação de compra.
 type RedeemOutcome struct {
 	TotalValue   float64
+	NetValue     float64
+	TaxRate      float64
 	MarkToMarket fixedincome.EarlyRedemptionResult
+}
+
+// SimulateRequest é a simulação de aporte recebida via HTTP (tarefa
+// 6.0.5) — nenhuma persistência, nenhum efeito colateral (sustenta o
+// simulador de aporte da tela 4.3 e a Calculadora em modo comparação,
+// 6.1/6.2, lição 3.3).
+type SimulateRequest struct {
+	Amount   float64
+	DaysHeld int
+}
+
+// SimulateContext é o insumo que Simulate precisa do catálogo — montado
+// direto na camada HTTP a partir de assetCatalogReader.
+// FindFixedIncomeSpecialization (tarefa 3.10), sem repositório dedicado:
+// diferente de Purchase/Redeem, a simulação não lê saldo de conta nem
+// posição existente, só dado de catálogo já exposto.
+type SimulateContext struct {
+	AnnualRatePct float64
+	MaturityDate  time.Time
+	TaxExempt     bool
+}
+
+// SimulateOutcome é o resultado da simulação, pronto pra resposta HTTP.
+type SimulateOutcome struct {
+	UnitPrice           float64
+	QuantityPurchased   float64
+	GrossProjectedValue float64
+	TaxRate             float64
+	NetProjectedValue   float64
 }
 
 // Purchase valida o aporte (valor positivo, acima da aplicação mínima do
@@ -153,7 +197,12 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time) (PurchaseOutcome,
 // taxa de mercado corrente = Selic simulada do dia — ver nota 3 do doc do
 // pacote) e converte o resultado por unidade no valor total resgatado
 // (Position.Quantity × MarkToMarketPrice). Resgate é sempre integral (nota
-// 5 do doc do pacote) — não há resgate parcial.
+// 5 do doc do pacote) — não há resgate parcial. NetValue/TaxRate (tarefa
+// 6.0.5) aplicam o IR regressivo (fixedincome.RegressiveIncomeTaxRate)
+// sobre o ganho desde a aplicação (TotalValue − valor efetivamente
+// aplicado, Position.AveragePrice × Position.Quantity), contado em dias
+// corridos desde PurchasedAt — nunca sobre ativo TaxExempt, que sempre
+// devolve líquido = bruto.
 func Redeem(ctx RedeemContext, now time.Time) (RedeemOutcome, error) {
 	if ctx.Position.Quantity <= 0 {
 		return RedeemOutcome{}, ErrPositionNotFound
@@ -161,11 +210,79 @@ func Redeem(ctx RedeemContext, now time.Time) (RedeemOutcome, error) {
 
 	remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 	result := fixedincome.EarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, ctx.CurrentMarketRatePct/100, remainingDays)
+	totalValue := ctx.Position.Quantity * result.MarkToMarketPrice
+
+	taxRate := 0.0
+	netValue := totalValue
+	if !ctx.TaxExempt {
+		daysHeld := int(now.Sub(ctx.PurchasedAt).Hours() / 24)
+		taxRate = fixedincome.RegressiveIncomeTaxRate(daysHeld)
+		investedAmount := ctx.Position.AveragePrice * ctx.Position.Quantity
+		if profit := totalValue - investedAmount; profit > 0 {
+			netValue = totalValue - profit*taxRate
+		}
+	}
 
 	return RedeemOutcome{
-		TotalValue:   ctx.Position.Quantity * result.MarkToMarketPrice,
+		TotalValue:   totalValue,
+		NetValue:     netValue,
+		TaxRate:      taxRate,
 		MarkToMarket: result,
 	}, nil
+}
+
+// Simulate projeta o retorno de um aporte hipotético em renda fixa sem
+// gravar nada (tarefa 6.0.5): precifica a unidade nocional pelo deságio
+// nominal na data de hoje (fixedincome.PrefixedPrice, mesma fórmula de
+// Purchase), depois reaplica a mesma fórmula com o DU restante encolhido
+// pelos dias simulados (menos tempo até o vencimento → preço mais próximo
+// do Valor Nominal → ganho projetado) e aplica a alíquota regressiva de IR
+// (fixedincome.RegressiveIncomeTaxRate) sobre esse ganho, se o produto não
+// for isento.
+func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time) (SimulateOutcome, error) {
+	if req.Amount <= 0 {
+		return SimulateOutcome{}, ErrInvalidAmount
+	}
+	if req.DaysHeld <= 0 {
+		return SimulateOutcome{}, ErrInvalidDaysHeld
+	}
+
+	remainingDaysAtPurchase := remainingBusinessDays(now, ctx.MaturityDate)
+	annualRate := ctx.AnnualRatePct / 100
+	unitPrice := fixedincome.PrefixedPrice(annualRate, remainingDaysAtPurchase)
+	quantity := req.Amount / unitPrice
+
+	remainingAtProjection := remainingDaysAtPurchase - calendarToBusinessDays(req.DaysHeld)
+	if remainingAtProjection < 0 {
+		remainingAtProjection = 0
+	}
+	grossValue := quantity * fixedincome.PrefixedPrice(annualRate, remainingAtProjection)
+
+	taxRate := 0.0
+	netValue := grossValue
+	if !ctx.TaxExempt {
+		taxRate = fixedincome.RegressiveIncomeTaxRate(req.DaysHeld)
+		if profit := grossValue - req.Amount; profit > 0 {
+			netValue = grossValue - profit*taxRate
+		}
+	}
+
+	return SimulateOutcome{
+		UnitPrice:           unitPrice,
+		QuantityPurchased:   quantity,
+		GrossProjectedValue: grossValue,
+		TaxRate:             taxRate,
+		NetProjectedValue:   netValue,
+	}, nil
+}
+
+// calendarToBusinessDays converte dias corridos em DU aproximado, mesma
+// proporção 252/365 usada por remainingBusinessDays — extraída porque
+// Simulate precisa da mesma conversão aplicada a uma contagem de dias
+// simulada (req.DaysHeld), não a uma diferença de calendário entre duas
+// datas.
+func calendarToBusinessDays(calendarDays int) int {
+	return int(float64(calendarDays) * fixedincome.BusinessDaysPerYear / 365.0)
 }
 
 // remainingBusinessDays converte a diferença de calendário entre now e
@@ -174,8 +291,8 @@ func Redeem(ctx RedeemContext, now time.Time) (RedeemOutcome, error) {
 // pra evitar expoente zero/negativo em PrefixedPrice/EarlyRedemption num
 // título muito perto do vencimento.
 func remainingBusinessDays(now, maturityDate time.Time) int {
-	calendarDays := maturityDate.Sub(now).Hours() / 24
-	businessDays := int(calendarDays * fixedincome.BusinessDaysPerYear / 365.0)
+	calendarDays := int(maturityDate.Sub(now).Hours() / 24)
+	businessDays := calendarToBusinessDays(calendarDays)
 	if businessDays < 1 {
 		return 1
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
@@ -179,7 +180,7 @@ func TestHandleFixedIncomePurchase_SemDependencias(t *testing.T) {
 }
 
 func TestHandleFixedIncomeRedemption(t *testing.T) {
-	exec := &fakeFixedIncomeExecutor{redeemOutcome: fixedincomeexecution.RedeemOutcome{TotalValue: 1234.56}}
+	exec := &fakeFixedIncomeExecutor{redeemOutcome: fixedincomeexecution.RedeemOutcome{TotalValue: 1234.56, NetValue: 1000.00, TaxRate: 0.175}}
 
 	rec := postFixedIncome(t, "/fixed-income/redemptions", fixedIncomeAssetReader(), exec, validRedeemBody())
 	if rec.Code != http.StatusOK {
@@ -192,6 +193,12 @@ func TestHandleFixedIncomeRedemption(t *testing.T) {
 	}
 	if body.TotalValue != 1234.56 {
 		t.Errorf("TotalValue = %v, want 1234.56", body.TotalValue)
+	}
+	if body.NetValue != 1000.00 {
+		t.Errorf("NetValue = %v, want 1000.00", body.NetValue)
+	}
+	if body.TaxRate != 0.175 {
+		t.Errorf("TaxRate = %v, want 0.175", body.TaxRate)
 	}
 	if exec.gotRedeemReq.UserID != validUserID || exec.gotRedeemReq.AssetID != validAssetID {
 		t.Errorf("Redeem recebeu req = %+v, campos não repassados corretamente", exec.gotRedeemReq)
@@ -263,6 +270,126 @@ func TestHandleFixedIncomeRedemption_ErrosDeExecucao(t *testing.T) {
 				t.Errorf("status = %d, want %d, body = %s", rec.Code, tt.want, rec.Body.String())
 			}
 		})
+	}
+}
+
+func fixedIncomeSimulateReader() *fakeCatalogReader {
+	rate := 10.0
+	maturity := time.Now().AddDate(1, 0, 0)
+	return &fakeCatalogReader{
+		asset:         catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "CDB2027", Name: "CDB Banco Invest 2027", Type: catalog.AssetCDB}},
+		assetFound:    true,
+		fixedIncome:   catalog.FixedIncomeSpecialization{InterestRate: &rate, MaturityDate: &maturity, TaxExempt: false},
+		fixedIncomeOK: true,
+	}
+}
+
+func getFixedIncomeSimulate(t *testing.T, reader catalogReader, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/fixed-income/simulate?"+query, nil)
+	rec := httptest.NewRecorder()
+	New("", nil, reader, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestHandleFixedIncomeSimulate(t *testing.T) {
+	rec := getFixedIncomeSimulate(t, fixedIncomeSimulateReader(), "asset_id="+validAssetID+"&amount=2000&days_held=180")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body simulateFixedIncomeResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.UnitPrice <= 0 || body.QuantityPurchased <= 0 || body.GrossProjectedValue <= 0 {
+		t.Errorf("resposta com valores não positivos inesperados: %+v", body)
+	}
+}
+
+func TestHandleFixedIncomeSimulate_ValidacaoDeEntrada(t *testing.T) {
+	tests := map[string]string{
+		"asset_id ausente":      "amount=2000&days_held=180",
+		"asset_id não é UUID":   "asset_id=não-um-uuid&amount=2000&days_held=180",
+		"amount ausente":        "asset_id=" + validAssetID + "&days_held=180",
+		"amount zero":           "asset_id=" + validAssetID + "&amount=0&days_held=180",
+		"amount não numérico":   "asset_id=" + validAssetID + "&amount=abc&days_held=180",
+		"days_held ausente":     "asset_id=" + validAssetID + "&amount=2000",
+		"days_held zero":        "asset_id=" + validAssetID + "&amount=2000&days_held=0",
+		"days_held não inteiro": "asset_id=" + validAssetID + "&amount=2000&days_held=abc",
+	}
+
+	for name, query := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := getFixedIncomeSimulate(t, fixedIncomeSimulateReader(), query)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandleFixedIncomeSimulate_AtivoNaoEncontrado(t *testing.T) {
+	rec := getFixedIncomeSimulate(t, &fakeCatalogReader{assetFound: false}, "asset_id="+validAssetID+"&amount=2000&days_held=180")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleFixedIncomeSimulate_AtivoNaoRendaFixa(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		assetFound: true,
+	}
+	rec := getFixedIncomeSimulate(t, reader, "asset_id="+validAssetID+"&amount=2000&days_held=180")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+func TestHandleFixedIncomeSimulate_SemEspecializacao(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:         catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "CDB2027", Name: "CDB Banco Invest 2027", Type: catalog.AssetCDB}},
+		assetFound:    true,
+		fixedIncomeOK: false,
+	}
+	rec := getFixedIncomeSimulate(t, reader, "asset_id="+validAssetID+"&amount=2000&days_held=180")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusInternalServerError, rec.Body.String())
+	}
+}
+
+func TestHandleFixedIncomeSimulate_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
+	rate := 10.0
+	maturity := time.Now().AddDate(1, 0, 0)
+	reader := &fakeCatalogReader{
+		asset:         catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "LCI2027", Name: "LCI Banco Invest 2027", Type: catalog.AssetLCI}},
+		assetFound:    true,
+		fixedIncome:   catalog.FixedIncomeSpecialization{InterestRate: &rate, MaturityDate: &maturity, TaxExempt: true},
+		fixedIncomeOK: true,
+	}
+
+	rec := getFixedIncomeSimulate(t, reader, "asset_id="+validAssetID+"&amount=2000&days_held=360")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body simulateFixedIncomeResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.TaxRate != 0 {
+		t.Errorf("TaxRate = %v, want 0 (ativo isento)", body.TaxRate)
+	}
+	if body.NetProjectedValue != body.GrossProjectedValue {
+		t.Errorf("NetProjectedValue = %v, want igual a GrossProjectedValue = %v (ativo isento)", body.NetProjectedValue, body.GrossProjectedValue)
+	}
+}
+
+func TestHandleFixedIncomeSimulate_SemCatalogReader(t *testing.T) {
+	rec := getFixedIncomeSimulate(t, nil, "asset_id="+validAssetID+"&amount=2000&days_held=180")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
 }
 

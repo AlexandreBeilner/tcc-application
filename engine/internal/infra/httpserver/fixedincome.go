@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
@@ -69,7 +71,20 @@ type markToMarketResponse struct {
 
 type redeemFixedIncomeResponse struct {
 	TotalValue   float64              `json:"total_value"`
+	NetValue     float64              `json:"net_value"`
+	TaxRate      float64              `json:"tax_rate"`
 	MarkToMarket markToMarketResponse `json:"mark_to_market"`
+}
+
+// simulateFixedIncomeResponse é a resposta de GET /fixed-income/simulate
+// (tarefa 6.0.5) — simulação de aporte sem efeito colateral, sustenta o
+// simulador da tela 4.3 e a Calculadora em modo comparação (6.1/6.2).
+type simulateFixedIncomeResponse struct {
+	UnitPrice           float64 `json:"unit_price"`
+	QuantityPurchased   float64 `json:"quantity_purchased"`
+	GrossProjectedValue float64 `json:"gross_projected_value"`
+	TaxRate             float64 `json:"tax_rate"`
+	NetProjectedValue   float64 `json:"net_projected_value"`
 }
 
 func handleFixedIncomePurchase(catalogReader assetCatalogReader, exec fixedIncomeExecutor) http.HandlerFunc {
@@ -171,11 +186,95 @@ func handleFixedIncomeRedemption(catalogReader assetCatalogReader, exec fixedInc
 
 		writeJSON(w, http.StatusOK, redeemFixedIncomeResponse{
 			TotalValue: outcome.TotalValue,
+			NetValue:   outcome.NetValue,
+			TaxRate:    outcome.TaxRate,
 			MarkToMarket: markToMarketResponse{
 				MarkToMarketPrice: outcome.MarkToMarket.MarkToMarketPrice,
 				RealizedReturnPct: outcome.MarkToMarket.RealizedReturnPct,
 				VsContractedRate:  outcome.MarkToMarket.VsContractedRate,
 			},
+		})
+	}
+}
+
+// handleFixedIncomeSimulate serve GET /fixed-income/simulate (tarefa
+// 6.0.5) — projeção de retorno de um aporte hipotético, sem gravar nada
+// (nenhum market_events, nenhuma escrita em fixed_income_positions/
+// accounts): só lê o catálogo (mesmo assetCatalogReader dos outros
+// handlers deste arquivo) e chama a função pura
+// fixedincomeexecution.Simulate. Diferente de compra/resgate, não recebe
+// user_id — a simulação não depende de conta nem posição do usuário.
+func handleFixedIncomeSimulate(catalogReader assetCatalogReader) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if catalogReader == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "serviço de simulação de renda fixa indisponível")
+			return
+		}
+
+		query := r.URL.Query()
+
+		assetID := query.Get("asset_id")
+		if !uuidPattern.MatchString(assetID) {
+			writeCatalogError(w, http.StatusBadRequest, "asset_id é obrigatório e deve ser um UUID válido")
+			return
+		}
+
+		amount, err := strconv.ParseFloat(query.Get("amount"), 64)
+		if err != nil || amount <= 0 {
+			writeCatalogError(w, http.StatusBadRequest, "amount é obrigatório e deve ser um número maior que zero")
+			return
+		}
+
+		daysHeld, err := strconv.Atoi(query.Get("days_held"))
+		if err != nil || daysHeld <= 0 {
+			writeCatalogError(w, http.StatusBadRequest, "days_held é obrigatório e deve ser um inteiro maior que zero")
+			return
+		}
+
+		asset, found, err := catalogReader.FindAssetByID(r.Context(), assetID)
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar ativo")
+			return
+		}
+		if !found {
+			writeCatalogError(w, http.StatusNotFound, "ativo não encontrado")
+			return
+		}
+		if !fixedIncomeAssetTypes[asset.Type] {
+			writeCatalogError(w, http.StatusBadRequest, "simulação só é suportada pra ativo de renda fixa")
+			return
+		}
+
+		spec, found, err := catalogReader.FindFixedIncomeSpecialization(r.Context(), asset.ID)
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar especialização de renda fixa")
+			return
+		}
+		if !found || spec.InterestRate == nil || spec.MaturityDate == nil {
+			writeCatalogError(w, http.StatusInternalServerError, "dado de catálogo de renda fixa incompleto")
+			return
+		}
+
+		outcome, err := fixedincomeexecution.Simulate(
+			fixedincomeexecution.SimulateRequest{Amount: amount, DaysHeld: daysHeld},
+			fixedincomeexecution.SimulateContext{
+				AnnualRatePct: *spec.InterestRate,
+				MaturityDate:  *spec.MaturityDate,
+				TaxExempt:     spec.TaxExempt,
+			},
+			time.Now(),
+		)
+		if err != nil {
+			writeCatalogError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		writeJSON(w, http.StatusOK, simulateFixedIncomeResponse{
+			UnitPrice:           outcome.UnitPrice,
+			QuantityPurchased:   outcome.QuantityPurchased,
+			GrossProjectedValue: outcome.GrossProjectedValue,
+			TaxRate:             outcome.TaxRate,
+			NetProjectedValue:   outcome.NetProjectedValue,
 		})
 	}
 }

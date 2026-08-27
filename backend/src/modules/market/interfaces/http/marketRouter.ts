@@ -12,6 +12,7 @@ import type { ListMyEventsUseCase } from '../../application/useCases/listMyEvent
 import type { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import type { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
+import type { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import {
   getAssetQuotesQuerySchema,
   listAssetsQuerySchema,
@@ -19,6 +20,7 @@ import {
   placeOrderBodySchema,
   purchaseFixedIncomeBodySchema,
   redeemFixedIncomeBodySchema,
+  simulateFixedIncomeQuerySchema,
 } from './schemas'
 
 export interface MarketRouterDeps {
@@ -31,6 +33,7 @@ export interface MarketRouterDeps {
   placeOrder: PlaceOrderUseCase
   purchaseFixedIncome: PurchaseFixedIncomeUseCase
   redeemFixedIncome: RedeemFixedIncomeUseCase
+  simulateFixedIncome: SimulateFixedIncomeUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -54,9 +57,7 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
   router.get('/market/assets', deps.authMiddleware.authenticate, async (req, res) => {
     const parsed = listAssetsQuerySchema.safeParse(req.query)
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
       return
     }
 
@@ -77,29 +78,23 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
   })
 
-  router.get(
-    '/market/assets/:id/quotes',
-    deps.authMiddleware.authenticate,
-    async (req, res) => {
-      const parsed = getAssetQuotesQuerySchema.safeParse(req.query)
-      if (!parsed.success) {
-        res
-          .status(400)
-          .json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
-        return
-      }
+  router.get('/market/assets/:id/quotes', deps.authMiddleware.authenticate, async (req, res) => {
+    const parsed = getAssetQuotesQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
 
-      try {
-        const quotes = await deps.getAssetQuotes.execute({
-          id: req.params.id as string,
-          days: parsed.data.days,
-        })
-        res.status(200).json({ quotes })
-      } catch (err) {
-        sendEngineError(err, res)
-      }
-    },
-  )
+    try {
+      const quotes = await deps.getAssetQuotes.execute({
+        id: req.params.id as string,
+        days: parsed.data.days,
+      })
+      res.status(200).json({ quotes })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
 
   router.get('/market/companies/:id', deps.authMiddleware.authenticate, async (req, res) => {
     try {
@@ -162,7 +157,9 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
 
     const parsed = placeOrderBodySchema.safeParse(req.body)
     if (!parsed.success) {
-      res.status(400).json({ error: 'dados de ordem inválidos', details: z.flattenError(parsed.error) })
+      res
+        .status(400)
+        .json({ error: 'dados de ordem inválidos', details: z.flattenError(parsed.error) })
       return
     }
 
@@ -174,6 +171,31 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
       sendEngineError(err, res)
     }
   })
+
+  // GET, não POST — simulação sem efeito colateral (tarefa 6.0.5), por
+  // isso fica antes da compra/resgate reais mas ainda dentro da seção de
+  // renda fixa. Sem user_id: a projeção não depende de conta nem posição.
+  router.get(
+    '/market/fixed-income/simulate',
+    deps.authMiddleware.authenticate,
+    async (req, res) => {
+      const parsed = simulateFixedIncomeQuerySchema.safeParse(req.query)
+      if (!parsed.success) {
+        res.status(400).json({
+          error: 'parâmetros de simulação inválidos',
+          details: z.flattenError(parsed.error),
+        })
+        return
+      }
+
+      try {
+        const result = await deps.simulateFixedIncome.execute(parsed.data)
+        res.status(200).json(result)
+      } catch (err) {
+        sendEngineError(err, res)
+      }
+    },
+  )
 
   router.post(
     '/market/fixed-income/purchases',
