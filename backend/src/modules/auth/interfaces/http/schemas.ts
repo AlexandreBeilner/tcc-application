@@ -32,9 +32,14 @@ export const updateProfileBodySchema = z
       .max(30)
       .regex(/^[a-z0-9_]+$/, 'use apenas letras minúsculas, números e "_"')
       .optional(),
+    onboardingCompleted: z.boolean().optional(),
   })
   .refine(
-    (data) => data.name !== undefined || data.email !== undefined || data.username !== undefined,
+    (data) =>
+      data.name !== undefined ||
+      data.email !== undefined ||
+      data.username !== undefined ||
+      data.onboardingCompleted !== undefined,
     {
       message: 'informe ao menos um campo pra atualizar',
     },

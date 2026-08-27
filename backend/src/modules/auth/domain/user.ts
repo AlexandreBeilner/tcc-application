@@ -7,6 +7,7 @@ export interface User {
   username: string
   passwordHash: string | null
   role: UserRole
+  onboardingCompleted: boolean
   createdAt: Date
 }
 

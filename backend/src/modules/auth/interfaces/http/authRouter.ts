@@ -8,13 +8,13 @@ import {
   UsernameAlreadyInUseError,
   UserNotFoundError,
 } from '../../domain/errors'
-import type { User } from '../../domain/user'
 import type { GoogleIdentityProvider } from '../../application/ports/googleIdentityProvider'
 import type { GetCurrentUserUseCase } from '../../application/useCases/getCurrentUser'
 import type { LoginUserUseCase } from '../../application/useCases/loginUser'
 import type { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
 import type { RegisterUserUseCase } from '../../application/useCases/registerUser'
 import { loginBodySchema, registerBodySchema } from './schemas'
+import { toPublicUser } from './userSerializer'
 
 export interface AuthRouterDeps {
   registerUser: RegisterUserUseCase
@@ -23,16 +23,6 @@ export interface AuthRouterDeps {
   loginWithGoogle: LoginWithGoogleUseCase
   googleIdentityProvider: GoogleIdentityProvider
   authMiddleware: AuthMiddleware
-}
-
-function toPublicUser(user: User) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    username: user.username,
-    role: user.role,
-  }
 }
 
 export function createAuthRouter(deps: AuthRouterDeps): Router {

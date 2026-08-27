@@ -1,3 +1,4 @@
+import cors from 'cors'
 import express, { Express } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
@@ -9,6 +10,9 @@ import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/t
 import { ListMacroEventsUseCase } from './modules/admin/application/useCases/listMacroEvents'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
+import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
+import { createInProcessNewsFeedReader } from './modules/news/infrastructure/admin/inProcessNewsFeedReader'
+import { createNewsRouter } from './modules/news/interfaces/http/newsRouter'
 import { CheckAndUnlockAchievementsUseCase } from './modules/achievements/application/useCases/checkAndUnlockAchievements'
 import { ExportUnlockedAchievementsUseCase } from './modules/achievements/application/useCases/exportUnlockedAchievements'
 import { ListAchievementsUseCase } from './modules/achievements/application/useCases/listAchievements'
@@ -95,6 +99,21 @@ import { createBcryptPasswordHasher } from './modules/auth/infrastructure/securi
 import { createJwtTokenIssuer } from './modules/auth/infrastructure/security/jwtTokenIssuer'
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
+import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
+import { GetAssetUseCase } from './modules/market/application/useCases/getAsset'
+import { GetCompanyUseCase } from './modules/market/application/useCases/getCompany'
+import { GetMyAccountUseCase } from './modules/market/application/useCases/getMyAccount'
+import { ListAssetsUseCase } from './modules/market/application/useCases/listAssets'
+import { ListMyEventsUseCase } from './modules/market/application/useCases/listMyEvents'
+import { PlaceOrderUseCase } from './modules/market/application/useCases/placeOrder'
+import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCases/purchaseFixedIncome'
+import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
+import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
+import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
+import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
+import { createEngineFixedIncomeExecutor } from './modules/market/infrastructure/engine/engineFixedIncomeExecutor'
+import { createEngineOrderExecutor } from './modules/market/infrastructure/engine/engineOrderExecutor'
+import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 
 export interface AppDeps {
@@ -141,6 +160,25 @@ export function createApp(deps: AppDeps = {}): Express {
   const macroEventTrigger = createEngineMacroEventTrigger(engineUrl)
   const macroEventReader = createEngineMacroEventReader(engineUrl)
 
+  // Módulo `market` (tarefa 6.0.3) — proxy fino de leitura/escrita do
+  // motor, autenticação à parte (o motor não conhece usuário). Não
+  // reaproveita `getNetWorth`/os readers do ranking abaixo — ver
+  // .docs/backend/market.md e o comentário em getMyAccount.ts.
+  const catalogReader = createEngineCatalogReader(engineUrl)
+  const accountReader = createEngineAccountReader(engineUrl)
+  const orderExecutor = createEngineOrderExecutor(engineUrl)
+  const fixedIncomeExecutor = createEngineFixedIncomeExecutor(engineUrl)
+  const listAssets = new ListAssetsUseCase(catalogReader)
+  const getAsset = new GetAssetUseCase(catalogReader)
+  const getAssetQuotes = new GetAssetQuotesUseCase(catalogReader)
+  const getCompany = new GetCompanyUseCase(catalogReader)
+  const getMyAccount = new GetMyAccountUseCase(accountReader)
+  const listMyEvents = new ListMyEventsUseCase(accountReader)
+  const placeOrder = new PlaceOrderUseCase(orderExecutor)
+  const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor)
+  const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
+  const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
+
   const registerUser = new RegisterUserUseCase(
     userRepository,
     passwordHasher,
@@ -158,6 +196,10 @@ export function createApp(deps: AppDeps = {}): Express {
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
+  // Reaproveita a mesma instância de ListMacroEventsUseCase (admin, 4.5) —
+  // feed público (6.0.6, tela 5.1) é o mesmo caso de uso, só sem
+  // requireRole('admin') no router.
+  const listNewsFeed = new ListNewsFeedUseCase(createInProcessNewsFeedReader(listMacroEvents))
   const progressionRepository = createDrizzleProgressionRepository(db)
   const getProgression = new GetProgressionUseCase(progressionRepository)
   const lessonRepository = createDrizzleLessonRepository(db)
@@ -268,7 +310,15 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
   )
 
+  // Sem isso, o build de produção do frontend (vite build + preview, ou
+  // qualquer hospedagem estática — CLAUDE.md proíbe container pro
+  // frontend) fala com o gateway a partir de uma origem diferente, e o
+  // navegador bloqueia a resposta. Em dev, o proxy do Vite (vite.config.ts,
+  // tarefa 6.0.1) já torna a chamada same-origin, então isso não é
+  // observável rodando só `npm run dev` — só em `vite build && vite preview`.
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
   const app = express()
+  app.use(cors({ origin: frontendUrl }))
   app.use(express.json())
   app.use(healthRouter)
   app.use(statusRouter)
@@ -294,6 +344,7 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   app.use(createAdminPingRouter(authMiddleware))
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
+  app.use(createNewsRouter({ listNewsFeed, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
@@ -301,6 +352,21 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
+  app.use(
+    createMarketRouter({
+      listAssets,
+      getAsset,
+      getAssetQuotes,
+      getCompany,
+      getMyAccount,
+      listMyEvents,
+      placeOrder,
+      purchaseFixedIncome,
+      redeemFixedIncome,
+      simulateFixedIncome,
+      authMiddleware,
+    }),
+  )
   app.use(
     createFriendshipsRouter({
       searchUsers,

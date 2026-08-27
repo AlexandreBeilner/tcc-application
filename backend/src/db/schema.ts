@@ -40,6 +40,10 @@ export const users = pgTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }),
   username: varchar('username', { length: 30 }).notNull().unique(),
   role: userRole('role').notNull().default('user'),
+  // Tela 1.2 (inventário) — controla se o pós-login cai no onboarding ou
+  // direto no Portfólio (2.1). Nunca lido de um flag local (localStorage):
+  // precisa sobreviver a um segundo dispositivo/navegador (tarefa 6.0.4).
+  onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

@@ -32,6 +32,7 @@ export interface UpdateUserInput {
   email?: string
   username?: string
   passwordHash?: string | null
+  onboardingCompleted?: boolean
 }
 
 export interface UserRepository {
