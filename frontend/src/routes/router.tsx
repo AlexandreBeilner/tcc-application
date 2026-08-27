@@ -2,11 +2,11 @@ import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../auth/ProtectedRoute'
 import { AppShell } from '../shell/AppShell'
 import { AuthCallback } from '../pages/AuthCallback'
-import { Home } from '../pages/Home'
 import { Login } from '../pages/Login'
 import { News } from '../pages/News'
 import { Onboarding } from '../pages/Onboarding'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
+import { Portfolio } from '../pages/Portfolio'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
@@ -35,12 +35,17 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/', element: <Home /> },
+          { path: '/', element: <Portfolio /> },
           { path: '/trilha', element: <PlaceholderPage title="Trilha" /> },
           { path: '/mercado', element: <PlaceholderPage title="Mercado" /> },
           { path: '/calculadora', element: <PlaceholderPage title="Calculadora" /> },
           { path: '/classificacao', element: <PlaceholderPage title="Classificação" /> },
           { path: '/noticias', element: <News /> },
+          // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
+          // — conteúdo real (4.8 Extrato) é escopo da tarefa 6.5, ainda não
+          // implementada; só a navegação já existe, mesmo padrão das
+          // demais rotas de placeholder desta lista (tarefa 6.1).
+          { path: '/extrato', element: <PlaceholderPage title="Extrato" /> },
           { path: '/perfil', element: <PlaceholderPage title="Meu Perfil" /> },
           { path: '/amigos', element: <PlaceholderPage title="Amigos" /> },
           { path: '/conquistas', element: <PlaceholderPage title="Conquistas" /> },
