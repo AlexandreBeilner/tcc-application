@@ -14,6 +14,10 @@ interface AuthContextValue {
   isLoading: boolean
   login(token: string): void
   logout(): void
+  // Aplica um usuário já atualizado (ex: resposta de `PATCH /me`, tela 1.2/
+  // 6.2) sem precisar refazer `GET /auth/me` — a mutação já devolve o
+  // usuário inteiro.
+  setUser(user: AuthUser): void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -70,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, logout])
 
   const value = useMemo(
-    () => ({ token, user, isLoading, login, logout }),
+    () => ({ token, user, isLoading, login, logout, setUser }),
     [token, user, isLoading, login, logout],
   )
 

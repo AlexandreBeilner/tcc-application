@@ -29,6 +29,14 @@
   --color-gamify-500: #f0a202;
   --color-gamify-100: #332405;
 
+  /* Feedback genérico de formulário (erro/sucesso de validação) — token
+     separado de --color-gain/--color-loss de propósito (tokens doc, seção
+     2.3: cor financeira nunca reaproveitada pra status de UI genérico).
+     Pendência resolvida na tarefa 6.2 (primeira tela com formulário
+     validado — login/cadastro). */
+  --color-feedback-error-500: #e5484d;
+  --color-feedback-error-100: #2e1416;
+
   /* Tipografia — fallback system-ui até a decisão de self-host/Google Fonts
      de Inter/Sora ser tomada (pendência explícita da 1.0, seção 7). */
   --font-family-body: 'Inter', system-ui, sans-serif;
@@ -84,6 +92,9 @@
 
   --color-gamify-500: #b8790a;
   --color-gamify-100: #fdf2db;
+
+  --color-feedback-error-500: #c4313a;
+  --color-feedback-error-100: #fce9ea;
 }
 
 * {

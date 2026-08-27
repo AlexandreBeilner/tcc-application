@@ -30,6 +30,7 @@ describe('ProtectedRoute', () => {
       isLoading: false,
       login: vi.fn(),
       logout: vi.fn(),
+      setUser: vi.fn(),
     })
 
     renderWithRouter()
@@ -40,10 +41,18 @@ describe('ProtectedRoute', () => {
   it('com token, renderiza a rota protegida', () => {
     vi.mocked(useAuth).mockReturnValue({
       token: 'valido',
-      user: { id: '1', name: 'Ana', email: 'a@a.com', username: 'ana', role: 'user' },
+      user: {
+        id: '1',
+        name: 'Ana',
+        email: 'a@a.com',
+        username: 'ana',
+        role: 'user',
+        onboardingCompleted: true,
+      },
       isLoading: false,
       login: vi.fn(),
       logout: vi.fn(),
+      setUser: vi.fn(),
     })
 
     renderWithRouter()
@@ -58,6 +67,7 @@ describe('ProtectedRoute', () => {
       isLoading: true,
       login: vi.fn(),
       logout: vi.fn(),
+      setUser: vi.fn(),
     })
 
     renderWithRouter()

@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string
   username: string
   role: 'user' | 'admin'
+  onboardingCompleted: boolean
 }
 
 export interface AuthResult {
@@ -37,6 +38,18 @@ export function login(input: LoginInput): Promise<AuthResult> {
 
 export function getCurrentUser(token: string): Promise<{ user: AuthUser }> {
   return apiRequest<{ user: AuthUser }>('/auth/me', { token })
+}
+
+// Onboarding (tela 1.2, tarefa 6.2): "Começar"/"pular" chamam isto, nunca
+// um flag local — `.docs/backend/auth.md` (PATCH /me) já devolve o
+// usuário atualizado, então `AuthContext.setUser` aplica o resultado
+// direto, sem precisar de um novo `GET /auth/me`.
+export function completeOnboarding(token: string): Promise<{ user: AuthUser }> {
+  return apiRequest<{ user: AuthUser }>('/me', {
+    method: 'PATCH',
+    body: { onboardingCompleted: true },
+    token,
+  })
 }
 
 // Sem caso de uso próprio no backend (delegação pura pro Google) — aqui

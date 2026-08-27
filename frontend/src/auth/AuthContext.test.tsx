@@ -45,7 +45,14 @@ describe('AuthContext', () => {
 
   it('login persiste o token no localStorage e carrega o usuário via GET /auth/me', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue({
-      user: { id: '1', name: 'Ana', email: 'ana@example.com', username: 'ana', role: 'user' },
+      user: {
+        id: '1',
+        name: 'Ana',
+        email: 'ana@example.com',
+        username: 'ana',
+        role: 'user',
+        onboardingCompleted: true,
+      },
     })
 
     render(
@@ -79,7 +86,14 @@ describe('AuthContext', () => {
 
   it('logout limpa token, usuário e localStorage', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue({
-      user: { id: '1', name: 'Ana', email: 'ana@example.com', username: 'ana', role: 'user' },
+      user: {
+        id: '1',
+        name: 'Ana',
+        email: 'ana@example.com',
+        username: 'ana',
+        role: 'user',
+        onboardingCompleted: true,
+      },
     })
 
     render(

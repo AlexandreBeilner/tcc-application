@@ -22,6 +22,7 @@ function mockAuth(user: AuthUser, logout = vi.fn()) {
     isLoading: false,
     login: vi.fn(),
     logout,
+    setUser: vi.fn(),
   })
 }
 
@@ -30,6 +31,7 @@ function renderShell() {
   const router = createMemoryRouter(
     [
       { path: '/login', element: <div>tela de login</div> },
+      { path: '/onboarding', element: <div>tela de onboarding</div> },
       {
         element: <AppShell />,
         children: [{ path: '/', element: <div>conteúdo da rota</div> }],
@@ -51,6 +53,7 @@ const user: AuthUser = {
   email: 'ana@example.com',
   username: 'ana',
   role: 'user',
+  onboardingCompleted: true,
 }
 
 describe('AppShell', () => {
@@ -69,6 +72,16 @@ describe('AppShell', () => {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
     expect(screen.getByText('conteúdo da rota')).toBeInTheDocument()
+  })
+
+  it('onboarding pendente redireciona pra /onboarding (tarefa 6.2) em vez de renderizar o shell', async () => {
+    mockAuth({ ...user, onboardingCompleted: false })
+    vi.mocked(listNews).mockResolvedValue({ events: [] })
+
+    renderShell()
+
+    await waitFor(() => expect(screen.getByText('tela de onboarding')).toBeInTheDocument())
+    expect(screen.queryByText('conteúdo da rota')).not.toBeInTheDocument()
   })
 
   it('menu do avatar não mostra Painel Administrativo pra usuário comum', async () => {

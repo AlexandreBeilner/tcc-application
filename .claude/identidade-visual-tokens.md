@@ -53,7 +53,16 @@ Deliberadamente dessaturadas em relação ao vermelho/verde "puro" — sério, n
 | `--color-loss-100` | `#2E1416` | `#FCE9EA` | Fundo suave (chip de variação negativa) |
 | `--color-neutral-value` | `--color-text-secondary` | `--color-text-secondary` | Variação zero/estável |
 
-Regra de uso: cor de ganho/perda só se aplica a **dados financeiros** (variação de preço, rentabilidade, saldo). Nunca reaproveitar para status de UI genérico (sucesso/erro de formulário usam tokens de feedback separados, fora do escopo deste documento inicial).
+Regra de uso: cor de ganho/perda só se aplica a **dados financeiros** (variação de preço, rentabilidade, saldo). Nunca reaproveitar para status de UI genérico (sucesso/erro de formulário usam tokens de feedback separados — seção 2.4a).
+
+### 2.3a Feedback de formulário (erro de validação)
+
+Resolvido na tarefa 6.2 (login/cadastro, primeira tela com formulário validado — pendência da seção 7 original). Mesmo hue do vermelho financeiro (sobriedade da paleta, seção 1), mas em token à parte — nunca reaproveitar `--color-loss-*` num erro de formulário, mesmo com o valor idêntico, pra manter a semântica separada (seção 2.3). Só erro foi necessário até agora; sucesso/aviso ficam pra quando um formulário precisar deles de fato.
+
+| Token | Dark | Light | Uso |
+|---|---|---|---|
+| `--color-feedback-error-500` | `#E5484D` | `#C4313A` | Texto de erro inline (credencial inválida, conflito de cadastro) |
+| `--color-feedback-error-100` | `#2E1416` | `#FCE9EA` | Fundo suave da mensagem de erro |
 
 ### 2.4 Gamificação (XP, streak, conquistas)
 
@@ -140,6 +149,9 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
 
   --color-gamify-500: #F0A202;
   --color-gamify-100: #332405;
+
+  --color-feedback-error-500: #E5484D;
+  --color-feedback-error-100: #2E1416;
 }
 
 :root[data-theme="light"] {
@@ -164,10 +176,13 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
 
   --color-gamify-500: #B8790A;
   --color-gamify-100: #FDF2DB;
+
+  --color-feedback-error-500: #C4313A;
+  --color-feedback-error-100: #FCE9EA;
 }
 ```
 
 ## 7. Pendências para quando o frontend existir (1.1c)
 
 - Confirmar `Inter`/`Sora` via self-host ou Google Fonts (decisão de infraestrutura, não de design — deixar para 1.1c).
-- Tokens de feedback genérico de UI (sucesso/erro/aviso de formulário, distintos de ganho/perda financeiro) ainda não definidos — criar quando a primeira tela com formulário validado entrar em pauta (provável 6.2 Autenticação).
+- ~~Tokens de feedback genérico de UI~~ — resolvido na tarefa 6.2 (seção 2.3a): só erro foi definido, por ser o único caso usado até agora (login/cadastro). Sucesso/aviso ficam pra quando um formulário precisar deles.
