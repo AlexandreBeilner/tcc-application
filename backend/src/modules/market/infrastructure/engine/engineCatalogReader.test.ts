@@ -32,7 +32,13 @@ describe('engineCatalogReader', () => {
   })
 
   it('GET /assets/:id', async () => {
-    const asset = { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false }
+    const asset = {
+      id: 'asset-1',
+      ticker: 'PETR4',
+      name: 'Petrobras',
+      type: 'acao',
+      is_sandbox: false,
+    }
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => asset })
     const reader = createEngineCatalogReader('http://engine:8080')
 

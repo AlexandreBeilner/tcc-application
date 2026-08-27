@@ -1,4 +1,8 @@
-import type { OrderExecutor, OrderResult, PlaceOrderInput } from '../../application/ports/orderExecutor'
+import type {
+  OrderExecutor,
+  OrderResult,
+  PlaceOrderInput,
+} from '../../application/ports/orderExecutor'
 import { engineFetch } from './engineHttp'
 
 export function createEngineOrderExecutor(engineUrl: string): OrderExecutor {

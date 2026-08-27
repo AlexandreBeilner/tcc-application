@@ -12,9 +12,7 @@ describe('CORS (tarefa 6.0.1)', () => {
   it('libera a origem configurada em FRONTEND_URL', async () => {
     process.env.FRONTEND_URL = 'https://app.example.com'
 
-    const res = await request(createApp())
-      .get('/health')
-      .set('Origin', 'https://app.example.com')
+    const res = await request(createApp()).get('/health').set('Origin', 'https://app.example.com')
 
     expect(res.status).toBe(200)
     expect(res.headers['access-control-allow-origin']).toBe('https://app.example.com')

@@ -4,7 +4,9 @@ import { ListAssetsUseCase } from './listAssets'
 
 describe('ListAssetsUseCase', () => {
   it('repassa o filtro type pro CatalogReader e retorna o resultado', async () => {
-    const assets = [{ id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false }]
+    const assets = [
+      { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false },
+    ]
     const catalogReader = createFakeCatalogReader({ assets })
     const useCase = new ListAssetsUseCase(catalogReader)
 
