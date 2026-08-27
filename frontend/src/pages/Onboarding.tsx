@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { completeOnboarding } from '../api/auth'
+import { ApiError } from '../api/client'
 import styles from './Onboarding.module.css'
 
 // Tela 1.2 (tarefa 6.2) — carrossel de 3 telas curtas (inventário 1.2),
@@ -30,6 +31,7 @@ export function Onboarding() {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const isLastSlide = step === SLIDES.length - 1
 
   // Onboarding concluído (segunda visita à URL, ex: voltar no navegador) —
@@ -45,11 +47,15 @@ export function Onboarding() {
   async function finish() {
     if (isSubmitting || !token) return
     setIsSubmitting(true)
+    setError(null)
     try {
       const result = await completeOnboarding(token)
       setUser(result.user)
       navigate('/trilha', { replace: true })
-    } catch {
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Não foi possível continuar. Tente novamente.',
+      )
       setIsSubmitting(false)
     }
   }
@@ -76,6 +82,11 @@ export function Onboarding() {
       </div>
 
       <div className={styles.footer}>
+        {error && (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
         <div className={styles.dots}>
           {SLIDES.map((s, index) => (
             <span

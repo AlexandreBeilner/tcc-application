@@ -39,7 +39,7 @@ export function Login() {
         mode === 'login'
           ? await loginRequest({ email, password })
           : await registerRequest({ name, email, username, password })
-      login(result.token)
+      login(result.token, result.user)
       navigate('/', { replace: true })
     } catch (err) {
       // 401 (login) e 409 (cadastro, e-mail/username) já chegam com

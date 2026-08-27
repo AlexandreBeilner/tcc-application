@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getCurrentUser } from '../api/auth'
+import { ApiError } from '../api/client'
 import { AuthProvider, useAuth } from './AuthContext'
 
 vi.mock('../api/auth', () => ({
@@ -17,6 +18,20 @@ function Consumer() {
       <span data-testid="token">{token ?? 'sem-token'}</span>
       <span data-testid="user">{user?.username ?? 'sem-usuario'}</span>
       <button onClick={() => login('novo-token')}>login</button>
+      <button
+        onClick={() =>
+          login('token-bia', {
+            id: '2',
+            name: 'Bia',
+            email: 'bia@example.com',
+            username: 'bia',
+            role: 'user',
+            onboardingCompleted: true,
+          })
+        }
+      >
+        login-com-usuario
+      </button>
       <button onClick={() => logout()}>logout</button>
     </div>
   )
@@ -70,9 +85,9 @@ describe('AuthContext', () => {
     await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('ana'))
   })
 
-  it('token inválido (GET /auth/me falha) desloga e limpa o localStorage', async () => {
+  it('token inválido (GET /auth/me responde 401) desloga e limpa o localStorage', async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, 'token-expirado')
-    vi.mocked(getCurrentUser).mockRejectedValue(new Error('401'))
+    vi.mocked(getCurrentUser).mockRejectedValue(new ApiError(401, 'token inválido'))
 
     render(
       <AuthProvider>
@@ -82,6 +97,37 @@ describe('AuthContext', () => {
 
     await waitFor(() => expect(screen.getByTestId('token').textContent).toBe('sem-token'))
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull()
+  })
+
+  it('erro transitório (GET /auth/me fora do ar) não desloga o usuário', async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'token-valido')
+    vi.mocked(getCurrentUser).mockRejectedValue(new ApiError(503, 'indisponível'))
+
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'))
+    expect(screen.getByTestId('token').textContent).toBe('token-valido')
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('token-valido')
+  })
+
+  it('login com usuário já conhecido aplica direto, sem chamar GET /auth/me', async () => {
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    )
+
+    act(() => {
+      screen.getByText('login-com-usuario').click()
+    })
+
+    expect(screen.getByTestId('user').textContent).toBe('bia')
+    expect(screen.getByTestId('loading').textContent).toBe('false')
+    expect(getCurrentUser).not.toHaveBeenCalled()
   })
 
   it('logout limpa token, usuário e localStorage', async () => {

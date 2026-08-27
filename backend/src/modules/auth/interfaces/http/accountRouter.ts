@@ -7,13 +7,13 @@ import {
   UsernameAlreadyInUseError,
   UserNotFoundError,
 } from '../../domain/errors'
-import type { User } from '../../domain/user'
 import type { AnonymizeAccountUseCase } from '../../application/useCases/anonymizeAccount'
 import type { ChangePasswordUseCase } from '../../application/useCases/changePassword'
 import type { ExportUserDataUseCase } from '../../application/useCases/exportUserData'
 import type { ListIdentitiesUseCase } from '../../application/useCases/listIdentities'
 import type { UpdateProfileUseCase } from '../../application/useCases/updateProfile'
 import { changePasswordBodySchema, updateProfileBodySchema } from './schemas'
+import { toPublicUser } from './userSerializer'
 
 export interface AccountRouterDeps {
   updateProfile: UpdateProfileUseCase
@@ -22,17 +22,6 @@ export interface AccountRouterDeps {
   exportUserData: ExportUserDataUseCase
   anonymizeAccount: AnonymizeAccountUseCase
   authMiddleware: AuthMiddleware
-}
-
-function toPublicUser(user: User) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    username: user.username,
-    role: user.role,
-    onboardingCompleted: user.onboardingCompleted,
-  }
 }
 
 // Estende modules/auth (tarefa 5.11, RNF04/telas 9.2-9.3) — router separado

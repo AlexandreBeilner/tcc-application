@@ -99,7 +99,16 @@ describe('Login (tela 1.1)', () => {
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
 
-    await waitFor(() => expect(authLogin).toHaveBeenCalledWith('jwt-123'))
+    await waitFor(() =>
+      expect(authLogin).toHaveBeenCalledWith('jwt-123', {
+        id: '1',
+        name: 'Ana',
+        email: 'ana@example.com',
+        username: 'ana',
+        role: 'user',
+        onboardingCompleted: true,
+      }),
+    )
     await waitFor(() => expect(screen.getByText('tela protegida')).toBeInTheDocument())
   })
 

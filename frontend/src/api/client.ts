@@ -67,7 +67,12 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const data: unknown = await res.json().catch(() => undefined)
 
   if (!res.ok) {
-    if (res.status === 401) {
+    // `options.token` distingue um 401 de sessão (token expirado/inválido
+    // num endpoint autenticado) de um 401 anônimo (ex: `POST /auth/login`
+    // com senha errada) — sem essa checagem, um usuário já logado que erra
+    // a senha numa segunda conta em `/login` derrubava a própria sessão
+    // válida, já que esse handler é global (linha 22 acima).
+    if (res.status === 401 && options.token) {
       onUnauthorized?.()
     }
     const errorBody = data as ErrorBody | undefined

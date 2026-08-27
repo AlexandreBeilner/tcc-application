@@ -1,6 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NewsEvent } from '../api/news'
-import { getLastSeenNewsId, hasUnreadPendingEvent, markNewsAsSeen } from './unreadNews'
+import {
+  getLastSeenNewsId,
+  hasUnreadPendingEvent,
+  markNewsAsSeen,
+  subscribeToLastSeenNewsId,
+} from './unreadNews'
 
 function event(id: string, status: NewsEvent['status']): NewsEvent {
   return {
@@ -62,5 +67,39 @@ describe('getLastSeenNewsId / markNewsAsSeen', () => {
     markNewsAsSeen([event('5', 'pendente')])
     markNewsAsSeen([])
     expect(getLastSeenNewsId()).toBe('5')
+  })
+})
+
+describe('subscribeToLastSeenNewsId', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('notifica os inscritos quando markNewsAsSeen grava um novo marcador', () => {
+    const listener = vi.fn()
+    subscribeToLastSeenNewsId(listener)
+
+    markNewsAsSeen([event('1', 'pendente')])
+
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('lista vazia (marcador não muda) não notifica os inscritos', () => {
+    const listener = vi.fn()
+    subscribeToLastSeenNewsId(listener)
+
+    markNewsAsSeen([])
+
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('desinscrever para de receber notificações', () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeToLastSeenNewsId(listener)
+    unsubscribe()
+
+    markNewsAsSeen([event('1', 'pendente')])
+
+    expect(listener).not.toHaveBeenCalled()
   })
 })
