@@ -11,6 +11,7 @@ export interface UpdateProfileInput {
   name?: string
   email?: string
   username?: string
+  onboardingCompleted?: boolean
 }
 
 // Checagem de conflito de e-mail/username antes de persistir — a UNIQUE do
@@ -43,6 +44,7 @@ export class UpdateProfileUseCase {
       name: input.name,
       email: input.email,
       username: input.username,
+      onboardingCompleted: input.onboardingCompleted,
     })
   }
 }

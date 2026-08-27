@@ -73,6 +73,17 @@ describe('UpdateProfileUseCase', () => {
     ).rejects.toBeInstanceOf(UsernameAlreadyInUseError)
   })
 
+  it('marca onboardingCompleted', async () => {
+    const userRepository = createFakeUserRepository()
+    const user = await seedUser(userRepository)
+    expect(user.onboardingCompleted).toBe(false)
+    const useCase = new UpdateProfileUseCase(userRepository)
+
+    const updated = await useCase.execute({ userId: user.id, onboardingCompleted: true })
+
+    expect(updated.onboardingCompleted).toBe(true)
+  })
+
   it('404 pra usuário inexistente', async () => {
     const userRepository = createFakeUserRepository()
     const useCase = new UpdateProfileUseCase(userRepository)

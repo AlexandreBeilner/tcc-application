@@ -13,13 +13,13 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `username`: string, 3–30 caracteres, só `a-z`, `0-9` e `_`. Normalizado pra minúsculo.
   - `password`: string, 8–72 caracteres (72 = limite do bcrypt; senhas maiores são rejeitadas, não truncadas em silêncio).
   - Qualquer outro campo enviado (ex: `role`) é **descartado** pelo schema Zod antes de chegar no caso de uso — não é possível se autopromover a admin por aqui.
-- **Sucesso:** `201` → `{ token, user: { id, name, email, username, role } }`.
+- **Sucesso:** `201` → `{ token, user: { id, name, email, username, role, onboardingCompleted } }`.
 - **Erros:**
   - `400` — payload não bate com o schema (campo faltando, e-mail inválido, senha curta, username com caractere inválido etc).
   - `409` — e-mail já cadastrado.
   - `409` — username já em uso.
   - `500` — motor de simulação indisponível ao abrir a conta (ver regra abaixo) — cai no handler de erro padrão do Express.
-- **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). Em seguida abre a conta do usuário no motor de simulação (`POST /accounts`, ver `.docs/engine/account.md`) com o capital inicial padronizado (RNF06) — se essa chamada falhar, o cadastro inteiro falha (não fica usuário sem conta). Emite JWT válido por 7 dias assinado com `{ sub: userId, role }`.
+- **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). `onboarding_completed` sempre nasce `false` (default da coluna, tarefa 6.0.4) — controla se o pós-login (frontend, 6.2) cai na tela de onboarding (1.2) ou direto no Portfólio (2.1). Em seguida abre a conta do usuário no motor de simulação (`POST /accounts`, ver `.docs/engine/account.md`) com o capital inicial padronizado (RNF06) — se essa chamada falhar, o cadastro inteiro falha (não fica usuário sem conta). Emite JWT válido por 7 dias assinado com `{ sub: userId, role }`.
 
 ---
 
@@ -27,7 +27,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 - **Autenticação:** público.
 - **Payload (JSON):** `email` (formato válido), `password` (não vazio).
-- **Sucesso:** `200` → `{ token, user: { id, name, email, username, role } }`.
+- **Sucesso:** `200` → `{ token, user: { id, name, email, username, role, onboardingCompleted } }`.
 - **Erros:**
   - `400` — `email`/`password` ausentes ou em formato inválido.
   - `401` — credenciais inválidas: e-mail não encontrado, senha incorreta, **ou** conta criada só via Google (sem `password_hash` local) tentando logar por senha. As três situações retornam a mesma mensagem genérica, de propósito (não vazar se um e-mail existe).
@@ -61,11 +61,11 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ user: { id, name, email, username, role } }`.
+- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted } }`.
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
   - `404` — token válido mas o usuário não existe mais (ex: deletado).
-- **Regra:** `GetCurrentUserUseCase`.
+- **Regra:** `GetCurrentUserUseCase`. `onboardingCompleted` (tarefa 6.0.4, tela 1.2) é o que o frontend usa pra decidir entre onboarding e Portfólio pós-login — nunca um flag local (localStorage), que não sobreviveria a um segundo dispositivo/navegador.
 
 ---
 
@@ -76,13 +76,13 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 ### `PATCH /me`
 
 - **Autenticação:** Bearer token.
-- **Payload (JSON):** `name?`, `email?`, `username?` — mesmas regras de formato do cadastro; pelo menos um campo obrigatório.
-- **Sucesso:** `200` → `{ user: { id, name, email, username, role } }`.
+- **Payload (JSON):** `name?`, `email?`, `username?`, `onboardingCompleted?` (boolean, tarefa 6.0.4) — mesmas regras de formato do cadastro pros três primeiros; pelo menos um campo obrigatório.
+- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted } }`.
 - **Erros:**
   - `400` — payload inválido ou nenhum campo enviado.
   - `401` — token ausente ou inválido/expirado.
   - `409` — e-mail ou username já em uso por **outro** usuário (reenviar o próprio e-mail/username atual é permitido, não conflita consigo mesmo).
-- **Regra:** `UpdateProfileUseCase`. Checa conflito antes de persistir — a `UNIQUE` do banco é a garantia final, mas o caso de uso devolve um erro de negócio claro em vez de deixar o Postgres estourar a constraint crua.
+- **Regra:** `UpdateProfileUseCase`. Checa conflito antes de persistir — a `UNIQUE` do banco é a garantia final, mas o caso de uso devolve um erro de negócio claro em vez de deixar o Postgres estourar a constraint crua. `onboardingCompleted` não passa por essa checagem de conflito (não é um campo único) — é um campo de perfil como outro qualquer, sem endpoint dedicado (decisão da tarefa 6.0.4: não justifica rota própria).
 
 ---
 

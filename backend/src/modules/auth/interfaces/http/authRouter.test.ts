@@ -66,6 +66,7 @@ describe('auth routes', () => {
 
     expect(res.status).toBe(201)
     expect(res.body.user.role).toBe('user')
+    expect(res.body.user.onboardingCompleted).toBe(false)
     expect(typeof res.body.token).toBe('string')
   })
 
@@ -147,6 +148,7 @@ describe('auth routes', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.user.email).toBe('me@example.com')
+    expect(res.body.user.onboardingCompleted).toBe(false)
   })
 
   it('GET /auth/google redireciona pra URL de autorização do provedor', async () => {

@@ -89,6 +89,19 @@ describe('account routes', () => {
     expect(res.body.user.name).toBe('Alice Nova')
   })
 
+  it('PATCH /me marca onboardingCompleted', async () => {
+    const { app, tokenIssuer, alice } = await buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .patch('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ onboardingCompleted: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body.user.onboardingCompleted).toBe(true)
+  })
+
   it('PATCH /me retorna 409 pra e-mail já em uso por outro usuário', async () => {
     const { app, tokenIssuer, alice, bob } = await buildApp()
     const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
