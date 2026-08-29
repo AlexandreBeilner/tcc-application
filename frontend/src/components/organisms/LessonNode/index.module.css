@@ -1,0 +1,75 @@
+.node {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    border: 1px solid transparent;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.badge {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.title {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Estados — `.claude/identidade-visual-tokens.md` seção 2.5, literal. */
+.locked {
+    border: 1px dashed var(--color-border);
+}
+
+.locked .badge {
+    background: transparent;
+    border: 1px dashed var(--color-border-strong);
+    color: var(--color-text-muted);
+}
+
+.locked .title {
+    color: var(--color-text-muted);
+}
+
+.available {
+    border-color: var(--color-brand-500);
+}
+
+.available .badge {
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+    border: 1px solid var(--color-brand-500);
+}
+
+.completed .badge {
+    background: var(--color-gamify-500);
+    color: var(--color-bg-base);
+}

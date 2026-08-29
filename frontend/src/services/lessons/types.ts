@@ -17,3 +17,13 @@ export interface Lesson {
 export interface ListLessonsResult {
     lessons: Lesson[]
 }
+
+export interface GetLessonResult {
+    lesson: Lesson
+}
+
+// `GET /lessons/:id` reaproveita o mesmo formato de `Lesson` (`.docs/backend/lessons.md`).
+export interface AdvanceLessonResult {
+    currentStep: number
+    completed: boolean
+}

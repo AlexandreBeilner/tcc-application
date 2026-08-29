@@ -21,6 +21,7 @@ function renderPortfolio() {
         [
             { path: '/', element: <Portfolio /> },
             { path: '/trilha', element: <div>tela de trilha</div> },
+            { path: '/trilha/:id', element: <div>tela de lição</div> },
             { path: '/mercado', element: <div>tela de mercado</div> },
             { path: '/conquistas', element: <div>tela de conquistas</div> },
             { path: '/extrato', element: <div>tela de extrato</div> },
@@ -137,7 +138,7 @@ describe('Portfolio (tela 2.1)', () => {
         expect(screen.getByText('dias seguidos')).toBeInTheDocument()
     })
 
-    it('atalho "Retomar lição" aparece pra primeira lição disponível e navega pra /trilha', async () => {
+    it('atalho "Retomar lição" aparece pra primeira lição disponível e navega direto pra ela', async () => {
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
         vi.mocked(getProgression).mockResolvedValue(progression)
         vi.mocked(getStreak).mockResolvedValue(streak)
@@ -147,7 +148,7 @@ describe('Portfolio (tela 2.1)', () => {
 
         await waitFor(() => expect(screen.getByText('Reserva de emergência')).toBeInTheDocument())
         fireEvent.click(screen.getByText('Reserva de emergência'))
-        await waitFor(() => expect(screen.getByText('tela de trilha')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
     })
 
     it('sem lição disponível não mostra o atalho de retomar', async () => {

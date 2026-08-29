@@ -1,0 +1,111 @@
+/* Coluna única em mobile e desktop (mockup da 6.4) — o conteúdo é
+   sequencial por natureza (cenário → decisão → revelação → desbloqueio),
+   colunas lado a lado não ajudam; a diferença entre breakpoints é só
+   respiro, mesmo `max-width` do Portfólio/Trilha. */
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.top {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.back {
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+/* Barra de 4 segmentos substitui "passo 2 de 4" por texto (mockup) — o
+   estado visual já comunica progresso sem depender de leitura. */
+.steps {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.stepSeg {
+    flex: 1;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+}
+
+.stepSeg.done {
+    background: var(--color-gamify-500);
+}
+
+.stepSeg.current {
+    background: var(--color-brand-500);
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.eyebrow {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-brand-300);
+}
+
+.unlock {
+    border: 1px solid var(--color-gamify-500);
+}
+
+.unlock .eyebrow {
+    color: var(--color-gamify-500);
+}
+
+.heading {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-primary);
+}
+
+.body {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+.confirmRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.ctaRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
