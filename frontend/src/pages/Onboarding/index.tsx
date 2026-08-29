@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { Wallet, Target, Users } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
 import { completeOnboarding } from '../../services/auth'
 import { ApiError } from '../../services/client'
@@ -11,19 +12,23 @@ import styles from './index.module.css'
 // (sempre disponível) levam pro mesmo lugar: 3.1 Mapa da Trilha (`/trilha`,
 // backlog 6.2 — não 2.1 Portfólio, força o primeiro contato com a lição
 // 0.1) — depois de marcar `onboardingCompleted` via `PATCH /me` (6.0.4),
-// nunca um flag local.
+// nunca um flag local. Ícone por slide (identidade-visual-padroes.md,
+// Octalysis "Epic Meaning") — a única variação visual antes era o texto.
 const SLIDES = [
     {
         title: 'Você começa com R$ 10.000 simulados',
-        body: 'Esse é o seu capital inicial no mercado ao vivo — dinheiro de mentira, decisões de verdade.',
+        body: 'Esse é o seu capital inicial no mercado ao vivo: dinheiro de mentira, decisões de verdade.',
+        Icon: Wallet,
     },
     {
         title: 'Aprenda fazendo, não lendo',
         body: 'A trilha ensina cada produto com uma decisão prática antes de liberar ele pra investir de verdade.',
+        Icon: Target,
     },
     {
         title: 'Compita com amigos, não só com estranhos',
         body: 'Adicione amigos e acompanhe quem rende mais no ranking, sem expor o valor do seu patrimônio.',
+        Icon: Users,
     },
 ]
 
@@ -76,6 +81,9 @@ export function Onboarding() {
             </button>
 
             <div className={styles.slide}>
+                <span className={styles.icon} aria-hidden="true">
+                    <slide.Icon size={28} strokeWidth={2} />
+                </span>
                 <h1 className={styles.title}>{slide.title}</h1>
                 <p className={styles.body}>{slide.body}</p>
             </div>

@@ -35,6 +35,63 @@
     font-weight: 600;
 }
 
+.cardHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.iconBadge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+    flex: none;
+}
+
+/* Selo "ao vivo" (identidade-visual-padroes.md §2) — ponto pulsando, mesmo
+   motivo visual usado no gráfico de ativo. É sobre o mercado estar aberto,
+   nunca uma variação de preço (essa não existe ainda, ver comentário do
+   componente). */
+.liveTag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+@keyframes netWorthLivePulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+
+.liveDot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-300);
+    animation: netWorthLivePulse 1.6s ease-in-out infinite;
+}
+
 .label {
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);

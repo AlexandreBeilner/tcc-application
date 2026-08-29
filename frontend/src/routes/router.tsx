@@ -2,11 +2,13 @@ import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { AppShell } from '../components/templates/AppShell'
 import { AuthCallback } from '../pages/AuthCallback'
+import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
 import { News } from '../pages/News'
 import { Onboarding } from '../pages/Onboarding'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { Portfolio } from '../pages/Portfolio'
+import { Track } from '../pages/Track'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
@@ -36,7 +38,12 @@ export const router = createBrowserRouter([
                 element: <AppShell />,
                 children: [
                     { path: '/', element: <Portfolio /> },
-                    { path: '/trilha', element: <PlaceholderPage title="Trilha" /> },
+                    // 3.1 Mapa da Trilha e 3.2 Lição (tarefa 6.4) — `/trilha/:id`
+                    // é rota irmã, não filha de `/trilha`, já que a Lição ocupa a
+                    // tela inteira dentro do mesmo <AppShell> (sem navegação
+                    // aninhada nova).
+                    { path: '/trilha', element: <Track /> },
+                    { path: '/trilha/:id', element: <Lesson /> },
                     { path: '/mercado', element: <PlaceholderPage title="Mercado" /> },
                     { path: '/calculadora', element: <PlaceholderPage title="Calculadora" /> },
                     { path: '/classificacao', element: <PlaceholderPage title="Classificação" /> },

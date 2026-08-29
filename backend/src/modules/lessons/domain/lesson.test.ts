@@ -38,7 +38,7 @@ describe('buildLessonView', () => {
     code: '0.1',
     title: 'O que é investir',
     trackNumber: 0,
-    trackName: 'Trilha 0 — Fundamentos',
+    trackName: 'Trilha 0: Fundamentos',
     sortOrder: 1,
     centralConcept: 'Investir vs poupar',
     unlocksDescription: 'Acesso ao Portfólio',

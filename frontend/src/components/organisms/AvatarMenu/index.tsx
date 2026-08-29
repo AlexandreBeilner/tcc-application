@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { useProgressionQuery } from '../../../features/portfolio/useProgressionQuery'
+import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
 import styles from './index.module.css'
 
 // Menu suspenso do avatar (inventário 0.2): Meu Perfil · Amigos ·
@@ -11,6 +13,7 @@ import styles from './index.module.css'
 // aceite da tarefa 6.1).
 export function AvatarMenu() {
     const { user, logout } = useAuth()
+    const progressionQuery = useProgressionQuery()
     const navigate = useNavigate()
     const [open, setOpen] = useState(false)
     const rootRef = useRef<HTMLDivElement>(null)
@@ -35,19 +38,29 @@ export function AvatarMenu() {
     }
 
     const initial = user?.name?.charAt(0).toUpperCase() ?? '?'
+    const progression = progressionQuery.data
+    // Anel de progresso de XP (identidade-visual-padroes.md) — nunca 0%
+    // "quebrado" enquanto a query carrega: sem dado, o anel fica neutro
+    // (só a cor de borda, sem trecho dourado).
+    const ringPercent = progression ? computeLevelProgress(progression.xp, progression.level).progressRatio * 100 : 0
+    const ringStyle = {
+        background: `conic-gradient(var(--color-gamify-500) ${ringPercent}%, var(--color-border) ${ringPercent}%)`,
+    }
 
     return (
         <div className={styles.root} ref={rootRef}>
-            <button
-                type="button"
-                className={styles.trigger}
-                onClick={() => setOpen((v) => !v)}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                aria-label="Menu do usuário"
-            >
-                {initial}
-            </button>
+            <div className={styles.ring} style={ringStyle} title={progression ? `Nível ${progression.level}, ${progression.xp} XP` : undefined}>
+                <button
+                    type="button"
+                    className={styles.trigger}
+                    onClick={() => setOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    aria-label="Menu do usuário"
+                >
+                    {initial}
+                </button>
+            </div>
 
             {open && (
                 <div className={styles.menu} role="menu">

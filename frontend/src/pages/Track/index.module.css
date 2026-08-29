@@ -1,0 +1,135 @@
+.page {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Mobile/tablet: coluna única, mesmo padrão de largura/centralização de
+   `pages/Portfolio` (tarefa 6.3.3). Desktop (identidade-visual-padroes.md
+   §7): composição própria — grid de 2 colunas com painel lateral fixo, não
+   a mesma coluna única esticada com espaço morto nas laterais. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .layout {
+        max-width: 1080px;
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+}
+
+.header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.progress {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
+
+.unlockedBanner {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-gamify-500);
+    background: var(--color-gamify-100);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.unlockedBanner strong {
+    color: var(--color-gamify-500);
+}
+
+.track {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* `<details>` nativo (mockup da 6.4) — trilha com a próxima lição
+   disponível abre expandida por padrão, sem JS de estado de acordeão. */
+.trackSummary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    list-style: none;
+}
+
+.trackSummary::-webkit-details-marker {
+    display: none;
+}
+
+.trackCount {
+    font-size: var(--font-size-sm);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.nodes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.hint {
+    margin: calc(var(--space-2) * -1) 0 0 calc(30px + var(--space-3) + var(--space-4));
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--color-border-strong);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}

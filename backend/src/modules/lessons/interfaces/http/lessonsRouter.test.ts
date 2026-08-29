@@ -17,7 +17,7 @@ const lessons = [1, 2].map((n) => ({
   code: `0.${n}`,
   title: `Lição 0.${n}`,
   trackNumber: 0,
-  trackName: 'Trilha 0 — Fundamentos',
+  trackName: 'Trilha 0: Fundamentos',
   sortOrder: n,
   centralConcept: 'x',
   unlocksDescription: null,

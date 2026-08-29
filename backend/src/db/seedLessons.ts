@@ -20,7 +20,7 @@ const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '0.1',
     trackNumber: 0,
-    trackName: 'Trilha 0 — Fundamentos',
+    trackName: 'Trilha 0: Fundamentos',
     sortOrder: 1,
     title: 'O que é investir',
     centralConcept: 'Investir vs poupar; capital trabalhando para você',
@@ -29,7 +29,7 @@ const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '0.2',
     trackNumber: 0,
-    trackName: 'Trilha 0 — Fundamentos',
+    trackName: 'Trilha 0: Fundamentos',
     sortOrder: 2,
     title: 'Juros simples vs compostos',
     centralConcept: 'Crescimento linear vs exponencial (TCC cap. 2.1.1)',
@@ -38,7 +38,7 @@ const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '0.3',
     trackNumber: 0,
-    trackName: 'Trilha 0 — Fundamentos',
+    trackName: 'Trilha 0: Fundamentos',
     sortOrder: 3,
     title: 'Inflação e poder de compra',
     centralConcept: 'Por que R$100 hoje ≠ R$100 amanhã',
@@ -47,7 +47,7 @@ const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '0.4',
     trackNumber: 0,
-    trackName: 'Trilha 0 — Fundamentos',
+    trackName: 'Trilha 0: Fundamentos',
     sortOrder: 4,
     title: 'Rendimento nominal vs real',
     centralConcept: 'Descontar a inflação do retorno',
@@ -56,7 +56,7 @@ const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '0.5',
     trackNumber: 0,
-    trackName: 'Trilha 0 — Fundamentos',
+    trackName: 'Trilha 0: Fundamentos',
     sortOrder: 5,
     title: 'Por que a poupança geralmente perde',
     centralConcept: 'Comparação direta poupança vs Selic/CDI',
@@ -65,7 +65,7 @@ const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '1.1',
     trackNumber: 1,
-    trackName: 'Trilha 1 — Renda Fixa',
+    trackName: 'Trilha 1: Renda Fixa',
     sortOrder: 6,
     title: 'O que é renda fixa',
     centralConcept: 'Emprestar dinheiro a um emissor',

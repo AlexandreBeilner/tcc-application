@@ -214,7 +214,7 @@ Além das entidades já modeladas (`users`, `accounts`, `positions`, `assets`, `
 
 Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão → revelação → desbloqueio), reaproveitando um único componente de UI entre produtos parecidos.
 
-**Trilha 0 — Fundamentos (obrigatória, 5 lições)**
+**Trilha 0: Fundamentos (obrigatória, 5 lições)**
 
 | # | Lição | Conceito central | Desbloqueia |
 |---|---|---|---|
@@ -224,7 +224,7 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 0.4 | Rendimento nominal vs real | Descontar a inflação do retorno | — |
 | 0.5 | Por que a poupança geralmente perde | Comparação direta poupança vs Selic/CDI | Acesso à Trilha 1 (Renda Fixa) |
 
-**Trilha 1 — Renda Fixa (9 lições)**
+**Trilha 1: Renda Fixa (9 lições)**
 
 | # | Lição | Conceito central | Desbloqueia |
 |---|---|---|---|
@@ -238,7 +238,7 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 1.8 | Tesouro IPCA+ | Proteção contra inflação, VNA | Tesouro IPCA+ |
 | 1.9 | CRI e CRA | Risco de crédito sem FGC, maior remuneração | CRI/CRA, acesso à Trilha 2 (Renda Variável) |
 
-**Trilha 2 — Renda Variável (15 lições)**
+**Trilha 2: Renda Variável (15 lições)**
 
 | # | Lição | Conceito central | Desbloqueia |
 |---|---|---|---|
@@ -258,7 +258,7 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 2.9 | ETFs | Diversificação automática via índice | ETFs |
 | 2.10 | FIIs | Fundos imobiliários, tickers final 11 | FIIs, acesso à Trilha 3 |
 
-**Trilha 3 — Estratégia e Tributação (transversal, 4 lições)**
+**Trilha 3: Estratégia e Tributação (transversal, 4 lições)**
 
 | # | Lição | Conceito central | Desbloqueia |
 |---|---|---|---|

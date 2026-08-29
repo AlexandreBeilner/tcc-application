@@ -14,10 +14,14 @@
 }
 
 .badgeValue {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-family: var(--font-family-heading);
     font-size: var(--font-size-xl);
     font-weight: 700;
     color: var(--color-gamify-500);
+    font-variant-numeric: tabular-nums;
 }
 
 .badgeDetail {
