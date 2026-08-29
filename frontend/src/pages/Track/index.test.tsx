@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { listLessons } from '../../services/lessons'
 import type { Lesson } from '../../services/lessons'
+import { getProgression, getStreak } from '../../services/gamification'
 import { Track } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/lessons', () => ({ listLessons: vi.fn() }))
+vi.mock('../../services/gamification', () => ({ getProgression: vi.fn(), getStreak: vi.fn() }))
 
 function renderTrilha() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -52,6 +54,15 @@ describe('Track (tela 3.1)', () => {
             logout: vi.fn(),
             setUser: vi.fn(),
         })
+        vi.mocked(getProgression).mockResolvedValue({
+            userId: '1',
+            xp: 100,
+            level: 2,
+            currentStreak: 1,
+            longestStreak: 1,
+            lastQualifyingActivityDate: null,
+        })
+        vi.mocked(getStreak).mockResolvedValue({ currentStreak: 1, longestStreak: 1 })
     })
 
     afterEach(() => {
@@ -70,7 +81,9 @@ describe('Track (tela 3.1)', () => {
 
         await waitFor(() => expect(screen.getByText('1 de 2 lições concluídas')).toBeInTheDocument())
         expect(screen.getByText('Fundamentos')).toBeInTheDocument()
-        expect(screen.getByText('Renda Fixa')).toBeInTheDocument()
+        // "Renda Fixa" aparece 2x: no cabeçalho da trilha e no ResumeLessonCard
+        // da barra lateral (mesma lição `available`, dois lugares diferentes).
+        expect(screen.getAllByText('Renda Fixa').length).toBeGreaterThan(0)
     })
 
     it('clique numa lição disponível navega pra /trilha/:id', async () => {
@@ -110,5 +123,38 @@ describe('Track (tela 3.1)', () => {
         renderTrilha()
 
         expect(await screen.findByText('Não foi possível carregar a trilha agora. Tente novamente em instantes.')).toBeInTheDocument()
+    })
+
+    it('trilha com 2+ lições vira gráfico (TrackChart), não lista simples', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [
+                lesson({ id: '1', title: 'O que é investir', status: 'completed' }),
+                lesson({ id: '2', title: 'Juros compostos', status: 'available' }),
+                lesson({ id: '3', title: 'Inflação', status: 'locked', unlocksDescription: 'Renda Fixa' }),
+            ],
+        })
+
+        renderTrilha()
+
+        expect(await screen.findByText('você está aqui')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Juros compostos — Disponível' }))
+        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
+    })
+
+    it('trilha com 2+ lições: clique numa bloqueada mostra dica só naquele gráfico', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [
+                lesson({ id: '1', title: 'O que é investir', status: 'completed' }),
+                lesson({ id: '2', title: 'Inflação', status: 'locked', unlocksDescription: 'Renda Fixa' }),
+            ],
+        })
+
+        renderTrilha()
+
+        const node = await screen.findByRole('button', { name: /Bloqueada — libera Renda Fixa/ })
+        fireEvent.click(node)
+        expect(await screen.findByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
+        expect(screen.queryByText('tela de lição')).not.toBeInTheDocument()
     })
 })

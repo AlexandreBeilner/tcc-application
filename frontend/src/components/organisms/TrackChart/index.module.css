@@ -1,0 +1,89 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.chart {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+}
+
+.svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* Estados do nó — mesma paleta de `LessonNode` (identidade-visual-tokens.md
+   §2.5), badge circular menor porque aqui ele vive sobre o gráfico, não
+   numa linha de lista. */
+.node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.node:hover {
+    filter: brightness(1.12);
+}
+
+.locked {
+    background: var(--color-bg-surface);
+    border: 2px dashed var(--color-border-strong);
+    color: var(--color-text-muted);
+}
+
+.available {
+    background: var(--color-brand-100);
+    border: 2px solid var(--color-brand-500);
+    color: var(--color-brand-300);
+    box-shadow: 0 0 0 6px rgba(47, 111, 237, 0.14);
+}
+
+.completed {
+    background: var(--color-gamify-500);
+    border: none;
+    color: var(--color-bg-base);
+}
+
+.hereTag {
+    position: absolute;
+    transform: translate(12px, -130%);
+    padding: 3px 9px;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-100);
+    border: 1px solid var(--color-brand-500);
+    color: var(--color-brand-300);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.hint {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+@media (min-width: 1024px) {
+    .node {
+        width: 48px;
+        height: 48px;
+    }
+}

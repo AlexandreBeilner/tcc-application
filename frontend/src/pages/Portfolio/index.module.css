@@ -40,10 +40,16 @@
 }
 
 .sectionTitle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     font-size: var(--font-size-xl);
     color: var(--color-text-primary);
 }
 
+/* Borda tracejada (já era assim antes desta sessão) por acaso já seguia a
+   convenção sólido/tracejado do doc de padrões (§3: tracejado = ainda não
+   aconteceu) — mantida, só ganhou o ícone. */
 .emptyState {
     display: flex;
     flex-direction: column;
@@ -52,6 +58,17 @@
     padding: var(--space-6);
     border: 1px dashed var(--color-border);
     border-radius: var(--radius-lg);
+}
+
+.emptyIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-muted);
 }
 
 .emptyTitle {

@@ -29,6 +29,17 @@
     max-width: 420px;
 }
 
+.icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+}
+
 .title {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);

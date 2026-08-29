@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Check } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
@@ -128,6 +128,9 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
             {lesson && step === 3 && (
                 <section className={`${styles.card} ${styles.unlock}`}>
+                    <span className={styles.unlockBadge} aria-hidden="true">
+                        <Check size={22} strokeWidth={3} />
+                    </span>
                     <span className={styles.eyebrow}>Desbloqueio</span>
                     <h1 className={styles.heading}>Lição concluída</h1>
                     <p className={styles.body}>{lesson.unlocksDescription || 'Você avançou mais um passo na trilha.'}</p>

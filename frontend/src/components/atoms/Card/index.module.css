@@ -9,9 +9,16 @@
     cursor: pointer;
     text-align: left;
     font-family: inherit;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease;
 }
 
+/* Elevação por diferença de superfície, não sombra (identidade-visual-
+   tokens.md §2.2: sombra não lê bem no dark mode) — o card "sobe" pra
+   `--color-bg-surface-elevated` no hover em vez de ganhar box-shadow. */
 .card:hover {
+    background: var(--color-bg-surface-elevated);
     border-color: var(--color-border-strong);
 }
 

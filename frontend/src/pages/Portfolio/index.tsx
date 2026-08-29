@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { Compass, PieChart } from 'lucide-react'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
@@ -50,6 +51,9 @@ export function Portfolio() {
 
             {hasNoPositions && (
                 <section className={styles.emptyState}>
+                    <span className={styles.emptyIcon} aria-hidden="true">
+                        <Compass size={22} strokeWidth={2} />
+                    </span>
                     <h2 className={styles.emptyTitle}>Você ainda não tem nenhuma posição</h2>
                     <p className={styles.emptyBody}>
                         Comece pela Trilha pra entender os produtos antes de investir, ou vá direto pro Mercado se já sabe o que procura.
@@ -65,7 +69,10 @@ export function Portfolio() {
 
             {account && !hasNoPositions && (
                 <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Distribuição</h2>
+                    <h2 className={styles.sectionTitle}>
+                        <PieChart size={18} strokeWidth={2} aria-hidden="true" />
+                        Distribuição
+                    </h2>
                     <DistributionChart slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)} />
                 </section>
             )}
