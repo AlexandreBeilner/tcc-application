@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
@@ -55,7 +56,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
         <main className={styles.page}>
             <div className={styles.top}>
                 <button type="button" className={styles.back} onClick={goToTrack}>
-                    ← Sair da lição
+                    <ArrowLeft size={16} aria-hidden="true" />
+                    Sair da lição
                 </button>
                 <div className={styles.steps}>
                     {Array.from({ length: TOTAL_STEPS }, (_, index) => (

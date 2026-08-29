@@ -157,7 +157,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        fireEvent.click(await screen.findByRole('button', { name: '← Sair da lição' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Sair da lição' }))
         expect(await screen.findByText('tela de trilha')).toBeInTheDocument()
     })
 

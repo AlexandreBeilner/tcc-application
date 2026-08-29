@@ -1,12 +1,13 @@
+import { Check, Circle, Lock } from 'lucide-react'
 import type { LessonNodeProps } from './types'
 import styles from './index.module.css'
 
 export type { LessonNodeProps } from './types'
 
-const STATUS_ICON: Record<LessonNodeProps['lesson']['status'], string> = {
-    completed: '✓',
-    available: '●',
-    locked: '🔒',
+const STATUS_ICON: Record<LessonNodeProps['lesson']['status'], typeof Check> = {
+    completed: Check,
+    available: Circle,
+    locked: Lock,
 }
 
 // Nó de progressão da trilha (inventário 3.1) — estados seguem literalmente
@@ -24,6 +25,8 @@ export function LessonNode({ lesson, onClick }: LessonNodeProps) {
                 ? `Bloqueada — libera ${lesson.unlocksDescription}`
                 : 'Bloqueada'
 
+    const StatusIcon = STATUS_ICON[lesson.status]
+
     return (
         <button
             type="button"
@@ -32,7 +35,7 @@ export function LessonNode({ lesson, onClick }: LessonNodeProps) {
             aria-label={`${lesson.title} — ${meta}`}
         >
             <span className={styles.badge} aria-hidden="true">
-                {STATUS_ICON[lesson.status]}
+                <StatusIcon size={16} strokeWidth={2} fill={lesson.status === 'available' ? 'currentColor' : 'none'} />
             </span>
             <span className={styles.body}>
                 <span className={styles.title}>{lesson.title}</span>
