@@ -1,13 +1,21 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { AppShell } from '../components/templates/AppShell'
+import { AssetDetail } from '../pages/AssetDetail'
 import { AuthCallback } from '../pages/AuthCallback'
+import { CompanyProfile } from '../pages/CompanyProfile'
+import { EquityList } from '../pages/EquityList'
+import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
+import { FixedIncomeList } from '../pages/FixedIncomeList'
 import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
+import { Market } from '../pages/Market'
 import { News } from '../pages/News'
 import { Onboarding } from '../pages/Onboarding'
+import { OrderConfirmation } from '../pages/OrderConfirmation'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { Portfolio } from '../pages/Portfolio'
+import { Statement } from '../pages/Statement'
 import { Track } from '../pages/Track'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
@@ -44,15 +52,24 @@ export const router = createBrowserRouter([
                     // aninhada nova).
                     { path: '/trilha', element: <Track /> },
                     { path: '/trilha/:id', element: <Lesson /> },
-                    { path: '/mercado', element: <PlaceholderPage title="Mercado" /> },
+                    // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
+                    // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). `/mercado/
+                    // confirmar` só é alcançável via `navigate(..., { state })` a
+                    // partir de 4.3/4.5 — sem rascunho no state, redireciona pro hub
+                    // (ver `pages/OrderConfirmation`).
+                    { path: '/mercado', element: <Market /> },
+                    { path: '/mercado/renda-fixa', element: <FixedIncomeList /> },
+                    { path: '/mercado/renda-fixa/:id', element: <FixedIncomeDetail /> },
+                    { path: '/mercado/renda-variavel', element: <EquityList /> },
+                    { path: '/mercado/ativos/:id', element: <AssetDetail /> },
+                    { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
+                    { path: '/mercado/confirmar', element: <OrderConfirmation /> },
                     { path: '/calculadora', element: <PlaceholderPage title="Calculadora" /> },
                     { path: '/classificacao', element: <PlaceholderPage title="Classificação" /> },
                     { path: '/noticias', element: <News /> },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
-                    // — conteúdo real (4.8 Extrato) é escopo da tarefa 6.5, ainda não
-                    // implementada; só a navegação já existe, mesmo padrão das
-                    // demais rotas de placeholder desta lista (tarefa 6.1).
-                    { path: '/extrato', element: <PlaceholderPage title="Extrato" /> },
+                    // — conteúdo real (4.8 Extrato, tarefa 6.5).
+                    { path: '/extrato', element: <Statement /> },
                     { path: '/perfil', element: <PlaceholderPage title="Meu Perfil" /> },
                     { path: '/amigos', element: <PlaceholderPage title="Amigos" /> },
                     { path: '/conquistas', element: <PlaceholderPage title="Conquistas" /> },
