@@ -1,0 +1,20 @@
+.shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.content {
+    flex: 1;
+    padding: var(--space-6);
+}
+
+/* Abaixo de 768px (tarefa 6.3.3): largura cheia disponível (padding menor
+   que desktop) e `padding-bottom` compensando a altura da TabBar fixa
+   inferior (`--nav-height-mobile`, index.css) — sem isso o rodapé de
+   qualquer tela fica coberto pela barra de navegação. */
+@media (max-width: 767px) {
+    .content {
+        padding: var(--space-4) var(--space-4) calc(var(--space-4) + var(--nav-height-mobile));
+    }
+}

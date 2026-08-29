@@ -1,0 +1,20 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+}
+
+.card:hover {
+    border-color: var(--color-border-strong);
+}
+
+.accent {
+    border-color: var(--color-brand-500);
+}
