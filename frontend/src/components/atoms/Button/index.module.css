@@ -1,0 +1,33 @@
+.button {
+    padding: var(--space-3);
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.primary {
+    background: var(--color-brand-500);
+    color: #ffffff;
+}
+
+.primary:hover {
+    background: var(--color-brand-600);
+}
+
+.secondary {
+    border: 1px solid var(--color-border-strong);
+    background: transparent;
+    color: var(--color-text-primary);
+}
+
+.fullWidth {
+    width: 100%;
+}

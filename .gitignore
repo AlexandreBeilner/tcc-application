@@ -9,8 +9,12 @@ dist/
 .env
 .env.local
 
+# Rascunhos/planos de sessão, não é entregável do projeto
+tmp/
+
 # Editor/OS
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+

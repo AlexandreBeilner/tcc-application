@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
-import { AppShell } from '../layouts/AppShell'
+import { AppShell } from '../components/templates/AppShell'
 import { AuthCallback } from '../pages/AuthCallback'
 import { Login } from '../pages/Login'
 import { News } from '../pages/News'

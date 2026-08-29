@@ -1,0 +1,27 @@
+/* Complemento ao `components/atoms/Card` (padding/radius/background/cursor/
+   borda de destaque via `accent` já vêm de lá, tarefa 6.3.4) — gap/width
+   são específicos deste card. */
+.cardLayout {
+    gap: 2px;
+    width: 100%;
+}
+
+.eyebrow {
+    color: var(--color-brand-300);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.title {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.track {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
