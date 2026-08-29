@@ -17,7 +17,7 @@ import styles from './index.module.css'
 const SLIDES = [
     {
         title: 'Você começa com R$ 10.000 simulados',
-        body: 'Esse é o seu capital inicial no mercado ao vivo — dinheiro de mentira, decisões de verdade.',
+        body: 'Esse é o seu capital inicial no mercado ao vivo: dinheiro de mentira, decisões de verdade.',
         Icon: Wallet,
     },
     {

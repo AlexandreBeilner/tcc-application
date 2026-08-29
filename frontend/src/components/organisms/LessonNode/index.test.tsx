@@ -38,7 +38,7 @@ describe('LessonNode', () => {
     it('lição bloqueada mostra o que ela libera', () => {
         render(<LessonNode lesson={lesson({ status: 'locked', unlocksDescription: 'Tesouro Selic' })} onClick={vi.fn()} />)
 
-        expect(screen.getByRole('button', { name: /Bloqueada — libera Tesouro Selic/ })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /Bloqueada: libera Tesouro Selic/ })).toBeInTheDocument()
     })
 
     it('lição bloqueada sem unlocksDescription cai no rótulo genérico', () => {

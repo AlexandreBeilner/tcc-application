@@ -63,7 +63,7 @@ export function Track() {
 
                     {allCompleted && (
                         <p className={styles.unlockedBanner}>
-                            <strong>Mundo aberto liberado</strong> — você concluiu todas as lições disponíveis até aqui.
+                            <strong>Mundo aberto liberado.</strong> Você concluiu todas as lições disponíveis até aqui.
                         </p>
                     )}
 

@@ -103,7 +103,7 @@ describe('Track (tela 3.1)', () => {
 
         renderTrilha()
 
-        const node = await screen.findByRole('button', { name: /Bloqueada — libera Tesouro Selic/ })
+        const node = await screen.findByRole('button', { name: /Bloqueada: libera Tesouro Selic/ })
         fireEvent.click(node)
         expect(await screen.findByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
         expect(screen.queryByText('tela de lição')).not.toBeInTheDocument()
@@ -114,7 +114,7 @@ describe('Track (tela 3.1)', () => {
 
         renderTrilha()
 
-        expect(await screen.findByText('Mundo aberto liberado')).toBeInTheDocument()
+        expect(await screen.findByText('Mundo aberto liberado.')).toBeInTheDocument()
     })
 
     it('erro ao carregar a trilha mostra mensagem', async () => {
@@ -136,7 +136,7 @@ describe('Track (tela 3.1)', () => {
 
         renderTrilha()
 
-        expect(await screen.findByText('você está aqui')).toBeInTheDocument()
+        expect(await screen.findByRole('button', { name: 'Juros compostos — Disponível' })).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Juros compostos — Disponível' }))
         await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
@@ -152,7 +152,7 @@ describe('Track (tela 3.1)', () => {
 
         renderTrilha()
 
-        const node = await screen.findByRole('button', { name: /Bloqueada — libera Renda Fixa/ })
+        const node = await screen.findByRole('button', { name: /Bloqueada: libera Renda Fixa/ })
         fireEvent.click(node)
         expect(await screen.findByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
         expect(screen.queryByText('tela de lição')).not.toBeInTheDocument()

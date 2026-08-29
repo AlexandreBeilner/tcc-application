@@ -22,7 +22,7 @@ export function LessonNode({ lesson, onClick }: LessonNodeProps) {
             : lesson.status === 'available'
               ? 'Disponível'
               : lesson.unlocksDescription
-                ? `Bloqueada — libera ${lesson.unlocksDescription}`
+                ? `Bloqueada: libera ${lesson.unlocksDescription}`
                 : 'Bloqueada'
 
     const StatusIcon = STATUS_ICON[lesson.status]

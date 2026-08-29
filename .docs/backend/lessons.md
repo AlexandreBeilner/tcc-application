@@ -45,7 +45,7 @@ Steps de uma lição (spec 5.2): `0`=cenário, `1`=micro-decisão, `2`=revelaç�
 
 ## Seed mínimo (não é o currículo completo)
 
-`npm run db:seed:lessons` (idempotente, `ON CONFLICT (code) DO NOTHING`) — 6 lições reais da spec seção 5.1: `0.1`–`0.5` (Trilha 0 — Fundamentos, completa) + `1.1` (Trilha 1 — Renda Fixa, só a primeira). Suficiente pra exercitar a cadeia de desbloqueio entre trilhas ponta a ponta. Autoria das 33 lições do currículo completo é escopo da semana 7.
+`npm run db:seed:lessons` (idempotente, `ON CONFLICT (code) DO NOTHING`) — 6 lições reais da spec seção 5.1: `0.1`–`0.5` (Trilha 0: Fundamentos, completa) + `1.1` (Trilha 1: Renda Fixa, só a primeira). Suficiente pra exercitar a cadeia de desbloqueio entre trilhas ponta a ponta. Autoria das 33 lições do currículo completo é escopo da semana 7.
 
 ## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
 

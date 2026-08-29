@@ -49,7 +49,7 @@ export function AvatarMenu() {
 
     return (
         <div className={styles.root} ref={rootRef}>
-            <div className={styles.ring} style={ringStyle} title={progression ? `Nível ${progression.level} — ${progression.xp} XP` : undefined}>
+            <div className={styles.ring} style={ringStyle} title={progression ? `Nível ${progression.level}, ${progression.xp} XP` : undefined}>
                 <button
                     type="button"
                     className={styles.trigger}

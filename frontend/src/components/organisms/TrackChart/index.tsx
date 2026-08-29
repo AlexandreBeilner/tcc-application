@@ -16,7 +16,7 @@ const STATUS_ICON: Record<Lesson['status'], typeof Check> = {
 function statusLabel(lesson: Lesson): string {
     if (lesson.status === 'completed') return 'Concluída'
     if (lesson.status === 'available') return 'Disponível'
-    return lesson.unlocksDescription ? `Bloqueada — libera ${lesson.unlocksDescription}` : 'Bloqueada'
+    return lesson.unlocksDescription ? `Bloqueada: libera ${lesson.unlocksDescription}` : 'Bloqueada'
 }
 
 function toPercent(value: number, total: number): string {
@@ -40,72 +40,57 @@ export function TrackChart({ lessons, expandedHintId, onNodeClick }: TrackChartP
     return (
         <div className={styles.card}>
             <div className={styles.chart} style={{ aspectRatio: `${TRACK_CHART_WIDTH} / ${TRACK_CHART_HEIGHT}` }}>
-                <svg
-                    viewBox={`0 0 ${TRACK_CHART_WIDTH} ${TRACK_CHART_HEIGHT}`}
-                    className={styles.svg}
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                >
-                    <defs>
-                        <pattern id={patternId} width="28" height="28" patternUnits="userSpaceOnUse">
-                            <path d="M28 0 L0 0 0 28" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth={1} />
-                        </pattern>
-                        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-                            <stop offset="0%" stopColor="#f0a202" />
-                            <stop offset="70%" stopColor="#f0a202" />
-                            <stop offset="100%" stopColor="#2f6fed" />
-                        </linearGradient>
-                    </defs>
-                    <rect x={0} y={0} width={TRACK_CHART_WIDTH} height={TRACK_CHART_HEIGHT} fill={`url(#${patternId})`} />
-                    {layout.fillPath && <path d={layout.fillPath} fill={`url(#${gradientId})`} opacity={0.22} />}
-                    {layout.solidPath && (
-                        <path
-                            d={layout.solidPath}
-                            fill="none"
-                            stroke={`url(#${gradientId})`}
-                            strokeWidth={3}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    )}
-                    {layout.dashedPath && (
-                        <path
-                            d={layout.dashedPath}
-                            fill="none"
-                            stroke="var(--color-border-strong)"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeDasharray="1 9"
-                        />
-                    )}
-                    {layout.currentPoint && (
-                        <line
-                            x1={layout.currentPoint.x}
-                            y1={layout.currentPoint.y}
-                            x2={TRACK_CHART_WIDTH - 12}
-                            y2={layout.currentPoint.y}
-                            stroke="var(--color-border-strong)"
-                            strokeWidth={1}
-                            strokeDasharray="2 6"
-                        />
-                    )}
-                </svg>
-
-                {layout.currentPoint && (
-                    <span
-                        className={styles.hereTag}
-                        style={{
-                            left: toPercent(layout.currentPoint.x, TRACK_CHART_WIDTH),
-                            top: toPercent(layout.currentPoint.y, TRACK_CHART_HEIGHT),
-                        }}
+                <div className={styles.chartBg}>
+                    <svg
+                        viewBox={`0 0 ${TRACK_CHART_WIDTH} ${TRACK_CHART_HEIGHT}`}
+                        className={styles.svg}
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
                     >
-                        você está aqui
-                    </span>
-                )}
+                        <defs>
+                            <pattern id={patternId} width="28" height="28" patternUnits="userSpaceOnUse">
+                                <path d="M28 0 L0 0 0 28" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth={1} />
+                            </pattern>
+                            <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#f0a202" />
+                                <stop offset="70%" stopColor="#f0a202" />
+                                <stop offset="100%" stopColor="#2f6fed" />
+                            </linearGradient>
+                        </defs>
+                        <rect x={0} y={0} width={TRACK_CHART_WIDTH} height={TRACK_CHART_HEIGHT} fill={`url(#${patternId})`} />
+                        {layout.fillPath && <path d={layout.fillPath} fill={`url(#${gradientId})`} opacity={0.22} />}
+                        {layout.solidPath && (
+                            <path
+                                d={layout.solidPath}
+                                fill="none"
+                                stroke={`url(#${gradientId})`}
+                                strokeWidth={3}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        )}
+                        {layout.dashedPath && (
+                            <path
+                                d={layout.dashedPath}
+                                fill="none"
+                                stroke="var(--color-border-strong)"
+                                strokeWidth={2}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeDasharray="1 9"
+                            />
+                        )}
+                    </svg>
+                </div>
 
+                {/* Sem "você está aqui": o anel sólido + pulso do estado `available`
+                    (index.module.css) já diferencia esse ponto dos demais — texto
+                    seria redundante. Tooltip no hover/focus mostra título e status de
+                    qualquer ponto, incluindo os bloqueados/futuros (pedido do autor). */}
                 {layout.points.map((point) => {
                     const StatusIcon = STATUS_ICON[point.lesson.status]
+                    const tooltipBelow = point.y < TRACK_CHART_HEIGHT * 0.3
+
                     return (
                         <button
                             key={point.lesson.id}
@@ -116,6 +101,10 @@ export function TrackChart({ lessons, expandedHintId, onNodeClick }: TrackChartP
                             aria-label={`${point.lesson.title} — ${statusLabel(point.lesson)}`}
                         >
                             <StatusIcon size={16} strokeWidth={2.5} fill={point.lesson.status === 'available' ? 'currentColor' : 'none'} />
+                            <span className={[styles.tooltip, tooltipBelow && styles.tooltipBelow].filter(Boolean).join(' ')} aria-hidden="true">
+                                <span className={styles.tooltipTitle}>{point.lesson.title}</span>
+                                <span className={styles.tooltipStatus}>{statusLabel(point.lesson)}</span>
+                            </span>
                         </button>
                     )
                 })}

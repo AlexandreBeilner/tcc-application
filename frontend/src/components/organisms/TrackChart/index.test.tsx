@@ -40,8 +40,25 @@ describe('TrackChart', () => {
 
         expect(screen.getByRole('button', { name: 'O que é investir — Concluída' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Inflação — Disponível' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Rendimento real — Bloqueada — libera Renda Fixa' })).toBeInTheDocument()
-        expect(screen.getByText('você está aqui')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Rendimento real — Bloqueada: libera Renda Fixa' })).toBeInTheDocument()
+    })
+
+    it('cada nó carrega um tooltip com título e status — inclusive os bloqueados/futuros', () => {
+        render(
+            <TrackChart
+                lessons={[
+                    lesson({ id: '1', title: 'O que é investir', status: 'completed' }),
+                    lesson({ id: '2', title: 'Rendimento real', status: 'locked', unlocksDescription: 'Renda Fixa' }),
+                ]}
+                expandedHintId={null}
+                onNodeClick={vi.fn()}
+            />,
+        )
+
+        expect(screen.getByText('O que é investir')).toBeInTheDocument()
+        expect(screen.getByText('Concluída')).toBeInTheDocument()
+        expect(screen.getByText('Rendimento real')).toBeInTheDocument()
+        expect(screen.getByText('Bloqueada: libera Renda Fixa')).toBeInTheDocument()
     })
 
     it('clicar num nó chama onNodeClick com a lição', () => {
@@ -63,15 +80,4 @@ describe('TrackChart', () => {
         expect(screen.getByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
     })
 
-    it('sem lição available, não mostra a marcação "você está aqui"', () => {
-        render(
-            <TrackChart
-                lessons={[lesson({ id: '1', status: 'completed' }), lesson({ id: '2', status: 'completed' })]}
-                expandedHintId={null}
-                onNodeClick={vi.fn()}
-            />,
-        )
-
-        expect(screen.queryByText('você está aqui')).not.toBeInTheDocument()
-    })
 })
