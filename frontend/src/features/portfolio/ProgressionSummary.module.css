@@ -1,0 +1,26 @@
+.summary {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-gamify-100);
+}
+
+.badgeValue {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-gamify-500);
+}
+
+.badgeDetail {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}

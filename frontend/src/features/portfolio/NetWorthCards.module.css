@@ -1,0 +1,65 @@
+/* Uma coluna em mobile, 2 colunas a partir de tablet (tarefa 6.3.3, decisão
+   explícita — não `auto-fit`, que só coincidentemente cairia em 2 colunas
+   nessa largura). */
+.cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+@media (min-width: 768px) {
+    .cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+}
+
+.card:hover {
+    border-color: var(--color-border-strong);
+}
+
+/* Selo "modo aprendizado" (inventário 2.1) — fundo diferente do card de
+   mercado ao vivo pra reforçar a separação exigida pela spec (3.1). */
+.sandbox {
+    background: var(--color-brand-100);
+    border-color: var(--color-brand-300);
+}
+
+.sandboxBadge {
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-gamify-100);
+    color: var(--color-gamify-500);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.total {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.detail {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}

@@ -1,0 +1,70 @@
+.tabBar {
+    display: flex;
+    gap: var(--space-2);
+    padding: 0 var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+    overflow-x: auto;
+}
+
+.tab {
+    padding: var(--space-3) var(--space-4);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+    color: var(--color-text-primary);
+}
+
+.active {
+    color: var(--color-brand-500);
+    border-bottom-color: var(--color-brand-500);
+}
+
+/* Abaixo de 768px (tarefa 6.3.3): barra inferior fixa, padrão de app
+   mobile nativo — tab bar fixa no topo é ruim de alcançar com o polegar
+   (decisão revertida nesta sessão, ver backlog 6.3.3). Itens divididos em
+   partes iguais (`flex: 1`) pra caber os 5 rótulos sem overflow horizontal
+   em telas de 375px; `--nav-height-mobile` (index.css) garante uma altura
+   mínima consistente com o `padding-bottom` compensado no `.content` do
+   AppShell. */
+@media (max-width: 767px) {
+    .tabBar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 10;
+        min-height: var(--nav-height-mobile);
+        gap: 0;
+        padding: 0 var(--space-1);
+        border-bottom: none;
+        border-top: 1px solid var(--color-border);
+        overflow-x: visible;
+    }
+
+    .tab {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: var(--space-2) var(--space-1);
+        font-size: var(--font-size-xs);
+        line-height: 1.2;
+        white-space: normal;
+        border-bottom: none;
+        border-top: 2px solid transparent;
+    }
+
+    .active {
+        border-top-color: var(--color-brand-500);
+        border-bottom-color: transparent;
+    }
+}

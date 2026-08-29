@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react'
 // que por sua vez fala com o backend gamificado e, atrás dele, o motor.
 // Em produção (vite build && vite preview, ou qualquer hospedagem estática
 // — o frontend nunca roda em container, CLAUDE.md) não existe esse proxy:
-// o cliente HTTP (src/api/client.ts, tarefa 6.0.2) fala direto com
+// o cliente HTTP (src/services/client.ts, tarefa 6.0.2) fala direto com
 // VITE_GATEWAY_URL, e quem garante que isso funciona é o CORS do backend
 // (tarefa 6.0.1, backend/src/app.ts).
 const GATEWAY_URL = process.env.VITE_GATEWAY_URL ?? 'http://localhost:8000'
@@ -20,19 +20,19 @@ const GATEWAY_URL = process.env.VITE_GATEWAY_URL ?? 'http://localhost:8000'
 // novo, fora desta lista, é o único caso que ainda exige editar este
 // arquivo.
 const BACKEND_ROUTE_NAMESPACES = [
-  'health',
-  'status',
-  'auth',
-  'me',
-  'lessons',
-  'missions',
-  'achievements',
-  'ranking',
-  'friendships',
-  'users',
-  'admin',
-  'market',
-  'news',
+    'health',
+    'status',
+    'auth',
+    'me',
+    'lessons',
+    'missions',
+    'achievements',
+    'ranking',
+    'friendships',
+    'users',
+    'admin',
+    'market',
+    'news',
 ]
 
 // Rotas de página do frontend que colidem, por prefixo, com um namespace
@@ -47,24 +47,24 @@ const FRONTEND_ROUTES_SHADOWING_BACKEND = new Set(['/auth/callback', '/admin'])
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      [`^/(${BACKEND_ROUTE_NAMESPACES.join('|')})(/|$)`]: {
-        target: GATEWAY_URL,
-        changeOrigin: true,
-        bypass(req) {
-          const path = req.url?.split('?')[0] ?? ''
-          if (FRONTEND_ROUTES_SHADOWING_BACKEND.has(path)) {
-            return req.url
-          }
+    plugins: [react()],
+    server: {
+        proxy: {
+            [`^/(${BACKEND_ROUTE_NAMESPACES.join('|')})(/|$)`]: {
+                target: GATEWAY_URL,
+                changeOrigin: true,
+                bypass(req) {
+                    const path = req.url?.split('?')[0] ?? ''
+                    if (FRONTEND_ROUTES_SHADOWING_BACKEND.has(path)) {
+                        return req.url
+                    }
+                },
+            },
         },
-      },
     },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    globals: true,
-  },
+    test: {
+        environment: 'jsdom',
+        setupFiles: ['./src/test/setup.ts'],
+        globals: true,
+    },
 })

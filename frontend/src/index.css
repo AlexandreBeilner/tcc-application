@@ -5,69 +5,75 @@
    sem precisar de `[data-theme="dark"]`; `[data-theme="light"]` sobrescreve.
    Não existe toggle de tema ainda (fora do escopo da 6.1). */
 :root {
-  color-scheme: dark;
+    color-scheme: dark;
 
-  --color-bg-base: #0e0f13;
-  --color-bg-surface: #16181d;
-  --color-bg-surface-elevated: #1e2129;
-  --color-border: #2a2e38;
-  --color-border-strong: #3a3f4c;
-  --color-text-primary: #f5f6f8;
-  --color-text-secondary: #9ba1ae;
-  --color-text-muted: #6b7280;
+    --color-bg-base: #0e0f13;
+    --color-bg-surface: #16181d;
+    --color-bg-surface-elevated: #1e2129;
+    --color-border: #2a2e38;
+    --color-border-strong: #3a3f4c;
+    --color-text-primary: #f5f6f8;
+    --color-text-secondary: #9ba1ae;
+    --color-text-muted: #6b7280;
 
-  --color-brand-500: #2f6fed;
-  --color-brand-600: #1d4fc4;
-  --color-brand-300: #93b4ff;
-  --color-brand-100: #0e1e42;
+    --color-brand-500: #2f6fed;
+    --color-brand-600: #1d4fc4;
+    --color-brand-300: #93b4ff;
+    --color-brand-100: #0e1e42;
 
-  --color-gain-500: #34c77b;
-  --color-gain-100: #0f2b1e;
-  --color-loss-500: #e5484d;
-  --color-loss-100: #2e1416;
+    --color-gain-500: #34c77b;
+    --color-gain-100: #0f2b1e;
+    --color-loss-500: #e5484d;
+    --color-loss-100: #2e1416;
 
-  --color-gamify-500: #f0a202;
-  --color-gamify-100: #332405;
+    --color-gamify-500: #f0a202;
+    --color-gamify-100: #332405;
 
-  /* Feedback genérico de formulário (erro/sucesso de validação) — token
+    /* Feedback genérico de formulário (erro/sucesso de validação) — token
      separado de --color-gain/--color-loss de propósito (tokens doc, seção
      2.3: cor financeira nunca reaproveitada pra status de UI genérico).
      Pendência resolvida na tarefa 6.2 (primeira tela com formulário
      validado — login/cadastro). */
-  --color-feedback-error-500: #e5484d;
-  --color-feedback-error-100: #2e1416;
+    --color-feedback-error-500: #e5484d;
+    --color-feedback-error-100: #2e1416;
 
-  /* Tipografia — fallback system-ui até a decisão de self-host/Google Fonts
+    /* Tipografia — fallback system-ui até a decisão de self-host/Google Fonts
      de Inter/Sora ser tomada (pendência explícita da 1.0, seção 7). */
-  --font-family-body: 'Inter', system-ui, sans-serif;
-  --font-family-heading: 'Sora', system-ui, sans-serif;
+    --font-family-body: 'Inter', system-ui, sans-serif;
+    --font-family-heading: 'Sora', system-ui, sans-serif;
 
-  --font-size-xs: 0.75rem;
-  --font-size-sm: 0.875rem;
-  --font-size-base: 1rem;
-  --font-size-lg: 1.125rem;
-  --font-size-xl: 1.25rem;
-  --font-size-2xl: 1.5rem;
-  --font-size-3xl: 1.875rem;
-  --font-size-4xl: 2.25rem;
-  --font-size-5xl: 3rem;
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --font-size-2xl: 1.5rem;
+    --font-size-3xl: 1.875rem;
+    --font-size-4xl: 2.25rem;
+    --font-size-5xl: 3rem;
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
-  --space-16: 64px;
-  --space-24: 96px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
+    --space-24: 96px;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-full: 9999px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
 
-  /* Paleta categórica pro donut de distribuição da tela 2.1 (tarefa 6.3) —
+    /* Altura da TabBar fixa inferior em mobile (tarefa 6.3.3) — token, não
+       valor mágico repetido: usado pela própria TabBar (min-height) e pelo
+       AppShell (padding-bottom do `.content`, pra nenhuma tela ficar
+       encoberta pela barra fixa). */
+    --nav-height-mobile: 56px;
+
+    /* Paleta categórica pro donut de distribuição da tela 2.1 (tarefa 6.3) —
      lacuna do doc de tokens (identidade-visual-tokens.md só cobre marca/
      semântica financeira/gamificação, nunca definiu uma escala pra
      identidade de série de gráfico). Valores = passos "dark" da paleta
@@ -77,64 +83,70 @@
      CVD, 19.3 visão normal — todos os 6 checks OK. Reaproveitada como está
      em vez de derivar uma nova a partir de `--color-brand-*` porque o doc
      de tokens não tem uma escala categórica própria ainda. */
-  --chart-series-1: #3987e5;
-  --chart-series-2: #d95926;
-  --chart-series-3: #199e70;
-  --chart-series-4: #c98500;
-  --chart-series-5: #d55181;
-  --chart-series-6: #008300;
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-series-3: #199e70;
+    --chart-series-4: #c98500;
+    --chart-series-5: #d55181;
+    --chart-series-6: #008300;
 }
 
 :root[data-theme='light'] {
-  color-scheme: light;
+    color-scheme: light;
 
-  --color-bg-base: #f7f7f9;
-  --color-bg-surface: #ffffff;
-  --color-bg-surface-elevated: #ffffff;
-  --color-border: #e4e5ea;
-  --color-border-strong: #cbcdd6;
-  --color-text-primary: #14161b;
-  --color-text-secondary: #5b6270;
-  --color-text-muted: #8a8f9a;
+    --color-bg-base: #f7f7f9;
+    --color-bg-surface: #ffffff;
+    --color-bg-surface-elevated: #ffffff;
+    --color-border: #e4e5ea;
+    --color-border-strong: #cbcdd6;
+    --color-text-primary: #14161b;
+    --color-text-secondary: #5b6270;
+    --color-text-muted: #8a8f9a;
 
-  --color-brand-500: #2f6fed;
-  --color-brand-600: #1d4fc4;
-  --color-brand-300: #1b3f94;
-  --color-brand-100: #e8effe;
+    --color-brand-500: #2f6fed;
+    --color-brand-600: #1d4fc4;
+    --color-brand-300: #1b3f94;
+    --color-brand-100: #e8effe;
 
-  --color-gain-500: #1e9e5a;
-  --color-gain-100: #e3f7ec;
-  --color-loss-500: #c4313a;
-  --color-loss-100: #fce9ea;
+    --color-gain-500: #1e9e5a;
+    --color-gain-100: #e3f7ec;
+    --color-loss-500: #c4313a;
+    --color-loss-100: #fce9ea;
 
-  --color-gamify-500: #b8790a;
-  --color-gamify-100: #fdf2db;
+    --color-gamify-500: #b8790a;
+    --color-gamify-100: #fdf2db;
 
-  --color-feedback-error-500: #c4313a;
-  --color-feedback-error-100: #fce9ea;
+    --color-feedback-error-500: #c4313a;
+    --color-feedback-error-100: #fce9ea;
 
-  /* Passos "light" da mesma paleta categórica, validados contra a
+    /* Passos "light" da mesma paleta categórica, validados contra a
      superfície clara (`--color-bg-surface: #ffffff`) — checks rodados
      nesta sessão (ΔE adjacente 9.1 CVD / 19.6 visão normal). */
-  --chart-series-1: #2a78d6;
-  --chart-series-2: #eb6834;
-  --chart-series-3: #1baf7a;
-  --chart-series-4: #eda100;
-  --chart-series-5: #e87ba4;
-  --chart-series-6: #008300;
+    --chart-series-1: #2a78d6;
+    --chart-series-2: #eb6834;
+    --chart-series-3: #1baf7a;
+    --chart-series-4: #eda100;
+    --chart-series-5: #e87ba4;
+    --chart-series-6: #008300;
 }
 
+/* Breakpoints (tarefa 6.3.3, convenção pra toda tela nova do backlog daqui
+   pra frente): mobile < 768px, tablet 768–1023px, desktop >= 1024px.
+   Não dá pra virar custom property — `var()` não funciona dentro da
+   condição de um `@media` — então fica documentado aqui e repetido como
+   literal em cada `@media (min-width: 768px)`/`(min-width: 1024px)`. */
+
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--color-bg-base);
-  color: var(--color-text-primary);
-  font-family: var(--font-family-body);
-  font-size: var(--font-size-base);
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-base);
 }
 
 h1,
@@ -143,12 +155,12 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-family-heading);
-  margin: 0;
+    font-family: var(--font-family-heading);
+    margin: 0;
 }
 
 /* Dados numéricos financeiros nunca "dançam" ao atualizar (seção 3 do
    doc de tokens) — aplicar esta classe em qualquer saldo/preço/variação. */
 .tabular-nums {
-  font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums;
 }
