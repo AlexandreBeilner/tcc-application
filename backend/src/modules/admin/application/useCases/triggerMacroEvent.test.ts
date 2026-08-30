@@ -14,6 +14,7 @@ const sampleResult = {
   triggered_on_day: 5,
   duration_days: 1,
   price_effect_pct: -4,
+  targets: [{ sector: 'Financeiro' }],
 }
 
 describe('TriggerMacroEventUseCase', () => {

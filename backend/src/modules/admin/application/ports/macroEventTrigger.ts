@@ -42,6 +42,10 @@ export interface MacroEventResult {
   price_effect_pct?: number
   fundamentals_effect_pct?: number
   fundamentals_report_day?: number
+  // Mesmo formato de MacroEventTargetInput (sector?/risk_class?/asset_id?,
+  // exatamente um preenchido) — reaproveitado em vez de duplicar um tipo
+  // idêntico só porque um é usado em request e o outro em response.
+  targets: MacroEventTargetInput[]
 }
 
 // Abre um evento macro no motor de simulação — accounts/macro_events vivem

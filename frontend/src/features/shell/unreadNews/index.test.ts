@@ -14,6 +14,7 @@ function event(id: string, status: NewsEvent['status']): NewsEvent {
         status,
         triggered_on_day: 1,
         duration_days: 1,
+        targets: [],
     }
 }
 

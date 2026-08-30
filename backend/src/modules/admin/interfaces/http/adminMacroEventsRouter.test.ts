@@ -25,6 +25,7 @@ const sampleResult = {
   price_effect_pct: -10,
   fundamentals_effect_pct: -12,
   fundamentals_report_day: 14,
+  targets: [{ sector: 'Mineração' }],
 }
 
 const validTemplateBody = {

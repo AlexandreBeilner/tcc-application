@@ -15,6 +15,7 @@ const sampleResult = {
       status: 'pendente',
       triggered_on_day: 5,
       duration_days: 1,
+      targets: [{ sector: 'Financeiro' }],
     },
   ],
 }

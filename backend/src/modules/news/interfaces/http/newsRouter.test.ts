@@ -18,6 +18,7 @@ const sampleEvent = {
   status: 'pendente',
   triggered_on_day: 10,
   duration_days: 2,
+  targets: [{ sector: 'Financeiro' }],
 }
 
 function buildApp(newsFeedReader = createFakeNewsFeedReader({ events: [sampleEvent] })) {

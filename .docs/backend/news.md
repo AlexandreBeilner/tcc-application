@@ -10,7 +10,7 @@ Existe pra desacoplar a tela 5.1 (Feed de Notícias, qualquer usuário autentica
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado — sem exigência de `role`).
 - **Payload (query string):** `limit` (opcional, inteiro 1–100) e `offset` (opcional, inteiro ≥ 0) — mesma validação de `GET /admin/macro-events`.
-- **Sucesso:** `200` → `{ events: [...] }`, mesmo formato de item de `GET /admin/macro-events` (id, title, narrative, direction, magnitude_band, affects_price, affects_fundamentals, status, triggered_on_day, duration_days, e os campos de efeito quando aplicável).
+- **Sucesso:** `200` → `{ events: [...] }`, mesmo formato de item de `GET /admin/macro-events` (id, title, narrative, direction, magnitude_band, affects_price, affects_fundamentals, status, triggered_on_day, duration_days, os campos de efeito quando aplicável, e `targets` — array de `{ sector? | risk_class? | asset_id? }`, exatamente um preenchido por item, usado pela tela 5.1/Feed de Notícias, tarefa 6.6, pra linkar o evento pro ativo/empresa afetado).
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
   - `400` — `limit`/`offset` fora da faixa aceita.

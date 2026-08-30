@@ -43,24 +43,50 @@ type triggerMacroEventRequest struct {
 	CreatedBy           *string                          `json:"created_by"`
 }
 
+// macroEventTargetResponse espelha macroevent.Target — exatamente um entre
+// Sector/RiskClass/AssetID preenchido (macroevent.NewTarget já garante essa
+// exclusividade antes da persistência). AffectedMetric não é exposto: é
+// derivado deterministicamente de affects_price/affects_fundamentals (já no
+// nível do evento), redundante pra quem consome esta resposta.
+type macroEventTargetResponse struct {
+	Sector    *string `json:"sector,omitempty"`
+	RiskClass *string `json:"risk_class,omitempty"`
+	AssetID   *string `json:"asset_id,omitempty"`
+}
+
 type macroEventResponse struct {
-	ID                    string   `json:"id"`
-	TemplateKey           *string  `json:"template_key,omitempty"`
-	Title                 string   `json:"title"`
-	Narrative             string   `json:"narrative"`
-	Direction             string   `json:"direction"`
-	MagnitudeBand         string   `json:"magnitude_band"`
-	AffectsPrice          bool     `json:"affects_price"`
-	AffectsFundamentals   bool     `json:"affects_fundamentals"`
-	Status                string   `json:"status"`
-	TriggeredOnDay        int      `json:"triggered_on_day"`
-	DurationDays          int      `json:"duration_days"`
-	PriceEffectPct        *float64 `json:"price_effect_pct,omitempty"`
-	FundamentalsEffectPct *float64 `json:"fundamentals_effect_pct,omitempty"`
-	FundamentalsReportDay *int     `json:"fundamentals_report_day,omitempty"`
+	ID                    string                      `json:"id"`
+	TemplateKey           *string                     `json:"template_key,omitempty"`
+	Title                 string                      `json:"title"`
+	Narrative             string                      `json:"narrative"`
+	Direction             string                      `json:"direction"`
+	MagnitudeBand         string                      `json:"magnitude_band"`
+	AffectsPrice          bool                        `json:"affects_price"`
+	AffectsFundamentals   bool                        `json:"affects_fundamentals"`
+	Status                string                      `json:"status"`
+	TriggeredOnDay        int                         `json:"triggered_on_day"`
+	DurationDays          int                         `json:"duration_days"`
+	PriceEffectPct        *float64                    `json:"price_effect_pct,omitempty"`
+	FundamentalsEffectPct *float64                    `json:"fundamentals_effect_pct,omitempty"`
+	FundamentalsReportDay *int                        `json:"fundamentals_report_day,omitempty"`
+	Targets               []macroEventTargetResponse `json:"targets"`
 }
 
 func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse {
+	targets := make([]macroEventTargetResponse, 0, len(event.Targets))
+	for _, target := range event.Targets {
+		var sector *string
+		if target.Sector != nil {
+			s := string(*target.Sector)
+			sector = &s
+		}
+		targets = append(targets, macroEventTargetResponse{
+			Sector:    sector,
+			RiskClass: target.RiskClass,
+			AssetID:   target.AssetID,
+		})
+	}
+
 	return macroEventResponse{
 		ID:                    id,
 		TemplateKey:           event.TemplateKey,
@@ -76,6 +102,7 @@ func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse 
 		PriceEffectPct:        event.PriceEffectPct,
 		FundamentalsEffectPct: event.FundamentalsEffectPct,
 		FundamentalsReportDay: event.FundamentalsReportDay,
+		Targets:               targets,
 	}
 }
 
