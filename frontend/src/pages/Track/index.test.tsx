@@ -136,9 +136,9 @@ describe('Track (tela 3.1)', () => {
 
         renderTrilha()
 
-        expect(await screen.findByRole('button', { name: 'Juros compostos — Disponível' })).toBeInTheDocument()
+        expect(await screen.findByRole('button', { name: 'Juros compostos: Disponível' })).toBeInTheDocument()
 
-        fireEvent.click(screen.getByRole('button', { name: 'Juros compostos — Disponível' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Juros compostos: Disponível' }))
         await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
     })
 
