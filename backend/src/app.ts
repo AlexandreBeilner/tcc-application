@@ -111,6 +111,7 @@ import { PlaceOrderUseCase } from './modules/market/application/useCases/placeOr
 import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCases/purchaseFixedIncome'
 import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
+import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
 import { createEngineFixedIncomeExecutor } from './modules/market/infrastructure/engine/engineFixedIncomeExecutor'
@@ -180,6 +181,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor)
   const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
   const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
+  const getFixedIncomeTaxRate = new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -372,6 +374,7 @@ export function createApp(deps: AppDeps = {}): Express {
       purchaseFixedIncome,
       redeemFixedIncome,
       simulateFixedIncome,
+      getFixedIncomeTaxRate,
       authMiddleware,
     }),
   )

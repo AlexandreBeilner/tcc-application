@@ -63,3 +63,9 @@ export const simulateFixedIncomeQuerySchema = z.object({
   amount: z.coerce.number().positive(),
   days_held: z.coerce.number().int().positive(),
 })
+
+// GET, sem asset_id/amount (tarefa 6.7) — a Calculadora em modo comparação
+// usa produtos hipotéticos, não um ativo real do catálogo.
+export const fixedIncomeTaxRateQuerySchema = z.object({
+  days_held: z.coerce.number().int().positive(),
+})

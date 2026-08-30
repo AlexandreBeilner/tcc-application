@@ -59,6 +59,18 @@ Ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb
 
 ---
 
+### `GET /fixed-income/tax-rate`
+
+*(Tarefa 6.7, decisão (b) do backlog: modo comparação da Calculadora usa juros compostos genéricos client-side, não um `asset_id` real do catálogo — este endpoint só expõe a alíquota, mais barato que `.../simulate`.)*
+
+- **Autenticação:** interno, mesma convenção das demais rotas deste módulo.
+- **Query params:** `days_held` (inteiro > 0, obrigatório — dias corridos hipotéticos de permanência).
+- **Sucesso:** `200` → `{ tax_rate }`. Sem nenhuma dependência de catálogo/conta — não responde `503` em nenhum cenário, diferente de todas as outras rotas deste módulo.
+- **Erros:** `400` — `days_held` ausente, não inteiro ou `<= 0`.
+- **Regra:** chama `fixedincome.RegressiveIncomeTaxRate(daysHeld)` direto — o cliente (Calculadora, modo comparação) decide se aplica a alíquota sobre o ganho projetado ou ignora, caso o produto hipotético seja isento (`LCI`/`LCA`/`CRI`/`CRA` — nenhum parâmetro de isenção aqui, o front já sabe se o produto simulado é isento antes de chamar este endpoint).
+
+---
+
 ### IR regressivo (tarefa 6.0.5)
 
 `fixedincome.RegressiveIncomeTaxRate(daysHeld int) float64` — tabela fixa da legislação brasileira (Lei 11.033/2004), por **dias corridos** (não dias úteis, diferente das fórmulas de precificação deste módulo):

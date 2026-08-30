@@ -15,6 +15,7 @@ import type {
     RedeemFixedIncomeResult,
     SimulateFixedIncomeInput,
     SimulateFixedIncomeResult,
+    FixedIncomeTaxRateResult,
 } from './types'
 
 export type {
@@ -50,6 +51,7 @@ export type {
     RedeemFixedIncomeResult,
     SimulateFixedIncomeInput,
     SimulateFixedIncomeResult,
+    FixedIncomeTaxRateResult,
 } from './types'
 export { ASSET_TYPES } from './types'
 
@@ -94,6 +96,12 @@ export function simulateFixedIncome(token: string, input: SimulateFixedIncomeInp
         days_held: String(input.days_held),
     })
     return apiRequest<SimulateFixedIncomeResult>(`/market/fixed-income/simulate?${params.toString()}`, { token })
+}
+
+// Sustenta a Calculadora, modo comparação (tarefa 6.7) — sem asset_id/
+// amount, diferente de simulateFixedIncome acima.
+export function getFixedIncomeTaxRate(token: string, daysHeld: number): Promise<FixedIncomeTaxRateResult> {
+    return apiRequest<FixedIncomeTaxRateResult>(`/market/fixed-income/tax-rate?days_held=${daysHeld}`, { token })
 }
 
 export function purchaseFixedIncome(token: string, input: PurchaseFixedIncomeInput): Promise<PurchaseFixedIncomeResult> {

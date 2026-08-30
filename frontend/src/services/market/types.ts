@@ -199,6 +199,10 @@ export interface SimulateFixedIncomeResult {
     net_projected_value: number
 }
 
+export interface FixedIncomeTaxRateResult {
+    tax_rate: number
+}
+
 export interface PurchaseFixedIncomeInput {
     asset_id: string
     amount: number

@@ -1,5 +1,7 @@
 import type {
   FixedIncomeExecutor,
+  FixedIncomeTaxRateInput,
+  FixedIncomeTaxRateResult,
   PurchaseFixedIncomeInput,
   PurchaseFixedIncomeResult,
   RedeemFixedIncomeInput,
@@ -35,6 +37,13 @@ export function createEngineFixedIncomeExecutor(engineUrl: string): FixedIncomeE
       })
       return engineFetch<SimulateFixedIncomeResult>(
         `${engineUrl}/fixed-income/simulate?${qs.toString()}`,
+      )
+    },
+
+    getTaxRate(input: FixedIncomeTaxRateInput) {
+      const qs = new URLSearchParams({ days_held: String(input.days_held) })
+      return engineFetch<FixedIncomeTaxRateResult>(
+        `${engineUrl}/fixed-income/tax-rate?${qs.toString()}`,
       )
     },
   }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 )
 
@@ -276,6 +277,33 @@ func handleFixedIncomeSimulate(catalogReader assetCatalogReader) http.HandlerFun
 			TaxRate:             outcome.TaxRate,
 			NetProjectedValue:   outcome.NetProjectedValue,
 		})
+	}
+}
+
+// taxRateResponse é a resposta de GET /fixed-income/tax-rate (tarefa 6.7)
+// — expõe só a alíquota de IR regressivo, sem exigir asset_id/amount como
+// GET /fixed-income/simulate. Sustenta o modo comparação da Calculadora
+// (6.2, lição 3.3 "CDB 110% CDI líquido vs. LCI 90% CDI isento"): os dois
+// produtos ali são parâmetros hipotéticos digitados pelo usuário, não um
+// ativo real do catálogo (decisão (b) do backlog 6.7) — por isso este
+// endpoint, mais barato que .../simulate, não depende de assetCatalogReader.
+type taxRateResponse struct {
+	TaxRate float64 `json:"tax_rate"`
+}
+
+// handleFixedIncomeTaxRate serve GET /fixed-income/tax-rate — função pura
+// (fixedincome.RegressiveIncomeTaxRate), sem colaborador nenhum, por isso
+// não recebe nenhum parâmetro nem participa da checagem de 503 dos demais
+// handlers deste arquivo.
+func handleFixedIncomeTaxRate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		daysHeld, err := strconv.Atoi(r.URL.Query().Get("days_held"))
+		if err != nil || daysHeld <= 0 {
+			writeCatalogError(w, http.StatusBadRequest, "days_held é obrigatório e deve ser um inteiro maior que zero")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, taxRateResponse{TaxRate: fixedincome.RegressiveIncomeTaxRate(daysHeld)})
 	}
 }
 

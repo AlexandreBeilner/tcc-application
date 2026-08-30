@@ -50,13 +50,26 @@ export interface SimulateFixedIncomeResult {
   net_projected_value: number
 }
 
+// FixedIncomeTaxRateInput/Result (tarefa 6.7) — sem asset_id/amount,
+// diferente de Simulate: sustenta o modo comparação da Calculadora (6.2),
+// que usa produtos hipotéticos digitados pelo usuário (decisão (b) do
+// backlog), não um ativo real do catálogo.
+export interface FixedIncomeTaxRateInput {
+  days_held: number
+}
+
+export interface FixedIncomeTaxRateResult {
+  tax_rate: number
+}
+
 // Executa compra/resgate de renda fixa no motor de simulação —
 // fixed_income_positions/market_events vivem no banco "market", dono é o
 // motor (precificação por deságio, marcação a mercado, Event Sourcing).
 // simulate (tarefa 6.0.5) nunca escreve nada — projeção pura, sem efeito
-// colateral.
+// colateral. getTaxRate (tarefa 6.7) idem, ainda mais leve (sem catálogo).
 export interface FixedIncomeExecutor {
   purchase(input: PurchaseFixedIncomeInput): Promise<PurchaseFixedIncomeResult>
   redeem(input: RedeemFixedIncomeInput): Promise<RedeemFixedIncomeResult>
   simulate(input: SimulateFixedIncomeInput): Promise<SimulateFixedIncomeResult>
+  getTaxRate(input: FixedIncomeTaxRateInput): Promise<FixedIncomeTaxRateResult>
 }

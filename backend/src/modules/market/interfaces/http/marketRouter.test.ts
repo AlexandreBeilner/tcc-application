@@ -14,6 +14,7 @@ import { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
+import { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
 import { createFakeAccountReader } from '../../test/fakes/fakeAccountReader'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeFixedIncomeExecutor } from '../../test/fakes/fakeFixedIncomeExecutor'
@@ -78,6 +79,7 @@ function buildApp() {
       tax_rate: 0.2,
       net_projected_value: 2080,
     },
+    getTaxRate: { tax_rate: 0.175 },
   })
 
   const app = express()
@@ -94,6 +96,7 @@ function buildApp() {
       purchaseFixedIncome: new PurchaseFixedIncomeUseCase(fixedIncomeExecutor),
       redeemFixedIncome: new RedeemFixedIncomeUseCase(fixedIncomeExecutor),
       simulateFixedIncome: new SimulateFixedIncomeUseCase(fixedIncomeExecutor),
+      getFixedIncomeTaxRate: new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor),
       authMiddleware,
     }),
   )
@@ -374,5 +377,37 @@ describe('GET /market/fixed-income/simulate', () => {
 
     expect(res.status).toBe(400)
     expect(res.body).toEqual({ error: 'simulação só é suportada pra ativo de renda fixa' })
+  })
+})
+
+describe('GET /market/fixed-income/tax-rate', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    const res = await request(app).get('/market/fixed-income/tax-rate?days_held=400')
+    expect(res.status).toBe(401)
+  })
+
+  it('repassa days_held pro FixedIncomeExecutor, sem exigir asset_id/amount/user_id', async () => {
+    const { app, tokenIssuer, fixedIncomeExecutor } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/fixed-income/tax-rate?days_held=400')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ tax_rate: 0.175 })
+    expect(fixedIncomeExecutor.getTaxRateCalls).toEqual([{ days_held: 400 }])
+  })
+
+  it('retorna 400 pra days_held ausente ou inválido', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/fixed-income/tax-rate?days_held=0')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
   })
 })
