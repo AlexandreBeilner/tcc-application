@@ -1,0 +1,142 @@
+.page {
+    display: flex;
+    flex-direction: column;
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
+
+/* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7):
+   conteúdo principal + ticket de ordem fixo na lateral, mesmo padrão real
+   de home broker fixado pelo mockup vivo (§0). */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .layout {
+        max-width: 1160px;
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.title {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.priceRow {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.price {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-4xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.change {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.gain {
+    background: var(--color-gain-100);
+    color: var(--color-gain-500);
+}
+
+.loss {
+    background: var(--color-loss-100);
+    color: var(--color-loss-500);
+}
+
+.awaitingQuote {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.companyLink {
+    align-self: flex-start;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-brand-300);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.dividends {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.dividendsTitle {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}

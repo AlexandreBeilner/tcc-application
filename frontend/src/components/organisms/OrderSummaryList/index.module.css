@@ -1,0 +1,59 @@
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.label {
+    color: var(--color-text-secondary);
+}
+
+.value {
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-weight: 500;
+    background: transparent;
+    transition: background 0.3s ease;
+}
+
+/* Price-flash (identidade-visual-padroes.md §2) — mesmo tom/duração de
+   `EquityOrderTicket.flash`, aqui reaproveitado pra qualquer linha (ex:
+   valor líquido projetado do simulador de renda fixa quando a simulação
+   assíncrona chega). */
+.flash {
+    background: rgba(240, 162, 2, 0.2);
+}
+
+.total {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-base);
+}
+
+.total .label {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.total .value {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+}
+
+.muted {
+    font-size: var(--font-size-xs);
+}
+
+.muted .label,
+.muted .value {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}

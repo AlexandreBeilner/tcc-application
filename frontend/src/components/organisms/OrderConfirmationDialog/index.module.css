@@ -1,0 +1,84 @@
+/* Confirmação de ação importante (identidade-visual-padroes.md §7): bottom
+   sheet subindo de baixo em mobile/tablet, modal central em desktop — como
+   overlay de verdade sobre a tela de origem (4.3/4.5), nunca uma rota
+   própria (`z-index` acima da TabBar fixa, `TabBar.module.css`). */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(6, 10, 20, 0.6);
+    animation: fadeIn 0.15s ease;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-6) var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--color-bg-surface-elevated);
+    animation: slideUp 0.2s ease;
+}
+
+@media (min-width: 1024px) {
+    .backdrop {
+        justify-content: center;
+        align-items: center;
+    }
+
+    .panel {
+        max-width: 420px;
+        border-radius: var(--radius-lg);
+        padding: var(--space-6);
+        animation: scaleIn 0.15s ease;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(16px);
+        opacity: 0;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.96);
+        opacity: 0;
+    }
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-error-100);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+.actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.actions > * {
+    flex: 1;
+}

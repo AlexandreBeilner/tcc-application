@@ -1,0 +1,78 @@
+.empty {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.chart {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-3);
+    height: 160px;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-surface);
+    background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 28px);
+}
+
+.bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 1;
+    height: 100%;
+}
+
+.barTrack {
+    display: flex;
+    align-items: flex-end;
+    width: 100%;
+    height: 100%;
+}
+
+.barFill {
+    position: relative;
+    width: 100%;
+    min-height: 4px;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    background: var(--color-brand-500);
+    cursor: default;
+}
+
+/* Tooltip de hover/foco (mesmo padrão de `TrackChart`) — mostra o valor
+   exato da barra sem depender do `title` nativo do navegador, que não
+   segue o tema da aplicação. */
+.tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    width: max-content;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.12s ease,
+        transform 0.12s ease;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    z-index: 5;
+}
+
+.barFill:hover .tooltip,
+.barFill:focus-visible .tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.barLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
