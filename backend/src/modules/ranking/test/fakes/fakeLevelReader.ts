@@ -1,9 +1,11 @@
 import type { LevelReader } from '../../application/ports/levelReader'
 
-export function createFakeLevelReader(levelsByUserId: Record<string, number> = {}): LevelReader {
+export function createFakeLevelReader(
+  progressionByUserId: Record<string, { level: number; xp: number }> = {},
+): LevelReader {
   return {
-    async getLevel(userId) {
-      return levelsByUserId[userId] ?? 1
+    async getProgression(userId) {
+      return progressionByUserId[userId] ?? { level: 1, xp: 0 }
     },
   }
 }

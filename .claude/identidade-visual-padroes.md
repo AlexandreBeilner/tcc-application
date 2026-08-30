@@ -72,6 +72,44 @@ de inflexão de ruído no path — sempre mantendo o marco seguinte acima do ant
 tracejado/projetado (seção 3) pode ter ruído mais discreto que o trecho sólido, já que é só uma
 expectativa, não um histórico.
 
+**Segundo uso do padrão (tarefa 6.8.4):** a sparkline por card do pódio da Classificação
+(`frontend/src/features/ranking/podiumSparkline`) generaliza a mesma técnica pra qualquer caso
+com só **2** marcos reais (não uma sequência inteira como a trilha) — início da janela (sempre
+0%) e agora (`profitabilityPct` real), com ruído determinístico (hash da seed, nunca
+`Math.random`) inserido só entre as duas âncoras. Confirma que o padrão não é exclusivo de
+`TrackChart`: qualquer visualização com pelo menos 2 pontos reais de uma progressão pode (e deve)
+usar ruído entre eles em vez de uma reta.
+
+## 4a. Pódio/ranking — pedestal físico por posição (tarefa 6.8.4)
+
+Quando uma tela precisa diferenciar 1º/2º/3º lugar com "altura real" (não só cor), separar o
+card de dado (nome, avatar, métrica — mesma altura pras 3 posições, pra manter a legibilidade do
+conteúdo independente da largura de tela) do **pedestal** (bloco abaixo do card, sem conteúdo além
+do número da posição, com altura física diferente por posição — 1º > 2º > 3º). Reaproveitável em
+qualquer pódio futuro do produto (não só a Classificação) — evita ter que redesenhar o card
+inteiro com alturas desiguais toda vez que uma posição precisa "parecer maior".
+
+Dourado (teatro de recompensa, §6) fica só no pedestal/avatar do 1º lugar — nunca no dado
+financeiro em si (rentabilidade continua verde/vermelho, mesmo no 1º lugar, mesmo negativo).
+Referência viva: `frontend/src/components/organisms/RankingBoard`.
+
+## 4b. Filtro de tela nunca desaparece do layout — desabilitar, não remover (tarefa 6.8.3)
+
+Achado apontado pelo autor na Classificação (7.1): o seletor de critério (6.8.3) usava um
+`Select` pro critério e outro pra janela, e o de Janela **desaparecia do DOM** quando o critério
+"Nível" não usa janela — o espaço vago realocava e o controle de Critério ao lado "saltava" de
+posição a cada troca. Regra geral daqui pra frente: um filtro/controle que não se aplica a um
+estado da tela fica **desabilitado no lugar** (opacidade reduzida, `disabled`, `title`/tooltip
+explicando o motivo), nunca desmontado — nada ao redor pode se mover só porque um controle deixou
+de fazer sentido.
+
+Resolvido reaproveitando o próprio padrão de toggle em pill já usado no escopo Global/Amigos —
+os 3 filtros da Classificação (Escopo/Critério/Janela) viraram grupos de pills sempre visíveis,
+nunca um `Select` que esconde as opções por trás de um dropdown. Composição responsiva: barra
+horizontal acima do conteúdo em mobile/tablet, painel lateral fixo/sticky em desktop (≥1024px,
+mesmo padrão de "conteúdo + coluna de apoio" do §7). Referência viva:
+`frontend/src/pages/Classificacao`.
+
 ## 5. Cor — reforço da regra de não-sobreposição (tokens, seção 2.3)
 
 Ação de UI (toggle Comprar/Vender, botão genérico) **nunca** reaproveita verde/vermelho de

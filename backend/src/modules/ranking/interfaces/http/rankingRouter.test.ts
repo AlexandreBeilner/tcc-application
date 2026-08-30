@@ -44,7 +44,7 @@ function buildApp() {
     userDirectory,
     createFakeSandboxAssetReader(),
     getNetWorth,
-    createFakeLevelReader({ u1: 2 }),
+    createFakeLevelReader({ u1: { level: 2, xp: 250 } }),
     createFakeFriendGraphReader(),
   )
   const tokenIssuer = createFakeTokenIssuer()
@@ -100,8 +100,13 @@ describe('ranking routes', () => {
     expect(res.body).toEqual({
       window: 'week',
       scope: 'global',
-      entries: [{ userId: 'u1', username: 'alice', level: 2, profitabilityPct: 10 }],
+      criterion: 'overall',
+      entries: [{ userId: 'u1', username: 'alice', level: 2, xp: 250, profitabilityPct: 10 }],
       requestingUserPosition: 1,
+      page: 1,
+      pageSize: 25,
+      totalEntries: 1,
+      totalPages: 1,
     })
   })
 
@@ -117,7 +122,33 @@ describe('ranking routes', () => {
     expect(res.body.scope).toBe('friends')
     // Sem amigos aceitos, só o próprio usuário aparece.
     expect(res.body.entries).toEqual([
-      { userId: 'u1', username: 'alice', level: 2, profitabilityPct: 10 },
+      { userId: 'u1', username: 'alice', level: 2, xp: 250, profitabilityPct: 10 },
     ])
+  })
+
+  it('GET /ranking?criterion=level dispensa window e ordena por xp', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .get('/ranking?criterion=level')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.window).toBeNull()
+    expect(res.body.entries).toEqual([
+      { userId: 'u1', username: 'alice', level: 2, xp: 250, profitabilityPct: null },
+    ])
+  })
+
+  it('GET /ranking?criterion=inválido retorna 400', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .get('/ranking?window=week&criterion=xp')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
   })
 })

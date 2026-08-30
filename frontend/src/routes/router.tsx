@@ -4,7 +4,9 @@ import { AppShell } from '../components/templates/AppShell'
 import { AssetDetail } from '../pages/AssetDetail'
 import { AuthCallback } from '../pages/AuthCallback'
 import { Calculator } from '../pages/Calculator'
+import { Classificacao } from '../pages/Classificacao'
 import { CompanyProfile } from '../pages/CompanyProfile'
+import { Conquistas } from '../pages/Conquistas'
 import { EquityList } from '../pages/EquityList'
 import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
 import { FixedIncomeList } from '../pages/FixedIncomeList'
@@ -64,14 +66,14 @@ export const router = createBrowserRouter([
                     { path: '/mercado/ativos/:id', element: <AssetDetail /> },
                     { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
                     { path: '/calculadora', element: <Calculator /> },
-                    { path: '/classificacao', element: <PlaceholderPage title="Classificação" /> },
+                    { path: '/classificacao', element: <Classificacao /> },
                     { path: '/noticias', element: <News /> },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
                     // — conteúdo real (4.8 Extrato, tarefa 6.5).
                     { path: '/extrato', element: <Statement /> },
                     { path: '/perfil', element: <PlaceholderPage title="Meu Perfil" /> },
                     { path: '/amigos', element: <PlaceholderPage title="Amigos" /> },
-                    { path: '/conquistas', element: <PlaceholderPage title="Conquistas" /> },
+                    { path: '/conquistas', element: <Conquistas /> },
                     {
                         path: '/configuracoes',
                         element: <PlaceholderPage title="Configurações e Privacidade" />,

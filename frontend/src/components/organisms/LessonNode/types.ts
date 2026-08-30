@@ -1,6 +1,8 @@
-import type { Lesson } from '../../../services/lessons'
+export type LessonNodeStatus = 'completed' | 'available' | 'locked'
 
 export interface LessonNodeProps {
-    lesson: Lesson
+    status: LessonNodeStatus
+    title: string
+    meta: string
     onClick: () => void
 }

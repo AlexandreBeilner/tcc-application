@@ -8,12 +8,14 @@ import type { MyAccount } from '../../services/market'
 import { getProgression, getStreak } from '../../services/gamification'
 import { listLessons } from '../../services/lessons'
 import type { Lesson } from '../../services/lessons'
+import { listMissions } from '../../services/missions'
 import { Portfolio } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/market', () => ({ getMyAccount: vi.fn() }))
 vi.mock('../../services/gamification', () => ({ getProgression: vi.fn(), getStreak: vi.fn() }))
 vi.mock('../../services/lessons', () => ({ listLessons: vi.fn() }))
+vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
 
 function renderPortfolio() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -25,6 +27,7 @@ function renderPortfolio() {
             { path: '/mercado', element: <div>tela de mercado</div> },
             { path: '/conquistas', element: <div>tela de conquistas</div> },
             { path: '/extrato', element: <div>tela de extrato</div> },
+            { path: '/noticias', element: <div>tela de notícias</div> },
         ],
         { initialEntries: ['/'] },
     )
@@ -77,6 +80,7 @@ describe('Portfolio (tela 2.1)', () => {
             logout: vi.fn(),
             setUser: vi.fn(),
         })
+        vi.mocked(listMissions).mockResolvedValue({ missions: [] })
     })
 
     afterEach(() => {
@@ -189,6 +193,45 @@ describe('Portfolio (tela 2.1)', () => {
         await waitFor(() => expect(screen.getByRole('button', { name: 'Ver extrato do mercado ao vivo' })).toBeInTheDocument())
         fireEvent.click(screen.getByRole('button', { name: 'Ver extrato do mercado ao vivo' }))
         await waitFor(() => expect(screen.getByText('tela de extrato')).toBeInTheDocument())
+    })
+
+    it('mostra as missões do dia e navega pra tela que cumpre a missão clicada', async () => {
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+        vi.mocked(listMissions).mockResolvedValue({
+            missions: [
+                {
+                    id: 'm1',
+                    key: 'feed_read',
+                    title: 'Consulte o feed de notícias',
+                    description: 'Leia pelo menos um evento no feed hoje.',
+                    completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase.',
+                    xpReward: 10,
+                    requiresLessonCompletion: false,
+                    status: 'pending',
+                },
+            ],
+        })
+
+        renderPortfolio()
+
+        await waitFor(() => expect(screen.getByText('Consulte o feed de notícias')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: /Consulte o feed de notícias/ }))
+        await waitFor(() => expect(screen.getByText('tela de notícias')).toBeInTheDocument())
+    })
+
+    it('sem missões do dia não mostra a seção "Missões do dia"', async () => {
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+
+        renderPortfolio()
+
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Investir' })).toBeInTheDocument())
+        expect(screen.queryByText('Missões do dia')).not.toBeInTheDocument()
     })
 
     it('erro ao carregar a conta mostra mensagem, sem quebrar a tela', async () => {
