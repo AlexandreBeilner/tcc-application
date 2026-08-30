@@ -26,6 +26,7 @@ function renderPage() {
 
 const feedMission = {
     id: 'mission-feed',
+    key: 'feed_read',
     title: 'Consulte o feed de notícias',
     description: 'Abra o feed de notícias de mercado e leia pelo menos um evento.',
     completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase',
@@ -246,6 +247,70 @@ describe('News (tela 5.1)', () => {
         fireEvent.click(await screen.findByText('Evento não visto'))
 
         await waitFor(() => expect(markNewsEventSeen).toHaveBeenCalledWith('token', 'e1'))
+    })
+
+    it('reporta a missão mesmo quando GET /missions ainda não respondeu na primeira leitura', async () => {
+        let resolveMissions!: (value: Awaited<ReturnType<typeof listMissions>>) => void
+        vi.mocked(listMissions).mockReturnValue(
+            new Promise((resolve) => {
+                resolveMissions = resolve
+            }),
+        )
+        vi.mocked(listNews).mockResolvedValue({
+            events: [
+                {
+                    id: 'e1',
+                    title: 'Evento antes das missões carregarem',
+                    narrative: 'narrativa',
+                    direction: 'misto',
+                    magnitude_band: 'leve',
+                    affects_price: true,
+                    affects_fundamentals: false,
+                    status: 'pendente',
+                    triggered_on_day: 1,
+                    duration_days: 1,
+                    targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
+                },
+            ],
+        })
+
+        renderPage()
+        fireEvent.click(await screen.findByText('Evento antes das missões carregarem'))
+        expect(completeMission).not.toHaveBeenCalled()
+
+        resolveMissions({ missions: [feedMission] })
+
+        await waitFor(() => expect(completeMission).toHaveBeenCalledWith('token', 'mission-feed'))
+    })
+
+    it('marcar um evento como visto não recarrega o feed inteiro (patch local do cache)', async () => {
+        vi.mocked(listNews).mockResolvedValue({
+            events: [
+                {
+                    id: 'e1',
+                    title: 'Evento não visto',
+                    narrative: 'narrativa',
+                    direction: 'misto',
+                    magnitude_band: 'leve',
+                    affects_price: true,
+                    affects_fundamentals: false,
+                    status: 'pendente',
+                    triggered_on_day: 1,
+                    duration_days: 1,
+                    targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
+                },
+            ],
+        })
+
+        renderPage()
+        fireEvent.click(await screen.findByText('Evento não visto'))
+
+        await waitFor(() => expect(markNewsEventSeen).toHaveBeenCalledWith('token', 'e1'))
+        expect(listNews).toHaveBeenCalledTimes(1)
     })
 
     it('não chama POST /news/:id/seen pra evento já visto', async () => {

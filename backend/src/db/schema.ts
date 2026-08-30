@@ -154,6 +154,13 @@ export const friendships = pgTable(
 
 export const dailyMissions = pgTable('daily_missions', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // Slug estável (ex: 'feed_read') pra código cliente identificar uma
+  // missão específica sem depender de texto (`title`) — o único jeito que
+  // frontend/features/news/useReportFeedMission tinha até a tarefa 6.6.4,
+  // já que `completionCriteria` é texto idêntico pras missões
+  // auto-reportadas ("Reportado pelo cliente — sem verificação cruzada
+  // nesta fase") e `title` pode mudar (correção de texto, tradução).
+  key: varchar('key', { length: 50 }).notNull().unique(),
   title: varchar('title', { length: 150 }).notNull(),
   description: text('description'),
   completionCriteria: text('completion_criteria').notNull(),

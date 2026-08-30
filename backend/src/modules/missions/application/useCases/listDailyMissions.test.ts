@@ -5,6 +5,7 @@ import { ListDailyMissionsUseCase } from './listDailyMissions'
 const catalog = [
   {
     id: 'm1',
+    key: 'lesson_complete',
     title: 'Complete uma lição da trilha',
     description: null,
     completionCriteria: 'Concluir qualquer lição hoje',
@@ -13,6 +14,7 @@ const catalog = [
   },
   {
     id: 'm2',
+    key: 'feed_read',
     title: 'Consulte o feed de notícias',
     description: null,
     completionCriteria: 'Abrir o feed de notícias',

@@ -2,6 +2,10 @@ export type MissionStatus = 'pending' | 'completed'
 
 export interface Mission {
   id: string
+  // Slug estável (ex: 'feed_read') — identificador pra código cliente achar
+  // uma missão específica sem depender de `title` (tarefa 6.6.4; ver
+  // `.docs/backend/missions.md`).
+  key: string
   title: string
   description: string | null
   completionCriteria: string

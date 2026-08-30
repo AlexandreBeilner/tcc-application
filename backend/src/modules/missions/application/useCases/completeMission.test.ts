@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { LessonNotCompletedTodayError, MissionNotFoundError } from '../../domain/errors'
+import { todayUtc } from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -8,6 +9,7 @@ import { CompleteMissionUseCase } from './completeMission'
 
 const lessonMission = {
   id: 'm1',
+  key: 'lesson_complete',
   title: 'Complete uma lição da trilha',
   description: null,
   completionCriteria: 'Concluir qualquer lição hoje',
@@ -17,6 +19,7 @@ const lessonMission = {
 
 const feedMission = {
   id: 'm2',
+  key: 'feed_read',
   title: 'Consulte o feed de notícias',
   description: null,
   completionCriteria: 'Abrir o feed de notícias',
@@ -80,6 +83,22 @@ describe('CompleteMissionUseCase', () => {
   it('conclusão de missão já concluída é idempotente — não credita xp/streak de novo', async () => {
     const { missionRepository, xpAwarder, streakTracker, useCase } = build(false)
     await missionRepository.markCompleted('u1', 'm2', new Date().toISOString().slice(0, 10))
+
+    const result = await useCase.execute({ userId: 'u1', missionId: 'm2' })
+
+    expect(result).toEqual({ status: 'completed' })
+    expect(xpAwarder.awarded).toHaveLength(0)
+    expect(streakTracker.touchedUserIds).toHaveLength(0)
+  })
+
+  it('duas requisições concorrentes só creditam xp uma vez — markCompleted é quem decide, não o findProgress', async () => {
+    const { missionRepository, xpAwarder, streakTracker, useCase } = build(false)
+    // Simula a janela de corrida: a leitura de `findProgress` desta
+    // requisição ainda não enxerga a conclusão que "outra requisição"
+    // (o `markCompleted` chamado abaixo, fora do use case) já efetivou no
+    // banco — só o claim atômico de `markCompleted` detecta isso de fato.
+    await missionRepository.markCompleted('u1', 'm2', todayUtc(new Date()))
+    vi.spyOn(missionRepository, 'findProgress').mockResolvedValueOnce(undefined)
 
     const result = await useCase.execute({ userId: 'u1', missionId: 'm2' })
 

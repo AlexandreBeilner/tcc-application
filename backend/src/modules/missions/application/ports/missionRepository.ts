@@ -23,7 +23,15 @@ export interface MissionRepository {
     missionId: string,
     missionDate: string,
   ): Promise<MissionProgressSnapshot | undefined>
-  markCompleted(userId: string, missionId: string, missionDate: string): Promise<void>
+  // Transição atômica pending/inexistente → completed (UPSERT condicional
+  // no adapter real, não um `findProgress` + `UPDATE` separados) — devolve
+  // `true` só pra quem de fato realizou a transição agora. Duas chamadas
+  // concorrentes pra `(userId, missionId, missionDate)` só podem ter uma
+  // vencedora; a perdedora recebe `false` mesmo sem erro, evitando que
+  // `CompleteMissionUseCase` credite xp em dobro sob corrida (ver
+  // `findProgress` acima, que é só um atalho pra reenvio sequencial, não a
+  // proteção real).
+  markCompleted(userId: string, missionId: string, missionDate: string): Promise<boolean>
   // Todo o histórico do usuário, qualquer data — só pra exportação de dados
   // (5.11, RNF04); `listProgressForDate` continua sendo o caminho de leitura
   // do dia corrente (GET /missions).

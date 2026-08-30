@@ -5,6 +5,7 @@ import { ExportMissionProgressUseCase } from './exportMissionProgress'
 const catalog = [
   {
     id: 'm1',
+    key: 'missao_1',
     title: 'Missão 1',
     description: null,
     completionCriteria: 'x',

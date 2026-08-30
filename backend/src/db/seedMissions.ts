@@ -3,6 +3,7 @@ import { createDb } from './client'
 import { dailyMissions } from './schema'
 
 interface MissionSeed {
+  key: string
   title: string
   description: string
   completionCriteria: string
@@ -12,9 +13,13 @@ interface MissionSeed {
 
 // Catálogo mínimo (tarefa 5.4) — as 3 missões de exemplo da spec 6.1.
 // `xpReward` flat e ilustrativo (sujeito à calibração da tarefa 8.1), mesmo
-// tratamento de `LESSON_XP_REWARD` (5.6).
+// tratamento de `LESSON_XP_REWARD` (5.6). `key` (tarefa 6.6.4) é o
+// identificador estável que código cliente usa pra achar uma missão
+// específica — `title` pode mudar (correção de texto, tradução) sem quebrar
+// esse casamento.
 const MISSION_SEEDS: MissionSeed[] = [
   {
+    key: 'lesson_complete',
     title: 'Complete uma lição da trilha',
     description: 'Avance em qualquer lição da sua trilha de aprendizagem hoje.',
     completionCriteria: 'Concluir o step de desbloqueio de qualquer lição no dia',
@@ -22,6 +27,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     requiresLessonCompletion: true,
   },
   {
+    key: 'calculator_compare',
     title: 'Compare dois produtos de renda fixa na calculadora',
     description: 'Use a calculadora financeira pra comparar dois produtos de renda fixa.',
     completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase',
@@ -29,6 +35,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     requiresLessonCompletion: false,
   },
   {
+    key: 'feed_read',
     title: 'Consulte o feed de notícias',
     description: 'Abra o feed de notícias de mercado e leia pelo menos um evento.',
     completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase',
@@ -37,7 +44,7 @@ const MISSION_SEEDS: MissionSeed[] = [
   },
 ]
 
-// Idempotente por título: DATABASE_URL=... npm run db:seed:missions
+// Idempotente por key: DATABASE_URL=... npm run db:seed:missions
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
@@ -46,16 +53,16 @@ async function main() {
   }
 
   const db = createDb(databaseUrl)
-  const existing = await db.select({ title: dailyMissions.title }).from(dailyMissions)
-  const existingTitles = new Set(existing.map((row) => row.title))
+  const existing = await db.select({ key: dailyMissions.key }).from(dailyMissions)
+  const existingKeys = new Set(existing.map((row) => row.key))
 
   for (const seed of MISSION_SEEDS) {
-    if (existingTitles.has(seed.title)) {
-      console.log(`missão "${seed.title}" já existia — nada a fazer`)
+    if (existingKeys.has(seed.key)) {
+      console.log(`missão "${seed.key}" já existia — nada a fazer`)
       continue
     }
     await db.insert(dailyMissions).values({ id: randomUUID(), ...seed })
-    console.log(`missão "${seed.title}" criada`)
+    console.log(`missão "${seed.key}" criada`)
   }
   process.exit(0)
 }

@@ -3,6 +3,10 @@
 // `GET` do dia.
 export interface DailyMission {
     id: string
+    // Slug estável (ex: 'feed_read', tarefa 6.6.4) — usar pra achar uma
+    // missão específica no catálogo, nunca `title` (texto livre, pode
+    // mudar).
+    key: string
     title: string
     description: string
     completionCriteria: string
