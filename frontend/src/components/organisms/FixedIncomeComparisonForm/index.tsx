@@ -73,6 +73,12 @@ export function FixedIncomeComparisonForm() {
                 </label>
             </div>
 
+            {taxRateQuery.isError && (
+                <p className={styles.error} role="alert">
+                    Não foi possível carregar a alíquota de IR agora. Tente novamente em instantes.
+                </p>
+            )}
+
             <div className={styles.products}>
                 {products.map((product, index) => {
                     const result = results?.[index]
