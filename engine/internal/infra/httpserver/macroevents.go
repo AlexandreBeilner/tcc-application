@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
@@ -43,24 +44,55 @@ type triggerMacroEventRequest struct {
 	CreatedBy           *string                          `json:"created_by"`
 }
 
+// macroEventTargetResponse espelha macroevent.Target — exatamente um entre
+// Sector/RiskClass/AssetID preenchido (macroevent.NewTarget já garante essa
+// exclusividade antes da persistência). AffectedMetric não é exposto: é
+// derivado deterministicamente de affects_price/affects_fundamentals (já no
+// nível do evento), redundante pra quem consome esta resposta.
+type macroEventTargetResponse struct {
+	Sector    *string `json:"sector,omitempty"`
+	RiskClass *string `json:"risk_class,omitempty"`
+	AssetID   *string `json:"asset_id,omitempty"`
+}
+
 type macroEventResponse struct {
-	ID                    string   `json:"id"`
-	TemplateKey           *string  `json:"template_key,omitempty"`
-	Title                 string   `json:"title"`
-	Narrative             string   `json:"narrative"`
-	Direction             string   `json:"direction"`
-	MagnitudeBand         string   `json:"magnitude_band"`
-	AffectsPrice          bool     `json:"affects_price"`
-	AffectsFundamentals   bool     `json:"affects_fundamentals"`
-	Status                string   `json:"status"`
-	TriggeredOnDay        int      `json:"triggered_on_day"`
-	DurationDays          int      `json:"duration_days"`
-	PriceEffectPct        *float64 `json:"price_effect_pct,omitempty"`
-	FundamentalsEffectPct *float64 `json:"fundamentals_effect_pct,omitempty"`
-	FundamentalsReportDay *int     `json:"fundamentals_report_day,omitempty"`
+	ID                    string                     `json:"id"`
+	TemplateKey           *string                    `json:"template_key,omitempty"`
+	Title                 string                     `json:"title"`
+	Narrative             string                     `json:"narrative"`
+	Direction             string                     `json:"direction"`
+	MagnitudeBand         string                     `json:"magnitude_band"`
+	AffectsPrice          bool                       `json:"affects_price"`
+	AffectsFundamentals   bool                       `json:"affects_fundamentals"`
+	Status                string                     `json:"status"`
+	TriggeredOnDay        int                        `json:"triggered_on_day"`
+	DurationDays          int                        `json:"duration_days"`
+	PriceEffectPct        *float64                   `json:"price_effect_pct,omitempty"`
+	FundamentalsEffectPct *float64                   `json:"fundamentals_effect_pct,omitempty"`
+	FundamentalsReportDay *int                       `json:"fundamentals_report_day,omitempty"`
+	Targets               []macroEventTargetResponse `json:"targets"`
+	// CreatedAt só é preenchido por toMacroEventResponseFromRecord (GET
+	// /macro-events, tarefa 6.6.1) — o disparo em si (POST /macro-events)
+	// não busca created_at de volta do banco depois do INSERT, então fica
+	// omitido (não zero-valued) nessa resposta.
+	CreatedAt *time.Time `json:"created_at,omitempty"`
 }
 
 func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse {
+	targets := make([]macroEventTargetResponse, 0, len(event.Targets))
+	for _, target := range event.Targets {
+		var sector *string
+		if target.Sector != nil {
+			s := string(*target.Sector)
+			sector = &s
+		}
+		targets = append(targets, macroEventTargetResponse{
+			Sector:    sector,
+			RiskClass: target.RiskClass,
+			AssetID:   target.AssetID,
+		})
+	}
+
 	return macroEventResponse{
 		ID:                    id,
 		TemplateKey:           event.TemplateKey,
@@ -76,7 +108,20 @@ func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse 
 		PriceEffectPct:        event.PriceEffectPct,
 		FundamentalsEffectPct: event.FundamentalsEffectPct,
 		FundamentalsReportDay: event.FundamentalsReportDay,
+		Targets:               targets,
 	}
+}
+
+// toMacroEventResponseFromRecord estende toMacroEventResponse com
+// created_at (macroevent.Record, não macroevent.Event — ver doc do pacote
+// pra por que os dois campos vivem separados) — usado só por
+// handleListMacroEvents (GET /macro-events, tarefa 6.6.1), nunca pelo
+// disparo (POST /macro-events não tem created_at de volta do INSERT).
+func toMacroEventResponseFromRecord(rec macroevent.Record) macroEventResponse {
+	resp := toMacroEventResponse(rec.ID, rec.Event)
+	createdAt := rec.CreatedAt
+	resp.CreatedAt = &createdAt
+	return resp
 }
 
 // handleTriggerMacroEvent serve POST /macro-events — dispara um evento
@@ -204,7 +249,7 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 
 		events := make([]macroEventResponse, 0, len(records))
 		for _, rec := range records {
-			events = append(events, toMacroEventResponse(rec.ID, rec.Event))
+			events = append(events, toMacroEventResponseFromRecord(rec))
 		}
 		writeJSON(w, http.StatusOK, macroEventListResponse{Events: events})
 	}

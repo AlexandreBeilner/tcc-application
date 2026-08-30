@@ -32,7 +32,7 @@ export function LessonNode({ lesson, onClick }: LessonNodeProps) {
             type="button"
             className={[styles.node, styles[lesson.status]].join(' ')}
             onClick={onClick}
-            aria-label={`${lesson.title} — ${meta}`}
+            aria-label={`${lesson.title}: ${meta}`}
         >
             <span className={styles.badge} aria-hidden="true">
                 <StatusIcon size={16} strokeWidth={2} fill={lesson.status === 'available' ? 'currentColor' : 'none'} />

@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
 )
@@ -76,6 +78,100 @@ func TestHandleListMacroEvents_DefaultPagination(t *testing.T) {
 	}
 }
 
+// TestHandleListMacroEvents_IncluiTargets cobre o gap achado na sessão da
+// tarefa 6.6 (frontend): GET /macro-events nunca devolvia targets (nem no
+// domínio nem na resposta HTTP) apesar da tela 5.1 (Feed de Notícias)
+// precisar deles pra linkar cada evento pro ativo/empresa afetado.
+func TestHandleListMacroEvents_IncluiTargets(t *testing.T) {
+	sector := catalog.Sector("Financeiro")
+	riskClass := "alto"
+	assetID := "asset-1"
+	fake := &fakeMacroEventLister{records: []macroevent.Record{
+		{
+			ID: "event-1",
+			Event: macroevent.Event{
+				Title:  "t1",
+				Status: macroevent.StatusPendente,
+				Targets: []macroevent.Target{
+					{Sector: &sector, AffectedMetric: macroevent.MetricPrice},
+					{RiskClass: &riskClass, AffectedMetric: macroevent.MetricPrice},
+					{AssetID: &assetID, AffectedMetric: macroevent.MetricPrice},
+				},
+			},
+		},
+	}}
+
+	rec := getMacroEvents(t, fake, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body macroEventListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Events) != 1 {
+		t.Fatalf("Events = %+v, want 1 evento", body.Events)
+	}
+	targets := body.Events[0].Targets
+	if len(targets) != 3 {
+		t.Fatalf("Targets = %+v, want 3", targets)
+	}
+	if targets[0].Sector == nil || *targets[0].Sector != "Financeiro" {
+		t.Errorf("Targets[0].Sector = %v, want Financeiro", targets[0].Sector)
+	}
+	if targets[1].RiskClass == nil || *targets[1].RiskClass != "alto" {
+		t.Errorf("Targets[1].RiskClass = %v, want alto", targets[1].RiskClass)
+	}
+	if targets[2].AssetID == nil || *targets[2].AssetID != "asset-1" {
+		t.Errorf("Targets[2].AssetID = %v, want asset-1", targets[2].AssetID)
+	}
+}
+
+// TestHandleListMacroEvents_SemTargetsDevolveArrayVazio garante que um
+// evento sem target (não deveria existir de verdade — macroevent.NewEvent
+// exige >= 1 — mas o zero-value de um Record{} não popula Targets) devolve
+// `"targets": []`, nunca `null`, pra não obrigar o frontend a checar nulo
+// antes de iterar.
+func TestHandleListMacroEvents_SemTargetsDevolveArrayVazio(t *testing.T) {
+	fake := &fakeMacroEventLister{records: []macroevent.Record{
+		{ID: "event-1", Event: macroevent.Event{Title: "t1", Status: macroevent.StatusPendente}},
+	}}
+
+	rec := getMacroEvents(t, fake, "")
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"targets":[]`)) {
+		t.Errorf("body = %s, want targets como array vazio, não null", rec.Body.String())
+	}
+}
+
+// TestHandleListMacroEvents_IncluiCreatedAt cobre o gap achado na sessão da
+// tarefa 6.6.1: GET /macro-events nunca lia macro_events.created_at (a
+// coluna existe desde a migration 000001, mas List/DTO nunca a expunham) —
+// a tela 5.1 (Feed de Notícias) precisa da data real de criação, não do
+// dia simulado (triggered_on_day).
+func TestHandleListMacroEvents_IncluiCreatedAt(t *testing.T) {
+	createdAt := time.Date(2026, 8, 30, 14, 5, 0, 0, time.UTC)
+	fake := &fakeMacroEventLister{records: []macroevent.Record{
+		{ID: "event-1", CreatedAt: createdAt, Event: macroevent.Event{Title: "t1", Status: macroevent.StatusPendente}},
+	}}
+
+	rec := getMacroEvents(t, fake, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body macroEventListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Events) != 1 || body.Events[0].CreatedAt == nil {
+		t.Fatalf("Events = %+v, want 1 evento com CreatedAt preenchido", body.Events)
+	}
+	if !body.Events[0].CreatedAt.Equal(createdAt) {
+		t.Errorf("CreatedAt = %v, want %v", body.Events[0].CreatedAt, createdAt)
+	}
+}
+
 func TestHandleListMacroEvents_RepassaLimitEOffset(t *testing.T) {
 	fake := &fakeMacroEventLister{}
 	rec := getMacroEvents(t, fake, "?limit=5&offset=10")
@@ -124,6 +220,7 @@ func TestHandleListMacroEvents_ErroInternoRetorna500(t *testing.T) {
 
 func TestHandleTriggerMacroEvent_ComTemplate(t *testing.T) {
 	priceEffect := -10.5
+	sector := catalog.Sector("Mineração")
 	fake := &fakeMacroEventTriggerer{
 		id: "event-1",
 		event: macroevent.Event{
@@ -137,6 +234,7 @@ func TestHandleTriggerMacroEvent_ComTemplate(t *testing.T) {
 			TriggeredOnDay: 5,
 			DurationDays:   2,
 			PriceEffectPct: &priceEffect,
+			Targets:        []macroevent.Target{{Sector: &sector, AffectedMetric: macroevent.MetricPrice}},
 		},
 	}
 
@@ -157,6 +255,9 @@ func TestHandleTriggerMacroEvent_ComTemplate(t *testing.T) {
 	}
 	if body.PriceEffectPct == nil || *body.PriceEffectPct != -10.5 {
 		t.Errorf("PriceEffectPct = %v, want -10.5", body.PriceEffectPct)
+	}
+	if len(body.Targets) != 1 || body.Targets[0].Sector == nil || *body.Targets[0].Sector != "Mineração" {
+		t.Errorf("Targets = %+v, want 1 target com Sector Mineração", body.Targets)
 	}
 
 	if fake.got.TemplateKey == nil || *fake.got.TemplateKey != "legislacao-ambiental-mineracao" {

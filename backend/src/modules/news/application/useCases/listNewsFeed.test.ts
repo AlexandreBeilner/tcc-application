@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createFakeNewsFeedReader } from '../../test/fakes/fakeNewsFeedReader'
+import { createFakeNewsReadRepository } from '../../test/fakes/fakeNewsReadRepository'
 import { ListNewsFeedUseCase } from './listNewsFeed'
 
 const sampleResult = {
@@ -15,19 +16,70 @@ const sampleResult = {
       status: 'pendente',
       triggered_on_day: 5,
       duration_days: 1,
+      targets: [{ sector: 'Financeiro' }],
+      created_at: '2026-08-30T14:05:00.000Z',
+    },
+    {
+      id: 'event-2',
+      title: 'título 2',
+      narrative: 'narrativa 2',
+      direction: 'positivo',
+      magnitude_band: 'moderado',
+      affects_price: true,
+      affects_fundamentals: false,
+      status: 'aplicado',
+      triggered_on_day: 4,
+      duration_days: 1,
+      targets: [],
+      created_at: '2026-08-29T14:05:00.000Z',
     },
   ],
 }
 
 describe('ListNewsFeedUseCase', () => {
-  it('repassa a query pra port e devolve o resultado', async () => {
+  it('repassa limit/offset (sem userId) pra port do motor', async () => {
     const newsFeedReader = createFakeNewsFeedReader(sampleResult)
-    const useCase = new ListNewsFeedUseCase(newsFeedReader)
+    const newsReadRepository = createFakeNewsReadRepository()
+    const useCase = new ListNewsFeedUseCase(newsFeedReader, newsReadRepository)
 
-    const result = await useCase.execute({ limit: 5, offset: 10 })
+    await useCase.execute({ userId: 'user-1', limit: 5, offset: 10 })
 
-    expect(result).toEqual(sampleResult)
     expect(newsFeedReader.calls).toEqual([{ limit: 5, offset: 10 }])
+  })
+
+  it('decora cada evento com seen, cruzando com a leitura do usuário, sem alterar campos do evento aplicado', async () => {
+    const newsFeedReader = createFakeNewsFeedReader(sampleResult)
+    const newsReadRepository = createFakeNewsReadRepository([
+      { userId: 'user-1', macroEventId: 'event-2' },
+    ])
+    const useCase = new ListNewsFeedUseCase(newsFeedReader, newsReadRepository)
+
+    const result = await useCase.execute({ userId: 'user-1' })
+
+    expect(result).toEqual({
+      events: [
+        { ...sampleResult.events[0], direction: '', magnitude_band: '', targets: [], seen: false },
+        { ...sampleResult.events[1], seen: true },
+      ],
+    })
+    expect(newsReadRepository.listCalls).toEqual([
+      { userId: 'user-1', macroEventIds: ['event-1', 'event-2'] },
+    ])
+  })
+
+  it('esconde direction/magnitude_band/efeitos/targets de evento pendente (RF16, tarefa 6.6.3)', async () => {
+    const newsFeedReader = createFakeNewsFeedReader(sampleResult)
+    const newsReadRepository = createFakeNewsReadRepository()
+    const useCase = new ListNewsFeedUseCase(newsFeedReader, newsReadRepository)
+
+    const result = await useCase.execute({ userId: 'user-1' })
+
+    const pending = result.events.find((e) => e.id === 'event-1')
+    expect(pending).toMatchObject({ direction: '', magnitude_band: '', targets: [] })
+    expect(pending?.price_effect_pct).toBeUndefined()
+
+    const applied = result.events.find((e) => e.id === 'event-2')
+    expect(applied).toMatchObject({ direction: 'positivo', magnitude_band: 'moderado' })
   })
 
   it('propaga erro lançado pela port', async () => {
@@ -35,8 +87,11 @@ describe('ListNewsFeedUseCase', () => {
     newsFeedReader.errorToThrow = new Error(
       'falha ao listar eventos macro no motor de simulação (status 500)',
     )
-    const useCase = new ListNewsFeedUseCase(newsFeedReader)
+    const newsReadRepository = createFakeNewsReadRepository()
+    const useCase = new ListNewsFeedUseCase(newsFeedReader, newsReadRepository)
 
-    await expect(useCase.execute({})).rejects.toThrow(/falha ao listar eventos macro/)
+    await expect(useCase.execute({ userId: 'user-1' })).rejects.toThrow(
+      /falha ao listar eventos macro/,
+    )
   })
 })

@@ -50,7 +50,15 @@ export default defineConfig({
     plugins: [react()],
     server: {
         proxy: {
-            [`^/(${BACKEND_ROUTE_NAMESPACES.join('|')})(/|$)`]: {
+            // `(/|\?|$)` — não só `/` (path) ou fim de string, mas também `?`
+            // (query string colada direto no namespace, sem segmento de path
+            // no meio, ex: `/news?limit=20&offset=0`, tarefa 6.6.1). Gap real
+            // achado nesta sessão: toda rota já testada até aqui tinha path
+            // (`/market/assets?...`) ou nenhuma query (`/news` sozinho, usado
+            // pelo badge) — `GET /news` paginado foi o primeiro caso de
+            // querystring direto na raiz do namespace, e caía fora do regex
+            // (404 do dev server, nunca chegava no proxy pro gateway).
+            [`^/(${BACKEND_ROUTE_NAMESPACES.join('|')})(/|\\?|$)`]: {
                 target: GATEWAY_URL,
                 changeOrigin: true,
                 bypass(req) {

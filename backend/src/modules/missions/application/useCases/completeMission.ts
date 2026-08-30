@@ -47,7 +47,17 @@ export class CompleteMissionUseCase {
       }
     }
 
-    await this.missionRepository.markCompleted(input.userId, input.missionId, today)
+    // `findProgress` acima é só um atalho pra reenvio sequencial (evita
+    // checar lição/tocar streak de novo à toa) — a proteção real contra
+    // duas requisições concorrentes (`POST /missions/:id/complete` chamado
+    // em paralelo, deliberadamente ou não) creditarem xp em dobro é este
+    // retorno: só quem de fato ganhou a transição atômica pending→completed
+    // credita xp/streak.
+    const claimed = await this.missionRepository.markCompleted(input.userId, input.missionId, today)
+    if (!claimed) {
+      return { status: 'completed' }
+    }
+
     await this.xpAwarder.award(input.userId, mission.xpReward, `missao:${mission.id}`)
     await this.streakTracker.touch(input.userId)
 

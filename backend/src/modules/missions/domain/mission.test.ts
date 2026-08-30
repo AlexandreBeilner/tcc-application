@@ -3,6 +3,7 @@ import { buildMissionView, todayUtc } from './mission'
 
 const mission = {
   id: 'm1',
+  key: 'lesson_complete',
   title: 'Complete uma lição da trilha',
   description: null,
   completionCriteria: 'Concluir qualquer lição da trilha hoje',

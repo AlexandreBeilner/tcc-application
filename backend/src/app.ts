@@ -11,7 +11,9 @@ import { ListMacroEventsUseCase } from './modules/admin/application/useCases/lis
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
+import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
 import { createInProcessNewsFeedReader } from './modules/news/infrastructure/admin/inProcessNewsFeedReader'
+import { createDrizzleNewsReadRepository } from './modules/news/infrastructure/persistence/drizzleNewsReadRepository'
 import { createNewsRouter } from './modules/news/interfaces/http/newsRouter'
 import { CheckAndUnlockAchievementsUseCase } from './modules/achievements/application/useCases/checkAndUnlockAchievements'
 import { ExportUnlockedAchievementsUseCase } from './modules/achievements/application/useCases/exportUnlockedAchievements'
@@ -198,8 +200,14 @@ export function createApp(deps: AppDeps = {}): Express {
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
   // Reaproveita a mesma instância de ListMacroEventsUseCase (admin, 4.5) —
   // feed público (6.0.6, tela 5.1) é o mesmo caso de uso, só sem
-  // requireRole('admin') no router.
-  const listNewsFeed = new ListNewsFeedUseCase(createInProcessNewsFeedReader(listMacroEvents))
+  // requireRole('admin') no router. newsReadRepository (6.6.2) decora
+  // `seen` por usuário — tabela própria do módulo, não vem do motor.
+  const newsReadRepository = createDrizzleNewsReadRepository(db)
+  const listNewsFeed = new ListNewsFeedUseCase(
+    createInProcessNewsFeedReader(listMacroEvents),
+    newsReadRepository,
+  )
+  const markNewsEventAsSeen = new MarkNewsEventAsSeenUseCase(newsReadRepository)
   const progressionRepository = createDrizzleProgressionRepository(db)
   const getProgression = new GetProgressionUseCase(progressionRepository)
   const lessonRepository = createDrizzleLessonRepository(db)
@@ -344,7 +352,7 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   app.use(createAdminPingRouter(authMiddleware))
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
-  app.use(createNewsRouter({ listNewsFeed, authMiddleware }))
+  app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))

@@ -154,6 +154,13 @@ export const friendships = pgTable(
 
 export const dailyMissions = pgTable('daily_missions', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // Slug estável (ex: 'feed_read') pra código cliente identificar uma
+  // missão específica sem depender de texto (`title`) — o único jeito que
+  // frontend/features/news/useReportFeedMission tinha até a tarefa 6.6.4,
+  // já que `completionCriteria` é texto idêntico pras missões
+  // auto-reportadas ("Reportado pelo cliente — sem verificação cruzada
+  // nesta fase") e `title` pode mudar (correção de texto, tradução).
+  key: varchar('key', { length: 50 }).notNull().unique(),
   title: varchar('title', { length: 150 }).notNull(),
   description: text('description'),
   completionCriteria: text('completion_criteria').notNull(),
@@ -197,4 +204,22 @@ export const userMissionProgress = pgTable(
   (table) => [
     unique('user_mission_progress_unique').on(table.userId, table.missionId, table.missionDate),
   ],
+)
+
+// Tarefa 6.6.2 — rastreio de "visto" por usuário no Feed de Notícias.
+// macro_events vive no banco "market" (dono é o motor de simulação, mesmo
+// raciocínio de accounts/positions) — macroEventId é só um uuid solto,
+// sem `.references()`, primeiro caso do schema referenciando um id de
+// outro banco sem FK real.
+export const newsEventReads = pgTable(
+  'news_event_reads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    macroEventId: uuid('macro_event_id').notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('news_event_reads_unique').on(table.userId, table.macroEventId)],
 )

@@ -132,13 +132,13 @@ Catálogo inicial de templates (`macro_events` pré-cadastrados, sorteados/dispa
 | Categoria | Template | Direção | Banda | Efeito |
 |---|---|---|---|---|
 | Regulatório | Nova legislação ambiental restringe atividade de mineração | Negativo | Moderado | Preço + Fundamentos |
-| Commodities | Alta internacional do minério de ferro beneficia exportadoras | Positivo | Moderado | Preço + Fundamentos |
+| Commodities | Minério de ferro dispara no mercado internacional | Positivo | Moderado | Preço + Fundamentos |
 | Commodities | Queda do petróleo no mercado internacional | Negativo | Leve/Moderado | Preço + Fundamentos |
 | Setorial (Tecnologia) | Nova regulamentação de dados eleva custos do setor de tecnologia | Negativo | Leve | Fundamentos |
 | Setorial (Bancário) | Aumento da inadimplência pressiona resultado dos bancos | Negativo | Moderado | Fundamentos |
 | Corporativo | Escândalo contábil identificado em empresa do varejo | Negativo | Severo | Preço + Fundamentos |
 | Corporativo | Empresa anuncia expansão/parceria estratégica | Positivo | Moderado | Preço |
-| Cambial | Forte desvalorização do real — beneficia exportadoras, prejudica importadoras | Misto (por setor) | Moderado | Preço + Fundamentos |
+| Cambial | Forte desvalorização do real frente ao dólar | Misto (por setor) | Moderado | Preço + Fundamentos |
 | Geopolítico | Tensão comercial internacional afeta cadeias de suprimento | Negativo | Leve/Moderado | Preço |
 | Agronegócio | Quebra de safra por evento climático reduz oferta agrícola | Misto | Moderado | Preço + Fundamentos |
 

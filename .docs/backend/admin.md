@@ -18,7 +18,7 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
 - **Payload:** repassado praticamente sem tradução pro motor (mesmos nomes de campo, snake_case) — ver `.docs/engine/macroevent.md` pro formato completo (`template_key` opcional; evento avulso exige `title`/`narrative`/`direction`/`magnitude_band`/`affects_price`/`affects_fundamentals`; `targets`, mínimo 1, cada um com exatamente um entre `sector`/`risk_class`/`asset_id`). Validado com `interfaces/http/schemas.ts` (`triggerMacroEventBodySchema`, união de duas variantes — template ou avulso) antes de chamar o caso de uso.
-- **Sucesso:** `201` → `{ event: {...} }`, corpo de `event` idêntico à resposta de `POST /macro-events` do motor (id, efeitos já amostrados, `fundamentals_report_day` se aplicável).
+- **Sucesso:** `201` → `{ event: {...} }`, corpo de `event` idêntico à resposta de `POST /macro-events` do motor (id, efeitos já amostrados, `fundamentals_report_day` se aplicável, `targets` — array de `{ sector? | risk_class? | asset_id? }` refletindo os alvos persistidos, exatamente um campo preenchido por item).
 - **Erros:**
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.
@@ -29,7 +29,7 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
 - **Payload:** query string — `limit` (opcional, inteiro 1–100) e `offset` (opcional, inteiro ≥ 0), validados por `interfaces/http/schemas.ts` (`listMacroEventsQuerySchema`, `z.coerce.number()` já que query chega como string). Ambos repassados como estão pro motor; ausentes, o motor aplica o próprio default (ver `.docs/engine/macroevent.md`).
-- **Sucesso:** `200` → `{ events: [...] }`, cada item idêntico à resposta de `POST /admin/macro-events` (mesmo formato de `event`) — inclui `status` já atualizado (`pendente`/`aplicado`), não um valor congelado da criação (tarefa 4.5: o Temporizador atualiza a coluna a cada tick, ver `.docs/engine/macroevent.md#get-macro-events` e `.docs/engine/tick.md`).
+- **Sucesso:** `200` → `{ events: [...] }`, cada item idêntico à resposta de `POST /admin/macro-events` mais `created_at` (mesmo formato de `event`, `targets` incluído) — inclui `status` já atualizado (`pendente`/`aplicado`), não um valor congelado da criação (tarefa 4.5: o Temporizador atualiza a coluna a cada tick, ver `.docs/engine/macroevent.md#get-macro-events` e `.docs/engine/tick.md`). `created_at` (tarefa 6.6.1, RFC 3339) só aparece nesta resposta, nunca na de `POST /admin/macro-events` — é o timestamp real de criação, diferente de `triggered_on_day` (dia **simulado**).
 - **Erros:**
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.

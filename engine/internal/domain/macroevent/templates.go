@@ -71,8 +71,8 @@ var Templates = []Template{
 	},
 	{
 		Key:                 "alta-minerio-ferro",
-		Title:               "Alta internacional do minério de ferro beneficia exportadoras",
-		Narrative:           "O preço do minério de ferro dispara no mercado internacional, favorecendo a receita das mineradoras exportadoras — mais volume vendido a um preço melhor em moeda forte.",
+		Title:               "Minério de ferro dispara no mercado internacional",
+		Narrative:           "O preço do minério de ferro sobe de forma acentuada no mercado internacional após sinais de aumento na demanda global, com mineradoras exportadoras negociando o mesmo volume por um valor mais alto em moeda forte.",
 		Category:            CategoryCommodities,
 		Direction:           DirectionPositivo,
 		Band:                BandModerado,
@@ -120,7 +120,7 @@ var Templates = []Template{
 	{
 		Key:          "expansao-parceria-corporativa",
 		Title:        "Empresa anuncia expansão/parceria estratégica",
-		Narrative:    "A empresa anuncia uma parceria estratégica ou plano de expansão, animando o mercado com a perspectiva de crescimento futuro — mesmo antes de qualquer resultado concreto aparecer no balanço.",
+		Narrative:    "A empresa anuncia uma parceria estratégica ou plano de expansão, com expectativa de resultado concentrada nos próximos ciclos — antes de qualquer número novo aparecer no balanço.",
 		Category:     CategoryCorporativo,
 		Direction:    DirectionPositivo,
 		Band:         BandModerado,
@@ -128,7 +128,7 @@ var Templates = []Template{
 	},
 	{
 		Key:                 "desvalorizacao-real",
-		Title:               "Forte desvalorização do real — beneficia exportadoras, prejudica importadoras",
+		Title:               "Forte desvalorização do real frente ao dólar",
 		Narrative:           "O real se desvaloriza fortemente frente ao dólar: exportadoras ganham competitividade e receita em moeda forte, enquanto importadoras enfrentam custos mais altos — o mesmo evento move setores em direções opostas.",
 		Category:            CategoryCambial,
 		Direction:           DirectionMisto,

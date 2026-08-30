@@ -133,6 +133,9 @@ describe('AppShell', () => {
                     status: 'pendente',
                     triggered_on_day: 1,
                     duration_days: 1,
+                    targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
                 },
             ],
         })

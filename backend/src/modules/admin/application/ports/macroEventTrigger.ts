@@ -42,6 +42,15 @@ export interface MacroEventResult {
   price_effect_pct?: number
   fundamentals_effect_pct?: number
   fundamentals_report_day?: number
+  // Mesmo formato de MacroEventTargetInput (sector?/risk_class?/asset_id?,
+  // exatamente um preenchido) — reaproveitado em vez de duplicar um tipo
+  // idêntico só porque um é usado em request e o outro em response.
+  targets: MacroEventTargetInput[]
+  // Só presente em itens vindos de GET /macro-events (list) — POST
+  // /macro-events (trigger) não devolve created_at (tarefa 6.6.1, motor:
+  // .docs/engine/macroevent.md). Timestamp real (RFC 3339), diferente de
+  // triggered_on_day (dia simulado).
+  created_at?: string
 }
 
 // Abre um evento macro no motor de simulação — accounts/macro_events vivem

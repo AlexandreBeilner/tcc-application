@@ -44,6 +44,6 @@ describe('LessonNode', () => {
     it('lição bloqueada sem unlocksDescription cai no rótulo genérico', () => {
         render(<LessonNode lesson={lesson({ status: 'locked', unlocksDescription: '' })} onClick={vi.fn()} />)
 
-        expect(screen.getByRole('button', { name: /^O que é investir — Bloqueada$/ })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /^O que é investir: Bloqueada$/ })).toBeInTheDocument()
     })
 })

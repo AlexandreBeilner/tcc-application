@@ -7,6 +7,7 @@ import type { Mission, MissionProgressSnapshot } from '../../domain/mission'
 function toMission(row: typeof dailyMissions.$inferSelect): Mission {
   return {
     id: row.id,
+    key: row.key,
     title: row.title,
     description: row.description,
     completionCriteria: row.completionCriteria,
@@ -85,7 +86,15 @@ export function createDrizzleMissionRepository(db: Database): MissionRepository 
     },
 
     async markCompleted(userId: string, missionId: string, missionDate: string) {
-      await db
+      // `setWhere` faz o UPDATE do conflito só disparar se a linha
+      // conflitante ainda estiver `pending` — o Postgres serializa duas
+      // transações concorrentes que conflitam na mesma linha (lock de
+      // linha), então só uma vê `status = 'pending'` e ganha o RETURNING;
+      // a outra, ao ser liberada, já enxerga `completed` e o predicado
+      // falha (nenhuma linha retornada). Sem isso, duas requisições
+      // concorrentes creditariam xp em dobro (CompleteMissionUseCase só
+      // credita quando este método devolve `true`).
+      const [claimed] = await db
         .insert(userMissionProgress)
         .values({ userId, missionId, missionDate, status: 'completed', completedAt: new Date() })
         .onConflictDoUpdate({
@@ -95,7 +104,10 @@ export function createDrizzleMissionRepository(db: Database): MissionRepository 
             userMissionProgress.missionDate,
           ],
           set: { status: 'completed', completedAt: new Date() },
+          setWhere: eq(userMissionProgress.status, 'pending'),
         })
+        .returning({ id: userMissionProgress.id })
+      return claimed !== undefined
     },
   }
 }
