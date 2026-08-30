@@ -53,25 +53,36 @@ describe('NewsEventList', () => {
         expect(screen.getByText('Aplicado')).toBeInTheDocument()
     })
 
-    it('expandir mostra a narrativa completa e o efeito de preço', () => {
-        render(<NewsEventList events={[event()]} />)
-        const summary = screen.getByText('Alta de juros afeta bancos')
-        fireEvent.click(summary)
+    it('expandir evento pendente mostra só a narrativa, sem badge de direção, magnitude, efeito ou alvos', () => {
+        render(<NewsEventList events={[event({ status: 'pendente' })]} />)
+        fireEvent.click(screen.getByText('Alta de juros afeta bancos'))
         expect(screen.getByText(/Copom subiu a taxa básica/)).toBeInTheDocument()
+        expect(screen.queryByText('Baixa')).not.toBeInTheDocument()
+        expect(screen.queryByText(/Magnitude:/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/−8,4%/)).not.toBeInTheDocument()
+        expect(screen.queryByText('Setor: Financeiro')).not.toBeInTheDocument()
+    })
+
+    it('expandir evento aplicado revela narrativa, badge de direção, magnitude e efeito de preço', () => {
+        render(<NewsEventList events={[event({ status: 'aplicado' })]} />)
+        fireEvent.click(screen.getByText('Alta de juros afeta bancos'))
+        expect(screen.getByText(/Copom subiu a taxa básica/)).toBeInTheDocument()
+        expect(screen.getByText('Baixa')).toBeInTheDocument()
+        expect(screen.getByText(/Magnitude:/)).toBeInTheDocument()
         expect(screen.getByText(/−8,4%/)).toBeInTheDocument()
     })
 
-    it('resolve target de setor como texto, sem navegação', () => {
-        render(<NewsEventList events={[event()]} />)
+    it('resolve target de setor como texto, sem navegação, quando aplicado', () => {
+        render(<NewsEventList events={[event({ status: 'aplicado' })]} />)
         fireEvent.click(screen.getByText('Alta de juros afeta bancos'))
         expect(screen.getByText('Setor: Financeiro')).toBeInTheDocument()
     })
 
-    it('target com asset_id vira botão clicável que chama onSelectAsset', () => {
+    it('target com asset_id vira botão clicável que chama onSelectAsset quando aplicado', () => {
         const onSelectAsset = vi.fn()
         render(
             <NewsEventList
-                events={[event({ targets: [{ asset_id: 'asset-1' }] })]}
+                events={[event({ status: 'aplicado', targets: [{ asset_id: 'asset-1' }] })]}
                 assetLabels={{ 'asset-1': 'BNDD4 · Banco D S.A.' }}
                 onSelectAsset={onSelectAsset}
             />,
