@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useMemo } from 'react'
 import { computePriceChartLayout, PRICE_CHART_HEIGHT, PRICE_CHART_WIDTH } from '../../../features/market/priceChartLayout'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { PriceChartProps } from './types'
@@ -17,7 +17,7 @@ export type { PriceChartProps, PriceChartRange } from './types'
 export function PriceChart({ quotes, ranges, activeDays, onRangeChange }: PriceChartProps) {
     const gradientId = useId()
     const patternId = useId()
-    const layout = computePriceChartLayout(quotes)
+    const layout = useMemo(() => computePriceChartLayout(quotes), [quotes])
     const color = layout?.isGain ? 'var(--color-gain-500)' : 'var(--color-loss-500)'
 
     return (

@@ -7,6 +7,28 @@
     margin: 0 auto;
 }
 
+/* Mobile/tablet: seções empilhadas. Desktop (identidade-visual-padroes.md
+   §7): gráfico de fundamentos + lista de ativos emitidos lado a lado, grid
+   2 colunas em vez de coluna única esticada. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1080px;
+    }
+
+    .layout {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        align-items: start;
+        gap: var(--space-8);
+    }
+}
+
 .loading,
 .error {
     color: var(--color-text-secondary);

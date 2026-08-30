@@ -24,18 +24,21 @@ export function CompanyFundamentalsChart({ fundamentals }: CompanyFundamentalsCh
 
     return (
         <div className={styles.chart}>
-            {chronological.map((entry) => (
-                <div key={entry.period_date} className={styles.bar}>
-                    <div className={styles.barTrack}>
-                        <div
-                            className={styles.barFill}
-                            style={{ height: `${Math.max(4, ((entry.net_revenue as number) / maxRevenue) * 100)}%` }}
-                            title={formatCurrency(entry.net_revenue as number)}
-                        />
+            {chronological.map((entry) => {
+                const heightPercent = maxRevenue > 0 ? Math.max(4, ((entry.net_revenue as number) / maxRevenue) * 100) : 4
+                return (
+                    <div key={entry.period_date} className={styles.bar}>
+                        <div className={styles.barTrack}>
+                            <div
+                                className={styles.barFill}
+                                style={{ height: `${heightPercent}%` }}
+                                title={formatCurrency(entry.net_revenue as number)}
+                            />
+                        </div>
+                        <span className={styles.barLabel}>{dateFormatter.format(new Date(entry.period_date))}</span>
                     </div>
-                    <span className={styles.barLabel}>{dateFormatter.format(new Date(entry.period_date))}</span>
-                </div>
-            ))}
+                )
+            })}
         </div>
     )
 }

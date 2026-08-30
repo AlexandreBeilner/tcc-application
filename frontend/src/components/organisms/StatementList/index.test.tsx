@@ -24,7 +24,14 @@ describe('StatementList', () => {
             />,
         )
         expect(screen.getByText('Compra executada')).toBeInTheDocument()
-        expect(screen.getByText('R$ 30,00')).toBeInTheDocument()
+        expect(screen.getByText('R$ 300,00')).toBeInTheDocument()
+    })
+
+    it('mostra o valor total (unit_value já é o total) quando o evento não tem quantidade', () => {
+        render(
+            <StatementList events={[{ id: 'e1', event_type: 'initial_deposit', unit_value: 10000, timestamp: '2026-01-01T12:00:00Z' }]} />,
+        )
+        expect(screen.getByText('R$ 10.000,00')).toBeInTheDocument()
     })
 
     it('mostra ativo e quantidade só quando presentes no evento', () => {

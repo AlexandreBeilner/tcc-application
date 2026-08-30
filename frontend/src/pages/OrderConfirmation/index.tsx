@@ -38,7 +38,7 @@ export function OrderConfirmation() {
     // simulação e confirmação... reconsulta GET /market/assets/:id... sem
     // re-simular do zero") — as duas variações de renda fixa não têm esse
     // risco (aporte é por valor, resgate já marca a mercado no motor).
-    const assetQuery = useAssetQuery(draft?.assetId ?? '')
+    const assetQuery = useAssetQuery(draft?.assetId ?? '', { enabled: draft?.kind === 'order' })
     const placeOrder = usePlaceOrderMutation()
     const purchaseFixedIncome = usePurchaseFixedIncomeMutation()
     const redeemFixedIncome = useRedeemFixedIncomeMutation()

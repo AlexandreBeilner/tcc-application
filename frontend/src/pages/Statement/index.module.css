@@ -7,6 +7,16 @@
     margin: 0 auto;
 }
 
+/* Extrato é uma lista/feed única por natureza — sem painel lateral que
+   faça sentido (identidade-visual-padroes.md §7, "grid 2 colunas quando
+   fizer sentido"). Ainda assim, desktop usa mais largura em vez de manter
+   o mesmo respiro estreito do mobile. */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 880px;
+    }
+}
+
 .title {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);

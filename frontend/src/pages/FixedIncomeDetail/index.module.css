@@ -1,10 +1,6 @@
 .page {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    width: 100%;
-    max-width: 560px;
-    margin: 0 auto;
 }
 
 .loading,
@@ -15,6 +11,46 @@
 
 .error {
     color: var(--color-feedback-error-500);
+}
+
+/* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7):
+   info do produto + simulador de aporte como ticket fixo na lateral, mesmo
+   padrão de `pages/AssetDetail`. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .layout {
+        max-width: 960px;
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
 }
 
 .header {

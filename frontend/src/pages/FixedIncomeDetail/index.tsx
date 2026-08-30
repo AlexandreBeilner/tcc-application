@@ -72,58 +72,64 @@ export function FixedIncomeDetail() {
 
     return (
         <main className={styles.page}>
-            <header className={styles.header}>
-                <h1 className={styles.title}>{asset.ticker}</h1>
-                <p className={styles.subtitle}>{asset.name}</p>
-            </header>
+            <div className={styles.layout}>
+                <div className={styles.main}>
+                    <header className={styles.header}>
+                        <h1 className={styles.title}>{asset.ticker}</h1>
+                        <p className={styles.subtitle}>{asset.name}</p>
+                    </header>
 
-            <section className={styles.info}>
-                {fixedIncome.interest_rate !== undefined && (
-                    <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Taxa</span>
-                        <span className={styles.infoValue}>{formatRatePercent(fixedIncome.interest_rate)} a.a.</span>
-                    </div>
-                )}
-                {fixedIncome.maturity_date && (
-                    <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Vencimento</span>
-                        <span className={styles.infoValue}>{dateFormatter.format(new Date(fixedIncome.maturity_date))}</span>
-                    </div>
-                )}
-                <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Emissor</span>
-                    <span className={styles.infoValue}>{fixedIncome.issuer_type}</span>
+                    <section className={styles.info}>
+                        {fixedIncome.interest_rate !== undefined && (
+                            <div className={styles.infoRow}>
+                                <span className={styles.infoLabel}>Taxa</span>
+                                <span className={styles.infoValue}>{formatRatePercent(fixedIncome.interest_rate)} a.a.</span>
+                            </div>
+                        )}
+                        {fixedIncome.maturity_date && (
+                            <div className={styles.infoRow}>
+                                <span className={styles.infoLabel}>Vencimento</span>
+                                <span className={styles.infoValue}>{dateFormatter.format(new Date(fixedIncome.maturity_date))}</span>
+                            </div>
+                        )}
+                        <div className={styles.infoRow}>
+                            <span className={styles.infoLabel}>Emissor</span>
+                            <span className={styles.infoValue}>{fixedIncome.issuer_type}</span>
+                        </div>
+                        {fixedIncome.credit_risk_rating && (
+                            <div className={styles.infoRow}>
+                                <span className={styles.infoLabel}>Risco de crédito</span>
+                                <span className={styles.infoValue}>{fixedIncome.credit_risk_rating}</span>
+                            </div>
+                        )}
+                        <div className={styles.badges}>{fixedIncome.tax_exempt && <span className={styles.badge}>Isento de IR</span>}</div>
+                    </section>
+
+                    <p className={styles.warning}>
+                        Resgatar antes do vencimento marca a posição a mercado: se a taxa de mercado subir depois da sua compra, o valor de
+                        resgate pode ficar abaixo do que você aportou.
+                    </p>
+
+                    {existingPosition && (
+                        <section className={styles.position}>
+                            <span className={styles.positionLabel}>Sua posição: {existingPosition.quantity.toFixed(2)} unidades</span>
+                            <Button variant="secondary" onClick={handleRedeem}>
+                                Resgatar
+                            </Button>
+                        </section>
+                    )}
                 </div>
-                {fixedIncome.credit_risk_rating && (
-                    <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Risco de crédito</span>
-                        <span className={styles.infoValue}>{fixedIncome.credit_risk_rating}</span>
-                    </div>
-                )}
-                <div className={styles.badges}>{fixedIncome.tax_exempt && <span className={styles.badge}>Isento de IR</span>}</div>
-            </section>
 
-            <p className={styles.warning}>
-                Resgatar antes do vencimento marca a posição a mercado: se a taxa de mercado subir depois da sua compra, o valor de resgate
-                pode ficar abaixo do que você aportou.
-            </p>
-
-            {existingPosition && (
-                <section className={styles.position}>
-                    <span className={styles.positionLabel}>Sua posição: {existingPosition.quantity.toFixed(2)} unidades</span>
-                    <Button variant="secondary" onClick={handleRedeem}>
-                        Resgatar
-                    </Button>
-                </section>
-            )}
-
-            <FixedIncomeSimulator
-                minimumInvestment={fixedIncome.minimum_investment}
-                amount={amount}
-                onAmountChange={setAmount}
-                simulation={simulateQuery.data}
-                onInvest={handleInvest}
-            />
+                <div className={styles.sidebar}>
+                    <FixedIncomeSimulator
+                        minimumInvestment={fixedIncome.minimum_investment}
+                        amount={amount}
+                        onAmountChange={setAmount}
+                        simulation={simulateQuery.data}
+                        onInvest={handleInvest}
+                    />
+                </div>
+            </div>
         </main>
     )
 }

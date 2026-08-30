@@ -45,15 +45,17 @@ export function CompanyProfile() {
                 </p>
             </header>
 
-            <section className={styles.section}>
-                <span className={styles.sectionTitle}>Receita líquida por ciclo de relatório</span>
-                <CompanyFundamentalsChart fundamentals={company.fundamentals} />
-            </section>
+            <div className={styles.layout}>
+                <section className={styles.section}>
+                    <span className={styles.sectionTitle}>Receita líquida por ciclo de relatório</span>
+                    <CompanyFundamentalsChart fundamentals={company.fundamentals} />
+                </section>
 
-            <section className={styles.section}>
-                <span className={styles.sectionTitle}>Ativos emitidos</span>
-                <CompanyAssetList assets={company.assets} onSelect={(asset) => navigate(`/mercado/ativos/${asset.id}`)} />
-            </section>
+                <section className={styles.section}>
+                    <span className={styles.sectionTitle}>Ativos emitidos</span>
+                    <CompanyAssetList assets={company.assets} onSelect={(asset) => navigate(`/mercado/ativos/${asset.id}`)} />
+                </section>
+            </div>
         </main>
     )
 }

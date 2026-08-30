@@ -12,7 +12,8 @@ export type { FixedIncomeSimulatorProps } from './types'
 // Valor abaixo da aplicação mínima bloqueia o botão preventivamente
 // (estado especial documentado no backlog), não só trata o erro 422.
 export function FixedIncomeSimulator({ minimumInvestment, amount, onAmountChange, simulation, onInvest }: FixedIncomeSimulatorProps) {
-    const isBelowMinimum = amount > 0 && amount < minimumInvestment
+    const isInvalidAmount = Number.isNaN(amount) || amount <= 0
+    const isBelowMinimum = !isInvalidAmount && amount < minimumInvestment
 
     return (
         <div className={styles.simulator}>
@@ -47,7 +48,7 @@ export function FixedIncomeSimulator({ minimumInvestment, amount, onAmountChange
                 />
             )}
 
-            <Button fullWidth disabled={amount <= 0 || isBelowMinimum} onClick={onInvest}>
+            <Button fullWidth disabled={isInvalidAmount || isBelowMinimum} onClick={onInvest}>
                 Investir
             </Button>
         </div>

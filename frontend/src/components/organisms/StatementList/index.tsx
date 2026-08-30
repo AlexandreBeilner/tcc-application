@@ -31,6 +31,18 @@ function eventLabel(event: MarketEvent): string {
     return EVENT_TYPE_LABELS[event.event_type] ?? event.event_type
 }
 
+// `unit_value` é preço por unidade para buy/sell_order_executed e
+// dividend_payment (que sempre trazem `quantity` junto) — nesses casos o
+// valor total transacionado é unit_value × quantity. Para initial_deposit e
+// os eventos de renda fixa, `quantity` nunca é gravado (engine,
+// fixed_income_execution_repository.go) e unit_value já é o total.
+function eventTotalValue(event: MarketEvent): number | undefined {
+    if (event.unit_value === undefined) {
+        return undefined
+    }
+    return event.quantity !== undefined ? event.unit_value * event.quantity : event.unit_value
+}
+
 export function StatementList({ events }: StatementListProps) {
     if (events.length === 0) {
         return <p className={styles.empty}>Você ainda não tem nenhuma transação registrada.</p>
@@ -38,33 +50,36 @@ export function StatementList({ events }: StatementListProps) {
 
     return (
         <ul className={styles.list}>
-            {events.map((event) => (
-                <li key={event.id}>
-                    <details className={styles.item}>
-                        <summary className={styles.summary}>
-                            <span className={styles.type}>{eventLabel(event)}</span>
-                            <span className={styles.date}>{dateFormatter.format(new Date(event.timestamp))}</span>
-                            <span className={`${styles.amount} tabular-nums`}>
-                                {event.unit_value !== undefined ? formatCurrency(event.unit_value) : '—'}
-                            </span>
-                        </summary>
-                        <div className={styles.details}>
-                            {event.asset_id && (
-                                <div className={styles.detailRow}>
-                                    <span>Ativo</span>
-                                    <span>{event.asset_id}</span>
-                                </div>
-                            )}
-                            {event.quantity !== undefined && (
-                                <div className={styles.detailRow}>
-                                    <span>Quantidade</span>
-                                    <span className="tabular-nums">{event.quantity}</span>
-                                </div>
-                            )}
-                        </div>
-                    </details>
-                </li>
-            ))}
+            {events.map((event) => {
+                const totalValue = eventTotalValue(event)
+                return (
+                    <li key={event.id}>
+                        <details className={styles.item}>
+                            <summary className={styles.summary}>
+                                <span className={styles.type}>{eventLabel(event)}</span>
+                                <span className={styles.date}>{dateFormatter.format(new Date(event.timestamp))}</span>
+                                <span className={`${styles.amount} tabular-nums`}>
+                                    {totalValue !== undefined ? formatCurrency(totalValue) : '—'}
+                                </span>
+                            </summary>
+                            <div className={styles.details}>
+                                {event.asset_id && (
+                                    <div className={styles.detailRow}>
+                                        <span>Ativo</span>
+                                        <span>{event.asset_id}</span>
+                                    </div>
+                                )}
+                                {event.quantity !== undefined && (
+                                    <div className={styles.detailRow}>
+                                        <span>Quantidade</span>
+                                        <span className="tabular-nums">{event.quantity}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </details>
+                    </li>
+                )
+            })}
         </ul>
     )
 }

@@ -9,6 +9,14 @@
 /* Colunas iguais a `pages/FixedIncomeList` de propósito — mesma tela-tipo
    "lista com abas", só o conjunto de colunas por aba muda (index.tsx). */
 
+/* Desktop (identidade-visual-padroes.md §7): a tabela ganha mais largura em
+   vez de deixar espaço morto nas laterais numa tela larga. */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1280px;
+    }
+}
+
 .title {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);

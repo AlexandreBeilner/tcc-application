@@ -19,4 +19,20 @@ describe('CompanyFundamentalsChart', () => {
         )
         expect(screen.getAllByTitle(/R\$/).length).toBe(2)
     })
+
+    it('usa a altura mínima sem NaN quando todo net_revenue é zero', () => {
+        const { container } = render(
+            <CompanyFundamentalsChart
+                fundamentals={[
+                    { period_date: '2026-01-01T00:00:00Z', net_revenue: 0 },
+                    { period_date: '2025-10-01T00:00:00Z', net_revenue: 0 },
+                ]}
+            />,
+        )
+        const bars = container.querySelectorAll('[class*="barFill"]')
+        expect(bars.length).toBe(2)
+        for (const bar of bars) {
+            expect((bar as HTMLElement).style.height).toBe('4%')
+        }
+    })
 })

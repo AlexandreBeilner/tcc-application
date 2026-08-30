@@ -42,4 +42,10 @@ describe('FixedIncomeSimulator', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Investir' }))
         expect(onInvest).toHaveBeenCalled()
     })
+
+    it('valor inválido (NaN) bloqueia o botão sem mostrar o aviso de mínimo', () => {
+        render(<FixedIncomeSimulator minimumInvestment={1000} amount={NaN} onAmountChange={vi.fn()} onInvest={vi.fn()} />)
+        expect(screen.queryByText('O valor informado está abaixo da aplicação mínima deste produto.')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Investir' })).toBeDisabled()
+    })
 })
