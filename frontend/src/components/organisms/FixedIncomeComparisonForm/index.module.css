@@ -78,3 +78,11 @@
     font-size: var(--font-size-sm);
     font-weight: 600;
 }
+
+.error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-error-100);
+    color: var(--color-feedback-error-500);
+}

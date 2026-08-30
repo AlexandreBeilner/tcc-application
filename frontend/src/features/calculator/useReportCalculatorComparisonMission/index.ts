@@ -32,11 +32,11 @@ export function useReportCalculatorComparisonMission(): () => void {
         }
     }, [missionsQuery.data, completeIfPending])
 
-    return function reportComparison(): void {
+    return useCallback((): void => {
         if (!missionsQuery.data) {
             pendingRef.current = true
             return
         }
         completeIfPending()
-    }
+    }, [missionsQuery.data, completeIfPending])
 }
