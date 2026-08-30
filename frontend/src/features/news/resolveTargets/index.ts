@@ -14,7 +14,7 @@ export function resolveTargets(targets: NewsEventTarget[], assetLabels: Record<s
     return targets.map((target, index) => {
         if (target.asset_id) {
             return {
-                key: `asset-${target.asset_id}`,
+                key: `asset-${index}-${target.asset_id}`,
                 label: assetLabels[target.asset_id] ?? target.asset_id,
                 assetId: target.asset_id,
             }

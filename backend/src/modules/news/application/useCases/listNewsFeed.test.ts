@@ -47,7 +47,7 @@ describe('ListNewsFeedUseCase', () => {
     expect(newsFeedReader.calls).toEqual([{ limit: 5, offset: 10 }])
   })
 
-  it('decora cada evento com seen, cruzando com a leitura do usuário', async () => {
+  it('decora cada evento com seen, cruzando com a leitura do usuário, sem alterar campos do evento aplicado', async () => {
     const newsFeedReader = createFakeNewsFeedReader(sampleResult)
     const newsReadRepository = createFakeNewsReadRepository([
       { userId: 'user-1', macroEventId: 'event-2' },
@@ -56,13 +56,30 @@ describe('ListNewsFeedUseCase', () => {
 
     const result = await useCase.execute({ userId: 'user-1' })
 
-    expect(result.events.map((e) => ({ id: e.id, seen: e.seen }))).toEqual([
-      { id: 'event-1', seen: false },
-      { id: 'event-2', seen: true },
-    ])
+    expect(result).toEqual({
+      events: [
+        { ...sampleResult.events[0], direction: '', magnitude_band: '', targets: [], seen: false },
+        { ...sampleResult.events[1], seen: true },
+      ],
+    })
     expect(newsReadRepository.listCalls).toEqual([
       { userId: 'user-1', macroEventIds: ['event-1', 'event-2'] },
     ])
+  })
+
+  it('esconde direction/magnitude_band/efeitos/targets de evento pendente (RF16, tarefa 6.6.3)', async () => {
+    const newsFeedReader = createFakeNewsFeedReader(sampleResult)
+    const newsReadRepository = createFakeNewsReadRepository()
+    const useCase = new ListNewsFeedUseCase(newsFeedReader, newsReadRepository)
+
+    const result = await useCase.execute({ userId: 'user-1' })
+
+    const pending = result.events.find((e) => e.id === 'event-1')
+    expect(pending).toMatchObject({ direction: '', magnitude_band: '', targets: [] })
+    expect(pending?.price_effect_pct).toBeUndefined()
+
+    const applied = result.events.find((e) => e.id === 'event-2')
+    expect(applied).toMatchObject({ direction: 'positivo', magnitude_band: 'moderado' })
   })
 
   it('propaga erro lançado pela port', async () => {

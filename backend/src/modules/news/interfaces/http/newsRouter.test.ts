@@ -52,7 +52,12 @@ describe('GET /news', () => {
     const res = await request(app).get('/news').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ events: [{ ...sampleEvent, seen: false }] })
+    // sampleEvent está `pendente` — direction/magnitude_band/targets vêm
+    // redigidos (redactPending, tarefa 6.6.3): a API não pode devolver o
+    // veredito do evento antes de `status = aplicado`.
+    expect(res.body).toEqual({
+      events: [{ ...sampleEvent, direction: '', magnitude_band: '', targets: [], seen: false }],
+    })
   })
 
   it('repassa limit/offset da query pro motor', async () => {

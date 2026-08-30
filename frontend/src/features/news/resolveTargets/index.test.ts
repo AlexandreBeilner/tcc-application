@@ -4,12 +4,17 @@ import { resolveTargets } from '.'
 describe('resolveTargets', () => {
     it('resolve asset_id pro label em assetLabels, navegável', () => {
         const result = resolveTargets([{ asset_id: 'asset-1' }], { 'asset-1': 'BNDD4 · Banco D S.A.' })
-        expect(result).toEqual([{ key: 'asset-asset-1', label: 'BNDD4 · Banco D S.A.', assetId: 'asset-1' }])
+        expect(result).toEqual([{ key: 'asset-0-asset-1', label: 'BNDD4 · Banco D S.A.', assetId: 'asset-1' }])
     })
 
     it('asset_id sem label conhecido cai pro próprio id, ainda navegável', () => {
         const result = resolveTargets([{ asset_id: 'asset-2' }], {})
-        expect(result).toEqual([{ key: 'asset-asset-2', label: 'asset-2', assetId: 'asset-2' }])
+        expect(result).toEqual([{ key: 'asset-0-asset-2', label: 'asset-2', assetId: 'asset-2' }])
+    })
+
+    it('dois targets com o mesmo asset_id geram keys distintas', () => {
+        const result = resolveTargets([{ asset_id: 'asset-1' }, { asset_id: 'asset-1' }], {})
+        expect(result.map((r) => r.key)).toEqual(['asset-0-asset-1', 'asset-1-asset-1'])
     })
 
     it('sector vira texto sem navegação', () => {

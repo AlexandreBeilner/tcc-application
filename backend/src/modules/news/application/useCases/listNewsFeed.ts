@@ -1,4 +1,5 @@
 import { decorateWithSeen } from '../../domain/decorateSeen'
+import { redactPending } from '../../domain/redactPending'
 import type { NewsFeedQuery, NewsFeedReader } from '../ports/newsFeedReader'
 import type { NewsReadRepository } from '../ports/newsReadRepository'
 
@@ -29,6 +30,6 @@ export class ListNewsFeedUseCase {
       userId,
       events.map((event) => event.id),
     )
-    return { events: decorateWithSeen(events, seenEventIds) }
+    return { events: decorateWithSeen(redactPending(events), seenEventIds) }
   }
 }
