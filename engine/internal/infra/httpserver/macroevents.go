@@ -56,20 +56,20 @@ type macroEventTargetResponse struct {
 }
 
 type macroEventResponse struct {
-	ID                    string                      `json:"id"`
-	TemplateKey           *string                     `json:"template_key,omitempty"`
-	Title                 string                      `json:"title"`
-	Narrative             string                      `json:"narrative"`
-	Direction             string                      `json:"direction"`
-	MagnitudeBand         string                      `json:"magnitude_band"`
-	AffectsPrice          bool                        `json:"affects_price"`
-	AffectsFundamentals   bool                        `json:"affects_fundamentals"`
-	Status                string                      `json:"status"`
-	TriggeredOnDay        int                         `json:"triggered_on_day"`
-	DurationDays          int                         `json:"duration_days"`
-	PriceEffectPct        *float64                    `json:"price_effect_pct,omitempty"`
-	FundamentalsEffectPct *float64                    `json:"fundamentals_effect_pct,omitempty"`
-	FundamentalsReportDay *int                        `json:"fundamentals_report_day,omitempty"`
+	ID                    string                     `json:"id"`
+	TemplateKey           *string                    `json:"template_key,omitempty"`
+	Title                 string                     `json:"title"`
+	Narrative             string                     `json:"narrative"`
+	Direction             string                     `json:"direction"`
+	MagnitudeBand         string                     `json:"magnitude_band"`
+	AffectsPrice          bool                       `json:"affects_price"`
+	AffectsFundamentals   bool                       `json:"affects_fundamentals"`
+	Status                string                     `json:"status"`
+	TriggeredOnDay        int                        `json:"triggered_on_day"`
+	DurationDays          int                        `json:"duration_days"`
+	PriceEffectPct        *float64                   `json:"price_effect_pct,omitempty"`
+	FundamentalsEffectPct *float64                   `json:"fundamentals_effect_pct,omitempty"`
+	FundamentalsReportDay *int                       `json:"fundamentals_report_day,omitempty"`
 	Targets               []macroEventTargetResponse `json:"targets"`
 	// CreatedAt só é preenchido por toMacroEventResponseFromRecord (GET
 	// /macro-events, tarefa 6.6.1) — o disparo em si (POST /macro-events)
