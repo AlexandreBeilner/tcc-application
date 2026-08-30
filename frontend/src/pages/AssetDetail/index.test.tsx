@@ -3,18 +3,26 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getAsset, getAssetQuotes } from '../../services/market'
+import { getAsset, getAssetQuotes, getMyAccount } from '../../services/market'
 import { AssetDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/market', () => ({ getAsset: vi.fn(), getAssetQuotes: vi.fn() }))
+vi.mock('../../services/market', () => ({
+    getAsset: vi.fn(),
+    getAssetQuotes: vi.fn(),
+    getMyAccount: vi.fn(),
+    placeOrder: vi.fn(),
+    purchaseFixedIncome: vi.fn(),
+    redeemFixedIncome: vi.fn(),
+}))
+
+const emptyAccount = { cashBalance: 10000, totalInvested: 0, totalDividendsReceived: 0, positions: [], fixedIncomePositions: [] }
 
 function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const router = createMemoryRouter(
         [
             { path: '/mercado/ativos/:id', element: <AssetDetail /> },
-            { path: '/mercado/confirmar', element: <div>tela de confirmação</div> },
             { path: '/mercado/empresas/:id', element: <div>tela de empresa</div> },
         ],
         { initialEntries: ['/mercado/ativos/a1'] },
@@ -37,6 +45,7 @@ describe('AssetDetail (tela 4.5)', () => {
             setUser: vi.fn(),
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -106,7 +115,7 @@ describe('AssetDetail (tela 4.5)', () => {
         await waitFor(() => expect(screen.getByText('Aguardando primeira cotação')).toBeInTheDocument())
     })
 
-    it('"Revisar ordem" navega pra confirmação com o rascunho de compra', async () => {
+    it('"Revisar ordem" abre a confirmação como overlay sobre a própria tela, sem navegar', async () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: {
                 id: 'a1',
@@ -123,6 +132,11 @@ describe('AssetDetail (tela 4.5)', () => {
         await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
 
         fireEvent.click(screen.getByRole('button', { name: 'Revisar ordem' }))
-        await waitFor(() => expect(screen.getByText('tela de confirmação')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+        // A tela de origem continua montada atrás do overlay (não é navegação).
+        expect(screen.getByText('PETR4')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+        await waitFor(() => expect(screen.queryByText('Confirmar ordem')).not.toBeInTheDocument())
     })
 })

@@ -12,7 +12,6 @@ import { Login } from '../pages/Login'
 import { Market } from '../pages/Market'
 import { News } from '../pages/News'
 import { Onboarding } from '../pages/Onboarding'
-import { OrderConfirmation } from '../pages/OrderConfirmation'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { Portfolio } from '../pages/Portfolio'
 import { Statement } from '../pages/Statement'
@@ -53,17 +52,16 @@ export const router = createBrowserRouter([
                     { path: '/trilha', element: <Track /> },
                     { path: '/trilha/:id', element: <Lesson /> },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
-                    // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). `/mercado/
-                    // confirmar` só é alcançável via `navigate(..., { state })` a
-                    // partir de 4.3/4.5 — sem rascunho no state, redireciona pro hub
-                    // (ver `pages/OrderConfirmation`).
+                    // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é
+                    // rota própria: é `OrderConfirmationDialog`, overlay renderizado
+                    // por `AssetDetail`/`FixedIncomeDetail` sobre a própria tela de
+                    // origem (identidade-visual-padroes.md §7 — bottom sheet/modal).
                     { path: '/mercado', element: <Market /> },
                     { path: '/mercado/renda-fixa', element: <FixedIncomeList /> },
                     { path: '/mercado/renda-fixa/:id', element: <FixedIncomeDetail /> },
                     { path: '/mercado/renda-variavel', element: <EquityList /> },
                     { path: '/mercado/ativos/:id', element: <AssetDetail /> },
                     { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
-                    { path: '/mercado/confirmar', element: <OrderConfirmation /> },
                     { path: '/calculadora', element: <PlaceholderPage title="Calculadora" /> },
                     { path: '/classificacao', element: <PlaceholderPage title="Classificação" /> },
                     { path: '/noticias', element: <News /> },

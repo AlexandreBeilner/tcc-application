@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Select } from '../../components/atoms/Select'
 import { StatementList, EVENT_TYPE_LABELS } from '../../components/organisms/StatementList'
+import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMyEventsQuery } from '../../features/market/useMyEventsQuery'
 import styles from './index.module.css'
 
@@ -10,16 +12,29 @@ const PERIOD_OPTIONS = [
     { days: 365, label: 'Último ano' },
 ]
 
+const periodOptions = PERIOD_OPTIONS.map((option) => ({ value: String(option.days), label: option.label }))
+
+const typeOptions = [{ value: 'all', label: 'Todos' }, ...Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))]
+
 // Tela 4.8 — extrato de `market_events` (RF05). Filtro por tipo e período
 // é client-side (backlog 6.5: "o backend não filtra por tipo/data na
 // query, só pagina" — `.docs/backend/market.md`).
 export function Statement() {
     const eventsQuery = useMyEventsQuery()
+    // `market_events` só traz `asset_id` (UUID) — busca todos os ativos
+    // (sem filtro de `type`) só pra resolver UUID → "TICKER · Nome" na
+    // exibição, sem tocar o motor (que não devolve esse dado no extrato).
+    const assetsQuery = useAssetsQuery()
     const [typeFilter, setTypeFilter] = useState('all')
     const [periodDays, setPeriodDays] = useState(0)
     // Lazy initializer: lido uma vez (montagem), não a cada render — evita
     // chamar `Date.now()` impuro direto no corpo de render.
     const [now] = useState(() => Date.now())
+
+    const assetLabels = useMemo(() => {
+        const assets = assetsQuery.data?.assets ?? []
+        return Object.fromEntries(assets.map((asset) => [asset.id, `${asset.ticker} · ${asset.name}`]))
+    }, [assetsQuery.data])
 
     const filtered = useMemo(() => {
         const events = eventsQuery.data?.events ?? []
@@ -38,25 +53,12 @@ export function Statement() {
             <div className={styles.filters}>
                 <label className={styles.field}>
                     Tipo
-                    <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-                        <option value="all">Todos</option>
-                        {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                                {label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select value={typeFilter} onChange={setTypeFilter} options={typeOptions} />
                 </label>
 
                 <label className={styles.field}>
                     Período
-                    <select value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
-                        {PERIOD_OPTIONS.map((option) => (
-                            <option key={option.days} value={option.days}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
+                    <Select value={String(periodDays)} onChange={(value) => setPeriodDays(Number(value))} options={periodOptions} />
                 </label>
             </div>
 
@@ -68,7 +70,7 @@ export function Statement() {
 
             {!eventsQuery.data && !eventsQuery.isError && <p className={styles.loading}>Carregando extrato…</p>}
 
-            {eventsQuery.data && <StatementList events={filtered} />}
+            {eventsQuery.data && <StatementList events={filtered} assetLabels={assetLabels} />}
         </main>
     )
 }

@@ -16,8 +16,20 @@
 }
 
 .value {
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
     color: var(--color-text-primary);
     font-weight: 500;
+    background: transparent;
+    transition: background 0.3s ease;
+}
+
+/* Price-flash (identidade-visual-padroes.md §2) — mesmo tom/duração de
+   `EquityOrderTicket.flash`, aqui reaproveitado pra qualquer linha (ex:
+   valor líquido projetado do simulador de renda fixa quando a simulação
+   assíncrona chega). */
+.flash {
+    background: rgba(240, 162, 2, 0.2);
 }
 
 .total {

@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { FixedIncomeSimulator } from '../../components/organisms/FixedIncomeSimulator'
 import { Button } from '../../components/atoms/Button'
+import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
+import type { OrderDraftFixedIncomePurchase, OrderDraftFixedIncomeRedemption } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
 import { useSimulateFixedIncomeQuery } from '../../features/market/useSimulateFixedIncomeQuery'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
@@ -19,12 +21,12 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 
 // número nesta tela, só o valor do aporte.
 export function FixedIncomeDetail() {
     const { id } = useParams<{ id: string }>()
-    const navigate = useNavigate()
     const assetId = id as string
 
     const assetQuery = useAssetQuery(assetId)
     const accountQuery = useMyAccountQuery()
     const [amount, setAmount] = useState(0)
+    const [draft, setDraft] = useState<OrderDraftFixedIncomePurchase | OrderDraftFixedIncomeRedemption | null>(null)
 
     const asset = assetQuery.data?.asset
     const fixedIncome = asset?.fixed_income
@@ -52,22 +54,18 @@ export function FixedIncomeDetail() {
     }
 
     function handleInvest() {
-        navigate('/mercado/confirmar', {
-            state: {
-                kind: 'fixed_income_purchase',
-                assetId,
-                ticker: asset!.ticker,
-                name: asset!.name,
-                amount,
-                projected: simulateQuery.data,
-            },
+        setDraft({
+            kind: 'fixed_income_purchase',
+            assetId,
+            ticker: asset!.ticker,
+            name: asset!.name,
+            amount,
+            projected: simulateQuery.data,
         })
     }
 
     function handleRedeem() {
-        navigate('/mercado/confirmar', {
-            state: { kind: 'fixed_income_redemption', assetId, ticker: asset!.ticker, name: asset!.name },
-        })
+        setDraft({ kind: 'fixed_income_redemption', assetId, ticker: asset!.ticker, name: asset!.name })
     }
 
     return (
@@ -130,6 +128,8 @@ export function FixedIncomeDetail() {
                     />
                 </div>
             </div>
+
+            {draft && <OrderConfirmationDialog draft={draft} onClose={() => setDraft(null)} />}
         </main>
     )
 }

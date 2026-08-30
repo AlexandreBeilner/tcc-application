@@ -42,4 +42,42 @@ describe('StatementList', () => {
         expect(screen.queryByText('Ativo')).not.toBeInTheDocument()
         expect(screen.queryByText('Quantidade')).not.toBeInTheDocument()
     })
+
+    it('resolve asset_id via assetLabels em vez de mostrar o UUID cru', () => {
+        render(
+            <StatementList
+                events={[
+                    {
+                        id: 'e1',
+                        event_type: 'buy_order_executed',
+                        asset_id: 'a1',
+                        quantity: 10,
+                        unit_value: 30,
+                        timestamp: '2026-01-01T12:00:00Z',
+                    },
+                ]}
+                assetLabels={{ a1: 'PETR4 · Petrobras' }}
+            />,
+        )
+        expect(screen.getByText('PETR4 · Petrobras')).toBeInTheDocument()
+        expect(screen.queryByText('a1')).not.toBeInTheDocument()
+    })
+
+    it('sem assetLabels (ou id sem correspondência), cai de volta pro UUID cru', () => {
+        render(
+            <StatementList
+                events={[
+                    {
+                        id: 'e1',
+                        event_type: 'buy_order_executed',
+                        asset_id: 'a1',
+                        quantity: 10,
+                        unit_value: 30,
+                        timestamp: '2026-01-01T12:00:00Z',
+                    },
+                ]}
+            />,
+        )
+        expect(screen.getByText('a1')).toBeInTheDocument()
+    })
 })

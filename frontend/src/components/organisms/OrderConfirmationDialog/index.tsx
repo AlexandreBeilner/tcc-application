@@ -1,34 +1,41 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { Button } from '../../components/atoms/Button'
-import { OrderSummaryList } from '../../components/organisms/OrderSummaryList'
-import type { OrderSummaryRow } from '../../components/organisms/OrderSummaryList'
-import { OrderSuccessOverlay } from '../../components/organisms/OrderSuccessOverlay'
-import { useAssetQuery } from '../../features/market/useAssetQuery'
-import { usePlaceOrderMutation } from '../../features/market/usePlaceOrderMutation'
-import { usePurchaseFixedIncomeMutation } from '../../features/market/usePurchaseFixedIncomeMutation'
-import { useRedeemFixedIncomeMutation } from '../../features/market/useRedeemFixedIncomeMutation'
-import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
-import { formatCurrency, formatPercentage } from '../../features/portfolio/format'
-import { ApiError } from '../../services/client'
-import type { OrderDraft } from './types'
+import type { MouseEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Button } from '../../atoms/Button'
+import { OrderSummaryList } from '../OrderSummaryList'
+import type { OrderSummaryRow } from '../OrderSummaryList'
+import { OrderSuccessOverlay } from '../OrderSuccessOverlay'
+import { useAssetQuery } from '../../../features/market/useAssetQuery'
+import { usePlaceOrderMutation } from '../../../features/market/usePlaceOrderMutation'
+import { usePurchaseFixedIncomeMutation } from '../../../features/market/usePurchaseFixedIncomeMutation'
+import { useRedeemFixedIncomeMutation } from '../../../features/market/useRedeemFixedIncomeMutation'
+import { useMyAccountQuery } from '../../../features/portfolio/useMyAccountQuery'
+import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
+import { ApiError } from '../../../services/client'
+import type { OrderConfirmationDialogProps, OrderDraft } from './types'
 import styles from './index.module.css'
+
+export type {
+    OrderConfirmationDialogProps,
+    OrderDraft,
+    OrderDraftOrder,
+    OrderDraftFixedIncomePurchase,
+    OrderDraftFixedIncomeRedemption,
+} from './types'
 
 const SIDE_LABEL = { buy: 'Comprar', sell: 'Vender' } as const
 const VERB_LABEL = { buy: 'comprou', sell: 'vendeu' } as const
 
-// Tela 4.7 (âncora, mockup vivo em identidade-visual-padroes.md §0) — passo
-// explícito de confirmação antes de qualquer execução real, alcançado só
-// por navegação com `state` (nunca refeito a partir de uma URL/id sozinho
-// — sem o rascunho da ordem, redireciona pro hub). Único ponto do fluxo
-// que executa de verdade (backlog 6.5): `POST /market/orders` (compra/
-// venda de renda variável), `POST /market/fixed-income/purchases` (aporte)
-// ou `POST /market/fixed-income/redemptions` (resgate), conforme `kind`.
-export function OrderConfirmation() {
-    const location = useLocation()
+// Confirmação de ordem (tela 4.7, âncora — mockup vivo em identidade-
+// visual-padroes.md §0/§7) — overlay (bottom sheet mobile/tablet, modal
+// central desktop) sobre a própria tela de origem (4.3/4.5), nunca uma
+// rota própria: fechar (backdrop/Esc/Cancelar) volta pro estado exato de
+// onde o usuário veio, sem navegação. Único ponto do fluxo que executa de
+// verdade (backlog 6.5): `POST /market/orders` (compra/venda de renda
+// variável), `POST /market/fixed-income/purchases` (aporte) ou
+// `POST /market/fixed-income/redemptions` (resgate), conforme `kind`.
+export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDialogProps) {
     const navigate = useNavigate()
-    const draft = location.state as OrderDraft | undefined
-
     const [step, setStep] = useState<'confirm' | 'success'>('confirm')
     const [error, setError] = useState<string | null>(null)
 
@@ -38,19 +45,27 @@ export function OrderConfirmation() {
     // simulação e confirmação... reconsulta GET /market/assets/:id... sem
     // re-simular do zero") — as duas variações de renda fixa não têm esse
     // risco (aporte é por valor, resgate já marca a mercado no motor).
-    const assetQuery = useAssetQuery(draft?.assetId ?? '', { enabled: draft?.kind === 'order' })
+    // `refetch` explícito porque a tela de origem (4.5) já populou o cache
+    // desse mesmo `queryKey` com um preço potencialmente desatualizado.
+    const assetQuery = useAssetQuery(draft.assetId, { enabled: draft.kind === 'order' })
     const placeOrder = usePlaceOrderMutation()
     const purchaseFixedIncome = usePurchaseFixedIncomeMutation()
     const redeemFixedIncome = useRedeemFixedIncomeMutation()
 
-    useEffect(() => {
-        if (draft?.kind === 'order') void assetQuery.refetch()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [draft?.assetId])
+    const isSubmitting = placeOrder.isPending || purchaseFixedIncome.isPending || redeemFixedIncome.isPending
 
-    if (!draft) {
-        return <Navigate to="/mercado" replace />
-    }
+    useEffect(() => {
+        if (draft.kind === 'order') void assetQuery.refetch()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draft.assetId])
+
+    useEffect(() => {
+        function handleKeydown(event: KeyboardEvent) {
+            if (event.key === 'Escape' && !isSubmitting) onClose()
+        }
+        document.addEventListener('keydown', handleKeydown)
+        return () => document.removeEventListener('keydown', handleKeydown)
+    }, [isSubmitting, onClose])
 
     const cashBalance = accountQuery.data?.cashBalance
 
@@ -72,28 +87,33 @@ export function OrderConfirmation() {
         }
     }
 
+    function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
+        if (event.target === event.currentTarget && !isSubmitting) onClose()
+    }
+
     if (step === 'success') {
         return (
-            <main className={styles.page}>
-                <div className={styles.panel}>
+            <div className={styles.backdrop} onMouseDown={handleBackdropClick}>
+                <div className={styles.panel} role="dialog" aria-modal="true">
                     <OrderSuccessOverlay
                         message={successMessage(draft, placeOrder.data, purchaseFixedIncome.data, redeemFixedIncome.data)}
                         continueLabel="Voltar pro Portfólio"
                         onContinue={() => navigate('/', { replace: true })}
                     />
                 </div>
-            </main>
+            </div>
         )
     }
 
     const currentPrice = draft.kind === 'order' ? (assetQuery.data?.asset.current_price ?? draft.unitPrice) : undefined
     const rows = buildRows(draft, currentPrice, cashBalance)
-    const isSubmitting = placeOrder.isPending || purchaseFixedIncome.isPending || redeemFixedIncome.isPending
 
     return (
-        <main className={styles.page}>
-            <div className={styles.panel}>
-                <h1 className={styles.title}>Confirmar ordem</h1>
+        <div className={styles.backdrop} onMouseDown={handleBackdropClick}>
+            <div className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="order-confirmation-title">
+                <h1 id="order-confirmation-title" className={styles.title}>
+                    Confirmar ordem
+                </h1>
 
                 <OrderSummaryList rows={rows} />
 
@@ -104,7 +124,7 @@ export function OrderConfirmation() {
                 )}
 
                 <div className={styles.actions}>
-                    <Button variant="secondary" onClick={() => navigate(-1)} disabled={isSubmitting}>
+                    <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
                         Cancelar
                     </Button>
                     <Button onClick={() => void handleConfirm()} disabled={isSubmitting}>
@@ -113,7 +133,7 @@ export function OrderConfirmation() {
                     </Button>
                 </div>
             </div>
-        </main>
+        </div>
     )
 }
 

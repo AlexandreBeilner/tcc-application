@@ -48,4 +48,40 @@ describe('FixedIncomeSimulator', () => {
         expect(screen.queryByText('O valor informado está abaixo da aplicação mínima deste produto.')).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Investir' })).toBeDisabled()
     })
+
+    it('price-flash no valor líquido projetado quando a simulação muda, some depois de 350ms', () => {
+        vi.useFakeTimers()
+        const simulation = {
+            unit_price: 1,
+            quantity_purchased: 2000,
+            gross_projected_value: 2200,
+            tax_rate: 0.2,
+            net_projected_value: 2160,
+        }
+        const { container, rerender } = render(
+            <FixedIncomeSimulator
+                minimumInvestment={1000}
+                amount={2000}
+                onAmountChange={vi.fn()}
+                simulation={simulation}
+                onInvest={vi.fn()}
+            />,
+        )
+
+        const flashClass = (className: string) => className.split(' ').some((c) => c.includes('flash'))
+        expect([...container.querySelectorAll('span')].some((el) => flashClass(el.className))).toBe(true)
+
+        vi.advanceTimersByTime(350)
+        rerender(
+            <FixedIncomeSimulator
+                minimumInvestment={1000}
+                amount={2000}
+                onAmountChange={vi.fn()}
+                simulation={simulation}
+                onInvest={vi.fn()}
+            />,
+        )
+        expect([...container.querySelectorAll('span')].some((el) => flashClass(el.className))).toBe(false)
+        vi.useRealTimers()
+    })
 })

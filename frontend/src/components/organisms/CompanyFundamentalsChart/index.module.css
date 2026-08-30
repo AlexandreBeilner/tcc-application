@@ -31,10 +31,45 @@
 }
 
 .barFill {
+    position: relative;
     width: 100%;
     min-height: 4px;
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     background: var(--color-brand-500);
+    cursor: default;
+}
+
+/* Tooltip de hover/foco (mesmo padrão de `TrackChart`) — mostra o valor
+   exato da barra sem depender do `title` nativo do navegador, que não
+   segue o tema da aplicação. */
+.tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    width: max-content;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.12s ease,
+        transform 0.12s ease;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    z-index: 5;
+}
+
+.barFill:hover .tooltip,
+.barFill:focus-visible .tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }
 
 .barLabel {

@@ -8,7 +8,7 @@ describe('CompanyFundamentalsChart', () => {
         expect(screen.getByText('Esta empresa ainda não tem ciclo de relatório suficiente pro gráfico.')).toBeInTheDocument()
     })
 
-    it('renderiza uma barra por ciclo de relatório com net_revenue', () => {
+    it('renderiza uma barra por ciclo de relatório, com tooltip estilizado (não o title nativo)', () => {
         render(
             <CompanyFundamentalsChart
                 fundamentals={[
@@ -17,7 +17,10 @@ describe('CompanyFundamentalsChart', () => {
                 ]}
             />,
         )
-        expect(screen.getAllByTitle(/R\$/).length).toBe(2)
+        expect(screen.getAllByText('R$ 1.000,00', { selector: 'span' }).length).toBe(1)
+        expect(screen.getAllByText('R$ 800,00', { selector: 'span' }).length).toBe(1)
+        expect(screen.queryAllByTitle(/R\$/).length).toBe(0)
+        expect(screen.getByLabelText(/: R\$ 1\.000,00$/)).toBeInTheDocument()
     })
 
     it('usa a altura mínima sem NaN quando todo net_revenue é zero', () => {

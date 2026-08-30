@@ -26,16 +26,23 @@ export function CompanyFundamentalsChart({ fundamentals }: CompanyFundamentalsCh
         <div className={styles.chart}>
             {chronological.map((entry) => {
                 const heightPercent = maxRevenue > 0 ? Math.max(4, ((entry.net_revenue as number) / maxRevenue) * 100) : 4
+                const period = dateFormatter.format(new Date(entry.period_date))
+                const value = formatCurrency(entry.net_revenue as number)
                 return (
                     <div key={entry.period_date} className={styles.bar}>
                         <div className={styles.barTrack}>
                             <div
                                 className={styles.barFill}
                                 style={{ height: `${heightPercent}%` }}
-                                title={formatCurrency(entry.net_revenue as number)}
-                            />
+                                tabIndex={0}
+                                aria-label={`${period}: ${value}`}
+                            >
+                                <span className={styles.tooltip} aria-hidden="true">
+                                    {value}
+                                </span>
+                            </div>
                         </div>
-                        <span className={styles.barLabel}>{dateFormatter.format(new Date(entry.period_date))}</span>
+                        <span className={styles.barLabel}>{period}</span>
                     </div>
                 )
             })}

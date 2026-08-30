@@ -15,7 +15,7 @@ export function OrderSummaryList({ rows }: OrderSummaryListProps) {
             {rows.map((row) => (
                 <div key={row.label} className={[styles.row, row.variant && styles[row.variant]].filter(Boolean).join(' ')}>
                     <span className={styles.label}>{row.label}</span>
-                    <span className={`${styles.value} tabular-nums`}>{row.value}</span>
+                    <span className={[styles.value, 'tabular-nums', row.flash && styles.flash].filter(Boolean).join(' ')}>{row.value}</span>
                 </div>
             ))}
         </div>

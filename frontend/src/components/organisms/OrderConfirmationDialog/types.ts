@@ -1,4 +1,4 @@
-import type { OrderSide, SimulateFixedIncomeResult } from '../../services/market'
+import type { OrderSide, SimulateFixedIncomeResult } from '../../../services/market'
 
 export interface OrderDraftBase {
     assetId: string
@@ -24,3 +24,8 @@ export interface OrderDraftFixedIncomeRedemption extends OrderDraftBase {
 }
 
 export type OrderDraft = OrderDraftOrder | OrderDraftFixedIncomePurchase | OrderDraftFixedIncomeRedemption
+
+export interface OrderConfirmationDialogProps {
+    draft: OrderDraft
+    onClose: () => void
+}

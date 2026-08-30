@@ -6,6 +6,9 @@
     font-size: var(--font-size-base);
     font-weight: 600;
     cursor: pointer;
+    transition:
+        opacity 0.2s ease,
+        background 0.2s ease;
 }
 
 .button:disabled {

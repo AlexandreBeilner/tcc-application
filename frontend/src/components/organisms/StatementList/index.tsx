@@ -43,7 +43,7 @@ function eventTotalValue(event: MarketEvent): number | undefined {
     return event.quantity !== undefined ? event.unit_value * event.quantity : event.unit_value
 }
 
-export function StatementList({ events }: StatementListProps) {
+export function StatementList({ events, assetLabels = {} }: StatementListProps) {
     if (events.length === 0) {
         return <p className={styles.empty}>Você ainda não tem nenhuma transação registrada.</p>
     }
@@ -66,7 +66,7 @@ export function StatementList({ events }: StatementListProps) {
                                 {event.asset_id && (
                                     <div className={styles.detailRow}>
                                         <span>Ativo</span>
-                                        <span>{event.asset_id}</span>
+                                        <span>{assetLabels[event.asset_id] ?? event.asset_id}</span>
                                     </div>
                                 )}
                                 {event.quantity !== undefined && (

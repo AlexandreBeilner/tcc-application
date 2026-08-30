@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Button } from '../../atoms/Button'
 import { OrderSummaryList } from '../OrderSummaryList'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
@@ -14,6 +15,18 @@ export type { FixedIncomeSimulatorProps } from './types'
 export function FixedIncomeSimulator({ minimumInvestment, amount, onAmountChange, simulation, onInvest }: FixedIncomeSimulatorProps) {
     const isInvalidAmount = Number.isNaN(amount) || amount <= 0
     const isBelowMinimum = !isInvalidAmount && amount < minimumInvestment
+
+    // Price-flash (identidade-visual-padroes.md §2) quando a simulação
+    // assíncrona (debounce + rede) traz um valor líquido novo — mesmo
+    // tratamento visual do total de `EquityOrderTicket`, só que disparado
+    // pela chegada do dado (efeito), não por um clique síncrono.
+    const [flash, setFlash] = useState(false)
+    useEffect(() => {
+        if (simulation === undefined) return
+        setFlash(true)
+        const timeout = setTimeout(() => setFlash(false), 350)
+        return () => clearTimeout(timeout)
+    }, [simulation])
 
     return (
         <div className={styles.simulator}>
@@ -43,7 +56,12 @@ export function FixedIncomeSimulator({ minimumInvestment, amount, onAmountChange
                     rows={[
                         { label: 'Valor bruto projetado', value: formatCurrency(simulation.gross_projected_value) },
                         { label: 'Alíquota de IR', value: formatPercentage(simulation.tax_rate) },
-                        { label: 'Valor líquido projetado', value: formatCurrency(simulation.net_projected_value), variant: 'total' },
+                        {
+                            label: 'Valor líquido projetado',
+                            value: formatCurrency(simulation.net_projected_value),
+                            variant: 'total',
+                            flash,
+                        },
                     ]}
                 />
             )}

@@ -3,23 +3,26 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getAsset, getMyAccount, simulateFixedIncome } from '../../services/market'
+import { getAsset, getMyAccount, purchaseFixedIncome, redeemFixedIncome, simulateFixedIncome } from '../../services/market'
 import { FixedIncomeDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/market', () => ({ getAsset: vi.fn(), getMyAccount: vi.fn(), simulateFixedIncome: vi.fn() }))
+vi.mock('../../services/market', () => ({
+    getAsset: vi.fn(),
+    getMyAccount: vi.fn(),
+    simulateFixedIncome: vi.fn(),
+    placeOrder: vi.fn(),
+    purchaseFixedIncome: vi.fn(),
+    redeemFixedIncome: vi.fn(),
+}))
 
 const emptyAccount = { cashBalance: 10000, totalInvested: 0, totalDividendsReceived: 0, positions: [], fixedIncomePositions: [] }
 
 function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const router = createMemoryRouter(
-        [
-            { path: '/mercado/renda-fixa/:id', element: <FixedIncomeDetail /> },
-            { path: '/mercado/confirmar', element: <div>tela de confirmação</div> },
-        ],
-        { initialEntries: ['/mercado/renda-fixa/a1'] },
-    )
+    const router = createMemoryRouter([{ path: '/mercado/renda-fixa/:id', element: <FixedIncomeDetail /> }], {
+        initialEntries: ['/mercado/renda-fixa/a1'],
+    })
     return render(
         <QueryClientProvider client={queryClient}>
             <RouterProvider router={router} />
@@ -67,7 +70,7 @@ describe('FixedIncomeDetail (tela 4.3)', () => {
         expect(screen.getByText('banco')).toBeInTheDocument()
     })
 
-    it('digitar um valor dispara a simulação e "Investir" navega pra confirmação com o rascunho', async () => {
+    it('digitar um valor dispara a simulação e "Investir" abre a confirmação como overlay, sem navegar', async () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: {
                 id: 'a1',
@@ -93,7 +96,12 @@ describe('FixedIncomeDetail (tela 4.3)', () => {
         await waitFor(() => expect(screen.getByText('R$ 1.080,00')).toBeInTheDocument())
 
         fireEvent.click(screen.getByRole('button', { name: 'Investir' }))
-        await waitFor(() => expect(screen.getByText('tela de confirmação')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+        // A tela de origem continua montada atrás do overlay (não é navegação).
+        expect(screen.getByText('CDB2027')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar aporte' }))
+        await waitFor(() => expect(purchaseFixedIncome).toHaveBeenCalledWith('token', { asset_id: 'a1', amount: 1000 }))
     })
 
     it('com posição existente, mostra a quantidade e o botão Resgatar', async () => {
@@ -127,6 +135,9 @@ describe('FixedIncomeDetail (tela 4.3)', () => {
 
         await waitFor(() => expect(screen.getByText('Sua posição: 500.00 unidades')).toBeInTheDocument())
         fireEvent.click(screen.getByRole('button', { name: 'Resgatar' }))
-        await waitFor(() => expect(screen.getByText('tela de confirmação')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar resgate' }))
+        await waitFor(() => expect(redeemFixedIncome).toHaveBeenCalledWith('token', { asset_id: 'a1' }))
     })
 })

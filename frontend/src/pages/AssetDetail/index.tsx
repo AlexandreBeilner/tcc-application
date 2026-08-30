@@ -6,6 +6,8 @@ import { EtfCompositionPanel } from '../../components/organisms/EtfCompositionPa
 import { FiiIndicatorsPanel } from '../../components/organisms/FiiIndicatorsPanel'
 import { DividendHistoryList } from '../../components/organisms/DividendHistoryList'
 import { EquityOrderTicket } from '../../components/organisms/EquityOrderTicket'
+import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
+import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { formatCurrency } from '../../features/portfolio/format'
@@ -31,6 +33,7 @@ export function AssetDetail() {
     const assetQuery = useAssetQuery(assetId)
     const [rangeDays, setRangeDays] = useState(RANGES[0].days)
     const quotesQuery = useAssetQuotesQuery(assetId, rangeDays)
+    const [draft, setDraft] = useState<OrderDraftOrder | null>(null)
 
     const asset = assetQuery.data?.asset
 
@@ -53,16 +56,14 @@ export function AssetDetail() {
     }
 
     function handleSubmitOrder(side: OrderSide, quantity: number) {
-        navigate('/mercado/confirmar', {
-            state: {
-                kind: 'order',
-                assetId,
-                ticker: asset!.ticker,
-                name: asset!.name,
-                side,
-                quantity,
-                unitPrice: asset!.current_price as number,
-            },
+        setDraft({
+            kind: 'order',
+            assetId,
+            ticker: asset!.ticker,
+            name: asset!.name,
+            side,
+            quantity,
+            unitPrice: asset!.current_price as number,
         })
     }
 
@@ -131,6 +132,8 @@ export function AssetDetail() {
                     <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
                 </aside>
             </div>
+
+            {draft && <OrderConfirmationDialog draft={draft} onClose={() => setDraft(null)} />}
         </main>
     )
 }
