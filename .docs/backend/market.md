@@ -85,7 +85,17 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Query params:** `asset_id` (UUID, obrigatório), `amount` (número > 0, obrigatório), `days_held` (inteiro > 0, obrigatório) — `simulateFixedIncomeQuerySchema`, coerção via `z.coerce` (query string chega sempre como string).
 - **Sucesso:** `200` → `{ unit_price, quantity_purchased, gross_projected_value, tax_rate, net_projected_value }`, corpo idêntico ao do motor. Nenhuma escrita — não passa por `market_events`.
 - **Erros:** `400` — query inválida (Zod) ou ativo não é de renda fixa (motor). `401`; `404` — ativo não encontrado.
-- **Regra:** `SimulateFixedIncomeUseCase` → `FixedIncomeExecutor.simulate`. Sustenta o simulador de aporte da tela 4.3 e a Calculadora em modo comparação (6.1/6.2, lição 3.3).
+- **Regra:** `SimulateFixedIncomeUseCase` → `FixedIncomeExecutor.simulate`. Sustenta o simulador de aporte da tela 4.3. A Calculadora (6.7) **não** usa esta rota — decisão (b) do backlog, ver `GET /market/fixed-income/tax-rate` abaixo.
+
+### `GET /market/fixed-income/tax-rate`
+
+*(Tarefa 6.7 — proxy de `GET /fixed-income/tax-rate`, ver `.docs/engine/fixedincome.md`.)*
+
+- **Autenticação:** Bearer token — qualquer usuário autenticado, sem exigir dono de conta específica (não depende de `user_id`).
+- **Query params:** `days_held` (inteiro > 0, obrigatório) — `fixedIncomeTaxRateQuerySchema`, coerção via `z.coerce`.
+- **Sucesso:** `200` → `{ tax_rate }`, corpo idêntico ao do motor.
+- **Erros:** `400` — query inválida (Zod). `401`.
+- **Regra:** `GetFixedIncomeTaxRateUseCase` → `FixedIncomeExecutor.getTaxRate`. Sustenta a Calculadora em modo comparação (6.2, lição 3.3 — "CDB 110% CDI líquido vs. LCI 90% CDI isento"): os dois produtos são hipotéticos digitados pelo usuário (juros compostos calculados no cliente), não um `asset_id` real do catálogo — este endpoint só resolve a alíquota de IR pro prazo informado, mais barato que `GET /market/fixed-income/simulate` (que exige `asset_id`/`amount`).
 
 ### `POST /market/fixed-income/purchases`
 

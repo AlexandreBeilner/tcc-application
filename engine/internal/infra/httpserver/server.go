@@ -57,6 +57,7 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("POST /fixed-income/purchases", handleFixedIncomePurchase(catalog, fixedIncome))
 	mux.HandleFunc("POST /fixed-income/redemptions", handleFixedIncomeRedemption(catalog, fixedIncome))
 	mux.HandleFunc("GET /fixed-income/simulate", handleFixedIncomeSimulate(catalog))
+	mux.HandleFunc("GET /fixed-income/tax-rate", handleFixedIncomeTaxRate())
 	mux.HandleFunc("POST /macro-events", handleTriggerMacroEvent(macroEvents))
 	mux.HandleFunc("GET /macro-events", handleListMacroEvents(macroEventReader))
 

@@ -408,3 +408,66 @@ func TestHandleFixedIncomeRedemption_SemDependencias(t *testing.T) {
 		}
 	})
 }
+
+func getFixedIncomeTaxRate(t *testing.T, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/fixed-income/tax-rate?"+query, nil)
+	rec := httptest.NewRecorder()
+	New("", nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	return rec
+}
+
+// TestHandleFixedIncomeTaxRate (tarefa 6.7) — sem catalogReader/executor
+// nenhum (ambos nil em getFixedIncomeTaxRate acima): diferente de
+// GET /fixed-income/simulate, esta rota nunca responde 503 por
+// dependência ausente, já que não tem nenhuma — só chama
+// fixedincome.RegressiveIncomeTaxRate direto.
+func TestHandleFixedIncomeTaxRate(t *testing.T) {
+	tests := []struct {
+		name     string
+		daysHeld string
+		wantRate float64
+	}{
+		{name: "limite superior da primeira faixa", daysHeld: "180", wantRate: 0.225},
+		{name: "início da segunda faixa", daysHeld: "181", wantRate: 0.20},
+		{name: "limite superior da segunda faixa", daysHeld: "360", wantRate: 0.20},
+		{name: "início da terceira faixa", daysHeld: "361", wantRate: 0.175},
+		{name: "limite superior da terceira faixa", daysHeld: "720", wantRate: 0.175},
+		{name: "início da quarta faixa", daysHeld: "721", wantRate: 0.15},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := getFixedIncomeTaxRate(t, "days_held="+tt.daysHeld)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+			}
+
+			var body taxRateResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if body.TaxRate != tt.wantRate {
+				t.Errorf("TaxRate = %v, want %v", body.TaxRate, tt.wantRate)
+			}
+		})
+	}
+}
+
+func TestHandleFixedIncomeTaxRate_ValidacaoDeEntrada(t *testing.T) {
+	tests := map[string]string{
+		"days_held ausente":     "",
+		"days_held zero":        "days_held=0",
+		"days_held negativo":    "days_held=-10",
+		"days_held não inteiro": "days_held=abc",
+	}
+
+	for name, query := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := getFixedIncomeTaxRate(t, query)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+		})
+	}
+}

@@ -3,6 +3,7 @@ import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { AppShell } from '../components/templates/AppShell'
 import { AssetDetail } from '../pages/AssetDetail'
 import { AuthCallback } from '../pages/AuthCallback'
+import { Calculator } from '../pages/Calculator'
 import { CompanyProfile } from '../pages/CompanyProfile'
 import { EquityList } from '../pages/EquityList'
 import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
@@ -62,7 +63,7 @@ export const router = createBrowserRouter([
                     { path: '/mercado/renda-variavel', element: <EquityList /> },
                     { path: '/mercado/ativos/:id', element: <AssetDetail /> },
                     { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
-                    { path: '/calculadora', element: <PlaceholderPage title="Calculadora" /> },
+                    { path: '/calculadora', element: <Calculator /> },
                     { path: '/classificacao', element: <PlaceholderPage title="Classificação" /> },
                     { path: '/noticias', element: <News /> },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)

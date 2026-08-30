@@ -78,6 +78,17 @@ describe('engineFixedIncomeExecutor', () => {
     expect(response).toEqual(result)
   })
 
+  it('GET /fixed-income/tax-rate com days_held na query string', async () => {
+    const result = { tax_rate: 0.175 }
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => result })
+    const executor = createEngineFixedIncomeExecutor('http://engine:8080')
+
+    const response = await executor.getTaxRate({ days_held: 400 })
+
+    expect(fetchMock).toHaveBeenCalledWith('http://engine:8080/fixed-income/tax-rate?days_held=400')
+    expect(response).toEqual(result)
+  })
+
   it('traduz 404 (usuário sem posição) num EngineRequestError', async () => {
     fetchMock.mockResolvedValue({
       ok: false,

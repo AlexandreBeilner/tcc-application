@@ -13,7 +13,9 @@ import type { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import type { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
 import type { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
+import type { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
 import {
+  fixedIncomeTaxRateQuerySchema,
   getAssetQuotesQuerySchema,
   listAssetsQuerySchema,
   listMyEventsQuerySchema,
@@ -34,6 +36,7 @@ export interface MarketRouterDeps {
   purchaseFixedIncome: PurchaseFixedIncomeUseCase
   redeemFixedIncome: RedeemFixedIncomeUseCase
   simulateFixedIncome: SimulateFixedIncomeUseCase
+  getFixedIncomeTaxRate: GetFixedIncomeTaxRateUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -190,6 +193,31 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
 
       try {
         const result = await deps.simulateFixedIncome.execute(parsed.data)
+        res.status(200).json(result)
+      } catch (err) {
+        sendEngineError(err, res)
+      }
+    },
+  )
+
+  // GET, sem asset_id/amount (tarefa 6.7) — sustenta o modo comparação da
+  // Calculadora (6.2), que usa produtos hipotéticos digitados pelo
+  // usuário, não um ativo real do catálogo (decisão (b) do backlog).
+  router.get(
+    '/market/fixed-income/tax-rate',
+    deps.authMiddleware.authenticate,
+    async (req, res) => {
+      const parsed = fixedIncomeTaxRateQuerySchema.safeParse(req.query)
+      if (!parsed.success) {
+        res.status(400).json({
+          error: 'parâmetros inválidos',
+          details: z.flattenError(parsed.error),
+        })
+        return
+      }
+
+      try {
+        const result = await deps.getFixedIncomeTaxRate.execute(parsed.data)
         res.status(200).json(result)
       } catch (err) {
         sendEngineError(err, res)
