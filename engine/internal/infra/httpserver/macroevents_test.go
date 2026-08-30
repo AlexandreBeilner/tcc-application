@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/macroevent"
@@ -140,6 +141,34 @@ func TestHandleListMacroEvents_SemTargetsDevolveArrayVazio(t *testing.T) {
 	rec := getMacroEvents(t, fake, "")
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"targets":[]`)) {
 		t.Errorf("body = %s, want targets como array vazio, não null", rec.Body.String())
+	}
+}
+
+// TestHandleListMacroEvents_IncluiCreatedAt cobre o gap achado na sessão da
+// tarefa 6.6.1: GET /macro-events nunca lia macro_events.created_at (a
+// coluna existe desde a migration 000001, mas List/DTO nunca a expunham) —
+// a tela 5.1 (Feed de Notícias) precisa da data real de criação, não do
+// dia simulado (triggered_on_day).
+func TestHandleListMacroEvents_IncluiCreatedAt(t *testing.T) {
+	createdAt := time.Date(2026, 8, 30, 14, 5, 0, 0, time.UTC)
+	fake := &fakeMacroEventLister{records: []macroevent.Record{
+		{ID: "event-1", CreatedAt: createdAt, Event: macroevent.Event{Title: "t1", Status: macroevent.StatusPendente}},
+	}}
+
+	rec := getMacroEvents(t, fake, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body macroEventListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Events) != 1 || body.Events[0].CreatedAt == nil {
+		t.Fatalf("Events = %+v, want 1 evento com CreatedAt preenchido", body.Events)
+	}
+	if !body.Events[0].CreatedAt.Equal(createdAt) {
+		t.Errorf("CreatedAt = %v, want %v", body.Events[0].CreatedAt, createdAt)
 	}
 }
 

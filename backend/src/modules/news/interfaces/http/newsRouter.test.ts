@@ -19,6 +19,7 @@ const sampleEvent = {
   triggered_on_day: 10,
   duration_days: 2,
   targets: [{ sector: 'Financeiro' }],
+  created_at: '2026-08-30T14:05:00.000Z',
 }
 
 function buildApp(newsFeedReader = createFakeNewsFeedReader({ events: [sampleEvent] })) {

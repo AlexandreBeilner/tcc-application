@@ -6,6 +6,14 @@ import styles from './index.module.css'
 
 export type { NewsEventListProps } from './types'
 
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+})
+
 const DIRECTION_LABELS: Record<NewsEvent['direction'], string> = {
     positivo: 'Alta',
     negativo: 'Baixa',
@@ -50,6 +58,7 @@ export function NewsEventList({ events, assetLabels = {}, onEventRead, onSelectA
                                 {event.status === 'aplicado' ? 'Aplicado' : 'Pendente'}
                             </span>
                             <span className={styles.title}>{event.title}</span>
+                            <span className={styles.date}>{dateFormatter.format(new Date(event.created_at))}</span>
                             <span className={`${styles.direction} ${directionClass(event.direction)}`}>
                                 {DIRECTION_LABELS[event.direction]}
                             </span>

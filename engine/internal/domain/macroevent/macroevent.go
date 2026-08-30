@@ -15,6 +15,7 @@ package macroevent
 
 import (
 	"errors"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 )
@@ -131,12 +132,13 @@ type Event struct {
 	FundamentalsReportDay *int
 }
 
-// Record é um Event já persistido, pareado com o id gerado pelo banco —
-// Event em si deliberadamente não carrega Id (ver doc do pacote), então
-// qualquer leitura que precise do id (GET /macro-events, tarefa 4.5) usa
-// este tipo, não Event sozinho.
+// Record é um Event já persistido, pareado com o id e o created_at gerados
+// pelo banco — Event em si deliberadamente não carrega esses dois campos
+// (ver doc do pacote), então qualquer leitura que precise deles (GET
+// /macro-events, tarefas 4.5/6.6.1) usa este tipo, não Event sozinho.
 type Record struct {
-	ID string
+	ID        string
+	CreatedAt time.Time
 	Event
 }
 

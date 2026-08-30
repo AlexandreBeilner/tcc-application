@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Button } from '../../components/atoms/Button'
 import { NewsEventList } from '../../components/organisms/NewsEventList'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
-import { useNewsQuery } from '../../features/shell/useNewsQuery'
+import { useNewsFeedQuery } from '../../features/news/useNewsFeedQuery'
 import { markNewsAsSeen } from '../../features/shell/unreadNews'
 import { useReportFeedMission } from '../../features/news/useReportFeedMission'
 import styles from './index.module.css'
@@ -13,16 +14,20 @@ import styles from './index.module.css'
 // aplicado). `assetLabels` resolve target.asset_id pra "TICKER · Nome"
 // (GET /market/assets, mesmo padrão do Extrato) — busca a lista inteira
 // sem filtro de tipo, catálogo pequeno o bastante (15 ativos) pra não
-// precisar de lookup individual por target.
+// precisar de lookup individual por target. Paginação real via "Carregar
+// mais" (tarefa 6.6.1, `useNewsFeedQuery`) — some quando a última página
+// vier menor que o tamanho pedido (fim da lista).
 export function News() {
-    const newsQuery = useNewsQuery()
+    const newsQuery = useNewsFeedQuery()
     const assetsQuery = useAssetsQuery()
     const navigate = useNavigate()
     const reportFeedRead = useReportFeedMission()
 
+    const events = useMemo(() => newsQuery.data?.pages.flatMap((page) => page.events) ?? [], [newsQuery.data])
+
     useEffect(() => {
-        if (newsQuery.data) markNewsAsSeen(newsQuery.data.events)
-    }, [newsQuery.data])
+        if (newsQuery.data) markNewsAsSeen(events)
+    }, [newsQuery.data, events])
 
     const assetLabels = useMemo(() => {
         const assets = assetsQuery.data?.assets ?? []
@@ -39,12 +44,25 @@ export function News() {
             {newsQuery.isLoading && <p className={styles.loading}>Carregando feed…</p>}
 
             {newsQuery.data && (
-                <NewsEventList
-                    events={newsQuery.data.events}
-                    assetLabels={assetLabels}
-                    onEventRead={reportFeedRead}
-                    onSelectAsset={(assetId) => navigate(`/mercado/ativos/${assetId}`)}
-                />
+                <>
+                    <NewsEventList
+                        events={events}
+                        assetLabels={assetLabels}
+                        onEventRead={reportFeedRead}
+                        onSelectAsset={(assetId) => navigate(`/mercado/ativos/${assetId}`)}
+                    />
+
+                    {newsQuery.hasNextPage && (
+                        <Button
+                            variant="secondary"
+                            className={styles.loadMore}
+                            disabled={newsQuery.isFetchingNextPage}
+                            onClick={() => newsQuery.fetchNextPage()}
+                        >
+                            {newsQuery.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+                        </Button>
+                    )}
+                </>
             )}
         </main>
     )

@@ -17,6 +17,7 @@ function event(overrides: Partial<NewsEvent> = {}): NewsEvent {
         duration_days: 2,
         price_effect_pct: -8.4,
         targets: [{ sector: 'Financeiro' }],
+        created_at: '2026-08-30T14:05:00.000Z',
         ...overrides,
     }
 }
@@ -31,6 +32,18 @@ describe('NewsEventList', () => {
         render(<NewsEventList events={[event()]} />)
         expect(screen.getByText('Alta de juros afeta bancos')).toBeInTheDocument()
         expect(screen.getByText('Pendente')).toBeInTheDocument()
+    })
+
+    it('mostra a data real de criação (created_at), formatada igual ao Extrato', () => {
+        render(<NewsEventList events={[event({ created_at: '2026-08-30T14:05:00.000Z' })]} />)
+        const expected = new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(new Date('2026-08-30T14:05:00.000Z'))
+        expect(screen.getByText(expected)).toBeInTheDocument()
     })
 
     it('diferencia pendente de aplicado', () => {

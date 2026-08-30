@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
@@ -70,6 +71,11 @@ type macroEventResponse struct {
 	FundamentalsEffectPct *float64                    `json:"fundamentals_effect_pct,omitempty"`
 	FundamentalsReportDay *int                        `json:"fundamentals_report_day,omitempty"`
 	Targets               []macroEventTargetResponse `json:"targets"`
+	// CreatedAt só é preenchido por toMacroEventResponseFromRecord (GET
+	// /macro-events, tarefa 6.6.1) — o disparo em si (POST /macro-events)
+	// não busca created_at de volta do banco depois do INSERT, então fica
+	// omitido (não zero-valued) nessa resposta.
+	CreatedAt *time.Time `json:"created_at,omitempty"`
 }
 
 func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse {
@@ -104,6 +110,18 @@ func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse 
 		FundamentalsReportDay: event.FundamentalsReportDay,
 		Targets:               targets,
 	}
+}
+
+// toMacroEventResponseFromRecord estende toMacroEventResponse com
+// created_at (macroevent.Record, não macroevent.Event — ver doc do pacote
+// pra por que os dois campos vivem separados) — usado só por
+// handleListMacroEvents (GET /macro-events, tarefa 6.6.1), nunca pelo
+// disparo (POST /macro-events não tem created_at de volta do INSERT).
+func toMacroEventResponseFromRecord(rec macroevent.Record) macroEventResponse {
+	resp := toMacroEventResponse(rec.ID, rec.Event)
+	createdAt := rec.CreatedAt
+	resp.CreatedAt = &createdAt
+	return resp
 }
 
 // handleTriggerMacroEvent serve POST /macro-events — dispara um evento
@@ -231,7 +249,7 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 
 		events := make([]macroEventResponse, 0, len(records))
 		for _, rec := range records {
-			events = append(events, toMacroEventResponse(rec.ID, rec.Event))
+			events = append(events, toMacroEventResponseFromRecord(rec))
 		}
 		writeJSON(w, http.StatusOK, macroEventListResponse{Events: events})
 	}

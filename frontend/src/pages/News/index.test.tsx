@@ -66,12 +66,64 @@ describe('News (tela 5.1)', () => {
                     triggered_on_day: 5,
                     duration_days: 2,
                     targets: [{ sector: 'Financeiro' }],
+                    created_at: '2026-08-30T14:05:00.000Z',
                 },
             ],
         })
 
         renderPage()
         expect(await screen.findByText('Alta de juros afeta bancos')).toBeInTheDocument()
+    })
+
+    it('busca a primeira página com o tamanho default de paginação', async () => {
+        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        renderPage()
+        await waitFor(() => expect(listNews).toHaveBeenCalledWith('token', 20, 0))
+    })
+
+    it('mostra "Carregar mais" quando a página vem cheia, e some quando a próxima página vem incompleta', async () => {
+        const page1 = Array.from({ length: 20 }, (_, i) => ({
+            id: `p1-${i}`,
+            title: `Evento ${i}`,
+            narrative: 'narrativa',
+            direction: 'misto' as const,
+            magnitude_band: 'leve' as const,
+            affects_price: true,
+            affects_fundamentals: false,
+            status: 'pendente' as const,
+            triggered_on_day: 1,
+            duration_days: 1,
+            targets: [],
+            created_at: '2026-08-30T14:05:00.000Z',
+        }))
+        const page2 = [
+            {
+                id: 'p2-0',
+                title: 'Evento da segunda página',
+                narrative: 'narrativa',
+                direction: 'misto' as const,
+                magnitude_band: 'leve' as const,
+                affects_price: true,
+                affects_fundamentals: false,
+                status: 'pendente' as const,
+                triggered_on_day: 2,
+                duration_days: 1,
+                targets: [],
+                created_at: '2026-08-30T14:05:00.000Z',
+            },
+        ]
+        vi.mocked(listNews).mockImplementation((_token: string, _limit?: number, offset?: number) =>
+            Promise.resolve({ events: offset === 0 || offset === undefined ? page1 : page2 }),
+        )
+
+        renderPage()
+        expect(await screen.findByText('Carregar mais')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByText('Carregar mais'))
+
+        await waitFor(() => expect(listNews).toHaveBeenCalledWith('token', 20, 20))
+        expect(await screen.findByText('Evento da segunda página')).toBeInTheDocument()
+        expect(screen.queryByText('Carregar mais')).not.toBeInTheDocument()
     })
 
     it('estado vazio sem eventos disparados', async () => {
@@ -95,6 +147,7 @@ describe('News (tela 5.1)', () => {
                     triggered_on_day: 5,
                     duration_days: 1,
                     targets: [{ asset_id: 'a1' }],
+                    created_at: '2026-08-30T14:05:00.000Z',
                 },
             ],
         })
@@ -122,6 +175,7 @@ describe('News (tela 5.1)', () => {
                     triggered_on_day: 1,
                     duration_days: 1,
                     targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
                 },
             ],
         })
@@ -148,6 +202,7 @@ describe('News (tela 5.1)', () => {
                     triggered_on_day: 1,
                     duration_days: 1,
                     targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
                 },
             ],
         })

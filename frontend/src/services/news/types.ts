@@ -29,6 +29,10 @@ export interface NewsEvent {
     fundamentals_effect_pct?: number
     fundamentals_report_day?: number
     targets: NewsEventTarget[]
+    // Timestamp real de criação do evento (RFC 3339, tarefa 6.6.1) —
+    // diferente de `triggered_on_day`, que é o dia **simulado**. Exibido
+    // formatado no feed (5.1), mesmo padrão de `StatementList`/Extrato.
+    created_at: string
 }
 
 export interface ListNewsResult {

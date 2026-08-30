@@ -99,7 +99,7 @@ func (r *MacroEventRepository) List(ctx context.Context, limit, offset int) ([]m
 		`SELECT id, template_key, title, narrative, direction, magnitude_band,
 		        affects_price, affects_fundamentals, status, created_by,
 		        triggered_on_day, duration_days, price_effect_pct,
-		        fundamentals_effect_pct, fundamentals_report_day
+		        fundamentals_effect_pct, fundamentals_report_day, created_at
 		 FROM macro_events
 		 ORDER BY created_at DESC, id
 		 LIMIT $1 OFFSET $2`,
@@ -118,7 +118,7 @@ func (r *MacroEventRepository) List(ctx context.Context, limit, offset int) ([]m
 			&rec.ID, &rec.TemplateKey, &rec.Title, &rec.Narrative, &direction, &band,
 			&rec.AffectsPrice, &rec.AffectsFundamentals, &status, &rec.CreatedBy,
 			&rec.TriggeredOnDay, &rec.DurationDays, &rec.PriceEffectPct,
-			&rec.FundamentalsEffectPct, &rec.FundamentalsReportDay,
+			&rec.FundamentalsEffectPct, &rec.FundamentalsReportDay, &rec.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
