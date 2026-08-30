@@ -18,6 +18,7 @@ function event(overrides: Partial<NewsEvent> = {}): NewsEvent {
         price_effect_pct: -8.4,
         targets: [{ sector: 'Financeiro' }],
         created_at: '2026-08-30T14:05:00.000Z',
+        seen: false,
         ...overrides,
     }
 }
@@ -96,5 +97,21 @@ describe('NewsEventList', () => {
         fireEvent(details, new Event('toggle'))
 
         expect(onEventRead).not.toHaveBeenCalled()
+    })
+
+    it('chama onEventOpen com o id do evento ainda não visto ao expandir', async () => {
+        const onEventOpen = vi.fn()
+        render(<NewsEventList events={[event({ id: 'e1', seen: false })]} onEventOpen={onEventOpen} />)
+        fireEvent.click(screen.getByText('Alta de juros afeta bancos'))
+        await waitFor(() => expect(onEventOpen).toHaveBeenCalledWith('e1'))
+    })
+
+    it('não chama onEventOpen pra evento já visto', async () => {
+        const onEventOpen = vi.fn()
+        const onEventRead = vi.fn()
+        render(<NewsEventList events={[event({ id: 'e1', seen: true })]} onEventOpen={onEventOpen} onEventRead={onEventRead} />)
+        fireEvent.click(screen.getByText('Alta de juros afeta bancos'))
+        await waitFor(() => expect(onEventRead).toHaveBeenCalledTimes(1))
+        expect(onEventOpen).not.toHaveBeenCalled()
     })
 })

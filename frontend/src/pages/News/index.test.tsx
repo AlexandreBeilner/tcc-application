@@ -3,13 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { listNews } from '../../services/news'
+import { listNews, markNewsEventSeen } from '../../services/news'
 import { listAssets } from '../../services/market'
 import { completeMission, listMissions } from '../../services/missions'
 import { News } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/news', () => ({ listNews: vi.fn() }))
+vi.mock('../../services/news', () => ({ listNews: vi.fn(), markNewsEventSeen: vi.fn() }))
 vi.mock('../../services/market', () => ({ listAssets: vi.fn() }))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
 
@@ -47,6 +47,7 @@ describe('News (tela 5.1)', () => {
         vi.mocked(listAssets).mockResolvedValue({ assets: [] })
         vi.mocked(listMissions).mockResolvedValue({ missions: [feedMission] })
         vi.mocked(completeMission).mockResolvedValue({ status: 'completed' })
+        vi.mocked(markNewsEventSeen).mockResolvedValue(undefined)
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -67,6 +68,7 @@ describe('News (tela 5.1)', () => {
                     duration_days: 2,
                     targets: [{ sector: 'Financeiro' }],
                     created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
                 },
             ],
         })
@@ -95,6 +97,7 @@ describe('News (tela 5.1)', () => {
             duration_days: 1,
             targets: [],
             created_at: '2026-08-30T14:05:00.000Z',
+            seen: false,
         }))
         const page2 = [
             {
@@ -110,6 +113,7 @@ describe('News (tela 5.1)', () => {
                 duration_days: 1,
                 targets: [],
                 created_at: '2026-08-30T14:05:00.000Z',
+                seen: false,
             },
         ]
         vi.mocked(listNews).mockImplementation((_token: string, _limit?: number, offset?: number) =>
@@ -148,6 +152,7 @@ describe('News (tela 5.1)', () => {
                     duration_days: 1,
                     targets: [{ asset_id: 'a1' }],
                     created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
                 },
             ],
         })
@@ -176,6 +181,7 @@ describe('News (tela 5.1)', () => {
                     duration_days: 1,
                     targets: [],
                     created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
                 },
             ],
         })
@@ -203,6 +209,7 @@ describe('News (tela 5.1)', () => {
                     duration_days: 1,
                     targets: [],
                     created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
                 },
             ],
         })
@@ -212,5 +219,60 @@ describe('News (tela 5.1)', () => {
 
         await waitFor(() => expect(listMissions).toHaveBeenCalled())
         expect(completeMission).not.toHaveBeenCalled()
+    })
+
+    it('ao expandir um evento ainda não visto, chama POST /news/:id/seen', async () => {
+        vi.mocked(listNews).mockResolvedValue({
+            events: [
+                {
+                    id: 'e1',
+                    title: 'Evento não visto',
+                    narrative: 'narrativa',
+                    direction: 'misto',
+                    magnitude_band: 'leve',
+                    affects_price: true,
+                    affects_fundamentals: false,
+                    status: 'pendente',
+                    triggered_on_day: 1,
+                    duration_days: 1,
+                    targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
+                    seen: false,
+                },
+            ],
+        })
+
+        renderPage()
+        fireEvent.click(await screen.findByText('Evento não visto'))
+
+        await waitFor(() => expect(markNewsEventSeen).toHaveBeenCalledWith('token', 'e1'))
+    })
+
+    it('não chama POST /news/:id/seen pra evento já visto', async () => {
+        vi.mocked(listNews).mockResolvedValue({
+            events: [
+                {
+                    id: 'e1',
+                    title: 'Evento já visto',
+                    narrative: 'narrativa',
+                    direction: 'misto',
+                    magnitude_band: 'leve',
+                    affects_price: true,
+                    affects_fundamentals: false,
+                    status: 'pendente',
+                    triggered_on_day: 1,
+                    duration_days: 1,
+                    targets: [],
+                    created_at: '2026-08-30T14:05:00.000Z',
+                    seen: true,
+                },
+            ],
+        })
+
+        renderPage()
+        fireEvent.click(await screen.findByText('Evento já visto'))
+
+        await waitFor(() => expect(listMissions).toHaveBeenCalled())
+        expect(markNewsEventSeen).not.toHaveBeenCalled()
     })
 })

@@ -10,6 +10,12 @@ export interface NewsEventListProps {
     // render — sinal de "leu pelo menos um evento" (auto-report da missão
     // "Consulte o feed de notícias", tarefa 6.6/6.8).
     onEventRead?: () => void
+    // Disparado na expansão de um evento específico ainda não visto
+    // (`event.seen === false`) — marca "visto" persistido por usuário
+    // (`POST /news/:id/seen`, tarefa 6.6.2). Independente de `onEventRead`:
+    // este é por-evento e só dispara pra itens não vistos, aquele é
+    // agregado (missão) e dispara sempre na primeira expansão da sessão.
+    onEventOpen?: (eventId: string) => void
     // Clique num target com asset_id (4.5 Detalhe de Ativo) — a página
     // decide a navegação (useNavigate), mesmo padrão de onSelect em
     // AssetTable/CompanyAssetList (organism não embute react-router).

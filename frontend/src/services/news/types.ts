@@ -33,6 +33,11 @@ export interface NewsEvent {
     // diferente de `triggered_on_day`, que é o dia **simulado**. Exibido
     // formatado no feed (5.1), mesmo padrão de `StatementList`/Extrato.
     created_at: string
+    // Rastreio persistido por usuário (tarefa 6.6.2) — `true` se o usuário
+    // autenticado já marcou este evento como visto (`POST /news/:id/seen`).
+    // Diferente do sino da TopBar (NewsBell/useUnreadNews), que continua
+    // client-side/agregado — os dois coexistem, propósitos diferentes.
+    seen: boolean
 }
 
 export interface ListNewsResult {

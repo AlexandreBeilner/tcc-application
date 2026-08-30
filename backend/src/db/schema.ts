@@ -198,3 +198,21 @@ export const userMissionProgress = pgTable(
     unique('user_mission_progress_unique').on(table.userId, table.missionId, table.missionDate),
   ],
 )
+
+// Tarefa 6.6.2 — rastreio de "visto" por usuário no Feed de Notícias.
+// macro_events vive no banco "market" (dono é o motor de simulação, mesmo
+// raciocínio de accounts/positions) — macroEventId é só um uuid solto,
+// sem `.references()`, primeiro caso do schema referenciando um id de
+// outro banco sem FK real.
+export const newsEventReads = pgTable(
+  'news_event_reads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    macroEventId: uuid('macro_event_id').notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('news_event_reads_unique').on(table.userId, table.macroEventId)],
+)

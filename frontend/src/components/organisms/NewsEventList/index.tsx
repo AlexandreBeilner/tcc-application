@@ -36,7 +36,7 @@ function directionClass(direction: NewsEvent['direction']): string {
 // tracejado (identidade-visual-padroes.md §3): tracejado = efeito ainda em
 // curso/aguardando confirmação, sólido = já encerrado. Reforça
 // pedagogicamente "preço reage à expectativa, resultado confirma depois".
-export function NewsEventList({ events, assetLabels = {}, onEventRead, onSelectAsset }: NewsEventListProps) {
+export function NewsEventList({ events, assetLabels = {}, onEventRead, onEventOpen, onSelectAsset }: NewsEventListProps) {
     if (events.length === 0) {
         return <p className={styles.empty}>Nenhum evento de mercado disparado ainda.</p>
     }
@@ -46,9 +46,11 @@ export function NewsEventList({ events, assetLabels = {}, onEventRead, onSelectA
             {events.map((event) => (
                 <li key={event.id}>
                     <details
-                        className={styles.item}
+                        className={`${styles.item} ${event.seen ? '' : styles.unseen}`}
                         onToggle={(e) => {
-                            if (e.currentTarget.open) onEventRead?.()
+                            if (!e.currentTarget.open) return
+                            onEventRead?.()
+                            if (!event.seen) onEventOpen?.(event.id)
                         }}
                     >
                         <summary className={styles.summary}>

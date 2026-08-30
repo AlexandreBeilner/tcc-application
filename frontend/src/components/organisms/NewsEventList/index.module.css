@@ -18,6 +18,14 @@
     background: var(--color-bg-surface);
 }
 
+/* Destaque leve de "não visto" (tarefa 6.6.2) — mesmos tokens de marca já
+   usados no badge "Aplicado" acima (--color-brand-100/500), sem inventar
+   cor nova. */
+.unseen {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
 .summary {
     display: flex;
     align-items: center;

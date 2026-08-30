@@ -10,3 +10,9 @@ export function listNews(token: string, limit?: number, offset?: number): Promis
     const query = params.toString()
     return apiRequest<ListNewsResult>(`/news${query ? `?${query}` : ''}`, { token })
 }
+
+// Idempotente (`.docs/backend/news.md`) — reenviar não duplica linha nem
+// lança erro, mesmo padrão de `completeMission`.
+export function markNewsEventSeen(token: string, eventId: string): Promise<void> {
+    return apiRequest<void>(`/news/${eventId}/seen`, { token, method: 'POST' })
+}

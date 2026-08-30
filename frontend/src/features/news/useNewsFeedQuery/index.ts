@@ -12,6 +12,8 @@ import type { ListNewsResult } from '../../../services/news'
 // o extrato de um usuário.
 export const NEWS_FEED_PAGE_SIZE = 20
 
+export const NEWS_FEED_QUERY_KEY = ['news', 'feed'] as const
+
 // Query própria do Feed (5.1), separada de `useNewsQuery` (shell/badge) —
 // o badge só precisa da primeira página pra saber se surgiu algo novo,
 // não acompanha a paginação da tela.
@@ -19,7 +21,7 @@ export function useNewsFeedQuery(): UseInfiniteQueryResult<InfiniteData<ListNews
     const { token } = useAuth()
 
     return useInfiniteQuery({
-        queryKey: ['news', 'feed'] as const,
+        queryKey: NEWS_FEED_QUERY_KEY,
         queryFn: ({ pageParam }) => listNews(token as string, NEWS_FEED_PAGE_SIZE, pageParam),
         initialPageParam: 0,
         getNextPageParam: (lastPage, allPages) =>

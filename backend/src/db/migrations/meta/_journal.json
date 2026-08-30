@@ -43,6 +43,13 @@
       "when": 1787788449210,
       "tag": "0005_grey_zaran",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788096232828,
+      "tag": "0006_low_nightmare",
+      "breakpoints": true
     }
   ]
 }

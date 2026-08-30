@@ -16,6 +16,7 @@ function event(id: string, status: NewsEvent['status']): NewsEvent {
         duration_days: 1,
         targets: [],
         created_at: '2026-08-30T14:05:00.000Z',
+        seen: false,
     }
 }
 
