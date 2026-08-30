@@ -38,9 +38,9 @@ describe('TrackChart', () => {
             />,
         )
 
-        expect(screen.getByRole('button', { name: 'O que é investir — Concluída' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Inflação — Disponível' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Rendimento real — Bloqueada: libera Renda Fixa' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'O que é investir: Concluída' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Inflação: Disponível' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Rendimento real: Bloqueada: libera Renda Fixa' })).toBeInTheDocument()
     })
 
     it('cada nó carrega um tooltip com título e status — inclusive os bloqueados/futuros', () => {

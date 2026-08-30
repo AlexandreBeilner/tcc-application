@@ -98,7 +98,7 @@ export function TrackChart({ lessons, expandedHintId, onNodeClick }: TrackChartP
                             className={[styles.node, styles[point.lesson.status]].join(' ')}
                             style={{ left: toPercent(point.x, TRACK_CHART_WIDTH), top: toPercent(point.y, TRACK_CHART_HEIGHT) }}
                             onClick={() => onNodeClick(point.lesson)}
-                            aria-label={`${point.lesson.title} — ${statusLabel(point.lesson)}`}
+                            aria-label={`${point.lesson.title}: ${statusLabel(point.lesson)}`}
                         >
                             <StatusIcon size={16} strokeWidth={2.5} fill={point.lesson.status === 'available' ? 'currentColor' : 'none'} />
                             <span className={[styles.tooltip, tooltipBelow && styles.tooltipBelow].filter(Boolean).join(' ')} aria-hidden="true">

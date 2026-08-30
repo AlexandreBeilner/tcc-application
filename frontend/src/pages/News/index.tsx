@@ -33,7 +33,7 @@ export function News() {
         <main className={styles.page}>
             <h1 className={styles.title}>Notícias</h1>
             <p className={styles.subtitle}>
-                Eventos de mercado que afetam preço e/ou fundamentos dos ativos — clique num evento pra ver o efeito completo.
+                Eventos de mercado que afetam preço e/ou fundamentos dos ativos. Clique num evento pra ver o efeito completo.
             </p>
 
             {newsQuery.isLoading && <p className={styles.loading}>Carregando feed…</p>}

@@ -20,7 +20,7 @@ export function Market() {
                         <Landmark size={22} strokeWidth={2} />
                     </span>
                     <span className={styles.cardTitle}>Renda Fixa</span>
-                    <span className={styles.cardBody}>Tesouro Direto, CDBs, LCA, LCI, CRI e CRA — produtos conservadores.</span>
+                    <span className={styles.cardBody}>Tesouro Direto, CDBs, LCA, LCI, CRI e CRA: produtos conservadores.</span>
                 </Card>
 
                 <Card className={styles.card} onClick={() => navigate('/mercado/renda-variavel')}>
@@ -28,7 +28,7 @@ export function Market() {
                         <TrendingUp size={22} strokeWidth={2} />
                     </span>
                     <span className={styles.cardTitle}>Renda Variável</span>
-                    <span className={styles.cardBody}>Ações, ETFs e FIIs — negociação a preço de mercado.</span>
+                    <span className={styles.cardBody}>Ações, ETFs e FIIs: negociação a preço de mercado.</span>
                 </Card>
             </div>
         </main>
