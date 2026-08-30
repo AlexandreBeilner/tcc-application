@@ -34,6 +34,39 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* Toggle de unidade (tarefa 6.7.1) — taxa (% a.a./% a.m.) e período
+   (meses/anos) ficam ambíguos lado a lado sem isso. */
+.fieldHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.unitToggle {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-base);
+}
+
+.unitOption {
+    padding: 2px var(--space-2);
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.unitOptionActive {
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+}
+
 .tabs {
     display: flex;
     gap: var(--space-2);

@@ -48,11 +48,21 @@ export function computeGrowthChartLayout(points: GrowthProjectionPoint[]): Growt
     const firstX = investedCoords[0].x
     const investedFillPath = `${investedPath} L${lastX.toFixed(1)},${GROWTH_CHART_HEIGHT} L${firstX.toFixed(1)},${GROWTH_CHART_HEIGHT} Z`
 
+    const hoverPoints = points.map((point, index) => ({
+        x: investedCoords[index].x,
+        investedY: investedCoords[index].y,
+        totalY: totalCoords[index].y,
+        month: point.month,
+        invested: point.invested,
+        total: point.total,
+    }))
+
     return {
         investedPath,
         investedFillPath,
         totalPath: toPath(totalCoords),
         minValue,
         maxValue,
+        points: hoverPoints,
     }
 }
