@@ -144,7 +144,11 @@ export function RankingBoard({
                 <div className={styles.podium}>
                     {podium.map((entry, index) => (
                         <div key={entry.userId} className={`${styles.slot} ${styles[`slot${index + 1}`]}`}>
-                            <div className={rowClass(entry, `${styles.card} ${styles[`card${index + 1}`]}`)}>
+                            <button
+                                type="button"
+                                className={rowClass(entry, `${styles.card} ${styles[`card${index + 1}`]}`)}
+                                onClick={() => navigate(`/perfil/${entry.userId}`)}
+                            >
                                 <span className={styles.medal}>{RANK_LABEL[index]} lugar</span>
                                 <span className={styles.avatar}>{initials(entry.username)}</span>
                                 <span className={styles.podiumName}>{entry.username}</span>
@@ -153,7 +157,7 @@ export function RankingBoard({
                                     <PodiumSparkline seedKey={`${entry.userId}:${criterion}`} pct={entry.profitabilityPct as number} />
                                 )}
                                 {valueBlock(entry, styles.podiumPct)}
-                            </div>
+                            </button>
                             <div className={styles.pedestal} aria-hidden="true">
                                 {RANK_LABEL[index]}
                             </div>
@@ -165,11 +169,17 @@ export function RankingBoard({
             {rest.length > 0 && (
                 <ul className={styles.list}>
                     {rest.map((entry, index) => (
-                        <li key={entry.userId} className={rowClass(entry, styles.row)}>
-                            <span className={styles.rowRank}>{restRankOffset + index}º</span>
-                            <span className={styles.rowName}>{entry.username}</span>
-                            <span className={styles.rowLevel}>Nível {entry.level}</span>
-                            {valueBlock(entry, styles.rowPct)}
+                        <li key={entry.userId}>
+                            <button
+                                type="button"
+                                className={rowClass(entry, styles.row)}
+                                onClick={() => navigate(`/perfil/${entry.userId}`)}
+                            >
+                                <span className={styles.rowRank}>{restRankOffset + index}º</span>
+                                <span className={styles.rowName}>{entry.username}</span>
+                                <span className={styles.rowLevel}>Nível {entry.level}</span>
+                                {valueBlock(entry, styles.rowPct)}
+                            </button>
                         </li>
                     ))}
                 </ul>

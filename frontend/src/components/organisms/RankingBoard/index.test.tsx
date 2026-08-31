@@ -37,6 +37,7 @@ function renderBoard(
         [
             { path: '/', element: <RankingBoard entries={entries} {...props} /> },
             { path: '/amigos', element: <div>tela de amigos</div> },
+            { path: '/perfil/:id', element: <div>perfil público</div> },
         ],
         { initialEntries: ['/'] },
     )
@@ -129,5 +130,28 @@ describe('RankingBoard (tela 7.1)', () => {
     it('não mostra a posição do próprio usuário quando ele não está no ranking filtrado', () => {
         renderBoard([entry({ userId: '1' })], { requestingUserPosition: null })
         expect(screen.queryByText(/Você está em/)).not.toBeInTheDocument()
+    })
+
+    it('clique num card do pódio navega pro perfil público (8.4, tarefa 6.9)', () => {
+        renderBoard([
+            entry({ userId: '1', username: 'ana' }),
+            entry({ userId: '2', username: 'bia' }),
+            entry({ userId: '3', username: 'caio' }),
+        ])
+
+        fireEvent.click(screen.getByRole('button', { name: /ana/ }))
+        expect(screen.getByText('perfil público')).toBeInTheDocument()
+    })
+
+    it('clique numa linha da lista (fora do pódio) navega pro perfil público (8.4, tarefa 6.9)', () => {
+        renderBoard([
+            entry({ userId: '1', username: 'ana' }),
+            entry({ userId: '2', username: 'bia' }),
+            entry({ userId: '3', username: 'caio' }),
+            entry({ userId: '4', username: 'duda' }),
+        ])
+
+        fireEvent.click(screen.getByRole('button', { name: /duda/ }))
+        expect(screen.getByText('perfil público')).toBeInTheDocument()
     })
 })
