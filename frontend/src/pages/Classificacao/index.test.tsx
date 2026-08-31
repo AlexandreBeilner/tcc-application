@@ -59,6 +59,11 @@ describe('Classificacao (tela 7.1)', () => {
         expect(await screen.findByText('ana')).toBeInTheDocument()
     })
 
+    it('mostra a posição do usuário autenticado retornada pelo backend', async () => {
+        renderPage()
+        expect(await screen.findByText('Você está em Nº 2')).toBeInTheDocument()
+    })
+
     it('alternar pra Amigos refaz a consulta com o novo escopo', async () => {
         renderPage()
         await screen.findByText('ana')

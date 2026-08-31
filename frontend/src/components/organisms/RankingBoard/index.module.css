@@ -4,6 +4,13 @@
     gap: var(--space-4);
 }
 
+.selfPosition {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
 /* ---- pódio (6.8.4 — identidade "home broker") ---- */
 
 .podium {

@@ -119,6 +119,7 @@ export function Classificacao() {
                             scope={scope}
                             criterion={criterion}
                             currentUserId={user?.id ?? null}
+                            requestingUserPosition={rankingQuery.data.requestingUserPosition}
                             page={rankingQuery.data.page}
                             pageSize={rankingQuery.data.pageSize}
                             totalEntries={rankingQuery.data.totalEntries}
@@ -137,7 +138,7 @@ export function Classificacao() {
                         value={window}
                         onChange={changeWindow}
                         disabled={windowDisabled}
-                        disabledReason="Não se aplica ao critério Nível — nível é cumulativo desde sempre."
+                        disabledReason="Não se aplica ao critério Nível: nível é cumulativo desde sempre."
                     />
                 </aside>
             </div>

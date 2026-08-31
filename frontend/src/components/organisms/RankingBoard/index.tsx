@@ -34,6 +34,13 @@ function sparklineIsGain(pct: number): boolean {
     return pct >= 0
 }
 
+// Único ponto que decide "XP ou rentabilidade" por critério — usado tanto
+// pro flash de valor quanto pro bloco renderizado, pra não correr risco de
+// um dos dois ficar desatualizado quando um 5º critério for adicionado.
+function criterionValue(entry: RankingEntry, criterion: RankingCriterion): number | null {
+    return criterion === 'level' ? entry.xp : entry.profitabilityPct
+}
+
 // Sparkline por card do pódio (tarefa 6.8.4, mockup em
 // identidade-visual-padroes.md) — 2 âncoras reais (início da janela = 0%,
 // agora = `pct`) com ruído determinístico entre elas (`podiumSparkline`,
@@ -78,6 +85,7 @@ export function RankingBoard({
     scope,
     criterion,
     currentUserId,
+    requestingUserPosition,
     page,
     pageSize,
     totalEntries,
@@ -85,7 +93,7 @@ export function RankingBoard({
     onPageChange,
 }: RankingBoardProps) {
     const navigate = useNavigate()
-    const flashValues = new Map(entries.map((entry) => [entry.userId, criterion === 'level' ? entry.xp : entry.profitabilityPct]))
+    const flashValues = new Map(entries.map((entry) => [entry.userId, criterionValue(entry, criterion)]))
     const flashingIds = useValueFlash(flashValues)
 
     // `GET /ranking` nunca erra pro escopo Amigos sem amigos aceitos — só
@@ -130,6 +138,8 @@ export function RankingBoard({
 
     return (
         <div className={styles.board}>
+            {requestingUserPosition !== null && <p className={styles.selfPosition}>Você está em Nº {requestingUserPosition}</p>}
+
             {podium.length > 0 && (
                 <div className={styles.podium}>
                     {podium.map((entry, index) => (

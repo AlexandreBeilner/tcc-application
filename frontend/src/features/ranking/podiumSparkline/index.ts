@@ -1,3 +1,5 @@
+import { noise } from '../../../utils/deterministicNoise'
+
 export const PODIUM_SPARKLINE_WIDTH = 112
 export const PODIUM_SPARKLINE_HEIGHT = 40
 
@@ -20,11 +22,6 @@ function hashSeed(seed: string): number {
     return Math.abs(hash)
 }
 
-function noise(seed: number): number {
-    const value = Math.sin(seed * 12.9898) * 43758.5453
-    return value - Math.floor(value)
-}
-
 export interface PodiumSparkline {
     linePath: string
     fillPath: string
@@ -36,12 +33,13 @@ export interface PodiumSparkline {
 // desenhem exatamente a mesma linha.
 export function computePodiumSparkline(seedKey: string, endPct: number): PodiumSparkline {
     const baseSeed = hashSeed(seedKey)
-    // Amplitude do ruído escala com o tamanho real do movimento (mínimo de
-    // 4 pontos percentuais pra uma linha "achatada" perto de 0% ainda
-    // mostrar alguma textura) — nunca maior que o próprio movimento, senão
-    // o ruído dominaria a tendência real.
-    const amplitude = Math.max(Math.abs(endPct), 4) * 0.35
-    const range = Math.max(Math.abs(endPct), 4) * 1.3
+    // Escala do ruído (amplitude/range) parte do tamanho real do movimento,
+    // com um piso de 4 pontos percentuais pra uma linha "achatada" perto de
+    // 0% ainda mostrar alguma textura — nunca maior que o próprio
+    // movimento, senão o ruído dominaria a tendência real.
+    const noiseBase = Math.max(Math.abs(endPct), 4)
+    const amplitude = noiseBase * 0.35
+    const range = noiseBase * 1.3
     const usableH = PODIUM_SPARKLINE_HEIGHT - 2 * MARGIN_Y
 
     function valueToY(value: number): number {

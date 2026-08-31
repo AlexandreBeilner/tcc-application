@@ -115,6 +115,14 @@ export class GetRankingUseCase {
           )
         : allUsers
 
+    if (input.criterion !== 'level' && input.window === undefined) {
+      // Guarda de runtime — a borda HTTP (`schemas.ts`) já valida isso via
+      // Zod `.refine()`, mas `execute()` também é chamável direto (scripts,
+      // outras rotas, testes), então o caso de uso não pode depender só da
+      // validação de fora pra manter o invariante.
+      throw new Error(`ranking: window é obrigatório para o critério "${input.criterion}"`)
+    }
+
     const scoredEntries =
       input.criterion === 'level'
         ? await this.scoreByLevel(scopedUsers)
@@ -163,12 +171,25 @@ export class GetRankingUseCase {
   private async scoreByLevel(
     users: { id: string; username: string }[],
   ): Promise<ScoredEntry[]> {
-    return Promise.all(
-      users.map(async (user): Promise<ScoredEntry> => {
-        const { level, xp } = await this.levelReader.getProgression(user.id)
-        return { userId: user.id, username: user.username, level, xp, profitabilityPct: null, sortKey: xp }
+    const settledEntries = await Promise.all(
+      users.map(async (user): Promise<ScoredEntry | null> => {
+        try {
+          const { level, xp } = await this.levelReader.getProgression(user.id)
+          return { userId: user.id, username: user.username, level, xp, profitabilityPct: null, sortKey: xp }
+        } catch (err) {
+          // Mesmo tratamento de `scoreByProfitability` — um usuário sem
+          // progressão consistente (`user_progression` órfã/parcial) não
+          // pode derrubar o ranking inteiro pros demais.
+          console.error(
+            `ranking: falha ao calcular nível do usuário ${user.id}, excluído desta resposta:`,
+            err,
+          )
+          return null
+        }
       }),
     )
+
+    return settledEntries.filter((entry): entry is ScoredEntry => entry !== null)
   }
 
   private async scoreByProfitability(

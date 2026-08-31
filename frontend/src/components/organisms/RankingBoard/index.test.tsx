@@ -14,6 +14,7 @@ function renderBoard(
         scope?: RankingScope
         criterion?: RankingCriterion
         currentUserId?: string | null
+        requestingUserPosition?: number | null
         page?: number
         pageSize?: number
         totalEntries?: number
@@ -25,6 +26,7 @@ function renderBoard(
         scope: overrides.scope ?? 'global',
         criterion: overrides.criterion ?? 'overall',
         currentUserId: overrides.currentUserId ?? null,
+        requestingUserPosition: overrides.requestingUserPosition ?? null,
         page: overrides.page ?? 1,
         pageSize: overrides.pageSize ?? 25,
         totalEntries: overrides.totalEntries ?? entries.length,
@@ -117,5 +119,15 @@ describe('RankingBoard (tela 7.1)', () => {
     it('sem paginação nenhuma com 1 página só (nada de controle desabilitado ocupando espaço à toa)', () => {
         renderBoard([entry({ userId: '1' })], { page: 1, totalPages: 1 })
         expect(screen.queryByRole('navigation', { name: 'Paginação da classificação' })).not.toBeInTheDocument()
+    })
+
+    it('mostra a posição do próprio usuário mesmo fora da página exibida', () => {
+        renderBoard([entry({ userId: '1' })], { requestingUserPosition: 47 })
+        expect(screen.getByText('Você está em Nº 47')).toBeInTheDocument()
+    })
+
+    it('não mostra a posição do próprio usuário quando ele não está no ranking filtrado', () => {
+        renderBoard([entry({ userId: '1' })], { requestingUserPosition: null })
+        expect(screen.queryByText(/Você está em/)).not.toBeInTheDocument()
     })
 })

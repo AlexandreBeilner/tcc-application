@@ -178,6 +178,25 @@ describe('GetRankingUseCase', () => {
     expect(result.requestingUserPosition).toBeNull()
   })
 
+  it('rejeita critério não-level sem window mesmo chamado direto (borda HTTP não é a única defesa)', async () => {
+    const userDirectory = createFakeUserDirectory([
+      { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
+    ])
+    const getNetWorth = { async execute() { return snapshot({ total: 10000 }) } }
+    const { levelReader, friendGraphReader } = build()
+    const useCase = new GetRankingUseCase(
+      userDirectory,
+      createFakeSandboxAssetReader(),
+      getNetWorth,
+      levelReader,
+      friendGraphReader,
+    )
+
+    await expect(
+      useCase.execute({ scope: 'global', criterion: 'overall', page: 1, requestingUserId: 'u1' }),
+    ).rejects.toThrow(/window/)
+  })
+
   it('usuário cujo patrimônio falha ao calcular é excluído da resposta, sem derrubar o ranking inteiro', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
@@ -577,6 +596,42 @@ describe('GetRankingUseCase', () => {
       expect(result.entries.every((e) => e.profitabilityPct === null)).toBe(true)
       expect(result.window).toBeNull()
       expect(netWorthCalls).toBe(0)
+    })
+
+    it('critério level: usuário com progressão inconsistente é excluído da resposta, sem derrubar o ranking inteiro', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+      const userDirectory = createFakeUserDirectory([
+        { id: 'ok1', username: 'ok1', createdAt: new Date('2026-01-01T00:00:00Z') },
+        { id: 'orfao', username: 'orfao', createdAt: new Date('2026-01-01T00:00:00Z') },
+      ])
+      const getNetWorth = { async execute() { return snapshot({ total: 10000 }) } }
+      const levelReader = {
+        async getProgression(userId: string) {
+          if (userId === 'orfao') {
+            throw new Error('user_progression ausente pra esse usuário')
+          }
+          return { level: 3, xp: 350 }
+        },
+      }
+      const { friendGraphReader } = build()
+      const useCase = new GetRankingUseCase(
+        userDirectory,
+        createFakeSandboxAssetReader(),
+        getNetWorth,
+        levelReader,
+        friendGraphReader,
+      )
+
+      const result = await useCase.execute({
+        scope: 'global',
+        criterion: 'level',
+        page: 1,
+        requestingUserId: 'ok1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['ok1'])
     })
   })
 })
