@@ -1,0 +1,130 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+/* Mobile/tablet: filtros numa barra horizontal acima do conteúdo. Desktop
+   (identidade-visual-padroes.md §7): grid de 2 colunas com painel lateral
+   fixo/sticky, mesmo padrão de `pages/Track`/`pages/AssetDetail`. */
+.layout {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1080px;
+    }
+
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 240px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .filters {
+        position: sticky;
+        top: var(--space-6);
+    }
+}
+
+.filterGroup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.groupLabel {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.pillRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+@media (min-width: 1024px) {
+    .pillRow {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+.pill {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+    .pill {
+        text-align: left;
+    }
+}
+
+.pillActive {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+}
+
+/* Grupo desabilitado (Janela no critério Nível) continua ocupando o mesmo
+   espaço — nunca some do layout, motivo original desta seção (o `Select`
+   de Janela sumindo fazia o grupo de Critério ao lado saltar de lugar). */
+.pillDisabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.note {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}

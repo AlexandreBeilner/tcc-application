@@ -40,6 +40,12 @@ export function Track() {
         navigate(`/trilha/${lessonId}`)
     }
 
+    function lessonMeta(lesson: Lesson): string {
+        if (lesson.status === 'completed') return 'Concluída'
+        if (lesson.status === 'available') return 'Disponível'
+        return lesson.unlocksDescription ? `Bloqueada: libera ${lesson.unlocksDescription}` : 'Bloqueada'
+    }
+
     return (
         <main className={styles.page}>
             <div className={styles.layout}>
@@ -86,7 +92,12 @@ export function Track() {
                                 <div className={styles.nodes}>
                                     {group.lessons.map((lesson) => (
                                         <div key={lesson.id}>
-                                            <LessonNode lesson={lesson} onClick={() => handleLessonClick(lesson.id, lesson.status)} />
+                                            <LessonNode
+                                                status={lesson.status}
+                                                title={lesson.title}
+                                                meta={lessonMeta(lesson)}
+                                                onClick={() => handleLessonClick(lesson.id, lesson.status)}
+                                            />
                                             {expandedHintId === lesson.id && (
                                                 <p className={styles.hint}>Conclua a lição anterior pra desbloquear.</p>
                                             )}

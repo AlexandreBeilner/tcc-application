@@ -1,0 +1,329 @@
+.board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.selfPosition {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+/* ---- pódio (6.8.4 — identidade "home broker") ---- */
+
+.podium {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: end;
+    gap: var(--space-2);
+}
+
+.slot {
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: podiumEnter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.slot1 {
+    order: 2;
+    animation-delay: 0.1s;
+}
+
+.slot2 {
+    order: 1;
+}
+
+.slot3 {
+    order: 3;
+    animation-delay: 0.18s;
+}
+
+@keyframes podiumEnter {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--space-3) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--color-bg-surface);
+    text-align: center;
+}
+
+.card1 {
+    border-color: var(--color-gamify-500);
+    background: linear-gradient(180deg, var(--color-gamify-100) 0%, var(--color-bg-surface) 70%);
+    animation: podiumGlow 3.2s ease-in-out infinite;
+}
+
+@keyframes podiumGlow {
+    0%,
+    100% {
+        box-shadow: 0 0 0 1px rgba(240, 162, 2, 0.25);
+    }
+    50% {
+        box-shadow:
+            0 0 0 1px rgba(240, 162, 2, 0.4),
+            0 10px 28px -12px rgba(240, 162, 2, 0.55);
+    }
+}
+
+.medal {
+    font-family: var(--font-family-heading);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.card1 .medal {
+    color: var(--color-gamify-500);
+}
+
+.avatar {
+    width: 36px;
+    height: 36px;
+    margin-top: var(--space-1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+    border: 2px solid var(--color-border-strong);
+}
+
+.card1 .avatar {
+    width: 44px;
+    height: 44px;
+    font-size: var(--font-size-base);
+    border-color: var(--color-gamify-500);
+    color: var(--color-gamify-500);
+}
+
+.podiumName {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.podiumLevel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.sparkline {
+    width: 100%;
+    height: 34px;
+    margin-top: 2px;
+}
+
+.podiumPct {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    padding: 1px var(--space-1);
+    transition: background-color 0.35s ease;
+}
+
+.pedestal {
+    height: 44px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    background: var(--color-bg-surface-elevated);
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-muted);
+}
+
+.slot1 .pedestal {
+    height: 64px;
+    border-color: var(--color-gamify-500);
+    background: linear-gradient(180deg, rgba(240, 162, 2, 0.16), var(--color-bg-surface-elevated) 70%);
+    color: var(--color-gamify-500);
+    font-size: var(--font-size-xl);
+}
+
+.slot2 .pedestal {
+    height: 48px;
+}
+
+.slot3 .pedestal {
+    height: 34px;
+}
+
+.xpValue {
+    font-family: var(--font-family-heading);
+    color: var(--color-gamify-500);
+}
+
+/* ---- lista ---- */
+
+.list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.rowRank {
+    flex: none;
+    width: 28px;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.rowName {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+.rowLevel {
+    flex: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.rowPct {
+    flex: none;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    padding: 1px var(--space-1);
+    transition: background-color 0.35s ease;
+}
+
+.gain {
+    color: var(--color-gain-500);
+}
+
+.loss {
+    color: var(--color-loss-500);
+}
+
+.neutral {
+    color: var(--color-text-secondary);
+}
+
+.flash.gain {
+    background: var(--color-gain-100);
+}
+
+.flash.loss {
+    background: var(--color-loss-100);
+}
+
+.flash.neutral {
+    background: var(--color-border);
+}
+
+.own {
+    border-color: var(--color-brand-500);
+}
+
+/* 1º lugar é sempre dourado (teatro de recompensa, identidade-visual-
+   padroes.md §6) mesmo quando é o próprio usuário logado — `.own` (acima)
+   nunca deve competir com a cor de medalha do pódio. */
+.card1.own {
+    border-color: var(--color-gamify-500);
+}
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-6);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.emptyBody {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+@media (min-width: 768px) {
+    .avatar {
+        width: 44px;
+        height: 44px;
+        font-size: var(--font-size-base);
+    }
+
+    .card1 .avatar {
+        width: 52px;
+        height: 52px;
+        font-size: var(--font-size-lg);
+    }
+
+    .pedestal {
+        height: 56px;
+    }
+
+    .slot1 .pedestal {
+        height: 84px;
+    }
+
+    .slot2 .pedestal {
+        height: 62px;
+    }
+
+    .slot3 .pedestal {
+        height: 44px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .slot {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+
+    .card1 {
+        animation: none;
+        box-shadow: 0 0 0 1px rgba(240, 162, 2, 0.3);
+    }
+}

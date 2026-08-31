@@ -1,4 +1,5 @@
 import type { Lesson } from '../../../services/lessons'
+import { noise } from '../../../utils/deterministicNoise'
 import type { TrackChartLayout, TrackChartPoint } from './types'
 
 export type { TrackChartLayout, TrackChartPoint } from './types'
@@ -19,14 +20,6 @@ const NOISE_AMPLITUDE_RATIO = 0.55
 interface Vertex {
     x: number
     y: number
-}
-
-// Hash determinístico (nunca `Math.random`) — o mesmo array de lições
-// sempre produz o mesmo layout. Sem isso o gráfico "tremeria" a cada
-// re-render e os testes não teriam como afirmar nada sobre o resultado.
-function noise(seed: number): number {
-    const value = Math.sin(seed * 12.9898) * 43758.5453
-    return value - Math.floor(value)
 }
 
 function anchorAt(index: number, count: number): Vertex {

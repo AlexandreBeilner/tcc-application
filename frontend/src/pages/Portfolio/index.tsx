@@ -1,29 +1,35 @@
 import { useNavigate } from 'react-router-dom'
-import { Compass, PieChart } from 'lucide-react'
+import { Compass, PieChart, Target } from 'lucide-react'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
+import { useMissionsQuery } from '../../features/missions/useMissionsQuery'
 import { groupPositionsByCategory } from '../../features/portfolio/distribution'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { DistributionChart } from '../../components/organisms/DistributionChart'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
+import { DailyMissionsList } from '../../components/organisms/DailyMissionsList'
 import { Button } from '../../components/atoms/Button'
 import styles from './index.module.css'
 
 // Tela 2.1 (tarefa 6.3) — tela padrão pós-login recorrente, montada em "/"
-// (substitui o placeholder `Home.tsx`). Combina 4 queries independentes
-// (conta, progressão, streak, lições) — cada uma com seu próprio loading,
-// sem bloquear a tela inteira numa única tela de carregamento: os cards
-// que já resolveram aparecem, os que faltam mostram "Carregando…" no
-// próprio espaço.
+// (substitui o placeholder `Home.tsx`). Combina 5 queries independentes
+// (conta, progressão, streak, lições, missões — a última entrou na 6.8) —
+// cada uma com seu próprio loading, sem bloquear a tela inteira numa única
+// tela de carregamento: os cards que já resolveram aparecem, os que faltam
+// mostram "Carregando…" no próprio espaço. Seção "Missões do dia" (7.3)
+// vive aqui em vez de rota própria, decisão explícita do inventário de
+// telas ("pode viver como seção dentro do Portfólio... promover a tela
+// própria se o catálogo crescer").
 export function Portfolio() {
     const navigate = useNavigate()
     const accountQuery = useMyAccountQuery()
     const progressionQuery = useProgressionQuery()
     const streakQuery = useStreakQuery()
     const lessonsQuery = useLessonsQuery()
+    const missionsQuery = useMissionsQuery()
 
     const account = accountQuery.data
     const hasNoPositions = account && account.positions.length === 0 && account.fixedIncomePositions.length === 0
@@ -74,6 +80,16 @@ export function Portfolio() {
                         Distribuição
                     </h2>
                     <DistributionChart slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)} />
+                </section>
+            )}
+
+            {missionsQuery.data && missionsQuery.data.missions.length > 0 && (
+                <section className={styles.section}>
+                    <h2 className={styles.sectionTitle}>
+                        <Target size={18} strokeWidth={2} aria-hidden="true" />
+                        Missões do dia
+                    </h2>
+                    <DailyMissionsList missions={missionsQuery.data.missions} streak={streakQuery.data?.currentStreak ?? 0} />
                 </section>
             )}
 

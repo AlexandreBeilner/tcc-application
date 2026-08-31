@@ -27,6 +27,8 @@ export function createRankingRouter(deps: RankingRouterDeps): Router {
     const result = await deps.getRanking.execute({
       window: parsed.data.window,
       scope: parsed.data.scope,
+      criterion: parsed.data.criterion,
+      page: parsed.data.page,
       requestingUserId: req.auth.userId,
     })
     res.status(200).json(result)
