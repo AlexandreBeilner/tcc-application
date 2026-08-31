@@ -168,14 +168,19 @@ export class GetRankingUseCase {
   // escopo (`LevelReader`), muito mais barato que os outros 3 critérios
   // (que fazem até 3 chamadas ao motor por usuário). Cumulativo desde
   // sempre — sem baseline, sem janela.
-  private async scoreByLevel(
-    users: { id: string; username: string }[],
-  ): Promise<ScoredEntry[]> {
+  private async scoreByLevel(users: { id: string; username: string }[]): Promise<ScoredEntry[]> {
     const settledEntries = await Promise.all(
       users.map(async (user): Promise<ScoredEntry | null> => {
         try {
           const { level, xp } = await this.levelReader.getProgression(user.id)
-          return { userId: user.id, username: user.username, level, xp, profitabilityPct: null, sortKey: xp }
+          return {
+            userId: user.id,
+            username: user.username,
+            level,
+            xp,
+            profitabilityPct: null,
+            sortKey: xp,
+          }
         } catch (err) {
           // Mesmo tratamento de `scoreByProfitability` — um usuário sem
           // progressão consistente (`user_progression` órfã/parcial) não

@@ -101,7 +101,13 @@ describe('GetRankingUseCase', () => {
       friendGraphReader,
     )
 
-    await useCase.execute({ window: 'week', scope: 'global', criterion: 'overall', page: 1, requestingUserId: 'antes' })
+    await useCase.execute({
+      window: 'week',
+      scope: 'global',
+      criterion: 'overall',
+      page: 1,
+      requestingUserId: 'antes',
+    })
 
     const baselineCallFor = (userId: string) =>
       calls.find((c) => c.userId === userId && c.asOf !== undefined)
@@ -182,7 +188,11 @@ describe('GetRankingUseCase', () => {
     const userDirectory = createFakeUserDirectory([
       { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
     ])
-    const getNetWorth = { async execute() { return snapshot({ total: 10000 }) } }
+    const getNetWorth = {
+      async execute() {
+        return snapshot({ total: 10000 })
+      },
+    }
     const { levelReader, friendGraphReader } = build()
     const useCase = new GetRankingUseCase(
       userDirectory,
@@ -348,11 +358,23 @@ describe('GetRankingUseCase', () => {
         friendGraphReader,
       )
 
-      await useCase.execute({ window: 'week', scope: 'global', criterion: 'overall', page: 1, requestingUserId: 'u1' })
+      await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
       const globalBaselineAsOf = calls.find((c) => c.asOf !== undefined)?.asOf?.toISOString()
       calls.length = 0
 
-      await useCase.execute({ window: 'week', scope: 'friends', criterion: 'overall', page: 1, requestingUserId: 'u1' })
+      await useCase.execute({
+        window: 'week',
+        scope: 'friends',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
       const friendsBaselineAsOf = calls.find((c) => c.asOf !== undefined)?.asOf?.toISOString()
 
       expect(friendsBaselineAsOf).toBe(globalBaselineAsOf)
@@ -520,7 +542,11 @@ describe('GetRankingUseCase', () => {
 
       const userDirectory = createFakeUserDirectory([
         { id: 'investiu', username: 'investiu', createdAt: new Date('2026-01-01T00:00:00Z') },
-        { id: 'nunca-investiu', username: 'nunca-investiu', createdAt: new Date('2026-01-01T00:00:00Z') },
+        {
+          id: 'nunca-investiu',
+          username: 'nunca-investiu',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
       ])
       const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
         'investiu|baseline': snapshot({ total: 10000, fixedIncomeValue: 1000 }),
@@ -606,7 +632,11 @@ describe('GetRankingUseCase', () => {
         { id: 'ok1', username: 'ok1', createdAt: new Date('2026-01-01T00:00:00Z') },
         { id: 'orfao', username: 'orfao', createdAt: new Date('2026-01-01T00:00:00Z') },
       ])
-      const getNetWorth = { async execute() { return snapshot({ total: 10000 }) } }
+      const getNetWorth = {
+        async execute() {
+          return snapshot({ total: 10000 })
+        },
+      }
       const levelReader = {
         async getProgression(userId: string) {
           if (userId === 'orfao') {
