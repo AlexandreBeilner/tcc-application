@@ -135,7 +135,21 @@ describe('friendships routes', () => {
     expect(res.status).toBe(204)
   })
 
-  it('GET /friendships lista amigos aceitos', async () => {
+  it('DELETE /friendships/:id desfaz amizade já aceita (6.9.3) e retorna 204', async () => {
+    const { app, tokenIssuer, friendshipRepository } = buildApp()
+    const created = await friendshipRepository.create(alice.id, bob.id)
+    await friendshipRepository.accept(created.id)
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .delete(`/friendships/${created.id}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(204)
+    await expect(friendshipRepository.findById(created.id)).resolves.toBeUndefined()
+  })
+
+  it('GET /friendships lista amigos aceitos, paginado', async () => {
     const { app, tokenIssuer, friendshipRepository } = buildApp()
     const created = await friendshipRepository.create(alice.id, bob.id)
     await friendshipRepository.accept(created.id)
@@ -145,9 +159,21 @@ describe('friendships routes', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.friends).toHaveLength(1)
+    expect(res.body).toMatchObject({ page: 1, pageSize: 20, totalEntries: 1, totalPages: 1 })
   })
 
-  it('GET /friendships/requests separa recebidas de enviadas', async () => {
+  it('GET /friendships rejeita parâmetro de ordenação inválido', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .get('/friendships?sort=invalido')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('GET /friendships/requests separa recebidas de enviadas, cada uma paginada', async () => {
     const { app, tokenIssuer, friendshipRepository } = buildApp()
     await friendshipRepository.create(bob.id, alice.id)
     const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
@@ -157,7 +183,9 @@ describe('friendships routes', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.received).toHaveLength(1)
-    expect(res.body.sent).toHaveLength(0)
+    expect(res.body.received.items).toHaveLength(1)
+    expect(res.body.received.totalEntries).toBe(1)
+    expect(res.body.sent.items).toHaveLength(0)
+    expect(res.body.sent.totalEntries).toBe(0)
   })
 })

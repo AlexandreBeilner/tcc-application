@@ -1,13 +1,22 @@
 import { apiRequest } from '../client'
-import type { Friendship, ListFriendRequestsResult, ListFriendsResult, SearchUsersResult, SendFriendRequestResult } from './types'
+import type {
+    Friendship,
+    FriendsSortOrder,
+    ListFriendRequestsResult,
+    ListFriendsResult,
+    SearchUsersResult,
+    SendFriendRequestResult,
+} from './types'
 
 export type {
     Friend,
     FriendRequest,
     Friendship,
     FriendshipStatus,
+    FriendsSortOrder,
     ListFriendRequestsResult,
     ListFriendsResult,
+    PaginatedFriendRequests,
     SearchedUser,
     SearchUsersResult,
     SendFriendRequestResult,
@@ -32,10 +41,17 @@ export function removeFriendship(token: string, friendshipId: string): Promise<v
     return apiRequest<void>(`/friendships/${friendshipId}`, { token, method: 'DELETE' })
 }
 
-export function listFriends(token: string): Promise<ListFriendsResult> {
-    return apiRequest<ListFriendsResult>('/friendships', { token })
+export function listFriends(token: string, page: number, sort: FriendsSortOrder): Promise<ListFriendsResult> {
+    const query = new URLSearchParams({ page: String(page), sort })
+    return apiRequest<ListFriendsResult>(`/friendships?${query.toString()}`, { token })
 }
 
-export function listFriendRequests(token: string): Promise<ListFriendRequestsResult> {
-    return apiRequest<ListFriendRequestsResult>('/friendships/requests', { token })
+export function listFriendRequests(
+    token: string,
+    receivedPage: number,
+    sentPage: number,
+    sort: FriendsSortOrder,
+): Promise<ListFriendRequestsResult> {
+    const query = new URLSearchParams({ receivedPage: String(receivedPage), sentPage: String(sentPage), sort })
+    return apiRequest<ListFriendRequestsResult>(`/friendships/requests?${query.toString()}`, { token })
 }

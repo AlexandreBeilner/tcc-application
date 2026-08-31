@@ -39,8 +39,11 @@ describe('BuscarAmigos (tela 8.2)', () => {
             logout: vi.fn(),
             setUser: vi.fn(),
         })
-        vi.mocked(listFriends).mockResolvedValue({ friends: [] })
-        vi.mocked(listFriendRequests).mockResolvedValue({ received: [], sent: [] })
+        vi.mocked(listFriends).mockResolvedValue({ friends: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 })
+        vi.mocked(listFriendRequests).mockResolvedValue({
+            received: { items: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 },
+            sent: { items: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 },
+        })
     })
 
     afterEach(() => vi.clearAllMocks())

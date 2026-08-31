@@ -10,70 +10,153 @@
 
 .header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-3);
     flex-wrap: wrap;
 }
 
-.avatar {
+/* Anel de XP (mesmo cálculo/visual do AvatarMenu, redesign 6.9.2) — nunca
+   fabrica progresso: só reflete `computeLevelProgress(profile.xp, level)`. */
+.avatarRing {
     flex: none;
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar {
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid var(--color-brand-500);
+    background: var(--color-bg-surface-elevated);
+    border: 2px solid var(--color-bg-surface);
     font-family: var(--font-family-heading);
     font-weight: 700;
     font-size: var(--font-size-xl);
-    color: var(--color-brand-500);
+    color: var(--color-brand-300);
 }
 
 .identity {
-    display: flex;
-    flex-direction: column;
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: 2px;
 }
 
 .username {
-    color: var(--color-text-primary);
+    font-family: var(--font-family-heading);
     font-weight: 700;
     font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.level {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+.levelPill {
+    align-self: flex-start;
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: var(--font-size-xs);
+    color: var(--color-gamify-500);
+    background: var(--color-gamify-100);
+    border-radius: var(--radius-full);
+    padding: 2px var(--space-2);
 }
 
-.selfNote,
-.status {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+.friendAction {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
 }
+
+.selfBadge {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-brand-300);
+    background: var(--color-brand-100);
+    border-radius: var(--radius-full);
+    padding: 3px var(--space-2);
+}
+
+.statusFriends {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.statusFriends svg {
+    color: var(--color-gain-500);
+}
+
+.quietButton {
+    background: none;
+    border: none;
+    padding: var(--space-1) 0;
+    font-family: inherit;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.confirmActions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* ---- stats (home broker: rentabilidade ganha sparkline, §2) ---- */
 
 .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-4);
+    grid-template-columns: 1.3fr 1fr 1fr;
+    gap: var(--space-3);
     margin: 0;
 }
 
-.stat dt {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    margin: 0 0 var(--space-1);
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface-elevated);
 }
 
-.stat dd {
+.statLabel {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
     margin: 0;
 }
 
 .statValue {
-    font-size: var(--font-size-lg);
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-xl);
     font-weight: 700;
+    line-height: 1;
+}
+
+.statXp .statValue {
     color: var(--color-text-primary);
 }
 
@@ -96,43 +179,90 @@
     color: var(--color-gamify-500);
 }
 
+.statProfit {
+    justify-content: space-between;
+}
+
+.sparklineWrap {
+    margin-top: auto;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.sparkline {
+    display: block;
+    width: 100%;
+    height: 36px;
+}
+
+/* ---- conquistas — mesma convenção sólido-dourado do AchievementsGrid,
+   sem `<details>`: 8.4 só recebe desbloqueadas, não há progresso a
+   revelar (RNF09 — nada de bloqueada/progresso de terceiro) ---- */
+
 .achievementsTitle {
-    font-size: var(--font-size-base);
-    color: var(--color-text-primary);
-    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--space-2);
 }
 
 .empty {
-    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
     font-size: var(--font-size-sm);
 }
 
-.achievementsList {
+.achievementsGrid {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--space-2);
 }
 
-.achievement {
+.achievementChip {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--color-gamify-500);
     border-radius: var(--radius-md);
+    background: var(--color-gamify-100);
     color: var(--color-gamify-500);
 }
 
+.achievementText {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
 .achievementName {
-    flex: 1;
-    color: var(--color-text-primary);
     font-weight: 600;
+    color: var(--color-gamify-500);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .achievementDate {
-    color: var(--color-text-secondary);
+    color: var(--color-text-muted);
     font-size: var(--font-size-xs);
+}
+
+@media (max-width: 380px) {
+    .stats {
+        grid-template-columns: 1fr;
+    }
+
+    .achievementsGrid {
+        grid-template-columns: 1fr;
+    }
 }

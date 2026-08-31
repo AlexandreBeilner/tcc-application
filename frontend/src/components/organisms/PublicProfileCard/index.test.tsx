@@ -2,12 +2,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
-import { sendFriendRequest } from '../../../services/friendships'
+import { removeFriendship, sendFriendRequest } from '../../../services/friendships'
 import type { PublicProfile } from '../../../services/profile'
 import { PublicProfileCard } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/friendships', () => ({ sendFriendRequest: vi.fn(), acceptFriendRequest: vi.fn() }))
+vi.mock('../../../services/friendships', () => ({ sendFriendRequest: vi.fn(), acceptFriendRequest: vi.fn(), removeFriendship: vi.fn() }))
 
 function profile(overrides: Partial<PublicProfile> = {}): PublicProfile {
     return {
@@ -88,7 +88,19 @@ describe('PublicProfileCard (tela 8.4)', () => {
     it('perfil do próprio usuário não mostra botão de adicionar', () => {
         renderCard({ targetUserId: 'u1' })
 
-        expect(screen.getByText('Este é o seu perfil.')).toBeInTheDocument()
+        expect(screen.getByText('Este é o seu perfil')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()
+    })
+
+    it('amigo mostra "Desfazer amizade" com confirmação em duas etapas (6.9.3)', async () => {
+        vi.mocked(removeFriendship).mockResolvedValue(undefined)
+        renderCard({ friends: [{ friendshipId: 'f9', userId: 'u2', username: 'bia', name: 'Bia', friendsSince: '2026-01-01' }] })
+
+        expect(screen.getByText('Amigos')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Desfazer amizade' }))
+        expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+        await waitFor(() => expect(removeFriendship).toHaveBeenCalledWith('token', 'f9'))
     })
 })

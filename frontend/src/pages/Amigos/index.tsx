@@ -1,19 +1,36 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
+import { Select } from '../../components/atoms/Select'
 import { FriendsList } from '../../components/organisms/FriendsList'
 import { useFriendRequestsQuery } from '../../features/friendships/useFriendRequestsQuery'
 import { useFriendsQuery } from '../../features/friendships/useFriendsQuery'
+import type { FriendsSortOrder } from '../../services/friendships'
 import styles from './index.module.css'
+
+const SORT_OPTIONS = [
+    { value: 'desc', label: 'Mais recentes' },
+    { value: 'asc', label: 'Mais antigas' },
+]
 
 // Tela 8.1 (hub) — ponto central do sistema social (inventário), acesso
 // pelo menu do avatar (0.2, `/amigos`). "Contador de solicitações
 // pendentes" conta só as recebidas (ação do usuário), não as enviadas — a
-// distinção completa (recebidas × enviadas) é conteúdo de 8.3.
+// distinção completa (recebidas × enviadas) é conteúdo de 8.3. Paginação
+// e ordenação por data (6.9.1) — página 1 só pras solicitações, já que
+// este hub só mostra o contador, não a lista (isso é 8.3).
 export function Amigos() {
     const navigate = useNavigate()
-    const friendsQuery = useFriendsQuery()
-    const requestsQuery = useFriendRequestsQuery()
-    const pendingCount = requestsQuery.data?.received.length ?? 0
+    const [page, setPage] = useState(1)
+    const [sort, setSort] = useState<FriendsSortOrder>('desc')
+    const friendsQuery = useFriendsQuery(page, sort)
+    const requestsQuery = useFriendRequestsQuery(1, 1, 'desc')
+    const pendingCount = requestsQuery.data?.received.totalEntries ?? 0
+
+    function changeSort(next: FriendsSortOrder) {
+        setSort(next)
+        setPage(1)
+    }
 
     return (
         <main className={styles.page}>
@@ -35,7 +52,25 @@ export function Amigos() {
 
             {!friendsQuery.data && !friendsQuery.isError && <p className={styles.loading}>Carregando amigos…</p>}
 
-            {friendsQuery.data && <FriendsList friends={friendsQuery.data.friends} />}
+            {friendsQuery.data && friendsQuery.data.friends.length > 0 && (
+                <div className={styles.sortRow}>
+                    <Select
+                        value={sort}
+                        onChange={(value) => changeSort(value as FriendsSortOrder)}
+                        options={SORT_OPTIONS}
+                        aria-label="Ordenar amigos"
+                    />
+                </div>
+            )}
+
+            {friendsQuery.data && (
+                <FriendsList
+                    friends={friendsQuery.data.friends}
+                    page={friendsQuery.data.page}
+                    totalPages={friendsQuery.data.totalPages}
+                    onPageChange={setPage}
+                />
+            )}
         </main>
     )
 }

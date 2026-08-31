@@ -13,6 +13,14 @@
     }
 }
 
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
 .title {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);

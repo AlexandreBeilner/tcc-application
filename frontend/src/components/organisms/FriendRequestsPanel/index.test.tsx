@@ -9,11 +9,31 @@ import { FriendRequestsPanel } from '.'
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../../services/friendships', () => ({ acceptFriendRequest: vi.fn(), removeFriendship: vi.fn() }))
 
-function renderPanel(received: FriendRequest[], sent: FriendRequest[]) {
+function renderPanel(
+    received: FriendRequest[],
+    sent: FriendRequest[],
+    pagination: {
+        receivedPage?: number
+        receivedTotalPages?: number
+        onReceivedPageChange?: (page: number) => void
+        sentPage?: number
+        sentTotalPages?: number
+        onSentPageChange?: (page: number) => void
+    } = {},
+) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
         <QueryClientProvider client={queryClient}>
-            <FriendRequestsPanel received={received} sent={sent} />
+            <FriendRequestsPanel
+                received={received}
+                sent={sent}
+                receivedPage={pagination.receivedPage ?? 1}
+                receivedTotalPages={pagination.receivedTotalPages ?? 1}
+                onReceivedPageChange={pagination.onReceivedPageChange ?? vi.fn()}
+                sentPage={pagination.sentPage ?? 1}
+                sentTotalPages={pagination.sentTotalPages ?? 1}
+                onSentPageChange={pagination.onSentPageChange ?? vi.fn()}
+            />
         </QueryClientProvider>,
     )
 }
@@ -69,5 +89,25 @@ describe('FriendRequestsPanel (tela 8.3)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
         await waitFor(() => expect(removeFriendship).toHaveBeenCalledWith('token', 'f2'))
+    })
+
+    it('pagina recebidas e enviadas de forma independente (6.9.1)', () => {
+        const onReceivedPageChange = vi.fn()
+        const onSentPageChange = vi.fn()
+        renderPanel([received], [sent], {
+            receivedPage: 1,
+            receivedTotalPages: 2,
+            onReceivedPageChange,
+            sentPage: 1,
+            sentTotalPages: 1,
+            onSentPageChange,
+        })
+
+        expect(screen.getByRole('navigation', { name: 'Paginação de solicitações recebidas' })).toBeInTheDocument()
+        expect(screen.queryByRole('navigation', { name: 'Paginação de solicitações enviadas' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }))
+        expect(onReceivedPageChange).toHaveBeenCalledWith(2)
+        expect(onSentPageChange).not.toHaveBeenCalled()
     })
 })

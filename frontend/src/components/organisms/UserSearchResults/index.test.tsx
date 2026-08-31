@@ -74,7 +74,9 @@ describe('UserSearchResults (tela 8.2)', () => {
     })
 
     it('já amigos mostra "Amigos", sem botão de ação', () => {
-        renderResults([user], { friends: [{ userId: 'u2', username: 'bia', name: 'Bia Souza', friendsSince: '2026-01-01' }] })
+        renderResults([user], {
+            friends: [{ friendshipId: 'f0', userId: 'u2', username: 'bia', name: 'Bia Souza', friendsSince: '2026-01-01' }],
+        })
 
         expect(screen.getByText('Amigos')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()

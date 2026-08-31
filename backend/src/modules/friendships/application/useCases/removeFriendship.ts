@@ -1,8 +1,4 @@
-import {
-  FriendshipNotFoundError,
-  FriendshipNotPendingError,
-  NotAuthorizedError,
-} from '../../domain/errors'
+import { FriendshipNotFoundError, NotAuthorizedError } from '../../domain/errors'
 import type { FriendshipRepository } from '../ports/friendshipRepository'
 
 export interface RemoveFriendshipInput {
@@ -10,13 +6,14 @@ export interface RemoveFriendshipInput {
   userId: string
 }
 
-// Cobre recusar (spec 8.4, pelo addressee) e cancelar (pelo requester) —
-// decisão de escopo desta sessão, não confirmada explicitamente: as duas
-// ações são, na prática, a mesma operação de domínio (remover uma
-// solicitação pendente), só o autor autorizado muda; a autorização decide
-// aqui dentro qual dos dois é válido pra quem chama, em vez de duas rotas
-// (`DELETE /friendships/:id` cobre ambas). Não remove amizade já aceita
-// (unfriend não está no escopo desta tarefa).
+// Cobre recusar (spec 8.4, pelo addressee), cancelar (pelo requester) e,
+// desde a 6.9.3, desfazer uma amizade já aceita (reabre a decisão de
+// escopo original da 5.8, "unfriend não está no escopo desta tarefa") —
+// as três ações são, na prática, a mesma operação de domínio (remover a
+// linha de amizade entre duas pessoas), só o rótulo do botão muda
+// conforme a tela/status; a autorização decide aqui dentro quem pode
+// fazer o quê, em vez de rotas separadas (`DELETE /friendships/:id`
+// cobre as três).
 export class RemoveFriendshipUseCase {
   constructor(private readonly friendshipRepository: FriendshipRepository) {}
 
@@ -29,11 +26,6 @@ export class RemoveFriendshipUseCase {
     const isAddressee = friendship.addresseeId === input.userId
     if (!isRequester && !isAddressee) {
       throw new NotAuthorizedError('só quem enviou ou recebeu a solicitação pode removê-la')
-    }
-    if (friendship.status !== 'pending') {
-      throw new FriendshipNotPendingError(
-        'só é possível recusar ou cancelar solicitações pendentes',
-      )
     }
 
     await this.friendshipRepository.remove(input.friendshipId)

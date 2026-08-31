@@ -1,8 +1,8 @@
 import { useParams } from 'react-router-dom'
 import { PublicProfileCard } from '../../components/organisms/PublicProfileCard'
 import { useAuth } from '../../features/auth/AuthContext'
-import { useFriendRequestsQuery } from '../../features/friendships/useFriendRequestsQuery'
-import { useFriendsQuery } from '../../features/friendships/useFriendsQuery'
+import { useAllFriendRequestsQuery } from '../../features/friendships/useAllFriendRequestsQuery'
+import { useAllFriendsQuery } from '../../features/friendships/useAllFriendsQuery'
 import { usePublicProfileQuery } from '../../features/profile/usePublicProfileQuery'
 import styles from './index.module.css'
 
@@ -14,8 +14,8 @@ export function PerfilPublico() {
     const { id } = useParams<{ id: string }>()
     const { user } = useAuth()
     const profileQuery = usePublicProfileQuery(id as string)
-    const friendsQuery = useFriendsQuery()
-    const requestsQuery = useFriendRequestsQuery()
+    const friendsQuery = useAllFriendsQuery()
+    const requestsQuery = useAllFriendRequestsQuery()
 
     if (profileQuery.isError) {
         return (
@@ -41,7 +41,7 @@ export function PerfilPublico() {
                 profile={profileQuery.data.profile}
                 currentUserId={user.id}
                 targetUserId={id as string}
-                friends={friendsQuery.data?.friends ?? []}
+                friends={friendsQuery.data ?? []}
                 sentRequests={requestsQuery.data?.sent ?? []}
                 receivedRequests={requestsQuery.data?.received ?? []}
             />

@@ -26,6 +26,11 @@ function renderPage() {
     )
 }
 
+const emptyRequests = {
+    received: { items: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 },
+    sent: { items: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 },
+}
+
 describe('Amigos (tela 8.1)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
@@ -42,11 +47,21 @@ describe('Amigos (tela 8.1)', () => {
 
     it('mostra o contador de solicitações recebidas e navega pra Buscar/Solicitações', async () => {
         vi.mocked(listFriends).mockResolvedValue({
-            friends: [{ userId: 'u2', username: 'bia', name: 'Bia Souza', friendsSince: '2026-01-01' }],
+            friends: [{ friendshipId: 'f0', userId: 'u2', username: 'bia', name: 'Bia Souza', friendsSince: '2026-01-01' }],
+            page: 1,
+            pageSize: 20,
+            totalEntries: 1,
+            totalPages: 1,
         })
         vi.mocked(listFriendRequests).mockResolvedValue({
-            received: [{ friendshipId: 'f1', userId: 'u3', username: 'caio', name: 'Caio', createdAt: '2026-01-01' }],
-            sent: [],
+            received: {
+                items: [{ friendshipId: 'f1', userId: 'u3', username: 'caio', name: 'Caio', createdAt: '2026-01-01' }],
+                page: 1,
+                pageSize: 20,
+                totalEntries: 1,
+                totalPages: 1,
+            },
+            sent: { items: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 },
         })
 
         renderPage()
@@ -60,7 +75,7 @@ describe('Amigos (tela 8.1)', () => {
 
     it('erro ao carregar mostra mensagem, sem quebrar a tela', async () => {
         vi.mocked(listFriends).mockRejectedValue(new Error('falha de rede'))
-        vi.mocked(listFriendRequests).mockResolvedValue({ received: [], sent: [] })
+        vi.mocked(listFriendRequests).mockResolvedValue(emptyRequests)
 
         renderPage()
 

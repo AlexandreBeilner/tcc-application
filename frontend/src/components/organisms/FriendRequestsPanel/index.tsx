@@ -1,6 +1,7 @@
 import { useRemoveFriendshipMutation } from '../../../features/friendships/useRemoveFriendshipMutation'
 import { useRespondToFriendRequestMutation } from '../../../features/friendships/useRespondToFriendRequestMutation'
 import { Button } from '../../atoms/Button'
+import { Pagination } from '../../molecules/Pagination'
 import type { FriendRequestsPanelProps } from './types'
 import styles from './index.module.css'
 
@@ -10,8 +11,18 @@ export type { FriendRequestsPanelProps } from './types'
 // /friendships/:id` (`.docs/backend/friendships.md`): "Recusar" (recebida)
 // e "Cancelar" (enviada) são só rótulos diferentes pro mesmo
 // `removeFriendship`, a autorização de quem pode fazer o quê já é do
-// backend.
-export function FriendRequestsPanel({ received, sent }: FriendRequestsPanelProps) {
+// backend. Paginação (6.9.1) independente por lista — cada uma com sua
+// própria `Pagination`, mesmo padrão de `FriendsList`/`RankingBoard`.
+export function FriendRequestsPanel({
+    received,
+    sent,
+    receivedPage,
+    receivedTotalPages,
+    onReceivedPageChange,
+    sentPage,
+    sentTotalPages,
+    onSentPageChange,
+}: FriendRequestsPanelProps) {
     const respondToRequest = useRespondToFriendRequestMutation()
     const removeFriendship = useRemoveFriendshipMutation()
 
@@ -48,6 +59,12 @@ export function FriendRequestsPanel({ received, sent }: FriendRequestsPanelProps
                         ))}
                     </ul>
                 )}
+                <Pagination
+                    page={receivedPage}
+                    totalPages={receivedTotalPages}
+                    onPageChange={onReceivedPageChange}
+                    ariaLabel="Paginação de solicitações recebidas"
+                />
             </section>
 
             <section>
@@ -73,6 +90,12 @@ export function FriendRequestsPanel({ received, sent }: FriendRequestsPanelProps
                         ))}
                     </ul>
                 )}
+                <Pagination
+                    page={sentPage}
+                    totalPages={sentTotalPages}
+                    onPageChange={onSentPageChange}
+                    ariaLabel="Paginação de solicitações enviadas"
+                />
             </section>
         </div>
     )

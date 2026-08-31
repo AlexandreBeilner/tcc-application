@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { UserSearchResults } from '../../components/organisms/UserSearchResults'
 import { useAuth } from '../../features/auth/AuthContext'
-import { useFriendRequestsQuery } from '../../features/friendships/useFriendRequestsQuery'
-import { useFriendsQuery } from '../../features/friendships/useFriendsQuery'
+import { useAllFriendRequestsQuery } from '../../features/friendships/useAllFriendRequestsQuery'
+import { useAllFriendsQuery } from '../../features/friendships/useAllFriendsQuery'
 import { useSearchUsersQuery } from '../../features/friendships/useSearchUsersQuery'
 import styles from './index.module.css'
 
@@ -14,8 +14,8 @@ export function BuscarAmigos() {
     const [term, setTerm] = useState('')
     const { user } = useAuth()
     const searchQuery = useSearchUsersQuery(term)
-    const friendsQuery = useFriendsQuery()
-    const requestsQuery = useFriendRequestsQuery()
+    const friendsQuery = useAllFriendsQuery()
+    const requestsQuery = useAllFriendRequestsQuery()
 
     return (
         <main className={styles.page}>
@@ -46,7 +46,7 @@ export function BuscarAmigos() {
                         <UserSearchResults
                             results={searchQuery.data.users}
                             currentUserId={user.id}
-                            friends={friendsQuery.data?.friends ?? []}
+                            friends={friendsQuery.data ?? []}
                             sentRequests={requestsQuery.data?.sent ?? []}
                             receivedRequests={requestsQuery.data?.received ?? []}
                         />

@@ -5,7 +5,6 @@ import {
   AddresseeNotFoundError,
   FriendshipAlreadyExistsError,
   FriendshipNotFoundError,
-  FriendshipNotPendingError,
   NotAuthorizedError,
   SelfFriendshipError,
 } from '../../domain/errors'
@@ -15,7 +14,12 @@ import type { RemoveFriendshipUseCase } from '../../application/useCases/removeF
 import type { RespondToFriendRequestUseCase } from '../../application/useCases/respondToFriendRequest'
 import type { SearchUsersUseCase } from '../../application/useCases/searchUsers'
 import type { SendFriendRequestUseCase } from '../../application/useCases/sendFriendRequest'
-import { searchUsersQuerySchema, sendFriendRequestBodySchema } from './schemas'
+import {
+  listFriendRequestsQuerySchema,
+  listFriendsQuerySchema,
+  searchUsersQuerySchema,
+  sendFriendRequestBodySchema,
+} from './schemas'
 
 export interface FriendshipsRouterDeps {
   searchUsers: SearchUsersUseCase
@@ -130,10 +134,6 @@ export function createFriendshipsRouter(deps: FriendshipsRouterDeps): Router {
         res.status(403).json({ error: err.message })
         return
       }
-      if (err instanceof FriendshipNotPendingError) {
-        res.status(409).json({ error: err.message })
-        return
-      }
       throw err
     }
   })
@@ -144,8 +144,24 @@ export function createFriendshipsRouter(deps: FriendshipsRouterDeps): Router {
       return
     }
 
-    const friends = await deps.listFriends.execute({ userId: req.auth.userId })
-    res.status(200).json({ friends })
+    const parsed = listFriendsQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    const result = await deps.listFriends.execute({
+      userId: req.auth.userId,
+      page: parsed.data.page,
+      sort: parsed.data.sort,
+    })
+    res.status(200).json({
+      friends: result.items,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalEntries: result.totalEntries,
+      totalPages: result.totalPages,
+    })
   })
 
   router.get('/friendships/requests', deps.authMiddleware.authenticate, async (req, res) => {
@@ -154,7 +170,18 @@ export function createFriendshipsRouter(deps: FriendshipsRouterDeps): Router {
       return
     }
 
-    const requests = await deps.listFriendRequests.execute({ userId: req.auth.userId })
+    const parsed = listFriendRequestsQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    const requests = await deps.listFriendRequests.execute({
+      userId: req.auth.userId,
+      receivedPage: parsed.data.receivedPage,
+      sentPage: parsed.data.sentPage,
+      sort: parsed.data.sort,
+    })
     res.status(200).json(requests)
   })
 

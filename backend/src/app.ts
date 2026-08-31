@@ -295,7 +295,7 @@ export function createApp(deps: AppDeps = {}): Express {
     sandboxAssetReader,
     cachedNetWorthForRanking,
     createInProcessLevelReader(getProgression),
-    createInProcessFriendGraphReader(listFriends),
+    createInProcessFriendGraphReader(friendshipRepository),
   )
 
   const getPublicProfile = new GetPublicProfileUseCase(

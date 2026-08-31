@@ -1,6 +1,10 @@
 // Espelha `.docs/backend/friendships.md`.
 export type FriendshipStatus = 'pending' | 'accepted'
 
+// Paginação/ordenação de `GET /friendships` e `GET /friendships/requests`
+// (6.9.1) — por data (`friendsSince`/`createdAt`), default `desc` no backend.
+export type FriendsSortOrder = 'asc' | 'desc'
+
 export interface SearchedUser {
     id: string
     username: string
@@ -25,6 +29,7 @@ export interface SendFriendRequestResult {
 }
 
 export interface Friend {
+    friendshipId: string
     userId: string
     username: string
     name: string
@@ -33,6 +38,10 @@ export interface Friend {
 
 export interface ListFriendsResult {
     friends: Friend[]
+    page: number
+    pageSize: number
+    totalEntries: number
+    totalPages: number
 }
 
 export interface FriendRequest {
@@ -43,7 +52,15 @@ export interface FriendRequest {
     createdAt: string
 }
 
+export interface PaginatedFriendRequests {
+    items: FriendRequest[]
+    page: number
+    pageSize: number
+    totalEntries: number
+    totalPages: number
+}
+
 export interface ListFriendRequestsResult {
-    received: FriendRequest[]
-    sent: FriendRequest[]
+    received: PaginatedFriendRequests
+    sent: PaginatedFriendRequests
 }
