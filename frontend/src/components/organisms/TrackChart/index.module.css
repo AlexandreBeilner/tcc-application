@@ -107,6 +107,38 @@
     transform: translateX(-50%) translateY(0);
 }
 
+/* Nó perto da borda esquerda/direita do gráfico (tarefa 6.9.7) — tooltip
+   centralizado (`translateX(-50%)`) empurra o texto pra fora do `.chart`
+   nesses pontos, causando o scroll horizontal real relatado pelo autor
+   (`.chartBg` recorta só o fundo, não os nós/tooltip, de propósito — ver
+   comentário acima). Ancorar pela ponta em vez de centralizar resolve sem
+   precisar cortar o tooltip nem mudar esse recorte intencional. */
+.tooltipLeft {
+    left: 0;
+    transform: translateY(4px);
+}
+
+.tooltipLeft.tooltipBelow {
+    transform: translateY(-4px);
+}
+
+.tooltipRight {
+    left: auto;
+    right: 0;
+    transform: translateY(4px);
+}
+
+.tooltipRight.tooltipBelow {
+    transform: translateY(-4px);
+}
+
+.node:hover .tooltipLeft,
+.node:focus-visible .tooltipLeft,
+.node:hover .tooltipRight,
+.node:focus-visible .tooltipRight {
+    transform: translateY(0);
+}
+
 .tooltipTitle {
     font-size: var(--font-size-xs);
     font-weight: 600;

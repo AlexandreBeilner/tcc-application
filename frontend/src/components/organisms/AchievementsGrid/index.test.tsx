@@ -36,4 +36,10 @@ describe('AchievementsGrid (tela 7.2)', () => {
 
         expect(screen.getByText('Nenhuma conquista cadastrada ainda.')).toBeInTheDocument()
     })
+
+    it('item do grid tem a classe que zera min-width (tarefa 6.9.7 — sem isso o nome sem quebra força a coluna do grid além do 1fr, vazando scroll horizontal em mobile)', () => {
+        const { container } = render(<AchievementsGrid achievements={[achievement({})]} />)
+
+        expect(container.querySelector('li')?.className).toMatch(/item/)
+    })
 })

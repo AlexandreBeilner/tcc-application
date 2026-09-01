@@ -20,9 +20,15 @@
     gap: var(--space-2);
 }
 
+/* `min-width: 0` (tarefa 6.9.7) — sem isso o item de grid usa o default
+   `min-width: auto`, que impede a coluna de encolher abaixo do
+   min-content do slot (achado real do vazamento de scroll horizontal em
+   mobile relatado pelo autor: nenhuma largura fixa em px em nenhum CSS
+   deste componente, o culpado era esse default do CSS Grid). */
 .slot {
     display: flex;
     flex-direction: column;
+    min-width: 0;
     opacity: 0;
     transform: translateY(10px);
     animation: podiumEnter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
