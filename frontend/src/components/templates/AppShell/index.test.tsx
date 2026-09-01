@@ -64,7 +64,7 @@ describe('AppShell', () => {
 
     it('renderiza os 5 itens de navegação primária e o conteúdo da rota', async () => {
         mockAuth(user)
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 
         renderShell()
 
@@ -76,7 +76,7 @@ describe('AppShell', () => {
 
     it('onboarding pendente redireciona pra /onboarding (tarefa 6.2) em vez de renderizar o shell', async () => {
         mockAuth({ ...user, onboardingCompleted: false })
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 
         renderShell()
 
@@ -86,7 +86,7 @@ describe('AppShell', () => {
 
     it('menu do avatar não mostra Painel Administrativo pra usuário comum', async () => {
         mockAuth(user)
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 
         renderShell()
         fireEvent.click(screen.getByRole('button', { name: 'Menu do usuário' }))
@@ -97,7 +97,7 @@ describe('AppShell', () => {
 
     it('menu do avatar mostra Painel Administrativo pra role=admin', async () => {
         mockAuth({ ...user, role: 'admin' })
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 
         renderShell()
         fireEvent.click(screen.getByRole('button', { name: 'Menu do usuário' }))
@@ -108,7 +108,7 @@ describe('AppShell', () => {
     it('Sair chama logout e redireciona pra /login', async () => {
         const logout = vi.fn()
         mockAuth(user, logout)
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 
         renderShell()
         fireEvent.click(screen.getByRole('button', { name: 'Menu do usuário' }))
@@ -138,6 +138,7 @@ describe('AppShell', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderShell()
@@ -147,7 +148,7 @@ describe('AppShell', () => {
 
     it('badge de notícias não aparece sem evento pendente', async () => {
         mockAuth(user)
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 
         renderShell()
 

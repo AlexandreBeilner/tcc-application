@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { listFriendRequests } from '../../services/friendships'
@@ -12,7 +13,9 @@ function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
         <QueryClientProvider client={queryClient}>
-            <SolicitacoesAmizade />
+            <MemoryRouter>
+                <SolicitacoesAmizade />
+            </MemoryRouter>
         </QueryClientProvider>,
     )
 }

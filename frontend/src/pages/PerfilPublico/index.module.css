@@ -2,9 +2,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    width: 100%;
-    max-width: 640px;
-    margin: 0 auto;
 }
 
 .loading,
@@ -15,4 +12,53 @@
 
 .error {
     color: var(--color-feedback-error-500);
+}
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+/* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7):
+   card (6.9.2) + `ProfileAboutPanel` sticky na lateral — retrofit 6.9.5,
+   mesmo padrão de `AssetDetail`/`Track`. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .layout {
+        max-width: 1000px;
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
 }

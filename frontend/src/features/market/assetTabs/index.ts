@@ -3,6 +3,13 @@ import type { AssetTab } from './types'
 
 export type { AssetTab } from './types'
 
+// Paginação em memória (6.9.8) — mesmo critério de decisão documentado no
+// backlog: o catálogo do motor é um conjunto sintético pequeno e fixo (não
+// cresce com o uso, ao contrário de Amigos/Ranking/Notícias), então cortar
+// no cliente sobre o array já filtrado por aba resolve a UI sem precisar
+// tocar `engine`/`backend` pra um payload que já é pequeno hoje.
+export const ASSETS_PAGE_SIZE = 20
+
 // O backend (`GET /market/assets?type=`) só filtra pelos 11 valores crus do
 // enum `asset_type` — quem agrupa nas 6 abas do inventário (4.2 Lista RF,
 // 4.4 Lista RV) é o frontend (backlog, tarefa 6.5). `risco/rentabilidade`

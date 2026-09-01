@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AssetTable } from '../../components/organisms/AssetTable'
 import type { AssetTableColumn } from '../../components/organisms/AssetTable'
-import { EQUITY_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
+import { Pagination } from '../../components/molecules/Pagination'
+import { ASSETS_PAGE_SIZE, EQUITY_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { formatSignedPercent } from '../../features/market/format'
 import { formatCurrency } from '../../features/portfolio/format'
@@ -46,13 +47,22 @@ const COLUMNS_BY_TAB: Record<string, AssetTableColumn[]> = {
 export function EquityList() {
     const navigate = useNavigate()
     const [activeTabKey, setActiveTabKey] = useState(EQUITY_TABS[0].key)
+    const [page, setPage] = useState(1)
     const assetsQuery = useAssetsQuery()
 
     const activeTab = EQUITY_TABS.find((tab) => tab.key === activeTabKey) ?? EQUITY_TABS[0]
     const assets = assetsQuery.data ? filterAssetsByTab(assetsQuery.data.assets, activeTab) : []
+    const totalPages = Math.max(1, Math.ceil(assets.length / ASSETS_PAGE_SIZE))
+    const currentPage = Math.min(page, totalPages)
+    const pageAssets = assets.slice((currentPage - 1) * ASSETS_PAGE_SIZE, currentPage * ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
         navigate(`/mercado/ativos/${asset.id}`)
+    }
+
+    function handleTabChange(tabKey: string) {
+        setActiveTabKey(tabKey)
+        setPage(1)
     }
 
     return (
@@ -65,7 +75,7 @@ export function EquityList() {
                         key={tab.key}
                         type="button"
                         className={[styles.tab, tab.key === activeTabKey && styles.tabActive].filter(Boolean).join(' ')}
-                        onClick={() => setActiveTabKey(tab.key)}
+                        onClick={() => handleTabChange(tab.key)}
                     >
                         {tab.label}
                     </button>
@@ -81,12 +91,15 @@ export function EquityList() {
             {!assetsQuery.data && !assetsQuery.isError && <p className={styles.loading}>Carregando ativos…</p>}
 
             {assetsQuery.data && (
-                <AssetTable
-                    assets={assets}
-                    columns={COLUMNS_BY_TAB[activeTab.key]}
-                    onSelect={handleSelect}
-                    emptyMessage="Nenhum ativo disponível nesta categoria ainda."
-                />
+                <>
+                    <AssetTable
+                        assets={pageAssets}
+                        columns={COLUMNS_BY_TAB[activeTab.key]}
+                        onSelect={handleSelect}
+                        emptyMessage="Nenhum ativo disponível nesta categoria ainda."
+                    />
+                    <Pagination page={currentPage} totalPages={totalPages} onPageChange={setPage} ariaLabel="Paginação de Renda Variável" />
+                </>
             )}
         </main>
     )

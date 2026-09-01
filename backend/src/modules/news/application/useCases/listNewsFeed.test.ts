@@ -34,6 +34,7 @@ const sampleResult = {
       created_at: '2026-08-29T14:05:00.000Z',
     },
   ],
+  total_entries: 2,
 }
 
 describe('ListNewsFeedUseCase', () => {
@@ -61,6 +62,7 @@ describe('ListNewsFeedUseCase', () => {
         { ...sampleResult.events[0], direction: '', magnitude_band: '', targets: [], seen: false },
         { ...sampleResult.events[1], seen: true },
       ],
+      total_entries: 2,
     })
     expect(newsReadRepository.listCalls).toEqual([
       { userId: 'user-1', macroEventIds: ['event-1', 'event-2'] },

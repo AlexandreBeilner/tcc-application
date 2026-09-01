@@ -15,6 +15,7 @@ export type NewsEvent = Awaited<ReturnType<NewsFeedReader['list']>>['events'][nu
 
 export interface ListNewsFeedResult {
   events: NewsEvent[]
+  total_entries: number
 }
 
 export class ListNewsFeedUseCase {
@@ -25,11 +26,11 @@ export class ListNewsFeedUseCase {
 
   async execute(input: ListNewsFeedInput): Promise<ListNewsFeedResult> {
     const { userId, ...query } = input
-    const { events } = await this.newsFeedReader.list(query)
+    const { events, total_entries } = await this.newsFeedReader.list(query)
     const seenEventIds = await this.newsReadRepository.listSeenEventIds(
       userId,
       events.map((event) => event.id),
     )
-    return { events: decorateWithSeen(redactPending(events), seenEventIds) }
+    return { events: decorateWithSeen(redactPending(events), seenEventIds), total_entries }
   }
 }

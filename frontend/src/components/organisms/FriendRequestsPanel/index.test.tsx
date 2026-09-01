@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { acceptFriendRequest, removeFriendship } from '../../../services/friendships'
@@ -22,18 +23,30 @@ function renderPanel(
     } = {},
 ) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const router = createMemoryRouter(
+        [
+            {
+                path: '/',
+                element: (
+                    <FriendRequestsPanel
+                        received={received}
+                        sent={sent}
+                        receivedPage={pagination.receivedPage ?? 1}
+                        receivedTotalPages={pagination.receivedTotalPages ?? 1}
+                        onReceivedPageChange={pagination.onReceivedPageChange ?? vi.fn()}
+                        sentPage={pagination.sentPage ?? 1}
+                        sentTotalPages={pagination.sentTotalPages ?? 1}
+                        onSentPageChange={pagination.onSentPageChange ?? vi.fn()}
+                    />
+                ),
+            },
+            { path: '/perfil/:id', element: <div>perfil público</div> },
+        ],
+        { initialEntries: ['/'] },
+    )
     return render(
         <QueryClientProvider client={queryClient}>
-            <FriendRequestsPanel
-                received={received}
-                sent={sent}
-                receivedPage={pagination.receivedPage ?? 1}
-                receivedTotalPages={pagination.receivedTotalPages ?? 1}
-                onReceivedPageChange={pagination.onReceivedPageChange ?? vi.fn()}
-                sentPage={pagination.sentPage ?? 1}
-                sentTotalPages={pagination.sentTotalPages ?? 1}
-                onSentPageChange={pagination.onSentPageChange ?? vi.fn()}
-            />
+            <RouterProvider router={router} />
         </QueryClientProvider>,
     )
 }
@@ -89,6 +102,13 @@ describe('FriendRequestsPanel (tela 8.3)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
         await waitFor(() => expect(removeFriendship).toHaveBeenCalledWith('token', 'f2'))
+    })
+
+    it('nome/username são clicáveis e navegam pro perfil público (6.9.10)', () => {
+        renderPanel([received], [sent])
+
+        fireEvent.click(screen.getByRole('button', { name: /Bia Souza/ }))
+        expect(screen.getByText('perfil público')).toBeInTheDocument()
     })
 
     it('pagina recebidas e enviadas de forma independente (6.9.1)', () => {

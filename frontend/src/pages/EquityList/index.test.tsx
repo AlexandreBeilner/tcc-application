@@ -82,4 +82,28 @@ describe('EquityList (tela 4.4)', () => {
         fireEvent.click(screen.getAllByText('PETR4')[0])
         await waitFor(() => expect(screen.getByText('tela de detalhe')).toBeInTheDocument())
     })
+
+    it('pagina a aba atual e reseta a página ao trocar de aba (6.9.8)', async () => {
+        const manyStocks: AssetSummary[] = Array.from({ length: 25 }, (_, i) => ({
+            id: `s${i}`,
+            ticker: `TICK${i}`,
+            name: `Ação ${i}`,
+            type: 'acao',
+            is_sandbox: false,
+        }))
+        vi.mocked(listAssets).mockResolvedValue({ assets: [...manyStocks, ...assets] })
+        renderPage()
+
+        await waitFor(() => expect(screen.getByRole('navigation', { name: 'Paginação de Renda Variável' })).toBeInTheDocument())
+        expect(screen.getAllByText('TICK0').length).toBeGreaterThan(0)
+        expect(screen.queryByText('TICK20')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }))
+        expect(screen.getAllByText('TICK20').length).toBeGreaterThan(0)
+        expect(screen.queryByText('TICK0')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByText('ETFs'))
+        expect(screen.queryByRole('navigation', { name: 'Paginação de Renda Variável' })).not.toBeInTheDocument()
+        expect(screen.getAllByText('IVVB11').length).toBeGreaterThan(0)
+    })
 })

@@ -72,6 +72,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()
@@ -79,12 +80,12 @@ describe('News (tela 5.1)', () => {
     })
 
     it('busca a primeira página com o tamanho default de paginação', async () => {
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
         renderPage()
         await waitFor(() => expect(listNews).toHaveBeenCalledWith('token', 20, 0))
     })
 
-    it('mostra "Carregar mais" quando a página vem cheia, e some quando a próxima página vem incompleta', async () => {
+    it('pagina o feed (6.9.9) e recalcula o offset ao trocar de página', async () => {
         const page1 = Array.from({ length: 20 }, (_, i) => ({
             id: `p1-${i}`,
             title: `Evento ${i}`,
@@ -118,21 +119,21 @@ describe('News (tela 5.1)', () => {
             },
         ]
         vi.mocked(listNews).mockImplementation((_token: string, _limit?: number, offset?: number) =>
-            Promise.resolve({ events: offset === 0 || offset === undefined ? page1 : page2 }),
+            Promise.resolve({ events: offset === 0 || offset === undefined ? page1 : page2, total_entries: 21 }),
         )
 
         renderPage()
-        expect(await screen.findByText('Carregar mais')).toBeInTheDocument()
+        expect(await screen.findByRole('navigation', { name: 'Paginação do feed de notícias' })).toBeInTheDocument()
+        expect(screen.queryByText('Evento da segunda página')).not.toBeInTheDocument()
 
-        fireEvent.click(screen.getByText('Carregar mais'))
+        fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }))
 
         await waitFor(() => expect(listNews).toHaveBeenCalledWith('token', 20, 20))
         expect(await screen.findByText('Evento da segunda página')).toBeInTheDocument()
-        expect(screen.queryByText('Carregar mais')).not.toBeInTheDocument()
     })
 
     it('estado vazio sem eventos disparados', async () => {
-        vi.mocked(listNews).mockResolvedValue({ events: [] })
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
         renderPage()
         expect(await screen.findByText('Nenhum evento de mercado disparado ainda.')).toBeInTheDocument()
     })
@@ -156,6 +157,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
         vi.mocked(listAssets).mockResolvedValue({
             assets: [{ id: 'a1', ticker: 'BNDD4', name: 'Banco D S.A.', type: 'acao', is_sandbox: false }],
@@ -185,6 +187,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()
@@ -213,6 +216,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()
@@ -241,6 +245,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()
@@ -274,6 +279,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()
@@ -304,6 +310,7 @@ describe('News (tela 5.1)', () => {
                     seen: false,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()
@@ -332,6 +339,7 @@ describe('News (tela 5.1)', () => {
                     seen: true,
                 },
             ],
+            total_entries: 1,
         })
 
         renderPage()

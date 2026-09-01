@@ -11,6 +11,10 @@ export interface ListMacroEventsQuery {
 
 export interface ListMacroEventsResult {
   events: MacroEventResult[]
+  // Total de eventos macro (sem paginação) — motor devolve desde a tarefa
+  // 6.9.9, sustenta "Página X de Y" no feed (5.1) sem trocar o contrato de
+  // limit/offset já usado por GET /admin/macro-events (10.1) e GET /news.
+  total_entries: number
 }
 
 // Lê o histórico de eventos macro do motor de simulação — macro_events

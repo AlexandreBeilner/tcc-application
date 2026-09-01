@@ -36,7 +36,7 @@ const validTemplateBody = {
 
 function buildApp(
   macroEventTrigger = createFakeMacroEventTrigger(sampleResult),
-  macroEventReader = createFakeMacroEventReader({ events: [sampleResult] }),
+  macroEventReader = createFakeMacroEventReader({ events: [sampleResult], total_entries: 1 }),
 ) {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -181,7 +181,7 @@ describe('GET /admin/macro-events', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ events: [sampleResult] })
+    expect(res.body).toEqual({ events: [sampleResult], total_entries: 1 })
     expect(macroEventReader.calls).toEqual([{}])
   })
 
