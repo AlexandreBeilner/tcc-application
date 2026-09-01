@@ -17,7 +17,12 @@ describe('ListFriendRequestsUseCase', () => {
     await friendshipRepository.create(bob.id, alice.id) // recebida por alice
     await friendshipRepository.create(alice.id, carol.id) // enviada por alice
 
-    const result = await useCase.execute({ userId: alice.id, receivedPage: 1, sentPage: 1, sort: 'desc' })
+    const result = await useCase.execute({
+      userId: alice.id,
+      receivedPage: 1,
+      sentPage: 1,
+      sort: 'desc',
+    })
 
     expect(result.received.items).toHaveLength(1)
     expect(result.received.items[0].username).toBe('bob')
@@ -36,10 +41,20 @@ describe('ListFriendRequestsUseCase', () => {
     await new Promise((resolve) => setTimeout(resolve, 5))
     await friendshipRepository.create(carol.id, alice.id)
 
-    const desc = await useCase.execute({ userId: alice.id, receivedPage: 1, sentPage: 1, sort: 'desc' })
+    const desc = await useCase.execute({
+      userId: alice.id,
+      receivedPage: 1,
+      sentPage: 1,
+      sort: 'desc',
+    })
     expect(desc.received.items.map((item) => item.username)).toEqual(['carol', 'bob'])
 
-    const asc = await useCase.execute({ userId: alice.id, receivedPage: 1, sentPage: 1, sort: 'asc' })
+    const asc = await useCase.execute({
+      userId: alice.id,
+      receivedPage: 1,
+      sentPage: 1,
+      sort: 'asc',
+    })
     expect(asc.received.items.map((item) => item.username)).toEqual(['bob', 'carol'])
   })
 
@@ -57,13 +72,23 @@ describe('ListFriendRequestsUseCase', () => {
       await friendshipRepository.create(user.id, alice.id)
     }
 
-    const firstPage = await useCase.execute({ userId: alice.id, receivedPage: 1, sentPage: 1, sort: 'desc' })
+    const firstPage = await useCase.execute({
+      userId: alice.id,
+      receivedPage: 1,
+      sentPage: 1,
+      sort: 'desc',
+    })
     expect(firstPage.received.items).toHaveLength(FRIENDS_PAGE_SIZE)
     expect(firstPage.received.totalPages).toBe(2)
     expect(firstPage.sent.items).toHaveLength(0)
     expect(firstPage.sent.totalPages).toBe(1)
 
-    const secondReceivedPage = await useCase.execute({ userId: alice.id, receivedPage: 2, sentPage: 1, sort: 'desc' })
+    const secondReceivedPage = await useCase.execute({
+      userId: alice.id,
+      receivedPage: 2,
+      sentPage: 1,
+      sort: 'desc',
+    })
     expect(secondReceivedPage.received.items).toHaveLength(2)
   })
 })

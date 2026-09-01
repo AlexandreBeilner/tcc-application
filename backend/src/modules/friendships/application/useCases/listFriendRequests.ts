@@ -49,7 +49,12 @@ export class ListFriendRequestsUseCase {
     ])
 
     const [received, sent] = await Promise.all([
-      this.paginate(receivedRows, (friendship) => friendship.requesterId, input.receivedPage, input.sort),
+      this.paginate(
+        receivedRows,
+        (friendship) => friendship.requesterId,
+        input.receivedPage,
+        input.sort,
+      ),
       this.paginate(sentRows, (friendship) => friendship.addresseeId, input.sentPage, input.sort),
     ])
 
