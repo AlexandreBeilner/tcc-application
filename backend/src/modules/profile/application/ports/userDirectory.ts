@@ -7,6 +7,10 @@ export interface ProfileUserRecord {
   id: string
   username: string
   createdAt: Date
+  // Nome do arquivo salvo em disco (tarefa 6.10.8), não a URL — só
+  // `GetPublicProfileUseCase` monta `avatarUrl` (`shared/avatarUrl.ts`),
+  // mesmo raciocínio de `modules/auth`.
+  avatarPath: string | null
 }
 
 export interface UserDirectory {

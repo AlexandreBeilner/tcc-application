@@ -27,6 +27,7 @@ function Consumer() {
                         username: 'bia',
                         role: 'user',
                         onboardingCompleted: true,
+                        avatarUrl: null,
                     })
                 }
             >
@@ -67,6 +68,7 @@ describe('AuthContext', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             },
         })
 
@@ -139,6 +141,7 @@ describe('AuthContext', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             },
         })
 

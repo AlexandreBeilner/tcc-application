@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { useProgressionQuery } from '../../../features/portfolio/useProgressionQuery'
 import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
+import { resolveMediaUrl } from '../../../services/client'
 import styles from './index.module.css'
 
 // Menu suspenso do avatar (inventário 0.2): Meu Perfil · Amigos ·
@@ -38,6 +39,7 @@ export function AvatarMenu() {
     }
 
     const initial = user?.name?.charAt(0).toUpperCase() ?? '?'
+    const avatarUrl = resolveMediaUrl(user?.avatarUrl ?? null)
     const progression = progressionQuery.data
     // Anel de progresso de XP (identidade-visual-padroes.md) — nunca 0%
     // "quebrado" enquanto a query carrega: sem dado, o anel fica neutro
@@ -49,7 +51,11 @@ export function AvatarMenu() {
 
     return (
         <div className={styles.root} ref={rootRef}>
-            <div className={styles.ring} style={ringStyle} title={progression ? `Nível ${progression.level}, ${progression.xp} XP` : undefined}>
+            <div
+                className={styles.ring}
+                style={ringStyle}
+                title={progression ? `Nível ${progression.level}, ${progression.xp} XP` : undefined}
+            >
                 <button
                     type="button"
                     className={styles.trigger}
@@ -58,7 +64,7 @@ export function AvatarMenu() {
                     aria-expanded={open}
                     aria-label="Menu do usuário"
                 >
-                    {initial}
+                    {avatarUrl ? <img className={styles.avatarImage} src={avatarUrl} alt="" /> : initial}
                 </button>
             </div>
 

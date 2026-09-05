@@ -61,11 +61,11 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted } }`.
+- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted, avatarUrl } }`.
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
   - `404` — token válido mas o usuário não existe mais (ex: deletado).
-- **Regra:** `GetCurrentUserUseCase`. `onboardingCompleted` (tarefa 6.0.4, tela 1.2) é o que o frontend usa pra decidir entre onboarding e Portfólio pós-login — nunca um flag local (localStorage), que não sobreviveria a um segundo dispositivo/navegador.
+- **Regra:** `GetCurrentUserUseCase`. `onboardingCompleted` (tarefa 6.0.4, tela 1.2) é o que o frontend usa pra decidir entre onboarding e Portfólio pós-login — nunca um flag local (localStorage), que não sobreviveria a um segundo dispositivo/navegador. `avatarUrl` (tarefa 6.10.8) é a URL pública já resolvida (`/avatars/<arquivo>`, ver `POST /me/avatar` abaixo) — `null` até o primeiro upload; `userSerializer.ts` monta essa URL a partir de `users.avatar_path`, nunca expõe o caminho cru.
 
 ---
 
@@ -77,7 +77,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 - **Autenticação:** Bearer token.
 - **Payload (JSON):** `name?`, `email?`, `username?`, `onboardingCompleted?` (boolean, tarefa 6.0.4) — mesmas regras de formato do cadastro pros três primeiros; pelo menos um campo obrigatório.
-- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted } }`.
+- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted, avatarUrl } }`.
 - **Erros:**
   - `400` — payload inválido ou nenhum campo enviado.
   - `401` — token ausente ou inválido/expirado.
@@ -93,7 +93,8 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Sucesso:** `200` → `{ status: 'senha atualizada' }`.
 - **Erros:**
   - `400` — payload inválido.
-  - `401` — token ausente/inválido, `currentPassword` ausente numa conta com senha local, ou `currentPassword` incorreta (as duas últimas não trocam nada).
+  - `401` — token ausente ou inválido/expirado (sessão, não a senha atual).
+  - `403` — `currentPassword` ausente numa conta com senha local, ou `currentPassword` incorreta (as duas não trocam nada). **Nunca `401`** — decisão da tarefa 6.10 (frontend, tela 9.2): o client HTTP trata todo `401` de endpoint autenticado como sessão inválida e desloga o usuário (`services/client`) — um `401` aqui deslogaria só por errar a senha atual digitada.
 - **Regra:** `ChangePasswordUseCase`. Conta só-OAuth (`password_hash IS NULL`) pode setar a primeira senha sem informar `currentPassword` — passa a ter os dois métodos de login disponíveis dali em diante, sem tirar o OAuth.
 
 ---
@@ -125,3 +126,17 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Sucesso:** `204`, sem corpo.
 - **Erros:** `401` — token ausente ou inválido/expirado.
 - **Regra:** `AnonymizeAccountUseCase`. **Nunca é um `DELETE` físico da linha de `users`** — decisão de modelagem desta sessão, não confirmada explicitamente: `market_events`/`positions`/`macro_events` (motor) e as tabelas de gamificação guardam `user_id` como referência a um histórico imutável (Event Sourcing, CLAUDE.md) que não pode perder a FK. Em vez disso, anonimiza (`name` → "Usuário removido", `email`/`username` → valores sintéticos únicos derivados do próprio `id`, `password_hash` → `NULL`) mantendo a linha e o `id` intactos, e remove todas as linhas de `user_identities` — o rastro financeiro/gamificado continua existindo (histórico de mercado, ranking passado), só a identidade pessoal some. Usuário anonimizado não consegue mais logar (sem senha local, sem OAuth).
+
+---
+
+### `POST /me/avatar`
+
+- **Autenticação:** Bearer token.
+- **Payload:** `multipart/form-data`, campo `avatar` (arquivo único) — `image/jpeg`, `image/png` ou `image/webp`, até 5MB.
+- **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted, avatarUrl } }` — mesmo formato de `PATCH /me`.
+- **Erros:**
+  - `400` — nenhum arquivo enviado, tipo fora da lista permitida, ou arquivo maior que 5MB (multer corta a conexão antes do handler nesse último caso — ver nota abaixo).
+  - `401` — token ausente ou inválido/expirado.
+  - `404` — token válido mas o usuário não existe mais.
+- **Regra:** `UploadAvatarUseCase`. Arquivo salvo em disco (volume Docker persistente `avatar_data`, `AVATAR_STORAGE_DIR`/`diskAvatarStorage.ts`) — só o nome do arquivo em `users.avatar_path`, nunca base64 numa coluna. Tipo/tamanho validados no use case (regra de negócio, testável sem Express), não só no `multer` do router (`avatarUpload`, `limits.fileSize`) — defesa em profundidade. Ao trocar de foto, o arquivo anterior é apagado só depois do novo caminho já estar persistido no banco (nunca fica sem avatar nenhum se a escrita falhar no meio). Servido de volta em `GET /avatars/<arquivo>` (`express.static`, montado na composição de `app.ts`) — sem rota de download dedicada, o navegador já resolve `<img src>` direto.
+- **Nota:** o backend não tem um handler de erro HTTP central (`app.ts` não registra um middleware de 4 argumentos) — um arquivo maior que o limite do `multer` propaga um erro não capturado que cai no handler default do Express (resposta HTML, não JSON), mesmo comportamento de qualquer `throw` não tratado nas demais rotas do módulo. Não é regressão desta tarefa, é o padrão já existente em todo o backend.

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { UserNotFoundError } from '../../domain/errors'
+import { createFakeAvatarStorage } from '../../test/fakes/fakeAvatarStorage'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
 import { AnonymizeAccountUseCase } from './anonymizeAccount'
 
 describe('AnonymizeAccountUseCase', () => {
   it('anonimiza nome/e-mail/username, remove a senha e desconecta identidades OAuth', async () => {
     const userRepository = createFakeUserRepository()
+    const { storage: avatarStorage } = createFakeAvatarStorage()
     const user = await userRepository.createUser({
       name: 'Alexandre',
       email: 'a@example.com',
@@ -17,7 +19,7 @@ describe('AnonymizeAccountUseCase', () => {
       providerName: 'google',
       providerAccountId: 'g-123',
     })
-    const useCase = new AnonymizeAccountUseCase(userRepository)
+    const useCase = new AnonymizeAccountUseCase(userRepository, avatarStorage)
 
     await useCase.execute({ userId: user.id })
 
@@ -30,9 +32,47 @@ describe('AnonymizeAccountUseCase', () => {
     expect(await userRepository.listIdentitiesForUser(user.id)).toEqual([])
   })
 
+  it('remove a foto de perfil salva, sem deixar o arquivo servível após a exclusão', async () => {
+    const userRepository = createFakeUserRepository()
+    const { storage: avatarStorage, saved, deleted } = createFakeAvatarStorage()
+    const user = await userRepository.createUser({
+      name: 'Alexandre',
+      email: 'a@example.com',
+      username: 'alexandreb',
+      passwordHash: 'hashed:senha',
+    })
+    const avatarPath = await avatarStorage.save(user.id, Buffer.from('foto'), 'jpg')
+    await userRepository.updateUser(user.id, { avatarPath })
+    const useCase = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+
+    await useCase.execute({ userId: user.id })
+
+    const updated = await userRepository.findById(user.id)
+    expect(updated?.avatarPath).toBeNull()
+    expect(deleted).toEqual([avatarPath])
+    expect(saved.has(avatarPath)).toBe(false)
+  })
+
+  it('não tenta apagar arquivo nenhum quando o usuário nunca teve avatar', async () => {
+    const userRepository = createFakeUserRepository()
+    const { storage: avatarStorage, deleted } = createFakeAvatarStorage()
+    const user = await userRepository.createUser({
+      name: 'Alexandre',
+      email: 'a@example.com',
+      username: 'alexandreb',
+      passwordHash: 'hashed:senha',
+    })
+    const useCase = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+
+    await useCase.execute({ userId: user.id })
+
+    expect(deleted).toEqual([])
+  })
+
   it('404 pra usuário inexistente', async () => {
     const userRepository = createFakeUserRepository()
-    const useCase = new AnonymizeAccountUseCase(userRepository)
+    const { storage: avatarStorage } = createFakeAvatarStorage()
+    const useCase = new AnonymizeAccountUseCase(userRepository, avatarStorage)
 
     await expect(useCase.execute({ userId: 'nope' })).rejects.toBeInstanceOf(UserNotFoundError)
   })

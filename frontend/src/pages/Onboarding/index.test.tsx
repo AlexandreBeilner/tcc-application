@@ -35,6 +35,7 @@ function mockAuth(onboardingCompleted: boolean, setUser = vi.fn()) {
             username: 'ana',
             role: 'user',
             onboardingCompleted,
+            avatarUrl: null,
         },
         isLoading: false,
         login: vi.fn(),
@@ -79,6 +80,7 @@ describe('Onboarding (tela 1.2)', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             },
         })
 
@@ -103,6 +105,7 @@ describe('Onboarding (tela 1.2)', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             },
         })
 

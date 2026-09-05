@@ -6,7 +6,12 @@ import { createFakeProfitabilityReader } from '../../test/fakes/fakeProfitabilit
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { GetPublicProfileUseCase } from './getPublicProfile'
 
-const user = { id: 'u1', username: 'alice', createdAt: new Date('2026-01-01T00:00:00Z') }
+const user = {
+  id: 'u1',
+  username: 'alice',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  avatarPath: 'u1-abc.jpg',
+}
 
 function build() {
   const userDirectory = createFakeUserDirectory([user])
@@ -41,6 +46,7 @@ describe('GetPublicProfileUseCase', () => {
 
     expect(profile).toEqual({
       username: 'alice',
+      avatarUrl: '/avatars/u1-abc.jpg',
       level: 3,
       xp: 350,
       currentStreak: 5,
@@ -55,6 +61,25 @@ describe('GetPublicProfileUseCase', () => {
       profitabilityPct: 12.5,
       window: 'week',
     })
+  })
+
+  it('avatarUrl é null quando o usuário nunca fez upload (6.10.8)', async () => {
+    const userDirectory = createFakeUserDirectory([{ ...user, avatarPath: null }])
+    const gamificationReader = createFakeGamificationReader({
+      u1: { level: 3, xp: 350, currentStreak: 5 },
+    })
+    const achievementsReader = createFakeAchievementsReader({ u1: [] })
+    const profitabilityReader = createFakeProfitabilityReader({ u1: 12.5 })
+    const useCase = new GetPublicProfileUseCase(
+      userDirectory,
+      gamificationReader,
+      achievementsReader,
+      profitabilityReader,
+    )
+
+    const profile = await useCase.execute({ userId: 'u1' })
+
+    expect(profile.avatarUrl).toBeNull()
   })
 
   it('usa month quando pedido explicitamente', async () => {

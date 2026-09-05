@@ -13,8 +13,8 @@ import { createFakeFriendshipRepository } from '../../test/fakes/fakeFriendshipR
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { createFriendshipsRouter } from './friendshipsRouter'
 
-const alice = { id: 'u-alice', username: 'alice', name: 'Alice' }
-const bob = { id: 'u-bob', username: 'bob', name: 'Bob' }
+const alice = { id: 'u-alice', username: 'alice', name: 'Alice', avatarUrl: null }
+const bob = { id: 'u-bob', username: 'bob', name: 'Bob', avatarUrl: null }
 
 function buildApp() {
   const friendshipRepository = createFakeFriendshipRepository()

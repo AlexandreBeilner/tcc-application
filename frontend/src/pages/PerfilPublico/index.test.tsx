@@ -13,7 +13,13 @@ vi.mock('../../services/profile', () => ({ getUserProfile: vi.fn() }))
 
 function renderPage(id = 'u2') {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const router = createMemoryRouter([{ path: '/perfil/:id', element: <PerfilPublico /> }], { initialEntries: [`/perfil/${id}`] })
+    const router = createMemoryRouter(
+        [
+            { path: '/perfil', element: <p>Meu Perfil</p> },
+            { path: '/perfil/:id', element: <PerfilPublico /> },
+        ],
+        { initialEntries: [`/perfil/${id}`] },
+    )
     return render(
         <QueryClientProvider client={queryClient}>
             <RouterProvider router={router} />
@@ -25,7 +31,7 @@ describe('PerfilPublico (tela 8.4)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true },
+            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
             isLoading: false,
             login: vi.fn(),
             logout: vi.fn(),
@@ -42,13 +48,29 @@ describe('PerfilPublico (tela 8.4)', () => {
 
     it('mostra o perfil público carregado', async () => {
         vi.mocked(getUserProfile).mockResolvedValue({
-            profile: { username: 'bia', level: 4, xp: 820, currentStreak: 3, achievements: [], profitabilityPct: 5.2, window: 'week' },
+            profile: {
+                username: 'bia',
+                avatarUrl: null,
+                level: 4,
+                xp: 820,
+                currentStreak: 3,
+                achievements: [],
+                profitabilityPct: 5.2,
+                window: 'week',
+            },
         })
 
         renderPage('u2')
 
         expect(await screen.findByText('@bia')).toBeInTheDocument()
         expect(getUserProfile).toHaveBeenCalledWith('token', 'u2')
+    })
+
+    it('redireciona pra /perfil quando o id da URL é o do próprio usuário logado (ex: clique na própria linha do ranking)', async () => {
+        renderPage('u1')
+
+        expect(await screen.findByText('Meu Perfil')).toBeInTheDocument()
+        expect(getUserProfile).not.toHaveBeenCalled()
     })
 
     it('id inexistente (404) mostra mensagem de erro, sem quebrar a tela', async () => {

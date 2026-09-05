@@ -8,6 +8,7 @@ export interface FriendRequestItem {
   userId: string
   username: string
   name: string
+  avatarUrl: string | null
   createdAt: Date
 }
 
@@ -105,6 +106,7 @@ export class ListFriendRequestsUseCase {
           userId: user.id,
           username: user.username,
           name: user.name,
+          avatarUrl: user.avatarUrl,
           createdAt: entry.createdAt,
         }
       })

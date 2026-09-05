@@ -54,6 +54,7 @@ describe('Onboarding + AuthContext real (regressão da corrida setUser/navigate)
                             username: 'ana',
                             role: 'user',
                             onboardingCompleted: false,
+                            avatarUrl: null,
                         },
                     }),
                 })
@@ -70,6 +71,7 @@ describe('Onboarding + AuthContext real (regressão da corrida setUser/navigate)
                             username: 'ana',
                             role: 'user',
                             onboardingCompleted: true,
+                            avatarUrl: null,
                         },
                     }),
                 })

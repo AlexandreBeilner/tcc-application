@@ -44,7 +44,7 @@ export function FriendRequestsPanel({
                         {received.map((request) => (
                             <li key={request.friendshipId} className={styles.row}>
                                 <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${request.userId}`)}>
-                                    <Avatar username={request.username} />
+                                    <Avatar username={request.username} avatarUrl={request.avatarUrl} />
                                     <span className={styles.info}>
                                         <span className={styles.name}>{request.name}</span>
                                         <span className={styles.username}>@{request.username}</span>
@@ -86,7 +86,7 @@ export function FriendRequestsPanel({
                         {sent.map((request) => (
                             <li key={request.friendshipId} className={styles.row}>
                                 <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${request.userId}`)}>
-                                    <Avatar username={request.username} />
+                                    <Avatar username={request.username} avatarUrl={request.avatarUrl} />
                                     <span className={styles.info}>
                                         <span className={styles.name}>{request.name}</span>
                                         <span className={styles.username}>@{request.username}</span>

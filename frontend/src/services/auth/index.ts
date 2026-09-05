@@ -1,7 +1,25 @@
 import { API_BASE_URL, apiRequest } from '../client'
-import type { AuthResult, LoginInput, RegisterInput, AuthUser } from './types'
+import type {
+    AccountExport,
+    AuthResult,
+    ChangePasswordInput,
+    Identity,
+    LoginInput,
+    RegisterInput,
+    AuthUser,
+    UpdateProfileInput,
+} from './types'
 
-export type { AuthUser, AuthResult, RegisterInput, LoginInput } from './types'
+export type {
+    AuthUser,
+    AuthResult,
+    RegisterInput,
+    LoginInput,
+    UpdateProfileInput,
+    ChangePasswordInput,
+    Identity,
+    AccountExport,
+} from './types'
 
 export function register(input: RegisterInput): Promise<AuthResult> {
     return apiRequest<AuthResult>('/auth/register', { method: 'POST', body: input })
@@ -32,4 +50,41 @@ export function completeOnboarding(token: string): Promise<{ user: AuthUser }> {
 // navegador inteiro (`<a href={googleLoginUrl()}>`), tela 1.1 (tarefa 6.2).
 export function googleLoginUrl(): string {
     return `${API_BASE_URL}/auth/google`
+}
+
+// Tela 9.2 (tarefa 6.10) — `accountRouter.ts`, mesmo módulo `auth`
+// (`.docs/backend/auth.md`, seção "Configurações de conta e LGPD").
+export function updateProfile(token: string, input: UpdateProfileInput): Promise<{ user: AuthUser }> {
+    return apiRequest<{ user: AuthUser }>('/me', { method: 'PATCH', body: input, token })
+}
+
+export function changePassword(token: string, input: ChangePasswordInput): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>('/me/password', { method: 'POST', body: input, token })
+}
+
+// Tela 9.2 (tarefa 6.10.8) — `multipart/form-data`, campo `avatar`; ver
+// `services/client` (`apiRequest` reconhece `FormData` e não faz
+// `JSON.stringify`). Mesmo formato de resposta de `PATCH /me`.
+export function uploadAvatar(token: string, file: File): Promise<{ user: AuthUser }> {
+    const body = new FormData()
+    body.append('avatar', file)
+    return apiRequest<{ user: AuthUser }>('/me/avatar', { method: 'POST', body, token })
+}
+
+export function listIdentities(token: string): Promise<{ identities: Identity[] }> {
+    return apiRequest<{ identities: Identity[] }>('/me/identities', { token })
+}
+
+// Tela 9.3 — portabilidade (RNF04). Devolve o payload cru; quem chama
+// decide como virar arquivo (a página, não o serviço — client HTTP não
+// deveria conhecer DOM/Blob).
+export function exportAccountData(token: string): Promise<{ export: AccountExport }> {
+    return apiRequest<{ export: AccountExport }>('/me/export', { token })
+}
+
+// `204` sem corpo — nunca `DELETE` físico no backend (anonimização,
+// `.docs/backend/auth.md`), mas do ponto de vista do client é só "a sessão
+// não serve mais", por isso quem chama sempre desloga em seguida.
+export function deleteAccount(token: string): Promise<void> {
+    return apiRequest<void>('/me', { method: 'DELETE', token })
 }

@@ -39,7 +39,15 @@ describe('Classificacao (tela 7.1)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'me', name: 'Eu', email: 'eu@example.com', username: 'eu', role: 'user', onboardingCompleted: true },
+            user: {
+                id: 'me',
+                name: 'Eu',
+                email: 'eu@example.com',
+                username: 'eu',
+                role: 'user',
+                onboardingCompleted: true,
+                avatarUrl: null,
+            },
             isLoading: false,
             login: vi.fn(),
             logout: vi.fn(),

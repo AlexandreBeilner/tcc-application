@@ -3,9 +3,9 @@ import { createFakeFriendshipRepository } from '../../test/fakes/fakeFriendshipR
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { FRIENDS_PAGE_SIZE, ListFriendsUseCase } from './listFriends'
 
-const alice = { id: 'u-alice', username: 'alice', name: 'Alice' }
-const bob = { id: 'u-bob', username: 'bob', name: 'Bob' }
-const carol = { id: 'u-carol', username: 'carol', name: 'Carol' }
+const alice = { id: 'u-alice', username: 'alice', name: 'Alice', avatarUrl: null }
+const bob = { id: 'u-bob', username: 'bob', name: 'Bob', avatarUrl: null }
+const carol = { id: 'u-carol', username: 'carol', name: 'Carol', avatarUrl: null }
 
 describe('ListFriendsUseCase', () => {
   it('lista só amizades aceitas, dos dois lados da relação', async () => {
@@ -64,6 +64,7 @@ describe('ListFriendsUseCase', () => {
       id: `u-friend-${index}`,
       username: `friend${index}`,
       name: `Friend ${index}`,
+      avatarUrl: null,
     }))
     const userDirectory = createFakeUserDirectory([alice, ...users])
     const useCase = new ListFriendsUseCase(friendshipRepository, userDirectory)

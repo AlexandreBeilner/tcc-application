@@ -1,0 +1,138 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+/* Mobile/tablet: as duas ações (exportar/excluir) empilhadas, mesma coluna
+   única do resto da tela. Desktop (identidade-visual-padroes.md §7,
+   `.claude/identidade-visual-padroes.md`): lado a lado — são duas ações
+   independentes de altura parecida, não faz sentido um painel lateral
+   fixo aqui (não há conteúdo de apoio contínuo, ao contrário de
+   `Configuracoes`/`MeuPerfil`), então "grid 2 colunas quando fizer
+   sentido" aqui é as próprias seções, não coluna principal + sidebar. */
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 960px;
+    }
+
+    .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: var(--space-6);
+    }
+}
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.sectionTitle {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.note,
+.description {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-error-100);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+.danger {
+    border-color: var(--color-feedback-error-500);
+}
+
+.confirmBox {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-error-100);
+}
+
+.confirmText {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.confirmField {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-feedback-error-500);
+    font-weight: 600;
+}
+
+.confirmField input {
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-feedback-error-500);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-base);
+    font-weight: 400;
+}
+
+.confirmField input:focus {
+    outline: none;
+    border-color: var(--color-feedback-error-500);
+}
+
+.confirmActions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}

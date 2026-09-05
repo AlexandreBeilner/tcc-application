@@ -9,6 +9,18 @@ import type { ApiRequestOptions, ErrorBody, UnauthorizedHandler } from './types'
 // cross-origin.
 export const API_BASE_URL = import.meta.env.VITE_GATEWAY_URL ?? ''
 
+// Caminhos relativos devolvidos pelo backend (ex: `avatarUrl` = `/avatars/
+// xxx.jpg`, tarefa 6.10.8) apontam pro gateway, não pro próprio frontend.
+// Em dev isso passa despercebido porque o proxy do Vite (vite.config.ts)
+// deixa a chamada same-origin; no build de produção (frontend nunca
+// containerizado, CLAUDE.md) esse proxy não existe, então um `<img src=
+// "/avatars/...">` cru resolveria contra a origem do frontend em vez do
+// gateway. Mesmo raciocínio de `API_BASE_URL` acima — usar em qualquer
+// lugar que renderiza um caminho relativo vindo da API como `src`/`href`.
+export function resolveMediaUrl(path: string | null): string | null {
+    return path ? `${API_BASE_URL}${path}` : null
+}
+
 export class ApiError extends Error {
     readonly status: number
     readonly details?: unknown
@@ -37,7 +49,11 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
 // o único lugar que sabe interpretar esse formato.
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' }
-    if (options.body !== undefined) {
+    // `FormData` (tarefa 6.10.8, `POST /me/avatar`) vai crua no `fetch` —
+    // nunca `JSON.stringify` nem `Content-Type` manual, o browser monta o
+    // boundary de `multipart/form-data` sozinho quando o header não é setado.
+    const isFormData = options.body instanceof FormData
+    if (options.body !== undefined && !isFormData) {
         headers['Content-Type'] = 'application/json'
     }
     if (options.token) {
@@ -47,7 +63,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const res = await fetch(`${API_BASE_URL}${path}`, {
         method: options.method ?? 'GET',
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body: isFormData ? (options.body as FormData) : options.body !== undefined ? JSON.stringify(options.body) : undefined,
     })
 
     if (res.status === 204) {

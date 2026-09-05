@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { ProfileAboutPanel } from '../../components/molecules/ProfileAboutPanel'
 import { PublicProfileCard } from '../../components/organisms/PublicProfileCard'
 import { useAuth } from '../../features/auth/AuthContext'
@@ -21,9 +21,22 @@ import styles from './index.module.css'
 export function PerfilPublico() {
     const { id } = useParams<{ id: string }>()
     const { user } = useAuth()
-    const profileQuery = usePublicProfileQuery(id as string)
+    // `RankingBoard`/`Amigos` levam pra cá com qualquer `userId`, incluindo
+    // o do próprio usuário logado (ex: clicar na própria linha do ranking).
+    // `PublicProfileCard` resolve isso pra `status: 'self'`, mas sem
+    // `onEdit` (só passado por `MeuPerfil`) a área de ação de amizade fica
+    // vazia — redireciona pra 9.1 "Meu Perfil" (`/perfil`), que já cobre
+    // esse caso com o card completo. `isSelf` desabilita a query de perfil
+    // público (`enabled` abaixo) pra não disparar um `GET /users/:id`
+    // inútil antes do redirect.
+    const isSelf = user !== null && id === user.id
+    const profileQuery = usePublicProfileQuery(isSelf ? '' : (id as string))
     const friendsQuery = useAllFriendsQuery()
     const requestsQuery = useAllFriendRequestsQuery()
+
+    if (isSelf) {
+        return <Navigate to="/perfil" replace />
+    }
 
     if (profileQuery.isError) {
         return (

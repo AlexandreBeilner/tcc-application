@@ -2,11 +2,18 @@ import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
+import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { ApiError } from '../../services/client'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
 import { Button } from '../../components/atoms/Button'
 import type { Mode } from './types'
 import styles from './index.module.css'
+
+const STRENGTH_LABEL: Record<'weak' | 'medium' | 'strong', string> = {
+    weak: 'Fraca',
+    medium: 'Média',
+    strong: 'Forte',
+}
 
 // Tela 1.1 (tarefa 6.2) — login e cadastro na mesma tela, com um toggle
 // entre os dois modos (inventário não separa em duas telas). Pós-sucesso,
@@ -14,25 +21,40 @@ import styles from './index.module.css'
 // 2.1 (Portfólio) a partir de `user.onboardingCompleted` — a mesma decisão
 // central usada pelo retorno do OAuth Google (AuthCallback), nunca
 // duplicada aqui.
+//
+// Tarefa 6.10.6 (apontado pelo autor, tecnicamente da 6.2): cadastro ganhou
+// "Confirmar senha" (validação client-side, mesmo princípio já usado em
+// 9.2/`Configuracoes`) e um indicador visual de força
+// (`features/auth/passwordStrength`, heurística pura e testada) — nenhum
+// dos dois existe no modo login, só no `register`.
 export function Login() {
     const [mode, setMode] = useState<Mode>('login')
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const { login } = useAuth()
     const navigate = useNavigate()
+    const passwordStrength = mode === 'register' ? computePasswordStrength(password) : null
 
     function toggleMode() {
         setMode((m) => (m === 'login' ? 'register' : 'login'))
         setError(null)
+        setConfirmPassword('')
     }
 
     async function handleSubmit(event: SubmitEvent) {
         event.preventDefault()
         setError(null)
+
+        if (mode === 'register' && password !== confirmPassword) {
+            setError('As senhas não coincidem.')
+            return
+        }
+
         setIsSubmitting(true)
         try {
             const result =
@@ -118,6 +140,36 @@ export function Login() {
                             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                         />
                     </label>
+
+                    {passwordStrength && (
+                        <div className={styles.strength} aria-live="polite">
+                            <div className={`${styles.strengthBar} ${styles[passwordStrength]}`}>
+                                <span className={`${styles.strengthSegment} ${styles.strengthFilled}`} />
+                                <span className={`${styles.strengthSegment} ${passwordStrength !== 'weak' ? styles.strengthFilled : ''}`} />
+                                <span
+                                    className={`${styles.strengthSegment} ${passwordStrength === 'strong' ? styles.strengthFilled : ''}`}
+                                />
+                            </div>
+                            <span className={`${styles.strengthLabel} ${styles[passwordStrength]}`}>
+                                Força da senha: {STRENGTH_LABEL[passwordStrength]}
+                            </span>
+                        </div>
+                    )}
+
+                    {mode === 'register' && (
+                        <label className={styles.field}>
+                            Confirmar senha
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                required
+                                minLength={8}
+                                maxLength={72}
+                                autoComplete="new-password"
+                            />
+                        </label>
+                    )}
 
                     {error && (
                         <p className={styles.error} role="alert">

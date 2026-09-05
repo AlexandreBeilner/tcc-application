@@ -48,6 +48,7 @@ describe('ProtectedRoute', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             },
             isLoading: false,
             login: vi.fn(),

@@ -1,3 +1,4 @@
+import { buildAvatarUrl } from '../../../../shared/avatarUrl'
 import { UserNotFoundError } from '../../domain/errors'
 import type { AchievementsReader, UnlockedAchievementSummary } from '../ports/achievementsReader'
 import type { GamificationReader } from '../ports/gamificationReader'
@@ -16,6 +17,7 @@ export interface GetPublicProfileInput {
 // campo omitido na serialização).
 export interface PublicProfile {
   username: string
+  avatarUrl: string | null
   level: number
   xp: number
   currentStreak: number
@@ -51,6 +53,7 @@ export class GetPublicProfileUseCase {
 
     return {
       username: user.username,
+      avatarUrl: buildAvatarUrl(user.avatarPath),
       level: summary.level,
       xp: summary.xp,
       currentStreak: summary.currentStreak,

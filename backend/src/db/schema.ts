@@ -44,6 +44,10 @@ export const users = pgTable('users', {
   // direto no Portfólio (2.1). Nunca lido de um flag local (localStorage):
   // precisa sobreviver a um segundo dispositivo/navegador (tarefa 6.0.4).
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+  // Nome do arquivo salvo em disco (tarefa 6.10.8, upload de foto de
+  // perfil) — nunca a URL pronta, ver `shared/avatarUrl.ts`. Nullable: nem
+  // todo usuário fez upload.
+  avatarPath: varchar('avatar_path', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

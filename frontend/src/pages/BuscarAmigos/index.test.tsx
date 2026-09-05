@@ -33,7 +33,7 @@ describe('BuscarAmigos (tela 8.2)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true },
+            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
             isLoading: false,
             login: vi.fn(),
             logout: vi.fn(),
@@ -54,7 +54,7 @@ describe('BuscarAmigos (tela 8.2)', () => {
     })
 
     it('digitar busca (debounced) e mostra os resultados', async () => {
-        vi.mocked(searchUsers).mockResolvedValue({ users: [{ id: 'u2', username: 'bia', name: 'Bia Souza' }] })
+        vi.mocked(searchUsers).mockResolvedValue({ users: [{ id: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null }] })
 
         renderPage()
         fireEvent.change(screen.getByLabelText('Nome de usuário'), { target: { value: 'bia' } })

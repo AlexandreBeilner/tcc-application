@@ -1,0 +1,32 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+/* O formulário ganha painel de prévia fixo na lateral a partir daqui
+   (`MacroEventTriggerForm.module.css` §7) — a página precisa de mais
+   largura que o padrão de formulário de coluna única. */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 960px;
+    }
+}
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}

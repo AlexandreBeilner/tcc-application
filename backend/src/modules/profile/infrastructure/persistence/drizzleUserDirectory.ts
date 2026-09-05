@@ -7,7 +7,12 @@ export function createDrizzleUserDirectory(db: Database): UserDirectory {
   return {
     async findById(id) {
       const [row] = await db
-        .select({ id: users.id, username: users.username, createdAt: users.createdAt })
+        .select({
+          id: users.id,
+          username: users.username,
+          createdAt: users.createdAt,
+          avatarPath: users.avatarPath,
+        })
         .from(users)
         .where(eq(users.id, id))
         .limit(1)

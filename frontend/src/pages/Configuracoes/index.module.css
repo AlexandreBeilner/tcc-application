@@ -1,0 +1,259 @@
+/* `max-width`/`margin: 0 auto` aqui (não só em `.layout`) — apontado pelo
+   autor: era a única tela com título+voltar fora da coluna centralizada,
+   grudados na borda esquerda da área de conteúdo em telas largas enquanto
+   o formulário abaixo ficava centralizado numa coluna mais estreita.
+   Breakpoint espelha exatamente `.layout` pra título e conteúdo sempre
+   alinharem na mesma borda, mesmo princípio do comentário da 6.10.1 em
+   `MeuPerfil.module.css`. */
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1000px;
+    }
+}
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.loading {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7):
+   formulários na coluna principal + painel de privacidade sticky na
+   lateral, mesmo padrão 2 colunas de `PerfilPublico`/`MeuPerfil`. Largura
+   já vem de `.page` (título e conteúdo compartilham a mesma coluna) — sem
+   `max-width`/`margin: auto` próprios aqui, senão duplica o que `.page`
+   já resolve. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.avatarRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.avatarPreview {
+    flex: none;
+    width: 64px;
+    height: 64px;
+}
+
+.avatarActions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.avatarHint {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.sectionTitle {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    align-items: flex-start;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.field input {
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-base);
+}
+
+.field input:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+}
+
+.error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-error-100);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+    width: 100%;
+}
+
+/* "Concluído" — dourado + check (identidade-visual-tokens.md), nunca a
+   cor de ganho financeiro (`--color-gain-500` é só rentabilidade/preço). */
+.saved {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-gamify-500);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.empty {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.themeToggle {
+    display: flex;
+    gap: var(--space-2);
+    width: fit-content;
+}
+
+.themeOption {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.themeOptionActive {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-300);
+    background: var(--color-brand-100);
+}
+
+.identityList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.identityItem {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    width: fit-content;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.panelTitle {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.panelNote {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.panelLink {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-brand-300);
+}

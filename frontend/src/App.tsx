@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthContext'
+import { ThemeProvider } from './features/theme/ThemeContext'
 import { router } from './routes/router'
 
 // Única lib de data fetching do frontend (tarefa 6.1, decisão da
@@ -11,9 +12,11 @@ const queryClient = new QueryClient()
 export function App() {
     return (
         <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-                <RouterProvider router={router} />
-            </AuthProvider>
+            <ThemeProvider>
+                <AuthProvider>
+                    <RouterProvider router={router} />
+                </AuthProvider>
+            </ThemeProvider>
         </QueryClientProvider>
     )
 }

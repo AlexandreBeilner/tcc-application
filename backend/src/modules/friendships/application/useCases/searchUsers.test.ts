@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { SearchUsersUseCase } from './searchUsers'
 
-const alice = { id: 'u-alice', username: 'alice', name: 'Alice' }
-const alicia = { id: 'u-alicia', username: 'alicia', name: 'Alicia' }
-const bob = { id: 'u-bob', username: 'bob', name: 'Bob' }
+const alice = { id: 'u-alice', username: 'alice', name: 'Alice', avatarUrl: null }
+const alicia = { id: 'u-alicia', username: 'alicia', name: 'Alicia', avatarUrl: null }
+const bob = { id: 'u-bob', username: 'bob', name: 'Bob', avatarUrl: null }
 
 describe('SearchUsersUseCase', () => {
   it('busca por username, excluindo o próprio usuário', async () => {

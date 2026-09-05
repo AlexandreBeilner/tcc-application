@@ -1,11 +1,18 @@
 .avatar {
     flex: none;
     border-radius: 50%;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: var(--font-family-heading);
     font-weight: 700;
+}
+
+.image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .sm {

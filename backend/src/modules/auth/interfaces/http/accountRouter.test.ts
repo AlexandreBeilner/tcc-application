@@ -7,7 +7,9 @@ import { ChangePasswordUseCase } from '../../application/useCases/changePassword
 import { ExportUserDataUseCase } from '../../application/useCases/exportUserData'
 import { ListIdentitiesUseCase } from '../../application/useCases/listIdentities'
 import { UpdateProfileUseCase } from '../../application/useCases/updateProfile'
+import { MAX_AVATAR_SIZE_BYTES, UploadAvatarUseCase } from '../../application/useCases/uploadAvatar'
 import { createFakeAchievementsExporter } from '../../test/fakes/fakeAchievementsExporter'
+import { createFakeAvatarStorage } from '../../test/fakes/fakeAvatarStorage'
 import { createFakeFriendshipsExporter } from '../../test/fakes/fakeFriendshipsExporter'
 import { createFakeLessonProgressExporter } from '../../test/fakes/fakeLessonProgressExporter'
 import { createFakeMissionProgressExporter } from '../../test/fakes/fakeMissionProgressExporter'
@@ -44,7 +46,9 @@ async function buildApp() {
     createFakeFriendshipsExporter(),
     createFakeMissionProgressExporter(),
   )
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository)
+  const { storage: avatarStorage, saved: savedAvatars } = createFakeAvatarStorage()
+  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
 
@@ -57,10 +61,11 @@ async function buildApp() {
       listIdentities,
       exportUserData,
       anonymizeAccount,
+      uploadAvatar,
       authMiddleware,
     }),
   )
-  return { app, tokenIssuer, alice, bob }
+  return { app, tokenIssuer, alice, bob, savedAvatars }
 }
 
 describe('account routes', () => {
@@ -135,7 +140,7 @@ describe('account routes', () => {
     expect(res.status).toBe(200)
   })
 
-  it('POST /me/password rejeita senha atual errada sem trocar nada (401)', async () => {
+  it('POST /me/password rejeita senha atual errada sem trocar nada (403, não 401)', async () => {
     const { app, tokenIssuer, alice } = await buildApp()
     const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
 
@@ -144,7 +149,10 @@ describe('account routes', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ currentPassword: 'errada', newPassword: 'senha-nova-123' })
 
-    expect(res.status).toBe(401)
+    // 403, não 401: token válido, só a senha atual está errada — um 401
+    // aqui derrubaria a sessão do usuário no frontend (handler global de
+    // "sessão inválida" do client HTTP), achado da tarefa 6.10.
+    expect(res.status).toBe(403)
   })
 
   it('GET /me/identities lista os provedores conectados', async () => {
@@ -174,5 +182,72 @@ describe('account routes', () => {
     const res = await request(app).delete('/me').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(204)
+  })
+
+  it('POST /me/avatar salva o arquivo e devolve avatarUrl (6.10.8)', async () => {
+    const { app, tokenIssuer, alice, savedAvatars } = await buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .post('/me/avatar')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('avatar', Buffer.from('fake-png-bytes'), {
+        filename: 'foto.png',
+        contentType: 'image/png',
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body.user.avatarUrl).toMatch(/^\/avatars\/.+\.png$/)
+    expect(savedAvatars.size).toBe(1)
+  })
+
+  it('POST /me/avatar rejeita arquivo acima do limite com erro JSON, não a página HTML padrão do Express (400)', async () => {
+    const { app, tokenIssuer, alice } = await buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .post('/me/avatar')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('avatar', Buffer.alloc(MAX_AVATAR_SIZE_BYTES + 1), {
+        filename: 'foto.png',
+        contentType: 'image/png',
+      })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'arquivo maior que o limite de 5MB' })
+  })
+
+  it('POST /me/avatar rejeita tipo de arquivo não suportado (400)', async () => {
+    const { app, tokenIssuer, alice } = await buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .post('/me/avatar')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('avatar', Buffer.from('fake-gif-bytes'), {
+        filename: 'foto.gif',
+        contentType: 'image/gif',
+      })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /me/avatar sem arquivo retorna 400', async () => {
+    const { app, tokenIssuer, alice } = await buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app).post('/me/avatar').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /me/avatar sem token retorna 401', async () => {
+    const { app } = await buildApp()
+
+    const res = await request(app)
+      .post('/me/avatar')
+      .attach('avatar', Buffer.from('x'), { filename: 'foto.png', contentType: 'image/png' })
+
+    expect(res.status).toBe(401)
   })
 })

@@ -1,0 +1,47 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+/* Lista cronológica única por natureza, mesmo raciocínio do Feed de
+   Notícias/Extrato (identidade-visual-padroes.md §7, `News.module.css`) —
+   sem painel lateral que faça sentido pro histórico em si; desktop só
+   ganha mais largura. */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 880px;
+    }
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: calc(var(--space-2) * -1) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}

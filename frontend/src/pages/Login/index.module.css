@@ -98,6 +98,60 @@
     border-color: var(--color-brand-500);
 }
 
+/* Indicador de força de senha (tarefa 6.10.6) — 3 segmentos, cor semântica
+   genérica de formulário (nunca ganho/perda financeiro, mesmo princípio já
+   documentado em --color-feedback-error-*). */
+.strength {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: calc(var(--space-2) * -1);
+}
+
+.strengthBar {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.strengthSegment {
+    flex: 1;
+    height: 4px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+}
+
+.strengthFilled {
+    background: currentColor;
+}
+
+.strengthLabel {
+    font-size: var(--font-size-xs);
+}
+
+.strengthLabel.weak {
+    color: var(--color-feedback-error-500);
+}
+
+.strengthLabel.medium {
+    color: var(--color-gamify-500);
+}
+
+.strengthLabel.strong {
+    color: var(--color-gain-500);
+}
+
+.strengthBar.weak {
+    color: var(--color-feedback-error-500);
+}
+
+.strengthBar.medium {
+    color: var(--color-gamify-500);
+}
+
+.strengthBar.strong {
+    color: var(--color-gain-500);
+}
+
 .error {
     margin: 0;
     padding: var(--space-2) var(--space-3);

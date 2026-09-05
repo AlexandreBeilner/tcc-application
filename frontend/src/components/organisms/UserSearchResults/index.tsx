@@ -40,7 +40,7 @@ export function UserSearchResults({ results, currentUserId, friends, sentRequest
                 return (
                     <li key={user.id} className={styles.row}>
                         <button type="button" className={styles.identity} onClick={() => navigate(`/perfil/${user.id}`)}>
-                            <Avatar username={user.username} />
+                            <Avatar username={user.username} avatarUrl={user.avatarUrl} />
                             <span className={styles.info}>
                                 <span className={styles.name}>{user.name}</span>
                                 <span className={styles.username}>@{user.username}</span>

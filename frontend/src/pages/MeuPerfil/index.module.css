@@ -1,0 +1,74 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
+
+/* Container único (tarefa 6.10.1, apontado pelo autor) com o mesmo
+   max-width/centralização do `.layout` de dentro — título e conteúdo
+   alinham na mesma borda em qualquer largura, em vez do título ocupar a
+   largura cheia da página enquanto o card fica mais ao centro. */
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+/* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7),
+   mesmo padrão de `PerfilPublico` (8.4): card + `ProfileAboutPanel` sticky
+   na lateral. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .container {
+        max-width: 1000px;
+    }
+
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+}

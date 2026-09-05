@@ -8,30 +8,34 @@ import { BuscarAmigos } from '../pages/BuscarAmigos'
 import { Calculator } from '../pages/Calculator'
 import { Classificacao } from '../pages/Classificacao'
 import { CompanyProfile } from '../pages/CompanyProfile'
+import { Configuracoes } from '../pages/Configuracoes'
 import { Conquistas } from '../pages/Conquistas'
+import { CriarEventoMacro } from '../pages/CriarEventoMacro'
 import { EquityList } from '../pages/EquityList'
 import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
 import { FixedIncomeList } from '../pages/FixedIncomeList'
 import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
 import { Market } from '../pages/Market'
+import { MeuPerfil } from '../pages/MeuPerfil'
 import { News } from '../pages/News'
 import { Onboarding } from '../pages/Onboarding'
+import { PainelAdmin } from '../pages/PainelAdmin'
 import { PerfilPublico } from '../pages/PerfilPublico'
-import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { Portfolio } from '../pages/Portfolio'
+import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
 import { Track } from '../pages/Track'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
-// onboarding (1.2) ficam fora do shell. As rotas abaixo além de "/" são só
-// navegáveis por enquanto (conteúdo é tarefa futura do backlog) — ver
-// `PlaceholderPage`. `/admin` ganha uma segunda camada de `<ProtectedRoute
-// requireRole="admin">`: o item "Painel Administrativo" só aparece no menu
-// do avatar pra `role=admin`, mas a rota em si precisa ser protegida de
-// verdade, não só escondida via CSS (critério de aceite da tarefa 6.1).
+// onboarding (1.2) ficam fora do shell. `/admin` ganha uma segunda camada
+// de `<ProtectedRoute requireRole="admin">`: o item "Painel Administrativo"
+// só aparece no menu do avatar pra `role=admin`, mas a rota em si precisa
+// ser protegida de verdade, não só escondida via CSS (critério de aceite da
+// tarefa 6.1). `/admin/eventos/novo` (10.2, tarefa 6.11) é rota irmã de
+// `/admin` (10.1), não filha — mesmo padrão de nesting de `/amigos/*`.
 export const router = createBrowserRouter([
     {
         path: '/login',
@@ -75,24 +79,28 @@ export const router = createBrowserRouter([
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
                     // — conteúdo real (4.8 Extrato, tarefa 6.5).
                     { path: '/extrato', element: <Statement /> },
-                    { path: '/perfil', element: <PlaceholderPage title="Meu Perfil" /> },
+                    { path: '/perfil', element: <MeuPerfil /> },
                     // Tarefa 6.9 — 8.1 (hub) + 8.2 (buscar) + 8.3
                     // (solicitações). `/perfil/:id` é rota irmã de `/perfil`
-                    // (self, placeholder da 6.10): 8.4 "Perfil Público de
-                    // Outro Usuário" é acessada tanto daqui quanto da
-                    // Classificação (7.1, `RankingBoard`).
+                    // (self, 9.1 "Meu Perfil", tarefa 6.10): 8.4 "Perfil
+                    // Público de Outro Usuário" é acessada tanto daqui quanto
+                    // da Classificação (7.1, `RankingBoard`).
                     { path: '/amigos', element: <Amigos /> },
                     { path: '/amigos/buscar', element: <BuscarAmigos /> },
                     { path: '/amigos/solicitacoes', element: <SolicitacoesAmizade /> },
                     { path: '/perfil/:id', element: <PerfilPublico /> },
                     { path: '/conquistas', element: <Conquistas /> },
-                    {
-                        path: '/configuracoes',
-                        element: <PlaceholderPage title="Configurações e Privacidade" />,
-                    },
+                    // 9.2 Configurações de Conta (tarefa 6.10). `/configuracoes/privacidade`
+                    // é rota irmã (9.3 Privacidade e LGPD, acessada a partir de 9.2,
+                    // inventário) — mesmo padrão de nesting de `/amigos/*`.
+                    { path: '/configuracoes', element: <Configuracoes /> },
+                    { path: '/configuracoes/privacidade', element: <PrivacidadeLgpd /> },
                     {
                         element: <ProtectedRoute requireRole="admin" />,
-                        children: [{ path: '/admin', element: <PlaceholderPage title="Painel Administrativo" /> }],
+                        children: [
+                            { path: '/admin', element: <PainelAdmin /> },
+                            { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
+                        ],
                     },
                 ],
             },

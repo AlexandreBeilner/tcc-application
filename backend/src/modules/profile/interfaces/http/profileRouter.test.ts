@@ -10,7 +10,12 @@ import { createFakeProfitabilityReader } from '../../test/fakes/fakeProfitabilit
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { createProfileRouter } from './profileRouter'
 
-const user = { id: 'u1', username: 'alice', createdAt: new Date('2026-01-01T00:00:00Z') }
+const user = {
+  id: 'u1',
+  username: 'alice',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  avatarPath: null,
+}
 
 function buildApp() {
   const userDirectory = createFakeUserDirectory([user])

@@ -8,6 +8,10 @@ export interface User {
   passwordHash: string | null
   role: UserRole
   onboardingCompleted: boolean
+  // Nome do arquivo salvo em disco (tarefa 6.10.8), não a URL pronta —
+  // `userSerializer.ts` monta a URL pública a partir daqui. `null` até o
+  // primeiro upload; sem fallback pra iniciais neste nível (isso é UI).
+  avatarPath: string | null
   createdAt: Date
 }
 
