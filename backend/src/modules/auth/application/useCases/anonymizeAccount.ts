@@ -1,4 +1,5 @@
 import { UserNotFoundError } from '../../domain/errors'
+import type { AvatarStorage } from '../ports/avatarStorage'
 import type { UserRepository } from '../ports/userRepository'
 
 export interface AnonymizeAccountInput {
@@ -13,9 +14,15 @@ export interface AnonymizeAccountInput {
 // financeiro/gamificado continua existindo (histórico de mercado, ranking
 // passado), só o nome/e-mail/username/senha somem e todos os provedores
 // OAuth são desconectados. Usuário anonimizado não consegue mais logar
-// (sem senha local, sem identidade OAuth).
+// (sem senha local, sem identidade OAuth). Foto de perfil (tarefa 6.10.8)
+// também é removida aqui — sem isso, `GET /avatars/<arquivo>` (estático,
+// sem checagem de dono) continuaria servindo a foto real de alguém que já
+// pediu a exclusão da própria conta.
 export class AnonymizeAccountUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly avatarStorage: AvatarStorage,
+  ) {}
 
   async execute(input: AnonymizeAccountInput): Promise<void> {
     const user = await this.userRepository.findById(input.userId)
@@ -31,7 +38,12 @@ export class AnonymizeAccountUseCase {
       email: `usuario-removido-${suffix}@anonimo.invalid`,
       username: `usuario-removido-${suffix}`,
       passwordHash: null,
+      avatarPath: null,
     })
     await this.userRepository.deleteIdentitiesForUser(input.userId)
+
+    if (user.avatarPath) {
+      await this.avatarStorage.delete(user.avatarPath)
+    }
   }
 }

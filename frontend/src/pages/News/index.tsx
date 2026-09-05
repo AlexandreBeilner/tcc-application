@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Pagination } from '../../components/molecules/Pagination'
 import { NewsEventList } from '../../components/organisms/NewsEventList'
+import { useAssetLabels } from '../../features/market/useAssetLabels'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMarkNewsEventSeenMutation } from '../../features/news/useMarkNewsEventSeenMutation'
 import { useNewsFeedQuery } from '../../features/news/useNewsFeedQuery'
@@ -41,10 +42,7 @@ export function News() {
         if (newsQuery.data && page === 1) markNewsAsSeen(events)
     }, [newsQuery.data, events, page])
 
-    const assetLabels = useMemo(() => {
-        const assets = assetsQuery.data?.assets ?? []
-        return Object.fromEntries(assets.map((asset) => [asset.id, `${asset.ticker} · ${asset.name}`]))
-    }, [assetsQuery.data])
+    const assetLabels = useAssetLabels(assetsQuery.data?.assets)
 
     return (
         <main className={styles.page}>

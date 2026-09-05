@@ -7,6 +7,32 @@
     margin: 0 auto;
 }
 
+/* Mobile/tablet: as duas ações (exportar/excluir) empilhadas, mesma coluna
+   única do resto da tela. Desktop (identidade-visual-padroes.md §7,
+   `.claude/identidade-visual-padroes.md`): lado a lado — são duas ações
+   independentes de altura parecida, não faz sentido um painel lateral
+   fixo aqui (não há conteúdo de apoio contínuo, ao contrário de
+   `Configuracoes`/`MeuPerfil`), então "grid 2 colunas quando fizer
+   sentido" aqui é as próprias seções, não coluna principal + sidebar. */
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 960px;
+    }
+
+    .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: var(--space-6);
+    }
+}
+
 .back {
     display: inline-flex;
     align-items: center;

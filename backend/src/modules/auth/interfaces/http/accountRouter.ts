@@ -113,7 +113,24 @@ export function createAccountRouter(deps: AccountRouterDeps): Router {
   router.post(
     '/me/avatar',
     deps.authMiddleware.authenticate,
-    avatarUpload.single('avatar'),
+    // `multer` reporta arquivo acima de `MAX_AVATAR_SIZE_BYTES` como erro de
+    // middleware (`MulterError`), não uma exceção capturável no handler
+    // abaixo — sem interceptar aqui, cai no handler de erro padrão do
+    // Express (página HTML), quebrando o contrato `{ error: string }` que
+    // todo outro 4xx desta API segue.
+    (req, res, next) => {
+      avatarUpload.single('avatar')(req, res, (err: unknown) => {
+        if (err instanceof multer.MulterError) {
+          res.status(400).json({ error: 'arquivo maior que o limite de 5MB' })
+          return
+        }
+        if (err) {
+          next(err)
+          return
+        }
+        next()
+      })
+    },
     async (req, res) => {
       if (!req.auth) {
         res.status(401).json({ error: 'token ausente' })

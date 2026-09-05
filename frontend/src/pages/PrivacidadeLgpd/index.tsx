@@ -89,72 +89,74 @@ export function PrivacidadeLgpd() {
                 </p>
             </section>
 
-            <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Exportar dados</h2>
-                <p className={styles.description}>
-                    Baixe uma cópia dos seus dados pessoais e de progresso na plataforma (portabilidade, LGPD).
-                </p>
-                {exportError && (
-                    <p className={styles.error} role="alert">
-                        {exportError}
+            <div className={styles.actions}>
+                <section className={styles.section}>
+                    <h2 className={styles.sectionTitle}>Exportar dados</h2>
+                    <p className={styles.description}>
+                        Baixe uma cópia dos seus dados pessoais e de progresso na plataforma (portabilidade, LGPD).
                     </p>
-                )}
-                <Button variant="secondary" onClick={handleExport} disabled={isExporting}>
-                    {isExporting ? 'Exportando…' : 'Exportar dados'}
-                </Button>
-            </section>
-
-            <section className={`${styles.section} ${styles.danger}`}>
-                <h2 className={styles.sectionTitle}>Excluir conta</h2>
-                <p className={styles.description}>
-                    Sua identidade pessoal (nome, e-mail, username, senha) é removida permanentemente. Seu histórico de mercado e ranking
-                    passado continua existindo de forma anônima. Esta ação não pode ser desfeita.
-                </p>
-
-                {deleteError && (
-                    <p className={styles.error} role="alert">
-                        {deleteError}
-                    </p>
-                )}
-
-                {!confirmingDelete ? (
-                    <Button variant="secondary" onClick={() => setConfirmingDelete(true)}>
-                        Excluir conta
-                    </Button>
-                ) : (
-                    <div className={styles.confirmBox}>
-                        <p className={styles.confirmText}>
-                            <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" />
-                            Tem certeza? Esta ação é irreversível.
+                    {exportError && (
+                        <p className={styles.error} role="alert">
+                            {exportError}
                         </p>
-                        <label className={styles.confirmField}>
-                            Digite {DELETE_CONFIRM_WORD} para confirmar
-                            <input
-                                type="text"
-                                value={deleteConfirmText}
-                                onChange={(event) => setDeleteConfirmText(event.target.value)}
-                                autoComplete="off"
-                                aria-label={`Digite ${DELETE_CONFIRM_WORD} para confirmar a exclusão`}
-                            />
-                        </label>
-                        <div className={styles.confirmActions}>
-                            <Button
-                                variant="secondary"
-                                disabled={isDeleting}
-                                onClick={() => {
-                                    setConfirmingDelete(false)
-                                    setDeleteConfirmText('')
-                                }}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button disabled={isDeleting || deleteConfirmText !== DELETE_CONFIRM_WORD} onClick={handleDelete}>
-                                {isDeleting ? 'Excluindo…' : 'Confirmar exclusão'}
-                            </Button>
+                    )}
+                    <Button variant="secondary" onClick={handleExport} disabled={isExporting}>
+                        {isExporting ? 'Exportando…' : 'Exportar dados'}
+                    </Button>
+                </section>
+
+                <section className={`${styles.section} ${styles.danger}`}>
+                    <h2 className={styles.sectionTitle}>Excluir conta</h2>
+                    <p className={styles.description}>
+                        Sua identidade pessoal (nome, e-mail, username, senha) é removida permanentemente. Seu histórico de mercado e
+                        ranking passado continua existindo de forma anônima. Esta ação não pode ser desfeita.
+                    </p>
+
+                    {deleteError && (
+                        <p className={styles.error} role="alert">
+                            {deleteError}
+                        </p>
+                    )}
+
+                    {!confirmingDelete ? (
+                        <Button variant="secondary" onClick={() => setConfirmingDelete(true)}>
+                            Excluir conta
+                        </Button>
+                    ) : (
+                        <div className={styles.confirmBox}>
+                            <p className={styles.confirmText}>
+                                <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" />
+                                Tem certeza? Esta ação é irreversível.
+                            </p>
+                            <label className={styles.confirmField}>
+                                Digite {DELETE_CONFIRM_WORD} para confirmar
+                                <input
+                                    type="text"
+                                    value={deleteConfirmText}
+                                    onChange={(event) => setDeleteConfirmText(event.target.value)}
+                                    autoComplete="off"
+                                    aria-label={`Digite ${DELETE_CONFIRM_WORD} para confirmar a exclusão`}
+                                />
+                            </label>
+                            <div className={styles.confirmActions}>
+                                <Button
+                                    variant="secondary"
+                                    disabled={isDeleting}
+                                    onClick={() => {
+                                        setConfirmingDelete(false)
+                                        setDeleteConfirmText('')
+                                    }}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button disabled={isDeleting || deleteConfirmText !== DELETE_CONFIRM_WORD} onClick={handleDelete}>
+                                    {isDeleting ? 'Excluindo…' : 'Confirmar exclusão'}
+                                </Button>
+                            </div>
                         </div>
-                    </div>
-                )}
-            </section>
+                    )}
+                </section>
+            </div>
         </main>
     )
 }

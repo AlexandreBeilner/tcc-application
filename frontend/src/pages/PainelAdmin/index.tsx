@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { Pagination } from '../../components/molecules/Pagination'
 import { MacroEventHistoryList } from '../../components/organisms/MacroEventHistoryList'
+import { useAssetLabels } from '../../features/market/useAssetLabels'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMacroEventsQuery } from '../../features/admin/useMacroEventsQuery'
 import styles from './index.module.css'
@@ -18,11 +19,7 @@ export function PainelAdmin() {
     const [page, setPage] = useState(1)
     const eventsQuery = useMacroEventsQuery(page)
     const assetsQuery = useAssetsQuery()
-
-    const assetLabels = useMemo(() => {
-        const assets = assetsQuery.data?.assets ?? []
-        return Object.fromEntries(assets.map((asset) => [asset.id, `${asset.ticker} · ${asset.name}`]))
-    }, [assetsQuery.data])
+    const assetLabels = useAssetLabels(assetsQuery.data?.assets)
 
     return (
         <main className={styles.page}>
@@ -31,7 +28,7 @@ export function PainelAdmin() {
                 <Button onClick={() => navigate('/admin/eventos/novo')}>Novo evento</Button>
             </div>
 
-            <p className={styles.subtitle}>Histórico de eventos macro disparados (RF13/RF14) — mais recentes primeiro.</p>
+            <p className={styles.subtitle}>Histórico de eventos macro disparados (RF13/RF14), mais recentes primeiro.</p>
 
             {eventsQuery.isError && (
                 <p className={styles.error} role="alert">

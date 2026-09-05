@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Select } from '../../components/atoms/Select'
 import { StatementList, EVENT_TYPE_LABELS } from '../../components/organisms/StatementList'
+import { useAssetLabels } from '../../features/market/useAssetLabels'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMyEventsQuery } from '../../features/market/useMyEventsQuery'
 import styles from './index.module.css'
@@ -31,10 +32,7 @@ export function Statement() {
     // chamar `Date.now()` impuro direto no corpo de render.
     const [now] = useState(() => Date.now())
 
-    const assetLabels = useMemo(() => {
-        const assets = assetsQuery.data?.assets ?? []
-        return Object.fromEntries(assets.map((asset) => [asset.id, `${asset.ticker} · ${asset.name}`]))
-    }, [assetsQuery.data])
+    const assetLabels = useAssetLabels(assetsQuery.data?.assets)
 
     const filtered = useMemo(() => {
         const events = eventsQuery.data?.events ?? []

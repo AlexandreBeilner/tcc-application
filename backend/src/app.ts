@@ -315,7 +315,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const avatarStorageDir = process.env.AVATAR_STORAGE_DIR ?? '/data/avatars'
   const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository)
+  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
   const exportUserData = new ExportUserDataUseCase(
     userRepository,
     createInProcessProgressionExporter(getProgression),

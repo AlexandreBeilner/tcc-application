@@ -7,7 +7,7 @@ import { ChangePasswordUseCase } from '../../application/useCases/changePassword
 import { ExportUserDataUseCase } from '../../application/useCases/exportUserData'
 import { ListIdentitiesUseCase } from '../../application/useCases/listIdentities'
 import { UpdateProfileUseCase } from '../../application/useCases/updateProfile'
-import { UploadAvatarUseCase } from '../../application/useCases/uploadAvatar'
+import { MAX_AVATAR_SIZE_BYTES, UploadAvatarUseCase } from '../../application/useCases/uploadAvatar'
 import { createFakeAchievementsExporter } from '../../test/fakes/fakeAchievementsExporter'
 import { createFakeAvatarStorage } from '../../test/fakes/fakeAvatarStorage'
 import { createFakeFriendshipsExporter } from '../../test/fakes/fakeFriendshipsExporter'
@@ -46,8 +46,8 @@ async function buildApp() {
     createFakeFriendshipsExporter(),
     createFakeMissionProgressExporter(),
   )
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository)
   const { storage: avatarStorage, saved: savedAvatars } = createFakeAvatarStorage()
+  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -199,6 +199,22 @@ describe('account routes', () => {
     expect(res.status).toBe(200)
     expect(res.body.user.avatarUrl).toMatch(/^\/avatars\/.+\.png$/)
     expect(savedAvatars.size).toBe(1)
+  })
+
+  it('POST /me/avatar rejeita arquivo acima do limite com erro JSON, não a página HTML padrão do Express (400)', async () => {
+    const { app, tokenIssuer, alice } = await buildApp()
+    const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
+
+    const res = await request(app)
+      .post('/me/avatar')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('avatar', Buffer.alloc(MAX_AVATAR_SIZE_BYTES + 1), {
+        filename: 'foto.png',
+        contentType: 'image/png',
+      })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'arquivo maior que o limite de 5MB' })
   })
 
   it('POST /me/avatar rejeita tipo de arquivo não suportado (400)', async () => {

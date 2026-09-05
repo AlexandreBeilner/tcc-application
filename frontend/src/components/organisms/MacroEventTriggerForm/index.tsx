@@ -4,6 +4,7 @@ import { Button } from '../../atoms/Button'
 import { Select } from '../../atoms/Select'
 import type { SelectOption } from '../../atoms/Select'
 import { OrderSummaryList } from '../OrderSummaryList'
+import { useAssetLabels } from '../../../features/market/useAssetLabels'
 import { useAssetsQuery } from '../../../features/market/useAssetsQuery'
 import { MACRO_EVENT_TEMPLATES } from '../../../features/admin/macroEventTemplates'
 import { MACRO_EVENT_RISK_CLASSES, MACRO_EVENT_SECTORS } from '../../../features/admin/targetOptions'
@@ -73,11 +74,7 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
 
     const assetsQuery = useAssetsQuery()
     const triggerMutation = useTriggerMacroEventMutation()
-
-    const assetLabels = useMemo(() => {
-        const assets = assetsQuery.data?.assets ?? []
-        return Object.fromEntries(assets.map((asset) => [asset.id, `${asset.ticker} · ${asset.name}`]))
-    }, [assetsQuery.data])
+    const assetLabels = useAssetLabels(assetsQuery.data?.assets)
 
     const assetOptions: SelectOption[] = useMemo(
         () => [{ value: '', label: 'Selecione um ativo…' }, ...Object.entries(assetLabels).map(([value, label]) => ({ value, label }))],
@@ -181,7 +178,7 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
                                 rows={4}
                                 value={draft.narrative}
                                 onChange={(e) => updateDraft({ narrative: e.target.value })}
-                                placeholder="Explique o evento de forma didática — este texto aparece pro jogador no Feed de Notícias."
+                                placeholder="Explique o evento de forma didática, este texto aparece pro jogador no Feed de Notícias."
                             />
                         </label>
                         <div className={styles.fieldRow}>

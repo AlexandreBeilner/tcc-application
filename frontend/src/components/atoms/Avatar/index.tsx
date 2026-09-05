@@ -1,3 +1,4 @@
+import { resolveMediaUrl } from '../../../services/client'
 import type { AvatarProps } from './types'
 import styles from './index.module.css'
 
@@ -17,10 +18,11 @@ function initials(username: string): string {
 // presente — fallback pras iniciais é sempre as mesmas iniciais de sempre,
 // nunca um ícone genérico.
 export function Avatar({ username, size = 'sm', avatarUrl }: AvatarProps) {
-    if (avatarUrl) {
+    const resolvedUrl = resolveMediaUrl(avatarUrl ?? null)
+    if (resolvedUrl) {
         return (
             <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`}>
-                <img className={styles.image} src={avatarUrl} alt={`Foto de perfil de ${username}`} />
+                <img className={styles.image} src={resolvedUrl} alt={`Foto de perfil de ${username}`} />
             </span>
         )
     }
