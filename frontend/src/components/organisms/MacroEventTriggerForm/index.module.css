@@ -1,0 +1,209 @@
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/* Desktop com composição própria (identidade-visual-padroes.md §7): coluna
+   principal do formulário + painel de prévia fixo/sticky na lateral, mesmo
+   raciocínio do ticket de ordem do Detalhe de Ativo — nunca só a coluna
+   única do mobile esticada. */
+@media (min-width: 1024px) {
+    .layout {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--space-6);
+    }
+
+    .form {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .preview {
+        position: sticky;
+        top: var(--space-4);
+        flex: none;
+        width: 320px;
+    }
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.modeToggle {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.modeToggle > * {
+    flex: 1;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.field input,
+.field textarea {
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-base);
+    resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+}
+
+.fieldRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .fieldRow {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.checkboxRow {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.checkboxField {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.targets {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.sectionLabel {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.targetRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.removeTarget {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.removeTarget:hover:not(:disabled) {
+    border-color: var(--color-feedback-error-500);
+    color: var(--color-feedback-error-500);
+}
+
+.removeTarget:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-error-100);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+    list-style: none;
+}
+
+/* Confirmação de ação importante (identidade-visual-padroes.md §7): bottom
+   sheet subindo de baixo em mobile/tablet, modal central em desktop — mesma
+   convenção de `OrderConfirmationDialog` (tela 4.7). */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(6, 10, 20, 0.6);
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-6) var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--color-bg-surface-elevated);
+}
+
+@media (min-width: 1024px) {
+    .backdrop {
+        justify-content: center;
+        align-items: center;
+    }
+
+    .panel {
+        max-width: 420px;
+        border-radius: var(--radius-lg);
+        padding: var(--space-6);
+    }
+}
+
+.panelTitle {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.actions > * {
+    flex: 1;
+}

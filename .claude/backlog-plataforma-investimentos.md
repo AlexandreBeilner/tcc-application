@@ -928,7 +928,7 @@
 - **Dependências:** 6.10, 6.9.2 (mesmo componente do redesign do Perfil Público).
 - **Entregável:** `@media (max-width: 767px)` (breakpoint mobile padrão do app, não mais o `380px` ad-hoc que só existia pra `.achievementsGrid`) — `.stats` vira 2 colunas, `.statProfit` (rentabilidade, já carrega a sparkline) ocupa a linha inteira via `grid-column: 1 / -1`, XP e Streak dividem a linha de baixo.
 
-### 6.11 · Painel Admin
+### 6.11 · Painel Admin ✅ concluída
 - **Descrição:** telas 10.1 (hub — histórico de eventos com status, botão "Novo evento") e 10.2 (criar/disparar — template do catálogo de 10 ou evento avulso). Único grupo de telas cuja API já está 100% pronta desde a semana 4/5, sem gap novo identificado nesta revisão. `POST /admin/macro-events` aceita união de duas variantes de payload (`template_key` OU campos avulsos) — o formulário de 10.2 deveria espelhar isso como um toggle "usar template" vs. "evento avulso", não dois formulários visualmente distintos, já que o schema Zod do backend já unifica as duas formas.
 - **Telas envolvidas:** 10.1 Painel Admin (hub), 10.2 Criar/Disparar Evento.
 - **Endpoints consumidos:** `GET /admin/macro-events`, `POST /admin/macro-events`, `GET /admin/ping` (opcional, só validação de acesso).
