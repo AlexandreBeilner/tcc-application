@@ -37,6 +37,7 @@ const feedMission = {
 
 describe('News (tela 5.1)', () => {
     beforeEach(() => {
+        localStorage.clear()
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
             user: null,
@@ -130,6 +131,56 @@ describe('News (tela 5.1)', () => {
 
         await waitFor(() => expect(listNews).toHaveBeenCalledWith('token', 20, 20))
         expect(await screen.findByText('Evento da segunda página')).toBeInTheDocument()
+    })
+
+    it('não move o marcador de "visto" pra trás ao navegar pra uma página mais antiga (achado de revisão da 6.9.9)', async () => {
+        const page1 = Array.from({ length: 20 }, (_, i) => ({
+            id: `p1-${i}`,
+            title: `Evento ${i}`,
+            narrative: 'narrativa',
+            direction: 'misto' as const,
+            magnitude_band: 'leve' as const,
+            affects_price: true,
+            affects_fundamentals: false,
+            status: 'pendente' as const,
+            triggered_on_day: 1,
+            duration_days: 1,
+            targets: [],
+            created_at: '2026-08-30T14:05:00.000Z',
+            seen: false,
+        }))
+        const page2 = [
+            {
+                id: 'p2-0',
+                title: 'Evento da segunda página',
+                narrative: 'narrativa',
+                direction: 'misto' as const,
+                magnitude_band: 'leve' as const,
+                affects_price: true,
+                affects_fundamentals: false,
+                status: 'pendente' as const,
+                triggered_on_day: 2,
+                duration_days: 1,
+                targets: [],
+                created_at: '2026-08-30T14:05:00.000Z',
+                seen: false,
+            },
+        ]
+        vi.mocked(listNews).mockImplementation((_token: string, _limit?: number, offset?: number) =>
+            Promise.resolve({ events: offset === 0 || offset === undefined ? page1 : page2, total_entries: 21 }),
+        )
+
+        renderPage()
+        await screen.findByText('Evento 0')
+        expect(localStorage.getItem('tcc.news.lastSeenId')).toBe('p1-0')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }))
+        await screen.findByText('Evento da segunda página')
+
+        // `p1-0` continua sendo o marcador — se a página 2 (mais antiga)
+        // sobrescrevesse pra `p2-0`, eventos pendentes entre os dois
+        // voltariam a contar como não vistos.
+        expect(localStorage.getItem('tcc.news.lastSeenId')).toBe('p1-0')
     })
 
     it('estado vazio sem eventos disparados', async () => {

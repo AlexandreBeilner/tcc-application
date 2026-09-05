@@ -1,3 +1,4 @@
+import { paginate } from '../../../../shared/pagination'
 import type { FriendshipRepository } from '../ports/friendshipRepository'
 import type { UserDirectory } from '../ports/userDirectory'
 import { FRIENDS_PAGE_SIZE, type FriendsSortOrder } from './listFriends'
@@ -67,37 +68,50 @@ export class ListFriendRequestsUseCase {
     page: number,
     sort: FriendsSortOrder,
   ): Promise<PaginatedFriendRequests> {
-    const resolved = await Promise.all(
-      rows.map(async (friendship) => {
-        const user = await this.userDirectory.findById(otherUserId(friendship))
-        if (!user) {
-          return undefined
-        }
-        return {
-          friendshipId: friendship.id,
-          userId: user.id,
-          username: user.username,
-          name: user.name,
-          createdAt: friendship.createdAt,
-        }
-      }),
-    )
-    const items = resolved.filter((item): item is FriendRequestItem => item !== undefined)
+    const entries = rows.map((friendship) => ({
+      friendshipId: friendship.id,
+      otherUserId: otherUserId(friendship),
+      createdAt: friendship.createdAt,
+    }))
 
     // Mesmo achado da 6.9.1 em `listFriends.ts` — sem `ORDER BY` no
     // repositório, ordenar aqui garante determinismo.
-    items.sort((a, b) => {
+    entries.sort((a, b) => {
       const diff = a.createdAt.getTime() - b.createdAt.getTime()
       return sort === 'asc' ? diff : -diff
     })
 
-    const totalEntries = items.length
-    const totalPages = Math.max(1, Math.ceil(totalEntries / FRIENDS_PAGE_SIZE))
-    const clampedPage = Math.min(Math.max(1, page), totalPages)
-    const pageStart = (clampedPage - 1) * FRIENDS_PAGE_SIZE
+    const {
+      items: pageEntries,
+      page: clampedPage,
+      totalEntries,
+      totalPages,
+    } = paginate(entries, page, FRIENDS_PAGE_SIZE)
+
+    // Achado de revisão da 6.9.1 (mesmo de `listFriends.ts`) — resolver
+    // usuário só pra página exibida, com uma query batched via
+    // `findByIds`, não uma por solicitação pendente.
+    const users = await this.userDirectory.findByIds(pageEntries.map((entry) => entry.otherUserId))
+    const userById = new Map(users.map((user) => [user.id, user]))
+
+    const items = pageEntries
+      .map((entry): FriendRequestItem | undefined => {
+        const user = userById.get(entry.otherUserId)
+        if (!user) {
+          return undefined
+        }
+        return {
+          friendshipId: entry.friendshipId,
+          userId: user.id,
+          username: user.username,
+          name: user.name,
+          createdAt: entry.createdAt,
+        }
+      })
+      .filter((item): item is FriendRequestItem => item !== undefined)
 
     return {
-      items: items.slice(pageStart, pageStart + FRIENDS_PAGE_SIZE),
+      items,
       page: clampedPage,
       pageSize: FRIENDS_PAGE_SIZE,
       totalEntries,

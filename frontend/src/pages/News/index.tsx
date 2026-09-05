@@ -34,8 +34,12 @@ export function News() {
     const events = useMemo(() => newsQuery.data?.events ?? [], [newsQuery.data])
 
     useEffect(() => {
-        if (newsQuery.data) markNewsAsSeen(events)
-    }, [newsQuery.data, events])
+        // Só a página 1 contém os eventos mais recentes de fato (lista
+        // sempre `created_at DESC`) — marcar "visto" a partir de uma página
+        // mais antiga moveria `lastSeenId` pra trás e reacenderia o badge
+        // pra eventos pendentes já vistos entre o mais recente real e este.
+        if (newsQuery.data && page === 1) markNewsAsSeen(events)
+    }, [newsQuery.data, events, page])
 
     const assetLabels = useMemo(() => {
         const assets = assetsQuery.data?.assets ?? []

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
 import { resolveFriendshipStatus } from '../../../features/friendships/resolveFriendshipStatus'
 import { useRespondToFriendRequestMutation } from '../../../features/friendships/useRespondToFriendRequestMutation'
@@ -7,10 +8,6 @@ import type { UserSearchResultsProps } from './types'
 import styles from './index.module.css'
 
 export type { UserSearchResultsProps } from './types'
-
-function initials(username: string): string {
-    return username.charAt(0).toUpperCase()
-}
 
 // Tela 8.2 — nem `GET /users/search` devolve o estado da amizade com quem
 // busca (`.docs/backend/friendships.md`), então cruza contra as listas de
@@ -43,14 +40,14 @@ export function UserSearchResults({ results, currentUserId, friends, sentRequest
                 return (
                     <li key={user.id} className={styles.row}>
                         <button type="button" className={styles.identity} onClick={() => navigate(`/perfil/${user.id}`)}>
-                            <span className={styles.avatar} aria-hidden="true">
-                                {initials(user.username)}
-                            </span>
+                            <Avatar username={user.username} />
                             <span className={styles.info}>
                                 <span className={styles.name}>{user.name}</span>
                                 <span className={styles.username}>@{user.username}</span>
                             </span>
                         </button>
+
+                        {status === 'self' && <span className={styles.status}>Você</span>}
 
                         {status === 'friend' && <span className={styles.status}>Amigos</span>}
 

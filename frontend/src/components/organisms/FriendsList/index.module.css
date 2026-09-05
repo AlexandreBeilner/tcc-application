@@ -43,21 +43,6 @@
     gap: var(--space-2);
 }
 
-.avatar {
-    flex: none;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--color-border-strong);
-    font-family: var(--font-family-heading);
-    font-weight: 700;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-}
-
 .info {
     flex: 1;
     display: flex;

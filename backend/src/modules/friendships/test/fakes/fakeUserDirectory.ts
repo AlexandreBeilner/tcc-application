@@ -12,6 +12,10 @@ export function createFakeUserDirectory(seed: UserSummary[] = []): UserDirectory
       return users.find((user) => user.id === id)
     },
 
+    async findByIds(ids) {
+      return users.filter((user) => ids.includes(user.id))
+    },
+
     async searchByUsername(query, excludeUserId) {
       return users.filter(
         (user) =>

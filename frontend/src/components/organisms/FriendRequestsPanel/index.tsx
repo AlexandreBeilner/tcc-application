@@ -1,16 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import { useRemoveFriendshipMutation } from '../../../features/friendships/useRemoveFriendshipMutation'
 import { useRespondToFriendRequestMutation } from '../../../features/friendships/useRespondToFriendRequestMutation'
+import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
 import { Pagination } from '../../molecules/Pagination'
 import type { FriendRequestsPanelProps } from './types'
 import styles from './index.module.css'
 
 export type { FriendRequestsPanelProps } from './types'
-
-function initials(username: string): string {
-    return username.charAt(0).toUpperCase()
-}
 
 // Tela 8.3 — duas listas independentes sobre a mesma rota `DELETE
 // /friendships/:id` (`.docs/backend/friendships.md`): "Recusar" (recebida)
@@ -47,9 +44,7 @@ export function FriendRequestsPanel({
                         {received.map((request) => (
                             <li key={request.friendshipId} className={styles.row}>
                                 <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${request.userId}`)}>
-                                    <span className={styles.avatar} aria-hidden="true">
-                                        {initials(request.username)}
-                                    </span>
+                                    <Avatar username={request.username} />
                                     <span className={styles.info}>
                                         <span className={styles.name}>{request.name}</span>
                                         <span className={styles.username}>@{request.username}</span>
@@ -91,9 +86,7 @@ export function FriendRequestsPanel({
                         {sent.map((request) => (
                             <li key={request.friendshipId} className={styles.row}>
                                 <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${request.userId}`)}>
-                                    <span className={styles.avatar} aria-hidden="true">
-                                        {initials(request.username)}
-                                    </span>
+                                    <Avatar username={request.username} />
                                     <span className={styles.info}>
                                         <span className={styles.name}>{request.name}</span>
                                         <span className={styles.username}>@{request.username}</span>

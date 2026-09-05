@@ -7,6 +7,7 @@ import { useRespondToFriendRequestMutation } from '../../../features/friendships
 import { useSendFriendRequestMutation } from '../../../features/friendships/useSendFriendRequestMutation'
 import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
 import { computePodiumSparkline, PODIUM_SPARKLINE_HEIGHT, PODIUM_SPARKLINE_WIDTH } from '../../../features/ranking/podiumSparkline'
+import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
 import type { PublicProfileCardProps } from './types'
 import styles from './index.module.css'
@@ -14,10 +15,6 @@ import styles from './index.module.css'
 export type { PublicProfileCardProps } from './types'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-function initials(username: string): string {
-    return username.charAt(0).toUpperCase()
-}
 
 function profitClassName(pct: number): string {
     if (pct > 0) return styles.gain
@@ -92,9 +89,7 @@ export function PublicProfileCard({
                     style={ringStyle}
                     title={`Nível ${profile.level}, ${profile.xp.toLocaleString('pt-BR')} XP`}
                 >
-                    <span className={styles.avatar} aria-hidden="true">
-                        {initials(profile.username)}
-                    </span>
+                    <Avatar username={profile.username} size="lg" />
                 </div>
 
                 <div className={styles.identity}>

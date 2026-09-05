@@ -7,6 +7,7 @@ import { ASSETS_PAGE_SIZE, EQUITY_TABS, filterAssetsByTab } from '../../features
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { formatSignedPercent } from '../../features/market/format'
 import { formatCurrency } from '../../features/portfolio/format'
+import { useClientPagination } from '../../hooks/useClientPagination'
 import type { AssetSummary } from '../../services/market'
 import styles from './index.module.css'
 
@@ -47,14 +48,11 @@ const COLUMNS_BY_TAB: Record<string, AssetTableColumn[]> = {
 export function EquityList() {
     const navigate = useNavigate()
     const [activeTabKey, setActiveTabKey] = useState(EQUITY_TABS[0].key)
-    const [page, setPage] = useState(1)
     const assetsQuery = useAssetsQuery()
 
     const activeTab = EQUITY_TABS.find((tab) => tab.key === activeTabKey) ?? EQUITY_TABS[0]
     const assets = assetsQuery.data ? filterAssetsByTab(assetsQuery.data.assets, activeTab) : []
-    const totalPages = Math.max(1, Math.ceil(assets.length / ASSETS_PAGE_SIZE))
-    const currentPage = Math.min(page, totalPages)
-    const pageAssets = assets.slice((currentPage - 1) * ASSETS_PAGE_SIZE, currentPage * ASSETS_PAGE_SIZE)
+    const { page: currentPage, totalPages, pageItems: pageAssets, setPage, resetPage } = useClientPagination(assets, ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
         navigate(`/mercado/ativos/${asset.id}`)
@@ -62,7 +60,7 @@ export function EquityList() {
 
     function handleTabChange(tabKey: string) {
         setActiveTabKey(tabKey)
-        setPage(1)
+        resetPage()
     }
 
     return (
