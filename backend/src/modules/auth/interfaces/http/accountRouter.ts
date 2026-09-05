@@ -75,7 +75,14 @@ export function createAccountRouter(deps: AccountRouterDeps): Router {
       res.status(200).json({ status: 'senha atualizada' })
     } catch (err) {
       if (err instanceof InvalidCredentialsError) {
-        res.status(401).json({ error: err.message })
+        // 403, não 401: a sessão (token) é válida, quem está errada é a
+        // senha atual informada no payload — um 401 aqui dispararia o
+        // handler global de "sessão inválida" do client HTTP do frontend
+        // (`services/client`, mesma checagem que já existe pra distinguir
+        // login anônimo de sessão expirada), deslogando o usuário só por
+        // ter digitado a senha atual errada. Achado da tarefa 6.10 ao
+        // implementar a tela 9.2.
+        res.status(403).json({ error: err.message })
         return
       }
       if (err instanceof UserNotFoundError) {

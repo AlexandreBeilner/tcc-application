@@ -135,7 +135,7 @@ describe('account routes', () => {
     expect(res.status).toBe(200)
   })
 
-  it('POST /me/password rejeita senha atual errada sem trocar nada (401)', async () => {
+  it('POST /me/password rejeita senha atual errada sem trocar nada (403, não 401)', async () => {
     const { app, tokenIssuer, alice } = await buildApp()
     const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
 
@@ -144,7 +144,10 @@ describe('account routes', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ currentPassword: 'errada', newPassword: 'senha-nova-123' })
 
-    expect(res.status).toBe(401)
+    // 403, não 401: token válido, só a senha atual está errada — um 401
+    // aqui derrubaria a sessão do usuário no frontend (handler global de
+    // "sessão inválida" do client HTTP), achado da tarefa 6.10.
+    expect(res.status).toBe(403)
   })
 
   it('GET /me/identities lista os provedores conectados', async () => {

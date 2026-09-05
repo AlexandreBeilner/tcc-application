@@ -93,7 +93,8 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Sucesso:** `200` → `{ status: 'senha atualizada' }`.
 - **Erros:**
   - `400` — payload inválido.
-  - `401` — token ausente/inválido, `currentPassword` ausente numa conta com senha local, ou `currentPassword` incorreta (as duas últimas não trocam nada).
+  - `401` — token ausente ou inválido/expirado (sessão, não a senha atual).
+  - `403` — `currentPassword` ausente numa conta com senha local, ou `currentPassword` incorreta (as duas não trocam nada). **Nunca `401`** — decisão da tarefa 6.10 (frontend, tela 9.2): o client HTTP trata todo `401` de endpoint autenticado como sessão inválida e desloga o usuário (`services/client`) — um `401` aqui deslogaria só por errar a senha atual digitada.
 - **Regra:** `ChangePasswordUseCase`. Conta só-OAuth (`password_hash IS NULL`) pode setar a primeira senha sem informar `currentPassword` — passa a ter os dois métodos de login disponíveis dali em diante, sem tirar o OAuth.
 
 ---
