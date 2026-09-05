@@ -66,6 +66,37 @@
     gap: var(--space-2);
 }
 
+/* Tarefa 6.10.9-follow-up (apontado pelo autor) — abaixo de 768px o botão
+   de amizade ("Adicionar"/"Pedido pendente") ao lado do nome espremia
+   `.identity` (que só tem `min-width: 0` + ellipsis pra sobrar espaço).
+   Empurra a ação pra uma linha própria abaixo do avatar+nome (mesmo
+   princípio do "Seguir" do Instagram: nome tem a linha inteira pra si,
+   ação vem depois, full-width) — `.header` já é `flex-wrap: wrap`, só
+   força `.friendAction` a reivindicar a linha toda pra sempre quebrar. */
+@media (max-width: 767px) {
+    .friendAction {
+        flex-basis: 100%;
+        align-items: stretch;
+    }
+
+    .friendAction > button:not(.editButton) {
+        width: 100%;
+        text-align: center;
+    }
+
+    .statusFriends {
+        justify-content: center;
+    }
+
+    .confirmActions {
+        width: 100%;
+    }
+
+    .confirmActions > button {
+        flex: 1;
+    }
+}
+
 .editButton {
     display: flex;
     align-items: center;

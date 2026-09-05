@@ -1,7 +1,23 @@
+/* `max-width`/`margin: 0 auto` aqui (não só em `.layout`) — apontado pelo
+   autor: era a única tela com título+voltar fora da coluna centralizada,
+   grudados na borda esquerda da área de conteúdo em telas largas enquanto
+   o formulário abaixo ficava centralizado numa coluna mais estreita.
+   Breakpoint espelha exatamente `.layout` pra título e conteúdo sempre
+   alinharem na mesma borda, mesmo princípio do comentário da 6.10.1 em
+   `MeuPerfil.module.css`. */
 .page {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1000px;
+    }
 }
 
 .back {
@@ -26,14 +42,15 @@
 
 /* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7):
    formulários na coluna principal + painel de privacidade sticky na
-   lateral, mesmo padrão 2 colunas de `PerfilPublico`/`MeuPerfil`. */
+   lateral, mesmo padrão 2 colunas de `PerfilPublico`/`MeuPerfil`. Largura
+   já vem de `.page` (título e conteúdo compartilham a mesma coluna) — sem
+   `max-width`/`margin: auto` próprios aqui, senão duplica o que `.page`
+   já resolve. */
 .layout {
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
     width: 100%;
-    max-width: 640px;
-    margin: 0 auto;
 }
 
 .main {
@@ -51,7 +68,6 @@
 
 @media (min-width: 1024px) {
     .layout {
-        max-width: 1000px;
         display: grid;
         grid-template-columns: 1fr 340px;
         align-items: start;
