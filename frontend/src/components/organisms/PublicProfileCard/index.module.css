@@ -66,13 +66,22 @@
     gap: var(--space-2);
 }
 
-.selfBadge {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-brand-300);
-    background: var(--color-brand-100);
+.editButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
-    padding: 3px var(--space-2);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.editButton:hover {
+    color: var(--color-brand-300);
+    border-color: var(--color-brand-300);
 }
 
 .statusFriends {
@@ -112,6 +121,23 @@
     grid-template-columns: 1.3fr 1fr 1fr;
     gap: var(--space-3);
     margin: 0;
+}
+
+/* Tarefa 6.10.9 (apontado pelo autor) — abaixo de 768px (breakpoint mobile,
+   identidade-visual-padroes.md §7) as 3 métricas não cabem lado a lado sem
+   espremer número/label; reorganiza em 2 colunas com Rentabilidade
+   ocupando a linha inteira (ela já carrega a sparkline, precisa de mais
+   espaço), XP e Streak dividindo a linha de baixo — nunca só encolher
+   fonte/gap mantendo o mesmo grid de 3 colunas. */
+@media (max-width: 767px) {
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-2);
+    }
+
+    .statProfit {
+        grid-column: 1 / -1;
+    }
 }
 
 .stat {
@@ -243,10 +269,6 @@
 }
 
 @media (max-width: 380px) {
-    .stats {
-        grid-template-columns: 1fr;
-    }
-
     .achievementsGrid {
         grid-template-columns: 1fr;
     }

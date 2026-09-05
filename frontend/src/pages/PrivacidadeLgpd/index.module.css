@@ -80,6 +80,31 @@
     font-weight: 600;
 }
 
+.confirmField {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-feedback-error-500);
+    font-weight: 600;
+}
+
+.confirmField input {
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-feedback-error-500);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-base);
+    font-weight: 400;
+}
+
+.confirmField input:focus {
+    outline: none;
+    border-color: var(--color-feedback-error-500);
+}
+
 .confirmActions {
     display: flex;
     gap: var(--space-2);

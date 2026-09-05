@@ -16,6 +16,15 @@ import styles from './index.module.css'
 // antes de chamar `DELETE /me`; sucesso desloga imediatamente mesmo sem
 // blacklist de JWT (`.docs/backend/auth.md`) — nunca deixar a sessão local
 // "logada" numa conta recém-anonimizada.
+//
+// Tarefa 6.10.5 (apontado pelo autor): confirmação em duas etapas trocada
+// por confirmação digitada, mesmo padrão de mercado usado por GitHub/Vercel
+// pra ações destrutivas irreversíveis — botão final só habilita quando o
+// texto digitado bate exatamente com a palavra-chave fixa `DELETE_CONFIRM_WORD`
+// (decisão desta sessão: palavra fixa "EXCLUIR", não o username — não
+// depende do usuário lembrar/digitar o próprio username certo).
+const DELETE_CONFIRM_WORD = 'EXCLUIR'
+
 export function PrivacidadeLgpd() {
     const { token, logout } = useAuth()
     const navigate = useNavigate()
@@ -24,6 +33,7 @@ export function PrivacidadeLgpd() {
     const [exportError, setExportError] = useState<string | null>(null)
 
     const [confirmingDelete, setConfirmingDelete] = useState(false)
+    const [deleteConfirmText, setDeleteConfirmText] = useState('')
     const [isDeleting, setIsDeleting] = useState(false)
     const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -59,6 +69,7 @@ export function PrivacidadeLgpd() {
             setDeleteError(err instanceof ApiError ? err.message : 'Não foi possível excluir sua conta agora. Tente novamente.')
             setIsDeleting(false)
             setConfirmingDelete(false)
+            setDeleteConfirmText('')
         }
     }
 
@@ -74,7 +85,7 @@ export function PrivacidadeLgpd() {
             <section className={styles.section}>
                 <p className={styles.note}>
                     Sua rentabilidade percentual, nível e conquistas são sempre visíveis a outros usuários. O valor absoluto do seu
-                    patrimônio nunca é exposto — nem no ranking, nem no seu perfil público, independentemente de qualquer configuração.
+                    patrimônio nunca é exposto, nem no ranking, nem no seu perfil público, independentemente de qualquer configuração.
                 </p>
             </section>
 
@@ -97,7 +108,7 @@ export function PrivacidadeLgpd() {
                 <h2 className={styles.sectionTitle}>Excluir conta</h2>
                 <p className={styles.description}>
                     Sua identidade pessoal (nome, e-mail, username, senha) é removida permanentemente. Seu histórico de mercado e ranking
-                    passado continua existindo de forma anônima — esta ação não pode ser desfeita.
+                    passado continua existindo de forma anônima. Esta ação não pode ser desfeita.
                 </p>
 
                 {deleteError && (
@@ -116,11 +127,28 @@ export function PrivacidadeLgpd() {
                             <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" />
                             Tem certeza? Esta ação é irreversível.
                         </p>
+                        <label className={styles.confirmField}>
+                            Digite {DELETE_CONFIRM_WORD} para confirmar
+                            <input
+                                type="text"
+                                value={deleteConfirmText}
+                                onChange={(event) => setDeleteConfirmText(event.target.value)}
+                                autoComplete="off"
+                                aria-label={`Digite ${DELETE_CONFIRM_WORD} para confirmar a exclusão`}
+                            />
+                        </label>
                         <div className={styles.confirmActions}>
-                            <Button variant="secondary" disabled={isDeleting} onClick={() => setConfirmingDelete(false)}>
+                            <Button
+                                variant="secondary"
+                                disabled={isDeleting}
+                                onClick={() => {
+                                    setConfirmingDelete(false)
+                                    setDeleteConfirmText('')
+                                }}
+                            >
                                 Cancelar
                             </Button>
-                            <Button disabled={isDeleting} onClick={handleDelete}>
+                            <Button disabled={isDeleting || deleteConfirmText !== DELETE_CONFIRM_WORD} onClick={handleDelete}>
                                 {isDeleting ? 'Excluindo…' : 'Confirmar exclusão'}
                             </Button>
                         </div>

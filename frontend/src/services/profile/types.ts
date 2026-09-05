@@ -13,6 +13,9 @@ export interface PublicProfileAchievement {
 
 export interface PublicProfile {
     username: string
+    // URL pública já resolvida (tarefa 6.10.8) — `null` até o primeiro
+    // upload, mesma convenção de `AuthUser.avatarUrl`.
+    avatarUrl: string | null
     level: number
     xp: number
     currentStreak: number

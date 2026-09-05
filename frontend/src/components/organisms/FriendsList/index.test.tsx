@@ -37,7 +37,14 @@ function renderList(friends: Friend[], props: { page?: number; totalPages?: numb
     )
 }
 
-const bia: Friend = { friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', friendsSince: '2026-02-10T00:00:00.000Z' }
+const bia: Friend = {
+    friendshipId: 'f1',
+    userId: 'u2',
+    username: 'bia',
+    name: 'Bia Souza',
+    avatarUrl: null,
+    friendsSince: '2026-02-10T00:00:00.000Z',
+}
 
 describe('FriendsList (tela 8.1)', () => {
     beforeEach(() => {

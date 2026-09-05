@@ -3,12 +3,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { useTheme } from '../../features/theme/ThemeContext'
 import { ApiError } from '../../services/client'
-import { changePassword, listIdentities, updateProfile } from '../../services/auth'
+import { changePassword, listIdentities, updateProfile, uploadAvatar } from '../../services/auth'
 import { Configuracoes } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/auth', () => ({ updateProfile: vi.fn(), changePassword: vi.fn(), listIdentities: vi.fn() }))
+vi.mock('../../features/theme/ThemeContext', () => ({ useTheme: vi.fn() }))
+vi.mock('../../services/auth', () => ({
+    updateProfile: vi.fn(),
+    changePassword: vi.fn(),
+    listIdentities: vi.fn(),
+    uploadAvatar: vi.fn(),
+}))
 
 function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -22,16 +29,18 @@ function renderPage() {
 
 describe('Configuracoes (tela 9.2)', () => {
     const setUser = vi.fn()
+    const setTheme = vi.fn()
 
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true },
+            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
             isLoading: false,
             login: vi.fn(),
             logout: vi.fn(),
             setUser,
         })
+        vi.mocked(useTheme).mockReturnValue({ theme: 'dark', setTheme })
         vi.mocked(listIdentities).mockResolvedValue({
             identities: [{ id: 'i1', userId: 'u1', providerName: 'google', providerAccountId: 'g1' }],
         })
@@ -47,6 +56,21 @@ describe('Configuracoes (tela 9.2)', () => {
         expect(await screen.findByText('Google')).toBeInTheDocument()
     })
 
+    it('e-mail é somente leitura (6.10.4)', () => {
+        renderPage()
+
+        expect(screen.getByDisplayValue('ana@x.com')).toBeDisabled()
+    })
+
+    it('alterna o tema claro/escuro (6.10.7)', () => {
+        renderPage()
+
+        expect(screen.getByRole('radio', { name: /Escuro/ })).toHaveAttribute('aria-checked', 'true')
+        fireEvent.click(screen.getByRole('radio', { name: /Claro/ }))
+
+        expect(setTheme).toHaveBeenCalledWith('light')
+    })
+
     it('salva os dados cadastrais com sucesso e atualiza o usuário', async () => {
         const updatedUser = {
             id: 'u1',
@@ -55,6 +79,7 @@ describe('Configuracoes (tela 9.2)', () => {
             username: 'ana',
             role: 'user' as const,
             onboardingCompleted: true,
+            avatarUrl: null,
         }
         vi.mocked(updateProfile).mockResolvedValue({ user: updatedUser })
 
@@ -62,7 +87,7 @@ describe('Configuracoes (tela 9.2)', () => {
         fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ana Paula' } })
         fireEvent.click(screen.getAllByRole('button', { name: 'Salvar' })[0])
 
-        await waitFor(() => expect(updateProfile).toHaveBeenCalledWith('token', { name: 'Ana Paula', email: 'ana@x.com', username: 'ana' }))
+        await waitFor(() => expect(updateProfile).toHaveBeenCalledWith('token', { name: 'Ana Paula', username: 'ana' }))
         expect(await screen.findByText('Perfil atualizado.')).toBeInTheDocument()
         expect(setUser).toHaveBeenCalledWith(updatedUser)
     })
@@ -96,5 +121,55 @@ describe('Configuracoes (tela 9.2)', () => {
 
         expect(await screen.findByText('As senhas não coincidem.')).toBeInTheDocument()
         expect(changePassword).not.toHaveBeenCalled()
+    })
+
+    it('envia a foto de perfil e atualiza o usuário (6.10.8)', async () => {
+        const updatedUser = {
+            id: 'u1',
+            name: 'Ana',
+            email: 'ana@x.com',
+            username: 'ana',
+            role: 'user' as const,
+            onboardingCompleted: true,
+            avatarUrl: '/avatars/u1-abc.jpg',
+        }
+        vi.mocked(uploadAvatar).mockResolvedValue({ user: updatedUser })
+        const file = new File(['fake-bytes'], 'foto.jpg', { type: 'image/jpeg' })
+
+        renderPage()
+        fireEvent.change(screen.getByLabelText('Foto de perfil'), { target: { files: [file] } })
+
+        await waitFor(() => expect(uploadAvatar).toHaveBeenCalledWith('token', file))
+        expect(setUser).toHaveBeenCalledWith(updatedUser)
+    })
+
+    it('rejeita tipo de arquivo não suportado antes de chamar a API (6.10.8)', async () => {
+        const file = new File(['fake-bytes'], 'foto.gif', { type: 'image/gif' })
+
+        renderPage()
+        fireEvent.change(screen.getByLabelText('Foto de perfil'), { target: { files: [file] } })
+
+        expect(await screen.findByText('Tipo de arquivo não suportado. Use JPEG, PNG ou WEBP.')).toBeInTheDocument()
+        expect(uploadAvatar).not.toHaveBeenCalled()
+    })
+
+    it('rejeita arquivo maior que 5MB antes de chamar a API (6.10.8)', async () => {
+        const bigFile = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'foto.png', { type: 'image/png' })
+
+        renderPage()
+        fireEvent.change(screen.getByLabelText('Foto de perfil'), { target: { files: [bigFile] } })
+
+        expect(await screen.findByText('Arquivo maior que o limite de 5MB.')).toBeInTheDocument()
+        expect(uploadAvatar).not.toHaveBeenCalled()
+    })
+
+    it('erro do backend ao enviar a foto mostra a mensagem inline', async () => {
+        vi.mocked(uploadAvatar).mockRejectedValue(new ApiError(400, 'tipo de arquivo não suportado (use JPEG, PNG ou WEBP)'))
+        const file = new File(['fake-bytes'], 'foto.jpg', { type: 'image/jpeg' })
+
+        renderPage()
+        fireEvent.change(screen.getByLabelText('Foto de perfil'), { target: { files: [file] } })
+
+        expect(await screen.findByText('tipo de arquivo não suportado (use JPEG, PNG ou WEBP)')).toBeInTheDocument()
     })
 })

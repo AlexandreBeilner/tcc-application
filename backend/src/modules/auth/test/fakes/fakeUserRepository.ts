@@ -34,6 +34,7 @@ export function createFakeUserRepository(): UserRepository {
         passwordHash: input.passwordHash,
         role: input.role ?? 'user',
         onboardingCompleted: false,
+        avatarPath: null,
         createdAt: new Date(),
       }
       usersById.set(user.id, user)
@@ -54,6 +55,7 @@ export function createFakeUserRepository(): UserRepository {
         ...(input.onboardingCompleted !== undefined && {
           onboardingCompleted: input.onboardingCompleted,
         }),
+        ...(input.avatarPath !== undefined && { avatarPath: input.avatarPath }),
       }
       usersById.set(id, updated)
       return updated

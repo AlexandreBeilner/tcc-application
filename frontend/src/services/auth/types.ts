@@ -5,6 +5,9 @@ export interface AuthUser {
     username: string
     role: 'user' | 'admin'
     onboardingCompleted: boolean
+    // URL pública já resolvida (tarefa 6.10.8) — `null` até o primeiro
+    // upload (`POST /me/avatar`). Nunca o caminho cru de disco.
+    avatarUrl: string | null
 }
 
 export interface AuthResult {
@@ -26,10 +29,14 @@ export interface LoginInput {
 
 // Tela 9.2 (tarefa 6.10) — `PATCH /me`, mesmas 3 regras de formato do
 // cadastro, todas opcionais no backend mas sempre enviadas juntas aqui (o
-// form de Configurações não faz edição parcial de campo único).
+// form de Configurações não faz edição parcial de campo único). `email`
+// opcional desde a 6.10.4 (apontado pelo autor) — o campo virou read-only
+// na UI, então o frontend nunca mais envia esse campo; continua aceito a
+// nível de contrato HTTP (`.docs/backend/auth.md`) só não é mais exercido
+// por este client.
 export interface UpdateProfileInput {
     name: string
-    email: string
+    email?: string
     username: string
 }
 

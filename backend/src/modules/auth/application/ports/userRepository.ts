@@ -33,6 +33,9 @@ export interface UpdateUserInput {
   username?: string
   passwordHash?: string | null
   onboardingCompleted?: boolean
+  // `null` limpa o avatar (não usado nesta sessão — 6.10.8 cobre só upload,
+  // sem remoção); `UploadAvatarUseCase` sempre passa uma string nova.
+  avatarPath?: string | null
 }
 
 export interface UserRepository {

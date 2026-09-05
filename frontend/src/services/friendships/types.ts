@@ -9,6 +9,7 @@ export interface SearchedUser {
     id: string
     username: string
     name: string
+    avatarUrl: string | null
 }
 
 export interface SearchUsersResult {
@@ -33,6 +34,7 @@ export interface Friend {
     userId: string
     username: string
     name: string
+    avatarUrl: string | null
     friendsSince: string
 }
 
@@ -49,6 +51,7 @@ export interface FriendRequest {
     userId: string
     username: string
     name: string
+    avatarUrl: string | null
     createdAt: string
 }
 

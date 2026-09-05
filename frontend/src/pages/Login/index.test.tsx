@@ -88,6 +88,7 @@ describe('Login (tela 1.1)', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             },
         })
 
@@ -104,6 +105,7 @@ describe('Login (tela 1.1)', () => {
                 username: 'ana',
                 role: 'user',
                 onboardingCompleted: true,
+                avatarUrl: null,
             }),
         )
         await waitFor(() => expect(screen.getByText('tela protegida')).toBeInTheDocument())
@@ -146,8 +148,54 @@ describe('Login (tela 1.1)', () => {
         fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
         fireEvent.change(screen.getByLabelText('Nome de usuário'), { target: { value: 'ana' } })
         fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+        fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'senha1234' } })
         fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
 
         await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('username já em uso'))
+    })
+
+    it('cadastro com "Confirmar senha" diferente bloqueia o envio antes de chamar a API (6.10.6)', async () => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderLogin()
+        fireEvent.click(screen.getByText('Não tem conta? Cadastre-se'))
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ana' } })
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
+        fireEvent.change(screen.getByLabelText('Nome de usuário'), { target: { value: 'ana' } })
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+        fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'outraSenha456' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+        expect(await screen.findByText('As senhas não coincidem.')).toBeInTheDocument()
+        expect(register).not.toHaveBeenCalled()
+    })
+
+    it('cadastro mostra o indicador de força da senha, login não (6.10.6)', () => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderLogin()
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'ab' } })
+        expect(screen.queryByText(/Força da senha/)).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByText('Não tem conta? Cadastre-se'))
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'abcdefgh' } })
+        expect(screen.getByText('Força da senha: Fraca')).toBeInTheDocument()
+
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Abcdefghijkl1!' } })
+        expect(screen.getByText('Força da senha: Forte')).toBeInTheDocument()
     })
 })

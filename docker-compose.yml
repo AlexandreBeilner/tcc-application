@@ -65,6 +65,12 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/auth/google/callback}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # Tarefa 6.10.8 (upload de foto de perfil) — volume nomeado abaixo,
+      # não bind mount: sobrevive a `docker compose down` sem `-v`, mesmo
+      # tratamento de `postgres_data`/`redis_data`.
+      AVATAR_STORAGE_DIR: /data/avatars
+    volumes:
+      - avatar_data:/data/avatars
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,3 +93,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  avatar_data:

@@ -12,7 +12,7 @@ Módulo: `backend/src/modules/profile/`. Achado da sessão 5.10 — RF20 ("O sis
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado) — perfil é público entre usuários logados, não exposto sem autenticação nesta fase.
 - **Payload (query):** `window` — `week`|`month`, opcional, default `week` (RF20 não especifica; mesma decisão de escopo não confirmada explicitamente já usada em outros pontos da semana).
-- **Sucesso:** `200` → `{ profile: { username, level, xp, currentStreak, achievements: [{ id, name, description, unlockedAt }], profitabilityPct, window } }`. `achievements` só as desbloqueadas (RF20 não pede progresso das bloqueadas — isso é `GET /achievements`, tela 7.2, não 8.4).
+- **Sucesso:** `200` → `{ profile: { username, avatarUrl, level, xp, currentStreak, achievements: [{ id, name, description, unlockedAt }], profitabilityPct, window } }`. `achievements` só as desbloqueadas (RF20 não pede progresso das bloqueadas — isso é `GET /achievements`, tela 7.2, não 8.4). `avatarUrl` (tarefa 6.10.8) é a URL pública já resolvida (`/avatars/<arquivo>`) ou `null` — nunca o caminho cru, mesma convenção de `modules/auth`/`modules/friendships` (`shared/avatarUrl.ts`).
 - **Erros:**
   - `400` — `window` fora de `week`/`month`.
   - `401` — token ausente ou inválido/expirado.

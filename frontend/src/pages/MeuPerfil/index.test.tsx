@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,7 +11,13 @@ vi.mock('../../services/profile', () => ({ getMyProfile: vi.fn() }))
 
 function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const router = createMemoryRouter([{ path: '/perfil', element: <MeuPerfil /> }], { initialEntries: ['/perfil'] })
+    const router = createMemoryRouter(
+        [
+            { path: '/perfil', element: <MeuPerfil /> },
+            { path: '/configuracoes', element: <p>Configurações</p> },
+        ],
+        { initialEntries: ['/perfil'] },
+    )
     return render(
         <QueryClientProvider client={queryClient}>
             <RouterProvider router={router} />
@@ -23,7 +29,7 @@ describe('MeuPerfil (tela 9.1)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true },
+            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
             isLoading: false,
             login: vi.fn(),
             logout: vi.fn(),
@@ -33,17 +39,28 @@ describe('MeuPerfil (tela 9.1)', () => {
 
     afterEach(() => vi.clearAllMocks())
 
-    it('mostra o próprio perfil com o link de editar', async () => {
+    it('mostra o próprio perfil e navega pra Configurações ao editar', async () => {
         vi.mocked(getMyProfile).mockResolvedValue({
-            profile: { username: 'ana', level: 2, xp: 150, currentStreak: 1, achievements: [], profitabilityPct: 1.4, window: 'week' },
+            profile: {
+                username: 'ana',
+                avatarUrl: null,
+                level: 2,
+                xp: 150,
+                currentStreak: 1,
+                achievements: [],
+                profitabilityPct: 1.4,
+                window: 'week',
+            },
         })
 
         renderPage()
 
         expect(await screen.findByText('@ana')).toBeInTheDocument()
-        expect(screen.getByText('Este é o seu perfil')).toBeInTheDocument()
-        expect(screen.getByRole('link', { name: /Editar perfil/ })).toHaveAttribute('href', '/configuracoes')
+        expect(screen.queryByText('Este é o seu perfil')).not.toBeInTheDocument()
         expect(getMyProfile).toHaveBeenCalledWith('token')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Editar perfil' }))
+        expect(await screen.findByText('Configurações')).toBeInTheDocument()
     })
 
     it('erro ao carregar mostra mensagem, sem quebrar a tela', async () => {

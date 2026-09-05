@@ -5,6 +5,10 @@ export interface UserSummary {
   id: string
   username: string
   name: string
+  // URL pública já resolvida (tarefa 6.10.8, `shared/avatarUrl.ts`) — não o
+  // caminho cru, mesmo raciocínio de `modules/profile`. `null` até o
+  // primeiro upload.
+  avatarUrl: string | null
 }
 
 export interface UserDirectory {

@@ -40,7 +40,7 @@ function renderResults(
     )
 }
 
-const user: SearchedUser = { id: 'u2', username: 'bia', name: 'Bia Souza' }
+const user: SearchedUser = { id: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null }
 
 describe('UserSearchResults (tela 8.2)', () => {
     beforeEach(() => {
@@ -75,7 +75,9 @@ describe('UserSearchResults (tela 8.2)', () => {
 
     it('já amigos mostra "Amigos", sem botão de ação', () => {
         renderResults([user], {
-            friends: [{ friendshipId: 'f0', userId: 'u2', username: 'bia', name: 'Bia Souza', friendsSince: '2026-01-01' }],
+            friends: [
+                { friendshipId: 'f0', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, friendsSince: '2026-01-01' },
+            ],
         })
 
         expect(screen.getByText('Amigos')).toBeInTheDocument()
@@ -84,7 +86,9 @@ describe('UserSearchResults (tela 8.2)', () => {
 
     it('solicitação já enviada mostra "Pendente"', () => {
         renderResults([user], {
-            sentRequests: [{ friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', createdAt: '2026-01-01' }],
+            sentRequests: [
+                { friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, createdAt: '2026-01-01' },
+            ],
         })
 
         expect(screen.getByText('Pendente')).toBeInTheDocument()
@@ -103,7 +107,9 @@ describe('UserSearchResults (tela 8.2)', () => {
         })
 
         renderResults([user], {
-            receivedRequests: [{ friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', createdAt: '2026-01-01' }],
+            receivedRequests: [
+                { friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, createdAt: '2026-01-01' },
+            ],
         })
 
         fireEvent.click(screen.getByRole('button', { name: 'Aceitar' }))
@@ -112,7 +118,7 @@ describe('UserSearchResults (tela 8.2)', () => {
     })
 
     it('o próprio usuário na lista (regressão da exclusão feita pelo backend) mostra "Você", sem botão de ação', () => {
-        renderResults([{ id: 'u1', username: 'ana', name: 'Ana' }])
+        renderResults([{ id: 'u1', username: 'ana', name: 'Ana', avatarUrl: null }])
 
         expect(screen.getByText('Você')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()

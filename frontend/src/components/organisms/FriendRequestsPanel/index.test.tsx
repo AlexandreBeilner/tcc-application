@@ -51,8 +51,22 @@ function renderPanel(
     )
 }
 
-const received: FriendRequest = { friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', createdAt: '2026-01-01' }
-const sent: FriendRequest = { friendshipId: 'f2', userId: 'u3', username: 'caio', name: 'Caio Lima', createdAt: '2026-01-02' }
+const received: FriendRequest = {
+    friendshipId: 'f1',
+    userId: 'u2',
+    username: 'bia',
+    name: 'Bia Souza',
+    avatarUrl: null,
+    createdAt: '2026-01-01',
+}
+const sent: FriendRequest = {
+    friendshipId: 'f2',
+    userId: 'u3',
+    username: 'caio',
+    name: 'Caio Lima',
+    avatarUrl: null,
+    createdAt: '2026-01-02',
+}
 
 describe('FriendRequestsPanel (tela 8.3)', () => {
     beforeEach(() => {

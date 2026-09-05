@@ -1,12 +1,14 @@
-import { useState } from 'react'
-import type { SubmitEvent } from 'react'
-import { ArrowLeft, Check } from 'lucide-react'
+import { useRef, useState } from 'react'
+import type { ChangeEvent, SubmitEvent } from 'react'
+import { ArrowLeft, Check, Moon, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
+import { useTheme } from '../../features/theme/ThemeContext'
 import { ApiError } from '../../services/client'
-import { changePassword, updateProfile } from '../../services/auth'
+import { changePassword, updateProfile, uploadAvatar } from '../../services/auth'
 import styles from './index.module.css'
 
 const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
@@ -15,6 +17,13 @@ function providerLabel(providerName: string): string {
     return PROVIDER_LABELS[providerName] ?? providerName
 }
 
+// Tarefa 6.10.8 — mesmos limites de `UploadAvatarUseCase`
+// (`.docs/backend/auth.md`), checados aqui só pra dar feedback imediato
+// sem esperar a ida e volta ao backend; a validação de verdade continua
+// no use case (backend nunca confia só no client).
+const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
+
 // Tela 9.2 (tarefa 6.10) — dados cadastrais (`PATCH /me`), troca de senha
 // (`POST /me/password`) e provedores conectados (`GET /me/identities`, só
 // leitura), cada um sua própria seção/estado de submit — "Salvar" →
@@ -22,14 +31,30 @@ function providerLabel(providerName: string): string {
 // fica sempre opcional no form: só a conta OAuth-only dispensa (backend,
 // não sinalizado ao client), então deixar o backend decidir e mostrar
 // `err.message` (`.docs/backend/auth.md`: "senha atual obrigatória"/
-// "senha atual incorreta") é mais simples que replicar a regra aqui —
-// mesmo princípio de `Login` (erro do backend exibido direto).
+// "senha atual incorreta") é mais simples que replicar a regra aqui,
+// mesmo princípio de `Login` (erro do backend exibido direto). E-mail
+// (tarefa 6.10.4, apontado pelo autor) é read-only nesta seção desde
+// esta sessão — produtos consolidados não deixam trocar e-mail livre
+// sem um fluxo de verificação separado; `PATCH /me` continua aceitando
+// `email?` a nível de contrato, só este client não envia mais o campo.
+// Tema claro/escuro (tarefa 6.10.7, apontado pelo autor) — os tokens das
+// duas paletas já existiam desde a 1.0 (`identidade-visual-tokens.md`),
+// só faltava o controle de UI; `useTheme` (`features/theme/ThemeContext`)
+// aplica `data-theme` no `<html>` e persiste em `localStorage`. Foto de
+// perfil (tarefa 6.10.8) — `<input type="file" hidden>` disparado por um
+// botão (`avatarInputRef`, mesmo padrão de esconder o input nativo feio
+// atrás de um `Button` estilizado); tipo/tamanho checados aqui só pra
+// feedback imediato, a validação de verdade é sempre do backend
+// (`UploadAvatarUseCase`). `setUser(result.user)` já reflete a nova
+// `avatarUrl` em qualquer lugar que consome `useAuth().user` (AvatarMenu
+// etc.), sem invalidar nenhuma query.
 export function Configuracoes() {
     const { token, user, setUser } = useAuth()
     const identitiesQuery = useIdentitiesQuery()
+    const { theme, setTheme } = useTheme()
+    const avatarInputRef = useRef<HTMLInputElement>(null)
 
     const [name, setName] = useState(user?.name ?? '')
-    const [email, setEmail] = useState(user?.email ?? '')
     const [username, setUsername] = useState(user?.username ?? '')
     const [profileError, setProfileError] = useState<string | null>(null)
     const [profileSaved, setProfileSaved] = useState(false)
@@ -41,6 +66,9 @@ export function Configuracoes() {
     const [passwordError, setPasswordError] = useState<string | null>(null)
     const [passwordSaved, setPasswordSaved] = useState(false)
     const [isSavingPassword, setIsSavingPassword] = useState(false)
+
+    const [avatarError, setAvatarError] = useState<string | null>(null)
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
 
     if (!user) {
         return (
@@ -56,7 +84,7 @@ export function Configuracoes() {
         setProfileSaved(false)
         setIsSavingProfile(true)
         try {
-            const result = await updateProfile(token as string, { name, email, username })
+            const result = await updateProfile(token as string, { name, username })
             setUser(result.user)
             setProfileSaved(true)
         } catch (err) {
@@ -93,6 +121,35 @@ export function Configuracoes() {
         }
     }
 
+    async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (!file) {
+            return
+        }
+
+        setAvatarError(null)
+
+        if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+            setAvatarError('Tipo de arquivo não suportado. Use JPEG, PNG ou WEBP.')
+            return
+        }
+        if (file.size > MAX_AVATAR_SIZE_BYTES) {
+            setAvatarError('Arquivo maior que o limite de 5MB.')
+            return
+        }
+
+        setIsUploadingAvatar(true)
+        try {
+            const result = await uploadAvatar(token as string, file)
+            setUser(result.user)
+        } catch (err) {
+            setAvatarError(err instanceof ApiError ? err.message : 'Não foi possível enviar a foto agora. Tente novamente.')
+        } finally {
+            setIsUploadingAvatar(false)
+        }
+    }
+
     return (
         <main className={styles.page}>
             <Link to="/perfil" className={styles.back}>
@@ -104,6 +161,39 @@ export function Configuracoes() {
 
             <div className={styles.layout}>
                 <div className={styles.main}>
+                    <section className={styles.section}>
+                        <h2 className={styles.sectionTitle}>Foto de perfil</h2>
+                        <div className={styles.avatarRow}>
+                            <div className={styles.avatarPreview}>
+                                <Avatar username={user.username} avatarUrl={user.avatarUrl} size="lg" />
+                            </div>
+                            <div className={styles.avatarActions}>
+                                <input
+                                    ref={avatarInputRef}
+                                    type="file"
+                                    aria-label="Foto de perfil"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    onChange={handleAvatarChange}
+                                    hidden
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    disabled={isUploadingAvatar}
+                                    onClick={() => avatarInputRef.current?.click()}
+                                >
+                                    {isUploadingAvatar ? 'Enviando…' : 'Alterar foto'}
+                                </Button>
+                                <p className={styles.avatarHint}>JPEG, PNG ou WEBP, até 5MB.</p>
+                            </div>
+                        </div>
+                        {avatarError && (
+                            <p className={styles.error} role="alert">
+                                {avatarError}
+                            </p>
+                        )}
+                    </section>
+
                     <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Dados cadastrais</h2>
                         <form className={styles.form} onSubmit={handleProfileSubmit}>
@@ -121,14 +211,7 @@ export function Configuracoes() {
 
                             <label className={styles.field}>
                                 E-mail
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(event) => setEmail(event.target.value)}
-                                    required
-                                    maxLength={100}
-                                    autoComplete="email"
-                                />
+                                <input type="email" value={user.email} readOnly disabled autoComplete="email" />
                             </label>
 
                             <label className={styles.field}>
@@ -223,6 +306,32 @@ export function Configuracoes() {
                     </section>
 
                     <section className={styles.section}>
+                        <h2 className={styles.sectionTitle}>Aparência</h2>
+                        <div className={styles.themeToggle} role="radiogroup" aria-label="Tema">
+                            <button
+                                type="button"
+                                role="radio"
+                                aria-checked={theme === 'dark'}
+                                className={`${styles.themeOption} ${theme === 'dark' ? styles.themeOptionActive : ''}`}
+                                onClick={() => setTheme('dark')}
+                            >
+                                <Moon size={16} strokeWidth={2} aria-hidden="true" />
+                                Escuro
+                            </button>
+                            <button
+                                type="button"
+                                role="radio"
+                                aria-checked={theme === 'light'}
+                                className={`${styles.themeOption} ${theme === 'light' ? styles.themeOptionActive : ''}`}
+                                onClick={() => setTheme('light')}
+                            >
+                                <Sun size={16} strokeWidth={2} aria-hidden="true" />
+                                Claro
+                            </button>
+                        </div>
+                    </section>
+
+                    <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Provedores conectados</h2>
                         {identitiesQuery.isError && (
                             <p className={styles.error} role="alert">
@@ -231,7 +340,7 @@ export function Configuracoes() {
                         )}
                         {!identitiesQuery.data && !identitiesQuery.isError && <p className={styles.loading}>Carregando…</p>}
                         {identitiesQuery.data && identitiesQuery.data.identities.length === 0 && (
-                            <p className={styles.empty}>Nenhum provedor conectado — login só por e-mail e senha.</p>
+                            <p className={styles.empty}>Nenhum provedor conectado. Login só por e-mail e senha.</p>
                         )}
                         {identitiesQuery.data && identitiesQuery.data.identities.length > 0 && (
                             <ul className={styles.identityList}>

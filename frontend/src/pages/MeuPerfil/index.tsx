@@ -1,5 +1,4 @@
-import { Settings } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ProfileAboutPanel } from '../../components/molecules/ProfileAboutPanel'
 import { PublicProfileCard } from '../../components/organisms/PublicProfileCard'
 import { useAuth } from '../../features/auth/AuthContext'
@@ -18,6 +17,7 @@ import styles from './index.module.css'
 export function MeuPerfil() {
     const { user } = useAuth()
     const profileQuery = useMyProfileQuery()
+    const navigate = useNavigate()
 
     if (profileQuery.isError) {
         return (
@@ -39,28 +39,26 @@ export function MeuPerfil() {
 
     return (
         <main className={styles.page}>
-            <h1 className={styles.title}>Meu Perfil</h1>
+            <div className={styles.container}>
+                <h1 className={styles.title}>Meu Perfil</h1>
 
-            <div className={styles.layout}>
-                <div className={styles.main}>
-                    <PublicProfileCard
-                        profile={profileQuery.data.profile}
-                        currentUserId={user.id}
-                        targetUserId={user.id}
-                        friends={[]}
-                        sentRequests={[]}
-                        receivedRequests={[]}
-                    />
+                <div className={styles.layout}>
+                    <div className={styles.main}>
+                        <PublicProfileCard
+                            profile={profileQuery.data.profile}
+                            currentUserId={user.id}
+                            targetUserId={user.id}
+                            friends={[]}
+                            sentRequests={[]}
+                            receivedRequests={[]}
+                            onEdit={() => navigate('/configuracoes')}
+                        />
+                    </div>
 
-                    <Link to="/configuracoes" className={styles.editLink}>
-                        <Settings size={16} strokeWidth={2} aria-hidden="true" />
-                        Editar perfil
-                    </Link>
+                    <aside className={styles.sidebar}>
+                        <ProfileAboutPanel />
+                    </aside>
                 </div>
-
-                <aside className={styles.sidebar}>
-                    <ProfileAboutPanel />
-                </aside>
             </div>
         </main>
     )

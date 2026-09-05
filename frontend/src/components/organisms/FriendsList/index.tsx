@@ -49,7 +49,7 @@ export function FriendsList({ friends, page, totalPages, onPageChange }: Friends
                     return (
                         <li key={friend.userId} className={styles.row}>
                             <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${friend.userId}`)}>
-                                <Avatar username={friend.username} />
+                                <Avatar username={friend.username} avatarUrl={friend.avatarUrl} />
                                 <span className={styles.info}>
                                     <span className={styles.name}>{friend.name}</span>
                                     <span className={styles.username}>@{friend.username}</span>

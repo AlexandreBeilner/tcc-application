@@ -25,7 +25,7 @@ describe('PrivacidadeLgpd (tela 9.3)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true },
+            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
             isLoading: false,
             login: vi.fn(),
             logout,
@@ -50,7 +50,7 @@ describe('PrivacidadeLgpd (tela 9.3)', () => {
         vi.unstubAllGlobals()
     })
 
-    it('exige duas etapas de confirmação antes de excluir a conta', async () => {
+    it('exige a palavra-chave digitada antes de habilitar a exclusão (6.10.5)', async () => {
         vi.mocked(deleteAccount).mockResolvedValue(undefined)
 
         renderPage()
@@ -58,6 +58,13 @@ describe('PrivacidadeLgpd (tela 9.3)', () => {
 
         expect(deleteAccount).not.toHaveBeenCalled()
         expect(screen.getByText('Tem certeza? Esta ação é irreversível.')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Confirmar exclusão' })).toBeDisabled()
+
+        fireEvent.change(screen.getByLabelText('Digite EXCLUIR para confirmar a exclusão'), { target: { value: 'exclu' } })
+        expect(screen.getByRole('button', { name: 'Confirmar exclusão' })).toBeDisabled()
+
+        fireEvent.change(screen.getByLabelText('Digite EXCLUIR para confirmar a exclusão'), { target: { value: 'EXCLUIR' } })
+        expect(screen.getByRole('button', { name: 'Confirmar exclusão' })).toBeEnabled()
 
         fireEvent.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
 
@@ -66,12 +73,16 @@ describe('PrivacidadeLgpd (tela 9.3)', () => {
         expect(await screen.findByText('tela de login')).toBeInTheDocument()
     })
 
-    it('cancelar a confirmação não chama a API', () => {
+    it('cancelar a confirmação não chama a API e limpa o texto digitado', () => {
         renderPage()
         fireEvent.click(screen.getByRole('button', { name: 'Excluir conta' }))
+        fireEvent.change(screen.getByLabelText('Digite EXCLUIR para confirmar a exclusão'), { target: { value: 'EXCLUIR' } })
         fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
 
         expect(deleteAccount).not.toHaveBeenCalled()
         expect(screen.queryByText('Tem certeza? Esta ação é irreversível.')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Excluir conta' }))
+        expect(screen.getByRole('button', { name: 'Confirmar exclusão' })).toBeDisabled()
     })
 })

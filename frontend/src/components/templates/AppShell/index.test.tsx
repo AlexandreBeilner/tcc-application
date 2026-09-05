@@ -54,6 +54,7 @@ const user: AuthUser = {
     username: 'ana',
     role: 'user',
     onboardingCompleted: true,
+    avatarUrl: null,
 }
 
 describe('AppShell', () => {

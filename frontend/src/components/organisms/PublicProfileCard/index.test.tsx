@@ -12,6 +12,7 @@ vi.mock('../../../services/friendships', () => ({ sendFriendRequest: vi.fn(), ac
 function profile(overrides: Partial<PublicProfile> = {}): PublicProfile {
     return {
         username: 'bia',
+        avatarUrl: null,
         level: 4,
         xp: 820,
         currentStreak: 3,
@@ -88,13 +89,29 @@ describe('PublicProfileCard (tela 8.4)', () => {
     it('perfil do próprio usuário não mostra botão de adicionar', () => {
         renderCard({ targetUserId: 'u1' })
 
-        expect(screen.getByText('Este é o seu perfil')).toBeInTheDocument()
+        expect(screen.queryByText('Este é o seu perfil')).not.toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()
+    })
+
+    it('perfil do próprio usuário mostra ícone de editar só quando `onEdit` é passado (6.10.2)', () => {
+        const onEdit = vi.fn()
+        renderCard({ targetUserId: 'u1', onEdit })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Editar perfil' }))
+        expect(onEdit).toHaveBeenCalledOnce()
+    })
+
+    it('perfil do próprio usuário sem `onEdit` não mostra o ícone de editar', () => {
+        renderCard({ targetUserId: 'u1' })
+
+        expect(screen.queryByRole('button', { name: 'Editar perfil' })).not.toBeInTheDocument()
     })
 
     it('amigo mostra "Desfazer amizade" com confirmação em duas etapas (6.9.3)', async () => {
         vi.mocked(removeFriendship).mockResolvedValue(undefined)
-        renderCard({ friends: [{ friendshipId: 'f9', userId: 'u2', username: 'bia', name: 'Bia', friendsSince: '2026-01-01' }] })
+        renderCard({
+            friends: [{ friendshipId: 'f9', userId: 'u2', username: 'bia', name: 'Bia', avatarUrl: null, friendsSince: '2026-01-01' }],
+        })
 
         expect(screen.getByText('Amigos')).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Desfazer amizade' }))

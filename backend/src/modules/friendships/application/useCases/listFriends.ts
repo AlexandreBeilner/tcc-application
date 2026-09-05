@@ -17,6 +17,7 @@ export interface FriendListItem {
   userId: string
   username: string
   name: string
+  avatarUrl: string | null
   friendsSince: Date | null
 }
 
@@ -87,6 +88,7 @@ export class ListFriendsUseCase {
           userId: user.id,
           username: user.username,
           name: user.name,
+          avatarUrl: user.avatarUrl,
           friendsSince: entry.friendsSince,
         }
       })

@@ -25,7 +25,7 @@ describe('PerfilPublico (tela 8.4)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
-            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true },
+            user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
             isLoading: false,
             login: vi.fn(),
             logout: vi.fn(),
@@ -42,7 +42,16 @@ describe('PerfilPublico (tela 8.4)', () => {
 
     it('mostra o perfil público carregado', async () => {
         vi.mocked(getUserProfile).mockResolvedValue({
-            profile: { username: 'bia', level: 4, xp: 820, currentStreak: 3, achievements: [], profitabilityPct: 5.2, window: 'week' },
+            profile: {
+                username: 'bia',
+                avatarUrl: null,
+                level: 4,
+                xp: 820,
+                currentStreak: 3,
+                achievements: [],
+                profitabilityPct: 5.2,
+                window: 'week',
+            },
         })
 
         renderPage('u2')

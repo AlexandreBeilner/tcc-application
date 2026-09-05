@@ -13,7 +13,18 @@ function initials(username: string): string {
 // idêntico nos quatro. `size="lg"` só o círculo (100% do wrapper que o
 // chamador dimensionar) — o anel de XP com conic-gradient continua sendo
 // responsabilidade de `PublicProfileCard`, que varia por usuário.
-export function Avatar({ username, size = 'sm' }: AvatarProps) {
+// `avatarUrl` (tarefa 6.10.8) troca as iniciais por uma foto real quando
+// presente — fallback pras iniciais é sempre as mesmas iniciais de sempre,
+// nunca um ícone genérico.
+export function Avatar({ username, size = 'sm', avatarUrl }: AvatarProps) {
+    if (avatarUrl) {
+        return (
+            <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`}>
+                <img className={styles.image} src={avatarUrl} alt={`Foto de perfil de ${username}`} />
+            </span>
+        )
+    }
+
     return (
         <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`} aria-hidden="true">
             {initials(username)}

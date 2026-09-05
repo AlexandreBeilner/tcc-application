@@ -21,6 +21,7 @@ function toDomainUser(row: typeof users.$inferSelect): User {
     passwordHash: row.passwordHash,
     role: row.role,
     onboardingCompleted: row.onboardingCompleted,
+    avatarPath: row.avatarPath,
     createdAt: row.createdAt,
   }
 }

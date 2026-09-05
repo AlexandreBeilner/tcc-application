@@ -4,9 +4,9 @@ import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { FRIENDS_PAGE_SIZE } from './listFriends'
 import { ListFriendRequestsUseCase } from './listFriendRequests'
 
-const alice = { id: 'u-alice', username: 'alice', name: 'Alice' }
-const bob = { id: 'u-bob', username: 'bob', name: 'Bob' }
-const carol = { id: 'u-carol', username: 'carol', name: 'Carol' }
+const alice = { id: 'u-alice', username: 'alice', name: 'Alice', avatarUrl: null }
+const bob = { id: 'u-bob', username: 'bob', name: 'Bob', avatarUrl: null }
+const carol = { id: 'u-carol', username: 'carol', name: 'Carol', avatarUrl: null }
 
 describe('ListFriendRequestsUseCase', () => {
   it('separa solicitações recebidas de enviadas', async () => {
@@ -64,6 +64,7 @@ describe('ListFriendRequestsUseCase', () => {
       id: `u-receiver-${index}`,
       username: `receiver${index}`,
       name: `Receiver ${index}`,
+      avatarUrl: null,
     }))
     const userDirectory = createFakeUserDirectory([alice, ...receivers])
     const useCase = new ListFriendRequestsUseCase(friendshipRepository, userDirectory)

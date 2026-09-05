@@ -33,6 +33,10 @@ const BACKEND_ROUTE_NAMESPACES = [
     'admin',
     'market',
     'news',
+    // Tarefa 6.10.8 — arquivos servidos por `express.static('/avatars', ...)`
+    // no backend (`app.ts`), não uma rota de API "de verdade", mas ainda
+    // assim um namespace que só o gateway sabe responder.
+    'avatars',
 ]
 
 // Rotas de página do frontend que colidem, por prefixo, com um namespace

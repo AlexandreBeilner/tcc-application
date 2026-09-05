@@ -4,4 +4,8 @@ export interface AvatarProps {
     // `FriendRequestsPanel`, `UserSearchResults`. `lg` (64px, com anel) é o
     // destaque de topo de página — `PublicProfileCard`.
     size?: 'sm' | 'lg'
+    // Tarefa 6.10.8 — quando presente, mostra a foto real em vez das
+    // iniciais; `null`/`undefined` (usuário nunca fez upload) cai no
+    // fallback de sempre.
+    avatarUrl?: string | null
 }

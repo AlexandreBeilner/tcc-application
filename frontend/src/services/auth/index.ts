@@ -62,6 +62,15 @@ export function changePassword(token: string, input: ChangePasswordInput): Promi
     return apiRequest<{ status: string }>('/me/password', { method: 'POST', body: input, token })
 }
 
+// Tela 9.2 (tarefa 6.10.8) — `multipart/form-data`, campo `avatar`; ver
+// `services/client` (`apiRequest` reconhece `FormData` e não faz
+// `JSON.stringify`). Mesmo formato de resposta de `PATCH /me`.
+export function uploadAvatar(token: string, file: File): Promise<{ user: AuthUser }> {
+    const body = new FormData()
+    body.append('avatar', file)
+    return apiRequest<{ user: AuthUser }>('/me/avatar', { method: 'POST', body, token })
+}
+
 export function listIdentities(token: string): Promise<{ identities: Identity[] }> {
     return apiRequest<{ identities: Identity[] }>('/me/identities', { token })
 }

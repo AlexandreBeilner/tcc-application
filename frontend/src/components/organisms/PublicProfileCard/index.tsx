@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Award, Flame, UserCheck } from 'lucide-react'
+import { Award, Flame, Pencil, UserCheck } from 'lucide-react'
 import { formatSignedPercent } from '../../../features/market/format'
 import { resolveFriendshipStatus } from '../../../features/friendships/resolveFriendshipStatus'
 import { useRemoveFriendshipMutation } from '../../../features/friendships/useRemoveFriendshipMutation'
@@ -63,6 +63,9 @@ function ProfitSparkline({ seedKey, pct }: { seedKey: string; pct: number }) {
 // mesma `resolveFriendshipStatus` de 8.2 (`UserSearchResults`), cruzando
 // contra as listas já buscadas pela página. "Desfazer amizade" (6.9.3) só
 // aparece com `status === 'friend'` — confirmação leve em duas etapas.
+// `status === 'self'` (tarefa 6.10.2, apontado pelo autor) não mostra mais
+// um badge de texto, só o ícone de editar (`onEdit`, opcional, só passado
+// por `MeuPerfil`/9.1) no lugar onde a ação de amizade ficaria em 8.4.
 export function PublicProfileCard({
     profile,
     currentUserId,
@@ -70,6 +73,7 @@ export function PublicProfileCard({
     friends,
     sentRequests,
     receivedRequests,
+    onEdit,
 }: PublicProfileCardProps) {
     const sendRequest = useSendFriendRequestMutation()
     const respondToRequest = useRespondToFriendRequestMutation()
@@ -89,7 +93,7 @@ export function PublicProfileCard({
                     style={ringStyle}
                     title={`Nível ${profile.level}, ${profile.xp.toLocaleString('pt-BR')} XP`}
                 >
-                    <Avatar username={profile.username} size="lg" />
+                    <Avatar username={profile.username} avatarUrl={profile.avatarUrl} size="lg" />
                 </div>
 
                 <div className={styles.identity}>
@@ -98,7 +102,11 @@ export function PublicProfileCard({
                 </div>
 
                 <div className={styles.friendAction}>
-                    {status === 'self' && <span className={styles.selfBadge}>Este é o seu perfil</span>}
+                    {status === 'self' && onEdit && (
+                        <button type="button" className={styles.editButton} onClick={onEdit} aria-label="Editar perfil">
+                            <Pencil size={16} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                    )}
 
                     {status === 'friend' && friendshipRowId && (
                         <>

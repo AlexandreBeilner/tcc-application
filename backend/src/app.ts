@@ -86,6 +86,7 @@ import { LoginUserUseCase } from './modules/auth/application/useCases/loginUser'
 import { LoginWithGoogleUseCase } from './modules/auth/application/useCases/loginWithGoogle'
 import { RegisterUserUseCase } from './modules/auth/application/useCases/registerUser'
 import { UpdateProfileUseCase } from './modules/auth/application/useCases/updateProfile'
+import { UploadAvatarUseCase } from './modules/auth/application/useCases/uploadAvatar'
 import { createInProcessAchievementsExporter } from './modules/auth/infrastructure/achievements/inProcessAchievementsExporter'
 import { createEngineAccountProvisioner } from './modules/auth/infrastructure/engine/engineAccountProvisioner'
 import { createInProcessFriendshipsExporter } from './modules/auth/infrastructure/friendships/inProcessFriendshipsExporter'
@@ -99,6 +100,7 @@ import { createInProcessMissionProgressExporter } from './modules/auth/infrastru
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createBcryptPasswordHasher } from './modules/auth/infrastructure/security/bcryptPasswordHasher'
 import { createJwtTokenIssuer } from './modules/auth/infrastructure/security/jwtTokenIssuer'
+import { createDiskAvatarStorage } from './modules/auth/infrastructure/storage/diskAvatarStorage'
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
@@ -308,6 +310,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const updateProfile = new UpdateProfileUseCase(userRepository)
   const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher)
   const listIdentities = new ListIdentitiesUseCase(userRepository)
+  // Tarefa 6.10.8 — volume Docker persistente (docker-compose.yml), servido
+  // de volta por `express.static('/avatars', ...)` logo abaixo.
+  const avatarStorageDir = process.env.AVATAR_STORAGE_DIR ?? '/data/avatars'
+  const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
+  const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const anonymizeAccount = new AnonymizeAccountUseCase(userRepository)
   const exportUserData = new ExportUserDataUseCase(
     userRepository,
@@ -332,6 +339,10 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(express.json())
   app.use(healthRouter)
   app.use(statusRouter)
+  // Serve os arquivos salvos por `UploadAvatarUseCase`/`diskAvatarStorage`
+  // (tarefa 6.10.8) — mesma pasta do volume Docker, montado na raiz do
+  // gateway (`location /` já faz proxy de tudo, `gateway/nginx.conf`).
+  app.use('/avatars', express.static(avatarStorageDir))
   app.use(
     createAuthRouter({
       registerUser,
@@ -349,6 +360,7 @@ export function createApp(deps: AppDeps = {}): Express {
       listIdentities,
       exportUserData,
       anonymizeAccount,
+      uploadAvatar,
       authMiddleware,
     }),
   )

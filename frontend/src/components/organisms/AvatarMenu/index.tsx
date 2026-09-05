@@ -49,7 +49,11 @@ export function AvatarMenu() {
 
     return (
         <div className={styles.root} ref={rootRef}>
-            <div className={styles.ring} style={ringStyle} title={progression ? `Nível ${progression.level}, ${progression.xp} XP` : undefined}>
+            <div
+                className={styles.ring}
+                style={ringStyle}
+                title={progression ? `Nível ${progression.level}, ${progression.xp} XP` : undefined}
+            >
                 <button
                     type="button"
                     className={styles.trigger}
@@ -58,7 +62,7 @@ export function AvatarMenu() {
                     aria-expanded={open}
                     aria-label="Menu do usuário"
                 >
-                    {initial}
+                    {user?.avatarUrl ? <img className={styles.avatarImage} src={user.avatarUrl} alt="" /> : initial}
                 </button>
             </div>
 
