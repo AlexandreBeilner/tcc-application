@@ -190,6 +190,10 @@ func handleTriggerMacroEvent(macroEvents macroEventTriggerer) http.HandlerFunc {
 // Compose.
 type macroEventLister interface {
 	List(ctx context.Context, limit, offset int) ([]macroevent.Record, error)
+	// Count devolve o total de eventos macro (sem paginação) — usado pra
+	// compor total_entries/total_pages na resposta (tarefa 6.9.9, frontend
+	// trocando "Carregar mais" por paginação numerada).
+	Count(ctx context.Context) (int, error)
 }
 
 // defaultMacroEventListLimit/maxMacroEventListLimit balizam a paginação
@@ -202,7 +206,8 @@ const (
 )
 
 type macroEventListResponse struct {
-	Events []macroEventResponse `json:"events"`
+	Events       []macroEventResponse `json:"events"`
+	TotalEntries int                  `json:"total_entries"`
 }
 
 // parsePaginationParam lê um parâmetro de paginação (?limit=/?offset=) da
@@ -247,11 +252,17 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 			return
 		}
 
+		total, err := macroEvents.Count(r.Context())
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao contar eventos macro")
+			return
+		}
+
 		events := make([]macroEventResponse, 0, len(records))
 		for _, rec := range records {
 			events = append(events, toMacroEventResponseFromRecord(rec))
 		}
-		writeJSON(w, http.StatusOK, macroEventListResponse{Events: events})
+		writeJSON(w, http.StatusOK, macroEventListResponse{Events: events, TotalEntries: total})
 	}
 }
 

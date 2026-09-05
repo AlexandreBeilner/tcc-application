@@ -137,6 +137,18 @@ func (r *MacroEventRepository) List(ctx context.Context, limit, offset int) ([]m
 	return records, nil
 }
 
+// Count devolve o total de eventos macro já registrados, sem paginação —
+// usado por GET /macro-events (tarefa 6.9.9) pra sustentar "Página X de Y"
+// no feed/painel admin, mesmo critério de List (sem WHERE, conta a tabela
+// inteira).
+func (r *MacroEventRepository) Count(ctx context.Context) (int, error) {
+	var count int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM macro_events`).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // attachTargets busca macro_event_targets pra todo Record de records numa
 // segunda query (não dá pra fazer JOIN antes do LIMIT/OFFSET de List sem
 // paginar por linha de target em vez de por evento — um evento com N

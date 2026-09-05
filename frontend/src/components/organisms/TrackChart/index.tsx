@@ -90,6 +90,12 @@ export function TrackChart({ lessons, expandedHintId, onNodeClick }: TrackChartP
                 {layout.points.map((point) => {
                     const StatusIcon = STATUS_ICON[point.lesson.status]
                     const tooltipBelow = point.y < TRACK_CHART_HEIGHT * 0.3
+                    // Mesmo raciocínio do `tooltipBelow` (flip vertical perto do topo),
+                    // agora pro eixo horizontal (tarefa 6.9.7) — ancora pela ponta em vez
+                    // de centralizar quando o nó está perto da borda do `.chart`, pra não
+                    // empurrar o tooltip (centralizado por padrão) pra fora do container.
+                    const tooltipLeft = point.x < TRACK_CHART_WIDTH * 0.12
+                    const tooltipRight = point.x > TRACK_CHART_WIDTH * 0.88
 
                     return (
                         <button
@@ -101,7 +107,17 @@ export function TrackChart({ lessons, expandedHintId, onNodeClick }: TrackChartP
                             aria-label={`${point.lesson.title}: ${statusLabel(point.lesson)}`}
                         >
                             <StatusIcon size={16} strokeWidth={2.5} fill={point.lesson.status === 'available' ? 'currentColor' : 'none'} />
-                            <span className={[styles.tooltip, tooltipBelow && styles.tooltipBelow].filter(Boolean).join(' ')} aria-hidden="true">
+                            <span
+                                className={[
+                                    styles.tooltip,
+                                    tooltipBelow && styles.tooltipBelow,
+                                    tooltipLeft && styles.tooltipLeft,
+                                    tooltipRight && styles.tooltipRight,
+                                ]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                aria-hidden="true"
+                            >
                                 <span className={styles.tooltipTitle}>{point.lesson.title}</span>
                                 <span className={styles.tooltipStatus}>{statusLabel(point.lesson)}</span>
                             </span>

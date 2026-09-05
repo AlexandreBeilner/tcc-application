@@ -54,28 +54,31 @@ Módulo: `backend/src/modules/friendships/`. Sobre a tabela `friendships` (já e
   - `401` — token ausente ou inválido/expirado.
   - `403` — quem chama não é o `requester` nem o `addressee` da solicitação.
   - `404` — solicitação inexistente.
-  - `409` — solicitação já não está `pending` (ex: já aceita — esta rota não desfaz amizade, "remover amigo" não está no escopo desta tarefa).
-- **Regra:** `RemoveFriendshipUseCase`. Cobre tanto recusar (spec 8.4, quando quem chama é o `addressee`) quanto cancelar (quando quem chama é o `requester`) — decisão de escopo desta sessão, não confirmada explicitamente: as duas ações são, na prática, a mesma operação de domínio (remover uma solicitação pendente); a rota é única e a autorização decide dentro do caso de uso qual dos dois é válido pra quem chama, em vez de duas rotas separadas.
+- **Regra:** `RemoveFriendshipUseCase`. Cobre recusar (spec 8.4, quando quem chama é o `addressee`), cancelar (quando quem chama é o `requester`) e, desde a tarefa 6.9.3, desfazer uma amizade já `accepted` (reabre a decisão de escopo original da 5.8, que deixava isso de fora) — as três ações são, na prática, a mesma operação de domínio (remover a linha de amizade entre as duas pessoas); a rota é única e independe do `status` atual, só a autorização (`isRequester || isAddressee`) é checada.
 
 ---
 
 ### `GET /friendships`
 
 - **Autenticação:** Bearer token.
-- **Payload:** nenhum.
-- **Sucesso:** `200` → `{ friends: [{ userId, username, name, friendsSince }] }` — só amizades `accepted`, dos dois lados da relação (`requester` ou `addressee`).
-- **Erros:** `401` — token ausente ou inválido/expirado.
-- **Regra:** `ListFriendsUseCase`.
+- **Payload (query):** `page` — inteiro ≥ 1, opcional, default `1`. `sort` — `asc`\|`desc`, opcional, default `desc` (mais recente primeiro).
+- **Sucesso:** `200` → `{ friends: [{ friendshipId, userId, username, name, friendsSince }], page, pageSize, totalEntries, totalPages }` — só amizades `accepted`, dos dois lados da relação (`requester` ou `addressee`), ordenadas por `friendsSince`. `friendshipId` (exposto desde 6.9.3) é o id a passar pra `DELETE /friendships/:id` ao desfazer a amizade. `pageSize` fixo em 20 (`FRIENDS_PAGE_SIZE`, não é parâmetro de query). Página fora de `[1, totalPages]` é clampada, nunca `400` (mesmo critério da Classificação, 6.8.2).
+- **Erros:**
+  - `400` — `page`/`sort` inválidos.
+  - `401` — token ausente ou inválido/expirado.
+- **Regra:** `ListFriendsUseCase` (paginação/ordenação adicionadas na 6.9.1).
 
 ---
 
 ### `GET /friendships/requests`
 
 - **Autenticação:** Bearer token.
-- **Payload:** nenhum.
-- **Sucesso:** `200` → `{ received: [{ friendshipId, userId, username, name, createdAt }], sent: [...] }` — solicitações pendentes recebidas e enviadas, separadas.
-- **Erros:** `401` — token ausente ou inválido/expirado.
-- **Regra:** `ListFriendRequestsUseCase`.
+- **Payload (query):** `receivedPage`/`sentPage` — inteiro ≥ 1, opcionais, default `1` cada (paginação independente pras duas listas, já que a tela mostra as duas ao mesmo tempo). `sort` — `asc`\|`desc`, opcional, default `desc`, aplica às duas listas (por `createdAt`).
+- **Sucesso:** `200` → `{ received: { items: [{ friendshipId, userId, username, name, createdAt }], page, pageSize, totalEntries, totalPages }, sent: { ...mesmo formato } }` — solicitações pendentes recebidas e enviadas, cada uma paginada/ordenada de forma independente. `pageSize` fixo em 20, mesma constante de `GET /friendships`.
+- **Erros:**
+  - `400` — `receivedPage`/`sentPage`/`sort` inválidos.
+  - `401` — token ausente ou inválido/expirado.
+- **Regra:** `ListFriendRequestsUseCase` (paginação/ordenação adicionadas na 6.9.1).
 
 ---
 

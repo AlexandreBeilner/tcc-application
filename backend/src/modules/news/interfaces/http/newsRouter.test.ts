@@ -25,7 +25,7 @@ const sampleEvent = {
 }
 
 function buildApp(
-  newsFeedReader = createFakeNewsFeedReader({ events: [sampleEvent] }),
+  newsFeedReader = createFakeNewsFeedReader({ events: [sampleEvent], total_entries: 1 }),
   newsReadRepository = createFakeNewsReadRepository(),
 ) {
   const tokenIssuer = createFakeTokenIssuer()
@@ -57,6 +57,7 @@ describe('GET /news', () => {
     // veredito do evento antes de `status = aplicado`.
     expect(res.body).toEqual({
       events: [{ ...sampleEvent, direction: '', magnitude_band: '', targets: [], seen: false }],
+      total_entries: 1,
     })
   })
 

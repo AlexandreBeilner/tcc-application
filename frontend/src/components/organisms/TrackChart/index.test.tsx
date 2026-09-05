@@ -71,6 +71,28 @@ describe('TrackChart', () => {
         expect(onNodeClick).toHaveBeenCalledWith(lessons[0])
     })
 
+    it('ancora o tooltip pela ponta (não centralizado) nos nós perto da borda do gráfico (tarefa 6.9.7)', () => {
+        const { container } = render(
+            <TrackChart
+                lessons={[
+                    lesson({ id: '1', title: 'Primeira', status: 'completed' }),
+                    lesson({ id: '2', title: 'Meio', status: 'available' }),
+                    lesson({ id: '3', title: 'Última', status: 'locked' }),
+                ]}
+                expandedHintId={null}
+                onNodeClick={vi.fn()}
+            />,
+        )
+
+        const buttons = container.querySelectorAll('button')
+        expect(buttons[0].querySelector('[class*="tooltipLeft"]')).toBeInTheDocument()
+        expect(buttons[0].querySelector('[class*="tooltipRight"]')).not.toBeInTheDocument()
+        expect(buttons[1].querySelector('[class*="tooltipLeft"]')).not.toBeInTheDocument()
+        expect(buttons[1].querySelector('[class*="tooltipRight"]')).not.toBeInTheDocument()
+        expect(buttons[2].querySelector('[class*="tooltipRight"]')).toBeInTheDocument()
+        expect(buttons[2].querySelector('[class*="tooltipLeft"]')).not.toBeInTheDocument()
+    })
+
     it('mostra a dica só quando expandedHintId aponta pra uma lição deste gráfico', () => {
         const lessons = [lesson({ id: '1', status: 'available' }), lesson({ id: '2', status: 'locked' })]
         const { rerender } = render(<TrackChart lessons={lessons} expandedHintId={null} onNodeClick={vi.fn()} />)

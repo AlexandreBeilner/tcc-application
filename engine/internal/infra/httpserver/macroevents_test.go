@@ -37,7 +37,9 @@ func postMacroEvent(t *testing.T, triggerer macroEventTriggerer, body string) *h
 
 type fakeMacroEventLister struct {
 	records   []macroevent.Record
+	total     int
 	err       error
+	countErr  error
 	gotLimit  int
 	gotOffset int
 }
@@ -46,6 +48,10 @@ func (f *fakeMacroEventLister) List(_ context.Context, limit, offset int) ([]mac
 	f.gotLimit = limit
 	f.gotOffset = offset
 	return f.records, f.err
+}
+
+func (f *fakeMacroEventLister) Count(_ context.Context) (int, error) {
+	return f.total, f.countErr
 }
 
 func getMacroEvents(t *testing.T, lister macroEventLister, query string) *httptest.ResponseRecorder {
@@ -212,6 +218,38 @@ func TestHandleListMacroEvents_SemLister(t *testing.T) {
 
 func TestHandleListMacroEvents_ErroInternoRetorna500(t *testing.T) {
 	fake := &fakeMacroEventLister{err: errors.New("falha de conexão")}
+	rec := getMacroEvents(t, fake, "")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+// TestHandleListMacroEvents_DevolveTotalEntries cobre a tarefa 6.9.9
+// (frontend trocando "Carregar mais" por paginação numerada): a resposta
+// precisa do total de eventos, não só da página pedida, pra sustentar
+// "Página X de Y".
+func TestHandleListMacroEvents_DevolveTotalEntries(t *testing.T) {
+	fake := &fakeMacroEventLister{
+		records: []macroevent.Record{{ID: "event-1", Event: macroevent.Event{Title: "t1", Status: macroevent.StatusPendente}}},
+		total:   47,
+	}
+
+	rec := getMacroEvents(t, fake, "?limit=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body macroEventListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.TotalEntries != 47 {
+		t.Errorf("TotalEntries = %d, want 47", body.TotalEntries)
+	}
+}
+
+func TestHandleListMacroEvents_ErroAoContarRetorna500(t *testing.T) {
+	fake := &fakeMacroEventLister{countErr: errors.New("falha de conexão")}
 	rec := getMacroEvents(t, fake, "")
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)

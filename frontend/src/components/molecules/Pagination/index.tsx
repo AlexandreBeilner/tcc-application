@@ -8,14 +8,14 @@ export type { PaginationProps } from './types'
 // próxima/última, sempre no mesmo lugar. Nada a mostrar com 1 página só
 // (escopo Amigos quase sempre, Global com poucos cadastros) — nenhum
 // controle desabilitado ocupando espaço à toa.
-export function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
+export function Pagination({ page, totalPages, onPageChange, ariaLabel = 'Paginação da classificação' }: PaginationProps) {
     if (totalPages <= 1) return null
 
     const isFirst = page <= 1
     const isLast = page >= totalPages
 
     return (
-        <nav className={styles.pagination} aria-label="Paginação da classificação">
+        <nav className={styles.pagination} aria-label={ariaLabel}>
             <button
                 type="button"
                 className={styles.control}

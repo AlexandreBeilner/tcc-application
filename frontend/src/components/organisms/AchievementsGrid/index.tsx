@@ -22,7 +22,7 @@ export function AchievementsGrid({ achievements }: AchievementsGridProps) {
     return (
         <ul className={styles.grid}>
             {achievements.map((achievement) => (
-                <li key={achievement.id}>
+                <li key={achievement.id} className={styles.item}>
                     <details className={`${styles.card} ${achievement.unlocked ? styles.unlocked : ''}`}>
                         <summary className={styles.summary}>
                             <span className={styles.icon} aria-hidden="true">

@@ -7,6 +7,15 @@
     gap: var(--space-3);
 }
 
+/* `min-width: 0` (tarefa 6.9.7) — sem isso o item de grid (`<li>`, sem
+   classe própria até aqui) usa o default `min-width: auto`, que trava a
+   coluna no min-content de `.name` (nome de conquista sem quebra, ver
+   abaixo) em vez do 1fr calculado — vazamento real de scroll horizontal em
+   mobile com nomes de conquista mais longos. */
+.item {
+    min-width: 0;
+}
+
 @media (min-width: 768px) {
     .grid {
         grid-template-columns: repeat(3, 1fr);
@@ -61,6 +70,7 @@
 }
 
 .name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

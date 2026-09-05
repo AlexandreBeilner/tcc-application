@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  FriendshipNotFoundError,
-  FriendshipNotPendingError,
-  NotAuthorizedError,
-} from '../../domain/errors'
+import { FriendshipNotFoundError, NotAuthorizedError } from '../../domain/errors'
 import { createFakeFriendshipRepository } from '../../test/fakes/fakeFriendshipRepository'
 import { RemoveFriendshipUseCase } from './removeFriendship'
 
@@ -46,12 +42,21 @@ describe('RemoveFriendshipUseCase', () => {
     )
   })
 
-  it('não remove amizade já aceita', async () => {
+  it('desfaz uma amizade já aceita (6.9.3)', async () => {
     const created = await friendshipRepository.create('u-alice', 'u-bob')
     await friendshipRepository.accept(created.id)
 
-    await expect(useCase.execute({ friendshipId: created.id, userId: 'u-alice' })).rejects.toThrow(
-      FriendshipNotPendingError,
-    )
+    await useCase.execute({ friendshipId: created.id, userId: 'u-alice' })
+
+    await expect(friendshipRepository.findById(created.id)).resolves.toBeUndefined()
+  })
+
+  it('destinatário também pode desfazer uma amizade já aceita', async () => {
+    const created = await friendshipRepository.create('u-alice', 'u-bob')
+    await friendshipRepository.accept(created.id)
+
+    await useCase.execute({ friendshipId: created.id, userId: 'u-bob' })
+
+    await expect(friendshipRepository.findById(created.id)).resolves.toBeUndefined()
   })
 })

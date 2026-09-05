@@ -42,4 +42,8 @@ export interface NewsEvent {
 
 export interface ListNewsResult {
     events: NewsEvent[]
+    // Total de eventos macro sem paginação (tarefa 6.9.9) — sustenta
+    // "Página X de Y" no Feed (5.1), que trocou "Carregar mais" por
+    // paginação numerada (`useNewsFeedQuery`).
+    total_entries: number
 }

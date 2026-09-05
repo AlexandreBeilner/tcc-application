@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button } from '../../components/atoms/Button'
+import { Pagination } from '../../components/molecules/Pagination'
 import { NewsEventList } from '../../components/organisms/NewsEventList'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMarkNewsEventSeenMutation } from '../../features/news/useMarkNewsEventSeenMutation'
@@ -15,21 +15,23 @@ import styles from './index.module.css'
 // aplicado). `assetLabels` resolve target.asset_id pra "TICKER · Nome"
 // (GET /market/assets, mesmo padrão do Extrato) — busca a lista inteira
 // sem filtro de tipo, catálogo pequeno o bastante (15 ativos) pra não
-// precisar de lookup individual por target. Paginação real via "Carregar
-// mais" (tarefa 6.6.1, `useNewsFeedQuery`) — some quando a última página
-// vier menor que o tamanho pedido (fim da lista). `onEventOpen` marca
-// "visto" persistido por usuário na primeira expansão de um evento ainda
-// não visto (tarefa 6.6.2, `POST /news/:id/seen`) — diferente de
-// `markNewsAsSeen` abaixo, que continua sendo só o agregado client-side do
-// sino da TopBar (NewsBell/useUnreadNews), sem mudança nesta tarefa.
+// precisar de lookup individual por target. Paginação numerada (tarefa
+// 6.9.9, `useNewsFeedQuery`/`Pagination`) — trocou "Carregar mais"
+// (decisão original da 6.6.1) pro mesmo padrão de Amigos/Solicitações/
+// Classificação, a pedido do autor. `onEventOpen` marca "visto" persistido
+// por usuário na primeira expansão de um evento ainda não visto (tarefa
+// 6.6.2, `POST /news/:id/seen`) — diferente de `markNewsAsSeen` abaixo,
+// que continua sendo só o agregado client-side do sino da TopBar
+// (NewsBell/useUnreadNews), sem mudança nesta tarefa.
 export function News() {
-    const newsQuery = useNewsFeedQuery()
+    const [page, setPage] = useState(1)
+    const newsQuery = useNewsFeedQuery(page)
     const assetsQuery = useAssetsQuery()
     const navigate = useNavigate()
     const reportFeedRead = useReportFeedMission()
     const markEventSeen = useMarkNewsEventSeenMutation()
 
-    const events = useMemo(() => newsQuery.data?.pages.flatMap((page) => page.events) ?? [], [newsQuery.data])
+    const events = useMemo(() => newsQuery.data?.events ?? [], [newsQuery.data])
 
     useEffect(() => {
         if (newsQuery.data) markNewsAsSeen(events)
@@ -59,16 +61,12 @@ export function News() {
                         onSelectAsset={(assetId) => navigate(`/mercado/ativos/${assetId}`)}
                     />
 
-                    {newsQuery.hasNextPage && (
-                        <Button
-                            variant="secondary"
-                            className={styles.loadMore}
-                            disabled={newsQuery.isFetchingNextPage}
-                            onClick={() => newsQuery.fetchNextPage()}
-                        >
-                            {newsQuery.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
-                        </Button>
-                    )}
+                    <Pagination
+                        page={newsQuery.data.page}
+                        totalPages={newsQuery.data.totalPages}
+                        onPageChange={setPage}
+                        ariaLabel="Paginação do feed de notícias"
+                    />
                 </>
             )}
         </main>

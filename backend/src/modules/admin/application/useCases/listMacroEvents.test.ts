@@ -19,6 +19,7 @@ const sampleResult = {
       created_at: '2026-08-30T14:05:00.000Z',
     },
   ],
+  total_entries: 1,
 }
 
 describe('ListMacroEventsUseCase', () => {

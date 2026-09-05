@@ -1,11 +1,34 @@
+/* Tarefa 6.9.6 — `.shell` trava em `height: 100vh` (era `min-height`, o que
+   deixava o documento crescer e rolar junto do conteúdo) com
+   `overflow: hidden`, virando um viewport fixo. `TopBar`/`TabBar` (tablet/
+   desktop, onde já ficam em fluxo normal, sem `position: fixed`) sobram como
+   irmãos de `.content` dentro desse viewport — como só `.content` tem
+   `overflow-y: auto`, os dois nunca rolam, sem precisar de
+   `position: fixed`/`sticky` nem de um token de altura calculada (a
+   observação técnica do backlog sugeria essa rota; descartada aqui por ser
+   mais frágil — altura em px duplicada e sujeita a dessincronizar do
+   conteúdo real do TopBar — enquanto o layout flex resolve o mesmo
+   resultado sem precisar saber a altura de nada). `TabBar` mobile continua
+   com seu próprio `position: fixed` (6.3.3), que já funciona igual
+   independente de quem rola — janela ou `.content`. */
 .shell {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
+/* `min-height: 0` é o que permite um item flex encolher abaixo da altura do
+   próprio conteúdo — sem isso `.content` cresceria pra caber tudo e nunca
+   ativaria o próprio scroll. `overflow-x: hidden` é a rede de segurança
+   estrutural citada na 6.9.7 (auditoria de overflow horizontal): nenhuma
+   tela deveria vazar largura, mas isso aqui garante que, se vazar, o
+   documento inteiro não ganha scroll horizontal por causa disso. */
 .content {
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: var(--space-6);
 }
 
