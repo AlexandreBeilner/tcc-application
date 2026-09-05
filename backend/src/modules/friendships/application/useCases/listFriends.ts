@@ -1,3 +1,4 @@
+import { paginate } from '../../../../shared/pagination'
 import type { FriendshipRepository } from '../ports/friendshipRepository'
 import type { UserDirectory } from '../ports/userDirectory'
 
@@ -45,45 +46,54 @@ export class ListFriendsUseCase {
   async execute(input: ListFriendsInput): Promise<ListFriendsResult> {
     const accepted = await this.friendshipRepository.listAccepted(input.userId)
 
-    const resolved = await Promise.all(
-      accepted.map(async (friendship) => {
-        const otherUserId =
-          friendship.requesterId === input.userId ? friendship.addresseeId : friendship.requesterId
-        const user = await this.userDirectory.findById(otherUserId)
-        if (!user) {
-          return undefined
-        }
-        return {
-          friendshipId: friendship.id,
-          userId: user.id,
-          username: user.username,
-          name: user.name,
-          friendsSince: friendship.respondedAt,
-        }
-      }),
-    )
-
-    const items = resolved.filter((item): item is FriendListItem => item !== undefined)
+    const entries = accepted.map((friendship) => ({
+      friendshipId: friendship.id,
+      otherUserId:
+        friendship.requesterId === input.userId ? friendship.addresseeId : friendship.requesterId,
+      friendsSince: friendship.respondedAt,
+    }))
 
     // Nenhuma das 3 queries do repositório tem `ORDER BY` (achado da
     // 6.9.1) — ordenar aqui, sobre o conjunto completo antes de paginar,
     // garante resultado determinístico independente da ordem devolvida
     // pelo Postgres, mesmo padrão de `GetRankingUseCase`.
-    items.sort((a, b) => {
+    entries.sort((a, b) => {
       const diff = (a.friendsSince?.getTime() ?? 0) - (b.friendsSince?.getTime() ?? 0)
       return input.sort === 'asc' ? diff : -diff
     })
 
-    const totalEntries = items.length
-    const totalPages = Math.max(1, Math.ceil(totalEntries / FRIENDS_PAGE_SIZE))
-    // Página fora do intervalo válido nunca vira erro (ex: página aberta
-    // antes de desfazer amizades o bastante pra ela deixar de existir) —
-    // clampa pro extremo mais próximo, mesmo critério de `GetRankingUseCase`.
-    const page = Math.min(Math.max(1, input.page), totalPages)
-    const pageStart = (page - 1) * FRIENDS_PAGE_SIZE
+    const {
+      items: pageEntries,
+      page,
+      totalEntries,
+      totalPages,
+    } = paginate(entries, input.page, FRIENDS_PAGE_SIZE)
+
+    // Achado de revisão da 6.9.1: resolver usuário só pra página exibida
+    // (uma query batched via `findByIds`), não pro conjunto de amizades
+    // inteiro — evita N chamadas a `findById` num usuário com centenas
+    // de amigos pra só mostrar 20 por vez.
+    const users = await this.userDirectory.findByIds(pageEntries.map((entry) => entry.otherUserId))
+    const userById = new Map(users.map((user) => [user.id, user]))
+
+    const items = pageEntries
+      .map((entry): FriendListItem | undefined => {
+        const user = userById.get(entry.otherUserId)
+        if (!user) {
+          return undefined
+        }
+        return {
+          friendshipId: entry.friendshipId,
+          userId: user.id,
+          username: user.username,
+          name: user.name,
+          friendsSince: entry.friendsSince,
+        }
+      })
+      .filter((item): item is FriendListItem => item !== undefined)
 
     return {
-      items: items.slice(pageStart, pageStart + FRIENDS_PAGE_SIZE),
+      items,
       page,
       pageSize: FRIENDS_PAGE_SIZE,
       totalEntries,

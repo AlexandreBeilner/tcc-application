@@ -3,6 +3,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { listFriendRequests } from '../../../services/friendships'
 import type { FriendRequest } from '../../../services/friendships'
+import { fetchAllPages } from '../../../utils/fetchAllPages'
 import { FRIEND_REQUESTS_QUERY_KEY } from '../useFriendRequestsQuery'
 
 export const ALL_FRIEND_REQUESTS_QUERY_KEY = [...FRIEND_REQUESTS_QUERY_KEY, 'all'] as const
@@ -24,19 +25,18 @@ export function useAllFriendRequestsQuery(): UseQueryResult<AllFriendRequests> {
         queryFn: async (): Promise<AllFriendRequests> => {
             const first = await listFriendRequests(token as string, 1, 1, 'desc')
 
-            const receivedRest = await Promise.all(
-                Array.from({ length: first.received.totalPages - 1 }, (_, index) =>
-                    listFriendRequests(token as string, index + 2, 1, 'desc'),
-                ),
-            )
-            const sentRest = await Promise.all(
-                Array.from({ length: first.sent.totalPages - 1 }, (_, index) => listFriendRequests(token as string, 1, index + 2, 'desc')),
-            )
+            const [received, sent] = await Promise.all([
+                fetchAllPages(first.received.totalPages, first.received.items, async (page) => {
+                    const result = await listFriendRequests(token as string, page, 1, 'desc')
+                    return result.received.items
+                }),
+                fetchAllPages(first.sent.totalPages, first.sent.items, async (page) => {
+                    const result = await listFriendRequests(token as string, 1, page, 'desc')
+                    return result.sent.items
+                }),
+            ])
 
-            return {
-                received: [...first.received.items, ...receivedRest.flatMap((result) => result.received.items)],
-                sent: [...first.sent.items, ...sentRest.flatMap((result) => result.sent.items)],
-            }
+            return { received, sent }
         },
         enabled: token !== null,
     })

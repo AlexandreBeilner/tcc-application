@@ -1,3 +1,4 @@
+import { paginate } from '../../../../shared/pagination'
 import type { Snapshot } from '../../domain/networth'
 import { profitabilityPct } from '../../domain/profitability'
 import { windowFor, type WindowKind } from '../../domain/window'
@@ -133,22 +134,21 @@ export class GetRankingUseCase {
       (entry) => entry.userId === input.requestingUserId,
     )
 
-    const totalEntries = scoredEntries.length
-    const totalPages = Math.max(1, Math.ceil(totalEntries / RANKING_PAGE_SIZE))
-    // Página fora do intervalo válido nunca vira erro (ex: usuário ainda
-    // com a última página aberta quando o escopo Amigos encolhe) — clampa
-    // pro extremo mais próximo em vez de devolver lista vazia enganosa.
-    const page = Math.min(Math.max(1, input.page), totalPages)
-    const pageStart = (page - 1) * RANKING_PAGE_SIZE
-    const entries: RankingEntry[] = scoredEntries
-      .slice(pageStart, pageStart + RANKING_PAGE_SIZE)
-      .map(({ userId, username, level, xp, profitabilityPct }) => ({
+    const {
+      items: pageScoredEntries,
+      page,
+      totalEntries,
+      totalPages,
+    } = paginate(scoredEntries, input.page, RANKING_PAGE_SIZE)
+    const entries: RankingEntry[] = pageScoredEntries.map(
+      ({ userId, username, level, xp, profitabilityPct }) => ({
         userId,
         username,
         level,
         xp,
         profitabilityPct,
-      }))
+      }),
+    )
 
     return {
       window: input.criterion === 'level' ? null : (input.window ?? null),

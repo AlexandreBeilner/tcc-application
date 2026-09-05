@@ -3,6 +3,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { listFriends } from '../../../services/friendships'
 import type { Friend } from '../../../services/friendships'
+import { fetchAllPages } from '../../../utils/fetchAllPages'
 import { FRIENDS_QUERY_KEY } from '../useFriendsQuery'
 
 export const ALL_FRIENDS_QUERY_KEY = [...FRIENDS_QUERY_KEY, 'all'] as const
@@ -22,13 +23,10 @@ export function useAllFriendsQuery(): UseQueryResult<Friend[]> {
         queryKey: ALL_FRIENDS_QUERY_KEY,
         queryFn: async () => {
             const first = await listFriends(token as string, 1, 'desc')
-            if (first.totalPages <= 1) {
-                return first.friends
-            }
-            const rest = await Promise.all(
-                Array.from({ length: first.totalPages - 1 }, (_, index) => listFriends(token as string, index + 2, 'desc')),
-            )
-            return [...first.friends, ...rest.flatMap((result) => result.friends)]
+            return fetchAllPages(first.totalPages, first.friends, async (page) => {
+                const result = await listFriends(token as string, page, 'desc')
+                return result.friends
+            })
         },
         enabled: token !== null,
     })

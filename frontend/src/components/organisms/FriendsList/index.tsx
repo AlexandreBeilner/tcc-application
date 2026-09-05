@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRemoveFriendshipMutation } from '../../../features/friendships/useRemoveFriendshipMutation'
+import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
 import { Pagination } from '../../molecules/Pagination'
 import type { FriendsListProps } from './types'
@@ -9,10 +10,6 @@ import styles from './index.module.css'
 export type { FriendsListProps } from './types'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-function initials(username: string): string {
-    return username.charAt(0).toUpperCase()
-}
 
 // Tela 8.1 (hub) — estado vazio (inventário: "sem amigos ainda, CTA pra
 // buscar") vai direto pra 8.2 (`/amigos/buscar`), não pro próprio hub.
@@ -52,9 +49,7 @@ export function FriendsList({ friends, page, totalPages, onPageChange }: Friends
                     return (
                         <li key={friend.userId} className={styles.row}>
                             <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${friend.userId}`)}>
-                                <span className={styles.avatar} aria-hidden="true">
-                                    {initials(friend.username)}
-                                </span>
+                                <Avatar username={friend.username} />
                                 <span className={styles.info}>
                                     <span className={styles.name}>{friend.name}</span>
                                     <span className={styles.username}>@{friend.username}</span>

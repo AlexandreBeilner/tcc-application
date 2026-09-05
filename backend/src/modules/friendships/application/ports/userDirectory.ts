@@ -10,5 +10,9 @@ export interface UserSummary {
 export interface UserDirectory {
   findByUsername(username: string): Promise<UserSummary | undefined>
   findById(id: string): Promise<UserSummary | undefined>
+  // Usado por `listFriends`/`listFriendRequests` (achado de revisão da
+  // 6.9.1) pra resolver só a página exibida com uma query em vez de uma
+  // por amizade.
+  findByIds(ids: string[]): Promise<UserSummary[]>
   searchByUsername(query: string, excludeUserId: string): Promise<UserSummary[]>
 }

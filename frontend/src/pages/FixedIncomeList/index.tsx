@@ -5,6 +5,7 @@ import type { AssetTableColumn } from '../../components/organisms/AssetTable'
 import { Pagination } from '../../components/molecules/Pagination'
 import { ASSETS_PAGE_SIZE, FIXED_INCOME_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
+import { useClientPagination } from '../../hooks/useClientPagination'
 import type { AssetSummary } from '../../services/market'
 import styles from './index.module.css'
 
@@ -27,14 +28,11 @@ const COLUMNS: AssetTableColumn[] = [
 export function FixedIncomeList() {
     const navigate = useNavigate()
     const [activeTabKey, setActiveTabKey] = useState(FIXED_INCOME_TABS[0].key)
-    const [page, setPage] = useState(1)
     const assetsQuery = useAssetsQuery()
 
     const activeTab = FIXED_INCOME_TABS.find((tab) => tab.key === activeTabKey) ?? FIXED_INCOME_TABS[0]
     const assets = assetsQuery.data ? filterAssetsByTab(assetsQuery.data.assets, activeTab) : []
-    const totalPages = Math.max(1, Math.ceil(assets.length / ASSETS_PAGE_SIZE))
-    const currentPage = Math.min(page, totalPages)
-    const pageAssets = assets.slice((currentPage - 1) * ASSETS_PAGE_SIZE, currentPage * ASSETS_PAGE_SIZE)
+    const { page: currentPage, totalPages, pageItems: pageAssets, setPage, resetPage } = useClientPagination(assets, ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
         navigate(`/mercado/renda-fixa/${asset.id}`)
@@ -42,7 +40,7 @@ export function FixedIncomeList() {
 
     function handleTabChange(tabKey: string) {
         setActiveTabKey(tabKey)
-        setPage(1)
+        resetPage()
     }
 
     return (

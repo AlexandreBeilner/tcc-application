@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/macroevent"
@@ -246,14 +247,29 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 			return
 		}
 
-		records, err := macroEvents.List(r.Context(), limit, offset)
-		if err != nil {
+		// List e Count são independentes (achado de revisão da 6.9.9) —
+		// disparadas em paralelo em vez de sequenciais, *db.MacroEventRepository
+		// usa database/sql por baixo, seguro pra uso concorrente.
+		var records []macroevent.Record
+		var total int
+		var listErr, countErr error
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			records, listErr = macroEvents.List(r.Context(), limit, offset)
+		}()
+		go func() {
+			defer wg.Done()
+			total, countErr = macroEvents.Count(r.Context())
+		}()
+		wg.Wait()
+
+		if listErr != nil {
 			writeCatalogError(w, http.StatusInternalServerError, "erro ao listar eventos macro")
 			return
 		}
-
-		total, err := macroEvents.Count(r.Context())
-		if err != nil {
+		if countErr != nil {
 			writeCatalogError(w, http.StatusInternalServerError, "erro ao contar eventos macro")
 			return
 		}

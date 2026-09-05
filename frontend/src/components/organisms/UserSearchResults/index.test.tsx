@@ -111,6 +111,13 @@ describe('UserSearchResults (tela 8.2)', () => {
         await waitFor(() => expect(acceptFriendRequest).toHaveBeenCalledWith('token', 'f1'))
     })
 
+    it('o próprio usuário na lista (regressão da exclusão feita pelo backend) mostra "Você", sem botão de ação', () => {
+        renderResults([{ id: 'u1', username: 'ana', name: 'Ana' }])
+
+        expect(screen.getByText('Você')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()
+    })
+
     it('clique no nome navega pro perfil público (8.4)', () => {
         renderResults([user])
 

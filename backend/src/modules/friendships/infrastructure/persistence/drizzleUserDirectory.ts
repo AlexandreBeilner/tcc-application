@@ -1,4 +1,4 @@
-import { and, eq, ilike, ne } from 'drizzle-orm'
+import { and, eq, ilike, inArray, ne } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { users } from '../../../../db/schema'
 import type { UserDirectory, UserSummary } from '../../application/ports/userDirectory'
@@ -19,6 +19,14 @@ export function createDrizzleUserDirectory(db: Database): UserDirectory {
     async findById(id) {
       const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1)
       return row ? toSummary(row) : undefined
+    },
+
+    async findByIds(ids) {
+      if (ids.length === 0) {
+        return []
+      }
+      const rows = await db.select().from(users).where(inArray(users.id, ids))
+      return rows.map(toSummary)
     },
 
     async searchByUsername(query, excludeUserId) {
