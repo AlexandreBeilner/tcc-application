@@ -17,10 +17,18 @@ const equityAsset: AssetDetail = {
 describe('assertProductUnlocked', () => {
   it('não lança quando a chave já está desbloqueada', async () => {
     const catalogReader = createFakeCatalogReader({ asset: equityAsset })
-    const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set(['asset:acao']) })
+    const productUnlockReader = createFakeProductUnlockReader({
+      unlockedKeys: new Set(['asset:acao']),
+    })
 
     await expect(
-      assertProductUnlocked(catalogReader, productUnlockReader, 'asset-1', 'user-1', EQUITY_ASSET_TYPES),
+      assertProductUnlocked(
+        catalogReader,
+        productUnlockReader,
+        'asset-1',
+        'user-1',
+        EQUITY_ASSET_TYPES,
+      ),
     ).resolves.toBeUndefined()
   })
 
@@ -28,7 +36,13 @@ describe('assertProductUnlocked', () => {
     const catalogReader = createFakeCatalogReader({ asset: { ...equityAsset, is_sandbox: true } })
     const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
 
-    await assertProductUnlocked(catalogReader, productUnlockReader, 'asset-1', 'user-1', EQUITY_ASSET_TYPES)
+    await assertProductUnlocked(
+      catalogReader,
+      productUnlockReader,
+      'asset-1',
+      'user-1',
+      EQUITY_ASSET_TYPES,
+    )
 
     expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
   })
@@ -37,7 +51,13 @@ describe('assertProductUnlocked', () => {
     const catalogReader = createFakeCatalogReader({ asset: { ...equityAsset, type: 'cdb' } })
     const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
 
-    await assertProductUnlocked(catalogReader, productUnlockReader, 'asset-1', 'user-1', EQUITY_ASSET_TYPES)
+    await assertProductUnlocked(
+      catalogReader,
+      productUnlockReader,
+      'asset-1',
+      'user-1',
+      EQUITY_ASSET_TYPES,
+    )
 
     expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
   })
@@ -50,7 +70,13 @@ describe('assertProductUnlocked', () => {
     })
 
     await expect(
-      assertProductUnlocked(catalogReader, productUnlockReader, 'asset-1', 'user-1', EQUITY_ASSET_TYPES),
+      assertProductUnlocked(
+        catalogReader,
+        productUnlockReader,
+        'asset-1',
+        'user-1',
+        EQUITY_ASSET_TYPES,
+      ),
     ).rejects.toThrow(ProductLockedError)
   })
 })

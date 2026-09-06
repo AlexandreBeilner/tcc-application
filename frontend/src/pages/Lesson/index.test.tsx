@@ -23,6 +23,8 @@ function renderLesson(id = 'lesson-1') {
             { path: '/trilha/:id', element: <Lesson /> },
             { path: '/mercado/renda-fixa/:id', element: <div>tela de detalhe de renda fixa</div> },
             { path: '/mercado/ativos/:id', element: <div>tela de detalhe de ativo</div> },
+            { path: '/', element: <div>tela de portfólio</div> },
+            { path: '/calculadora', element: <div>tela de calculadora</div> },
         ],
         { initialEntries: [`/trilha/${id}`] },
     )
@@ -206,6 +208,32 @@ describe('Lesson (tela 3.2)', () => {
 
         await screen.findByText('Desbloqueio')
         expect(screen.queryByRole('button', { name: 'Comprar agora' })).not.toBeInTheDocument()
+    })
+
+    it('desbloqueio com unlocksKeys de feature (portfolio) mostra "Ir pro Portfólio"', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 3, unlocksKeys: ['portfolio'] }),
+        })
+
+        renderLesson()
+
+        const button = await screen.findByRole('button', { name: 'Ir pro Portfólio' })
+        fireEvent.click(button)
+
+        expect(await screen.findByText('tela de portfólio')).toBeInTheDocument()
+    })
+
+    it('desbloqueio com unlocksKeys de feature (calculator) mostra "Ir pra Calculadora"', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 3, unlocksKeys: ['calculator'] }),
+        })
+
+        renderLesson()
+
+        const button = await screen.findByRole('button', { name: 'Ir pra Calculadora' })
+        fireEvent.click(button)
+
+        expect(await screen.findByText('tela de calculadora')).toBeInTheDocument()
     })
 
     it('lição já concluída reabre direto no desbloqueio (modo revisão), sem recreditar', async () => {

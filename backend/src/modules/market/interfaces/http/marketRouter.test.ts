@@ -37,7 +37,13 @@ function buildApp(
     assets: [
       { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: assetType, is_sandbox: false },
     ],
-    asset: { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: assetType, is_sandbox: false },
+    asset: {
+      id: 'asset-1',
+      ticker: 'PETR4',
+      name: 'Petrobras',
+      type: assetType,
+      is_sandbox: false,
+    },
     quotes: [{ simulated_day: 1, price: 100 }],
     company: {
       id: 'company-1',

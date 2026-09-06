@@ -10,6 +10,7 @@ import { FixedIncomeComparisonForm } from '../../components/organisms/FixedIncom
 import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicatorsPanel'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
+import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import type { Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -61,6 +62,11 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
     const canAdvanceMicroDecision = usesEmbeddedWidget || microDecisionConfirmed
     const unlockAssetPath = lesson?.unlocksAssetTicker && unlockAsset.asset ? assetDetailPath(unlockAsset.asset) : null
+    // Chave de feature (`portfolio`/`calculator`, ex: 0.1/0.2) em vez de
+    // produto real — mesmo mecanismo de CTA do Desbloqueio, generalizado pra
+    // rota fixa (tarefa 7.1.1). Mutuamente exclusivo com `unlockAssetPath` na
+    // prática: nenhuma lição autorada até aqui tem os dois.
+    const featureUnlockCta = lesson && !lesson.unlocksAssetTicker ? featureUnlockCtaFor(lesson.unlocksKeys) : null
 
     function goToTrack() {
         navigate('/trilha')
@@ -177,6 +183,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                             Voltar pra Trilha
                         </Button>
                         {unlockAssetPath && <Button onClick={() => navigate(unlockAssetPath)}>Comprar agora</Button>}
+                        {featureUnlockCta && <Button onClick={() => navigate(featureUnlockCta.path)}>{featureUnlockCta.label}</Button>}
                         <Button onClick={handleFinish}>Continuar</Button>
                     </div>
                 </section>

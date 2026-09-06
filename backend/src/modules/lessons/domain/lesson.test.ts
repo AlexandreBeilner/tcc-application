@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildLessonView, countCompleted, isUnlocked, lessonStatus, unlockedKeysFor, utcDateString } from './lesson'
+import {
+  buildLessonView,
+  countCompleted,
+  isUnlocked,
+  lessonStatus,
+  unlockedKeysFor,
+  utcDateString,
+} from './lesson'
 
 describe('isUnlocked', () => {
   it.each([
@@ -103,7 +110,11 @@ describe('unlockedKeysFor', () => {
 describe('countCompleted', () => {
   it('conta só entradas com completedAt preenchido', () => {
     expect(
-      countCompleted([{ completedAt: new Date() }, { completedAt: null }, { completedAt: new Date() }]),
+      countCompleted([
+        { completedAt: new Date() },
+        { completedAt: null },
+        { completedAt: new Date() },
+      ]),
     ).toBe(2)
   })
 
