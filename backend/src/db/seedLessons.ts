@@ -731,6 +731,126 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },
+  {
+    code: '2.7',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 26,
+    title: 'Dividendos e data ex',
+    centralConcept: 'Como e quando o acionista recebe',
+    scenarioText:
+      'Você tem VALR3 na carteira no dia em que a Mineradora Vale do Rio fecha seu ciclo de relatório (a ' +
+      'cada 14 dias simulados) e a empresa distribui parte do lucro como dividendo. Nesse exato dia, a ' +
+      'plataforma registra quem tem direito a receber esse provento: é a data ex.',
+    microDecisionPrompt:
+      'Se você vender toda a sua posição em VALR3 um dia depois da data ex, mas antes do dia de pagamento, ' +
+      'ainda recebe o dividendo dessa distribuição?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Sim. O direito ao provento é definido pela posição que você tinha exatamente na data ex, o dia de ' +
+      'relatório em que o dividendo é gerado, não pela posição no dia do pagamento. A plataforma registra ' +
+      'quem tem posição nesse momento e paga esse mesmo grupo depois, com uma defasagem fixa de 5 dias ' +
+      'simulados entre a data ex e o pagamento, sempre antes do próximo ciclo de relatório distribuir um ' +
+      'novo provento sobre o mesmo ativo. Vender depois da data ex não tira o seu direito ao provento já ' +
+      'gerado; comprar depois da data ex não dá direito a ele, só ao provento do próximo ciclo. O valor por ' +
+      'ação, o mesmo que forma o Dividend Yield da lição anterior, é creditado direto no seu saldo, e vale ' +
+      'tanto para ações quanto para FIIs, o produto da lição 2.10.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '2.8',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 27,
+    title: 'Setores e ciclicidade',
+    centralConcept: 'Conecta com Selic afetando fundamentos (3.2.2), defensivo vs cíclico',
+    scenarioText:
+      'A Selic não afeta só renda fixa: ela também entra na simulação dos fundamentos de toda empresa ' +
+      'listada, e não afeta todas do mesmo jeito. A Mineradora Vale do Rio (VALR3, setor Mineração, perfil ' +
+      'Conservador) e o Banco Nordeste Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado) reagem ' +
+      'de forma diferente quando a Selic simulada sobe.',
+    microDecisionPrompt:
+      'Perfil Sofisticado (setores mais cíclicos e alavancados) é mais sensível a juros altos do que perfil ' +
+      'Conservador (fluxo de caixa mais estável). Numa alta de Selic, qual das duas você espera que sinta um ' +
+      'efeito maior nos fundamentos: VALR3 (Conservador) ou BNDD4 (Sofisticado)?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'BNDD4 sente um efeito maior. É o mesmo perfil de risco (Conservador/Sofisticado) que você já viu na ' +
+      'Trilha 1 para renda fixa, aqui aplicado ao efeito da Selic sobre os fundamentos de cada empresa: ' +
+      'perfil Sofisticado, como o do Banco Nordeste Digital, concentra setores mais cíclicos e alavancados, ' +
+      'mais sensíveis a juros altos; perfil Conservador, como o da Mineradora Vale do Rio, tem fluxo de caixa ' +
+      'mais estável e sente menos esse efeito. É essa mesma lógica que explica por que diversificar entre ' +
+      'setores e perfis diferentes reduz o risco da carteira: numa alta de juros, nem todas as empresas ' +
+      'pioram do mesmo jeito, e um portfólio concentrado só em setores cíclicos sofre mais do que um ' +
+      'distribuído entre defensivo e cíclico.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '2.9',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 28,
+    title: 'ETFs',
+    centralConcept: 'Diversificação automática via índice',
+    scenarioText:
+      'Comprar uma única cota do ETF Índice Sintético (SINT11) dá exposição, de uma vez, a uma cesta inteira ' +
+      'de empresas que compõem o índice de referência dele, hoje replicado por amostragem representativa ' +
+      'com a Mineradora Vale do Rio (40% do peso), o Banco Nordeste Digital (35%) e outras posições ' +
+      'agregadas (25%). Em vez de escolher ação por ação, você compra o índice inteiro.',
+    microDecisionPrompt:
+      'Se só a Mineradora Vale do Rio (40% do peso do SINT11) sofrer uma queda forte de preço, o preço do ' +
+      'SINT11 inteiro deveria cair na mesma proporção, ou menos?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Menos. O preço do ETF acompanha o índice de referência que ele replica, formado pela média ponderada ' +
+      'de todos os constituintes, não só de um. Com a Mineradora Vale do Rio pesando 40% da composição, uma ' +
+      'queda forte só nela puxa o índice pra baixo proporcionalmente a esse peso, mas o resto da cesta ' +
+      '(Banco Nordeste Digital e outras posições) amortece o efeito. É essa diversificação automática, numa ' +
+      'única compra, que torna o ETF diferente de comprar uma ação isolada: você nunca fica 100% exposto ao ' +
+      'resultado de uma empresa só. Completar esta lição libera a compra real do SINT11 no Mercado.',
+    unlocksDescription: 'Compra real de ETF (SINT11) no Mercado',
+    unlocksKeys: ['asset:etf'],
+    unlocksAssetTicker: 'SINT11',
+  },
+  {
+    code: '2.10',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 29,
+    title: 'FIIs',
+    centralConcept: 'Fundos imobiliários, tickers final 11',
+    scenarioText:
+      'FII (Fundo de Investimento Imobiliário) também tem ticker terminado em 11, igual ETF (lição 2.3), mas ' +
+      'o produto por trás é bem diferente: em vez de replicar um índice de ações, um FII investe em imóveis ' +
+      'ou em recebíveis ligados ao setor imobiliário, e distribui o resultado como dividendo aos cotistas. O ' +
+      'FII Tijolo Corporativo (TJLO11) é dono direto de imóveis (segmento Lajes Corporativas, com 5,2% de ' +
+      'vacância); o FII Papel Recebíveis (PAPL11) não tem imóvel nenhum, ele é dono de uma carteira de ' +
+      'recebíveis (dívidas ligadas ao setor imobiliário) indexada ao CDI.',
+    microDecisionPrompt:
+      'TJLO11 tem 5,2% de vacância (fração dos imóveis dele sem inquilino no momento). Esse indicador de ' +
+      'vacância faz sentido calcular também pro PAPL11, que não tem imóvel próprio?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Não faz sentido: vacância é um indicador exclusivo do perfil tijolo, porque só existe imóvel físico ' +
+      'pra ficar vago. O perfil papel, como o PAPL11, é avaliado por indicadores diferentes, principalmente o ' +
+      'indexador da carteira de recebíveis (CDI, no caso do PAPL11) e o valor total dessa carteira, já que o ' +
+      'resultado dele vem do que os devedores pagam, não do aluguel de um imóvel. Os dois perfis, porém, ' +
+      'compartilham o mesmo Dividend Yield (lição 2.6.6) como indicador comum de quanto o FII distribui ' +
+      'frente ao preço da cota. Completar esta lição libera a compra real de FIIs no Mercado e conclui a ' +
+      'Trilha 2 (Renda Variável): a Trilha 3 (Estratégia e Tributação) abre na sequência.',
+    unlocksDescription:
+      'Compra real de FIIs (TJLO11/PAPL11) no Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
+    unlocksKeys: ['asset:fii'],
+    unlocksAssetTicker: 'TJLO11',
+  },
 ]
 
 // Idempotente: DATABASE_URL=... npm run db:seed:lessons
