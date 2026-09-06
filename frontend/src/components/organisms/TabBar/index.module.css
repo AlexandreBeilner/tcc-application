@@ -30,6 +30,11 @@
     border-bottom-color: var(--color-brand-500);
 }
 
+.locked {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+}
+
 /* Abaixo de 768px (tarefa 6.3.3): barra inferior fixa, padrão de app
    mobile nativo — tab bar fixa no topo é ruim de alcançar com o polegar
    (decisão revertida nesta sessão, ver backlog 6.3.3). Itens divididos em

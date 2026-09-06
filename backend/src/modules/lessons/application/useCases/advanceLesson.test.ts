@@ -14,7 +14,14 @@ const lessons = [1, 2].map((n) => ({
   trackName: 'Trilha 0: Fundamentos',
   sortOrder: n,
   centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: null,
+  unlocksKeys: [],
+  unlocksAssetTicker: null,
 }))
 
 function build() {

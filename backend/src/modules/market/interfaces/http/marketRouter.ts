@@ -2,7 +2,7 @@ import type { Response } from 'express'
 import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
-import { EngineRequestError } from '../../domain/errors'
+import { EngineRequestError, ProductLockedError } from '../../domain/errors'
 import type { GetAssetQuotesUseCase } from '../../application/useCases/getAssetQuotes'
 import type { GetAssetUseCase } from '../../application/useCases/getAsset'
 import type { GetCompanyUseCase } from '../../application/useCases/getCompany'
@@ -40,11 +40,19 @@ export interface MarketRouterDeps {
   authMiddleware: AuthMiddleware
 }
 
-// `market` não tem regra de negócio própria — a regra de fato vive no
-// engine/, que já devolve o status/mensagem certos (400/404/422/503).
-// Este helper só evita repetir o mesmo bloco try/catch nas 9 rotas
-// (tarefa 6.0.3).
+// `market` não tem regra de negócio própria além do gate de desbloqueio
+// (`ProductLockedError`, tarefa 7.0.1) — o resto vive no engine/, que já
+// devolve o status/mensagem certos (400/404/422/503). Este helper só evita
+// repetir o mesmo bloco try/catch nas rotas (tarefa 6.0.3).
 function sendEngineError(err: unknown, res: Response): void {
+  if (err instanceof ProductLockedError) {
+    res.status(err.status).json({
+      error: err.message,
+      key: err.key,
+      unlockingLesson: err.unlockingLesson ?? null,
+    })
+    return
+  }
   if (err instanceof EngineRequestError) {
     res.status(err.status).json({ error: err.message })
     return

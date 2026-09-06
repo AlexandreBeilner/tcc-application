@@ -10,7 +10,14 @@ const lesson = {
   trackName: 'Trilha 0',
   sortOrder: 1,
   centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: null,
+  unlocksKeys: [],
+  unlocksAssetTicker: null,
 }
 
 describe('HasCompletedLessonTodayUseCase', () => {

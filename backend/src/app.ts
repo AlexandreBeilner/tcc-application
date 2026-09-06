@@ -31,7 +31,9 @@ import { createStreakRouter } from './modules/gamification/interfaces/http/strea
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
+import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
+import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/useCases/getUnlockedProductKeys'
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
@@ -118,6 +120,7 @@ import { createEngineAccountReader } from './modules/market/infrastructure/engin
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
 import { createEngineFixedIncomeExecutor } from './modules/market/infrastructure/engine/engineFixedIncomeExecutor'
 import { createEngineOrderExecutor } from './modules/market/infrastructure/engine/engineOrderExecutor'
+import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 
@@ -165,6 +168,10 @@ export function createApp(deps: AppDeps = {}): Express {
   const macroEventTrigger = createEngineMacroEventTrigger(engineUrl)
   const macroEventReader = createEngineMacroEventReader(engineUrl)
 
+  // `lessonRepository` precisa existir antes do módulo `market` abaixo —
+  // é o dado-fonte do gate de desbloqueio (`productUnlockReader`, 7.0.1).
+  const lessonRepository = createDrizzleLessonRepository(db)
+
   // Módulo `market` (tarefa 6.0.3) — proxy fino de leitura/escrita do
   // motor, autenticação à parte (o motor não conhece usuário). Não
   // reaproveita `getNetWorth`/os readers do ranking abaixo — ver
@@ -173,14 +180,25 @@ export function createApp(deps: AppDeps = {}): Express {
   const accountReader = createEngineAccountReader(engineUrl)
   const orderExecutor = createEngineOrderExecutor(engineUrl)
   const fixedIncomeExecutor = createEngineFixedIncomeExecutor(engineUrl)
+  // Gate real de desbloqueio por lição (tarefa 7.0.1, achado 5) — adapter em
+  // processo sobre `modules/lessons`, mesmo padrão de
+  // `inProcessLessonCompletionChecker` (missions, 5.4).
+  const productUnlockReader = createInProcessProductUnlockReader(
+    new GetUnlockedProductKeysUseCase(lessonRepository),
+    new FindLessonUnlockingKeyUseCase(lessonRepository),
+  )
   const listAssets = new ListAssetsUseCase(catalogReader)
   const getAsset = new GetAssetUseCase(catalogReader)
   const getAssetQuotes = new GetAssetQuotesUseCase(catalogReader)
   const getCompany = new GetCompanyUseCase(catalogReader)
   const getMyAccount = new GetMyAccountUseCase(accountReader)
   const listMyEvents = new ListMyEventsUseCase(accountReader)
-  const placeOrder = new PlaceOrderUseCase(orderExecutor)
-  const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor)
+  const placeOrder = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
+  const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(
+    fixedIncomeExecutor,
+    catalogReader,
+    productUnlockReader,
+  )
   const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
   const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
   const getFixedIncomeTaxRate = new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor)
@@ -214,7 +232,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const markNewsEventAsSeen = new MarkNewsEventAsSeenUseCase(newsReadRepository)
   const progressionRepository = createDrizzleProgressionRepository(db)
   const getProgression = new GetProgressionUseCase(progressionRepository)
-  const lessonRepository = createDrizzleLessonRepository(db)
   const countCompletedLessons = new CountCompletedLessonsUseCase(lessonRepository)
 
   // Readers de patrimônio/ranking (5.5) — precisam existir antes de

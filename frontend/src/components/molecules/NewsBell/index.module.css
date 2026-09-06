@@ -24,3 +24,10 @@
     border-radius: var(--radius-full);
     background: var(--color-gamify-500);
 }
+
+.lockBadge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    color: var(--color-text-muted);
+}

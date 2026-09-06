@@ -10,7 +10,14 @@ const track0 = [1, 2, 3, 4, 5].map((n) => ({
   trackName: 'Trilha 0: Fundamentos',
   sortOrder: n,
   centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: n === 5 ? 'Acesso à Trilha 1 (Renda Fixa)' : null,
+  unlocksKeys: [] as string[],
+  unlocksAssetTicker: null,
 }))
 
 const lesson11 = {
@@ -21,7 +28,14 @@ const lesson11 = {
   trackName: 'Trilha 1: Renda Fixa',
   sortOrder: 6,
   centralConcept: 'Emprestar dinheiro a um emissor',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: 'Tesouro Selic',
+  unlocksKeys: [],
+  unlocksAssetTicker: null,
 }
 
 describe('GetTrackMapUseCase', () => {

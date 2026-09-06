@@ -6,13 +6,17 @@ Regra de desbloqueio: progressão linear por `sortOrder` global — uma lição 
 
 Steps de uma lição (spec 5.2): `0`=cenário, `1`=micro-decisão, `2`=revelação, `3`=desbloqueio. Chegar no step `3` pela primeira vez marca a lição como concluída, credita xp (`LESSON_XP_REWARD`, flat, ilustrativo — sujeito à calibração 8.1) e toca o streak diário. Reenviar o step `3` ou reabrir a lição depois (modo revisão, tela 3.2) nunca credita de novo — idempotente por `completedAt` já preenchido.
 
+Desbloqueio real de funcionalidade/produto (tarefa 7.0.1, diferente da progressão lição-a-lição acima): `unlocksKeys` (vocabulário fixo — `portfolio`, `calculator`, `news_feed` ou `asset:<AssetType>`) some lição-a-lição pra formar o conjunto de chaves desbloqueadas de um usuário — `unlockedKeysFor(completedCount, lessons)`, união de `unlocksKeys` de toda lição com `sortOrder <= completedCount` (a lição precisa estar **concluída**, não só disponível). Consumido de dois jeitos: (a) `modules/market` (`ProductUnlockReader`, ver `.docs/backend/market.md`) nega `POST /market/orders`/`fixed-income/purchases` de ativo real ainda travado; (b) frontend espelha a mesma função em TS puro (`features/lessons/unlockedKeys.ts`) a partir do `unlocksKeys` que `GET /lessons` já devolve por lição — sem endpoint novo.
+
+Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenarioText`/`microDecisionPrompt`/`revelationText` (`text NOT NULL DEFAULT ''`) sustentam os passos Cenário/Micro-decisão/Revelação da tela 3.2 (antes desta tarefa, a tela reaproveitava `centralConcept` idêntico nos 3). `microDecisionType` (`pgEnum` — `reflection`/`growth_calculator`/`fixed_income_comparison`/`live_indicator`, default `reflection`) escolhe o widget do passo Micro-decisão no frontend; `microDecisionAssetTicker` (nullable) só é usado quando o tipo é `live_indicator` — a Revelação busca o indicador ao vivo desse ticker via `GET /market/assets/:id` (resolvido antes por `GET /market/assets`, sem endpoint novo). `unlocksAssetTicker` (nullable) é preenchido só nas lições cujo `unlocksKeys` inclui um `asset:*` — ticker canônico real do produto recém-desbloqueado, usado pelo botão "Comprar agora" do passo Desbloqueio (deep-link pro Detalhe de Ativo real). Lições ainda não autoradas (autoria é a tarefa 7.1) ficam com os 3 campos de texto vazios e `microDecisionType`/`unlocksAssetTicker` no default — estado de transição esperado, não bug.
+
 ---
 
 ### `GET /lessons`
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ lessons: [{ id, code, title, trackNumber, trackName, sortOrder, centralConcept, unlocksDescription, status, currentStep }] }`, ordenado por `sortOrder`. `status` é `completed`/`available`/`locked`, calculado por usuário.
+- **Sucesso:** `200` → `{ lessons: [{ id, code, title, trackNumber, trackName, sortOrder, centralConcept, scenarioText, microDecisionPrompt, microDecisionType, microDecisionAssetTicker, revelationText, unlocksDescription, unlocksKeys, unlocksAssetTicker, status, currentStep }] }`, ordenado por `sortOrder`. `status` é `completed`/`available`/`locked`, calculado por usuário. `unlocksKeys` (tarefa 7.0.1) é `string[]` — normalmente `[]`, só preenchido nas lições que desbloqueiam feature/produto de verdade (ver acima). `scenarioText`/`microDecisionPrompt`/`revelationText`/`microDecisionType`/`microDecisionAssetTicker`/`unlocksAssetTicker` (tarefa 7.0.2) sustentam o conteúdo pedagógico real por passo (ver acima) — os 3 campos de texto podem vir vazios pra lição ainda não autorada.
 - **Erros:** `401` — token ausente ou inválido/expirado.
 - **Regra:** `GetTrackMapUseCase`.
 
@@ -45,7 +49,7 @@ Steps de uma lição (spec 5.2): `0`=cenário, `1`=micro-decisão, `2`=revelaç�
 
 ## Seed mínimo (não é o currículo completo)
 
-`npm run db:seed:lessons` (idempotente, `ON CONFLICT (code) DO NOTHING`) — 6 lições reais da spec seção 5.1: `0.1`–`0.5` (Trilha 0: Fundamentos, completa) + `1.1` (Trilha 1: Renda Fixa, só a primeira). Suficiente pra exercitar a cadeia de desbloqueio entre trilhas ponta a ponta. Autoria das 33 lições do currículo completo é escopo da semana 7.
+`npm run db:seed:lessons` (idempotente, `ON CONFLICT (code) DO NOTHING`) — 7 lições reais da spec seção 5.1: `0.1`–`0.5` (Trilha 0: Fundamentos, completa) + `1.1`/`1.2` (Trilha 1: Renda Fixa, só as duas primeiras). `0.1`–`1.1` ainda ficam com `scenarioText`/`microDecisionPrompt`/`revelationText` vazios (autoria real é a tarefa 7.1); `1.2` (Tesouro Selic) é exceção deliberada da tarefa 7.0.2 — conteúdo pedagógico completo (`microDecisionType = 'reflection'`, `unlocksKeys = ['asset:tesouro_selic']`, `unlocksAssetTicker = 'LFT2029'`), escrito pra provar o pipeline schema→API→tela ponta a ponta (inclusive o botão "Comprar agora") antes da 7.1.2 autorar `1.3`–`1.9` em massa. Suficiente pra exercitar a cadeia de desbloqueio entre trilhas ponta a ponta. Autoria das 33 lições do currículo completo é escopo da semana 7.
 
 ## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
 

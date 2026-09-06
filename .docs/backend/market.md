@@ -10,6 +10,8 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 
 **Não existe `GET /market/users/:id/account`** — só `/me/*`. Reforça RNF09 estruturalmente: valor absoluto de patrimônio nunca é exposto a outro usuário, e aqui isso é garantido pela ausência da rota, não por uma checagem condicional.
 
+**Gate de desbloqueio por lição (tarefa 7.0.1):** diferente do resto do módulo, `PlaceOrderUseCase`/`PurchaseFixedIncomeUseCase` **têm** uma regra de negócio própria (não delegada ao motor) — o achado mais grave da revisão da Semana 7 era que qualquer usuário, mesmo sem completar nenhuma lição, já conseguia operar um ativo real. O `403` das duas rotas foge da convenção `{ error }` do resto do módulo: o corpo é `{ error, key, unlockingLesson }`, onde `key` é a chave travada (`asset:<AssetType>`) e `unlockingLesson` é `{ code, title }` da lição que a desbloqueia (`null` se nenhuma lição seedada ainda cobre a chave — currículo incompleto até a tarefa 7.1). Ver `ProductUnlockReader`/`inProcessProductUnlockReader.ts` (adapter em processo sobre `modules/lessons`, mesmo padrão de `modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker.ts`).
+
 ---
 
 ## Catálogo (leitura — qualquer usuário autenticado)
@@ -74,8 +76,8 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Autenticação:** Bearer token.
 - **Payload:** `asset_id` (UUID), `side` (`buy`/`sell`), `type` (`market`/`limit`), `price` (obrigatório e > 0 só se `type = limit`), `quantity` (inteiro > 0) — ver `.docs/engine/orders.md`.
 - **Sucesso:** `201` → `{ filled_quantity, remaining_quantity, fills: [...] }`, corpo idêntico ao do motor.
-- **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente (traduzido do motor, nada é persistido).
-- **Regra:** `PlaceOrderUseCase` → `OrderExecutor.submit`. Validado ponta a ponta via `docker compose up`: uma ordem `market` real executa contra liquidez sintética e reflete em `GET /market/me/account`/`GET /market/me/events` imediatamente.
+- **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `403` — produto travado pela trilha (tarefa 7.0.1, abaixo); `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente (traduzido do motor, nada é persistido).
+- **Regra:** `PlaceOrderUseCase` → resolve o `AssetType` do ativo (`CatalogReader.getAsset`) e, se **não for sandbox**, exige `asset:<type>` no conjunto de chaves desbloqueadas do usuário (`ProductUnlockReader`, port sobre `modules/lessons` — tarefa 7.0.1) antes de repassar pro `OrderExecutor.submit`. Sandbox (`is_sandbox = true`) segue isento (RF12). Validado ponta a ponta via `docker compose up`: uma ordem `market` real executa contra liquidez sintética e reflete em `GET /market/me/account`/`GET /market/me/events` imediatamente.
 
 ### `GET /market/fixed-income/simulate`
 
@@ -102,8 +104,8 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Autenticação:** Bearer token.
 - **Payload:** `asset_id` (UUID), `amount` (> 0, valor do aporte em R$) — ver `.docs/engine/fixedincome.md`.
 - **Sucesso:** `201` → `{ unit_price, quantity_purchased, position: {...} }`, corpo idêntico ao do motor.
-- **Erros:** `400` — payload inválido ou ativo não é de renda fixa. `401`; `404`; `422` — abaixo do aporte mínimo ou saldo insuficiente.
-- **Regra:** `PurchaseFixedIncomeUseCase` → `FixedIncomeExecutor.purchase`. Validado ponta a ponta via `docker compose up`.
+- **Erros:** `400` — payload inválido ou ativo não é de renda fixa. `401`; `403` — produto travado pela trilha (tarefa 7.0.1, mesmo gate de `POST /market/orders` acima); `404`; `422` — abaixo do aporte mínimo ou saldo insuficiente.
+- **Regra:** `PurchaseFixedIncomeUseCase` → mesmo gate de desbloqueio de `POST /market/orders` (não se aplica ao resgate, `POST /market/fixed-income/redemptions` abaixo — resgatar uma posição já existente não é "comprar produto travado") → `FixedIncomeExecutor.purchase`. Validado ponta a ponta via `docker compose up`.
 
 ### `POST /market/fixed-income/redemptions`
 

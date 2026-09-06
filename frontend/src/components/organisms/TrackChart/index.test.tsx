@@ -12,7 +12,14 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         trackName: 'Fundamentos',
         sortOrder: 1,
         centralConcept: '',
+        scenarioText: '',
+        microDecisionPrompt: '',
+        microDecisionType: 'reflection',
+        microDecisionAssetTicker: null,
+        revelationText: '',
         unlocksDescription: '',
+        unlocksKeys: [],
+        unlocksAssetTicker: null,
         status: 'locked',
         currentStep: 0,
         ...overrides,
@@ -101,5 +108,4 @@ describe('TrackChart', () => {
         rerender(<TrackChart lessons={lessons} expandedHintId="2" onNodeClick={vi.fn()} />)
         expect(screen.getByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
     })
-
 })

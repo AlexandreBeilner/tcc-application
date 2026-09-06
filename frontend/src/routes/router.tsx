@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
+import { RequiresUnlock } from '../features/lessons/RequiresUnlock'
 import { AppShell } from '../components/templates/AppShell'
 import { Amigos } from '../pages/Amigos'
 import { AssetDetail } from '../pages/AssetDetail'
@@ -55,7 +56,14 @@ export const router = createBrowserRouter([
             {
                 element: <AppShell />,
                 children: [
-                    { path: '/', element: <Portfolio /> },
+                    // Portfólio/Calculadora só desbloqueiam de verdade depois de
+                    // 0.1/0.2 (tarefa 7.0.1, achado 5) — `RequiresUnlock` redireciona
+                    // pra `/trilha` antes disso, mesmo padrão de nesting de
+                    // `<ProtectedRoute requireRole="admin">` abaixo.
+                    {
+                        element: <RequiresUnlock unlockKey="portfolio" />,
+                        children: [{ path: '/', element: <Portfolio /> }],
+                    },
                     // 3.1 Mapa da Trilha e 3.2 Lição (tarefa 6.4) — `/trilha/:id`
                     // é rota irmã, não filha de `/trilha`, já que a Lição ocupa a
                     // tela inteira dentro do mesmo <AppShell> (sem navegação
@@ -73,7 +81,10 @@ export const router = createBrowserRouter([
                     { path: '/mercado/renda-variavel', element: <EquityList /> },
                     { path: '/mercado/ativos/:id', element: <AssetDetail /> },
                     { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
-                    { path: '/calculadora', element: <Calculator /> },
+                    {
+                        element: <RequiresUnlock unlockKey="calculator" />,
+                        children: [{ path: '/calculadora', element: <Calculator /> }],
+                    },
                     { path: '/classificacao', element: <Classificacao /> },
                     { path: '/noticias', element: <News /> },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)

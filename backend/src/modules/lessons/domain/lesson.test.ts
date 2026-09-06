@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildLessonView, isUnlocked, lessonStatus, utcDateString } from './lesson'
+import {
+  buildLessonView,
+  countCompleted,
+  isUnlocked,
+  lessonStatus,
+  unlockedKeysFor,
+  utcDateString,
+} from './lesson'
 
 describe('isUnlocked', () => {
   it.each([
@@ -41,7 +48,14 @@ describe('buildLessonView', () => {
     trackName: 'Trilha 0: Fundamentos',
     sortOrder: 1,
     centralConcept: 'Investir vs poupar',
+    scenarioText: '',
+    microDecisionPrompt: '',
+    microDecisionType: 'reflection' as const,
+    microDecisionAssetTicker: null,
+    revelationText: '',
     unlocksDescription: 'Acesso ao Portfólio',
+    unlocksKeys: ['portfolio'],
+    unlocksAssetTicker: null,
   }
 
   it('sem progresso: primeira lição available, currentStep=0', () => {
@@ -62,6 +76,50 @@ describe('buildLessonView', () => {
     const view = buildLessonView(lesson, { currentStep: 3, completedAt: new Date() }, 0)
 
     expect(view.status).toBe('completed')
+  })
+})
+
+describe('unlockedKeysFor', () => {
+  const lessons = [
+    { sortOrder: 1, unlocksKeys: ['portfolio'] },
+    { sortOrder: 2, unlocksKeys: ['calculator'] },
+    { sortOrder: 3, unlocksKeys: [] },
+    { sortOrder: 6, unlocksKeys: ['asset:tesouro_selic'] },
+  ]
+
+  it('nenhuma lição concluída → nenhuma chave desbloqueada', () => {
+    expect(unlockedKeysFor(0, lessons)).toEqual(new Set())
+  })
+
+  it('só chaves de lições com sortOrder <= completedCount', () => {
+    expect(unlockedKeysFor(2, lessons)).toEqual(new Set(['portfolio', 'calculator']))
+  })
+
+  it('lição sem unlocksKeys não adiciona nada (mesma progressão via sortOrder)', () => {
+    expect(unlockedKeysFor(3, lessons)).toEqual(new Set(['portfolio', 'calculator']))
+  })
+
+  it('une chaves de múltiplas lições concluídas, sem duplicar', () => {
+    const withDuplicate = [...lessons, { sortOrder: 6, unlocksKeys: ['asset:tesouro_selic'] }]
+    expect(unlockedKeysFor(6, withDuplicate)).toEqual(
+      new Set(['portfolio', 'calculator', 'asset:tesouro_selic']),
+    )
+  })
+})
+
+describe('countCompleted', () => {
+  it('conta só entradas com completedAt preenchido', () => {
+    expect(
+      countCompleted([
+        { completedAt: new Date() },
+        { completedAt: null },
+        { completedAt: new Date() },
+      ]),
+    ).toBe(2)
+  })
+
+  it('0 pra lista vazia', () => {
+    expect(countCompleted([])).toBe(0)
   })
 })
 

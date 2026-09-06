@@ -1,0 +1,1 @@
+ALTER TABLE "lessons" ADD COLUMN "unlocks_keys" text[] DEFAULT '{}'::text[] NOT NULL;

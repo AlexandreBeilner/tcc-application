@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { AssetTable } from '../../components/organisms/AssetTable'
 import type { AssetTableColumn } from '../../components/organisms/AssetTable'
 import { Pagination } from '../../components/molecules/Pagination'
 import { ASSETS_PAGE_SIZE, EQUITY_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
+import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
+import type { UseLockedAssetGateResult } from '../../features/market/useLockedAssetGate'
 import { formatSignedPercent } from '../../features/market/format'
 import { formatCurrency } from '../../features/portfolio/format'
 import { useClientPagination } from '../../hooks/useClientPagination'
@@ -24,38 +25,55 @@ function changeColumn(asset: AssetSummary): string {
 // Yield só existem em `GET /market/assets/:id` (mesma decisão de escopo
 // da 4.2, `pages/FixedIncomeList`: listar isso na 4.4 exigiria N+1
 // chamadas de detalhe).
-const COLUMNS_BY_TAB: Record<string, AssetTableColumn[]> = {
-    acoes: [
-        { key: 'ticker', header: 'Ticker', render: (asset) => asset.ticker },
-        { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? '—' },
-        { key: 'price', header: 'Último preço', render: priceColumn },
-        { key: 'change', header: 'Variação do dia', render: changeColumn },
-    ],
-    etfs: [
-        { key: 'ticker', header: 'Ticker', render: (asset) => asset.ticker },
-        { key: 'name', header: 'Nome', render: (asset) => asset.name },
-        { key: 'price', header: 'Último preço', render: priceColumn },
-        { key: 'change', header: 'Variação do dia', render: changeColumn },
-    ],
-    fiis: [
-        { key: 'ticker', header: 'Ticker', render: (asset) => asset.ticker },
-        { key: 'name', header: 'Nome', render: (asset) => asset.name },
-        { key: 'price', header: 'Último preço', render: priceColumn },
-        { key: 'change', header: 'Variação do dia', render: changeColumn },
-    ],
+//
+// Gate de desbloqueio da coluna Ticker (tarefa 7.0.1) vive inteiro em
+// `useLockedAssetGate` (extraído da revisão da Semana 7, compartilhado com
+// `pages/FixedIncomeList`) — reflexo de UX, a garantia de verdade é o 403
+// do backend (`ProductLockedError`).
+function buildColumnsByTab(gate: UseLockedAssetGateResult): Record<string, AssetTableColumn[]> {
+    function tickerColumn(asset: AssetSummary) {
+        return (
+            <span className={styles.tickerCell}>
+                {gate.lockedBadge(asset)}
+                {asset.ticker}
+            </span>
+        )
+    }
+
+    return {
+        acoes: [
+            { key: 'ticker', header: 'Ticker', render: tickerColumn },
+            { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? '—' },
+            { key: 'price', header: 'Último preço', render: priceColumn },
+            { key: 'change', header: 'Variação do dia', render: changeColumn },
+        ],
+        etfs: [
+            { key: 'ticker', header: 'Ticker', render: tickerColumn },
+            { key: 'name', header: 'Nome', render: (asset) => asset.name },
+            { key: 'price', header: 'Último preço', render: priceColumn },
+            { key: 'change', header: 'Variação do dia', render: changeColumn },
+        ],
+        fiis: [
+            { key: 'ticker', header: 'Ticker', render: tickerColumn },
+            { key: 'name', header: 'Nome', render: (asset) => asset.name },
+            { key: 'price', header: 'Último preço', render: priceColumn },
+            { key: 'change', header: 'Variação do dia', render: changeColumn },
+        ],
+    }
 }
 
 export function EquityList() {
-    const navigate = useNavigate()
     const [activeTabKey, setActiveTabKey] = useState(EQUITY_TABS[0].key)
     const assetsQuery = useAssetsQuery()
+    const gate = useLockedAssetGate()
+    const columnsByTab = buildColumnsByTab(gate)
 
     const activeTab = EQUITY_TABS.find((tab) => tab.key === activeTabKey) ?? EQUITY_TABS[0]
     const assets = assetsQuery.data ? filterAssetsByTab(assetsQuery.data.assets, activeTab) : []
     const { page: currentPage, totalPages, pageItems: pageAssets, setPage, resetPage } = useClientPagination(assets, ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
-        navigate(`/mercado/ativos/${asset.id}`)
+        gate.selectOrRedirectToLesson(asset, `/mercado/ativos/${asset.id}`)
     }
 
     function handleTabChange(tabKey: string) {
@@ -92,7 +110,7 @@ export function EquityList() {
                 <>
                     <AssetTable
                         assets={pageAssets}
-                        columns={COLUMNS_BY_TAB[activeTab.key]}
+                        columns={columnsByTab[activeTab.key]}
                         onSelect={handleSelect}
                         emptyMessage="Nenhum ativo disponível nesta categoria ainda."
                     />
