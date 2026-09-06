@@ -1,13 +1,11 @@
-import { useCallback, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { AssetTable } from '../../components/organisms/AssetTable'
 import type { AssetTableColumn } from '../../components/organisms/AssetTable'
-import { LockedAssetBadge } from '../../components/molecules/LockedAssetBadge'
 import { Pagination } from '../../components/molecules/Pagination'
-import { assetUnlockKey, findLessonUnlocking } from '../../features/lessons/unlockedKeys'
-import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { ASSETS_PAGE_SIZE, EQUITY_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
+import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
+import type { UseLockedAssetGateResult } from '../../features/market/useLockedAssetGate'
 import { formatSignedPercent } from '../../features/market/format'
 import { formatCurrency } from '../../features/portfolio/format'
 import { useClientPagination } from '../../hooks/useClientPagination'
@@ -28,18 +26,15 @@ function changeColumn(asset: AssetSummary): string {
 // da 4.2, `pages/FixedIncomeList`: listar isso na 4.4 exigiria N+1
 // chamadas de detalhe).
 //
-// `isLocked`/`lessons` (tarefa 7.0.1): a coluna Ticker ganha `LockedAssetBadge`
-// pra todo ativo real ainda travado pela trilha — reflexo de UX, a garantia
-// de verdade é o 403 do backend (`ProductLockedError`).
-function buildColumnsByTab(
-    isLocked: (asset: AssetSummary) => boolean,
-    lessons: Parameters<typeof findLessonUnlocking>[1],
-): Record<string, AssetTableColumn[]> {
+// Gate de desbloqueio da coluna Ticker (tarefa 7.0.1) vive inteiro em
+// `useLockedAssetGate` (extraído da revisão da Semana 7, compartilhado com
+// `pages/FixedIncomeList`) — reflexo de UX, a garantia de verdade é o 403
+// do backend (`ProductLockedError`).
+function buildColumnsByTab(gate: UseLockedAssetGateResult): Record<string, AssetTableColumn[]> {
     function tickerColumn(asset: AssetSummary) {
-        const locked = isLocked(asset)
         return (
             <span className={styles.tickerCell}>
-                {locked && <LockedAssetBadge lessonCode={findLessonUnlocking(assetUnlockKey(asset.type), lessons)?.code} />}
+                {gate.lockedBadge(asset)}
                 {asset.ticker}
             </span>
         )
@@ -68,29 +63,17 @@ function buildColumnsByTab(
 }
 
 export function EquityList() {
-    const navigate = useNavigate()
     const [activeTabKey, setActiveTabKey] = useState(EQUITY_TABS[0].key)
     const assetsQuery = useAssetsQuery()
-    const { unlockedKeys, lessons } = useUnlockedKeys()
-
-    const isLocked = useCallback(
-        (asset: AssetSummary) => !asset.is_sandbox && !unlockedKeys.has(assetUnlockKey(asset.type)),
-        [unlockedKeys],
-    )
-
-    const columnsByTab = useMemo(() => buildColumnsByTab(isLocked, lessons), [isLocked, lessons])
+    const gate = useLockedAssetGate()
+    const columnsByTab = buildColumnsByTab(gate)
 
     const activeTab = EQUITY_TABS.find((tab) => tab.key === activeTabKey) ?? EQUITY_TABS[0]
     const assets = assetsQuery.data ? filterAssetsByTab(assetsQuery.data.assets, activeTab) : []
     const { page: currentPage, totalPages, pageItems: pageAssets, setPage, resetPage } = useClientPagination(assets, ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
-        if (isLocked(asset)) {
-            const hint = findLessonUnlocking(assetUnlockKey(asset.type), lessons)
-            navigate(hint ? `/trilha/${hint.id}` : '/trilha')
-            return
-        }
-        navigate(`/mercado/ativos/${asset.id}`)
+        gate.selectOrRedirectToLesson(asset, `/mercado/ativos/${asset.id}`)
     }
 
     function handleTabChange(tabKey: string) {

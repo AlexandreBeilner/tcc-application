@@ -85,4 +85,22 @@ describe('PurchaseFixedIncomeUseCase', () => {
     await expect(useCase.execute(input)).rejects.toThrow(ProductLockedError)
     expect(fixedIncomeExecutor.purchaseCalls).toEqual([])
   })
+
+  it('não checa desbloqueio quando o asset_id é de uma classe fora do escopo deste endpoint (deixa o motor validar a classe)', async () => {
+    const fixedIncomeExecutor = createFakeFixedIncomeExecutor({
+      purchase: {
+        unit_price: 1,
+        quantity_purchased: 1,
+        position: { quantity: 1, average_price: 1, average_rate: 0 },
+      },
+    })
+    const catalogReader = createFakeCatalogReader({ asset: { ...tesouroSelicAsset, type: 'acao' } })
+    const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
+    const useCase = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor, catalogReader, productUnlockReader)
+
+    await useCase.execute(input)
+
+    expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
+    expect(fixedIncomeExecutor.purchaseCalls).toHaveLength(1)
+  })
 })

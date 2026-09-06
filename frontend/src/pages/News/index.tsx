@@ -62,8 +62,8 @@ export function News() {
             newsFeedLocked && (
                 <p className={styles.lockNotice}>
                     {unlockingLesson
-                        ? `Desbloqueia de verdade na lição ${unlockingLesson.code} (${unlockingLesson.title}) — você já pode acompanhar o feed enquanto isso.`
-                        : 'Desbloqueia de verdade completando a lição correspondente na trilha — você já pode acompanhar o feed enquanto isso.'}
+                        ? `Desbloqueia de verdade na lição ${unlockingLesson.code} (${unlockingLesson.title}), mas você já pode acompanhar o feed enquanto isso.`
+                        : 'Desbloqueia de verdade completando a lição correspondente na trilha, mas você já pode acompanhar o feed enquanto isso.'}
                 </p>
             )}
 

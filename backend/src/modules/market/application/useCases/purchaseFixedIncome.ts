@@ -1,4 +1,5 @@
-import { ProductLockedError } from '../../domain/errors'
+import { FIXED_INCOME_ASSET_TYPES } from '../../domain/assetTypes'
+import { assertProductUnlocked } from '../productUnlockGate'
 import type { CatalogReader } from '../ports/catalogReader'
 import type {
   FixedIncomeExecutor,
@@ -7,9 +8,10 @@ import type {
 } from '../ports/fixedIncomeExecutor'
 import type { ProductUnlockReader } from '../ports/productUnlockReader'
 
-// Mesmo gate de `PlaceOrderUseCase` (tarefa 7.0.1) — só na compra
-// (`purchase`), não no resgate (`RedeemFixedIncomeUseCase`): resgatar uma
-// posição que o usuário já tem não é "comprar produto travado".
+// Mesmo gate de `PlaceOrderUseCase` (tarefa 7.0.1, `application/
+// productUnlockGate.ts`) — só na compra (`purchase`), não no resgate
+// (`RedeemFixedIncomeUseCase`): resgatar uma posição que o usuário já tem
+// não é "comprar produto travado".
 export class PurchaseFixedIncomeUseCase {
   constructor(
     private readonly fixedIncomeExecutor: FixedIncomeExecutor,
@@ -18,15 +20,13 @@ export class PurchaseFixedIncomeUseCase {
   ) {}
 
   async execute(input: PurchaseFixedIncomeInput): Promise<PurchaseFixedIncomeResult> {
-    const asset = await this.catalogReader.getAsset(input.asset_id)
-    if (!asset.is_sandbox) {
-      const requiredKey = `asset:${asset.type}`
-      const unlockedKeys = await this.productUnlockReader.getUnlockedKeys(input.user_id)
-      if (!unlockedKeys.has(requiredKey)) {
-        const unlockingLesson = await this.productUnlockReader.findLessonUnlocking(requiredKey)
-        throw new ProductLockedError(requiredKey, unlockingLesson)
-      }
-    }
+    await assertProductUnlocked(
+      this.catalogReader,
+      this.productUnlockReader,
+      input.asset_id,
+      input.user_id,
+      FIXED_INCOME_ASSET_TYPES,
+    )
 
     return this.fixedIncomeExecutor.purchase(input)
   }

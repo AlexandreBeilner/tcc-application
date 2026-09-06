@@ -23,16 +23,21 @@ import { createFakeProductUnlockReader } from '../../test/fakes/fakeProductUnloc
 import { createMarketRouter } from './marketRouter'
 
 function buildApp(
-  options: { unlockedAssetKeys?: Set<string>; lessonHint?: { code: string; title: string } } = {},
+  options: {
+    unlockedAssetKeys?: Set<string>
+    lessonHint?: { code: string; title: string }
+    assetType?: string
+  } = {},
 ) {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
+  const assetType = options.assetType ?? 'acao'
 
   const catalogReader = createFakeCatalogReader({
     assets: [
-      { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false },
+      { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: assetType, is_sandbox: false },
     ],
-    asset: { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false },
+    asset: { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: assetType, is_sandbox: false },
     quotes: [{ simulated_day: 1, price: 100 }],
     company: {
       id: 'company-1',
@@ -329,7 +334,7 @@ describe('POST /market/fixed-income/purchases', () => {
   })
 
   it('retorna 403 (produto travado pela trilha) quando o usuário não desbloqueou o tipo do ativo (tarefa 7.0.1)', async () => {
-    const { app, tokenIssuer } = buildApp({ unlockedAssetKeys: new Set() })
+    const { app, tokenIssuer } = buildApp({ unlockedAssetKeys: new Set(), assetType: 'cdb' })
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
@@ -338,7 +343,7 @@ describe('POST /market/fixed-income/purchases', () => {
       .send({ asset_id: '11111111-1111-4111-8111-111111111111', amount: 1000 })
 
     expect(res.status).toBe(403)
-    expect(res.body.key).toBe('asset:acao')
+    expect(res.body.key).toBe('asset:cdb')
   })
 })
 

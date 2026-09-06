@@ -9,7 +9,7 @@ export type { LockedAssetBadgeProps } from './types'
 // backend (`ProductLockedError`, ver `.docs/backend/market.md`).
 export function LockedAssetBadge({ lessonCode }: LockedAssetBadgeProps) {
     const label = lessonCode
-        ? `Produto travado — desbloqueia na lição ${lessonCode}`
+        ? `Produto travado, desbloqueia na lição ${lessonCode}`
         : 'Produto travado pela trilha'
 
     return (

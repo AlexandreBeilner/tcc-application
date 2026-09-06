@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildLessonView, isUnlocked, lessonStatus, unlockedKeysFor, utcDateString } from './lesson'
+import { buildLessonView, countCompleted, isUnlocked, lessonStatus, unlockedKeysFor, utcDateString } from './lesson'
 
 describe('isUnlocked', () => {
   it.each([
@@ -97,6 +97,18 @@ describe('unlockedKeysFor', () => {
     expect(unlockedKeysFor(6, withDuplicate)).toEqual(
       new Set(['portfolio', 'calculator', 'asset:tesouro_selic']),
     )
+  })
+})
+
+describe('countCompleted', () => {
+  it('conta só entradas com completedAt preenchido', () => {
+    expect(
+      countCompleted([{ completedAt: new Date() }, { completedAt: null }, { completedAt: new Date() }]),
+    ).toBe(2)
+  })
+
+  it('0 pra lista vazia', () => {
+    expect(countCompleted([])).toBe(0)
   })
 })
 

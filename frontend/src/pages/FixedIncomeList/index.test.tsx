@@ -55,6 +55,7 @@ describe('FixedIncomeList (tela 4.2)', () => {
             unlockedKeys: new Set(['asset:tesouro_selic', 'asset:cdb']),
             lessons: [],
             isLoading: false,
+            isError: false,
         })
     })
 
@@ -149,6 +150,7 @@ describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => 
                 },
             ],
             isLoading: false,
+            isError: false,
         })
         vi.mocked(listAssets).mockResolvedValue({ assets })
         const router = createMemoryRouter(
@@ -167,14 +169,14 @@ describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => 
         )
 
         await waitFor(() => expect(screen.getAllByText('Tesouro Selic').length).toBeGreaterThan(0))
-        expect(screen.getAllByLabelText('Produto travado — desbloqueia na lição 1.2').length).toBeGreaterThan(0)
+        expect(screen.getAllByLabelText('Produto travado, desbloqueia na lição 1.2').length).toBeGreaterThan(0)
 
         fireEvent.click(screen.getAllByText('Tesouro Selic')[0])
         await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
     })
 
     it('sandbox continua acessível mesmo sem nenhuma lição concluída (RF12)', async () => {
-        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false })
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false, isError: false })
         const sandboxAsset: AssetSummary = { id: 'sand-1', ticker: 'SANDPRE', name: 'Sandbox', type: 'tesouro_selic', is_sandbox: true }
         vi.mocked(listAssets).mockResolvedValue({ assets: [sandboxAsset] })
         renderPage()

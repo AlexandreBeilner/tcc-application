@@ -9,11 +9,13 @@ export type { RequiresUnlockProps } from './types'
 // tarefa 6.2): rota sem a chave desbloqueada redireciona pra `/trilha` em
 // vez de deixar o usuário cair numa tela vazia/sem sentido (ex: Portfólio
 // antes de 0.1). Só reflexo de UX — a garantia real (403) é o backend, ver
-// `.docs/backend/market.md`.
+// `.docs/backend/market.md`. `isError` (revisão da Semana 7) segura o
+// mesmo caminho de `isLoading`: uma falha transitória de `GET /lessons`
+// não pode redirecionar pra fora um usuário que já desbloqueou a chave.
 export function RequiresUnlock({ unlockKey }: RequiresUnlockProps) {
-    const { unlockedKeys, isLoading } = useUnlockedKeys()
+    const { unlockedKeys, isLoading, isError } = useUnlockedKeys()
 
-    if (isLoading) {
+    if (isLoading || isError) {
         return null
     }
 

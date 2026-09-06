@@ -70,6 +70,7 @@ describe('AppShell', () => {
             unlockedKeys: new Set(['portfolio', 'calculator', 'news_feed']),
             lessons: [],
             isLoading: false,
+            isError: false,
         })
     })
 

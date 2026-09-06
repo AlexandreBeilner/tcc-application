@@ -1,12 +1,16 @@
-import { ProductLockedError } from '../../domain/errors'
+import { EQUITY_ASSET_TYPES } from '../../domain/assetTypes'
+import { assertProductUnlocked } from '../productUnlockGate'
 import type { CatalogReader } from '../ports/catalogReader'
 import type { OrderExecutor, OrderResult, PlaceOrderInput } from '../ports/orderExecutor'
 import type { ProductUnlockReader } from '../ports/productUnlockReader'
 
-// Gate real de desbloqueio por lição (tarefa 7.0.1, achado 5): resolve o
-// `AssetType` do ativo-alvo e, se não for sandbox, exige `asset:<type>` no
-// conjunto desbloqueado do usuário — RF12 isenta sandbox de propósito
-// (é justamente prática pré-desbloqueio, travá-la destruiria o propósito).
+// Gate real de desbloqueio por lição (tarefa 7.0.1, achado 5) — só no lado
+// `buy`: vender uma posição de um tipo ainda travado não é "comprar
+// produto travado" (o usuário só pode ter essa posição porque a comprou
+// antes de o tipo ser travado, ou via sandbox) e precisa continuar
+// possível, mesmo padrão de `PurchaseFixedIncomeUseCase` não travar
+// `RedeemFixedIncomeUseCase`. Lógica do gate em si vive em
+// `application/productUnlockGate.ts`, compartilhada com as duas use cases.
 export class PlaceOrderUseCase {
   constructor(
     private readonly orderExecutor: OrderExecutor,
@@ -15,14 +19,14 @@ export class PlaceOrderUseCase {
   ) {}
 
   async execute(input: PlaceOrderInput): Promise<OrderResult> {
-    const asset = await this.catalogReader.getAsset(input.asset_id)
-    if (!asset.is_sandbox) {
-      const requiredKey = `asset:${asset.type}`
-      const unlockedKeys = await this.productUnlockReader.getUnlockedKeys(input.user_id)
-      if (!unlockedKeys.has(requiredKey)) {
-        const unlockingLesson = await this.productUnlockReader.findLessonUnlocking(requiredKey)
-        throw new ProductLockedError(requiredKey, unlockingLesson)
-      }
+    if (input.side === 'buy') {
+      await assertProductUnlocked(
+        this.catalogReader,
+        this.productUnlockReader,
+        input.asset_id,
+        input.user_id,
+        EQUITY_ASSET_TYPES,
+      )
     }
 
     return this.orderExecutor.submit(input)

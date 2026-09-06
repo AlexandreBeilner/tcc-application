@@ -1,3 +1,4 @@
+import { countCompleted } from '../../domain/lesson'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface CountCompletedLessonsInput {
@@ -12,6 +13,6 @@ export class CountCompletedLessonsUseCase {
 
   async execute(input: CountCompletedLessonsInput): Promise<number> {
     const progress = await this.lessonRepository.listProgressForUser(input.userId)
-    return progress.filter((p) => p.completedAt !== null).length
+    return countCompleted(progress)
   }
 }

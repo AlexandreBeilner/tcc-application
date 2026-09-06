@@ -54,7 +54,7 @@ describe('News (tela 5.1)', () => {
         vi.mocked(markNewsEventSeen).mockResolvedValue(undefined)
         // Desbloqueado por padrão — os testes deste arquivo não são sobre o
         // aviso de gate da tarefa 7.0.1 (ver describe dedicado abaixo).
-        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(['news_feed']), lessons: [], isLoading: false })
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(['news_feed']), lessons: [], isLoading: false, isError: false })
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -430,6 +430,7 @@ describe('News (tela 5.1)', () => {
                 },
             ],
             isLoading: false,
+            isError: false,
         })
         vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
 

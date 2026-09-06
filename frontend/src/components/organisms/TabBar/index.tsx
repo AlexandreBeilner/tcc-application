@@ -11,6 +11,10 @@ import styles from './index.module.css'
 // verdade depois de 0.1/0.2 concluídas — antes disso a aba fica travada
 // (ícone de cadeado, sem navegação), mesmo gate real de `RequiresUnlock`
 // que protege as rotas (aqui é só o reflexo visual, não a garantia).
+// Enquanto `GET /lessons` ainda não resolveu ou falhou (`isLoading`/
+// `isError`), `unlockedKeys` vem vazio sem significar "nada desbloqueado"
+// — renderiza como link normal nesse meio-tempo pra não piscar cadeado
+// numa aba que o usuário já desbloqueou (mesmo cuidado de `RequiresUnlock`).
 const TABS = [
     { to: '/', label: 'Portfólio', end: true, Icon: PieChart, unlockKey: 'portfolio' },
     { to: '/trilha', label: 'Trilha', Icon: Map, unlockKey: undefined },
@@ -20,12 +24,12 @@ const TABS = [
 ]
 
 export function TabBar() {
-    const { unlockedKeys } = useUnlockedKeys()
+    const { unlockedKeys, isLoading, isError } = useUnlockedKeys()
 
     return (
         <nav className={styles.tabBar} aria-label="Navegação principal">
             {TABS.map(({ to, label, end, Icon, unlockKey }) => {
-                const locked = unlockKey !== undefined && !unlockedKeys.has(unlockKey)
+                const locked = !isLoading && !isError && unlockKey !== undefined && !unlockedKeys.has(unlockKey)
 
                 if (locked) {
                     return (

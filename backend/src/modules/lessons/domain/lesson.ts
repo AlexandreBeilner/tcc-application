@@ -110,6 +110,14 @@ export function unlockedKeysFor(
   return keys
 }
 
+// Único lugar que define "lição concluída" (completedAt preenchido) —
+// reaproveitado por `CountCompletedLessonsUseCase` (achievements) e
+// `GetUnlockedProductKeysUseCase` (gate de desbloqueio real, tarefa
+// 7.0.1) pra evitar que os dois critérios divirjam silenciosamente.
+export function countCompleted(progress: Pick<LessonProgressSnapshot, 'completedAt'>[]): number {
+  return progress.filter((p) => p.completedAt !== null).length
+}
+
 // Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de
 // `gamification/domain/streak.ts` (5.3), usada aqui só pra comparar a data
 // de `completedAt` (missões, 5.4, precisam saber "concluiu uma lição hoje").

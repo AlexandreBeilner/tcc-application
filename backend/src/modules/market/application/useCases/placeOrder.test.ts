@@ -74,4 +74,29 @@ describe('PlaceOrderUseCase', () => {
     await expect(useCase.execute(input)).rejects.toThrow(ProductLockedError)
     expect(orderExecutor.calls).toEqual([])
   })
+
+  it('repassa ordem de venda direto pro OrderExecutor mesmo com o ativo travado (vender posição já detida não é comprar)', async () => {
+    const result = { filled_quantity: 10, remaining_quantity: 0, fills: [] }
+    const orderExecutor = createFakeOrderExecutor(result)
+    const catalogReader = createFakeCatalogReader({ asset: equityAsset })
+    const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
+    const useCase = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
+
+    await useCase.execute({ ...input, side: 'sell' })
+
+    expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
+    expect(orderExecutor.calls).toHaveLength(1)
+  })
+
+  it('não checa desbloqueio quando o asset_id é de uma classe fora do escopo deste endpoint (deixa o motor validar a classe)', async () => {
+    const orderExecutor = createFakeOrderExecutor({ filled_quantity: 0, remaining_quantity: 0, fills: [] })
+    const catalogReader = createFakeCatalogReader({ asset: { ...equityAsset, type: 'cdb' } })
+    const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
+    const useCase = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
+
+    await useCase.execute(input)
+
+    expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
+    expect(orderExecutor.calls).toHaveLength(1)
+  })
 })

@@ -22,7 +22,7 @@ function renderWithRouter(unlockKey: string) {
 
 describe('RequiresUnlock', () => {
     it('sem a chave desbloqueada, redireciona pra /trilha', () => {
-        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false })
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false, isError: false })
 
         renderWithRouter('portfolio')
 
@@ -34,6 +34,7 @@ describe('RequiresUnlock', () => {
             unlockedKeys: new Set(['portfolio']),
             lessons: [],
             isLoading: false,
+            isError: false,
         })
 
         renderWithRouter('portfolio')
@@ -42,7 +43,16 @@ describe('RequiresUnlock', () => {
     })
 
     it('enquanto carrega, não redireciona nem renderiza a rota', () => {
-        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: true })
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: true, isError: false })
+
+        renderWithRouter('portfolio')
+
+        expect(screen.queryByText('portfolio')).not.toBeInTheDocument()
+        expect(screen.queryByText('mapa da trilha')).not.toBeInTheDocument()
+    })
+
+    it('numa falha transitória de GET /lessons, não redireciona um usuário que pode já ter desbloqueado a chave', () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false, isError: true })
 
         renderWithRouter('portfolio')
 

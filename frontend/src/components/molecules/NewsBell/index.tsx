@@ -19,7 +19,7 @@ export function NewsBell() {
         <Link
             to="/noticias"
             className={styles.bell}
-            aria-label={locked ? 'Notícias e eventos de mercado — desbloqueia na lição 2.4' : 'Notícias e eventos de mercado'}
+            aria-label={locked ? 'Notícias e eventos de mercado, desbloqueia na lição 2.4' : 'Notícias e eventos de mercado'}
         >
             <Bell size={20} strokeWidth={1.6} aria-hidden="true" />
             {locked && <Lock size={10} strokeWidth={2.5} className={styles.lockBadge} aria-hidden="true" />}
