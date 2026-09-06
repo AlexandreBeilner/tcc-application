@@ -851,6 +851,130 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksKeys: ['asset:fii'],
     unlocksAssetTicker: 'TJLO11',
   },
+  {
+    code: '3.1',
+    trackNumber: 3,
+    trackName: 'Trilha 3: Estratégia e Tributação',
+    sortOrder: 30,
+    title: 'Diversificação',
+    centralConcept: 'Por que não concentrar tudo num ativo',
+    scenarioText:
+      'Você tem R$10.000 e dois planos: colocar tudo em VALR3, uma única ação, ou dividir esse valor entre ' +
+      'VALR3, BNDD4 e um pouco de Tesouro Selic. Nos dois planos você está investindo o mesmo valor total, ' +
+      'mas o resultado de um evento ruim específico da Mineradora Vale do Rio (uma quebra de safra, um ' +
+      'escândalo contábil, qualquer choque isolado) afeta cada plano de um jeito bem diferente.',
+    microDecisionPrompt:
+      'Se um evento negativo atinge só a Mineradora Vale do Rio, qual dos dois planos sofre a perda maior no ' +
+      'patrimônio total: o concentrado 100% em VALR3, ou o dividido entre VALR3, BNDD4 e Tesouro Selic?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'O plano concentrado. Todo o patrimônio está exposto ao mesmo risco específico daquela empresa, então ' +
+      'um choque nela vira um choque no portfólio inteiro. No plano diversificado, o mesmo evento só afeta a ' +
+      'fatia aplicada em VALR3; o resto (BNDD4, com fundamentos e setor diferentes, e o Tesouro Selic, sem ' +
+      'nenhuma ligação com o desempenho de uma empresa) segue intacto. É a mesma lógica por trás do ETF da ' +
+      'lição 2.9 (uma cesta de ações amortecendo o choque de uma só), aplicada agora entre classes inteiras: ' +
+      'renda fixa, ações de setores diferentes e perfis de risco diferentes (lição 2.8). Diversificar não ' +
+      'aumenta o retorno esperado de cada ativo isolado, mas reduz o risco específico de cada um pesar ' +
+      'sozinho no resultado final.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '3.2',
+    trackNumber: 3,
+    trackName: 'Trilha 3: Estratégia e Tributação',
+    sortOrder: 31,
+    title: 'Perfil de risco',
+    centralConcept: 'Conservador vs Sofisticado, risco x retorno',
+    scenarioText:
+      'Você já viu o rótulo de risco em vários produtos ao longo da trilha: VALR3 e o Tesouro Selic com ' +
+      'perfil Conservador; BNDD4 com perfil Sofisticado; CRI2028 (AA) e CRA2028 (A) com classificação de ' +
+      'crédito. Cada um mede uma coisa diferente, mas todos apontam pra uma mesma pergunta: quanta oscilação ' +
+      'e quanto risco de perda você está disposto a aceitar em troca de um retorno maior?',
+    microDecisionPrompt:
+      'Um portfólio 100% perfil Sofisticado tende a oscilar mais, pra cima e pra baixo, do que um portfólio ' +
+      '100% perfil Conservador. Pra alguém que pode precisar resgatar o dinheiro em poucos meses, qual dos ' +
+      'dois perfis é mais adequado?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'O perfil Conservador. Risco e retorno não são opostos que se escolhe livremente: são uma troca. ' +
+      'Perfil Sofisticado, como o do Banco Nordeste Digital (lição 2.8), tende a entregar retorno maior no ' +
+      'longo prazo justamente por aceitar mais oscilação no caminho, o que é perigoso pra quem precisa do ' +
+      'valor num prazo curto e pode ser forçado a vender numa hora ruim. Perfil Conservador entrega menos ' +
+      'oscilação em troca de um retorno esperado mais modesto. Não existe perfil certo ou errado, existe ' +
+      'perfil adequado ao seu horizonte de tempo e à sua necessidade real daquele dinheiro, e é por isso que ' +
+      'a mesma pergunta vale tanto pra escolher entre ações de perfis diferentes quanto entre CRI2028 (AA, ' +
+      'mais seguro) e CRA2028 (A, mais arriscado e mais rentável).',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '3.3',
+    trackNumber: 3,
+    trackName: 'Trilha 3: Estratégia e Tributação',
+    sortOrder: 32,
+    title: 'Comparando produtos na prática',
+    centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
+    scenarioText:
+      'Você já viu, na lição 1.5, que CDB é tributado pela tabela regressiva de IR e LCI é isento. Mas taxa ' +
+      'bruta maior e isenção de imposto são coisas diferentes, e comparar os dois de verdade exige olhar o ' +
+      'valor líquido no bolso, não só o percentual anunciado.',
+    microDecisionPrompt:
+      'Use a calculadora abaixo, mantendo os valores padrão (CDB 110% CDI vs LCI 90% CDI, R$10.000, 365 ' +
+      'dias) e compare o valor líquido dos dois. Depois mude o prazo pra 180 dias e compare de novo: o ' +
+      'vencedor muda?',
+    microDecisionType: 'fixed_income_comparison',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Com os valores padrão (365 dias, alíquota regressiva de 17,5% nessa faixa), o CDB a 11,00% a.a. bruto ' +
+      'rende R$10.907,50 líquidos contra R$10.900,00 do LCI a 9,00% a.a. isento: o CDB vence, mas por pouco. ' +
+      'Em 180 dias, a alíquota sobe pra 22,5% (a faixa mais alta da tabela regressiva, mesma da lição 1.4), ' +
+      'e o resultado se inverte: o CDB rende R$10.409,30 líquidos contra R$10.434,15 do LCI, que agora vence. ' +
+      'A taxa bruta maior do CDB não garante o resultado líquido maior: quanto mais cedo você resgata, maior ' +
+      'a alíquota que corrói o rendimento tributado, e mais a isenção do LCI pesa a favor dele; quanto mais ' +
+      'tempo o dinheiro fica aplicado, menor a alíquota, e mais o CDB tem chance de recuperar a vantagem. Não ' +
+      'existe produto que "rende mais" de forma absoluta: existe o produto que rende mais líquido pro prazo ' +
+      'que você de fato pretende manter o dinheiro aplicado.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '3.4',
+    trackNumber: 3,
+    trackName: 'Trilha 3: Estratégia e Tributação',
+    sortOrder: 33,
+    title: 'Desafio final da trilha',
+    centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
+    scenarioText:
+      'Você tem um portfólio com Tesouro Selic (LFT2029) e ações da Mineradora Vale do Rio (VALR3) e do ' +
+      'Banco Nordeste Digital (BNDD4). Um evento macro de alta da Selic é disparado (lição 2.4): o Tesouro ' +
+      'Selic passa a render mais no mesmo instante em que os fundamentos das duas empresas sentem o efeito ' +
+      'sistêmico da Selic (lição 2.8) e o preço de ambas reage ao choque especulativo do evento (lição 2.5).',
+    microDecisionPrompt:
+      'Juntando o que você já viu nas lições 2.8 e 3.2: nesse cenário de alta de Selic, qual das duas ações ' +
+      'tende a sentir o efeito maior nos fundamentos, VALR3 (Conservador) ou BNDD4 (Sofisticado), e o que ' +
+      'acontece com o Tesouro Selic ao mesmo tempo?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'BNDD4 (Sofisticado) sente o efeito maior nos fundamentos, o mesmo padrão da lição 2.8, enquanto o ' +
+      'Tesouro Selic passa a render mais, acompanhando a taxa que agora subiu (lição 1.2). É por isso que um ' +
+      'portfólio dividido entre renda fixa e ações de perfis diferentes (lição 3.1) reage de um jeito que ' +
+      'nenhum ativo isolado reproduz sozinho: a parte em Tesouro Selic ganha justamente no momento em que a ' +
+      'parte mais sofisticada da carteira sofre mais, amortecendo o resultado total. Entender isso, e não uma ' +
+      'fórmula nova, é a diferença entre reagir a um evento macro no susto e já ter, desde a composição do ' +
+      'portfólio (perfil de risco, lição 3.2, e produto certo pro prazo certo, lição 3.3), uma resposta pronta ' +
+      'pra ele. Você concluiu a trilha guiada: a partir de agora, todo o Mercado (renda fixa e renda ' +
+      'variável, sandbox e ao vivo) está disponível sem nenhuma restrição de lição.',
+    unlocksDescription: 'Trilha guiada concluída, mundo aberto liberado por completo',
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
 ]
 
 // Idempotente: DATABASE_URL=... npm run db:seed:lessons
