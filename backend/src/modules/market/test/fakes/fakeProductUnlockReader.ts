@@ -1,4 +1,7 @@
-import type { LessonUnlockHint, ProductUnlockReader } from '../../application/ports/productUnlockReader'
+import type {
+  LessonUnlockHint,
+  ProductUnlockReader,
+} from '../../application/ports/productUnlockReader'
 
 export interface FakeProductUnlockReader extends ProductUnlockReader {
   getUnlockedKeysCalls: string[]

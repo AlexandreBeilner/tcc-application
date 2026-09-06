@@ -126,7 +126,9 @@ export const lessons = pgTable(
     // real — estado de transição esperado, não regressão.
     scenarioText: text('scenario_text').notNull().default(''),
     microDecisionPrompt: text('micro_decision_prompt').notNull().default(''),
-    microDecisionType: lessonMicroDecisionType('micro_decision_type').notNull().default('reflection'),
+    microDecisionType: lessonMicroDecisionType('micro_decision_type')
+      .notNull()
+      .default('reflection'),
     // Só usado quando microDecisionType = 'live_indicator' — ticker real do
     // catálogo cujo indicador a Revelação busca ao vivo via
     // `GET /market/assets/:id`, nunca um número estático.

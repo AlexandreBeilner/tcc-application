@@ -13,7 +13,8 @@ export type LessonStatus = 'completed' | 'available' | 'locked'
 // `lesson_micro_decision_type` do schema. 'reflection' é o padrão (checkbox
 // "já pensei"); os outros embutem um componente já existente (tarefa 6.7)
 // no frontend em vez do checkbox.
-export type MicroDecisionType = 'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator'
+export type MicroDecisionType =
+  'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator'
 
 // Progressão essencialmente linear por sortOrder global (spec 5.1) — cada
 // trilha só desbloqueia a próxima na última lição, sem pré-requisito

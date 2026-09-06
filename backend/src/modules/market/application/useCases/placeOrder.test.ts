@@ -14,7 +14,12 @@ const equityAsset: AssetDetail = {
   is_sandbox: false,
 }
 
-const sandboxAsset: AssetDetail = { ...equityAsset, id: 'sand-1', ticker: 'SAND3', is_sandbox: true }
+const sandboxAsset: AssetDetail = {
+  ...equityAsset,
+  id: 'sand-1',
+  ticker: 'SAND3',
+  is_sandbox: true,
+}
 
 const input = {
   user_id: 'user-1',
@@ -54,7 +59,11 @@ describe('PlaceOrderUseCase', () => {
   })
 
   it('rejeita com ProductLockedError, citando a lição que desbloqueia, quando a chave não está no conjunto do usuário', async () => {
-    const orderExecutor = createFakeOrderExecutor({ filled_quantity: 0, remaining_quantity: 0, fills: [] })
+    const orderExecutor = createFakeOrderExecutor({
+      filled_quantity: 0,
+      remaining_quantity: 0,
+      fills: [],
+    })
     const catalogReader = createFakeCatalogReader({ asset: equityAsset })
     const productUnlockReader = createFakeProductUnlockReader({
       unlockedKeys: new Set(),

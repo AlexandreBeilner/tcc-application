@@ -22,7 +22,9 @@ import { createFakeOrderExecutor } from '../../test/fakes/fakeOrderExecutor'
 import { createFakeProductUnlockReader } from '../../test/fakes/fakeProductUnlockReader'
 import { createMarketRouter } from './marketRouter'
 
-function buildApp(options: { unlockedAssetKeys?: Set<string>; lessonHint?: { code: string; title: string } } = {}) {
+function buildApp(
+  options: { unlockedAssetKeys?: Set<string>; lessonHint?: { code: string; title: string } } = {},
+) {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
 
