@@ -5,7 +5,8 @@ depois da autoria das 33 lições, tarefas 7.1.1–7.1.6, com o cronograma adian
 roadmap de 8 semanas da spec). Cobre tanto a experiência de lição (Fases A-D) quanto o restante da
 camada de gamificação — Perfil, feed social, missões, conquistas e o "teatro de recompensa"
 citado em `identidade-visual-padroes.md` §6, hoje só documentado, nunca implementado como
-componente reutilizável (Fases E-I).
+componente reutilizável (Fases E-I), e o tratamento de conteúdo travado pela trilha (tarefa 7.0.1,
+já em produção) que hoje arrisca desmotivar quem esbarra num módulo bloqueado (Fase J).
 
 > **Revisão de auditoria (mesma sessão):** antes de liberar pra implementação, cada tarefa foi
 > conferida contra o código real em busca de ambiguidade — 3 achados corrigiram descrição errada
@@ -606,44 +607,165 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
 
 ---
 
+## Fase J — Bloqueio como convite, não parede
+
+**Origem: pergunta do autor** — a trava real de feature/produto por lição (tarefa 7.0.1, já em
+produção) faz sentido e corrige um bug de verdade (usuário conseguia comprar ativo real sem
+completar a lição correspondente). O risco levantado é outro: como está *apresentada* hoje pode
+desmotivar em vez de guiar. Auditoria desta sessão contra o código real achou 3 tratamentos
+inconsistentes, do melhor pro pior:
+
+| Onde | O que mostra hoje | Caminho de volta pra trilha? |
+|---|---|---|
+| Feed de notícias | Aviso não-bloqueante, conteúdo continua acessível | Não se aplica |
+| `EquityList`/`FixedIncomeList` (linha de ativo) | Ticker/nome/preço **já aparecem normais** (não estão escondidos, confirmado no código) + ícone de cadeado pequeno; motivo só existe em `title`/`aria-label` (invisível em touch) | Sim — clique já redireciona pra lição via `useLockedAssetGate.selectOrRedirectToLesson` |
+| `TabBar` (Portfólio/Calculadora, toda tela) | Ícone de cadeado + label apagado, `aria-disabled="true"` | **Nenhum** — sem `onClick`, sem navegação, sem texto visível |
+
+O pior caso (`TabBar`) é também o de maior exposição — navegação primária, visível em toda tela.
+
+### J.1 · `TabBar` deixa de ser beco sem saída
+
+- **Descrição:** trocar o `<span aria-disabled="true">` da aba travada
+  (`frontend/src/components/organisms/TabBar/index.tsx`) por um elemento clicável que navega pra
+  lição que desbloqueia aquele `unlockKey`, reaproveitando `findLessonUnlocking`
+  (`features/lessons/unlockedKeys`) — **já genérica** (aceita qualquer chave, não só `asset:*`;
+  confirmado nesta sessão), então nenhuma extração de lógica nova é necessária, só usar a função
+  que já existe. Mesmo comportamento que `useLockedAssetGate.selectOrRedirectToLesson` já dá pras
+  linhas de ativo travadas.
+- **O que muda na aplicação:** `TabBar/index.tsx` — troca o `span` por `button`/elemento
+  clicável com `onClick` chamando `navigate(hint ? \`/trilha/${hint.id}\` : '/trilha')`;
+  `useUnlockedKeys()` já devolve `lessons`, só passa a ser desestruturado também aqui (hoje só usa
+  `unlockedKeys`/`isLoading`/`isError`).
+- **Critérios de aceite:** tocar/clicar numa aba travada navega pra lição que a desbloqueia; aba
+  continua visualmente distinta de uma aba disponível (ícone de cadeado, cor apagada — não vira
+  link idêntico a uma aba normal); leitor de tela anuncia o destino (`aria-label` novo, já que
+  deixa de usar `aria-disabled`).
+- **Referências:** análise da sessão anterior (chat, "trava sem caminho de volta");
+  `useLockedAssetGate` como precedente já funcionando.
+- **Dependências:** nenhuma.
+
+### J.2 · Motivo do bloqueio fica visível, não só em tooltip
+
+- **Descrição:** `LockedAssetBadge` (`frontend/src/components/molecules/LockedAssetBadge/index.tsx`)
+  hoje só grava "Desbloqueia na lição X" em `title`/`aria-label` — invisível em touch (sem hover) e
+  de baixo contraste até em desktop (precisa passar o mouse). Tornar esse texto visível na própria
+  célula, não só acessível via tooltip. Mesma ideia pra `TabBar`: legenda pequena com o código da
+  lição, só em tablet/desktop (barra horizontal, mais espaço) — mobile (barra inferior fixa,
+  `identidade-visual-padroes.md` §7) mantém só ícone+label, confiando no toque de J.1 como
+  caminho, pra não quebrar o layout compacto.
+- **O que muda na aplicação:** `LockedAssetBadge` ganha o texto como conteúdo visível (não só
+  atributo); `TabBar` ganha a legenda condicionada por breakpoint via CSS (`index.module.css`),
+  não lógica JS nova. Testar nos 3 breakpoints obrigatórios (regra do `CLAUDE.md` pra toda tela
+  alterada).
+- **Critérios de aceite:** motivo do bloqueio legível sem depender de hover/toque prolongado, nos
+  3 breakpoints; nenhuma quebra de layout das colunas de `EquityList`/`FixedIncomeList`; teste de
+  componente cobrindo o texto visível.
+- **Referências:** `identidade-visual-padroes.md` §7 (breakpoints).
+- **Dependências:** J.1 (mesma área de código da `TabBar`, já alterada ali).
+
+### J.3 · Detalhe do Ativo travado vira prévia, não parede
+
+- **Descrição:** hoje `useLockedAssetGate.selectOrRedirectToLesson` sempre redireciona pra lição
+  ao clicar num ativo travado — o usuário nunca chega a ver a tela de Detalhe (indicadores,
+  gráfico, dados — tudo somente leitura, a trava real é só no `POST` de ordem/compra, RF12/7.0.1).
+  Mudar pra navegar sempre pro **Detalhe de verdade**, que passa a mostrar um banner fixo "Travado
+  — desbloqueia na lição X" com CTA "Ir pra lição" no lugar do painel de compra, em vez de deixar
+  tentar comprar e só descobrir o bloqueio no 403. Tratar a resposta `ProductLockedError`
+  (`{ error, key, unlockingLesson }`, já existe no backend desde a 7.0.1) de forma amigável —
+  hoje nenhum lugar do frontend lê esses 3 campos (`grep` confirmado), útil também pro caso de o
+  usuário chegar na tela por outro caminho (link direto, botão voltar).
+- **O que muda na aplicação:** `useLockedAssetGate.selectOrRedirectToLesson` reescrita pra navegar
+  pro Detalhe (não pra lição) quando travado; `AssetDetail/index.tsx` ganha awareness de lock
+  (reaproveita `useLockedAssetGate.isLocked`) e troca o painel de compra pelo banner+CTA quando
+  travado; tratamento de erro do formulário de ordem ganha um `case` pra `ProductLockedError`
+  mostrando o mesmo banner em vez de mensagem genérica.
+- **Critérios de aceite:** clicar num ativo travado abre o Detalhe (não redireciona mais direto
+  pra lição); Detalhe travado mostra ticker/preço/indicadores normalmente + banner com CTA no
+  lugar do painel de compra; acessar via URL direta e tentar comprar mostra o mesmo banner
+  amigável em vez do erro genérico atual.
+- **Referências:** `.docs/backend/market.md` (shape de `ProductLockedError`); RF12 (sandbox
+  isento, não mexer).
+- **Dependências:** nenhuma (mesma área temática de J.1/J.2, mas código independente).
+
+### J.4 · Indicador de "faltam N lições pra X"
+
+- **Descrição:** nenhum lugar do app hoje mostra quanto falta pra desbloquear a próxima coisa —
+  só o Mapa da Trilha (que já é a fonte da verdade, mas exige entrar lá pra ver). Acrescentar um
+  indicador pequeno no `ProgressionSummary` (organism já renderizado em `Portfolio`/`Track`, hoje
+  só mostra Nível/XP e streak): "faltam N lições pra: [nome do próximo desbloqueio]".
+- **O que muda na aplicação:** função pura nova (`nextUnlockFor(lessons)`, em
+  `features/lessons/`, testada) devolvendo `{ description: string; lessonsRemaining: number } |
+  null` — acha a próxima lição não concluída cujo `unlocksKeys`/`unlocksDescription` não é vazio;
+  `ProgressionSummaryProps` ganha campo opcional `nextUnlock`; `Portfolio`/`Track` calculam e
+  passam esse dado (checar em cada página, na própria tarefa, se `useLessonsQuery`/
+  `useUnlockedKeys` já estão disponíveis ali ou precisam ser adicionados).
+- **Critérios de aceite:** usuário com pelo menos 1 chave ainda travada vê "faltam N lições pra
+  [X]"; usuário com tudo desbloqueado não vê o badge (sem estado vazio estranho no lugar); número
+  bate com a distância real mostrada no Mapa da Trilha.
+- **Referências:** análise da sessão anterior (chat).
+- **Dependências:** nenhuma tecnicamente (lê `sortOrder`/`status`/`unlocksKeys`/
+  `unlocksDescription` ao vivo — nenhum desses 4 campos é tocado por A/B/C/D, que só mudam
+  `scenarioText`/`microDecisionPrompt`/`revelationText`, e opções novas em B). **Só um motivo de
+  ordem, não de correção:** `unlocksDescription` é justamente o campo que a E.1 reescreve com o
+  "porquê" narrativo — fazer J.4 antes da E.1 não quebra nada (o texto mostrado só melhora sozinho
+  quando E.1 rodar, sem tocar em J.4 de novo), mas fazer depois evita mostrar a versão "funcional"
+  do texto por um tempo até E.1 chegar. Sequência sugerida abaixo já reflete isso.
+
+---
+
 ## Sequência de implementação sugerida
 
 Ordem única, pensada pra sessão solo (uma tarefa por sessão, sem paralelismo real) — não é a ordem
 alfabética das fases. Critério: dependências reais primeiro, valor visível cedo, tarefas de maior
-risco de schema (B, depois H/G) só depois de validar as de baixo risco, e a Fase I (achado novo,
-maior lacuna de "o restante") intercalada cedo porque é independente de tudo o mais.
+risco de schema (B, depois H/G) só depois de validar as de baixo risco, e duas fases descobertas
+em auditoria (I — teatro de recompensa, J — bloqueio como convite) priorizadas mesmo fora da ordem
+alfabética porque são independentes de tudo o mais e de risco baixíssimo.
 
-1. **A.1** — parser de cartões (fundação de A/C, zero risco)
-2. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
-3. **A.2** — reescrita das 33 lições em cartões
-4. **A.3** — revelação progressiva
-5. **C.1** — glossário inline
-6. **C.2** — elenco recorrente
-7. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
-   fim da Fase H)
-8. **F.1** — tokens de cor por trilha
-9. **F.2** — backend: trilhas concluídas no perfil público
-10. **F.3** — `TrackTrophyCase`
-11. **G.1** — backend: evento de trilha concluída
-12. **G.2** — seção de atividade recente em `/amigos`
-13. **I.1** — componente de celebração
-14. **I.2** — portas de gamificação devolvem resultado real
-15. **I.3** — conectar XP/level-up
-16. **I.4** — conectar conquista
-17. **I.5** — conectar marco de streak
-18. **B.1** — schema de opções/resposta correta
-19. **B.2** — backend grava a escolha
-20. **B.3** — widget de escolha real
-21. **B.4** — auditoria e autoria das opções
-22. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
-23. **H.3** — missão de 3 seguidas (depende de B, H.1)
-24. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
-    imediatamente após a 21ª sessão de código)
-25. **D.1** — blocos tipados (só se D.0 = seguir)
-26. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
+**J.1-J.3 entram primeiro de todas.** Diferente de A-I (melhorias sobre algo que já funciona),
+elas mexem numa interação hoje genuinamente quebrada (aba da `TabBar` sem nenhum caminho de
+volta) — mais perto de corrigir um bug de UX do que de adicionar um recurso novo, e é a área de
+maior exposição do app (navegação primária, toda tela). Zero schema, zero dependência de qualquer
+outra fase. **J.4 é a exceção dentro da própria Fase J** — tecnicamente também independente (lê
+`unlocksDescription` ao vivo, nenhuma fase muda esse campo além da E.1), mas só entrega a melhor
+versão do texto depois que a E.1 já reescreveu o "porquê" de cada trilha, então entra logo depois
+dela, não junto das outras 3.
 
-Passos 1-17 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
-risco e maior volume de valor, por isso vem toda antes de B. Passos 18-23 são a fatia de "aposta
+1. **J.1** — `TabBar` deixa de ser beco sem saída
+2. **J.2** — motivo do bloqueio fica visível (não só tooltip)
+3. **J.3** — Detalhe do Ativo travado vira prévia, não parede
+4. **A.1** — parser de cartões (fundação de A/C, zero risco)
+5. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
+6. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
+   `unlocksDescription`, que ela acabou de melhorar; ver nota na própria tarefa)
+7. **A.2** — reescrita das 33 lições em cartões
+8. **A.3** — revelação progressiva
+9. **C.1** — glossário inline
+10. **C.2** — elenco recorrente
+11. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
+    fim da Fase H)
+12. **F.1** — tokens de cor por trilha
+13. **F.2** — backend: trilhas concluídas no perfil público
+14. **F.3** — `TrackTrophyCase`
+15. **G.1** — backend: evento de trilha concluída
+16. **G.2** — seção de atividade recente em `/amigos`
+17. **I.1** — componente de celebração
+18. **I.2** — portas de gamificação devolvem resultado real
+19. **I.3** — conectar XP/level-up
+20. **I.4** — conectar conquista
+21. **I.5** — conectar marco de streak
+22. **B.1** — schema de opções/resposta correta
+23. **B.2** — backend grava a escolha
+24. **B.3** — widget de escolha real
+25. **B.4** — auditoria e autoria das opções
+26. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
+27. **H.3** — missão de 3 seguidas (depende de B, H.1)
+28. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
+    imediatamente após a sessão de código anterior)
+29. **D.1** — blocos tipados (só se D.0 = seguir)
+30. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
+
+Passos 1-21 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
+risco e maior volume de valor, por isso vem toda antes de B. Passos 22-27 são a fatia de "aposta
 real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último de propósito: é o
 único bloco que só faz sentido com uso real do resto já rodando.
 
@@ -660,4 +782,5 @@ real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último
 | G | Feed social de aprendizado | 2 | Sim (tabela nova) |
 | H | Revisão e conquistas por qualidade | 3 | Sim (enum) |
 | I | Teatro de recompensa em tempo real | 5 | Não (contratos de resposta, sem migration) |
-| **Total** | | **26** | |
+| J | Bloqueio como convite, não parede | 4 | Não |
+| **Total** | | **30** | |
