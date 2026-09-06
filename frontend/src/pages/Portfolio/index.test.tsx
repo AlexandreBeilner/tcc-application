@@ -66,6 +66,7 @@ const availableLesson: Lesson = {
     sortOrder: 2,
     centralConcept: 'liquidez',
     unlocksDescription: 'Tesouro Selic',
+    unlocksKeys: [],
     status: 'available',
     currentStep: 0,
 }

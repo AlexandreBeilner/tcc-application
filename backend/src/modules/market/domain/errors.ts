@@ -12,3 +12,25 @@ export class EngineRequestError extends Error {
     this.status = status
   }
 }
+
+// Gate real de desbloqueio por lição (tarefa 7.0.1, achado 5 do backlog
+// Semana 7) — diferente de `EngineRequestError` acima: esta é regra de
+// negócio própria de `market` (o motor não sabe nada de trilha/lição),
+// decidida antes de qualquer chamada ao motor. `key` é a chave travada
+// ('asset:acao', ...); `unlockingLesson` só falta quando nenhuma lição
+// seedada ainda a desbloqueia (currículo incompleto até a 7.1).
+export class ProductLockedError extends Error {
+  readonly status = 403
+  readonly key: string
+  readonly unlockingLesson?: { code: string; title: string }
+
+  constructor(key: string, unlockingLesson?: { code: string; title: string }) {
+    const hint = unlockingLesson
+      ? `Complete a lição ${unlockingLesson.code} (${unlockingLesson.title}) para desbloquear este produto.`
+      : 'Complete a lição correspondente na trilha para desbloquear este produto.'
+    super(`Produto ainda bloqueado pela trilha. ${hint}`)
+    this.name = 'ProductLockedError'
+    this.key = key
+    this.unlockingLesson = unlockingLesson
+  }
+}

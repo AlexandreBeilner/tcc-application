@@ -10,6 +10,7 @@ interface LessonSeed {
   title: string
   centralConcept: string
   unlocksDescription: string | null
+  unlocksKeys: string[]
 }
 
 // Seed mínimo (tarefa 5.6) — só o bastante pra exercitar a cadeia de
@@ -25,6 +26,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'O que é investir',
     centralConcept: 'Investir vs poupar; capital trabalhando para você',
     unlocksDescription: 'Acesso ao Portfólio',
+    unlocksKeys: ['portfolio'],
   },
   {
     code: '0.2',
@@ -34,6 +36,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'Juros simples vs compostos',
     centralConcept: 'Crescimento linear vs exponencial (TCC cap. 2.1.1)',
     unlocksDescription: 'Calculadora Financeira',
+    unlocksKeys: ['calculator'],
   },
   {
     code: '0.3',
@@ -43,6 +46,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'Inflação e poder de compra',
     centralConcept: 'Por que R$100 hoje ≠ R$100 amanhã',
     unlocksDescription: null,
+    unlocksKeys: [],
   },
   {
     code: '0.4',
@@ -52,6 +56,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'Rendimento nominal vs real',
     centralConcept: 'Descontar a inflação do retorno',
     unlocksDescription: null,
+    unlocksKeys: [],
   },
   {
     code: '0.5',
@@ -61,6 +66,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'Por que a poupança geralmente perde',
     centralConcept: 'Comparação direta poupança vs Selic/CDI',
     unlocksDescription: 'Acesso à Trilha 1 (Renda Fixa)',
+    // Chave vazia de propósito: o acesso à Trilha 1 já funciona via
+    // sortOrder (5.6), não é uma chave de unlocksKeys — ver vocabulário
+    // fixo da 7.0.1 (só feature/produto, não lição/trilha).
+    unlocksKeys: [],
   },
   {
     code: '1.1',
@@ -70,6 +79,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'O que é renda fixa',
     centralConcept: 'Emprestar dinheiro a um emissor',
     unlocksDescription: 'Tesouro Selic',
+    // `asset:tesouro_selic` pertence de fato à lição 1.2 (spec 5.1, ver
+    // backlog 7.0.1) — ainda não seedada (autoria é a 7.1.2). 1.1 é só
+    // conceitual, unlocksDescription acima é decorativo até lá.
+    unlocksKeys: [],
   },
 ]
 

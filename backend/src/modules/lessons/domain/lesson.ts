@@ -36,6 +36,9 @@ export interface LessonSummary {
   sortOrder: number
   centralConcept: string
   unlocksDescription: string | null
+  // Vocabulário fixo (tarefa 7.0.1): 'portfolio', 'calculator', 'news_feed'
+  // ou 'asset:<AssetType>'. Ver `unlockedKeysFor` abaixo — normalmente [].
+  unlocksKeys: string[]
 }
 
 export interface LessonProgressSnapshot {
@@ -60,6 +63,33 @@ export function buildLessonView(
   })
 
   return { ...lesson, status, currentStep: progress?.currentStep ?? 0 }
+}
+
+// Desbloqueio real de funcionalidade/produto por lição (tarefa 7.0.1,
+// achado 5 do backlog Semana 7): diferente de `isUnlocked` acima (que só
+// decide se a lição em si está disponível pra fazer), esta função decide
+// quais chaves ('portfolio', 'asset:acao', ...) já viraram acesso de
+// verdade. Critério deliberadamente mais estrito — sortOrder <=
+// completedCount, não completedCount + 1 — porque a chave só deve valer
+// depois que a lição foi de fato *concluída* (ex: entender Tesouro Selic
+// antes de poder comprá-lo), enquanto `isUnlocked` só decide se dá pra
+// começar. Nunca "tranca de novo" depois de desbloqueado (união, não
+// diferença). Espelhada em TS puro no frontend
+// (`frontend/src/features/lessons/unlockedKeys.ts`) a partir dos mesmos
+// dados de `GET /lessons` — sem endpoint novo.
+export function unlockedKeysFor(
+  completedCount: number,
+  lessons: Pick<LessonSummary, 'sortOrder' | 'unlocksKeys'>[],
+): Set<string> {
+  const keys = new Set<string>()
+  for (const lesson of lessons) {
+    if (lesson.sortOrder <= completedCount) {
+      for (const key of lesson.unlocksKeys) {
+        keys.add(key)
+      }
+    }
+  }
+  return keys
 }
 
 // Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de

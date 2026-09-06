@@ -1,14 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthUser } from '../../../services/auth'
 import { listNews } from '../../../services/news'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import { AppShell } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({
     useAuth: vi.fn(),
+}))
+
+vi.mock('../../../features/lessons/useUnlockedKeys', () => ({
+    useUnlockedKeys: vi.fn(),
 }))
 
 vi.mock('../../../services/news', () => ({
@@ -58,6 +63,16 @@ const user: AuthUser = {
 }
 
 describe('AppShell', () => {
+    beforeEach(() => {
+        // Desbloqueado por padrão — estes testes não são sobre o gate da
+        // tarefa 7.0.1 (ver `RequiresUnlock`/`TabBar` pros testes dedicados).
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(['portfolio', 'calculator', 'news_feed']),
+            lessons: [],
+            isLoading: false,
+        })
+    })
+
     afterEach(() => {
         vi.clearAllMocks()
         localStorage.clear()

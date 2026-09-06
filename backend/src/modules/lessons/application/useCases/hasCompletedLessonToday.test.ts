@@ -11,6 +11,7 @@ const lesson = {
   sortOrder: 1,
   centralConcept: 'x',
   unlocksDescription: null,
+  unlocksKeys: [],
 }
 
 describe('HasCompletedLessonTodayUseCase', () => {

@@ -3,11 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { listAssets } from '../../services/market'
 import type { AssetSummary } from '../../services/market'
 import { FixedIncomeList } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/market', () => ({ listAssets: vi.fn() }))
 
 // `AssetTable` (organism reaproveitado) sempre renderiza tabela E lista de
@@ -45,6 +47,14 @@ describe('FixedIncomeList (tela 4.2)', () => {
             login: vi.fn(),
             logout: vi.fn(),
             setUser: vi.fn(),
+        })
+        // Tesouro Selic e CDB já desbloqueados por padrão — os testes deste
+        // arquivo não são sobre o gate da tarefa 7.0.1 (ver describe dedicado
+        // abaixo).
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(['asset:tesouro_selic', 'asset:cdb']),
+            lessons: [],
+            isLoading: false,
         })
     })
 
@@ -97,5 +107,73 @@ describe('FixedIncomeList (tela 4.2)', () => {
         fireEvent.click(screen.getByText('CDBs, LCA e LCI'))
         expect(screen.queryByRole('navigation', { name: 'Paginação de Renda Fixa' })).not.toBeInTheDocument()
         expect(screen.getAllByText('CDB Banco X').length).toBeGreaterThan(0)
+    })
+})
+
+describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => {
+    beforeEach(() => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: 'token',
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+    })
+
+    afterEach(() => vi.clearAllMocks())
+
+    it('produto real ainda travado mostra o cadeado e navega pra lição, não pro detalhe', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(),
+            lessons: [
+                {
+                    id: 'lesson-1-2',
+                    code: '1.2',
+                    title: 'Tesouro Selic',
+                    trackNumber: 1,
+                    trackName: 'Renda Fixa',
+                    sortOrder: 7,
+                    centralConcept: 'x',
+                    unlocksDescription: '',
+                    unlocksKeys: ['asset:tesouro_selic'],
+                    status: 'available',
+                    currentStep: 0,
+                },
+            ],
+            isLoading: false,
+        })
+        vi.mocked(listAssets).mockResolvedValue({ assets })
+        const router = createMemoryRouter(
+            [
+                { path: '/mercado/renda-fixa', element: <FixedIncomeList /> },
+                { path: '/mercado/renda-fixa/:id', element: <div>tela de detalhe</div> },
+                { path: '/trilha/:id', element: <div>tela de lição</div> },
+            ],
+            { initialEntries: ['/mercado/renda-fixa'] },
+        )
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        render(
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>,
+        )
+
+        await waitFor(() => expect(screen.getAllByText('Tesouro Selic').length).toBeGreaterThan(0))
+        expect(screen.getAllByLabelText('Produto travado — desbloqueia na lição 1.2').length).toBeGreaterThan(0)
+
+        fireEvent.click(screen.getAllByText('Tesouro Selic')[0])
+        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
+    })
+
+    it('sandbox continua acessível mesmo sem nenhuma lição concluída (RF12)', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false })
+        const sandboxAsset: AssetSummary = { id: 'sand-1', ticker: 'SANDPRE', name: 'Sandbox', type: 'tesouro_selic', is_sandbox: true }
+        vi.mocked(listAssets).mockResolvedValue({ assets: [sandboxAsset] })
+        renderPage()
+
+        await waitFor(() => expect(screen.getAllByText('SANDPRE').length).toBeGreaterThan(0))
+        expect(screen.queryByLabelText(/Produto travado/)).not.toBeInTheDocument()
     })
 })

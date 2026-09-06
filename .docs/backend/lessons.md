@@ -6,13 +6,15 @@ Regra de desbloqueio: progressão linear por `sortOrder` global — uma lição 
 
 Steps de uma lição (spec 5.2): `0`=cenário, `1`=micro-decisão, `2`=revelação, `3`=desbloqueio. Chegar no step `3` pela primeira vez marca a lição como concluída, credita xp (`LESSON_XP_REWARD`, flat, ilustrativo — sujeito à calibração 8.1) e toca o streak diário. Reenviar o step `3` ou reabrir a lição depois (modo revisão, tela 3.2) nunca credita de novo — idempotente por `completedAt` já preenchido.
 
+Desbloqueio real de funcionalidade/produto (tarefa 7.0.1, diferente da progressão lição-a-lição acima): `unlocksKeys` (vocabulário fixo — `portfolio`, `calculator`, `news_feed` ou `asset:<AssetType>`) some lição-a-lição pra formar o conjunto de chaves desbloqueadas de um usuário — `unlockedKeysFor(completedCount, lessons)`, união de `unlocksKeys` de toda lição com `sortOrder <= completedCount` (a lição precisa estar **concluída**, não só disponível). Consumido de dois jeitos: (a) `modules/market` (`ProductUnlockReader`, ver `.docs/backend/market.md`) nega `POST /market/orders`/`fixed-income/purchases` de ativo real ainda travado; (b) frontend espelha a mesma função em TS puro (`features/lessons/unlockedKeys.ts`) a partir do `unlocksKeys` que `GET /lessons` já devolve por lição — sem endpoint novo.
+
 ---
 
 ### `GET /lessons`
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ lessons: [{ id, code, title, trackNumber, trackName, sortOrder, centralConcept, unlocksDescription, status, currentStep }] }`, ordenado por `sortOrder`. `status` é `completed`/`available`/`locked`, calculado por usuário.
+- **Sucesso:** `200` → `{ lessons: [{ id, code, title, trackNumber, trackName, sortOrder, centralConcept, unlocksDescription, unlocksKeys, status, currentStep }] }`, ordenado por `sortOrder`. `status` é `completed`/`available`/`locked`, calculado por usuário. `unlocksKeys` (tarefa 7.0.1) é `string[]` — normalmente `[]`, só preenchido nas lições que desbloqueiam feature/produto de verdade (ver acima).
 - **Erros:** `401` — token ausente ou inválido/expirado.
 - **Regra:** `GetTrackMapUseCase`.
 

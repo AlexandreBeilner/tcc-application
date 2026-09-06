@@ -10,6 +10,11 @@ export interface Lesson {
     sortOrder: number
     centralConcept: string
     unlocksDescription: string
+    // Vocabulário fixo (tarefa 7.0.1): 'portfolio', 'calculator', 'news_feed'
+    // ou 'asset:<AssetType>' — ver `features/lessons/unlockedKeys.ts`, que
+    // espelha em TS puro o mesmo cálculo do backend a partir deste campo,
+    // sem endpoint novo.
+    unlocksKeys: string[]
     status: 'completed' | 'available' | 'locked'
     currentStep: number
 }

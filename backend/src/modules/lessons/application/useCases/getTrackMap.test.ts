@@ -11,6 +11,7 @@ const track0 = [1, 2, 3, 4, 5].map((n) => ({
   sortOrder: n,
   centralConcept: 'x',
   unlocksDescription: n === 5 ? 'Acesso à Trilha 1 (Renda Fixa)' : null,
+  unlocksKeys: [] as string[],
 }))
 
 const lesson11 = {
@@ -22,6 +23,7 @@ const lesson11 = {
   sortOrder: 6,
   centralConcept: 'Emprestar dinheiro a um emissor',
   unlocksDescription: 'Tesouro Selic',
+  unlocksKeys: [],
 }
 
 describe('GetTrackMapUseCase', () => {

@@ -54,3 +54,9 @@
 .error {
     color: var(--color-feedback-error-500);
 }
+
+.tickerCell {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}

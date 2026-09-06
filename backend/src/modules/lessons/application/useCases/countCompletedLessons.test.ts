@@ -12,6 +12,7 @@ const lessons = [
     sortOrder: 1,
     centralConcept: 'x',
     unlocksDescription: null,
+    unlocksKeys: [],
   },
   {
     id: 'l2',
@@ -22,6 +23,7 @@ const lessons = [
     sortOrder: 2,
     centralConcept: 'y',
     unlocksDescription: null,
+    unlocksKeys: [],
   },
 ]
 

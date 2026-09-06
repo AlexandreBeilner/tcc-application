@@ -3,11 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { listAssets } from '../../services/market'
 import type { AssetSummary } from '../../services/market'
 import { EquityList } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/market', () => ({ listAssets: vi.fn() }))
 
 // `AssetTable` sempre renderiza tabela E cards no DOM (só a media query
@@ -52,6 +54,13 @@ describe('EquityList (tela 4.4)', () => {
             login: vi.fn(),
             logout: vi.fn(),
             setUser: vi.fn(),
+        })
+        // Ações e ETFs já desbloqueados por padrão — os testes deste arquivo
+        // não são sobre o gate da tarefa 7.0.1 (ver describe dedicado abaixo).
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(['asset:acao', 'asset:etf']),
+            lessons: [],
+            isLoading: false,
         })
     })
 
@@ -105,5 +114,73 @@ describe('EquityList (tela 4.4)', () => {
         fireEvent.click(screen.getByText('ETFs'))
         expect(screen.queryByRole('navigation', { name: 'Paginação de Renda Variável' })).not.toBeInTheDocument()
         expect(screen.getAllByText('IVVB11').length).toBeGreaterThan(0)
+    })
+})
+
+describe('EquityList — estado travado pela trilha (tarefa 7.0.1)', () => {
+    beforeEach(() => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: 'token',
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+    })
+
+    afterEach(() => vi.clearAllMocks())
+
+    it('ação real ainda travada mostra o cadeado e navega pra lição, não pro detalhe', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(),
+            lessons: [
+                {
+                    id: 'lesson-2-3',
+                    code: '2.3',
+                    title: 'Nomenclatura de tickers',
+                    trackNumber: 2,
+                    trackName: 'Renda Variável',
+                    sortOrder: 10,
+                    centralConcept: 'x',
+                    unlocksDescription: '',
+                    unlocksKeys: ['asset:acao'],
+                    status: 'available',
+                    currentStep: 0,
+                },
+            ],
+            isLoading: false,
+        })
+        vi.mocked(listAssets).mockResolvedValue({ assets })
+        const router = createMemoryRouter(
+            [
+                { path: '/mercado/renda-variavel', element: <EquityList /> },
+                { path: '/mercado/ativos/:id', element: <div>tela de detalhe</div> },
+                { path: '/trilha/:id', element: <div>tela de lição</div> },
+            ],
+            { initialEntries: ['/mercado/renda-variavel'] },
+        )
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        render(
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>,
+        )
+
+        await waitFor(() => expect(screen.getAllByText('PETR4').length).toBeGreaterThan(0))
+        expect(screen.getAllByLabelText('Produto travado — desbloqueia na lição 2.3').length).toBeGreaterThan(0)
+
+        fireEvent.click(screen.getAllByText('PETR4')[0])
+        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
+    })
+
+    it('sandbox continua acessível mesmo sem nenhuma lição concluída (RF12)', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false })
+        const sandboxAsset: AssetSummary = { id: 'sand-1', ticker: 'SAND3', name: 'Sandbox', type: 'acao', is_sandbox: true }
+        vi.mocked(listAssets).mockResolvedValue({ assets: [sandboxAsset] })
+        renderPage()
+
+        await waitFor(() => expect(screen.getAllByText('SAND3').length).toBeGreaterThan(0))
+        expect(screen.queryByLabelText(/Produto travado/)).not.toBeInTheDocument()
     })
 })

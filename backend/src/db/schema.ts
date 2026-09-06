@@ -109,6 +109,16 @@ export const lessons = pgTable(
     title: varchar('title', { length: 150 }).notNull(),
     centralConcept: text('central_concept').notNull(),
     unlocksDescription: text('unlocks_description'),
+    // Vocabulário fixo (tarefa 7.0.1): 'portfolio', 'calculator', 'news_feed'
+    // ou 'asset:<AssetType>' (espelha 1:1 `catalog.AssetType` do motor).
+    // "Chave desbloqueada" = existe lição completada (sortOrder <=
+    // completedCount) cujo unlocksKeys contém a chave — ver
+    // `domain/lesson.ts#unlockedKeysFor`. Vazio pra lições que só desbloqueiam
+    // a próxima lição/trilha via sortOrder (mecanismo já existente da 5.6).
+    unlocksKeys: text('unlocks_keys')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

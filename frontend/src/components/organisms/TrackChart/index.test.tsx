@@ -13,6 +13,7 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         sortOrder: 1,
         centralConcept: '',
         unlocksDescription: '',
+        unlocksKeys: [],
         status: 'locked',
         currentStep: 0,
         ...overrides,

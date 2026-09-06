@@ -12,6 +12,7 @@ const lessons = [1, 2].map((n) => ({
   sortOrder: n,
   centralConcept: 'x',
   unlocksDescription: null,
+  unlocksKeys: [],
 }))
 
 describe('GetLessonUseCase', () => {

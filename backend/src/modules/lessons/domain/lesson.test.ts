@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildLessonView, isUnlocked, lessonStatus, utcDateString } from './lesson'
+import { buildLessonView, isUnlocked, lessonStatus, unlockedKeysFor, utcDateString } from './lesson'
 
 describe('isUnlocked', () => {
   it.each([
@@ -42,6 +42,7 @@ describe('buildLessonView', () => {
     sortOrder: 1,
     centralConcept: 'Investir vs poupar',
     unlocksDescription: 'Acesso ao Portfólio',
+    unlocksKeys: ['portfolio'],
   }
 
   it('sem progresso: primeira lição available, currentStep=0', () => {
@@ -62,6 +63,34 @@ describe('buildLessonView', () => {
     const view = buildLessonView(lesson, { currentStep: 3, completedAt: new Date() }, 0)
 
     expect(view.status).toBe('completed')
+  })
+})
+
+describe('unlockedKeysFor', () => {
+  const lessons = [
+    { sortOrder: 1, unlocksKeys: ['portfolio'] },
+    { sortOrder: 2, unlocksKeys: ['calculator'] },
+    { sortOrder: 3, unlocksKeys: [] },
+    { sortOrder: 6, unlocksKeys: ['asset:tesouro_selic'] },
+  ]
+
+  it('nenhuma lição concluída → nenhuma chave desbloqueada', () => {
+    expect(unlockedKeysFor(0, lessons)).toEqual(new Set())
+  })
+
+  it('só chaves de lições com sortOrder <= completedCount', () => {
+    expect(unlockedKeysFor(2, lessons)).toEqual(new Set(['portfolio', 'calculator']))
+  })
+
+  it('lição sem unlocksKeys não adiciona nada (mesma progressão via sortOrder)', () => {
+    expect(unlockedKeysFor(3, lessons)).toEqual(new Set(['portfolio', 'calculator']))
+  })
+
+  it('une chaves de múltiplas lições concluídas, sem duplicar', () => {
+    const withDuplicate = [...lessons, { sortOrder: 6, unlocksKeys: ['asset:tesouro_selic'] }]
+    expect(unlockedKeysFor(6, withDuplicate)).toEqual(
+      new Set(['portfolio', 'calculator', 'asset:tesouro_selic']),
+    )
   })
 })
 

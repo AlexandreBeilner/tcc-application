@@ -19,9 +19,10 @@ import { createFakeAccountReader } from '../../test/fakes/fakeAccountReader'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeFixedIncomeExecutor } from '../../test/fakes/fakeFixedIncomeExecutor'
 import { createFakeOrderExecutor } from '../../test/fakes/fakeOrderExecutor'
+import { createFakeProductUnlockReader } from '../../test/fakes/fakeProductUnlockReader'
 import { createMarketRouter } from './marketRouter'
 
-function buildApp() {
+function buildApp(options: { unlockedAssetKeys?: Set<string>; lessonHint?: { code: string; title: string } } = {}) {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
 
@@ -81,6 +82,14 @@ function buildApp() {
     },
     getTaxRate: { tax_rate: 0.175 },
   })
+  // Desbloqueado por padrão (`asset:acao`, o único tipo usado pelo
+  // catalogReader fake acima) — os testes que não são sobre o gate da
+  // 7.0.1 continuam exercitando só o caminho feliz; `productUnlockReader`
+  // fica exposto pra quem precisar simular o produto travado.
+  const productUnlockReader = createFakeProductUnlockReader({
+    unlockedKeys: options.unlockedAssetKeys ?? new Set(['asset:acao']),
+    lessonHint: options.lessonHint,
+  })
 
   const app = express()
   app.use(express.json())
@@ -92,8 +101,12 @@ function buildApp() {
       getCompany: new GetCompanyUseCase(catalogReader),
       getMyAccount: new GetMyAccountUseCase(accountReader),
       listMyEvents: new ListMyEventsUseCase(accountReader),
-      placeOrder: new PlaceOrderUseCase(orderExecutor),
-      purchaseFixedIncome: new PurchaseFixedIncomeUseCase(fixedIncomeExecutor),
+      placeOrder: new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader),
+      purchaseFixedIncome: new PurchaseFixedIncomeUseCase(
+        fixedIncomeExecutor,
+        catalogReader,
+        productUnlockReader,
+      ),
       redeemFixedIncome: new RedeemFixedIncomeUseCase(fixedIncomeExecutor),
       simulateFixedIncome: new SimulateFixedIncomeUseCase(fixedIncomeExecutor),
       getFixedIncomeTaxRate: new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor),
@@ -101,7 +114,15 @@ function buildApp() {
     }),
   )
 
-  return { app, tokenIssuer, catalogReader, accountReader, orderExecutor, fixedIncomeExecutor }
+  return {
+    app,
+    tokenIssuer,
+    catalogReader,
+    accountReader,
+    orderExecutor,
+    fixedIncomeExecutor,
+    productUnlockReader,
+  }
 }
 
 describe('GET /market/assets', () => {
@@ -263,6 +284,28 @@ describe('POST /market/orders', () => {
     expect(res.status).toBe(422)
     expect(res.body).toEqual({ error: 'saldo insuficiente' })
   })
+
+  it('retorna 403 (produto travado pela trilha) quando o usuário não desbloqueou o tipo do ativo (tarefa 7.0.1)', async () => {
+    const { app, tokenIssuer } = buildApp({
+      unlockedAssetKeys: new Set(),
+      lessonHint: { code: '2.3', title: 'Nomenclatura de tickers' },
+    })
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .post('/market/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        asset_id: '11111111-1111-4111-8111-111111111111',
+        side: 'buy',
+        type: 'market',
+        quantity: 10,
+      })
+
+    expect(res.status).toBe(403)
+    expect(res.body.key).toBe('asset:acao')
+    expect(res.body.unlockingLesson).toEqual({ code: '2.3', title: 'Nomenclatura de tickers' })
+  })
 })
 
 describe('POST /market/fixed-income/purchases', () => {
@@ -281,6 +324,19 @@ describe('POST /market/fixed-income/purchases', () => {
 
     expect(res.status).toBe(201)
     expect(fixedIncomeExecutor.purchaseCalls[0].user_id).toBe('user-1')
+  })
+
+  it('retorna 403 (produto travado pela trilha) quando o usuário não desbloqueou o tipo do ativo (tarefa 7.0.1)', async () => {
+    const { app, tokenIssuer } = buildApp({ unlockedAssetKeys: new Set() })
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .post('/market/fixed-income/purchases')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ asset_id: '11111111-1111-4111-8111-111111111111', amount: 1000 })
+
+    expect(res.status).toBe(403)
+    expect(res.body.key).toBe('asset:acao')
   })
 })
 

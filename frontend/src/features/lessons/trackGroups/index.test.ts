@@ -12,6 +12,7 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         sortOrder: overrides.sortOrder ?? 1,
         centralConcept: overrides.centralConcept ?? 'Conceito',
         unlocksDescription: overrides.unlocksDescription ?? '',
+        unlocksKeys: overrides.unlocksKeys ?? [],
         status: overrides.status ?? 'locked',
         currentStep: overrides.currentStep ?? 0,
     }

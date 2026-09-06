@@ -36,6 +36,7 @@ function lesson(overrides: Partial<LessonType>): LessonType {
         sortOrder: 5,
         centralConcept: 'Espalhar capital reduz risco',
         unlocksDescription: 'Tesouro Selic',
+        unlocksKeys: [],
         status: 'available',
         currentStep: 0,
         ...overrides,

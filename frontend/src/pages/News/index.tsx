@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Pagination } from '../../components/molecules/Pagination'
 import { NewsEventList } from '../../components/organisms/NewsEventList'
+import { findLessonUnlocking } from '../../features/lessons/unlockedKeys'
+import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { useAssetLabels } from '../../features/market/useAssetLabels'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMarkNewsEventSeenMutation } from '../../features/news/useMarkNewsEventSeenMutation'
@@ -31,6 +33,9 @@ export function News() {
     const navigate = useNavigate()
     const reportFeedRead = useReportFeedMission()
     const markEventSeen = useMarkNewsEventSeenMutation()
+    const { unlockedKeys, lessons } = useUnlockedKeys()
+    const newsFeedLocked = !unlockedKeys.has('news_feed')
+    const unlockingLesson = newsFeedLocked ? findLessonUnlocking('news_feed', lessons) : undefined
 
     const events = useMemo(() => newsQuery.data?.events ?? [], [newsQuery.data])
 
@@ -50,6 +55,17 @@ export function News() {
             <p className={styles.subtitle}>
                 Eventos de mercado que afetam preço e/ou fundamentos dos ativos. Clique num evento pra ver o efeito completo.
             </p>
+
+            {// Conteúdo só-leitura e de baixo risco (tarefa 7.0.1) — nunca
+            // bloqueado de fato, só um aviso enquanto a chave `news_feed`
+            // ainda não foi desbloqueada.
+            newsFeedLocked && (
+                <p className={styles.lockNotice}>
+                    {unlockingLesson
+                        ? `Desbloqueia de verdade na lição ${unlockingLesson.code} (${unlockingLesson.title}) — você já pode acompanhar o feed enquanto isso.`
+                        : 'Desbloqueia de verdade completando a lição correspondente na trilha — você já pode acompanhar o feed enquanto isso.'}
+                </p>
+            )}
 
             {newsQuery.isLoading && <p className={styles.loading}>Carregando feed…</p>}
 

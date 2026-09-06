@@ -18,6 +18,7 @@ function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
     sortOrder: row.sortOrder,
     centralConcept: row.centralConcept,
     unlocksDescription: row.unlocksDescription,
+    unlocksKeys: row.unlocksKeys,
   }
 }
 

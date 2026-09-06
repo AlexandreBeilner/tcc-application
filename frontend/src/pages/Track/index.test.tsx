@@ -38,6 +38,7 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         sortOrder: 1,
         centralConcept: 'Investir é postergar consumo',
         unlocksDescription: '',
+        unlocksKeys: [],
         status: 'available',
         currentStep: 0,
         ...overrides,
