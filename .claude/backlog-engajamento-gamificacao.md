@@ -1,0 +1,663 @@
+# Backlog — Engajamento e Gamificação
+
+Backlog executável derivado de `.claude/proposta-engajamento-licoes.md` (estudo pedido pelo autor
+depois da autoria das 33 lições, tarefas 7.1.1–7.1.6, com o cronograma adiantado em relação ao
+roadmap de 8 semanas da spec). Cobre tanto a experiência de lição (Fases A-D) quanto o restante da
+camada de gamificação — Perfil, feed social, missões, conquistas e o "teatro de recompensa"
+citado em `identidade-visual-padroes.md` §6, hoje só documentado, nunca implementado como
+componente reutilizável (Fases E-I).
+
+> **Revisão de auditoria (mesma sessão):** antes de liberar pra implementação, cada tarefa foi
+> conferida contra o código real em busca de ambiguidade — 3 achados corrigiram descrição errada
+> (não só imprecisa): **Fase G** assumia um feed de amizade já existente (não existe nenhum, só
+> `Amigos`/`BuscarAmigos`, ambos hub/busca sem atividade); **Fase F (antiga F.2)** assumia dar pra
+> reaproveitar `GET /lessons` pra ler trilha concluída de outro usuário (essa rota só lê o próprio
+> `req.auth.userId` — confirmado no código —, então precisa de campo novo em
+> `GetPublicProfileUseCase`); e **Fase I** tratava XP/nível/conquista/streak como "se ainda não
+> exposto" quando na verdade **já estão computados** (`AwardXpUseCase` devolve
+> `{xp, level, leveledUp}`, `CheckAndUnlockAchievementsUseCase` devolve `Achievement[]`) só que
+> descartados no caminho — as portas `XpAwarder`/`StreakTracker`/`AchievementChecker` declaram
+> `Promise<void>` de propósito e jogam fora o resultado rico da chamada de baixo. Os 3 casos
+> viraram tarefas novas ou reordenadas abaixo. Também: o marco de streak "14 dias" citado na
+> versão anterior não existe em `seedAchievements.ts` (só 7 e 30) — corrigido.
+
+**Como usar este arquivo** — mesma disciplina do `backlog-plataforma-investimentos.md`:
+
+1. Siga a **sequência sugerida** na seção final, não a ordem alfabética das fases — a ordem A-I é
+   só agrupamento temático; a sequência já resolve as dependências reais entre tarefas de fases
+   diferentes.
+2. Cada tarefa é escopo de uma sessão. Não empacote várias tarefas numa sessão só.
+3. Ao concluir uma tarefa, verifique os critérios de aceite antes de considerar pronta, e marque
+   ✅ + acrescente um bullet de Entregável (mesmo padrão do backlog principal).
+4. Toda tarefa que toca `backend/` passa pelo checklist do `CLAUDE.md` (ports/adapters, Zod na
+   borda HTTP, teste no mesmo commit, `.docs/backend/<módulo>.md` atualizado se o contrato de
+   rota mudar, `docker compose up` antes de fechar).
+5. **B.1, D.1, F.2, G.1, H.1 e I.2 tocam schema ou o formato de resposta de rotas já em uso** —
+   cada uma diz explicitamente o que muda de contrato; nenhuma quebra o consumidor atual sem
+   avisar (campo novo sempre nullable/opcional, nunca campo removido).
+6. Nenhuma regra crítica do `CLAUDE.md` é reaberta aqui (capital fixo em R$10.000, janela de
+   ranking, RNF09 — valor absoluto nunca exposto, `role=admin` nunca por autocadastro). Nenhuma
+   tarefa abaixo toca essas regras; se alguma parecer que precisa, pare e confirme antes.
+
+---
+
+## Fase A — Fatiar o conteúdo que já existe
+
+Frente A da proposta, risco baixo, sem migration. Objetivo: os mesmos números e fórmulas já
+escritos, entregues em cartões pequenos em vez de parágrafo único.
+
+### A.1 · Convenção de cartões + parser no frontend
+
+- **Descrição:** hoje `scenarioText`/`microDecisionPrompt`/`revelationText` são uma `string` só,
+  renderizada como um único `<p>` (`frontend/src/pages/Lesson/index.tsx`, passos 0/1/2). Introduzir
+  a convenção de que uma quebra dupla de linha (`\n\n`) dentro desses campos separa cartões
+  independentes — confirmado nesta sessão que nenhuma das 33 lições usa `\n\n` hoje
+  (`grep -c '\\n\\n' backend/src/db/seedLessons.ts` = 0), então é retrocompatível: uma lição sem
+  `\n\n` continua renderizando como hoje, 1 cartão só.
+- **O que muda na aplicação:**
+  - `frontend/src/features/lessons/` ganha uma função pura nova (`splitIntoCards` ou similar,
+    testada) que recebe a `string` do campo e devolve `string[]`.
+  - `Lesson/index.tsx` ganha um `subStep` local (estado, não persistido — a persistência de
+    progresso continua sendo só o `step` de fase, spec 5.2) navegando pelos cartões de cada fase
+    antes de habilitar o "Continuar" que avança de fase de verdade; barra de progresso fina
+    interna à fase (pontinhos menores), sem mudar a barra grande de 4 segmentos existente.
+  - Nenhuma mudança de schema, de rota HTTP ou de `AdvanceLessonUseCase` — puramente frontend.
+- **Critérios de aceite:** uma lição com `\n\n` no meio do texto renderiza N cartões com
+  "Continuar" entre eles; uma lição sem `\n\n` (ainda não reescrita) continua funcionando
+  exatamente como hoje; navegação por teclado/foco funciona entre cartões.
+- **Referências:** `proposta-engajamento-licoes.md` §2 (Frente A, técnica "Fatiamento por ideia");
+  spec 5.2 (as 4 fases continuam intactas).
+- **Dependências:** nenhuma.
+
+### A.2 · Reescrita das 33 lições em cartões
+
+- **Descrição:** aplicar a convenção da A.1 ao conteúdo já escrito (`backend/src/db/seedLessons.ts`),
+  seguindo a regra de redação: nenhum cartão passa de ~45 palavras, nenhum cartão introduz mais de
+  1 número novo. Prioridade pelas lições com maior `revelationText` hoje (1.5, 1.6, 1.9, 2.6.4,
+  2.9 — qualquer uma com "mas" ou dois-pontos duas vezes no meio do parágrafo é candidata certa).
+  Nenhum número, fórmula ou correção de conteúdo muda — só a unidade de exibição.
+- **O que muda na aplicação:** só `backend/src/db/seedLessons.ts` (conteúdo) + rodar
+  `db:seed:lessons` (já usa `onConflictDoUpdate` desde a 7.1.1, atualiza sem duplicar).
+- **Critérios de aceite:** as 33 lições reescritas; nenhum valor numérico (taxa, fórmula, ticker)
+  diferente do texto original; `docker compose up` + Chrome real confirmando visualmente pelo
+  menos as 5 lições mais densas (1.5, 1.6, 1.9, 2.6.4, 2.9) fatiadas corretamente.
+- **Referências:** exemplo completo da lição 1.5 fatiada em 5 cartões já está em
+  `proposta-engajamento-licoes.md` §2 — usar como modelo de tom/tamanho pras demais.
+- **Dependências:** A.1.
+
+### A.3 · Revelação progressiva ("ver resultado")
+
+- **Descrição:** dentro do passo Revelação, quando um cartão contém um resultado calculado (uma
+  taxa, um veredito de comparação), esconder esse número atrás de um botão "Ver resultado" em vez
+  de mostrá-lo já na primeira leitura do cartão. **Convenção de marcação (decidida nesta revisão,
+  não fica em aberto pra sessão futura):** um cartão cujo texto começa literalmente com o prefixo
+  `[revelar] ` (colchetes + espaço) é tratado como "resultado escondido" — o parser da A.1 separa o
+  prefixo do texto, remove-o da string exibida e marca o cartão com `hidden: true` na saída de
+  `splitIntoCards`; a UI mostra só um botão "Ver resultado" no lugar do texto até o toque, então
+  revela o texto completo no mesmo lugar (sem navegar pra outro cartão).
+- **O que muda na aplicação:** `splitIntoCards` (A.1) passa a devolver
+  `{ text: string; hidden: boolean }[]` em vez de `string[]`; `Lesson/index.tsx` ganha o estado de
+  revelado/escondido por cartão; conteúdo (`seedLessons.ts`) marca os cartões de resultado da
+  lição 1.5 (cartões 3 e 4 do exemplo da proposta) com o prefixo.
+- **Critérios de aceite:** cartão marcado com `[revelar] ` não mostra o texto até o toque no
+  botão; cartão sem o prefixo continua aparecendo direto (comportamento da A.1/A.2 preservado);
+  não bloqueia navegação por teclado (botão "Ver resultado" é alcançável e ativável por teclado).
+- **Referências:** `proposta-engajamento-licoes.md` §1 ("sem curiosity gap dentro do parágrafo") e
+  §2 (técnica "Revelação progressiva").
+- **Dependências:** A.1, A.2 (precisa de conteúdo já fatiado pra ter onde aplicar o gate).
+
+---
+
+## Fase B — Aposta com acerto/erro real
+
+Impulso 3 (Empoderamento e Feedback) da proposta. Troca o checkbox genérico "já pensei na minha
+resposta" por uma escolha real nas lições `reflection` com resposta objetiva — a maioria das 33.
+Ao contrário do que a proposta estimou de forma otimista, isso **exige schema novo**, pequeno e
+aditivo: sem opção/resposta correta gravadas em algum lugar, não existe "certo" ou "errado" pra
+comparar.
+
+### B.1 · Schema — opções e resposta correta
+
+- **Descrição:** duas colunas novas em `lessons` (`backend/src/db/schema.ts`):
+  `microDecisionOptions` (`text[]`, nullable — 2 a 4 alternativas curtas) e
+  `microDecisionCorrectOption` (`smallint`, nullable — índice da alternativa certa no array). Os
+  dois ficam `null` por padrão: uma lição sem essas colunas preenchidas continua mostrando o
+  checkbox de hoje (retrocompatível, mesmo padrão incremental da 7.0.2/7.1). Uma coluna nova em
+  `user_lesson_progress`: `microDecisionSelectedOption` (`smallint`, nullable) — grava o que o
+  usuário escolheu, necessário pra Fase H (conquista/missão de sequência de acertos) mais adiante
+  poder consultar o histórico, não só o momento em que a escolha foi feita.
+- **O que muda na aplicação:**
+  - Migration nova (`backend/src/db/migrations/`) com as 3 colunas, todas nullable — sem
+    `NOT NULL DEFAULT`, então não precisa de backfill.
+  - `backend/src/modules/lessons/domain/lesson.ts` — `LessonSummary` ganha
+    `microDecisionOptions: string[] | null` e `microDecisionCorrectOption: number | null`;
+    `LessonProgressSnapshot` ganha `microDecisionSelectedOption: number | null`. Nova função pura
+    testável `isCorrectOption(lesson, selectedOption)`.
+  - `drizzleLessonRepository.ts` espelha as 3 colunas (leitura e escrita de progresso).
+- **Critérios de aceite:** migration aplica sem erro em cima do banco com as 33 lições já
+  seedadas; `GET /lessons/:id` devolve `microDecisionOptions: null`/`microDecisionCorrectOption: null`
+  pras lições ainda não migradas de conteúdo (nenhuma quebra de contrato pro frontend atual);
+  `isCorrectOption` testado table-driven (índice certo, índice errado, `null` como "sem aposta
+  real ainda").
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 3); `.docs/backend/lessons.md`
+  (atualizar contrato de `GET /lessons/:id`).
+- **Dependências:** nenhuma.
+
+### B.2 · Backend — `AdvanceLessonUseCase` grava a escolha
+
+- **Descrição:** `AdvanceLessonInput` (`backend/src/modules/lessons/application/useCases/advanceLesson.ts`)
+  ganha um campo opcional `selectedOption?: number`, só relevante quando o `step` avançado é o da
+  Micro-decisão (passo 1) de uma lição com `microDecisionOptions` preenchido. `upsertProgress`
+  passa esse valor pra `microDecisionSelectedOption` (B.1). Validação de entrada com Zod
+  (`advanceLessonBodySchema`, `backend/src/modules/lessons/interfaces/http/schemas.ts`) — índice
+  dentro do tamanho de `microDecisionOptions` da lição, senão `400`.
+- **O que muda na aplicação:** `advanceLesson.ts` (caso de uso), `schemas.ts` (Zod),
+  `lessonsRouter.ts` (repassa o campo novo do body), `drizzleLessonRepository.ts` (persiste).
+- **Critérios de aceite:** `POST /lessons/:id/progress` com `selectedOption` fora do intervalo de
+  `microDecisionOptions.length` devolve `400`; com índice válido, persiste e é lido de volta em
+  `GET /lessons` (currentStep/progress); lição sem opções reais ignora o campo sem erro (mantém
+  checkbox).
+- **Referências:** `.docs/backend/lessons.md`.
+- **Dependências:** B.1.
+
+### B.3 · Frontend — widget de escolha real
+
+- **Descrição:** no passo Micro-decisão (`Lesson/index.tsx`, `step === 1`), quando
+  `lesson.microDecisionOptions` não é `null`, renderizar N botões de escolha em vez do checkbox
+  "já pensei" — mutuamente exclusivo com os widgets embutidos (`growth_calculator`/
+  `fixed_income_comparison`, que continuam como estão). No passo Revelação (`step === 2`), se a
+  lição tinha opções, abrir com um badge "Você acertou" (verde, `--color-gain-500`) ou "Quase — a
+  resposta certa era: [opção]" (âmbar/neutro, nunca vermelho de perda financeira — RNF/identidade
+  visual §2.3 reserva vermelho pra dado financeiro real) antes do `revelationText`.
+- **O que muda na aplicação:** `Lesson/index.tsx` (novo bloco condicional no passo 1 e 2),
+  `useAdvanceLesson.ts` (passa `selectedOption` na mutação), `services/lessons/types.ts` (espelha
+  os 2 campos novos de `LessonSummary`). Os testes deste componente usam fixtures locais com
+  `microDecisionOptions` preenchido — não dependem do conteúdo real da B.4 existir.
+- **Critérios de aceite:** lição com opções reais mostra os botões (não o checkbox); escolher e
+  continuar mostra o badge certo/quase correspondente na Revelação; lição sem opções continua
+  mostrando o checkbox exatamente como hoje; teste de componente cobrindo os 2 casos (acerto e
+  erro) + o caso sem opções (regressão).
+- **Referências:** `identidade-visual-tokens.md` §2.3/2.3a (cores de feedback, não reaproveitar
+  ganho/perda financeiro pra isso).
+- **Dependências:** B.1, B.2.
+
+### B.4 · Conteúdo — auditoria e autoria das opções
+
+- **Descrição:** levantar, das 33 lições `reflection`, quantas têm resposta objetiva clara
+  (sim/não, sobe/desce, maior/menor — a maioria, pelo padrão já visto em 1.1, 1.2, 1.6, 2.5, 2.6.x)
+  vs. as que são genuinamente abertas/reflexivas sem "resposta certa" (raras, mas existem — ex.
+  0.1 "o que te faria escolher um ou outro" é aberta de propósito, não deveria virar múltipla
+  escolha forçada). Escrever `microDecisionOptions`/`microDecisionCorrectOption` só pras
+  elegíveis.
+- **O que muda na aplicação:** só `backend/src/db/seedLessons.ts` (dados) + `db:seed:lessons`.
+- **Critérios de aceite:** tabela de auditoria (pode ficar como comentário no próprio seed, mesmo
+  padrão de outras decisões documentadas ali) listando quais das 33 ganharam opções reais e quais
+  ficaram deliberadamente abertas, com justificativa curta pras que ficaram de fora.
+- **Referências:** `proposta-engajamento-licoes.md` §3.
+- **Dependências:** B.1, B.3 (widget já implementado, testado com fixture — B.4 é quem finalmente
+  valida com conteúdo real de ponta a ponta).
+
+---
+
+## Fase C — Glossário inline e elenco recorrente
+
+Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migration.
+
+### C.1 · Catálogo de glossário + popover de definição
+
+- **Descrição:** catálogo estático (mesmo espírito de `engine/internal/domain/macroevent/templates.go`
+  — dado fixo em código, não tabela de banco) termo → definição curta, cobrindo os termos
+  recorrentes hoje reexplicados por extenso em mais de uma lição (FGC, marcação a mercado,
+  deságio, taxa bruta equivalente, EBIT, Dividend Yield...). Componente novo (`molecule`,
+  `frontend/src/components/molecules/GlossaryTerm/`) marca o termo com sublinhado tracejado;
+  toque/hover mostra a definição num popover pequeno, sem navegar pra fora da lição. **Convenção
+  de marcação:** termo entre chaves duplas no texto, ex. `{{FGC}}` — o parser da A.1 reconhece
+  esse padrão em qualquer cartão e substitui pelo componente `GlossaryTerm` na renderização; termo
+  usado que não existe no catálogo cai de volta pro texto puro (`{{Termo}}` → `Termo`), nunca
+  quebra a tela.
+- **O que muda na aplicação:** catálogo novo em `frontend/src/features/lessons/glossary.ts` (mapa
+  `Record<string, string>` termo→definição, testado), componente `GlossaryTerm` (molecule),
+  marcação nos textos de `seedLessons.ts` usando a convenção `{{Termo}}`.
+- **Critérios de aceite:** termo marcado no texto renderiza com o popover funcional; termo `{{X}}`
+  sem entrada no catálogo renderiza só o texto `X`, sem quebrar; teste do componente cobrindo
+  abrir/fechar do popover e navegação por teclado (Enter/Escape).
+- **Referências:** `proposta-engajamento-licoes.md` §2 (técnica "Glossário inline").
+- **Dependências:** A.1 (mesmo pipeline de parsing do texto).
+
+### C.2 · Elenco recorrente — referência cruzada entre lições
+
+- **Descrição:** VALR3/BNDD4 (e os demais tickers do catálogo) aparecem em 8+ lições da Trilha 2
+  como exemplos soltos. Adicionar, no texto de uma lição que reintroduz um ativo já visto, um link
+  curto "já visto na lição 2.1" navegando direto pra ela (`/trilha/:id`), em vez de reexplicar do
+  zero.
+- **O que muda na aplicação:** conteúdo (`seedLessons.ts`) usando a mesma convenção de marcação da
+  C.1 (ex. `{{ref:2.1}}` → link "já visto na lição 2.1", resolvido no parser de A.1 pro `id` real
+  via a lista de lições já carregada em `useLessonsQuery`, sem chamada nova).
+- **Critérios de aceite:** pelo menos 3 lições da Trilha 2 (ex: 2.4, 2.6.3, 2.8, todas
+  reintroduzindo VALR3/BNDD4) linkam de volta pra 2.1/2.3, onde o ativo foi apresentado primeiro.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 1, "elenco recorrente").
+- **Dependências:** A.1 (reaproveita o parser/convenção de marcação — unificado com C.1 nesta
+  revisão pra não ter 2 sintaxes de marcação diferentes no mesmo texto).
+
+---
+
+## Fase D — Blocos tipados + XP fracionado
+
+**Gate explícito, não uma tarefa de código ainda.** A versão anterior deste backlog deixava os
+critérios de aceite "a decidir na sessão que abrir esta tarefa" — foi corrigido: D.0 abaixo é a
+própria tarefa de decisão, com critério de aceite concreto (um documento, não código). D.1/D.2 só
+começam depois de D.0 concluir com resultado "seguir".
+
+### D.0 · Checkpoint de decisão — vale a pena ir além do fatiamento por texto?
+
+- **Descrição:** depois de A-C estarem em produção por tempo suficiente pra gerar sinal (não uma
+  sessão logo em seguida — dias/semanas de uso real), responder por escrito: (1) o tempo médio por
+  lição mudou (seção "Como validar" da proposta)? (2) a taxa de acerto na Micro-decisão (Fase B)
+  está numa faixa saudável (nem perto de 100%, nem muito baixa)? (3) existe alguma comparação ou
+  fórmula que o formato "texto com `\n\n`" (A.1) não consegue expressar bem, que blocos tipados
+  resolveriam? Se a resposta de (3) for "não", **não fazer D.1** — só a variação de XP (D.2) ainda
+  vale, independente do resto.
+- **O que muda na aplicação:** nada em código — o entregável é o documento de decisão (pode virar
+  uma atualização deste próprio arquivo, seção D, com o resultado).
+- **Critérios de aceite:** as 3 perguntas acima respondidas por escrito, com dado real (não
+  achismo) sustentando a resposta; decisão explícita de seguir ou não pra D.1.
+- **Referências:** `proposta-engajamento-licoes.md` §6 ("Como validar").
+- **Dependências:** A.1, A.2, A.3, B (rodando em produção real, não só implementadas).
+
+### D.1 · Conteúdo estruturado por blocos tipados
+
+- **Descrição:** evolução da A.1 (`\n\n` como delimitador de string) pra uma lista de blocos
+  tipados de verdade — `{ type: 'text' | 'formula' | 'comparison' | 'glossary_ref', ... }`. Só
+  abrir esta tarefa se D.0 concluiu com "seguir".
+- **O que muda na aplicação:** migration em `lessons` trocando os 3 campos de `text` por `jsonb`
+  (ou 3 novos campos `*Blocks jsonb`, mantendo os antigos até a migração de conteúdo terminar);
+  `domain/lesson.ts` ganha os tipos de bloco; `Lesson/index.tsx` renderiza por tipo de bloco em
+  vez de só split de string.
+- **Critérios de aceite:** definidos na própria D.0, como parte do documento de decisão (não
+  antes) — a resposta à pergunta 3 de D.0 já aponta qual tipo de bloco resolve qual problema
+  concreto, e isso vira o critério de aceite desta tarefa.
+- **Referências:** `proposta-engajamento-licoes.md` §2 ("nova arquitetura de passos").
+- **Dependências:** D.0 (resultado "seguir").
+
+### D.2 · XP variável por desempenho
+
+- **Descrição:** `LESSON_XP_REWARD` hoje é flat (50, `domain/lesson.ts`). Variar o valor premiado
+  por `xpAwarder.award` conforme o desempenho na Micro-decisão (acerto de primeira > acerto depois
+  de errar > sem aposta real ainda, lições não migradas pela B mantêm o flat de hoje). Recalibração
+  de toda a curva (não só das lições) é a tarefa 8.1, já prevista antes desta sessão — esta tarefa
+  não reabre 8.1 sozinha, só adiciona a variável "desempenho" ao que 8.1 vai calibrar. Não depende
+  de D.0/D.1 — pode ser feita mesmo que blocos tipados nunca aconteçam.
+- **O que muda na aplicação:** `AdvanceLessonUseCase` calcula o valor a premiar antes de chamar
+  `xpAwarder.award` (hoje chama com a constante direto); `domain/lesson.ts` ganha a função pura de
+  cálculo, testada table-driven.
+- **Critérios de aceite:** lição sem aposta real premia os mesmos 50 XP de hoje (sem regressão);
+  lição com aposta real premia mais por acerto de primeira que por completar sem acertar.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 2); comentário já existente em
+  `domain/lesson.ts` sinalizando a calibração da 8.1.
+- **Dependências:** B (aposta real precisa existir pra ter "desempenho" a medir). Independente de
+  D.0/D.1.
+
+---
+
+## Fase E — Arco narrativo por trilha
+
+Impulso 1 (Significado épico). Só conteúdo, zero schema, pode ser feita em paralelo com qualquer
+outra fase.
+
+### E.1 · Reescrita das lições-âncora com o "porquê" da trilha
+
+- **Descrição:** reescrever `scenarioText` da primeira lição de cada trilha (0.1, 1.1, 2.1, 3.1) pra
+  plantar uma meta maior que a trilha inteira resolve aos poucos, e `unlocksDescription` da última
+  lição de cada trilha (0.5, 1.9, e a última de 2/3 quando existirem) pra pagar essa promessa
+  explicitamente. Ex.: Trilha 1 inteira enquadrada como "montar sua reserva de emergência antes de
+  um imprevisto", ecoando o cenário do bônus de R$1.000 já usado em 0.1.
+- **O que muda na aplicação:** só `backend/src/db/seedLessons.ts` (conteúdo) + `db:seed:lessons`.
+- **Critérios de aceite:** as 4 lições de abertura de trilha (0.1/1.1/2.1/3.1) citam
+  explicitamente uma meta que só se completa no fim da trilha; a última lição de cada trilha já
+  autorada (0.5, 1.9) referencia essa meta ao fechar.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 1); spec 5.1 (tabela de lições por
+  trilha, coluna "Conceito central").
+- **Dependências:** nenhuma.
+
+---
+
+## Fase F — Posse: sala de troféus no Perfil
+
+Impulso 4. **Corrigida nesta revisão:** a versão anterior assumia dar pra consumir `GET /lessons`
+pra mostrar trilhas concluídas no Perfil Público — não dá, essa rota só lê
+`req.auth.userId` (confirmado em `lessonsRouter.ts`), nunca o `userId` de outra pessoa. Precisa de
+campo novo em `GetPublicProfileUseCase`. Sem tocar em RNF09 (nenhum valor absoluto exposto —
+emblema mostra conquista, não patrimônio).
+
+### F.1 · Tokens de cor por trilha
+
+- **Descrição:** `identidade-visual-tokens.md` hoje não distingue trilhas por cor. Definir uma
+  variação de tom por trilha (4 trilhas: 0 Fundamentos, 1 Renda Fixa, 2 Renda Variável, 3
+  Estratégia) dentro da paleta já existente, sem introduzir hue novo que não seja
+  marca/gamificação/semântico (regra §1 do doc de tokens — "cor forte com intenção").
+- **O que muda na aplicação:** `identidade-visual-tokens.md` (seção nova, "cor por trilha") +
+  `:root` custom properties correspondentes no frontend.
+- **Critérios de aceite:** 4 tons definidos, cada um com contraste AA sobre `--color-bg-surface`
+  nos dois temas (claro/escuro); documentado no arquivo de tokens antes de qualquer componente
+  usar.
+- **Referências:** `identidade-visual-tokens.md` §1-2.
+- **Dependências:** nenhuma.
+
+### F.2 · Backend — trilhas concluídas no perfil público
+
+- **Descrição:** `GetPublicProfileUseCase` (`backend/src/modules/profile/application/useCases/getPublicProfile.ts`)
+  hoje monta `PublicProfile` a partir de 3 leitores (`gamificationReader`, `achievementsReader`,
+  `profitabilityReader`) — nenhum deles sabe de lições. Acrescentar
+  `completedTracks: number[]` ao tipo `PublicProfile`, via um 4º leitor novo
+  (`TrackCompletionReader`, porta declarada em `profile/application/ports/`, mesmo padrão dos
+  outros 3) implementado por um adapter em processo sobre o repositório de `lessons` (mesma
+  direção de dependência de `productUnlockReader`/`lessonCompletionChecker`, que já atravessam
+  módulo assim).
+- **O que muda na aplicação:** `profile/application/ports/trackCompletionReader.ts` (novo);
+  `profile/infrastructure/lessons/inProcessTrackCompletionReader.ts` (novo adapter);
+  `getPublicProfile.ts` (chama o 4º leitor, acrescenta o campo); composição em `app.ts` liga o
+  adapter novo.
+- **Critérios de aceite:** `GET /users/:id/profile` de um usuário que completou a Trilha 1 devolve
+  `completedTracks: [0, 1]` (ou equivalente); usuário sem nenhuma trilha completa devolve `[]`;
+  nenhum campo de patrimônio absoluto adicionado (RNF09 — teste explícito, não só ausência
+  incidental, mesmo cuidado já usado em `GetPublicProfileUseCase` hoje).
+- **Referências:** `.docs/backend/profile.md` (contrato de `GET /users/:id/profile`); RNF09.
+- **Dependências:** nenhuma.
+
+### F.3 · Organism `TrackTrophyCase` no Perfil
+
+- **Descrição:** seção nova na tela de Perfil Público mostrando um emblema visual por trilha
+  concluída (dado de F.2), na cor definida em F.1 — substitui/complementa a conquista genérica
+  "Formado na Trilha" (hoje só um item a mais na grade de conquistas, `AchievementsGrid`) por algo
+  visualmente distinto por trilha.
+- **O que muda na aplicação:** `frontend/src/components/organisms/TrackTrophyCase/` (novo,
+  `index.tsx`/`index.module.css`/`index.test.tsx`), consumido pela página de Perfil Público
+  (`PublicProfileCard`, que ganha `completedTracks` em `PublicProfileCardProps`, espelhando o
+  campo novo de F.2).
+- **Critérios de aceite:** usuário com 1+ trilha concluída vê o emblema correspondente na cor
+  certa; usuário sem nenhuma trilha concluída não vê a seção vazia (nem quebrada) — mesmo padrão
+  de estado vazio já usado em outras telas do app.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 4); RF20 (Perfil Público).
+- **Dependências:** F.1, F.2.
+
+---
+
+## Fase G — Feed social de aprendizado
+
+Impulso 5. **Corrigida nesta revisão:** a versão anterior descrevia isso como "novo tipo de evento
+num feed de amizade já existente" — não existe nenhum feed de atividade hoje (confirmado:
+`frontend/src/pages/Amigos` é um hub de contador + lista, `BuscarAmigos` é busca; nenhum dos dois
+lista eventos). As duas tarefas abaixo criam essa peça do zero, não estendem algo pronto. RNF09 e
+o ranking (RF17/RF19) continuam intocados: nenhum dado de rentabilidade ou patrimônio entra nesse
+evento.
+
+### G.1 · Backend — evento "amigo completou a trilha"
+
+- **Descrição:** quando `AdvanceLessonUseCase` completa a última lição de uma trilha (mesmo ponto
+  que hoje já desbloqueia a trilha seguinte via `sortOrder`), gravar um evento de atividade
+  consumível pelos amigos do usuário — só o fato "completou a Trilha X", nada de rentabilidade,
+  patrimônio ou XP absoluto. Tabela nova (decisão fechada nesta revisão, não em aberto):
+  `social_feed_events` (`id`, `user_id`, `type` — só `'track_completed'` por agora, mas coluna
+  `text` pra caber tipo futuro sem migration nova —, `track_number`, `occurred_at`).
+- **O que muda na aplicação:** módulo novo `socialfeed` (DDD lite, mesmo padrão dos demais:
+  `domain/`, `application/useCases/recordTrackCompleted.ts` + `listFeedForUser.ts`,
+  `infrastructure/persistence/`), consumido por `lessons` via porta
+  (`application/ports/socialFeedRecorder.ts` em `lessons`, adapter em processo — mesmo padrão de
+  `inProcessLessonCompletionChecker` já usado entre `missions` e `lessons`); migration da tabela
+  nova.
+- **Critérios de aceite:** completar a última lição de uma trilha grava 1 evento; usuário sem
+  amigos aceitos não gera ruído pra ninguém (a consulta de leitura já filtra por amizade
+  aceita); nenhum campo de patrimônio no evento (teste explícito).
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 5); RNF09; spec seção 8 (sistema
+  de amigos).
+- **Dependências:** nenhuma.
+
+### G.2 · Frontend — seção de atividade recente em `/amigos`
+
+- **Descrição:** nova seção "Atividade recente" na própria tela `Amigos`
+  (`frontend/src/pages/Amigos/index.tsx`, hub já existente — decisão fechada nesta revisão: não é
+  uma rota nova) listando os eventos de G.1 dos amigos aceitos do usuário
+  ("🎓 [amigo] completou a Trilha 1: Renda Fixa"), tom de celebração — sem número nenhum ao lado.
+- **O que muda na aplicação:** `Amigos/index.tsx` ganha a seção nova + hook de query
+  (`features/socialfeed/useFeedQuery.ts`) consumindo o endpoint novo de G.1.
+- **Critérios de aceite:** evento aparece na seção pros amigos do usuário que completou a trilha;
+  usuário sem amigos vê a seção com estado vazio (não quebrada, não escondida); nenhum dado
+  numérico sensível visível.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 5).
+- **Dependências:** G.1.
+
+---
+
+## Fase H — Revisão, missões e conquistas por qualidade
+
+Impulsos 3/6/7/8. Estende os catálogos hoje 100% baseados em volume (`achievement_criteria_type`:
+`net_worth`, `streak_days`, `lessons_completed`, `trades_executed`) com critérios de qualidade de
+aprendizado.
+
+### H.1 · Extensão do enum `achievement_criteria_type`
+
+- **Descrição:** adicionar 3 valores ao enum Postgres `achievement_criteria_type`:
+  `micro_decisions_streak` (sequência de acertos seguidos), `track_completed_no_errors` (trilha
+  inteira sem nenhum erro na aposta), `lesson_reviewed` (revisitar voluntariamente uma lição já
+  concluída). **Cuidado técnico:** `ALTER TYPE ... ADD VALUE` no Postgres não pode rodar dentro da
+  mesma transação que um `INSERT` usando o valor novo em algumas versões — separar a migration de
+  schema do seed de conquistas novas (`seedAchievements.ts`) em dois passos/migrations, não uma
+  transação só.
+- **O que muda na aplicação:** migration nova; `ProgressSnapshot`
+  (`backend/src/modules/achievements/domain/achievement.ts`) ganha os 3 campos numéricos
+  correspondentes (contagem de acertos seguidos atual, contagem de trilhas completadas sem erro,
+  contagem de revisões voluntárias); o adapter que implementa `ProgressSnapshotReader` (hoje
+  agrega 3 fontes — gamification/lessons/ranking) passa a agregar uma 4ª leitura sobre
+  `microDecisionSelectedOption`/`microDecisionCorrectOption` (B.1); `progressValueFor`/
+  `isSatisfied` (`achievement.ts`) não mudam de assinatura — só ganham mais 3 `case` no mapeamento
+  criteriaType→valor do snapshot.
+- **Critérios de aceite:** migration aplica sem quebrar os 8 achievements já seedados; 3
+  conquistas novas seedadas via `seedAchievements.ts` (mesmo padrão idempotente por nome já
+  existente); `isSatisfied`/`progressValueFor` testados table-driven pros 3 critérios novos.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (tabela de extensão de catálogo).
+- **Dependências:** B.1, B.2 (dado de acerto/erro precisa existir e estar persistido).
+
+### H.2 · Missão diária — revisar lição antiga
+
+- **Descrição:** nova entrada em `MISSION_SEEDS` (`backend/src/db/seedMissions.ts`): "Revise uma
+  lição concluída há mais de 14 dias". Diferente das 2 missões de hoje que são
+  "reportadas pelo cliente, sem verificação cruzada" (comentário já existente no seed), esta é
+  verificável de verdade: `user_lesson_progress.completedAt` mais antigo que 14 dias + reabrir
+  essa lição no modo revisão (já suportado pela tela 3.2, ver comentário em `advanceLesson.ts`
+  sobre "reabrir lição já concluída"). Nunca penaliza — é convite, some da lista de missões do dia
+  se não for feita, sem tirar XP nem estragar streak. **Elegibilidade (confirmado no código,
+  não fica em aberto):** `ListDailyMissionsUseCase` hoje mostra o catálogo inteiro pra todo
+  usuário, sem nenhum filtro de "consegue completar" — as 3 missões atuais já seguem esse
+  precedente (ex: "compare 2 produtos na calculadora" aparece mesmo pra quem não desbloqueou a
+  calculadora ainda). Esta missão segue o mesmo padrão: sempre visível, sem checagem prévia de
+  "existe lição elegível" antes de mostrar.
+- **O que muda na aplicação:** nova linha em `MISSION_SEEDS`; `completeMission.ts`/
+  `listDailyMissions.ts` ganham a lógica de verificação cruzada pra este `key` específico (checar
+  `user_lesson_progress` por uma lição com `completedAt` antigo reaberta hoje).
+- **Critérios de aceite:** usuário que reabre e re-completa uma lição concluída há mais de 14 dias
+  tem a missão marcada como concluída automaticamente, sem autorreporte do cliente; usuário sem
+  nenhuma lição elegível ainda vê a missão na lista (mesmo padrão das 3 atuais), só não consegue
+  completá-la.
+- **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 8); comentário em
+  `seedMissions.ts` sobre as 2 missões atuais serem autorreportadas.
+- **Dependências:** nenhuma (usa só `completedAt`, já existente — independe de B).
+
+### H.3 · Missão diária — acertar 3 seguidas
+
+- **Descrição:** nova entrada em `MISSION_SEEDS`: "Acerte 3 apostas seguidas hoje". Verificável via
+  `microDecisionSelectedOption`/`microDecisionCorrectOption` (B) nas lições completadas no dia
+  corrente — mesma lógica de "sequência de acertos" que `micro_decisions_streak` (H.1) mede pra
+  conquista, aqui limitada à janela do dia.
+- **O que muda na aplicação:** nova linha em `MISSION_SEEDS`; reaproveita a mesma consulta de
+  sequência de acertos que H.1 implementou no snapshot de conquistas, exposta como porta pro
+  módulo `missions` (mesmo padrão de porta-por-consumidor já usado entre módulos).
+- **Critérios de aceite:** 3 acertos seguidos no mesmo dia completam a missão; um erro no meio
+  zera a contagem do dia (não carrega do dia anterior); teste cobrindo sequência quebrada por
+  erro.
+- **Referências:** `proposta-engajamento-licoes.md` §3/§4.
+- **Dependências:** B (dado de acerto/erro), H.1 (lógica de sequência já implementada ali,
+  reaproveitada aqui).
+
+---
+
+## Fase I — Teatro de recompensa em tempo real
+
+**Achado novo desta sessão, fora da proposta original** — `identidade-visual-padroes.md` §6 já
+documenta o "teatro de recompensa" (energia visual dourada reservada pro momento de recompensa)
+como princípio de design, mas não existe nenhum componente que o implemente, nem sistema de
+toast/notificação no frontend (`grep` confirmado). **Corrigido nesta revisão:** a versão anterior
+tratava XP/nível/conquista/streak como dado "ainda não exposto" — na verdade **já são calculados**
+e descartados de propósito no caminho:
+
+- `AwardXpUseCase.execute` já devolve `{ xp, level, leveledUp }` (`gamification/application/useCases/awardXp.ts`).
+- `CheckAndUnlockAchievementsUseCase.execute` já devolve `Achievement[]` (as recém-desbloqueadas).
+- Mas as portas que os módulos consumidores usam — `XpAwarder.award`, `StreakTracker.touch`,
+  `AchievementChecker.checkAndUnlock` (`lessons`/`missions`) — declaram `Promise<void>` e o
+  adapter em processo (`inProcessXpAwarder.ts` etc.) joga fora o retorno rico ao chamar
+  `await awardXp.execute(...)` sem capturar o resultado.
+
+Por isso a Fase I abre com uma tarefa de encanamento de backend (I.2) antes das tarefas de
+frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
+
+### I.1 · Componente compartilhado de celebração
+
+- **Descrição:** organism novo reutilizável (`frontend/src/components/organisms/RewardReveal/`) —
+  modal/toast com a energia visual do "teatro de recompensa" (dourado, glow, animação de entrada),
+  respeitando `prefers-reduced-motion`. Genérico o bastante pra ser usado por XP, level-up,
+  conquista e streak (I.3-I.5), com conteúdo variável (ícone, título, descrição) mas o mesmo
+  "invólucro" visual. Fila simples de exibição (um reveal por vez, próximo só depois do atual
+  fechar) via um contexto React leve novo em `features/shell/` (não em `store/`, reservado até
+  haver caso de uso real de lib de estado global — CLAUDE.md).
+- **O que muda na aplicação:** componente novo (`index.tsx`/`index.module.css`/`index.test.tsx`) +
+  `features/shell/RewardRevealProvider` (contexto + fila) + hook `useRewardReveal()` exposto pro
+  resto do app.
+- **Critérios de aceite:** componente renderiza com conteúdo de exemplo nos dois temas
+  (claro/escuro); anima só se `prefers-reduced-motion: no-preference`; fecha sozinho depois de N
+  segundos ou por ação do usuário; dois reveals disparados em sequência aparecem um de cada vez,
+  não sobrepostos.
+- **Referências:** `identidade-visual-padroes.md` §6 (teatro de recompensa, já documentado).
+- **Dependências:** nenhuma.
+
+### I.2 · Backend — portas de gamificação devolvem o resultado real
+
+- **Descrição:** trocar `Promise<void>` por um tipo de resultado real nas 3 portas, nos 2 módulos
+  consumidores (`lessons` e `missions`, que hoje duplicam essas portas cada um com sua própria
+  cópia — ver `lessons/application/ports/xpAwarder.ts` vs. `missions/application/ports/xpAwarder.ts`):
+  - `XpAwarder.award(...)` → `Promise<{ xp: number; level: number; leveledUp: boolean }>`
+    (mesmo shape de `AwardXpResult`, já existe em `gamification`).
+  - `StreakTracker.touch(...)` → `Promise<{ currentStreak: number; longestStreak: number;
+    milestoneReached: number | null }>` — `milestoneReached` é um valor novo, calculado por uma
+    função pura nova em `gamification/domain/streak.ts` comparando o streak antes/depois contra os
+    **2 marcos que já existem em `seedAchievements.ts`: 7 e 30 dias** (não inventar um marco de 14
+    dias — esse número não existe em nenhum achievement seedado, era um erro da versão anterior
+    deste documento).
+  - `AchievementChecker.checkAndUnlock(...)` → `Promise<Achievement[]>` (o próprio
+    `CheckAndUnlockAchievementsUseCase` já devolve isso — só parar de descartar em
+    `inProcessAchievementChecker.ts`).
+  - `AdvanceLessonUseCase`/`CompleteMissionUseCase` propagam os 3 resultados nos seus próprios
+    `Result` (`AdvanceLessonResult`/equivalente em `missions`), e os routers correspondentes
+    (`lessonsRouter.ts`/`missionsRouter.ts`) devolvem os campos novos na resposta HTTP — todos
+    aditivos, nenhum campo de resposta existente muda de tipo.
+- **O que muda na aplicação:** 3 arquivos de porta × 2 módulos (6 arquivos) + os 3 adapters em
+  processo correspondentes + `awardXp.ts`/`touchStreak.ts` (sem mudar assinatura, já devolvem o
+  necessário) + `advanceLesson.ts`/o caso de uso equivalente em `missions` + os 2 routers +
+  `.docs/backend/lessons.md`/`.docs/backend/missions.md` (contrato novo).
+- **Critérios de aceite:** `POST /lessons/:id/progress` que completa uma lição devolve
+  `xpAwarded`/`leveledUp`/`streakMilestone`/`unlockedAchievements` (nomes exatos a definir na
+  tarefa) além do que já devolve hoje; o mesmo pra missões; nenhum teste existente de router
+  quebra (campos novos, não substituídos).
+- **Referências:** trecho de auditoria no topo desta fase (achado desta sessão).
+- **Dependências:** nenhuma (independente de A-H — pode ser feita a qualquer momento).
+
+### I.3 · Conectar XP e level-up
+
+- **Descrição:** com I.2 expondo o dado, disparar `RewardReveal` (I.1) quando a resposta de uma
+  mutação (`useAdvanceLesson`, `useCompleteMission`) inclui `xpAwarded`, e um reveal mais forte
+  (level-up, não os dois empilhados) quando `leveledUp` vier `true`.
+- **O que muda na aplicação:** hooks de mutação que premiam XP passam a chamar
+  `useRewardReveal()` no `onSuccess`, lendo os campos que I.2 acrescentou à resposta.
+- **Critérios de aceite:** completar uma lição mostra o reveal de XP ganho; um ganho que cruza um
+  limiar de nível mostra só o reveal de level-up.
+- **Dependências:** I.1, I.2.
+
+### I.4 · Conectar unlock de conquista em tempo real
+
+- **Descrição:** disparar `RewardReveal` com nome/descrição de cada item em
+  `unlockedAchievements` (I.2), pra qualquer ação que dispare desbloqueio (lição, ordem de
+  mercado, streak) — não só visitando `/conquistas` depois.
+- **O que muda na aplicação:** hooks de mutação relevantes consomem `unlockedAchievements` da
+  resposta (quando presente e não vazio) e disparam 1 reveal por conquista desbloqueada.
+- **Critérios de aceite:** desbloquear uma conquista durante qualquer ação mostra o reveal
+  imediatamente; nenhuma duplicata se o usuário atualizar a página logo em seguida (idempotência
+  do lado do backend já existe — `checkAndUnlockAchievements` não desbloqueia de novo o que já
+  está desbloqueado, logo `unlockedAchievements` vem vazio na 2ª chamada).
+- **Dependências:** I.1, I.2.
+
+### I.5 · Conectar marco de streak
+
+- **Descrição:** disparar `RewardReveal` comemorando o marco quando `streakMilestone` (I.2) vier
+  preenchido (7 ou 30 — não 14, ver nota de I.2), distinto do reveal de XP genérico.
+- **O que muda na aplicação:** mesmo ponto de consumo de I.3, checando o campo `streakMilestone`
+  além de `xpAwarded`/`leveledUp`.
+- **Critérios de aceite:** bater exatamente 7 ou 30 dias de streak dispara o reveal; dias
+  intermediários não disparam nada.
+- **Referências:** `seedAchievements.ts` (marcos reais de `streak_days`: 7 e 30).
+- **Dependências:** I.1, I.2.
+
+---
+
+## Sequência de implementação sugerida
+
+Ordem única, pensada pra sessão solo (uma tarefa por sessão, sem paralelismo real) — não é a ordem
+alfabética das fases. Critério: dependências reais primeiro, valor visível cedo, tarefas de maior
+risco de schema (B, depois H/G) só depois de validar as de baixo risco, e a Fase I (achado novo,
+maior lacuna de "o restante") intercalada cedo porque é independente de tudo o mais.
+
+1. **A.1** — parser de cartões (fundação de A/C, zero risco)
+2. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
+3. **A.2** — reescrita das 33 lições em cartões
+4. **A.3** — revelação progressiva
+5. **C.1** — glossário inline
+6. **C.2** — elenco recorrente
+7. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
+   fim da Fase H)
+8. **F.1** — tokens de cor por trilha
+9. **F.2** — backend: trilhas concluídas no perfil público
+10. **F.3** — `TrackTrophyCase`
+11. **G.1** — backend: evento de trilha concluída
+12. **G.2** — seção de atividade recente em `/amigos`
+13. **I.1** — componente de celebração
+14. **I.2** — portas de gamificação devolvem resultado real
+15. **I.3** — conectar XP/level-up
+16. **I.4** — conectar conquista
+17. **I.5** — conectar marco de streak
+18. **B.1** — schema de opções/resposta correta
+19. **B.2** — backend grava a escolha
+20. **B.3** — widget de escolha real
+21. **B.4** — auditoria e autoria das opções
+22. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
+23. **H.3** — missão de 3 seguidas (depende de B, H.1)
+24. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
+    imediatamente após a 21ª sessão de código)
+25. **D.1** — blocos tipados (só se D.0 = seguir)
+26. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
+
+Passos 1-17 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
+risco e maior volume de valor, por isso vem toda antes de B. Passos 18-23 são a fatia de "aposta
+real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último de propósito: é o
+único bloco que só faz sentido com uso real do resto já rodando.
+
+## Resumo de contagem
+
+| Fase | Tema | Nº de tarefas | Toca schema? |
+|---|---|---|---|
+| A | Fatiar conteúdo existente | 3 | Não |
+| B | Aposta com acerto/erro real | 4 | Sim (colunas nullable) |
+| C | Glossário e elenco recorrente | 2 | Não |
+| D | Checkpoint + blocos tipados + XP fracionado | 3 | Sim (D.1, condicional) |
+| E | Arco narrativo por trilha | 1 | Não |
+| F | Sala de troféus no Perfil | 3 | Sim (F.2, campo novo em endpoint existente) |
+| G | Feed social de aprendizado | 2 | Sim (tabela nova) |
+| H | Revisão e conquistas por qualidade | 3 | Sim (enum) |
+| I | Teatro de recompensa em tempo real | 5 | Não (contratos de resposta, sem migration) |
+| **Total** | | **26** | |
