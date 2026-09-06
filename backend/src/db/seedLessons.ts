@@ -427,6 +427,142 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksKeys: ['asset:cri', 'asset:cra'],
     unlocksAssetTicker: 'CRI2028',
   },
+  {
+    code: '2.1',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 15,
+    title: 'O que é uma ação',
+    centralConcept: 'Comprar uma ação é se tornar sócio de uma empresa',
+    scenarioText:
+      'Comprar uma ação da Mineradora Vale do Rio (VALR3) não é emprestar dinheiro a ela, como você fez a ' +
+      'trilha inteira com Tesouro, CDB e CRI. É comprar uma fração da empresa: você passa a ser sócio, dono ' +
+      'de uma parte proporcional do que ela vale e do que ela lucra, junto com todos os outros acionistas.',
+    microDecisionPrompt:
+      'Na renda fixa (Trilhas 0 e 1), a taxa contratada na compra já diz quanto você vai receber. Comprando ' +
+      'uma ação, esse retorno já é conhecido de antemão, do mesmo jeito?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Não. Como sócio, seu retorno depende do desempenho da empresa e do preço que o mercado está disposto ' +
+      'a pagar pela ação a cada momento: você pode ganhar com a valorização do preço e com dividendos ' +
+      '(parte do lucro distribuída aos sócios), mas também pode perder se o preço cair, sem nenhuma garantia ' +
+      'de capital ou prazo de vencimento como na renda fixa. É essa incerteza, junto do potencial de retorno ' +
+      'maior, que dá nome à renda variável.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '2.2',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 16,
+    title: 'IPO',
+    centralConcept: 'Como uma empresa vai à bolsa',
+    scenarioText:
+      'Antes de você poder comprar VALR3 ou BNDD4 no Mercado, cada uma dessas empresas precisou abrir seu ' +
+      'capital: deixar de ser propriedade de um grupo fechado de donos e passar a vender fatias de si mesma ' +
+      'ao público em geral, pela primeira vez, num IPO (Initial Public Offering, oferta pública inicial).',
+    microDecisionPrompt:
+      'No dia do IPO, a empresa vende ações novas e recebe o dinheiro dessa venda direto no caixa dela. ' +
+      'Quando você compra essa mesma ação meses depois, de outro investidor, esse dinheiro também vai para ' +
+      'o caixa da empresa?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Não. O IPO acontece no mercado primário: a empresa emite ações novas e capitaliza o caixa dela com o ' +
+      'dinheiro dos investidores. Depois disso, toda negociação acontece no mercado secundário, entre ' +
+      'investidores, sem passar um centavo pro caixa da empresa; é esse mercado secundário que o Mercado ao ' +
+      'vivo desta plataforma simula, com o preço se formando a cada negociação, como você vai ver na lição ' +
+      'de oferta e demanda.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '2.3',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 17,
+    title: 'Nomenclatura de tickers',
+    centralConcept: 'Final 3 (ON), final 4 (PN), final 11 (units/FII)',
+    scenarioText:
+      'VALR3 e BNDD4 parecem códigos aleatórios, mas seguem uma convenção: quatro letras identificando o ' +
+      'emissor, seguidas de um número que diz que tipo de ação (ou cota) é essa. Reparando nos dois ' +
+      'tickers, VALR3 termina em 3 e BNDD4 termina em 4.',
+    microDecisionPrompt:
+      'VALR3 (Mineradora Vale do Rio) dá direito a voto nas decisões da empresa; BNDD4 (Banco Nordeste ' +
+      'Digital) geralmente tem prioridade no recebimento de dividendos, mas sem voto. Qual delas você acha ' +
+      'que é a ação ordinária (ON) e qual é a preferencial (PN)?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'VALR3 (final 3) é ordinária (ON), com direito a voto; BNDD4 (final 4) é preferencial (PN), sem voto ' +
+      'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa. Já ' +
+      'o final 11, como em SINT11 (o ETF que você vai conhecer na lição 2.9), identifica cotas de fundos ou ' +
+      'units, uma convenção que também vale pros FIIs da lição 2.10. Completar esta lição libera sua ' +
+      'primeira operação real de ações no Mercado.',
+    unlocksDescription: 'Primeira compra real de ações (VALR3) no Mercado',
+    unlocksKeys: ['asset:acao'],
+    unlocksAssetTicker: 'VALR3',
+  },
+  {
+    code: '2.4',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 18,
+    title: 'Lendo notícias de mercado',
+    centralConcept: 'Como interpretar um evento macro e decidir',
+    scenarioText:
+      'Agora que você já pode comprar ações de verdade, o preço delas pode se mover por causa de eventos ' +
+      'que não têm nada a ver com você: uma notícia sobre a Selic, um evento específico do setor de ' +
+      'mineração ou bancário, algo que muda de uma vez as perspectivas de uma empresa ou de um grupo delas.',
+    microDecisionPrompt:
+      'Uma notícia dizendo "quebra de safra afeta o Agronegócio" chega no feed. Se você tem ações de uma ' +
+      'mineradora (VALR3) e de um banco (BNDD4), essa notícia deveria pesar do mesmo jeito na sua decisão ' +
+      'sobre as duas?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Não necessariamente: o feed de notícias reporta eventos macro, alguns afetam o mercado inteiro (uma ' +
+      'mudança na Selic), outros miram um setor específico (como Agronegócio), sem impactar diretamente uma ' +
+      'mineradora ou um banco. Ler cada notícia significa identificar quem ela afeta antes de reagir. Por ' +
+      'isso esta lição vem logo depois de você já poder operar de verdade (lição 2.3): a partir de agora, ' +
+      'esses eventos passam a valer pra você. Completar esta lição libera o painel de notícias.',
+    unlocksDescription: 'Painel de notícias/feed de eventos',
+    unlocksKeys: ['news_feed'],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '2.5',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 19,
+    title: 'Oferta e demanda',
+    centralConcept: 'Formação de preço no livro de ofertas (TCC cap. 2.3.3)',
+    scenarioText:
+      'O preço de VALR3 que você vê no Mercado não é definido por ninguém em particular: ele nasce do livro ' +
+      'de ofertas (order book), uma lista de ordens de compra (pedindo o preço mais alto que estão dispostos ' +
+      'a pagar) e de venda (pedindo o preço mais baixo que estão dispostos a aceitar) pra esse ativo.',
+    microDecisionPrompt:
+      'Se chegam muito mais ordens de compra do que de venda pra VALR3, todas dispostas a pagar cada vez ' +
+      'mais caro pra conseguir comprar, o preço de VALR3 tende a subir, cair ou ficar igual?',
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    revelationText:
+      'Tende a subir: o motor de pareamento organiza as ofertas de compra da mais alta pra mais baixa e as ' +
+      'de venda da mais baixa pra mais alta, e cada negociação executa no preço de quem já estava no livro ' +
+      '(a ordem passiva). Com mais compradores dispostos a pagar mais do que vendedores dispostos a vender, ' +
+      'as ofertas de venda mais baratas se esgotam primeiro, e os próximos negócios só fecham em preços mais ' +
+      'altos, empurrando o preço pra cima; excesso de venda faz o caminho inverso. É esse mecanismo, e não ' +
+      'uma decisão de alguém, que forma o preço em tempo real de toda ação, ETF e FII desta plataforma. A ' +
+      'partir da próxima lição, você vai aprender a ler os indicadores fundamentalistas que ajudam a decidir ' +
+      'se um preço formado assim está caro ou barato.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
 ]
 
 // Idempotente: DATABASE_URL=... npm run db:seed:lessons

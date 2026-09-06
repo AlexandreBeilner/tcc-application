@@ -6,11 +6,12 @@ export type { FeatureUnlockCta } from './types'
 // *feature* (não um produto real, que usa `unlocksAssetTicker`/"Comprar
 // agora" — ver `pages/Lesson/index.tsx`). Mesmo mecanismo generalizado pra
 // rota fixa em vez de ticker (tarefa 7.1.1, 0.1/0.2: "Ir pro Portfólio"/"Ir
-// pra Calculadora"). Só as chaves com destino próprio de navegação entram
-// aqui — `news_feed` fica de fora até a 7.1.3 (2.4) precisar dela.
+// pra Calculadora"; 7.1.3, 2.4: "Ver Notícias"). Só as chaves com destino
+// próprio de navegação entram aqui.
 const FEATURE_UNLOCK_ROUTES: Record<string, FeatureUnlockCta> = {
     portfolio: { label: 'Ir pro Portfólio', path: '/' },
     calculator: { label: 'Ir pra Calculadora', path: '/calculadora' },
+    news_feed: { label: 'Ver Notícias', path: '/noticias' },
 }
 
 export function featureUnlockCtaFor(unlocksKeys: string[]): FeatureUnlockCta | null {
