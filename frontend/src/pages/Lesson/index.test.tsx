@@ -392,6 +392,32 @@ describe('Lesson (tela 3.2)', () => {
         expect(screen.queryByText('Resultado escondido.')).not.toBeInTheDocument()
     })
 
+    it('referência {{ref:X.Y}} vira link "já visto na lição X.Y" pra lição já carregada (tarefa C.2)', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [lesson({ id: 'lesson-2-1', code: '2.1', title: 'O que é uma ação' })],
+        })
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ revelationText: 'Você já viu isso em {{ref:2.1}} antes.', currentStep: 2 }),
+        })
+
+        renderLesson()
+
+        const link = await screen.findByRole('link', { name: 'já visto na lição 2.1' })
+        expect(link).toHaveAttribute('href', '/trilha/lesson-2-1')
+    })
+
+    it('referência a um código que não está na lista cai pro texto puro, sem link e sem quebrar (tarefa C.2)', async () => {
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ revelationText: 'Você já viu isso em {{ref:9.9}} antes.', currentStep: 2 }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Você já viu isso em já visto na lição 9.9 antes.')).toBeInTheDocument()
+        expect(screen.queryByRole('link', { name: 'já visto na lição 9.9' })).not.toBeInTheDocument()
+    })
+
     it('lição bloqueada/inexistente mostra erro', async () => {
         vi.mocked(getLesson).mockRejectedValue(new Error('bloqueada'))
 

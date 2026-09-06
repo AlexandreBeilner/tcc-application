@@ -253,7 +253,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'O preço unitário do Tesouro Selic sobe (quase) todo dia útil, acompanhando de perto a ' +
-      'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre marcação a mercado negativa ' +
+      'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre {{marcação a mercado}} negativa ' +
       'com mais frequência.' +
       '\n\n' +
       'É por isso que a spec do TCC (cap. 3) o trata como o "porto seguro" da renda fixa: ' +
@@ -283,7 +283,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
-      'O FGC (Fundo Garantidor de Créditos) cobre CDB, LCI e LCA em até R$250.000,00 por CPF e ' +
+      'O {{FGC}} cobre CDB, LCI e LCA em até R$250.000,00 por CPF e ' +
       'por instituição financeira, mesmo que o banco emissor quebre.' +
       '\n\n' +
       'É essa garantia que torna o CDB praticamente tão seguro quanto o Tesouro Direto até esse ' +
@@ -333,7 +333,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Isenção de IR, comparação de retorno líquido entre produtos',
     scenarioText:
       'LCI (Letra de Crédito Imobiliário) e LCA (Letra de Crédito do Agronegócio) financiam, ' +
-      'respectivamente, o setor imobiliário e o agronegócio, e têm garantia do FGC igual ao CDB.' +
+      'respectivamente, o setor imobiliário e o agronegócio, e têm garantia do {{FGC}} igual ao CDB.' +
       '\n\n' +
       'A diferença que mais chama atenção: o LCI Banco Invest 2026 (LCI2026) paga 9,50% ao ano, ' +
       'abaixo dos 12,00% do CDB2027 (lição anterior).' +
@@ -356,7 +356,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     revelationText:
       'O LCI2026 rende mais líquido nesse prazo curto.' +
       '\n\n' +
-      'Pra comparar de forma justa, calcule a taxa bruta equivalente que o CDB precisaria pagar ' +
+      'Pra comparar de forma justa, calcule a {{taxa bruta equivalente}} que o CDB precisaria pagar ' +
       'pra empatar com um produto isento: taxa isenta dividida por (1 menos a alíquota).' +
       '\n\n' +
       '[revelar] Com 22,5% de IR (até 180 dias), o LCI2026 equivale a um CDB bruto de 9,50% ÷ ' +
@@ -426,7 +426,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Abaixo: o preço de qualquer prefixado é recalculado todo dia útil pela mesma fórmula de ' +
-      'deságio, só que com a taxa de mercado vigente no lugar da taxa contratada.' +
+      '{{deságio}}, só que com a taxa de mercado vigente no lugar da taxa contratada.' +
       '\n\n' +
       'Taxa de mercado maior gera um preço menor (o denominador da fórmula cresce), então vender ' +
       'antes do vencimento numa alta de juros realiza um retorno pior do que o contratado.' +
@@ -488,13 +488,13 @@ const LESSON_SEEDS: LessonSeed[] = [
       'O CRI Securitizadora X 2028 (CRI2028) paga 11,00% ao ano, com classificação de risco AA; o ' +
       'CRA Securitizadora X 2028 (CRA2028) paga 10,50% ao ano, com classificação A.',
     microDecisionPrompt:
-      'CDB, LCI e LCA têm garantia do FGC até R$250.000,00 se o emissor quebrar.' +
+      'CDB, LCI e LCA têm garantia do {{FGC}} até R$250.000,00 se o emissor quebrar.' +
       '\n\n' +
       'CRI e CRA, emitidos por uma securitizadora e não por um banco, têm essa mesma garantia?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
-      'Não. CRI e CRA não têm cobertura do FGC, então o risco de crédito recai inteiramente ' +
+      'Não. CRI e CRA não têm cobertura do {{FGC}}, então o risco de crédito recai inteiramente ' +
       'sobre a capacidade de pagamento da securitizadora emissora.' +
       '\n\n' +
       'É por isso que pagam mais (11,00% e 10,50% ao ano, acima da maioria dos CDBs) e trazem uma ' +
@@ -619,8 +619,8 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionPrompt:
       'Uma notícia dizendo "quebra de safra afeta o Agronegócio" chega no feed.' +
       '\n\n' +
-      'Se você tem ações de uma mineradora (VALR3) e de um banco (BNDD4), essa notícia deveria pesar do ' +
-      'mesmo jeito na sua decisão sobre as duas?',
+      'Se você tem ações de uma mineradora (VALR3, {{ref:2.1}}) e de um banco (BNDD4, {{ref:2.3}}), essa ' +
+      'notícia deveria pesar do mesmo jeito na sua decisão sobre as duas?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
@@ -754,7 +754,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'que a outra pra chegar nesse resultado. As duas lucraram igual, mas usaram o capital dos sócios com a ' +
       'mesma eficiência?',
     microDecisionPrompt:
-      'Se a Mineradora Vale do Rio (VALR3) e o Banco Nordeste Digital (BNDD4) tivessem o mesmo Lucro ' +
+      'Se a Mineradora Vale do Rio (VALR3, {{ref:2.1}}) e o Banco Nordeste Digital (BNDD4, {{ref:2.3}}) tivessem o mesmo Lucro ' +
       'Líquido, mas a VALR3 precisasse de um Patrimônio Líquido menor pra chegar lá, qual das duas estaria ' +
       'usando melhor o capital dos seus sócios?',
     microDecisionType: 'live_indicator',
@@ -824,7 +824,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Dívida Bruta, a empresa tem, na prática, mais dinheiro guardado do que deve.' +
       '\n\n' +
       'O indicador Dívida Líquida/EBIT vai além, comparando essa dívida líquida com a capacidade de geração ' +
-      'de caixa operacional da empresa. O resultado é, em anos de EBIT, quanto tempo levaria pra quitar a ' +
+      'de caixa operacional da empresa. O resultado é, em anos de {{EBIT}}, quanto tempo levaria pra quitar a ' +
       'dívida líquida se todo o resultado operacional fosse usado só pra isso.' +
       '\n\n' +
       'Esse indicador pesa ainda mais numa empresa de perfil sofisticado como o Banco Nordeste Digital ' +
@@ -898,7 +898,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Vender depois da data ex não tira o seu direito ao provento já gerado; comprar depois da data ex não ' +
       'dá direito a ele, só ao provento do próximo ciclo.' +
       '\n\n' +
-      'O valor por ação, o mesmo que forma o Dividend Yield da lição anterior, é creditado direto no seu ' +
+      'O valor por ação, o mesmo que forma o {{Dividend Yield}} da lição anterior, é creditado direto no seu ' +
       'saldo, e vale tanto para ações quanto para FIIs, o produto da lição 2.10.',
     unlocksDescription: null,
     unlocksKeys: [],
@@ -915,9 +915,9 @@ const LESSON_SEEDS: LessonSeed[] = [
       'A Selic não afeta só renda fixa: ela também entra na simulação dos fundamentos de toda empresa ' +
       'listada, e não afeta todas do mesmo jeito.' +
       '\n\n' +
-      'A Mineradora Vale do Rio (VALR3, setor Mineração, perfil Conservador) e o Banco Nordeste Digital ' +
-      '(BNDD4, setor Bancário/Financeiro, perfil Sofisticado) reagem de forma diferente quando a Selic ' +
-      'simulada sobe.',
+      'A Mineradora Vale do Rio (VALR3, setor Mineração, perfil Conservador, {{ref:2.1}}) e o Banco Nordeste ' +
+      'Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado, {{ref:2.3}}) reagem de forma diferente ' +
+      'quando a Selic simulada sobe.',
     microDecisionPrompt:
       'Perfil Sofisticado (setores mais cíclicos e alavancados) é mais sensível a juros altos do que perfil ' +
       'Conservador (fluxo de caixa mais estável).' +
@@ -1006,7 +1006,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'carteira de recebíveis (CDI, no caso do PAPL11) e o valor total dessa carteira.' +
       '\n\n' +
       'Já que o resultado dele vem do que os devedores pagam, não do aluguel de um imóvel. Os dois perfis, ' +
-      'porém, compartilham o mesmo Dividend Yield (lição 2.6.6) como indicador comum de quanto o FII ' +
+      'porém, compartilham o mesmo {{Dividend Yield}} (lição 2.6.6) como indicador comum de quanto o FII ' +
       'distribui frente ao preço da cota.' +
       '\n\n' +
       'Completar esta lição libera a compra real de FIIs no Mercado e conclui a Trilha 2 (Renda Variável): ' +

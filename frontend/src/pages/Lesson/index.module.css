@@ -125,6 +125,13 @@
     line-height: 1.6;
 }
 
+/* Elenco recorrente (tarefa C.2) — sublinhado sólido (navega de verdade),
+   diferente do tracejado do `GlossaryTerm` (só mostra um popover no lugar). */
+.refLink {
+    color: var(--color-brand-300);
+    text-decoration: underline;
+}
+
 /* Revelação progressiva (tarefa A.3) — mesma altura/alinhamento do `.body`
    que substitui, pra não pular layout quando o texto aparece no lugar. */
 .revealButton {

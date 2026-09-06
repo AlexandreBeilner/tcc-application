@@ -251,7 +251,7 @@ comparar.
 
 Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migration.
 
-### C.1 · Catálogo de glossário + popover de definição
+### C.1 · Catálogo de glossário + popover de definição ✅ concluída
 
 - **Descrição:** catálogo estático (mesmo espírito de `engine/internal/domain/macroevent/templates.go`
   — dado fixo em código, não tabela de banco) termo → definição curta, cobrindo os termos
@@ -271,8 +271,26 @@ Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migr
   abrir/fechar do popover e navegação por teclado (Enter/Escape).
 - **Referências:** `proposta-engajamento-licoes.md` §2 (técnica "Glossário inline").
 - **Dependências:** A.1 (mesmo pipeline de parsing do texto).
+- **Entregável:** catálogo em `frontend/src/features/lessons/glossary/index.ts` (6 termos: FGC,
+  marcação a mercado, deságio, taxa bruta equivalente, EBIT, Dividend Yield — módulo em pasta, não
+  arquivo solto, pra seguir a convenção de `components/`/`features/*` do CLAUDE.md), parser puro
+  `frontend/src/features/lessons/parseGlossaryTerms/` (regex `{{...}}` → segmentos `text`/`term`,
+  testado incluindo fallback de termo ausente no catálogo) e molecule
+  `frontend/src/components/molecules/GlossaryTerm/` (popover próprio, não `title` nativo — abre em
+  clique/toque e hover, fecha em mouse saindo, blur, clique fora ou Escape; testado). `Lesson/
+  index.tsx` (`CardBody`) troca `{card.text}` por `renderGlossaryText(card.text)`, que devolve os
+  segmentos de texto como string solta (não `<span>`) especificamente pra não quebrar
+  `getByText` nos testes já existentes que buscam o texto completo de um cartão sem termo marcado
+  (`getNodeText` do Testing Library só junta os `TEXT_NODE` filhos diretos do elemento, não o
+  `textContent` recursivo). Marcação `{{Termo}}` aplicada em `backend/src/db/seedLessons.ts` nos
+  pontos de referência recorrente (1.3/1.5/1.9 pro FGC, 1.2 pra marcação a mercado, 1.7 pro
+  deságio, 1.5 pra taxa bruta equivalente, 2.6.5 pro EBIT, 2.7/2.10 pro Dividend Yield) — não nas
+  lições que são a própria aula do termo (1.6, 1.7, 2.6.1–2.6.6), pra não competir com a explicação
+  didática de primeira exposição. Validado ponta a ponta via `docker compose up` + reseed
+  (`npm run db:seed:lessons`) e Chrome: popover abre com a definição certa na Revelação da lição
+  1.3. `npm test`/`npm run lint`/`npm run build` passam no frontend e no backend.
 
-### C.2 · Elenco recorrente — referência cruzada entre lições
+### C.2 · Elenco recorrente — referência cruzada entre lições ✅ concluída
 
 - **Descrição:** VALR3/BNDD4 (e os demais tickers do catálogo) aparecem em 8+ lições da Trilha 2
   como exemplos soltos. Adicionar, no texto de uma lição que reintroduz um ativo já visto, um link
@@ -286,6 +304,27 @@ Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migr
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 1, "elenco recorrente").
 - **Dependências:** A.1 (reaproveita o parser/convenção de marcação — unificado com C.1 nesta
   revisão pra não ter 2 sintaxes de marcação diferentes no mesmo texto).
+- **Entregável:** parser de C.1 renomeado de `parseGlossaryTerms` pra `parseLessonMarkup`
+  (`frontend/src/features/lessons/parseLessonMarkup/`, mesma pasta, só o nome muda — deixou de ser
+  só sobre glossário) e estendido com um terceiro tipo de segmento, `ref` (`{{ref:X.Y}}` → `{ type:
+  'ref', code: 'X.Y' }`), na mesma regex `{{...}}` da C.1 — sem sintaxe nova. O parser continua sem
+  depender de dado de rede: só devolve o `code` citado; `Lesson/index.tsx` (`renderLessonMarkup`,
+  renomeada de `renderGlossaryText`) resolve `code` → `id` real usando a lista de `useLessonsQuery`
+  já carregada e renderiza um `<Link to="/trilha/:id">já visto na lição X.Y</Link>` (classe
+  `.refLink`, sublinhado sólido — contraste deliberado com o tracejado do `GlossaryTerm`, que só
+  abre um popover e não navega). Código sem lição correspondente na lista (`lessons.find` sem
+  match) cai pro texto puro `já visto na lição X.Y`, sem link e sem quebrar, mesma garantia da C.1.
+  Marcação aplicada nas 3 lições sugeridas pelo critério de aceite — 2.4, 2.6.3 e 2.8 — sempre
+  linkando VALR3 de volta pra 2.1 e BNDD4 pra 2.3 (onde cada um foi apresentado primeiro, conferido
+  lendo o texto das duas: 2.1 é a lição inteira sobre VALR3 como exemplo de "o que é uma ação", 2.3
+  é onde BNDD4 ganha nome completo e explicação própria de ON/PN, embora citado de passagem já na
+  2.2). Testado (parser: segmento `ref` isolado e junto de um `term` no mesmo texto; `Lesson`: link
+  renderizado com `href` correto quando a lição existe na lista, fallback em texto puro quando não
+  existe). Validado ponta a ponta via `docker compose up` + reseed e Chrome: os dois links aparecem
+  formatados na Micro-decisão da lição 2.4 e clicar em "já visto na lição 2.1" navega de fato pra
+  lição 2.1 (reabre no Desbloqueio porque já estava concluída nesta sessão de teste — comportamento
+  existente de "modo revisão", não relacionado a esta tarefa). `npm test`/`npm run lint`/`npm run
+  build` passam no frontend e no backend.
 
 ---
 
