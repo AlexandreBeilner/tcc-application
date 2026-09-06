@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { ApiError } from '../../../services/client'
 import { getAsset, getMyAccount, placeOrder, purchaseFixedIncome, redeemFixedIncome } from '../../../services/market'
 import type { OrderDraft } from './types'
 import { OrderConfirmationDialog } from '.'
@@ -120,6 +121,31 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
 
         await waitFor(() => expect(screen.getByText('Não foi possível concluir a operação agora.')).toBeInTheDocument())
+    })
+
+    // Tarefa J.3: trava só descoberta na confirmação (acesso direto por
+    // URL, sem passar pelo banner proativo de `AssetDetail`) mostra o mesmo
+    // banner amigável em vez do erro genérico do teste acima.
+    it('ProductLockedError na confirmação mostra o banner amigável, não o erro genérico', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
+        })
+        vi.mocked(placeOrder).mockRejectedValue(
+            new ApiError(403, 'produto travado', {
+                error: 'produto travado',
+                key: 'asset:acao',
+                unlockingLesson: { code: '2.3', title: 'Nomenclatura de tickers' },
+            }),
+        )
+
+        renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 10, unitPrice: 30 })
+
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
+
+        await waitFor(() => expect(screen.getByText('Travado pela trilha')).toBeInTheDocument())
+        expect(screen.getByText('Desbloqueia na lição 2.3.')).toBeInTheDocument()
+        expect(screen.queryByText('Não foi possível concluir a operação agora.')).not.toBeInTheDocument()
     })
 
     it('"Cancelar" chama onClose sem persistir nada', async () => {

@@ -18,6 +18,8 @@ import type {
     FixedIncomeTaxRateResult,
 } from './types'
 
+export type { ProductLockedErrorBody } from './types'
+
 export type {
     AssetDetail,
     AssetSummary,

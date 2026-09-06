@@ -125,7 +125,7 @@ describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => 
 
     afterEach(() => vi.clearAllMocks())
 
-    it('produto real ainda travado mostra o cadeado e navega pra lição, não pro detalhe', async () => {
+    it('produto real ainda travado mostra o cadeado, mas clicar abre o Detalhe normalmente (tarefa J.3)', async () => {
         vi.mocked(useUnlockedKeys).mockReturnValue({
             unlockedKeys: new Set(),
             lessons: [
@@ -153,26 +153,13 @@ describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => 
             isError: false,
         })
         vi.mocked(listAssets).mockResolvedValue({ assets })
-        const router = createMemoryRouter(
-            [
-                { path: '/mercado/renda-fixa', element: <FixedIncomeList /> },
-                { path: '/mercado/renda-fixa/:id', element: <div>tela de detalhe</div> },
-                { path: '/trilha/:id', element: <div>tela de lição</div> },
-            ],
-            { initialEntries: ['/mercado/renda-fixa'] },
-        )
-        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-        render(
-            <QueryClientProvider client={queryClient}>
-                <RouterProvider router={router} />
-            </QueryClientProvider>,
-        )
+        renderPage()
 
         await waitFor(() => expect(screen.getAllByText('Tesouro Selic').length).toBeGreaterThan(0))
         expect(screen.getAllByLabelText('Produto travado, desbloqueia na lição 1.2').length).toBeGreaterThan(0)
 
         fireEvent.click(screen.getAllByText('Tesouro Selic')[0])
-        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText('tela de detalhe')).toBeInTheDocument())
     })
 
     it('sandbox continua acessível mesmo sem nenhuma lição concluída (RF12)', async () => {

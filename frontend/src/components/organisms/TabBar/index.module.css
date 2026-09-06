@@ -19,6 +19,10 @@
     text-decoration: none;
     white-space: nowrap;
     border-bottom: 2px solid transparent;
+    background: none;
+    border-left: none;
+    border-right: none;
+    border-top: none;
 }
 
 .tab:hover {
@@ -30,9 +34,26 @@
     border-bottom-color: var(--color-brand-500);
 }
 
+/* Continua distinta de uma aba disponível mesmo sendo clicável (critério
+   de aceite J.1) — cor apagada + cadeado, nunca o mesmo estilo de link
+   ativo/hover. */
 .locked {
     color: var(--color-text-muted);
-    cursor: not-allowed;
+    cursor: pointer;
+}
+
+.locked:hover {
+    color: var(--color-text-muted);
+}
+
+/* Motivo do bloqueio visível, não só em aria-label (tarefa J.2) — legenda
+   pequena com o código da lição, visível por padrão (tablet/desktop,
+   barra horizontal com espaço de sobra) e escondida abaixo de 768px na
+   media query da barra inferior fixa. */
+.lockHint {
+    font-size: var(--font-size-xs);
+    font-weight: 400;
+    color: var(--color-text-muted);
 }
 
 /* Abaixo de 768px (tarefa 6.3.3): barra inferior fixa, padrão de app
@@ -74,5 +95,9 @@
     .active {
         border-top-color: var(--color-brand-500);
         border-bottom-color: transparent;
+    }
+
+    .lockHint {
+        display: none;
     }
 }

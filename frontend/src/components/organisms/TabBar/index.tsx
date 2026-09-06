@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { PieChart, Map, CandlestickChart, Calculator, Trophy, Lock } from 'lucide-react'
+import { findLessonUnlocking } from '../../../features/lessons/unlockedKeys'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import styles from './index.module.css'
 
@@ -9,8 +10,14 @@ import styles from './index.module.css'
 // de propósito, reforça a linguagem de home broker até na navegação.
 // `unlockKey` (tarefa 7.0.1): Portfólio/Calculadora só viram link de
 // verdade depois de 0.1/0.2 concluídas — antes disso a aba fica travada
-// (ícone de cadeado, sem navegação), mesmo gate real de `RequiresUnlock`
-// que protege as rotas (aqui é só o reflexo visual, não a garantia).
+// (ícone de cadeado, cor apagada), mesmo gate real de `RequiresUnlock` que
+// protege as rotas (aqui é só o reflexo visual, não a garantia). Travada
+// não é beco sem saída (tarefa J.1): clicar navega pra lição que
+// desbloqueia aquela chave, mesmo comportamento de
+// `useLockedAssetGate.selectOrRedirectToLesson`. Legenda com o código da
+// lição (tarefa J.2) só aparece em tablet/desktop (`.lockHint`, escondida
+// via CSS abaixo de 768px) — mobile (barra inferior fixa) confia só no
+// toque como caminho, pra não quebrar o layout compacto dos 5 itens.
 // Enquanto `GET /lessons` ainda não resolveu ou falhou (`isLoading`/
 // `isError`), `unlockedKeys` vem vazio sem significar "nada desbloqueado"
 // — renderiza como link normal nesse meio-tempo pra não piscar cadeado
@@ -24,7 +31,8 @@ const TABS = [
 ]
 
 export function TabBar() {
-    const { unlockedKeys, isLoading, isError } = useUnlockedKeys()
+    const navigate = useNavigate()
+    const { unlockedKeys, lessons, isLoading, isError } = useUnlockedKeys()
 
     return (
         <nav className={styles.tabBar} aria-label="Navegação principal">
@@ -32,16 +40,35 @@ export function TabBar() {
                 const locked = !isLoading && !isError && unlockKey !== undefined && !unlockedKeys.has(unlockKey)
 
                 if (locked) {
+                    const hint = findLessonUnlocking(unlockKey, lessons)
+                    const ariaLabel = hint ? `${label} travado, desbloqueia na lição ${hint.code}` : `${label} travado pela trilha`
+
                     return (
-                        <span key={to} className={`${styles.tab} ${styles.locked}`} aria-disabled="true">
+                        <button
+                            key={to}
+                            type="button"
+                            className={`${styles.tab} ${styles.locked}`}
+                            aria-label={ariaLabel}
+                            onClick={() => navigate(hint ? `/trilha/${hint.id}` : '/trilha')}
+                        >
                             <Lock size={18} strokeWidth={2} aria-hidden="true" />
-                            <span>{label}</span>
-                        </span>
+                            <span aria-hidden="true">{label}</span>
+                            {hint && (
+                                <span aria-hidden="true" className={styles.lockHint}>
+                                    Lição {hint.code}
+                                </span>
+                            )}
+                        </button>
                     )
                 }
 
                 return (
-                    <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? `${styles.tab} ${styles.active}` : styles.tab)}>
+                    <NavLink
+                        key={to}
+                        to={to}
+                        end={end}
+                        className={({ isActive }) => (isActive ? `${styles.tab} ${styles.active}` : styles.tab)}
+                    >
                         <Icon size={18} strokeWidth={2} aria-hidden="true" />
                         <span>{label}</span>
                     </NavLink>

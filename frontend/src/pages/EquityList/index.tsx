@@ -73,7 +73,7 @@ export function EquityList() {
     const { page: currentPage, totalPages, pageItems: pageAssets, setPage, resetPage } = useClientPagination(assets, ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
-        gate.selectOrRedirectToLesson(asset, `/mercado/ativos/${asset.id}`)
+        gate.selectAsset(`/mercado/ativos/${asset.id}`)
     }
 
     function handleTabChange(tabKey: string) {

@@ -82,7 +82,14 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
             onUnauthorized?.()
         }
         const errorBody = data as ErrorBody | undefined
-        throw new ApiError(res.status, errorBody?.error ?? 'erro inesperado', errorBody?.details)
+        // `details` carrega o corpo bruto do erro, não só `errorBody.details`
+        // (tarefa J.3): alguns endpoints fogem da convenção `{ error }` e
+        // devolvem campos extras no nível raiz (ex: `ProductLockedError` de
+        // `POST /market/orders`, `{ error, key, unlockingLesson }`,
+        // `.docs/backend/market.md`) — quem chama sabe o shape esperado do
+        // próprio módulo e faz o narrowing, este cliente não precisa conhecer
+        // cada formato.
+        throw new ApiError(res.status, errorBody?.error ?? 'erro inesperado', data)
     }
 
     return data as T

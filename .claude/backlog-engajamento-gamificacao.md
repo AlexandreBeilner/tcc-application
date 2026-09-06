@@ -623,8 +623,18 @@ inconsistentes, do melhor pro pior:
 
 O pior caso (`TabBar`) é também o de maior exposição — navegação primária, visível em toda tela.
 
-### J.1 · `TabBar` deixa de ser beco sem saída
+### J.1 · `TabBar` deixa de ser beco sem saída ✅
 
+- **Entregável:** `span aria-disabled` trocado por `button` clicável em `TabBar/index.tsx`,
+  navegando via `findLessonUnlocking(unlockKey, lessons)` pra `/trilha/${hint.id}` (ou `/trilha`
+  sem lição correspondente) — mesmo padrão de `useLockedAssetGate.selectOrRedirectToLesson`, zero
+  lógica nova extraída. `aria-label` novo por aba travada ("X travado, desbloqueia na lição Y" /
+  "X travado pela trilha") substitui o `aria-disabled` antigo; label visual (`<span
+  aria-hidden>`) permanece só decorativo, leitor de tela usa o `aria-label` do botão. CSS
+  `.locked` virou `cursor: pointer` (era `not-allowed`) mantendo cor apagada — distinta de link
+  ativo/hover, conforme critério de aceite. Testes cobrindo clique com/sem lição encontrada;
+  suite completa (511 testes) e `docker compose up` de ponta a ponta verificados nos 3
+  breakpoints (mobile bottom bar, tablet/desktop barra horizontal).
 - **Descrição:** trocar o `<span aria-disabled="true">` da aba travada
   (`frontend/src/components/organisms/TabBar/index.tsx`) por um elemento clicável que navega pra
   lição que desbloqueia aquele `unlockKey`, reaproveitando `findLessonUnlocking`
@@ -644,8 +654,20 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
   `useLockedAssetGate` como precedente já funcionando.
 - **Dependências:** nenhuma.
 
-### J.2 · Motivo do bloqueio fica visível, não só em tooltip
+### J.2 · Motivo do bloqueio fica visível, não só em tooltip ✅
 
+- **Entregável:** `LockedAssetBadge` ganhou `visibleText` (`Lição {code}` ou `Travado` como
+  fallback genérico) como filho visível ao lado do ícone de cadeado — `title`/`aria-label`
+  mantêm a frase completa pra hover/leitor de tela, sem duplicar (o texto curto é
+  `aria-hidden`). `TabBar` ganhou `.lockHint` (`Lição {code}`, só quando `findLessonUnlocking`
+  encontra a lição) como `<span aria-hidden>` extra no botão travado — visível por padrão
+  (tablet/desktop) e `display: none` dentro da media query `max-width: 767px` já existente da
+  barra inferior fixa, decisão 100% CSS, zero lógica JS por breakpoint. Testes cobrindo texto
+  visível em ambos os componentes (com/sem lição encontrada); suite completa (515 testes),
+  lint e build passando. Verificado via `docker compose up` nos 3 breakpoints: mobile (390px,
+  cards + bottom bar só ícone/label), tablet (900px, ainda em cards por causa do breakpoint de
+  1024px do `AssetTable`, mas `TabBar` já horizontal com legenda) e desktop (1440px, tabela +
+  badge/legenda visíveis, sem quebra de coluna).
 - **Descrição:** `LockedAssetBadge` (`frontend/src/components/molecules/LockedAssetBadge/index.tsx`)
   hoje só grava "Desbloqueia na lição X" em `title`/`aria-label` — invisível em touch (sem hover) e
   de baixo contraste até em desktop (precisa passar o mouse). Tornar esse texto visível na própria
@@ -663,8 +685,32 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
 - **Referências:** `identidade-visual-padroes.md` §7 (breakpoints).
 - **Dependências:** J.1 (mesma área de código da `TabBar`, já alterada ali).
 
-### J.3 · Detalhe do Ativo travado vira prévia, não parede
+### J.3 · Detalhe do Ativo travado vira prévia, não parede ✅
 
+- **Entregável:** `useLockedAssetGate.selectOrRedirectToLesson` virou `selectAsset(detailPath)` —
+  navega sempre pro Detalhe, travado ou não (comportamento compartilhado por `EquityList` e
+  `FixedIncomeList`, já que os dois consomem o mesmo gate); ganhou `unlockingLessonFor(asset)`
+  (extraído do que já existia dentro de `lockedBadge`) pra expor a lição completa (`id`/`code`)
+  pra quem monta UI, não só o `code` do badge. `AssetDetail/index.tsx` troca o painel de compra
+  (`EquityOrderTicket`) por `LockedAssetPanel` (molécula nova, compartilhada) quando
+  `gate.isLocked(asset)` — ticker/preço/gráfico/indicadores continuam normais, só o painel de
+  ordem muda. `services/client` passou a jogar o corpo bruto do erro inteiro em
+  `ApiError.details` (não só `errorBody.details`) — é o que permite `ProductLockedError`
+  (`{ error, key, unlockingLesson }`, foge da convenção `{ error }`) ser lido em algum lugar do
+  frontend pela primeira vez, via `features/market/productLockedError.asProductLockedError`
+  (função pura testada). `OrderConfirmationDialog` usa essa função no catch do `handleConfirm` e
+  mostra o mesmo `LockedAssetPanel` (sem `lessonId`, já que o 403 só traz `code`/`title` — CTA
+  cai no Mapa da Trilha genérico) em vez da mensagem de erro genérica. `FixedIncomeDetail` fica
+  fora do escopo da troca de painel (só `AssetDetail`/4.5, por decisão explícita do backlog) —
+  seu fluxo de aporte já fica coberto pelo tratamento genérico do `OrderConfirmationDialog`
+  acima. Testes cobrindo `selectAsset`/`unlockingLessonFor`, `asProductLockedError` (5 casos),
+  `LockedAssetPanel` (CTA com/sem `lessonId`), `AssetDetail` travado/sandbox e o novo caso de
+  `OrderConfirmationDialog`; suite completa (529 testes), lint e build passando. Verificado via
+  `docker compose up`: clique num ativo travado abre o Detalhe (não mais a lição) mostrando
+  indicadores normais + banner "Travado pela trilha — Desbloqueia na lição X" no lugar do painel
+  de compra, CTA navega pra `/trilha/:id`; fluxo de renda fixa (fora do escopo do banner
+  proativo) mostra o mesmo banner amigável dentro do `OrderConfirmationDialog` quando o 403
+  chega na confirmação.
 - **Descrição:** hoje `useLockedAssetGate.selectOrRedirectToLesson` sempre redireciona pra lição
   ao clicar num ativo travado — o usuário nunca chega a ver a tela de Detalhe (indicadores,
   gráfico, dados — tudo somente leitura, a trava real é só no `POST` de ordem/compra, RF12/7.0.1).

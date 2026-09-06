@@ -1,20 +1,39 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
+import type { Lesson } from '../../../services/lessons'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import { TabBar } from '.'
 
 vi.mock('../../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 
-function renderTabBar(unlockedKeys: Set<string>, state: { isLoading?: boolean; isError?: boolean } = {}) {
+function LocationDisplay() {
+    return <div data-testid="location">{useLocation().pathname}</div>
+}
+
+function lesson(overrides: Partial<Lesson> = {}): Lesson {
+    return {
+        id: 'lesson-1',
+        code: '1.1',
+        title: 'Renda fixa na prática',
+        sortOrder: 1,
+        status: 'available',
+        unlocksKeys: ['portfolio'],
+        unlocksDescription: '',
+        ...overrides,
+    } as Lesson
+}
+
+function renderTabBar(unlockedKeys: Set<string>, state: { isLoading?: boolean; isError?: boolean; lessons?: Lesson[] } = {}) {
     vi.mocked(useUnlockedKeys).mockReturnValue({
         unlockedKeys,
-        lessons: [],
+        lessons: state.lessons ?? [],
         isLoading: state.isLoading ?? false,
         isError: state.isError ?? false,
     })
     return render(
-        <MemoryRouter>
+        <MemoryRouter initialEntries={['/']}>
+            <LocationDisplay />
             <TabBar />
         </MemoryRouter>,
     )
@@ -24,12 +43,11 @@ describe('TabBar', () => {
     it('Portfólio e Calculadora aparecem travados (sem link) antes de 0.1/0.2', () => {
         renderTabBar(new Set())
 
-        const portfolio = screen.getByText('Portfólio').closest('[aria-disabled]')
-        expect(portfolio).toHaveAttribute('aria-disabled', 'true')
+        const portfolio = screen.getByRole('button', { name: /Portfólio travado/ })
+        expect(portfolio).toBeInTheDocument()
         expect(screen.getByText('Portfólio').closest('a')).not.toBeInTheDocument()
 
-        const calculadora = screen.getByText('Calculadora').closest('[aria-disabled]')
-        expect(calculadora).toHaveAttribute('aria-disabled', 'true')
+        expect(screen.getByRole('button', { name: /Calculadora travado/ })).toBeInTheDocument()
     })
 
     it('Trilha/Mercado/Classificação nunca ficam travadas, mesmo sem nenhum desbloqueio', () => {
@@ -59,5 +77,33 @@ describe('TabBar', () => {
 
         expect(screen.getByText('Portfólio').closest('a')).toBeInTheDocument()
         expect(screen.getByText('Calculadora').closest('a')).toBeInTheDocument()
+    })
+
+    it('tocar numa aba travada navega pra lição que a desbloqueia', () => {
+        renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'] })] })
+
+        fireEvent.click(screen.getByRole('button', { name: /Portfólio travado, desbloqueia na lição 0\.1/ }))
+
+        expect(screen.getByTestId('location')).toHaveTextContent('/trilha/lesson-42')
+    })
+
+    it('sem lição correspondente encontrada, navega pro Mapa da Trilha', () => {
+        renderTabBar(new Set(), { lessons: [] })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
+
+        expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
+    })
+
+    it('aba travada mostra o código da lição como legenda visível (não só no aria-label)', () => {
+        renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'] })] })
+
+        expect(screen.getByText('Lição 0.1')).toBeInTheDocument()
+    })
+
+    it('sem lição correspondente encontrada, não mostra legenda de lição', () => {
+        renderTabBar(new Set(), { lessons: [] })
+
+        expect(screen.queryByText(/^Lição /)).not.toBeInTheDocument()
     })
 })
