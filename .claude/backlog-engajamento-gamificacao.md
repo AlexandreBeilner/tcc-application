@@ -47,7 +47,7 @@ já em produção) que hoje arrisca desmotivar quem esbarra num módulo bloquead
 Frente A da proposta, risco baixo, sem migration. Objetivo: os mesmos números e fórmulas já
 escritos, entregues em cartões pequenos em vez de parágrafo único.
 
-### A.1 · Convenção de cartões + parser no frontend
+### A.1 · Convenção de cartões + parser no frontend ✅ concluída
 
 - **Descrição:** hoje `scenarioText`/`microDecisionPrompt`/`revelationText` são uma `string` só,
   renderizada como um único `<p>` (`frontend/src/pages/Lesson/index.tsx`, passos 0/1/2). Introduzir
@@ -66,6 +66,20 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
 - **Critérios de aceite:** uma lição com `\n\n` no meio do texto renderiza N cartões com
   "Continuar" entre eles; uma lição sem `\n\n` (ainda não reescrita) continua funcionando
   exatamente como hoje; navegação por teclado/foco funciona entre cartões.
+- **Entregável:** `features/lessons/splitIntoCards` (função pura + teste table-driven cobrindo
+  texto sem separador, separador simples, bordas com espaço e `\n\n\n\n` repetido sem gerar
+  cartão vazio no meio). `pages/Lesson/index.tsx` ganhou `subStep` (estado local, resetado a cada
+  avanço real de fase em `handleAdvance`) aplicado às 3 fases com texto livre (Cenário, Micro-decisão,
+  Revelação); `handleCardContinue` decide entre avançar o cartão local ou disparar o avanço de fase
+  real conforme a posição no array de cartões. O widget embutido (`GrowthCalculatorForm`/
+  `FixedIncomeComparisonForm`), o checkbox "Já pensei..." e o painel de indicador ao vivo só
+  aparecem no último cartão da fase (fariam pouco sentido antes do usuário ler o prompt/revelação
+  inteiros). `CardDots` — pontinhos de progresso interno à fase, menores que a barra de 4
+  segmentos existente, só renderizados quando a fase tem mais de 1 cartão, `aria-hidden` (o único
+  controle interativo continua sendo o botão "Continuar", preservando navegação por teclado).
+  Passo 3 (Desbloqueio/`unlocksDescription`) não entra no escopo — só os 3 campos citados na
+  descrição. Testes novos em `Lesson/index.test.tsx` cobrindo navegação entre cartões, gate do
+  checkbox no último cartão e ausência de pontinhos quando a lição não usa `\n\n` (retrocompatibilidade).
 - **Referências:** `proposta-engajamento-licoes.md` §2 (Frente A, técnica "Fatiamento por ideia");
   spec 5.2 (as 4 fases continuam intactas).
 - **Dependências:** nenhuma.
@@ -305,7 +319,7 @@ começam depois de D.0 concluir com resultado "seguir".
 Impulso 1 (Significado épico). Só conteúdo, zero schema, pode ser feita em paralelo com qualquer
 outra fase.
 
-### E.1 · Reescrita das lições-âncora com o "porquê" da trilha
+### E.1 · Reescrita das lições-âncora com o "porquê" da trilha ✅ concluída
 
 - **Descrição:** reescrever `scenarioText` da primeira lição de cada trilha (0.1, 1.1, 2.1, 3.1) pra
   plantar uma meta maior que a trilha inteira resolve aos poucos, e `unlocksDescription` da última
@@ -316,6 +330,24 @@ outra fase.
 - **Critérios de aceite:** as 4 lições de abertura de trilha (0.1/1.1/2.1/3.1) citam
   explicitamente uma meta que só se completa no fim da trilha; a última lição de cada trilha já
   autorada (0.5, 1.9) referencia essa meta ao fechar.
+- **Entregável:** `scenarioText` de 0.1/1.1/2.1/3.1 ganhou uma frase plantando a meta da trilha,
+  preservando o texto/números originais. Trilha 0: "por que o destino automático desse tipo de
+  dinheiro (a poupança) geralmente deixa valor na mesa" (0.1), pago em 0.5. Trilha 1: "montar uma
+  reserva de emergência de verdade... e sair dela sabendo em qual produto colocá-la" (1.1),
+  ecoando o bônus de R$1.000 de 0.1 explicitamente, pago em 1.9. Trilha 2: "com a reserva de
+  emergência da Trilha 1 já resolvida, esta trilha é sobre o resto do patrimônio" (2.1), pago em
+  2.10. Trilha 3: "fecha o arco das duas anteriores: juntar a reserva segura (Trilha 1) e a parte
+  de risco (Trilha 2) numa única estratégia, e testar essa estratégia contra um evento de mercado
+  real" (3.1), pago em 3.4 (já tinha o desfecho estrutural pronto — só reforçado). `unlocksDescription`
+  de 0.5/1.9/2.10/3.4 (todas as 4 trilhas já estavam autoradas, não só 0.5/1.9 como o texto original
+  da tarefa previa como incerto) reescrito pra pagar a meta plantada: "Confirmação de que a
+  poupança perde da Selic..." (0.5), "Sua reserva de emergência com todas as opções na mesa..."
+  (1.9), "O resto do patrimônio com onde crescer..." (2.10), "Estratégia completa e testada contra
+  um evento real..." (3.4) — cada uma mantendo o texto funcional original (o que a lição libera de
+  fato) como sufixo, já que `unlocksDescription` é reaproveitado como rótulo curto em `Track`/
+  `TrackChart` (`Bloqueada: libera ${unlocksDescription}`), não só no passo Desbloqueio da lição.
+  Nenhum em-dash usado (regra de convenção de texto de UI). Validado com `docker compose up -d
+  postgres` + migração + `db:seed:lessons` reais, conferindo as 8 strings no banco via `psql`.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 1); spec 5.1 (tabela de lições por
   trilha, coluna "Conceito central").
 - **Dependências:** nenhuma.
@@ -733,7 +765,7 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
   isento, não mexer).
 - **Dependências:** nenhuma (mesma área temática de J.1/J.2, mas código independente).
 
-### J.4 · Indicador de "faltam N lições pra X"
+### J.4 · Indicador de "faltam N lições pra X" ✅ concluída
 
 - **Descrição:** nenhum lugar do app hoje mostra quanto falta pra desbloquear a próxima coisa —
   só o Mapa da Trilha (que já é a fonte da verdade, mas exige entrar lá pra ver). Acrescentar um
@@ -748,6 +780,26 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
 - **Critérios de aceite:** usuário com pelo menos 1 chave ainda travada vê "faltam N lições pra
   [X]"; usuário com tudo desbloqueado não vê o badge (sem estado vazio estranho no lugar); número
   bate com a distância real mostrada no Mapa da Trilha.
+- **Entregável:** `features/lessons/nextUnlockFor` (função pura + `types.ts` com `NextUnlock` +
+  teste table-driven cobrindo lista vazia, alvo é a própria lição `available`, alvo mais à frente,
+  lições sem desbloqueio no meio do caminho, e o caso "tudo concluído" → `null`). Checa só
+  `unlocksDescription` truthy (não `unlocksKeys` separado): auditoria de `seedLessons.ts` confirma
+  que as duas sempre andam juntas nas 33 lições atuais (toda vez que `unlocksKeys` tem chave,
+  `unlocksDescription` também está preenchido), então isso já cobre o critério original sem lógica
+  extra. `lessonsRemaining` = `sortOrder` da lição-alvo menos a contagem de `completed` (a trilha é
+  estritamente sequencial no backend, `lessonStatus`, então a distância é aritmética simples, sem
+  precisar reimplementar a regra de bloqueio no cliente). `ProgressionSummaryProps` ganhou
+  `nextUnlock?: NextUnlock | null`; `ProgressionSummary` envolveu os badges existentes num novo
+  `.container` (coluna) e acrescentou `<p className={styles.nextUnlock}>` só quando `nextUnlock`
+  existe, com `<strong>` na description. `Portfolio` e `Track` (ambos já tinham `useLessonsQuery`
+  carregado) calculam `nextUnlockFor` e passam pro `ProgressionSummary`; em `Portfolio`, fica
+  `null` enquanto `lessonsQuery` não resolveu, sem bloquear os badges de XP/streak (que dependem só
+  de `progressionQuery`/`streakQuery`). Testes novos em `ProgressionSummary`, `Portfolio` e `Track`
+  cobrindo aparição/ausência do indicador e o singular "1 lição" vs. plural. Validado com o app
+  real via `docker compose up --build` + `db:seed:lessons` + usuário novo registrado por `curl` +
+  lição 0.1 avançada até `completed` via `POST /lessons/:id/progress`: confirmado no Chrome que
+  `/trilha` e `/` mostram "Faltam 1 lição pra: Calculadora Financeira" (bate com a "PRÓXIMA LIÇÃO"
+  do Mapa da Trilha).
 - **Referências:** análise da sessão anterior (chat).
 - **Dependências:** nenhuma tecnicamente (lê `sortOrder`/`status`/`unlocksKeys`/
   `unlocksDescription` ao vivo — nenhum desses 4 campos é tocado por A/B/C/D, que só mudam

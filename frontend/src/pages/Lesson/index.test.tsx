@@ -284,6 +284,51 @@ describe('Lesson (tela 3.2)', () => {
         expect(await screen.findByText('tela de trilha')).toBeInTheDocument()
     })
 
+    it('cenário com \\n\\n fatiado em cartões: Continuar navega entre cartões antes de avançar de fase', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
+        expect(screen.queryByText('Segundo cartão.')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+        expect(advanceLesson).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
+    })
+
+    it('micro-decisão fatiada: checkbox só aparece no último cartão do prompt', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionPrompt: 'Primeiro cartão.\n\nSegundo cartão.' }),
+        })
+
+        renderLesson()
+
+        await screen.findByText('Primeiro cartão.')
+        expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+        expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+        expect(screen.getByText('Já pensei na minha resposta')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    })
+
+    it('lição sem \\n\\n continua com 1 cartão só, sem pontinhos de progresso interno', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+
+        renderLesson()
+
+        await screen.findByText('Espalhar capital reduz risco')
+        expect(document.querySelector('[class*="cardDots"]')).not.toBeInTheDocument()
+    })
+
     it('lição bloqueada/inexistente mostra erro', async () => {
         vi.mocked(getLesson).mockRejectedValue(new Error('bloqueada'))
 

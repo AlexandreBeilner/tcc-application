@@ -11,6 +11,7 @@ import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicato
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
+import { splitIntoCards } from '../../features/lessons/splitIntoCards'
 import type { Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -51,6 +52,10 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const [localStep, setLocalStep] = useState<number | undefined>(undefined)
     const [microDecisionConfirmed, setMicroDecisionConfirmed] = useState(false)
+    // Navegação entre cartões (tarefa A.1) dentro da fase atual — estado
+    // local, não persistido (a persistência de progresso continua sendo só
+    // o `step` de fase, spec 5.2). Reseta pra 0 a cada avanço real de fase.
+    const [subStep, setSubStep] = useState(0)
 
     const lesson = lessonQuery.data?.lesson
     const step = localStep ?? lesson?.currentStep ?? 0
@@ -68,12 +73,34 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // prática: nenhuma lição autorada até aqui tem os dois.
     const featureUnlockCta = lesson && !lesson.unlocksAssetTicker ? featureUnlockCtaFor(lesson.unlocksKeys) : null
 
+    const scenarioCards = lesson ? splitIntoCards(lesson.scenarioText) : ['']
+    const microDecisionCards = lesson ? splitIntoCards(lesson.microDecisionPrompt) : ['']
+    const revelationCards = lesson ? splitIntoCards(lesson.revelationText) : ['']
+    const isMicroDecisionLastCard = subStep >= microDecisionCards.length - 1
+    const isRevelationLastCard = subStep >= revelationCards.length - 1
+
     function goToTrack() {
         navigate('/trilha')
     }
 
     function handleAdvance() {
-        advanceLesson.mutate(step + 1, { onSuccess: () => setLocalStep(step + 1) })
+        advanceLesson.mutate(step + 1, {
+            onSuccess: () => {
+                setLocalStep(step + 1)
+                setSubStep(0)
+            },
+        })
+    }
+
+    // Cartão intermediário: só avança o `subStep` local. Cartão final da
+    // fase: avança a fase de verdade (`handleAdvance`), mesmo gate de
+    // habilitação que já existia (`disabled` no botão continua cuidando disso).
+    function handleCardContinue(cards: string[]) {
+        if (subStep < cards.length - 1) {
+            setSubStep((current) => current + 1)
+        } else {
+            handleAdvance()
+        }
     }
 
     function handleFinish() {
@@ -112,9 +139,10 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <p className={styles.body}>{lesson.scenarioText}</p>
+                    <p className={styles.body}>{scenarioCards[subStep]}</p>
+                    {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
-                        <Button onClick={handleAdvance} disabled={advanceLesson.isPending}>
+                        <Button onClick={() => handleCardContinue(scenarioCards)} disabled={advanceLesson.isPending}>
                             Continuar
                         </Button>
                     </div>
@@ -125,24 +153,32 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Micro-decisão</span>
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
-                    <p className={styles.body}>{lesson.microDecisionPrompt}</p>
+                    <p className={styles.body}>{microDecisionCards[subStep]}</p>
+                    {microDecisionCards.length > 1 && <CardDots total={microDecisionCards.length} current={subStep} />}
 
-                    {lesson.microDecisionType === 'growth_calculator' && <GrowthCalculatorForm />}
-                    {lesson.microDecisionType === 'fixed_income_comparison' && <FixedIncomeComparisonForm />}
+                    {isMicroDecisionLastCard && (
+                        <>
+                            {lesson.microDecisionType === 'growth_calculator' && <GrowthCalculatorForm />}
+                            {lesson.microDecisionType === 'fixed_income_comparison' && <FixedIncomeComparisonForm />}
 
-                    {!usesEmbeddedWidget && (
-                        <label className={styles.confirmRow}>
-                            <input
-                                type="checkbox"
-                                checked={microDecisionConfirmed}
-                                onChange={(event) => setMicroDecisionConfirmed(event.target.checked)}
-                            />
-                            Já pensei na minha resposta
-                        </label>
+                            {!usesEmbeddedWidget && (
+                                <label className={styles.confirmRow}>
+                                    <input
+                                        type="checkbox"
+                                        checked={microDecisionConfirmed}
+                                        onChange={(event) => setMicroDecisionConfirmed(event.target.checked)}
+                                    />
+                                    Já pensei na minha resposta
+                                </label>
+                            )}
+                        </>
                     )}
 
                     <div className={styles.ctaRow}>
-                        <Button onClick={handleAdvance} disabled={!canAdvanceMicroDecision || advanceLesson.isPending}>
+                        <Button
+                            onClick={() => handleCardContinue(microDecisionCards)}
+                            disabled={(isMicroDecisionLastCard && !canAdvanceMicroDecision) || advanceLesson.isPending}
+                        >
                             Continuar
                         </Button>
                     </div>
@@ -153,9 +189,11 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
-                    <p className={styles.body}>{lesson.revelationText}</p>
+                    <p className={styles.body}>{revelationCards[subStep]}</p>
+                    {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
-                    {isLiveIndicator &&
+                    {isRevelationLastCard &&
+                        isLiveIndicator &&
                         (indicatorAsset.isLoading ? (
                             <p className={styles.loading}>Carregando indicador ao vivo…</p>
                         ) : (
@@ -163,7 +201,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         ))}
 
                     <div className={styles.ctaRow}>
-                        <Button onClick={handleAdvance} disabled={advanceLesson.isPending}>
+                        <Button onClick={() => handleCardContinue(revelationCards)} disabled={advanceLesson.isPending}>
                             Continuar
                         </Button>
                     </div>
@@ -195,5 +233,24 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 </p>
             )}
         </main>
+    )
+}
+
+// Barra de progresso fina interna à fase (tarefa A.1) — pontinhos menores
+// que a barra de 4 segmentos, só aparece quando a fase tem mais de 1
+// cartão. Decorativa: o único controle interativo continua sendo o botão
+// "Continuar", então não interfere na navegação por teclado.
+function CardDots({ total, current }: { total: number; current: number }) {
+    return (
+        <div className={styles.cardDots} aria-hidden="true">
+            {Array.from({ length: total }, (_, index) => (
+                <span
+                    key={index}
+                    className={[styles.cardDot, index < current && styles.done, index === current && styles.current]
+                        .filter(Boolean)
+                        .join(' ')}
+                />
+            ))}
+        </div>
     )
 }

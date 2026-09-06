@@ -149,6 +149,23 @@ describe('Portfolio (tela 2.1)', () => {
         expect(screen.getByText('dias seguidos')).toBeInTheDocument()
     })
 
+    it('mostra "faltam N lições" pro próximo desbloqueio, considerando lições concluídas', async () => {
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [
+                { ...availableLesson, id: '0', sortOrder: 1, status: 'completed', unlocksDescription: '' },
+                availableLesson,
+            ],
+        })
+
+        renderPortfolio()
+
+        expect(await screen.findByText(/Faltam 1 lição pra:/)).toBeInTheDocument()
+        expect(screen.getByText('Tesouro Selic')).toBeInTheDocument()
+    })
+
     it('atalho "Retomar lição" aparece pra primeira lição disponível e navega direto pra ela', async () => {
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
         vi.mocked(getProgression).mockResolvedValue(progression)

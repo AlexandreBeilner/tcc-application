@@ -4,6 +4,7 @@ import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
+import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useMissionsQuery } from '../../features/missions/useMissionsQuery'
 import { groupPositionsByCategory } from '../../features/portfolio/distribution'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
@@ -33,13 +34,14 @@ export function Portfolio() {
 
     const account = accountQuery.data
     const hasNoPositions = account && account.positions.length === 0 && account.fixedIncomePositions.length === 0
+    const nextUnlock = lessonsQuery.data ? nextUnlockFor(lessonsQuery.data.lessons) : null
 
     return (
         <main className={styles.page}>
             <header className={styles.header}>
                 <h1 className={styles.title}>Portfólio</h1>
                 {progressionQuery.data && streakQuery.data ? (
-                    <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} />
+                    <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} nextUnlock={nextUnlock} />
                 ) : (
                     !progressionQuery.isError && !streakQuery.isError && <span className={styles.loading}>Carregando…</span>
                 )}

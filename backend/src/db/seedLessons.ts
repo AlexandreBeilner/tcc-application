@@ -43,9 +43,11 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Investir vs poupar; capital trabalhando para você',
     scenarioText:
       'Você recebe R$1.000 de bônus. Duas opções: deixar parado na conta corrente até precisar, ou aplicar ' +
-      'esse dinheiro em algo que devolve mais do que você colocou, com o tempo. A diferença entre guardar e ' +
-      'investir é justamente essa: guardar preserva o valor nominal; investir coloca esse capital pra ' +
-      'trabalhar, gerando um retorno que se soma a ele.',
+      'esse dinheiro em algo que devolve mais do que você colocou, com o tempo. Essa é a trilha que responde, ' +
+      'na prática, por que o destino automático desse tipo de dinheiro (a poupança, pra quase todo mundo) ' +
+      'geralmente deixa valor na mesa, e deixa você pronto pra escolher diferente assim que ela terminar. A ' +
+      'diferença entre guardar e investir é justamente essa: guardar preserva o valor nominal; investir ' +
+      'coloca esse capital pra trabalhar, gerando um retorno que se soma a ele.',
     microDecisionPrompt:
       'Antes de continuar, pense: se você tivesse esse R$1.000 de bônus agora, deixaria parado ou aplicaria ' +
       'em algo que rende? O que te faria escolher um ou outro?',
@@ -157,7 +159,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'poupança "geralmente perde": ela não acompanha a taxa básica de juros, só uma regra fixa desenhada ' +
       'pra ficar sempre um pouco atrás dela. A partir de agora, a Trilha 1 (Renda Fixa) está liberada. É lá ' +
       'que você vai aplicar de verdade os produtos que substituem a poupança.',
-    unlocksDescription: 'Acesso à Trilha 1 (Renda Fixa)',
+    unlocksDescription: 'Confirmação de que a poupança perde da Selic, e acesso à Trilha 1 (Renda Fixa)',
     // Chave vazia de propósito: o acesso à Trilha 1 já funciona via
     // sortOrder (5.6), não é uma chave de unlocksKeys — ver vocabulário
     // fixo da 7.0.1 (só feature/produto, não lição/trilha).
@@ -175,7 +177,11 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Imagine emprestar R$1.000 a um amigo, sabendo desde o início a taxa e o prazo em que ele ' +
       'devolve o dinheiro, com juros. É exatamente essa lógica que sustenta toda a renda fixa: o ' +
       'investidor empresta dinheiro a um emissor (governo, banco ou empresa) e recebe de volta o ' +
-      'capital mais uma remuneração, seguindo uma regra combinada no momento da aplicação.',
+      'capital mais uma remuneração, seguindo uma regra combinada no momento da aplicação. É a ' +
+      'ferramenta certa pra um objetivo bem concreto: ao longo desta trilha, você vai montar uma ' +
+      'reserva de emergência de verdade (o dinheiro que precisa estar seguro e disponível antes de ' +
+      'qualquer imprevisto, o mesmo tipo de bônus da lição 0.1, agora com destino definido) e vai ' +
+      'sair dela sabendo em qual produto colocá-la.',
     microDecisionPrompt:
       '"Renda fixa" não significa necessariamente "taxa fixa". Pense: um título cuja remuneração ' +
       'acompanha a Selic todo dia, sem taxa travada na compra, ainda é considerado renda fixa?',
@@ -423,7 +429,9 @@ const LESSON_SEEDS: LessonSeed[] = [
       'crédito (AA pro CRI2028, A pro CRA2028) pro investidor avaliar antes de comprar. Igual ao ' +
       'LCI e LCA, ambos são isentos de Imposto de Renda. Completar esta lição libera a compra ' +
       'real de CRI e CRA e conclui a Trilha 1: a Trilha 2 (Renda Variável) já abre na sequência.',
-    unlocksDescription: 'Compra real de CRI/CRA no Mercado, acesso à Trilha 2 (Renda Variável)',
+    unlocksDescription:
+      'Sua reserva de emergência com todas as opções na mesa (Tesouro Selic, CDB/LCI/LCA, CRI/CRA), ' +
+      'compra real de CRI/CRA no Mercado, acesso à Trilha 2 (Renda Variável)',
     unlocksKeys: ['asset:cri', 'asset:cra'],
     unlocksAssetTicker: 'CRI2028',
   },
@@ -437,7 +445,9 @@ const LESSON_SEEDS: LessonSeed[] = [
     scenarioText:
       'Comprar uma ação da Mineradora Vale do Rio (VALR3) não é emprestar dinheiro a ela, como você fez a ' +
       'trilha inteira com Tesouro, CDB e CRI. É comprar uma fração da empresa: você passa a ser sócio, dono ' +
-      'de uma parte proporcional do que ela vale e do que ela lucra, junto com todos os outros acionistas.',
+      'de uma parte proporcional do que ela vale e do que ela lucra, junto com todos os outros acionistas. ' +
+      'Com a reserva de emergência da Trilha 1 já resolvida, esta trilha é sobre o resto do patrimônio: ' +
+      'quanto vale aceitar essa incerteza em troca de um potencial de retorno maior, e onde exatamente.',
     microDecisionPrompt:
       'Na renda fixa (Trilhas 0 e 1), a taxa contratada na compra já diz quanto você vai receber. Comprando ' +
       'uma ação, esse retorno já é conhecido de antemão, do mesmo jeito?',
@@ -847,7 +857,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'frente ao preço da cota. Completar esta lição libera a compra real de FIIs no Mercado e conclui a ' +
       'Trilha 2 (Renda Variável): a Trilha 3 (Estratégia e Tributação) abre na sequência.',
     unlocksDescription:
-      'Compra real de FIIs (TJLO11/PAPL11) no Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
+      'O resto do patrimônio com onde crescer (ações, ETFs, FIIs), compra real de FIIs (TJLO11/PAPL11) no ' +
+      'Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
     unlocksKeys: ['asset:fii'],
     unlocksAssetTicker: 'TJLO11',
   },
@@ -862,7 +873,9 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Você tem R$10.000 e dois planos: colocar tudo em VALR3, uma única ação, ou dividir esse valor entre ' +
       'VALR3, BNDD4 e um pouco de Tesouro Selic. Nos dois planos você está investindo o mesmo valor total, ' +
       'mas o resultado de um evento ruim específico da Mineradora Vale do Rio (uma quebra de safra, um ' +
-      'escândalo contábil, qualquer choque isolado) afeta cada plano de um jeito bem diferente.',
+      'escândalo contábil, qualquer choque isolado) afeta cada plano de um jeito bem diferente. Esta trilha ' +
+      'fecha o arco das duas anteriores: juntar a reserva segura (Trilha 1) e a parte de risco (Trilha 2) ' +
+      'numa única estratégia, e testar essa estratégia contra um evento de mercado real na última lição.',
     microDecisionPrompt:
       'Se um evento negativo atinge só a Mineradora Vale do Rio, qual dos dois planos sofre a perda maior no ' +
       'patrimônio total: o concentrado 100% em VALR3, ou o dividido entre VALR3, BNDD4 e Tesouro Selic?',
@@ -971,7 +984,9 @@ const LESSON_SEEDS: LessonSeed[] = [
       'portfólio (perfil de risco, lição 3.2, e produto certo pro prazo certo, lição 3.3), uma resposta pronta ' +
       'pra ele. Você concluiu a trilha guiada: a partir de agora, todo o Mercado (renda fixa e renda ' +
       'variável, sandbox e ao vivo) está disponível sem nenhuma restrição de lição.',
-    unlocksDescription: 'Trilha guiada concluída, mundo aberto liberado por completo',
+    unlocksDescription:
+      'Estratégia completa e testada contra um evento real, trilha guiada concluída, mundo aberto liberado ' +
+      'por completo',
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },

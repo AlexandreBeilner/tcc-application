@@ -52,6 +52,28 @@
     background: var(--color-brand-500);
 }
 
+/* Progresso fino interno à fase (tarefa A.1) — pontinhos menores que os
+   segmentos da barra de 4 fases, marcando a posição entre cartões. */
+.cardDots {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.cardDot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+}
+
+.cardDot.done {
+    background: var(--color-gamify-500);
+}
+
+.cardDot.current {
+    background: var(--color-brand-500);
+}
+
 .card {
     display: flex;
     flex-direction: column;
