@@ -11,8 +11,14 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         trackName: 'Fundamentos',
         sortOrder: 1,
         centralConcept: '',
+        scenarioText: '',
+        microDecisionPrompt: '',
+        microDecisionType: 'reflection',
+        microDecisionAssetTicker: null,
+        revelationText: '',
         unlocksDescription: '',
         unlocksKeys: [],
+        unlocksAssetTicker: null,
         status: 'locked',
         currentStep: 0,
         ...overrides,
@@ -71,7 +77,11 @@ describe('computeTrackChartLayout', () => {
     })
 
     it('marca a lição available como o ponto atual ("você está aqui")', () => {
-        const lessons = [lesson({ id: '1', status: 'completed' }), lesson({ id: '2', status: 'available' }), lesson({ id: '3', status: 'locked' })]
+        const lessons = [
+            lesson({ id: '1', status: 'completed' }),
+            lesson({ id: '2', status: 'available' }),
+            lesson({ id: '3', status: 'locked' }),
+        ]
 
         const layout = computeTrackChartLayout(lessons)!
 

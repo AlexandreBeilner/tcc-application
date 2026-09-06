@@ -11,8 +11,14 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         trackName: overrides.trackName ?? 'Fundamentos',
         sortOrder: overrides.sortOrder ?? 1,
         centralConcept: overrides.centralConcept ?? 'Conceito',
+        scenarioText: overrides.scenarioText ?? '',
+        microDecisionPrompt: overrides.microDecisionPrompt ?? '',
+        microDecisionType: overrides.microDecisionType ?? 'reflection',
+        microDecisionAssetTicker: overrides.microDecisionAssetTicker ?? null,
+        revelationText: overrides.revelationText ?? '',
         unlocksDescription: overrides.unlocksDescription ?? '',
         unlocksKeys: overrides.unlocksKeys ?? [],
+        unlocksAssetTicker: overrides.unlocksAssetTicker ?? null,
         status: overrides.status ?? 'locked',
         currentStep: overrides.currentStep ?? 0,
     }
@@ -50,9 +56,7 @@ describe('unlockedKeysFor', () => {
 
 describe('findLessonUnlocking', () => {
     it('devolve code/title da lição cujo unlocksKeys contém a chave', () => {
-        const lessons = [
-            lesson({ id: 'l-2-3', code: '2.3', title: 'Nomenclatura de tickers', unlocksKeys: ['asset:acao'] }),
-        ]
+        const lessons = [lesson({ id: 'l-2-3', code: '2.3', title: 'Nomenclatura de tickers', unlocksKeys: ['asset:acao'] })]
 
         expect(findLessonUnlocking('asset:acao', lessons)).toEqual({
             id: 'l-2-3',

@@ -31,6 +31,16 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'lessons_completed',
   'trades_executed',
 ])
+// Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
+// padrão (checkbox "já pensei"); os outros três embutem um componente já
+// existente (tarefa 6.7) em vez do checkbox. Ver `domain/lesson.ts` pro
+// vocabulário completo e `frontend/src/pages/Lesson/index.tsx` pro switch.
+export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
+  'reflection',
+  'growth_calculator',
+  'fixed_income_comparison',
+  'live_indicator',
+])
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -108,6 +118,20 @@ export const lessons = pgTable(
     sortOrder: integer('sort_order').notNull(),
     title: varchar('title', { length: 150 }).notNull(),
     centralConcept: text('central_concept').notNull(),
+    // Conteúdo pedagógico real por passo (spec 5.2, tarefa 7.0.2) — antes
+    // desta tarefa, `Lesson` (tela 3.2) reaproveitava `centralConcept`
+    // idêntico nos 3 primeiros passos (pendência já sinalizada no
+    // componente desde a 6.4). `NOT NULL DEFAULT ''`: as 6 lições seedadas
+    // ficam com texto vazio até a 7.1.1/7.1.2 sobrescrever com conteúdo
+    // real — estado de transição esperado, não regressão.
+    scenarioText: text('scenario_text').notNull().default(''),
+    microDecisionPrompt: text('micro_decision_prompt').notNull().default(''),
+    microDecisionType: lessonMicroDecisionType('micro_decision_type').notNull().default('reflection'),
+    // Só usado quando microDecisionType = 'live_indicator' — ticker real do
+    // catálogo cujo indicador a Revelação busca ao vivo via
+    // `GET /market/assets/:id`, nunca um número estático.
+    microDecisionAssetTicker: varchar('micro_decision_asset_ticker', { length: 20 }),
+    revelationText: text('revelation_text').notNull().default(''),
     unlocksDescription: text('unlocks_description'),
     // Vocabulário fixo (tarefa 7.0.1): 'portfolio', 'calculator', 'news_feed'
     // ou 'asset:<AssetType>' (espelha 1:1 `catalog.AssetType` do motor).
@@ -119,6 +143,10 @@ export const lessons = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    // Preenchido só nas lições cujo unlocksKeys inclui um `asset:*` — ticker
+    // canônico real do catálogo do produto recém-desbloqueado, usado pelo
+    // CTA "Comprar agora" do passo Desbloqueio (tarefa 7.0.2, achado 6).
+    unlocksAssetTicker: varchar('unlocks_asset_ticker', { length: 20 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

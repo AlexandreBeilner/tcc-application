@@ -5,18 +5,33 @@ import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
 import { Button } from '../../components/atoms/Button'
+import { GrowthCalculatorForm } from '../../components/organisms/GrowthCalculatorForm'
+import { FixedIncomeComparisonForm } from '../../components/organisms/FixedIncomeComparisonForm'
+import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicatorsPanel'
+import { assetDetailPath } from '../../features/market/assetDetailPath'
+import { useAssetByTicker } from '../../features/market/useAssetByTicker'
+import type { Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
 const TOTAL_STEPS = 4
 
-// Tela 3.2 (tarefa 6.4) — máquina de estado de 4 passos, mockup em
+// Widget do passo Micro-decisão que não precisa do checkbox "já pensei" —
+// os dois embutem um componente já existente (tarefa 6.7) que já traz sua
+// própria interação. Os outros dois (`reflection`, `live_indicator`)
+// mantêm o checkbox (tarefa 7.0.2 — a revelação de `live_indicator` busca
+// o indicador ao vivo, mas a micro-decisão em si continua sendo reflexão).
+const EMBEDDED_WIDGET_TYPES = new Set<LessonType['microDecisionType']>(['growth_calculator', 'fixed_income_comparison'])
+
+// Tela 3.2 (tarefa 6.4/7.0.2) — máquina de estado de 4 passos, mockup em
 // https://claude.ai/code/artifact/50892817-9878-430c-8332-ee5e94b90b43.
-// O schema de `lessons` só tem `centralConcept`/`unlocksDescription` como
-// texto livre — não existe ainda um campo por passo (cenário/micro-decisão/
-// revelação com fórmula real), isso é conteúdo pedagógico da tarefa 7.1
-// (autoria das 33 lições, semana 7). Esta tela já entrega a estrutura de
-// navegação/persistência de progresso completa; o texto de cada passo hoje
-// reaproveita `centralConcept`, a ser substituído por conteúdo real na 7.1.
+// Antes da 7.0.2, o schema de `lessons` só tinha `centralConcept`/
+// `unlocksDescription` como texto livre e esta tela reaproveitava
+// `centralConcept` idêntico nos 3 primeiros passos (pendência sinalizada
+// desde a 6.4). Agora cada passo renderiza seu próprio campo real
+// (`scenarioText`/`microDecisionPrompt`/`revelationText`), o widget de
+// Micro-decisão varia por `microDecisionType`, a Revelação de uma lição
+// `live_indicator` busca o indicador real via `GET /market/assets/:id`, e
+// o Desbloqueio ganha "Comprar agora" quando `unlocksAssetTicker` existe.
 export function Lesson() {
     const { id } = useParams<{ id: string }>()
     const lessonId = id as string
@@ -38,6 +53,14 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const lesson = lessonQuery.data?.lesson
     const step = localStep ?? lesson?.currentStep ?? 0
+
+    const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
+    const indicatorAsset = useAssetByTicker(isLiveIndicator ? (lesson?.microDecisionAssetTicker ?? null) : null)
+    const unlockAsset = useAssetByTicker(lesson?.unlocksAssetTicker ?? null)
+
+    const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
+    const canAdvanceMicroDecision = usesEmbeddedWidget || microDecisionConfirmed
+    const unlockAssetPath = lesson?.unlocksAssetTicker && unlockAsset.asset ? assetDetailPath(unlockAsset.asset) : null
 
     function goToTrack() {
         navigate('/trilha')
@@ -83,7 +106,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <p className={styles.body}>{lesson.centralConcept}</p>
+                    <p className={styles.body}>{lesson.scenarioText}</p>
                     <div className={styles.ctaRow}>
                         <Button onClick={handleAdvance} disabled={advanceLesson.isPending}>
                             Continuar
@@ -96,17 +119,24 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Micro-decisão</span>
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
-                    <p className={styles.body}>{lesson.centralConcept}</p>
-                    <label className={styles.confirmRow}>
-                        <input
-                            type="checkbox"
-                            checked={microDecisionConfirmed}
-                            onChange={(event) => setMicroDecisionConfirmed(event.target.checked)}
-                        />
-                        Já pensei na minha resposta
-                    </label>
+                    <p className={styles.body}>{lesson.microDecisionPrompt}</p>
+
+                    {lesson.microDecisionType === 'growth_calculator' && <GrowthCalculatorForm />}
+                    {lesson.microDecisionType === 'fixed_income_comparison' && <FixedIncomeComparisonForm />}
+
+                    {!usesEmbeddedWidget && (
+                        <label className={styles.confirmRow}>
+                            <input
+                                type="checkbox"
+                                checked={microDecisionConfirmed}
+                                onChange={(event) => setMicroDecisionConfirmed(event.target.checked)}
+                            />
+                            Já pensei na minha resposta
+                        </label>
+                    )}
+
                     <div className={styles.ctaRow}>
-                        <Button onClick={handleAdvance} disabled={!microDecisionConfirmed || advanceLesson.isPending}>
+                        <Button onClick={handleAdvance} disabled={!canAdvanceMicroDecision || advanceLesson.isPending}>
                             Continuar
                         </Button>
                     </div>
@@ -117,7 +147,15 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
-                    <p className={styles.body}>{lesson.centralConcept}</p>
+                    <p className={styles.body}>{lesson.revelationText}</p>
+
+                    {isLiveIndicator &&
+                        (indicatorAsset.isLoading ? (
+                            <p className={styles.loading}>Carregando indicador ao vivo…</p>
+                        ) : (
+                            <EquityIndicatorsPanel indicators={indicatorAsset.asset?.equity?.indicators} />
+                        ))}
+
                     <div className={styles.ctaRow}>
                         <Button onClick={handleAdvance} disabled={advanceLesson.isPending}>
                             Continuar
@@ -138,6 +176,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         <Button variant="secondary" onClick={goToTrack}>
                             Voltar pra Trilha
                         </Button>
+                        {unlockAssetPath && <Button onClick={() => navigate(unlockAssetPath)}>Comprar agora</Button>}
                         <Button onClick={handleFinish}>Continuar</Button>
                     </div>
                 </section>

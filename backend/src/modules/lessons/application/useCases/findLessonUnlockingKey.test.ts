@@ -10,8 +10,14 @@ const lesson12 = {
   trackName: 'Trilha 1: Renda Fixa',
   sortOrder: 7,
   centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: 'Tesouro Selic',
   unlocksKeys: ['asset:tesouro_selic'],
+  unlocksAssetTicker: 'LFT2029',
 }
 
 describe('FindLessonUnlockingKeyUseCase', () => {

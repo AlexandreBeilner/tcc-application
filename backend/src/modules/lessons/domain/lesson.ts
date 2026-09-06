@@ -9,6 +9,12 @@ export const LESSON_XP_REWARD = 50
 
 export type LessonStatus = 'completed' | 'available' | 'locked'
 
+// Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — espelha o enum
+// `lesson_micro_decision_type` do schema. 'reflection' é o padrão (checkbox
+// "já pensei"); os outros embutem um componente já existente (tarefa 6.7)
+// no frontend em vez do checkbox.
+export type MicroDecisionType = 'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator'
+
 // Progressão essencialmente linear por sortOrder global (spec 5.1) — cada
 // trilha só desbloqueia a próxima na última lição, sem pré-requisito
 // ramificado/paralelo modelado (decisão de escopo, ver backlog tarefa 5.6).
@@ -35,10 +41,21 @@ export interface LessonSummary {
   trackName: string
   sortOrder: number
   centralConcept: string
+  // Conteúdo pedagógico real por passo (spec 5.2, tarefa 7.0.2) — antes só
+  // `centralConcept` existia e era reaproveitado nos 3 primeiros passos.
+  scenarioText: string
+  microDecisionPrompt: string
+  microDecisionType: MicroDecisionType
+  microDecisionAssetTicker: string | null
+  revelationText: string
   unlocksDescription: string | null
   // Vocabulário fixo (tarefa 7.0.1): 'portfolio', 'calculator', 'news_feed'
   // ou 'asset:<AssetType>'. Ver `unlockedKeysFor` abaixo — normalmente [].
   unlocksKeys: string[]
+  // Preenchido só quando unlocksKeys inclui um `asset:*` — ticker real do
+  // produto recém-desbloqueado, usado pelo CTA "Comprar agora" do passo
+  // Desbloqueio (tarefa 7.0.2, achado 6).
+  unlocksAssetTicker: string | null
 }
 
 export interface LessonProgressSnapshot {

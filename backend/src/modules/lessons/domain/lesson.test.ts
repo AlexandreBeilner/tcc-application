@@ -41,8 +41,14 @@ describe('buildLessonView', () => {
     trackName: 'Trilha 0: Fundamentos',
     sortOrder: 1,
     centralConcept: 'Investir vs poupar',
+    scenarioText: '',
+    microDecisionPrompt: '',
+    microDecisionType: 'reflection' as const,
+    microDecisionAssetTicker: null,
+    revelationText: '',
     unlocksDescription: 'Acesso ao Portfólio',
     unlocksKeys: ['portfolio'],
+    unlocksAssetTicker: null,
   }
 
   it('sem progresso: primeira lição available, currentStep=0', () => {

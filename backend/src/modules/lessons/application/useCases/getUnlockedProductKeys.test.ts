@@ -10,8 +10,14 @@ const lesson01 = {
   trackName: 'Trilha 0',
   sortOrder: 1,
   centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: 'Acesso ao Portfólio',
   unlocksKeys: ['portfolio'],
+  unlocksAssetTicker: null,
 }
 
 const lesson02 = {
@@ -22,8 +28,14 @@ const lesson02 = {
   trackName: 'Trilha 0',
   sortOrder: 2,
   centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
   unlocksDescription: 'Calculadora Financeira',
   unlocksKeys: ['calculator'],
+  unlocksAssetTicker: null,
 }
 
 describe('GetUnlockedProductKeysUseCase', () => {

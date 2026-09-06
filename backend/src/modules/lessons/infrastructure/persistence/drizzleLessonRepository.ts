@@ -17,8 +17,14 @@ function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
     trackName: row.trackName,
     sortOrder: row.sortOrder,
     centralConcept: row.centralConcept,
+    scenarioText: row.scenarioText,
+    microDecisionPrompt: row.microDecisionPrompt,
+    microDecisionType: row.microDecisionType,
+    microDecisionAssetTicker: row.microDecisionAssetTicker,
+    revelationText: row.revelationText,
     unlocksDescription: row.unlocksDescription,
     unlocksKeys: row.unlocksKeys,
+    unlocksAssetTicker: row.unlocksAssetTicker,
   }
 }
 
