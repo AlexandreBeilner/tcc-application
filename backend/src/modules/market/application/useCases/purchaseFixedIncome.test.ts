@@ -96,7 +96,11 @@ describe('PurchaseFixedIncomeUseCase', () => {
     })
     const catalogReader = createFakeCatalogReader({ asset: { ...tesouroSelicAsset, type: 'acao' } })
     const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
-    const useCase = new PurchaseFixedIncomeUseCase(fixedIncomeExecutor, catalogReader, productUnlockReader)
+    const useCase = new PurchaseFixedIncomeUseCase(
+      fixedIncomeExecutor,
+      catalogReader,
+      productUnlockReader,
+    )
 
     await useCase.execute(input)
 

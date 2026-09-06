@@ -89,7 +89,11 @@ describe('PlaceOrderUseCase', () => {
   })
 
   it('não checa desbloqueio quando o asset_id é de uma classe fora do escopo deste endpoint (deixa o motor validar a classe)', async () => {
-    const orderExecutor = createFakeOrderExecutor({ filled_quantity: 0, remaining_quantity: 0, fills: [] })
+    const orderExecutor = createFakeOrderExecutor({
+      filled_quantity: 0,
+      remaining_quantity: 0,
+      fills: [],
+    })
     const catalogReader = createFakeCatalogReader({ asset: { ...equityAsset, type: 'cdb' } })
     const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
     const useCase = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
