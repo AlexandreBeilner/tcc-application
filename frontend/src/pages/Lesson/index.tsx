@@ -1,4 +1,4 @@
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft, Check, Eye } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
@@ -12,6 +12,7 @@ import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import { splitIntoCards } from '../../features/lessons/splitIntoCards'
+import type { Card } from '../../features/lessons/splitIntoCards'
 import type { Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -56,6 +57,11 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // local, não persistido (a persistência de progresso continua sendo só
     // o `step` de fase, spec 5.2). Reseta pra 0 a cada avanço real de fase.
     const [subStep, setSubStep] = useState(0)
+    // Cartões `[revelar]` (tarefa A.3) — índice (dentro da fase atual) já
+    // revelado pelo toque em "Ver resultado". Reseta junto com `subStep` a
+    // cada avanço real de fase, mesmo motivo: índice só faz sentido dentro
+    // do array de cartões da fase corrente.
+    const [revealedIndexes, setRevealedIndexes] = useState<Set<number>>(new Set())
 
     const lesson = lessonQuery.data?.lesson
     const step = localStep ?? lesson?.currentStep ?? 0
@@ -73,9 +79,9 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // prática: nenhuma lição autorada até aqui tem os dois.
     const featureUnlockCta = lesson && !lesson.unlocksAssetTicker ? featureUnlockCtaFor(lesson.unlocksKeys) : null
 
-    const scenarioCards = lesson ? splitIntoCards(lesson.scenarioText) : ['']
-    const microDecisionCards = lesson ? splitIntoCards(lesson.microDecisionPrompt) : ['']
-    const revelationCards = lesson ? splitIntoCards(lesson.revelationText) : ['']
+    const scenarioCards = lesson ? splitIntoCards(lesson.scenarioText) : [{ text: '', hidden: false }]
+    const microDecisionCards = lesson ? splitIntoCards(lesson.microDecisionPrompt) : [{ text: '', hidden: false }]
+    const revelationCards = lesson ? splitIntoCards(lesson.revelationText) : [{ text: '', hidden: false }]
     const isMicroDecisionLastCard = subStep >= microDecisionCards.length - 1
     const isRevelationLastCard = subStep >= revelationCards.length - 1
 
@@ -88,6 +94,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
             onSuccess: () => {
                 setLocalStep(step + 1)
                 setSubStep(0)
+                setRevealedIndexes(new Set())
             },
         })
     }
@@ -95,12 +102,16 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Cartão intermediário: só avança o `subStep` local. Cartão final da
     // fase: avança a fase de verdade (`handleAdvance`), mesmo gate de
     // habilitação que já existia (`disabled` no botão continua cuidando disso).
-    function handleCardContinue(cards: string[]) {
+    function handleCardContinue(cards: Card[]) {
         if (subStep < cards.length - 1) {
             setSubStep((current) => current + 1)
         } else {
             handleAdvance()
         }
+    }
+
+    function handleReveal() {
+        setRevealedIndexes((current) => new Set(current).add(subStep))
     }
 
     function handleFinish() {
@@ -139,7 +150,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <p className={styles.body}>{scenarioCards[subStep]}</p>
+                    <CardBody card={scenarioCards[subStep]} revealed={revealedIndexes.has(subStep)} onReveal={handleReveal} />
                     {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
                         <Button onClick={() => handleCardContinue(scenarioCards)} disabled={advanceLesson.isPending}>
@@ -153,7 +164,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Micro-decisão</span>
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
-                    <p className={styles.body}>{microDecisionCards[subStep]}</p>
+                    <CardBody card={microDecisionCards[subStep]} revealed={revealedIndexes.has(subStep)} onReveal={handleReveal} />
                     {microDecisionCards.length > 1 && <CardDots total={microDecisionCards.length} current={subStep} />}
 
                     {isMicroDecisionLastCard && (
@@ -189,7 +200,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
-                    <p className={styles.body}>{revelationCards[subStep]}</p>
+                    <CardBody card={revelationCards[subStep]} revealed={revealedIndexes.has(subStep)} onReveal={handleReveal} />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
                     {isRevelationLastCard &&
@@ -234,6 +245,23 @@ function LessonView({ lessonId }: { lessonId: string }) {
             )}
         </main>
     )
+}
+
+// Revelação progressiva (tarefa A.3) — cartão marcado `[revelar]` esconde o
+// texto atrás de um botão "Ver resultado" até o toque; um `<button>` de
+// verdade preserva a navegação por teclado (Tab alcança, Enter/Espaço
+// ativa), sem precisar de nenhum tratamento especial.
+function CardBody({ card, revealed, onReveal }: { card: Card; revealed: boolean; onReveal: () => void }) {
+    if (card.hidden && !revealed) {
+        return (
+            <button type="button" className={styles.revealButton} onClick={onReveal}>
+                <Eye size={16} aria-hidden="true" />
+                Ver resultado
+            </button>
+        )
+    }
+
+    return <p className={styles.body}>{card.text}</p>
 }
 
 // Barra de progresso fina interna à fase (tarefa A.1) — pontinhos menores

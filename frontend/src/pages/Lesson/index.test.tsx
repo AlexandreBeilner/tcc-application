@@ -329,6 +329,69 @@ describe('Lesson (tela 3.2)', () => {
         expect(document.querySelector('[class*="cardDots"]')).not.toBeInTheDocument()
     })
 
+    it('cartão marcado com [revelar] esconde o texto atrás de um botão "Ver resultado" (tarefa A.3)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, revelationText: '[revelar] O LCI vence nesse prazo.' }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByRole('button', { name: 'Ver resultado' })).toBeInTheDocument()
+        expect(screen.queryByText('O LCI vence nesse prazo.')).not.toBeInTheDocument()
+    })
+
+    it('tocar em "Ver resultado" revela o texto no lugar, sem navegar de cartão', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, revelationText: '[revelar] O LCI vence nesse prazo.' }),
+        })
+
+        renderLesson()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver resultado' }))
+
+        expect(await screen.findByText('O LCI vence nesse prazo.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver resultado' })).not.toBeInTheDocument()
+        expect(advanceLesson).not.toHaveBeenCalled()
+    })
+
+    it('"Ver resultado" é alcançável e ativável por teclado, sem bloquear "Continuar"', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, revelationText: '[revelar] O LCI vence nesse prazo.' }),
+        })
+
+        renderLesson()
+
+        const revealButton = await screen.findByRole('button', { name: 'Ver resultado' })
+        expect(revealButton.tagName).toBe('BUTTON')
+        expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+
+        revealButton.focus()
+        expect(revealButton).toHaveFocus()
+        fireEvent.keyDown(revealButton, { key: 'Enter' })
+        fireEvent.click(revealButton)
+
+        expect(await screen.findByText('O LCI vence nesse prazo.')).toBeInTheDocument()
+    })
+
+    it('cartão sem o prefixo [revelar] continua aparecendo direto (comportamento da A.1/A.2 preservado)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({
+                currentStep: 2,
+                revelationText: 'Explicação normal.\n\n[revelar] Resultado escondido.',
+            }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Explicação normal.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver resultado' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+        expect(await screen.findByRole('button', { name: 'Ver resultado' })).toBeInTheDocument()
+        expect(screen.queryByText('Resultado escondido.')).not.toBeInTheDocument()
+    })
+
     it('lição bloqueada/inexistente mostra erro', async () => {
         vi.mocked(getLesson).mockRejectedValue(new Error('bloqueada'))
 

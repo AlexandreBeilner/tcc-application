@@ -84,7 +84,7 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
   spec 5.2 (as 4 fases continuam intactas).
 - **Dependências:** nenhuma.
 
-### A.2 · Reescrita das 33 lições em cartões
+### A.2 · Reescrita das 33 lições em cartões ✅ concluída
 
 - **Descrição:** aplicar a convenção da A.1 ao conteúdo já escrito (`backend/src/db/seedLessons.ts`),
   seguindo a regra de redação: nenhum cartão passa de ~45 palavras, nenhum cartão introduz mais de
@@ -96,11 +96,25 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
 - **Critérios de aceite:** as 33 lições reescritas; nenhum valor numérico (taxa, fórmula, ticker)
   diferente do texto original; `docker compose up` + Chrome real confirmando visualmente pelo
   menos as 5 lições mais densas (1.5, 1.6, 1.9, 2.6.4, 2.9) fatiadas corretamente.
+- **Entregável:** as 33 lições de `LESSON_SEEDS` (`backend/src/db/seedLessons.ts`) reescritas com
+  `\n\n` marcando cartões, seguindo a mesma disciplina da A.1 (só reordena o texto original em
+  `scenarioText`/`microDecisionPrompt`/`revelationText` — nenhuma palavra, número, fórmula ou
+  ticker mudou; verificado por script de comparação palavra-a-palavra entre a versão antiga e a
+  nova, ignorando só as quebras `\n\n` e pontuação leve). As 5 lições mais densas (1.5, 1.6, 1.9,
+  2.6.4, 2.9) seguiram a régua da 1.5 do `proposta-engajamento-licoes.md` §2 (resposta curta →
+  fórmula/régua → resultado 1 → resultado 2 → conclusão), a maioria em 3-5 cartões; sentenças
+  muito longas isoladas (>45 palavras) foram quebradas num ponto interno (dois-pontos/ponto e
+  vírgula convertido em ponto final, com a conjunção "e" removida quando a frase virava duas
+  frases — único ajuste de pontuação feito, nenhum fato/número). Rodado `npx prettier --write` +
+  `npm run lint`/`build`/`test` (448 testes, sem regressão) e `docker compose up` real com
+  `db:seed:lessons` + Chrome (mobile, 390×844) confirmando as 5 lições prioritárias renderizando
+  cartões, pontinhos de progresso e navegação corretamente ponta a ponta (Cenário → Micro-decisão
+  → Revelação).
 - **Referências:** exemplo completo da lição 1.5 fatiada em 5 cartões já está em
   `proposta-engajamento-licoes.md` §2 — usar como modelo de tom/tamanho pras demais.
 - **Dependências:** A.1.
 
-### A.3 · Revelação progressiva ("ver resultado")
+### A.3 · Revelação progressiva ("ver resultado") ✅ concluída
 
 - **Descrição:** dentro do passo Revelação, quando um cartão contém um resultado calculado (uma
   taxa, um veredito de comparação), esconder esse número atrás de um botão "Ver resultado" em vez
@@ -117,6 +131,25 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
 - **Critérios de aceite:** cartão marcado com `[revelar] ` não mostra o texto até o toque no
   botão; cartão sem o prefixo continua aparecendo direto (comportamento da A.1/A.2 preservado);
   não bloqueia navegação por teclado (botão "Ver resultado" é alcançável e ativável por teclado).
+- **Entregável:** `features/lessons/splitIntoCards` ganhou `types.ts` (`Card = { text, hidden }`,
+  mesma convenção de módulo-pasta da 6.3.4) e passou a devolver `Card[]`; o prefixo `[revelar] ` é
+  detectado só no início do cartão já com `\n\n`/trim aplicados (texto que só *menciona*
+  `[revelar]` no meio não vira hidden). `pages/Lesson/index.tsx` ganhou `revealedIndexes` (`Set`
+  local, reseta junto com `subStep` a cada avanço real de fase — mesmo ciclo de vida) e o
+  componente `CardBody`, reaproveitado nas 3 fases com texto livre (Cenário/Micro-decisão/
+  Revelação, não só Revelação — o parser é compartilhado, então qualquer cartão marcado em
+  qualquer um dos 3 campos já funciona); cartão `hidden` sem revelar mostra um botão real
+  (`<button>`, ícone `Eye` do lucide-react) — navegação por teclado (Tab/Enter) funciona de graça,
+  sem tratamento especial. "Continuar" não é bloqueado por cartão não revelado (não pedido nos
+  critérios de aceite — decisão de escopo mínimo). `seedLessons.ts`: cartões 3 e 4 da revelação da
+  lição 1.5 (os 2 vereditos numéricos, 12,26% vs 12,00% e 11,18% vs 12,00%) marcados com
+  `[revelar] `. Testes novos em `splitIntoCards/index.test.ts` (prefixo remove hidden, cartão sem
+  prefixo intocado, prefixo no meio do texto não conta, mistura de cartões normais/hidden no mesmo
+  texto) e `Lesson/index.test.tsx` (botão aparece/esconde texto, toque revela sem avançar de
+  cartão, acessível por teclado, cartão sem prefixo continua direto). `npm run lint`/`build`/`test`
+  passam nos dois lados (frontend: 558 testes; backend: 448) e `docker compose up` real +
+  `db:seed:lessons` + Chrome confirmaram visualmente o cartão 3 da Revelação da lição 1.5
+  escondendo o resultado atrás de "Ver resultado" e revelando no mesmo lugar ao toque.
 - **Referências:** `proposta-engajamento-licoes.md` §1 ("sem curiosity gap dentro do parágrafo") e
   §2 (técnica "Revelação progressiva").
 - **Dependências:** A.1, A.2 (precisa de conteúdo já fatiado pra ter onde aplicar o gate).
