@@ -64,9 +64,7 @@ export function NewsEventList({ events, assetLabels = {}, onEventRead, onEventOp
                             }}
                         >
                             <summary className={styles.summary}>
-                                <span
-                                    className={`${styles.statusBadge} ${revealed ? styles.statusAplicado : styles.statusPendente}`}
-                                >
+                                <span className={`${styles.statusBadge} ${revealed ? styles.statusAplicado : styles.statusPendente}`}>
                                     {revealed ? 'Aplicado' : 'Pendente'}
                                 </span>
                                 <span className={styles.title}>{event.title}</span>

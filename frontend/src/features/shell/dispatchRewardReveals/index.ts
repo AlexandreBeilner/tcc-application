@@ -11,10 +11,7 @@ export type { RewardRevealSource } from './types'
 // duplicavam o mesmo dispatch de 4 linhas (achado da revisão da PR 17);
 // terceiro consumidor (tarefa 6.7, Calculadora) reaproveita isso em vez de
 // copiar de novo.
-export function dispatchRewardReveals(
-    show: (content: RewardRevealContent) => void,
-    result: RewardRevealSource,
-): void {
+export function dispatchRewardReveals(show: (content: RewardRevealContent) => void, result: RewardRevealSource): void {
     const reveal = xpRevealContent(result)
     if (reveal) show(reveal)
     achievementRevealContents(result).forEach(show)

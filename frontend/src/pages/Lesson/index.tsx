@@ -171,7 +171,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <CardBody card={scenarioCards[subStep]} revealed={revealedIndexes.has(subStep)} onReveal={handleReveal} lessons={lessons} />
+                    <CardBody
+                        card={scenarioCards[subStep]}
+                        revealed={revealedIndexes.has(subStep)}
+                        onReveal={handleReveal}
+                        lessons={lessons}
+                    />
                     {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
                         <Button onClick={() => handleCardContinue(scenarioCards)} disabled={advanceLesson.isPending}>
@@ -185,7 +190,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Micro-decisão</span>
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
-                    <CardBody card={microDecisionCards[subStep]} revealed={revealedIndexes.has(subStep)} onReveal={handleReveal} lessons={lessons} />
+                    <CardBody
+                        card={microDecisionCards[subStep]}
+                        revealed={revealedIndexes.has(subStep)}
+                        onReveal={handleReveal}
+                        lessons={lessons}
+                    />
                     {microDecisionCards.length > 1 && <CardDots total={microDecisionCards.length} current={subStep} />}
 
                     {isMicroDecisionLastCard && (
@@ -221,7 +231,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
-                    <CardBody card={revelationCards[subStep]} revealed={revealedIndexes.has(subStep)} onReveal={handleReveal} lessons={lessons} />
+                    <CardBody
+                        card={revelationCards[subStep]}
+                        revealed={revealedIndexes.has(subStep)}
+                        onReveal={handleReveal}
+                        lessons={lessons}
+                    />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
                     {isRevelationLastCard &&
@@ -272,17 +287,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
 // texto atrás de um botão "Ver resultado" até o toque; um `<button>` de
 // verdade preserva a navegação por teclado (Tab alcança, Enter/Espaço
 // ativa), sem precisar de nenhum tratamento especial.
-function CardBody({
-    card,
-    revealed,
-    onReveal,
-    lessons,
-}: {
-    card: Card
-    revealed: boolean
-    onReveal: () => void
-    lessons: LessonType[]
-}) {
+function CardBody({ card, revealed, onReveal, lessons }: { card: Card; revealed: boolean; onReveal: () => void; lessons: LessonType[] }) {
     if (card.hidden && !revealed) {
         return (
             <button type="button" className={styles.revealButton} onClick={onReveal}>

@@ -154,10 +154,7 @@ describe('Portfolio (tela 2.1)', () => {
         vi.mocked(getProgression).mockResolvedValue(progression)
         vi.mocked(getStreak).mockResolvedValue(streak)
         vi.mocked(listLessons).mockResolvedValue({
-            lessons: [
-                { ...availableLesson, id: '0', sortOrder: 1, status: 'completed', unlocksDescription: '' },
-                availableLesson,
-            ],
+            lessons: [{ ...availableLesson, id: '0', sortOrder: 1, status: 'completed', unlocksDescription: '' }, availableLesson],
         })
 
         renderPortfolio()
