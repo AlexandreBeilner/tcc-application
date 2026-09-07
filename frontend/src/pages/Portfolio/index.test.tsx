@@ -73,6 +73,8 @@ const availableLesson: Lesson = {
     unlocksDescription: 'Tesouro Selic',
     unlocksKeys: [],
     unlocksAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
     status: 'available',
     currentStep: 0,
 }

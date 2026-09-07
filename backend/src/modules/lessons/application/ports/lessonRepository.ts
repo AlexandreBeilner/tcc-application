@@ -10,6 +10,13 @@ export interface LessonProgressRecord extends LessonProgressSnapshot {
 export interface UpsertProgressInput {
   currentStep: number
   completedAt: Date | null
+  // Opcional e distinto de `null` (B.1): `undefined` (campo ausente) não
+  // mexe no valor já gravado — cada transição de passo chama `upsertProgress`
+  // de novo, e sem essa distinção uma chamada sem a escolha (ex: avançar do
+  // passo Revelação pro Desbloqueio) apagaria a escolha feita no passo
+  // Micro-decisão. Só a B.2 (`AdvanceLessonUseCase`) passa isto de verdade;
+  // aqui é só o encanamento do repositório.
+  microDecisionSelectedOption?: number | null
 }
 
 export interface CompletionAttemptResult {

@@ -3,6 +3,7 @@ import {
   buildLessonView,
   completedTrackNumbers,
   countCompleted,
+  isCorrectOption,
   isEligibleForReview,
   isUnlocked,
   lessonStatus,
@@ -58,6 +59,8 @@ describe('buildLessonView', () => {
     unlocksDescription: 'Acesso ao Portfólio',
     unlocksKeys: ['portfolio'],
     unlocksAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
   }
 
   it('sem progresso: primeira lição available, currentStep=0', () => {
@@ -68,14 +71,22 @@ describe('buildLessonView', () => {
   })
 
   it('com progresso em andamento: status calculado normalmente, currentStep persistido', () => {
-    const view = buildLessonView(lesson, { currentStep: 1, completedAt: null }, 0)
+    const view = buildLessonView(
+      lesson,
+      { currentStep: 1, completedAt: null, microDecisionSelectedOption: null },
+      0,
+    )
 
     expect(view.status).toBe('available')
     expect(view.currentStep).toBe(1)
   })
 
   it('com completedAt preenchido: completed, independente do sortOrder', () => {
-    const view = buildLessonView(lesson, { currentStep: 3, completedAt: new Date() }, 0)
+    const view = buildLessonView(
+      lesson,
+      { currentStep: 3, completedAt: new Date(), microDecisionSelectedOption: null },
+      0,
+    )
 
     expect(view.status).toBe('completed')
   })
@@ -181,4 +192,19 @@ describe('isEligibleForReview', () => {
   ])('completedAt=%s → %s', (completedAt, expected) => {
     expect(isEligibleForReview(new Date(completedAt), now)).toBe(expected)
   })
+})
+
+describe('isCorrectOption', () => {
+  it.each([
+    [1, 1, true], // acertou
+    [1, 0, false], // errou
+    [1, null, null], // ainda não escolheu nada
+    [null, 1, null], // lição sem aposta real (checkbox de hoje)
+    [null, null, null], // sem aposta real e sem escolha
+  ])(
+    'microDecisionCorrectOption=%s, selectedOption=%s → %s',
+    (microDecisionCorrectOption, selectedOption, expected) => {
+      expect(isCorrectOption({ microDecisionCorrectOption }, selectedOption)).toBe(expected)
+    },
+  )
 })

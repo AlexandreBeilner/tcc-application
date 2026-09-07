@@ -18,6 +18,8 @@ const lesson = {
   unlocksDescription: null,
   unlocksKeys: [],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }
 
 describe('HasCompletedLessonTodayUseCase', () => {

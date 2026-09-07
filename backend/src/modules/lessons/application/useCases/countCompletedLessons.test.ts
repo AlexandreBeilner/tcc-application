@@ -19,6 +19,8 @@ const lessons = [
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
   },
   {
     id: 'l2',
@@ -36,6 +38,8 @@ const lessons = [
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
   },
 ]
 

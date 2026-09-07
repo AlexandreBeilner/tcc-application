@@ -32,6 +32,11 @@ export interface Lesson {
     // produto recém-desbloqueado, usado pelo CTA "Comprar agora" do passo
     // Desbloqueio.
     unlocksAssetTicker: string | null
+    // Aposta com acerto/erro real (backlog engajamento B.1/B.3) — `null` nos
+    // dois é o estado normal de hoje (checkbox "já pensei"); só uma lição
+    // com os dois preenchidos troca pro widget de escolha real.
+    microDecisionOptions: string[] | null
+    microDecisionCorrectOption: number | null
     status: 'completed' | 'available' | 'locked'
     currentStep: number
 }

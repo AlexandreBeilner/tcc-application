@@ -18,6 +18,8 @@ const lesson01 = {
   unlocksDescription: null,
   unlocksKeys: [],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }
 
 const lesson02 = { ...lesson01, id: 'l2', code: '0.2', sortOrder: 2 }

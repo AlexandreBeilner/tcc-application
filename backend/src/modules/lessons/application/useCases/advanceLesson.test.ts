@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
+import {
+  InvalidMicroDecisionOptionError,
+  LessonLockedError,
+  LessonNotFoundError,
+} from '../../domain/errors'
 import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
@@ -26,6 +30,8 @@ const lessons = [1, 2, 3].map((n) => ({
   unlocksDescription: null,
   unlocksKeys: [],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }))
 
 function build() {
@@ -161,7 +167,13 @@ describe('AdvanceLessonUseCase', () => {
     // devolveria pra segunda requisição.
     const completedAt = new Date('2026-01-01T00:00:00Z')
     lessonRepository.completeIfNotAlreadyCompleted = async (_userId, _lessonId, currentStep) => ({
-      record: { lessonId: 'l1', currentStep, completedAt, lastReviewedAt: null },
+      record: {
+        lessonId: 'l1',
+        currentStep,
+        completedAt,
+        lastReviewedAt: null,
+        microDecisionSelectedOption: null,
+      },
       wonRace: false,
     })
 
@@ -187,5 +199,71 @@ describe('AdvanceLessonUseCase', () => {
     await expect(
       useCase.execute({ userId: 'u1', lessonId: 'nope', step: 0 }),
     ).rejects.toBeInstanceOf(LessonNotFoundError)
+  })
+})
+
+// Aposta com acerto/erro real (backlog engajamento B.2) — lição própria, com
+// `microDecisionOptions` preenchido, separada das de cima (todas com
+// `null`) pra não interferir na progressão sortOrder-a-sortOrder já testada.
+const lessonWithOptions = {
+  id: 'lo1',
+  code: '1.1',
+  title: 'Lição com opções',
+  trackNumber: 1,
+  trackName: 'Trilha 1: Renda Fixa',
+  sortOrder: 1,
+  centralConcept: 'x',
+  scenarioText: '',
+  microDecisionPrompt: '',
+  microDecisionType: 'reflection' as const,
+  microDecisionAssetTicker: null,
+  revelationText: '',
+  unlocksDescription: null,
+  unlocksKeys: [],
+  unlocksAssetTicker: null,
+  microDecisionOptions: ['Sim', 'Não'],
+  microDecisionCorrectOption: 0,
+}
+
+function buildWithOptions() {
+  const lessonRepository = createFakeLessonRepository([lessonWithOptions])
+  const useCase = new AdvanceLessonUseCase(
+    lessonRepository,
+    createFakeXpAwarder(),
+    createFakeStreakTracker(),
+    createFakeSocialFeedRecorder(),
+  )
+  return { lessonRepository, useCase }
+}
+
+describe('AdvanceLessonUseCase — aposta com acerto/erro real (B.2)', () => {
+  it('persiste selectedOption válido, lido de volta em listProgressForUser', async () => {
+    const { lessonRepository, useCase } = buildWithOptions()
+
+    await useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2, selectedOption: 1 })
+
+    const [progress] = await lessonRepository.listProgressForUser('u1')
+    expect(progress.microDecisionSelectedOption).toBe(1)
+  })
+
+  it('rejeita selectedOption fora do intervalo de microDecisionOptions', async () => {
+    const { useCase } = buildWithOptions()
+
+    await expect(
+      useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2, selectedOption: 2 }),
+    ).rejects.toBeInstanceOf(InvalidMicroDecisionOptionError)
+  })
+
+  it('ignora selectedOption sem erro pra lição sem opções reais (mantém checkbox)', async () => {
+    const { useCase } = build()
+
+    const result = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      step: 1,
+      selectedOption: 5,
+    })
+
+    expect(result).toEqual({ currentStep: 1, completed: false })
   })
 })

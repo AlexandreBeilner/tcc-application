@@ -63,11 +63,34 @@ export interface LessonSummary {
   // produto recém-desbloqueado, usado pelo CTA "Comprar agora" do passo
   // Desbloqueio (tarefa 7.0.2, achado 6).
   unlocksAssetTicker: string | null
+  // Aposta com acerto/erro real (backlog engajamento B.1) — `null` nos dois
+  // campos é o estado normal de hoje (checkbox "já pensei" no passo
+  // Micro-decisão); só uma lição com as duas colunas preenchidas (autoria é
+  // a B.4) troca pro widget de escolha real (B.3).
+  microDecisionOptions: string[] | null
+  microDecisionCorrectOption: number | null
 }
 
 export interface LessonProgressSnapshot {
   currentStep: number
   completedAt: Date | null
+  // Índice escolhido pelo usuário na Micro-decisão (B.1) — `null` até a
+  // escolha ser gravada (B.2) ou pra lição sem aposta real.
+  microDecisionSelectedOption: number | null
+}
+
+// Três estados, não booleano: `null` cobre tanto "lição sem aposta real
+// ainda" (`lesson.microDecisionCorrectOption === null`, checkbox de hoje)
+// quanto "usuário não escolheu nada" — nenhum dos dois é "errou", que só
+// faz sentido quando existe uma escolha real pra comparar.
+export function isCorrectOption(
+  lesson: Pick<LessonSummary, 'microDecisionCorrectOption'>,
+  selectedOption: number | null,
+): boolean | null {
+  if (lesson.microDecisionCorrectOption === null || selectedOption === null) {
+    return null
+  }
+  return selectedOption === lesson.microDecisionCorrectOption
 }
 
 export interface LessonView extends LessonSummary {

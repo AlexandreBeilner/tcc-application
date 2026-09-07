@@ -19,6 +19,8 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         unlocksDescription: overrides.unlocksDescription ?? '',
         unlocksKeys: overrides.unlocksKeys ?? [],
         unlocksAssetTicker: overrides.unlocksAssetTicker ?? null,
+        microDecisionOptions: overrides.microDecisionOptions ?? null,
+        microDecisionCorrectOption: overrides.microDecisionCorrectOption ?? null,
         status: overrides.status ?? 'locked',
         currentStep: overrides.currentStep ?? 0,
     }

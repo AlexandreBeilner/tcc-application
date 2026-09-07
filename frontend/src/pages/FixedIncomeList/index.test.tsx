@@ -145,6 +145,8 @@ describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => 
                     unlocksDescription: '',
                     unlocksKeys: ['asset:tesouro_selic'],
                     unlocksAssetTicker: null,
+                    microDecisionOptions: null,
+                    microDecisionCorrectOption: null,
                     status: 'available',
                     currentStep: 0,
                 },

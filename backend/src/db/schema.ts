@@ -15,6 +15,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -149,6 +150,14 @@ export const lessons = pgTable(
     // canônico real do catálogo do produto recém-desbloqueado, usado pelo
     // CTA "Comprar agora" do passo Desbloqueio (tarefa 7.0.2, achado 6).
     unlocksAssetTicker: varchar('unlocks_asset_ticker', { length: 20 }),
+    // Aposta com acerto/erro real (backlog engajamento B.1) — troca o
+    // checkbox genérico "já pensei" por uma escolha real no passo
+    // Micro-decisão. Ambas nullable, sem default: lição sem as duas
+    // preenchidas continua mostrando o checkbox de hoje (retrocompatível,
+    // mesmo padrão incremental da 7.0.2/7.1 — nenhuma das 33 lições ganha
+    // conteúdo aqui, isso é a B.4).
+    microDecisionOptions: text('micro_decision_options').array(),
+    microDecisionCorrectOption: smallint('micro_decision_correct_option'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -177,6 +186,13 @@ export const userLessonProgress = pgTable(
     // concluída. Missão "revise uma lição antiga" checa isto contra hoje
     // (UTC) + `completedAt` mais antigo que `REVIEW_ELIGIBLE_AFTER_DAYS`.
     lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
+    // Aposta com acerto/erro real (backlog engajamento B.1) — grava o índice
+    // escolhido pelo usuário em `lessons.micro_decision_options` (passo
+    // Micro-decisão). Nullable: lição sem aposta real (checkbox de hoje) ou
+    // ainda não respondida deixam isto `null`. Necessário pra Fase H
+    // (conquista/missão de sequência de acertos) poder consultar o
+    // histórico depois, não só o momento da escolha.
+    microDecisionSelectedOption: smallint('micro_decision_selected_option'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],

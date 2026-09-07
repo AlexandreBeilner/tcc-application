@@ -1,4 +1,4 @@
-import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
+import { InvalidMicroDecisionOptionError, LessonLockedError, LessonNotFoundError } from '../../domain/errors'
 import {
   LESSON_UNLOCK_STEP,
   LESSON_XP_REWARD,
@@ -14,6 +14,10 @@ export interface AdvanceLessonInput {
   userId: string
   lessonId: string
   step: number
+  // Aposta com acerto/erro real (backlog engajamento B.2) — só faz sentido
+  // pra lição com `microDecisionOptions` preenchido (B.1); ignorado sem erro
+  // pra lição sem aposta real (checkbox de hoje continua valendo).
+  selectedOption?: number
 }
 
 export interface AdvanceLessonResult {
@@ -43,6 +47,20 @@ export class AdvanceLessonUseCase {
       throw new LessonNotFoundError('lição não encontrada')
     }
 
+    // Índice validado contra o tamanho real de `microDecisionOptions` desta
+    // lição — Zod (schemas.ts) só garante que é um inteiro >= 0, não que
+    // cabe nas opções de uma lição específica (isso é regra de negócio, não
+    // formato de payload). Lição sem opções reais nunca lança aqui: o campo
+    // simplesmente não se aplica (checkbox de hoje continua valendo).
+    const { microDecisionOptions } = lesson
+    if (
+      input.selectedOption !== undefined &&
+      microDecisionOptions !== null &&
+      input.selectedOption >= microDecisionOptions.length
+    ) {
+      throw new InvalidMicroDecisionOptionError('opção de micro-decisão inválida')
+    }
+
     const progress = await this.lessonRepository.listProgressForUser(input.userId)
     const completedCount = progress.filter((p) => p.completedAt !== null).length
     const own = progress.find((p) => p.lessonId === input.lessonId)
@@ -62,6 +80,13 @@ export class AdvanceLessonUseCase {
       const saved = await this.lessonRepository.upsertProgress(input.userId, input.lessonId, {
         currentStep: input.step,
         completedAt: alreadyCompleted ? (own?.completedAt ?? null) : null,
+        // `undefined` (nunca `null`) quando a lição não tem aposta real —
+        // `UpsertProgressInput.microDecisionSelectedOption` trata ausência
+        // como "não mexe no valor já gravado" (B.1), então isto nunca apaga
+        // uma escolha feita numa chamada anterior por engano.
+        ...(input.selectedOption !== undefined && microDecisionOptions !== null
+          ? { microDecisionSelectedOption: input.selectedOption }
+          : {}),
       })
       return { currentStep: saved.currentStep, completed: saved.completedAt !== null }
     }

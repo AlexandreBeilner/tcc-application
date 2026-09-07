@@ -428,6 +428,8 @@ describe('News (tela 5.1)', () => {
                     unlocksDescription: '',
                     unlocksKeys: ['news_feed'],
                     unlocksAssetTicker: null,
+                    microDecisionOptions: null,
+                    microDecisionCorrectOption: null,
                     status: 'available',
                     currentStep: 0,
                 },

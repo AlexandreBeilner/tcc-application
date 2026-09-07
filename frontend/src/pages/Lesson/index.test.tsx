@@ -60,6 +60,8 @@ function lesson(overrides: Partial<LessonType>): LessonType {
         unlocksDescription: 'Tesouro Selic',
         unlocksKeys: [],
         unlocksAssetTicker: null,
+        microDecisionOptions: null,
+        microDecisionCorrectOption: null,
         status: 'available',
         currentStep: 0,
         ...overrides,
@@ -126,6 +128,73 @@ describe('Lesson (tela 3.2)', () => {
 
         fireEvent.click(screen.getByRole('checkbox'))
         expect(button).not.toBeDisabled()
+    })
+
+    it('micro-decisão com opções reais (backlog engajamento B.3) mostra os botões de escolha, não o checkbox', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByRole('button', { name: 'Sim' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Não' })).toBeInTheDocument()
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+        expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
+    })
+
+    it('micro-decisão com opções reais exige escolher uma opção antes de habilitar Continuar', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+        })
+
+        renderLesson()
+
+        const button = await screen.findByRole('button', { name: 'Continuar' })
+        expect(button).toBeDisabled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sim' }))
+        expect(button).not.toBeDisabled()
+    })
+
+    it('escolher a opção certa envia selectedOption e mostra "Você acertou" na Revelação', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+        })
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+
+        renderLesson()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Sim' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+        await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 2, 0))
+        expect(await screen.findByText('Você acertou')).toBeInTheDocument()
+    })
+
+    it('escolher a opção errada mostra "Quase" com a resposta certa na Revelação', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+        })
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+
+        renderLesson()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Não' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+        await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 2, 1))
+        expect(await screen.findByText('Quase. A resposta certa era: Sim')).toBeInTheDocument()
+    })
+
+    it('lição sem opções reais continua mostrando o checkbox de hoje na Revelação (regressão)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+
+        renderLesson()
+
+        await screen.findByText('Revelação')
+        expect(screen.queryByText('Você acertou')).not.toBeInTheDocument()
+        expect(screen.queryByText(/Quase\./)).not.toBeInTheDocument()
     })
 
     it('micro-decisão growth_calculator embute a calculadora e não exige checkbox', async () => {

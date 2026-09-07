@@ -17,6 +17,12 @@ interface LessonSeed {
   microDecisionPrompt: string
   microDecisionType: MicroDecisionType
   microDecisionAssetTicker: string | null
+  // Aposta com acerto/erro real (backlog engajamento B.1/B.4) — preenchidos
+  // só nas lições elegíveis (auditoria abaixo, antes de LESSON_SEEDS). `null`
+  // nos dois: widget embutido já é a interação (0.2/3.3) ou pergunta aberta
+  // de propósito sem resposta certa objetiva (0.1).
+  microDecisionOptions: string[] | null
+  microDecisionCorrectOption: number | null
   revelationText: string
   unlocksDescription: string | null
   unlocksKeys: string[]
@@ -33,6 +39,39 @@ interface LessonSeed {
 // schema→API→tela (scenarioText/microDecisionPrompt/revelationText reais +
 // unlocksAssetTicker/"Comprar agora") ponta a ponta antes da autoria em
 // massa — mantido aqui como está.
+//
+// Auditoria de aposta com acerto/erro real (backlog engajamento B.4): das 33
+// lições, 3 ficaram sem opções reais (microDecisionOptions/
+// microDecisionCorrectOption = null, mantêm o checkbox "já pensei" de hoje)
+// e 30 ganharam. O critério de elegibilidade não é "microDecisionType =
+// reflection" (como o texto original da tarefa supunha) e sim "o passo
+// Micro-decisão hoje mostra o checkbox" — que também vale pras 6 lições
+// `live_indicator` (2.6.1–2.6.6), já que `EMBEDDED_WIDGET_TYPES`
+// (`frontend/src/pages/Lesson/index.tsx`) só cobre `growth_calculator`/
+// `fixed_income_comparison`. Achado de auditoria corrigindo a suposição
+// original da B.4.
+//
+// Fora (3, justificativa por linha):
+//   0.1    — pergunta é sobre motivação pessoal ("o que te faria escolher"),
+//            não fato verificável; forçar múltipla escolha destruiria o
+//            propósito deliberado da pergunta aberta (citado no texto
+//            original desta tarefa como o exemplo a preservar).
+//   0.2    — `growth_calculator`: o widget embutido já é a interação real.
+//   3.3    — `fixed_income_comparison`: mesmo motivo da 0.2.
+//
+// Dentro (30) — índice da opção correta entre colchetes, conferido contra o
+// veredito de `revelationText` de cada lição:
+//   0.3 [2] 0.4 [0] 0.5 [1] 1.1 [0] 1.2 [0] 1.3 [0] 1.4 [0] 1.5 [0] 1.6 [1]
+//   1.7 [1] 1.8 [0] 1.9 [1] 2.1 [1] 2.2 [1] 2.3 [0] 2.4 [1] 2.5 [0]
+//   2.6.1 [0] 2.6.2 [1] 2.6.3 [0] 2.6.4 [0] 2.6.5 [1] 2.6.6 [1] 2.7 [0]
+//   2.8 [1] 2.9 [1] 2.10 [1] 3.1 [0] 3.2 [0] 3.4 [3]
+// A maioria (yes/no, maior/menor, sobe/desce/igual) reaproveita literalmente
+// as alternativas que o próprio `microDecisionPrompt` já enumera em texto —
+// não inventa vocabulário novo. Exceções que combinam duas leituras numa
+// opção só: 2.3 (ON/PN de VALR3 e BNDD4 juntos, pergunta original já pede os
+// dois), 3.4 (efeito nos fundamentos + o que acontece com o Tesouro Selic,
+// desafio final da trilha sintetizando 2.8+3.2 — 4 combinações possíveis,
+// só uma bate com o texto de `revelationText`).
 const LESSON_SEEDS: LessonSeed[] = [
   {
     code: '0.1',
@@ -56,6 +95,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'em algo que rende? O que te faria escolher um ou outro?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
     revelationText:
       'Investir é ceder o uso do seu capital, hoje, a alguém (governo, banco, empresa) em troca de uma ' +
       'remuneração por esse tempo e esse risco.' +
@@ -86,6 +127,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Simples e Composto, e compare o total ao final do período antes de continuar.',
     microDecisionType: 'growth_calculator',
     microDecisionAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
     revelationText:
       'No regime simples, o montante cresce de forma linear: M = C × (1 + i × n).' +
       '\n\n' +
@@ -114,6 +157,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Se a inflação de um ano for 5%, quanto vai custar, no ano que vem, algo que custa R$100 hoje?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['R$95', 'R$100', 'R$105', 'R$110'],
+    microDecisionCorrectOption: 2,
     revelationText:
       'R$105: o valor nominal do seu dinheiro continua sendo R$100, mas o poder de compra desse dinheiro ' +
       'caiu.' +
@@ -141,6 +186,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'de inflação), o rendimento real fica perto de quanto?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Perto de 2%', 'Exatamente 8%', 'Perto de 14%', 'Perto de 6%'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'Perto de 2%.' +
       '\n\n' +
@@ -174,6 +221,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Isso é maior, menor ou igual ao que rende um Tesouro Selic, que acompanha ~100% da Selic?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Maior', 'Menor', 'Igual'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Menor: sempre que a Selic está acima de 8,5% a.a. (o cenário mais comum), a poupança rende uma ' +
       'fração fixa (0,5% a.m.) que fica abaixo dos 100% da Selic que o Tesouro Selic paga.' +
@@ -216,6 +265,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'acompanha a Selic todo dia, sem taxa travada na compra, ainda é considerado renda fixa?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'Sim. O nome "renda fixa" se refere à regra de remuneração ser conhecida com antecedência ' +
       '(pós-fixada, acompanhando um indexador como a Selic ou o CDI, ou prefixada, com taxa ' +
@@ -251,6 +302,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'unitário do Tesouro Selic: ele sobe, cai ou fica igual?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sobe', 'Cai', 'Fica igual'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'O preço unitário do Tesouro Selic sobe (quase) todo dia útil, acompanhando de perto a ' +
       'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre {{marcação a mercado}} negativa ' +
@@ -282,6 +335,12 @@ const LESSON_SEEDS: LessonSeed[] = [
       'tem risco de crédito do banco emissor. O que protege o investidor se esse banco quebrar?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'O FGC (Fundo Garantidor de Créditos)',
+      'O Banco Central devolve o valor automaticamente',
+      'Nada, o investidor perde todo o valor investido',
+    ],
+    microDecisionCorrectOption: 0,
     revelationText:
       'O {{FGC}} cobre CDB, LCI e LCA em até R$250.000,00 por CPF e ' +
       'por instituição financeira, mesmo que o banco emissor quebre.' +
@@ -311,6 +370,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'do que resgatando o mesmo CDB com 800 dias corridos de aplicação?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Maior', 'Menor'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'Maior. A tabela regressiva (Lei 11.033/2004) cobra 22,5% até 180 dias corridos, 20% de ' +
       '181 a 360 dias, 17,5% de 361 a 720 dias e 15% acima de 720 dias.' +
@@ -353,6 +414,8 @@ const LESSON_SEEDS: LessonSeed[] = [
     // vereditos numéricos) marcados com `[revelar] ` pra tarefa A.3
     // (revelação progressiva) — mesmos 2 cartões citados na descrição da
     // A.3 como exemplo de "resultado calculado" a esconder até o toque.
+    microDecisionOptions: ['O LCI2026 (isento)', 'O CDB2027 (com IR)'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'O LCI2026 rende mais líquido nesse prazo curto.' +
       '\n\n' +
@@ -389,6 +452,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'do LTN2027 hoje deveria ficar acima ou abaixo de R$1.000,00?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Acima de R$1.000,00', 'Abaixo de R$1.000,00'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Abaixo. A fórmula de deságio é Preço = Valor Nominal ÷ (1 + Taxa)^(DU/252): com taxa de ' +
       '11,75% ao ano e 504 dias úteis (dois anos) restantes, Preço = 1.000 ÷ (1,1175)² ≈ R$800,76.' +
@@ -424,6 +489,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'seu título hoje fica acima ou abaixo do que renderia até esse dia na taxa contratada?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Acima', 'Abaixo'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Abaixo: o preço de qualquer prefixado é recalculado todo dia útil pela mesma fórmula de ' +
       '{{deságio}}, só que com a taxa de mercado vigente no lugar da taxa contratada.' +
@@ -459,6 +526,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'até o vencimento, o valor final recebido no NTNB2035 aumenta, diminui ou fica igual?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Aumenta', 'Diminui', 'Fica igual'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'Aumenta. Diferente do Tesouro Prefixado (lição 1.6), cujo valor final é sempre R$1.000,00 ' +
       'fixo, o Tesouro IPCA+ tem seu Valor Nominal corrigido mensalmente pela inflação acumulada.' +
@@ -493,6 +562,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'CRI e CRA, emitidos por uma securitizadora e não por um banco, têm essa mesma garantia?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Não. CRI e CRA não têm cobertura do {{FGC}}, então o risco de crédito recai inteiramente ' +
       'sobre a capacidade de pagamento da securitizadora emissora.' +
@@ -531,6 +602,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'uma ação, esse retorno já é conhecido de antemão, do mesmo jeito?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Não. Como sócio, seu retorno depende do desempenho da empresa e do preço que o mercado está disposto ' +
       'a pagar pela ação a cada momento.' +
@@ -561,6 +634,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'o caixa da empresa?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Não. O IPO acontece no mercado primário: a empresa emite ações novas e capitaliza o caixa dela com o ' +
       'dinheiro dos investidores.' +
@@ -591,6 +666,11 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Qual delas você acha que é a ação ordinária (ON) e qual é a preferencial (PN)?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'VALR3 é ON (com voto), BNDD4 é PN (sem voto)',
+      'VALR3 é PN (sem voto), BNDD4 é ON (com voto)',
+    ],
+    microDecisionCorrectOption: 0,
     revelationText:
       'VALR3 (final 3) é ordinária (ON), com direito a voto; BNDD4 (final 4) é preferencial (PN), sem voto ' +
       'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa.' +
@@ -623,6 +703,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'notícia deveria pesar do mesmo jeito na sua decisão sobre as duas?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim, do mesmo jeito', 'Não, depende de quem o evento afeta'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Não necessariamente: o feed de notícias reporta eventos macro, alguns afetam o mercado inteiro (uma ' +
       'mudança na Selic), outros miram um setor específico (como Agronegócio), sem impactar diretamente uma ' +
@@ -655,6 +737,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'mais caro pra conseguir comprar, o preço de VALR3 tende a subir, cair ou ficar igual?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Tende a subir', 'Tende a cair', 'Fica igual'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'Tende a subir: o motor de pareamento organiza as ofertas de compra da mais alta pra mais baixa e as ' +
       'de venda da mais baixa pra mais alta, e cada negociação executa no preço de quem já estava no livro ' +
@@ -693,6 +777,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'acha que esse é sempre maior ou sempre menor que o Lucro Líquido final?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['Maior', 'Menor'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'EBIT vem primeiro e costuma ser maior que o Lucro Líquido, já que ainda falta descontar juros da ' +
       'dívida e impostos antes de chegar ao resultado final.' +
@@ -728,6 +814,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Margem EBIT?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['Maior', 'Menor'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Margem EBIT = EBIT / Receita Líquida; Margem Líquida = Lucro Líquido / Receita Líquida.' +
       '\n\n' +
@@ -759,6 +847,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'usando melhor o capital dos seus sócios?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['VALR3 (Mineradora)', 'BNDD4 (Banco)'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'A VALR3 estaria usando melhor: ROE = Lucro Líquido / Patrimônio Líquido mede quanto lucro a empresa ' +
       'gera pra cada real de capital que os sócios colocaram nela.' +
@@ -790,6 +880,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'mesmo, o P/L (Preço / Lucro por ação) sobe, desce ou fica igual?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'LPA (lucro por ação) = Lucro Líquido / número de ações; P/L = Preço / LPA.' +
       '\n\n' +
@@ -819,6 +911,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       '(Dívida Bruta menos Caixa) dessa empresa é alta ou baixa?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['Alta', 'Baixa'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Baixa, podendo até ser negativa: Dívida Líquida = Dívida Bruta − Caixa, então quando o Caixa supera a ' +
       'Dívida Bruta, a empresa tem, na prática, mais dinheiro guardado do que deve.' +
@@ -853,6 +947,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'meses continuarem os mesmos, o Dividend Yield sobe, desce ou fica igual?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Desce: Dividend Yield = soma dos dividendos pagos por ação nos últimos 12 meses / Preço atual, então, ' +
       'com o numerador parado, dobrar o preço corta o Dividend Yield pela metade.' +
@@ -887,6 +983,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'ainda recebe o dividendo dessa distribuição?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'Sim. O direito ao provento é definido pela posição que você tinha exatamente na data ex, o dia de ' +
       'relatório em que o dividendo é gerado, não pela posição no dia do pagamento.' +
@@ -926,6 +1024,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       '(Conservador) ou BNDD4 (Sofisticado)?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['VALR3 (Conservador)', 'BNDD4 (Sofisticado)'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'BNDD4 sente um efeito maior. É o mesmo perfil de risco (Conservador/Sofisticado) que você já viu na ' +
       'Trilha 1 para renda fixa, aqui aplicado ao efeito da Selic sobre os fundamentos de cada empresa.' +
@@ -961,6 +1061,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'SINT11 inteiro deveria cair na mesma proporção, ou menos?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Na mesma proporção', 'Menos'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Menos. O preço do ETF acompanha o índice de referência que ele replica, formado pela média ponderada ' +
       'de todos os constituintes, não só de um.' +
@@ -998,6 +1100,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'vacância faz sentido calcular também pro PAPL11, que não tem imóvel próprio?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim, faz sentido', 'Não faz sentido'],
+    microDecisionCorrectOption: 1,
     revelationText:
       'Não faz sentido: vacância é um indicador exclusivo do perfil tijolo, porque só existe imóvel físico ' +
       'pra ficar vago.' +
@@ -1040,6 +1144,11 @@ const LESSON_SEEDS: LessonSeed[] = [
       'patrimônio total: o concentrado 100% em VALR3, ou o dividido entre VALR3, BNDD4 e Tesouro Selic?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'O plano concentrado 100% em VALR3',
+      'O plano dividido entre VALR3, BNDD4 e Tesouro Selic',
+    ],
+    microDecisionCorrectOption: 0,
     revelationText:
       'O plano concentrado. Todo o patrimônio está exposto ao mesmo risco específico daquela empresa, então ' +
       'um choque nela vira um choque no portfólio inteiro.' +
@@ -1078,6 +1187,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'dois perfis é mais adequado?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: ['Conservador', 'Sofisticado'],
+    microDecisionCorrectOption: 0,
     revelationText:
       'O perfil Conservador. Risco e retorno não são opostos que se escolhe livremente: são uma troca.' +
       '\n\n' +
@@ -1113,6 +1224,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'vencedor muda?',
     microDecisionType: 'fixed_income_comparison',
     microDecisionAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
     revelationText:
       'Com os valores padrão (365 dias, alíquota regressiva de 17,5% nessa faixa), o CDB a 11,00% a.a. ' +
       'bruto rende R$10.907,50 líquidos contra R$10.900,00 do LCI a 9,00% a.a. isento: o CDB vence, mas por ' +
@@ -1153,6 +1266,13 @@ const LESSON_SEEDS: LessonSeed[] = [
       'VALR3 (Conservador) ou BNDD4 (Sofisticado), e o que acontece com o Tesouro Selic ao mesmo tempo?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'VALR3 sente mais o efeito, e o Tesouro Selic passa a render menos',
+      'VALR3 sente mais o efeito, e o Tesouro Selic passa a render mais',
+      'BNDD4 sente mais o efeito, e o Tesouro Selic passa a render menos',
+      'BNDD4 sente mais o efeito, e o Tesouro Selic passa a render mais',
+    ],
+    microDecisionCorrectOption: 3,
     revelationText:
       'BNDD4 (Sofisticado) sente o efeito maior nos fundamentos, o mesmo padrão da lição 2.8, enquanto o ' +
       'Tesouro Selic passa a render mais, acompanhando a taxa que agora subiu (lição 1.2).' +
@@ -1207,6 +1327,8 @@ async function main() {
           microDecisionPrompt: seed.microDecisionPrompt,
           microDecisionType: seed.microDecisionType,
           microDecisionAssetTicker: seed.microDecisionAssetTicker,
+          microDecisionOptions: seed.microDecisionOptions,
+          microDecisionCorrectOption: seed.microDecisionCorrectOption,
           revelationText: seed.revelationText,
           unlocksDescription: seed.unlocksDescription,
           unlocksKeys: seed.unlocksKeys,

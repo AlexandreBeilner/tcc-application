@@ -158,6 +158,61 @@
     color: var(--color-text-primary);
 }
 
+/* Aposta com acerto/erro real (backlog engajamento B.3) — lista vertical de
+   botões funciona igual nos 3 breakpoints (o card já é coluna única de
+   largura máxima 720px), sem regra própria por tamanho de tela. */
+.optionsList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.optionButton {
+    font-family: inherit;
+    font-size: var(--font-size-md);
+    text-align: left;
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+}
+
+.optionButton:hover {
+    border-color: var(--color-border-strong);
+}
+
+.optionSelected {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
+/* Badge da Revelação (B.3) — "acertou" reaproveita a semântica de ganho
+   financeiro por decisão explícita da tarefa; "quase" fica neutro, nunca
+   `--color-loss-*` (identidade-visual-tokens.md §2.3 reserva vermelho pra
+   dado financeiro real, não pra feedback de UI genérico). */
+.answerBadgeCorrect,
+.answerBadgeAlmost {
+    display: inline-flex;
+    align-self: flex-start;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+}
+
+.answerBadgeCorrect {
+    color: var(--color-gain-500);
+    background: var(--color-gain-100);
+}
+
+.answerBadgeAlmost {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+}
+
 .ctaRow {
     display: flex;
     flex-wrap: wrap;
