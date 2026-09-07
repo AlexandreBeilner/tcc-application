@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { findActiveTrackNumber, groupLessonsByTrack } from '../../features/lessons/trackGroups'
+import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
 import { LessonNode } from '../../components/organisms/LessonNode'
@@ -30,6 +31,7 @@ export function Track() {
     const activeTrackNumber = findActiveTrackNumber(groups)
     const completedCount = lessons.filter((lesson) => lesson.status === 'completed').length
     const allCompleted = lessons.length > 0 && completedCount === lessons.length
+    const nextUnlock = nextUnlockFor(lessons)
 
     function handleLessonClick(lessonId: string, status: Lesson['status']) {
         if (status === 'locked') {
@@ -111,7 +113,7 @@ export function Track() {
 
                 <aside className={styles.sidebar}>
                     {progressionQuery.data && streakQuery.data && (
-                        <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} />
+                        <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} nextUnlock={nextUnlock} />
                     )}
                     {lessons.length > 0 && <ResumeLessonCard lessons={lessons} />}
                 </aside>

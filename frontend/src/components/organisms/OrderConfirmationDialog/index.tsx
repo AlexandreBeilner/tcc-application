@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../atoms/Button'
+import { LockedAssetPanel } from '../../molecules/LockedAssetPanel'
 import { OrderSummaryList } from '../OrderSummaryList'
 import type { OrderSummaryRow } from '../OrderSummaryList'
 import { OrderSuccessOverlay } from '../OrderSuccessOverlay'
 import { useAssetQuery } from '../../../features/market/useAssetQuery'
 import { usePlaceOrderMutation } from '../../../features/market/usePlaceOrderMutation'
+import { asProductLockedError } from '../../../features/market/productLockedError'
+import type { ProductLockedErrorBody } from '../../../services/market'
 import { usePurchaseFixedIncomeMutation } from '../../../features/market/usePurchaseFixedIncomeMutation'
 import { useRedeemFixedIncomeMutation } from '../../../features/market/useRedeemFixedIncomeMutation'
 import { useMyAccountQuery } from '../../../features/portfolio/useMyAccountQuery'
@@ -38,6 +41,7 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
     const navigate = useNavigate()
     const [step, setStep] = useState<'confirm' | 'success'>('confirm')
     const [error, setError] = useState<string | null>(null)
+    const [lockedError, setLockedError] = useState<ProductLockedErrorBody | null>(null)
 
     const accountQuery = useMyAccountQuery()
     // Só a variação de ordem de renda variável precisa reconsultar o preço
@@ -71,6 +75,7 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
 
     const handleConfirm = async () => {
         setError(null)
+        setLockedError(null)
         try {
             if (draft.kind === 'order') {
                 await placeOrder.mutateAsync({ asset_id: draft.assetId, side: draft.side, type: 'market', quantity: draft.quantity })
@@ -83,7 +88,16 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                 setStep('success')
             }
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
+            // Trava só descoberta na confirmação (tarefa J.3, ex: acesso
+            // direto por URL) mostra o mesmo banner amigável de `AssetDetail`
+            // em vez do erro genérico — `ProductLockedError` foge da
+            // convenção `{ error }` do resto do módulo (`.docs/backend/market.md`).
+            const locked = asProductLockedError(err)
+            if (locked) {
+                setLockedError(locked)
+            } else {
+                setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
+            }
         }
     }
 
@@ -116,6 +130,8 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                 </h1>
 
                 <OrderSummaryList rows={rows} />
+
+                {lockedError && <LockedAssetPanel lessonCode={lockedError.unlockingLesson?.code} />}
 
                 {error && (
                     <p className={styles.error} role="alert">

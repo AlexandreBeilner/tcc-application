@@ -6,10 +6,12 @@ import { EtfCompositionPanel } from '../../components/organisms/EtfCompositionPa
 import { FiiIndicatorsPanel } from '../../components/organisms/FiiIndicatorsPanel'
 import { DividendHistoryList } from '../../components/organisms/DividendHistoryList'
 import { EquityOrderTicket } from '../../components/organisms/EquityOrderTicket'
+import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
+import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { formatCurrency } from '../../features/portfolio/format'
 import { formatSignedPercent } from '../../features/market/format'
 import type { OrderSide } from '../../services/market'
@@ -25,6 +27,10 @@ const RANGES = [
 // gráfico de preço e fluxo de compra comuns às 3 classes de renda
 // variável; a seção de indicadores varia por `asset.type` (RF21, CLAUDE.md:
 // nunca reaproveitar o layout de indicadores de Ações pra ETF/FII).
+// Ativo travado (tarefa J.3) chega aqui normalmente — `EquityList` não
+// redireciona mais pra lição, indicadores/gráfico continuam somente
+// leitura (a trava real é só no POST de ordem, RF12/7.0.1) — só o painel
+// de compra é trocado pelo banner `LockedAssetPanel`.
 export function AssetDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
@@ -34,6 +40,7 @@ export function AssetDetail() {
     const [rangeDays, setRangeDays] = useState(RANGES[0].days)
     const quotesQuery = useAssetQuotesQuery(assetId, rangeDays)
     const [draft, setDraft] = useState<OrderDraftOrder | null>(null)
+    const gate = useLockedAssetGate()
 
     const asset = assetQuery.data?.asset
 
@@ -54,6 +61,9 @@ export function AssetDetail() {
             </main>
         )
     }
+
+    const locked = gate.isLocked(asset)
+    const unlockingLesson = gate.unlockingLessonFor(asset)
 
     function handleSubmitOrder(side: OrderSide, quantity: number) {
         setDraft({
@@ -129,7 +139,11 @@ export function AssetDetail() {
                 </div>
 
                 <aside className={styles.sidebar}>
-                    <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
+                    {locked ? (
+                        <LockedAssetPanel lessonId={unlockingLesson?.id} lessonCode={unlockingLesson?.code} />
+                    ) : (
+                        <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
+                    )}
                 </aside>
             </div>
 

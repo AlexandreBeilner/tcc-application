@@ -93,6 +93,37 @@ describe('Track (tela 3.1)', () => {
         expect(screen.getAllByText('Renda Fixa').length).toBeGreaterThan(0)
     })
 
+    it('mostra "faltam N lições" pro próximo desbloqueio, batendo com o sortOrder da lição-alvo', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [
+                lesson({ id: '1', sortOrder: 1, status: 'completed', unlocksDescription: 'Acesso ao Portfólio' }),
+                lesson({ id: '2', sortOrder: 2, status: 'available' }),
+                lesson({
+                    id: '3',
+                    sortOrder: 3,
+                    status: 'locked',
+                    unlocksDescription: 'Acesso à Trilha 1 (Renda Fixa)',
+                }),
+            ],
+        })
+
+        renderTrilha()
+
+        expect(await screen.findByText(/Faltam 2 lições pra:/)).toBeInTheDocument()
+        expect(screen.getByText('Acesso à Trilha 1 (Renda Fixa)')).toBeInTheDocument()
+    })
+
+    it('sem nenhum desbloqueio pendente, não mostra o indicador de "faltam N lições"', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [lesson({ id: '1', sortOrder: 1, status: 'completed', unlocksDescription: 'Mundo aberto' })],
+        })
+
+        renderTrilha()
+
+        await screen.findByText('1 de 1 lições concluídas')
+        expect(screen.queryByText(/Faltam/)).not.toBeInTheDocument()
+    })
+
     it('clique numa lição disponível navega pra /trilha/:id', async () => {
         vi.mocked(listLessons).mockResolvedValue({ lessons: [lesson({ id: 'lesson-2', status: 'available' })] })
 

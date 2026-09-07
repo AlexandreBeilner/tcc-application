@@ -43,9 +43,14 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Investir vs poupar; capital trabalhando para você',
     scenarioText:
       'Você recebe R$1.000 de bônus. Duas opções: deixar parado na conta corrente até precisar, ou aplicar ' +
-      'esse dinheiro em algo que devolve mais do que você colocou, com o tempo. A diferença entre guardar e ' +
-      'investir é justamente essa: guardar preserva o valor nominal; investir coloca esse capital pra ' +
-      'trabalhar, gerando um retorno que se soma a ele.',
+      'esse dinheiro em algo que devolve mais do que você colocou, com o tempo.' +
+      '\n\n' +
+      'Essa é a trilha que responde, na prática, por que o destino automático desse tipo de dinheiro (a ' +
+      'poupança, pra quase todo mundo) geralmente deixa valor na mesa, e deixa você pronto pra escolher ' +
+      'diferente assim que ela terminar.' +
+      '\n\n' +
+      'A diferença entre guardar e investir é justamente essa: guardar preserva o valor nominal; investir ' +
+      'coloca esse capital pra trabalhar, gerando um retorno que se soma a ele.',
     microDecisionPrompt:
       'Antes de continuar, pense: se você tivesse esse R$1.000 de bônus agora, deixaria parado ou aplicaria ' +
       'em algo que rende? O que te faria escolher um ou outro?',
@@ -53,10 +58,14 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Investir é ceder o uso do seu capital, hoje, a alguém (governo, banco, empresa) em troca de uma ' +
-      'remuneração por esse tempo e esse risco. Nesta plataforma, cada trilha que você completa desbloqueia ' +
-      'uma forma real de fazer isso: renda fixa primeiro (Trilha 1), mais previsível; depois renda variável ' +
-      '(Trilha 2), com risco e potencial de retorno maiores. Completar esta lição libera seu Portfólio de ' +
-      'verdade, com R$10.000 de capital inicial pra você aplicar o que vai aprender.',
+      'remuneração por esse tempo e esse risco.' +
+      '\n\n' +
+      'Nesta plataforma, cada trilha que você completa desbloqueia uma forma real de fazer isso: renda fixa ' +
+      'primeiro (Trilha 1), mais previsível; depois renda variável (Trilha 2), com risco e potencial de ' +
+      'retorno maiores.' +
+      '\n\n' +
+      'Completar esta lição libera seu Portfólio de verdade, com R$10.000 de capital inicial pra você aplicar ' +
+      'o que vai aprender.',
     unlocksDescription: 'Acesso ao Portfólio',
     unlocksKeys: ['portfolio'],
     unlocksAssetTicker: null,
@@ -78,11 +87,15 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionType: 'growth_calculator',
     microDecisionAssetTicker: null,
     revelationText:
-      'No regime simples, o montante cresce de forma linear: M = C × (1 + i × n). No composto, cada período ' +
-      'rende sobre o saldo já capitalizado: M = C × (1 + i)ⁿ. No curto prazo a diferença é pequena; em ' +
-      'horizontes longos ela explode. É a mesma taxa produzindo curvas completamente diferentes. É por isso ' +
-      'que todo investimento real (Tesouro, CDB, ações) trabalha no regime composto, e por isso quanto mais ' +
-      'cedo você começa, maior o efeito.',
+      'No regime simples, o montante cresce de forma linear: M = C × (1 + i × n).' +
+      '\n\n' +
+      'No composto, cada período rende sobre o saldo já capitalizado: M = C × (1 + i)ⁿ.' +
+      '\n\n' +
+      'No curto prazo a diferença é pequena; em horizontes longos ela explode. É a mesma taxa produzindo ' +
+      'curvas completamente diferentes.' +
+      '\n\n' +
+      'É por isso que todo investimento real (Tesouro, CDB, ações) trabalha no regime composto, e por isso ' +
+      'quanto mais cedo você começa, maior o efeito.',
     unlocksDescription: 'Calculadora Financeira',
     unlocksKeys: ['calculator'],
     unlocksAssetTicker: null,
@@ -103,9 +116,12 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'R$105: o valor nominal do seu dinheiro continua sendo R$100, mas o poder de compra desse dinheiro ' +
-      'caiu. Por isso todo retorno de investimento precisa ser lido junto com a inflação do período: um ' +
-      'retorno nominal positivo pode, na prática, significar perda de poder de compra se a inflação foi ' +
-      'maior. Esse é o conceito que a próxima lição formaliza como rendimento real.',
+      'caiu.' +
+      '\n\n' +
+      'Por isso todo retorno de investimento precisa ser lido junto com a inflação do período: um retorno ' +
+      'nominal positivo pode, na prática, significar perda de poder de compra se a inflação foi maior.' +
+      '\n\n' +
+      'Esse é o conceito que a próxima lição formaliza como rendimento real.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -126,10 +142,14 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
-      'Perto de 2%. A aproximação nominal − inflação já dá uma boa noção, mas a conta exata (equação de ' +
-      'Fisher) é (1 + nominal) / (1 + inflação) − 1 = (1,08 / 1,06) − 1 ≈ 1,89%, sempre um pouco menor que a ' +
-      'aproximação simples. Quanto maior a inflação do período, maior essa diferença. Todo indicador de ' +
-      'investimento nesta plataforma é nominal; comparar dois produtos exige olhar a mesma inflação pros dois.',
+      'Perto de 2%.' +
+      '\n\n' +
+      'A aproximação nominal − inflação já dá uma boa noção, mas a conta exata (equação de Fisher) é ' +
+      '(1 + nominal) / (1 + inflação) − 1 = (1,08 / 1,06) − 1 ≈ 1,89%, sempre um pouco menor que a ' +
+      'aproximação simples.' +
+      '\n\n' +
+      'Quanto maior a inflação do período, maior essa diferença. Todo indicador de investimento nesta ' +
+      'plataforma é nominal; comparar dois produtos exige olhar a mesma inflação pros dois.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -143,21 +163,28 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Comparação direta poupança vs Selic/CDI',
     scenarioText:
       'A poupança é o investimento mais popular do Brasil, mas quase sempre perde da Selic (e do CDI, que a ' +
-      'acompanha de perto). A regra da poupança é fixa: com a Selic acima de 8,5% ao ano, ela rende 0,5% ao ' +
-      'mês + TR; abaixo disso, rende 70% da Selic + TR.',
+      'acompanha de perto).' +
+      '\n\n' +
+      'A regra da poupança é fixa: com a Selic acima de 8,5% ao ano, ela rende 0,5% ao mês + TR; abaixo ' +
+      'disso, rende 70% da Selic + TR.',
     microDecisionPrompt:
       'Com a Selic simulada nesta plataforma rodando acima de 8,5% ao ano, a poupança rende 0,5% ao mês, ' +
-      'cerca de 6,17% ao ano em juros compostos. Isso é maior, menor ou igual ao que rende um Tesouro Selic, ' +
-      'que acompanha ~100% da Selic?',
+      'cerca de 6,17% ao ano em juros compostos.' +
+      '\n\n' +
+      'Isso é maior, menor ou igual ao que rende um Tesouro Selic, que acompanha ~100% da Selic?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
       'Menor: sempre que a Selic está acima de 8,5% a.a. (o cenário mais comum), a poupança rende uma ' +
-      'fração fixa (0,5% a.m.) que fica abaixo dos 100% da Selic que o Tesouro Selic paga. É por isso que a ' +
-      'poupança "geralmente perde": ela não acompanha a taxa básica de juros, só uma regra fixa desenhada ' +
-      'pra ficar sempre um pouco atrás dela. A partir de agora, a Trilha 1 (Renda Fixa) está liberada. É lá ' +
-      'que você vai aplicar de verdade os produtos que substituem a poupança.',
-    unlocksDescription: 'Acesso à Trilha 1 (Renda Fixa)',
+      'fração fixa (0,5% a.m.) que fica abaixo dos 100% da Selic que o Tesouro Selic paga.' +
+      '\n\n' +
+      'É por isso que a poupança "geralmente perde": ela não acompanha a taxa básica de juros, só uma regra ' +
+      'fixa desenhada pra ficar sempre um pouco atrás dela.' +
+      '\n\n' +
+      'A partir de agora, a Trilha 1 (Renda Fixa) está liberada. É lá que você vai aplicar de verdade os ' +
+      'produtos que substituem a poupança.',
+    unlocksDescription:
+      'Confirmação de que a poupança perde da Selic, e acesso à Trilha 1 (Renda Fixa)',
     // Chave vazia de propósito: o acesso à Trilha 1 já funciona via
     // sortOrder (5.6), não é uma chave de unlocksKeys — ver vocabulário
     // fixo da 7.0.1 (só feature/produto, não lição/trilha).
@@ -173,9 +200,17 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Emprestar dinheiro a um emissor',
     scenarioText:
       'Imagine emprestar R$1.000 a um amigo, sabendo desde o início a taxa e o prazo em que ele ' +
-      'devolve o dinheiro, com juros. É exatamente essa lógica que sustenta toda a renda fixa: o ' +
-      'investidor empresta dinheiro a um emissor (governo, banco ou empresa) e recebe de volta o ' +
-      'capital mais uma remuneração, seguindo uma regra combinada no momento da aplicação.',
+      'devolve o dinheiro, com juros.' +
+      '\n\n' +
+      'É exatamente essa lógica que sustenta toda a renda fixa: o investidor empresta dinheiro a um ' +
+      'emissor (governo, banco ou empresa) e recebe de volta o capital mais uma remuneração, ' +
+      'seguindo uma regra combinada no momento da aplicação.' +
+      '\n\n' +
+      'É a ferramenta certa pra um objetivo bem concreto.' +
+      '\n\n' +
+      'Ao longo desta trilha, você vai montar uma reserva de emergência de verdade (o dinheiro que ' +
+      'precisa estar seguro e disponível antes de qualquer imprevisto, o mesmo tipo de bônus da ' +
+      'lição 0.1, agora com destino definido) e vai sair dela sabendo em qual produto colocá-la.',
     microDecisionPrompt:
       '"Renda fixa" não significa necessariamente "taxa fixa". Pense: um título cuja remuneração ' +
       'acompanha a Selic todo dia, sem taxa travada na compra, ainda é considerado renda fixa?',
@@ -184,11 +219,13 @@ const LESSON_SEEDS: LessonSeed[] = [
     revelationText:
       'Sim. O nome "renda fixa" se refere à regra de remuneração ser conhecida com antecedência ' +
       '(pós-fixada, acompanhando um indexador como a Selic ou o CDI, ou prefixada, com taxa ' +
-      'travada na compra), não ao valor final recebido ser fixo. É essa regra combinada de ' +
-      'antemão que diferencia a renda fixa da renda variável (Trilha 2), onde o retorno depende ' +
-      'do preço de mercado do ativo e não é conhecido com antecedência. Ao longo desta trilha ' +
-      'você vai conhecer os três emissores possíveis (governo via Tesouro Direto, bancos via ' +
-      'CDB/LCI/LCA, empresas via CRI/CRA) e a taxa real de cada produto.',
+      'travada na compra), não ao valor final recebido ser fixo.' +
+      '\n\n' +
+      'É essa regra combinada de antemão que diferencia a renda fixa da renda variável (Trilha 2), ' +
+      'onde o retorno depende do preço de mercado do ativo e não é conhecido com antecedência.' +
+      '\n\n' +
+      'Ao longo desta trilha você vai conhecer os três emissores possíveis (governo via Tesouro ' +
+      'Direto, bancos via CDB/LCI/LCA, empresas via CRI/CRA) e a taxa real de cada produto.',
     unlocksDescription: 'Tesouro Selic',
     // `asset:tesouro_selic` pertence de fato à lição 1.2 (spec 5.1, ver
     // backlog 7.0.1). 1.1 é só conceitual, unlocksDescription acima é
@@ -205,9 +242,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Emprestar dinheiro ao governo, com liquidez diária e risco de crédito mínimo',
     scenarioText:
       'Você tem R$1.000 parados e quer emprestar esse dinheiro para o Tesouro Nacional, ' +
-      'recebendo de volta o valor corrigido pela taxa Selic todo dia útil. É exatamente isso ' +
-      'que o Tesouro Selic (LFT) faz: um título público pós-fixado, o mais líquido e o mais ' +
-      'indicado para reserva de emergência.',
+      'recebendo de volta o valor corrigido pela taxa Selic todo dia útil.' +
+      '\n\n' +
+      'É exatamente isso que o Tesouro Selic (LFT) faz: um título público pós-fixado, o mais ' +
+      'líquido e o mais indicado para reserva de emergência.',
     microDecisionPrompt:
       'Antes de ver o preço de hoje, pense: se a Selic sobe, o que acontece com o preço ' +
       'unitário do Tesouro Selic: ele sobe, cai ou fica igual?',
@@ -215,9 +253,11 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'O preço unitário do Tesouro Selic sobe (quase) todo dia útil, acompanhando de perto a ' +
-      'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre marcação a mercado negativa ' +
-      'com mais frequência. É por isso que a spec do TCC (cap. 3) o trata como o "porto seguro" ' +
-      'da renda fixa: baixíssima volatilidade, resgate diário sem perda relevante de valor.',
+      'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre {{marcação a mercado}} negativa ' +
+      'com mais frequência.' +
+      '\n\n' +
+      'É por isso que a spec do TCC (cap. 3) o trata como o "porto seguro" da renda fixa: ' +
+      'baixíssima volatilidade, resgate diário sem perda relevante de valor.',
     unlocksDescription: 'Compra real de Tesouro Selic (LFT2029) no Mercado',
     unlocksKeys: ['asset:tesouro_selic'],
     // Ticker canônico real do catálogo (engine/cmd/seed/main.go, tarefa 3.9)
@@ -234,19 +274,23 @@ const LESSON_SEEDS: LessonSeed[] = [
     scenarioText:
       'Um banco precisa captar dinheiro pra emprestar a outros clientes, e paga por isso: o CDB ' +
       '(Certificado de Depósito Bancário) é você emprestando dinheiro ao banco em troca de uma ' +
-      'remuneração, geralmente um percentual do CDI (taxa que acompanha de perto a Selic). O CDB ' +
-      'Banco Invest 2027 (CDB2027), por exemplo, paga 12,00% ao ano.',
+      'remuneração, geralmente um percentual do CDI (taxa que acompanha de perto a Selic).' +
+      '\n\n' +
+      'O CDB Banco Invest 2027 (CDB2027), por exemplo, paga 12,00% ao ano.',
     microDecisionPrompt:
       'Diferente do Tesouro Selic (risco de crédito do governo, o mais baixo que existe), o CDB ' +
       'tem risco de crédito do banco emissor. O que protege o investidor se esse banco quebrar?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
-      'O FGC (Fundo Garantidor de Créditos) cobre CDB, LCI e LCA em até R$250.000,00 por CPF e ' +
-      'por instituição financeira, mesmo que o banco emissor quebre. É essa garantia que torna o ' +
-      'CDB praticamente tão seguro quanto o Tesouro Direto até esse limite, permitindo que bancos ' +
-      'menores paguem taxas mais altas (mais do CDI) que os grandes bancos pra atrair o mesmo ' +
-      'investidor. Completar esta lição libera a compra real do CDB2027 no Mercado.',
+      'O {{FGC}} cobre CDB, LCI e LCA em até R$250.000,00 por CPF e ' +
+      'por instituição financeira, mesmo que o banco emissor quebre.' +
+      '\n\n' +
+      'É essa garantia que torna o CDB praticamente tão seguro quanto o Tesouro Direto até esse ' +
+      'limite, permitindo que bancos menores paguem taxas mais altas (mais do CDI) que os grandes ' +
+      'bancos pra atrair o mesmo investidor.' +
+      '\n\n' +
+      'Completar esta lição libera a compra real do CDB2027 no Mercado.',
     unlocksDescription: 'Compra real de CDB (CDB2027) no Mercado',
     unlocksKeys: ['asset:cdb'],
     unlocksAssetTicker: 'CDB2027',
@@ -269,11 +313,13 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Maior. A tabela regressiva (Lei 11.033/2004) cobra 22,5% até 180 dias corridos, 20% de ' +
-      '181 a 360 dias, 17,5% de 361 a 720 dias e 15% acima de 720 dias. Quanto mais tempo o ' +
-      'dinheiro fica aplicado, menor a mordida do IR. O imposto incide só sobre o lucro, nunca ' +
-      'sobre o capital aplicado, e essa tabela vale pra todo produto de renda fixa tributado ' +
-      '(Tesouro Direto e CDB); LCI, LCA, CRI e CRA são isentos e nunca pagam essa alíquota, como ' +
-      'você vai ver nas próximas lições.',
+      '181 a 360 dias, 17,5% de 361 a 720 dias e 15% acima de 720 dias.' +
+      '\n\n' +
+      'Quanto mais tempo o dinheiro fica aplicado, menor a mordida do IR.' +
+      '\n\n' +
+      'O imposto incide só sobre o lucro, nunca sobre o capital aplicado, e essa tabela vale pra ' +
+      'todo produto de renda fixa tributado (Tesouro Direto e CDB); LCI, LCA, CRI e CRA são ' +
+      'isentos e nunca pagam essa alíquota, como você vai ver nas próximas lições.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -287,24 +333,40 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Isenção de IR, comparação de retorno líquido entre produtos',
     scenarioText:
       'LCI (Letra de Crédito Imobiliário) e LCA (Letra de Crédito do Agronegócio) financiam, ' +
-      'respectivamente, o setor imobiliário e o agronegócio, e têm garantia do FGC igual ao CDB. ' +
+      'respectivamente, o setor imobiliário e o agronegócio, e têm garantia do {{FGC}} igual ao CDB.' +
+      '\n\n' +
       'A diferença que mais chama atenção: o LCI Banco Invest 2026 (LCI2026) paga 9,50% ao ano, ' +
-      'abaixo dos 12,00% do CDB2027 (lição anterior). Isso quer dizer que o CDB2027 é sempre a ' +
-      'escolha melhor?',
+      'abaixo dos 12,00% do CDB2027 (lição anterior).' +
+      '\n\n' +
+      'Isso quer dizer que o CDB2027 é sempre a escolha melhor?',
     microDecisionPrompt:
-      'LCI e LCA são isentos de Imposto de Renda; o CDB não. Resgatando os dois com só 60 dias ' +
-      'corridos de aplicação (alíquota de 22,5% sobre o CDB, lição 1.4), qual rende mais líquido: ' +
-      'o LCI a 9,50% isento ou o CDB a 12,00% com IR?',
+      'LCI e LCA são isentos de Imposto de Renda; o CDB não.' +
+      '\n\n' +
+      'Resgatando os dois com só 60 dias corridos de aplicação (alíquota de 22,5% sobre o CDB, ' +
+      'lição 1.4), qual rende mais líquido: o LCI a 9,50% isento ou o CDB a 12,00% com IR?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
+    // Modelo de referência da tarefa A.2 (5 cartões, mesmo do exemplo
+    // "lição 1.5" em proposta-engajamento-licoes.md §2) — texto idêntico
+    // ao original, só reordenado em cartões: pergunta certa (régua) →
+    // resgate curto → resgate longo → conclusão. Cartões 3 e 4 (os
+    // vereditos numéricos) marcados com `[revelar] ` pra tarefa A.3
+    // (revelação progressiva) — mesmos 2 cartões citados na descrição da
+    // A.3 como exemplo de "resultado calculado" a esconder até o toque.
     revelationText:
-      'O LCI2026 rende mais líquido nesse prazo curto. Pra comparar de forma justa, calcule a ' +
-      'taxa bruta equivalente que o CDB precisaria pagar pra empatar com um produto isento: taxa ' +
-      'isenta dividida por (1 menos a alíquota). Com 22,5% de IR (até 180 dias), o LCI2026 ' +
-      'equivale a um CDB bruto de 9,50% ÷ 0,775 ≈ 12,26% ao ano, acima dos 12,00% do CDB2027: o ' +
-      'LCI vence. Mas com 720 dias corridos ou mais, a alíquota cai pra 15%, e o mesmo cálculo dá ' +
-      '9,50% ÷ 0,85 ≈ 11,18%, abaixo dos 12,00% do CDB2027: agora o CDB vence. A resposta certa ' +
-      'depende do prazo que você pretende manter o dinheiro aplicado, não só da taxa anunciada.',
+      'O LCI2026 rende mais líquido nesse prazo curto.' +
+      '\n\n' +
+      'Pra comparar de forma justa, calcule a {{taxa bruta equivalente}} que o CDB precisaria pagar ' +
+      'pra empatar com um produto isento: taxa isenta dividida por (1 menos a alíquota).' +
+      '\n\n' +
+      '[revelar] Com 22,5% de IR (até 180 dias), o LCI2026 equivale a um CDB bruto de 9,50% ÷ ' +
+      '0,775 ≈ 12,26% ao ano, acima dos 12,00% do CDB2027: o LCI vence.' +
+      '\n\n' +
+      '[revelar] Mas com 720 dias corridos ou mais, a alíquota cai pra 15%, e o mesmo cálculo dá ' +
+      '9,50% ÷ 0,85 ≈ 11,18%, abaixo dos 12,00% do CDB2027: agora o CDB vence.' +
+      '\n\n' +
+      'A resposta certa depende do prazo que você pretende manter o dinheiro aplicado, não só da ' +
+      'taxa anunciada.',
     unlocksDescription: 'Compra real de LCI (LCI2026) e LCA (LCA2026) no Mercado',
     unlocksKeys: ['asset:lci', 'asset:lca'],
     unlocksAssetTicker: 'LCI2026',
@@ -319,8 +381,9 @@ const LESSON_SEEDS: LessonSeed[] = [
     scenarioText:
       'O Tesouro Prefixado 2027 (LTN2027) promete pagar R$1.000,00 no vencimento, mas você não ' +
       'paga R$1.000,00 por ele hoje: você paga menos, e a diferença (o deságio) é a fonte da sua ' +
-      'rentabilidade. A taxa contratada na compra fica travada até o vencimento, 11,75% ao ano ' +
-      'nesse título.',
+      'rentabilidade.' +
+      '\n\n' +
+      'A taxa contratada na compra fica travada até o vencimento, 11,75% ao ano nesse título.',
     microDecisionPrompt:
       'Supondo que faltem exatamente 504 dias úteis (2 anos) até o vencimento, o preço de compra ' +
       'do LTN2027 hoje deveria ficar acima ou abaixo de R$1.000,00?',
@@ -328,12 +391,14 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Abaixo. A fórmula de deságio é Preço = Valor Nominal ÷ (1 + Taxa)^(DU/252): com taxa de ' +
-      '11,75% ao ano e 504 dias úteis (dois anos) restantes, Preço = 1.000 ÷ (1,1175)² ≈ ' +
-      'R$800,76. Você paga R$800,76 hoje e recebe R$1.000,00 no vencimento, uma diferença de ' +
-      'R$199,24 que é exatamente a sua rentabilidade contratada. Diferente do Tesouro Selic, essa ' +
-      'taxa fica travada: se a Selic subir ou cair depois da compra, o valor recebido no ' +
-      'vencimento não muda, mas o preço de venda antes do vencimento sim, como a próxima lição ' +
-      'mostra.',
+      '11,75% ao ano e 504 dias úteis (dois anos) restantes, Preço = 1.000 ÷ (1,1175)² ≈ R$800,76.' +
+      '\n\n' +
+      'Você paga R$800,76 hoje e recebe R$1.000,00 no vencimento, uma diferença de R$199,24 que é ' +
+      'exatamente a sua rentabilidade contratada.' +
+      '\n\n' +
+      'Diferente do Tesouro Selic, essa taxa fica travada: se a Selic subir ou cair depois da ' +
+      'compra, o valor recebido no vencimento não muda, mas o preço de venda antes do vencimento ' +
+      'sim, como a próxima lição mostra.',
     unlocksDescription: 'Compra real de Tesouro Prefixado (LTN2027) no Mercado',
     unlocksKeys: ['asset:tesouro_prefixado'],
     unlocksAssetTicker: 'LTN2027',
@@ -347,9 +412,12 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Risco de vender um título prefixado antes do vencimento',
     scenarioText:
       'Você comprou o LTN2027 (lição anterior) travado a 11,75% ao ano, mas um imprevisto te ' +
-      'obriga a resgatar antes do vencimento. Nesse meio tempo, o Copom (simulado nesta ' +
-      'plataforma a cada 21 dias reais) subiu a taxa de juros de mercado pra 14% ao ano. O preço ' +
-      'de venda do seu título hoje muda por causa disso, mesmo sem nada ter mudado no seu ' +
+      'obriga a resgatar antes do vencimento.' +
+      '\n\n' +
+      'Nesse meio tempo, o Copom (simulado nesta plataforma a cada 21 dias reais) subiu a taxa de ' +
+      'juros de mercado pra 14% ao ano.' +
+      '\n\n' +
+      'O preço de venda do seu título hoje muda por causa disso, mesmo sem nada ter mudado no seu ' +
       'contrato original.',
     microDecisionPrompt:
       'Se a taxa de mercado subiu (de 11,75% pra 14%) desde a sua compra, o preço de revenda do ' +
@@ -358,14 +426,17 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Abaixo: o preço de qualquer prefixado é recalculado todo dia útil pela mesma fórmula de ' +
-      'deságio, só que com a taxa de mercado vigente no lugar da taxa contratada. Taxa de mercado ' +
-      'maior gera um preço menor (o denominador da fórmula cresce), então vender antes do ' +
-      'vencimento numa alta de juros realiza um retorno pior do que o contratado. O oposto também ' +
-      'vale: se a taxa de mercado tivesse caído, o preço subiria e a venda antecipada renderia ' +
-      'mais do que o contratado, um ganho extraordinário. Segurar até o vencimento sempre paga ' +
-      'exatamente a taxa contratada; vender antes expõe você a esse risco de marcação a mercado, ' +
-      'pra cima ou pra baixo. Você pode simular esse cenário sem nenhum risco real no ativo de ' +
-      'prática (Sandbox) disponível no Mercado.',
+      '{{deságio}}, só que com a taxa de mercado vigente no lugar da taxa contratada.' +
+      '\n\n' +
+      'Taxa de mercado maior gera um preço menor (o denominador da fórmula cresce), então vender ' +
+      'antes do vencimento numa alta de juros realiza um retorno pior do que o contratado.' +
+      '\n\n' +
+      'O oposto também vale: se a taxa de mercado tivesse caído, o preço subiria e a venda ' +
+      'antecipada renderia mais do que o contratado, um ganho extraordinário.' +
+      '\n\n' +
+      'Segurar até o vencimento sempre paga exatamente a taxa contratada; vender antes expõe você ' +
+      'a esse risco de marcação a mercado, pra cima ou pra baixo. Você pode simular esse cenário ' +
+      'sem nenhum risco real no ativo de prática (Sandbox) disponível no Mercado.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -379,9 +450,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Proteção contra inflação: rendimento real garantido acima do IPCA',
     scenarioText:
       'O Tesouro IPCA+ 2035 (NTNB2035) promete um retorno real de 6,00% ao ano, isto é, 6,00% ' +
-      'acima da inflação, o que quer que ela seja no período. Isso é possível porque o Valor ' +
-      'Nominal Atualizado (VNA) do título é corrigido mês a mês pelo IPCA simulado, e só depois ' +
-      'disso a taxa de 6,00% incide sobre esse valor já atualizado.',
+      'acima da inflação, o que quer que ela seja no período.' +
+      '\n\n' +
+      'Isso é possível porque o Valor Nominal Atualizado (VNA) do título é corrigido mês a mês ' +
+      'pelo IPCA simulado, e só depois disso a taxa de 6,00% incide sobre esse valor já atualizado.',
     microDecisionPrompt:
       'Se a inflação simulada nesta plataforma rodar mais alta que o previsto ao longo dos anos ' +
       'até o vencimento, o valor final recebido no NTNB2035 aumenta, diminui ou fica igual?',
@@ -389,11 +461,14 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Aumenta. Diferente do Tesouro Prefixado (lição 1.6), cujo valor final é sempre R$1.000,00 ' +
-      'fixo, o Tesouro IPCA+ tem seu Valor Nominal corrigido mensalmente pela inflação acumulada: ' +
-      'quanto maior o IPCA no período, maior o VNA no vencimento, e os 6,00% ao ano incidem sobre ' +
-      'esse valor já corrigido, não sobre o valor original. É a lição 0.4 (rendimento nominal vs ' +
-      'real) aplicada na prática: aqui o rendimento real já vem garantido por contrato, em vez de ' +
-      'precisar ser calculado depois de descontar a inflação.',
+      'fixo, o Tesouro IPCA+ tem seu Valor Nominal corrigido mensalmente pela inflação acumulada.' +
+      '\n\n' +
+      'Quanto maior o IPCA no período, maior o VNA no vencimento, e os 6,00% ao ano incidem sobre ' +
+      'esse valor já corrigido, não sobre o valor original.' +
+      '\n\n' +
+      'É a lição 0.4 (rendimento nominal vs real) aplicada na prática: aqui o rendimento real já ' +
+      'vem garantido por contrato, em vez de precisar ser calculado depois de descontar a ' +
+      'inflação.',
     unlocksDescription: 'Compra real de Tesouro IPCA+ (NTNB2035) no Mercado',
     unlocksKeys: ['asset:tesouro_ipca'],
     unlocksAssetTicker: 'NTNB2035',
@@ -408,22 +483,30 @@ const LESSON_SEEDS: LessonSeed[] = [
     scenarioText:
       'CRI (Certificado de Recebíveis Imobiliários) e CRA (Certificado de Recebíveis do ' +
       'Agronegócio) são emitidos por securitizadoras, empresas privadas que compram recebíveis ' +
-      '(dívidas de terceiros) e os transformam em título negociável. O CRI Securitizadora X 2028 ' +
-      '(CRI2028) paga 11,00% ao ano, com classificação de risco AA; o CRA Securitizadora X 2028 ' +
-      '(CRA2028) paga 10,50% ao ano, com classificação A.',
+      '(dívidas de terceiros) e os transformam em título negociável.' +
+      '\n\n' +
+      'O CRI Securitizadora X 2028 (CRI2028) paga 11,00% ao ano, com classificação de risco AA; o ' +
+      'CRA Securitizadora X 2028 (CRA2028) paga 10,50% ao ano, com classificação A.',
     microDecisionPrompt:
-      'CDB, LCI e LCA têm garantia do FGC até R$250.000,00 se o emissor quebrar. CRI e CRA, ' +
-      'emitidos por uma securitizadora e não por um banco, têm essa mesma garantia?',
+      'CDB, LCI e LCA têm garantia do {{FGC}} até R$250.000,00 se o emissor quebrar.' +
+      '\n\n' +
+      'CRI e CRA, emitidos por uma securitizadora e não por um banco, têm essa mesma garantia?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
-      'Não. CRI e CRA não têm cobertura do FGC, então o risco de crédito recai inteiramente ' +
-      'sobre a capacidade de pagamento da securitizadora emissora, e é por isso que pagam mais ' +
-      '(11,00% e 10,50% ao ano, acima da maioria dos CDBs) e trazem uma classificação de risco de ' +
-      'crédito (AA pro CRI2028, A pro CRA2028) pro investidor avaliar antes de comprar. Igual ao ' +
-      'LCI e LCA, ambos são isentos de Imposto de Renda. Completar esta lição libera a compra ' +
-      'real de CRI e CRA e conclui a Trilha 1: a Trilha 2 (Renda Variável) já abre na sequência.',
-    unlocksDescription: 'Compra real de CRI/CRA no Mercado, acesso à Trilha 2 (Renda Variável)',
+      'Não. CRI e CRA não têm cobertura do {{FGC}}, então o risco de crédito recai inteiramente ' +
+      'sobre a capacidade de pagamento da securitizadora emissora.' +
+      '\n\n' +
+      'É por isso que pagam mais (11,00% e 10,50% ao ano, acima da maioria dos CDBs) e trazem uma ' +
+      'classificação de risco de crédito (AA pro CRI2028, A pro CRA2028) pro investidor avaliar ' +
+      'antes de comprar.' +
+      '\n\n' +
+      'Igual ao LCI e LCA, ambos são isentos de Imposto de Renda. Completar esta lição libera a ' +
+      'compra real de CRI e CRA e conclui a Trilha 1: a Trilha 2 (Renda Variável) já abre na ' +
+      'sequência.',
+    unlocksDescription:
+      'Sua reserva de emergência com todas as opções na mesa (Tesouro Selic, CDB/LCI/LCA, CRI/CRA), ' +
+      'compra real de CRI/CRA no Mercado, acesso à Trilha 2 (Renda Variável)',
     unlocksKeys: ['asset:cri', 'asset:cra'],
     unlocksAssetTicker: 'CRI2028',
   },
@@ -436,8 +519,13 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Comprar uma ação é se tornar sócio de uma empresa',
     scenarioText:
       'Comprar uma ação da Mineradora Vale do Rio (VALR3) não é emprestar dinheiro a ela, como você fez a ' +
-      'trilha inteira com Tesouro, CDB e CRI. É comprar uma fração da empresa: você passa a ser sócio, dono ' +
-      'de uma parte proporcional do que ela vale e do que ela lucra, junto com todos os outros acionistas.',
+      'trilha inteira com Tesouro, CDB e CRI.' +
+      '\n\n' +
+      'É comprar uma fração da empresa: você passa a ser sócio, dono de uma parte proporcional do que ela ' +
+      'vale e do que ela lucra, junto com todos os outros acionistas.' +
+      '\n\n' +
+      'Com a reserva de emergência da Trilha 1 já resolvida, esta trilha é sobre o resto do patrimônio: ' +
+      'quanto vale aceitar essa incerteza em troca de um potencial de retorno maior, e onde exatamente.',
     microDecisionPrompt:
       'Na renda fixa (Trilhas 0 e 1), a taxa contratada na compra já diz quanto você vai receber. Comprando ' +
       'uma ação, esse retorno já é conhecido de antemão, do mesmo jeito?',
@@ -445,10 +533,13 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Não. Como sócio, seu retorno depende do desempenho da empresa e do preço que o mercado está disposto ' +
-      'a pagar pela ação a cada momento: você pode ganhar com a valorização do preço e com dividendos ' +
-      '(parte do lucro distribuída aos sócios), mas também pode perder se o preço cair, sem nenhuma garantia ' +
-      'de capital ou prazo de vencimento como na renda fixa. É essa incerteza, junto do potencial de retorno ' +
-      'maior, que dá nome à renda variável.',
+      'a pagar pela ação a cada momento.' +
+      '\n\n' +
+      'Você pode ganhar com a valorização do preço e com dividendos (parte do lucro distribuída aos ' +
+      'sócios), mas também pode perder se o preço cair, sem nenhuma garantia de capital ou prazo de ' +
+      'vencimento como na renda fixa.' +
+      '\n\n' +
+      'É essa incerteza, junto do potencial de retorno maior, que dá nome à renda variável.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -472,10 +563,11 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Não. O IPO acontece no mercado primário: a empresa emite ações novas e capitaliza o caixa dela com o ' +
-      'dinheiro dos investidores. Depois disso, toda negociação acontece no mercado secundário, entre ' +
-      'investidores, sem passar um centavo pro caixa da empresa; é esse mercado secundário que o Mercado ao ' +
-      'vivo desta plataforma simula, com o preço se formando a cada negociação, como você vai ver na lição ' +
-      'de oferta e demanda.',
+      'dinheiro dos investidores.' +
+      '\n\n' +
+      'Depois disso, toda negociação acontece no mercado secundário, entre investidores, sem passar um ' +
+      'centavo pro caixa da empresa; é esse mercado secundário que o Mercado ao vivo desta plataforma ' +
+      'simula, com o preço se formando a cada negociação, como você vai ver na lição de oferta e demanda.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -489,20 +581,24 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Final 3 (ON), final 4 (PN), final 11 (units/FII)',
     scenarioText:
       'VALR3 e BNDD4 parecem códigos aleatórios, mas seguem uma convenção: quatro letras identificando o ' +
-      'emissor, seguidas de um número que diz que tipo de ação (ou cota) é essa. Reparando nos dois ' +
-      'tickers, VALR3 termina em 3 e BNDD4 termina em 4.',
+      'emissor, seguidas de um número que diz que tipo de ação (ou cota) é essa.' +
+      '\n\n' +
+      'Reparando nos dois tickers, VALR3 termina em 3 e BNDD4 termina em 4.',
     microDecisionPrompt:
       'VALR3 (Mineradora Vale do Rio) dá direito a voto nas decisões da empresa; BNDD4 (Banco Nordeste ' +
-      'Digital) geralmente tem prioridade no recebimento de dividendos, mas sem voto. Qual delas você acha ' +
-      'que é a ação ordinária (ON) e qual é a preferencial (PN)?',
+      'Digital) geralmente tem prioridade no recebimento de dividendos, mas sem voto.' +
+      '\n\n' +
+      'Qual delas você acha que é a ação ordinária (ON) e qual é a preferencial (PN)?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
       'VALR3 (final 3) é ordinária (ON), com direito a voto; BNDD4 (final 4) é preferencial (PN), sem voto ' +
-      'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa. Já ' +
-      'o final 11, como em SINT11 (o ETF que você vai conhecer na lição 2.9), identifica cotas de fundos ou ' +
-      'units, uma convenção que também vale pros FIIs da lição 2.10. Completar esta lição libera sua ' +
-      'primeira operação real de ações no Mercado.',
+      'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa.' +
+      '\n\n' +
+      'Já o final 11, como em SINT11 (o ETF que você vai conhecer na lição 2.9), identifica cotas de fundos ' +
+      'ou units, uma convenção que também vale pros FIIs da lição 2.10.' +
+      '\n\n' +
+      'Completar esta lição libera sua primeira operação real de ações no Mercado.',
     unlocksDescription: 'Primeira compra real de ações (VALR3) no Mercado',
     unlocksKeys: ['asset:acao'],
     unlocksAssetTicker: 'VALR3',
@@ -516,20 +612,27 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Como interpretar um evento macro e decidir',
     scenarioText:
       'Agora que você já pode comprar ações de verdade, o preço delas pode se mover por causa de eventos ' +
-      'que não têm nada a ver com você: uma notícia sobre a Selic, um evento específico do setor de ' +
-      'mineração ou bancário, algo que muda de uma vez as perspectivas de uma empresa ou de um grupo delas.',
+      'que não têm nada a ver com você.' +
+      '\n\n' +
+      'Uma notícia sobre a Selic, um evento específico do setor de mineração ou bancário, algo que muda de ' +
+      'uma vez as perspectivas de uma empresa ou de um grupo delas.',
     microDecisionPrompt:
-      'Uma notícia dizendo "quebra de safra afeta o Agronegócio" chega no feed. Se você tem ações de uma ' +
-      'mineradora (VALR3) e de um banco (BNDD4), essa notícia deveria pesar do mesmo jeito na sua decisão ' +
-      'sobre as duas?',
+      'Uma notícia dizendo "quebra de safra afeta o Agronegócio" chega no feed.' +
+      '\n\n' +
+      'Se você tem ações de uma mineradora (VALR3, {{ref:2.1}}) e de um banco (BNDD4, {{ref:2.3}}), essa ' +
+      'notícia deveria pesar do mesmo jeito na sua decisão sobre as duas?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
       'Não necessariamente: o feed de notícias reporta eventos macro, alguns afetam o mercado inteiro (uma ' +
       'mudança na Selic), outros miram um setor específico (como Agronegócio), sem impactar diretamente uma ' +
-      'mineradora ou um banco. Ler cada notícia significa identificar quem ela afeta antes de reagir. Por ' +
-      'isso esta lição vem logo depois de você já poder operar de verdade (lição 2.3): a partir de agora, ' +
-      'esses eventos passam a valer pra você. Completar esta lição libera o painel de notícias.',
+      'mineradora ou um banco.' +
+      '\n\n' +
+      'Ler cada notícia significa identificar quem ela afeta antes de reagir. Por isso esta lição vem logo ' +
+      'depois de você já poder operar de verdade (lição 2.3): a partir de agora, esses eventos passam a ' +
+      'valer pra você.' +
+      '\n\n' +
+      'Completar esta lição libera o painel de notícias.',
     unlocksDescription: 'Painel de notícias/feed de eventos',
     unlocksKeys: ['news_feed'],
     unlocksAssetTicker: null,
@@ -542,9 +645,11 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'Oferta e demanda',
     centralConcept: 'Formação de preço no livro de ofertas (TCC cap. 2.3.3)',
     scenarioText:
-      'O preço de VALR3 que você vê no Mercado não é definido por ninguém em particular: ele nasce do livro ' +
-      'de ofertas (order book), uma lista de ordens de compra (pedindo o preço mais alto que estão dispostos ' +
-      'a pagar) e de venda (pedindo o preço mais baixo que estão dispostos a aceitar) pra esse ativo.',
+      'O preço de VALR3 que você vê no Mercado não é definido por ninguém em particular.' +
+      '\n\n' +
+      'Ele nasce do livro de ofertas (order book), uma lista de ordens de compra (pedindo o preço mais alto ' +
+      'que estão dispostos a pagar) e de venda (pedindo o preço mais baixo que estão dispostos a aceitar) ' +
+      'pra esse ativo.',
     microDecisionPrompt:
       'Se chegam muito mais ordens de compra do que de venda pra VALR3, todas dispostas a pagar cada vez ' +
       'mais caro pra conseguir comprar, o preço de VALR3 tende a subir, cair ou ficar igual?',
@@ -553,12 +658,17 @@ const LESSON_SEEDS: LessonSeed[] = [
     revelationText:
       'Tende a subir: o motor de pareamento organiza as ofertas de compra da mais alta pra mais baixa e as ' +
       'de venda da mais baixa pra mais alta, e cada negociação executa no preço de quem já estava no livro ' +
-      '(a ordem passiva). Com mais compradores dispostos a pagar mais do que vendedores dispostos a vender, ' +
-      'as ofertas de venda mais baratas se esgotam primeiro, e os próximos negócios só fecham em preços mais ' +
-      'altos, empurrando o preço pra cima; excesso de venda faz o caminho inverso. É esse mecanismo, e não ' +
-      'uma decisão de alguém, que forma o preço em tempo real de toda ação, ETF e FII desta plataforma. A ' +
-      'partir da próxima lição, você vai aprender a ler os indicadores fundamentalistas que ajudam a decidir ' +
-      'se um preço formado assim está caro ou barato.',
+      '(a ordem passiva).' +
+      '\n\n' +
+      'Com mais compradores dispostos a pagar mais do que vendedores dispostos a vender, as ofertas de ' +
+      'venda mais baratas se esgotam primeiro, e os próximos negócios só fecham em preços mais altos, ' +
+      'empurrando o preço pra cima; excesso de venda faz o caminho inverso.' +
+      '\n\n' +
+      'É esse mecanismo, e não uma decisão de alguém, que forma o preço em tempo real de toda ação, ETF e ' +
+      'FII desta plataforma.' +
+      '\n\n' +
+      'A partir da próxima lição, você vai aprender a ler os indicadores fundamentalistas que ajudam a ' +
+      'decidir se um preço formado assim está caro ou barato.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -573,9 +683,11 @@ const LESSON_SEEDS: LessonSeed[] = [
       'Peças básicas: Receita, EBIT, Lucro Líquido, Patrimônio Líquido, Dívida Bruta, Caixa',
     scenarioText:
       'Por trás de VALR3 existe uma empresa de verdade, a Mineradora Vale do Rio, e o motor de simulação ' +
-      'gera um relatório financeiro dela a cada ciclo, com seis números: Receita Líquida (o que ela faturou), ' +
-      'EBIT (lucro operacional, antes de juros e impostos), Lucro Líquido (o que sobra depois de tudo), ' +
-      'Patrimônio Líquido (o que a empresa vale, descontadas as dívidas), Dívida Bruta e Caixa.',
+      'gera um relatório financeiro dela a cada ciclo, com seis números.' +
+      '\n\n' +
+      'Receita Líquida (o que ela faturou), EBIT (lucro operacional, antes de juros e impostos), Lucro ' +
+      'Líquido (o que sobra depois de tudo), Patrimônio Líquido (o que a empresa vale, descontadas as ' +
+      'dívidas), Dívida Bruta e Caixa.',
     microDecisionPrompt:
       'Entre EBIT e Lucro Líquido, um deles é calculado primeiro, antes de descontar juros e impostos. Você ' +
       'acha que esse é sempre maior ou sempre menor que o Lucro Líquido final?',
@@ -583,11 +695,16 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: 'VALR3',
     revelationText:
       'EBIT vem primeiro e costuma ser maior que o Lucro Líquido, já que ainda falta descontar juros da ' +
-      'dívida e impostos antes de chegar ao resultado final. Patrimônio Líquido não é caixa: é a diferença ' +
-      'entre tudo que a empresa tem e tudo que ela deve, acumulada ao longo do tempo. Dívida Bruta e Caixa, ' +
-      'sozinhos, ainda não dizem se a empresa está endividada de verdade: isso só aparece juntando os dois, ' +
-      'na lição 2.6.5. Esses seis números são a base de todo indicador que você vai calcular daqui pra ' +
-      'frente; veja abaixo o painel calculado ao vivo pra VALR3 a partir do relatório mais recente dela.',
+      'dívida e impostos antes de chegar ao resultado final.' +
+      '\n\n' +
+      'Patrimônio Líquido não é caixa: é a diferença entre tudo que a empresa tem e tudo que ela deve, ' +
+      'acumulada ao longo do tempo.' +
+      '\n\n' +
+      'Dívida Bruta e Caixa, sozinhos, ainda não dizem se a empresa está endividada de verdade: isso só ' +
+      'aparece juntando os dois, na lição 2.6.5.' +
+      '\n\n' +
+      'Esses seis números são a base de todo indicador que você vai calcular daqui pra frente; veja abaixo ' +
+      'o painel calculado ao vivo pra VALR3 a partir do relatório mais recente dela.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -602,8 +719,9 @@ const LESSON_SEEDS: LessonSeed[] = [
     scenarioText:
       'Duas empresas podem faturar o mesmo e sobrar valores bem diferentes no fim: o que importa não é só ' +
       'quanto a Mineradora Vale do Rio (VALR3) fatura, mas que fração desse faturamento ela mantém como ' +
-      'lucro, em cada etapa do resultado. É isso que uma margem mede: um lucro dividido pela receita que o ' +
-      'gerou.',
+      'lucro, em cada etapa do resultado.' +
+      '\n\n' +
+      'É isso que uma margem mede: um lucro dividido pela receita que o gerou.',
     microDecisionPrompt:
       'Margem EBIT usa o lucro operacional (antes de juros e impostos); Margem Líquida usa o que sobra no ' +
       'fim, depois de tudo descontado. Pra VALR3, você espera que a Margem Líquida seja maior ou menor que a ' +
@@ -611,11 +729,15 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
     revelationText:
-      'Margem EBIT = EBIT / Receita Líquida; Margem Líquida = Lucro Líquido / Receita Líquida. Como o Lucro ' +
-      'Líquido já descontou juros e impostos que o EBIT ainda não descontou, a Margem Líquida costuma ser ' +
-      'menor que a Margem EBIT: a diferença entre as duas mostra quanto do resultado operacional a empresa ' +
-      'perde pra dívida e impostos antes de chegar ao lucro final. Veja abaixo as duas margens calculadas ao ' +
-      'vivo pra VALR3, a partir do relatório mais recente.',
+      'Margem EBIT = EBIT / Receita Líquida; Margem Líquida = Lucro Líquido / Receita Líquida.' +
+      '\n\n' +
+      'Como o Lucro Líquido já descontou juros e impostos que o EBIT ainda não descontou, a Margem Líquida ' +
+      'costuma ser menor que a Margem EBIT.' +
+      '\n\n' +
+      'A diferença entre as duas mostra quanto do resultado operacional a empresa perde pra dívida e ' +
+      'impostos antes de chegar ao lucro final.' +
+      '\n\n' +
+      'Veja abaixo as duas margens calculadas ao vivo pra VALR3, a partir do relatório mais recente.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -632,17 +754,20 @@ const LESSON_SEEDS: LessonSeed[] = [
       'que a outra pra chegar nesse resultado. As duas lucraram igual, mas usaram o capital dos sócios com a ' +
       'mesma eficiência?',
     microDecisionPrompt:
-      'Se a Mineradora Vale do Rio (VALR3) e o Banco Nordeste Digital (BNDD4) tivessem o mesmo Lucro ' +
+      'Se a Mineradora Vale do Rio (VALR3, {{ref:2.1}}) e o Banco Nordeste Digital (BNDD4, {{ref:2.3}}) tivessem o mesmo Lucro ' +
       'Líquido, mas a VALR3 precisasse de um Patrimônio Líquido menor pra chegar lá, qual das duas estaria ' +
       'usando melhor o capital dos seus sócios?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
     revelationText:
       'A VALR3 estaria usando melhor: ROE = Lucro Líquido / Patrimônio Líquido mede quanto lucro a empresa ' +
-      'gera pra cada real de capital que os sócios colocaram nela, então, pra um mesmo lucro, menos ' +
-      'patrimônio empregado significa ROE mais alto e capital mais bem aproveitado. É por isso que ROE alto ' +
-      'é lido como sinal de boa gestão do capital próprio, não só de lucro alto em valor absoluto. Veja ' +
-      'abaixo o ROE calculado ao vivo pra VALR3.',
+      'gera pra cada real de capital que os sócios colocaram nela.' +
+      '\n\n' +
+      'Então, pra um mesmo lucro, menos patrimônio empregado significa ROE mais alto e capital mais bem ' +
+      'aproveitado. É por isso que ROE alto é lido como sinal de boa gestão do capital próprio, não só de ' +
+      'lucro alto em valor absoluto.' +
+      '\n\n' +
+      'Veja abaixo o ROE calculado ao vivo pra VALR3.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -656,19 +781,24 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
     scenarioText:
       'O preço de VALR3 sozinho não diz se a ação está cara ou barata: R$20 pode ser caro pra uma empresa ' +
-      'que lucra pouco por ação e barato pra uma que lucra muito. Pra comparar preço com o que a empresa de ' +
-      'fato entrega, primeiro é preciso trazer Lucro Líquido e Patrimônio Líquido pra base "por ação".',
+      'que lucra pouco por ação e barato pra uma que lucra muito.' +
+      '\n\n' +
+      'Pra comparar preço com o que a empresa de fato entrega, primeiro é preciso trazer Lucro Líquido e ' +
+      'Patrimônio Líquido pra base "por ação".',
     microDecisionPrompt:
       'Se o preço de VALR3 triplicar de um dia pro outro, mas o Lucro Líquido por ação dela continuar o ' +
       'mesmo, o P/L (Preço / Lucro por ação) sobe, desce ou fica igual?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
     revelationText:
-      'LPA (lucro por ação) = Lucro Líquido / número de ações; P/L = Preço / LPA. Com o LPA parado e o ' +
-      'preço triplicando, o P/L também triplica: o mercado passa a pagar três vezes mais por cada real de ' +
-      'lucro que a empresa gera, ou seja, a ação fica mais "cara" nesse critério. O mesmo raciocínio vale ' +
-      'pro par VPA (Patrimônio Líquido / número de ações) e P/VP (Preço / VPA), só que comparando preço ao ' +
-      'patrimônio da empresa em vez de ao lucro. Veja abaixo os quatro calculados ao vivo pra VALR3.',
+      'LPA (lucro por ação) = Lucro Líquido / número de ações; P/L = Preço / LPA.' +
+      '\n\n' +
+      'Com o LPA parado e o preço triplicando, o P/L também triplica: o mercado passa a pagar três vezes ' +
+      'mais por cada real de lucro que a empresa gera, ou seja, a ação fica mais "cara" nesse critério.' +
+      '\n\n' +
+      'O mesmo raciocínio vale pro par VPA (Patrimônio Líquido / número de ações) e P/VP (Preço / VPA), só ' +
+      'que comparando preço ao patrimônio da empresa em vez de ao lucro. Veja abaixo os quatro calculados ao ' +
+      'vivo pra VALR3.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -691,13 +821,17 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: 'VALR3',
     revelationText:
       'Baixa, podendo até ser negativa: Dívida Líquida = Dívida Bruta − Caixa, então quando o Caixa supera a ' +
-      'Dívida Bruta, a empresa tem, na prática, mais dinheiro guardado do que deve. O indicador Dívida ' +
-      'Líquida/EBIT vai além, comparando essa dívida líquida com a capacidade de geração de caixa ' +
-      'operacional da empresa: o resultado é, em anos de EBIT, quanto tempo levaria pra quitar a dívida ' +
-      'líquida se todo o resultado operacional fosse usado só pra isso. Esse indicador pesa ainda mais numa ' +
-      'empresa de perfil sofisticado como o Banco Nordeste Digital (BNDD4), mais sensível a mudanças na ' +
-      'Selic (spec 3.2.2), já que juros mais altos encarecem justamente a dívida que entra nessa conta. Veja ' +
-      'abaixo a Dívida Líquida/EBIT calculada ao vivo pra VALR3.',
+      'Dívida Bruta, a empresa tem, na prática, mais dinheiro guardado do que deve.' +
+      '\n\n' +
+      'O indicador Dívida Líquida/EBIT vai além, comparando essa dívida líquida com a capacidade de geração ' +
+      'de caixa operacional da empresa. O resultado é, em anos de {{EBIT}}, quanto tempo levaria pra quitar a ' +
+      'dívida líquida se todo o resultado operacional fosse usado só pra isso.' +
+      '\n\n' +
+      'Esse indicador pesa ainda mais numa empresa de perfil sofisticado como o Banco Nordeste Digital ' +
+      '(BNDD4), mais sensível a mudanças na Selic (spec 3.2.2), já que juros mais altos encarecem ' +
+      'justamente a dívida que entra nessa conta.' +
+      '\n\n' +
+      'Veja abaixo a Dívida Líquida/EBIT calculada ao vivo pra VALR3.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -711,8 +845,9 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Quanto a ação "paga" em relação ao preço',
     scenarioText:
       'Além de poder valorizar de preço, VALR3 pode distribuir parte do lucro da Mineradora Vale do Rio ' +
-      'direto pros seus acionistas, em dinheiro, os dividendos (ou proventos). O Dividend Yield resume, num ' +
-      'só número, quanto isso representa frente ao preço atual da ação.',
+      'direto pros seus acionistas, em dinheiro, os dividendos (ou proventos).' +
+      '\n\n' +
+      'O Dividend Yield resume, num só número, quanto isso representa frente ao preço atual da ação.',
     microDecisionPrompt:
       'Se o preço de VALR3 dobrar de um dia pro outro, mas os dividendos pagos por ação nos últimos 12 ' +
       'meses continuarem os mesmos, o Dividend Yield sobe, desce ou fica igual?',
@@ -720,13 +855,17 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: 'VALR3',
     revelationText:
       'Desce: Dividend Yield = soma dos dividendos pagos por ação nos últimos 12 meses / Preço atual, então, ' +
-      'com o numerador parado, dobrar o preço corta o Dividend Yield pela metade. É por isso que um Dividend ' +
-      'Yield alto pode significar tanto uma empresa boa pagadora de dividendos quanto uma ação com o preço ' +
-      'em queda, sem que os dividendos tenham mudado: nunca leia esse número sozinho, sem olhar o preço e o ' +
-      'histórico de pagamentos por trás dele. Você encontra esse histórico completo, com cada valor e cada ' +
-      'data de pagamento, na tela de Detalhe do Ativo de qualquer ação. Veja abaixo o Dividend Yield ' +
-      'calculado ao vivo pra VALR3, o último dos 9 indicadores fundamentalistas do currículo; a próxima ' +
-      'lição explica como e quando esse pagamento chega até você.',
+      'com o numerador parado, dobrar o preço corta o Dividend Yield pela metade.' +
+      '\n\n' +
+      'É por isso que um Dividend Yield alto pode significar tanto uma empresa boa pagadora de dividendos ' +
+      'quanto uma ação com o preço em queda, sem que os dividendos tenham mudado.' +
+      '\n\n' +
+      'Nunca leia esse número sozinho, sem olhar o preço e o histórico de pagamentos por trás dele. Você ' +
+      'encontra esse histórico completo, com cada valor e cada data de pagamento, na tela de Detalhe do ' +
+      'Ativo de qualquer ação.' +
+      '\n\n' +
+      'Veja abaixo o Dividend Yield calculado ao vivo pra VALR3, o último dos 9 indicadores ' +
+      'fundamentalistas do currículo; a próxima lição explica como e quando esse pagamento chega até você.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -740,8 +879,9 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Como e quando o acionista recebe',
     scenarioText:
       'Você tem VALR3 na carteira no dia em que a Mineradora Vale do Rio fecha seu ciclo de relatório (a ' +
-      'cada 14 dias simulados) e a empresa distribui parte do lucro como dividendo. Nesse exato dia, a ' +
-      'plataforma registra quem tem direito a receber esse provento: é a data ex.',
+      'cada 14 dias simulados) e a empresa distribui parte do lucro como dividendo.' +
+      '\n\n' +
+      'Nesse exato dia, a plataforma registra quem tem direito a receber esse provento: é a data ex.',
     microDecisionPrompt:
       'Se você vender toda a sua posição em VALR3 um dia depois da data ex, mas antes do dia de pagamento, ' +
       'ainda recebe o dividendo dessa distribuição?',
@@ -749,13 +889,17 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Sim. O direito ao provento é definido pela posição que você tinha exatamente na data ex, o dia de ' +
-      'relatório em que o dividendo é gerado, não pela posição no dia do pagamento. A plataforma registra ' +
-      'quem tem posição nesse momento e paga esse mesmo grupo depois, com uma defasagem fixa de 5 dias ' +
-      'simulados entre a data ex e o pagamento, sempre antes do próximo ciclo de relatório distribuir um ' +
-      'novo provento sobre o mesmo ativo. Vender depois da data ex não tira o seu direito ao provento já ' +
-      'gerado; comprar depois da data ex não dá direito a ele, só ao provento do próximo ciclo. O valor por ' +
-      'ação, o mesmo que forma o Dividend Yield da lição anterior, é creditado direto no seu saldo, e vale ' +
-      'tanto para ações quanto para FIIs, o produto da lição 2.10.',
+      'relatório em que o dividendo é gerado, não pela posição no dia do pagamento.' +
+      '\n\n' +
+      'A plataforma registra quem tem posição nesse momento e paga esse mesmo grupo depois, com uma ' +
+      'defasagem fixa de 5 dias simulados entre a data ex e o pagamento, sempre antes do próximo ciclo de ' +
+      'relatório distribuir um novo provento sobre o mesmo ativo.' +
+      '\n\n' +
+      'Vender depois da data ex não tira o seu direito ao provento já gerado; comprar depois da data ex não ' +
+      'dá direito a ele, só ao provento do próximo ciclo.' +
+      '\n\n' +
+      'O valor por ação, o mesmo que forma o {{Dividend Yield}} da lição anterior, é creditado direto no seu ' +
+      'saldo, e vale tanto para ações quanto para FIIs, o produto da lição 2.10.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -769,24 +913,30 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Conecta com Selic afetando fundamentos (3.2.2), defensivo vs cíclico',
     scenarioText:
       'A Selic não afeta só renda fixa: ela também entra na simulação dos fundamentos de toda empresa ' +
-      'listada, e não afeta todas do mesmo jeito. A Mineradora Vale do Rio (VALR3, setor Mineração, perfil ' +
-      'Conservador) e o Banco Nordeste Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado) reagem ' +
-      'de forma diferente quando a Selic simulada sobe.',
+      'listada, e não afeta todas do mesmo jeito.' +
+      '\n\n' +
+      'A Mineradora Vale do Rio (VALR3, setor Mineração, perfil Conservador, {{ref:2.1}}) e o Banco Nordeste ' +
+      'Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado, {{ref:2.3}}) reagem de forma diferente ' +
+      'quando a Selic simulada sobe.',
     microDecisionPrompt:
       'Perfil Sofisticado (setores mais cíclicos e alavancados) é mais sensível a juros altos do que perfil ' +
-      'Conservador (fluxo de caixa mais estável). Numa alta de Selic, qual das duas você espera que sinta um ' +
-      'efeito maior nos fundamentos: VALR3 (Conservador) ou BNDD4 (Sofisticado)?',
+      'Conservador (fluxo de caixa mais estável).' +
+      '\n\n' +
+      'Numa alta de Selic, qual das duas você espera que sinta um efeito maior nos fundamentos: VALR3 ' +
+      '(Conservador) ou BNDD4 (Sofisticado)?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
       'BNDD4 sente um efeito maior. É o mesmo perfil de risco (Conservador/Sofisticado) que você já viu na ' +
-      'Trilha 1 para renda fixa, aqui aplicado ao efeito da Selic sobre os fundamentos de cada empresa: ' +
-      'perfil Sofisticado, como o do Banco Nordeste Digital, concentra setores mais cíclicos e alavancados, ' +
-      'mais sensíveis a juros altos; perfil Conservador, como o da Mineradora Vale do Rio, tem fluxo de caixa ' +
-      'mais estável e sente menos esse efeito. É essa mesma lógica que explica por que diversificar entre ' +
-      'setores e perfis diferentes reduz o risco da carteira: numa alta de juros, nem todas as empresas ' +
-      'pioram do mesmo jeito, e um portfólio concentrado só em setores cíclicos sofre mais do que um ' +
-      'distribuído entre defensivo e cíclico.',
+      'Trilha 1 para renda fixa, aqui aplicado ao efeito da Selic sobre os fundamentos de cada empresa.' +
+      '\n\n' +
+      'Perfil Sofisticado, como o do Banco Nordeste Digital, concentra setores mais cíclicos e alavancados, ' +
+      'mais sensíveis a juros altos; perfil Conservador, como o da Mineradora Vale do Rio, tem fluxo de ' +
+      'caixa mais estável e sente menos esse efeito.' +
+      '\n\n' +
+      'É essa mesma lógica que explica por que diversificar entre setores e perfis diferentes reduz o risco ' +
+      'da carteira. Numa alta de juros, nem todas as empresas pioram do mesmo jeito, e um portfólio ' +
+      'concentrado só em setores cíclicos sofre mais do que um distribuído entre defensivo e cíclico.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -799,10 +949,13 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'ETFs',
     centralConcept: 'Diversificação automática via índice',
     scenarioText:
-      'Comprar uma única cota do ETF Índice Sintético (SINT11) dá exposição, de uma vez, a uma cesta inteira ' +
-      'de empresas que compõem o índice de referência dele, hoje replicado por amostragem representativa ' +
-      'com a Mineradora Vale do Rio (40% do peso), o Banco Nordeste Digital (35%) e outras posições ' +
-      'agregadas (25%). Em vez de escolher ação por ação, você compra o índice inteiro.',
+      'Comprar uma única cota do ETF Índice Sintético (SINT11) dá exposição, de uma vez, a uma cesta ' +
+      'inteira de empresas que compõem o índice de referência dele.' +
+      '\n\n' +
+      'Hoje replicado por amostragem representativa com a Mineradora Vale do Rio (40% do peso), o Banco ' +
+      'Nordeste Digital (35%) e outras posições agregadas (25%).' +
+      '\n\n' +
+      'Em vez de escolher ação por ação, você compra o índice inteiro.',
     microDecisionPrompt:
       'Se só a Mineradora Vale do Rio (40% do peso do SINT11) sofrer uma queda forte de preço, o preço do ' +
       'SINT11 inteiro deveria cair na mesma proporção, ou menos?',
@@ -810,11 +963,15 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Menos. O preço do ETF acompanha o índice de referência que ele replica, formado pela média ponderada ' +
-      'de todos os constituintes, não só de um. Com a Mineradora Vale do Rio pesando 40% da composição, uma ' +
-      'queda forte só nela puxa o índice pra baixo proporcionalmente a esse peso, mas o resto da cesta ' +
-      '(Banco Nordeste Digital e outras posições) amortece o efeito. É essa diversificação automática, numa ' +
-      'única compra, que torna o ETF diferente de comprar uma ação isolada: você nunca fica 100% exposto ao ' +
-      'resultado de uma empresa só. Completar esta lição libera a compra real do SINT11 no Mercado.',
+      'de todos os constituintes, não só de um.' +
+      '\n\n' +
+      'Com a Mineradora Vale do Rio pesando 40% da composição, uma queda forte só nela puxa o índice pra ' +
+      'baixo proporcionalmente a esse peso, mas o resto da cesta (Banco Nordeste Digital e outras posições) ' +
+      'amortece o efeito.' +
+      '\n\n' +
+      'É essa diversificação automática, numa única compra, que torna o ETF diferente de comprar uma ação ' +
+      'isolada: você nunca fica 100% exposto ao resultado de uma empresa só. Completar esta lição libera a ' +
+      'compra real do SINT11 no Mercado.',
     unlocksDescription: 'Compra real de ETF (SINT11) no Mercado',
     unlocksKeys: ['asset:etf'],
     unlocksAssetTicker: 'SINT11',
@@ -827,10 +984,13 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'FIIs',
     centralConcept: 'Fundos imobiliários, tickers final 11',
     scenarioText:
-      'FII (Fundo de Investimento Imobiliário) também tem ticker terminado em 11, igual ETF (lição 2.3), mas ' +
-      'o produto por trás é bem diferente: em vez de replicar um índice de ações, um FII investe em imóveis ' +
-      'ou em recebíveis ligados ao setor imobiliário, e distribui o resultado como dividendo aos cotistas. O ' +
-      'FII Tijolo Corporativo (TJLO11) é dono direto de imóveis (segmento Lajes Corporativas, com 5,2% de ' +
+      'FII (Fundo de Investimento Imobiliário) também tem ticker terminado em 11, igual ETF (lição 2.3), ' +
+      'mas o produto por trás é bem diferente.' +
+      '\n\n' +
+      'Em vez de replicar um índice de ações, um FII investe em imóveis ou em recebíveis ligados ao setor ' +
+      'imobiliário, e distribui o resultado como dividendo aos cotistas.' +
+      '\n\n' +
+      'O FII Tijolo Corporativo (TJLO11) é dono direto de imóveis (segmento Lajes Corporativas, com 5,2% de ' +
       'vacância); o FII Papel Recebíveis (PAPL11) não tem imóvel nenhum, ele é dono de uma carteira de ' +
       'recebíveis (dívidas ligadas ao setor imobiliário) indexada ao CDI.',
     microDecisionPrompt:
@@ -840,14 +1000,20 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'Não faz sentido: vacância é um indicador exclusivo do perfil tijolo, porque só existe imóvel físico ' +
-      'pra ficar vago. O perfil papel, como o PAPL11, é avaliado por indicadores diferentes, principalmente o ' +
-      'indexador da carteira de recebíveis (CDI, no caso do PAPL11) e o valor total dessa carteira, já que o ' +
-      'resultado dele vem do que os devedores pagam, não do aluguel de um imóvel. Os dois perfis, porém, ' +
-      'compartilham o mesmo Dividend Yield (lição 2.6.6) como indicador comum de quanto o FII distribui ' +
-      'frente ao preço da cota. Completar esta lição libera a compra real de FIIs no Mercado e conclui a ' +
-      'Trilha 2 (Renda Variável): a Trilha 3 (Estratégia e Tributação) abre na sequência.',
+      'pra ficar vago.' +
+      '\n\n' +
+      'O perfil papel, como o PAPL11, é avaliado por indicadores diferentes, principalmente o indexador da ' +
+      'carteira de recebíveis (CDI, no caso do PAPL11) e o valor total dessa carteira.' +
+      '\n\n' +
+      'Já que o resultado dele vem do que os devedores pagam, não do aluguel de um imóvel. Os dois perfis, ' +
+      'porém, compartilham o mesmo {{Dividend Yield}} (lição 2.6.6) como indicador comum de quanto o FII ' +
+      'distribui frente ao preço da cota.' +
+      '\n\n' +
+      'Completar esta lição libera a compra real de FIIs no Mercado e conclui a Trilha 2 (Renda Variável): ' +
+      'a Trilha 3 (Estratégia e Tributação) abre na sequência.',
     unlocksDescription:
-      'Compra real de FIIs (TJLO11/PAPL11) no Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
+      'O resto do patrimônio com onde crescer (ações, ETFs, FIIs), compra real de FIIs (TJLO11/PAPL11) no ' +
+      'Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
     unlocksKeys: ['asset:fii'],
     unlocksAssetTicker: 'TJLO11',
   },
@@ -860,9 +1026,15 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Por que não concentrar tudo num ativo',
     scenarioText:
       'Você tem R$10.000 e dois planos: colocar tudo em VALR3, uma única ação, ou dividir esse valor entre ' +
-      'VALR3, BNDD4 e um pouco de Tesouro Selic. Nos dois planos você está investindo o mesmo valor total, ' +
-      'mas o resultado de um evento ruim específico da Mineradora Vale do Rio (uma quebra de safra, um ' +
-      'escândalo contábil, qualquer choque isolado) afeta cada plano de um jeito bem diferente.',
+      'VALR3, BNDD4 e um pouco de Tesouro Selic.' +
+      '\n\n' +
+      'Nos dois planos você está investindo o mesmo valor total, mas o resultado de um evento ruim ' +
+      'específico da Mineradora Vale do Rio (uma quebra de safra, um escândalo contábil, qualquer choque ' +
+      'isolado) afeta cada plano de um jeito bem diferente.' +
+      '\n\n' +
+      'Esta trilha fecha o arco das duas anteriores: juntar a reserva segura (Trilha 1) e a parte de risco ' +
+      '(Trilha 2) numa única estratégia, e testar essa estratégia contra um evento de mercado real na ' +
+      'última lição.',
     microDecisionPrompt:
       'Se um evento negativo atinge só a Mineradora Vale do Rio, qual dos dois planos sofre a perda maior no ' +
       'patrimônio total: o concentrado 100% em VALR3, ou o dividido entre VALR3, BNDD4 e Tesouro Selic?',
@@ -870,13 +1042,18 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionAssetTicker: null,
     revelationText:
       'O plano concentrado. Todo o patrimônio está exposto ao mesmo risco específico daquela empresa, então ' +
-      'um choque nela vira um choque no portfólio inteiro. No plano diversificado, o mesmo evento só afeta a ' +
-      'fatia aplicada em VALR3; o resto (BNDD4, com fundamentos e setor diferentes, e o Tesouro Selic, sem ' +
-      'nenhuma ligação com o desempenho de uma empresa) segue intacto. É a mesma lógica por trás do ETF da ' +
-      'lição 2.9 (uma cesta de ações amortecendo o choque de uma só), aplicada agora entre classes inteiras: ' +
-      'renda fixa, ações de setores diferentes e perfis de risco diferentes (lição 2.8). Diversificar não ' +
-      'aumenta o retorno esperado de cada ativo isolado, mas reduz o risco específico de cada um pesar ' +
-      'sozinho no resultado final.',
+      'um choque nela vira um choque no portfólio inteiro.' +
+      '\n\n' +
+      'No plano diversificado, o mesmo evento só afeta a fatia aplicada em VALR3; o resto (BNDD4, com ' +
+      'fundamentos e setor diferentes, e o Tesouro Selic, sem nenhuma ligação com o desempenho de uma ' +
+      'empresa) segue intacto.' +
+      '\n\n' +
+      'É a mesma lógica por trás do ETF da lição 2.9 (uma cesta de ações amortecendo o choque de uma só), ' +
+      'aplicada agora entre classes inteiras: renda fixa, ações de setores diferentes e perfis de risco ' +
+      'diferentes (lição 2.8).' +
+      '\n\n' +
+      'Diversificar não aumenta o retorno esperado de cada ativo isolado, mas reduz o risco específico de ' +
+      'cada um pesar sozinho no resultado final.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -891,8 +1068,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     scenarioText:
       'Você já viu o rótulo de risco em vários produtos ao longo da trilha: VALR3 e o Tesouro Selic com ' +
       'perfil Conservador; BNDD4 com perfil Sofisticado; CRI2028 (AA) e CRA2028 (A) com classificação de ' +
-      'crédito. Cada um mede uma coisa diferente, mas todos apontam pra uma mesma pergunta: quanta oscilação ' +
-      'e quanto risco de perda você está disposto a aceitar em troca de um retorno maior?',
+      'crédito.' +
+      '\n\n' +
+      'Cada um mede uma coisa diferente, mas todos apontam pra uma mesma pergunta: quanta oscilação e ' +
+      'quanto risco de perda você está disposto a aceitar em troca de um retorno maior?',
     microDecisionPrompt:
       'Um portfólio 100% perfil Sofisticado tende a oscilar mais, pra cima e pra baixo, do que um portfólio ' +
       '100% perfil Conservador. Pra alguém que pode precisar resgatar o dinheiro em poucos meses, qual dos ' +
@@ -900,14 +1079,18 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
-      'O perfil Conservador. Risco e retorno não são opostos que se escolhe livremente: são uma troca. ' +
+      'O perfil Conservador. Risco e retorno não são opostos que se escolhe livremente: são uma troca.' +
+      '\n\n' +
       'Perfil Sofisticado, como o do Banco Nordeste Digital (lição 2.8), tende a entregar retorno maior no ' +
       'longo prazo justamente por aceitar mais oscilação no caminho, o que é perigoso pra quem precisa do ' +
-      'valor num prazo curto e pode ser forçado a vender numa hora ruim. Perfil Conservador entrega menos ' +
-      'oscilação em troca de um retorno esperado mais modesto. Não existe perfil certo ou errado, existe ' +
-      'perfil adequado ao seu horizonte de tempo e à sua necessidade real daquele dinheiro, e é por isso que ' +
-      'a mesma pergunta vale tanto pra escolher entre ações de perfis diferentes quanto entre CRI2028 (AA, ' +
-      'mais seguro) e CRA2028 (A, mais arriscado e mais rentável).',
+      'valor num prazo curto e pode ser forçado a vender numa hora ruim.' +
+      '\n\n' +
+      'Perfil Conservador entrega menos oscilação em troca de um retorno esperado mais modesto. Não existe ' +
+      'perfil certo ou errado, existe perfil adequado ao seu horizonte de tempo e à sua necessidade real ' +
+      'daquele dinheiro.' +
+      '\n\n' +
+      'É por isso que a mesma pergunta vale tanto pra escolher entre ações de perfis diferentes quanto ' +
+      'entre CRI2028 (AA, mais seguro) e CRA2028 (A, mais arriscado e mais rentável).',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -920,9 +1103,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     title: 'Comparando produtos na prática',
     centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
     scenarioText:
-      'Você já viu, na lição 1.5, que CDB é tributado pela tabela regressiva de IR e LCI é isento. Mas taxa ' +
-      'bruta maior e isenção de imposto são coisas diferentes, e comparar os dois de verdade exige olhar o ' +
-      'valor líquido no bolso, não só o percentual anunciado.',
+      'Você já viu, na lição 1.5, que CDB é tributado pela tabela regressiva de IR e LCI é isento.' +
+      '\n\n' +
+      'Mas taxa bruta maior e isenção de imposto são coisas diferentes, e comparar os dois de verdade exige ' +
+      'olhar o valor líquido no bolso, não só o percentual anunciado.',
     microDecisionPrompt:
       'Use a calculadora abaixo, mantendo os valores padrão (CDB 110% CDI vs LCI 90% CDI, R$10.000, 365 ' +
       'dias) e compare o valor líquido dos dois. Depois mude o prazo pra 180 dias e compare de novo: o ' +
@@ -930,15 +1114,20 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionType: 'fixed_income_comparison',
     microDecisionAssetTicker: null,
     revelationText:
-      'Com os valores padrão (365 dias, alíquota regressiva de 17,5% nessa faixa), o CDB a 11,00% a.a. bruto ' +
-      'rende R$10.907,50 líquidos contra R$10.900,00 do LCI a 9,00% a.a. isento: o CDB vence, mas por pouco. ' +
+      'Com os valores padrão (365 dias, alíquota regressiva de 17,5% nessa faixa), o CDB a 11,00% a.a. ' +
+      'bruto rende R$10.907,50 líquidos contra R$10.900,00 do LCI a 9,00% a.a. isento: o CDB vence, mas por ' +
+      'pouco.' +
+      '\n\n' +
       'Em 180 dias, a alíquota sobe pra 22,5% (a faixa mais alta da tabela regressiva, mesma da lição 1.4), ' +
-      'e o resultado se inverte: o CDB rende R$10.409,30 líquidos contra R$10.434,15 do LCI, que agora vence. ' +
-      'A taxa bruta maior do CDB não garante o resultado líquido maior: quanto mais cedo você resgata, maior ' +
-      'a alíquota que corrói o rendimento tributado, e mais a isenção do LCI pesa a favor dele; quanto mais ' +
-      'tempo o dinheiro fica aplicado, menor a alíquota, e mais o CDB tem chance de recuperar a vantagem. Não ' +
-      'existe produto que "rende mais" de forma absoluta: existe o produto que rende mais líquido pro prazo ' +
-      'que você de fato pretende manter o dinheiro aplicado.',
+      'e o resultado se inverte: o CDB rende R$10.409,30 líquidos contra R$10.434,15 do LCI, que agora ' +
+      'vence.' +
+      '\n\n' +
+      'A taxa bruta maior do CDB não garante o resultado líquido maior: quanto mais cedo você resgata, ' +
+      'maior a alíquota que corrói o rendimento tributado, e mais a isenção do LCI pesa a favor dele.' +
+      '\n\n' +
+      'Quanto mais tempo o dinheiro fica aplicado, menor a alíquota, e mais o CDB tem chance de recuperar a ' +
+      'vantagem. Não existe produto que "rende mais" de forma absoluta: existe o produto que rende mais ' +
+      'líquido pro prazo que você de fato pretende manter o dinheiro aplicado.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -952,26 +1141,37 @@ const LESSON_SEEDS: LessonSeed[] = [
     centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
     scenarioText:
       'Você tem um portfólio com Tesouro Selic (LFT2029) e ações da Mineradora Vale do Rio (VALR3) e do ' +
-      'Banco Nordeste Digital (BNDD4). Um evento macro de alta da Selic é disparado (lição 2.4): o Tesouro ' +
-      'Selic passa a render mais no mesmo instante em que os fundamentos das duas empresas sentem o efeito ' +
-      'sistêmico da Selic (lição 2.8) e o preço de ambas reage ao choque especulativo do evento (lição 2.5).',
+      'Banco Nordeste Digital (BNDD4).' +
+      '\n\n' +
+      'Um evento macro de alta da Selic é disparado (lição 2.4): o Tesouro Selic passa a render mais no ' +
+      'mesmo instante em que os fundamentos das duas empresas sentem o efeito sistêmico da Selic (lição ' +
+      '2.8) e o preço de ambas reage ao choque especulativo do evento (lição 2.5).',
     microDecisionPrompt:
-      'Juntando o que você já viu nas lições 2.8 e 3.2: nesse cenário de alta de Selic, qual das duas ações ' +
-      'tende a sentir o efeito maior nos fundamentos, VALR3 (Conservador) ou BNDD4 (Sofisticado), e o que ' +
-      'acontece com o Tesouro Selic ao mesmo tempo?',
+      'Juntando o que você já viu nas lições 2.8 e 3.2.' +
+      '\n\n' +
+      'Nesse cenário de alta de Selic, qual das duas ações tende a sentir o efeito maior nos fundamentos, ' +
+      'VALR3 (Conservador) ou BNDD4 (Sofisticado), e o que acontece com o Tesouro Selic ao mesmo tempo?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     revelationText:
       'BNDD4 (Sofisticado) sente o efeito maior nos fundamentos, o mesmo padrão da lição 2.8, enquanto o ' +
-      'Tesouro Selic passa a render mais, acompanhando a taxa que agora subiu (lição 1.2). É por isso que um ' +
-      'portfólio dividido entre renda fixa e ações de perfis diferentes (lição 3.1) reage de um jeito que ' +
-      'nenhum ativo isolado reproduz sozinho: a parte em Tesouro Selic ganha justamente no momento em que a ' +
-      'parte mais sofisticada da carteira sofre mais, amortecendo o resultado total. Entender isso, e não uma ' +
-      'fórmula nova, é a diferença entre reagir a um evento macro no susto e já ter, desde a composição do ' +
-      'portfólio (perfil de risco, lição 3.2, e produto certo pro prazo certo, lição 3.3), uma resposta pronta ' +
-      'pra ele. Você concluiu a trilha guiada: a partir de agora, todo o Mercado (renda fixa e renda ' +
-      'variável, sandbox e ao vivo) está disponível sem nenhuma restrição de lição.',
-    unlocksDescription: 'Trilha guiada concluída, mundo aberto liberado por completo',
+      'Tesouro Selic passa a render mais, acompanhando a taxa que agora subiu (lição 1.2).' +
+      '\n\n' +
+      'É por isso que um portfólio dividido entre renda fixa e ações de perfis diferentes (lição 3.1) reage ' +
+      'de um jeito que nenhum ativo isolado reproduz sozinho.' +
+      '\n\n' +
+      'A parte em Tesouro Selic ganha justamente no momento em que a parte mais sofisticada da carteira ' +
+      'sofre mais, amortecendo o resultado total.' +
+      '\n\n' +
+      'Entender isso, e não uma fórmula nova, é a diferença entre reagir a um evento macro no susto e já ' +
+      'ter, desde a composição do portfólio (perfil de risco, lição 3.2, e produto certo pro prazo certo, ' +
+      'lição 3.3), uma resposta pronta pra ele.' +
+      '\n\n' +
+      'Você concluiu a trilha guiada. A partir de agora, todo o Mercado (renda fixa e renda variável, ' +
+      'sandbox e ao vivo) está disponível sem nenhuma restrição de lição.',
+    unlocksDescription:
+      'Estratégia completa e testada contra um evento real, trilha guiada concluída, mundo aberto liberado ' +
+      'por completo',
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },

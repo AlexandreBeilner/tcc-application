@@ -47,7 +47,7 @@ já em produção) que hoje arrisca desmotivar quem esbarra num módulo bloquead
 Frente A da proposta, risco baixo, sem migration. Objetivo: os mesmos números e fórmulas já
 escritos, entregues em cartões pequenos em vez de parágrafo único.
 
-### A.1 · Convenção de cartões + parser no frontend
+### A.1 · Convenção de cartões + parser no frontend ✅ concluída
 
 - **Descrição:** hoje `scenarioText`/`microDecisionPrompt`/`revelationText` são uma `string` só,
   renderizada como um único `<p>` (`frontend/src/pages/Lesson/index.tsx`, passos 0/1/2). Introduzir
@@ -66,11 +66,25 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
 - **Critérios de aceite:** uma lição com `\n\n` no meio do texto renderiza N cartões com
   "Continuar" entre eles; uma lição sem `\n\n` (ainda não reescrita) continua funcionando
   exatamente como hoje; navegação por teclado/foco funciona entre cartões.
+- **Entregável:** `features/lessons/splitIntoCards` (função pura + teste table-driven cobrindo
+  texto sem separador, separador simples, bordas com espaço e `\n\n\n\n` repetido sem gerar
+  cartão vazio no meio). `pages/Lesson/index.tsx` ganhou `subStep` (estado local, resetado a cada
+  avanço real de fase em `handleAdvance`) aplicado às 3 fases com texto livre (Cenário, Micro-decisão,
+  Revelação); `handleCardContinue` decide entre avançar o cartão local ou disparar o avanço de fase
+  real conforme a posição no array de cartões. O widget embutido (`GrowthCalculatorForm`/
+  `FixedIncomeComparisonForm`), o checkbox "Já pensei..." e o painel de indicador ao vivo só
+  aparecem no último cartão da fase (fariam pouco sentido antes do usuário ler o prompt/revelação
+  inteiros). `CardDots` — pontinhos de progresso interno à fase, menores que a barra de 4
+  segmentos existente, só renderizados quando a fase tem mais de 1 cartão, `aria-hidden` (o único
+  controle interativo continua sendo o botão "Continuar", preservando navegação por teclado).
+  Passo 3 (Desbloqueio/`unlocksDescription`) não entra no escopo — só os 3 campos citados na
+  descrição. Testes novos em `Lesson/index.test.tsx` cobrindo navegação entre cartões, gate do
+  checkbox no último cartão e ausência de pontinhos quando a lição não usa `\n\n` (retrocompatibilidade).
 - **Referências:** `proposta-engajamento-licoes.md` §2 (Frente A, técnica "Fatiamento por ideia");
   spec 5.2 (as 4 fases continuam intactas).
 - **Dependências:** nenhuma.
 
-### A.2 · Reescrita das 33 lições em cartões
+### A.2 · Reescrita das 33 lições em cartões ✅ concluída
 
 - **Descrição:** aplicar a convenção da A.1 ao conteúdo já escrito (`backend/src/db/seedLessons.ts`),
   seguindo a regra de redação: nenhum cartão passa de ~45 palavras, nenhum cartão introduz mais de
@@ -82,11 +96,25 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
 - **Critérios de aceite:** as 33 lições reescritas; nenhum valor numérico (taxa, fórmula, ticker)
   diferente do texto original; `docker compose up` + Chrome real confirmando visualmente pelo
   menos as 5 lições mais densas (1.5, 1.6, 1.9, 2.6.4, 2.9) fatiadas corretamente.
+- **Entregável:** as 33 lições de `LESSON_SEEDS` (`backend/src/db/seedLessons.ts`) reescritas com
+  `\n\n` marcando cartões, seguindo a mesma disciplina da A.1 (só reordena o texto original em
+  `scenarioText`/`microDecisionPrompt`/`revelationText` — nenhuma palavra, número, fórmula ou
+  ticker mudou; verificado por script de comparação palavra-a-palavra entre a versão antiga e a
+  nova, ignorando só as quebras `\n\n` e pontuação leve). As 5 lições mais densas (1.5, 1.6, 1.9,
+  2.6.4, 2.9) seguiram a régua da 1.5 do `proposta-engajamento-licoes.md` §2 (resposta curta →
+  fórmula/régua → resultado 1 → resultado 2 → conclusão), a maioria em 3-5 cartões; sentenças
+  muito longas isoladas (>45 palavras) foram quebradas num ponto interno (dois-pontos/ponto e
+  vírgula convertido em ponto final, com a conjunção "e" removida quando a frase virava duas
+  frases — único ajuste de pontuação feito, nenhum fato/número). Rodado `npx prettier --write` +
+  `npm run lint`/`build`/`test` (448 testes, sem regressão) e `docker compose up` real com
+  `db:seed:lessons` + Chrome (mobile, 390×844) confirmando as 5 lições prioritárias renderizando
+  cartões, pontinhos de progresso e navegação corretamente ponta a ponta (Cenário → Micro-decisão
+  → Revelação).
 - **Referências:** exemplo completo da lição 1.5 fatiada em 5 cartões já está em
   `proposta-engajamento-licoes.md` §2 — usar como modelo de tom/tamanho pras demais.
 - **Dependências:** A.1.
 
-### A.3 · Revelação progressiva ("ver resultado")
+### A.3 · Revelação progressiva ("ver resultado") ✅ concluída
 
 - **Descrição:** dentro do passo Revelação, quando um cartão contém um resultado calculado (uma
   taxa, um veredito de comparação), esconder esse número atrás de um botão "Ver resultado" em vez
@@ -103,6 +131,25 @@ escritos, entregues em cartões pequenos em vez de parágrafo único.
 - **Critérios de aceite:** cartão marcado com `[revelar] ` não mostra o texto até o toque no
   botão; cartão sem o prefixo continua aparecendo direto (comportamento da A.1/A.2 preservado);
   não bloqueia navegação por teclado (botão "Ver resultado" é alcançável e ativável por teclado).
+- **Entregável:** `features/lessons/splitIntoCards` ganhou `types.ts` (`Card = { text, hidden }`,
+  mesma convenção de módulo-pasta da 6.3.4) e passou a devolver `Card[]`; o prefixo `[revelar] ` é
+  detectado só no início do cartão já com `\n\n`/trim aplicados (texto que só *menciona*
+  `[revelar]` no meio não vira hidden). `pages/Lesson/index.tsx` ganhou `revealedIndexes` (`Set`
+  local, reseta junto com `subStep` a cada avanço real de fase — mesmo ciclo de vida) e o
+  componente `CardBody`, reaproveitado nas 3 fases com texto livre (Cenário/Micro-decisão/
+  Revelação, não só Revelação — o parser é compartilhado, então qualquer cartão marcado em
+  qualquer um dos 3 campos já funciona); cartão `hidden` sem revelar mostra um botão real
+  (`<button>`, ícone `Eye` do lucide-react) — navegação por teclado (Tab/Enter) funciona de graça,
+  sem tratamento especial. "Continuar" não é bloqueado por cartão não revelado (não pedido nos
+  critérios de aceite — decisão de escopo mínimo). `seedLessons.ts`: cartões 3 e 4 da revelação da
+  lição 1.5 (os 2 vereditos numéricos, 12,26% vs 12,00% e 11,18% vs 12,00%) marcados com
+  `[revelar] `. Testes novos em `splitIntoCards/index.test.ts` (prefixo remove hidden, cartão sem
+  prefixo intocado, prefixo no meio do texto não conta, mistura de cartões normais/hidden no mesmo
+  texto) e `Lesson/index.test.tsx` (botão aparece/esconde texto, toque revela sem avançar de
+  cartão, acessível por teclado, cartão sem prefixo continua direto). `npm run lint`/`build`/`test`
+  passam nos dois lados (frontend: 558 testes; backend: 448) e `docker compose up` real +
+  `db:seed:lessons` + Chrome confirmaram visualmente o cartão 3 da Revelação da lição 1.5
+  escondendo o resultado atrás de "Ver resultado" e revelando no mesmo lugar ao toque.
 - **Referências:** `proposta-engajamento-licoes.md` §1 ("sem curiosity gap dentro do parágrafo") e
   §2 (técnica "Revelação progressiva").
 - **Dependências:** A.1, A.2 (precisa de conteúdo já fatiado pra ter onde aplicar o gate).
@@ -204,7 +251,7 @@ comparar.
 
 Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migration.
 
-### C.1 · Catálogo de glossário + popover de definição
+### C.1 · Catálogo de glossário + popover de definição ✅ concluída
 
 - **Descrição:** catálogo estático (mesmo espírito de `engine/internal/domain/macroevent/templates.go`
   — dado fixo em código, não tabela de banco) termo → definição curta, cobrindo os termos
@@ -224,8 +271,26 @@ Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migr
   abrir/fechar do popover e navegação por teclado (Enter/Escape).
 - **Referências:** `proposta-engajamento-licoes.md` §2 (técnica "Glossário inline").
 - **Dependências:** A.1 (mesmo pipeline de parsing do texto).
+- **Entregável:** catálogo em `frontend/src/features/lessons/glossary/index.ts` (6 termos: FGC,
+  marcação a mercado, deságio, taxa bruta equivalente, EBIT, Dividend Yield — módulo em pasta, não
+  arquivo solto, pra seguir a convenção de `components/`/`features/*` do CLAUDE.md), parser puro
+  `frontend/src/features/lessons/parseGlossaryTerms/` (regex `{{...}}` → segmentos `text`/`term`,
+  testado incluindo fallback de termo ausente no catálogo) e molecule
+  `frontend/src/components/molecules/GlossaryTerm/` (popover próprio, não `title` nativo — abre em
+  clique/toque e hover, fecha em mouse saindo, blur, clique fora ou Escape; testado). `Lesson/
+  index.tsx` (`CardBody`) troca `{card.text}` por `renderGlossaryText(card.text)`, que devolve os
+  segmentos de texto como string solta (não `<span>`) especificamente pra não quebrar
+  `getByText` nos testes já existentes que buscam o texto completo de um cartão sem termo marcado
+  (`getNodeText` do Testing Library só junta os `TEXT_NODE` filhos diretos do elemento, não o
+  `textContent` recursivo). Marcação `{{Termo}}` aplicada em `backend/src/db/seedLessons.ts` nos
+  pontos de referência recorrente (1.3/1.5/1.9 pro FGC, 1.2 pra marcação a mercado, 1.7 pro
+  deságio, 1.5 pra taxa bruta equivalente, 2.6.5 pro EBIT, 2.7/2.10 pro Dividend Yield) — não nas
+  lições que são a própria aula do termo (1.6, 1.7, 2.6.1–2.6.6), pra não competir com a explicação
+  didática de primeira exposição. Validado ponta a ponta via `docker compose up` + reseed
+  (`npm run db:seed:lessons`) e Chrome: popover abre com a definição certa na Revelação da lição
+  1.3. `npm test`/`npm run lint`/`npm run build` passam no frontend e no backend.
 
-### C.2 · Elenco recorrente — referência cruzada entre lições
+### C.2 · Elenco recorrente — referência cruzada entre lições ✅ concluída
 
 - **Descrição:** VALR3/BNDD4 (e os demais tickers do catálogo) aparecem em 8+ lições da Trilha 2
   como exemplos soltos. Adicionar, no texto de uma lição que reintroduz um ativo já visto, um link
@@ -239,6 +304,27 @@ Impulsos 4/5 indiretos (reduz retrabalho de leitura, dá continuidade). Sem migr
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 1, "elenco recorrente").
 - **Dependências:** A.1 (reaproveita o parser/convenção de marcação — unificado com C.1 nesta
   revisão pra não ter 2 sintaxes de marcação diferentes no mesmo texto).
+- **Entregável:** parser de C.1 renomeado de `parseGlossaryTerms` pra `parseLessonMarkup`
+  (`frontend/src/features/lessons/parseLessonMarkup/`, mesma pasta, só o nome muda — deixou de ser
+  só sobre glossário) e estendido com um terceiro tipo de segmento, `ref` (`{{ref:X.Y}}` → `{ type:
+  'ref', code: 'X.Y' }`), na mesma regex `{{...}}` da C.1 — sem sintaxe nova. O parser continua sem
+  depender de dado de rede: só devolve o `code` citado; `Lesson/index.tsx` (`renderLessonMarkup`,
+  renomeada de `renderGlossaryText`) resolve `code` → `id` real usando a lista de `useLessonsQuery`
+  já carregada e renderiza um `<Link to="/trilha/:id">já visto na lição X.Y</Link>` (classe
+  `.refLink`, sublinhado sólido — contraste deliberado com o tracejado do `GlossaryTerm`, que só
+  abre um popover e não navega). Código sem lição correspondente na lista (`lessons.find` sem
+  match) cai pro texto puro `já visto na lição X.Y`, sem link e sem quebrar, mesma garantia da C.1.
+  Marcação aplicada nas 3 lições sugeridas pelo critério de aceite — 2.4, 2.6.3 e 2.8 — sempre
+  linkando VALR3 de volta pra 2.1 e BNDD4 pra 2.3 (onde cada um foi apresentado primeiro, conferido
+  lendo o texto das duas: 2.1 é a lição inteira sobre VALR3 como exemplo de "o que é uma ação", 2.3
+  é onde BNDD4 ganha nome completo e explicação própria de ON/PN, embora citado de passagem já na
+  2.2). Testado (parser: segmento `ref` isolado e junto de um `term` no mesmo texto; `Lesson`: link
+  renderizado com `href` correto quando a lição existe na lista, fallback em texto puro quando não
+  existe). Validado ponta a ponta via `docker compose up` + reseed e Chrome: os dois links aparecem
+  formatados na Micro-decisão da lição 2.4 e clicar em "já visto na lição 2.1" navega de fato pra
+  lição 2.1 (reabre no Desbloqueio porque já estava concluída nesta sessão de teste — comportamento
+  existente de "modo revisão", não relacionado a esta tarefa). `npm test`/`npm run lint`/`npm run
+  build` passam no frontend e no backend.
 
 ---
 
@@ -305,7 +391,7 @@ começam depois de D.0 concluir com resultado "seguir".
 Impulso 1 (Significado épico). Só conteúdo, zero schema, pode ser feita em paralelo com qualquer
 outra fase.
 
-### E.1 · Reescrita das lições-âncora com o "porquê" da trilha
+### E.1 · Reescrita das lições-âncora com o "porquê" da trilha ✅ concluída
 
 - **Descrição:** reescrever `scenarioText` da primeira lição de cada trilha (0.1, 1.1, 2.1, 3.1) pra
   plantar uma meta maior que a trilha inteira resolve aos poucos, e `unlocksDescription` da última
@@ -316,6 +402,24 @@ outra fase.
 - **Critérios de aceite:** as 4 lições de abertura de trilha (0.1/1.1/2.1/3.1) citam
   explicitamente uma meta que só se completa no fim da trilha; a última lição de cada trilha já
   autorada (0.5, 1.9) referencia essa meta ao fechar.
+- **Entregável:** `scenarioText` de 0.1/1.1/2.1/3.1 ganhou uma frase plantando a meta da trilha,
+  preservando o texto/números originais. Trilha 0: "por que o destino automático desse tipo de
+  dinheiro (a poupança) geralmente deixa valor na mesa" (0.1), pago em 0.5. Trilha 1: "montar uma
+  reserva de emergência de verdade... e sair dela sabendo em qual produto colocá-la" (1.1),
+  ecoando o bônus de R$1.000 de 0.1 explicitamente, pago em 1.9. Trilha 2: "com a reserva de
+  emergência da Trilha 1 já resolvida, esta trilha é sobre o resto do patrimônio" (2.1), pago em
+  2.10. Trilha 3: "fecha o arco das duas anteriores: juntar a reserva segura (Trilha 1) e a parte
+  de risco (Trilha 2) numa única estratégia, e testar essa estratégia contra um evento de mercado
+  real" (3.1), pago em 3.4 (já tinha o desfecho estrutural pronto — só reforçado). `unlocksDescription`
+  de 0.5/1.9/2.10/3.4 (todas as 4 trilhas já estavam autoradas, não só 0.5/1.9 como o texto original
+  da tarefa previa como incerto) reescrito pra pagar a meta plantada: "Confirmação de que a
+  poupança perde da Selic..." (0.5), "Sua reserva de emergência com todas as opções na mesa..."
+  (1.9), "O resto do patrimônio com onde crescer..." (2.10), "Estratégia completa e testada contra
+  um evento real..." (3.4) — cada uma mantendo o texto funcional original (o que a lição libera de
+  fato) como sufixo, já que `unlocksDescription` é reaproveitado como rótulo curto em `Track`/
+  `TrackChart` (`Bloqueada: libera ${unlocksDescription}`), não só no passo Desbloqueio da lição.
+  Nenhum em-dash usado (regra de convenção de texto de UI). Validado com `docker compose up -d
+  postgres` + migração + `db:seed:lessons` reais, conferindo as 8 strings no banco via `psql`.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 1); spec 5.1 (tabela de lições por
   trilha, coluna "Conceito central").
 - **Dependências:** nenhuma.
@@ -623,8 +727,18 @@ inconsistentes, do melhor pro pior:
 
 O pior caso (`TabBar`) é também o de maior exposição — navegação primária, visível em toda tela.
 
-### J.1 · `TabBar` deixa de ser beco sem saída
+### J.1 · `TabBar` deixa de ser beco sem saída ✅
 
+- **Entregável:** `span aria-disabled` trocado por `button` clicável em `TabBar/index.tsx`,
+  navegando via `findLessonUnlocking(unlockKey, lessons)` pra `/trilha/${hint.id}` (ou `/trilha`
+  sem lição correspondente) — mesmo padrão de `useLockedAssetGate.selectOrRedirectToLesson`, zero
+  lógica nova extraída. `aria-label` novo por aba travada ("X travado, desbloqueia na lição Y" /
+  "X travado pela trilha") substitui o `aria-disabled` antigo; label visual (`<span
+  aria-hidden>`) permanece só decorativo, leitor de tela usa o `aria-label` do botão. CSS
+  `.locked` virou `cursor: pointer` (era `not-allowed`) mantendo cor apagada — distinta de link
+  ativo/hover, conforme critério de aceite. Testes cobrindo clique com/sem lição encontrada;
+  suite completa (511 testes) e `docker compose up` de ponta a ponta verificados nos 3
+  breakpoints (mobile bottom bar, tablet/desktop barra horizontal).
 - **Descrição:** trocar o `<span aria-disabled="true">` da aba travada
   (`frontend/src/components/organisms/TabBar/index.tsx`) por um elemento clicável que navega pra
   lição que desbloqueia aquele `unlockKey`, reaproveitando `findLessonUnlocking`
@@ -644,8 +758,20 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
   `useLockedAssetGate` como precedente já funcionando.
 - **Dependências:** nenhuma.
 
-### J.2 · Motivo do bloqueio fica visível, não só em tooltip
+### J.2 · Motivo do bloqueio fica visível, não só em tooltip ✅
 
+- **Entregável:** `LockedAssetBadge` ganhou `visibleText` (`Lição {code}` ou `Travado` como
+  fallback genérico) como filho visível ao lado do ícone de cadeado — `title`/`aria-label`
+  mantêm a frase completa pra hover/leitor de tela, sem duplicar (o texto curto é
+  `aria-hidden`). `TabBar` ganhou `.lockHint` (`Lição {code}`, só quando `findLessonUnlocking`
+  encontra a lição) como `<span aria-hidden>` extra no botão travado — visível por padrão
+  (tablet/desktop) e `display: none` dentro da media query `max-width: 767px` já existente da
+  barra inferior fixa, decisão 100% CSS, zero lógica JS por breakpoint. Testes cobrindo texto
+  visível em ambos os componentes (com/sem lição encontrada); suite completa (515 testes),
+  lint e build passando. Verificado via `docker compose up` nos 3 breakpoints: mobile (390px,
+  cards + bottom bar só ícone/label), tablet (900px, ainda em cards por causa do breakpoint de
+  1024px do `AssetTable`, mas `TabBar` já horizontal com legenda) e desktop (1440px, tabela +
+  badge/legenda visíveis, sem quebra de coluna).
 - **Descrição:** `LockedAssetBadge` (`frontend/src/components/molecules/LockedAssetBadge/index.tsx`)
   hoje só grava "Desbloqueia na lição X" em `title`/`aria-label` — invisível em touch (sem hover) e
   de baixo contraste até em desktop (precisa passar o mouse). Tornar esse texto visível na própria
@@ -663,8 +789,32 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
 - **Referências:** `identidade-visual-padroes.md` §7 (breakpoints).
 - **Dependências:** J.1 (mesma área de código da `TabBar`, já alterada ali).
 
-### J.3 · Detalhe do Ativo travado vira prévia, não parede
+### J.3 · Detalhe do Ativo travado vira prévia, não parede ✅
 
+- **Entregável:** `useLockedAssetGate.selectOrRedirectToLesson` virou `selectAsset(detailPath)` —
+  navega sempre pro Detalhe, travado ou não (comportamento compartilhado por `EquityList` e
+  `FixedIncomeList`, já que os dois consomem o mesmo gate); ganhou `unlockingLessonFor(asset)`
+  (extraído do que já existia dentro de `lockedBadge`) pra expor a lição completa (`id`/`code`)
+  pra quem monta UI, não só o `code` do badge. `AssetDetail/index.tsx` troca o painel de compra
+  (`EquityOrderTicket`) por `LockedAssetPanel` (molécula nova, compartilhada) quando
+  `gate.isLocked(asset)` — ticker/preço/gráfico/indicadores continuam normais, só o painel de
+  ordem muda. `services/client` passou a jogar o corpo bruto do erro inteiro em
+  `ApiError.details` (não só `errorBody.details`) — é o que permite `ProductLockedError`
+  (`{ error, key, unlockingLesson }`, foge da convenção `{ error }`) ser lido em algum lugar do
+  frontend pela primeira vez, via `features/market/productLockedError.asProductLockedError`
+  (função pura testada). `OrderConfirmationDialog` usa essa função no catch do `handleConfirm` e
+  mostra o mesmo `LockedAssetPanel` (sem `lessonId`, já que o 403 só traz `code`/`title` — CTA
+  cai no Mapa da Trilha genérico) em vez da mensagem de erro genérica. `FixedIncomeDetail` fica
+  fora do escopo da troca de painel (só `AssetDetail`/4.5, por decisão explícita do backlog) —
+  seu fluxo de aporte já fica coberto pelo tratamento genérico do `OrderConfirmationDialog`
+  acima. Testes cobrindo `selectAsset`/`unlockingLessonFor`, `asProductLockedError` (5 casos),
+  `LockedAssetPanel` (CTA com/sem `lessonId`), `AssetDetail` travado/sandbox e o novo caso de
+  `OrderConfirmationDialog`; suite completa (529 testes), lint e build passando. Verificado via
+  `docker compose up`: clique num ativo travado abre o Detalhe (não mais a lição) mostrando
+  indicadores normais + banner "Travado pela trilha — Desbloqueia na lição X" no lugar do painel
+  de compra, CTA navega pra `/trilha/:id`; fluxo de renda fixa (fora do escopo do banner
+  proativo) mostra o mesmo banner amigável dentro do `OrderConfirmationDialog` quando o 403
+  chega na confirmação.
 - **Descrição:** hoje `useLockedAssetGate.selectOrRedirectToLesson` sempre redireciona pra lição
   ao clicar num ativo travado — o usuário nunca chega a ver a tela de Detalhe (indicadores,
   gráfico, dados — tudo somente leitura, a trava real é só no `POST` de ordem/compra, RF12/7.0.1).
@@ -687,7 +837,7 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
   isento, não mexer).
 - **Dependências:** nenhuma (mesma área temática de J.1/J.2, mas código independente).
 
-### J.4 · Indicador de "faltam N lições pra X"
+### J.4 · Indicador de "faltam N lições pra X" ✅ concluída
 
 - **Descrição:** nenhum lugar do app hoje mostra quanto falta pra desbloquear a próxima coisa —
   só o Mapa da Trilha (que já é a fonte da verdade, mas exige entrar lá pra ver). Acrescentar um
@@ -702,6 +852,26 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
 - **Critérios de aceite:** usuário com pelo menos 1 chave ainda travada vê "faltam N lições pra
   [X]"; usuário com tudo desbloqueado não vê o badge (sem estado vazio estranho no lugar); número
   bate com a distância real mostrada no Mapa da Trilha.
+- **Entregável:** `features/lessons/nextUnlockFor` (função pura + `types.ts` com `NextUnlock` +
+  teste table-driven cobrindo lista vazia, alvo é a própria lição `available`, alvo mais à frente,
+  lições sem desbloqueio no meio do caminho, e o caso "tudo concluído" → `null`). Checa só
+  `unlocksDescription` truthy (não `unlocksKeys` separado): auditoria de `seedLessons.ts` confirma
+  que as duas sempre andam juntas nas 33 lições atuais (toda vez que `unlocksKeys` tem chave,
+  `unlocksDescription` também está preenchido), então isso já cobre o critério original sem lógica
+  extra. `lessonsRemaining` = `sortOrder` da lição-alvo menos a contagem de `completed` (a trilha é
+  estritamente sequencial no backend, `lessonStatus`, então a distância é aritmética simples, sem
+  precisar reimplementar a regra de bloqueio no cliente). `ProgressionSummaryProps` ganhou
+  `nextUnlock?: NextUnlock | null`; `ProgressionSummary` envolveu os badges existentes num novo
+  `.container` (coluna) e acrescentou `<p className={styles.nextUnlock}>` só quando `nextUnlock`
+  existe, com `<strong>` na description. `Portfolio` e `Track` (ambos já tinham `useLessonsQuery`
+  carregado) calculam `nextUnlockFor` e passam pro `ProgressionSummary`; em `Portfolio`, fica
+  `null` enquanto `lessonsQuery` não resolveu, sem bloquear os badges de XP/streak (que dependem só
+  de `progressionQuery`/`streakQuery`). Testes novos em `ProgressionSummary`, `Portfolio` e `Track`
+  cobrindo aparição/ausência do indicador e o singular "1 lição" vs. plural. Validado com o app
+  real via `docker compose up --build` + `db:seed:lessons` + usuário novo registrado por `curl` +
+  lição 0.1 avançada até `completed` via `POST /lessons/:id/progress`: confirmado no Chrome que
+  `/trilha` e `/` mostram "Faltam 1 lição pra: Calculadora Financeira" (bate com a "PRÓXIMA LIÇÃO"
+  do Mapa da Trilha).
 - **Referências:** análise da sessão anterior (chat).
 - **Dependências:** nenhuma tecnicamente (lê `sortOrder`/`status`/`unlocksKeys`/
   `unlocksDescription` ao vivo — nenhum desses 4 campos é tocado por A/B/C/D, que só mudam

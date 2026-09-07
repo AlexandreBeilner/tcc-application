@@ -132,7 +132,7 @@ describe('EquityList — estado travado pela trilha (tarefa 7.0.1)', () => {
 
     afterEach(() => vi.clearAllMocks())
 
-    it('ação real ainda travada mostra o cadeado e navega pra lição, não pro detalhe', async () => {
+    it('ação real ainda travada mostra o cadeado, mas clicar abre o Detalhe normalmente (tarefa J.3)', async () => {
         vi.mocked(useUnlockedKeys).mockReturnValue({
             unlockedKeys: new Set(),
             lessons: [
@@ -160,26 +160,13 @@ describe('EquityList — estado travado pela trilha (tarefa 7.0.1)', () => {
             isError: false,
         })
         vi.mocked(listAssets).mockResolvedValue({ assets })
-        const router = createMemoryRouter(
-            [
-                { path: '/mercado/renda-variavel', element: <EquityList /> },
-                { path: '/mercado/ativos/:id', element: <div>tela de detalhe</div> },
-                { path: '/trilha/:id', element: <div>tela de lição</div> },
-            ],
-            { initialEntries: ['/mercado/renda-variavel'] },
-        )
-        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-        render(
-            <QueryClientProvider client={queryClient}>
-                <RouterProvider router={router} />
-            </QueryClientProvider>,
-        )
+        renderPage()
 
         await waitFor(() => expect(screen.getAllByText('PETR4').length).toBeGreaterThan(0))
         expect(screen.getAllByLabelText('Produto travado, desbloqueia na lição 2.3').length).toBeGreaterThan(0)
 
         fireEvent.click(screen.getAllByText('PETR4')[0])
-        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText('tela de detalhe')).toBeInTheDocument())
     })
 
     it('sandbox continua acessível mesmo sem nenhuma lição concluída (RF12)', async () => {

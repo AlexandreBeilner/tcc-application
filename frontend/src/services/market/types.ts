@@ -56,6 +56,18 @@ export interface AssetSummary {
     daily_change_pct?: number
 }
 
+// Shape do 403 de `POST /market/orders`/`POST /market/fixed-income/purchases`
+// (tarefa 7.0.1) — foge da convenção `{ error }` do resto do módulo,
+// `.docs/backend/market.md`. `unlockingLesson` não traz `id` (só
+// `code`/`title`), então um CTA construído a partir dele nunca linka direto
+// pra `/trilha/:id` (tarefa J.3, `features/market/productLockedError`) —
+// só o Mapa da Trilha genérico.
+export interface ProductLockedErrorBody {
+    error: string
+    key: string
+    unlockingLesson: { code: string; title: string } | null
+}
+
 export interface FixedIncomeDetail {
     interest_rate?: number
     maturity_date?: string

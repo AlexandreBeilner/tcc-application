@@ -52,6 +52,22 @@ describe('apiRequest', () => {
         })
     })
 
+    it('carrega o corpo bruto do erro em `details`, mesmo com campos fora da convenção `{ error, details }` (tarefa J.3)', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue({
+                ok: false,
+                status: 403,
+                json: async () => ({ error: 'produto travado', key: 'asset:acao', unlockingLesson: { code: '2.3', title: 'x' } }),
+            }),
+        )
+
+        await expect(apiRequest('/market/orders', { method: 'POST', body: {} })).rejects.toMatchObject({
+            status: 403,
+            details: { error: 'produto travado', key: 'asset:acao', unlockingLesson: { code: '2.3', title: 'x' } },
+        })
+    })
+
     it('chama o handler de 401 registrado, uma única vez, no ponto central', async () => {
         vi.stubGlobal(
             'fetch',

@@ -52,7 +52,7 @@ export function FixedIncomeList() {
     const { page: currentPage, totalPages, pageItems: pageAssets, setPage, resetPage } = useClientPagination(assets, ASSETS_PAGE_SIZE)
 
     function handleSelect(asset: AssetSummary) {
-        gate.selectOrRedirectToLesson(asset, `/mercado/renda-fixa/${asset.id}`)
+        gate.selectAsset(`/mercado/renda-fixa/${asset.id}`)
     }
 
     function handleTabChange(tabKey: string) {

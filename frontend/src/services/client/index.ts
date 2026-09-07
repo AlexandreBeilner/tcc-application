@@ -82,7 +82,16 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
             onUnauthorized?.()
         }
         const errorBody = data as ErrorBody | undefined
-        throw new ApiError(res.status, errorBody?.error ?? 'erro inesperado', errorBody?.details)
+        // Convenção padrão (`.docs/backend/*.md`, ex: erro de validação Zod
+        // em qualquer módulo): `details` = `errorBody.details`. Alguns
+        // endpoints fogem dessa convenção e devolvem campos extras no nível
+        // raiz em vez de aninhados em `details` (ex: `ProductLockedError` de
+        // `POST /market/orders`, `{ error, key, unlockingLesson }`,
+        // `.docs/backend/market.md`, tarefa J.3) — nesse caso, sem `details`
+        // próprio, cai pro corpo bruto. Quem chama sabe o shape esperado do
+        // próprio módulo e faz o narrowing, este cliente não precisa conhecer
+        // cada formato.
+        throw new ApiError(res.status, errorBody?.error ?? 'erro inesperado', errorBody?.details ?? data)
     }
 
     return data as T

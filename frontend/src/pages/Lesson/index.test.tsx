@@ -284,6 +284,140 @@ describe('Lesson (tela 3.2)', () => {
         expect(await screen.findByText('tela de trilha')).toBeInTheDocument()
     })
 
+    it('cenário com \\n\\n fatiado em cartões: Continuar navega entre cartões antes de avançar de fase', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
+        expect(screen.queryByText('Segundo cartão.')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+        expect(advanceLesson).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
+    })
+
+    it('micro-decisão fatiada: checkbox só aparece no último cartão do prompt', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionPrompt: 'Primeiro cartão.\n\nSegundo cartão.' }),
+        })
+
+        renderLesson()
+
+        await screen.findByText('Primeiro cartão.')
+        expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+        expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+        expect(screen.getByText('Já pensei na minha resposta')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    })
+
+    it('lição sem \\n\\n continua com 1 cartão só, sem pontinhos de progresso interno', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+
+        renderLesson()
+
+        await screen.findByText('Espalhar capital reduz risco')
+        expect(document.querySelector('[class*="cardDots"]')).not.toBeInTheDocument()
+    })
+
+    it('cartão marcado com [revelar] esconde o texto atrás de um botão "Ver resultado" (tarefa A.3)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, revelationText: '[revelar] O LCI vence nesse prazo.' }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByRole('button', { name: 'Ver resultado' })).toBeInTheDocument()
+        expect(screen.queryByText('O LCI vence nesse prazo.')).not.toBeInTheDocument()
+    })
+
+    it('tocar em "Ver resultado" revela o texto no lugar, sem navegar de cartão', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, revelationText: '[revelar] O LCI vence nesse prazo.' }),
+        })
+
+        renderLesson()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Ver resultado' }))
+
+        expect(await screen.findByText('O LCI vence nesse prazo.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver resultado' })).not.toBeInTheDocument()
+        expect(advanceLesson).not.toHaveBeenCalled()
+    })
+
+    it('"Ver resultado" é alcançável e ativável por teclado, sem bloquear "Continuar"', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, revelationText: '[revelar] O LCI vence nesse prazo.' }),
+        })
+
+        renderLesson()
+
+        const revealButton = await screen.findByRole('button', { name: 'Ver resultado' })
+        expect(revealButton.tagName).toBe('BUTTON')
+        expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+
+        revealButton.focus()
+        expect(revealButton).toHaveFocus()
+        fireEvent.keyDown(revealButton, { key: 'Enter' })
+        fireEvent.click(revealButton)
+
+        expect(await screen.findByText('O LCI vence nesse prazo.')).toBeInTheDocument()
+    })
+
+    it('cartão sem o prefixo [revelar] continua aparecendo direto (comportamento da A.1/A.2 preservado)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({
+                currentStep: 2,
+                revelationText: 'Explicação normal.\n\n[revelar] Resultado escondido.',
+            }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Explicação normal.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver resultado' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+        expect(await screen.findByRole('button', { name: 'Ver resultado' })).toBeInTheDocument()
+        expect(screen.queryByText('Resultado escondido.')).not.toBeInTheDocument()
+    })
+
+    it('referência {{ref:X.Y}} vira link "já visto na lição X.Y" pra lição já carregada (tarefa C.2)', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [lesson({ id: 'lesson-2-1', code: '2.1', title: 'O que é uma ação' })],
+        })
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ revelationText: 'Você já viu isso em {{ref:2.1}} antes.', currentStep: 2 }),
+        })
+
+        renderLesson()
+
+        const link = await screen.findByRole('link', { name: 'já visto na lição 2.1' })
+        expect(link).toHaveAttribute('href', '/trilha/lesson-2-1')
+    })
+
+    it('referência a um código que não está na lista cai pro texto puro, sem link e sem quebrar (tarefa C.2)', async () => {
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ revelationText: 'Você já viu isso em {{ref:9.9}} antes.', currentStep: 2 }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Você já viu isso em já visto na lição 9.9 antes.')).toBeInTheDocument()
+        expect(screen.queryByRole('link', { name: 'já visto na lição 9.9' })).not.toBeInTheDocument()
+    })
+
     it('lição bloqueada/inexistente mostra erro', async () => {
         vi.mocked(getLesson).mockRejectedValue(new Error('bloqueada'))
 

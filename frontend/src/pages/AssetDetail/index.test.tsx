@@ -3,10 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { getAsset, getAssetQuotes, getMyAccount } from '../../services/market'
 import { AssetDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/market', () => ({
     getAsset: vi.fn(),
     getAssetQuotes: vi.fn(),
@@ -46,6 +48,15 @@ describe('AssetDetail (tela 4.5)', () => {
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        // Ação/ETF/FII já desbloqueados por padrão — os testes deste arquivo
+        // não são sobre o gate da tarefa 7.0.1, ver describe dedicado da J.3
+        // abaixo pro estado travado.
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(['asset:acao', 'asset:etf']),
+            lessons: [],
+            isLoading: false,
+            isError: false,
+        })
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -138,5 +149,116 @@ describe('AssetDetail (tela 4.5)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
         await waitFor(() => expect(screen.queryByText('Confirmar ordem')).not.toBeInTheDocument())
+    })
+})
+
+// Tarefa J.3 — o Detalhe passa a ser sempre alcançável (EquityList não
+// redireciona mais pra lição, `useLockedAssetGate`), e mostra o mesmo
+// ticker/preço/indicadores de sempre + o banner no lugar do painel de
+// compra quando o ativo ainda está travado.
+describe('AssetDetail — ativo travado pela trilha (tarefa J.3)', () => {
+    beforeEach(() => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: 'token',
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+        vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: {
+                    company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' },
+                    indicators: { price_to_earnings: 14.2 },
+                    dividend_history: [],
+                },
+            },
+        })
+    })
+
+    afterEach(() => vi.clearAllMocks())
+
+    it('mostra ticker/preço/indicadores normalmente + banner no lugar do painel de compra', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(),
+            lessons: [
+                {
+                    id: 'lesson-2-3',
+                    code: '2.3',
+                    title: 'Nomenclatura de tickers',
+                    trackNumber: 2,
+                    trackName: 'Renda Variável',
+                    sortOrder: 10,
+                    centralConcept: 'x',
+                    scenarioText: '',
+                    microDecisionPrompt: '',
+                    microDecisionType: 'reflection',
+                    microDecisionAssetTicker: null,
+                    revelationText: '',
+                    unlocksDescription: '',
+                    unlocksKeys: ['asset:acao'],
+                    unlocksAssetTicker: null,
+                    status: 'available',
+                    currentStep: 0,
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        })
+
+        const router = createMemoryRouter(
+            [
+                { path: '/mercado/ativos/:id', element: <AssetDetail /> },
+                { path: '/trilha/:id', element: <div>tela de lição</div> },
+            ],
+            { initialEntries: ['/mercado/ativos/a1'] },
+        )
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        render(
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>,
+        )
+
+        await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
+        expect(screen.getByText('P/L')).toBeInTheDocument()
+        expect(screen.getByText('R$ 30,00')).toBeInTheDocument()
+
+        expect(screen.getByText('Travado pela trilha')).toBeInTheDocument()
+        expect(screen.getByText('Desbloqueia na lição 2.3.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Revisar ordem' })).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByText('Ir pra lição'))
+        await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
+    })
+
+    it('sandbox continua com o painel de compra normal, mesmo sem nenhuma lição concluída (RF12)', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: true,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false, isError: false })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
+        expect(screen.getByRole('button', { name: 'Revisar ordem' })).toBeInTheDocument()
+        expect(screen.queryByText('Travado pela trilha')).not.toBeInTheDocument()
     })
 })
