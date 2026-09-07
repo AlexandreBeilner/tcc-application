@@ -31,15 +31,25 @@ import { createStreakRouter } from './modules/gamification/interfaces/http/strea
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
+import { GetCompletedTracksUseCase } from './modules/lessons/application/useCases/getCompletedTracks'
 import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
 import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/useCases/getUnlockedProductKeys'
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
+import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
+import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
+import { createInProcessSocialFeedRecorder } from './modules/lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
+import { RecordTrackCompletedUseCase } from './modules/socialfeed/application/useCases/recordTrackCompleted'
+import { ListFeedForUserUseCase } from './modules/socialfeed/application/useCases/listFeedForUser'
+import { createInProcessFriendGraphReader as createInProcessSocialFeedFriendGraphReader } from './modules/socialfeed/infrastructure/friendships/inProcessFriendGraphReader'
+import { createDrizzleSocialFeedEventRepository } from './modules/socialfeed/infrastructure/persistence/drizzleSocialFeedEventRepository'
+import { createDrizzleUserDirectory as createDrizzleSocialFeedUserDirectory } from './modules/socialfeed/infrastructure/persistence/drizzleUserDirectory'
+import { createSocialFeedRouter } from './modules/socialfeed/interfaces/http/socialFeedRouter'
 import { ExportFriendshipsUseCase } from './modules/friendships/application/useCases/exportFriendships'
 import { ListFriendRequestsUseCase } from './modules/friendships/application/useCases/listFriendRequests'
 import { ListFriendsUseCase } from './modules/friendships/application/useCases/listFriends'
@@ -56,6 +66,7 @@ import { ListDailyMissionsUseCase } from './modules/missions/application/useCase
 import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions } from './modules/missions/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
 import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
+import { createInProcessLessonReviewChecker } from './modules/missions/infrastructure/lessons/inProcessLessonReviewChecker'
 import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
 import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
 import { GetNetWorthUseCase } from './modules/ranking/application/useCases/getNetWorth'
@@ -75,6 +86,7 @@ import { createInProcessAchievementsReader } from './modules/profile/infrastruct
 import { createInProcessGamificationReader } from './modules/profile/infrastructure/gamification/inProcessGamificationReader'
 import { createDrizzleUserDirectory as createDrizzleProfileUserDirectory } from './modules/profile/infrastructure/persistence/drizzleUserDirectory'
 import { createInProcessProfitabilityReader } from './modules/profile/infrastructure/ranking/inProcessProfitabilityReader'
+import { createInProcessTrackCompletionReader } from './modules/profile/infrastructure/lessons/inProcessTrackCompletionReader'
 import { createProfileRouter } from './modules/profile/interfaces/http/profileRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
@@ -267,21 +279,41 @@ export function createApp(deps: AppDeps = {}): Express {
 
   const xpAwarder = createInProcessXpAwarder(awardXp)
   const streakTracker = createInProcessStreakTracker(touchStreak)
+
+  // `friendshipRepository` precisa existir aqui (antes do bloco de amizades
+  // abaixo) porque o feed social (G.1), consumido por `advanceLesson`
+  // logo a seguir, também lê o grafo de amigos.
+  const friendshipRepository = createDrizzleFriendshipRepository(db)
+  const socialFeedEventRepository = createDrizzleSocialFeedEventRepository(db)
+  const recordTrackCompleted = new RecordTrackCompletedUseCase(socialFeedEventRepository)
+  const listFeedForUser = new ListFeedForUserUseCase(
+    createInProcessSocialFeedFriendGraphReader(friendshipRepository),
+    socialFeedEventRepository,
+    createDrizzleSocialFeedUserDirectory(db),
+  )
+
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
-  const advanceLesson = new AdvanceLessonUseCase(lessonRepository, xpAwarder, streakTracker)
+  const advanceLesson = new AdvanceLessonUseCase(
+    lessonRepository,
+    xpAwarder,
+    streakTracker,
+    createInProcessSocialFeedRecorder(recordTrackCompleted),
+  )
+  const reviewLesson = new ReviewLessonUseCase(lessonRepository)
   const hasCompletedLessonToday = new HasCompletedLessonTodayUseCase(lessonRepository)
+  const hasReviewedOldLessonToday = new HasReviewedOldLessonTodayUseCase(lessonRepository)
 
   const missionRepository = createDrizzleMissionRepository(db)
   const listDailyMissions = new ListDailyMissionsUseCase(missionRepository)
   const completeMission = new CompleteMissionUseCase(
     missionRepository,
     createInProcessLessonCompletionChecker(hasCompletedLessonToday),
+    createInProcessLessonReviewChecker(hasReviewedOldLessonToday),
     createInProcessXpAwarderForMissions(awardXp),
     createInProcessStreakTrackerForMissions(touchStreak),
   )
 
-  const friendshipRepository = createDrizzleFriendshipRepository(db)
   const friendshipUserDirectory = createDrizzleFriendshipUserDirectory(db)
   const searchUsers = new SearchUsersUseCase(friendshipUserDirectory)
   const sendFriendRequest = new SendFriendRequestUseCase(
@@ -322,6 +354,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
+    createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
   )
 
   const updateProfile = new UpdateProfileUseCase(userRepository)
@@ -386,11 +419,14 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
-  app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
+  app.use(
+    createLessonsRouter({ getTrackMap, getLesson, advanceLesson, reviewLesson, authMiddleware }),
+  )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
+  app.use(createSocialFeedRouter({ listFeedForUser, authMiddleware }))
   app.use(
     createMarketRouter({
       listAssets,

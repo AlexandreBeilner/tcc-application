@@ -38,12 +38,29 @@ Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenario
 
 - **Autenticação:** Bearer token.
 - **Payload (JSON):** `step` — inteiro, `0`–`3`.
-- **Sucesso:** `200` → `{ currentStep, completed }`.
+- **Sucesso:** `200` → `{ currentStep, completed }`, mais `xpAwarded`, `leveledUp`, `streakMilestone`, `unlockedAchievements` **só quando esta chamada é quem conclui a lição pela primeira vez** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer outra resposta, inclusive reabrir uma lição já concluída):
+  - `xpAwarded` — sempre `LESSON_XP_REWARD` quando presente.
+  - `leveledUp` — `true` se esse crédito de xp cruzou o limiar do próximo nível.
+  - `streakMilestone` — `7`, `30` ou `null`, conforme o streak bateu um desses marcos com este toque (nunca `14` — não existe achievement seedado com esse valor).
+  - `unlockedAchievements` — `{ id, name, description }[]`, união das conquistas recém-desbloqueadas pelo crédito de xp e pelo toque de streak (nunca duplicado — uma conquista só entra na lista da primeira chamada que a satisfaz).
 - **Erros:**
   - `400` — `step` fora do intervalo `0`–`3`.
   - `401` — token ausente ou inválido/expirado.
   - `404` — lição inexistente, ou ainda bloqueada e nunca concluída antes (reabrir uma já concluída sempre é permitido, mesmo que a contagem global não a sustentasse mais desbloqueada).
-- **Regra:** `AdvanceLessonUseCase`. Grava `currentStep`; ao alcançar o step `3` pela primeira vez, marca `completedAt`, credita `LESSON_XP_REWARD` via `xpAwarder` (com o motivo `licao:<code>`) e chama `streakTracker.touch`.
+- **Regra:** `AdvanceLessonUseCase`. Grava `currentStep`; ao alcançar o step `3` pela primeira vez, marca `completedAt`, credita `LESSON_XP_REWARD` via `xpAwarder` (com o motivo `licao:<code>`), chama `streakTracker.touch` e, se essa conclusão for a última lição pendente da trilha (`completedTrackNumbers` antes/depois da escrita), grava um evento `track_completed` via `socialFeedRecorder` (backlog engajamento G.1 — ver `.docs/backend/socialfeed.md`). `xpAwarder`/`streakTracker` (`lessons/application/ports/`) devolvem o resultado real de `AwardXpUseCase`/`TouchStreakUseCase` desde a I.2 — antes descartado (`Promise<void>`), sem dado nenhum pro "teatro de recompensa" do frontend (`RewardReveal`, I.1) disparar em tempo real.
+
+---
+
+### `POST /lessons/:id/review`
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum.
+- **Sucesso:** `200` → `{ status: 'reviewed' }`. Idempotente — chamar de novo no mesmo dia só atualiza `lastReviewedAt` de novo, sem efeito colateral extra (nunca credita xp/streak).
+- **Erros:**
+  - `401` — token ausente ou inválido/expirado.
+  - `404` — lição inexistente.
+  - `422` — lição existe mas o usuário nunca a concluiu (`completedAt` nulo) — não há o que revisar.
+- **Regra:** `ReviewLessonUseCase` (backlog engajamento H.2). Só grava `user_lesson_progress.last_reviewed_at = now()` — não mexe em `currentStep`/`completedAt`. Frontend chama isso automaticamente ao reabrir uma lição já concluída (tela 3.2, "modo revisão" — reabrir já pula direto pro passo Desbloqueio, ver `POST /lessons/:id/progress` acima); o reabrir em si já é a "revisão voluntária" que sustenta a missão "revise uma lição antiga" (`.docs/backend/missions.md`) com verificação cruzada de verdade, sem exigir nenhuma ação extra do usuário. O backend, não o frontend, decide se a lição é antiga o bastante pra valer pra missão (`REVIEW_ELIGIBLE_AFTER_DAYS = 14`, `domain/lesson.isEligibleForReview`).
 
 ---
 
@@ -53,8 +70,14 @@ Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenario
 
 ## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
 
-`HasCompletedLessonTodayUseCase.execute({ userId })` (tarefa 5.4) — devolve `true` se `user_lesson_progress.completed_at` de qualquer lição do usuário cair no dia calendário de hoje (UTC, `domain/lesson.utcDateString`). Consumida em processo por `modules/missions` (a missão "complete uma lição da trilha" é a única com verificação cruzada real) via port própria (`LessonCompletionChecker`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.
+`HasCompletedLessonTodayUseCase.execute({ userId })` (tarefa 5.4) — devolve `true` se `user_lesson_progress.completed_at` de qualquer lição do usuário cair no dia calendário de hoje (UTC, `domain/lesson.utcDateString`). Consumida em processo por `modules/missions` (a missão "complete uma lição da trilha" é a única com essa coluna dedicada) via port própria (`LessonCompletionChecker`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.
+
+`HasReviewedOldLessonTodayUseCase.execute({ userId })` (backlog engajamento H.2) — devolve `true` se existir lição concluída há pelo menos `REVIEW_ELIGIBLE_AFTER_DAYS` (14 dias) cujo `last_reviewed_at` cai no dia calendário de hoje (UTC). Consumida em processo por `modules/missions` (missão "revise uma lição antiga", dispatchada por `key` — ver `.docs/backend/missions.md`) via port própria (`LessonReviewChecker`), mesmo padrão da anterior.
 
 `CountCompletedLessonsUseCase.execute({ userId })` (tarefa 5.2) — total de lições concluídas pelo usuário (`completedAt` preenchido), reaproveitando `listProgressForUser` sem método novo no repositório, mesmo padrão da anterior. Consumida em processo por `modules/achievements` (critério `lessons_completed`) dentro do adapter que agrega `ProgressSnapshotReader` — ver `.docs/backend/achievements.md`.
 
 `ExportLessonProgressUseCase.execute({ userId })` (tarefa 5.11, portabilidade RNF04) — progresso completo (`lessonId`/`currentStep`/`completedAt`) de todas as lições do usuário, reaproveitando `listProgressForUser` sem método novo. Consumida em processo por `modules/auth` via port própria (`LessonProgressExporter`).
+
+## Chamada de saída pra outro módulo (direção invertida das acima)
+
+`AdvanceLessonUseCase` (dentro de `POST /lessons/:id/progress`, ver acima) chama `modules/socialfeed` via port própria de `lessons` (`SocialFeedRecorder`, `application/ports/socialFeedRecorder.ts`), implementada em processo sobre `RecordTrackCompletedUseCase` (`infrastructure/socialfeed/inProcessSocialFeedRecorder.ts`) — mesmo mecanismo de composição das ports acima, só que aqui `lessons` é o consumidor, não o provedor. Ver `.docs/backend/socialfeed.md`.

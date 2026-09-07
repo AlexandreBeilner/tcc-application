@@ -7,7 +7,8 @@ export const glossary: Record<string, string> = {
     FGC: 'Fundo Garantidor de Créditos: cobre CDB, LCI e LCA em até R$250.000,00 por CPF e por instituição financeira, mesmo que o emissor quebre.',
     'marcação a mercado':
         'Recálculo diário do preço de um título prefixado pela taxa de mercado vigente, que pode ficar acima ou abaixo do que a taxa contratada renderia até aquele dia.',
-    deságio: 'Diferença entre o valor de face de um título prefixado e o preço menor que você paga por ele hoje; é essa diferença que forma a rentabilidade contratada.',
+    deságio:
+        'Diferença entre o valor de face de um título prefixado e o preço menor que você paga por ele hoje; é essa diferença que forma a rentabilidade contratada.',
     'taxa bruta equivalente':
         'Taxa que um produto tributado precisaria pagar pra empatar, líquido de IR, com um produto isento: taxa isenta dividida por (1 menos a alíquota).',
     EBIT: 'Lucro operacional da empresa, antes de descontar juros e impostos.',

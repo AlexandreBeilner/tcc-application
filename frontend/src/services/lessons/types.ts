@@ -44,8 +44,30 @@ export interface GetLessonResult {
     lesson: Lesson
 }
 
+// Recém-desbloqueada nesta chamada (`.docs/backend/lessons.md`).
+export interface UnlockedAchievement {
+    id: string
+    name: string
+    description: string | null
+}
+
 // `GET /lessons/:id` reaproveita o mesmo formato de `Lesson` (`.docs/backend/lessons.md`).
 export interface AdvanceLessonResult {
     currentStep: number
     completed: boolean
+    // Presentes só quando esta chamada é quem conclui a lição pela primeira
+    // vez (backlog engajamento I.2) — ausentes ao reabrir uma lição já
+    // concluída. `xpAwarded`/`leveledUp` consumidos pelo reveal de XP/nível
+    // (I.3, `features/shell/xpRewardReveal`); `streakMilestone`/
+    // `unlockedAchievements` ainda sem consumidor (I.4/I.5).
+    xpAwarded?: number
+    leveledUp?: boolean
+    streakMilestone?: number | null
+    unlockedAchievements?: UnlockedAchievement[]
+}
+
+// `POST /lessons/:id/review` (backlog engajamento H.2) — sustenta a missão
+// "revise uma lição antiga" com verificação cruzada de verdade.
+export interface ReviewLessonResult {
+    status: 'reviewed'
 }

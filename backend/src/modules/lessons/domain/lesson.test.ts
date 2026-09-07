@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLessonView,
+  completedTrackNumbers,
   countCompleted,
+  isEligibleForReview,
   isUnlocked,
   lessonStatus,
   unlockedKeysFor,
@@ -123,9 +125,60 @@ describe('countCompleted', () => {
   })
 })
 
+describe('completedTrackNumbers', () => {
+  it('trilha só entra no resultado se todas as lições dela estiverem concluídas', () => {
+    expect(
+      completedTrackNumbers([
+        { trackNumber: 0, completedAt: new Date() },
+        { trackNumber: 0, completedAt: new Date() },
+        { trackNumber: 1, completedAt: new Date() },
+        { trackNumber: 1, completedAt: null },
+      ]),
+    ).toEqual([0])
+  })
+
+  it('lista vazia → nenhuma trilha completa', () => {
+    expect(completedTrackNumbers([])).toEqual([])
+  })
+
+  it('nenhuma lição concluída → nenhuma trilha completa', () => {
+    expect(
+      completedTrackNumbers([
+        { trackNumber: 0, completedAt: null },
+        { trackNumber: 1, completedAt: null },
+      ]),
+    ).toEqual([])
+  })
+
+  it('várias trilhas completas voltam ordenadas por número', () => {
+    expect(
+      completedTrackNumbers([
+        { trackNumber: 3, completedAt: new Date() },
+        { trackNumber: 0, completedAt: new Date() },
+        { trackNumber: 1, completedAt: new Date() },
+        { trackNumber: 2, completedAt: null },
+      ]),
+    ).toEqual([0, 1, 3])
+  })
+})
+
 describe('utcDateString', () => {
   it('formata a data em YYYY-MM-DD, UTC', () => {
     expect(utcDateString(new Date('2026-08-24T23:59:59Z'))).toBe('2026-08-24')
     expect(utcDateString(new Date('2026-08-25T00:00:00Z'))).toBe('2026-08-25')
+  })
+})
+
+describe('isEligibleForReview', () => {
+  const now = new Date('2026-09-06T12:00:00Z')
+
+  it.each([
+    ['2026-08-23T12:00:00Z', true], // exatos 14 dias atrás
+    ['2026-08-23T12:00:01Z', false], // 1s a menos que 14 dias
+    ['2026-08-01T00:00:00Z', true], // bem mais antigo que 14 dias
+    ['2026-09-05T12:00:00Z', false], // 1 dia atrás
+    ['2026-09-06T12:00:00Z', false], // concluída agora mesmo
+  ])('completedAt=%s → %s', (completedAt, expected) => {
+    expect(isEligibleForReview(new Date(completedAt), now)).toBe(expected)
   })
 })

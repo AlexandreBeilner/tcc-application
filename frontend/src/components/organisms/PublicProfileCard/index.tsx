@@ -9,6 +9,7 @@ import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
 import { computePodiumSparkline, PODIUM_SPARKLINE_HEIGHT, PODIUM_SPARKLINE_WIDTH } from '../../../features/ranking/podiumSparkline'
 import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
+import { TrackTrophyCase } from '../TrackTrophyCase'
 import type { PublicProfileCardProps } from './types'
 import styles from './index.module.css'
 
@@ -183,6 +184,8 @@ export function PublicProfileCard({
                     </dd>
                 </div>
             </dl>
+
+            <TrackTrophyCase completedTracks={profile.completedTracks} />
 
             <div className={styles.achievements}>
                 <h2 className={styles.achievementsTitle}>Conquistas desbloqueadas</h2>

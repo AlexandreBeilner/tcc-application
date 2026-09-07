@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { todayUtc, touch } from './streak'
+import { streakMilestoneReached, todayUtc, touch } from './streak'
 
 describe('touch', () => {
   it('primeira atividade histórica: streak vira 1, longest acompanha', () => {
@@ -90,5 +90,38 @@ describe('todayUtc', () => {
   it('formata a data em YYYY-MM-DD, UTC', () => {
     expect(todayUtc(new Date('2026-08-24T23:59:59Z'))).toBe('2026-08-24')
     expect(todayUtc(new Date('2026-08-25T00:00:00Z'))).toBe('2026-08-25')
+  })
+})
+
+describe('streakMilestoneReached', () => {
+  it('bater exatamente 7 dias reporta o marco de 7', () => {
+    expect(streakMilestoneReached(6, 7)).toBe(7)
+  })
+
+  it('bater exatamente 30 dias reporta o marco de 30', () => {
+    expect(streakMilestoneReached(29, 30)).toBe(30)
+  })
+
+  it('dia intermediário (nem 7 nem 30) não reporta marco nenhum', () => {
+    expect(streakMilestoneReached(3, 4)).toBeNull()
+    expect(streakMilestoneReached(15, 16)).toBeNull()
+  })
+
+  it('streak já maduro (before/after ambos acima de um marco) não repete o marco', () => {
+    expect(streakMilestoneReached(10, 11)).toBeNull()
+    expect(streakMilestoneReached(35, 36)).toBeNull()
+  })
+
+  it('touch idempotente no mesmo dia (before === after) nunca reporta marco', () => {
+    expect(streakMilestoneReached(7, 7)).toBeNull()
+    expect(streakMilestoneReached(30, 30)).toBeNull()
+  })
+
+  it('reset (streak cai) não reporta marco', () => {
+    expect(streakMilestoneReached(10, 1)).toBeNull()
+  })
+
+  it('salto que cruza os dois marcos de uma vez reporta o primeiro (7), não o mais alto', () => {
+    expect(streakMilestoneReached(5, 31)).toBe(7)
   })
 })

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { LessonNotCompletedTodayError, MissionNotFoundError } from '../../domain/errors'
-import { todayUtc } from '../../domain/mission'
+import {
+  LessonNotCompletedTodayError,
+  MissionNotFoundError,
+  OldLessonNotReviewedTodayError,
+} from '../../domain/errors'
+import { REVIEW_OLD_LESSON_MISSION_KEY, todayUtc } from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
+import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
 import { createFakeXpAwarder } from '../../test/fakes/fakeXpAwarder'
@@ -27,14 +32,26 @@ const feedMission = {
   requiresLessonCompletion: false,
 }
 
-function build(hasCompletedLesson = false) {
-  const missionRepository = createFakeMissionRepository([lessonMission, feedMission])
+const reviewMission = {
+  id: 'm3',
+  key: REVIEW_OLD_LESSON_MISSION_KEY,
+  title: 'Revise uma lição concluída há mais de 14 dias',
+  description: null,
+  completionCriteria: 'Reabrir e revisar hoje uma lição antiga',
+  xpReward: 30,
+  requiresLessonCompletion: false,
+}
+
+function build(hasCompletedLesson = false, hasReviewedOldLesson = false) {
+  const missionRepository = createFakeMissionRepository([lessonMission, feedMission, reviewMission])
   const lessonCompletionChecker = createFakeLessonCompletionChecker(hasCompletedLesson)
+  const lessonReviewChecker = createFakeLessonReviewChecker(hasReviewedOldLesson)
   const xpAwarder = createFakeXpAwarder()
   const streakTracker = createFakeStreakTracker()
   const useCase = new CompleteMissionUseCase(
     missionRepository,
     lessonCompletionChecker,
+    lessonReviewChecker,
     xpAwarder,
     streakTracker,
   )
@@ -65,8 +82,40 @@ describe('CompleteMissionUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1', missionId: 'm1' })
 
-    expect(result).toEqual({ status: 'completed' })
+    expect(result).toEqual({
+      status: 'completed',
+      xpAwarded: 30,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
     expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m1' }])
+    expect(streakTracker.touchedUserIds).toEqual(['u1'])
+  })
+
+  it('missão "revise uma lição antiga" é rejeitada sem nenhuma revisão elegível hoje', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, false)
+
+    await expect(useCase.execute({ userId: 'u1', missionId: 'm3' })).rejects.toBeInstanceOf(
+      OldLessonNotReviewedTodayError,
+    )
+    expect(xpAwarder.awarded).toHaveLength(0)
+    expect(streakTracker.touchedUserIds).toHaveLength(0)
+  })
+
+  it('missão "revise uma lição antiga" completa quando o usuário revisou uma lição antiga hoje', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, true)
+
+    const result = await useCase.execute({ userId: 'u1', missionId: 'm3' })
+
+    expect(result).toEqual({
+      status: 'completed',
+      xpAwarded: 30,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
+    expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m3' }])
     expect(streakTracker.touchedUserIds).toEqual(['u1'])
   })
 
@@ -75,9 +124,44 @@ describe('CompleteMissionUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1', missionId: 'm2' })
 
-    expect(result).toEqual({ status: 'completed' })
+    expect(result).toEqual({
+      status: 'completed',
+      xpAwarded: 20,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
     expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 20, reason: 'missao:m2' }])
     expect(streakTracker.touchedUserIds).toEqual(['u1'])
+  })
+
+  it('propaga leveledUp, streakMilestone e a união das conquistas devolvidas por xpAwarder/streakTracker', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false)
+    xpAwarder.nextResult = {
+      xp: 150,
+      level: 2,
+      leveledUp: true,
+      unlockedAchievements: [{ id: 'a1', name: 'Primeiros Passos', description: null }],
+    }
+    streakTracker.nextResult = {
+      currentStreak: 7,
+      longestStreak: 7,
+      milestoneReached: 7,
+      unlockedAchievements: [{ id: 'a2', name: 'Primeira Semana', description: null }],
+    }
+
+    const result = await useCase.execute({ userId: 'u1', missionId: 'm2' })
+
+    expect(result).toEqual({
+      status: 'completed',
+      xpAwarded: 20,
+      leveledUp: true,
+      streakMilestone: 7,
+      unlockedAchievements: [
+        { id: 'a1', name: 'Primeiros Passos', description: null },
+        { id: 'a2', name: 'Primeira Semana', description: null },
+      ],
+    })
   })
 
   it('conclusão de missão já concluída é idempotente — não credita xp/streak de novo', async () => {

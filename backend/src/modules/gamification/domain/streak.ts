@@ -33,6 +33,21 @@ export function touch(current: StreakState, today: string): StreakState {
   return { currentStreak, longestStreak, lastQualifyingActivityDate: today }
 }
 
-export function todayUtc(now: Date): string {
-  return now.toISOString().slice(0, 10)
+// Implementação real em `shared/utcDate.ts` (compartilhada com
+// `lessons`/`missions`) — `todayUtc` é só o nome já em uso por este módulo.
+export { utcDateString as todayUtc } from '../../../shared/utcDate'
+
+// Marcos reais de `criteriaType: 'streak_days'` em `seedAchievements.ts` —
+// 7 (Primeira Semana) e 30 (Fiel). Não deriva do catálogo de conquistas em
+// runtime (acoplaria `domain/` a outro módulo só pra isso); se um marco
+// novo for seedado, este array precisa acompanhar manualmente.
+const STREAK_MILESTONES = [7, 30]
+
+// Pura: compara o streak antes/depois de um `touch()` e diz qual marco foi
+// cruzado nesta chamada, se algum — nunca reporta um marco já ultrapassado
+// em chamadas anteriores (`before < marco`), nem quando `touch()` foi
+// idempotente no mesmo dia (`before === after`, nenhum marco satisfaz
+// `before < marco` e `after >= marco` ao mesmo tempo pra esse caso).
+export function streakMilestoneReached(before: number, after: number): number | null {
+  return STREAK_MILESTONES.find((milestone) => before < milestone && after >= milestone) ?? null
 }

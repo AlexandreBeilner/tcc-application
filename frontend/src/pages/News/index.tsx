@@ -56,16 +56,18 @@ export function News() {
                 Eventos de mercado que afetam preço e/ou fundamentos dos ativos. Clique num evento pra ver o efeito completo.
             </p>
 
-            {// Conteúdo só-leitura e de baixo risco (tarefa 7.0.1) — nunca
-            // bloqueado de fato, só um aviso enquanto a chave `news_feed`
-            // ainda não foi desbloqueada.
-            newsFeedLocked && (
-                <p className={styles.lockNotice}>
-                    {unlockingLesson
-                        ? `Desbloqueia de verdade na lição ${unlockingLesson.code} (${unlockingLesson.title}), mas você já pode acompanhar o feed enquanto isso.`
-                        : 'Desbloqueia de verdade completando a lição correspondente na trilha, mas você já pode acompanhar o feed enquanto isso.'}
-                </p>
-            )}
+            {
+                // Conteúdo só-leitura e de baixo risco (tarefa 7.0.1) — nunca
+                // bloqueado de fato, só um aviso enquanto a chave `news_feed`
+                // ainda não foi desbloqueada.
+                newsFeedLocked && (
+                    <p className={styles.lockNotice}>
+                        {unlockingLesson
+                            ? `Desbloqueia de verdade na lição ${unlockingLesson.code} (${unlockingLesson.title}), mas você já pode acompanhar o feed enquanto isso.`
+                            : 'Desbloqueia de verdade completando a lição correspondente na trilha, mas você já pode acompanhar o feed enquanto isso.'}
+                    </p>
+                )
+            }
 
             {newsQuery.isLoading && <p className={styles.loading}>Carregando feed…</p>}
 

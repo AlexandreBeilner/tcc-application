@@ -1,3 +1,9 @@
+// Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
+// comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
+// lição hoje") pra manter o import existente em `application/`; implementação
+// real em `shared/utcDate.ts`, compartilhada com `gamification`/`missions`.
+export { utcDateString } from '../../../shared/utcDate'
+
 export const LESSON_UNLOCK_STEP = 3
 
 // Ilustrativo, sujeito à calibração da tarefa 8.1 — mesmo tratamento dado às
@@ -118,9 +124,32 @@ export function countCompleted(progress: Pick<LessonProgressSnapshot, 'completed
   return progress.filter((p) => p.completedAt !== null).length
 }
 
-// Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de
-// `gamification/domain/streak.ts` (5.3), usada aqui só pra comparar a data
-// de `completedAt` (missões, 5.4, precisam saber "concluiu uma lição hoje").
-export function utcDateString(date: Date): string {
-  return date.toISOString().slice(0, 10)
+// Missão "revise uma lição antiga" (backlog engajamento H.2) — só conta
+// lição concluída há pelo menos esse tanto de dias, pra distinguir revisão
+// real de simplesmente reabrir algo recém-concluído no mesmo dia.
+export const REVIEW_ELIGIBLE_AFTER_DAYS = 14
+
+export function isEligibleForReview(completedAt: Date, now: Date): boolean {
+  const msPerDay = 24 * 60 * 60 * 1000
+  return now.getTime() - completedAt.getTime() >= REVIEW_ELIGIBLE_AFTER_DAYS * msPerDay
+}
+
+// Trilha "completa" (backlog de engajamento F.2, sala de troféus do Perfil):
+// todas as lições dela concluídas, mesmo critério de `completedAt !== null`
+// usado por `countCompleted` acima. Uma trilha sem nenhuma lição na lista de
+// entrada nunca aparece no resultado (não existe "trilha completa vazia").
+export function completedTrackNumbers(
+  lessons: { trackNumber: number; completedAt: Date | null }[],
+): number[] {
+  const allCompletedByTrack = new Map<number, boolean>()
+  for (const lesson of lessons) {
+    const completed = lesson.completedAt !== null
+    const soFar = allCompletedByTrack.get(lesson.trackNumber) ?? true
+    allCompletedByTrack.set(lesson.trackNumber, soFar && completed)
+  }
+
+  return [...allCompletedByTrack.entries()]
+    .filter(([, allCompleted]) => allCompleted)
+    .map(([trackNumber]) => trackNumber)
+    .sort((a, b) => a - b)
 }

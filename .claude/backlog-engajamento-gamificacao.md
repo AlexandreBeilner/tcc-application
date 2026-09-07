@@ -434,7 +434,7 @@ pra mostrar trilhas concluídas no Perfil Público — não dá, essa rota só l
 campo novo em `GetPublicProfileUseCase`. Sem tocar em RNF09 (nenhum valor absoluto exposto —
 emblema mostra conquista, não patrimônio).
 
-### F.1 · Tokens de cor por trilha
+### F.1 · Tokens de cor por trilha ✅
 
 - **Descrição:** `identidade-visual-tokens.md` hoje não distingue trilhas por cor. Definir uma
   variação de tom por trilha (4 trilhas: 0 Fundamentos, 1 Renda Fixa, 2 Renda Variável, 3
@@ -447,8 +447,19 @@ emblema mostra conquista, não patrimônio).
   usar.
 - **Referências:** `identidade-visual-tokens.md` §1-2.
 - **Dependências:** nenhuma.
+- **Entregável:** seção 2.6 nova em `identidade-visual-tokens.md` com `--color-track-0`
+  (Fundamentos, hue de marca), `--color-track-1` (Renda Fixa, hue de ganho), `--color-track-2`
+  (Renda Variável, hue de perda) e `--color-track-3` (Estratégia, hue de gamificação) — token 0 e 2
+  reaproveitam o hex exato de `--color-brand-300`/`--color-loss-500` (mesmo padrão da 2.3a); token
+  1 e 3 usam um tom mais escuro que o `-500` de origem só no tema claro, porque o valor original
+  fica em ~3.45:1/~3.64:1 contra `--color-bg-surface` branco (abaixo do AA de texto normal 4.5:1).
+  Contraste de todos os 8 valores (4 tons × 2 temas) calculado via fórmula de luminância relativa
+  do WCAG 2 — pior caso 4.60:1 (track 2 dark), todos os outros ≥5.36:1. Fundo suave do emblema fica
+  pra quando F.3 precisar (reaproveita `-100` da família de origem, sem token novo). Custom
+  properties espelhadas em `frontend/src/index.css` (`:root` e `:root[data-theme='light']`). Sem UI
+  nova nesta tarefa (nenhum componente consome os tokens ainda — isso é F.3).
 
-### F.2 · Backend — trilhas concluídas no perfil público
+### F.2 · Backend — trilhas concluídas no perfil público ✅
 
 - **Descrição:** `GetPublicProfileUseCase` (`backend/src/modules/profile/application/useCases/getPublicProfile.ts`)
   hoje monta `PublicProfile` a partir de 3 leitores (`gamificationReader`, `achievementsReader`,
@@ -468,8 +479,25 @@ emblema mostra conquista, não patrimônio).
   incidental, mesmo cuidado já usado em `GetPublicProfileUseCase` hoje).
 - **Referências:** `.docs/backend/profile.md` (contrato de `GET /users/:id/profile`); RNF09.
 - **Dependências:** nenhuma.
+- **Entregável:** o adapter acabou sobre um caso de uso novo de `lessons`
+  (`GetCompletedTracksUseCase`), não direto sobre o repositório — mesmo padrão já usado por
+  `productUnlockReader`/`lessonCompletionChecker` (ambos também envolvem um caso de uso de
+  `lessons`, não a porta crua). Função pura `completedTrackNumbers` em `lessons/domain/lesson.ts`
+  (trilha só entra no resultado se **todas** as lições dela tiverem `completedAt` preenchido).
+  `GetCompletedTracksUseCase` existe porque `GET /lessons`/`GetTrackMapUseCase` só serve
+  `req.auth.userId` — o caso de uso novo aceita `userId` de entrada e nunca passa pela rota HTTP,
+  chamado só em processo pelo adapter `createInProcessTrackCompletionReader` (mesma direção de
+  `inProcessAchievementsReader`/`inProcessProductUnlockReader`). `PublicProfile.completedTracks`
+  populado via `Promise.all` junto dos outros 3 leitores. Testes: `lesson.test.ts` (função pura),
+  `getCompletedTracks.test.ts` (caso de uso, fake de `lessonRepository`), `getPublicProfile.test.ts`
+  + `profileRouter.test.ts` (fake novo `fakeTrackCompletionReader`, RNF09 sem alteração — teste
+  explícito de chaves proibidas continua passando). Validado ponta a ponta via `docker compose up`
+  real (não só teste): registrou 2 usuários, completou as 5 lições da Trilha 0 pra um deles via
+  `POST /lessons/:id/progress`, confirmou `completedTracks: [0]` tanto em `/me/profile` quanto em
+  `/users/:id/profile` visto pelo *outro* usuário (o caso que `GET /lessons` não cobria) e `[]` pro
+  usuário sem nenhuma lição concluída.
 
-### F.3 · Organism `TrackTrophyCase` no Perfil
+### F.3 · Organism `TrackTrophyCase` no Perfil ✅
 
 - **Descrição:** seção nova na tela de Perfil Público mostrando um emblema visual por trilha
   concluída (dado de F.2), na cor definida em F.1 — substitui/complementa a conquista genérica
@@ -484,6 +512,28 @@ emblema mostra conquista, não patrimônio).
   de estado vazio já usado em outras telas do app.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 4); RF20 (Perfil Público).
 - **Dependências:** F.1, F.2.
+- **Entregável:** `completedTracks: number[]` acrescentado a `PublicProfile`
+  (`services/profile/types.ts`) — decisão desta sessão: o campo entra dentro do objeto `profile`
+  já existente (espelhando 1:1 a resposta real do backend), não como prop irmã separada em
+  `PublicProfileCardProps` como o texto original da tarefa sugeria, porque toda a informação de
+  perfil já flui assim (`profile.achievements`, `profile.profitabilityPct` etc.) — introduzir uma
+  prop paralela seria duplicar o mesmo dado por dois caminhos. Nome/cor por trilha (currículo fixo
+  de 4 trilhas, spec 5.1) vivem como constante estática dentro do próprio
+  `TrackTrophyCase/index.tsx` — a API só devolve o número, nunca o nome. Sem estado "bloqueado" pra
+  desenhar (diferente de `AchievementsGrid`): só a trilha concluída existe; `completedTracks: []`
+  → componente retorna `null` (mesmo padrão de `ResumeLessonCard`/`TrackChart`/`GrowthChart`, nunca
+  um "nenhuma trilha concluída" vazio). Ícone `GraduationCap` (não `Trophy` — já é o ícone da aba
+  Classificação na `TabBar`, evitar reuso ambíguo). Cor/borda/ícone/texto do emblema usam um único
+  `color` inline (currentColor) em vez de repetir a variável 3x. Grid responsivo mobile-first: 2
+  colunas base, 4 a partir de 768px, 1 coluna abaixo de 380px (nome mais longo, "Estratégia e
+  Tributação") — mesmos breakpoints e mesma correção de nome longo já usados em
+  `AchievementsGrid`. Validado com `docker compose up` + dev server reais no Chrome: emblema azul
+  "Fundamentos" aparece na cor/fundo certos (`--color-track-0`/`--color-brand-100`, conferido via
+  `getComputedStyle`) tanto em dark quanto light, seção some por completo pro usuário sem trilha
+  concluída, grid confirmado em 4 colunas no desktop e regras de mídia de 768px/380px presentes no
+  CSS computado (mesmas do `AchievementsGrid` já testado). Testes: `index.test.tsx` novo
+  (`TrackTrophyCase`) + fixtures de `PublicProfile` atualizadas em
+  `PublicProfileCard`/`PerfilPublico`/`MeuPerfil`.
 
 ---
 
@@ -496,7 +546,7 @@ lista eventos). As duas tarefas abaixo criam essa peça do zero, não estendem a
 o ranking (RF17/RF19) continuam intocados: nenhum dado de rentabilidade ou patrimônio entra nesse
 evento.
 
-### G.1 · Backend — evento "amigo completou a trilha"
+### G.1 · Backend — evento "amigo completou a trilha" ✅ concluída
 
 - **Descrição:** quando `AdvanceLessonUseCase` completa a última lição de uma trilha (mesmo ponto
   que hoje já desbloqueia a trilha seguinte via `sortOrder`), gravar um evento de atividade
@@ -516,8 +566,27 @@ evento.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 5); RNF09; spec seção 8 (sistema
   de amigos).
 - **Dependências:** nenhuma.
+- **Entregável:** migration `0012_lame_tomas.sql` (tabela `social_feed_events`, `type` texto livre,
+  `track_number` nullable — ambos deliberados, pra caber tipo futuro sem migration nova). Módulo
+  novo `socialfeed` (DDD lite completo: `domain/socialFeedEvent.ts`,
+  `RecordTrackCompletedUseCase`/`ListFeedForUserUseCase`, ports `SocialFeedEventRepository`/
+  `FriendGraphReader`/`UserDirectory` com adapters Drizzle + `inProcessFriendGraphReader` sobre
+  `friendships`, router `GET /social-feed`). Achado de implementação: `AdvanceLessonUseCase` nunca
+  soube "esta é a última lição da trilha" antes desta tarefa (progressão é só via `sortOrder`
+  global) — resolvido comparando `completedTrackNumbers` (já existente, `domain/lesson.ts`, F.2)
+  antes/depois da escrita de `upsertProgress`, sem precisar de coluna nova nem de duplicar a regra
+  de "trilha completa". `lessons` consome `socialfeed` via port própria
+  (`application/ports/socialFeedRecorder.ts`), mesmo padrão de `xpAwarder`/`streakTracker` — direção
+  de dependência invertida do padrão usual (`missions`/`market`/`profile` consomem `lessons`; aqui é
+  `lessons` quem consome outro módulo), documentada em `.docs/backend/lessons.md` como "chamada de
+  saída". `.docs/backend/socialfeed.md` criado. Validado com `docker compose up` real de ponta a
+  ponta (não só teste): 2 usuários, amizade aceita, 5 lições da Trilha 0 completadas por um deles via
+  `POST /lessons/:id/progress` — exatamente 1 linha gravada em `social_feed_events` (confirmado via
+  `psql` direto, não só pela resposta HTTP), evento aparece em `GET /social-feed` do amigo aceito e
+  não aparece pro próprio usuário que completou (que não tem amigo completando nada). Suíte inteira
+  (485 testes, incluindo os novos deste módulo) e lint/build passando.
 
-### G.2 · Frontend — seção de atividade recente em `/amigos`
+### G.2 · Frontend — seção de atividade recente em `/amigos` ✅ concluída
 
 - **Descrição:** nova seção "Atividade recente" na própria tela `Amigos`
   (`frontend/src/pages/Amigos/index.tsx`, hub já existente — decisão fechada nesta revisão: não é
@@ -530,6 +599,21 @@ evento.
   numérico sensível visível.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 5).
 - **Dependências:** G.1.
+- **Entregável:** `services/socialfeed/` (`getSocialFeed`, espelha `.docs/backend/socialfeed.md`) +
+  `features/socialfeed/useFeedQuery/` (TanStack Query, mesmo padrão de `useAchievementsQuery`) +
+  organism novo `components/organisms/RecentActivityFeed/` (ícone `GraduationCap` — mesmo emblema de
+  `TrackTrophyCase`, F.3 —, nome/cor de trilha como dado estático local pela mesma razão de F.3: o
+  endpoint só devolve `trackNumber`). `Amigos/index.tsx` renderiza a seção logo abaixo do header, só
+  depois que `feedQuery.data` chega (sem flash de estado vazio antes da resposta real); estado vazio
+  e populado ficam dentro do próprio organism. Sem paginação — `GET /social-feed` já limita a 20
+  entradas. Mobile-first: linha da atividade quebra em 2 linhas (`<768px`, data desce pra segunda
+  linha com indentação alinhada ao texto) e vira 1 linha inteira a partir de 768px, mesmo padrão de
+  `FriendsList`. Validado com `docker compose up` real de ponta a ponta: 2 usuários novos, amizade
+  aceita, 5 lições da Trilha 0 completadas por um deles via `POST /lessons/:id/progress`, evento
+  aparece na seção do amigo aceito ("Bob G2 completou a Trilha 0: Fundamentos") em telas
+  desktop e mobile (390px, via iframe — a extensão de automação do browser não respeitou o resize da
+  janela nesta sessão), sem paginação/rentabilidade/patrimônio visível. Suíte inteira (585 testes,
+  incluindo os 3 novos deste organism/página) e lint/build/tsc passando.
 
 ---
 
@@ -562,7 +646,7 @@ aprendizado.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (tabela de extensão de catálogo).
 - **Dependências:** B.1, B.2 (dado de acerto/erro precisa existir e estar persistido).
 
-### H.2 · Missão diária — revisar lição antiga
+### H.2 · Missão diária — revisar lição antiga ✅
 
 - **Descrição:** nova entrada em `MISSION_SEEDS` (`backend/src/db/seedMissions.ts`): "Revise uma
   lição concluída há mais de 14 dias". Diferente das 2 missões de hoje que são
@@ -586,6 +670,22 @@ aprendizado.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 8); comentário em
   `seedMissions.ts` sobre as 2 missões atuais serem autorreportadas.
 - **Dependências:** nenhuma (usa só `completedAt`, já existente — independe de B).
+- **Entregável (sessão 2026-09-06):** achado na auditoria de implementação — "reabrir no modo
+  revisão" (tela 3.2) hoje pula direto pro passo Desbloqueio sem chamar nenhum endpoint (teste
+  existente confirma: `advanceLesson` não é chamado), então não havia nada persistido pra
+  verificar cruzado. Resolvido com uma ação de revisão própria, dissociada de
+  `AdvanceLessonUseCase`: migration `0011` adiciona `user_lesson_progress.last_reviewed_at`;
+  `ReviewLessonUseCase` (`POST /lessons/:id/review`, exige `completedAt` preenchido, nunca credita
+  xp/streak) grava esse campo; `HasReviewedOldLessonTodayUseCase` (`domain/lesson.
+  isEligibleForReview`, `REVIEW_ELIGIBLE_AFTER_DAYS = 14`) checa `lastReviewedAt` de hoje (UTC) +
+  `completedAt` mais antigo que 14 dias — mesmo padrão de porta-por-consumidor de H.1/5.4
+  (`LessonReviewChecker` em `modules/missions`, adapter em processo). Frontend chama
+  `POST /lessons/:id/review` automaticamente (via `useReviewLesson`, efeito em `Lesson/index.tsx`)
+  assim que uma lição já concluída é reaberta — nenhuma ação extra do usuário, "reabrir" já é
+  "revisar". `CompleteMissionUseCase` dispatcha a checagem por `mission.key ===
+  REVIEW_OLD_LESSON_MISSION_KEY` (não por uma 2ª coluna boolean como `requiresLessonCompletion` —
+  só esta missão precisa disso nesta fase). `listDailyMissions.ts` não mudou, conforme a nota de
+  elegibilidade já fechada acima (sempre visível, sem checagem prévia).
 
 ### H.3 · Missão diária — acertar 3 seguidas
 
@@ -624,7 +724,7 @@ e descartados de propósito no caminho:
 Por isso a Fase I abre com uma tarefa de encanamento de backend (I.2) antes das tarefas de
 frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
 
-### I.1 · Componente compartilhado de celebração
+### I.1 · Componente compartilhado de celebração ✅
 
 - **Descrição:** organism novo reutilizável (`frontend/src/components/organisms/RewardReveal/`) —
   modal/toast com a energia visual do "teatro de recompensa" (dourado, glow, animação de entrada),
@@ -642,8 +742,29 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   não sobrepostos.
 - **Referências:** `identidade-visual-padroes.md` §6 (teatro de recompensa, já documentado).
 - **Dependências:** nenhuma.
+- **Entregável:** organism `RewardReveal` (toast, não modal/bottom sheet — §7 reserva esses dois
+  padrões pra confirmação de ação importante, e um reveal automático não pode bloquear o fluxo em
+  que o usuário já está) + `features/shell/RewardRevealProvider` (fila + `useRewardReveal()`,
+  mesmo padrão de pasta/contexto de `AuthContext`: provider e hook exportados do mesmo
+  `index.tsx`). Mobile: full-width fixo no topo, abaixo de onde ficaria uma eventual status bar.
+  Tablet/desktop (≥768px): canto superior direito, largura fixa — nunca full-width esticado.
+  `key={current.id}` em cada `<RewardReveal>` força remontar a cada item novo da fila (reinicia
+  animação de entrada e timer de 4s). Achado de bug real nesta sessão (não só teórico do
+  StrictMode): o `id` do próximo item da fila **não pode** ser lido de dentro do updater funcional
+  de `setQueue` (`current => [...current, { ...content, id: nextIdRef.current }]`) — se `show()`
+  é chamado 2x seguidas no mesmo tick (exatamente o caso de uso da tarefa: XP + level-up juntos em
+  I.3), os dois updaters só rodam depois que ambos os incrementos do ref já aconteceram, e os dois
+  itens nascem com o mesmo id; com o mesmo `key`, o segundo reveal nunca remonta/aparece depois que
+  o primeiro fecha (fila implicitamente colapsa pra 1 item visível). Corrigido calculando `id`
+  fora do updater, capturado por closure por chamada. Validado via Chrome real (dev server, sem
+  precisar de `docker compose` — tarefa 100% frontend): dois reveals em sequência (mock via botão
+  de debug temporário na tela de Login, removido depois) aparecem um de cada vez, animação de
+  entrada + glow confirmados via `getAnimations()`/computed style (opacity 0→1 em ~150ms, glow
+  contínuo), e o trecho `@media (prefers-reduced-motion: reduce)` testado isoladamente (`animation:
+  none` força override) mantém o painel visível (opacity 1 por padrão, sem depender da animação pra
+  isso). Suíte inteira (591 testes, +8 novos) e lint/tsc/prettier passando.
 
-### I.2 · Backend — portas de gamificação devolvem o resultado real
+### I.2 · Backend — portas de gamificação devolvem o resultado real ✅
 
 - **Descrição:** trocar `Promise<void>` por um tipo de resultado real nas 3 portas, nos 2 módulos
   consumidores (`lessons` e `missions`, que hoje duplicam essas portas cada um com sua própria
@@ -673,8 +794,33 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   quebra (campos novos, não substituídos).
 - **Referências:** trecho de auditoria no topo desta fase (achado desta sessão).
 - **Dependências:** nenhuma (independente de A-H — pode ser feita a qualquer momento).
+- **Entregável:** achado de auditoria que corrige o texto original da tarefa — `AchievementChecker`
+  **não** é uma port própria de `lessons`/`missions` (o texto acima presumia isso, "achievementChecker
+  port... duplicado"); na realidade ela só existe dentro de `gamification` (`AwardXpUseCase`/
+  `TouchStreakUseCase` já a chamam internamente depois de creditar xp/tocar streak). `lessons`/
+  `missions` nunca a chamam direto — então `unlockedAchievements` chega até elas de carona no
+  retorno de `xpAwarder.award`/`streakTracker.touch`, não por uma 3ª port nova. `UnlockedAchievement
+  { id, name, description }` duplicado em 3 lugares (port de `gamification`, port de `lessons`, port
+  de `missions` — mesma decisão de portas independentes por módulo já usada em
+  `profile/application/ports/achievementsReader.ts`, que já duplicava um recorte parecido do mesmo
+  tipo real; nenhum import cruzado de módulo). `gamification/domain/streak.ts` ganhou
+  `streakMilestoneReached(before, after)` pura (marcos `[7, 30]` fixos, comparados contra
+  `seedAchievements.ts` — não 14) — idempotente por construção: `touch()` no mesmo dia devolve
+  `before === after`, então nenhum marco é reportado de novo sem precisar de caso especial.
+  `AdvanceLessonUseCase`/`CompleteMissionUseCase` concatenam `unlockedAchievements` de `xpAwarder` +
+  `streakTracker` sem dedup (seguro: uma conquista já desbloqueada pela 1ª chamada nunca volta a
+  aparecer na 2ª, `checkAndUnlockAchievements` já filtra por `unlockedIds`). Campos novos só
+  aparecem na resposta quando a chamada de fato credita xp pela 1ª vez — ausentes ao reabrir lição
+  já concluída e nas 2 rotas idempotentes de `CompleteMissionUseCase` (já concluída no dia / corrida
+  perdida pro `markCompleted` atômico), confirmado via `docker compose up` real (registro de
+  usuário, `POST /lessons/:id/progress` completando e reabrindo, `POST /missions/:id/complete`
+  completando e reenviando). Testes de use case/router existentes que usavam `toEqual` com o shape
+  antigo foram atualizados (adição de campo quebra igualdade exata, não é regressão) — nenhum campo
+  removido/retipado. `.docs/backend/lessons.md`/`missions.md` atualizados no mesmo commit. 497
+  testes, lint (`no-restricted-imports` sem violação — `UnlockedAchievement` nunca importado entre
+  módulos) e `tsc -b` passando.
 
-### I.3 · Conectar XP e level-up
+### I.3 · Conectar XP e level-up ✅
 
 - **Descrição:** com I.2 expondo o dado, disparar `RewardReveal` (I.1) quando a resposta de uma
   mutação (`useAdvanceLesson`, `useCompleteMission`) inclui `xpAwarded`, e um reveal mais forte
@@ -684,8 +830,29 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
 - **Critérios de aceite:** completar uma lição mostra o reveal de XP ganho; um ganho que cruza um
   limiar de nível mostra só o reveal de level-up.
 - **Dependências:** I.1, I.2.
+- **Entregável:** função pura nova `xpRevealContent` (`frontend/src/features/shell/xpRewardReveal/`)
+  decide o conteúdo do reveal a partir de `{ xpAwarded?, leveledUp? }` — `leveledUp` tem prioridade
+  e suprime o reveal de XP (`null` quando nem um nem outro está presente, ex: reabrir lição já
+  concluída ou reenvio idempotente de missão). Extraída como módulo próprio (não inline nos 2
+  hooks) porque a lógica é idêntica nos dois pontos de consumo e duplicá-la arriscaria divergir se
+  mudar num só. `useAdvanceLesson`/`useCompleteMissionMutation` chamam `useRewardReveal()` +
+  `xpRevealContent(data)` no `onSuccess`, depois de invalidar as queries de sempre — sem mudar
+  nenhum comportamento de cache já existente. `services/lessons/types.ts`/`missions/types.ts`
+  ganharam os 4 campos novos de `AdvanceLessonResult`/`CompleteMissionResult` (opcionais, espelhando
+  o contrato aditivo da I.2 por inteiro — `streakMilestone`/`unlockedAchievements` tipados aqui já
+  mesmo sem consumidor ainda, I.4/I.5 os usam). Ícones: `Sparkles` (XP), `TrendingUp` (level-up) —
+  nenhum dos dois reaproveitado de `Award`/`Flame`/`GraduationCap` já usados noutros lugares
+  (conquista/streak/trilha), evita ambiguidade visual. Achado ao rodar a suíte: `useRewardReveal()`
+  chamado incondicionalmente dentro dessas 2 mutations quebrou 4 testes de componente que as
+  consomem indiretamente (`Lesson`, `News`, `Calculator`, `FixedIncomeComparisonForm`) — nenhum
+  desses testes envolvia `<RewardRevealProvider>` até então; corrigido envolvendo o `render(...)` de
+  cada um. Validado com Chrome real (`docker compose up` + dev server, usuário registrado via API +
+  onboarding marcado via `PATCH /me` pra pular a tela): completar a 1ª lição (50 XP, nível 1→1)
+  mostrou o reveal "+50 XP"; completar a 2ª lição (50+50=100 XP, cruza o limiar do nível 2) mostrou
+  só "Você subiu de nível!", sem o reveal de XP empilhado por cima — os dois casos do critério de
+  aceite confirmados na prática, não só em teste. 595 testes (+7 novos), lint/tsc/prettier passando.
 
-### I.4 · Conectar unlock de conquista em tempo real
+### I.4 · Conectar unlock de conquista em tempo real ✅
 
 - **Descrição:** disparar `RewardReveal` com nome/descrição de cada item em
   `unlockedAchievements` (I.2), pra qualquer ação que dispare desbloqueio (lição, ordem de
@@ -697,8 +864,31 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   do lado do backend já existe — `checkAndUnlockAchievements` não desbloqueia de novo o que já
   está desbloqueado, logo `unlockedAchievements` vem vazio na 2ª chamada).
 - **Dependências:** I.1, I.2.
+- **Entregável:** achado de auditoria — hoje só `lessons`/`missions` chamam `xpAwarder`/
+  `streakTracker` (I.2), então só esses dois pontos produzem `unlockedAchievements`; `modules/market`
+  nunca chama `xpAwarder`/`AchievementChecker` (`grep` confirmado), então "ordem de mercado" citada
+  na descrição não é um 3º ponto de integração real ainda — quando/se `market` passar a premiar xp
+  por operação, ganha o reveal de graça pelo mesmo mecanismo, sem tarefa nova. Função pura nova
+  `achievementRevealContents` (`frontend/src/features/shell/achievementRewardReveal/`, mesmo padrão
+  de módulo-pasta de `xpRewardReveal`/I.3) mapeia `unlockedAchievements` pra um array de
+  `RewardRevealContent[]` (`[]` quando ausente/vazio, sem checagem de dedup — o array já vem vazio
+  do backend numa idempotente). Ícone `Award` — mesmo já usado pra conquista em `AchievementsGrid`/
+  `PublicProfileCard`, evita a ambiguidade que a I.3 já cuidou de evitar entre `Sparkles`/`TrendingUp`.
+  `useAdvanceLesson`/`useCompleteMissionMutation` (os mesmos 2 pontos de consumo da I.3) chamam
+  `achievementRevealContents(data).forEach(show)` logo depois do reveal de XP/nível no `onSuccess` —
+  cada item entra na fila já existente do `RewardRevealProvider` (I.1), então N conquistas na mesma
+  resposta aparecem uma de cada vez, sem código de fila novo. Validado com Chrome real (`docker
+  compose up` + dev server, 5 usuários registrados via API só pra este teste): completar a 10ª lição
+  de um usuário (limiar da conquista "Estudioso", `lessons_completed = 10`) via clique real na tela
+  fez `POST /lessons/:id/progress` devolver `unlockedAchievements: [{ name: "Estudioso", ... }]` e o
+  reveal de XP ("+50 XP") aparecer primeiro, auto-fechar aos 4s, e o reveal da conquista ("Estudioso" +
+  descrição) aparecer imediatamente em seguida por mais 4s — sequência confirmada por instrumentação
+  (`MutationObserver` + patch de `fetch` temporário no console) registrando os timestamps exatos
+  (XP montado em t, removido em t+4000ms, conquista montada no mesmo instante, removida em t+8000ms)
+  e por captura de tela durante a janela de exibição da conquista. 605 testes (+5 novos em
+  `achievementRewardReveal/index.test.tsx`), lint/build/tsc passando.
 
-### I.5 · Conectar marco de streak
+### I.5 · Conectar marco de streak ✅
 
 - **Descrição:** disparar `RewardReveal` comemorando o marco quando `streakMilestone` (I.2) vier
   preenchido (7 ou 30 — não 14, ver nota de I.2), distinto do reveal de XP genérico.
@@ -708,6 +898,28 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   intermediários não disparam nada.
 - **Referências:** `seedAchievements.ts` (marcos reais de `streak_days`: 7 e 30).
 - **Dependências:** I.1, I.2.
+- **Entregável:** função pura nova `streakRevealContent` (`frontend/src/features/shell/
+  streakRewardReveal/`, mesmo padrão de módulo-pasta de `xpRewardReveal`/`achievementRewardReveal`)
+  — `null` quando `streakMilestone` é `null`/ausente (dia sem marco batido, incluindo qualquer chamada
+  idempotente), título `"${milestone} dias seguidos!"` quando é `7` ou `30`. Ícone `Flame` (com
+  `fill="currentColor"`, mesmo tratamento visual já usado pra streak em `ProgressionSummary`/
+  `PublicProfileCard`/`DailyMissionsList`) — não reaproveita `Sparkles`/`TrendingUp`/`Award`, os 3
+  já reservados por XP/level-up/conquista (I.3/I.4). `useAdvanceLesson`/`useCompleteMissionMutation`
+  (mesmos 2 pontos de consumo de I.3/I.4) chamam `streakRevealContent(data)` por último, depois do
+  reveal de XP/nível e dos de conquista — cada reveal entra na fila já existente do
+  `RewardRevealProvider` (I.1), sem fila nova. Validado com Chrome real (`docker compose up` + dev
+  server): usuário de teste com `user_progression` ajustado direto no Postgres pra
+  `current_streak = 6`/`last_qualifying_activity_date` = ontem (UTC) — um toque de streak away do
+  marco de 7 dias, sem precisar simular 7 dias reais de uso. Completar 1 lição via clique real
+  disparou `POST /lessons/:id/progress` com `streakMilestone: 7` **e** `unlockedAchievements:
+  [{ name: "Primeira Semana", ... }]` na mesma resposta (o marco de streak também satisfaz um
+  achievement de `streak_days`, achado que confirma a I.4/I.5 não brigam — os 2 reveals convivem na
+  mesma fila). Sequência confirmada via a mesma instrumentação da I.4 (`MutationObserver` + patch
+  temporário de `window.fetch`, sem alterar código-fonte): XP montado em t, some em t+4000ms,
+  conquista "Primeira Semana" monta no mesmo instante, some em t+9000ms, reveal de streak
+  ("7 dias seguidos!") monta no mesmo instante, some em t+13000ms — os 3 reveals da mesma resposta
+  em fila, cada um por 4s, sem sobreposição nem perda. 604 testes (+4 novos em
+  `streakRewardReveal/index.test.tsx`), lint/build/tsc passando.
 
 ---
 

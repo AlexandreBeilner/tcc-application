@@ -1,0 +1,57 @@
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.title {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+.grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+}
+
+@media (min-width: 768px) {
+    .grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Nome mais longo da trilha ("Estratégia e Tributação") quebra em 2
+   colunas num phone bem estreito — mesma correção já usada em
+   `AchievementsGrid`. */
+@media (max-width: 380px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.trophy {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    /* Sem cor própria — herda `currentColor` da `color` de cada item
+       (definida inline, uma por trilha, tarefa F.1), então borda/ícone/
+       texto ficam sempre no mesmo tom sem repetir a variável 3x. */
+    border: 1px solid;
+    border-radius: var(--radius-md);
+    min-width: 0;
+}
+
+.name {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

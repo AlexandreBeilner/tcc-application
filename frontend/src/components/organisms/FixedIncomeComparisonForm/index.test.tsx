@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { RewardRevealProvider } from '../../../features/shell/RewardRevealProvider'
 import { getFixedIncomeTaxRate } from '../../../services/market'
 import { completeMission, listMissions } from '../../../services/missions'
 import { FixedIncomeComparisonForm } from '.'
@@ -14,7 +15,9 @@ function renderForm() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
         <QueryClientProvider client={queryClient}>
-            <FixedIncomeComparisonForm />
+            <RewardRevealProvider>
+                <FixedIncomeComparisonForm />
+            </RewardRevealProvider>
         </QueryClientProvider>,
     )
 }

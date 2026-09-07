@@ -1,0 +1,1 @@
+ALTER TABLE "user_lesson_progress" ADD COLUMN "last_reviewed_at" timestamp with time zone;

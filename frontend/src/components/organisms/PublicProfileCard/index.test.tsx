@@ -19,6 +19,7 @@ function profile(overrides: Partial<PublicProfile> = {}): PublicProfile {
         achievements: [],
         profitabilityPct: 5.2,
         window: 'week',
+        completedTracks: [],
         ...overrides,
     }
 }

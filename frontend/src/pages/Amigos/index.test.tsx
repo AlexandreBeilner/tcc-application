@@ -4,10 +4,12 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { listFriendRequests, listFriends } from '../../services/friendships'
+import { getSocialFeed } from '../../services/socialfeed'
 import { Amigos } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/friendships', () => ({ listFriends: vi.fn(), listFriendRequests: vi.fn() }))
+vi.mock('../../services/socialfeed', () => ({ getSocialFeed: vi.fn() }))
 
 function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -41,6 +43,7 @@ describe('Amigos (tela 8.1)', () => {
             logout: vi.fn(),
             setUser: vi.fn(),
         })
+        vi.mocked(getSocialFeed).mockResolvedValue({ events: [] })
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -82,5 +85,37 @@ describe('Amigos (tela 8.1)', () => {
         renderPage()
 
         expect(await screen.findByText('Não foi possível carregar seus amigos agora. Tente novamente em instantes.')).toBeInTheDocument()
+    })
+
+    it('mostra a atividade recente dos amigos (backlog engajamento G.2), estado vazio quando não há eventos', async () => {
+        vi.mocked(listFriends).mockResolvedValue({ friends: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 })
+        vi.mocked(listFriendRequests).mockResolvedValue(emptyRequests)
+
+        renderPage()
+
+        expect(await screen.findByText('Atividade recente')).toBeInTheDocument()
+        expect(screen.getByText('Quando seus amigos concluírem uma trilha, aparece por aqui.')).toBeInTheDocument()
+    })
+
+    it('lista eventos de trilha concluída de amigos na seção de atividade recente', async () => {
+        vi.mocked(listFriends).mockResolvedValue({ friends: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 })
+        vi.mocked(listFriendRequests).mockResolvedValue(emptyRequests)
+        vi.mocked(getSocialFeed).mockResolvedValue({
+            events: [
+                {
+                    type: 'track_completed',
+                    trackNumber: 1,
+                    occurredAt: '2026-02-10T00:00:00.000Z',
+                    userId: 'u2',
+                    username: 'bia',
+                    name: 'Bia Souza',
+                    avatarUrl: null,
+                },
+            ],
+        })
+
+        renderPage()
+
+        expect(await screen.findByText(/completou a Trilha 1: Renda Fixa/)).toBeInTheDocument()
     })
 })

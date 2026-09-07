@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthContext'
+import { RewardRevealProvider } from './features/shell/RewardRevealProvider'
 import { ThemeProvider } from './features/theme/ThemeContext'
 import { router } from './routes/router'
 
@@ -14,7 +15,9 @@ export function App() {
         <QueryClientProvider client={queryClient}>
             <ThemeProvider>
                 <AuthProvider>
-                    <RouterProvider router={router} />
+                    <RewardRevealProvider>
+                        <RouterProvider router={router} />
+                    </RewardRevealProvider>
                 </AuthProvider>
             </ThemeProvider>
         </QueryClientProvider>

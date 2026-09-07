@@ -6,7 +6,12 @@ export function createInProcessAchievementChecker(
 ): AchievementChecker {
   return {
     async checkAndUnlock(userId) {
-      await checkAndUnlockAchievements.execute({ userId })
+      const unlocked = await checkAndUnlockAchievements.execute({ userId })
+      return unlocked.map((achievement) => ({
+        id: achievement.id,
+        name: achievement.name,
+        description: achievement.description,
+      }))
     },
   }
 }

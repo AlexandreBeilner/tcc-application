@@ -37,6 +37,15 @@
     --color-feedback-error-500: #e5484d;
     --color-feedback-error-100: #2e1416;
 
+    /* Cor por trilha (tarefa F.1, tokens doc seção 2.6) — reaproveita hue de
+     marca/perda tal qual (`--color-brand-300`/`--color-loss-500`) e um tom
+     mais escuro de ganho/gamificação no tema claro, calculado pra manter AA
+     (o `-500` original fica abaixo de 4.5:1 contra fundo branco). */
+    --color-track-0: #93b4ff;
+    --color-track-1: #34c77b;
+    --color-track-2: #e5484d;
+    --color-track-3: #f0a202;
+
     /* Tipografia — fallback system-ui até a decisão de self-host/Google Fonts
      de Inter/Sora ser tomada (pendência explícita da 1.0, seção 7). */
     --font-family-body: 'Inter', system-ui, sans-serif;
@@ -118,6 +127,11 @@
 
     --color-feedback-error-500: #c4313a;
     --color-feedback-error-100: #fce9ea;
+
+    --color-track-0: #1b3f94;
+    --color-track-1: #167a4a;
+    --color-track-2: #c4313a;
+    --color-track-3: #8a5b08;
 
     /* Passos "light" da mesma paleta categórica, validados contra a
      superfície clara (`--color-bg-surface: #ffffff`) — checks rodados

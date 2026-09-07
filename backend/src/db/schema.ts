@@ -171,6 +171,12 @@ export const userLessonProgress = pgTable(
     currentStep: integer('current_step').notNull().default(0),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    // Revisão voluntária de lição já concluída (backlog engajamento H.2) —
+    // distinto de `completedAt` (nunca muda após a primeira conclusão):
+    // marca a última vez que o usuário reabriu e re-percorreu uma lição já
+    // concluída. Missão "revise uma lição antiga" checa isto contra hoje
+    // (UTC) + `completedAt` mais antigo que `REVIEW_ELIGIBLE_AFTER_DAYS`.
+    lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],
@@ -267,3 +273,19 @@ export const newsEventReads = pgTable(
   },
   (table) => [unique('news_event_reads_unique').on(table.userId, table.macroEventId)],
 )
+
+// Feed social de aprendizado (backlog engajamento G.1) — nunca carrega
+// patrimônio/rentabilidade (RNF09 continua intocada: só o fato "completou a
+// trilha X"). `type` é texto livre, não enum, pra caber um tipo de evento
+// futuro sem migration nova — só 'track_completed' é emitido por enquanto.
+// `trackNumber` nullable pelo mesmo motivo (um tipo futuro pode não ter
+// trilha associada).
+export const socialFeedEvents = pgTable('social_feed_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  type: text('type').notNull(),
+  trackNumber: integer('track_number'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+})

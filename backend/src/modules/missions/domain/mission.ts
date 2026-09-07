@@ -16,6 +16,12 @@ export interface Mission {
   requiresLessonCompletion: boolean
 }
 
+// Única missão com verificação cruzada dispatchada por `key` em vez de uma
+// coluna dedicada (H.2, ver comentário em `completeMission.ts`) — string
+// solta seria frágil contra erro de digitação nos dois lugares que
+// precisam bater (`seedMissions.ts` e o dispatch aqui).
+export const REVIEW_OLD_LESSON_MISSION_KEY = 'review_old_lesson'
+
 export interface MissionProgressSnapshot {
   status: MissionStatus
 }
@@ -31,9 +37,6 @@ export function buildMissionView(
   return { ...mission, status: progress?.status ?? 'pending' }
 }
 
-// Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de
-// `gamification/domain/streak.ts` (5.3) e `lessons/domain/lesson.ts`
-// (`utcDateString`, 5.4): sem conceito de fuso do usuário no modelo hoje.
-export function todayUtc(now: Date): string {
-  return now.toISOString().slice(0, 10)
-}
+// Implementação real em `shared/utcDate.ts` (compartilhada com
+// `gamification`/`lessons`) — `todayUtc` é só o nome já em uso por este módulo.
+export { utcDateString as todayUtc } from '../../../shared/utcDate'

@@ -2,7 +2,9 @@
 
 Módulo: `backend/src/modules/missions/`. Sobre `daily_missions`/`user_mission_progress` (já existentes desde 1.3; `daily_missions` ganhou a coluna `requires_lesson_completion` nesta tarefa). Segundo consumidor real das ports `xpAwarder`/`streakTracker` (o primeiro foi `lessons`, 5.6) — adapters em processo sobre `AwardXpUseCase`/`TouchStreakUseCase`, mesmo padrão de composição.
 
-Catálogo (3 missões da spec 6.1, seed em `npm run db:seed:missions`, idempotente por `key` desde a tarefa 6.6.4 — antes era por `title`): apenas **"Complete uma lição da trilha"** (`key: 'lesson_complete'`) tem verificação cruzada real, contra `modules/lessons` (`requires_lesson_completion = true`) — as outras duas (`calculator_compare`: "Compare dois produtos de renda fixa na calculadora"; `feed_read`: "Consulte o feed de notícias") aceitam o relato do cliente sem checagem no backend (calculadora e feed não têm estado persistido nesta fase).
+Catálogo (3 missões da spec 6.1 + 1 do backlog engajamento H.2, seed em `npm run db:seed:missions`, idempotente por `key` desde a tarefa 6.6.4 — antes era por `title`): duas têm verificação cruzada real contra `modules/lessons` — **"Complete uma lição da trilha"** (`key: 'lesson_complete'`, `requires_lesson_completion = true`) e **"Revise uma lição concluída há mais de 14 dias"** (`key: 'review_old_lesson'`, H.2) — as outras duas (`calculator_compare`: "Compare dois produtos de renda fixa na calculadora"; `feed_read`: "Consulte o feed de notícias") aceitam o relato do cliente sem checagem no backend (calculadora e feed não têm estado persistido nesta fase).
+
+**`review_old_lesson` é dispatchada por `key`, não por coluna própria** (diferente de `lesson_complete`): só esta missão precisa de uma segunda verificação cruzada nesta fase, então `CompleteMissionUseCase` compara `mission.key === REVIEW_OLD_LESSON_MISSION_KEY` (constante em `domain/mission.ts`) em vez de justificar uma coluna boolean a mais em `daily_missions` (ver `requiresLessonCompletion` abaixo). Nunca penaliza — some da lista de missões do dia se não for feita, sem tirar xp nem estragar streak (mesmo tratamento de qualquer missão pendente); sempre visível mesmo pra quem ainda não tem nenhuma lição elegível (>14 dias desde `completedAt`), mesmo padrão das outras 3 (`calculator_compare` já aparece antes da calculadora ser desbloqueada).
 
 **`key` (tarefa 6.6.4, migration `0007_add_mission_key.sql`):** slug estável (`varchar(50)`, único, ex: `'feed_read'`) — existe pra código cliente achar uma missão específica no catálogo sem depender de `title` (texto livre, pode mudar por correção/tradução) nem de `completionCriteria` (idêntico entre `calculator_compare`/`feed_read`: `"Reportado pelo cliente — sem verificação cruzada nesta fase"`). `frontend/src/features/news/useReportFeedMission` casa por `key === 'feed_read'`.
 
@@ -22,18 +24,26 @@ Catálogo (3 missões da spec 6.1, seed em `npm run db:seed:missions`, idempoten
 
 - **Autenticação:** Bearer token.
 - **Payload:** nenhum (conclusão é auto-reportada pelo cliente, exceto na verificação cruzada abaixo).
-- **Sucesso:** `200` → `{ status: 'completed' }`. Idempotente — reenviar depois de já concluída no dia não credita xp/streak de novo, apenas confirma o status. Idempotência garantida por transição atômica no banco (`markCompleted`, UPSERT com `ON CONFLICT ... DO UPDATE ... WHERE status = 'pending' RETURNING`), não só pela leitura prévia de `findProgress` — duas requisições concorrentes pra mesma missão/dia (rede duplicando a chamada, ou alguém automatizando chamadas deliberadas pro endpoint) só creditam xp uma vez: o Postgres serializa via lock de linha, e só quem de fato transiciona `pending → completed` credita.
+- **Sucesso:** `200` → `{ status: 'completed' }`, mais `xpAwarded`, `leveledUp`, `streakMilestone`, `unlockedAchievements` **só na chamada que de fato credita xp** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer resposta idempotente, ver abaixo):
+  - `xpAwarded` — sempre `mission.xpReward` quando presente.
+  - `leveledUp` — `true` se esse crédito cruzou o limiar do próximo nível.
+  - `streakMilestone` — `7`, `30` ou `null`.
+  - `unlockedAchievements` — `{ id, name, description }[]`, união das conquistas recém-desbloqueadas pelo crédito de xp e pelo toque de streak.
+
+  Idempotente — reenviar depois de já concluída no dia não credita xp/streak de novo, apenas confirma o status (resposta só com `{ status: 'completed' }`, sem os 4 campos acima). Idempotência garantida por transição atômica no banco (`markCompleted`, UPSERT com `ON CONFLICT ... DO UPDATE ... WHERE status = 'pending' RETURNING`), não só pela leitura prévia de `findProgress` — duas requisições concorrentes pra mesma missão/dia (rede duplicando a chamada, ou alguém automatizando chamadas deliberadas pro endpoint) só creditam xp uma vez: o Postgres serializa via lock de linha, e só quem de fato transiciona `pending → completed` credita (e só esse quem recebe os 4 campos de volta).
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
   - `404` — missão inexistente no catálogo.
-  - `422` — missão com `requiresLessonCompletion = true` sem nenhuma lição concluída no dia (UTC).
-- **Regra:** `CompleteMissionUseCase`. Marca `completed`, credita `xpReward` via `xpAwarder` (motivo `missao:<id>`) e chama `streakTracker.touch` — conclusão de **qualquer** missão já mantém o streak (decisão da 5.3, não exige todas as missões do dia).
+  - `422` — missão com `requiresLessonCompletion = true` sem nenhuma lição concluída no dia (UTC), **ou** missão `review_old_lesson` sem nenhuma lição antiga (>14 dias) revisada hoje.
+- **Regra:** `CompleteMissionUseCase`. Marca `completed`, credita `xpReward` via `xpAwarder` (motivo `missao:<id>`) e chama `streakTracker.touch` — conclusão de **qualquer** missão já mantém o streak (decisão da 5.3, não exige todas as missões do dia). `xpAwarder`/`streakTracker` (`missions/application/ports/`) devolvem o resultado real desde a I.2, mesma mudança de `.docs/backend/lessons.md`.
 
 ---
 
-## Verificação cruzada da missão de lição
+## Verificação cruzada das missões de lição
 
 `HasCompletedLessonTodayUseCase` (`modules/lessons`, consumida em processo via `LessonCompletionChecker`, port própria de `missions`) — verifica se `user_lesson_progress.completed_at` de qualquer lição do usuário cai no dia calendário de hoje (UTC), reaproveitando `listProgressForUser` (nenhum método novo no repositório de lições).
+
+`HasReviewedOldLessonTodayUseCase` (`modules/lessons`, H.2, consumida em processo via `LessonReviewChecker`, port própria de `missions`) — verifica se existe lição concluída há pelo menos 14 dias cujo `last_reviewed_at` cai no dia calendário de hoje (UTC). `last_reviewed_at` é gravado por `POST /lessons/:id/review` (`.docs/backend/lessons.md`), chamado automaticamente pelo frontend ao reabrir qualquer lição já concluída — a missão em si só decide se essa revisão "vale" (lição antiga o bastante), o reabrir não muda.
 
 ## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
 
