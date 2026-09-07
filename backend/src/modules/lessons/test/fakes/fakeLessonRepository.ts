@@ -1,4 +1,5 @@
 import type {
+  CompletionAttemptResult,
   LessonProgressRecord,
   LessonRepository,
   UpsertProgressInput,
@@ -35,6 +36,30 @@ export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): L
       }
       progressByUser.get(userId)?.set(lessonId, record)
       return record
+    },
+
+    async completeIfNotAlreadyCompleted(
+      userId: string,
+      lessonId: string,
+      currentStep: number,
+      completedAt: Date,
+    ): Promise<CompletionAttemptResult> {
+      if (!progressByUser.has(userId)) {
+        progressByUser.set(userId, new Map())
+      }
+      const userProgress = progressByUser.get(userId)
+      const existing = userProgress?.get(lessonId)
+      if (existing?.completedAt != null) {
+        return { record: existing, wonRace: false }
+      }
+      const record: LessonProgressRecord = {
+        lessonId,
+        currentStep,
+        completedAt,
+        lastReviewedAt: existing?.lastReviewedAt ?? null,
+      }
+      userProgress?.set(lessonId, record)
+      return { record, wonRace: true }
     },
 
     async markReviewed(userId: string, lessonId: string, reviewedAt: Date) {

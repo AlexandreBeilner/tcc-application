@@ -37,9 +37,6 @@ export function buildMissionView(
   return { ...mission, status: progress?.status ?? 'pending' }
 }
 
-// Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de
-// `gamification/domain/streak.ts` (5.3) e `lessons/domain/lesson.ts`
-// (`utcDateString`, 5.4): sem conceito de fuso do usuário no modelo hoje.
-export function todayUtc(now: Date): string {
-  return now.toISOString().slice(0, 10)
-}
+// Implementação real em `shared/utcDate.ts` (compartilhada com
+// `gamification`/`lessons`) — `todayUtc` é só o nome já em uso por este módulo.
+export { utcDateString as todayUtc } from '../../../shared/utcDate'

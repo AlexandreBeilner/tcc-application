@@ -1,3 +1,9 @@
+// Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
+// comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
+// lição hoje") pra manter o import existente em `application/`; implementação
+// real em `shared/utcDate.ts`, compartilhada com `gamification`/`missions`.
+export { utcDateString } from '../../../shared/utcDate'
+
 export const LESSON_UNLOCK_STEP = 3
 
 // Ilustrativo, sujeito à calibração da tarefa 8.1 — mesmo tratamento dado às
@@ -116,13 +122,6 @@ export function unlockedKeysFor(
 // 7.0.1) pra evitar que os dois critérios divirjam silenciosamente.
 export function countCompleted(progress: Pick<LessonProgressSnapshot, 'completedAt'>[]): number {
   return progress.filter((p) => p.completedAt !== null).length
-}
-
-// Dia calendário em UTC, formato YYYY-MM-DD — mesma convenção de
-// `gamification/domain/streak.ts` (5.3), usada aqui só pra comparar a data
-// de `completedAt` (missões, 5.4, precisam saber "concluiu uma lição hoje").
-export function utcDateString(date: Date): string {
-  return date.toISOString().slice(0, 10)
 }
 
 // Missão "revise uma lição antiga" (backlog engajamento H.2) — só conta

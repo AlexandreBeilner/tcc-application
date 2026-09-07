@@ -2,9 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { useRewardReveal } from '../../shell/RewardRevealProvider'
-import { xpRevealContent } from '../../shell/xpRewardReveal'
-import { achievementRevealContents } from '../../shell/achievementRewardReveal'
-import { streakRevealContent } from '../../shell/streakRewardReveal'
+import { dispatchRewardReveals } from '../../shell/dispatchRewardReveals'
 import { advanceLesson } from '../../../services/lessons'
 import type { AdvanceLessonResult } from '../../../services/lessons'
 import { LESSONS_QUERY_KEY } from '../useLessonsQuery'
@@ -29,11 +27,7 @@ export function useAdvanceLesson(lessonId: string): UseMutationResult<AdvanceLes
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: lessonQueryKey(lessonId) })
             queryClient.invalidateQueries({ queryKey: LESSONS_QUERY_KEY })
-            const reveal = xpRevealContent(data)
-            if (reveal) show(reveal)
-            achievementRevealContents(data).forEach(show)
-            const streakReveal = streakRevealContent(data)
-            if (streakReveal) show(streakReveal)
+            dispatchRewardReveals(show, data)
         },
     })
 }

@@ -153,6 +153,26 @@ describe('AdvanceLessonUseCase', () => {
     expect(streakTracker.touchedUserIds).toHaveLength(1)
   })
 
+  it('não credita xp/streak/trilha quando perde a corrida de conclusão pra outra requisição concorrente', async () => {
+    const { lessonRepository, xpAwarder, streakTracker, socialFeedRecorder, useCase } = build()
+    // Simula duas requisições concorrentes completando a mesma lição: o
+    // repositório (via `setWhere` real no Postgres) só deixa uma vencer —
+    // aqui forçamos o resultado "perdeu a corrida" que o repositório real
+    // devolveria pra segunda requisição.
+    const completedAt = new Date('2026-01-01T00:00:00Z')
+    lessonRepository.completeIfNotAlreadyCompleted = async (_userId, _lessonId, currentStep) => ({
+      record: { lessonId: 'l1', currentStep, completedAt, lastReviewedAt: null },
+      wonRace: false,
+    })
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'l1', step: LESSON_UNLOCK_STEP })
+
+    expect(result).toEqual({ currentStep: LESSON_UNLOCK_STEP, completed: true })
+    expect(xpAwarder.awarded).toEqual([])
+    expect(streakTracker.touchedUserIds).toEqual([])
+    expect(socialFeedRecorder.recorded).toEqual([])
+  })
+
   it('rejeita avançar lição ainda bloqueada', async () => {
     const { useCase } = build()
 

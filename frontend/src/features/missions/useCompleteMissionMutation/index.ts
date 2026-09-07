@@ -2,9 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { useRewardReveal } from '../../shell/RewardRevealProvider'
-import { xpRevealContent } from '../../shell/xpRewardReveal'
-import { achievementRevealContents } from '../../shell/achievementRewardReveal'
-import { streakRevealContent } from '../../shell/streakRewardReveal'
+import { dispatchRewardReveals } from '../../shell/dispatchRewardReveals'
 import { completeMission } from '../../../services/missions'
 import type { CompleteMissionResult } from '../../../services/missions'
 import { MISSIONS_QUERY_KEY } from '../useMissionsQuery'
@@ -29,11 +27,7 @@ export function useCompleteMissionMutation(): UseMutationResult<CompleteMissionR
         mutationFn: (missionId: string) => completeMission(token as string, missionId),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: MISSIONS_QUERY_KEY })
-            const reveal = xpRevealContent(data)
-            if (reveal) show(reveal)
-            achievementRevealContents(data).forEach(show)
-            const streakReveal = streakRevealContent(data)
-            if (streakReveal) show(streakReveal)
+            dispatchRewardReveals(show, data)
         },
     })
 }

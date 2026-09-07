@@ -56,50 +56,58 @@ export class AdvanceLessonUseCase {
       throw new LessonLockedError('lição bloqueada')
     }
 
-    // Idempotente: `completedAt` só é setado na primeira vez que o step de
-    // desbloqueio é alcançado — reenviar o mesmo step depois não credita
-    // xp/streak de novo (tela 3.2 "modo revisão").
-    const completingNow = !alreadyCompleted && input.step >= LESSON_UNLOCK_STEP
-    const completedAt = alreadyCompleted
-      ? (own?.completedAt ?? null)
-      : completingNow
-        ? new Date()
-        : null
+    const attemptingCompletion = !alreadyCompleted && input.step >= LESSON_UNLOCK_STEP
 
-    const saved = await this.lessonRepository.upsertProgress(input.userId, input.lessonId, {
-      currentStep: input.step,
-      completedAt,
-    })
-
-    if (completingNow) {
-      const xpResult = await this.xpAwarder.award(
-        input.userId,
-        LESSON_XP_REWARD,
-        `licao:${lesson.code}`,
-      )
-      const streakResult = await this.streakTracker.touch(input.userId)
-      await this.recordTrackCompletionIfJustFinished(
-        input.userId,
-        lesson.id,
-        lesson.trackNumber,
-        progress,
-        saved.completedAt,
-      )
-
-      return {
-        currentStep: saved.currentStep,
-        completed: saved.completedAt !== null,
-        xpAwarded: LESSON_XP_REWARD,
-        leveledUp: xpResult.leveledUp,
-        streakMilestone: streakResult.milestoneReached,
-        unlockedAchievements: [
-          ...xpResult.unlockedAchievements,
-          ...streakResult.unlockedAchievements,
-        ],
-      }
+    if (!attemptingCompletion) {
+      const saved = await this.lessonRepository.upsertProgress(input.userId, input.lessonId, {
+        currentStep: input.step,
+        completedAt: alreadyCompleted ? (own?.completedAt ?? null) : null,
+      })
+      return { currentStep: saved.currentStep, completed: saved.completedAt !== null }
     }
 
-    return { currentStep: saved.currentStep, completed: saved.completedAt !== null }
+    // Transição pra concluída é atômica no repositório (`wonRace`) — evita
+    // que duas requisições concorrentes (double-tap, duas abas) que ambas
+    // leram `alreadyCompleted = false` acima creditem xp/streak/trilha em
+    // dobro; só quem de fato transiciona `completedAt` de nulo pra setado
+    // segue pro crédito abaixo.
+    const completion = await this.lessonRepository.completeIfNotAlreadyCompleted(
+      input.userId,
+      input.lessonId,
+      input.step,
+      new Date(),
+    )
+
+    if (!completion.wonRace) {
+      return { currentStep: completion.record.currentStep, completed: true }
+    }
+
+    const saved = completion.record
+    const xpResult = await this.xpAwarder.award(
+      input.userId,
+      LESSON_XP_REWARD,
+      `licao:${lesson.code}`,
+    )
+    const streakResult = await this.streakTracker.touch(input.userId)
+    await this.recordTrackCompletionIfJustFinished(
+      input.userId,
+      lesson.id,
+      lesson.trackNumber,
+      progress,
+      saved.completedAt,
+    )
+
+    return {
+      currentStep: saved.currentStep,
+      completed: saved.completedAt !== null,
+      xpAwarded: LESSON_XP_REWARD,
+      leveledUp: xpResult.leveledUp,
+      streakMilestone: streakResult.milestoneReached,
+      unlockedAchievements: [
+        ...xpResult.unlockedAchievements,
+        ...streakResult.unlockedAchievements,
+      ],
+    }
   }
 
   // Detecta "esta conclusão terminou a trilha" comparando o conjunto de
@@ -115,18 +123,26 @@ export class AdvanceLessonUseCase {
     newCompletedAt: Date | null,
   ): Promise<void> {
     const allLessons = await this.lessonRepository.listAll()
-    const completedAtByLessonId = new Map(
+    const completedAtByLessonIdBefore = new Map(
       progressBeforeWrite.map((p) => [p.lessonId, p.completedAt]),
     )
-    const toTrackProgress = () =>
+    // Mapa "depois" derivado por cópia, não por mutar o "antes" in-place —
+    // as duas linhas de `completedTrackNumbers` abaixo ficam independentes
+    // uma da outra, sem depender da ordem em que são chamadas (achado da
+    // revisão da PR 17: a versão anterior mutava o mesmo Map entre as duas
+    // chamadas).
+    const completedAtByLessonIdAfter = new Map(completedAtByLessonIdBefore).set(
+      lessonId,
+      newCompletedAt,
+    )
+    const toTrackProgress = (completedAtByLessonId: Map<string, Date | null>) =>
       allLessons.map((l) => ({
         trackNumber: l.trackNumber,
         completedAt: completedAtByLessonId.get(l.id) ?? null,
       }))
 
-    const tracksBefore = new Set(completedTrackNumbers(toTrackProgress()))
-    completedAtByLessonId.set(lessonId, newCompletedAt)
-    const tracksAfter = completedTrackNumbers(toTrackProgress())
+    const tracksBefore = new Set(completedTrackNumbers(toTrackProgress(completedAtByLessonIdBefore)))
+    const tracksAfter = completedTrackNumbers(toTrackProgress(completedAtByLessonIdAfter))
 
     if (tracksAfter.includes(trackNumber) && !tracksBefore.has(trackNumber)) {
       await this.socialFeedRecorder.recordTrackCompleted(userId, trackNumber)

@@ -46,7 +46,7 @@ export function RecentActivityFeed({ events }: RecentActivityFeedProps) {
                             <GraduationCap className={styles.icon} size={16} strokeWidth={2} aria-hidden="true" />
                             <span className={styles.text}>
                                 <strong>{event.name}</strong> completou a Trilha {event.trackNumber}:{' '}
-                                {TRACK_NAMES[event.trackNumber as number]}
+                                {event.trackNumber !== null ? TRACK_NAMES[event.trackNumber] : ''}
                             </span>
                         </span>
                         <span className={styles.date}>{dateFormatter.format(new Date(event.occurredAt))}</span>

@@ -33,9 +33,9 @@ export function touch(current: StreakState, today: string): StreakState {
   return { currentStreak, longestStreak, lastQualifyingActivityDate: today }
 }
 
-export function todayUtc(now: Date): string {
-  return now.toISOString().slice(0, 10)
-}
+// Implementação real em `shared/utcDate.ts` (compartilhada com
+// `lessons`/`missions`) — `todayUtc` é só o nome já em uso por este módulo.
+export { utcDateString as todayUtc } from '../../../shared/utcDate'
 
 // Marcos reais de `criteriaType: 'streak_days'` em `seedAchievements.ts` —
 // 7 (Primeira Semana) e 30 (Fiel). Não deriva do catálogo de conquistas em
