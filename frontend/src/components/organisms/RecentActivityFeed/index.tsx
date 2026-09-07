@@ -1,0 +1,58 @@
+import { GraduationCap } from 'lucide-react'
+import { Avatar } from '../../atoms/Avatar'
+import type { RecentActivityFeedProps } from './types'
+import styles from './index.module.css'
+
+export type { RecentActivityFeedProps } from './types'
+
+// Currículo fixo de 4 trilhas (spec 5.1) — mesma decisão de `TrackTrophyCase`
+// (F.3): nome/cor vivem como dado estático no frontend porque `GET
+// /social-feed` só devolve `trackNumber` (`.docs/backend/socialfeed.md`),
+// nunca o nome — não é RNF09 (nada de patrimônio em jogo), é currículo que
+// não muda por usuário.
+const TRACK_NAMES: Record<number, string> = {
+    0: 'Fundamentos',
+    1: 'Renda Fixa',
+    2: 'Renda Variável',
+    3: 'Estratégia e Tributação',
+}
+
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+// Fase G (Impulso 5) — seção "Atividade recente" no hub `/amigos` (G.2),
+// dentro da tela existente, não uma rota nova. Tom de celebração: sem
+// nenhum número ao lado além da data (RNF09 estrutural — o evento de G.1 já
+// não carrega patrimônio/rentabilidade/XP, mas o reforço aqui é visual:
+// nada parecido com métrica). Sem paginação — `GET /social-feed` já limita
+// às últimas 20 entradas (`SOCIAL_FEED_LIMIT`), não existe "próxima página".
+export function RecentActivityFeed({ events }: RecentActivityFeedProps) {
+    if (events.length === 0) {
+        return (
+            <div className={styles.section}>
+                <h2 className={styles.title}>Atividade recente</h2>
+                <p className={styles.empty}>Quando seus amigos concluírem uma trilha, aparece por aqui.</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className={styles.section}>
+            <h2 className={styles.title}>Atividade recente</h2>
+            <ul className={styles.list}>
+                {events.map((event, index) => (
+                    <li key={`${event.userId}-${event.occurredAt}-${index}`} className={styles.row}>
+                        <Avatar username={event.username} avatarUrl={event.avatarUrl} />
+                        <span className={styles.body}>
+                            <GraduationCap className={styles.icon} size={16} strokeWidth={2} aria-hidden="true" />
+                            <span className={styles.text}>
+                                <strong>{event.name}</strong> completou a Trilha {event.trackNumber}:{' '}
+                                {TRACK_NAMES[event.trackNumber as number]}
+                            </span>
+                        </span>
+                        <span className={styles.date}>{dateFormatter.format(new Date(event.occurredAt))}</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    )
+}

@@ -586,7 +586,7 @@ evento.
   não aparece pro próprio usuário que completou (que não tem amigo completando nada). Suíte inteira
   (485 testes, incluindo os novos deste módulo) e lint/build passando.
 
-### G.2 · Frontend — seção de atividade recente em `/amigos`
+### G.2 · Frontend — seção de atividade recente em `/amigos` ✅ concluída
 
 - **Descrição:** nova seção "Atividade recente" na própria tela `Amigos`
   (`frontend/src/pages/Amigos/index.tsx`, hub já existente — decisão fechada nesta revisão: não é
@@ -599,6 +599,21 @@ evento.
   numérico sensível visível.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 5).
 - **Dependências:** G.1.
+- **Entregável:** `services/socialfeed/` (`getSocialFeed`, espelha `.docs/backend/socialfeed.md`) +
+  `features/socialfeed/useFeedQuery/` (TanStack Query, mesmo padrão de `useAchievementsQuery`) +
+  organism novo `components/organisms/RecentActivityFeed/` (ícone `GraduationCap` — mesmo emblema de
+  `TrackTrophyCase`, F.3 —, nome/cor de trilha como dado estático local pela mesma razão de F.3: o
+  endpoint só devolve `trackNumber`). `Amigos/index.tsx` renderiza a seção logo abaixo do header, só
+  depois que `feedQuery.data` chega (sem flash de estado vazio antes da resposta real); estado vazio
+  e populado ficam dentro do próprio organism. Sem paginação — `GET /social-feed` já limita a 20
+  entradas. Mobile-first: linha da atividade quebra em 2 linhas (`<768px`, data desce pra segunda
+  linha com indentação alinhada ao texto) e vira 1 linha inteira a partir de 768px, mesmo padrão de
+  `FriendsList`. Validado com `docker compose up` real de ponta a ponta: 2 usuários novos, amizade
+  aceita, 5 lições da Trilha 0 completadas por um deles via `POST /lessons/:id/progress`, evento
+  aparece na seção do amigo aceito ("Bob G2 completou a Trilha 0: Fundamentos") em telas
+  desktop e mobile (390px, via iframe — a extensão de automação do browser não respeitou o resize da
+  janela nesta sessão), sem paginação/rentabilidade/patrimônio visível. Suíte inteira (585 testes,
+  incluindo os 3 novos deste organism/página) e lint/build/tsc passando.
 
 ---
 

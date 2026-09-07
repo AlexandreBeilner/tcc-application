@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { Select } from '../../components/atoms/Select'
 import { FriendsList } from '../../components/organisms/FriendsList'
+import { RecentActivityFeed } from '../../components/organisms/RecentActivityFeed'
 import { useFriendRequestsQuery } from '../../features/friendships/useFriendRequestsQuery'
 import { useFriendsQuery } from '../../features/friendships/useFriendsQuery'
+import { useFeedQuery } from '../../features/socialfeed/useFeedQuery'
 import type { FriendsSortOrder } from '../../services/friendships'
 import styles from './index.module.css'
 
@@ -25,6 +27,7 @@ export function Amigos() {
     const [sort, setSort] = useState<FriendsSortOrder>('desc')
     const friendsQuery = useFriendsQuery(page, sort)
     const requestsQuery = useFriendRequestsQuery(1, 1, 'desc')
+    const feedQuery = useFeedQuery()
     const pendingCount = requestsQuery.data?.received.totalEntries ?? 0
 
     function changeSort(next: FriendsSortOrder) {
@@ -43,6 +46,8 @@ export function Amigos() {
                     <Button onClick={() => navigate('/amigos/buscar')}>Buscar amigos</Button>
                 </div>
             </div>
+
+            {feedQuery.data && <RecentActivityFeed events={feedQuery.data.events} />}
 
             {friendsQuery.isError && (
                 <p className={styles.error} role="alert">
