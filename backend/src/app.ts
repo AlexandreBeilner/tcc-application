@@ -42,7 +42,14 @@ import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTr
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
+import { createInProcessSocialFeedRecorder } from './modules/lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
+import { RecordTrackCompletedUseCase } from './modules/socialfeed/application/useCases/recordTrackCompleted'
+import { ListFeedForUserUseCase } from './modules/socialfeed/application/useCases/listFeedForUser'
+import { createInProcessFriendGraphReader as createInProcessSocialFeedFriendGraphReader } from './modules/socialfeed/infrastructure/friendships/inProcessFriendGraphReader'
+import { createDrizzleSocialFeedEventRepository } from './modules/socialfeed/infrastructure/persistence/drizzleSocialFeedEventRepository'
+import { createDrizzleUserDirectory as createDrizzleSocialFeedUserDirectory } from './modules/socialfeed/infrastructure/persistence/drizzleUserDirectory'
+import { createSocialFeedRouter } from './modules/socialfeed/interfaces/http/socialFeedRouter'
 import { ExportFriendshipsUseCase } from './modules/friendships/application/useCases/exportFriendships'
 import { ListFriendRequestsUseCase } from './modules/friendships/application/useCases/listFriendRequests'
 import { ListFriendsUseCase } from './modules/friendships/application/useCases/listFriends'
@@ -272,9 +279,27 @@ export function createApp(deps: AppDeps = {}): Express {
 
   const xpAwarder = createInProcessXpAwarder(awardXp)
   const streakTracker = createInProcessStreakTracker(touchStreak)
+
+  // `friendshipRepository` precisa existir aqui (antes do bloco de amizades
+  // abaixo) porque o feed social (G.1), consumido por `advanceLesson`
+  // logo a seguir, também lê o grafo de amigos.
+  const friendshipRepository = createDrizzleFriendshipRepository(db)
+  const socialFeedEventRepository = createDrizzleSocialFeedEventRepository(db)
+  const recordTrackCompleted = new RecordTrackCompletedUseCase(socialFeedEventRepository)
+  const listFeedForUser = new ListFeedForUserUseCase(
+    createInProcessSocialFeedFriendGraphReader(friendshipRepository),
+    socialFeedEventRepository,
+    createDrizzleSocialFeedUserDirectory(db),
+  )
+
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
-  const advanceLesson = new AdvanceLessonUseCase(lessonRepository, xpAwarder, streakTracker)
+  const advanceLesson = new AdvanceLessonUseCase(
+    lessonRepository,
+    xpAwarder,
+    streakTracker,
+    createInProcessSocialFeedRecorder(recordTrackCompleted),
+  )
   const reviewLesson = new ReviewLessonUseCase(lessonRepository)
   const hasCompletedLessonToday = new HasCompletedLessonTodayUseCase(lessonRepository)
   const hasReviewedOldLessonToday = new HasReviewedOldLessonTodayUseCase(lessonRepository)
@@ -289,7 +314,6 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessStreakTrackerForMissions(touchStreak),
   )
 
-  const friendshipRepository = createDrizzleFriendshipRepository(db)
   const friendshipUserDirectory = createDrizzleFriendshipUserDirectory(db)
   const searchUsers = new SearchUsersUseCase(friendshipUserDirectory)
   const sendFriendRequest = new SendFriendRequestUseCase(
@@ -402,6 +426,7 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
+  app.use(createSocialFeedRouter({ listFeedForUser, authMiddleware }))
   app.use(
     createMarketRouter({
       listAssets,

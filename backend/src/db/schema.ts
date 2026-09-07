@@ -273,3 +273,19 @@ export const newsEventReads = pgTable(
   },
   (table) => [unique('news_event_reads_unique').on(table.userId, table.macroEventId)],
 )
+
+// Feed social de aprendizado (backlog engajamento G.1) — nunca carrega
+// patrimônio/rentabilidade (RNF09 continua intocada: só o fato "completou a
+// trilha X"). `type` é texto livre, não enum, pra caber um tipo de evento
+// futuro sem migration nova — só 'track_completed' é emitido por enquanto.
+// `trackNumber` nullable pelo mesmo motivo (um tipo futuro pode não ter
+// trilha associada).
+export const socialFeedEvents = pgTable('social_feed_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  type: text('type').notNull(),
+  trackNumber: integer('track_number'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+})

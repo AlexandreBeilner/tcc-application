@@ -1,6 +1,7 @@
 import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
-import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD, isUnlocked } from '../../domain/lesson'
-import type { LessonRepository } from '../ports/lessonRepository'
+import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD, completedTrackNumbers, isUnlocked } from '../../domain/lesson'
+import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
+import type { SocialFeedRecorder } from '../ports/socialFeedRecorder'
 import type { StreakTracker } from '../ports/streakTracker'
 import type { XpAwarder } from '../ports/xpAwarder'
 
@@ -20,6 +21,7 @@ export class AdvanceLessonUseCase {
     private readonly lessonRepository: LessonRepository,
     private readonly xpAwarder: XpAwarder,
     private readonly streakTracker: StreakTracker,
+    private readonly socialFeedRecorder: SocialFeedRecorder,
   ) {}
 
   async execute(input: AdvanceLessonInput): Promise<AdvanceLessonResult> {
@@ -59,8 +61,38 @@ export class AdvanceLessonUseCase {
     if (completingNow) {
       await this.xpAwarder.award(input.userId, LESSON_XP_REWARD, `licao:${lesson.code}`)
       await this.streakTracker.touch(input.userId)
+      await this.recordTrackCompletionIfJustFinished(input.userId, lesson.id, lesson.trackNumber, progress, saved.completedAt)
     }
 
     return { currentStep: saved.currentStep, completed: saved.completedAt !== null }
+  }
+
+  // Detecta "esta conclusão terminou a trilha" comparando o conjunto de
+  // trilhas completas antes/depois desta escrita, em vez de checar "é a
+  // última lição por sortOrder" (evitaria carregar `listAll()` sempre, mas
+  // duplicaria a regra de "trilha completa" já em `completedTrackNumbers`,
+  // reaproveitada por `GetCompletedTracksUseCase`/F.2).
+  private async recordTrackCompletionIfJustFinished(
+    userId: string,
+    lessonId: string,
+    trackNumber: number,
+    progressBeforeWrite: LessonProgressRecord[],
+    newCompletedAt: Date | null,
+  ): Promise<void> {
+    const allLessons = await this.lessonRepository.listAll()
+    const completedAtByLessonId = new Map(progressBeforeWrite.map((p) => [p.lessonId, p.completedAt]))
+    const toTrackProgress = () =>
+      allLessons.map((l) => ({
+        trackNumber: l.trackNumber,
+        completedAt: completedAtByLessonId.get(l.id) ?? null,
+      }))
+
+    const tracksBefore = new Set(completedTrackNumbers(toTrackProgress()))
+    completedAtByLessonId.set(lessonId, newCompletedAt)
+    const tracksAfter = completedTrackNumbers(toTrackProgress())
+
+    if (tracksAfter.includes(trackNumber) && !tracksBefore.has(trackNumber)) {
+      await this.socialFeedRecorder.recordTrackCompleted(userId, trackNumber)
+    }
   }
 }

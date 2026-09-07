@@ -9,6 +9,7 @@ import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
 import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP } from '../../domain/lesson'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
+import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
 import { createFakeXpAwarder } from '../../test/fakes/fakeXpAwarder'
 import { createLessonsRouter } from './lessonsRouter'
@@ -41,6 +42,7 @@ function buildApp() {
     lessonRepository,
     createFakeXpAwarder(),
     createFakeStreakTracker(),
+    createFakeSocialFeedRecorder(),
   )
   const reviewLesson = new ReviewLessonUseCase(lessonRepository)
 

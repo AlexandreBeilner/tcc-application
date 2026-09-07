@@ -546,7 +546,7 @@ lista eventos). As duas tarefas abaixo criam essa peça do zero, não estendem a
 o ranking (RF17/RF19) continuam intocados: nenhum dado de rentabilidade ou patrimônio entra nesse
 evento.
 
-### G.1 · Backend — evento "amigo completou a trilha"
+### G.1 · Backend — evento "amigo completou a trilha" ✅ concluída
 
 - **Descrição:** quando `AdvanceLessonUseCase` completa a última lição de uma trilha (mesmo ponto
   que hoje já desbloqueia a trilha seguinte via `sortOrder`), gravar um evento de atividade
@@ -566,6 +566,25 @@ evento.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 5); RNF09; spec seção 8 (sistema
   de amigos).
 - **Dependências:** nenhuma.
+- **Entregável:** migration `0012_lame_tomas.sql` (tabela `social_feed_events`, `type` texto livre,
+  `track_number` nullable — ambos deliberados, pra caber tipo futuro sem migration nova). Módulo
+  novo `socialfeed` (DDD lite completo: `domain/socialFeedEvent.ts`,
+  `RecordTrackCompletedUseCase`/`ListFeedForUserUseCase`, ports `SocialFeedEventRepository`/
+  `FriendGraphReader`/`UserDirectory` com adapters Drizzle + `inProcessFriendGraphReader` sobre
+  `friendships`, router `GET /social-feed`). Achado de implementação: `AdvanceLessonUseCase` nunca
+  soube "esta é a última lição da trilha" antes desta tarefa (progressão é só via `sortOrder`
+  global) — resolvido comparando `completedTrackNumbers` (já existente, `domain/lesson.ts`, F.2)
+  antes/depois da escrita de `upsertProgress`, sem precisar de coluna nova nem de duplicar a regra
+  de "trilha completa". `lessons` consome `socialfeed` via port própria
+  (`application/ports/socialFeedRecorder.ts`), mesmo padrão de `xpAwarder`/`streakTracker` — direção
+  de dependência invertida do padrão usual (`missions`/`market`/`profile` consomem `lessons`; aqui é
+  `lessons` quem consome outro módulo), documentada em `.docs/backend/lessons.md` como "chamada de
+  saída". `.docs/backend/socialfeed.md` criado. Validado com `docker compose up` real de ponta a
+  ponta (não só teste): 2 usuários, amizade aceita, 5 lições da Trilha 0 completadas por um deles via
+  `POST /lessons/:id/progress` — exatamente 1 linha gravada em `social_feed_events` (confirmado via
+  `psql` direto, não só pela resposta HTTP), evento aparece em `GET /social-feed` do amigo aceito e
+  não aparece pro próprio usuário que completou (que não tem amigo completando nada). Suíte inteira
+  (485 testes, incluindo os novos deste módulo) e lint/build passando.
 
 ### G.2 · Frontend — seção de atividade recente em `/amigos`
 

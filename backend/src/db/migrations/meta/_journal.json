@@ -85,6 +85,13 @@
       "when": 1788743885333,
       "tag": "0011_add_lesson_last_reviewed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788747285868,
+      "tag": "0012_lame_tomas",
+      "breakpoints": true
     }
   ]
 }

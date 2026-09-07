@@ -43,7 +43,7 @@ Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenario
   - `400` — `step` fora do intervalo `0`–`3`.
   - `401` — token ausente ou inválido/expirado.
   - `404` — lição inexistente, ou ainda bloqueada e nunca concluída antes (reabrir uma já concluída sempre é permitido, mesmo que a contagem global não a sustentasse mais desbloqueada).
-- **Regra:** `AdvanceLessonUseCase`. Grava `currentStep`; ao alcançar o step `3` pela primeira vez, marca `completedAt`, credita `LESSON_XP_REWARD` via `xpAwarder` (com o motivo `licao:<code>`) e chama `streakTracker.touch`.
+- **Regra:** `AdvanceLessonUseCase`. Grava `currentStep`; ao alcançar o step `3` pela primeira vez, marca `completedAt`, credita `LESSON_XP_REWARD` via `xpAwarder` (com o motivo `licao:<code>`), chama `streakTracker.touch` e, se essa conclusão for a última lição pendente da trilha (`completedTrackNumbers` antes/depois da escrita), grava um evento `track_completed` via `socialFeedRecorder` (backlog engajamento G.1 — ver `.docs/backend/socialfeed.md`).
 
 ---
 
@@ -73,3 +73,7 @@ Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenario
 `CountCompletedLessonsUseCase.execute({ userId })` (tarefa 5.2) — total de lições concluídas pelo usuário (`completedAt` preenchido), reaproveitando `listProgressForUser` sem método novo no repositório, mesmo padrão da anterior. Consumida em processo por `modules/achievements` (critério `lessons_completed`) dentro do adapter que agrega `ProgressSnapshotReader` — ver `.docs/backend/achievements.md`.
 
 `ExportLessonProgressUseCase.execute({ userId })` (tarefa 5.11, portabilidade RNF04) — progresso completo (`lessonId`/`currentStep`/`completedAt`) de todas as lições do usuário, reaproveitando `listProgressForUser` sem método novo. Consumida em processo por `modules/auth` via port própria (`LessonProgressExporter`).
+
+## Chamada de saída pra outro módulo (direção invertida das acima)
+
+`AdvanceLessonUseCase` (dentro de `POST /lessons/:id/progress`, ver acima) chama `modules/socialfeed` via port própria de `lessons` (`SocialFeedRecorder`, `application/ports/socialFeedRecorder.ts`), implementada em processo sobre `RecordTrackCompletedUseCase` (`infrastructure/socialfeed/inProcessSocialFeedRecorder.ts`) — mesmo mecanismo de composição das ports acima, só que aqui `lessons` é o consumidor, não o provedor. Ver `.docs/backend/socialfeed.md`.
