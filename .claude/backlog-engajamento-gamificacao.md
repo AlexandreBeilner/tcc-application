@@ -852,7 +852,7 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   só "Você subiu de nível!", sem o reveal de XP empilhado por cima — os dois casos do critério de
   aceite confirmados na prática, não só em teste. 595 testes (+7 novos), lint/tsc/prettier passando.
 
-### I.4 · Conectar unlock de conquista em tempo real
+### I.4 · Conectar unlock de conquista em tempo real ✅
 
 - **Descrição:** disparar `RewardReveal` com nome/descrição de cada item em
   `unlockedAchievements` (I.2), pra qualquer ação que dispare desbloqueio (lição, ordem de
@@ -864,8 +864,31 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   do lado do backend já existe — `checkAndUnlockAchievements` não desbloqueia de novo o que já
   está desbloqueado, logo `unlockedAchievements` vem vazio na 2ª chamada).
 - **Dependências:** I.1, I.2.
+- **Entregável:** achado de auditoria — hoje só `lessons`/`missions` chamam `xpAwarder`/
+  `streakTracker` (I.2), então só esses dois pontos produzem `unlockedAchievements`; `modules/market`
+  nunca chama `xpAwarder`/`AchievementChecker` (`grep` confirmado), então "ordem de mercado" citada
+  na descrição não é um 3º ponto de integração real ainda — quando/se `market` passar a premiar xp
+  por operação, ganha o reveal de graça pelo mesmo mecanismo, sem tarefa nova. Função pura nova
+  `achievementRevealContents` (`frontend/src/features/shell/achievementRewardReveal/`, mesmo padrão
+  de módulo-pasta de `xpRewardReveal`/I.3) mapeia `unlockedAchievements` pra um array de
+  `RewardRevealContent[]` (`[]` quando ausente/vazio, sem checagem de dedup — o array já vem vazio
+  do backend numa idempotente). Ícone `Award` — mesmo já usado pra conquista em `AchievementsGrid`/
+  `PublicProfileCard`, evita a ambiguidade que a I.3 já cuidou de evitar entre `Sparkles`/`TrendingUp`.
+  `useAdvanceLesson`/`useCompleteMissionMutation` (os mesmos 2 pontos de consumo da I.3) chamam
+  `achievementRevealContents(data).forEach(show)` logo depois do reveal de XP/nível no `onSuccess` —
+  cada item entra na fila já existente do `RewardRevealProvider` (I.1), então N conquistas na mesma
+  resposta aparecem uma de cada vez, sem código de fila novo. Validado com Chrome real (`docker
+  compose up` + dev server, 5 usuários registrados via API só pra este teste): completar a 10ª lição
+  de um usuário (limiar da conquista "Estudioso", `lessons_completed = 10`) via clique real na tela
+  fez `POST /lessons/:id/progress` devolver `unlockedAchievements: [{ name: "Estudioso", ... }]` e o
+  reveal de XP ("+50 XP") aparecer primeiro, auto-fechar aos 4s, e o reveal da conquista ("Estudioso" +
+  descrição) aparecer imediatamente em seguida por mais 4s — sequência confirmada por instrumentação
+  (`MutationObserver` + patch de `fetch` temporário no console) registrando os timestamps exatos
+  (XP montado em t, removido em t+4000ms, conquista montada no mesmo instante, removida em t+8000ms)
+  e por captura de tela durante a janela de exibição da conquista. 605 testes (+5 novos em
+  `achievementRewardReveal/index.test.tsx`), lint/build/tsc passando.
 
-### I.5 · Conectar marco de streak
+### I.5 · Conectar marco de streak ✅
 
 - **Descrição:** disparar `RewardReveal` comemorando o marco quando `streakMilestone` (I.2) vier
   preenchido (7 ou 30 — não 14, ver nota de I.2), distinto do reveal de XP genérico.
@@ -875,6 +898,28 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   intermediários não disparam nada.
 - **Referências:** `seedAchievements.ts` (marcos reais de `streak_days`: 7 e 30).
 - **Dependências:** I.1, I.2.
+- **Entregável:** função pura nova `streakRevealContent` (`frontend/src/features/shell/
+  streakRewardReveal/`, mesmo padrão de módulo-pasta de `xpRewardReveal`/`achievementRewardReveal`)
+  — `null` quando `streakMilestone` é `null`/ausente (dia sem marco batido, incluindo qualquer chamada
+  idempotente), título `"${milestone} dias seguidos!"` quando é `7` ou `30`. Ícone `Flame` (com
+  `fill="currentColor"`, mesmo tratamento visual já usado pra streak em `ProgressionSummary`/
+  `PublicProfileCard`/`DailyMissionsList`) — não reaproveita `Sparkles`/`TrendingUp`/`Award`, os 3
+  já reservados por XP/level-up/conquista (I.3/I.4). `useAdvanceLesson`/`useCompleteMissionMutation`
+  (mesmos 2 pontos de consumo de I.3/I.4) chamam `streakRevealContent(data)` por último, depois do
+  reveal de XP/nível e dos de conquista — cada reveal entra na fila já existente do
+  `RewardRevealProvider` (I.1), sem fila nova. Validado com Chrome real (`docker compose up` + dev
+  server): usuário de teste com `user_progression` ajustado direto no Postgres pra
+  `current_streak = 6`/`last_qualifying_activity_date` = ontem (UTC) — um toque de streak away do
+  marco de 7 dias, sem precisar simular 7 dias reais de uso. Completar 1 lição via clique real
+  disparou `POST /lessons/:id/progress` com `streakMilestone: 7` **e** `unlockedAchievements:
+  [{ name: "Primeira Semana", ... }]` na mesma resposta (o marco de streak também satisfaz um
+  achievement de `streak_days`, achado que confirma a I.4/I.5 não brigam — os 2 reveals convivem na
+  mesma fila). Sequência confirmada via a mesma instrumentação da I.4 (`MutationObserver` + patch
+  temporário de `window.fetch`, sem alterar código-fonte): XP montado em t, some em t+4000ms,
+  conquista "Primeira Semana" monta no mesmo instante, some em t+9000ms, reveal de streak
+  ("7 dias seguidos!") monta no mesmo instante, some em t+13000ms — os 3 reveals da mesma resposta
+  em fila, cada um por 4s, sem sobreposição nem perda. 604 testes (+4 novos em
+  `streakRewardReveal/index.test.tsx`), lint/build/tsc passando.
 
 ---
 
