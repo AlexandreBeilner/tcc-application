@@ -5,7 +5,9 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { CompleteMissionUseCase } from '../../application/useCases/completeMission'
 import { ListDailyMissionsUseCase } from '../../application/useCases/listDailyMissions'
+import { REVIEW_OLD_LESSON_MISSION_KEY } from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
+import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
 import { createFakeXpAwarder } from '../../test/fakes/fakeXpAwarder'
@@ -30,9 +32,18 @@ const catalog = [
     xpReward: 20,
     requiresLessonCompletion: false,
   },
+  {
+    id: 'm3',
+    key: REVIEW_OLD_LESSON_MISSION_KEY,
+    title: 'Revise uma lição concluída há mais de 14 dias',
+    description: null,
+    completionCriteria: 'Reabrir e revisar hoje uma lição antiga',
+    xpReward: 30,
+    requiresLessonCompletion: false,
+  },
 ]
 
-function buildApp(hasCompletedLesson = false) {
+function buildApp(hasCompletedLesson = false, hasReviewedOldLesson = false) {
   const missionRepository = createFakeMissionRepository(catalog)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -40,6 +51,7 @@ function buildApp(hasCompletedLesson = false) {
   const completeMission = new CompleteMissionUseCase(
     missionRepository,
     createFakeLessonCompletionChecker(hasCompletedLesson),
+    createFakeLessonReviewChecker(hasReviewedOldLesson),
     createFakeXpAwarder(),
     createFakeStreakTracker(),
   )
@@ -70,7 +82,7 @@ describe('missions routes', () => {
     const res = await request(app).get('/missions').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.missions).toHaveLength(2)
+    expect(res.body.missions).toHaveLength(3)
   })
 
   it('POST /missions/:id/complete retorna 404 pra missão inexistente', async () => {
@@ -101,6 +113,29 @@ describe('missions routes', () => {
 
     const res = await request(app)
       .post('/missions/m1/complete')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ status: 'completed' })
+  })
+
+  it('POST /missions/:id/complete retorna 422 pra missão de revisão sem revisão elegível hoje', async () => {
+    const { app, tokenIssuer } = buildApp(false, false)
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .post('/missions/m3/complete')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(422)
+  })
+
+  it('POST /missions/:id/complete completa a missão de revisão quando revisou uma lição antiga hoje', async () => {
+    const { app, tokenIssuer } = buildApp(false, true)
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .post('/missions/m3/complete')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)

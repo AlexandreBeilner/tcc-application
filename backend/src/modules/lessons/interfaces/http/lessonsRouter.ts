@@ -1,16 +1,22 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
-import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
+import {
+  LessonLockedError,
+  LessonNotCompletedError,
+  LessonNotFoundError,
+} from '../../domain/errors'
 import type { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import type { GetLessonUseCase } from '../../application/useCases/getLesson'
 import type { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import type { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { advanceLessonBodySchema } from './schemas'
 
 export interface LessonsRouterDeps {
   getTrackMap: GetTrackMapUseCase
   getLesson: GetLessonUseCase
   advanceLesson: AdvanceLessonUseCase
+  reviewLesson: ReviewLessonUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -74,6 +80,31 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
     } catch (err) {
       if (err instanceof LessonNotFoundError || err instanceof LessonLockedError) {
         res.status(404).json({ error: err.message })
+        return
+      }
+      throw err
+    }
+  })
+
+  router.post('/lessons/:id/review', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    try {
+      await deps.reviewLesson.execute({
+        userId: req.auth.userId,
+        lessonId: req.params.id as string,
+      })
+      res.status(200).json({ status: 'reviewed' })
+    } catch (err) {
+      if (err instanceof LessonNotFoundError) {
+        res.status(404).json({ error: err.message })
+        return
+      }
+      if (err instanceof LessonNotCompletedError) {
+        res.status(422).json({ error: err.message })
         return
       }
       throw err

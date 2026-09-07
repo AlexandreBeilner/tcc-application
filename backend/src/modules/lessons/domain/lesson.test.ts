@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLessonView,
   countCompleted,
+  isEligibleForReview,
   isUnlocked,
   lessonStatus,
   unlockedKeysFor,
@@ -127,5 +128,19 @@ describe('utcDateString', () => {
   it('formata a data em YYYY-MM-DD, UTC', () => {
     expect(utcDateString(new Date('2026-08-24T23:59:59Z'))).toBe('2026-08-24')
     expect(utcDateString(new Date('2026-08-25T00:00:00Z'))).toBe('2026-08-25')
+  })
+})
+
+describe('isEligibleForReview', () => {
+  const now = new Date('2026-09-06T12:00:00Z')
+
+  it.each([
+    ['2026-08-23T12:00:00Z', true], // exatos 14 dias atrás
+    ['2026-08-23T12:00:01Z', false], // 1s a menos que 14 dias
+    ['2026-08-01T00:00:00Z', true], // bem mais antigo que 14 dias
+    ['2026-09-05T12:00:00Z', false], // 1 dia atrás
+    ['2026-09-06T12:00:00Z', false], // concluída agora mesmo
+  ])('completedAt=%s → %s', (completedAt, expected) => {
+    expect(isEligibleForReview(new Date(completedAt), now)).toBe(expected)
   })
 })

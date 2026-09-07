@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { REVIEW_OLD_LESSON_MISSION_KEY } from '../modules/missions/domain/mission'
 import { createDb } from './client'
 import { dailyMissions } from './schema'
 
@@ -39,6 +40,22 @@ const MISSION_SEEDS: MissionSeed[] = [
     title: 'Consulte o feed de notícias',
     description: 'Abra o feed de notícias de mercado e leia pelo menos um evento.',
     completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase',
+    xpReward: 30,
+    requiresLessonCompletion: false,
+  },
+  // Segunda missão com verificação cruzada real (backlog engajamento H.2),
+  // dispatchada por `key` em `CompleteMissionUseCase` em vez de uma coluna
+  // dedicada como `requiresLessonCompletion` acima — só esta precisa dela
+  // nesta fase. Nunca penaliza: some da lista de missões do dia se não for
+  // feita, sem tirar xp nem estragar streak (mesmo tratamento de qualquer
+  // missão não concluída). Sempre visível mesmo pra quem não tem nenhuma
+  // lição elegível ainda — mesmo padrão das 3 acima (ex: `calculator_compare`
+  // aparece antes da calculadora ser desbloqueada).
+  {
+    key: REVIEW_OLD_LESSON_MISSION_KEY,
+    title: 'Revise uma lição concluída há mais de 14 dias',
+    description: 'Reabra e revise uma lição da sua trilha que você concluiu há mais de 2 semanas.',
+    completionCriteria: 'Reabrir e revisar hoje uma lição com completedAt mais antigo que 14 dias',
     xpReward: 30,
     requiresLessonCompletion: false,
   },

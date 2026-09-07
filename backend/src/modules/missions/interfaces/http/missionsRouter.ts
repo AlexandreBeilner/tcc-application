@@ -1,6 +1,10 @@
 import { Router } from 'express'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
-import { LessonNotCompletedTodayError, MissionNotFoundError } from '../../domain/errors'
+import {
+  LessonNotCompletedTodayError,
+  MissionNotFoundError,
+  OldLessonNotReviewedTodayError,
+} from '../../domain/errors'
 import type { CompleteMissionUseCase } from '../../application/useCases/completeMission'
 import type { ListDailyMissionsUseCase } from '../../application/useCases/listDailyMissions'
 
@@ -43,7 +47,10 @@ export function createMissionsRouter(deps: MissionsRouterDeps): Router {
         res.status(404).json({ error: err.message })
         return
       }
-      if (err instanceof LessonNotCompletedTodayError) {
+      if (
+        err instanceof LessonNotCompletedTodayError ||
+        err instanceof OldLessonNotReviewedTodayError
+      ) {
         res.status(422).json({ error: err.message })
         return
       }

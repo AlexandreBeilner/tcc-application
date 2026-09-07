@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { lessons, userLessonProgress } from '../../../../db/schema'
 import type {
@@ -29,7 +29,12 @@ function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
 }
 
 function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonProgressRecord {
-  return { lessonId: row.lessonId, currentStep: row.currentStep, completedAt: row.completedAt }
+  return {
+    lessonId: row.lessonId,
+    currentStep: row.currentStep,
+    completedAt: row.completedAt,
+    lastReviewedAt: row.lastReviewedAt,
+  }
 }
 
 export function createDrizzleLessonRepository(db: Database): LessonRepository {
@@ -71,6 +76,15 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
         })
         .returning()
       return toProgressRecord(row)
+    },
+
+    async markReviewed(userId: string, lessonId: string, reviewedAt: Date) {
+      await db
+        .update(userLessonProgress)
+        .set({ lastReviewedAt: reviewedAt, updatedAt: reviewedAt })
+        .where(
+          and(eq(userLessonProgress.userId, userId), eq(userLessonProgress.lessonId, lessonId)),
+        )
     },
   }
 }

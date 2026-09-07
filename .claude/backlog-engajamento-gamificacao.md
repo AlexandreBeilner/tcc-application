@@ -562,7 +562,7 @@ aprendizado.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (tabela de extensão de catálogo).
 - **Dependências:** B.1, B.2 (dado de acerto/erro precisa existir e estar persistido).
 
-### H.2 · Missão diária — revisar lição antiga
+### H.2 · Missão diária — revisar lição antiga ✅
 
 - **Descrição:** nova entrada em `MISSION_SEEDS` (`backend/src/db/seedMissions.ts`): "Revise uma
   lição concluída há mais de 14 dias". Diferente das 2 missões de hoje que são
@@ -586,6 +586,22 @@ aprendizado.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 8); comentário em
   `seedMissions.ts` sobre as 2 missões atuais serem autorreportadas.
 - **Dependências:** nenhuma (usa só `completedAt`, já existente — independe de B).
+- **Entregável (sessão 2026-09-06):** achado na auditoria de implementação — "reabrir no modo
+  revisão" (tela 3.2) hoje pula direto pro passo Desbloqueio sem chamar nenhum endpoint (teste
+  existente confirma: `advanceLesson` não é chamado), então não havia nada persistido pra
+  verificar cruzado. Resolvido com uma ação de revisão própria, dissociada de
+  `AdvanceLessonUseCase`: migration `0011` adiciona `user_lesson_progress.last_reviewed_at`;
+  `ReviewLessonUseCase` (`POST /lessons/:id/review`, exige `completedAt` preenchido, nunca credita
+  xp/streak) grava esse campo; `HasReviewedOldLessonTodayUseCase` (`domain/lesson.
+  isEligibleForReview`, `REVIEW_ELIGIBLE_AFTER_DAYS = 14`) checa `lastReviewedAt` de hoje (UTC) +
+  `completedAt` mais antigo que 14 dias — mesmo padrão de porta-por-consumidor de H.1/5.4
+  (`LessonReviewChecker` em `modules/missions`, adapter em processo). Frontend chama
+  `POST /lessons/:id/review` automaticamente (via `useReviewLesson`, efeito em `Lesson/index.tsx`)
+  assim que uma lição já concluída é reaberta — nenhuma ação extra do usuário, "reabrir" já é
+  "revisar". `CompleteMissionUseCase` dispatcha a checagem por `mission.key ===
+  REVIEW_OLD_LESSON_MISSION_KEY` (não por uma 2ª coluna boolean como `requiresLessonCompletion` —
+  só esta missão precisa disso nesta fase). `listDailyMissions.ts` não mudou, conforme a nota de
+  elegibilidade já fechada acima (sempre visível, sem checagem prévia).
 
 ### H.3 · Missão diária — acertar 3 seguidas
 

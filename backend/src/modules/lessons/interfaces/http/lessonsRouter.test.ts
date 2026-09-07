@@ -6,6 +6,7 @@ import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import { GetLessonUseCase } from '../../application/useCases/getLesson'
 import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP } from '../../domain/lesson'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -41,11 +42,14 @@ function buildApp() {
     createFakeXpAwarder(),
     createFakeStreakTracker(),
   )
+  const reviewLesson = new ReviewLessonUseCase(lessonRepository)
 
   const app = express()
   app.use(express.json())
-  app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
-  return { app, tokenIssuer }
+  app.use(
+    createLessonsRouter({ getTrackMap, getLesson, advanceLesson, reviewLesson, authMiddleware }),
+  )
+  return { app, tokenIssuer, lessonRepository }
 }
 
 function authHeader(tokenIssuer: ReturnType<typeof createFakeTokenIssuer>) {
@@ -135,5 +139,42 @@ describe('lessons routes', () => {
       .send({ step: 0 })
 
     expect(res.status).toBe(404)
+  })
+
+  it('POST /lessons/:id/review retorna 422 pra lição ainda não concluída', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app)
+      .post('/lessons/l1/review')
+      .set('Authorization', authHeader(tokenIssuer))
+
+    expect(res.status).toBe(422)
+  })
+
+  it('POST /lessons/:id/review retorna 404 pra id inexistente', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app)
+      .post('/lessons/nope/review')
+      .set('Authorization', authHeader(tokenIssuer))
+
+    expect(res.status).toBe(404)
+  })
+
+  it('POST /lessons/:id/review marca a lição concluída como revisada', async () => {
+    const { app, tokenIssuer, lessonRepository } = buildApp()
+    await lessonRepository.upsertProgress('u1', 'l1', {
+      currentStep: LESSON_UNLOCK_STEP,
+      completedAt: new Date('2026-08-01T12:00:00Z'),
+    })
+
+    const res = await request(app)
+      .post('/lessons/l1/review')
+      .set('Authorization', authHeader(tokenIssuer))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ status: 'reviewed' })
+    const [progress] = await lessonRepository.listProgressForUser('u1')
+    expect(progress.lastReviewedAt).not.toBeNull()
   })
 })

@@ -47,13 +47,28 @@ Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenario
 
 ---
 
+### `POST /lessons/:id/review`
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum.
+- **Sucesso:** `200` → `{ status: 'reviewed' }`. Idempotente — chamar de novo no mesmo dia só atualiza `lastReviewedAt` de novo, sem efeito colateral extra (nunca credita xp/streak).
+- **Erros:**
+  - `401` — token ausente ou inválido/expirado.
+  - `404` — lição inexistente.
+  - `422` — lição existe mas o usuário nunca a concluiu (`completedAt` nulo) — não há o que revisar.
+- **Regra:** `ReviewLessonUseCase` (backlog engajamento H.2). Só grava `user_lesson_progress.last_reviewed_at = now()` — não mexe em `currentStep`/`completedAt`. Frontend chama isso automaticamente ao reabrir uma lição já concluída (tela 3.2, "modo revisão" — reabrir já pula direto pro passo Desbloqueio, ver `POST /lessons/:id/progress` acima); o reabrir em si já é a "revisão voluntária" que sustenta a missão "revise uma lição antiga" (`.docs/backend/missions.md`) com verificação cruzada de verdade, sem exigir nenhuma ação extra do usuário. O backend, não o frontend, decide se a lição é antiga o bastante pra valer pra missão (`REVIEW_ELIGIBLE_AFTER_DAYS = 14`, `domain/lesson.isEligibleForReview`).
+
+---
+
 ## Seed mínimo (não é o currículo completo)
 
 `npm run db:seed:lessons` (idempotente, `ON CONFLICT (code) DO NOTHING`) — 7 lições reais da spec seção 5.1: `0.1`–`0.5` (Trilha 0: Fundamentos, completa) + `1.1`/`1.2` (Trilha 1: Renda Fixa, só as duas primeiras). `0.1`–`1.1` ainda ficam com `scenarioText`/`microDecisionPrompt`/`revelationText` vazios (autoria real é a tarefa 7.1); `1.2` (Tesouro Selic) é exceção deliberada da tarefa 7.0.2 — conteúdo pedagógico completo (`microDecisionType = 'reflection'`, `unlocksKeys = ['asset:tesouro_selic']`, `unlocksAssetTicker = 'LFT2029'`), escrito pra provar o pipeline schema→API→tela ponta a ponta (inclusive o botão "Comprar agora") antes da 7.1.2 autorar `1.3`–`1.9` em massa. Suficiente pra exercitar a cadeia de desbloqueio entre trilhas ponta a ponta. Autoria das 33 lições do currículo completo é escopo da semana 7.
 
 ## Verificação cruzada pra outros módulos (sem endpoint HTTP próprio)
 
-`HasCompletedLessonTodayUseCase.execute({ userId })` (tarefa 5.4) — devolve `true` se `user_lesson_progress.completed_at` de qualquer lição do usuário cair no dia calendário de hoje (UTC, `domain/lesson.utcDateString`). Consumida em processo por `modules/missions` (a missão "complete uma lição da trilha" é a única com verificação cruzada real) via port própria (`LessonCompletionChecker`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.
+`HasCompletedLessonTodayUseCase.execute({ userId })` (tarefa 5.4) — devolve `true` se `user_lesson_progress.completed_at` de qualquer lição do usuário cair no dia calendário de hoje (UTC, `domain/lesson.utcDateString`). Consumida em processo por `modules/missions` (a missão "complete uma lição da trilha" é a única com essa coluna dedicada) via port própria (`LessonCompletionChecker`), mesmo padrão de composição de `xpAwarder`/`streakTracker`.
+
+`HasReviewedOldLessonTodayUseCase.execute({ userId })` (backlog engajamento H.2) — devolve `true` se existir lição concluída há pelo menos `REVIEW_ELIGIBLE_AFTER_DAYS` (14 dias) cujo `last_reviewed_at` cai no dia calendário de hoje (UTC). Consumida em processo por `modules/missions` (missão "revise uma lição antiga", dispatchada por `key` — ver `.docs/backend/missions.md`) via port própria (`LessonReviewChecker`), mesmo padrão da anterior.
 
 `CountCompletedLessonsUseCase.execute({ userId })` (tarefa 5.2) — total de lições concluídas pelo usuário (`completedAt` preenchido), reaproveitando `listProgressForUser` sem método novo no repositório, mesmo padrão da anterior. Consumida em processo por `modules/achievements` (critério `lessons_completed`) dentro do adapter que agrega `ProgressSnapshotReader` — ver `.docs/backend/achievements.md`.
 

@@ -2,6 +2,9 @@ import type { LessonProgressSnapshot, LessonSummary } from '../../domain/lesson'
 
 export interface LessonProgressRecord extends LessonProgressSnapshot {
   lessonId: string
+  // Revisão voluntária de lição já concluída (H.2) — `null` até a primeira
+  // vez que o usuário reabre e re-percorre a lição depois de concluída.
+  lastReviewedAt: Date | null
 }
 
 export interface UpsertProgressInput {
@@ -18,4 +21,9 @@ export interface LessonRepository {
     lessonId: string,
     input: UpsertProgressInput,
   ): Promise<LessonProgressRecord>
+  // Só grava `lastReviewedAt` — não mexe em `currentStep`/`completedAt`
+  // (aqueles continuam sendo responsabilidade de `upsertProgress`). Requer
+  // que a linha já exista (`ReviewLessonUseCase` garante isso checando
+  // `completedAt !== null` antes de chamar).
+  markReviewed(userId: string, lessonId: string, reviewedAt: Date): Promise<void>
 }

@@ -124,3 +124,13 @@ export function countCompleted(progress: Pick<LessonProgressSnapshot, 'completed
 export function utcDateString(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
+
+// Missão "revise uma lição antiga" (backlog engajamento H.2) — só conta
+// lição concluída há pelo menos esse tanto de dias, pra distinguir revisão
+// real de simplesmente reabrir algo recém-concluído no mesmo dia.
+export const REVIEW_ELIGIBLE_AFTER_DAYS = 14
+
+export function isEligibleForReview(completedAt: Date, now: Date): boolean {
+  const msPerDay = 24 * 60 * 60 * 1000
+  return now.getTime() - completedAt.getTime() >= REVIEW_ELIGIBLE_AFTER_DAYS * msPerDay
+}

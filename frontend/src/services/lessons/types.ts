@@ -49,3 +49,9 @@ export interface AdvanceLessonResult {
     currentStep: number
     completed: boolean
 }
+
+// `POST /lessons/:id/review` (backlog engajamento H.2) — sustenta a missão
+// "revise uma lição antiga" com verificação cruzada de verdade.
+export interface ReviewLessonResult {
+    status: 'reviewed'
+}

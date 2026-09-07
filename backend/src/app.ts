@@ -35,6 +35,8 @@ import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/use
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
 import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/useCases/getUnlockedProductKeys'
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
+import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
+import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
@@ -56,6 +58,7 @@ import { ListDailyMissionsUseCase } from './modules/missions/application/useCase
 import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions } from './modules/missions/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
 import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
+import { createInProcessLessonReviewChecker } from './modules/missions/infrastructure/lessons/inProcessLessonReviewChecker'
 import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
 import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
 import { GetNetWorthUseCase } from './modules/ranking/application/useCases/getNetWorth'
@@ -270,13 +273,16 @@ export function createApp(deps: AppDeps = {}): Express {
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(lessonRepository, xpAwarder, streakTracker)
+  const reviewLesson = new ReviewLessonUseCase(lessonRepository)
   const hasCompletedLessonToday = new HasCompletedLessonTodayUseCase(lessonRepository)
+  const hasReviewedOldLessonToday = new HasReviewedOldLessonTodayUseCase(lessonRepository)
 
   const missionRepository = createDrizzleMissionRepository(db)
   const listDailyMissions = new ListDailyMissionsUseCase(missionRepository)
   const completeMission = new CompleteMissionUseCase(
     missionRepository,
     createInProcessLessonCompletionChecker(hasCompletedLessonToday),
+    createInProcessLessonReviewChecker(hasReviewedOldLessonToday),
     createInProcessXpAwarderForMissions(awardXp),
     createInProcessStreakTrackerForMissions(touchStreak),
   )
@@ -386,7 +392,9 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
-  app.use(createLessonsRouter({ getTrackMap, getLesson, advanceLesson, authMiddleware }))
+  app.use(
+    createLessonsRouter({ getTrackMap, getLesson, advanceLesson, reviewLesson, authMiddleware }),
+  )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))

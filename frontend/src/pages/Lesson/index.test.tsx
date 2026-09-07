@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { advanceLesson, getLesson, listLessons } from '../../services/lessons'
+import { advanceLesson, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, listAssets } from '../../services/market'
 import type { AssetDetail, AssetSummary } from '../../services/market'
@@ -11,7 +11,12 @@ import { listMissions } from '../../services/missions'
 import { Lesson } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/lessons', () => ({ getLesson: vi.fn(), listLessons: vi.fn(), advanceLesson: vi.fn() }))
+vi.mock('../../services/lessons', () => ({
+    getLesson: vi.fn(),
+    listLessons: vi.fn(),
+    advanceLesson: vi.fn(),
+    reviewLesson: vi.fn(),
+}))
 vi.mock('../../services/market', () => ({ listAssets: vi.fn(), getAsset: vi.fn(), getFixedIncomeTaxRate: vi.fn() }))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
 
@@ -243,6 +248,24 @@ describe('Lesson (tela 3.2)', () => {
 
         expect(await screen.findByText('Desbloqueio')).toBeInTheDocument()
         expect(advanceLesson).not.toHaveBeenCalled()
+    })
+
+    it('lição já concluída reabre e registra a revisão (missão "revise uma lição antiga")', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3, status: 'completed' }) })
+
+        renderLesson()
+
+        await screen.findByText('Desbloqueio')
+        await waitFor(() => expect(reviewLesson).toHaveBeenCalledExactlyOnceWith('token-valido', 'lesson-1'))
+    })
+
+    it('lição em andamento, não concluída, não registra revisão nenhuma', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0, status: 'available' }) })
+
+        renderLesson()
+
+        await screen.findByText('Cenário')
+        expect(reviewLesson).not.toHaveBeenCalled()
     })
 
     it('"Continuar" no desbloqueio navega pra próxima lição por sortOrder', async () => {

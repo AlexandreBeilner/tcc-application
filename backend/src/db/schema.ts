@@ -171,6 +171,12 @@ export const userLessonProgress = pgTable(
     currentStep: integer('current_step').notNull().default(0),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    // Revisão voluntária de lição já concluída (backlog engajamento H.2) —
+    // distinto de `completedAt` (nunca muda após a primeira conclusão):
+    // marca a última vez que o usuário reabriu e re-percorreu uma lição já
+    // concluída. Missão "revise uma lição antiga" checa isto contra hoje
+    // (UTC) + `completedAt` mais antigo que `REVIEW_ELIGIBLE_AFTER_DAYS`.
+    lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],

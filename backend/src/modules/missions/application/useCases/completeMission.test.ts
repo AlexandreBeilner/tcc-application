@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { LessonNotCompletedTodayError, MissionNotFoundError } from '../../domain/errors'
-import { todayUtc } from '../../domain/mission'
+import {
+  LessonNotCompletedTodayError,
+  MissionNotFoundError,
+  OldLessonNotReviewedTodayError,
+} from '../../domain/errors'
+import { REVIEW_OLD_LESSON_MISSION_KEY, todayUtc } from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
+import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
 import { createFakeXpAwarder } from '../../test/fakes/fakeXpAwarder'
@@ -27,14 +32,26 @@ const feedMission = {
   requiresLessonCompletion: false,
 }
 
-function build(hasCompletedLesson = false) {
-  const missionRepository = createFakeMissionRepository([lessonMission, feedMission])
+const reviewMission = {
+  id: 'm3',
+  key: REVIEW_OLD_LESSON_MISSION_KEY,
+  title: 'Revise uma lição concluída há mais de 14 dias',
+  description: null,
+  completionCriteria: 'Reabrir e revisar hoje uma lição antiga',
+  xpReward: 30,
+  requiresLessonCompletion: false,
+}
+
+function build(hasCompletedLesson = false, hasReviewedOldLesson = false) {
+  const missionRepository = createFakeMissionRepository([lessonMission, feedMission, reviewMission])
   const lessonCompletionChecker = createFakeLessonCompletionChecker(hasCompletedLesson)
+  const lessonReviewChecker = createFakeLessonReviewChecker(hasReviewedOldLesson)
   const xpAwarder = createFakeXpAwarder()
   const streakTracker = createFakeStreakTracker()
   const useCase = new CompleteMissionUseCase(
     missionRepository,
     lessonCompletionChecker,
+    lessonReviewChecker,
     xpAwarder,
     streakTracker,
   )
@@ -67,6 +84,26 @@ describe('CompleteMissionUseCase', () => {
 
     expect(result).toEqual({ status: 'completed' })
     expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m1' }])
+    expect(streakTracker.touchedUserIds).toEqual(['u1'])
+  })
+
+  it('missão "revise uma lição antiga" é rejeitada sem nenhuma revisão elegível hoje', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, false)
+
+    await expect(useCase.execute({ userId: 'u1', missionId: 'm3' })).rejects.toBeInstanceOf(
+      OldLessonNotReviewedTodayError,
+    )
+    expect(xpAwarder.awarded).toHaveLength(0)
+    expect(streakTracker.touchedUserIds).toHaveLength(0)
+  })
+
+  it('missão "revise uma lição antiga" completa quando o usuário revisou uma lição antiga hoje', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, true)
+
+    const result = await useCase.execute({ userId: 'u1', missionId: 'm3' })
+
+    expect(result).toEqual({ status: 'completed' })
+    expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m3' }])
     expect(streakTracker.touchedUserIds).toEqual(['u1'])
   })
 

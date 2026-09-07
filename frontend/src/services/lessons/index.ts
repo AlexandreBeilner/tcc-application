@@ -1,7 +1,7 @@
 import { apiRequest } from '../client'
-import type { AdvanceLessonResult, GetLessonResult, ListLessonsResult } from './types'
+import type { AdvanceLessonResult, GetLessonResult, ListLessonsResult, ReviewLessonResult } from './types'
 
-export type { Lesson, ListLessonsResult, GetLessonResult, AdvanceLessonResult, MicroDecisionType } from './types'
+export type { Lesson, ListLessonsResult, GetLessonResult, AdvanceLessonResult, ReviewLessonResult, MicroDecisionType } from './types'
 
 export function listLessons(token: string): Promise<ListLessonsResult> {
     return apiRequest<ListLessonsResult>('/lessons', { token })
@@ -17,4 +17,8 @@ export function advanceLesson(token: string, id: string, step: number): Promise<
         method: 'POST',
         body: { step },
     })
+}
+
+export function reviewLesson(token: string, id: string): Promise<ReviewLessonResult> {
+    return apiRequest<ReviewLessonResult>(`/lessons/${id}/review`, { token, method: 'POST' })
 }

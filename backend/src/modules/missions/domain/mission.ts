@@ -16,6 +16,12 @@ export interface Mission {
   requiresLessonCompletion: boolean
 }
 
+// Única missão com verificação cruzada dispatchada por `key` em vez de uma
+// coluna dedicada (H.2, ver comentário em `completeMission.ts`) — string
+// solta seria frágil contra erro de digitação nos dois lugares que
+// precisam bater (`seedMissions.ts` e o dispatch aqui).
+export const REVIEW_OLD_LESSON_MISSION_KEY = 'review_old_lesson'
+
 export interface MissionProgressSnapshot {
   status: MissionStatus
 }

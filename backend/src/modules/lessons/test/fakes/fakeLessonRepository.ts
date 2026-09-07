@@ -23,16 +23,26 @@ export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): L
     },
 
     async upsertProgress(userId: string, lessonId: string, input: UpsertProgressInput) {
+      const existing = progressByUser.get(userId)?.get(lessonId)
       const record: LessonProgressRecord = {
         lessonId,
         currentStep: input.currentStep,
         completedAt: input.completedAt,
+        lastReviewedAt: existing?.lastReviewedAt ?? null,
       }
       if (!progressByUser.has(userId)) {
         progressByUser.set(userId, new Map())
       }
       progressByUser.get(userId)?.set(lessonId, record)
       return record
+    },
+
+    async markReviewed(userId: string, lessonId: string, reviewedAt: Date) {
+      const existing = progressByUser.get(userId)?.get(lessonId)
+      if (!existing) {
+        return
+      }
+      progressByUser.get(userId)?.set(lessonId, { ...existing, lastReviewedAt: reviewedAt })
     },
   }
 }

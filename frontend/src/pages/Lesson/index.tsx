@@ -1,9 +1,10 @@
 import { ArrowLeft, Check, Eye } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
+import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { Button } from '../../components/atoms/Button'
 import { GrowthCalculatorForm } from '../../components/organisms/GrowthCalculatorForm'
 import { FixedIncomeComparisonForm } from '../../components/organisms/FixedIncomeComparisonForm'
@@ -52,6 +53,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const lessonQuery = useLessonQuery(lessonId)
     const lessonsQuery = useLessonsQuery()
     const advanceLesson = useAdvanceLesson(lessonId)
+    const reviewLesson = useReviewLesson(lessonId)
 
     const [localStep, setLocalStep] = useState<number | undefined>(undefined)
     const [microDecisionConfirmed, setMicroDecisionConfirmed] = useState(false)
@@ -70,6 +72,20 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // `code` citado pro `id` real usando esta mesma lista, sem chamada nova.
     const lessons = lessonsQuery.data?.lessons ?? []
     const step = localStep ?? lesson?.currentStep ?? 0
+
+    // Backlog engajamento H.2 — reabrir uma lição já concluída (modo
+    // revisão acima, jump direto pro Desbloqueio) é, por si só, o "revisar"
+    // que a missão espera: registra uma vez por montagem (`key={lessonId}`
+    // no componente pai já garante um `reviewedRef` novo por lição
+    // reaberta), sem precisar de nenhuma ação extra do usuário. Backend
+    // decide se a lição é antiga o bastante pra valer pra missão.
+    const reviewedRef = useRef(false)
+    useEffect(() => {
+        if (lesson?.status === 'completed' && !reviewedRef.current) {
+            reviewedRef.current = true
+            reviewLesson.mutate()
+        }
+    }, [lesson?.status, reviewLesson])
 
     const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
     const indicatorAsset = useAssetByTicker(isLiveIndicator ? (lesson?.microDecisionAssetTicker ?? null) : null)
