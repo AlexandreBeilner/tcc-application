@@ -141,7 +141,9 @@ export class AdvanceLessonUseCase {
         completedAt: completedAtByLessonId.get(l.id) ?? null,
       }))
 
-    const tracksBefore = new Set(completedTrackNumbers(toTrackProgress(completedAtByLessonIdBefore)))
+    const tracksBefore = new Set(
+      completedTrackNumbers(toTrackProgress(completedAtByLessonIdBefore)),
+    )
     const tracksAfter = completedTrackNumbers(toTrackProgress(completedAtByLessonIdAfter))
 
     if (tracksAfter.includes(trackNumber) && !tracksBefore.has(trackNumber)) {
