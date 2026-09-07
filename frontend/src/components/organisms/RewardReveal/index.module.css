@@ -1,0 +1,115 @@
+/* Toast, não bottom sheet/modal (identidade-visual-padroes.md §7 reserva
+   esses dois padrões pra confirmação de ação importante) — reveal é uma
+   celebração que não pode bloquear o fluxo em que o usuário já está
+   (completar lição, cumprir missão). Acima da TabBar fixa mobile
+   (TabBar.module.css, z-index 10) e do backdrop de confirmação de ordem
+   (OrderConfirmationDialog.module.css, z-index 50), mas sem backdrop
+   próprio — não intercepta clique no resto da tela. */
+.wrapper {
+    position: fixed;
+    top: var(--space-4);
+    left: var(--space-4);
+    right: var(--space-4);
+    z-index: 60;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.panel {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    width: 100%;
+    max-width: 380px;
+    padding: var(--space-4);
+    border: 1px solid var(--color-gamify-500);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, var(--color-gamify-100) 0%, var(--color-bg-surface-elevated) 65%);
+    pointer-events: auto;
+    animation:
+        revealEnter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards,
+        revealGlow 2.4s ease-in-out 0.35s infinite;
+}
+
+.badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background: var(--color-gamify-500);
+    color: var(--color-bg-base);
+}
+
+.text {
+    flex: 1;
+    min-width: 0;
+}
+
+.title {
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.description {
+    margin: 4px 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+}
+
+.close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+@keyframes revealEnter {
+    from {
+        opacity: 0;
+        transform: translateY(-16px) scale(0.96);
+    }
+}
+
+@keyframes revealGlow {
+    0%,
+    100% {
+        box-shadow: 0 10px 28px -12px rgba(240, 162, 2, 0.5);
+    }
+    50% {
+        box-shadow: 0 14px 34px -10px rgba(240, 162, 2, 0.75);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel {
+        animation: none;
+        box-shadow: 0 0 0 1px rgba(240, 162, 2, 0.3);
+    }
+}
+
+/* Tablet/desktop (identidade-visual-padroes.md §7): canto superior direito,
+   não mais full-width centralizado — mobile esticado seria ruído sobre o
+   painel lateral fixo que essas larguras já usam noutras telas-âncora. */
+@media (min-width: 768px) {
+    .wrapper {
+        top: var(--space-6);
+        left: auto;
+        right: var(--space-6);
+        justify-content: flex-end;
+    }
+}

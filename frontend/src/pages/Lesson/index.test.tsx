@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import { advanceLesson, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, listAssets } from '../../services/market'
@@ -35,7 +36,9 @@ function renderLesson(id = 'lesson-1') {
     )
     return render(
         <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
+            <RewardRevealProvider>
+                <RouterProvider router={router} />
+            </RewardRevealProvider>
         </QueryClientProvider>,
     )
 }

@@ -38,12 +38,16 @@ Conteúdo pedagógico real por passo (tarefa 7.0.2, migration `0010`): `scenario
 
 - **Autenticação:** Bearer token.
 - **Payload (JSON):** `step` — inteiro, `0`–`3`.
-- **Sucesso:** `200` → `{ currentStep, completed }`.
+- **Sucesso:** `200` → `{ currentStep, completed }`, mais `xpAwarded`, `leveledUp`, `streakMilestone`, `unlockedAchievements` **só quando esta chamada é quem conclui a lição pela primeira vez** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer outra resposta, inclusive reabrir uma lição já concluída):
+  - `xpAwarded` — sempre `LESSON_XP_REWARD` quando presente.
+  - `leveledUp` — `true` se esse crédito de xp cruzou o limiar do próximo nível.
+  - `streakMilestone` — `7`, `30` ou `null`, conforme o streak bateu um desses marcos com este toque (nunca `14` — não existe achievement seedado com esse valor).
+  - `unlockedAchievements` — `{ id, name, description }[]`, união das conquistas recém-desbloqueadas pelo crédito de xp e pelo toque de streak (nunca duplicado — uma conquista só entra na lista da primeira chamada que a satisfaz).
 - **Erros:**
   - `400` — `step` fora do intervalo `0`–`3`.
   - `401` — token ausente ou inválido/expirado.
   - `404` — lição inexistente, ou ainda bloqueada e nunca concluída antes (reabrir uma já concluída sempre é permitido, mesmo que a contagem global não a sustentasse mais desbloqueada).
-- **Regra:** `AdvanceLessonUseCase`. Grava `currentStep`; ao alcançar o step `3` pela primeira vez, marca `completedAt`, credita `LESSON_XP_REWARD` via `xpAwarder` (com o motivo `licao:<code>`), chama `streakTracker.touch` e, se essa conclusão for a última lição pendente da trilha (`completedTrackNumbers` antes/depois da escrita), grava um evento `track_completed` via `socialFeedRecorder` (backlog engajamento G.1 — ver `.docs/backend/socialfeed.md`).
+- **Regra:** `AdvanceLessonUseCase`. Grava `currentStep`; ao alcançar o step `3` pela primeira vez, marca `completedAt`, credita `LESSON_XP_REWARD` via `xpAwarder` (com o motivo `licao:<code>`), chama `streakTracker.touch` e, se essa conclusão for a última lição pendente da trilha (`completedTrackNumbers` antes/depois da escrita), grava um evento `track_completed` via `socialFeedRecorder` (backlog engajamento G.1 — ver `.docs/backend/socialfeed.md`). `xpAwarder`/`streakTracker` (`lessons/application/ports/`) devolvem o resultado real de `AwardXpUseCase`/`TouchStreakUseCase` desde a I.2 — antes descartado (`Promise<void>`), sem dado nenhum pro "teatro de recompensa" do frontend (`RewardReveal`, I.1) disparar em tempo real.
 
 ---
 

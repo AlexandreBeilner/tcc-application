@@ -1,7 +1,7 @@
 import { apiRequest } from '../client'
 import type { CompleteMissionResult, ListMissionsResult } from './types'
 
-export type { DailyMission, ListMissionsResult, CompleteMissionResult } from './types'
+export type { DailyMission, ListMissionsResult, CompleteMissionResult, UnlockedAchievement } from './types'
 
 export function listMissions(token: string): Promise<ListMissionsResult> {
     return apiRequest<ListMissionsResult>('/missions', { token })

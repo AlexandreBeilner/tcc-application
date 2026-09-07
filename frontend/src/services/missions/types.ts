@@ -19,8 +19,24 @@ export interface ListMissionsResult {
     missions: DailyMission[]
 }
 
+// Recém-desbloqueada nesta chamada (`.docs/backend/missions.md`).
+export interface UnlockedAchievement {
+    id: string
+    name: string
+    description: string | null
+}
+
 // `POST /missions/:id/complete` — idempotente, reenviar depois de já
-// concluída no dia só confirma o status, não credita xp/streak de novo.
+// concluída no dia só confirma o status, não credita xp/streak de novo (a
+// resposta idempotente vem só com `status`, sem os 4 campos abaixo).
 export interface CompleteMissionResult {
     status: 'completed'
+    // Presentes só na chamada que credita xp de fato (backlog engajamento
+    // I.2). `xpAwarded`/`leveledUp` consumidos pelo reveal de XP/nível (I.3,
+    // `features/shell/xpRewardReveal`); `streakMilestone`/
+    // `unlockedAchievements` ainda sem consumidor (I.4/I.5).
+    xpAwarded?: number
+    leveledUp?: boolean
+    streakMilestone?: number | null
+    unlockedAchievements?: UnlockedAchievement[]
 }

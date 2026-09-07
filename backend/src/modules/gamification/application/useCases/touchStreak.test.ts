@@ -23,7 +23,12 @@ describe('TouchStreakUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1' })
 
-    expect(result).toEqual({ currentStreak: 1, longestStreak: 1 })
+    expect(result).toEqual({
+      currentStreak: 1,
+      longestStreak: 1,
+      milestoneReached: null,
+      unlockedAchievements: [],
+    })
   })
 
   it('chamar de novo no mesmo dia não infla o contador', async () => {
@@ -35,7 +40,12 @@ describe('TouchStreakUseCase', () => {
     vi.setSystemTime(new Date('2026-08-24T22:00:00Z'))
     const result = await useCase.execute({ userId: 'u1' })
 
-    expect(result).toEqual({ currentStreak: 1, longestStreak: 1 })
+    expect(result).toEqual({
+      currentStreak: 1,
+      longestStreak: 1,
+      milestoneReached: null,
+      unlockedAchievements: [],
+    })
   })
 
   it('avança em dia consecutivo e reseta após gap >= 2 dias', async () => {
@@ -46,11 +56,46 @@ describe('TouchStreakUseCase', () => {
 
     vi.setSystemTime(new Date('2026-08-25T12:00:00Z'))
     const consecutive = await useCase.execute({ userId: 'u1' })
-    expect(consecutive).toEqual({ currentStreak: 2, longestStreak: 2 })
+    expect(consecutive.currentStreak).toBe(2)
+    expect(consecutive.longestStreak).toBe(2)
+    expect(consecutive.milestoneReached).toBeNull()
 
     vi.setSystemTime(new Date('2026-08-28T12:00:00Z'))
     const afterGap = await useCase.execute({ userId: 'u1' })
-    expect(afterGap).toEqual({ currentStreak: 1, longestStreak: 2 })
+    expect(afterGap.currentStreak).toBe(1)
+    expect(afterGap.longestStreak).toBe(2)
+    expect(afterGap.milestoneReached).toBeNull()
+  })
+
+  it('bater 7 dias consecutivos reporta o marco; o 8º dia não repete', async () => {
+    vi.useFakeTimers()
+    const { useCase } = build()
+    const days = [
+      '2026-08-24',
+      '2026-08-25',
+      '2026-08-26',
+      '2026-08-27',
+      '2026-08-28',
+      '2026-08-29',
+      '2026-08-30',
+      '2026-08-31',
+    ]
+    const results = []
+    for (const day of days) {
+      vi.setSystemTime(new Date(`${day}T12:00:00Z`))
+      results.push(await useCase.execute({ userId: 'u1' }))
+    }
+
+    expect(results.map((r) => r.milestoneReached)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      7,
+      null,
+    ])
   })
 
   it('checa conquistas depois de tocar o streak', async () => {
@@ -61,6 +106,19 @@ describe('TouchStreakUseCase', () => {
     await useCase.execute({ userId: 'u1' })
 
     expect(achievementChecker.calls).toEqual(['u1'])
+  })
+
+  it('propaga as conquistas recém-desbloqueadas devolvidas pelo achievementChecker', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T12:00:00Z'))
+    const { achievementChecker, useCase } = build()
+    achievementChecker.nextResult = [{ id: 'a1', name: 'Primeira Semana', description: null }]
+
+    const result = await useCase.execute({ userId: 'u1' })
+
+    expect(result.unlockedAchievements).toEqual([
+      { id: 'a1', name: 'Primeira Semana', description: null },
+    ])
   })
 
   it('preserva xp/nível ao tocar o streak — não é dono desses campos', async () => {

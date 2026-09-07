@@ -1,11 +1,19 @@
-import type { AchievementChecker } from '../../application/ports/achievementChecker'
+import type {
+  AchievementChecker,
+  UnlockedAchievement,
+} from '../../application/ports/achievementChecker'
 
-export function createFakeAchievementChecker(): AchievementChecker & { calls: string[] } {
+export function createFakeAchievementChecker(
+  nextResult: UnlockedAchievement[] = [],
+): AchievementChecker & { calls: string[]; nextResult: UnlockedAchievement[] } {
   const calls: string[] = []
-  return {
+  const fake = {
     calls,
-    async checkAndUnlock(userId) {
+    nextResult,
+    async checkAndUnlock(userId: string) {
       calls.push(userId)
+      return fake.nextResult
     },
   }
+  return fake
 }

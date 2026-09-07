@@ -116,7 +116,13 @@ describe('missions routes', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ status: 'completed' })
+    expect(res.body).toEqual({
+      status: 'completed',
+      xpAwarded: 30,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
   })
 
   it('POST /missions/:id/complete retorna 422 pra missão de revisão sem revisão elegível hoje', async () => {
@@ -139,6 +145,12 @@ describe('missions routes', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ status: 'completed' })
+    expect(res.body).toEqual({
+      status: 'completed',
+      xpAwarded: 30,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
   })
 })

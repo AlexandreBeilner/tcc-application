@@ -8,7 +8,7 @@ import type { LessonCompletionChecker } from '../ports/lessonCompletionChecker'
 import type { LessonReviewChecker } from '../ports/lessonReviewChecker'
 import type { MissionRepository } from '../ports/missionRepository'
 import type { StreakTracker } from '../ports/streakTracker'
-import type { XpAwarder } from '../ports/xpAwarder'
+import type { UnlockedAchievement, XpAwarder } from '../ports/xpAwarder'
 
 export interface CompleteMissionInput {
   userId: string
@@ -17,6 +17,14 @@ export interface CompleteMissionInput {
 
 export interface CompleteMissionResult {
   status: 'completed'
+  // Presentes só quando esta chamada é quem credita xp de fato — omitidos
+  // nos retornos idempotentes (missão já concluída no dia, ou corrida
+  // perdida pro `markCompleted` atômico) e nas duas exceções lançadas antes
+  // do claim. Aditivos ao contrato já existente (tarefa I.2).
+  xpAwarded?: number
+  leveledUp?: boolean
+  streakMilestone?: number | null
+  unlockedAchievements?: UnlockedAchievement[]
 }
 
 export class CompleteMissionUseCase {
@@ -76,9 +84,22 @@ export class CompleteMissionUseCase {
       return { status: 'completed' }
     }
 
-    await this.xpAwarder.award(input.userId, mission.xpReward, `missao:${mission.id}`)
-    await this.streakTracker.touch(input.userId)
+    const xpResult = await this.xpAwarder.award(
+      input.userId,
+      mission.xpReward,
+      `missao:${mission.id}`,
+    )
+    const streakResult = await this.streakTracker.touch(input.userId)
 
-    return { status: 'completed' }
+    return {
+      status: 'completed',
+      xpAwarded: mission.xpReward,
+      leveledUp: xpResult.leveledUp,
+      streakMilestone: streakResult.milestoneReached,
+      unlockedAchievements: [
+        ...xpResult.unlockedAchievements,
+        ...streakResult.unlockedAchievements,
+      ],
+    }
   }
 }

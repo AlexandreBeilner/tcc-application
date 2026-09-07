@@ -1,7 +1,15 @@
 import { apiRequest } from '../client'
 import type { AdvanceLessonResult, GetLessonResult, ListLessonsResult, ReviewLessonResult } from './types'
 
-export type { Lesson, ListLessonsResult, GetLessonResult, AdvanceLessonResult, ReviewLessonResult, MicroDecisionType } from './types'
+export type {
+    Lesson,
+    ListLessonsResult,
+    GetLessonResult,
+    AdvanceLessonResult,
+    ReviewLessonResult,
+    MicroDecisionType,
+    UnlockedAchievement,
+} from './types'
 
 export function listLessons(token: string): Promise<ListLessonsResult> {
     return apiRequest<ListLessonsResult>('/lessons', { token })

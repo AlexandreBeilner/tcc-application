@@ -1,9 +1,14 @@
 import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
-import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD, completedTrackNumbers, isUnlocked } from '../../domain/lesson'
+import {
+  LESSON_UNLOCK_STEP,
+  LESSON_XP_REWARD,
+  completedTrackNumbers,
+  isUnlocked,
+} from '../../domain/lesson'
 import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
 import type { SocialFeedRecorder } from '../ports/socialFeedRecorder'
 import type { StreakTracker } from '../ports/streakTracker'
-import type { XpAwarder } from '../ports/xpAwarder'
+import type { UnlockedAchievement, XpAwarder } from '../ports/xpAwarder'
 
 export interface AdvanceLessonInput {
   userId: string
@@ -14,6 +19,14 @@ export interface AdvanceLessonInput {
 export interface AdvanceLessonResult {
   currentStep: number
   completed: boolean
+  // Presentes só quando esta chamada é quem conclui a lição pela primeira
+  // vez (`completingNow` abaixo) — aditivos ao contrato já existente
+  // (tarefa I.2 do backlog de engajamento, pro "teatro de recompensa" da
+  // I.1 disparar em tempo real, sem precisar de um segundo round-trip).
+  xpAwarded?: number
+  leveledUp?: boolean
+  streakMilestone?: number | null
+  unlockedAchievements?: UnlockedAchievement[]
 }
 
 export class AdvanceLessonUseCase {
@@ -59,9 +72,31 @@ export class AdvanceLessonUseCase {
     })
 
     if (completingNow) {
-      await this.xpAwarder.award(input.userId, LESSON_XP_REWARD, `licao:${lesson.code}`)
-      await this.streakTracker.touch(input.userId)
-      await this.recordTrackCompletionIfJustFinished(input.userId, lesson.id, lesson.trackNumber, progress, saved.completedAt)
+      const xpResult = await this.xpAwarder.award(
+        input.userId,
+        LESSON_XP_REWARD,
+        `licao:${lesson.code}`,
+      )
+      const streakResult = await this.streakTracker.touch(input.userId)
+      await this.recordTrackCompletionIfJustFinished(
+        input.userId,
+        lesson.id,
+        lesson.trackNumber,
+        progress,
+        saved.completedAt,
+      )
+
+      return {
+        currentStep: saved.currentStep,
+        completed: saved.completedAt !== null,
+        xpAwarded: LESSON_XP_REWARD,
+        leveledUp: xpResult.leveledUp,
+        streakMilestone: streakResult.milestoneReached,
+        unlockedAchievements: [
+          ...xpResult.unlockedAchievements,
+          ...streakResult.unlockedAchievements,
+        ],
+      }
     }
 
     return { currentStep: saved.currentStep, completed: saved.completedAt !== null }
@@ -80,7 +115,9 @@ export class AdvanceLessonUseCase {
     newCompletedAt: Date | null,
   ): Promise<void> {
     const allLessons = await this.lessonRepository.listAll()
-    const completedAtByLessonId = new Map(progressBeforeWrite.map((p) => [p.lessonId, p.completedAt]))
+    const completedAtByLessonId = new Map(
+      progressBeforeWrite.map((p) => [p.lessonId, p.completedAt]),
+    )
     const toTrackProgress = () =>
       allLessons.map((l) => ({
         trackNumber: l.trackNumber,

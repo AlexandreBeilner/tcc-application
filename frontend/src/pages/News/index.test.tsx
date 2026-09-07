@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
+import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import { listNews, markNewsEventSeen } from '../../services/news'
 import { listAssets } from '../../services/market'
 import { completeMission, listMissions } from '../../services/missions'
@@ -19,9 +20,11 @@ function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
         <QueryClientProvider client={queryClient}>
-            <MemoryRouter>
-                <News />
-            </MemoryRouter>
+            <RewardRevealProvider>
+                <MemoryRouter>
+                    <News />
+                </MemoryRouter>
+            </RewardRevealProvider>
         </QueryClientProvider>,
     )
 }

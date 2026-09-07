@@ -724,7 +724,7 @@ e descartados de propósito no caminho:
 Por isso a Fase I abre com uma tarefa de encanamento de backend (I.2) antes das tarefas de
 frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
 
-### I.1 · Componente compartilhado de celebração
+### I.1 · Componente compartilhado de celebração ✅
 
 - **Descrição:** organism novo reutilizável (`frontend/src/components/organisms/RewardReveal/`) —
   modal/toast com a energia visual do "teatro de recompensa" (dourado, glow, animação de entrada),
@@ -742,8 +742,29 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   não sobrepostos.
 - **Referências:** `identidade-visual-padroes.md` §6 (teatro de recompensa, já documentado).
 - **Dependências:** nenhuma.
+- **Entregável:** organism `RewardReveal` (toast, não modal/bottom sheet — §7 reserva esses dois
+  padrões pra confirmação de ação importante, e um reveal automático não pode bloquear o fluxo em
+  que o usuário já está) + `features/shell/RewardRevealProvider` (fila + `useRewardReveal()`,
+  mesmo padrão de pasta/contexto de `AuthContext`: provider e hook exportados do mesmo
+  `index.tsx`). Mobile: full-width fixo no topo, abaixo de onde ficaria uma eventual status bar.
+  Tablet/desktop (≥768px): canto superior direito, largura fixa — nunca full-width esticado.
+  `key={current.id}` em cada `<RewardReveal>` força remontar a cada item novo da fila (reinicia
+  animação de entrada e timer de 4s). Achado de bug real nesta sessão (não só teórico do
+  StrictMode): o `id` do próximo item da fila **não pode** ser lido de dentro do updater funcional
+  de `setQueue` (`current => [...current, { ...content, id: nextIdRef.current }]`) — se `show()`
+  é chamado 2x seguidas no mesmo tick (exatamente o caso de uso da tarefa: XP + level-up juntos em
+  I.3), os dois updaters só rodam depois que ambos os incrementos do ref já aconteceram, e os dois
+  itens nascem com o mesmo id; com o mesmo `key`, o segundo reveal nunca remonta/aparece depois que
+  o primeiro fecha (fila implicitamente colapsa pra 1 item visível). Corrigido calculando `id`
+  fora do updater, capturado por closure por chamada. Validado via Chrome real (dev server, sem
+  precisar de `docker compose` — tarefa 100% frontend): dois reveals em sequência (mock via botão
+  de debug temporário na tela de Login, removido depois) aparecem um de cada vez, animação de
+  entrada + glow confirmados via `getAnimations()`/computed style (opacity 0→1 em ~150ms, glow
+  contínuo), e o trecho `@media (prefers-reduced-motion: reduce)` testado isoladamente (`animation:
+  none` força override) mantém o painel visível (opacity 1 por padrão, sem depender da animação pra
+  isso). Suíte inteira (591 testes, +8 novos) e lint/tsc/prettier passando.
 
-### I.2 · Backend — portas de gamificação devolvem o resultado real
+### I.2 · Backend — portas de gamificação devolvem o resultado real ✅
 
 - **Descrição:** trocar `Promise<void>` por um tipo de resultado real nas 3 portas, nos 2 módulos
   consumidores (`lessons` e `missions`, que hoje duplicam essas portas cada um com sua própria
@@ -773,8 +794,33 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
   quebra (campos novos, não substituídos).
 - **Referências:** trecho de auditoria no topo desta fase (achado desta sessão).
 - **Dependências:** nenhuma (independente de A-H — pode ser feita a qualquer momento).
+- **Entregável:** achado de auditoria que corrige o texto original da tarefa — `AchievementChecker`
+  **não** é uma port própria de `lessons`/`missions` (o texto acima presumia isso, "achievementChecker
+  port... duplicado"); na realidade ela só existe dentro de `gamification` (`AwardXpUseCase`/
+  `TouchStreakUseCase` já a chamam internamente depois de creditar xp/tocar streak). `lessons`/
+  `missions` nunca a chamam direto — então `unlockedAchievements` chega até elas de carona no
+  retorno de `xpAwarder.award`/`streakTracker.touch`, não por uma 3ª port nova. `UnlockedAchievement
+  { id, name, description }` duplicado em 3 lugares (port de `gamification`, port de `lessons`, port
+  de `missions` — mesma decisão de portas independentes por módulo já usada em
+  `profile/application/ports/achievementsReader.ts`, que já duplicava um recorte parecido do mesmo
+  tipo real; nenhum import cruzado de módulo). `gamification/domain/streak.ts` ganhou
+  `streakMilestoneReached(before, after)` pura (marcos `[7, 30]` fixos, comparados contra
+  `seedAchievements.ts` — não 14) — idempotente por construção: `touch()` no mesmo dia devolve
+  `before === after`, então nenhum marco é reportado de novo sem precisar de caso especial.
+  `AdvanceLessonUseCase`/`CompleteMissionUseCase` concatenam `unlockedAchievements` de `xpAwarder` +
+  `streakTracker` sem dedup (seguro: uma conquista já desbloqueada pela 1ª chamada nunca volta a
+  aparecer na 2ª, `checkAndUnlockAchievements` já filtra por `unlockedIds`). Campos novos só
+  aparecem na resposta quando a chamada de fato credita xp pela 1ª vez — ausentes ao reabrir lição
+  já concluída e nas 2 rotas idempotentes de `CompleteMissionUseCase` (já concluída no dia / corrida
+  perdida pro `markCompleted` atômico), confirmado via `docker compose up` real (registro de
+  usuário, `POST /lessons/:id/progress` completando e reabrindo, `POST /missions/:id/complete`
+  completando e reenviando). Testes de use case/router existentes que usavam `toEqual` com o shape
+  antigo foram atualizados (adição de campo quebra igualdade exata, não é regressão) — nenhum campo
+  removido/retipado. `.docs/backend/lessons.md`/`missions.md` atualizados no mesmo commit. 497
+  testes, lint (`no-restricted-imports` sem violação — `UnlockedAchievement` nunca importado entre
+  módulos) e `tsc -b` passando.
 
-### I.3 · Conectar XP e level-up
+### I.3 · Conectar XP e level-up ✅
 
 - **Descrição:** com I.2 expondo o dado, disparar `RewardReveal` (I.1) quando a resposta de uma
   mutação (`useAdvanceLesson`, `useCompleteMission`) inclui `xpAwarded`, e um reveal mais forte
@@ -784,6 +830,27 @@ frontend — sem ela, I.3-I.5 não têm dado nenhum pra consumir.
 - **Critérios de aceite:** completar uma lição mostra o reveal de XP ganho; um ganho que cruza um
   limiar de nível mostra só o reveal de level-up.
 - **Dependências:** I.1, I.2.
+- **Entregável:** função pura nova `xpRevealContent` (`frontend/src/features/shell/xpRewardReveal/`)
+  decide o conteúdo do reveal a partir de `{ xpAwarded?, leveledUp? }` — `leveledUp` tem prioridade
+  e suprime o reveal de XP (`null` quando nem um nem outro está presente, ex: reabrir lição já
+  concluída ou reenvio idempotente de missão). Extraída como módulo próprio (não inline nos 2
+  hooks) porque a lógica é idêntica nos dois pontos de consumo e duplicá-la arriscaria divergir se
+  mudar num só. `useAdvanceLesson`/`useCompleteMissionMutation` chamam `useRewardReveal()` +
+  `xpRevealContent(data)` no `onSuccess`, depois de invalidar as queries de sempre — sem mudar
+  nenhum comportamento de cache já existente. `services/lessons/types.ts`/`missions/types.ts`
+  ganharam os 4 campos novos de `AdvanceLessonResult`/`CompleteMissionResult` (opcionais, espelhando
+  o contrato aditivo da I.2 por inteiro — `streakMilestone`/`unlockedAchievements` tipados aqui já
+  mesmo sem consumidor ainda, I.4/I.5 os usam). Ícones: `Sparkles` (XP), `TrendingUp` (level-up) —
+  nenhum dos dois reaproveitado de `Award`/`Flame`/`GraduationCap` já usados noutros lugares
+  (conquista/streak/trilha), evita ambiguidade visual. Achado ao rodar a suíte: `useRewardReveal()`
+  chamado incondicionalmente dentro dessas 2 mutations quebrou 4 testes de componente que as
+  consomem indiretamente (`Lesson`, `News`, `Calculator`, `FixedIncomeComparisonForm`) — nenhum
+  desses testes envolvia `<RewardRevealProvider>` até então; corrigido envolvendo o `render(...)` de
+  cada um. Validado com Chrome real (`docker compose up` + dev server, usuário registrado via API +
+  onboarding marcado via `PATCH /me` pra pular a tela): completar a 1ª lição (50 XP, nível 1→1)
+  mostrou o reveal "+50 XP"; completar a 2ª lição (50+50=100 XP, cruza o limiar do nível 2) mostrou
+  só "Você subiu de nível!", sem o reveal de XP empilhado por cima — os dois casos do critério de
+  aceite confirmados na prática, não só em teste. 595 testes (+7 novos), lint/tsc/prettier passando.
 
 ### I.4 · Conectar unlock de conquista em tempo real
 

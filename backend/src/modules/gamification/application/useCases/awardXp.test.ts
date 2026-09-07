@@ -17,7 +17,7 @@ describe('AwardXpUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1', amount: 50, reason: 'licao' })
 
-    expect(result).toEqual({ xp: 50, level: 1, leveledUp: false })
+    expect(result).toEqual({ xp: 50, level: 1, leveledUp: false, unlockedAchievements: [] })
   })
 
   it('acumula xp em créditos sucessivos, nunca escrevendo direto no repositório', async () => {
@@ -44,7 +44,7 @@ describe('AwardXpUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1', amount: 20, reason: 'missao' })
 
-    expect(result).toEqual({ xp: 110, level: 2, leveledUp: true })
+    expect(result).toEqual({ xp: 110, level: 2, leveledUp: true, unlockedAchievements: [] })
   })
 
   it('sobe 2+ níveis de uma vez num crédito grande, nível sempre recalculado do zero', async () => {
@@ -52,7 +52,7 @@ describe('AwardXpUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1', amount: 700, reason: 'bonus' })
 
-    expect(result).toEqual({ xp: 700, level: 4, leveledUp: true })
+    expect(result).toEqual({ xp: 700, level: 4, leveledUp: true, unlockedAchievements: [] })
   })
 
   it('checa conquistas depois de creditar xp', async () => {
@@ -61,6 +61,17 @@ describe('AwardXpUseCase', () => {
     await useCase.execute({ userId: 'u1', amount: 50, reason: 'licao' })
 
     expect(achievementChecker.calls).toEqual(['u1'])
+  })
+
+  it('propaga as conquistas recém-desbloqueadas devolvidas pelo achievementChecker', async () => {
+    const { achievementChecker, useCase } = build()
+    achievementChecker.nextResult = [{ id: 'a1', name: 'Primeiros Passos', description: null }]
+
+    const result = await useCase.execute({ userId: 'u1', amount: 50, reason: 'licao' })
+
+    expect(result.unlockedAchievements).toEqual([
+      { id: 'a1', name: 'Primeiros Passos', description: null },
+    ])
   })
 
   it('rejeita quantidade não positiva', async () => {

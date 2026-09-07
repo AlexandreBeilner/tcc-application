@@ -33,7 +33,12 @@ function build() {
   const xpAwarder = createFakeXpAwarder()
   const streakTracker = createFakeStreakTracker()
   const socialFeedRecorder = createFakeSocialFeedRecorder()
-  const useCase = new AdvanceLessonUseCase(lessonRepository, xpAwarder, streakTracker, socialFeedRecorder)
+  const useCase = new AdvanceLessonUseCase(
+    lessonRepository,
+    xpAwarder,
+    streakTracker,
+    socialFeedRecorder,
+  )
   return { lessonRepository, xpAwarder, streakTracker, socialFeedRecorder, useCase }
 }
 
@@ -51,7 +56,14 @@ describe('AdvanceLessonUseCase', () => {
 
     const result = await useCase.execute({ userId: 'u1', lessonId: 'l1', step: LESSON_UNLOCK_STEP })
 
-    expect(result).toEqual({ currentStep: LESSON_UNLOCK_STEP, completed: true })
+    expect(result).toEqual({
+      currentStep: LESSON_UNLOCK_STEP,
+      completed: true,
+      xpAwarded: LESSON_XP_REWARD,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
     expect(xpAwarder.awarded).toEqual([
       { userId: 'u1', amount: LESSON_XP_REWARD, reason: 'licao:0.1' },
     ])
@@ -59,6 +71,46 @@ describe('AdvanceLessonUseCase', () => {
     // l1 não é a última lição da Trilha 0 (l2 ainda falta) — nenhum evento
     // de trilha concluída ainda.
     expect(socialFeedRecorder.recorded).toEqual([])
+  })
+
+  it('propaga leveledUp, streakMilestone e a união das conquistas devolvidas por xpAwarder/streakTracker', async () => {
+    const { lessonRepository, socialFeedRecorder } = build()
+    const xpAwarder = createFakeXpAwarder({
+      xp: 150,
+      level: 2,
+      leveledUp: true,
+      unlockedAchievements: [{ id: 'a1', name: 'Primeiros Passos', description: null }],
+    })
+    const streakTracker = createFakeStreakTracker({
+      currentStreak: 7,
+      longestStreak: 7,
+      milestoneReached: 7,
+      unlockedAchievements: [{ id: 'a2', name: 'Primeira Semana', description: null }],
+    })
+    const useCaseWithRewards = new AdvanceLessonUseCase(
+      lessonRepository,
+      xpAwarder,
+      streakTracker,
+      socialFeedRecorder,
+    )
+
+    const result = await useCaseWithRewards.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      step: LESSON_UNLOCK_STEP,
+    })
+
+    expect(result).toEqual({
+      currentStep: LESSON_UNLOCK_STEP,
+      completed: true,
+      xpAwarded: LESSON_XP_REWARD,
+      leveledUp: true,
+      streakMilestone: 7,
+      unlockedAchievements: [
+        { id: 'a1', name: 'Primeiros Passos', description: null },
+        { id: 'a2', name: 'Primeira Semana', description: null },
+      ],
+    })
   })
 
   it('grava evento de trilha concluída ao terminar a última lição da trilha', async () => {

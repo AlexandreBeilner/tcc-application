@@ -7,7 +7,7 @@ import { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import { GetLessonUseCase } from '../../application/useCases/getLesson'
 import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
 import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
-import { LESSON_UNLOCK_STEP } from '../../domain/lesson'
+import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -129,7 +129,14 @@ describe('lessons routes', () => {
       .send({ step: LESSON_UNLOCK_STEP })
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ currentStep: LESSON_UNLOCK_STEP, completed: true })
+    expect(res.body).toEqual({
+      currentStep: LESSON_UNLOCK_STEP,
+      completed: true,
+      xpAwarded: LESSON_XP_REWARD,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
   })
 
   it('POST /lessons/:id/progress retorna 404 pra lição bloqueada', async () => {
