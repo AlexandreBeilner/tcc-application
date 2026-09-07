@@ -93,7 +93,11 @@ describe('buildLessonView', () => {
   })
 
   it('correção da revisão da PR 18: nunca devolve microDecisionCorrectOption, mesmo pra lição com aposta real', () => {
-    const lessonWithOptions = { ...lesson, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }
+    const lessonWithOptions = {
+      ...lesson,
+      microDecisionOptions: ['Sim', 'Não'],
+      microDecisionCorrectOption: 0,
+    }
 
     const view = buildLessonView(lessonWithOptions, undefined, 0)
 

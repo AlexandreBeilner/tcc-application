@@ -257,10 +257,20 @@ describe('AdvanceLessonUseCase — aposta com acerto/erro real (B.2)', () => {
   it('devolve microDecisionCorrect/correctOptionLabel na resposta quando selectedOption é enviado (correção da revisão da PR 18)', async () => {
     const { useCase } = buildWithOptions()
 
-    const acerto = await useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2, selectedOption: 0 })
+    const acerto = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'lo1',
+      step: 2,
+      selectedOption: 0,
+    })
     expect(acerto).toMatchObject({ microDecisionCorrect: true, correctOptionLabel: 'Sim' })
 
-    const erro = await useCase.execute({ userId: 'u2', lessonId: 'lo1', step: 2, selectedOption: 1 })
+    const erro = await useCase.execute({
+      userId: 'u2',
+      lessonId: 'lo1',
+      step: 2,
+      selectedOption: 1,
+    })
     expect(erro).toMatchObject({ microDecisionCorrect: false, correctOptionLabel: 'Sim' })
   })
 
