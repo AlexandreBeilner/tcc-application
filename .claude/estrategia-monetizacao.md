@@ -59,34 +59,70 @@ performance, relatório de risco). O autor apontou o problema certo: como o dinh
 não há aderência real em vender análise de risco sobre um patrimônio que não existe — ninguém paga
 por isso. Registrado aqui só pra não ser recogitado do zero numa sessão futura.
 
-### Camada paga — itens aditivos, sem gente nos bastidores
+### Descartado: certificado de conclusão exportável
 
-Critério usado pra filtrar as ideias abaixo: precisam ser computadas automaticamente a partir de
-dados/infraestrutura que já existem, sem curadoria humana recorrente nem serviço externo por
-usuário — a monetização não pode depender de operação manual, só do que a aplicação já faz sozinha.
+Cogitado na mesma iteração (certificado verificável por trilha concluída, modelo Coursera/Alura).
+Descartado porque esse modelo depende de a marca emissora já ter peso/credibilidade no mercado —
+uma plataforma nova e desconhecida não empresta valor de currículo a quem exibe o certificado,
+diferente de uma Coursera/Alura já estabelecida. Só voltaria a fazer sentido se a plataforma
+ganhar reconhecimento de mercado depois de lançada, não como estratégia de lançamento.
 
-- **Pacote de trilhas/lições extras** (modelo "DLC"): as 33 lições centrais continuam grátis pra
-  sempre — é o corpo avaliado pela TCC. Trilhas adicionais (temas mais avançados ou de nicho)
-  viram pacotes pagos, escritos uma vez, sem custo recorrente por usuário. Reaproveita 100% da
-  infraestrutura de trilha/lição já existente.
-- **Múltiplas carteiras simultâneas ("sandboxes")**: hoje o usuário tem uma carteira só. Plano
-  pago libera rodar 2-3 em paralelo (comparar estratégias, ou resetar uma carteira nova sem perder
+### Assinatura PRO (cobrança mensal) — tudo incluso, sem item avulso
+
+Decisão do autor: uma assinatura recorrente só, não um cardápio de compras avulsas (nada de comprar
+pacote por pacote separadamente). Mais simples de vender ("PRO por R$X/mês, ponto") e mais simples
+de construir — uma flag de plano, não N SKUs diferentes pra cobrar e liberar. Isso também resolve
+sozinho o problema de dar motivo recorrente pra manter a assinatura: se novo conteúdo (trilha,
+cenário) continuar entrando na PRO ao longo do tempo, o motivo de renovar já vem embutido, sem
+precisar de uma estrutura à parte tipo passe de temporada.
+
+Critério usado pra filtrar as ideias abaixo (igual antes): precisam ser computadas automaticamente
+a partir de dados/infraestrutura que já existem, sem curadoria humana recorrente nem serviço externo
+por usuário — a monetização não pode depender de operação manual, só do que a aplicação já faz
+sozinha.
+
+**Âncoras — o que sozinho já justificaria assinar** (o resto da lista é o que deixa o plano mais
+redondo, não o que vende ele):
+
+- **Ligas privadas customizadas com amigos**: hoje o ranking é só Global e Amigos, com regra fixa.
+  Assinante cria liga própria (nome, regra de pontuação, janela de tempo) pra competir só com um
+  grupo específico — forte gatilho social (Impulso 5), sem tocar no ranking oficial, que continua
+  igual pra todo mundo.
+- **Pacote de trilhas/lições extras**: as 33 lições centrais continuam grátis pra sempre — é o
+  corpo avaliado pela TCC. Trilhas adicionais (temas mais avançados ou de nicho) ficam disponíveis
+  enquanto a assinatura estiver ativa, reaproveitando 100% da infraestrutura de trilha/lição já
+  existente.
+
+**Complementares — tornam o plano mais completo**:
+
+- **Múltiplas carteiras simultâneas ("sandboxes")**: hoje o usuário tem uma carteira só. Assinatura
+  libera rodar 2-3 em paralelo (comparar estratégias, ou resetar uma carteira nova sem perder
   XP/streak/histórico da principal). Funcional, não bloqueia quem tem uma carteira só de graça.
-- **Certificado de conclusão exportável**: trilha e emblema continuam grátis dentro do app; um
-  certificado verificável (PDF/link público, ex: pra LinkedIn) por trilha concluída é pago. O valor
-  não depende do saldo simulado — depende do aprendizado real, que é genuíno mesmo com dinheiro
-  fictício.
 - **Cenários extras de simulação**: o motor já tem um catálogo de templates de evento macro
-  (`engine/internal/domain/macroevent/templates.go`). Um "modo cenário" pago deixa o usuário rodar
-  a própria carteira contra um cenário pré-fabricado (ex: simular uma crise, um boom de commodities)
+  (`engine/internal/domain/macroevent/templates.go`). Um "modo cenário" deixa o assinante rodar a
+  própria carteira contra um cenário pré-fabricado (ex: simular uma crise, um boom de commodities)
   sob demanda, em vez de esperar o evento sortear naturalmente.
+- **Acesso antecipado a conteúdo novo**: quando uma trilha extra ou cenário novo é lançado,
+  assinante joga alguns dias antes de virar disponível pra todo mundo. Não é exclusividade
+  permanente — o conteúdo eventualmente chega a todos, só a ordem de acesso muda.
 - **Cosméticos exclusivos**: temas, moldura/avatar de perfil, emblemas visuais extras — nunca
   emblemas que representem conquista real de aprendizado (esses ficam grátis, são o Impulso 4 já
   planejado pra sala de troféus).
+- **Poder de agenda nas Assembleias** (seções 4 e 5): propor pauta na Assembleia dos Investidores e
+  na Assembleia de Acionistas. Nunca poder de resultado — quem decide continua sendo o voto de
+  todos (flat na seção 4, proporcional a ações na seção 5).
 
-Ideias registradas mas não aprofundadas (baixa prioridade, ficam só como nota): personalização de
-ranking (liga privada custom com amigos) e remoção de anúncios, caso anúncio venha a ser introduzido
-como fonte de receita adicional no futuro — hoje nenhuma das duas é parte ativa da proposta.
+Ideia registrada mas não aprofundada (baixa prioridade, fica só como nota): remoção de anúncios,
+caso anúncio venha a ser introduzido como fonte de receita adicional no futuro — hoje não é parte
+ativa da proposta.
+
+### O que acontece quando o assinante cancela
+
+Segue o princípio da seção 2 — **nunca esconder progresso já conquistado**. Cancelar não apaga
+nada: ligas criadas, carteiras extras e cosméticos ficam arquivados/inativos, não deletados: se a
+pessoa assinar de novo, tudo volta. Só as *capacidades* que dependem de assinatura ativa (criar liga
+nova, ter carteira extra ativa, propor pauta, acesso antecipado) pausam — o que já foi conquistado
+(XP, badges, lições concluídas mesmo as de pacote extra) nunca some.
 
 ## 4. Mecânica colaborativa — "Assembleia dos Investidores" (Impulso 5)
 
@@ -121,15 +157,42 @@ resolve isso:
   Investidores"), não literalmente "vocês são o Banco Central" — mantém o clima gamificado sem
   forçar um realismo estranho.
 
-## 5. O que nunca vira paywall
+## 5. Mecânica colaborativa — "Assembleia de Acionistas" (por empresa)
+
+Irmã da Assembleia dos Investidores (seção 4), mas em outra granularidade: em vez de uma decisão
+macro pra plataforma inteira, é uma assembleia por empresa específica da Renda Variável, espelhando
+assembleia de acionistas do mundo real (RF21 já separa indicador por classe de ativo — essa mecânica
+vive dentro desse mesmo recorte, só ações).
+
+A primeira versão discutida era peso de voto 5x pra quem tem plano pago. Descartada: diferente da
+Assembleia dos Investidores (efeito igual pra todo mundo, sem posição individual em jogo), aqui um
+usuário PRO que segura a ação da empresa X ganharia 5x de poder pra votar decisões que podem
+beneficiar a própria posição dele — pay-to-win direto sobre um ativo específico, a mesma armadilha
+do sistema de energia (seção 1) e do voto ponderado por conta (seção 4), só que mais grave por ser
+por ativo.
+
+Modelo adotado no lugar:
+
+- **Voto ponderado por ações que o usuário possui daquela empresa, não por plano** — todo acionista
+  vota (pago ou não), peso proporcional à posição real, exatamente como assembleia de acionista
+  funciona no mundo real (skin in the game, não assinatura). Reforça a mecânica de governança
+  corporativa como conteúdo educacional, não só como monetização.
+- **Plano PRO ganha poder de agenda, não poder de resultado**: pode propor, dentre um catálogo
+  pré-definido (sem curadoria humana por proposta), qual pauta entra na próxima assembleia daquela
+  empresa. Quem decide se a pauta passa continua sendo o voto proporcional de todos os acionistas.
+- Resultado da votação altera fundamentos da empresa (ex: política de dividendos, recompra) **pra
+  todo acionista igual**, pago ou não — mesma regra de "nunca vender vantagem privada sobre o
+  resultado" da seção 4.
+
+## 6. O que nunca vira paywall
 
 Conteúdo educacional (as 33 lições centrais e o que vier depois de graça), XP/nível/streak/
 conquistas, a ação de comprar/vender, o valor de rentabilidade percentual/nível exposto no ranking
 (RNF09 já proíbe expor patrimônio absoluto — isso vale independente de plano), e o resultado de
-qualquer evento de mercado — a Assembleia (seção 4) decide o quê acontece, nunca vende vantagem
-privada sobre o resultado.
+qualquer evento de mercado ou assembleia — quem decide o quê acontece é o voto (flat na seção 4,
+proporcional a ações na seção 5), nunca uma vantagem privada comprada sobre o resultado.
 
-## 6. O que falta pra essa proposta virar decisão fechada
+## 7. O que falta pra essa proposta virar decisão fechada
 
 - **Preço e nome dos planos** — não dá pra decidir sem usuários reais e sem saber o custo de infra
   em produção; a plataforma hoje não instrumenta telemetria de uso (mesma ressalva já registrada em
