@@ -25,6 +25,10 @@ export interface PublicProfile {
     // `.docs/backend/ranking.md`), diferente de `RankingEntry.profitabilityPct`.
     profitabilityPct: number
     window: RankingWindow
+    // Trilhas 100% concluídas (backlog de engajamento F.2) — só o número da
+    // trilha (ex: `[0, 1]`), nunca patrimônio (RNF09 continua estrutural).
+    // Consumido pelo organism `TrackTrophyCase` (F.3).
+    completedTracks: number[]
 }
 
 export interface GetUserProfileParams {

@@ -7,6 +7,7 @@ import { GetPublicProfileUseCase } from '../../application/useCases/getPublicPro
 import { createFakeAchievementsReader } from '../../test/fakes/fakeAchievementsReader'
 import { createFakeGamificationReader } from '../../test/fakes/fakeGamificationReader'
 import { createFakeProfitabilityReader } from '../../test/fakes/fakeProfitabilityReader'
+import { createFakeTrackCompletionReader } from '../../test/fakes/fakeTrackCompletionReader'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { createProfileRouter } from './profileRouter'
 
@@ -24,11 +25,13 @@ function buildApp() {
   })
   const achievementsReader = createFakeAchievementsReader()
   const profitabilityReader = createFakeProfitabilityReader({ u1: 4.2 })
+  const trackCompletionReader = createFakeTrackCompletionReader({ u1: [0] })
   const getPublicProfile = new GetPublicProfileUseCase(
     userDirectory,
     gamificationReader,
     achievementsReader,
     profitabilityReader,
+    trackCompletionReader,
   )
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -59,7 +62,12 @@ describe('profile routes', () => {
     const res = await request(app).get('/users/u1/profile').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.profile).toMatchObject({ username: 'alice', level: 2, profitabilityPct: 4.2 })
+    expect(res.body.profile).toMatchObject({
+      username: 'alice',
+      level: 2,
+      profitabilityPct: 4.2,
+      completedTracks: [0],
+    })
   })
 
   it('GET /users/:id/profile retorna 404 pra id inexistente', async () => {

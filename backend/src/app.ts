@@ -31,6 +31,7 @@ import { createStreakRouter } from './modules/gamification/interfaces/http/strea
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
+import { GetCompletedTracksUseCase } from './modules/lessons/application/useCases/getCompletedTracks'
 import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
 import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/useCases/getUnlockedProductKeys'
@@ -78,6 +79,7 @@ import { createInProcessAchievementsReader } from './modules/profile/infrastruct
 import { createInProcessGamificationReader } from './modules/profile/infrastructure/gamification/inProcessGamificationReader'
 import { createDrizzleUserDirectory as createDrizzleProfileUserDirectory } from './modules/profile/infrastructure/persistence/drizzleUserDirectory'
 import { createInProcessProfitabilityReader } from './modules/profile/infrastructure/ranking/inProcessProfitabilityReader'
+import { createInProcessTrackCompletionReader } from './modules/profile/infrastructure/lessons/inProcessTrackCompletionReader'
 import { createProfileRouter } from './modules/profile/interfaces/http/profileRouter'
 import type { GoogleIdentityProvider } from './modules/auth/application/ports/googleIdentityProvider'
 import type { TokenIssuer } from './modules/auth/application/ports/tokenIssuer'
@@ -328,6 +330,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
+    createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
   )
 
   const updateProfile = new UpdateProfileUseCase(userRepository)

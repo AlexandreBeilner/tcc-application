@@ -3,6 +3,7 @@ import { UserNotFoundError } from '../../domain/errors'
 import type { AchievementsReader, UnlockedAchievementSummary } from '../ports/achievementsReader'
 import type { GamificationReader } from '../ports/gamificationReader'
 import type { ProfileWindow, ProfitabilityReader } from '../ports/profitabilityReader'
+import type { TrackCompletionReader } from '../ports/trackCompletionReader'
 import type { UserDirectory } from '../ports/userDirectory'
 
 export interface GetPublicProfileInput {
@@ -24,6 +25,10 @@ export interface PublicProfile {
   achievements: UnlockedAchievementSummary[]
   profitabilityPct: number
   window: ProfileWindow
+  // Trilhas totalmente concluídas (backlog de engajamento F.2, sala de
+  // troféus do Perfil) — só o número da trilha, nunca patrimônio (RNF09
+  // continua estrutural: este campo não expõe nenhum valor monetário).
+  completedTracks: number[]
 }
 
 export class GetPublicProfileUseCase {
@@ -32,6 +37,7 @@ export class GetPublicProfileUseCase {
     private readonly gamificationReader: GamificationReader,
     private readonly achievementsReader: AchievementsReader,
     private readonly profitabilityReader: ProfitabilityReader,
+    private readonly trackCompletionReader: TrackCompletionReader,
   ) {}
 
   async execute(input: GetPublicProfileInput): Promise<PublicProfile> {
@@ -45,10 +51,11 @@ export class GetPublicProfileUseCase {
     // semana (ex: 5.5). Sinalizar se divergir.
     const window = input.window ?? 'week'
 
-    const [summary, achievements, profitabilityPct] = await Promise.all([
+    const [summary, achievements, profitabilityPct, completedTracks] = await Promise.all([
       this.gamificationReader.getSummary(input.userId),
       this.achievementsReader.listUnlocked(input.userId),
       this.profitabilityReader.getProfitabilityPct(input.userId, window, user.createdAt),
+      this.trackCompletionReader.listCompleted(input.userId),
     ])
 
     return {
@@ -60,6 +67,7 @@ export class GetPublicProfileUseCase {
       achievements,
       profitabilityPct,
       window,
+      completedTracks,
     }
   }
 }

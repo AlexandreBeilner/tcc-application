@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLessonView,
+  completedTrackNumbers,
   countCompleted,
   isEligibleForReview,
   isUnlocked,
@@ -121,6 +122,43 @@ describe('countCompleted', () => {
 
   it('0 pra lista vazia', () => {
     expect(countCompleted([])).toBe(0)
+  })
+})
+
+describe('completedTrackNumbers', () => {
+  it('trilha só entra no resultado se todas as lições dela estiverem concluídas', () => {
+    expect(
+      completedTrackNumbers([
+        { trackNumber: 0, completedAt: new Date() },
+        { trackNumber: 0, completedAt: new Date() },
+        { trackNumber: 1, completedAt: new Date() },
+        { trackNumber: 1, completedAt: null },
+      ]),
+    ).toEqual([0])
+  })
+
+  it('lista vazia → nenhuma trilha completa', () => {
+    expect(completedTrackNumbers([])).toEqual([])
+  })
+
+  it('nenhuma lição concluída → nenhuma trilha completa', () => {
+    expect(
+      completedTrackNumbers([
+        { trackNumber: 0, completedAt: null },
+        { trackNumber: 1, completedAt: null },
+      ]),
+    ).toEqual([])
+  })
+
+  it('várias trilhas completas voltam ordenadas por número', () => {
+    expect(
+      completedTrackNumbers([
+        { trackNumber: 3, completedAt: new Date() },
+        { trackNumber: 0, completedAt: new Date() },
+        { trackNumber: 1, completedAt: new Date() },
+        { trackNumber: 2, completedAt: null },
+      ]),
+    ).toEqual([0, 1, 3])
   })
 })
 

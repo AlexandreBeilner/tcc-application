@@ -434,7 +434,7 @@ pra mostrar trilhas concluídas no Perfil Público — não dá, essa rota só l
 campo novo em `GetPublicProfileUseCase`. Sem tocar em RNF09 (nenhum valor absoluto exposto —
 emblema mostra conquista, não patrimônio).
 
-### F.1 · Tokens de cor por trilha
+### F.1 · Tokens de cor por trilha ✅
 
 - **Descrição:** `identidade-visual-tokens.md` hoje não distingue trilhas por cor. Definir uma
   variação de tom por trilha (4 trilhas: 0 Fundamentos, 1 Renda Fixa, 2 Renda Variável, 3
@@ -447,8 +447,19 @@ emblema mostra conquista, não patrimônio).
   usar.
 - **Referências:** `identidade-visual-tokens.md` §1-2.
 - **Dependências:** nenhuma.
+- **Entregável:** seção 2.6 nova em `identidade-visual-tokens.md` com `--color-track-0`
+  (Fundamentos, hue de marca), `--color-track-1` (Renda Fixa, hue de ganho), `--color-track-2`
+  (Renda Variável, hue de perda) e `--color-track-3` (Estratégia, hue de gamificação) — token 0 e 2
+  reaproveitam o hex exato de `--color-brand-300`/`--color-loss-500` (mesmo padrão da 2.3a); token
+  1 e 3 usam um tom mais escuro que o `-500` de origem só no tema claro, porque o valor original
+  fica em ~3.45:1/~3.64:1 contra `--color-bg-surface` branco (abaixo do AA de texto normal 4.5:1).
+  Contraste de todos os 8 valores (4 tons × 2 temas) calculado via fórmula de luminância relativa
+  do WCAG 2 — pior caso 4.60:1 (track 2 dark), todos os outros ≥5.36:1. Fundo suave do emblema fica
+  pra quando F.3 precisar (reaproveita `-100` da família de origem, sem token novo). Custom
+  properties espelhadas em `frontend/src/index.css` (`:root` e `:root[data-theme='light']`). Sem UI
+  nova nesta tarefa (nenhum componente consome os tokens ainda — isso é F.3).
 
-### F.2 · Backend — trilhas concluídas no perfil público
+### F.2 · Backend — trilhas concluídas no perfil público ✅
 
 - **Descrição:** `GetPublicProfileUseCase` (`backend/src/modules/profile/application/useCases/getPublicProfile.ts`)
   hoje monta `PublicProfile` a partir de 3 leitores (`gamificationReader`, `achievementsReader`,
@@ -468,8 +479,25 @@ emblema mostra conquista, não patrimônio).
   incidental, mesmo cuidado já usado em `GetPublicProfileUseCase` hoje).
 - **Referências:** `.docs/backend/profile.md` (contrato de `GET /users/:id/profile`); RNF09.
 - **Dependências:** nenhuma.
+- **Entregável:** o adapter acabou sobre um caso de uso novo de `lessons`
+  (`GetCompletedTracksUseCase`), não direto sobre o repositório — mesmo padrão já usado por
+  `productUnlockReader`/`lessonCompletionChecker` (ambos também envolvem um caso de uso de
+  `lessons`, não a porta crua). Função pura `completedTrackNumbers` em `lessons/domain/lesson.ts`
+  (trilha só entra no resultado se **todas** as lições dela tiverem `completedAt` preenchido).
+  `GetCompletedTracksUseCase` existe porque `GET /lessons`/`GetTrackMapUseCase` só serve
+  `req.auth.userId` — o caso de uso novo aceita `userId` de entrada e nunca passa pela rota HTTP,
+  chamado só em processo pelo adapter `createInProcessTrackCompletionReader` (mesma direção de
+  `inProcessAchievementsReader`/`inProcessProductUnlockReader`). `PublicProfile.completedTracks`
+  populado via `Promise.all` junto dos outros 3 leitores. Testes: `lesson.test.ts` (função pura),
+  `getCompletedTracks.test.ts` (caso de uso, fake de `lessonRepository`), `getPublicProfile.test.ts`
+  + `profileRouter.test.ts` (fake novo `fakeTrackCompletionReader`, RNF09 sem alteração — teste
+  explícito de chaves proibidas continua passando). Validado ponta a ponta via `docker compose up`
+  real (não só teste): registrou 2 usuários, completou as 5 lições da Trilha 0 pra um deles via
+  `POST /lessons/:id/progress`, confirmou `completedTracks: [0]` tanto em `/me/profile` quanto em
+  `/users/:id/profile` visto pelo *outro* usuário (o caso que `GET /lessons` não cobria) e `[]` pro
+  usuário sem nenhuma lição concluída.
 
-### F.3 · Organism `TrackTrophyCase` no Perfil
+### F.3 · Organism `TrackTrophyCase` no Perfil ✅
 
 - **Descrição:** seção nova na tela de Perfil Público mostrando um emblema visual por trilha
   concluída (dado de F.2), na cor definida em F.1 — substitui/complementa a conquista genérica
@@ -484,6 +512,28 @@ emblema mostra conquista, não patrimônio).
   de estado vazio já usado em outras telas do app.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 4); RF20 (Perfil Público).
 - **Dependências:** F.1, F.2.
+- **Entregável:** `completedTracks: number[]` acrescentado a `PublicProfile`
+  (`services/profile/types.ts`) — decisão desta sessão: o campo entra dentro do objeto `profile`
+  já existente (espelhando 1:1 a resposta real do backend), não como prop irmã separada em
+  `PublicProfileCardProps` como o texto original da tarefa sugeria, porque toda a informação de
+  perfil já flui assim (`profile.achievements`, `profile.profitabilityPct` etc.) — introduzir uma
+  prop paralela seria duplicar o mesmo dado por dois caminhos. Nome/cor por trilha (currículo fixo
+  de 4 trilhas, spec 5.1) vivem como constante estática dentro do próprio
+  `TrackTrophyCase/index.tsx` — a API só devolve o número, nunca o nome. Sem estado "bloqueado" pra
+  desenhar (diferente de `AchievementsGrid`): só a trilha concluída existe; `completedTracks: []`
+  → componente retorna `null` (mesmo padrão de `ResumeLessonCard`/`TrackChart`/`GrowthChart`, nunca
+  um "nenhuma trilha concluída" vazio). Ícone `GraduationCap` (não `Trophy` — já é o ícone da aba
+  Classificação na `TabBar`, evitar reuso ambíguo). Cor/borda/ícone/texto do emblema usam um único
+  `color` inline (currentColor) em vez de repetir a variável 3x. Grid responsivo mobile-first: 2
+  colunas base, 4 a partir de 768px, 1 coluna abaixo de 380px (nome mais longo, "Estratégia e
+  Tributação") — mesmos breakpoints e mesma correção de nome longo já usados em
+  `AchievementsGrid`. Validado com `docker compose up` + dev server reais no Chrome: emblema azul
+  "Fundamentos" aparece na cor/fundo certos (`--color-track-0`/`--color-brand-100`, conferido via
+  `getComputedStyle`) tanto em dark quanto light, seção some por completo pro usuário sem trilha
+  concluída, grid confirmado em 4 colunas no desktop e regras de mídia de 768px/380px presentes no
+  CSS computado (mesmas do `AchievementsGrid` já testado). Testes: `index.test.tsx` novo
+  (`TrackTrophyCase`) + fixtures de `PublicProfile` atualizadas em
+  `PublicProfileCard`/`PerfilPublico`/`MeuPerfil`.
 
 ---
 

@@ -134,3 +134,23 @@ export function isEligibleForReview(completedAt: Date, now: Date): boolean {
   const msPerDay = 24 * 60 * 60 * 1000
   return now.getTime() - completedAt.getTime() >= REVIEW_ELIGIBLE_AFTER_DAYS * msPerDay
 }
+
+// Trilha "completa" (backlog de engajamento F.2, sala de troféus do Perfil):
+// todas as lições dela concluídas, mesmo critério de `completedAt !== null`
+// usado por `countCompleted` acima. Uma trilha sem nenhuma lição na lista de
+// entrada nunca aparece no resultado (não existe "trilha completa vazia").
+export function completedTrackNumbers(
+  lessons: { trackNumber: number; completedAt: Date | null }[],
+): number[] {
+  const allCompletedByTrack = new Map<number, boolean>()
+  for (const lesson of lessons) {
+    const completed = lesson.completedAt !== null
+    const soFar = allCompletedByTrack.get(lesson.trackNumber) ?? true
+    allCompletedByTrack.set(lesson.trackNumber, soFar && completed)
+  }
+
+  return [...allCompletedByTrack.entries()]
+    .filter(([, allCompleted]) => allCompleted)
+    .map(([trackNumber]) => trackNumber)
+    .sort((a, b) => a - b)
+}

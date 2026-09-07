@@ -50,6 +50,7 @@ describe('MeuPerfil (tela 9.1)', () => {
                 achievements: [],
                 profitabilityPct: 1.4,
                 window: 'week',
+                completedTracks: [],
             },
         })
 

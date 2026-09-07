@@ -3,6 +3,7 @@ import { UserNotFoundError } from '../../domain/errors'
 import { createFakeAchievementsReader } from '../../test/fakes/fakeAchievementsReader'
 import { createFakeGamificationReader } from '../../test/fakes/fakeGamificationReader'
 import { createFakeProfitabilityReader } from '../../test/fakes/fakeProfitabilityReader'
+import { createFakeTrackCompletionReader } from '../../test/fakes/fakeTrackCompletionReader'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { GetPublicProfileUseCase } from './getPublicProfile'
 
@@ -29,11 +30,13 @@ function build() {
     ],
   })
   const profitabilityReader = createFakeProfitabilityReader({ u1: 12.5 })
+  const trackCompletionReader = createFakeTrackCompletionReader({ u1: [0, 1] })
   const useCase = new GetPublicProfileUseCase(
     userDirectory,
     gamificationReader,
     achievementsReader,
     profitabilityReader,
+    trackCompletionReader,
   )
   return { useCase }
 }
@@ -60,6 +63,7 @@ describe('GetPublicProfileUseCase', () => {
       ],
       profitabilityPct: 12.5,
       window: 'week',
+      completedTracks: [0, 1],
     })
   })
 
@@ -70,16 +74,39 @@ describe('GetPublicProfileUseCase', () => {
     })
     const achievementsReader = createFakeAchievementsReader({ u1: [] })
     const profitabilityReader = createFakeProfitabilityReader({ u1: 12.5 })
+    const trackCompletionReader = createFakeTrackCompletionReader({ u1: [] })
     const useCase = new GetPublicProfileUseCase(
       userDirectory,
       gamificationReader,
       achievementsReader,
       profitabilityReader,
+      trackCompletionReader,
     )
 
     const profile = await useCase.execute({ userId: 'u1' })
 
     expect(profile.avatarUrl).toBeNull()
+  })
+
+  it('sem nenhuma trilha concluída → completedTracks vazio', async () => {
+    const userDirectory = createFakeUserDirectory([user])
+    const gamificationReader = createFakeGamificationReader({
+      u1: { level: 3, xp: 350, currentStreak: 5 },
+    })
+    const achievementsReader = createFakeAchievementsReader({ u1: [] })
+    const profitabilityReader = createFakeProfitabilityReader({ u1: 12.5 })
+    const trackCompletionReader = createFakeTrackCompletionReader({ u1: [] })
+    const useCase = new GetPublicProfileUseCase(
+      userDirectory,
+      gamificationReader,
+      achievementsReader,
+      profitabilityReader,
+      trackCompletionReader,
+    )
+
+    const profile = await useCase.execute({ userId: 'u1' })
+
+    expect(profile.completedTracks).toEqual([])
   })
 
   it('usa month quando pedido explicitamente', async () => {
