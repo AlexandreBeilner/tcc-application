@@ -1,21 +1,10 @@
 import { GraduationCap } from 'lucide-react'
 import { Avatar } from '../../atoms/Avatar'
+import { trackNameFor } from '../../../utils/tracks'
 import type { RecentActivityFeedProps } from './types'
 import styles from './index.module.css'
 
 export type { RecentActivityFeedProps } from './types'
-
-// Currículo fixo de 4 trilhas (spec 5.1) — mesma decisão de `TrackTrophyCase`
-// (F.3): nome/cor vivem como dado estático no frontend porque `GET
-// /social-feed` só devolve `trackNumber` (`.docs/backend/socialfeed.md`),
-// nunca o nome — não é RNF09 (nada de patrimônio em jogo), é currículo que
-// não muda por usuário.
-const TRACK_NAMES: Record<number, string> = {
-    0: 'Fundamentos',
-    1: 'Renda Fixa',
-    2: 'Renda Variável',
-    3: 'Estratégia e Tributação',
-}
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -46,7 +35,7 @@ export function RecentActivityFeed({ events }: RecentActivityFeedProps) {
                             <GraduationCap className={styles.icon} size={16} strokeWidth={2} aria-hidden="true" />
                             <span className={styles.text}>
                                 <strong>{event.name}</strong> completou a Trilha {event.trackNumber}:{' '}
-                                {event.trackNumber !== null ? TRACK_NAMES[event.trackNumber] : ''}
+                                {event.trackNumber !== null ? trackNameFor(event.trackNumber) : ''}
                             </span>
                         </span>
                         <span className={styles.date}>{dateFormatter.format(new Date(event.occurredAt))}</span>

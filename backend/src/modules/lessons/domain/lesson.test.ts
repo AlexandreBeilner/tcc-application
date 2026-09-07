@@ -7,6 +7,7 @@ import {
   isEligibleForReview,
   isUnlocked,
   lessonStatus,
+  microDecisionResultFor,
   unlockedKeysFor,
   utcDateString,
 } from './lesson'
@@ -89,6 +90,14 @@ describe('buildLessonView', () => {
     )
 
     expect(view.status).toBe('completed')
+  })
+
+  it('correção da revisão da PR 18: nunca devolve microDecisionCorrectOption, mesmo pra lição com aposta real', () => {
+    const lessonWithOptions = { ...lesson, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }
+
+    const view = buildLessonView(lessonWithOptions, undefined, 0)
+
+    expect(Object.keys(view)).not.toContain('microDecisionCorrectOption')
   })
 })
 
@@ -207,4 +216,31 @@ describe('isCorrectOption', () => {
       expect(isCorrectOption({ microDecisionCorrectOption }, selectedOption)).toBe(expected)
     },
   )
+})
+
+describe('microDecisionResultFor', () => {
+  const lessonWithOptions = { microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }
+  const lessonWithoutOptions = { microDecisionOptions: null, microDecisionCorrectOption: null }
+
+  it('acertou: correct=true, correctOptionLabel é a opção certa', () => {
+    expect(microDecisionResultFor(lessonWithOptions, 0)).toEqual({
+      correct: true,
+      correctOptionLabel: 'Sim',
+    })
+  })
+
+  it('errou: correct=false, correctOptionLabel continua sendo a opção certa (não a escolhida)', () => {
+    expect(microDecisionResultFor(lessonWithOptions, 1)).toEqual({
+      correct: false,
+      correctOptionLabel: 'Sim',
+    })
+  })
+
+  it('undefined quando selectedOption não veio nesta chamada', () => {
+    expect(microDecisionResultFor(lessonWithOptions, undefined)).toBeUndefined()
+  })
+
+  it('undefined pra lição sem aposta real, mesmo com selectedOption presente', () => {
+    expect(microDecisionResultFor(lessonWithoutOptions, 0)).toBeUndefined()
+  })
 })

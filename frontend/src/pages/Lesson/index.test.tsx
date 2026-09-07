@@ -61,7 +61,6 @@ function lesson(overrides: Partial<LessonType>): LessonType {
         unlocksKeys: [],
         unlocksAssetTicker: null,
         microDecisionOptions: null,
-        microDecisionCorrectOption: null,
         status: 'available',
         currentStep: 0,
         ...overrides,
@@ -132,7 +131,7 @@ describe('Lesson (tela 3.2)', () => {
 
     it('micro-decisão com opções reais (backlog engajamento B.3) mostra os botões de escolha, não o checkbox', async () => {
         vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
         })
 
         renderLesson()
@@ -143,9 +142,20 @@ describe('Lesson (tela 3.2)', () => {
         expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
     })
 
+    it('microDecisionOptions vazio (não null) cai de volta pro checkbox, não trava com 0 botões', async () => {
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 1, microDecisionOptions: [] }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByRole('checkbox')).toBeInTheDocument()
+        expect(screen.getByText('Já pensei na minha resposta')).toBeInTheDocument()
+    })
+
     it('micro-decisão com opções reais exige escolher uma opção antes de habilitar Continuar', async () => {
         vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
         })
 
         renderLesson()
@@ -159,9 +169,14 @@ describe('Lesson (tela 3.2)', () => {
 
     it('escolher a opção certa envia selectedOption e mostra "Você acertou" na Revelação', async () => {
         vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
         })
-        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+        vi.mocked(advanceLesson).mockResolvedValue({
+            currentStep: 2,
+            completed: false,
+            microDecisionCorrect: true,
+            correctOptionLabel: 'Sim',
+        })
 
         renderLesson()
 
@@ -174,9 +189,14 @@ describe('Lesson (tela 3.2)', () => {
 
     it('escolher a opção errada mostra "Quase" com a resposta certa na Revelação', async () => {
         vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }),
+            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
         })
-        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+        vi.mocked(advanceLesson).mockResolvedValue({
+            currentStep: 2,
+            completed: false,
+            microDecisionCorrect: false,
+            correctOptionLabel: 'Sim',
+        })
 
         renderLesson()
 

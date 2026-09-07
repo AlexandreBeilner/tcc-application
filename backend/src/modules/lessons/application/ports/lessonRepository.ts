@@ -47,6 +47,11 @@ export interface LessonRepository {
     lessonId: string,
     currentStep: number,
     completedAt: Date,
+    // Mesma convenção `undefined` !== `null` de `UpsertProgressInput` acima —
+    // uma chamada que conclui a lição sem reenviar `selectedOption` (ex:
+    // escolha já persistida num passo anterior) não deve apagar o valor
+    // gravado.
+    microDecisionSelectedOption?: number,
   ): Promise<CompletionAttemptResult>
   // Só grava `lastReviewedAt` — não mexe em `currentStep`/`completedAt`
   // (aqueles continuam sendo responsabilidade de `upsertProgress`). Requer

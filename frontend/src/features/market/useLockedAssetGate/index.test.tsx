@@ -30,7 +30,6 @@ function lesson(overrides: Partial<Lesson> = {}): Lesson {
         unlocksKeys: ['asset:acao'],
         unlocksAssetTicker: null,
         microDecisionOptions: null,
-        microDecisionCorrectOption: null,
         status: 'available',
         currentStep: 0,
         ...overrides,

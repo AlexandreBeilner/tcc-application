@@ -211,6 +211,40 @@ comparar.
   `GET /lessons/:id` devolve os 2 campos como `null`, `POST /lessons/:id/progress` (avançar e
   concluir) continua funcionando idêntico a antes e `micro_decision_selected_option` permanece
   `null` na tabela (conferido via `psql` direto). 505 testes (+8 novos), lint/build passando.
+  **Correção da revisão da PR 18 (autor confirmou avançar):** `GET /lessons`/`GET /lessons/:id`
+  devolviam `microDecisionCorrectOption` (o índice certo) igual a qualquer outro campo de
+  `LessonSummary` — desde antes da B.3 preencher a UI, qualquer usuário podia ler a resposta certa
+  pela aba de rede antes de escolher, o que esvaziava por completo o propósito da aposta com
+  acerto/erro. `domain/lesson.LessonView` deixou de estender `LessonSummary` (que `buildLessonView`
+  ainda usa internamente) e passou a `Omit<LessonSummary, 'microDecisionCorrectOption'>` — o campo é
+  omitido estruturalmente (mesmo padrão de RNF09 em `GetPublicProfileUseCase`: o campo não existe no
+  tipo de resposta, não é filtrado na serialização), construído explicitamente campo a campo em vez
+  de espalhar `...lesson`. Veredito da aposta movido pra `domain/lesson.microDecisionResultFor(lesson,
+  selectedOption)` (nova função pura, reaproveita `isCorrectOption`), consumida só por
+  `AdvanceLessonUseCase` — `AdvanceLessonResult` ganhou `microDecisionCorrect?: boolean`/
+  `correctOptionLabel?: string`, presentes só na resposta do `POST` que de fato envia `selectedOption`
+  válido pra uma lição com aposta real. Frontend (`Lesson.microDecisionCorrectOption` removido do
+  tipo em `services/lessons/types.ts`) trocou a comparação client-side (`lesson.microDecisionCorrectOption
+  === selectedOption`, ela própria só possível por causa do vazamento) por um novo estado local
+  `microDecisionResult`, preenchido no `onSuccess` da mutation que sai do passo Micro-decisão — mesma
+  limitação de sessão já documentada na B.3 pra `selectedOption` (não sobrevive a um reload no passo
+  Revelação, já que a API nunca devolve a escolha de volta via `GET`). Testes novos: domínio
+  (`microDecisionResultFor` table-driven + regressão "buildLessonView nunca devolve
+  microDecisionCorrectOption", padrão do teste RNF09 de `getPublicProfile.test.ts`), caso de uso
+  (round-trip acerto/erro em `advanceLesson.test.ts`), router (`GET /lessons`/`GET /lessons/:id`
+  nunca devolvem o campo, `POST` devolve o veredito certo via supertest) e componente (mock de
+  `advanceLesson` em `Lesson/index.test.tsx` passou a incluir `microDecisionCorrect`/
+  `correctOptionLabel`, já que o componente não lê mais do `lesson`). 520 testes no backend (+9),
+  617 no frontend (mesma contagem, só o mock dos 2 testes de acerto/erro mudou de forma), lint/
+  build/tsc/prettier passando nos dois. Validado com `docker compose up` real: seed completo das 33
+  lições, usuário novo registrado, `GET /lessons` na lição `0.3` (opções reais, correta = índice 2)
+  confirmando ausência de `microDecisionCorrectOption` na resposta; completou `0.1`/`0.2`,
+  `POST .../0.3/progress` com `selectedOption` errado (`step:2`) devolveu
+  `{microDecisionCorrect:false, correctOptionLabel:"R$105"}`; a chamada seguinte que já conclui a
+  lição (`step:3`) com `selectedOption` certo devolveu `{microDecisionCorrect:true, ...}` **e**
+  persistiu `micro_decision_selected_option=2` (conferido via `psql` direto) — cobre as duas
+  correções desta revisão numa única chamada real. `GET /lessons/:id` da lição já concluída
+  confirmado ainda sem o campo.
 
 ### B.2 · Backend — `AdvanceLessonUseCase` grava a escolha ✅ concluída
 
@@ -249,6 +283,15 @@ comparar.
   (caso de uso, router com supertest, `docker compose` ponta a ponta com uma lição real do seed
   temporariamente marcada com opções via SQL direto, já que a autoria de conteúdo é a B.4). 510
   testes (+5 novos), lint/build passando.
+  **Correção da revisão da PR 18:** o parágrafo acima ("nenhuma mudança em `drizzleLessonRepository.ts`
+  foi necessária") só cobria o caminho de `upsertProgress` — a chamada que já sai do passo
+  Micro-decisão *e* atinge o step de desbloqueio na mesma requisição (`step >= LESSON_UNLOCK_STEP`)
+  segue por `completeIfNotAlreadyCompleted`, que não recebia `selectedOption` nenhum: a escolha era
+  descartada em silêncio nesse caso específico, sem erro. `completeIfNotAlreadyCompleted` (port +
+  Drizzle + fake) ganhou um 5º parâmetro opcional `microDecisionSelectedOption`, mesma convenção
+  `undefined` ≠ `null` de `upsertProgress`; `advanceLesson.ts` passa `input.selectedOption` por esse
+  caminho também. Teste novo em `advanceLesson.test.ts` cobrindo exatamente esse caso (conclui e
+  persiste a escolha na mesma chamada). 511 testes, lint/build/prettier passando.
 
 ### B.3 · Frontend — widget de escolha real ✅ concluída
 
@@ -307,6 +350,12 @@ comparar.
   injetado por JS — `resize_window` ficou dessincronizado de novo nesta sessão, mesma classe de
   problema já vista em G.2/I.3) confirmando a lista de botões cheia largura + `TabBar` inferior
   intactos. 611 testes (+5 novos), lint/tsc/prettier passando.
+  **Correção da revisão da PR 18:** `hasRealOptions = lesson.microDecisionOptions != null` não
+  cobria `microDecisionOptions: []` (não `null`, mas vazio) — nesse caso o widget de opções reais
+  renderizava sem nenhum botão e `canAdvanceMicroDecision` nunca ficava satisfeito, travando a
+  lição. Nenhuma lição do seed cai nesse caso hoje, mas nada no Zod/domínio impede — corrigido pra
+  `(lesson.microDecisionOptions?.length ?? 0) > 0`. Teste novo cobrindo o array vazio caindo de
+  volta pro checkbox. 617 testes, lint/tsc/prettier passando.
 
 ### B.4 · Conteúdo — auditoria e autoria das opções ✅ concluída
 
@@ -718,6 +767,11 @@ evento.
   desktop e mobile (390px, via iframe — a extensão de automação do browser não respeitou o resize da
   janela nesta sessão), sem paginação/rentabilidade/patrimônio visível. Suíte inteira (585 testes,
   incluindo os 3 novos deste organism/página) e lint/build/tsc passando.
+  **Correção da revisão da PR 18:** o `TRACK_NAMES` local deste organism duplicava, campo a campo,
+  o `TRACKS` de `TrackTrophyCase` (F.3) — os dois vivendo em arquivos de componente em vez de um
+  lugar só, risco de divergir ao renomear/adicionar trilha. Extraído pra `utils/tracks/` (`TRACKS` +
+  `trackNameFor`, cross-feature, mesmo padrão de pasta de `utils/fetchAllPages`); os dois organisms
+  importam de lá agora.
 
 ---
 

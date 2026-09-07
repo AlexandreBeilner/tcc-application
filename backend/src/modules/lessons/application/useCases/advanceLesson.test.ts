@@ -254,6 +254,40 @@ describe('AdvanceLessonUseCase — aposta com acerto/erro real (B.2)', () => {
     ).rejects.toBeInstanceOf(InvalidMicroDecisionOptionError)
   })
 
+  it('devolve microDecisionCorrect/correctOptionLabel na resposta quando selectedOption é enviado (correção da revisão da PR 18)', async () => {
+    const { useCase } = buildWithOptions()
+
+    const acerto = await useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2, selectedOption: 0 })
+    expect(acerto).toMatchObject({ microDecisionCorrect: true, correctOptionLabel: 'Sim' })
+
+    const erro = await useCase.execute({ userId: 'u2', lessonId: 'lo1', step: 2, selectedOption: 1 })
+    expect(erro).toMatchObject({ microDecisionCorrect: false, correctOptionLabel: 'Sim' })
+  })
+
+  it('não devolve microDecisionCorrect/correctOptionLabel quando selectedOption não é enviado', async () => {
+    const { useCase } = buildWithOptions()
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2 })
+
+    expect(result).not.toHaveProperty('microDecisionCorrect')
+    expect(result).not.toHaveProperty('correctOptionLabel')
+  })
+
+  it('persiste selectedOption mesmo quando a mesma chamada já conclui a lição', async () => {
+    const { lessonRepository, useCase } = buildWithOptions()
+
+    await useCase.execute({
+      userId: 'u1',
+      lessonId: 'lo1',
+      step: LESSON_UNLOCK_STEP,
+      selectedOption: 1,
+    })
+
+    const [progress] = await lessonRepository.listProgressForUser('u1')
+    expect(progress.completedAt).not.toBeNull()
+    expect(progress.microDecisionSelectedOption).toBe(1)
+  })
+
   it('ignora selectedOption sem erro pra lição sem opções reais (mantém checkbox)', async () => {
     const { useCase } = build()
 

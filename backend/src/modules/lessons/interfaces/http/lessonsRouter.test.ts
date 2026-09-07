@@ -114,6 +114,24 @@ describe('lessons routes', () => {
     expect(res.body.lesson.status).toBe('available')
   })
 
+  it('GET /lessons/:id nunca devolve microDecisionCorrectOption, nem pra lição com aposta real (correção da revisão da PR 18)', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app).get('/lessons/l1').set('Authorization', authHeader(tokenIssuer))
+
+    expect(res.body.lesson).not.toHaveProperty('microDecisionCorrectOption')
+  })
+
+  it('GET /lessons nunca devolve microDecisionCorrectOption em nenhuma lição do mapa', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app).get('/lessons').set('Authorization', authHeader(tokenIssuer))
+
+    for (const lesson of res.body.lessons) {
+      expect(lesson).not.toHaveProperty('microDecisionCorrectOption')
+    }
+  })
+
   it('POST /lessons/:id/progress retorna 400 pra step inválido', async () => {
     const { app, tokenIssuer } = buildApp()
 
@@ -147,6 +165,7 @@ describe('lessons routes', () => {
     expect(res.status).toBe(200)
     const [progress] = await lessonRepository.listProgressForUser('u1')
     expect(progress.microDecisionSelectedOption).toBe(1)
+    expect(res.body).toMatchObject({ microDecisionCorrect: false, correctOptionLabel: 'Sim' })
   })
 
   it('POST /lessons/:id/progress avança e conclui a lição no step de desbloqueio', async () => {

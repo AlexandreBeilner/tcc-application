@@ -59,10 +59,16 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const [microDecisionConfirmed, setMicroDecisionConfirmed] = useState(false)
     // Aposta com acerto/erro real (backlog engajamento B.3) — índice
     // escolhido pelo usuário no widget de opções reais (mutuamente exclusivo
-    // com o checkbox `microDecisionConfirmed` acima). Persiste no estado
-    // local até o passo Revelação pra sustentar o badge de acerto/erro ali;
-    // nunca é lido de volta do backend (B.2 não expõe isso via GET ainda).
+    // com o checkbox `microDecisionConfirmed` acima). Só sustenta a UI do
+    // botão (`aria-pressed`) e habilita "Continuar"; o veredito em si vem do
+    // servidor (`microDecisionResult` abaixo, correção da revisão da PR 18 —
+    // `Lesson.microDecisionCorrectOption` não existe mais, comparar aqui
+    // vazaria a resposta certa via `GET /lessons` antes de qualquer escolha).
     const [selectedOption, setSelectedOption] = useState<number | undefined>(undefined)
+    // Veredito da aposta (B.3), devolvido por `POST /lessons/:id/progress`
+    // só na chamada que envia `selectedOption` — nunca lido de volta de
+    // `GET /lessons`/`GET /lessons/:id` (mesma razão do comentário acima).
+    const [microDecisionResult, setMicroDecisionResult] = useState<{ correct: boolean; correctOptionLabel: string } | undefined>(undefined)
     // Navegação entre cartões (tarefa A.1) dentro da fase atual — estado
     // local, não persistido (a persistência de progresso continua sendo só
     // o `step` de fase, spec 5.2). Reseta pra 0 a cada avanço real de fase.
@@ -98,16 +104,15 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const unlockAsset = useAssetByTicker(lesson?.unlocksAssetTicker ?? null)
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
-    const hasRealOptions = lesson?.microDecisionOptions != null
+    const hasRealOptions = (lesson?.microDecisionOptions?.length ?? 0) > 0
     const canAdvanceMicroDecision = usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : microDecisionConfirmed)
-    // Badge de acerto/erro da Revelação (B.3) — só existe escolha real pra
-    // comparar quando a lição tem opções e o usuário de fato escolheu uma
-    // nesta sessão (a escolha não é lida de volta do backend, ver o
-    // comentário no `useState` de `selectedOption` acima).
-    const microDecisionAnswered = hasRealOptions && selectedOption !== undefined
-    const microDecisionCorrect = microDecisionAnswered && lesson?.microDecisionCorrectOption === selectedOption
-    const correctOptionLabel =
-        lesson?.microDecisionCorrectOption != null ? lesson.microDecisionOptions?.[lesson.microDecisionCorrectOption] : undefined
+    // Badge de acerto/erro da Revelação (B.3) — só existe quando o servidor
+    // já devolveu o veredito desta escolha (`handleAdvance` abaixo grava em
+    // `microDecisionResult` no `onSuccess` do avanço que saiu do passo
+    // Micro-decisão com `selectedOption`).
+    const microDecisionAnswered = microDecisionResult !== undefined
+    const microDecisionCorrect = microDecisionResult?.correct ?? false
+    const correctOptionLabel = microDecisionResult?.correctOptionLabel
     const unlockAssetPath = lesson?.unlocksAssetTicker && unlockAsset.asset ? assetDetailPath(unlockAsset.asset) : null
     // Chave de feature (`portfolio`/`calculator`, ex: 0.1/0.2) em vez de
     // produto real — mesmo mecanismo de CTA do Desbloqueio, generalizado pra
@@ -133,7 +138,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
         advanceLesson.mutate(
             { step: step + 1, selectedOption: optionToSend },
             {
-                onSuccess: () => {
+                onSuccess: (data) => {
+                    if (data.microDecisionCorrect !== undefined) {
+                        setMicroDecisionResult({
+                            correct: data.microDecisionCorrect,
+                            correctOptionLabel: data.correctOptionLabel ?? '',
+                        })
+                    }
                     setLocalStep(step + 1)
                     setSubStep(0)
                     setRevealedIndexes(new Set())

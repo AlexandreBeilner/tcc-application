@@ -47,6 +47,7 @@ export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): L
       lessonId: string,
       currentStep: number,
       completedAt: Date,
+      microDecisionSelectedOption?: number,
     ): Promise<CompletionAttemptResult> {
       if (!progressByUser.has(userId)) {
         progressByUser.set(userId, new Map())
@@ -61,7 +62,10 @@ export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): L
         currentStep,
         completedAt,
         lastReviewedAt: existing?.lastReviewedAt ?? null,
-        microDecisionSelectedOption: existing?.microDecisionSelectedOption ?? null,
+        microDecisionSelectedOption:
+          microDecisionSelectedOption !== undefined
+            ? microDecisionSelectedOption
+            : (existing?.microDecisionSelectedOption ?? null),
       }
       userProgress?.set(lessonId, record)
       return { record, wonRace: true }

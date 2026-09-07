@@ -1,20 +1,9 @@
 import { GraduationCap } from 'lucide-react'
+import { TRACKS } from '../../../utils/tracks'
 import type { TrackTrophyCaseProps } from './types'
 import styles from './index.module.css'
 
 export type { TrackTrophyCaseProps } from './types'
-
-// Currículo fixo de 4 trilhas (spec 5.1) — nome e cor (tarefa F.1,
-// identidade-visual-tokens.md §2.6) vivem aqui como dado estático porque
-// `GetPublicProfileUseCase` só devolve o número da trilha (`completedTracks:
-// number[]`), nunca o nome: não é RNF09 (nada de patrimônio em jogo), é só
-// dado de currículo que não muda por usuário.
-const TRACKS = [
-    { number: 0, name: 'Fundamentos', color: 'var(--color-track-0)', background: 'var(--color-brand-100)' },
-    { number: 1, name: 'Renda Fixa', color: 'var(--color-track-1)', background: 'var(--color-gain-100)' },
-    { number: 2, name: 'Renda Variável', color: 'var(--color-track-2)', background: 'var(--color-loss-100)' },
-    { number: 3, name: 'Estratégia e Tributação', color: 'var(--color-track-3)', background: 'var(--color-gamify-100)' },
-] as const
 
 // F.3 (backlog de engajamento, Fase F — sala de troféus do Perfil):
 // substitui a conquista genérica "Formado na Trilha" (hoje só mais um item

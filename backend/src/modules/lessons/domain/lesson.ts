@@ -93,7 +93,14 @@ export function isCorrectOption(
   return selectedOption === lesson.microDecisionCorrectOption
 }
 
-export interface LessonView extends LessonSummary {
+// `microDecisionCorrectOption` de fora deliberadamente (correção da revisão
+// da PR 18): a versão original espelhava `LessonSummary` inteiro, incluindo
+// o índice certo, em todo `GET /lessons`/`GET /lessons/:id` — qualquer
+// usuário podia ler a resposta certa da aposta antes de escolher, só abrindo
+// a aba de rede. `AdvanceLessonUseCase` devolve o resultado (`correct`/
+// `correctOptionLabel`, via `microDecisionResultFor` abaixo) só na resposta
+// do `POST` que de fato inclui a escolha do usuário.
+export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption'> {
   status: LessonStatus
   currentStep: number
 }
@@ -109,7 +116,53 @@ export function buildLessonView(
     completedByUser: progress?.completedAt != null,
   })
 
-  return { ...lesson, status, currentStep: progress?.currentStep ?? 0 }
+  return {
+    id: lesson.id,
+    code: lesson.code,
+    title: lesson.title,
+    trackNumber: lesson.trackNumber,
+    trackName: lesson.trackName,
+    sortOrder: lesson.sortOrder,
+    centralConcept: lesson.centralConcept,
+    scenarioText: lesson.scenarioText,
+    microDecisionPrompt: lesson.microDecisionPrompt,
+    microDecisionType: lesson.microDecisionType,
+    microDecisionAssetTicker: lesson.microDecisionAssetTicker,
+    revelationText: lesson.revelationText,
+    unlocksDescription: lesson.unlocksDescription,
+    unlocksKeys: lesson.unlocksKeys,
+    unlocksAssetTicker: lesson.unlocksAssetTicker,
+    microDecisionOptions: lesson.microDecisionOptions,
+    status,
+    currentStep: progress?.currentStep ?? 0,
+  }
+}
+
+export interface MicroDecisionResult {
+  correct: boolean
+  correctOptionLabel: string
+}
+
+// Devolve o veredito da aposta (correção da revisão da PR 18) só quando
+// `selectedOption` de fato veio nesta chamada e a lição tem aposta real —
+// consumido por `AdvanceLessonUseCase`, nunca por `buildLessonView` acima
+// (`GET /lessons` continua sem o índice certo). Reaproveita `isCorrectOption`
+// pra não duplicar a regra dos 3 estados.
+export function microDecisionResultFor(
+  lesson: Pick<LessonSummary, 'microDecisionOptions' | 'microDecisionCorrectOption'>,
+  selectedOption: number | undefined,
+): MicroDecisionResult | undefined {
+  if (selectedOption === undefined) {
+    return undefined
+  }
+  const correct = isCorrectOption(lesson, selectedOption)
+  if (correct === null || lesson.microDecisionCorrectOption === null) {
+    return undefined
+  }
+  return {
+    correct,
+    correctOptionLabel: lesson.microDecisionOptions?.[lesson.microDecisionCorrectOption] ?? '',
+  }
 }
 
 // Desbloqueio real de funcionalidade/produto por lição (tarefa 7.0.1,

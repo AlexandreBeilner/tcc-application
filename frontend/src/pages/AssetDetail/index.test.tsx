@@ -208,7 +208,6 @@ describe('AssetDetail — ativo travado pela trilha (tarefa J.3)', () => {
                     unlocksKeys: ['asset:acao'],
                     unlocksAssetTicker: null,
                     microDecisionOptions: null,
-                    microDecisionCorrectOption: null,
                     status: 'available',
                     currentStep: 0,
                 },

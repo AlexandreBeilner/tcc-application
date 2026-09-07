@@ -84,6 +84,11 @@ export class CompleteMissionUseCase {
       return { status: 'completed' }
     }
 
+    // Sequencial de propósito, não `Promise.all` — mesmo motivo documentado
+    // em `advanceLesson.ts`: `award`/`touch` chamam
+    // `achievementChecker.checkAndUnlock` cada um por baixo, e rodando em
+    // paralelo os dois podem ler o mesmo estado "ainda não desbloqueada" e
+    // duplicar o resultado devolvido pro teatro de recompensa (I.1).
     const xpResult = await this.xpAwarder.award(
       input.userId,
       mission.xpReward,

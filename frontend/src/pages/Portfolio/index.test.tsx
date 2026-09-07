@@ -74,7 +74,6 @@ const availableLesson: Lesson = {
     unlocksKeys: [],
     unlocksAssetTicker: null,
     microDecisionOptions: null,
-    microDecisionCorrectOption: null,
     status: 'available',
     currentStep: 0,
 }
