@@ -39,7 +39,15 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
   it('desbloqueia só as conquistas cujo critério o snapshot satisfaz', async () => {
     const achievementRepository = createFakeAchievementRepository(catalog)
     const progressSnapshotReader = createFakeProgressSnapshotReader({
-      u1: { netWorth: 12500, streakDays: 3, lessonsCompleted: 2, tradesExecuted: 1 },
+      u1: {
+        netWorth: 12500,
+        streakDays: 3,
+        lessonsCompleted: 2,
+        tradesExecuted: 1,
+        microDecisionsStreak: 0,
+        tracksCompletedNoErrors: 0,
+        lessonsReviewed: 0,
+      },
     })
     const useCase = new CheckAndUnlockAchievementsUseCase(
       achievementRepository,
@@ -56,7 +64,15 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
   it('é idempotente — não desbloqueia de novo o que já estava desbloqueado', async () => {
     const achievementRepository = createFakeAchievementRepository(catalog)
     const progressSnapshotReader = createFakeProgressSnapshotReader({
-      u1: { netWorth: 0, streakDays: 10, lessonsCompleted: 0, tradesExecuted: 0 },
+      u1: {
+        netWorth: 0,
+        streakDays: 10,
+        lessonsCompleted: 0,
+        tradesExecuted: 0,
+        microDecisionsStreak: 0,
+        tracksCompletedNoErrors: 0,
+        lessonsReviewed: 0,
+      },
     })
     const useCase = new CheckAndUnlockAchievementsUseCase(
       achievementRepository,

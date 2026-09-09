@@ -24,4 +24,22 @@ describe('describeAchievementProgress', () => {
     it('trades_executed no singular quando o critério é 1', () => {
         expect(describeAchievementProgress({ criteriaType: 'trades_executed', criteriaValue: 1, progress: 0 })).toBe('0 de 1 operação')
     })
+
+    it('micro_decisions_streak no plural', () => {
+        expect(describeAchievementProgress({ criteriaType: 'micro_decisions_streak', criteriaValue: 5, progress: 3 })).toBe(
+            '3 de 5 acertos seguidos',
+        )
+    })
+
+    it('track_completed_no_errors no singular quando o critério é 1', () => {
+        expect(describeAchievementProgress({ criteriaType: 'track_completed_no_errors', criteriaValue: 1, progress: 0 })).toBe(
+            '0 de 1 trilha sem erro',
+        )
+    })
+
+    it('lesson_reviewed no singular quando o critério é 1', () => {
+        expect(describeAchievementProgress({ criteriaType: 'lesson_reviewed', criteriaValue: 1, progress: 0 })).toBe(
+            '0 de 1 lição revisada',
+        )
+    })
 })

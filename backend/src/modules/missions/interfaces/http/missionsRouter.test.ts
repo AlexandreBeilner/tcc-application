@@ -5,9 +5,13 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { CompleteMissionUseCase } from '../../application/useCases/completeMission'
 import { ListDailyMissionsUseCase } from '../../application/useCases/listDailyMissions'
-import { REVIEW_OLD_LESSON_MISSION_KEY } from '../../domain/mission'
+import {
+  MICRO_DECISION_STREAK_MISSION_KEY,
+  REVIEW_OLD_LESSON_MISSION_KEY,
+} from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
 import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
+import { createFakeMicroDecisionStreakChecker } from '../../test/fakes/fakeMicroDecisionStreakChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
 import { createFakeXpAwarder } from '../../test/fakes/fakeXpAwarder'
@@ -41,9 +45,22 @@ const catalog = [
     xpReward: 30,
     requiresLessonCompletion: false,
   },
+  {
+    id: 'm4',
+    key: MICRO_DECISION_STREAK_MISSION_KEY,
+    title: 'Acerte 3 apostas seguidas hoje',
+    description: null,
+    completionCriteria: '3 acertos seguidos hoje na Micro-decisão',
+    xpReward: 30,
+    requiresLessonCompletion: false,
+  },
 ]
 
-function buildApp(hasCompletedLesson = false, hasReviewedOldLesson = false) {
+function buildApp(
+  hasCompletedLesson = false,
+  hasReviewedOldLesson = false,
+  hasMicroDecisionStreak = false,
+) {
   const missionRepository = createFakeMissionRepository(catalog)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -52,6 +69,7 @@ function buildApp(hasCompletedLesson = false, hasReviewedOldLesson = false) {
     missionRepository,
     createFakeLessonCompletionChecker(hasCompletedLesson),
     createFakeLessonReviewChecker(hasReviewedOldLesson),
+    createFakeMicroDecisionStreakChecker(hasMicroDecisionStreak),
     createFakeXpAwarder(),
     createFakeStreakTracker(),
   )
@@ -82,7 +100,7 @@ describe('missions routes', () => {
     const res = await request(app).get('/missions').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.missions).toHaveLength(3)
+    expect(res.body.missions).toHaveLength(4)
   })
 
   it('POST /missions/:id/complete retorna 404 pra missão inexistente', async () => {
@@ -142,6 +160,35 @@ describe('missions routes', () => {
 
     const res = await request(app)
       .post('/missions/m3/complete')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      status: 'completed',
+      xpAwarded: 30,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
+  })
+
+  it('POST /missions/:id/complete retorna 422 pra missão de sequência sem a sequência de hoje', async () => {
+    const { app, tokenIssuer } = buildApp(false, false, false)
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .post('/missions/m4/complete')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(422)
+  })
+
+  it('POST /missions/:id/complete completa a missão de sequência quando a sequência de hoje foi alcançada', async () => {
+    const { app, tokenIssuer } = buildApp(false, false, true)
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .post('/missions/m4/complete')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)

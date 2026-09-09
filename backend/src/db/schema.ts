@@ -31,6 +31,11 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'streak_days',
   'lessons_completed',
   'trades_executed',
+  // Critérios de qualidade (backlog engajamento H.1), não só volume — ver
+  // `ProgressSnapshot` em `modules/achievements/domain/achievement.ts`.
+  'micro_decisions_streak',
+  'track_completed_no_errors',
+  'lesson_reviewed',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
 // padrão (checkbox "já pensei"); os outros três embutem um componente já

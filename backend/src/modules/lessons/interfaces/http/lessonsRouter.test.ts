@@ -8,6 +8,7 @@ import { GetLessonUseCase } from '../../application/useCases/getLesson'
 import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
 import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
+import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -49,7 +50,7 @@ function buildApp() {
     createFakeStreakTracker(),
     createFakeSocialFeedRecorder(),
   )
-  const reviewLesson = new ReviewLessonUseCase(lessonRepository)
+  const reviewLesson = new ReviewLessonUseCase(lessonRepository, createFakeAchievementChecker())
 
   const app = express()
   app.use(express.json())
@@ -230,7 +231,7 @@ describe('lessons routes', () => {
       .set('Authorization', authHeader(tokenIssuer))
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ status: 'reviewed' })
+    expect(res.body).toEqual({ status: 'reviewed', unlockedAchievements: [] })
     const [progress] = await lessonRepository.listProgressForUser('u1')
     expect(progress.lastReviewedAt).not.toBeNull()
   })

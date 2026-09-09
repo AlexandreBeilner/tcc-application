@@ -6,6 +6,9 @@ const ZERO_SNAPSHOT: ProgressSnapshot = {
   streakDays: 0,
   lessonsCompleted: 0,
   tradesExecuted: 0,
+  microDecisionsStreak: 0,
+  tracksCompletedNoErrors: 0,
+  lessonsReviewed: 0,
 }
 
 export function createFakeProgressSnapshotReader(

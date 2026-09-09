@@ -1,5 +1,13 @@
 export type AchievementCriteriaType =
-  'net_worth' | 'streak_days' | 'lessons_completed' | 'trades_executed'
+  | 'net_worth'
+  | 'streak_days'
+  | 'lessons_completed'
+  | 'trades_executed'
+  // Critérios de qualidade (backlog engajamento H.1), não só volume — todos
+  // agregados de `lessons`, ver comentário de `ProgressSnapshot` abaixo.
+  | 'micro_decisions_streak'
+  | 'track_completed_no_errors'
+  | 'lesson_reviewed'
 
 export interface Achievement {
   id: string
@@ -9,14 +17,18 @@ export interface Achievement {
   criteriaValue: number
 }
 
-// Os 4 números que qualquer critério de conquista pode consultar — agregado
-// em processo a partir de `gamification` (5.3), `lessons` (5.6) e `ranking`
-// (5.5), nunca calculado aqui (ver `application/ports/progressSnapshotReader.ts`).
+// Os números que qualquer critério de conquista pode consultar — agregado em
+// processo a partir de `gamification` (5.3), `lessons` (5.6, e os 3 campos
+// de qualidade da H.1) e `ranking` (5.5), nunca calculado aqui (ver
+// `application/ports/progressSnapshotReader.ts`).
 export interface ProgressSnapshot {
   netWorth: number
   streakDays: number
   lessonsCompleted: number
   tradesExecuted: number
+  microDecisionsStreak: number
+  tracksCompletedNoErrors: number
+  lessonsReviewed: number
 }
 
 export function progressValueFor(
@@ -32,6 +44,12 @@ export function progressValueFor(
       return snapshot.lessonsCompleted
     case 'trades_executed':
       return snapshot.tradesExecuted
+    case 'micro_decisions_streak':
+      return snapshot.microDecisionsStreak
+    case 'track_completed_no_errors':
+      return snapshot.tracksCompletedNoErrors
+    case 'lesson_reviewed':
+      return snapshot.lessonsReviewed
   }
 }
 

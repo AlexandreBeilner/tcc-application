@@ -1,5 +1,12 @@
 // Espelha `.docs/backend/achievements.md` (`GET /achievements`).
-export type AchievementCriteriaType = 'net_worth' | 'streak_days' | 'lessons_completed' | 'trades_executed'
+export type AchievementCriteriaType =
+    | 'net_worth'
+    | 'streak_days'
+    | 'lessons_completed'
+    | 'trades_executed'
+    | 'micro_decisions_streak'
+    | 'track_completed_no_errors'
+    | 'lesson_reviewed'
 
 export interface Achievement {
     id: string

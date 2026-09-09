@@ -99,11 +99,11 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
     }
 
     try {
-      await deps.reviewLesson.execute({
+      const result = await deps.reviewLesson.execute({
         userId: req.auth.userId,
         lessonId: req.params.id as string,
       })
-      res.status(200).json({ status: 'reviewed' })
+      res.status(200).json({ status: 'reviewed', ...result })
     } catch (err) {
       if (err instanceof LessonNotFoundError) {
         res.status(404).json({ error: err.message })

@@ -781,7 +781,7 @@ Impulsos 3/6/7/8. Estende os catálogos hoje 100% baseados em volume (`achieveme
 `net_worth`, `streak_days`, `lessons_completed`, `trades_executed`) com critérios de qualidade de
 aprendizado.
 
-### H.1 · Extensão do enum `achievement_criteria_type`
+### H.1 · Extensão do enum `achievement_criteria_type` ✅
 
 - **Descrição:** adicionar 3 valores ao enum Postgres `achievement_criteria_type`:
   `micro_decisions_streak` (sequência de acertos seguidos), `track_completed_no_errors` (trilha
@@ -803,6 +803,45 @@ aprendizado.
   existente); `isSatisfied`/`progressValueFor` testados table-driven pros 3 critérios novos.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (tabela de extensão de catálogo).
 - **Dependências:** B.1, B.2 (dado de acerto/erro precisa existir e estar persistido).
+- **Entregável (sessão 2026-09-09):** migration `0014` (3 `ALTER TYPE ... ADD VALUE`, gerada direto
+  pelo `drizzle-kit generate` sem prompt — é aditivo puro) + 3 conquistas novas em
+  `seedAchievements.ts` ("Olho Clínico" `micro_decisions_streak` 5, "Trilha Impecável"
+  `track_completed_no_errors` 1, "Voltou pra Revisar" `lesson_reviewed` 1). Cuidado técnico do
+  enum já vinha satisfeito pela arquitetura existente: migration (`runMigrations` no boot do
+  `server.ts`) e seed (`npm run db:seed:achievements`) já são 2 processos totalmente separados
+  neste projeto, nada novo precisou ser feito pra isolar os passos. 3 funções de domínio novas em
+  `lessons/domain/lesson.ts` (`currentMicroDecisionStreak`, `tracksCompletedWithoutErrors`,
+  `countReviewedLessons`) + 3 casos de uso novos (`GetCurrentMicroDecisionStreakUseCase`,
+  `GetTracksCompletedWithoutErrorsCountUseCase`, `CountReviewedLessonsUseCase`), cada um sua
+  própria porta-por-consumidor pro `ProgressSnapshotReader` de `achievements` — mesmo padrão de
+  `CountCompletedLessonsUseCase`, nenhuma reaproveita a outra. Achado que corrige o texto original
+  da tarefa: `lastReviewedAt` (H.2) é sobrescrito a cada revisão da mesma lição, não acumulado —
+  `lessonsReviewed` conta lições **distintas** já revisadas ao menos uma vez, não "quantas vezes no
+  total" (a coluna atual não sustenta isso). **Bug real achado e corrigido, fora do texto original
+  da tarefa:** `ReviewLessonUseCase` (H.2) nunca credita xp/streak, e só `AwardXpUseCase`/
+  `TouchStreakUseCase` chamam `achievementChecker.checkAndUnlock` por baixo — sem nenhuma chamada
+  própria, a conquista "Voltou pra Revisar" nunca desbloquearia no momento da própria revisão, só
+  na próxima vez (potencialmente nunca) que o usuário completasse algo sem relação nenhuma.
+  Corrigido com uma port própria de `lessons` (`AchievementChecker`, mesmo shape/nome da port já
+  usada dentro de `gamification`, mas apontando direto pra
+  `CheckAndUnlockAchievementsUseCase` de `achievements` — revisão não passa por `gamification`
+  porque não é evento de xp/streak) chamada no fim de `ReviewLessonUseCase.execute`; `POST
+  /lessons/:id/review` agora devolve `unlockedAchievements` também (`.docs/backend/lessons.md`
+  atualizado). **Outro achado, também fora do texto original:** `AchievementCriteriaType` é
+  espelhado à mão no frontend (`services/achievements/types.ts`) e `describeAchievementProgress`
+  (`features/achievements/`) indexa um `Record` por esse tipo pra montar o rótulo de progresso
+  ("3 de 7 dias") — sem os 3 valores novos ali, `GET /achievements` já ia devolver os 3 achievements
+  novos e a tela 7.2 ia quebrar em runtime (`UNIT_LABEL[criteriaType]` undefined) pra qualquer
+  usuário assim que o seed rodasse, mesmo sem nenhum teste pegando isso (tipo TS do frontend não é
+  compartilhado com o backend). Corrigido estendendo o union + o `Record` (rótulos: "acerto(s)
+  seguido(s)", "trilha(s) sem erro", "lição(ões) revisada(s)"). Validado com `docker compose up`
+  real de ponta a ponta: enum com os 7 valores confirmado via `psql`, seed idempotente criou só as 3
+  novas (8 antigas já existiam), completar 3 lições reais da Trilha 0 com acerto seguido
+  (`micro_decisions_streak` progress 3) desbloqueou "Trilha Impecável" na hora (trilha inteira sem
+  erro), e `POST /lessons/:id/review` num 2º usuário devolveu `unlockedAchievements` com "Voltou pra
+  Revisar" na mesma chamada — `GET /achievements` confirmou `unlocked: true` sem esperar nenhuma
+  ação seguinte. 549 testes backend (+11) / 620 frontend (+9), lint/build/tsc passando nos dois
+  lados.
 
 ### H.2 · Missão diária — revisar lição antiga ✅
 
@@ -845,7 +884,7 @@ aprendizado.
   só esta missão precisa disso nesta fase). `listDailyMissions.ts` não mudou, conforme a nota de
   elegibilidade já fechada acima (sempre visível, sem checagem prévia).
 
-### H.3 · Missão diária — acertar 3 seguidas
+### H.3 · Missão diária — acertar 3 seguidas ✅
 
 - **Descrição:** nova entrada em `MISSION_SEEDS`: "Acerte 3 apostas seguidas hoje". Verificável via
   `microDecisionSelectedOption`/`microDecisionCorrectOption` (B) nas lições completadas no dia
@@ -860,6 +899,29 @@ aprendizado.
 - **Referências:** `proposta-engajamento-licoes.md` §3/§4.
 - **Dependências:** B (dado de acerto/erro), H.1 (lógica de sequência já implementada ali,
   reaproveitada aqui).
+- **Entregável (sessão 2026-09-09):** nova linha em `MISSION_SEEDS` (`key:
+  'micro_decision_streak_today'`, dispatchada por `key` no `CompleteMissionUseCase`, mesmo
+  tratamento de `REVIEW_OLD_LESSON_MISSION_KEY` da H.2). Reuso real da consulta de H.1: a lógica de
+  "juntar lição+progresso em attempts cronológicos" que vivia dentro de
+  `GetCurrentMicroDecisionStreakUseCase` foi extraída pra uma função de domínio própria
+  (`buildMicroDecisionAttemptsChronological`, `lessons/domain/lesson.ts`) justamente pra ser
+  reaproveitada aqui — `HasMicroDecisionStreakTodayUseCase` (novo, `lessons`) chama a mesma função,
+  filtra os attempts pro dia corrente (UTC) e só então aplica `currentMicroDecisionStreak`, contra
+  o novo limiar `MICRO_DECISION_MISSION_STREAK_THRESHOLD = 3`. Nova port
+  `MicroDecisionStreakChecker` em `missions` (mesmo padrão de `LessonReviewChecker`), adapter em
+  processo, novo erro `MicroDecisionStreakNotReachedError` → `422`. Critério de aceite "um erro no
+  meio zera a contagem do dia" cai de graça do reuso: como o cálculo é sempre "sequência atual",
+  reavaliado no momento do claim, um erro em qualquer ponto do dia já zera a sequência dali pra
+  frente sem lógica extra — testado tanto no domínio quanto de ponta a ponta real. Achado
+  documentado, não resolvido (pré-existente desde a H.2, não introduzido por esta tarefa):
+  nenhuma tela do frontend chama `POST /missions/:id/complete` pras 3 missões com verificação
+  cruzada real (`lesson_complete`/`review_old_lesson`/`micro_decision_streak_today`) — só
+  `calculator_compare`/`feed_read` têm hook de auto-report; falta um gatilho equivalente na
+  Trilha/Lição, fora de escopo desta sessão. Validado com `docker compose up` real: claim antes da
+  sequência devolveu `422`; completar 0.1/0.2 (sem aposta) + 0.3/0.4/0.5 (3 acertos reais seguidos)
+  e reclamar devolveu `200`; um 2º usuário com acerto-erro-acerto (erro no meio) devolveu `422` de
+  novo, confirmando que a sequência não soma através do erro. 561 testes backend (+12),
+  lint/build passando.
 
 ---
 

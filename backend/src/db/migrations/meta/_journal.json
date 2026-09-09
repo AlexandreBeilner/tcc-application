@@ -99,6 +99,13 @@
       "when": 1788819674025,
       "tag": "0013_add_lesson_micro_decision_options",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788992390264,
+      "tag": "0014_add_achievement_criteria_quality_types",
+      "breakpoints": true
     }
   ]
 }

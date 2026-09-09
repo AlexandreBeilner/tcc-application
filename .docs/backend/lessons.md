@@ -59,12 +59,12 @@ Aposta com acerto/erro real (backlog engajamento B.1, migration `0013`): `microD
 
 - **Autenticação:** Bearer token.
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ status: 'reviewed' }`. Idempotente — chamar de novo no mesmo dia só atualiza `lastReviewedAt` de novo, sem efeito colateral extra (nunca credita xp/streak).
+- **Sucesso:** `200` → `{ status: 'reviewed', unlockedAchievements: [{ id, name, description }] }`. Idempotente — chamar de novo no mesmo dia só atualiza `lastReviewedAt` de novo, sem efeito colateral extra (nunca credita xp/streak). `unlockedAchievements` (backlog engajamento H.1, critério `lesson_reviewed`) é sempre um array, vazio quando nenhuma conquista nova foi desbloqueada por esta chamada — checado direto aqui porque revisão nunca passa por `xpAwarder`/`streakTracker` (os 2 pontos que checam conquista de carona pra qualquer outro critério). Sem consumidor de "teatro de recompensa" no frontend ainda (`useReviewLesson` é fire-and-forget).
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
   - `404` — lição inexistente.
   - `422` — lição existe mas o usuário nunca a concluiu (`completedAt` nulo) — não há o que revisar.
-- **Regra:** `ReviewLessonUseCase` (backlog engajamento H.2). Só grava `user_lesson_progress.last_reviewed_at = now()` — não mexe em `currentStep`/`completedAt`. Frontend chama isso automaticamente ao reabrir uma lição já concluída (tela 3.2, "modo revisão" — reabrir já pula direto pro passo Desbloqueio, ver `POST /lessons/:id/progress` acima); o reabrir em si já é a "revisão voluntária" que sustenta a missão "revise uma lição antiga" (`.docs/backend/missions.md`) com verificação cruzada de verdade, sem exigir nenhuma ação extra do usuário. O backend, não o frontend, decide se a lição é antiga o bastante pra valer pra missão (`REVIEW_ELIGIBLE_AFTER_DAYS = 14`, `domain/lesson.isEligibleForReview`).
+- **Regra:** `ReviewLessonUseCase` (backlog engajamento H.2/H.1). Só grava `user_lesson_progress.last_reviewed_at = now()` — não mexe em `currentStep`/`completedAt`. Frontend chama isso automaticamente ao reabrir uma lição já concluída (tela 3.2, "modo revisão" — reabrir já pula direto pro passo Desbloqueio, ver `POST /lessons/:id/progress` acima); o reabrir em si já é a "revisão voluntária" que sustenta a missão "revise uma lição antiga" (`.docs/backend/missions.md`) com verificação cruzada de verdade, sem exigir nenhuma ação extra do usuário. O backend, não o frontend, decide se a lição é antiga o bastante pra valer pra missão (`REVIEW_ELIGIBLE_AFTER_DAYS = 14`, `domain/lesson.isEligibleForReview`).
 
 ---
 

@@ -1,11 +1,17 @@
 import {
   LessonNotCompletedTodayError,
+  MicroDecisionStreakNotReachedError,
   MissionNotFoundError,
   OldLessonNotReviewedTodayError,
 } from '../../domain/errors'
-import { REVIEW_OLD_LESSON_MISSION_KEY, todayUtc } from '../../domain/mission'
+import {
+  MICRO_DECISION_STREAK_MISSION_KEY,
+  REVIEW_OLD_LESSON_MISSION_KEY,
+  todayUtc,
+} from '../../domain/mission'
 import type { LessonCompletionChecker } from '../ports/lessonCompletionChecker'
 import type { LessonReviewChecker } from '../ports/lessonReviewChecker'
+import type { MicroDecisionStreakChecker } from '../ports/microDecisionStreakChecker'
 import type { MissionRepository } from '../ports/missionRepository'
 import type { StreakTracker } from '../ports/streakTracker'
 import type { UnlockedAchievement, XpAwarder } from '../ports/xpAwarder'
@@ -32,6 +38,7 @@ export class CompleteMissionUseCase {
     private readonly missionRepository: MissionRepository,
     private readonly lessonCompletionChecker: LessonCompletionChecker,
     private readonly lessonReviewChecker: LessonReviewChecker,
+    private readonly microDecisionStreakChecker: MicroDecisionStreakChecker,
     private readonly xpAwarder: XpAwarder,
     private readonly streakTracker: StreakTracker,
   ) {}
@@ -70,6 +77,18 @@ export class CompleteMissionUseCase {
       )
       if (!hasReviewedOldLesson) {
         throw new OldLessonNotReviewedTodayError('nenhuma lição antiga revisada hoje')
+      }
+    }
+
+    // Terceira verificação cruzada real (H.3), mesmo tratamento por `key`.
+    if (mission.key === MICRO_DECISION_STREAK_MISSION_KEY) {
+      const hasStreak = await this.microDecisionStreakChecker.hasMicroDecisionStreakToday(
+        input.userId,
+      )
+      if (!hasStreak) {
+        throw new MicroDecisionStreakNotReachedError(
+          'sequência de 3 acertos seguidos hoje ainda não alcançada',
+        )
       }
     }
 

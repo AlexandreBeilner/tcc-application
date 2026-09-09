@@ -62,6 +62,25 @@ const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     criteriaType: 'trades_executed',
     criteriaValue: '20',
   },
+  // Critérios de qualidade (backlog engajamento H.1), não só volume.
+  {
+    name: 'Olho Clínico',
+    description: 'Acerte 5 apostas de Micro-decisão seguidas.',
+    criteriaType: 'micro_decisions_streak',
+    criteriaValue: '5',
+  },
+  {
+    name: 'Trilha Impecável',
+    description: 'Complete uma trilha inteira sem nenhum erro na aposta.',
+    criteriaType: 'track_completed_no_errors',
+    criteriaValue: '1',
+  },
+  {
+    name: 'Voltou pra Revisar',
+    description: 'Revise voluntariamente uma lição já concluída.',
+    criteriaType: 'lesson_reviewed',
+    criteriaValue: '1',
+  },
 ]
 
 // Idempotente por nome: DATABASE_URL=... npm run db:seed:achievements
