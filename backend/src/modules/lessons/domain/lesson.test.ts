@@ -354,6 +354,19 @@ describe('tracksCompletedWithoutErrors', () => {
     ).toEqual([])
   })
 
+  it('lição concluída com aposta real nunca respondida exclui a trilha', () => {
+    expect(
+      tracksCompletedWithoutErrors([
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          microDecisionCorrectOption: 1,
+          microDecisionSelectedOption: null,
+        },
+      ]),
+    ).toEqual([])
+  })
+
   it('lição incompleta exclui a trilha, mesmo sem erro registrado', () => {
     expect(
       tracksCompletedWithoutErrors([

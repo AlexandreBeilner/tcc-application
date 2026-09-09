@@ -271,12 +271,38 @@ export function buildMicroDecisionAttemptsChronological(
 // desta fase precisa de um alvo numérico configurável).
 export const MICRO_DECISION_MISSION_STREAK_THRESHOLD = 3
 
+// Compartilhado por `tracksCompletedWithoutErrors` e `completedTrackNumbers`
+// abaixo (achado da revisão da PR 19: as duas reimplementavam o mesmo
+// acumulador AND-por-trilha) — devolve os números das trilhas em que toda
+// lição satisfaz `predicate`, ordenados. Trilha sem nenhuma lição na entrada
+// nunca aparece (não existe "trilha vazia" completa/sem erro).
+function trackNumbersWhereEveryLessonSatisfies<T extends { trackNumber: number }>(
+  lessons: T[],
+  predicate: (lesson: T) => boolean,
+): number[] {
+  const okSoFarByTrack = new Map<number, boolean>()
+  for (const lesson of lessons) {
+    const soFar = okSoFarByTrack.get(lesson.trackNumber) ?? true
+    okSoFarByTrack.set(lesson.trackNumber, soFar && predicate(lesson))
+  }
+
+  return [...okSoFarByTrack.entries()]
+    .filter(([, ok]) => ok)
+    .map(([trackNumber]) => trackNumber)
+    .sort((a, b) => a - b)
+}
+
 // Trilhas concluídas sem nenhum erro na aposta (backlog engajamento H.1,
 // critério `track_completed_no_errors`) — mesma regra de "trilha completa"
-// de `completedTrackNumbers` acima, com uma condição a mais: nenhuma lição
-// da trilha pode ter `isCorrectOption` `false`. Lição sem aposta real
-// (`microDecisionCorrectOption === null`) nunca conta como erro, mesmo
-// critério de `currentMicroDecisionStreak`.
+// de `completedTrackNumbers` abaixo, com uma condição a mais: nenhuma lição
+// da trilha pode ter `isCorrectOption` diferente de `true` quando ela tem
+// aposta real. Lição sem aposta real (`microDecisionCorrectOption === null`)
+// nunca conta como erro, mesmo critério de `currentMicroDecisionStreak` — mas
+// lição *com* aposta real concluída sem `microDecisionSelectedOption` (a API
+// não exige a escolha pra concluir, só o frontend) também não conta como
+// "sem erro": `isCorrectOption` devolve `null` nesse caso (não é `false`),
+// então checar só `=== false` deixaria passar como impecável uma trilha em
+// que o usuário nunca de fato apostou (achado da revisão da PR 19).
 export function tracksCompletedWithoutErrors(
   lessons: {
     trackNumber: number
@@ -285,18 +311,12 @@ export function tracksCompletedWithoutErrors(
     microDecisionSelectedOption: number | null
   }[],
 ): number[] {
-  const okSoFarByTrack = new Map<number, boolean>()
-  for (const lesson of lessons) {
+  return trackNumbersWhereEveryLessonSatisfies(lessons, (lesson) => {
     const completed = lesson.completedAt !== null
-    const hadError = isCorrectOption(lesson, lesson.microDecisionSelectedOption) === false
-    const soFar = okSoFarByTrack.get(lesson.trackNumber) ?? true
-    okSoFarByTrack.set(lesson.trackNumber, soFar && completed && !hadError)
-  }
-
-  return [...okSoFarByTrack.entries()]
-    .filter(([, ok]) => ok)
-    .map(([trackNumber]) => trackNumber)
-    .sort((a, b) => a - b)
+    const hasRealBet = lesson.microDecisionCorrectOption !== null
+    const wonBet = isCorrectOption(lesson, lesson.microDecisionSelectedOption) === true
+    return completed && (!hasRealBet || wonBet)
+  })
 }
 
 // Lições distintas já revisadas voluntariamente pelo menos uma vez (backlog
@@ -315,15 +335,5 @@ export function countReviewedLessons(progress: { lastReviewedAt: Date | null }[]
 export function completedTrackNumbers(
   lessons: { trackNumber: number; completedAt: Date | null }[],
 ): number[] {
-  const allCompletedByTrack = new Map<number, boolean>()
-  for (const lesson of lessons) {
-    const completed = lesson.completedAt !== null
-    const soFar = allCompletedByTrack.get(lesson.trackNumber) ?? true
-    allCompletedByTrack.set(lesson.trackNumber, soFar && completed)
-  }
-
-  return [...allCompletedByTrack.entries()]
-    .filter(([, allCompleted]) => allCompleted)
-    .map(([trackNumber]) => trackNumber)
-    .sort((a, b) => a - b)
+  return trackNumbersWhereEveryLessonSatisfies(lessons, (lesson) => lesson.completedAt !== null)
 }
