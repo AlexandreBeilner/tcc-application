@@ -25,11 +25,15 @@ import { AwardXpUseCase } from './modules/gamification/application/useCases/awar
 import { GetProgressionUseCase } from './modules/gamification/application/useCases/getProgression'
 import { TouchStreakUseCase } from './modules/gamification/application/useCases/touchStreak'
 import { createInProcessAchievementChecker } from './modules/gamification/infrastructure/achievements/inProcessAchievementChecker'
+import { createInProcessAchievementChecker as createInProcessAchievementCheckerForLessons } from './modules/lessons/infrastructure/gamification/inProcessAchievementChecker'
 import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
 import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
+import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/application/useCases/getCurrentMicroDecisionStreak'
+import { GetTracksCompletedWithoutErrorsCountUseCase } from './modules/lessons/application/useCases/getTracksCompletedWithoutErrorsCount'
+import { CountReviewedLessonsUseCase } from './modules/lessons/application/useCases/countReviewedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
 import { GetCompletedTracksUseCase } from './modules/lessons/application/useCases/getCompletedTracks'
 import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
@@ -37,6 +41,7 @@ import { GetLessonUseCase } from './modules/lessons/application/useCases/getLess
 import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/useCases/getUnlockedProductKeys'
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
+import { HasMicroDecisionStreakTodayUseCase } from './modules/lessons/application/useCases/hasMicroDecisionStreakToday'
 import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
@@ -67,6 +72,7 @@ import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
 import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
 import { createInProcessLessonReviewChecker } from './modules/missions/infrastructure/lessons/inProcessLessonReviewChecker'
+import { createInProcessMicroDecisionStreakChecker } from './modules/missions/infrastructure/lessons/inProcessMicroDecisionStreakChecker'
 import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
 import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
 import { GetNetWorthUseCase } from './modules/ranking/application/useCases/getNetWorth'
@@ -245,6 +251,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const progressionRepository = createDrizzleProgressionRepository(db)
   const getProgression = new GetProgressionUseCase(progressionRepository)
   const countCompletedLessons = new CountCompletedLessonsUseCase(lessonRepository)
+  const getCurrentMicroDecisionStreak = new GetCurrentMicroDecisionStreakUseCase(lessonRepository)
+  const getTracksCompletedWithoutErrorsCount = new GetTracksCompletedWithoutErrorsCountUseCase(
+    lessonRepository,
+  )
+  const countReviewedLessons = new CountReviewedLessonsUseCase(lessonRepository)
 
   // Readers de patrimônio/ranking (5.5) — precisam existir antes de
   // `achievements` (5.2), que os consome pros critérios `net_worth`/
@@ -261,6 +272,9 @@ export function createApp(deps: AppDeps = {}): Express {
   const progressSnapshotReader = createInProcessProgressSnapshotReader({
     getProgression,
     countCompletedLessons,
+    getCurrentMicroDecisionStreak,
+    getTracksCompletedWithoutErrorsCount,
+    countReviewedLessons,
     getNetWorth,
     sandboxAssetReader,
   })
@@ -300,9 +314,13 @@ export function createApp(deps: AppDeps = {}): Express {
     streakTracker,
     createInProcessSocialFeedRecorder(recordTrackCompleted),
   )
-  const reviewLesson = new ReviewLessonUseCase(lessonRepository)
+  const reviewLesson = new ReviewLessonUseCase(
+    lessonRepository,
+    createInProcessAchievementCheckerForLessons(checkAndUnlockAchievements),
+  )
   const hasCompletedLessonToday = new HasCompletedLessonTodayUseCase(lessonRepository)
   const hasReviewedOldLessonToday = new HasReviewedOldLessonTodayUseCase(lessonRepository)
+  const hasMicroDecisionStreakToday = new HasMicroDecisionStreakTodayUseCase(lessonRepository)
 
   const missionRepository = createDrizzleMissionRepository(db)
   const listDailyMissions = new ListDailyMissionsUseCase(missionRepository)
@@ -310,6 +328,7 @@ export function createApp(deps: AppDeps = {}): Express {
     missionRepository,
     createInProcessLessonCompletionChecker(hasCompletedLessonToday),
     createInProcessLessonReviewChecker(hasReviewedOldLessonToday),
+    createInProcessMicroDecisionStreakChecker(hasMicroDecisionStreakToday),
     createInProcessXpAwarderForMissions(awardXp),
     createInProcessStreakTrackerForMissions(touchStreak),
   )

@@ -22,6 +22,10 @@ export interface Mission {
 // precisam bater (`seedMissions.ts` e o dispatch aqui).
 export const REVIEW_OLD_LESSON_MISSION_KEY = 'review_old_lesson'
 
+// Terceira missão com verificação cruzada real (backlog engajamento H.3),
+// mesmo tratamento por `key` de `REVIEW_OLD_LESSON_MISSION_KEY` acima.
+export const MICRO_DECISION_STREAK_MISSION_KEY = 'micro_decision_streak_today'
+
 export interface MissionProgressSnapshot {
   status: MissionStatus
 }

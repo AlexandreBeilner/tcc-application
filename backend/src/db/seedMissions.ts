@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { REVIEW_OLD_LESSON_MISSION_KEY } from '../modules/missions/domain/mission'
+import {
+  MICRO_DECISION_STREAK_MISSION_KEY,
+  REVIEW_OLD_LESSON_MISSION_KEY,
+} from '../modules/missions/domain/mission'
 import { createDb } from './client'
 import { dailyMissions } from './schema'
 
@@ -56,6 +59,17 @@ const MISSION_SEEDS: MissionSeed[] = [
     title: 'Revise uma lição concluída há mais de 14 dias',
     description: 'Reabra e revise uma lição da sua trilha que você concluiu há mais de 2 semanas.',
     completionCriteria: 'Reabrir e revisar hoje uma lição com completedAt mais antigo que 14 dias',
+    xpReward: 30,
+    requiresLessonCompletion: false,
+  },
+  // Terceira missão com verificação cruzada real (backlog engajamento H.3),
+  // mesmo tratamento por `key` da anterior. Reaproveita a mesma sequência de
+  // acertos de `micro_decisions_streak` (H.1), limitada ao dia corrente.
+  {
+    key: MICRO_DECISION_STREAK_MISSION_KEY,
+    title: 'Acerte 3 apostas seguidas hoje',
+    description: 'Acerte 3 escolhas seguidas no passo Micro-decisão das suas lições hoje.',
+    completionCriteria: '3 acertos seguidos hoje na Micro-decisão, sem erro no meio',
     xpReward: 30,
     requiresLessonCompletion: false,
   },

@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   LessonNotCompletedTodayError,
+  MicroDecisionStreakNotReachedError,
   MissionNotFoundError,
   OldLessonNotReviewedTodayError,
 } from '../../domain/errors'
-import { REVIEW_OLD_LESSON_MISSION_KEY, todayUtc } from '../../domain/mission'
+import {
+  MICRO_DECISION_STREAK_MISSION_KEY,
+  REVIEW_OLD_LESSON_MISSION_KEY,
+  todayUtc,
+} from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
 import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
+import { createFakeMicroDecisionStreakChecker } from '../../test/fakes/fakeMicroDecisionStreakChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
 import { createFakeXpAwarder } from '../../test/fakes/fakeXpAwarder'
@@ -42,16 +48,37 @@ const reviewMission = {
   requiresLessonCompletion: false,
 }
 
-function build(hasCompletedLesson = false, hasReviewedOldLesson = false) {
-  const missionRepository = createFakeMissionRepository([lessonMission, feedMission, reviewMission])
+const streakMission = {
+  id: 'm4',
+  key: MICRO_DECISION_STREAK_MISSION_KEY,
+  title: 'Acerte 3 apostas seguidas hoje',
+  description: null,
+  completionCriteria: '3 acertos seguidos hoje na Micro-decisão',
+  xpReward: 30,
+  requiresLessonCompletion: false,
+}
+
+function build(
+  hasCompletedLesson = false,
+  hasReviewedOldLesson = false,
+  hasMicroDecisionStreak = false,
+) {
+  const missionRepository = createFakeMissionRepository([
+    lessonMission,
+    feedMission,
+    reviewMission,
+    streakMission,
+  ])
   const lessonCompletionChecker = createFakeLessonCompletionChecker(hasCompletedLesson)
   const lessonReviewChecker = createFakeLessonReviewChecker(hasReviewedOldLesson)
+  const microDecisionStreakChecker = createFakeMicroDecisionStreakChecker(hasMicroDecisionStreak)
   const xpAwarder = createFakeXpAwarder()
   const streakTracker = createFakeStreakTracker()
   const useCase = new CompleteMissionUseCase(
     missionRepository,
     lessonCompletionChecker,
     lessonReviewChecker,
+    microDecisionStreakChecker,
     xpAwarder,
     streakTracker,
   )
@@ -116,6 +143,32 @@ describe('CompleteMissionUseCase', () => {
       unlockedAchievements: [],
     })
     expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m3' }])
+    expect(streakTracker.touchedUserIds).toEqual(['u1'])
+  })
+
+  it('missão "acerte 3 seguidas" é rejeitada sem a sequência de hoje', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, false, false)
+
+    await expect(useCase.execute({ userId: 'u1', missionId: 'm4' })).rejects.toBeInstanceOf(
+      MicroDecisionStreakNotReachedError,
+    )
+    expect(xpAwarder.awarded).toHaveLength(0)
+    expect(streakTracker.touchedUserIds).toHaveLength(0)
+  })
+
+  it('missão "acerte 3 seguidas" completa quando a sequência de hoje foi alcançada', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, false, true)
+
+    const result = await useCase.execute({ userId: 'u1', missionId: 'm4' })
+
+    expect(result).toEqual({
+      status: 'completed',
+      xpAwarded: 30,
+      leveledUp: false,
+      streakMilestone: null,
+      unlockedAchievements: [],
+    })
+    expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m4' }])
     expect(streakTracker.touchedUserIds).toEqual(['u1'])
   })
 

@@ -22,7 +22,15 @@ const catalog: Achievement[] = [
 function buildApp() {
   const achievementRepository = createFakeAchievementRepository(catalog)
   const progressSnapshotReader = createFakeProgressSnapshotReader({
-    u1: { netWorth: 0, streakDays: 3, lessonsCompleted: 0, tradesExecuted: 0 },
+    u1: {
+      netWorth: 0,
+      streakDays: 3,
+      lessonsCompleted: 0,
+      tradesExecuted: 0,
+      microDecisionsStreak: 0,
+      tracksCompletedNoErrors: 0,
+      lessonsReviewed: 0,
+    },
   })
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)

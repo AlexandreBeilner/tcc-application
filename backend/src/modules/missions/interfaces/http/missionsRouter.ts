@@ -2,6 +2,7 @@ import { Router } from 'express'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
   LessonNotCompletedTodayError,
+  MicroDecisionStreakNotReachedError,
   MissionNotFoundError,
   OldLessonNotReviewedTodayError,
 } from '../../domain/errors'
@@ -49,7 +50,8 @@ export function createMissionsRouter(deps: MissionsRouterDeps): Router {
       }
       if (
         err instanceof LessonNotCompletedTodayError ||
-        err instanceof OldLessonNotReviewedTodayError
+        err instanceof OldLessonNotReviewedTodayError ||
+        err instanceof MicroDecisionStreakNotReachedError
       ) {
         res.status(422).json({ error: err.message })
         return

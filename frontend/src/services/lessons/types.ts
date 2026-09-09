@@ -84,4 +84,11 @@ export interface AdvanceLessonResult {
 // "revise uma lição antiga" com verificação cruzada de verdade.
 export interface ReviewLessonResult {
     status: 'reviewed'
+    // Backlog engajamento H.1 (critério `lesson_reviewed`) — revisão nunca
+    // credita xp/streak, então a checagem de conquista é feita direto aqui,
+    // não de carona num dos outros 2 pontos (`AdvanceLessonResult`/missões).
+    // Sem consumidor de reveal ainda (`useReviewLesson` é fire-and-forget,
+    // ver comentário lá) — mesmo estado "ainda sem consumidor" de
+    // `streakMilestone` em `AdvanceLessonResult` quando foi introduzido.
+    unlockedAchievements: UnlockedAchievement[]
 }

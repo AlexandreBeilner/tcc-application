@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLessonView,
+  buildMicroDecisionAttemptsChronological,
   completedTrackNumbers,
   countCompleted,
+  countReviewedLessons,
+  currentMicroDecisionStreak,
   isCorrectOption,
   isEligibleForReview,
   isUnlocked,
   lessonStatus,
   microDecisionResultFor,
+  tracksCompletedWithoutErrors,
   unlockedKeysFor,
   utcDateString,
 } from './lesson'
@@ -220,6 +224,183 @@ describe('isCorrectOption', () => {
       expect(isCorrectOption({ microDecisionCorrectOption }, selectedOption)).toBe(expected)
     },
   )
+})
+
+describe('currentMicroDecisionStreak', () => {
+  it('lista vazia → 0', () => {
+    expect(currentMicroDecisionStreak([])).toBe(0)
+  })
+
+  it('conta os acertos seguidos mais recentes, do fim pro começo', () => {
+    expect(
+      currentMicroDecisionStreak([
+        { completedAt: new Date('2026-09-01'), correct: false },
+        { completedAt: new Date('2026-09-02'), correct: true },
+        { completedAt: new Date('2026-09-03'), correct: true },
+        { completedAt: new Date('2026-09-04'), correct: true },
+      ]),
+    ).toBe(3)
+  })
+
+  it('erro mais recente zera a sequência, mesmo com acertos antes dele', () => {
+    expect(
+      currentMicroDecisionStreak([
+        { completedAt: new Date('2026-09-01'), correct: true },
+        { completedAt: new Date('2026-09-02'), correct: true },
+        { completedAt: new Date('2026-09-03'), correct: false },
+      ]),
+    ).toBe(0)
+  })
+
+  it('todos acertos → sequência é o tamanho da lista inteira', () => {
+    expect(
+      currentMicroDecisionStreak([
+        { completedAt: new Date('2026-09-01'), correct: true },
+        { completedAt: new Date('2026-09-02'), correct: true },
+      ]),
+    ).toBe(2)
+  })
+})
+
+describe('buildMicroDecisionAttemptsChronological', () => {
+  const lessonWithBet = { id: 'l1', microDecisionCorrectOption: 1 }
+  const lessonWithoutBet = { id: 'l2', microDecisionCorrectOption: null }
+
+  it('descarta progresso sem completedAt', () => {
+    expect(
+      buildMicroDecisionAttemptsChronological(
+        [lessonWithBet],
+        [{ lessonId: 'l1', completedAt: null, microDecisionSelectedOption: 1 }],
+      ),
+    ).toEqual([])
+  })
+
+  it('descarta progresso de lição sem aposta real', () => {
+    expect(
+      buildMicroDecisionAttemptsChronological(
+        [lessonWithoutBet],
+        [
+          {
+            lessonId: 'l2',
+            completedAt: new Date('2026-09-01'),
+            microDecisionSelectedOption: null,
+          },
+        ],
+      ),
+    ).toEqual([])
+  })
+
+  it('descarta progresso sem lição correspondente no catálogo', () => {
+    expect(
+      buildMicroDecisionAttemptsChronological(
+        [],
+        [{ lessonId: 'nope', completedAt: new Date('2026-09-01'), microDecisionSelectedOption: 1 }],
+      ),
+    ).toEqual([])
+  })
+
+  it('devolve em ordem cronológica ascendente, com o veredito calculado', () => {
+    expect(
+      buildMicroDecisionAttemptsChronological(
+        [lessonWithBet],
+        [
+          { lessonId: 'l1', completedAt: new Date('2026-09-03'), microDecisionSelectedOption: 0 },
+          { lessonId: 'l1', completedAt: new Date('2026-09-01'), microDecisionSelectedOption: 1 },
+        ],
+      ),
+    ).toEqual([
+      { completedAt: new Date('2026-09-01'), correct: true },
+      { completedAt: new Date('2026-09-03'), correct: false },
+    ])
+  })
+})
+
+describe('tracksCompletedWithoutErrors', () => {
+  it('trilha só entra se completa e sem nenhum erro na aposta', () => {
+    expect(
+      tracksCompletedWithoutErrors([
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          microDecisionCorrectOption: 1,
+          microDecisionSelectedOption: 1,
+        },
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          microDecisionCorrectOption: null,
+          microDecisionSelectedOption: null,
+        },
+      ]),
+    ).toEqual([0])
+  })
+
+  it('um erro em qualquer lição da trilha exclui a trilha inteira', () => {
+    expect(
+      tracksCompletedWithoutErrors([
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          microDecisionCorrectOption: 1,
+          microDecisionSelectedOption: 1,
+        },
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          microDecisionCorrectOption: 1,
+          microDecisionSelectedOption: 0,
+        },
+      ]),
+    ).toEqual([])
+  })
+
+  it('lição incompleta exclui a trilha, mesmo sem erro registrado', () => {
+    expect(
+      tracksCompletedWithoutErrors([
+        {
+          trackNumber: 0,
+          completedAt: null,
+          microDecisionCorrectOption: 1,
+          microDecisionSelectedOption: null,
+        },
+      ]),
+    ).toEqual([])
+  })
+
+  it('várias trilhas sem erro voltam ordenadas por número', () => {
+    expect(
+      tracksCompletedWithoutErrors([
+        {
+          trackNumber: 2,
+          completedAt: new Date(),
+          microDecisionCorrectOption: null,
+          microDecisionSelectedOption: null,
+        },
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          microDecisionCorrectOption: null,
+          microDecisionSelectedOption: null,
+        },
+      ]),
+    ).toEqual([0, 2])
+  })
+})
+
+describe('countReviewedLessons', () => {
+  it('conta só lições com lastReviewedAt preenchido', () => {
+    expect(
+      countReviewedLessons([
+        { lastReviewedAt: new Date() },
+        { lastReviewedAt: null },
+        { lastReviewedAt: new Date() },
+      ]),
+    ).toBe(2)
+  })
+
+  it('lista vazia → 0', () => {
+    expect(countReviewedLessons([])).toBe(0)
+  })
 })
 
 describe('microDecisionResultFor', () => {

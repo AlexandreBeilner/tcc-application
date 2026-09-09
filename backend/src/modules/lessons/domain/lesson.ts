@@ -210,6 +210,104 @@ export function isEligibleForReview(completedAt: Date, now: Date): boolean {
   return now.getTime() - completedAt.getTime() >= REVIEW_ELIGIBLE_AFTER_DAYS * msPerDay
 }
 
+// Sequência de acertos seguidos na Micro-decisão (backlog engajamento H.1,
+// critério `micro_decisions_streak`; reaproveitada pela H.3 filtrando os
+// attempts pelo dia corrente antes de chamar esta função — a "mesma
+// consulta" citada no texto da tarefa é esta, não um 2º cálculo). Entrada já
+// vem só com attempts de lição com aposta real (`correct` nunca `null`,
+// filtro fica em `GetCurrentMicroDecisionStreakUseCase`), em ordem
+// cronológica ascendente — lições sem aposta real (checkbox) não entram na
+// lista e por isso nem quebram nem contam a sequência.
+export interface MicroDecisionAttempt {
+  completedAt: Date
+  correct: boolean
+}
+
+export function currentMicroDecisionStreak(attemptsChronological: MicroDecisionAttempt[]): number {
+  let streak = 0
+  for (let i = attemptsChronological.length - 1; i >= 0; i--) {
+    if (!attemptsChronological[i].correct) {
+      break
+    }
+    streak++
+  }
+  return streak
+}
+
+// Junta lição (índice certo) com progresso (índice escolhido + `completedAt`)
+// pra montar a entrada de `currentMicroDecisionStreak` — extraído de dentro
+// de `GetCurrentMicroDecisionStreakUseCase` (H.1) pra ser reaproveitado
+// também por `HasMicroDecisionStreakTodayUseCase` (H.3, que filtra o
+// resultado pelo dia corrente antes de chamar `currentMicroDecisionStreak`
+// de novo — a "mesma consulta" citada no texto da tarefa). Descarta lições
+// sem aposta real ou sem `completedAt`, mesmo critério dos 2 consumidores.
+export function buildMicroDecisionAttemptsChronological(
+  lessons: Pick<LessonSummary, 'id' | 'microDecisionCorrectOption'>[],
+  progress: {
+    lessonId: string
+    completedAt: Date | null
+    microDecisionSelectedOption: number | null
+  }[],
+): MicroDecisionAttempt[] {
+  const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]))
+
+  const attempts = progress.flatMap((p) => {
+    const lesson = lessonById.get(p.lessonId)
+    if (!lesson || p.completedAt === null) {
+      return []
+    }
+    const correct = isCorrectOption(lesson, p.microDecisionSelectedOption)
+    if (correct === null) {
+      return []
+    }
+    return [{ completedAt: p.completedAt, correct }]
+  })
+
+  return attempts.sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime())
+}
+
+// Missão diária "acerte 3 apostas seguidas hoje" (backlog engajamento H.3) —
+// limiar fixo, sem coluna própria em `daily_missions` (nenhuma outra missão
+// desta fase precisa de um alvo numérico configurável).
+export const MICRO_DECISION_MISSION_STREAK_THRESHOLD = 3
+
+// Trilhas concluídas sem nenhum erro na aposta (backlog engajamento H.1,
+// critério `track_completed_no_errors`) — mesma regra de "trilha completa"
+// de `completedTrackNumbers` acima, com uma condição a mais: nenhuma lição
+// da trilha pode ter `isCorrectOption` `false`. Lição sem aposta real
+// (`microDecisionCorrectOption === null`) nunca conta como erro, mesmo
+// critério de `currentMicroDecisionStreak`.
+export function tracksCompletedWithoutErrors(
+  lessons: {
+    trackNumber: number
+    completedAt: Date | null
+    microDecisionCorrectOption: number | null
+    microDecisionSelectedOption: number | null
+  }[],
+): number[] {
+  const okSoFarByTrack = new Map<number, boolean>()
+  for (const lesson of lessons) {
+    const completed = lesson.completedAt !== null
+    const hadError = isCorrectOption(lesson, lesson.microDecisionSelectedOption) === false
+    const soFar = okSoFarByTrack.get(lesson.trackNumber) ?? true
+    okSoFarByTrack.set(lesson.trackNumber, soFar && completed && !hadError)
+  }
+
+  return [...okSoFarByTrack.entries()]
+    .filter(([, ok]) => ok)
+    .map(([trackNumber]) => trackNumber)
+    .sort((a, b) => a - b)
+}
+
+// Lições distintas já revisadas voluntariamente pelo menos uma vez (backlog
+// engajamento H.1, critério `lesson_reviewed`). `lastReviewedAt` (H.2) é
+// sobrescrito a cada nova revisão da mesma lição, não acumulado — por isso
+// o número aqui é "quantas lições diferentes já foram revisadas", não
+// "quantas vezes no total", que a coluna atual não sustenta.
+export function countReviewedLessons(progress: { lastReviewedAt: Date | null }[]): number {
+  return progress.filter((p) => p.lastReviewedAt !== null).length
+}
+
 // Trilha "completa" (backlog de engajamento F.2, sala de troféus do Perfil):
 // todas as lições dela concluídas, mesmo critério de `completedAt !== null`
 // usado por `countCompleted` acima. Uma trilha sem nenhuma lição na lista de

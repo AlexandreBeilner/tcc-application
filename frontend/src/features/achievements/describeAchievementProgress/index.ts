@@ -5,6 +5,9 @@ const UNIT_LABEL: Record<Exclude<Achievement['criteriaType'], 'net_worth'>, (val
     streak_days: (value) => `${value === 1 ? 'dia' : 'dias'}`,
     lessons_completed: (value) => `${value === 1 ? 'lição' : 'lições'}`,
     trades_executed: (value) => `${value === 1 ? 'operação' : 'operações'}`,
+    micro_decisions_streak: (value) => `${value === 1 ? 'acerto seguido' : 'acertos seguidos'}`,
+    track_completed_no_errors: (value) => `${value === 1 ? 'trilha sem erro' : 'trilhas sem erro'}`,
+    lesson_reviewed: (value) => `${value === 1 ? 'lição revisada' : 'lições revisadas'}`,
 }
 
 // Tela 7.2 — "clique numa conquista bloqueada mostra progresso atual em

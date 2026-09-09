@@ -26,7 +26,15 @@ describe('ListAchievementsUseCase', () => {
     const achievementRepository = createFakeAchievementRepository(catalog)
     await achievementRepository.unlock('u1', 'a-streak-7')
     const progressSnapshotReader = createFakeProgressSnapshotReader({
-      u1: { netWorth: 0, streakDays: 9, lessonsCompleted: 0, tradesExecuted: 0 },
+      u1: {
+        netWorth: 0,
+        streakDays: 9,
+        lessonsCompleted: 0,
+        tradesExecuted: 0,
+        microDecisionsStreak: 0,
+        tracksCompletedNoErrors: 0,
+        lessonsReviewed: 0,
+      },
     })
     const useCase = new ListAchievementsUseCase(achievementRepository, progressSnapshotReader)
 
