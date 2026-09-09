@@ -3,9 +3,11 @@ import {
   buildLessonView,
   completedTrackNumbers,
   countCompleted,
+  isCorrectOption,
   isEligibleForReview,
   isUnlocked,
   lessonStatus,
+  microDecisionResultFor,
   unlockedKeysFor,
   utcDateString,
 } from './lesson'
@@ -58,6 +60,8 @@ describe('buildLessonView', () => {
     unlocksDescription: 'Acesso ao Portfólio',
     unlocksKeys: ['portfolio'],
     unlocksAssetTicker: null,
+    microDecisionOptions: null,
+    microDecisionCorrectOption: null,
   }
 
   it('sem progresso: primeira lição available, currentStep=0', () => {
@@ -68,16 +72,36 @@ describe('buildLessonView', () => {
   })
 
   it('com progresso em andamento: status calculado normalmente, currentStep persistido', () => {
-    const view = buildLessonView(lesson, { currentStep: 1, completedAt: null }, 0)
+    const view = buildLessonView(
+      lesson,
+      { currentStep: 1, completedAt: null, microDecisionSelectedOption: null },
+      0,
+    )
 
     expect(view.status).toBe('available')
     expect(view.currentStep).toBe(1)
   })
 
   it('com completedAt preenchido: completed, independente do sortOrder', () => {
-    const view = buildLessonView(lesson, { currentStep: 3, completedAt: new Date() }, 0)
+    const view = buildLessonView(
+      lesson,
+      { currentStep: 3, completedAt: new Date(), microDecisionSelectedOption: null },
+      0,
+    )
 
     expect(view.status).toBe('completed')
+  })
+
+  it('correção da revisão da PR 18: nunca devolve microDecisionCorrectOption, mesmo pra lição com aposta real', () => {
+    const lessonWithOptions = {
+      ...lesson,
+      microDecisionOptions: ['Sim', 'Não'],
+      microDecisionCorrectOption: 0,
+    }
+
+    const view = buildLessonView(lessonWithOptions, undefined, 0)
+
+    expect(Object.keys(view)).not.toContain('microDecisionCorrectOption')
   })
 })
 
@@ -180,5 +204,47 @@ describe('isEligibleForReview', () => {
     ['2026-09-06T12:00:00Z', false], // concluída agora mesmo
   ])('completedAt=%s → %s', (completedAt, expected) => {
     expect(isEligibleForReview(new Date(completedAt), now)).toBe(expected)
+  })
+})
+
+describe('isCorrectOption', () => {
+  it.each([
+    [1, 1, true], // acertou
+    [1, 0, false], // errou
+    [1, null, null], // ainda não escolheu nada
+    [null, 1, null], // lição sem aposta real (checkbox de hoje)
+    [null, null, null], // sem aposta real e sem escolha
+  ])(
+    'microDecisionCorrectOption=%s, selectedOption=%s → %s',
+    (microDecisionCorrectOption, selectedOption, expected) => {
+      expect(isCorrectOption({ microDecisionCorrectOption }, selectedOption)).toBe(expected)
+    },
+  )
+})
+
+describe('microDecisionResultFor', () => {
+  const lessonWithOptions = { microDecisionOptions: ['Sim', 'Não'], microDecisionCorrectOption: 0 }
+  const lessonWithoutOptions = { microDecisionOptions: null, microDecisionCorrectOption: null }
+
+  it('acertou: correct=true, correctOptionLabel é a opção certa', () => {
+    expect(microDecisionResultFor(lessonWithOptions, 0)).toEqual({
+      correct: true,
+      correctOptionLabel: 'Sim',
+    })
+  })
+
+  it('errou: correct=false, correctOptionLabel continua sendo a opção certa (não a escolhida)', () => {
+    expect(microDecisionResultFor(lessonWithOptions, 1)).toEqual({
+      correct: false,
+      correctOptionLabel: 'Sim',
+    })
+  })
+
+  it('undefined quando selectedOption não veio nesta chamada', () => {
+    expect(microDecisionResultFor(lessonWithOptions, undefined)).toBeUndefined()
+  })
+
+  it('undefined pra lição sem aposta real, mesmo com selectedOption presente', () => {
+    expect(microDecisionResultFor(lessonWithoutOptions, 0)).toBeUndefined()
   })
 })

@@ -63,14 +63,44 @@ export interface LessonSummary {
   // produto recém-desbloqueado, usado pelo CTA "Comprar agora" do passo
   // Desbloqueio (tarefa 7.0.2, achado 6).
   unlocksAssetTicker: string | null
+  // Aposta com acerto/erro real (backlog engajamento B.1) — `null` nos dois
+  // campos é o estado normal de hoje (checkbox "já pensei" no passo
+  // Micro-decisão); só uma lição com as duas colunas preenchidas (autoria é
+  // a B.4) troca pro widget de escolha real (B.3).
+  microDecisionOptions: string[] | null
+  microDecisionCorrectOption: number | null
 }
 
 export interface LessonProgressSnapshot {
   currentStep: number
   completedAt: Date | null
+  // Índice escolhido pelo usuário na Micro-decisão (B.1) — `null` até a
+  // escolha ser gravada (B.2) ou pra lição sem aposta real.
+  microDecisionSelectedOption: number | null
 }
 
-export interface LessonView extends LessonSummary {
+// Três estados, não booleano: `null` cobre tanto "lição sem aposta real
+// ainda" (`lesson.microDecisionCorrectOption === null`, checkbox de hoje)
+// quanto "usuário não escolheu nada" — nenhum dos dois é "errou", que só
+// faz sentido quando existe uma escolha real pra comparar.
+export function isCorrectOption(
+  lesson: Pick<LessonSummary, 'microDecisionCorrectOption'>,
+  selectedOption: number | null,
+): boolean | null {
+  if (lesson.microDecisionCorrectOption === null || selectedOption === null) {
+    return null
+  }
+  return selectedOption === lesson.microDecisionCorrectOption
+}
+
+// `microDecisionCorrectOption` de fora deliberadamente (correção da revisão
+// da PR 18): a versão original espelhava `LessonSummary` inteiro, incluindo
+// o índice certo, em todo `GET /lessons`/`GET /lessons/:id` — qualquer
+// usuário podia ler a resposta certa da aposta antes de escolher, só abrindo
+// a aba de rede. `AdvanceLessonUseCase` devolve o resultado (`correct`/
+// `correctOptionLabel`, via `microDecisionResultFor` abaixo) só na resposta
+// do `POST` que de fato inclui a escolha do usuário.
+export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption'> {
   status: LessonStatus
   currentStep: number
 }
@@ -86,7 +116,53 @@ export function buildLessonView(
     completedByUser: progress?.completedAt != null,
   })
 
-  return { ...lesson, status, currentStep: progress?.currentStep ?? 0 }
+  return {
+    id: lesson.id,
+    code: lesson.code,
+    title: lesson.title,
+    trackNumber: lesson.trackNumber,
+    trackName: lesson.trackName,
+    sortOrder: lesson.sortOrder,
+    centralConcept: lesson.centralConcept,
+    scenarioText: lesson.scenarioText,
+    microDecisionPrompt: lesson.microDecisionPrompt,
+    microDecisionType: lesson.microDecisionType,
+    microDecisionAssetTicker: lesson.microDecisionAssetTicker,
+    revelationText: lesson.revelationText,
+    unlocksDescription: lesson.unlocksDescription,
+    unlocksKeys: lesson.unlocksKeys,
+    unlocksAssetTicker: lesson.unlocksAssetTicker,
+    microDecisionOptions: lesson.microDecisionOptions,
+    status,
+    currentStep: progress?.currentStep ?? 0,
+  }
+}
+
+export interface MicroDecisionResult {
+  correct: boolean
+  correctOptionLabel: string
+}
+
+// Devolve o veredito da aposta (correção da revisão da PR 18) só quando
+// `selectedOption` de fato veio nesta chamada e a lição tem aposta real —
+// consumido por `AdvanceLessonUseCase`, nunca por `buildLessonView` acima
+// (`GET /lessons` continua sem o índice certo). Reaproveita `isCorrectOption`
+// pra não duplicar a regra dos 3 estados.
+export function microDecisionResultFor(
+  lesson: Pick<LessonSummary, 'microDecisionOptions' | 'microDecisionCorrectOption'>,
+  selectedOption: number | undefined,
+): MicroDecisionResult | undefined {
+  if (selectedOption === undefined) {
+    return undefined
+  }
+  const correct = isCorrectOption(lesson, selectedOption)
+  if (correct === null || lesson.microDecisionCorrectOption === null) {
+    return undefined
+  }
+  return {
+    correct,
+    correctOptionLabel: lesson.microDecisionOptions?.[lesson.microDecisionCorrectOption] ?? '',
+  }
 }
 
 // Desbloqueio real de funcionalidade/produto por lição (tarefa 7.0.1,

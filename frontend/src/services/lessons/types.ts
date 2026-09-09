@@ -32,6 +32,14 @@ export interface Lesson {
     // produto recém-desbloqueado, usado pelo CTA "Comprar agora" do passo
     // Desbloqueio.
     unlocksAssetTicker: string | null
+    // Aposta com acerto/erro real (backlog engajamento B.1/B.3) — `null` é o
+    // estado normal de hoje (checkbox "já pensei"); preenchido troca pro
+    // widget de escolha real. O índice certo (`microDecisionCorrectOption`)
+    // nunca vem aqui (correção da revisão da PR 18 — vazava a resposta antes
+    // do usuário escolher); o veredito vem só na resposta de
+    // `POST /lessons/:id/progress` que envia `selectedOption`, ver
+    // `AdvanceLessonResult` abaixo.
+    microDecisionOptions: string[] | null
     status: 'completed' | 'available' | 'locked'
     currentStep: number
 }
@@ -55,6 +63,12 @@ export interface UnlockedAchievement {
 export interface AdvanceLessonResult {
     currentStep: number
     completed: boolean
+    // Presente só quando esta chamada enviou `selectedOption` válido pra uma
+    // lição com aposta real (correção da revisão da PR 18) — veredito da
+    // escolha, calculado no servidor; nunca disponível de antemão via
+    // `Lesson.microDecisionCorrectOption` (esse campo não existe mais).
+    microDecisionCorrect?: boolean
+    correctOptionLabel?: string
     // Presentes só quando esta chamada é quem conclui a lição pela primeira
     // vez (backlog engajamento I.2) — ausentes ao reabrir uma lição já
     // concluída. `xpAwarded`/`leveledUp` consumidos pelo reveal de XP/nível

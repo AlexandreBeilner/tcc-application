@@ -26,6 +26,8 @@ function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
     unlocksDescription: row.unlocksDescription,
     unlocksKeys: row.unlocksKeys,
     unlocksAssetTicker: row.unlocksAssetTicker,
+    microDecisionOptions: row.microDecisionOptions,
+    microDecisionCorrectOption: row.microDecisionCorrectOption,
   }
 }
 
@@ -35,6 +37,7 @@ function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonPr
     currentStep: row.currentStep,
     completedAt: row.completedAt,
     lastReviewedAt: row.lastReviewedAt,
+    microDecisionSelectedOption: row.microDecisionSelectedOption,
   }
 }
 
@@ -59,6 +62,13 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
     },
 
     async upsertProgress(userId: string, lessonId: string, input: UpsertProgressInput) {
+      // `microDecisionSelectedOption` só entra no INSERT/UPDATE quando o
+      // chamador passa o campo de verdade (`undefined` !== `null` aqui) —
+      // ver o comentário em `UpsertProgressInput`.
+      const selectedOption =
+        input.microDecisionSelectedOption !== undefined
+          ? { microDecisionSelectedOption: input.microDecisionSelectedOption }
+          : {}
       const [row] = await db
         .insert(userLessonProgress)
         .values({
@@ -66,6 +76,7 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
           lessonId,
           currentStep: input.currentStep,
           completedAt: input.completedAt,
+          ...selectedOption,
         })
         .onConflictDoUpdate({
           target: [userLessonProgress.userId, userLessonProgress.lessonId],
@@ -73,6 +84,7 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
             currentStep: input.currentStep,
             completedAt: input.completedAt,
             updatedAt: new Date(),
+            ...selectedOption,
           },
         })
         .returning()
@@ -84,7 +96,12 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
       lessonId: string,
       currentStep: number,
       completedAt: Date,
+      microDecisionSelectedOption?: number,
     ): Promise<CompletionAttemptResult> {
+      // Mesmo padrão condicional de `upsertProgress` acima — `undefined` não
+      // sobrescreve a escolha já gravada num passo anterior.
+      const selectedOption =
+        microDecisionSelectedOption !== undefined ? { microDecisionSelectedOption } : {}
       // `setWhere` só deixa o UPDATE do conflito disparar se a linha ainda
       // estiver com `completedAt` nulo — o Postgres serializa duas
       // transações concorrentes que conflitam na mesma linha (lock de
@@ -94,10 +111,10 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
       // `drizzleMissionRepository.markCompleted`.
       const [claimed] = await db
         .insert(userLessonProgress)
-        .values({ userId, lessonId, currentStep, completedAt })
+        .values({ userId, lessonId, currentStep, completedAt, ...selectedOption })
         .onConflictDoUpdate({
           target: [userLessonProgress.userId, userLessonProgress.lessonId],
-          set: { currentStep, completedAt, updatedAt: new Date() },
+          set: { currentStep, completedAt, updatedAt: new Date(), ...selectedOption },
           setWhere: isNull(userLessonProgress.completedAt),
         })
         .returning()

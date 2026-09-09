@@ -8,6 +8,14 @@ import type { AdvanceLessonResult } from '../../../services/lessons'
 import { LESSONS_QUERY_KEY } from '../useLessonsQuery'
 import { lessonQueryKey } from '../useLessonQuery'
 
+// Variáveis da mutation — `selectedOption` (backlog engajamento B.2) só faz
+// sentido saindo do passo Micro-decisão de uma lição com aposta real;
+// ausente em toda outra transição de passo.
+export interface AdvanceLessonVariables {
+    step: number
+    selectedOption?: number
+}
+
 // `POST /lessons/:id/progress` (`.docs/backend/lessons.md`) — o backend já
 // credita xp/streak sozinho ao alcançar o step 3 pela primeira vez, essa
 // mutation grava `step`, invalida as duas queries que dependem do resultado
@@ -17,13 +25,20 @@ import { lessonQueryKey } from '../useLessonQuery'
 // (backlog engajamento I.3); cada item de `unlockedAchievements` dispara o
 // próprio reveal, na fila logo depois do de XP/nível (I.4); `streakMilestone`
 // (7 ou 30 dias) dispara o reveal de marco de streak, por último (I.5).
-export function useAdvanceLesson(lessonId: string): UseMutationResult<AdvanceLessonResult, unknown, number> {
+export function useAdvanceLesson(lessonId: string): UseMutationResult<AdvanceLessonResult, unknown, AdvanceLessonVariables> {
     const { token } = useAuth()
     const queryClient = useQueryClient()
     const { show } = useRewardReveal()
 
     return useMutation({
-        mutationFn: (step: number) => advanceLesson(token as string, lessonId, step),
+        // Não repassa `selectedOption` quando ausente (em vez de sempre
+        // passar, mesmo `undefined`) — preserva a chamada de 3 argumentos de
+        // toda transição sem aposta real, sem mudar o formato pra quem já
+        // depende dela.
+        mutationFn: ({ step, selectedOption }: AdvanceLessonVariables) =>
+            selectedOption === undefined
+                ? advanceLesson(token as string, lessonId, step)
+                : advanceLesson(token as string, lessonId, step, selectedOption),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: lessonQueryKey(lessonId) })
             queryClient.invalidateQueries({ queryKey: LESSONS_QUERY_KEY })

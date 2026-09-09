@@ -18,6 +18,8 @@ const track0 = [1, 2, 3, 4, 5].map((n) => ({
   unlocksDescription: n === 5 ? 'Acesso à Trilha 1 (Renda Fixa)' : null,
   unlocksKeys: [] as string[],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }))
 
 const lesson11 = {
@@ -36,6 +38,8 @@ const lesson11 = {
   unlocksDescription: 'Tesouro Selic',
   unlocksKeys: [],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }
 
 describe('GetTrackMapUseCase', () => {

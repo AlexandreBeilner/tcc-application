@@ -164,7 +164,7 @@ Ao contrário do que a proposta estimou de forma otimista, isso **exige schema n
 aditivo: sem opção/resposta correta gravadas em algum lugar, não existe "certo" ou "errado" pra
 comparar.
 
-### B.1 · Schema — opções e resposta correta
+### B.1 · Schema — opções e resposta correta ✅ concluída
 
 - **Descrição:** duas colunas novas em `lessons` (`backend/src/db/schema.ts`):
   `microDecisionOptions` (`text[]`, nullable — 2 a 4 alternativas curtas) e
@@ -190,8 +190,63 @@ comparar.
 - **Referências:** `proposta-engajamento-licoes.md` §3 (Impulso 3); `.docs/backend/lessons.md`
   (atualizar contrato de `GET /lessons/:id`).
 - **Dependências:** nenhuma.
+- **Entregável:** migration `0013_add_lesson_micro_decision_options.sql` (3 colunas nullable, sem
+  `NOT NULL DEFAULT` — `lessons.micro_decision_options` `text[]`,
+  `lessons.micro_decision_correct_option` `smallint`,
+  `user_lesson_progress.micro_decision_selected_option` `smallint`; `drizzle-kit generate` gerou
+  sem prompt de rename-ambiguity, por serem colunas só aditivas — não caiu no problema já registrado
+  em memória de sessões anteriores). `domain/lesson.ts`: `LessonSummary` ganhou os 2 campos,
+  `LessonProgressSnapshot` ganhou `microDecisionSelectedOption`, função pura nova
+  `isCorrectOption(lesson, selectedOption)` — 3 estados (`true`/`false`/`null`), não booleano:
+  `null` cobre tanto "lição sem aposta real ainda" (`microDecisionCorrectOption === null`) quanto
+  "usuário não escolheu nada" (`selectedOption === null`), já que nenhum dos dois é de fato "errou".
+  `drizzleLessonRepository.ts` espelha as 3 colunas; `UpsertProgressInput.microDecisionSelectedOption`
+  é opcional e distinto de `null` — `undefined` (campo ausente) não sobrescreve o valor já gravado,
+  só a B.2 vai passar isto de verdade, mas o encanamento já existe pra não perder a escolha numa
+  chamada de avanço de passo seguinte que não a inclua. `isCorrectOption` testado table-driven (5
+  casos: acerto, erro, sem escolha, sem aposta real, os dois ausentes). Todos os 12 arquivos de
+  teste do módulo que construíam `LessonSummary`/`LessonProgressRecord` por literal de objeto
+  ganharam os campos novos (`null` — mecânico, sem mudança de comportamento). Validado com `docker
+  compose up` real: migration aplica sem erro em cima do banco com as 33 lições já seedadas,
+  `GET /lessons/:id` devolve os 2 campos como `null`, `POST /lessons/:id/progress` (avançar e
+  concluir) continua funcionando idêntico a antes e `micro_decision_selected_option` permanece
+  `null` na tabela (conferido via `psql` direto). 505 testes (+8 novos), lint/build passando.
+  **Correção da revisão da PR 18 (autor confirmou avançar):** `GET /lessons`/`GET /lessons/:id`
+  devolviam `microDecisionCorrectOption` (o índice certo) igual a qualquer outro campo de
+  `LessonSummary` — desde antes da B.3 preencher a UI, qualquer usuário podia ler a resposta certa
+  pela aba de rede antes de escolher, o que esvaziava por completo o propósito da aposta com
+  acerto/erro. `domain/lesson.LessonView` deixou de estender `LessonSummary` (que `buildLessonView`
+  ainda usa internamente) e passou a `Omit<LessonSummary, 'microDecisionCorrectOption'>` — o campo é
+  omitido estruturalmente (mesmo padrão de RNF09 em `GetPublicProfileUseCase`: o campo não existe no
+  tipo de resposta, não é filtrado na serialização), construído explicitamente campo a campo em vez
+  de espalhar `...lesson`. Veredito da aposta movido pra `domain/lesson.microDecisionResultFor(lesson,
+  selectedOption)` (nova função pura, reaproveita `isCorrectOption`), consumida só por
+  `AdvanceLessonUseCase` — `AdvanceLessonResult` ganhou `microDecisionCorrect?: boolean`/
+  `correctOptionLabel?: string`, presentes só na resposta do `POST` que de fato envia `selectedOption`
+  válido pra uma lição com aposta real. Frontend (`Lesson.microDecisionCorrectOption` removido do
+  tipo em `services/lessons/types.ts`) trocou a comparação client-side (`lesson.microDecisionCorrectOption
+  === selectedOption`, ela própria só possível por causa do vazamento) por um novo estado local
+  `microDecisionResult`, preenchido no `onSuccess` da mutation que sai do passo Micro-decisão — mesma
+  limitação de sessão já documentada na B.3 pra `selectedOption` (não sobrevive a um reload no passo
+  Revelação, já que a API nunca devolve a escolha de volta via `GET`). Testes novos: domínio
+  (`microDecisionResultFor` table-driven + regressão "buildLessonView nunca devolve
+  microDecisionCorrectOption", padrão do teste RNF09 de `getPublicProfile.test.ts`), caso de uso
+  (round-trip acerto/erro em `advanceLesson.test.ts`), router (`GET /lessons`/`GET /lessons/:id`
+  nunca devolvem o campo, `POST` devolve o veredito certo via supertest) e componente (mock de
+  `advanceLesson` em `Lesson/index.test.tsx` passou a incluir `microDecisionCorrect`/
+  `correctOptionLabel`, já que o componente não lê mais do `lesson`). 520 testes no backend (+9),
+  617 no frontend (mesma contagem, só o mock dos 2 testes de acerto/erro mudou de forma), lint/
+  build/tsc/prettier passando nos dois. Validado com `docker compose up` real: seed completo das 33
+  lições, usuário novo registrado, `GET /lessons` na lição `0.3` (opções reais, correta = índice 2)
+  confirmando ausência de `microDecisionCorrectOption` na resposta; completou `0.1`/`0.2`,
+  `POST .../0.3/progress` com `selectedOption` errado (`step:2`) devolveu
+  `{microDecisionCorrect:false, correctOptionLabel:"R$105"}`; a chamada seguinte que já conclui a
+  lição (`step:3`) com `selectedOption` certo devolveu `{microDecisionCorrect:true, ...}` **e**
+  persistiu `micro_decision_selected_option=2` (conferido via `psql` direto) — cobre as duas
+  correções desta revisão numa única chamada real. `GET /lessons/:id` da lição já concluída
+  confirmado ainda sem o campo.
 
-### B.2 · Backend — `AdvanceLessonUseCase` grava a escolha
+### B.2 · Backend — `AdvanceLessonUseCase` grava a escolha ✅ concluída
 
 - **Descrição:** `AdvanceLessonInput` (`backend/src/modules/lessons/application/useCases/advanceLesson.ts`)
   ganha um campo opcional `selectedOption?: number`, só relevante quando o `step` avançado é o da
@@ -207,8 +262,38 @@ comparar.
   checkbox).
 - **Referências:** `.docs/backend/lessons.md`.
 - **Dependências:** B.1.
+- **Entregável:** `AdvanceLessonInput.selectedOption?: number`. Validação em 2 camadas, cada uma no
+  lugar certo: Zod (`advanceLessonBodySchema`) só garante formato (`inteiro >= 0`), o caso de uso
+  valida contra o `microDecisionOptions.length` real *daquela* lição (regra de negócio, não dá pra
+  fazer isso num schema estático) — `InvalidMicroDecisionOptionError` novo (`domain/errors.ts`),
+  mapeado pro `400` já existente no router (mesmo padrão dos outros erros de domínio). Lição sem
+  `microDecisionOptions` (checkbox de hoje) nunca lança: o campo é só ignorado, sem chegar a persistir
+  nada — critério de aceite "mantém checkbox" cumprido por omissão deliberada, não por caminho
+  especial. Persistência reaproveita o encanamento condicional já pronto desde a B.1
+  (`UpsertProgressInput.microDecisionSelectedOption`, `undefined` vs. `null`) — nenhuma mudança em
+  `drizzleLessonRepository.ts` foi necessária, ao contrário do previsto no texto original da tarefa;
+  só o caso de uso (que já tinha a lição carregada) precisou decidir *quando* incluir o campo no
+  objeto passado a `upsertProgress`. **Achado confirmado com `docker compose up` real:** a escolha
+  feita na chamada que sai do passo Micro-decisão sobrevive a uma chamada seguinte que avança até o
+  Desbloqueio sem reenviar `selectedOption` — a lição completa (`step: 3`) manteve
+  `micro_decision_selected_option = 0` gravado 1 chamada antes, provando que o design "omitir ≠
+  apagar" da B.1 funciona no fluxo real de 2+ chamadas por lição, não só em teste unitário isolado.
+  Testado o índice fora do intervalo (`400`), o índice válido (persiste e é lido de volta via
+  `listProgressForUser`/`psql` direto) e a lição sem opções reais ignorando o campo — nos 3 níveis
+  (caso de uso, router com supertest, `docker compose` ponta a ponta com uma lição real do seed
+  temporariamente marcada com opções via SQL direto, já que a autoria de conteúdo é a B.4). 510
+  testes (+5 novos), lint/build passando.
+  **Correção da revisão da PR 18:** o parágrafo acima ("nenhuma mudança em `drizzleLessonRepository.ts`
+  foi necessária") só cobria o caminho de `upsertProgress` — a chamada que já sai do passo
+  Micro-decisão *e* atinge o step de desbloqueio na mesma requisição (`step >= LESSON_UNLOCK_STEP`)
+  segue por `completeIfNotAlreadyCompleted`, que não recebia `selectedOption` nenhum: a escolha era
+  descartada em silêncio nesse caso específico, sem erro. `completeIfNotAlreadyCompleted` (port +
+  Drizzle + fake) ganhou um 5º parâmetro opcional `microDecisionSelectedOption`, mesma convenção
+  `undefined` ≠ `null` de `upsertProgress`; `advanceLesson.ts` passa `input.selectedOption` por esse
+  caminho também. Teste novo em `advanceLesson.test.ts` cobrindo exatamente esse caso (conclui e
+  persiste a escolha na mesma chamada). 511 testes, lint/build/prettier passando.
 
-### B.3 · Frontend — widget de escolha real
+### B.3 · Frontend — widget de escolha real ✅ concluída
 
 - **Descrição:** no passo Micro-decisão (`Lesson/index.tsx`, `step === 1`), quando
   `lesson.microDecisionOptions` não é `null`, renderizar N botões de escolha em vez do checkbox
@@ -228,8 +313,51 @@ comparar.
 - **Referências:** `identidade-visual-tokens.md` §2.3/2.3a (cores de feedback, não reaproveitar
   ganho/perda financeiro pra isso).
 - **Dependências:** B.1, B.2.
+- **Entregável:** estado local novo em `Lesson/index.tsx` (`selectedOption`), mutuamente exclusivo
+  com o checkbox `microDecisionConfirmed` já existente — `hasRealOptions =
+  lesson.microDecisionOptions != null` decide qual dos dois renderizar no passo Micro-decisão,
+  igual ao padrão já usado pra `usesEmbeddedWidget`. `useAdvanceLesson` trocou a variável da
+  mutation de `number` solto pra `{ step, selectedOption? }`; `services/lessons/advanceLesson`
+  ganhou o 4º parâmetro opcional. **Achado de compatibilidade:** repassar `selectedOption` sempre
+  (mesmo `undefined`) pra `services/lessons/advanceLesson` faria toda chamada existente virar 4
+  argumentos em vez de 3 — quebraria os testes que já afirmam `toHaveBeenCalledWith(token, id,
+  step)` com `toHaveBeenCalledWith` (compara também o tamanho do array de argumentos). Resolvido
+  omitindo o argumento por completo (não passando `undefined`) tanto no service quanto no corpo da
+  requisição, nos dois níveis (`useAdvanceLesson` → `advanceLesson` → `apiRequest` body) — nenhuma
+  chamada sem aposta real muda de formato. Cor do badge "Você acertou" segue literalmente o texto
+  da tarefa (verde, `--color-gain-500`) — exceção deliberada à regra geral de
+  `identidade-visual-tokens.md` §2.3 ("nunca reaproveitar ganho/perda pra status de UI genérico"),
+  já que é a própria tarefa fechada quem pede esse reaproveitamento neste caso específico. Badge
+  "Quase" ficou neutro (`--color-text-secondary`/`--color-bg-surface-elevated`/`--color-border`),
+  não âmbar — `--color-gamify-500` (o único tom âmbar/dourado já tokenizado) já carrega o
+  significado forte de "conquista/XP" no resto do app, e reusá-lo pra "você errou" colidiria com
+  essa semântica; nenhum token novo foi criado. Cópia "Quase — a resposta certa era: [opção]" do
+  texto original da tarefa reescrita sem travessão pra "Quase. A resposta certa era: [opção]"
+  ([[feedback-no-em-dash-ui-text]] — regra do usuário, texto de UI nunca leva travessão; documentos
+  como o próprio backlog podem, texto renderizado não). Sem CSS por breakpoint: a lista de botões é
+  `flex-direction: column` simples, funciona idêntica nos 3 tamanhos porque o card já é coluna
+  única de largura máxima 720px (mobile não esticado nem comprimido, já era assim antes desta
+  tarefa). Efeito colateral mecânico: `Lesson`/`LessonSummary` ganharam os 2 campos em mais 13
+  arquivos de teste do frontend que constroem `Lesson` por literal (mesmo custo já visto na B.1 do
+  lado do backend). Testado com fixtures locais (`microDecisionOptions: ['Sim', 'Não']`), sem
+  depender da B.4: 5 testes novos (botões aparecem em vez do checkbox, `Continuar` desabilitado até
+  escolher, acerto envia `selectedOption` e mostra "Você acertou", erro mostra "Quase" com a opção
+  certa, lição sem opções não mostra nenhum dos dois badges). Validado com `docker compose up` +
+  dev server + Chrome real: uma lição do seed (0.1) marcada temporariamente com opções via SQL
+  direto (autoria de conteúdo real é a B.4), os dois badges conferidos com 2 usuários distintos
+  (acerto e quase), `POST /lessons/:id/progress` persistindo o índice certo em
+  `micro_decision_selected_option` (conferido via `psql`), e o layout mobile (390px, iframe
+  injetado por JS — `resize_window` ficou dessincronizado de novo nesta sessão, mesma classe de
+  problema já vista em G.2/I.3) confirmando a lista de botões cheia largura + `TabBar` inferior
+  intactos. 611 testes (+5 novos), lint/tsc/prettier passando.
+  **Correção da revisão da PR 18:** `hasRealOptions = lesson.microDecisionOptions != null` não
+  cobria `microDecisionOptions: []` (não `null`, mas vazio) — nesse caso o widget de opções reais
+  renderizava sem nenhum botão e `canAdvanceMicroDecision` nunca ficava satisfeito, travando a
+  lição. Nenhuma lição do seed cai nesse caso hoje, mas nada no Zod/domínio impede — corrigido pra
+  `(lesson.microDecisionOptions?.length ?? 0) > 0`. Teste novo cobrindo o array vazio caindo de
+  volta pro checkbox. 617 testes, lint/tsc/prettier passando.
 
-### B.4 · Conteúdo — auditoria e autoria das opções
+### B.4 · Conteúdo — auditoria e autoria das opções ✅ concluída
 
 - **Descrição:** levantar, das 33 lições `reflection`, quantas têm resposta objetiva clara
   (sim/não, sobe/desce, maior/menor — a maioria, pelo padrão já visto em 1.1, 1.2, 1.6, 2.5, 2.6.x)
@@ -244,6 +372,31 @@ comparar.
 - **Referências:** `proposta-engajamento-licoes.md` §3.
 - **Dependências:** B.1, B.3 (widget já implementado, testado com fixture — B.4 é quem finalmente
   valida com conteúdo real de ponta a ponta).
+- **Entregável:** **achado de auditoria que corrige o texto original da tarefa:** o critério de
+  elegibilidade não é `microDecisionType === 'reflection'` — é "o passo Micro-decisão hoje mostra o
+  checkbox", que também cobre as 6 lições `live_indicator` (2.6.1–2.6.6), já que
+  `EMBEDDED_WIDGET_TYPES` (B.3) só exclui `growth_calculator`/`fixed_income_comparison`. Com esse
+  critério corrigido: **30 das 33** lições ganharam `microDecisionOptions`/
+  `microDecisionCorrectOption` reais; só 3 ficaram de fora — `0.1` (pergunta sobre motivação
+  pessoal, "o que te faria escolher", sem fato verificável — o próprio exemplo citado no texto
+  original da tarefa), `0.2`/`3.3` (`growth_calculator`/`fixed_income_comparison`, o widget
+  embutido já é a interação). Tabela de auditoria completa (as 3 de fora com justificativa + índice
+  da opção correta das 30 elegíveis) em comentário no próprio `seedLessons.ts`, logo antes de
+  `LESSON_SEEDS`. A maioria das opções reaproveita literalmente o vocabulário que o próprio
+  `microDecisionPrompt` já enumera em texto (`sobe/cai/fica igual`, `maior/menor`, `sim/não`) — sem
+  inventar redação nova. Duas exceções combinam duas leituras numa opção só, porque a pergunta
+  original já pede as duas juntas: `2.3` (par ON/PN de VALR3+BNDD4) e `3.4` (efeito nos fundamentos
+  + o que acontece com o Tesouro Selic, desafio final da trilha sintetizando 2.8+3.2 — 4
+  combinações possíveis, só uma bate com `revelationText`). `main()` (função de seed) ganhou os 2
+  campos novos no `onConflictDoUpdate.set` (estavam faltando — sem isso, rodar o seed de novo nunca
+  atualizaria uma lição já existente com as opções novas, só inseriria lição nova). Validado com
+  `docker compose up` real: reseed sobre o banco já populado confirmou `30` lições com
+  `micro_decision_options IS NOT NULL` e `3` com `NULL` via `psql` direto (bateu exato com a
+  contagem da auditoria); `GET /lessons` devolvendo o conteúdo real; e Chrome real percorrendo a
+  lição `0.3` de ponta a ponta com o conteúdo genuíno (não fixture) — 4 opções numéricas (`R$95`
+  `R$100` `R$105` `R$110`), escolher a certa (`R$105`) mostrou "Você acertou" com o `revelationText`
+  real embaixo. Fase B (aposta com acerto/erro real) está **encerrada** — B.1 a B.4 todas concluídas.
+  510 testes backend / 611 frontend, lint/build/tsc/prettier passando nos dois lados.
 
 ---
 
@@ -614,6 +767,11 @@ evento.
   desktop e mobile (390px, via iframe — a extensão de automação do browser não respeitou o resize da
   janela nesta sessão), sem paginação/rentabilidade/patrimônio visível. Suíte inteira (585 testes,
   incluindo os 3 novos deste organism/página) e lint/build/tsc passando.
+  **Correção da revisão da PR 18:** o `TRACK_NAMES` local deste organism duplicava, campo a campo,
+  o `TRACKS` de `TrackTrophyCase` (F.3) — os dois vivendo em arquivos de componente em vez de um
+  lugar só, risco de divergir ao renomear/adicionar trilha. Extraído pra `utils/tracks/` (`TRACKS` +
+  `trackNameFor`, cross-feature, mesmo padrão de pasta de `utils/fetchAllPages`); os dois organisms
+  importam de lá agora.
 
 ---
 

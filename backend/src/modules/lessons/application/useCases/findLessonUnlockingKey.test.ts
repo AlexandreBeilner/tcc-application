@@ -18,6 +18,8 @@ const lesson12 = {
   unlocksDescription: 'Tesouro Selic',
   unlocksKeys: ['asset:tesouro_selic'],
   unlocksAssetTicker: 'LFT2029',
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }
 
 describe('FindLessonUnlockingKeyUseCase', () => {

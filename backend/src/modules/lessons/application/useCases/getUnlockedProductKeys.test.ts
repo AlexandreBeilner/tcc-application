@@ -18,6 +18,8 @@ const lesson01 = {
   unlocksDescription: 'Acesso ao Portfólio',
   unlocksKeys: ['portfolio'],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }
 
 const lesson02 = {
@@ -36,6 +38,8 @@ const lesson02 = {
   unlocksDescription: 'Calculadora Financeira',
   unlocksKeys: ['calculator'],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }
 
 describe('GetUnlockedProductKeysUseCase', () => {

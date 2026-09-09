@@ -19,6 +19,7 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         unlocksDescription: '',
         unlocksKeys: [],
         unlocksAssetTicker: null,
+        microDecisionOptions: null,
         status: 'locked',
         currentStep: 0,
         ...overrides,

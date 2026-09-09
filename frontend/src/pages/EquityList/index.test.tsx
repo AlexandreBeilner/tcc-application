@@ -152,6 +152,7 @@ describe('EquityList — estado travado pela trilha (tarefa 7.0.1)', () => {
                     unlocksDescription: '',
                     unlocksKeys: ['asset:acao'],
                     unlocksAssetTicker: null,
+                    microDecisionOptions: null,
                     status: 'available',
                     currentStep: 0,
                 },

@@ -30,6 +30,11 @@ const lessons = [1, 2].map((n) => ({
   unlocksDescription: null,
   unlocksKeys: [],
   unlocksAssetTicker: null,
+  // l1 ganha opções reais (backlog engajamento B.2) — o único teste que se
+  // importa é o de `selectedOption` inválido abaixo; os demais nunca enviam
+  // o campo, então o comportamento existente não muda.
+  microDecisionOptions: n === 1 ? ['Sim', 'Não'] : null,
+  microDecisionCorrectOption: n === 1 ? 0 : null,
 }))
 
 function buildApp() {
@@ -109,6 +114,24 @@ describe('lessons routes', () => {
     expect(res.body.lesson.status).toBe('available')
   })
 
+  it('GET /lessons/:id nunca devolve microDecisionCorrectOption, nem pra lição com aposta real (correção da revisão da PR 18)', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app).get('/lessons/l1').set('Authorization', authHeader(tokenIssuer))
+
+    expect(res.body.lesson).not.toHaveProperty('microDecisionCorrectOption')
+  })
+
+  it('GET /lessons nunca devolve microDecisionCorrectOption em nenhuma lição do mapa', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app).get('/lessons').set('Authorization', authHeader(tokenIssuer))
+
+    for (const lesson of res.body.lessons) {
+      expect(lesson).not.toHaveProperty('microDecisionCorrectOption')
+    }
+  })
+
   it('POST /lessons/:id/progress retorna 400 pra step inválido', async () => {
     const { app, tokenIssuer } = buildApp()
 
@@ -118,6 +141,31 @@ describe('lessons routes', () => {
       .send({ step: 99 })
 
     expect(res.status).toBe(400)
+  })
+
+  it('POST /lessons/:id/progress retorna 400 pra selectedOption fora do intervalo de microDecisionOptions', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app)
+      .post('/lessons/l1/progress')
+      .set('Authorization', authHeader(tokenIssuer))
+      .send({ step: 2, selectedOption: 2 })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /lessons/:id/progress persiste selectedOption válido, lido de volta em GET /lessons/:id', async () => {
+    const { app, tokenIssuer, lessonRepository } = buildApp()
+
+    const res = await request(app)
+      .post('/lessons/l1/progress')
+      .set('Authorization', authHeader(tokenIssuer))
+      .send({ step: 2, selectedOption: 1 })
+
+    expect(res.status).toBe(200)
+    const [progress] = await lessonRepository.listProgressForUser('u1')
+    expect(progress.microDecisionSelectedOption).toBe(1)
+    expect(res.body).toMatchObject({ microDecisionCorrect: false, correctOptionLabel: 'Sim' })
   })
 
   it('POST /lessons/:id/progress avança e conclui a lição no step de desbloqueio', async () => {

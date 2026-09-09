@@ -19,6 +19,8 @@ const lessons = [1, 2].map((n) => ({
   unlocksDescription: null,
   unlocksKeys: [],
   unlocksAssetTicker: null,
+  microDecisionOptions: null,
+  microDecisionCorrectOption: null,
 }))
 
 describe('GetLessonUseCase', () => {

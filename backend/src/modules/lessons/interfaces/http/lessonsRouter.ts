@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
+  InvalidMicroDecisionOptionError,
   LessonLockedError,
   LessonNotCompletedError,
   LessonNotFoundError,
@@ -75,11 +76,16 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
         userId: req.auth.userId,
         lessonId: req.params.id as string,
         step: parsed.data.step,
+        selectedOption: parsed.data.selectedOption,
       })
       res.status(200).json(result)
     } catch (err) {
       if (err instanceof LessonNotFoundError || err instanceof LessonLockedError) {
         res.status(404).json({ error: err.message })
+        return
+      }
+      if (err instanceof InvalidMicroDecisionOptionError) {
+        res.status(400).json({ error: err.message })
         return
       }
       throw err

@@ -57,6 +57,18 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const [localStep, setLocalStep] = useState<number | undefined>(undefined)
     const [microDecisionConfirmed, setMicroDecisionConfirmed] = useState(false)
+    // Aposta com acerto/erro real (backlog engajamento B.3) — índice
+    // escolhido pelo usuário no widget de opções reais (mutuamente exclusivo
+    // com o checkbox `microDecisionConfirmed` acima). Só sustenta a UI do
+    // botão (`aria-pressed`) e habilita "Continuar"; o veredito em si vem do
+    // servidor (`microDecisionResult` abaixo, correção da revisão da PR 18 —
+    // `Lesson.microDecisionCorrectOption` não existe mais, comparar aqui
+    // vazaria a resposta certa via `GET /lessons` antes de qualquer escolha).
+    const [selectedOption, setSelectedOption] = useState<number | undefined>(undefined)
+    // Veredito da aposta (B.3), devolvido por `POST /lessons/:id/progress`
+    // só na chamada que envia `selectedOption` — nunca lido de volta de
+    // `GET /lessons`/`GET /lessons/:id` (mesma razão do comentário acima).
+    const [microDecisionResult, setMicroDecisionResult] = useState<{ correct: boolean; correctOptionLabel: string } | undefined>(undefined)
     // Navegação entre cartões (tarefa A.1) dentro da fase atual — estado
     // local, não persistido (a persistência de progresso continua sendo só
     // o `step` de fase, spec 5.2). Reseta pra 0 a cada avanço real de fase.
@@ -92,7 +104,15 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const unlockAsset = useAssetByTicker(lesson?.unlocksAssetTicker ?? null)
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
-    const canAdvanceMicroDecision = usesEmbeddedWidget || microDecisionConfirmed
+    const hasRealOptions = (lesson?.microDecisionOptions?.length ?? 0) > 0
+    const canAdvanceMicroDecision = usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : microDecisionConfirmed)
+    // Badge de acerto/erro da Revelação (B.3) — só existe quando o servidor
+    // já devolveu o veredito desta escolha (`handleAdvance` abaixo grava em
+    // `microDecisionResult` no `onSuccess` do avanço que saiu do passo
+    // Micro-decisão com `selectedOption`).
+    const microDecisionAnswered = microDecisionResult !== undefined
+    const microDecisionCorrect = microDecisionResult?.correct ?? false
+    const correctOptionLabel = microDecisionResult?.correctOptionLabel
     const unlockAssetPath = lesson?.unlocksAssetTicker && unlockAsset.asset ? assetDetailPath(unlockAsset.asset) : null
     // Chave de feature (`portfolio`/`calculator`, ex: 0.1/0.2) em vez de
     // produto real — mesmo mecanismo de CTA do Desbloqueio, generalizado pra
@@ -111,13 +131,26 @@ function LessonView({ lessonId }: { lessonId: string }) {
     }
 
     function handleAdvance() {
-        advanceLesson.mutate(step + 1, {
-            onSuccess: () => {
-                setLocalStep(step + 1)
-                setSubStep(0)
-                setRevealedIndexes(new Set())
+        // `selectedOption` só viaja na chamada que sai do passo Micro-decisão
+        // (step 1) de uma lição com aposta real — nas demais transições o
+        // campo nem existe no payload (`useAdvanceLesson`/`services/lessons`).
+        const optionToSend = step === 1 && hasRealOptions ? selectedOption : undefined
+        advanceLesson.mutate(
+            { step: step + 1, selectedOption: optionToSend },
+            {
+                onSuccess: (data) => {
+                    if (data.microDecisionCorrect !== undefined) {
+                        setMicroDecisionResult({
+                            correct: data.microDecisionCorrect,
+                            correctOptionLabel: data.correctOptionLabel ?? '',
+                        })
+                    }
+                    setLocalStep(step + 1)
+                    setSubStep(0)
+                    setRevealedIndexes(new Set())
+                },
             },
-        })
+        )
     }
 
     // Cartão intermediário: só avança o `subStep` local. Cartão final da
@@ -203,7 +236,25 @@ function LessonView({ lessonId }: { lessonId: string }) {
                             {lesson.microDecisionType === 'growth_calculator' && <GrowthCalculatorForm />}
                             {lesson.microDecisionType === 'fixed_income_comparison' && <FixedIncomeComparisonForm />}
 
-                            {!usesEmbeddedWidget && (
+                            {!usesEmbeddedWidget && hasRealOptions && (
+                                <div className={styles.optionsList} role="group" aria-label="Escolha uma opção">
+                                    {lesson.microDecisionOptions?.map((option, index) => (
+                                        <button
+                                            key={option}
+                                            type="button"
+                                            aria-pressed={selectedOption === index}
+                                            className={[styles.optionButton, selectedOption === index && styles.optionSelected]
+                                                .filter(Boolean)
+                                                .join(' ')}
+                                            onClick={() => setSelectedOption(index)}
+                                        >
+                                            {option}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {!usesEmbeddedWidget && !hasRealOptions && (
                                 <label className={styles.confirmRow}>
                                     <input
                                         type="checkbox"
@@ -231,6 +282,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
+                    {microDecisionAnswered &&
+                        (microDecisionCorrect ? (
+                            <span className={styles.answerBadgeCorrect}>Você acertou</span>
+                        ) : (
+                            <span className={styles.answerBadgeAlmost}>Quase. A resposta certa era: {correctOptionLabel}</span>
+                        ))}
                     <CardBody
                         card={revelationCards[subStep]}
                         revealed={revealedIndexes.has(subStep)}
