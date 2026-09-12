@@ -41,8 +41,19 @@ não trava numa tela branca se a rede cair. Sem nenhuma peça de autenticação 
 por e-mail/senha já é suficiente pra validar tudo desta fase, porque é só um POST JSON (não passa
 pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 
-### 1.1 · Bootstrap do projeto React Native
+### 1.1 · Bootstrap do projeto React Native ✅
 
+- **Entregável:** `mobile/` criado na raiz do monorepo via
+  `npx @react-native-community/cli@latest init Investimenta --directory mobile --pm npm`
+  (RN 0.87.1, template TypeScript, New Architecture default). AVD `Pixel_Test_API35` (API 35,
+  x86_64) criado e validado ponta a ponta: `npx react-native run-android` builda (Gradle 9.4.1,
+  ~13min na primeira vez por download de dependência) e instala `com.investimenta` no emulador;
+  Metro precisou ser iniciado manualmente em background (`npx react-native start`) porque o
+  ambiente headless não tem terminal pra CLI abrir sozinha — sessões futuras que rodarem
+  `run-android` neste ambiente devem fazer o mesmo. Tela padrão do template ("Welcome to React
+  Native") confirmada via screenshot do emulador. `.gitignore` gerado pelo template já cobre
+  `android/app/build/`, `ios/Pods/` e `*.keystore` (com exceção do `debug.keystore`) sem
+  necessidade de ajuste manual. Nenhum arquivo fora de `mobile/` foi alterado.
 - **Descrição:** criar o projeto RN "puro" (sem Expo) que vai virar a casca do app, e confirmar que
   o toolchain nativo funciona de ponta a ponta antes de escrever qualquer lógica. Esta tarefa é
   deliberadamente separada de "adicionar o WebView" (1.2) — problema de ambiente (SDK do Android,
