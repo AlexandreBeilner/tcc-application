@@ -1,5 +1,12 @@
 {
   "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "paths": {
+      // Ver types/react-native-webview.d.ts — a entrada "typings" real do
+      // pacote está quebrada (classe legada, colapsa props com ref).
+      "react-native-webview": ["./types/react-native-webview.d.ts"]
+    }
+  },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]
 }

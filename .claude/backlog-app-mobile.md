@@ -138,8 +138,31 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
   (variáveis de ambiente/build variants).
 - **Dependências:** 1.1.
 
-### 1.3 · Navegação nativa (botão voltar Android, gesto iOS, links externos)
+### 1.3 · Navegação nativa (botão voltar Android, gesto iOS, links externos) ✅
 
+- **Entregável:** `App.tsx` ganhou `BackHandler` (`hardwareBackPress`) lendo `canGoBack` do último
+  `onNavigationStateChange` via `ref` (não `state`, pra não reregistrar o listener a cada navegação);
+  se `true`, chama `webviewRef.current.goBack()` e consome o evento; se `false`, devolve `false` e
+  deixa o comportamento padrão do Android fechar a activity — sem diálogo de confirmação (decisão do
+  autor, 2026-09-10). `allowsBackForwardNavigationGestures` (iOS, não testável neste ambiente Linux —
+  Fase 4) e `originWhitelist` (regex derivado de `Config.APP_WEB_URL`, escapando os caracteres
+  especiais da URL) + `onShouldStartLoadWithRequest` (abre `http`/`https` fora da origem via
+  `Linking.openURL`, bloqueia o carregamento dentro do WebView) também adicionados. Descoberto durante
+  a tarefa: `react-native-webview@14.0.1` publica a entrada `"typings"` do `package.json` apontando
+  pro `index.d.ts` legado da raiz (classe genérica `WebView<P = undefined>`, de antes do componente
+  virar forwardRef) — usar `ref` nesse tipo colapsa toda prop pra `never` (erro de overload do JSX); o
+  par correto do runtime atual (`lib/WebView.{android,ios}.d.ts`) por sua vez tipa o ref como
+  `RefAttributes<unknown>`, sem os métodos imperativos. Corrigido com um `types/react-native-webview.d.ts`
+  local (módulo de augmentation com o shape real: props das 3 plataformas + um `WebViewHandle` com só
+  os métodos que o app chama) e `paths` no `tsconfig.json` redirecionando `react-native-webview` pra
+  esse arquivo — não muda o bundle (Metro continua resolvendo o pacote real via `node_modules`), só a
+  lente de type-checking do `tsc`. Validado ponta a ponta no emulador (AVD API 35) contra
+  `docker compose up` + `vite --host 0.0.0.0`: navegação em 2+ níveis (Trilha → menu do avatar →
+  Configurações, URL real muda pra `/configuracoes` conforme log do gateway) e botão físico de voltar
+  volta a SPA passo a passo (Configurações → Trilha) sem fechar o app; voltar de novo na Trilha (raiz)
+  fecha a activity direto pro launcher, sem diálogo, confirmado via `dumpsys activity activities`
+  (processo do app permanece vivo, só sai de foreground). `npx tsc --noEmit`, `npm run lint` e
+  `npm test` passam.
 - **Descrição:** sem isso, o app "funciona" mas se comporta como um navegador solto, não como um
   app — o botão físico de voltar do Android sai do app em vez de navegar o SPA pra trás, e qualquer
   link que o SPA abrir (ex. termos de uso) fica preso dentro do próprio WebView em vez de abrir o
