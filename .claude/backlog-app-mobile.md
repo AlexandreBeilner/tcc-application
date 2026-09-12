@@ -305,8 +305,34 @@ funciona desde a 1.2.
 - **Referências:** arquitetura-app-mobile §8.
 - **Dependências:** 1.2.
 
-### 2.2 · Upload de avatar dentro do WebView
+### 2.2 · Upload de avatar dentro do WebView ✅
 
+- **Entregável:** nenhuma mudança de código — a tarefa se confirmou 100% validação, como a descrição
+  já antecipava. Investigado o source do `react-native-webview@14` (`RNCWebChromeClient.java`,
+  `RNCWebViewModuleImpl.java`): `onShowFileChooser` já é implementado incondicionalmente pela lib
+  (não depende de nenhuma prop do componente `<WebView>`) e monta o intent de seleção com
+  `Intent.ACTION_GET_CONTENT` + `CATEGORY_OPENABLE` (`getFileChooserIntent`) — isso delega a seleção
+  pro seletor do sistema via Storage Access Framework, que roda em processo próprio e devolve só uma
+  `content://` URI com permissão de leitura escopada ao app chamador. Esse caminho **nunca precisou**
+  de `READ_MEDIA_IMAGES`/`READ_EXTERNAL_STORAGE` em nenhuma API level — a permissão de mídia só é
+  necessária pra quem consulta o `MediaStore` diretamente, não pra quem usa
+  `ACTION_GET_CONTENT`/`ACTION_OPEN_DOCUMENT`. Confirmado contra o manifest real do projeto
+  (`android/app/src/main/AndroidManifest.xml`): só `INTERNET` declarado, nenhuma permissão de
+  mídia/câmera — e o fluxo funcionou sem nenhum prompt de permissão em tempo de execução. Também
+  verificado `needsCameraPermission()`: como o manifest não declara `CAMERA`, a lib nem tenta pedir
+  permissão de câmera, só oferece "Camera"/"Media picker" no chooser nativo (a opção de câmera some
+  sozinha se a permissão fosse declarada e negada, nenhum código do app precisa tratar esse caso).
+  Validado ponta a ponta no emulador (AVD API 35, `targetSdkVersion 36`/API 36) contra
+  `docker compose up` + `vite --host 0.0.0.0`, com uma imagem de teste indexada no MediaStore do
+  emulador (`adb push` + broadcast de `MEDIA_SCANNER_SCAN_FILE`): Configurações → "Alterar foto" abre
+  o chooser nativo do Android (Camera / Media picker) sem nenhum diálogo de permissão → "Media
+  picker" abre o **Photo Picker do sistema** (`com.android.providers.media.module`, o seletor
+  scoped-storage moderno, texto "This app can only access the photos you select") → selecionar a
+  imagem fecha o picker e a tela de Configurações já mostra o avatar novo (no header e no card de
+  perfil) sem reload. Log do gateway confirma `POST /me/avatar` → `200` seguido de
+  `GET /avatars/<uuid>.png` → `200` com o tamanho exato do arquivo de teste enviado (913 bytes) — a
+  imagem persistida bate com a enviada, não é cache/estado velho. `adb logcat` sem nenhum
+  `FATAL EXCEPTION`/crash durante todo o fluxo.
 - **Descrição:** a tela de Configurações (`Configuracoes/index.tsx`) já tem
   `<input type="file" accept="image/jpeg,image/png,image/webp">` pra trocar a foto de perfil.
   Versões atuais do `react-native-webview` já interceptam esse seletor nativamente (Android via
