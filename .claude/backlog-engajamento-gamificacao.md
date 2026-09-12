@@ -1531,8 +1531,17 @@ nenhum outro app usa pra esse fim. Como a decisão de manter `0.1` aberta já es
 correção certa não é forçar uma resposta certa/errada onde a própria auditoria anterior decidiu
 que não cabe — é substituir a confirmação vazia por algo melhor.
 
-### M.1 · Trocar o checkbox por CTA direto (sem gate artificial)
+### M.1 · Trocar o checkbox por CTA direto (sem gate artificial) ✅ concluída
 
+- **Entregável:** `Lesson/index.tsx` — removidos o estado `microDecisionConfirmed` e o bloco
+  condicional do checkbox (`!usesEmbeddedWidget && !hasRealOptions`); `canAdvanceMicroDecision`
+  simplificado pra `usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : true)` —
+  lição sem opções reais e sem widget embutido (hoje só `0.1`) mostra "Continuar" já habilitado,
+  em qualquer cartão fatiado da micro-decisão, não só no último. `.confirmRow` removida do CSS
+  module (única usuária). Testes: os dois que exigiam clicar no checkbox antes de habilitar
+  "Continuar" viraram asserção de "já vem habilitado, sem checkbox nenhum"; o de micro-decisão
+  fatiada passou a cobrir "Continuar habilitado do primeiro ao último cartão" em vez de "checkbox
+  só aparece no último". `npx vitest run`, `npx oxlint` e `npx tsc --noEmit` passando.
 - **Descrição:** pra lições sem opções reais e sem widget embutido (hoje só `0.1`), remover o
   checkbox `microDecisionConfirmed` — ele só serve pra habilitar o botão "Continuar" que já está
   do lado, sem validar nada. Deixar "Continuar" habilitado direto nesse caso: a decisão de já ter
@@ -1549,8 +1558,11 @@ que não cabe — é substituir a confirmação vazia por algo melhor.
   confirmação muda).
 - **Dependências:** nenhuma.
 
-### M.2 · (proposta de melhoria, opcional) Reflexão curta em texto livre no lugar da confirmação vazia
+### M.2 · (proposta de melhoria, opcional) Reflexão curta em texto livre no lugar da confirmação vazia ❌ descartada
 
+- **Decisão do autor (2026-09-12):** não avançar com M.2 depois de ver o M.1 (CTA direto, sem
+  textarea) em produção. Removida da sequência de implementação sugerida — segue documentada aqui
+  só como registro do que foi cogitado e por quê.
 - **Descrição:** em vez de só remover o gate (M.1), a versão mais engajadora pra lições
   genuinamente abertas (hoje só `0.1`) é pedir uma resposta curta em texto livre antes de avançar —
   reaproveita o `microDecisionPrompt` já existente como enunciado, com um `<textarea>` no lugar do
@@ -1749,8 +1761,27 @@ Decisões já fixadas nele, não reabertas nas tarefas abaixo:
   Trilha horizontal (mesma seção §0), superado por este pra as 2 telas novas.
 - **Dependências:** nenhuma.
 
-### O.1 · Hub de trilhas — nova tela em `/trilha`
+### O.1 · Hub de trilhas — nova tela em `/trilha` ✅ concluída
 
+- **Entregável:** `pages/TrilhasHub` (nova, `pages/Track` removida) — grade de cards de trilha
+  (1 por `trackNumber`), organism inline `TrackCard` dentro do próprio `index.tsx` (não extraído
+  como componente de `components/`, único consumidor até aqui). Status via `trackStatusFor` nova
+  em `features/lessons/trackGroups` (`'completed' | 'active' | 'locked'`, mesmo critério do texto
+  da tarefa: `active` cobre tanto "tem lição available" quanto "tem completed mas nenhuma available
+  ainda", já que a próxima lição pode estar bloqueada por outra trilha). Sparkline própria e pequena
+  em `features/lessons/trackHubSparkline` (240×30, 2 âncoras reais 0%→`completionPct` + ruído
+  determinístico, mesmo princípio de `podiumSparkline`/`trackChartLayout` mas função nova, conforme
+  pedido no texto — API/escala incompatíveis com o motor do mapa vertical da O.2). `utils/tracks`
+  ganhou o campo `ticker` (`TRLH{N}`, aditivo — não quebrou `TrackTrophyCase`/`RecentActivityFeed`).
+  Reaproveita `ProgressionSummary`/`ResumeLessonCard`/`nextUnlockFor` sem alteração nenhuma neles.
+  Card sempre é `<button>` clicável (inclusive `locked`) navegando pra `/trilha/mapa/:trackNumber`
+  — rota ainda não existe no `router.tsx` (nasce na O.3); clicar hoje cai no `errorElement` padrão
+  do react-router (404), comportamento esperado e confirmado no Chrome, não uma regressão (mesmo
+  padrão de "construir uma peça por vez" já usado na O.2/N.1). **Achado ao validar no Chrome:**
+  a 1ª versão duplicava o nome da trilha no título do card (`Trilha 0 · Trilha 0: Fundamentos`) —
+  `lesson.trackName` que a API devolve já vem prefixado ("Trilha 0: Fundamentos", diferente do nome
+  puro ("Fundamentos") que `utils/tracks` guarda pra outros usos); corrigido usando `group.trackName`
+  sozinho como título do card, sem prefixo próprio.
 - **Descrição:** `pages/Track` (renomear pra refletir o papel novo, ex. `pages/TrilhasHub`) troca o
   acordeão de 4 `<details>` com `TrackChart`/`LessonNode` embutidos por uma grade de **cards de
   trilha** (1 card por `trackNumber`, 4 hoje) — cada card mostra nome + cor da trilha (F.1), status
@@ -1879,9 +1910,9 @@ depois de K.2** porque parte do mesmo achado de auditoria (redirecionamento de b
 (preventivo). **J.4 é a exceção dentro deste bloco inicial** — tecnicamente também independente (lê
 `unlocksDescription` ao vivo, nenhuma fase muda esse campo além da E.1), mas só entrega a melhor
 versão do texto depois que a E.1 já reescreveu o "porquê" de cada trilha, então entra logo depois
-dela, não junto das outras. **M.2 é opcional** — só entra na sequência de fato se o autor decidir ir
-além de M.1 depois de ver o CTA simplificado em produção (mesmo espírito do gate D.0, mas sem exigir
-um checkpoint formal, já que M.2 não abre schema).
+dela, não junto das outras. **M.2 foi cogitada como opcional** — só entraria na sequência se o autor
+decidisse ir além de M.1 depois de ver o CTA simplificado em produção; descartada em 2026-09-12 (ver
+nota na própria tarefa), não aparece mais nesta lista.
 
 1. **J.1** — `TabBar` deixa de ser beco sem saída
 2. **J.2** — motivo do bloqueio fica visível (não só tooltip)
@@ -1892,41 +1923,41 @@ um checkpoint formal, já que M.2 não abre schema).
 7. **N.2** — `LockedAssetPanel`/`AssetDetail` param de apontar pra lição inacessível (bug real)
 8. **N.3** — `TabBar`/`RequiresUnlock`/`LockedScreen` usam o mesmo destino seguro (preventivo)
 9. **L.1** — espaçamento mínimo entre nós + canvas rolável/arrastável no Mapa da Trilha
-10. **M.1** — trocar o checkbox "já pensei" por CTA direto (sem gate artificial)
-11. **M.2** *(opcional)* — reflexão curta em texto livre no lugar da confirmação vazia
-12. **O.1** — hub de trilhas, nova tela em `/trilha`
-13. **O.2** — `trackPathLayout`, motor de layout do mapa vertical
-14. **O.3** — mapa vertical por trilha, nova tela em `/trilha/mapa/:trackNumber`
-15. **O.4** — retirada do `TrackChart` horizontal e do acordeão antigo
-16. **A.1** — parser de cartões (fundação de A/C, zero risco)
-17. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
-18. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
+10. **M.1** — trocar o checkbox "já pensei" por CTA direto (sem gate artificial) ✅ concluída
+    (M.2 descartada pelo autor depois de ver M.1 em produção — não entra mais na sequência)
+11. **O.1** — hub de trilhas, nova tela em `/trilha` ✅ concluída
+12. **O.2** — `trackPathLayout`, motor de layout do mapa vertical
+13. **O.3** — mapa vertical por trilha, nova tela em `/trilha/mapa/:trackNumber`
+14. **O.4** — retirada do `TrackChart` horizontal e do acordeão antigo
+15. **A.1** — parser de cartões (fundação de A/C, zero risco)
+16. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
+17. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
     `unlocksDescription`, que ela acabou de melhorar; ver nota na própria tarefa)
-19. **A.2** — reescrita das 33 lições em cartões
-20. **A.3** — revelação progressiva
-21. **C.1** — glossário inline
-22. **C.2** — elenco recorrente
-23. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
+18. **A.2** — reescrita das 33 lições em cartões
+19. **A.3** — revelação progressiva
+20. **C.1** — glossário inline
+21. **C.2** — elenco recorrente
+22. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
     fim da Fase H)
-24. **F.2** — backend: trilhas concluídas no perfil público
-25. **F.3** — `TrackTrophyCase`
-26. **G.1** — backend: evento de trilha concluída
-27. **G.2** — seção de atividade recente em `/amigos`
-28. **I.1** — componente de celebração
-29. **I.2** — portas de gamificação devolvem resultado real
-30. **I.3** — conectar XP/level-up
-31. **I.4** — conectar conquista
-32. **I.5** — conectar marco de streak
-33. **B.1** — schema de opções/resposta correta
-34. **B.2** — backend grava a escolha
-35. **B.3** — widget de escolha real
-36. **B.4** — auditoria e autoria das opções
-37. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
-38. **H.3** — missão de 3 seguidas (depende de B, H.1)
-39. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
+23. **F.2** — backend: trilhas concluídas no perfil público
+24. **F.3** — `TrackTrophyCase`
+25. **G.1** — backend: evento de trilha concluída
+26. **G.2** — seção de atividade recente em `/amigos`
+27. **I.1** — componente de celebração
+28. **I.2** — portas de gamificação devolvem resultado real
+29. **I.3** — conectar XP/level-up
+30. **I.4** — conectar conquista
+31. **I.5** — conectar marco de streak
+32. **B.1** — schema de opções/resposta correta
+33. **B.2** — backend grava a escolha
+34. **B.3** — widget de escolha real
+35. **B.4** — auditoria e autoria das opções
+36. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
+37. **H.3** — missão de 3 seguidas (depende de B, H.1)
+38. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
     imediatamente após a sessão de código anterior)
-40. **D.1** — blocos tipados (só se D.0 = seguir)
-41. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
+39. **D.1** — blocos tipados (só se D.0 = seguir)
+40. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
 
 **F.1 não aparece na lista acima — já está concluída** (tokens de cor por trilha, pré-requisito
 real da O.1/O.3, que já consomem `--color-track-N` direto de `frontend/src/index.css`). **O.1-O.4
@@ -1935,8 +1966,8 @@ dependência de fase não concluída" das demais, mas descrita à parte por ser 
 inteira (não correção pontual) — dependência real é só entre si (O.3 depende de O.1/O.2, O.4 depende
 de O.1/O.3 estarem em produção).
 
-Passos 1-32 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
-risco e maior volume de valor, por isso vem toda antes de B. Passos 33-38 são a fatia de "aposta
+Passos 1-31 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
+risco e maior volume de valor, por isso vem toda antes de B. Passos 32-37 são a fatia de "aposta
 real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último de propósito: é o
 único bloco que só faz sentido com uso real do resto já rodando.
 
@@ -1956,7 +1987,7 @@ real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último
 | J | Bloqueio como convite, não parede | 4 | Não |
 | K | Bloqueio de tela inteira também é parede | 2 | Não |
 | L | Mapa da Trilha: círculos não cabem numa reta | 1 | Não |
-| M | Aposentar o checkbox "já pensei" | 2 (1 opcional) | Não |
+| M | Aposentar o checkbox "já pensei" | 2 (1 descartada) | Não |
 | N | Redirecionamento nunca aponta pra lição inacessível | 3 | Não |
 | O | Trilha vira hub + mapa vertical por trilha | 5 | Não |
 | **Total** | | **43** | |

@@ -4,12 +4,14 @@
 // `GET /social-feed`/`.docs/backend/socialfeed.md`): não é RNF09 (nada de
 // patrimônio em jogo), é currículo que não muda por usuário. Extraído de
 // `TrackTrophyCase` (F.3) e `RecentActivityFeed` (G.2), que duplicavam o
-// mesmo mapeamento cada um com sua própria constante.
+// mesmo mapeamento cada um com sua própria constante. `ticker` acrescentado
+// na O.1 (Hub de trilhas) pra reforçar a identidade "home broker" no card —
+// mesma convenção `TRLH{N}` do mockup O.0.
 export const TRACKS = [
-    { number: 0, name: 'Fundamentos', color: 'var(--color-track-0)', background: 'var(--color-brand-100)' },
-    { number: 1, name: 'Renda Fixa', color: 'var(--color-track-1)', background: 'var(--color-gain-100)' },
-    { number: 2, name: 'Renda Variável', color: 'var(--color-track-2)', background: 'var(--color-loss-100)' },
-    { number: 3, name: 'Estratégia e Tributação', color: 'var(--color-track-3)', background: 'var(--color-gamify-100)' },
+    { number: 0, name: 'Fundamentos', ticker: 'TRLH0', color: 'var(--color-track-0)', background: 'var(--color-brand-100)' },
+    { number: 1, name: 'Renda Fixa', ticker: 'TRLH1', color: 'var(--color-track-1)', background: 'var(--color-gain-100)' },
+    { number: 2, name: 'Renda Variável', ticker: 'TRLH2', color: 'var(--color-track-2)', background: 'var(--color-loss-100)' },
+    { number: 3, name: 'Estratégia e Tributação', ticker: 'TRLH3', color: 'var(--color-track-3)', background: 'var(--color-gamify-100)' },
 ] as const
 
 export function trackNameFor(trackNumber: number): string | undefined {

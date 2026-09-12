@@ -150,14 +150,6 @@
     cursor: pointer;
 }
 
-.confirmRow {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-}
-
 /* Aposta com acerto/erro real (backlog engajamento B.3) — lista vertical de
    botões funciona igual nos 3 breakpoints (o card já é coluna única de
    largura máxima 720px), sem regra própria por tamanho de tela. */

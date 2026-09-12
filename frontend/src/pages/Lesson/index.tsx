@@ -56,10 +56,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const reviewLesson = useReviewLesson(lessonId)
 
     const [localStep, setLocalStep] = useState<number | undefined>(undefined)
-    const [microDecisionConfirmed, setMicroDecisionConfirmed] = useState(false)
     // Aposta com acerto/erro real (backlog engajamento B.3) — índice
-    // escolhido pelo usuário no widget de opções reais (mutuamente exclusivo
-    // com o checkbox `microDecisionConfirmed` acima). Só sustenta a UI do
+    // escolhido pelo usuário no widget de opções reais. Só sustenta a UI do
     // botão (`aria-pressed`) e habilita "Continuar"; o veredito em si vem do
     // servidor (`microDecisionResult` abaixo, correção da revisão da PR 18 —
     // `Lesson.microDecisionCorrectOption` não existe mais, comparar aqui
@@ -105,7 +103,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
     const hasRealOptions = (lesson?.microDecisionOptions?.length ?? 0) > 0
-    const canAdvanceMicroDecision = usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : microDecisionConfirmed)
+    const canAdvanceMicroDecision = usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : true)
     // Badge de acerto/erro da Revelação (B.3) — só existe quando o servidor
     // já devolveu o veredito desta escolha (`handleAdvance` abaixo grava em
     // `microDecisionResult` no `onSuccess` do avanço que saiu do passo
@@ -252,17 +250,6 @@ function LessonView({ lessonId }: { lessonId: string }) {
                                         </button>
                                     ))}
                                 </div>
-                            )}
-
-                            {!usesEmbeddedWidget && !hasRealOptions && (
-                                <label className={styles.confirmRow}>
-                                    <input
-                                        type="checkbox"
-                                        checked={microDecisionConfirmed}
-                                        onChange={(event) => setMicroDecisionConfirmed(event.target.checked)}
-                                    />
-                                    Já pensei na minha resposta
-                                </label>
                             )}
                         </>
                     )}

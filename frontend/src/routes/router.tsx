@@ -27,7 +27,7 @@ import { Portfolio } from '../pages/Portfolio'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
-import { Track } from '../pages/Track'
+import { TrilhasHub } from '../pages/TrilhasHub'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
@@ -64,11 +64,13 @@ export const router = createBrowserRouter([
                         element: <RequiresUnlock unlockKey="portfolio" />,
                         children: [{ path: '/', element: <Portfolio /> }],
                     },
-                    // 3.1 Mapa da Trilha e 3.2 Lição (tarefa 6.4) — `/trilha/:id`
-                    // é rota irmã, não filha de `/trilha`, já que a Lição ocupa a
-                    // tela inteira dentro do mesmo <AppShell> (sem navegação
-                    // aninhada nova).
-                    { path: '/trilha', element: <Track /> },
+                    // 3.1 Hub de trilhas (tarefa 6.4, redesenhado na O.1) e 3.2 Lição
+                    // — `/trilha/:id` é rota irmã, não filha de `/trilha`, já que a
+                    // Lição ocupa a tela inteira dentro do mesmo <AppShell> (sem
+                    // navegação aninhada nova). `/trilha/mapa/:trackNumber` (mapa
+                    // vertical por trilha, O.3) ainda não existe — o Hub já navega
+                    // pra lá (O.1), rota nasce quando a O.3 implementar a tela.
+                    { path: '/trilha', element: <TrilhasHub /> },
                     { path: '/trilha/:id', element: <Lesson /> },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
                     // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é
