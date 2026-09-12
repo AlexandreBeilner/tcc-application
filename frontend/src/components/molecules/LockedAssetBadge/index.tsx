@@ -1,4 +1,4 @@
-import { Lock } from 'lucide-react'
+import { Locked } from '../../atoms/Locked'
 import styles from './index.module.css'
 import type { LockedAssetBadgeProps } from './types'
 
@@ -18,8 +18,7 @@ export function LockedAssetBadge({ lessonCode }: LockedAssetBadgeProps) {
 
     return (
         <span className={styles.badge} title={label} aria-label={label}>
-            <Lock size={14} strokeWidth={2} aria-hidden="true" />
-            <span aria-hidden="true">{visibleText}</span>
+            <Locked size={14} label={visibleText} />
         </span>
     )
 }

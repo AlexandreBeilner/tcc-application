@@ -4,9 +4,31 @@
     gap: var(--space-3);
 }
 
+/* Rolagem horizontal do Mapa da Trilha (tarefa L.1) — nativa por toque em
+   qualquer dispositivo, mais arrasto por ponteiro no mouse (handlers em
+   `index.tsx`). `overflow-x: auto` força o navegador a resolver
+   `overflow-y` como `auto` também (regra do próprio CSS quando um eixo não
+   é `visible`) — inofensivo aqui porque nada dentro de `.chart` deveria
+   escapar verticalmente além do próprio card. */
+.chartScroll {
+    width: 100%;
+    overflow-x: auto;
+    cursor: grab;
+}
+
+.chartScroll:active {
+    cursor: grabbing;
+}
+
+/* `min-width: 100%` (não mais `width: 100%`) — o componente passa um
+   `width` inline em px calculado por `trackChartWidthFor` (tarefa L.1):
+   quando essa largura mínima exigida já é menor que `.chartScroll`,
+   `min-width` vence e o card se comporta como hoje (preenche o container,
+   sem rolagem); só quando a largura mínima excede o container o `width`
+   inline vence, criando o overflow que `.chartScroll` rola/arrasta. */
 .chart {
     position: relative;
-    width: 100%;
+    min-width: 100%;
 }
 
 /* Fundo (grid de papel + linhas) recortado à parte dos nós — se o

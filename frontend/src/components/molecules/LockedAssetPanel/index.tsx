@@ -1,6 +1,6 @@
-import { Lock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../atoms/Button'
+import { Locked } from '../../atoms/Locked'
 import type { LockedAssetPanelProps } from './types'
 import styles from './index.module.css'
 
@@ -20,7 +20,7 @@ export function LockedAssetPanel({ lessonId, lessonCode }: LockedAssetPanelProps
 
     return (
         <div className={styles.panel} role="note">
-            <Lock size={20} strokeWidth={2} aria-hidden="true" />
+            <Locked size={20} />
             <span className={styles.title}>Travado pela trilha</span>
             <p className={styles.description}>{description}</p>
             <Button onClick={() => navigate(lessonId ? `/trilha/${lessonId}` : '/trilha')}>Ir pra lição</Button>

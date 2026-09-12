@@ -6,7 +6,11 @@ roadmap de 8 semanas da spec). Cobre tanto a experiência de lição (Fases A-D)
 camada de gamificação — Perfil, feed social, missões, conquistas e o "teatro de recompensa"
 citado em `identidade-visual-padroes.md` §6, hoje só documentado, nunca implementado como
 componente reutilizável (Fases E-I), e o tratamento de conteúdo travado pela trilha (tarefa 7.0.1,
-já em produção) que hoje arrisca desmotivar quem esbarra num módulo bloqueado (Fase J).
+já em produção) que hoje arrisca desmotivar quem esbarra num módulo bloqueado (Fase J). As Fases
+K, L e M vieram de teste real do autor no app em 2026-09-12 (não da proposta original): bloqueio
+de rota inteira sem explicação (`RequiresUnlock`, escapou da auditoria da Fase J), círculos do
+Mapa da Trilha espremidos numa trilha com muitas lições, e o checkbox "já pensei" que sobrou como
+interação fraca na única lição sem opções reais nem widget embutido.
 
 > **Revisão de auditoria (mesma sessão):** antes de liberar pra implementação, cada tarefa foi
 > conferida contra o código real em busca de ambiguidade — 3 achados corrigiram descrição errada
@@ -1315,59 +1319,318 @@ O pior caso (`TabBar`) é também o de maior exposição — navegação primár
 
 ---
 
+## Fase K — Bloqueio de tela inteira também é parede
+
+**Origem: teste real do autor no app (2026-09-12).** A Fase J corrigiu os 3 tratamentos
+inconsistentes que a auditoria daquela sessão achou (`TabBar`, linha de ativo, Detalhe de Ativo)
+— mas não olhou pro gate de **rota inteira**. Auditoria desta sessão achou um 4º lugar, pior que
+o pior caso já corrigido pela J: `frontend/src/features/lessons/RequiresUnlock/index.tsx:15-27`
+protege `/` (Portfólio) e `/calculadora` (`routes/router.tsx:63-66,84-87`) com
+`return <Navigate to="/trilha" replace />` quando a `unlockKey` não está desbloqueada — **redirect
+silencioso, sem card, sem cadeado, sem explicação nenhuma**, exatamente o padrão que a J.1 já
+identificou como beco sem saída na `TabBar` e corrigiu lá, só que nunca estendido pra este gate.
+No mobile isso é mais visível porque é a primeira coisa que um usuário novo encontra: entra no
+app, cai em `/` (Portfólio, travado antes de completar 0.1), e é teleportado pra `/trilha` sem
+entender por quê — sensação de "cliquei em algo e fui jogado pra outro lugar", não de bloqueio
+explicado. `features/auth/ProtectedRoute/index.tsx:14-19` (gate de role) tem o mesmo padrão de
+`Navigate` silencioso, mas fica **fora do escopo desta fase** de propósito: é só admin-only, não é
+o que o autor encontrou testando como usuário comum.
+
+Auditoria também achou duplicação: existem hoje **3 implementações independentes** do ícone de
+cadeado (`LockedAssetBadge`, `LessonNode`/`TrackChart` usando `Lock` do `lucide-react` direto) e
+uma quarta peça de UI equivalente sem reaproveitar nenhuma das outras (`LockedAssetPanel`) — vai
+contra a convenção de atomic design do `CLAUDE.md` ("`atoms/`... concentra todo componente visual
+do app"). K.1 resolve isso primeiro, como fundação de K.2.
+
+### K.1 · Átomo `Locked` único (fundação) ✅ concluída
+
+- **Entregável:** `components/atoms/Locked` novo (`index.tsx`/`types.ts`/`index.module.css`/
+  `index.test.tsx`) — `size` obrigatório (cada chamador usava um tamanho diferente: 14 no badge de
+  linha, 16 no nó da trilha, 20 no painel) e `label?` opcional (só o badge de linha passa, os
+  outros 3 já têm o motivo em texto separado). `LockedAssetBadge`/`LockedAssetPanel` trocaram o
+  `<Lock>` solto do `lucide-react` pelo átomo diretamente. `LessonNode`/`TrackChart` tinham um
+  `STATUS_ICON` com 3 entradas (`completed`/`available`/`locked`) — o `locked` saiu do mapa (não é
+  mais um componente de ícone intercambiável com `Check`/`Circle`, já que o átomo tem props
+  diferentes) e o `locked` virou um `if`/ternário explícito que renderiza `<Locked>` no lugar; os
+  dois mapas ficaram só com `completed`/`available`. Nenhum dos 4 consumidores muda de aparência —
+  puro refactor, confirmado pela suíte completa (622 testes, incluindo os testes já existentes de
+  cada um dos 4 componentes) passando sem nenhuma alteração de asserção, mais `npm run lint` e
+  `npm run build` (tsc + vite build) limpos.
+- **Descrição:** extrair `components/atoms/Locked` (ícone de cadeado + label curto opcional,
+  mesmo visual já usado em `LockedAssetPanel`) e trocar as 4 implementações atuais
+  (`LockedAssetBadge`, `LessonNode`, `TrackChart`, `LockedAssetPanel`) pra consumir esse átomo em
+  vez de cada uma desenhar seu próprio cadeado.
+- **O que muda na aplicação:** `components/atoms/Locked/index.tsx` + `index.module.css` novos
+  (pasta própria, `index.tsx` como única porta de entrada — convenção do `CLAUDE.md`);
+  `LockedAssetBadge`, `LessonNode`, `TrackChart`, `LockedAssetPanel` importam e renderizam o átomo
+  em vez do `<Lock>` solto.
+- **Critérios de aceite:** nenhuma mudança visual perceptível nos 4 lugares (puro refactor, sem
+  alterar comportamento); teste de componente do átomo novo; suíte completa passa sem quebrar
+  nenhum teste existente dos 4 consumidores.
+- **Referências:** `CLAUDE.md` (atomic design — "`components/` segue atomic design e concentra
+  todo componente visual do app, não só o compartilhado").
+- **Dependências:** nenhuma.
+
+### K.2 · `RequiresUnlock` para de teleportar — mostra a própria tela com o conteúdo travado ✅ concluída
+
+- **Entregável:** `components/molecules/LockedScreen` novo (`index.tsx`/`types.ts`/
+  `index.module.css`/`index.test.tsx`) — em vez de reimplementar o card, **envolve
+  `LockedAssetPanel` diretamente** (mesmo componente da J.3, mesmo texto/CTA/navegação,
+  centralizado numa área de página própria via CSS) e recebe `lessonId?`/`lessonCode?`, o mesmo
+  shape que `findLessonUnlocking` já devolve. `RequiresUnlock/index.tsx` perdeu o import de
+  `Navigate`: quando a chave não está desbloqueada, calcula `hint = findLessonUnlocking(unlockKey,
+  lessons)` (mesma função já usada pela `TabBar`, nenhuma lógica nova) e renderiza `<LockedScreen
+  lessonId={hint?.id} lessonCode={hint?.code} />` no lugar do `<Outlet />` — `TopBar`/`TabBar` do
+  `AppShell` continuam por fora, intactos, já que só o conteúdo da rota trocou. Teste existente de
+  `RequiresUnlock` (`index.test.tsx`) trocou a asserção de redirect por "mostra o card travado" +
+  ganhou um caso novo cobrindo o hint da lição encontrada; `isLoading`/`isError` continuam tratados
+  igual a antes (`return null`), sem regressão. Validado com `npm run lint`, `npm run build` (tsc +
+  vite) e a suíte completa — **625 testes passando** (622 da K.1 + 3 novos: 2 do `LockedScreen`, 1
+  do caso novo de `RequiresUnlock`).
+- **Descrição:** trocar o `<Navigate to="/trilha" replace />` por renderizar a própria rota
+  (Portfólio ou Calculadora) com um card de bloqueio no lugar do conteúdo real — mesmo discurso
+  "prévia, não parede" que `LockedAssetPanel` já usa no Detalhe de Ativo (J.3), só que aplicado à
+  tela inteira (não há nada de real pra mostrar por trás nesses dois casos específicos — Portfólio
+  sem conta criada, Calculadora sem contexto). `TopBar`/`TabBar` do `AppShell` continuam normais;
+  só o conteúdo da rota (o que hoje é o `Outlet`) é substituído. Vale igual em mobile e desktop —
+  não há mais redirect, então o problema relatado no mobile ("clico e não aparece nada, só sou
+  jogado pra outra tela") desaparece: a própria tela abre já mostrando o card de bloqueio.
+- **O que muda na aplicação:** `RequiresUnlock/index.tsx` deixa de importar `Navigate` — quando
+  `!unlockedKeys.has(unlockKey)`, renderiza um componente novo `molecules/LockedScreen` (usa o
+  átomo `Locked` da K.1 + `findLessonUnlocking`, já importado pela `TabBar` — reaproveita a mesma
+  função, não duplica a busca de "qual lição desbloqueia isso") em vez do `<Outlet />`, com CTA "Ir
+  pra lição" navegando pra `/trilha/:id` (mesmo padrão de `LockedAssetPanel`).
+- **Critérios de aceite:** acessar `/` ou `/calculadora` sem a chave desbloqueada mantém
+  `TopBar`/`TabBar` normais e mostra um card central "Travado pela trilha — desbloqueia na lição X"
+  com CTA, em vez de navegar embora; comportamento idêntico em mobile (390px) e desktop; usuário já
+  desbloqueado continua vendo o `Outlet` normal (zero regressão); estados de `isLoading`/`isError`
+  de `useUnlockedKeys` continuam tratados como hoje (sem piscar cadeado numa aba já desbloqueada);
+  teste de componente cobrindo os 4 estados (travado/desbloqueado/loading/erro).
+- **Referências:** `LockedAssetPanel`/J.3 como precedente direto; achado de auditoria desta sessão
+  (`RequiresUnlock/index.tsx:15-27`, `router.tsx:63-66,84-87`).
+- **Dependências:** K.1.
+
+---
+
+## Fase L — Mapa da Trilha: círculos não cabem numa reta
+
+**Origem: teste real do autor no app (2026-09-12).** `TrackChart` (renderizado por `Track`) usa
+posicionamento absoluto em porcentagem sobre um SVG de largura fixa
+(`features/lessons/trackChartLayout/index.ts`, `TRACK_CHART_WIDTH = 1000`) — `anchorAt` distribui
+os N nós de uma trilha uniformemente em `usableW`, **comprimindo o espaçamento conforme a trilha
+cresce**. Os seeds reais (`backend/src/db/seedLessons.ts`) têm 4 trilhas com 5, 9, 15 e 4 lições —
+a trilha 2 (15 nós) fica espremida num único card de largura fixa (`pages/Track/index.module.css`,
+até `720px` em mobile/tablet), gerando nós muito próximos; o próprio código já tem tratamento
+defensivo de colisão de tooltip perto da borda (`TrackChart/index.module.css` `.tooltipLeft`/
+`.tooltipRight`), sinal de que esse aperto já foi observado sem nunca ter sido resolvido na raiz.
+
+O autor propôs duas alternativas: (1) distância mínima entre círculos + revelação progressiva
+conforme avança, ou (2) conteúdo do card arrastável em qualquer direção. **As duas não são
+mutuamente exclusivas** — resolvidas juntas com uma única mudança: o canvas passa a ter largura
+real proporcional ao nº de nós (não mais comprimido pra caber no card), dentro de um container com
+rolagem horizontal — nativa por toque/scroll em qualquer dispositivo, e arrasto por ponteiro
+(mousedown/mousemove) no desktop, já que mouse não rola por swipe. Isso já entrega a "revelação
+progressiva" (rolar revela o resto) **e** o "arrastar pra qualquer direção" (arrasto + scroll
+nativo cobrem os dois eixos de intenção) com uma implementação só. Card abre centrado no nó
+"você está aqui" (marcação já documentada em `identidade-visual-padroes.md` §2), pra não obrigar
+rolagem manual só pra achar onde parou.
+
+### L.1 · Espaçamento mínimo entre nós + canvas rolável/arrastável ✅ concluída
+
+- **Entregável:** `trackChartLayout/index.ts` ganhou `trackChartWidthFor(count)` — largura mínima
+  REAL em px que garante `MIN_NODE_SPACING` (70px, calibrado pra ainda caber sem rolagem as
+  trilhas pequenas do currículo real — 4 e 5 lições, trilhas 3/0 do seed — no card mais estreito,
+  mobile) de respiro entre nós consecutivos. **Decisão de design que corrigiu 2 tentativas
+  erradas no meio da sessão:** `anchorAt`/viewBox/`TRACK_CHART_WIDTH` (o espaço virtual 0-1000 de
+  sempre) **não mudam em nada** — a 1ª tentativa (fazer `anchorAt` calcular num espaço virtual
+  variável por `count`) quebrava a proporção larga-e-baixa do gráfico pra trilhas pequenas (a
+  largura virtual ficava pequena, próxima da altura, virando quase quadrado) sempre que o `width`
+  variável também virava a base do `aspect-ratio` CSS; a 2ª tentativa (viewBox variável +
+  aspect-ratio fixo em 1000/320) resolvia a proporção mas descolava viewBox de aspect-ratio,
+  distorcendo a curva/grade de fundo não-uniformemente. A solução final mantém os dois SEMPRE
+  amarrados na constante fixa (zero distorção, idêntico a antes) e usa `trackChartWidthFor` só
+  como `style.width` do `.chart` — como cada nó já ocupa a MESMA fração (%) da largura nos dois
+  espaços, forçar o card a ser realmente mais largo (`TrackChart/index.module.css`: `.chart` virou
+  `min-width: 100%` em vez de `width: 100%` — o `min-width` vence sozinho pra qualquer trilha cuja
+  largura mínima calculada já é menor que o card real, preservando 100% o comportamento de hoje;
+  só quando ela excede o card o `width` inline vence) já traduz essa fração em mais px reais, sem
+  tocar em nenhum cálculo de curva/nó. `TrackChart/index.tsx` ganhou `.chartScroll` (`overflow-x:
+  auto`, rolagem nativa por toque em qualquer dispositivo) envolvendo `.chart` + handlers de
+  arrasto por ponteiro (`onPointerDown`/`Move`/`Up`/`Cancel`, só `pointerType==='mouse'` — touch já
+  rola nativo) com supressão do clique do nó quando o gesto foi arrasto de verdade (`>4px`, não
+  ruído de mão trêmula) — `setPointerCapture`/`hasPointerCapture` chamados com `?.()` (não
+  implementados no jsdom, e nem em todo navegador). A supressão do clique precisou de um ref
+  separado (`suppressNextClickRef`) que sobrevive ao `pointerup`: o `click` do nó só chega DEPOIS
+  do `pointerup` na ordem real de eventos do navegador, então guardar o "foi arrasto?" só dentro do
+  ref do próprio arrasto (limpo no `pointerup`) nunca chegava a tempo do `handleClickCapture` — 1ª
+  versão do teste pegou esse bug de verdade (clique disparava mesmo depois do arrasto). `useEffect`
+  sem deps (guardado por `hasCenteredRef`, roda só 1x de propósito) centraliza a rolagem no nó
+  "você está aqui" (`layout.currentPoint`, ou o último ponto se a trilha estiver 100% concluída) ao
+  montar, via `getBoundingClientRect`. Tooltips não correm risco de ficar cortados pelo novo
+  `overflow-y: auto` implícito (regra do CSS quando `overflow-x` não é `visible`): a lógica já
+  existente de `tooltipBelow` (nós no terço superior do gráfico, `point.y < HEIGHT*0.3`) já os
+  flipa pra dentro do corpo do gráfico, nunca pra fora da borda superior — confirmado analiticamente
+  (margem superior do gráfico é maior que a altura de um tooltip nesse caso), sem precisar de
+  padding/margin extra. Testes novos: `trackChartWidthFor` (table-driven — 2/4/5 lições cabem
+  folgado sob 350px, 15 lições excede 720px, espaçamento nunca comprime, crescimento monotônico),
+  `computeTrackChartLayout` ganhou 1 caso ligando `width` a `trackChartWidthFor`, `TrackChart`
+  ganhou 3 casos (largura do `.chart` cresce com 15 lições, arrasto de mouse suprime o clique,
+  clique sem arrasto continua funcionando). 635 testes (+10), `npm run lint`/`npm run build` (tsc +
+  vite) limpos. Suíte inteira dos componentes/domínio existentes passou sem alterar nenhuma
+  asserção antiga — confirma zero regressão visual pras trilhas pequenas (0/3, 4-5 lições).
+- **Descrição:** `anchorAt`/`TRACK_CHART_WIDTH` (`trackChartLayout/index.ts`) deixam de comprimir
+  o espaçamento pra caber num card de largura fixa — o espaçamento mínimo entre nós fica garantido
+  (referência: manter uma distância mínima de respiro em torno do diâmetro já responsivo do nó,
+  40px mobile/48px desktop via o breakpoint já existente em `TrackChart/index.module.css:164-169`)
+  e `TRACK_CHART_WIDTH` passa a crescer com `count` quando o espaçamento mínimo exigir mais largura
+  que a visível no card. O container que envolve o SVG (`.chart` em
+  `TrackChart/index.module.css:7-10`, hoje só `width: 100%` sem overflow) ganha `overflow-x: auto`
+  (scroll nativo por toque, e scrollbar/roda em desktop) **mais** um handler de arrasto por
+  ponteiro (mousedown/mousemove/mouseup, sem lib nova) pra cobrir quem não tem touchpad/scroll
+  horizontal fácil no desktop. Ao montar, o card já chega rolado até o nó "você está aqui" (a
+  lição `available` mais recente, ou a primeira `locked` se não houver nenhuma disponível) via
+  cálculo de `scrollLeft`/`scrollIntoView` — sem exigir rolagem manual pra localizar o progresso.
+- **O que muda na aplicação:** `trackChartLayout/index.ts` (`anchorAt` e `TRACK_CHART_WIDTH`
+  passam a depender de `count` e de um espaçamento mínimo configurável, em vez de constante fixa);
+  `TrackChart/index.tsx` (handler de drag por ponteiro + scroll inicial pro nó atual);
+  `TrackChart/index.module.css` (`.chart` ganha `overflow-x: auto` + `scroll-snap-type` opcional).
+  A curva com altos e baixos (ruído já implementado, `identidade-visual-padroes.md` §4) não muda
+  de forma — só o espaçamento horizontal entre marcos reais passa a ter um mínimo garantido.
+- **Critérios de aceite:** trilha com 15 lições (trilha 2 do seed real) nunca compromete o
+  espaçamento mínimo entre nós — sempre legível, tooltips sem colidir; card abre com o nó "você
+  está aqui" visível sem rolagem manual; arrasto funciona por toque e por mouse, nas duas direções
+  horizontais; trilhas pequenas (4-5 nós, ex. trilhas 0/3) continuam cabendo inteiras sem rolagem
+  (comportamento de hoje preservado quando não há aperto); teste cobrindo o cálculo de largura por
+  `count` (table-driven: poucos nós = largura do card, muitos nós = largura maior que o card) e o
+  cálculo do scroll inicial.
+- **Referências:** achado de auditoria desta sessão (`trackChartLayout/index.ts` `anchorAt`,
+  `TrackChart/index.module.css` `.tooltipLeft`/`.tooltipRight` como sinal do aperto já observado);
+  `identidade-visual-padroes.md` §2 (marcação "você está aqui") e §4 (linha nunca é reta).
+- **Dependências:** nenhuma.
+
+---
+
+## Fase M — Aposentar o checkbox "já pensei"
+
+**Origem: teste real do autor no app (2026-09-12) + achado de auditoria.** A Fase B (concluída)
+já trocou o checkbox genérico por escolha real com acerto/erro em **30 das 33 lições** (B.4). Rever
+o código confirma o que sobrou: `Lesson/index.tsx:106-108` mostra que o checkbox
+(`microDecisionConfirmed`) só renderiza quando `!usesEmbeddedWidget && !hasRealOptions` — ou seja,
+**hoje só a lição `0.1`** cai nesse caso (0.2/3.3 usam widget embutido, as outras 30 têm opções
+reais desde a B.4). `0.1` fica assim de propósito (decisão da B.4: pergunta sobre motivação
+pessoal, "o que te faria escolher", sem fato verificável pra virar múltipla escolha forçada) — a
+crítica do autor é sobre **a interação em si**, não sobre faltar cobertura: um checkbox que só
+"autoriza" o botão "Continuar" ao lado, sem checar nada de fato, é um clique redundante que
+nenhum outro app usa pra esse fim. Como a decisão de manter `0.1` aberta já está fechada (B.4), a
+correção certa não é forçar uma resposta certa/errada onde a própria auditoria anterior decidiu
+que não cabe — é substituir a confirmação vazia por algo melhor.
+
+### M.1 · Trocar o checkbox por CTA direto (sem gate artificial)
+
+- **Descrição:** pra lições sem opções reais e sem widget embutido (hoje só `0.1`), remover o
+  checkbox `microDecisionConfirmed` — ele só serve pra habilitar o botão "Continuar" que já está
+  do lado, sem validar nada. Deixar "Continuar" habilitado direto nesse caso: a decisão de já ter
+  pensado é do próprio usuário, não algo que uma UI de gate deveria travar sem checar de verdade.
+- **O que muda na aplicação:** `Lesson/index.tsx` — remove o bloco condicional do checkbox
+  (linhas 257-266) e o estado `microDecisionConfirmed`; `canAdvanceMicroDecision` (linha 108)
+  simplifica pra `usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : true)`.
+- **Critérios de aceite:** lição `0.1` mostra só o card + "Continuar" já habilitado, sem clique
+  extra antes; lições com opções reais ou widget embutido continuam exigindo escolha antes de
+  habilitar "Continuar" (zero regressão nas 30 já cobertas pela B.3/B.4); teste de componente
+  removendo a asserção do checkbox e cobrindo "Continuar" habilitado de saída nesse caso.
+- **Referências:** achado de auditoria desta sessão (`Lesson/index.tsx:106-108,257-266`); B.4
+  (decisão de manter `0.1` sem alternativa forçada — não é reaberta aqui, só a interação de
+  confirmação muda).
+- **Dependências:** nenhuma.
+
+### M.2 · (proposta de melhoria, opcional) Reflexão curta em texto livre no lugar da confirmação vazia
+
+- **Descrição:** em vez de só remover o gate (M.1), a versão mais engajadora pra lições
+  genuinamente abertas (hoje só `0.1`) é pedir uma resposta curta em texto livre antes de avançar —
+  reaproveita o `microDecisionPrompt` já existente como enunciado, com um `<textarea>` no lugar do
+  checkbox removido pela M.1 (placeholder tipo "escreva em uma frase"). Sem persistir no backend e
+  sem validar certo/errado — não reabre a decisão da B.4 de manter `0.1` sem resposta forçada, só
+  dá um motivo real pra pensar antes de clicar "Continuar", em vez de um clique vazio. No passo
+  Revelação, mostrar o texto que o próprio usuário escreveu ao lado do `revelationText`, fechando o
+  loop ("o que você respondeu" vs. "o que a lição ensina") sem inventar avaliação onde não cabe.
+- **O que muda na aplicação:** `Lesson/index.tsx` — estado local novo (`freeTextReflection`,
+  efêmero, nunca enviado em nenhum payload de `advanceLesson` — mesma limitação de sessão já
+  documentada pra `selectedOption` na B.3, não sobrevive a um reload no passo Revelação); textarea
+  no lugar do que a M.1 removeu; passo Revelação exibe o texto junto do badge, quando existir.
+- **Critérios de aceite:** nenhum campo novo de schema/backend (o texto nunca sai do componente);
+  "Continuar" não reintroduz o gate artificial que a M.1 removeu (habilitado independente do
+  conteúdo do texto, que é só enriquecimento, não requisito); teste cobrindo o texto aparecendo na
+  Revelação quando preenchido e a ausência dele quando vazio.
+- **Referências:** `proposta-engajamento-licoes.md` (Impulso 3, "empoderamento e feedback" — mesma
+  linha que motivou a Fase B); decisão da B.4 de manter `0.1` sem resposta forçada.
+- **Dependências:** M.1 (mesma área de código — M.1 simplifica primeiro, M.2 é o passo seguinte só
+  se o autor quiser ir além depois de ver M.1 em produção).
+
+---
+
 ## Sequência de implementação sugerida
 
 Ordem única, pensada pra sessão solo (uma tarefa por sessão, sem paralelismo real) — não é a ordem
 alfabética das fases. Critério: dependências reais primeiro, valor visível cedo, tarefas de maior
-risco de schema (B, depois H/G) só depois de validar as de baixo risco, e duas fases descobertas
-em auditoria (I — teatro de recompensa, J — bloqueio como convite) priorizadas mesmo fora da ordem
-alfabética porque são independentes de tudo o mais e de risco baixíssimo.
+risco de schema (B, depois H/G) só depois de validar as de baixo risco, e as fases descobertas em
+auditoria (I — teatro de recompensa, J — bloqueio como convite, K/L/M — achados do teste real de
+2026-09-12) priorizadas mesmo fora da ordem alfabética porque são independentes de tudo o mais e
+de risco baixíssimo.
 
-**J.1-J.3 entram primeiro de todas.** Diferente de A-I (melhorias sobre algo que já funciona),
-elas mexem numa interação hoje genuinamente quebrada (aba da `TabBar` sem nenhum caminho de
-volta) — mais perto de corrigir um bug de UX do que de adicionar um recurso novo, e é a área de
-maior exposição do app (navegação primária, toda tela). Zero schema, zero dependência de qualquer
-outra fase. **J.4 é a exceção dentro da própria Fase J** — tecnicamente também independente (lê
-`unlocksDescription` ao vivo, nenhuma fase muda esse campo além da E.1), mas só entrega a melhor
-versão do texto depois que a E.1 já reescreveu o "porquê" de cada trilha, então entra logo depois
-dela, não junto das outras 3.
+**J.1-J.3, K.1-K.2, L.1 e M.1 entram primeiro de todas.** Diferente de A-I (melhorias sobre algo
+que já funciona), elas mexem em interações hoje genuinamente quebradas ou visivelmente ásperas
+(aba da `TabBar`/gate de rota sem caminho de volta, círculos da trilha espremidos, checkbox
+redundante) — mais perto de corrigir bugs/atritos de UX do que de adicionar recurso novo, e cobrem
+a área de maior exposição do app (navegação primária, Mapa da Trilha, toda lição). Zero schema,
+zero dependência de qualquer outra fase (K.2 depende só de K.1, L.1 e M.1 de nada). **J.4 é a
+exceção dentro deste bloco inicial** — tecnicamente também independente (lê `unlocksDescription`
+ao vivo, nenhuma fase muda esse campo além da E.1), mas só entrega a melhor versão do texto depois
+que a E.1 já reescreveu o "porquê" de cada trilha, então entra logo depois dela, não junto das
+outras. **M.2 é opcional** — só entra na sequência de fato se o autor decidir ir além de M.1 depois
+de ver o CTA simplificado em produção (mesmo espírito do gate D.0, mas sem exigir um checkpoint
+formal, já que M.2 não abre schema).
 
 1. **J.1** — `TabBar` deixa de ser beco sem saída
 2. **J.2** — motivo do bloqueio fica visível (não só tooltip)
 3. **J.3** — Detalhe do Ativo travado vira prévia, não parede
-4. **A.1** — parser de cartões (fundação de A/C, zero risco)
-5. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
-6. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
-   `unlocksDescription`, que ela acabou de melhorar; ver nota na própria tarefa)
-7. **A.2** — reescrita das 33 lições em cartões
-8. **A.3** — revelação progressiva
-9. **C.1** — glossário inline
-10. **C.2** — elenco recorrente
-11. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
+4. **K.1** — átomo `Locked` único (fundação)
+5. **K.2** — `RequiresUnlock` para de teleportar — mostra a própria tela com o conteúdo travado
+6. **L.1** — espaçamento mínimo entre nós + canvas rolável/arrastável no Mapa da Trilha
+7. **M.1** — trocar o checkbox "já pensei" por CTA direto (sem gate artificial)
+8. **M.2** *(opcional)* — reflexão curta em texto livre no lugar da confirmação vazia
+9. **A.1** — parser de cartões (fundação de A/C, zero risco)
+10. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
+11. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
+    `unlocksDescription`, que ela acabou de melhorar; ver nota na própria tarefa)
+12. **A.2** — reescrita das 33 lições em cartões
+13. **A.3** — revelação progressiva
+14. **C.1** — glossário inline
+15. **C.2** — elenco recorrente
+16. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
     fim da Fase H)
-12. **F.1** — tokens de cor por trilha
-13. **F.2** — backend: trilhas concluídas no perfil público
-14. **F.3** — `TrackTrophyCase`
-15. **G.1** — backend: evento de trilha concluída
-16. **G.2** — seção de atividade recente em `/amigos`
-17. **I.1** — componente de celebração
-18. **I.2** — portas de gamificação devolvem resultado real
-19. **I.3** — conectar XP/level-up
-20. **I.4** — conectar conquista
-21. **I.5** — conectar marco de streak
-22. **B.1** — schema de opções/resposta correta
-23. **B.2** — backend grava a escolha
-24. **B.3** — widget de escolha real
-25. **B.4** — auditoria e autoria das opções
-26. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
-27. **H.3** — missão de 3 seguidas (depende de B, H.1)
-28. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
+17. **F.1** — tokens de cor por trilha
+18. **F.2** — backend: trilhas concluídas no perfil público
+19. **F.3** — `TrackTrophyCase`
+20. **G.1** — backend: evento de trilha concluída
+21. **G.2** — seção de atividade recente em `/amigos`
+22. **I.1** — componente de celebração
+23. **I.2** — portas de gamificação devolvem resultado real
+24. **I.3** — conectar XP/level-up
+25. **I.4** — conectar conquista
+26. **I.5** — conectar marco de streak
+27. **B.1** — schema de opções/resposta correta
+28. **B.2** — backend grava a escolha
+29. **B.3** — widget de escolha real
+30. **B.4** — auditoria e autoria das opções
+31. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
+32. **H.3** — missão de 3 seguidas (depende de B, H.1)
+33. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
     imediatamente após a sessão de código anterior)
-29. **D.1** — blocos tipados (só se D.0 = seguir)
-30. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
+34. **D.1** — blocos tipados (só se D.0 = seguir)
+35. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
 
-Passos 1-21 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
-risco e maior volume de valor, por isso vem toda antes de B. Passos 22-27 são a fatia de "aposta
+Passos 1-26 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
+risco e maior volume de valor, por isso vem toda antes de B. Passos 27-32 são a fatia de "aposta
 real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último de propósito: é o
 único bloco que só faz sentido com uso real do resto já rodando.
 
@@ -1385,4 +1648,7 @@ real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último
 | H | Revisão e conquistas por qualidade | 3 | Sim (enum) |
 | I | Teatro de recompensa em tempo real | 5 | Não (contratos de resposta, sem migration) |
 | J | Bloqueio como convite, não parede | 4 | Não |
-| **Total** | | **30** | |
+| K | Bloqueio de tela inteira também é parede | 2 | Não |
+| L | Mapa da Trilha: círculos não cabem numa reta | 1 | Não |
+| M | Aposentar o checkbox "já pensei" | 2 (1 opcional) | Não |
+| **Total** | | **35** | |

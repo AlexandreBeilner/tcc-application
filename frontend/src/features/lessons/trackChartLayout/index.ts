@@ -4,11 +4,15 @@ import type { TrackChartLayout, TrackChartPoint } from './types'
 
 export type { TrackChartLayout, TrackChartPoint } from './types'
 
-// Unidades virtuais (não px) — o componente escala isso pra 100% do
-// container via viewBox + posicionamento em porcentagem, então o mesmo
-// layout serve pro card estreito do mobile e pro card largo do desktop
-// (identidade-visual-padroes.md §7: desktop não é mobile esticado, mas o
-// dado geométrico por trás do gráfico é o mesmo, só o container muda).
+// Unidades virtuais (não px) — todo o cálculo de âncora/curva usa este
+// espaço fixo, e o componente usa a MESMA proporção (viewBox + aspect-ratio
+// CSS, ambos `TRACK_CHART_WIDTH`/`TRACK_CHART_HEIGHT`) pra nunca distorcer
+// a curva/grade de fundo, seja qual for o tamanho real do card. O
+// espaçamento mínimo real em px entre nós (tarefa L.1, `trackChartWidthFor`
+// abaixo) é um cálculo separado, que não participa deste espaço virtual —
+// só informa a largura real (`style.width`) que o componente força no
+// `.chart`, deixando a MESMA posição percentual de sempre virar mais px
+// reais quando o card cresce.
 export const TRACK_CHART_WIDTH = 1000
 export const TRACK_CHART_HEIGHT = 320
 
@@ -16,10 +20,33 @@ const MARGIN_X = TRACK_CHART_WIDTH * 0.06
 const MARGIN_Y = TRACK_CHART_HEIGHT * 0.14
 const WAYPOINTS_PER_SEGMENT = 3
 const NOISE_AMPLITUDE_RATIO = 0.55
+// Mínimo real entre dois nós consecutivos, em px — folgado em relação ao
+// maior diâmetro de nó hoje (48px em desktop, `TrackChart/index.module.css`),
+// mas calibrado pra ainda caber sem rolagem as trilhas pequenas do currículo
+// real (4-5 lições, trilhas 0/3 do seed) no card mais estreito (mobile,
+// `pages/Track/index.module.css`).
+const MIN_NODE_SPACING = 70
 
 interface Vertex {
     x: number
     y: number
+}
+
+// Largura real mínima (px) que garante `MIN_NODE_SPACING` de respiro entre
+// nós consecutivos pro nº de lições da trilha (tarefa L.1) — achado de
+// auditoria: trilha 2 do seed real tem 15 lições espremidas num único card
+// de largura fixa, já que hoje o espaçamento é só `100%/(count-1)`, que
+// encolhe pra sempre caber. Cada nó ocupa a MESMA fração (%) da largura do
+// card nos dois casos (aqui e em `anchorAt`) — só forçar o card a ser real-
+// mente mais largo (via `style.width` em `TrackChart`, com `min-width: 100%`
+// garantindo que isso nunca ENCOLHE o card de uma trilha pequena) já
+// traduz essa mesma fração em mais px reais, sem tocar no espaço virtual
+// usado por `anchorAt`/viewBox.
+export function trackChartWidthFor(count: number): number {
+    if (count <= 1) return MIN_NODE_SPACING
+
+    const usableRatio = 1 - (2 * MARGIN_X) / TRACK_CHART_WIDTH
+    return (MIN_NODE_SPACING * (count - 1)) / usableRatio
 }
 
 function anchorAt(index: number, count: number): Vertex {
@@ -96,6 +123,7 @@ export function computeTrackChartLayout(lessons: Lesson[]): TrackChartLayout | n
             : null
 
     return {
+        width: trackChartWidthFor(count),
         points,
         fillPath,
         solidPath: solidVertices.length > 1 ? pathFrom(solidVertices) : null,

@@ -1,10 +1,24 @@
 import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
+import type { Lesson } from '../../../services/lessons'
 import { useUnlockedKeys } from '../useUnlockedKeys'
 import { RequiresUnlock } from '.'
 
 vi.mock('../useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
+
+function lesson(overrides: Partial<Lesson> = {}): Lesson {
+    return {
+        id: 'lesson-1',
+        code: '0.1',
+        title: 'Poupança x CDB',
+        sortOrder: 1,
+        status: 'available',
+        unlocksKeys: ['portfolio'],
+        unlocksDescription: '',
+        ...overrides,
+    } as Lesson
+}
 
 function renderWithRouter(unlockKey: string) {
     const router = createMemoryRouter(
@@ -21,12 +35,28 @@ function renderWithRouter(unlockKey: string) {
 }
 
 describe('RequiresUnlock', () => {
-    it('sem a chave desbloqueada, redireciona pra /trilha', () => {
+    it('sem a chave desbloqueada, mostra o conteúdo travado em vez de navegar embora (tarefa K.2)', () => {
         vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [], isLoading: false, isError: false })
 
         renderWithRouter('portfolio')
 
-        expect(screen.getByText('mapa da trilha')).toBeInTheDocument()
+        expect(screen.queryByText('portfolio')).not.toBeInTheDocument()
+        expect(screen.queryByText('mapa da trilha')).not.toBeInTheDocument()
+        expect(screen.getByText('Travado pela trilha')).toBeInTheDocument()
+        expect(screen.getByText('Ainda não há lição cobrindo este produto.')).toBeInTheDocument()
+    })
+
+    it('sem a chave desbloqueada, mas com a lição que libera encontrada, mostra o código dela', () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(),
+            lessons: [lesson()],
+            isLoading: false,
+            isError: false,
+        })
+
+        renderWithRouter('portfolio')
+
+        expect(screen.getByText('Desbloqueia na lição 0.1.')).toBeInTheDocument()
     })
 
     it('com a chave desbloqueada, renderiza a rota protegida', () => {

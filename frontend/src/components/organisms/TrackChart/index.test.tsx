@@ -101,6 +101,47 @@ describe('TrackChart', () => {
         expect(buttons[2].querySelector('[class*="tooltipLeft"]')).not.toBeInTheDocument()
     })
 
+    it('a largura do card cresce além do padrão quando a trilha tem muitas lições (tarefa L.1)', () => {
+        const manyLessons = Array.from({ length: 15 }, (_, index) => lesson({ id: String(index), status: 'locked' }))
+        const { container } = render(<TrackChart lessons={manyLessons} expandedHintId={null} onNodeClick={vi.fn()} />)
+
+        // `.chart` é o único elemento com `style` inline (largura calculada por
+        // `trackChartWidthFor`) — `.chartScroll`/`.chartBg` não têm estilo próprio.
+        const chart = container.querySelector('[style]') as HTMLElement
+        expect(Number.parseFloat(chart.style.width)).toBeGreaterThan(720)
+    })
+
+    it('um arrasto de verdade no mouse suprime o clique do nó embaixo do ponteiro (tarefa L.1)', () => {
+        const onNodeClick = vi.fn()
+        const lessons = [lesson({ id: '1', title: 'Disponível agora', status: 'available' }), lesson({ id: '2', status: 'locked' })]
+        const { container } = render(<TrackChart lessons={lessons} expandedHintId={null} onNodeClick={onNodeClick} />)
+
+        const scrollEl = container.querySelector('[class*="chartScroll"]') as HTMLElement
+        const button = screen.getByRole('button', { name: /Disponível agora/ })
+
+        fireEvent.pointerDown(scrollEl, { pointerType: 'mouse', pointerId: 1, clientX: 100 })
+        fireEvent.pointerMove(scrollEl, { pointerType: 'mouse', pointerId: 1, clientX: 40 })
+        fireEvent.pointerUp(scrollEl, { pointerType: 'mouse', pointerId: 1, clientX: 40 })
+        fireEvent.click(button)
+
+        expect(onNodeClick).not.toHaveBeenCalled()
+    })
+
+    it('um clique sem arrasto continua funcionando normalmente após um pointerdown (tarefa L.1)', () => {
+        const onNodeClick = vi.fn()
+        const lessons = [lesson({ id: '1', title: 'Disponível agora', status: 'available' }), lesson({ id: '2', status: 'locked' })]
+        const { container } = render(<TrackChart lessons={lessons} expandedHintId={null} onNodeClick={onNodeClick} />)
+
+        const scrollEl = container.querySelector('[class*="chartScroll"]') as HTMLElement
+        const button = screen.getByRole('button', { name: /Disponível agora/ })
+
+        fireEvent.pointerDown(scrollEl, { pointerType: 'mouse', pointerId: 1, clientX: 100 })
+        fireEvent.pointerUp(scrollEl, { pointerType: 'mouse', pointerId: 1, clientX: 100 })
+        fireEvent.click(button)
+
+        expect(onNodeClick).toHaveBeenCalledWith(lessons[0])
+    })
+
     it('mostra a dica só quando expandedHintId aponta pra uma lição deste gráfico', () => {
         const lessons = [lesson({ id: '1', status: 'available' }), lesson({ id: '2', status: 'locked' })]
         const { rerender } = render(<TrackChart lessons={lessons} expandedHintId={null} onNodeClick={vi.fn()} />)

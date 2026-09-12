@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Lesson } from '../../../services/lessons'
-import { computeTrackChartLayout, TRACK_CHART_HEIGHT, TRACK_CHART_WIDTH } from '.'
+import { computeTrackChartLayout, TRACK_CHART_HEIGHT, TRACK_CHART_WIDTH, trackChartWidthFor } from '.'
 
 function lesson(overrides: Partial<Lesson>): Lesson {
     return {
@@ -127,5 +127,43 @@ describe('computeTrackChartLayout', () => {
         expect(layout.solidPath).not.toBeNull()
         expect(layout.fillPath).not.toBeNull()
         expect(layout.dashedPath).not.toBeNull()
+    })
+
+    it('largura do layout vem de trackChartWidthFor pro nº de lições (tarefa L.1)', () => {
+        const lessons = [lesson({ id: '1', status: 'completed' }), lesson({ id: '2', status: 'available' })]
+
+        expect(computeTrackChartLayout(lessons)!.width).toBe(trackChartWidthFor(2))
+    })
+})
+
+describe('trackChartWidthFor', () => {
+    it.each([2, 4, 5])(
+        'com %i lições, a largura mínima fica bem abaixo de um card real (cabe sem rolagem, comportamento de hoje)',
+        (count) => {
+            // ~350px é o card mais estreito real (mobile, `pages/Track/index.module.css`)
+            expect(trackChartWidthFor(count)).toBeLessThan(350)
+        },
+    )
+
+    it('com muitas lições (trilha 2 do seed real, 15), a largura mínima excede qualquer card real — precisa rolar', () => {
+        // ~720px é o card mais largo real (desktop, `pages/Track/index.module.css`)
+        expect(trackChartWidthFor(15)).toBeGreaterThan(720)
+    })
+
+    it('o espaçamento entre nós consecutivos nunca fica abaixo do mínimo, nem comprime conforme mais lições entram', () => {
+        const MARGIN_RATIO = 0.06
+        const MIN_NODE_SPACING = 70
+
+        for (const count of [2, 5, 9, 15, 30]) {
+            const width = trackChartWidthFor(count)
+            const usableW = width * (1 - 2 * MARGIN_RATIO)
+            const spacing = usableW / (count - 1)
+            expect(spacing).toBeCloseTo(MIN_NODE_SPACING, 5)
+        }
+    })
+
+    it('é determinístico e cresce monotonicamente com o nº de lições', () => {
+        expect(trackChartWidthFor(5)).toBeLessThan(trackChartWidthFor(9))
+        expect(trackChartWidthFor(9)).toBeLessThan(trackChartWidthFor(15))
     })
 })
