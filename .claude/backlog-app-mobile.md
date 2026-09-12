@@ -76,8 +76,35 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 - **Referências:** arquitetura-app-mobile §3 (onde o projeto vive), §4 (setup/versão do RN).
 - **Dependências:** nenhuma.
 
-### 1.2 · WebView real: variantes de build, rede e login e-mail/senha ponta a ponta
+### 1.2 · WebView real: variantes de build, rede e login e-mail/senha ponta a ponta ✅
 
+- **Entregável:** `react-native-webview`/`react-native-config` instalados; `App.tsx` troca a tela de
+  template por um `WebView` único apontando pra `Config.APP_WEB_URL` (`domStorageEnabled`,
+  `javaScriptEnabled`, `mixedContentMode="never"`). Duas variantes via `.env.debug`/`.env.release`
+  mapeadas em `android/app/build.gradle` (`project.ext.envConfigFiles`, sem product flavor
+  nenhum): debug aponta pro **dev server do Vite** (`http://10.0.2.2:5173`, não o gateway direto —
+  o gateway só serve API/JSON, quem serve o HTML do SPA é o Vite; achado desta sessão, corrige uma
+  imprecisão do texto original da tarefa/arquitetura), release aponta pra um placeholder de URL de
+  produção documentado (`.env.release`). `network_security_config.xml` em `android/app/src/debug/`
+  libera cleartext só pra `10.0.2.2` (WebView) **e** `localhost` (cliente de dev embutido do RN que
+  busca o bundle JS via Metro/`adb reverse`, canal totalmente separado do WebView — sem essa segunda
+  entrada o app builda mas trava em "Unable to load script." assim que abre); manifest debug-only
+  referencia o XML, manifest principal/release nunca tem essa possibilidade. Corrigido também um bug
+  de edge-to-edge descoberto ao validar: `App.tsx` original não repassava `useSafeAreaInsets()` pro
+  WebView, então a TopBar ficava atrás da status bar e a TabBar do próprio SPA ficava exatamente sob
+  a barra de navegação 3-botões do Android, tornando-a impossível de tocar — corrigido com
+  `paddingTop`/`paddingBottom` dos insets no container do WebView.
+  Validado ponta a ponta no emulador (AVD API 35) contra `docker compose up` local (gateway) +
+  `vite --host 0.0.0.0` (frontend): cadastro de usuário novo por e-mail/senha funciona (rota already
+  existente, sem depender da Fase 3), trilha completa (33 lições) carrega com dado real do backend,
+  navegação por 3+ telas (onboarding → trilha → lição → volta) e pela TabBar funciona, `docker compose`
+  precisou de `FRONTEND_URL=http://10.0.2.2:5173` (CORS bate com a origem que o WebView apresenta,
+  arquitetura-app-mobile seção 6). Sessão sobrevive a `am force-stop` + reabertura (prova de
+  `domStorageEnabled` funcionando). Build de release inspecionado (manifest mesclado) confirma
+  `android:usesCleartextTraffic="false"` e nenhuma referência a `networkSecurityConfig` — sem
+  possibilidade de cleartext. `__mocks__/react-native-config.js` e `__mocks__/react-native-webview.js`
+  adicionados pro Jest (ambos os pacotes publicam entry point ESM/nativo que quebra o parser sem
+  mock).
 - **Descrição:** esta é a tarefa que faz o app deixar de ser um template e passar a carregar o
   produto de verdade. Cobre três coisas que só fazem sentido resolvidas juntas (todas são
   pré-requisito umas das outras pra sequer conseguir ver a tela de login): a lib de WebView com as

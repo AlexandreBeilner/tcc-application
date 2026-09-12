@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Mesclado só na variante debug (Gradle já escolhe src/debug/ automaticamente
+      pro build type debug, nunca pro release) — networkSecurityConfig aqui
+      restringe cleartext só ao host 10.0.2.2 (network_security_config.xml
+      nesta mesma source set). A partir da API 24 esse arquivo manda mais que
+      o atributo usesCleartextTraffic do manifest principal, então isso é o
+      que de fato controla a política, não o placeholder ${usesCleartextTraffic}
+      que o React Native Gradle Plugin já seta pra "true" em builds debug.
+    -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>
