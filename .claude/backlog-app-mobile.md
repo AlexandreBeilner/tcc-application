@@ -434,8 +434,27 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
 2026-09-10) — não o redirect atual, que o Google bloqueia dentro de WebView desde 2021
 (`disallowed_useragent`). É a fase que toca `backend/`.
 
-### 3.1 · Identificadores técnicos + Google Cloud Console (Android/iOS)
+### 3.1 · Identificadores técnicos + Google Cloud Console (Android/iOS) ✅
 
+- **Entregável:** `applicationId`/`namespace` Android já existiam como `com.investimenta`
+  (`android/app/build.gradle`, gerado desde a 1.1); bundle identifier iOS trocado do placeholder do
+  template RN (`org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)`) pra `com.investimenta`
+  (`ios/Investimenta.xcodeproj/project.pbxproj`, `PRODUCT_BUNDLE_IDENTIFIER`, configs Debug e
+  Release) — mesmo valor do Android, por consistência, já que ambos são só identificador técnico
+  interno por ora. Fingerprint SHA-1 do keystore de debug extraído de
+  `mobile/android/app/debug.keystore` (não `~/.android/debug.keystore` — o keystore vive dentro do
+  próprio projeto, achado desta sessão): `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+  Dois client IDs OAuth novos criados pelo autor no Google Cloud Console (Android: pacote
+  `com.investimenta` + SHA-1 acima; iOS: bundle ID `com.investimenta`), sem mexer no client ID "Web
+  application" existente. Documentados como `GOOGLE_ANDROID_CLIENT_ID`/`GOOGLE_IOS_CLIENT_ID` em
+  `mobile/.env.debug` **e** `mobile/.env.release` (react-native-config) — não são segredo (client ID
+  OAuth de app nativo é identificador público, diferente do client secret do fluxo web, que
+  permanece intocado), então commitá-los nesses arquivos já versionados segue a mesma disciplina do
+  resto do projeto. `.env.release` documenta explicitamente que o client ID Android ali reaproveita
+  o mesmo valor amarrado ao SHA-1 de **debug** por ora — login Google em build de release só
+  funciona de verdade depois que existir keystore de release e (outro client ID ou) um segundo
+  fingerprint cadastrado nele, trabalho da tarefa 4.3. `npx tsc --noEmit`, `npm run lint` e
+  `npm test` seguem passando; nenhum arquivo fora de `mobile/` tocado.
 - **Descrição:** pré-requisito silencioso do login Google — mesmo que ícone/nome/splash finais do
   app fiquem pra Fase 4 (decisão do autor), o **identificador técnico** do app precisa existir
   antes, porque o Google exige um client ID OAuth por plataforma amarrado a esse identificador.
@@ -476,7 +495,13 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   - `infrastructure/google/googleIdentityProviderAdapter.ts` já usa `google-auth-library`
     (`OAuth2Client`) pro fluxo web — **a mesma lib expõe `OAuth2Client.verifyIdToken({ idToken,
     audience })`**, então não é preciso nenhuma dependência nova, só um método a mais no adapter
-    real, usando o(s) client ID(s) Android/iOS da 3.1 como `audience` aceito.
+    real. **Correção registrada em `runbook-mudanca-identidade-app-conta-google.md` (seção 0):** o
+    `audience` aceito aqui é o **client ID Web** (o mesmo `config.clientId`/`GOOGLE_CLIENT_ID` já
+    usado por `exchangeCode` acima), **não** os client IDs Android/iOS da 3.1 — o
+    `@react-native-google-signin/google-signin` emite o `idToken` com `aud` = o `webClientId`
+    passado em `GoogleSignin.configure()` (padrão documentado do Google Sign-In nativo), os client
+    IDs Android/iOS só autenticam o app nativo junto ao Google (pacote+SHA-1/bundle ID), não aparecem
+    como `audience` no token verificado pelo backend.
   - `application/useCases/loginWithGoogle.ts` (`LoginWithGoogleUseCase`) hoje recebe
     `{ code: string }` e chama `googleIdentityProvider.exchangeCode(code)`. Generalizar
     `LoginWithGoogleInput` pra uma união (`{ code: string } | { idToken: string }`) e, dentro de
@@ -499,17 +524,27 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   chegar no caso de uso); `docker compose up` validando a rota nova com um `idToken` real gerado
   por um teste manual do SDK (pode ser feito só depois da 3.3 existir, mas a rota em si é testável
   isoladamente com um `idToken` de teste/mock de integração).
-- **Referências:** arquitetura-app-mobile §7. Arquivos citados acima já existem no código —
-  conferir contra o estado atual antes de assumir, como qualquer tarefa de `backend/`.
-- **Dependências:** 3.1 (precisa do client ID como `audience`).
+- **Referências:** arquitetura-app-mobile §7, `runbook-mudanca-identidade-app-conta-google.md`
+  seção 0 (por que o `audience` é o client ID Web, não Android/iOS). Arquivos citados acima já
+  existem no código — conferir contra o estado atual antes de assumir, como qualquer tarefa de
+  `backend/`.
+- **Dependências:** nenhuma de verdade sobre o `audience` (o client ID Web já existe desde antes da
+  3.1) — mantida como dependência da 3.1 só porque a validação via `docker compose up` desta tarefa
+  usa um `idToken` real, que só dá pra gerar depois que o SDK nativo (3.3) estiver configurado com
+  os client IDs Android/iOS da 3.1.
 
 ### 3.3 · Mobile: SDK nativo de login Google ponta a ponta
 
 - **Descrição:** fecha o ciclo — o app obtém o `idToken` nativo, troca pelo JWT da aplicação (3.2),
   e aplica esse JWT pela mesma ponte de sessão da 2.1 (não é um mecanismo novo, é o mesmo).
 - **O que fazer:**
-  - Instalar `@react-native-google-signin/google-signin`, configurar com o client ID Android/iOS
-    da 3.1.
+  - Instalar `@react-native-google-signin/google-signin`. `GoogleSignin.configure()` precisa do
+    **`webClientId`** (o client ID **Web** já existente, mesmo valor de `GOOGLE_CLIENT_ID` do
+    backend — é isso que faz o SDK emitir um `idToken` verificável, ver
+    `runbook-mudanca-identidade-app-conta-google.md` seção 0); os client IDs Android/iOS da 3.1
+    também entram na configuração (a lib os detecta via `google-services.json`/
+    `GoogleService-Info.plist` ou explicitamente, conforme a doc da lib), mas servem só pra
+    autenticar o app nativo junto ao Google, não aparecem como `audience` do token.
   - Botão "Continuar com Google" na tela nativa (ou um gatilho a partir de um botão equivalente
     dentro do próprio WebView via `postMessage`, se preferir manter a UI de login 100% dentro do
     SPA — qualquer uma das duas funciona, mas **a chamada ao SDK do Google em si tem que ser
