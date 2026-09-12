@@ -1975,6 +1975,97 @@ Decisões já fixadas nele, não reabertas nas tarefas abaixo:
 
 ---
 
+## Fase P — Ajustes finos do redesenho da Fase O (achados de validação real)
+
+**Origem: instrução direta do autor (2026-09-12), depois de validar O.0-O.4 em produção.** 3
+achados pontuais, nenhum deles reabre uma decisão de composição já fixada no mockup O.0 — são
+ajuste de CSS/interação, não redesenho. Autor pediu só documentação + análise breve nesta sessão
+(créditos acabando), implementação fica pra uma sessão futura, uma tarefa por vez, mesma disciplina
+do resto do backlog.
+
+### P.1 · Bandeira de marco (`unlocksDescription`) estoura a tela em telas reais
+
+- **Achado:** `TrackPath/index.module.css` `.flag` (bandeira dourada de marco, tarefa O.3) usa
+  `white-space: nowrap` e é centralizada por `transform: translate(-50%, 30px)` a partir do nó —
+  pensada pro texto curto do mockup O.0 ("Libera Tesouro Selic"). Conteúdo real de
+  `backend/src/db/seedLessons.ts` é bem mais longo em várias lições: `'Compra real de LCI (LCI2026)
+  e LCA (LCA2026) no Mercado'` (lição 1.4, ~55 caracteres) e, pior caso, a lição 2.8 —
+  `'Sua reserva de emergência com todas as opções na mesa (Tesouro Selic, CDB/LCI/LCA, CRI/CRA),
+  compra real de CRI/CRA no Mercado, acesso à Trilha 2 (Renda Variável)'` (~165 caracteres). Com
+  `nowrap` numa tag de posição absoluta centrada num canvas de 300px de largura virtual, esse texto
+  não quebra linha — vaza pra fora dos dois lados do card/tela, ilegível, em qualquer viewport.
+- **Direção sugerida (não fechada, decisão de composição da tarefa que for abrir isso):**
+  provavelmente parar de mostrar o texto completo inline no path (que é estreito por design, O.2) e
+  mover a "libera X" pra dentro do `.nodeMeta` (mesma coluna do título/código, que já tem
+  `width: clamp(120px, 40vw, 168px)` e portanto já quebra linha) — como uma 2ª linha truncada
+  (`-webkit-line-clamp`/`text-overflow: ellipsis` em 2 linhas) com o texto completo só aparecendo ao
+  expandir/tocar o nó (reaproveitando o mesmo padrão de "aviso inline no nó clicado" que a O.3 já
+  usa pra `expandedHintId`), ou um ícone `Flag` pequeno que abre um tooltip/popover com o texto
+  inteiro. Decisão de composição real (qual dos dois, ou outro) fica pra quando a tarefa for aberta,
+  não travada aqui.
+- **O que muda na aplicação:** `components/organisms/TrackPath/index.tsx`/`index.module.css`
+  (bandeira de marco).
+- **Critérios de aceite (mínimo):** as 8 lições reais com `unlocksDescription` mais longo que
+  "Tesouro Selic" (`grep unlocksDescription backend/src/db/seedLessons.ts` — conferir a lista atual
+  antes de abrir a tarefa) renderizam legíveis, sem vazar da largura do card/canvas, nos 3
+  breakpoints; texto continua reaproveitando a cor de conquista (`--color-gamify-500`/`-100`,
+  nunca a cor da trilha).
+- **Referências:** O.3 (bandeira original); `backend/src/db/seedLessons.ts` (conteúdo real).
+- **Dependências:** nenhuma (CSS/composição isolada do `TrackPath`, zero schema).
+
+### P.2 · "Como ler o mapa" vira ícone + modal, não painel sempre visível
+
+- **Achado:** `pages/TrackMap/index.tsx` (O.3) renderiza a legenda (`.legendCard`, "Como ler o
+  mapa") direto na `<aside>` — sticky na sidebar em desktop (visível o tempo todo enquanto o usuário
+  rola o path, em toda visita à tela), e empilhada **depois** do path inteiro no mobile/tablet
+  (`.layout` só vira grid a partir de 1024px — abaixo disso é coluna única, então numa trilha de 15
+  lições o usuário rola >3000px de path antes de chegar nela). Nos dois casos, informação estática
+  (a linguagem visual do mapa não muda entre trilhas nem entre visitas) ocupa espaço de tela em
+  toda tela do Mapa da Trilha, sempre.
+- **Direção sugerida:** trocar `.legendCard` por um ícone `Info` (lucide-react, mesmo pacote já
+  usado no projeto) próximo ao cabeçalho tipo cotação — canto do `.header`, não do `.sidebar`, pra
+  ficar visível sem depender de scroll em nenhum breakpoint — que abre a legenda atual dentro de um
+  modal/popover (reaproveitar o padrão de overlay já usado por `OrderConfirmationDialog`: bottom
+  sheet mobile/tablet, modal central desktop, `identidade-visual-padroes.md` §7 — não inventar um
+  3º padrão de overlay). Conteúdo da legenda (os 4 itens: sólido/tracejado/"você está aqui"/marco)
+  não muda, só o container e o gatilho.
+- **O que muda na aplicação:** `pages/TrackMap/index.tsx`/`index.module.css` — `<aside>`/
+  `.legendCard` saem, ícone + modal novo entram (componente novo em `components/organisms/` só se
+  não houver overlay genérico reaproveitável; auditar `OrderConfirmationDialog` antes de decidir).
+- **Critérios de aceite (mínimo):** legenda não ocupa espaço fixo em nenhum breakpoint — só aparece
+  sob demanda (clique/toque no ícone); conteúdo idêntico ao atual; abre e fecha nos 3 breakpoints;
+  ícone com `aria-label` descritivo (ex: "Como ler o mapa").
+- **Referências:** O.3 (legenda original); `OrderConfirmationDialog` (padrão de overlay
+  responsivo já validado); identidade-visual-padroes.md §7.
+- **Dependências:** nenhuma.
+
+### P.3 · Cabeçalho do Mapa da Trilha quebra errado em nome de trilha longo
+
+- **Achado:** `pages/TrackMap/index.module.css` `.header` usa `flex-wrap: wrap` e `.identity` não
+  tem `min-width: 0` — pro nome real mais longo do currículo (`Trilha 3: Estratégia e Tributação`,
+  `utils/tracks`), isso faz o **item inteiro** (`.quote`, o bloco de percentual) pular pra uma linha
+  abaixo de `.identity` em vez do texto do próprio título quebrar linha e o percentual continuar
+  ancorado à direita, no mesmo nível do ticker — quebra a composição "cabeçalho tipo cotação" do
+  mockup O.0, que pressupõe percentual sempre à direita. **Achado à parte, confirma que o padrão
+  certo já existe no próprio código:** o card de trilha do Hub (`pages/TrilhasHub/index.module.css`
+  `.top`/`.identity`/`.statusPill`) resolve o mesmo problema corretamente — `.top` **sem**
+  `flex-wrap`, `.identity` **com** `min-width: 0` (permite o título quebrar dentro da própria
+  coluna) e `.statusPill`/`.cardTitle` com `flex: none`/sem `nowrap` — o pill de status nunca sai do
+  lugar mesmo com `group.trackName` longo. O cabeçalho do Mapa da Trilha não segue o mesmo padrão
+  hoje; deveria.
+- **O que muda na aplicação:** `pages/TrackMap/index.module.css` (`.header`/`.identity`/`.quote`) —
+  aplicar o mesmo padrão já correto de `TrilhasHub` (`.top`/`.identity`/`.statusPill`): remover
+  `flex-wrap` do `.header`, `min-width: 0` em `.identity`, `.quote` com `flex: none`.
+- **Critérios de aceite:** com `Trilha 3: Estratégia e Tributação` (o nome mais longo real do
+  currículo), o percentual/fração continua na mesma posição (à direita, mesma altura do ticker) em
+  todos os 3 breakpoints — só o texto do título quebra linha quando necessário, nunca o layout
+  inteiro; as outras 3 trilhas (nomes curtos) sem regressão visual.
+- **Referências:** `TrilhasHub/index.module.css` `.top`/`.identity`/`.statusPill` (padrão já
+  correto, reaproveitar); mockup O.0 ("cabeçalho tipo cotação").
+- **Dependências:** nenhuma.
+
+---
+
 ## Sequência de implementação sugerida
 
 Ordem única, pensada pra sessão solo (uma tarefa por sessão, sem paralelismo real) — não é a ordem
@@ -2052,6 +2143,13 @@ dependência de fase não concluída" das demais, mas descrita à parte por ser 
 inteira (não correção pontual) — dependência real é só entre si (O.3 depende de O.1/O.2, O.4 depende
 de O.1/O.3 estarem em produção).
 
+**P.1-P.3 (achados de validação real pós-O.4, ver Fase P) entram logo depois de O.4**, mesmo
+critério de zero schema/zero dependência de fase não concluída das demais correções de UX — só não
+foram numeradas dentro do bloco 1-14 acima porque só foram descobertas depois que ele já estava
+escrito. Prioridade sugerida entre si: **P.1 primeiro** (único dos três com conteúdo real já
+quebrando a leitura da tela, não só um desvio de composição), depois P.3 (visual, 1 trilha afetada),
+depois P.2 (melhoria de affordance, nada quebrado hoje). As três são independentes entre si.
+
 Passos 1-31 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
 risco e maior volume de valor, por isso vem toda antes de B. Passos 32-37 são a fatia de "aposta
 real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último de propósito: é o
@@ -2076,4 +2174,5 @@ real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último
 | M | Aposentar o checkbox "já pensei" | 2 (1 descartada) | Não |
 | N | Redirecionamento nunca aponta pra lição inacessível | 3 | Não |
 | O | Trilha vira hub + mapa vertical por trilha | 5 | Não |
-| **Total** | | **43** | |
+| P | Ajustes finos do redesenho O (achados de validação real) | 3 | Não |
+| **Total** | | **46** | |
