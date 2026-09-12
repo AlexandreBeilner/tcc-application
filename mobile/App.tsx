@@ -1,16 +1,17 @@
 /**
  * Casca WebView do app mobile — carrega o SPA (frontend/) já existente.
  * Navegação nativa (botão voltar, links externos) é a tarefa 1.3; tela de
- * erro/offline (renderError) é a 1.4, ambas implementadas aqui. URL variando
- * por build (Config.APP_WEB_URL, .env.debug/.env.release via
- * react-native-config).
+ * erro/offline (renderError) é a 1.4; ponte de sessão pro Keychain/Keystore
+ * é a 2.1, todas implementadas aqui. URL variando por build
+ * (Config.APP_WEB_URL, .env.debug/.env.release via react-native-config).
  *
  * @format
  */
 
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Config from 'react-native-config';
+import Keychain from 'react-native-keychain';
 import {
   BackHandler,
   Linking,
@@ -25,7 +26,18 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import { WebView, WebViewHandle } from 'react-native-webview';
+import { WebView, WebViewHandle, WebViewMessageEvent } from 'react-native-webview';
+import {
+  buildAuthTokenReinjectionScript,
+  buildAuthWatcherScript,
+  parseAuthTokenChangedMessage,
+} from './sessionBridge';
+
+// Escopa as credenciais no Keychain/Keystore pra esse app específico — sem
+// isso o react-native-keychain usa um serviço default compartilhado entre
+// apps que reusarem a lib no mesmo dispositivo (irrelevante em produção, mas
+// evita colisão durante desenvolvimento local).
+export const AUTH_KEYCHAIN_SERVICE = 'br.com.investimenta.auth';
 
 const APP_WEB_URL = Config.APP_WEB_URL as string;
 
@@ -85,6 +97,64 @@ function AppContent() {
   // uma vez só (useEffect com deps vazias) e precisa ler o valor mais recente
   // sem forçar re-registro a cada navegação do SPA.
   const canGoBackRef = useRef(false);
+
+  // Cópia autoritativa do token vive no Keychain/Keystore (tarefa 2.1) — o
+  // React só guarda em state o valor necessário pra montar o script de
+  // reinjeção (injectedJavaScriptBeforeContentLoaded) do próximo
+  // carregamento do WebView. isSessionReady evita montar o WebView com um
+  // script de reinjeção "vazio" (token ainda null) antes da leitura
+  // assíncrona do Keychain terminar — sem isso, uma sessão que sobreviveu
+  // no Keychain mas foi apagada do localStorage (ex. iOS sob pressão de
+  // armazenamento) não seria restaurada a tempo do primeiro carregamento.
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isSessionReady, setIsSessionReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Keychain.getGenericPassword({ service: AUTH_KEYCHAIN_SERVICE })
+      .then(credentials => {
+        if (!cancelled && credentials) {
+          setAuthToken(credentials.password);
+        }
+      })
+      .catch(() => {
+        // Leitura do Keychain falhando (ex. hardware seguro indisponível)
+        // não pode travar o app — segue sem sessão restaurada, o SPA volta
+        // a pedir login normalmente.
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsSessionReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+    const message = parseAuthTokenChangedMessage(event.nativeEvent.data);
+    if (!message) {
+      return;
+    }
+
+    if (message.token) {
+      Keychain.setGenericPassword('investimenta', message.token, {
+        service: AUTH_KEYCHAIN_SERVICE,
+      }).catch(() => {});
+    } else {
+      // Token removido do localStorage (logout dentro do SPA) — limpa o
+      // Keychain também, senão a reinjeção do próximo carregamento traria o
+      // token de volta e o logout não "colaria" na próxima abertura do app.
+      Keychain.resetGenericPassword({ service: AUTH_KEYCHAIN_SERVICE }).catch(
+        () => {},
+      );
+    }
+
+    setAuthToken(message.token);
+  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -157,21 +227,28 @@ function AppContent() {
         },
       ]}
     >
-      <WebView
-        ref={webviewRef}
-        source={{ uri: APP_WEB_URL }}
-        style={styles.webview}
-        domStorageEnabled
-        javaScriptEnabled
-        mixedContentMode="never"
-        originWhitelist={ORIGIN_WHITELIST}
-        allowsBackForwardNavigationGestures
-        onNavigationStateChange={navState => {
-          canGoBackRef.current = navState.canGoBack;
-        }}
-        onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-        renderError={renderError}
-      />
+      {isSessionReady && (
+        <WebView
+          ref={webviewRef}
+          source={{ uri: APP_WEB_URL }}
+          style={styles.webview}
+          domStorageEnabled
+          javaScriptEnabled
+          mixedContentMode="never"
+          originWhitelist={ORIGIN_WHITELIST}
+          allowsBackForwardNavigationGestures
+          injectedJavaScript={buildAuthWatcherScript()}
+          injectedJavaScriptBeforeContentLoaded={buildAuthTokenReinjectionScript(
+            authToken,
+          )}
+          onMessage={handleMessage}
+          onNavigationStateChange={navState => {
+            canGoBackRef.current = navState.canGoBack;
+          }}
+          onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+          renderError={renderError}
+        />
+      )}
     </View>
   );
 }

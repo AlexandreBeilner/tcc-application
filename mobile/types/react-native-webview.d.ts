@@ -19,6 +19,7 @@ declare module 'react-native-webview' {
         AndroidWebViewProps,
         IOSWebViewProps,
         ShouldStartLoadRequest,
+        WebViewMessageEvent,
         WebViewNavigation,
         WindowsWebViewProps,
     } from 'react-native-webview/lib/WebViewTypes';
@@ -40,5 +41,5 @@ declare module 'react-native-webview' {
     >;
     export default WebView;
 
-    export type { ShouldStartLoadRequest, WebViewNavigation };
+    export type { ShouldStartLoadRequest, WebViewMessageEvent, WebViewNavigation };
 }

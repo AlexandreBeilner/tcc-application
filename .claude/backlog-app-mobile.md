@@ -243,8 +243,41 @@ replica sozinho — persistência de sessão robusta, upload de arquivo e downlo
 depende de login Google (Fase 3) — todas são validáveis com o login por e-mail/senha que já
 funciona desde a 1.2.
 
-### 2.1 · Ponte de sessão segura (Keychain/Keystore)
+### 2.1 · Ponte de sessão segura (Keychain/Keystore) ✅
 
+- **Entregável:** `react-native-keychain@10` instalado. `sessionBridge.ts` novo (funções puras/
+  testáveis, sem efeito colateral): `buildAuthWatcherScript()` — `injectedJavaScript` que instala
+  um `setInterval` de 1s lendo `localStorage.getItem('tcc.auth.token')` e faz `postMessage` só
+  quando o valor muda (login ou logout) — poll em vez de `onNavigationStateChange` porque o React
+  Router navega via `pushState`, que não dispara esse callback do lado nativo de forma confiável;
+  `buildAuthTokenReinjectionScript(token)` — `injectedJavaScriptBeforeContentLoaded` que reescreve a
+  mesma chave de `localStorage` a partir do valor salvo no Keychain antes do SPA montar (string
+  vazia quando não há token salvo); `parseAuthTokenChangedMessage(data)` — parser defensivo do
+  payload de `onMessage`. `App.tsx`: `AUTH_KEYCHAIN_SERVICE` (`br.com.investimenta.auth`, exportada
+  pra teste) escopando as credenciais; efeito no mount lê `Keychain.getGenericPassword` (token vira
+  state `authToken`); `<WebView>` só monta depois que essa leitura resolve (`isSessionReady`) — sem
+  esse gate, o primeiro carregamento usaria um script de reinjeção "vazio" antes do Keychain
+  responder; `handleMessage` grava (`setGenericPassword`) ou limpa (`resetGenericPassword`) o
+  Keychain conforme o token da mensagem, espelhando em `authToken` pro próximo reload reinjetar o
+  valor certo. `types/react-native-webview.d.ts` ganhou `WebViewMessageEvent` no re-export (mesmo
+  padrão de augmentation da tarefa 1.3, só faltava esse tipo). Dois mocks manuais novos pro Jest
+  (mesma mecânica de `__mocks__/react-native-config.js`): `react-native-keychain.js` (stubs
+  `jest.fn()`) e `react-native-safe-area-context.js` (reexporta o mock oficial da lib,
+  `react-native-safe-area-context/jest/mock` — sem ele `<SafeAreaProvider>` não resolve métricas
+  iniciais em ambiente Jest e nunca renderiza os filhos; achado desta sessão, nenhum teste anterior
+  havia inspecionado a árvore renderizada de `<AppContent>` de verdade). `sessionBridge.test.ts`
+  (script do watcher executado como JS puro contra um `localStorage`/`window` simulados, sem
+  emulador) e testes novos em `App.test.tsx` (leitura/gravação/limpeza do Keychain via o `<WebView>`
+  mockado) — 19 testes no total, `npx tsc --noEmit`, `npm run lint` e `npm test` passam.
+  Validado ponta a ponta no emulador (AVD API 35) contra `docker compose up` + `vite --host
+  0.0.0.0`: cadastro de conta nova grava o token no Keychain (arquivo `RN_KEYCHAIN.preferences_pb`
+  criado no instante do cadastro, confirmado via `run-as`); logout dentro do app limpa a sessão
+  (reabrir mostra a tela de login, não a Trilha); com o usuário logado, apagar só o diretório
+  `app_webview/Default/Local Storage` do app via `run-as` (mesma classe de perda de dados do WebView
+  descrita na arquitetura pro iOS, simulável no Android apagando o diretório) sem tocar no Keychain,
+  e reabrir o app — a sessão foi restaurada (tela pós-login, não a de login) e o gateway registrou
+  `GET /auth/me` retornando `200` logo na largada, confirmando que o token reinjetado era válido, não
+  sobra de estado antigo.
 - **Descrição:** mesmo com `domStorageEnabled=true` (1.2), o `localStorage` de um WebView é mais
   frágil que o de um navegador desktop — em especial no iOS, que pode liberar espaço em disco
   apagando dados de WebView sob pressão de armazenamento, deslogando o usuário sem motivo aparente.
