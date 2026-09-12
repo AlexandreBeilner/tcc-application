@@ -1,19 +1,23 @@
 /**
  * Casca WebView do app mobile — carrega o SPA (frontend/) já existente.
- * Navegação nativa (botão voltar, links externos) é a tarefa 1.3, implementada
- * aqui; tela de erro/offline é a 1.4. URL variando por build
- * (Config.APP_WEB_URL, .env.debug/.env.release via react-native-config).
+ * Navegação nativa (botão voltar, links externos) é a tarefa 1.3; tela de
+ * erro/offline (renderError) é a 1.4, ambas implementadas aqui. URL variando
+ * por build (Config.APP_WEB_URL, .env.debug/.env.release via
+ * react-native-config).
  *
  * @format
  */
 
+import type { ReactElement } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import Config from 'react-native-config';
 import {
   BackHandler,
   Linking,
+  Pressable,
   StatusBar,
   StyleSheet,
+  Text,
   useColorScheme,
   View,
 } from 'react-native';
@@ -104,6 +108,30 @@ function AppContent() {
     [],
   );
 
+  // renderError substitui o conteúdo do WebView por essa tela sempre que o
+  // carregamento do frame principal falha (rede fora do ar, backend down) —
+  // sem isso o usuário vê a tela de erro genérica do sistema (ou branca),
+  // citada como sinal de "lazy wrapper" na revisão da Apple (Guideline 4.2).
+  // Volta a mostrar o WebView normal sozinho assim que reload() funcionar.
+  const renderError = useCallback(
+    (): ReactElement => (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Sem conexão</Text>
+        <Text style={styles.errorMessage}>
+          Não foi possível carregar o Investimenta. Verifique sua conexão e
+          tente novamente.
+        </Text>
+        <Pressable
+          style={styles.retryButton}
+          onPress={() => webviewRef.current?.reload()}
+        >
+          <Text style={styles.retryButtonText}>Tentar novamente</Text>
+        </Pressable>
+      </View>
+    ),
+    [],
+  );
+
   return (
     <View
       style={[
@@ -127,6 +155,7 @@ function AppContent() {
           canGoBackRef.current = navState.canGoBack;
         }}
         onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+        renderError={renderError}
       />
     </View>
   );
@@ -141,6 +170,50 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+  },
+  errorContainer: {
+    // react-native-webview renderiza otherView (o retorno de renderError)
+    // como irmão do WebView nativo dentro do mesmo container flex, não como
+    // substituto — sem position: 'absolute' cobrindo 100%, essa tela aparece
+    // empilhada ABAIXO da própria página de erro nativa do Android/Chromium
+    // (a "Webpage not available" branca, que o engine pinta como conteúdo
+    // "carregado com sucesso" e nenhum callback da lib consegue suprimir),
+    // em vez de escondê-la. Mesmo padrão de position que a lib usa no seu
+    // próprio defaultRenderError (WebView.styles.ts, loadingOrErrorView).
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    // --color-bg-base (tema dark), identidade-visual-tokens.md.
+    backgroundColor: '#0E0F13',
+  },
+  errorTitle: {
+    // --color-text-primary (tema dark).
+    color: '#F5F6F8',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  errorMessage: {
+    // --color-text-secondary (tema dark).
+    color: '#9BA1AE',
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    // --color-brand-500 (tema dark), ação primária.
+    backgroundColor: '#2F6FED',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#F5F6F8',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

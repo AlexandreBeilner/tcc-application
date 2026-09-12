@@ -185,8 +185,24 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 - **Referências:** arquitetura-app-mobile §5.
 - **Dependências:** 1.2.
 
-### 1.4 · Tela nativa de erro/sem conexão
+### 1.4 · Tela nativa de erro/sem conexão ✅
 
+- **Entregável:** `App.tsx` ganhou `renderError` no `WebView`: uma tela nativa simples ("Sem conexão" +
+  "Tentar novamente", tokens dark de `identidade-visual-tokens.md`) que chama `webviewRef.current.reload()`
+  no botão. Achado ao validar: `react-native-webview` renderiza o retorno de `renderError` como
+  **irmão** do WebView nativo dentro do mesmo container flex (`{webView}{otherView}`,
+  `WebView.android.tsx`), não como substituto — sem `position: 'absolute'` cobrindo 100% da área
+  (mesmo padrão que a própria lib usa no seu `defaultRenderError`, `WebView.styles.ts`), a tela custom
+  aparecia empilhada ABAIXO da página de erro nativa do Android/Chromium ("Webpage not available",
+  branca) em vez de escondê-la — o engine trata esse interstitial como conteúdo "carregado com
+  sucesso" e nenhum callback da lib consegue suprimi-lo, só cobrir por cima. Corrigido com
+  `position: 'absolute'` + `width`/`height: '100%'` no container da tela de erro. Validado ponta a
+  ponta no emulador (AVD API 35): matar o `vite` (não `docker compose stop` — o WebView aponta pro
+  dev server do Vite, não pro gateway direto, mesma correção de entendimento já registrada na 1.2) e
+  reabrir o app mostra só a tela nativa de erro, sem nenhum pixel da página de sistema; religar o
+  Vite e apertar "Tentar novamente" carrega a Trilha normalmente sem reiniciar o processo do app
+  (confirmado sem `am force-stop` entre o retry e a tela carregada). `npx tsc --noEmit`,
+  `npm run lint` e `npm test` passam.
 - **Descrição:** hoje, se a rede cair ou o backend estiver fora do ar, um WebView sem tratamento
   mostra uma tela de erro genérica do sistema (ou branca) — ruim pra qualquer app, e citado
   explicitamente como parte do que a Apple espera de um WebView "não preguiçoso" (Guideline 4.2,
