@@ -480,8 +480,35 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   identidade visual).
 - **Dependências:** 1.1.
 
-### 3.2 · Backend: endpoint de troca de idToken Google por JWT
+### 3.2 · Backend: endpoint de troca de idToken Google por JWT ✅
 
+- **Entregável:** implementado exatamente como desenhado (arquivos já existentes, sem reescrita).
+  `GoogleIdentityProvider` (porta) ganhou `verifyIdToken(idToken): Promise<GoogleProfile>`.
+  `googleIdentityProviderAdapter.ts`: lógica de "verificar idToken + montar `GoogleProfile`" extraída
+  pra uma função interna (`verifyAndBuildProfile`) compartilhada por `exchangeCode` (fluxo web) e
+  pelo novo `verifyIdToken` (fluxo nativo) — **os dois usam `audience: config.clientId` (client ID
+  Web)**, achado já registrado em `runbook-mudanca-identidade-app-conta-google.md` seção 0 e
+  corrigido nesta mesma sessão antes de implementar (o texto original desta tarefa dizia Android/iOS,
+  estava errado). `createDisabledGoogleIdentityProvider` ganhou o mesmo `verifyIdToken` que lança o
+  erro claro de configuração ausente. `LoginWithGoogleInput` virou união
+  `{ code: string } | { idToken: string }`; `execute` despacha por `'code' in input` — todo o resto
+  do método (achar/criar usuário e identidade, capital inicial RNF06) inalterado. Rota nova
+  `POST /auth/google/token` em `authRouter.ts` (schema `googleTokenBodySchema` novo em
+  `schemas.ts`, `idToken: string` não-vazio): `400` se ausente, `401` com log de erro se
+  `LoginWithGoogleUseCase` lançar (idToken inválido/expirado/audience errada), `200` com
+  `{ token, user }` no mesmo formato de `/auth/login`/`/auth/register` em caso de sucesso. Rotas
+  `GET /auth/google`/`GET /auth/google/callback` inalteradas. Testes novos nos três níveis
+  (`fakeGoogleIdentityProvider.verifyIdToken`, caso de uso, adapter real com mock de
+  `google-auth-library` cobrindo sucesso/payload incompleto/erro de assinatura-expiração propagado,
+  router via supertest cobrindo sucesso/400/401) — 10 testes novos, 570 no total no módulo
+  `backend/`, todos passando. `npm run build`, `npm run lint` e `npm test` passam.
+  `.docs/backend/auth.md` documenta a rota nova, incluindo a nota sobre `audience` ser o client ID
+  Web. Validado via `docker compose up --build backend`: `POST /auth/google/token` sem `idToken` →
+  `400`; com um idToken qualquer → `401` (log do container confirma o motivo real: login Google
+  segue **desabilitado** neste ambiente por não haver `backend/.env` com credenciais reais — esta
+  sessão não tem acesso a um idToken genuíno nem ao client secret Web pra validar contra o Google de
+  verdade). Validação completa com um idToken real do SDK fica condicionada à tarefa 3.3 existir e
+  `backend/.env` estar configurado, exatamente como o critério de aceite desta tarefa já previa.
 - **Descrição:** o SDK nativo (`@react-native-google-signin/google-signin`, integrado na 3.3)
   devolve um `idToken` assinado direto no app, sem passar pelo redirect `/auth/google` atual. O
   backend precisa de uma porta de entrada nova pra validar esse `idToken` e emitir o JWT da própria

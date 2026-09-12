@@ -57,6 +57,18 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 ---
 
+### `POST /auth/google/token`
+
+- **Autenticação:** público.
+- **Payload (JSON):** `idToken` — string, obrigatório. `idToken` assinado pelo Google, obtido pelo SDK nativo (`@react-native-google-signin/google-signin`) no app mobile — **não** o `code` de redirect usado por `GET /auth/google/callback`.
+- **Sucesso:** `200` → `{ token, user: { id, name, email, username, role, onboardingCompleted } }` — mesmo formato de `POST /auth/login`/`POST /auth/register`.
+- **Erros:**
+  - `400` — `idToken` ausente ou vazio.
+  - `401` — `idToken` inválido, expirado, ou com `audience`/assinatura que não bate (a lib `google-auth-library` rejeita antes de chegar no caso de uso).
+- **Regra:** `LoginWithGoogleUseCase`, mesmo caso de uso de `GET /auth/google/callback` — só muda a origem do perfil (`verifyIdToken` em vez de `exchangeCode`). Reaproveita identidade/usuário existente por `(google, sub)`, depois por e-mail, senão cria conta nova com capital inicial padronizado (RNF06), exatamente como o fluxo de redirect. **Importante:** o `audience` aceito na verificação é o client ID **Web** (`GOOGLE_CLIENT_ID`, o mesmo do fluxo de redirect) — não os client IDs Android/iOS cadastrados só pra autenticar o app nativo junto ao Google. Ver `.claude/runbook-mudanca-identidade-app-conta-google.md` seção 0 pra detalhe de por quê. Rota aditiva — `GET /auth/google`/`GET /auth/google/callback` não mudam.
+
+---
+
 ### `GET /auth/me`
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).

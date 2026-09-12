@@ -11,5 +11,8 @@ export function createFakeGoogleIdentityProvider(profile: GoogleProfile): Google
     async exchangeCode() {
       return profile
     },
+    async verifyIdToken() {
+      return profile
+    },
   }
 }
