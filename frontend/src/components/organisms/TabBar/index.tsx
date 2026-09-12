@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { PieChart, Map, CandlestickChart, Calculator, Trophy, Lock } from 'lucide-react'
-import { findLessonUnlocking } from '../../../features/lessons/unlockedKeys'
+import { findLessonUnlocking, safeUnlockPath } from '../../../features/lessons/unlockedKeys'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import styles from './index.module.css'
 
@@ -13,8 +13,11 @@ import styles from './index.module.css'
 // (ícone de cadeado, cor apagada), mesmo gate real de `RequiresUnlock` que
 // protege as rotas (aqui é só o reflexo visual, não a garantia). Travada
 // não é beco sem saída (tarefa J.1): clicar navega pra lição que
-// desbloqueia aquela chave, mesmo comportamento de
-// `useLockedAssetGate.selectOrRedirectToLesson`. Legenda com o código da
+// desbloqueia aquela chave via `safeUnlockPath` (tarefa N.3) — cai no Mapa
+// da Trilha em vez de na lição se ela ainda não for alcançável, mesma
+// garantia usada em `LockedAssetPanel`/`AssetDetail` (N.2), preventivo aqui
+// já que `portfolio`/`calculator` hoje sempre desbloqueiam nas 2 primeiras
+// lições da trilha. Legenda com o código da
 // lição (tarefa J.2) só aparece em tablet/desktop (`.lockHint`, escondida
 // via CSS abaixo de 768px) — mobile (barra inferior fixa) confia só no
 // toque como caminho, pra não quebrar o layout compacto dos 5 itens.
@@ -49,7 +52,7 @@ export function TabBar() {
                             type="button"
                             className={`${styles.tab} ${styles.locked}`}
                             aria-label={ariaLabel}
-                            onClick={() => navigate(hint ? `/trilha/${hint.id}` : '/trilha')}
+                            onClick={() => navigate(hint ? safeUnlockPath(hint) : '/trilha')}
                         >
                             <Lock size={18} strokeWidth={2} aria-hidden="true" />
                             <span aria-hidden="true">{label}</span>

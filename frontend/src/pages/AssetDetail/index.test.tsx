@@ -242,6 +242,58 @@ describe('AssetDetail — ativo travado pela trilha (tarefa J.3)', () => {
         await waitFor(() => expect(screen.getByText('tela de lição')).toBeInTheDocument())
     })
 
+    it('CTA navega pro Mapa da Trilha (nunca pra lição) quando a chave desbloqueia numa lição ainda locked pro usuário (tarefa N.2)', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(),
+            lessons: [
+                {
+                    id: 'lesson-2-3',
+                    code: '2.3',
+                    title: 'Nomenclatura de tickers',
+                    trackNumber: 2,
+                    trackName: 'Renda Variável',
+                    sortOrder: 18,
+                    centralConcept: 'x',
+                    scenarioText: '',
+                    microDecisionPrompt: '',
+                    microDecisionType: 'reflection',
+                    microDecisionAssetTicker: null,
+                    revelationText: '',
+                    unlocksDescription: '',
+                    unlocksKeys: ['asset:acao'],
+                    unlocksAssetTicker: null,
+                    microDecisionOptions: null,
+                    status: 'locked',
+                    currentStep: 0,
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        })
+
+        const router = createMemoryRouter(
+            [
+                { path: '/mercado/ativos/:id', element: <AssetDetail /> },
+                { path: '/trilha/:id', element: <div>tela de lição</div> },
+                { path: '/trilha', element: <div>mapa da trilha</div> },
+            ],
+            { initialEntries: ['/mercado/ativos/a1'] },
+        )
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        render(
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>,
+        )
+
+        await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
+        expect(screen.getByText('Desbloqueia na lição 2.3.')).toBeInTheDocument()
+
+        fireEvent.click(screen.getByText('Ir pra lição'))
+        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        expect(screen.queryByText('tela de lição')).not.toBeInTheDocument()
+    })
+
     it('sandbox continua com o painel de compra normal, mesmo sem nenhuma lição concluída (RF12)', async () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: {

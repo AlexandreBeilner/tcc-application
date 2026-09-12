@@ -23,9 +23,19 @@ export function unlockedKeysFor(lessons: Lesson[]): Set<string> {
 
 // Usado pelo estado travado de EquityList/FixedIncomeList (tela 4.2/4.4,
 // tarefa 7.0.1) pra linkar direto pra lição que desbloqueia o produto.
+// `reachable` (tarefa N.1) é falso quando a lição encontrada ainda está
+// `locked` pro usuário — navegar direto pro `id` nesse caso devolveria 404
+// no backend (`GetLessonUseCase`/`LessonLockedError`).
 export function findLessonUnlocking(key: string, lessons: Lesson[]): LessonUnlockHint | undefined {
     const lesson = lessons.find((l) => l.unlocksKeys.includes(key))
-    return lesson ? { id: lesson.id, code: lesson.code, title: lesson.title } : undefined
+    return lesson ? { id: lesson.id, code: lesson.code, title: lesson.title, reachable: lesson.status !== 'locked' } : undefined
+}
+
+// Único lugar que decide o destino de navegação de um hint de desbloqueio —
+// consumidores (N.2/N.3) reaproveitam em vez de montar `/trilha/${hint.id}`
+// na mão e arriscar apontar pra uma lição ainda inacessível.
+export function safeUnlockPath(hint: LessonUnlockHint): string {
+    return hint.reachable ? `/trilha/${hint.id}` : '/trilha'
 }
 
 // Espelha 1:1 o vocabulário fixo de `unlocks_keys` do backend

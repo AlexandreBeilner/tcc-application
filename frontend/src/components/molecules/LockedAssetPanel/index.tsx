@@ -11,19 +11,22 @@ export type { LockedAssetPanelProps } from './types'
 // também aparece em `OrderConfirmationDialog` quando a trava só é
 // descoberta na confirmação (`ProductLockedError`, acesso direto por URL).
 // CTA linka pro Mapa da Trilha (`/trilha`) quando não há `lessonId` (o 403
-// não traz `id`, só `code`/`title` — `.docs/backend/market.md`) e pra
-// `/trilha/:id` direto quando o Detalhe já resolveu a lição via
-// `unlockingLessonFor`.
-export function LockedAssetPanel({ lessonId, lessonCode }: LockedAssetPanelProps) {
+// não traz `id`, só `code`/`title` — `.docs/backend/market.md`), quando a
+// lição encontrada ainda não é alcançável pro usuário (`reachable: false`,
+// tarefa N.2 — evita um CTA que navegaria pra uma lição que o backend
+// devolveria 404, `LessonLockedError`), e pra `/trilha/:id` direto nos
+// demais casos.
+export function LockedAssetPanel({ lessonId, lessonCode, reachable }: LockedAssetPanelProps) {
     const navigate = useNavigate()
     const description = lessonCode ? `Desbloqueia na lição ${lessonCode}.` : 'Ainda não há lição cobrindo este produto.'
+    const destination = lessonId && reachable !== false ? `/trilha/${lessonId}` : '/trilha'
 
     return (
         <div className={styles.panel} role="note">
             <Locked size={20} />
             <span className={styles.title}>Travado pela trilha</span>
             <p className={styles.description}>{description}</p>
-            <Button onClick={() => navigate(lessonId ? `/trilha/${lessonId}` : '/trilha')}>Ir pra lição</Button>
+            <Button onClick={() => navigate(destination)}>Ir pra lição</Button>
         </div>
     )
 }

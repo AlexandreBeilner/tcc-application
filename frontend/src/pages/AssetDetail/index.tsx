@@ -140,7 +140,11 @@ export function AssetDetail() {
 
                 <aside className={styles.sidebar}>
                     {locked ? (
-                        <LockedAssetPanel lessonId={unlockingLesson?.id} lessonCode={unlockingLesson?.code} />
+                        <LockedAssetPanel
+                            lessonId={unlockingLesson?.id}
+                            lessonCode={unlockingLesson?.code}
+                            reachable={unlockingLesson?.reachable}
+                        />
                     ) : (
                         <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
                     )}

@@ -44,4 +44,21 @@ describe('LockedAssetPanel', () => {
 
         expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
     })
+
+    it('CTA navega pro Mapa da Trilha quando o id é conhecido mas a lição ainda não é alcançável', () => {
+        renderPanel({ lessonId: 'lesson-42', lessonCode: '2.3', reachable: false })
+
+        fireEvent.click(screen.getByText('Ir pra lição'))
+
+        expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
+        expect(screen.getByTestId('location')).not.toHaveTextContent('/trilha/lesson-42')
+    })
+
+    it('CTA navega direto pra lição quando reachable não é informado (compat com chamadores que não sabem responder)', () => {
+        renderPanel({ lessonId: 'lesson-42', lessonCode: '2.3' })
+
+        fireEvent.click(screen.getByText('Ir pra lição'))
+
+        expect(screen.getByTestId('location')).toHaveTextContent('/trilha/lesson-42')
+    })
 })

@@ -87,6 +87,15 @@ describe('TabBar', () => {
         expect(screen.getByTestId('location')).toHaveTextContent('/trilha/lesson-42')
     })
 
+    it('lição encontrada mas ainda locked pro usuário (hipotético): navega pro Mapa da Trilha, nunca pra lição inacessível (N.3)', () => {
+        renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'], status: 'locked' })] })
+
+        fireEvent.click(screen.getByRole('button', { name: /Portfólio travado, desbloqueia na lição 0\.1/ }))
+
+        expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
+        expect(screen.getByTestId('location')).not.toHaveTextContent('/trilha/lesson-42')
+    })
+
     it('sem lição correspondente encontrada, navega pro Mapa da Trilha', () => {
         renderTabBar(new Set(), { lessons: [] })
 

@@ -19,7 +19,9 @@ export type { RequiresUnlockProps } from './types'
 // de UX — a garantia real (403) é o backend, ver `.docs/backend/market.md`.
 // `isError` (revisão da Semana 7) segura o mesmo caminho de `isLoading`: uma
 // falha transitória de `GET /lessons` não pode travar quem já desbloqueou a
-// chave.
+// chave. `reachable` repassado pra `LockedScreen` (tarefa N.3, consistência
+// preventiva com N.2) — hoje sempre `true` pras 2 chaves reais deste gate
+// (`portfolio`/`calculator`, desbloqueiam nas 2 primeiras lições).
 export function RequiresUnlock({ unlockKey }: RequiresUnlockProps) {
     const { unlockedKeys, lessons, isLoading, isError } = useUnlockedKeys()
 
@@ -29,7 +31,7 @@ export function RequiresUnlock({ unlockKey }: RequiresUnlockProps) {
 
     if (!unlockedKeys.has(unlockKey)) {
         const hint = findLessonUnlocking(unlockKey, lessons)
-        return <LockedScreen lessonId={hint?.id} lessonCode={hint?.code} />
+        return <LockedScreen lessonId={hint?.id} lessonCode={hint?.code} reachable={hint?.reachable} />
     }
 
     return <Outlet />

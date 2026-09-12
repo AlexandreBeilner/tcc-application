@@ -1600,7 +1600,7 @@ juntas, a segunda ainda não coberta por nenhuma fase anterior:
    navega, `Track/index.tsx:36-42`) — a falha é só nos consumidores de `findLessonUnlocking` fora
    dele (`useLockedAssetGate`, `TabBar`, `RequiresUnlock`), que nunca replicaram essa checagem.
 
-### N.1 · Fundação — `findLessonUnlocking` sabe se a lição encontrada já é alcançável
+### N.1 · Fundação — `findLessonUnlocking` sabe se a lição encontrada já é alcançável ✅ concluída
 
 - **Descrição:** `LessonUnlockHint` (`features/lessons/unlockedKeys/types.ts`) ganha `reachable:
   boolean` — verdadeiro quando a lição encontrada não está `locked` pro usuário (mesmo campo
@@ -1617,8 +1617,18 @@ juntas, a segunda ainda não coberta por nenhuma fase anterior:
 - **Referências:** achado de auditoria desta sessão; `getLesson.ts:24-29` (`LessonLockedError`);
   `Track/index.tsx:36-42` (precedente já correto, usado como modelo do comportamento esperado).
 - **Dependências:** nenhuma.
+- **Entregável (sessão 2026-09-12):** `LessonUnlockHint` ganhou `reachable: boolean`;
+  `findLessonUnlocking` calcula `lesson.status !== 'locked'` (nenhuma leitura nova, mesmo `status`
+  que já vem de `GET /lessons`). `safeUnlockPath(hint)` nova, único lugar que decide o destino
+  (`/trilha/${hint.id}` se `reachable`, `/trilha` senão) — pronta pra N.2/N.3 consumirem, ainda não
+  usada em nenhum consumidor real (`useLockedAssetGate`, `TabBar`, `RequiresUnlock` continuam
+  montando o path na mão até essas tarefas). Nenhum consumidor existente constrói `LessonUnlockHint`
+  por literal, então nada além do próprio módulo precisou de campo novo — só um teste
+  (`useLockedAssetGate/index.test.tsx`) teve `toEqual` ajustado pelo campo adicional. Testes novos
+  cobrindo os 3 critérios de aceite (`reachable: true`/`false`/`undefined`) e os 2 casos de
+  `safeUnlockPath`. 639 testes frontend (+6), lint/build/tsc passando.
 
-### N.2 · `LockedAssetPanel`/`AssetDetail` param de apontar pra lição inacessível (bug reproduzível hoje)
+### N.2 · `LockedAssetPanel`/`AssetDetail` param de apontar pra lição inacessível (bug reproduzível hoje) ✅ concluída
 
 - **Descrição:** maior risco real dos 3 consumidores — `useLockedAssetGate.unlockingLessonFor`
   (linha 35) repassa o hint de `findLessonUnlocking` direto pro `LockedAssetPanel` (`lessonId`/
@@ -1641,8 +1651,21 @@ juntas, a segunda ainda não coberta por nenhuma fase anterior:
   (comportamento da J.3 preservado, zero regressão); teste cobrindo os 2 casos.
 - **Referências:** J.3 (`LockedAssetPanel` original); N.1.
 - **Dependências:** N.1.
+- **Entregável (sessão 2026-09-12):** `LockedAssetPanelProps` ganhou `reachable?: boolean` (não o
+  hint completo — `OrderConfirmationDialog` e `LockedScreen` continuam passando `lessonId`/
+  `lessonCode` soltos, mudar pra um objeto único forçaria os dois a mudar de shape sem necessidade
+  agora). `undefined` tratado como alcançável (`reachable !== false`) — preserva o comportamento de
+  hoje pros 2 chamadores que ainda não sabem responder essa pergunta (`OrderConfirmationDialog`, só
+  `code`/`title` do 403; `LockedScreen`, coberto pela N.3); só `AssetDetail` passa o campo de
+  verdade, vindo direto de `unlockingLesson?.reachable` (já calculado pela N.1 dentro de
+  `useLockedAssetGate.unlockingLessonFor`, sem mudança nesse hook). Testes novos: `LockedAssetPanel`
+  (CTA cai no mapa com `reachable: false` mesmo com `lessonId` presente; navega direto quando
+  `reachable` omitido, compat), `AssetDetail` (chave desbloqueando numa lição `locked` → CTA cai no
+  mapa, nunca na tela de lição — critério de aceite principal da tarefa), `OrderConfirmationDialog`
+  (regressão: banner do 403 continua caindo no mapa). 643 testes frontend (+4), lint/build/tsc
+  passando.
 
-### N.3 · `TabBar`/`RequiresUnlock`/`LockedScreen` usam o mesmo destino seguro (consistência preventiva)
+### N.3 · `TabBar`/`RequiresUnlock`/`LockedScreen` usam o mesmo destino seguro (consistência preventiva) ✅ concluída
 
 - **Descrição:** `TabBar` (J.1) e `RequiresUnlock`/`LockedScreen` (K.2) também chamam
   `findLessonUnlocking` direto e montam `/trilha/${hint.id}` na mão, sem checar alcançabilidade —
@@ -1660,6 +1683,15 @@ juntas, a segunda ainda não coberta por nenhuma fase anterior:
   nesses 2 lugares.
 - **Referências:** J.1, K.2; N.1.
 - **Dependências:** N.1.
+- **Entregável (sessão 2026-09-12):** `TabBar` trocou `` `/trilha/${hint.id}` : '/trilha' `` na mão
+  por `safeUnlockPath(hint)`. `RequiresUnlock` passa `reachable={hint?.reachable}` pra `LockedScreen`
+  (ganhou prop nova, repassada direto pro `LockedAssetPanel` que já sabe usar desde a N.2) — sem
+  precisar de helper próprio, já que `LockedScreen` é só um wrapper de tela cheia em cima do mesmo
+  painel. Testes novos nos 2 lugares simulando a chave hipoteticamente travada numa lição `locked`
+  (`portfolio`/`calculator` continuam sempre alcançáveis na prática, mas o teste prova o fallback
+  funciona mesmo assim) — confirmam CTA cai no Mapa da Trilha, nunca na lição inacessível. Zero
+  mudança de comportamento visível pras 2 chaves reais (suíte completa sem regressão). **Fase N
+  encerrada (N.1, N.2, N.3 todas concluídas).** 645 testes frontend (+6), lint/build/tsc passando.
 
 ---
 

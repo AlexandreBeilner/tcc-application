@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { assetUnlockKey, findLessonUnlocking, unlockedKeysFor } from '.'
+import { assetUnlockKey, findLessonUnlocking, safeUnlockPath, unlockedKeysFor } from '.'
 import type { Lesson } from '../../../services/lessons'
+import type { LessonUnlockHint } from './types'
 
 function lesson(overrides: Partial<Lesson>): Lesson {
     return {
@@ -56,18 +57,47 @@ describe('unlockedKeysFor', () => {
 })
 
 describe('findLessonUnlocking', () => {
-    it('devolve code/title da lição cujo unlocksKeys contém a chave', () => {
-        const lessons = [lesson({ id: 'l-2-3', code: '2.3', title: 'Nomenclatura de tickers', unlocksKeys: ['asset:acao'] })]
+    it('devolve code/title/reachable da lição cujo unlocksKeys contém a chave, já alcançável', () => {
+        const lessons = [
+            lesson({ id: 'l-2-3', code: '2.3', title: 'Nomenclatura de tickers', unlocksKeys: ['asset:acao'], status: 'available' }),
+        ]
 
         expect(findLessonUnlocking('asset:acao', lessons)).toEqual({
             id: 'l-2-3',
             code: '2.3',
             title: 'Nomenclatura de tickers',
+            reachable: true,
         })
+    })
+
+    it('reachable: false quando a lição encontrada ainda está locked pro usuário', () => {
+        const lessons = [lesson({ id: 'l-2-3', code: '2.3', unlocksKeys: ['asset:acao'], status: 'locked' })]
+
+        expect(findLessonUnlocking('asset:acao', lessons)?.reachable).toBe(false)
+    })
+
+    it('reachable: true também quando a lição encontrada já está completed', () => {
+        const lessons = [lesson({ id: 'l-2-3', code: '2.3', unlocksKeys: ['asset:acao'], status: 'completed' })]
+
+        expect(findLessonUnlocking('asset:acao', lessons)?.reachable).toBe(true)
     })
 
     it('undefined quando nenhuma lição desbloqueia a chave', () => {
         expect(findLessonUnlocking('asset:acao', [lesson({ unlocksKeys: [] })])).toBeUndefined()
+    })
+})
+
+describe('safeUnlockPath', () => {
+    function hint(overrides: Partial<LessonUnlockHint>): LessonUnlockHint {
+        return { id: 'l-1', code: '0.1', title: 'Lição', reachable: true, ...overrides }
+    }
+
+    it('navega direto pra lição quando reachable', () => {
+        expect(safeUnlockPath(hint({ id: 'l-2-3', reachable: true }))).toBe('/trilha/l-2-3')
+    })
+
+    it('cai no Mapa da Trilha quando a lição encontrada ainda não é alcançável', () => {
+        expect(safeUnlockPath(hint({ id: 'l-2-3', reachable: false }))).toBe('/trilha')
     })
 })
 
