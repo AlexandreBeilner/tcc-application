@@ -2,6 +2,16 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// react-native-config (tarefa 1.2): mapeia variante de build -> arquivo de
+// env, sem introduzir product flavor nenhum — debug/release já são build
+// types nativos do AGP, e o dotenv.gradle casa por prefixo do nome da task
+// (ex. "assembleRelease" -> "release").
+project.ext.envConfigFiles = [
+    debug  : ".env.debug",
+    release: ".env.release",
+]
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
