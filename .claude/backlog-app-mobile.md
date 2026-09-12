@@ -163,6 +163,20 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
   fecha a activity direto pro launcher, sem diálogo, confirmado via `dumpsys activity activities`
   (processo do app permanece vivo, só sai de foreground). `npx tsc --noEmit`, `npm run lint` e
   `npm test` passam.
+  **Correção pós-merge (revisão da Fase 1, PR #20):** o `originWhitelist` descrito acima — regex
+  montada na mão escapando `Config.APP_WEB_URL` — não funcionava: `react-native-webview` escapa a
+  entrada inteira de novo antes de expandir `*` pra `.*` (`WebViewShared.tsx`,
+  `originWhitelistToRegex`), então uma entrada já escapada por nós sofria duplo escape e não batia
+  nem com a própria origem do app. Efeito: toda navegação top-level (inclusive same-origin) caía no
+  ramo de "fora do whitelist" da lib e ia pro browser externo via `Linking.openURL`, e o
+  `onShouldStartLoadWithRequest` do app virava código morto — mascarado porque a validação manual
+  desta tarefa só exercitou navegação client-side (`pushState`) do SPA, que nunca passa por esse
+  código. `isWithinAppOrigin` também tinha um `startsWith(APP_WEB_URL)` enganável por um host com a
+  origem legítima como prefixo literal (ex. `.../5173.evil.com`). Ambos corrigidos: `ORIGIN_WHITELIST`
+  agora é a URL crua com um `*` literal (formato que a lib já espera, sem escape manual);
+  `isWithinAppOrigin` compara `URL.origin` exato. Testes de regressão adicionados em
+  `__tests__/App.test.tsx` (antes só havia um smoke test de render) — um deles replica o algoritmo
+  real de compilação do `originWhitelist` da lib pra travar a regressão sem emulador.
 - **Descrição:** sem isso, o app "funciona" mas se comporta como um navegador solto, não como um
   app — o botão físico de voltar do Android sai do app em vez de navegar o SPA pra trás, e qualquer
   link que o SPA abrir (ex. termos de uso) fica preso dentro do próprio WebView em vez de abrir o
