@@ -27,6 +27,7 @@ import { Portfolio } from '../pages/Portfolio'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
+import { TrackMap } from '../pages/TrackMap'
 import { TrilhasHub } from '../pages/TrilhasHub'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
@@ -68,9 +69,11 @@ export const router = createBrowserRouter([
                     // — `/trilha/:id` é rota irmã, não filha de `/trilha`, já que a
                     // Lição ocupa a tela inteira dentro do mesmo <AppShell> (sem
                     // navegação aninhada nova). `/trilha/mapa/:trackNumber` (mapa
-                    // vertical por trilha, O.3) ainda não existe — o Hub já navega
-                    // pra lá (O.1), rota nasce quando a O.3 implementar a tela.
+                    // vertical por trilha, O.3) tem segmento estático (`mapa`) próprio
+                    // pra nunca colidir com `/trilha/:id` (UUID) — `trackNumber`
+                    // inválido/fora do currículo redireciona pro Hub.
                     { path: '/trilha', element: <TrilhasHub /> },
+                    { path: '/trilha/mapa/:trackNumber', element: <TrackMap /> },
                     { path: '/trilha/:id', element: <Lesson /> },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
                     // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é

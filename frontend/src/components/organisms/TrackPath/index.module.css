@@ -1,0 +1,205 @@
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* Sem card/borda ao redor (ao contrário do `TrackChart` embutido no
+   acordeão) — o mapa ocupa a coluna de conteúdo inteira da página própria,
+   mockup O.0 mostra ele direto sobre o fundo da página. Altura real em px
+   (`layout.height`, sem limite) — a rolagem vertical é a nativa da página,
+   nunca um `overflow` próprio. */
+.canvas {
+    position: relative;
+    width: 100%;
+}
+
+.svg {
+    display: block;
+    width: 100%;
+}
+
+.hereMarker {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1.5px dashed var(--color-brand-500);
+    display: flex;
+    justify-content: flex-end;
+    pointer-events: none;
+}
+
+.hereTag {
+    transform: translateY(-50%);
+    background: var(--color-brand-500);
+    color: #fff;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-sm) 0 var(--radius-sm) var(--radius-sm);
+    white-space: nowrap;
+}
+
+/* Âncora de tamanho zero na coordenada exata do path — nó, título e
+   bandeira são todos posicionados A PARTIR dela, nunca o inverso (mockup
+   O.0: "o nó fica sempre no ponto exato da linha"). */
+.nodeWrap {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.node {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.node:hover {
+    filter: brightness(1.12);
+}
+
+.locked {
+    background: var(--color-bg-surface);
+    border: 2px dashed var(--color-border-strong);
+    color: var(--color-text-muted);
+}
+
+.completed {
+    background: var(--accent);
+    border: none;
+    color: var(--color-bg-base);
+}
+
+.available {
+    position: relative;
+    background: var(--color-bg-surface);
+    border: 2.5px solid var(--accent);
+    color: var(--accent);
+}
+
+/* Anel pulsante do nó `available` — mesmo motivo "você está aqui" (§2),
+   só o reforço animado; a linha-guia horizontal já entrega a informação,
+   então o pseudo-elemento nunca carrega texto próprio. */
+.available::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    border: 2px solid var(--accent);
+    opacity: 0.5;
+    animation: ringPulse 2.2s ease-out infinite;
+}
+
+@keyframes ringPulse {
+    0% {
+        transform: scale(0.85);
+        opacity: 0.5;
+    }
+    70%,
+    100% {
+        transform: scale(1.35);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .available::after {
+        animation: none;
+        opacity: 0;
+    }
+}
+
+.nodeMeta {
+    position: absolute;
+    top: 0;
+    transform: translateY(-50%);
+    width: clamp(120px, 40vw, 168px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.metaRight {
+    left: 32px;
+    text-align: left;
+}
+
+.metaLeft {
+    right: 32px;
+    text-align: right;
+}
+
+.nodeCode {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+}
+
+.metaLeft .nodeCode {
+    align-self: flex-end;
+}
+
+.nodeTitle {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-text-primary);
+}
+
+.nodeTitleLocked {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+/* Centrada embaixo do nó, não "ao lado" — nunca sai da largura do card,
+   seja qual for o lado do zigue-zague em que o nó caiu (mesmo achado do
+   mockup O.0). */
+.flag {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, 30px);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-gamify-500);
+    background: var(--color-gamify-100);
+    border-radius: var(--radius-sm);
+    padding: 3px 7px;
+    white-space: nowrap;
+}
+
+.hint {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+@media (min-width: 1024px) {
+    .node {
+        width: 48px;
+        height: 48px;
+    }
+}

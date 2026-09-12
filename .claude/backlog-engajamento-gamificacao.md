@@ -1809,8 +1809,33 @@ Decisões já fixadas nele, não reabertas nas tarefas abaixo:
   reaproveitado pra decidir o status do card); F.1 (`--color-track-N`).
 - **Dependências:** O.0.
 
-### O.2 · `trackPathLayout` — motor de layout do mapa vertical (função pura)
+### O.2 · `trackPathLayout` — motor de layout do mapa vertical (função pura) ✅ concluída
 
+- **Entregável:** módulo novo `features/lessons/trackPathLayout` (`index.ts`/`types.ts`/
+  `index.test.ts`, zero UI), mesmo espírito de `trackChartLayout` com o eixo trocado: `y` cresce
+  linearmente com o índice (`MARGIN_Y * 2 + (count - 1) * NODE_STEP_HEIGHT`, primeira lição no
+  topo, progressão desce a página no mesmo sentido do scroll nativo) e `x` segue o zigue-zague de
+  período curto fixado no mockup O.0 (`ZIGZAG_PATTERN = [0, 1, 0, -1]`, centro → direita → centro →
+  esquerda, indexado por `index % 4` — determinístico, sem `Math.random`). `TRACK_PATH_WIDTH` (300)
+  é constante, ao contrário de `TRACK_CHART_WIDTH`/`trackChartWidthFor` da L.1 — como a página rola
+  na vertical nativamente, não existe aqui o "espaço fixo que precisa forçar largura mínima" que
+  motivou aquela função, decisão só documentada, nenhuma defesa extra implementada. Ruído de curto
+  prazo entre marcos reais (identidade-visual-padroes.md §4) entra no `x` (perpendicular à
+  progressão vertical) em vez do `y` — mesma técnica de `segmentWaypoints`, eixo trocado, usando o
+  `run` (diferença de `x` entre dois nós reais consecutivos) como amplitude, o que mantém todo
+  waypoint dentro da largura útil por construção (o `run` do zigue-zague nunca excede
+  `usableHalfWidth`). `findBoundaryIndex` (fronteira sólido/tracejado) duplicada localmente, não
+  importada de `trackChartLayout` — função pura de 6 linhas, e os 2 módulos não compartilham mais
+  nenhuma outra regra (mesmo raciocínio já usado pela sparkline da O.1 pra não forçar API única
+  entre motores de escala diferente). Sem `fillPath` (ao contrário de `TrackChartLayout`) — nenhuma
+  decisão do mockup O.0 pede área preenchida pro mapa vertical, só a convenção sólido/tracejado da
+  linha em si.
+- **Critérios de aceite:** 17 testes table-driven cobrindo 2, 5 e 15 lições — determinismo (mesma
+  lista sempre gera o mesmo layout), zigue-zague correto por fase (`index % 4`), todo nó dentro de
+  `[0, TRACK_PATH_WIDTH]`, altura crescendo linearmente (`heightFor(15) - heightFor(10) ===
+  heightFor(10) - heightFor(5)`), cada lição mais abaixo que a anterior, fronteira sólido/tracejado
+  batendo com trilha bloqueada/parcial/concluída, `currentPoint` na lição `available`. 670 testes
+  frontend (+17), lint (`oxlint`)/`tsc -b`/`prettier`/build passando.
 - **Descrição:** módulo novo `features/lessons/trackPathLayout` (mesmo espírito de
   `trackChartLayout`, mas eixo trocado — altura cresce com o índice em vez de largura, e o `x` segue
   um zigue-zague de período curto em vez de subir da direita pra esquerda) devolvendo, pra uma lista
@@ -1831,8 +1856,41 @@ Decisões já fixadas nele, não reabertas nas tarefas abaixo:
   identidade-visual-padroes.md §4.
 - **Dependências:** O.0 (segue o zigue-zague/ruído já fixado no mockup).
 
-### O.3 · Mapa vertical por trilha — nova tela em `/trilha/mapa/:trackNumber`
+### O.3 · Mapa vertical por trilha — nova tela em `/trilha/mapa/:trackNumber` ✅ concluída
 
+- **Entregável:** organism novo `components/organisms/TrackPath` (consome `trackPathLayout` da O.2:
+  `y` do layout vira `top` real em px — a altura cresce sem limite, sem aspect-ratio pra preservar —
+  e `x` vira `left` em `%` de `TRACK_PATH_WIDTH`, mesma técnica de `TrackChart`) + página nova
+  `pages/TrackMap` na rota `/trilha/mapa/:trackNumber` (`routes/router.tsx`). Nó sempre ancorado na
+  coordenada exata do path (`.nodeWrap`, âncora de tamanho zero) — código/título posicionados a
+  partir dele, do lado voltado pro centro do canvas (nunca corre risco de sair da borda, seja qual
+  for o lado do zigue-zague). Estados visuais reaproveitados sem componente de ícone novo (`Check`/
+  `Circle`/`Locked`, mesmo `STATUS_ICON` de `TrackChart`) — só o nó `available` ganhou um anel
+  pulsante próprio (`::after` com `@keyframes ringPulse`, desabilitado em `prefers-reduced-motion`,
+  sem depender de `color-mix`/rgba pra ficar dinâmico por trilha — usa `var(--accent)` direto, mesma
+  convenção `--accent`/`--accent-bg` já usada pela O.1). "Você está aqui" é linha-guia tracejada +
+  etiqueta persistente (não só hover, diferente do `TrackChart`) na altura de `layout.currentPoint`.
+  Bandeira de marco (`unlocksDescription` preenchido) em cor de conquista (`--color-gamify-500`),
+  nunca a cor da trilha. Rolagem inicial centraliza no nó "você está aqui" via `scrollIntoView`
+  nativo (`?.()` defensivo — jsdom não implementa o método, browser real sim), mesmo princípio do
+  `useEffect` de centralização do `TrackChart`, eixo trocado (aqui é a rolagem nativa da página, sem
+  simulação de arrasto por ponteiro). `trackNumber` inválido/fora de `TRACKS` redireciona pro Hub
+  via `<Navigate>` (mesmo precedente de `PerfilPublico`). Clique em nó `available`/`completed`
+  navega pra `/trilha/:id`; nó `locked` expande aviso inline (mesmo precedente de
+  `Track/handleLessonClick`, preservado). Sidebar desktop é só a legenda do mapa (sólido/tracejado/
+  "você está aqui"/bandeira) — sem XP/streak, diferente da O.1 de propósito.
+  **Achado ao validar no Chrome (usuário de teste real via API, Trilha 2 com 4 lições completadas,
+  1 available, resto locked):** a 1ª versão colocava o aviso de nó bloqueado (`expandedHintId`) como
+  um único parágrafo no fim de todo o `.wrapper`, mesmo mecanismo do `TrackChart` horizontal — mas
+  ali o card é compacto e sempre visível; aqui o canvas de uma trilha de 15 lições passa de 3000px
+  de altura, então o aviso nascia efetivamente invisível (só descoberto rolando até o fim da
+  página) pra qualquer nó bloqueado que não fosse o último. Corrigido movendo o aviso pra dentro do
+  próprio `.nodeMeta` do nó clicado (`point.lesson.id === expandedHintId`), sempre visível ao lado
+  de onde o usuário acabou de clicar — texto/condição idênticos, só a posição mudou. Confirmado nos
+  3 breakpoints (mobile 390px com `TabBar` inferior, desktop 1440px com path + sidebar, grid
+  `minmax(0,560px) 1fr` a partir de 1024px) e nos 3 estados de trilha (parcial com progresso real,
+  100% bloqueada — path inteiro tracejado, sem "você está aqui", `0%` no cabeçalho, ainda renderiza
+  — e navegação real pra `/trilha/:id` ao clicar num nó `available`).
 - **Descrição:** página nova (`pages/TrackPath` ou nome equivalente) na rota
   `/trilha/mapa/:trackNumber` — **rota nova, não reaproveita `/trilha/:id`** (que continua sendo a
   Lição, `id` = UUID; `trackNumber` é um inteiro pequeno, 0-3 hoje — dar um segmento estático
@@ -1865,6 +1923,9 @@ Decisões já fixadas nele, não reabertas nas tarefas abaixo:
   disponível/concluído navega pra `/trilha/:id`; `trackNumber` inválido redireciona pro hub; os 3
   breakpoints testados (mobile rolagem de tela inteira, desktop path + sidebar); trilha 100%
   bloqueada (nenhuma lição alcançada ainda) ainda renderiza o path inteiro tracejado, sem erro.
+  Todos confirmados: 8 testes novos em `TrackPath` + 6 em `TrackMap` (14 novos, 684 testes frontend
+  no total), validação real via Chrome com usuário de teste (API) descrita no Entregável acima,
+  lint (`oxlint`)/`tsc -b`/`prettier`/build passando.
 - **Referências:** mockup O.0 (seção "2. Mapa vertical"); `Track/index.tsx:36-42` (precedente do nó
   travado nunca navegar); K.1 (átomo `Locked`); F.1 (`--color-track-N`).
 - **Dependências:** O.1 (rota de origem/CTA "voltar"), O.2.
@@ -1926,8 +1987,8 @@ nota na própria tarefa), não aparece mais nesta lista.
 10. **M.1** — trocar o checkbox "já pensei" por CTA direto (sem gate artificial) ✅ concluída
     (M.2 descartada pelo autor depois de ver M.1 em produção — não entra mais na sequência)
 11. **O.1** — hub de trilhas, nova tela em `/trilha` ✅ concluída
-12. **O.2** — `trackPathLayout`, motor de layout do mapa vertical
-13. **O.3** — mapa vertical por trilha, nova tela em `/trilha/mapa/:trackNumber`
+12. **O.2** — `trackPathLayout`, motor de layout do mapa vertical ✅ concluída
+13. **O.3** — mapa vertical por trilha, nova tela em `/trilha/mapa/:trackNumber` ✅ concluída
 14. **O.4** — retirada do `TrackChart` horizontal e do acordeão antigo
 15. **A.1** — parser de cartões (fundação de A/C, zero risco)
 16. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)

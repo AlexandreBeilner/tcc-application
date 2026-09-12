@@ -1,0 +1,167 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+}
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+/* Cabeçalho tipo cotação (mockup O.0) — ticker/nome à esquerda, percentual
+   à direita, mesma cor da trilha (F.1) reforçando a identidade "home
+   broker" antes mesmo do path começar. */
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.identity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.ticker {
+    align-self: flex-start;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+}
+
+.title {
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-primary);
+}
+
+.quote {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.pct {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-gamify-500);
+    font-variant-numeric: tabular-nums;
+}
+
+.pctLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
+
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.main {
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    /* Coluna do path com largura máxima confortável pro zigue-zague, não
+       full bleed (identidade-visual-padroes.md §7) — a rolagem continua
+       vertical e nativa, só o container que fica mais estreito que o
+       `.layout` inteiro. */
+    .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 560px) 1fr;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+}
+
+.legendCard {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.legendTitle {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--space-3);
+}
+
+.legend {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.legendLine {
+    width: 18px;
+    height: 3px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.legendLineDashed {
+    width: 18px;
+    height: 0;
+    border-top: 2px dashed var(--color-border-strong);
+    flex-shrink: 0;
+}
+
+.legendDot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}

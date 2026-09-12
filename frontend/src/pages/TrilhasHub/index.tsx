@@ -38,10 +38,8 @@ export function TrilhasHub() {
     const nextUnlock = nextUnlockFor(lessons)
 
     // "Bloqueio é convite" (Fase J/K): mesmo uma trilha 100% bloqueada
-    // navega pro mapa dela, que mostra os nós travados em vez de negar a
-    // entrada. A tela em `/trilha/mapa/:trackNumber` ainda não existe (nasce
-    // na O.3) — a navegação já fica pronta aqui, mesmo padrão de outras
-    // tarefas desta fase que constroem uma peça de cada vez (ex: O.2).
+    // navega pro mapa dela (`/trilha/mapa/:trackNumber`, O.3), que mostra os
+    // nós travados em vez de negar a entrada.
     function handleTrackClick(trackNumber: number) {
         navigate(`/trilha/mapa/${trackNumber}`)
     }
