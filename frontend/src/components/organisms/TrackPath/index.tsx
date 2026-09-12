@@ -26,14 +26,15 @@ function toPercent(value: number): string {
 
 // Mapa vertical por trilha (tarefa O.3, mockup vivo em
 // `.claude/backlog-engajamento-gamificacao.md` Fase O/O.0) — substitui o
-// `TrackChart` horizontal (retirada de verdade na O.4) por um path que
+// gráfico horizontal antigo (retirado de verdade na O.4) por um path que
 // desce a página em vez de rolar de lado. Coordenadas de `trackPathLayout`
 // (O.2) são unidades virtuais: `y` vira `top` real em px (a altura cresce
 // sem limite com o nº de lições, sem aspect-ratio fixo pra preservar), `x`
-// vira `left` em porcentagem de `TRACK_PATH_WIDTH` (mesma técnica de
-// `TrackChart`, responsivo à largura real do container). O nó fica sempre
-// ancorado na coordenada exata do path — título/bandeira são posicionados a
-// PARTIR dele (`.nodeWrap`, âncora de tamanho zero), nunca o inverso.
+// vira `left` em porcentagem de `TRACK_PATH_WIDTH` (mesma técnica que o
+// gráfico horizontal antigo usava, responsivo à largura real do container).
+// O nó fica sempre ancorado na coordenada exata do path — título/bandeira
+// são posicionados a PARTIR dele (`.nodeWrap`, âncora de tamanho zero),
+// nunca o inverso.
 export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }: TrackPathProps) {
     const layout = computeTrackPathLayout(lessons)
     const hasCenteredRef = useRef(false)
@@ -41,7 +42,7 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
 
     // Abre já rolado até o nó "você está aqui" (a lição `available`, ou a
     // última `completed` se a trilha inteira já foi concluída) — mesmo
-    // princípio do `useEffect` de centralização do `TrackChart` horizontal
+    // princípio do `useEffect` de centralização do gráfico horizontal antigo
     // (tarefa L.1), eixo trocado: aqui é a rolagem NATIVA da página que
     // centraliza, não um container próprio. Só na montagem, mesma guarda
     // (`hasCenteredRef`) pra nunca brigar com uma rolagem manual depois.
@@ -145,8 +146,8 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                                     {point.lesson.title}
                                 </span>
                                 {/* Aviso inline no próprio nó clicado (não uma única
-                                    mensagem no fim da página, como o `TrackChart`
-                                    horizontal fazia) — um mapa de 15 lições é alto
+                                    mensagem no fim da página, como o gráfico
+                                    horizontal antigo fazia) — um mapa de 15 lições é alto
                                     demais pra um aviso lá embaixo ser notado depois de
                                     clicar num nó bloqueado no meio do caminho. */}
                                 {point.lesson.id === expandedHintId && (

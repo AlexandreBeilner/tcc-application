@@ -16,8 +16,8 @@ const STATUS_ICON: Record<'completed' | 'available', typeof Check> = {
 // recebe `title`/`meta` já prontos do chamador em vez de um `Lesson`
 // inteiro — reaproveitado por `DailyMissionsList` (7.3, mesma linguagem
 // visual de progressão pras missões diárias), não só pela Trilha. Estado
-// `locked` usa o átomo `Locked` (tarefa K.1) em vez do `Lock` solto que
-// `TrackChart` também reimplementava.
+// `locked` usa o átomo `Locked` (tarefa K.1) em vez do `Lock` solto que o
+// gráfico horizontal antigo do Mapa da Trilha também reimplementava.
 export function LessonNode({ status, title, meta, onClick }: LessonNodeProps) {
     const StatusIcon = status === 'locked' ? null : STATUS_ICON[status]
 

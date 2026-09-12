@@ -45,7 +45,7 @@
 }
 
 /* Overflow recortado à parte do tooltip (mesma convenção de
-   `PriceChart.canvas`/`TrackChart.chartBg`) — se ficasse no mesmo
+   `PriceChart.canvas`) — se ficasse no mesmo
    elemento que o tooltip, um ponto perto da borda cortaria o próprio
    tooltip. */
 .canvas {

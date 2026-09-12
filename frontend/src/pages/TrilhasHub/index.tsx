@@ -21,11 +21,10 @@ const STATUS_LABEL: Record<TrackStatus, string> = {
 
 // Tela 3.1 redesenhada (backlog engajamento O.1, mockup vivo em
 // `.claude/backlog-engajamento-gamificacao.md` Fase O/O.0) — troca o
-// acordeão de 4 `<details>` com `TrackChart`/`LessonNode` embutidos por uma
+// acordeão antigo de 4 `<details>` com gráfico horizontal embutido por uma
 // grade de cards de trilha, no espírito de uma watchlist (uma trilha = um
-// "ativo"). `TrackChart`/`LessonNode` ficam sem consumidor nesta tela a
-// partir de agora, mas a retirada de verdade (deletar os componentes) só
-// acontece na O.4, depois que a O.3 (mapa vertical) já existir de verdade.
+// "ativo"). O gráfico horizontal e o nó de lição inline que o acordeão usava
+// foram retirados na O.4, depois que a O.3 (mapa vertical) já existia.
 export function TrilhasHub() {
     const navigate = useNavigate()
     const lessonsQuery = useLessonsQuery()

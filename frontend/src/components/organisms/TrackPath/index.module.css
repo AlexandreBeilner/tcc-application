@@ -4,9 +4,10 @@
     gap: var(--space-3);
 }
 
-/* Sem card/borda ao redor (ao contrário do `TrackChart` embutido no
-   acordeão) — o mapa ocupa a coluna de conteúdo inteira da página própria,
-   mockup O.0 mostra ele direto sobre o fundo da página. Altura real em px
+/* Sem card/borda ao redor (ao contrário do gráfico horizontal antigo,
+   embutido no acordeão) — o mapa ocupa a coluna de conteúdo inteira da
+   página própria, mockup O.0 mostra ele direto sobre o fundo da página.
+   Altura real em px
    (`layout.height`, sem limite) — a rolagem vertical é a nativa da página,
    nunca um `overflow` próprio. */
 .canvas {

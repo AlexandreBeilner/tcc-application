@@ -1930,8 +1930,33 @@ Decisões já fixadas nele, não reabertas nas tarefas abaixo:
   travado nunca navegar); K.1 (átomo `Locked`); F.1 (`--color-track-N`).
 - **Dependências:** O.1 (rota de origem/CTA "voltar"), O.2.
 
-### O.4 · Retirada do `TrackChart` horizontal e do acordeão antigo
+### O.4 · Retirada do `TrackChart` horizontal e do acordeão antigo ✅ concluída
 
+- **Entregável:** `components/organisms/TrackChart/*` e `features/lessons/trackChartLayout/*`
+  removidos (incluindo os testes próprios, `index.test.tsx`/`index.test.ts`) — nenhum outro
+  consumidor restava (auditado via grep antes de apagar, confirmando o que a O.1 já documentava:
+  o único import real de `trackChartLayout` era o próprio `TrackChart`). O acordeão `<details>` e
+  o agrupamento inline por `pages/Track` já não existiam mais — removidos na própria O.1, que
+  renomeou a página pra `pages/TrilhasHub`; **`LessonNode` não foi removido**, ao contrário do que
+  o título da tarefa sugeria — segue em uso real por `DailyMissionsList` (7.3), consumidor
+  independente da Trilha desde a generalização da tarefa 6.8, achado só confirmado agora ao
+  auditar (nenhuma mudança de comportamento necessária). Toda referência textual a `TrackChart`/
+  `trackChartLayout` em comentários de código/CSS que sobreviveu à remoção (11 arquivos —
+  `Locked`, `LessonNode`, `GrowthChart`, `TrackTrophyCase`, `TrackPath` + seu CSS,
+  `trackPathLayout`, `trackHubSparkline`, `priceChartLayout`, `podiumSparkline`,
+  `deterministicNoise`, `PriceChart`/`CompanyFundamentalsChart` CSS, `TrilhasHub`) reescrita pra
+  descrever o gráfico horizontal antigo por extenso, sem citar o nome do módulo apagado.
+  `identidade-visual-padroes.md` §0 e §10 atualizados: §0 ganhou o link do mockup da O.0 como
+  referência viva atual do Mapa da Trilha (o mockup original de telas-âncora, ainda linkado,
+  passou a valer só pro Detalhe de Ativo + Confirmação de Ordem); §10 registra que o Mapa da
+  Trilha hoje são 2 telas-âncora (hub + mapa vertical). §4 (linha do padrão sólido/tracejado)
+  também ajustada — citava `TrackChart` por nome ao descrever a origem do padrão de ruído. `grep
+  -rn "TrackChart\|trackChartLayout"` no repositório inteiro (fora `node_modules`/`.git`/`dist`)
+  só retorna `backlog-engajamento-gamificacao.md` (este arquivo, changelog) e
+  `backlog-plataforma-investimentos.md` (histórico das tarefas 6.4/6.7.1/L.1/7.2 que criaram e
+  ajustaram o componente) — nenhum import nem comentário de código restante. 659 testes frontend
+  (684 da O.3, -25 dos dois `index.test` apagados), `tsc -b`, `oxlint` (mesmos 6 warnings
+  pré-existentes, nenhum novo), `prettier --check` e `npm run build` verdes.
 - **Descrição:** com O.1/O.3 em produção, `TrackChart`/`trackChartLayout` (o gráfico horizontal,
   tarefas 6.4/L.1) e o agrupamento `<details>`/`LessonNode` inline do `pages/Track` antigo ficam sem
   nenhum consumidor — remover os dois módulos (não deixar código morto) e os testes que só existiam
@@ -1989,7 +2014,7 @@ nota na própria tarefa), não aparece mais nesta lista.
 11. **O.1** — hub de trilhas, nova tela em `/trilha` ✅ concluída
 12. **O.2** — `trackPathLayout`, motor de layout do mapa vertical ✅ concluída
 13. **O.3** — mapa vertical por trilha, nova tela em `/trilha/mapa/:trackNumber` ✅ concluída
-14. **O.4** — retirada do `TrackChart` horizontal e do acordeão antigo
+14. **O.4** — retirada do `TrackChart` horizontal e do acordeão antigo ✅ concluída
 15. **A.1** — parser de cartões (fundação de A/C, zero risco)
 16. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
 17. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,

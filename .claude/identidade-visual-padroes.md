@@ -9,14 +9,21 @@
 
 ## 0. Referência viva
 
-Mapa da Trilha e Detalhe de Ativo + Confirmação de Ordem foram prototipados — mobile e desktop,
-clicáveis — e fixam o padrão que este documento descreve:
+Mapa da Trilha (versão original, gráfico horizontal — hoje histórico, ver abaixo) e Detalhe de
+Ativo + Confirmação de Ordem foram prototipados — mobile e desktop, clicáveis — e fixam o padrão
+que este documento descreve:
 https://claude.ai/code/artifact/b3c04cbc-2185-4165-a8d8-eff0cadf1ccf
 
 Sempre que uma dúvida de composição não estiver resolvida aqui, comparar contra esse mockup
 antes de decidir algo novo. Ele é a prova de que os tokens (seção 1 do doc de tokens:
 "sobriedade na base, energia nos acentos") se traduzem em UI de verdade — os tokens sozinhos não
 garantem identidade, a composição é que garante.
+
+**Mapa da Trilha foi redesenhado (backlog de engajamento, Fase O)** — o acordeão com gráfico
+horizontal acima virou duas telas (hub de trilhas + mapa vertical por trilha), retiradas de
+verdade na tarefa O.4. A referência viva atual do Mapa da Trilha é o mockup da O.0:
+https://claude.ai/code/artifact/19e34a0c-55f0-474f-8ea1-bcec10ae40ab — o mockup original acima
+continua valendo só pra Detalhe de Ativo + Confirmação de Ordem.
 
 ## 1. Princípio geral
 
@@ -76,9 +83,9 @@ expectativa, não um histórico.
 (`frontend/src/features/ranking/podiumSparkline`) generaliza a mesma técnica pra qualquer caso
 com só **2** marcos reais (não uma sequência inteira como a trilha) — início da janela (sempre
 0%) e agora (`profitabilityPct` real), com ruído determinístico (hash da seed, nunca
-`Math.random`) inserido só entre as duas âncoras. Confirma que o padrão não é exclusivo de
-`TrackChart`: qualquer visualização com pelo menos 2 pontos reais de uma progressão pode (e deve)
-usar ruído entre eles em vez de uma reta.
+`Math.random`) inserido só entre as duas âncoras. Confirma que o padrão não é exclusivo do Mapa da
+Trilha: qualquer visualização com pelo menos 2 pontos reais de uma progressão pode (e deve) usar
+ruído entre eles em vez de uma reta.
 
 ## 4a. Pódio/ranking — pedestal físico por posição (tarefa 6.8.4)
 
@@ -157,7 +164,11 @@ SVG inline estilo `lucide-react` (stroke-based, grid 24, `stroke-width` ~1.6–2
 ## 10. Telas-âncora
 
 Mapa da Trilha e Detalhe de Ativo + Confirmação de Ordem são as telas-âncora (backlog) que fixam
-este padrão. Qualquer tela nova compara contra elas — e contra o mockup da seção 0 — antes de
+este padrão. Qualquer tela nova compara contra elas — e contra os mockups da seção 0 — antes de
 divergir. Se uma tela nova genuinamente não se encaixa em nenhum padrão daqui, isso é decisão de
 produto: parar e perguntar (regra geral do `CLAUDE.md`), e documentar a decisão de volta neste
 arquivo.
+
+Mapa da Trilha, especificamente, hoje é **duas** telas-âncora (hub de trilhas + mapa vertical por
+trilha, backlog de engajamento Fase O) — o mockup da O.0 (seção 0) é a referência viva atual; o
+gráfico horizontal do mockup original foi retirado de verdade (tarefa O.4) e vira histórico.

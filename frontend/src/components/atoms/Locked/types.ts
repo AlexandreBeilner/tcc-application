@@ -7,7 +7,7 @@ export interface LockedProps {
     // Texto curto visível ao lado do ícone (tarefa J.2 — motivo do
     // bloqueio não pode depender só de hover/tooltip). Omitido quando o
     // chamador já mostra o motivo em outro elemento (ex: `LockedAssetPanel`
-    // tem título/descrição próprios; `LessonNode`/`TrackChart` já têm
+    // tem título/descrição próprios; `LessonNode`/`TrackPath` já têm
     // tooltip/meta separados).
     label?: string
 }

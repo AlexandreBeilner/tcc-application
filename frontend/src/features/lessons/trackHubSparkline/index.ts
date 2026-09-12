@@ -11,12 +11,12 @@ const WAYPOINTS = 6
 const TOTAL_POINTS = WAYPOINTS + 2
 
 // Sparkline pequena do card de trilha no Hub (tarefa O.1) — mesmo princípio
-// de ruído determinístico de `trackChartLayout` (Mapa da Trilha)/
-// `podiumSparkline` (Classificação), mas função própria: escala (0-100%
-// concluído) e tamanho (240x30, card pequeno) são diferentes demais dos
-// outros dois pra forçar uma API única. 2 âncoras reais (0% no início da
-// trilha, `completionPct` agora), ruído entre elas — nunca uma reta
-// (identidade-visual-padroes.md §4).
+// de ruído determinístico do motor de layout do Mapa da Trilha
+// (`trackPathLayout`)/`podiumSparkline` (Classificação), mas função própria:
+// escala (0-100% concluído) e tamanho (240x30, card pequeno) são diferentes
+// demais dos outros dois pra forçar uma API única. 2 âncoras reais (0% no
+// início da trilha, `completionPct` agora), ruído entre elas — nunca uma
+// reta (identidade-visual-padroes.md §4).
 export function computeTrackHubSparkline(trackNumber: number, completionPct: number): TrackHubSparkline {
     const usableH = TRACK_HUB_SPARKLINE_HEIGHT - 2 * MARGIN_Y
     // Piso de 8 pontos pra uma trilha recém-começada (completionPct baixo)

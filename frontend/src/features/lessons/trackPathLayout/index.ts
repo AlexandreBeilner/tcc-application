@@ -4,12 +4,13 @@ import type { TrackPathLayout, TrackPathPoint } from './types'
 
 export type { TrackPathLayout, TrackPathPoint } from './types'
 
-// Mesmo espaço virtual (não px) de `trackChartLayout`, eixo trocado: aqui é
-// a ALTURA que cresce com o índice (progressão sequencial das lições), não
-// a largura — a largura do canvas fica fixa e só o zigue-zague varia dentro
-// dela. A página rola na vertical nativamente, então não existe aqui o
-// equivalente de `trackChartWidthFor` (tarefa L.1, "espaço fixo que precisa
-// forçar largura mínima") — decisão documentada, não uma lacuna.
+// Mesmo espaço virtual (não px) do gráfico horizontal antigo do Mapa da
+// Trilha (retirado na O.4), eixo trocado: aqui é a ALTURA que cresce com o
+// índice (progressão sequencial das lições), não a largura — a largura do
+// canvas fica fixa e só o zigue-zague varia dentro dela. A página rola na
+// vertical nativamente, então não existe aqui o equivalente à largura
+// mínima forçada daquele gráfico (tarefa L.1) — decisão documentada, não
+// uma lacuna.
 export const TRACK_PATH_WIDTH = 300
 
 const MARGIN_X = 60
@@ -46,8 +47,8 @@ function anchorAt(index: number): Vertex {
     }
 }
 
-// Pontos de ruído entre dois marcos reais — mesmo princípio de
-// `trackChartLayout` (identidade-visual-padroes.md §4: nunca uma reta),
+// Pontos de ruído entre dois marcos reais — mesmo princípio do gráfico
+// horizontal antigo (identidade-visual-padroes.md §4: nunca uma reta),
 // eixo trocado: o wobble entra no x (perpendicular à progressão vertical),
 // não no y.
 function segmentWaypoints(fromIndex: number): Vertex[] {
@@ -72,10 +73,10 @@ function pathFrom(vertices: Vertex[]): string {
 }
 
 // Último índice cuja lição não está bloqueada — mesma fronteira sólido/
-// tracejado de `trackChartLayout`/`findBoundaryIndex`
+// tracejado que o gráfico horizontal antigo calculava
 // (identidade-visual-padroes.md §3), duplicada aqui (função pura de 6
-// linhas): os 2 módulos geram paths de trilhas diferentes (horizontal vs.
-// vertical) e não compartilham mais nenhuma outra regra.
+// linhas) em vez de compartilhada, já que os dois motores de layout não têm
+// mais nenhuma outra regra em comum.
 function findBoundaryIndex(lessons: Lesson[]): number {
     let boundary = -1
     for (let index = 0; index < lessons.length; index++) {
