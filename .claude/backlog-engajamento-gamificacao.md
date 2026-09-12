@@ -7,10 +7,16 @@ camada de gamificação — Perfil, feed social, missões, conquistas e o "teatr
 citado em `identidade-visual-padroes.md` §6, hoje só documentado, nunca implementado como
 componente reutilizável (Fases E-I), e o tratamento de conteúdo travado pela trilha (tarefa 7.0.1,
 já em produção) que hoje arrisca desmotivar quem esbarra num módulo bloqueado (Fase J). As Fases
-K, L e M vieram de teste real do autor no app em 2026-09-12 (não da proposta original): bloqueio
+K, L, M e N vieram de teste real do autor no app em 2026-09-12 (não da proposta original): bloqueio
 de rota inteira sem explicação (`RequiresUnlock`, escapou da auditoria da Fase J), círculos do
-Mapa da Trilha espremidos numa trilha com muitas lições, e o checkbox "já pensei" que sobrou como
-interação fraca na única lição sem opções reais nem widget embutido.
+Mapa da Trilha espremidos numa trilha com muitas lições, o checkbox "já pensei" que sobrou como
+interação fraca na única lição sem opções reais nem widget embutido, e a garantia explícita de que
+nenhum CTA de bloqueio pode redirecionar pra uma lição que o próprio usuário ainda não alcançou na
+trilha (Fase N). A Fase O, pedida na mesma sessão, vai além de ajuste/correção: redesenha a própria
+tela-âncora do Mapa da Trilha, trocando o acordeão único de hoje por um hub de trilhas (visão geral,
+estilo watchlist) e um mapa vertical por trilha (lições distribuídas de cima a baixo, padrão
+consagrado por apps de hábito/curso, com identidade "home broker" preservada) — mockup vivo linkado
+na própria Fase O.
 
 > **Revisão de auditoria (mesma sessão):** antes de liberar pra implementação, cada tarefa foi
 > conferida contra o código real em busca de ambiguidade — 3 achados corrigiram descrição errada
@@ -1568,69 +1574,337 @@ que não cabe — é substituir a confirmação vazia por algo melhor.
 
 ---
 
+## Fase N — Redirecionamento nunca aponta pra uma lição inacessível
+
+**Origem: instrução direta do autor (2026-09-12), depois de testar J/K/L/M no app.** Duas exigências
+juntas, a segunda ainda não coberta por nenhuma fase anterior:
+
+1. Toda tela/trecho bloqueado pela trilha mostra um card no próprio lugar (nunca um redirect/
+   teleporte silencioso) explicando o que falta e com um botão de CTA. **Já coberto de ponta a
+   ponta** pelas Fases J e K auditadas nesta sessão: `RequiresUnlock`/`LockedScreen` (K.2, rota
+   inteira), `AssetDetail`/`OrderConfirmationDialog` (J.3, painel de compra), `TabBar` (J.1, aba
+   clicável em vez de `aria-disabled` mudo), `EquityList`/`FixedIncomeList` (badge de linha) e o
+   Mapa da Trilha (nó travado nunca navega, só expande um aviso inline, `Track/index.tsx:36-42`) —
+   nenhum local novo encontrado nesta auditoria.
+2. **O CTA desse card nunca pode apontar pra uma lição que o próprio usuário ainda não pode
+   acessar** — isso ainda não é garantido em lugar nenhum. `findLessonUnlocking`
+   (`features/lessons/unlockedKeys/index.ts:26-29`) acha a lição dona da chave sem checar se ela
+   já está `available`/`completed` pro usuário: como `sortOrder` é sequencial pra trilha inteira
+   (33 lições) e cada chave `asset:*` pertence a uma lição espalhada em qualquer ponto dela
+   (`asset:acao` só na lição de `sortOrder` 18, `asset:etf` na 29 — `backend/src/db/seedLessons.ts`),
+   um usuário que ainda está nas primeiras lições e esbarra num ativo travado recebe hoje um CTA
+   "Ir pra lição" que navega pra uma lição **ainda bloqueada pro backend** —
+   `GetLessonUseCase.execute` (`backend/src/modules/lessons/application/useCases/getLesson.ts:24-29`)
+   lança `LessonLockedError` (404) pra qualquer lição com `status: 'locked'`, então o clique quebra a
+   tela em vez de ensinar algo. O próprio Mapa da Trilha já resolve isso certo hoje (nó travado nunca
+   navega, `Track/index.tsx:36-42`) — a falha é só nos consumidores de `findLessonUnlocking` fora
+   dele (`useLockedAssetGate`, `TabBar`, `RequiresUnlock`), que nunca replicaram essa checagem.
+
+### N.1 · Fundação — `findLessonUnlocking` sabe se a lição encontrada já é alcançável
+
+- **Descrição:** `LessonUnlockHint` (`features/lessons/unlockedKeys/types.ts`) ganha `reachable:
+  boolean` — verdadeiro quando a lição encontrada não está `locked` pro usuário (mesmo campo
+  `status` que `Lesson`/`Track`/`TrackChart` já leem, nenhuma chamada nova). `findLessonUnlocking`
+  calcula esse campo ao montar o hint. Função pura nova (`safeUnlockPath(hint)` ou nome
+  equivalente, testada) decide o destino de navegação: `/trilha/${hint.id}` quando `reachable`,
+  `/trilha` (mapa) quando não — único lugar que decide isso, reaproveitado por todos os
+  consumidores nas N.2/N.3 em vez de cada CTA replicar o `if`.
+- **O que muda na aplicação:** `unlockedKeys/types.ts` (campo novo), `unlockedKeys/index.ts`
+  (`findLessonUnlocking` calcula `reachable`; função pura nova de destino seguro).
+- **Critérios de aceite:** teste table-driven cobrindo lição encontrada e `reachable: true`, lição
+  encontrada mas ainda `locked` pro usuário (`reachable: false`), e chave sem nenhuma lição
+  correspondente (`undefined`, comportamento de hoje preservado).
+- **Referências:** achado de auditoria desta sessão; `getLesson.ts:24-29` (`LessonLockedError`);
+  `Track/index.tsx:36-42` (precedente já correto, usado como modelo do comportamento esperado).
+- **Dependências:** nenhuma.
+
+### N.2 · `LockedAssetPanel`/`AssetDetail` param de apontar pra lição inacessível (bug reproduzível hoje)
+
+- **Descrição:** maior risco real dos 3 consumidores — `useLockedAssetGate.unlockingLessonFor`
+  (linha 35) repassa o hint de `findLessonUnlocking` direto pro `LockedAssetPanel` (`lessonId`/
+  `lessonCode`, J.3) sem checar alcançabilidade, e as chaves `asset:*` são justamente as que
+  desbloqueiam espalhadas pela trilha inteira (não só nas 2 primeiras lições como `portfolio`/
+  `calculator`) — é o caso com maior chance de já estar quebrado em produção hoje. `LockedAssetPanel`
+  passa a receber `reachable` (prop nova, ou o hint completo em vez dos 2 campos soltos hoje) e usa
+  o destino da N.1: CTA "Ir pra lição" só navega direto pro `id` quando alcançável; senão navega pro
+  Mapa da Trilha (mesmo destino já usado quando não há `lessonId` nenhum, caso do 403 do
+  `OrderConfirmationDialog`) e o texto deixa claro que ainda faltam lições no caminho, em vez de
+  prometer um link que não visita.
+- **O que muda na aplicação:** `LockedAssetPanel` (props + render), `useLockedAssetGate.
+  unlockingLessonFor` (repassa `reachable`), `AssetDetail` (passa o campo novo pro painel).
+  `OrderConfirmationDialog` já cai no fallback seguro por omissão (o 403 nunca traz `id`, só
+  `code`/`title` — sem mudança de código, só teste de regressão confirmando que continua caindo em
+  `/trilha`).
+- **Critérios de aceite:** ativo travado por uma chave cuja lição ainda está `locked` pro usuário
+  mostra CTA que navega pro Mapa da Trilha (nunca pra uma lição que devolveria 404); ativo travado
+  por uma chave cuja lição já é `available`/`completed` continua navegando direto pra ela
+  (comportamento da J.3 preservado, zero regressão); teste cobrindo os 2 casos.
+- **Referências:** J.3 (`LockedAssetPanel` original); N.1.
+- **Dependências:** N.1.
+
+### N.3 · `TabBar`/`RequiresUnlock`/`LockedScreen` usam o mesmo destino seguro (consistência preventiva)
+
+- **Descrição:** `TabBar` (J.1) e `RequiresUnlock`/`LockedScreen` (K.2) também chamam
+  `findLessonUnlocking` direto e montam `/trilha/${hint.id}` na mão, sem checar alcançabilidade —
+  não reproduz na prática hoje porque as únicas chaves usadas nesses 2 lugares (`portfolio`,
+  `calculator`) desbloqueiam nas 2 primeiras lições da trilha inteira (sempre a lição imediatamente
+  disponível quando travada pra qualquer usuário), mas fica frágil a qualquer mudança futura de
+  `unlocksKeys`/ordem de lições e não cumpre de fato a garantia pedida pelo autor ("nunca" redirecionar
+  pra lição inacessível, sem exceção implícita por coincidência de dado atual). Trocar as 2 chamadas
+  pro destino seguro da N.1 — mesma proteção por baixo do capô, zero mudança visível hoje.
+- **O que muda na aplicação:** `TabBar/index.tsx` (troca a montagem manual do path pelo helper da
+  N.1), `RequiresUnlock/index.tsx`/`LockedScreen` (idem).
+- **Critérios de aceite:** suíte completa sem regressão (nenhuma mudança de comportamento visível
+  pras 2 chaves atuais, `portfolio`/`calculator`); teste novo simulando uma chave hipoteticamente
+  travada numa lição não-alcançável pra provar que o fallback pro Mapa da Trilha funciona também
+  nesses 2 lugares.
+- **Referências:** J.1, K.2; N.1.
+- **Dependências:** N.1.
+
+---
+
+## Fase O — Trilha vira hub + mapa vertical por trilha (redesenho da tela-âncora)
+
+**Origem: instrução direta do autor (2026-09-12).** Hoje `/trilha` (`pages/Track`) empilha as 4
+trilhas num `<details>`/acordeão, cada uma com o `TrackChart` horizontal (gráfico de ativo,
+tarefas 6.4/L.1) — funciona, mas nunca leu como "abrir uma trilha", só como "uma lista comprida com
+gráficos dentro". Pedido do autor: separar em **duas telas**, no padrão que apps de hábito/curso já
+validaram (Duolingo) — uma tela central que mostra as 4 trilhas como itens de uma lista (progresso,
+o que já foi feito, o que está em andamento, o que está bloqueado), e uma tela própria por trilha,
+com as lições distribuídas **na vertical** (primeira no topo, rolagem descendo até a última) em vez
+do card horizontal atual — melhor tanto pra mobile quanto pra desktop. Pedido explícito de manter a
+identidade "home broker" (não uma trilha genérica tipo curso online): motivos visuais de
+`identidade-visual-padroes.md` §2/§3/§4 (sparkline, grid de papel de gráfico, sólido/tracejado,
+ruído de progressão) reaproveitados na vertical, não descartados.
+
+**Mockup vivo (tela-âncora, regra do `CLAUDE.md`):**
+https://claude.ai/code/artifact/19e34a0c-55f0-474f-8ea1-bcec10ae40ab — hub (grade de cards por
+trilha, cada um com ticker/sparkline/status/"candles" de progresso) e mapa vertical (exemplo com a
+Trilha 2, 15 lições — a mais densa do currículo real), mobile e desktop, dark (tema padrão).
+Decisões já fixadas nele, não reabertas nas tarefas abaixo:
+
+- **Nó sempre no ponto exato da linha.** O nó (círculo) fica ancorado na coordenada real do path; o
+  título/código da lição é posicionado a partir do nó (não o inverso) — evita o círculo "flutuar"
+  fora da linha quando o título é mais comprido que a média.
+- **Zigue-zague com período curto** (centro → direita → centro → esquerda, repetindo), não um
+  desenho aleatório novo a cada trilha — leitura previsível em qualquer contagem de lições.
+- **Linha de execução = mesma convenção sólido/tracejado já usada no `TrackChart` horizontal**
+  (identidade-visual-padroes.md §3/§4), só girada 90°: sólido + cor da trilha até o último nó não
+  bloqueado, tracejado cinza dali em diante, com ruído de curto prazo entre os marcos reais (nunca
+  uma reta).
+- **"Você está aqui"** — linha-guia tracejada horizontal + etiqueta (mesmo motivo obrigatório do
+  §2), na altura do nó `available`.
+- **Bandeira de marco** — nó cuja lição tem `unlocksDescription` preenchido ganha uma marcação
+  dourada (mesma cor de `--color-gamify-500`, "conquista", nunca `--color-track-N`/verde de ganho)
+  destacando o que ela libera, como uma anotação de provento/resultado num gráfico de ativo de
+  verdade — não um marco genérico "unidade 3" de curso.
+- **Cabeçalho tipo cotação** — nome da trilha + ticker curto (`TRLH{N}`) + fração/percentual de
+  conclusão, no lugar de um `<h1>` puro.
+- **Cor por trilha reaproveitada de F.1** (`--color-track-0..3`, já tokenizada) em vez de inventar
+  paleta nova — a linha, os nós concluídos e o ticker do cabeçalho usam a cor da própria trilha.
+
+### O.0 · Mockup vivo do hub + mapa vertical ✅ concluída
+
+- **Entregável:** artifact acima, cobrindo os 2 breakpoints obrigatórios (mobile 375px, desktop
+  ≥1024px) pras 2 telas novas, com conteúdo real do currículo (Trilha 0 Fundamentos/5, Trilha 1
+  Renda Fixa/9, Trilha 2 Renda Variável/15, Trilha 3 Estratégia e Tributação/4 — contagens reais de
+  `backend/src/db/seedLessons.ts`), tokens de cor/tipografia exatos de `identidade-visual-tokens.md`
+  (dark, tema padrão do produto). Cumpre a regra do `CLAUDE.md` de tela-âncora precisar de
+  mockup/rascunho antes da implementação — as tarefas O.1-O.4 abaixo implementam o que já está
+  fixado ali, sem reabrir a decisão de composição.
+- **Descrição:** ver decisões listadas na introdução da Fase O acima.
+- **Referências:** `identidade-visual-padroes.md` §0/§10 (telas-âncora); mockup original do Mapa da
+  Trilha horizontal (mesma seção §0), superado por este pra as 2 telas novas.
+- **Dependências:** nenhuma.
+
+### O.1 · Hub de trilhas — nova tela em `/trilha`
+
+- **Descrição:** `pages/Track` (renomear pra refletir o papel novo, ex. `pages/TrilhasHub`) troca o
+  acordeão de 4 `<details>` com `TrackChart`/`LessonNode` embutidos por uma grade de **cards de
+  trilha** (1 card por `trackNumber`, 4 hoje) — cada card mostra nome + cor da trilha (F.1), status
+  (Concluída/Em andamento/Bloqueada — mesma regra de `findActiveTrackNumber`: uma trilha só é
+  "bloqueada" quando **nenhuma** de suas lições é `available`/`completed`, já que `sortOrder` é
+  sequencial pra trilha inteira de 33 lições, não por trilha isolada), fração de lições concluídas,
+  e uma sparkline pequena da progressão (reaproveita o princípio de ruído de
+  `features/lessons/trackChartLayout`, mas como uma função nova e pequena, não a mesma usada pelo
+  mapa vertical da O.2 — tamanhos/escala diferentes demais pra forçar API única aqui). Clicar num
+  card navega pra `/trilha/mapa/:trackNumber` (O.3) — **inclusive numa trilha bloqueada** (mesmo
+  princípio "bloqueio é convite" da Fase J/K: o mapa mostra os nós travados, nunca nega a entrada).
+- **O que muda na aplicação:** `pages/Track` reescrita (ou renomeada); `TrackChart`/`LessonNode`
+  deixam de ser consumidos aqui (retirada de verdade fica pra O.4, depois que O.3 já existir);
+  `router.tsx` continua com `/trilha` apontando pra esta página (URL não muda de significado como
+  "entrada da trilha" — nenhum CTA existente que navega pra `/trilha` como fallback genérico,
+  fases J/K/N incluídas, precisa mudar). Desktop usa a composição já fixada em
+  `identidade-visual-padroes.md` §7 (grid de cards + sidebar fixa com `ProgressionSummary`/
+  `ResumeLessonCard`, mesmos organisms já usados na tela atual — só o conteúdo principal muda de
+  acordeão pra grade).
+- **Critérios de aceite:** as 4 trilhas do currículo aparecem como cards com status/fração/sparkline
+  corretos; card de trilha 100% bloqueada ainda navega pro mapa (não fica sem `onClick`); os 3
+  breakpoints (mobile coluna única, tablet e desktop grid 2 colunas + sidebar) testados; suíte
+  cobrindo os 3 estados de status por card.
+- **Referências:** mockup O.0 (seção "1. Hub de trilhas"); `trackGroups` (`findActiveTrackNumber`,
+  reaproveitado pra decidir o status do card); F.1 (`--color-track-N`).
+- **Dependências:** O.0.
+
+### O.2 · `trackPathLayout` — motor de layout do mapa vertical (função pura)
+
+- **Descrição:** módulo novo `features/lessons/trackPathLayout` (mesmo espírito de
+  `trackChartLayout`, mas eixo trocado — altura cresce com o índice em vez de largura, e o `x` segue
+  um zigue-zague de período curto em vez de subir da direita pra esquerda) devolvendo, pra uma lista
+  de lições de uma trilha: a posição `(x, y)` de cada nó, os paths SVG sólido/tracejado (mesma
+  fronteira "último nó não bloqueado" de `findBoundaryIndex`) com ruído de curto prazo entre marcos
+  reais (regra de `identidade-visual-padroes.md` §4, obrigatória — nunca uma reta), e a altura total
+  do canvas (cresce linearmente com o nº de lições — **ao contrário da L.1**, aqui não existe
+  "espaço fixo que precisa forçar largura mínima", já que a página rola na vertical nativamente; o
+  problema que motivou a Fase L inteira não se repete nesta forma, só documentar isso como decisão,
+  não implementar nenhuma defesa extra).
+- **O que muda na aplicação:** módulo novo (`index.ts`/`types.ts`/`index.test.ts`), zero UI —
+  consumido só pela O.3.
+- **Critérios de aceite:** teste table-driven cobrindo 2, 5 e 15 lições (as contagens reais do
+  currículo); zigue-zague determinístico (mesma lista de lições sempre gera o mesmo layout, sem
+  `Math.random`); fronteira sólido/tracejado bate com o status real das lições; nenhuma lição
+  produz coordenada fora da largura útil do canvas (nunca corta o nó na borda).
+- **Referências:** `features/lessons/trackChartLayout` (mesmo princípio, eixo trocado);
+  identidade-visual-padroes.md §4.
+- **Dependências:** O.0 (segue o zigue-zague/ruído já fixado no mockup).
+
+### O.3 · Mapa vertical por trilha — nova tela em `/trilha/mapa/:trackNumber`
+
+- **Descrição:** página nova (`pages/TrackPath` ou nome equivalente) na rota
+  `/trilha/mapa/:trackNumber` — **rota nova, não reaproveita `/trilha/:id`** (que continua sendo a
+  Lição, `id` = UUID; `trackNumber` é um inteiro pequeno, 0-3 hoje — dar um segmento estático
+  (`mapa`) próprio evita qualquer ambiguidade de roteamento entre os dois `:param` e, mais
+  importante, **não precisa tocar em nenhum dos vários lugares que já navegam pra
+  `/trilha/${lessonId}`** hoje — `LockedAssetPanel`, `TabBar`, `RequiresUnlock`/`LockedScreen`, os
+  links de C.2 — todo o trabalho das Fases J/K/N continua válido sem alteração). `trackNumber`
+  inválido/fora do intervalo redireciona pro hub (`/trilha`, tela sempre acessível — não é o mesmo
+  risco da Fase N, que é sobre apontar pra uma **lição** bloqueada; aqui é só validação de parâmetro
+  de rota). Renderiza o path (`TrackPath`/organism novo, consome O.2): nós com os mesmos estados
+  visuais já existentes (`Locked`/check/anel pulsante — átomo da K.1, zero componente novo de
+  ícone), linha sólida/tracejada, marcador "você está aqui", bandeira de marco em lições com
+  `unlocksDescription`. Clicar num nó `available`/`completed` navega pra `/trilha/:id` (comportamento
+  idêntico ao que `Track/handleLessonClick` já faz hoje); nó `locked` nunca navega, só expande um
+  aviso inline (mesmo precedente já correto de `Track/index.tsx:36-42`, preservado aqui — não é
+  reaberto pela Fase N porque nunca saiu do lugar certo).
+- **O que muda na aplicação:** `routes/router.tsx` ganha a rota nova; página + organism novos
+  (`TrackPath`, consumindo `trackPathLayout` da O.2); scroll é o nativo da página (sem simulação de
+  arrasto por ponteiro — só necessária no `TrackChart` horizontal porque a página em si não rola
+  nessa direção; aqui a rolagem vertical já é nativa em qualquer input, mobile ou desktop,
+  simplificação real em relação ao componente que está sendo substituído); centraliza a rolagem
+  inicial no nó `available` (mesmo princípio do `useEffect` de centralização do `TrackChart`, eixo
+  trocado). Desktop: path (coluna principal, largura máxima confortável pro zigue-zague, não full
+  bleed) + sidebar fixa com a legenda do mapa (sólido/tracejado, "você está aqui", bandeira de
+  marco) — sidebar diferente da O.1 de propósito, já que XP/streak já apareceram no hub um passo
+  antes.
+- **Critérios de aceite:** abrir uma trilha parcialmente concluída mostra os nós certos em cada
+  estado, linha sólida até o último concluído e tracejada dali em diante, com ruído (nunca reta);
+  marcador "você está aqui" na lição `available`; nó bloqueado expande aviso sem navegar; nó
+  disponível/concluído navega pra `/trilha/:id`; `trackNumber` inválido redireciona pro hub; os 3
+  breakpoints testados (mobile rolagem de tela inteira, desktop path + sidebar); trilha 100%
+  bloqueada (nenhuma lição alcançada ainda) ainda renderiza o path inteiro tracejado, sem erro.
+- **Referências:** mockup O.0 (seção "2. Mapa vertical"); `Track/index.tsx:36-42` (precedente do nó
+  travado nunca navegar); K.1 (átomo `Locked`); F.1 (`--color-track-N`).
+- **Dependências:** O.1 (rota de origem/CTA "voltar"), O.2.
+
+### O.4 · Retirada do `TrackChart` horizontal e do acordeão antigo
+
+- **Descrição:** com O.1/O.3 em produção, `TrackChart`/`trackChartLayout` (o gráfico horizontal,
+  tarefas 6.4/L.1) e o agrupamento `<details>`/`LessonNode` inline do `pages/Track` antigo ficam sem
+  nenhum consumidor — remover os dois módulos (não deixar código morto) e os testes que só existiam
+  pra eles. Auditar toda referência a `TrackChart`/`trackChartWidthFor`/`computeTrackChartLayout`
+  antes de apagar, pra confirmar que realmente não sobrou nenhum outro consumidor.
+- **O que muda na aplicação:** remoção de `components/organisms/TrackChart/*`,
+  `features/lessons/trackChartLayout/*` e os testes correspondentes; `.docs`/comentários que citam
+  o "gráfico de ativo horizontal" da trilha atualizados pra apontar pro mapa vertical (O.2/O.3).
+- **Critérios de aceite:** `grep` por `TrackChart`/`trackChartLayout` no repositório só retorna a
+  entrada do próprio changelog/histórico (backlog), nenhum import restante; suíte completa e
+  `npm run build` sem regressão; `identidade-visual-padroes.md` §0/§10 atualizado pra apontar o
+  mockup da O.0 como a referência viva do Mapa da Trilha (a atual, do gráfico horizontal, vira
+  histórico).
+- **Referências:** O.1, O.3.
+- **Dependências:** O.1, O.3 (só depois das duas novas telas estarem completas e validadas).
+
+---
+
 ## Sequência de implementação sugerida
 
 Ordem única, pensada pra sessão solo (uma tarefa por sessão, sem paralelismo real) — não é a ordem
 alfabética das fases. Critério: dependências reais primeiro, valor visível cedo, tarefas de maior
 risco de schema (B, depois H/G) só depois de validar as de baixo risco, e as fases descobertas em
-auditoria (I — teatro de recompensa, J — bloqueio como convite, K/L/M — achados do teste real de
+auditoria (I — teatro de recompensa, J — bloqueio como convite, K/L/M/N — achados do teste real de
 2026-09-12) priorizadas mesmo fora da ordem alfabética porque são independentes de tudo o mais e
 de risco baixíssimo.
 
-**J.1-J.3, K.1-K.2, L.1 e M.1 entram primeiro de todas.** Diferente de A-I (melhorias sobre algo
-que já funciona), elas mexem em interações hoje genuinamente quebradas ou visivelmente ásperas
-(aba da `TabBar`/gate de rota sem caminho de volta, círculos da trilha espremidos, checkbox
-redundante) — mais perto de corrigir bugs/atritos de UX do que de adicionar recurso novo, e cobrem
-a área de maior exposição do app (navegação primária, Mapa da Trilha, toda lição). Zero schema,
-zero dependência de qualquer outra fase (K.2 depende só de K.1, L.1 e M.1 de nada). **J.4 é a
-exceção dentro deste bloco inicial** — tecnicamente também independente (lê `unlocksDescription`
-ao vivo, nenhuma fase muda esse campo além da E.1), mas só entrega a melhor versão do texto depois
-que a E.1 já reescreveu o "porquê" de cada trilha, então entra logo depois dela, não junto das
-outras. **M.2 é opcional** — só entra na sequência de fato se o autor decidir ir além de M.1 depois
-de ver o CTA simplificado em produção (mesmo espírito do gate D.0, mas sem exigir um checkpoint
-formal, já que M.2 não abre schema).
+**J.1-J.3, K.1-K.2, N.1-N.3, L.1 e M.1 entram primeiro de todas.** Diferente de A-I (melhorias sobre
+algo que já funciona), elas mexem em interações hoje genuinamente quebradas ou visivelmente ásperas
+(aba da `TabBar`/gate de rota sem caminho de volta, CTA de bloqueio que pode apontar pra uma lição
+ainda inacessível, círculos da trilha espremidos, checkbox redundante) — mais perto de corrigir
+bugs/atritos de UX do que de adicionar recurso novo, e cobrem a área de maior exposição do app
+(navegação primária, Mapa da Trilha, toda lição, todo ativo travado). Zero schema, zero dependência
+de qualquer outra fase (K.2 depende só de K.1, N.2/N.3 só de N.1, L.1 e M.1 de nada). **N entra logo
+depois de K.2** porque parte do mesmo achado de auditoria (redirecionamento de bloqueio) e o N.2
+(maior risco real, ativos travados) já é possível de quebrar em produção hoje, diferente de N.3
+(preventivo). **J.4 é a exceção dentro deste bloco inicial** — tecnicamente também independente (lê
+`unlocksDescription` ao vivo, nenhuma fase muda esse campo além da E.1), mas só entrega a melhor
+versão do texto depois que a E.1 já reescreveu o "porquê" de cada trilha, então entra logo depois
+dela, não junto das outras. **M.2 é opcional** — só entra na sequência de fato se o autor decidir ir
+além de M.1 depois de ver o CTA simplificado em produção (mesmo espírito do gate D.0, mas sem exigir
+um checkpoint formal, já que M.2 não abre schema).
 
 1. **J.1** — `TabBar` deixa de ser beco sem saída
 2. **J.2** — motivo do bloqueio fica visível (não só tooltip)
 3. **J.3** — Detalhe do Ativo travado vira prévia, não parede
 4. **K.1** — átomo `Locked` único (fundação)
 5. **K.2** — `RequiresUnlock` para de teleportar — mostra a própria tela com o conteúdo travado
-6. **L.1** — espaçamento mínimo entre nós + canvas rolável/arrastável no Mapa da Trilha
-7. **M.1** — trocar o checkbox "já pensei" por CTA direto (sem gate artificial)
-8. **M.2** *(opcional)* — reflexão curta em texto livre no lugar da confirmação vazia
-9. **A.1** — parser de cartões (fundação de A/C, zero risco)
-10. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
-11. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
+6. **N.1** — fundação: `findLessonUnlocking` sabe se a lição encontrada já é alcançável
+7. **N.2** — `LockedAssetPanel`/`AssetDetail` param de apontar pra lição inacessível (bug real)
+8. **N.3** — `TabBar`/`RequiresUnlock`/`LockedScreen` usam o mesmo destino seguro (preventivo)
+9. **L.1** — espaçamento mínimo entre nós + canvas rolável/arrastável no Mapa da Trilha
+10. **M.1** — trocar o checkbox "já pensei" por CTA direto (sem gate artificial)
+11. **M.2** *(opcional)* — reflexão curta em texto livre no lugar da confirmação vazia
+12. **O.1** — hub de trilhas, nova tela em `/trilha`
+13. **O.2** — `trackPathLayout`, motor de layout do mapa vertical
+14. **O.3** — mapa vertical por trilha, nova tela em `/trilha/mapa/:trackNumber`
+15. **O.4** — retirada do `TrackChart` horizontal e do acordeão antigo
+16. **A.1** — parser de cartões (fundação de A/C, zero risco)
+17. **E.1** — arco narrativo (conteúdo puro, independente, vitrine rápida)
+18. **J.4** — indicador de "faltam N lições pra X" (depois da E.1 de propósito — mesmo campo,
     `unlocksDescription`, que ela acabou de melhorar; ver nota na própria tarefa)
-12. **A.2** — reescrita das 33 lições em cartões
-13. **A.3** — revelação progressiva
-14. **C.1** — glossário inline
-15. **C.2** — elenco recorrente
-16. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
+19. **A.2** — reescrita das 33 lições em cartões
+20. **A.3** — revelação progressiva
+21. **C.1** — glossário inline
+22. **C.2** — elenco recorrente
+23. **H.2** — missão de revisão (independente de B, baixo risco — adiantar em vez de deixar pro
     fim da Fase H)
-17. **F.1** — tokens de cor por trilha
-18. **F.2** — backend: trilhas concluídas no perfil público
-19. **F.3** — `TrackTrophyCase`
-20. **G.1** — backend: evento de trilha concluída
-21. **G.2** — seção de atividade recente em `/amigos`
-22. **I.1** — componente de celebração
-23. **I.2** — portas de gamificação devolvem resultado real
-24. **I.3** — conectar XP/level-up
-25. **I.4** — conectar conquista
-26. **I.5** — conectar marco de streak
-27. **B.1** — schema de opções/resposta correta
-28. **B.2** — backend grava a escolha
-29. **B.3** — widget de escolha real
-30. **B.4** — auditoria e autoria das opções
-31. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
-32. **H.3** — missão de 3 seguidas (depende de B, H.1)
-33. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
+24. **F.2** — backend: trilhas concluídas no perfil público
+25. **F.3** — `TrackTrophyCase`
+26. **G.1** — backend: evento de trilha concluída
+27. **G.2** — seção de atividade recente em `/amigos`
+28. **I.1** — componente de celebração
+29. **I.2** — portas de gamificação devolvem resultado real
+30. **I.3** — conectar XP/level-up
+31. **I.4** — conectar conquista
+32. **I.5** — conectar marco de streak
+33. **B.1** — schema de opções/resposta correta
+34. **B.2** — backend grava a escolha
+35. **B.3** — widget de escolha real
+36. **B.4** — auditoria e autoria das opções
+37. **H.1** — extensão do enum de conquistas (depende de B.1/B.2)
+38. **H.3** — missão de 3 seguidas (depende de B, H.1)
+39. **D.0** — checkpoint de decisão (só depois de A-C **em produção** por um tempo, não
     imediatamente após a sessão de código anterior)
-34. **D.1** — blocos tipados (só se D.0 = seguir)
-35. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
+40. **D.1** — blocos tipados (só se D.0 = seguir)
+41. **D.2** — XP variável por desempenho (só se D.0 = seguir; depende de B)
 
-Passos 1-26 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
-risco e maior volume de valor, por isso vem toda antes de B. Passos 27-32 são a fatia de "aposta
+**F.1 não aparece na lista acima — já está concluída** (tokens de cor por trilha, pré-requisito
+real da O.1/O.3, que já consomem `--color-track-N` direto de `frontend/src/index.css`). **O.1-O.4
+entram logo depois do bloco de correções de UX (J/K/N/L/M)**: mesmo critério de "zero schema, zero
+dependência de fase não concluída" das demais, mas descrita à parte por ser redesenho de tela
+inteira (não correção pontual) — dependência real é só entre si (O.3 depende de O.1/O.2, O.4 depende
+de O.1/O.3 estarem em produção).
+
+Passos 1-32 não tocam nenhuma coluna de dado financeiro nem enum existente — é a fatia de menor
+risco e maior volume de valor, por isso vem toda antes de B. Passos 33-38 são a fatia de "aposta
 real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último de propósito: é o
 único bloco que só faz sentido com uso real do resto já rodando.
 
@@ -1651,4 +1925,6 @@ real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último
 | K | Bloqueio de tela inteira também é parede | 2 | Não |
 | L | Mapa da Trilha: círculos não cabem numa reta | 1 | Não |
 | M | Aposentar o checkbox "já pensei" | 2 (1 opcional) | Não |
-| **Total** | | **35** | |
+| N | Redirecionamento nunca aponta pra lição inacessível | 3 | Não |
+| O | Trilha vira hub + mapa vertical por trilha | 5 | Não |
+| **Total** | | **43** | |
