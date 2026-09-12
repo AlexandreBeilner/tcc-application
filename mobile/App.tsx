@@ -26,12 +26,17 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import Share from 'react-native-share';
 import { WebView, WebViewHandle, WebViewMessageEvent } from 'react-native-webview';
 import {
   buildAuthTokenReinjectionScript,
   buildAuthWatcherScript,
   parseAuthTokenChangedMessage,
 } from './sessionBridge';
+import {
+  buildDownloadInterceptorScript,
+  parseFileDownloadMessage,
+} from './downloadBridge';
 
 // Escopa as credenciais no Keychain/Keystore pra esse app específico — sem
 // isso o react-native-keychain usa um serviço default compartilhado entre
@@ -72,6 +77,13 @@ export function isWithinAppOrigin(url: string): boolean {
     return false;
   }
 }
+
+// Concatenado uma vez só (não depende de nenhum state do componente) — os
+// dois scripts (ponte de sessão, tarefa 2.1, e ponte de download, tarefa
+// 2.3) rodam no mesmo carregamento de página, cada um com seu próprio guard
+// de idempotência (`window.__investimenta*Installed`).
+const INJECTED_JAVASCRIPT =
+  buildAuthWatcherScript() + buildDownloadInterceptorScript();
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -135,25 +147,54 @@ function AppContent() {
   }, []);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
-    const message = parseAuthTokenChangedMessage(event.nativeEvent.data);
-    if (!message) {
+    const authMessage = parseAuthTokenChangedMessage(event.nativeEvent.data);
+    if (authMessage) {
+      if (authMessage.token) {
+        Keychain.setGenericPassword('investimenta', authMessage.token, {
+          service: AUTH_KEYCHAIN_SERVICE,
+        }).catch(() => {});
+      } else {
+        // Token removido do localStorage (logout dentro do SPA) — limpa o
+        // Keychain também, senão a reinjeção do próximo carregamento traria
+        // o token de volta e o logout não "colaria" na próxima abertura do
+        // app.
+        Keychain.resetGenericPassword({
+          service: AUTH_KEYCHAIN_SERVICE,
+        }).catch(() => {});
+      }
+
+      setAuthToken(authMessage.token);
       return;
     }
 
-    if (message.token) {
-      Keychain.setGenericPassword('investimenta', message.token, {
-        service: AUTH_KEYCHAIN_SERVICE,
-      }).catch(() => {});
-    } else {
-      // Token removido do localStorage (logout dentro do SPA) — limpa o
-      // Keychain também, senão a reinjeção do próximo carregamento traria o
-      // token de volta e o logout não "colaria" na próxima abertura do app.
-      Keychain.resetGenericPassword({ service: AUTH_KEYCHAIN_SERVICE }).catch(
-        () => {},
+    const downloadMessage = parseFileDownloadMessage(event.nativeEvent.data);
+    if (downloadMessage) {
+      // Sem escrita manual em disco: `url: data:...;base64,...` deixa o
+      // próprio react-native-share materializar o arquivo (cache interno do
+      // app, `useInternalStorage`) e abrir o share sheet nativo via
+      // ACTION_SEND (Android) — o Share do núcleo do React Native NÃO
+      // suporta anexar arquivo no Android (`url` é ignorado pela
+      // implementação nativa, só `title`/`message` chegam no lado Android;
+      // ver Share.js da própria lib), então share sheet de arquivo exige uma
+      // lib à parte mesmo — achado desta sessão, corrige a sugestão original
+      // do backlog (RN core Share + react-native-fs/blob-util escrevendo em
+      // disco à mão).
+      const filenameWithoutExtension = downloadMessage.filename.replace(
+        /\.[^./]+$/,
+        '',
       );
+      Share.open({
+        url: `data:${downloadMessage.mimeType};base64,${downloadMessage.base64}`,
+        filename: filenameWithoutExtension,
+        type: downloadMessage.mimeType,
+        useInternalStorage: true,
+        failOnCancel: false,
+      }).catch(() => {
+        // Usuário cancelou o share sheet ou nenhum app soube tratar o
+        // arquivo — nada a fazer, o botão de exportar continua disponível
+        // pra tentar de novo.
+      });
     }
-
-    setAuthToken(message.token);
   }, []);
 
   useEffect(() => {
@@ -237,7 +278,7 @@ function AppContent() {
           mixedContentMode="never"
           originWhitelist={ORIGIN_WHITELIST}
           allowsBackForwardNavigationGestures
-          injectedJavaScript={buildAuthWatcherScript()}
+          injectedJavaScript={INJECTED_JAVASCRIPT}
           injectedJavaScriptBeforeContentLoaded={buildAuthTokenReinjectionScript(
             authToken,
           )}

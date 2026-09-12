@@ -351,8 +351,58 @@ funciona desde a 1.2.
 - **Referências:** arquitetura-app-mobile §9 (parte de upload).
 - **Dependências:** 1.2, 2.1 (precisa estar logado pra chegar em Configurações).
 
-### 2.3 · Ponte de download (exportação de dados LGPD)
+### 2.3 · Ponte de download (exportação de dados LGPD) ✅
 
+- **Entregável:** `downloadBridge.ts` novo (mesmo padrão de `sessionBridge.ts`, tarefa 2.1 — funções
+  puras/testáveis, efeito colateral fica em `App.tsx`): `buildDownloadInterceptorScript()` —
+  `injectedJavaScript` que instala um listener de `click` em **fase de captura** no `document`
+  (roda antes de qualquer handler do SPA, inclusive o `link.click()` disparado por
+  `PrivacidadeLgpd.handleExport`), detecta `event.target.closest('a[download]')` com `href`
+  começando em `blob:`, chama `preventDefault`/`stopImmediatePropagation`, busca o próprio blob via
+  `fetch` (mesma origem, já em memória) e converte pra base64 via `FileReader.readAsDataURL`, então
+  `postMessage` pro nativo; `parseFileDownloadMessage(data)` — parser defensivo do payload,
+  mesma disciplina de `parseAuthTokenChangedMessage`. `App.tsx`: os dois scripts injetados (ponte de
+  sessão da 2.1 + ponte de download desta tarefa) concatenados numa constante de módulo
+  `INJECTED_JAVASCRIPT` (cada um com seu próprio guard de idempotência); `handleMessage` agora tenta
+  parsear como mensagem de auth primeiro, senão como mensagem de download.
+  **Desvio deliberado da sugestão original do backlog, com achado desta sessão:** investigado
+  `Share.js` do próprio núcleo do React Native — no Android, `Share.share()` **descarta silenciosamente
+  o campo `url`** antes de chamar o módulo nativo (`newContent = { title, message }`, sem `url`; o
+  comentário da própria lib já documenta `url` como "(iOS)" apenas) — ou seja, a sugestão original
+  ("gravar em disco com react-native-fs/blob-util, abrir `Share.share({ url: 'file://...' })`") não
+  funcionaria no Android de jeito nenhum, o arquivo nunca chegaria no share sheet. Substituído por
+  `react-native-share` (mantido ativamente, última publicação às vésperas desta sessão, com
+  `codegenConfig` próprio — compatível com New Architecture): `Share.open({ url:
+  'data:<mime>;base64,<base64>', filename, type, useInternalStorage: true, failOnCancel: false })`
+  materializa o arquivo sozinho (cache **interno** do app — `useInternalStorage: true`, nenhuma
+  permissão de storage envolvida) e monta um `Intent.ACTION_SEND` de verdade com `FileProvider`
+  próprio da lib (`RNShareFileProvider`, autoridade `<package>.rnshare.fileprovider`, já registrado
+  no manifest da própria AAR — nada pra configurar no app) — abordagem estritamente melhor que
+  gravar à mão com `react-native-fs`/`react-native-blob-util` (que exigiria configurar um
+  `FileProvider` próprio) e que a única alternativa cogitada com `react-native-blob-util` sozinho
+  (`android.actionViewIntent`, `Intent.ACTION_VIEW`) — essa última é "abrir com", não "compartilhar
+  com", e depende de existir um app instalado que trate o mime type como visualização. Nenhuma
+  dependência de `react-native-fs`/`react-native-blob-util` foi instalada. `__mocks__/react-native-
+  share.js` novo (mesma mecânica de mock manual dos outros pacotes nativos) e `downloadBridge.test.ts`
+  (script executado como JS puro contra `document`/`fetch`/`FileReader` simulados, sem emulador,
+  mesma mecânica de `sessionBridge.test.ts`) + testes novos em `App.test.tsx` cobrindo a mensagem de
+  download chamando `Share.open` com os parâmetros certos e um cancelamento/erro do share sheet não
+  derrubando o app — 29 testes no total, `npx tsc --noEmit`, `npm run lint` e `npm test` passam.
+  Validado ponta a ponta no emulador (AVD API 35) contra `docker compose up` + `vite --host
+  0.0.0.0`: Privacidade e LGPD → "Exportar dados" intercepta o clique (nenhum comportamento de
+  browser/tela branca), abre o share sheet nativo do Android (`Intent.ACTION_SEND`, confirmado —
+  ver nota abaixo) e o arquivo `meus-dados.json` foi conferido via `run-as` diretamente no
+  armazenamento privado do app (`cache/Download/meus-dados.json`), com o JSON completo e correto
+  (usuário, progressão, lições, conquistas — dados reais da conta de teste, não vazio/corrompido).
+  **Limitação do ambiente, não do app:** este AVD (imagem mínima, sem Gmail/Drive/WhatsApp/Bluetooth)
+  não tem nenhum app instalado que aceite `ACTION_SEND` de `application/json` — o share sheet abre e
+  mostra "No apps can perform this action", que é a resposta padrão do `ResolverActivity` do Android
+  quando o Intent é válido mas zero apps o resolvem, não um erro do app (mesma classe de limitação
+  que a tarefa 2.2 teria enfrentado com `react-native-blob-util`/`ACTION_VIEW`). Um dispositivo/AVD
+  com qualquer app de compartilhamento real completaria o fluxo sem nenhuma mudança de código — a
+  gravação do arquivo com conteúdo correto e o `Intent.ACTION_SEND` corretamente montado (confirmado
+  via `run-as`) são a evidência disponível de que a ponte funciona ponta a ponta até o limite do que
+  este ambiente consegue exercitar.
 - **Descrição:** o gap mais real e menos óbvio da análise. A tela de Privacidade/LGPD
   (`PrivacidadeLgpd/index.tsx:45-49`, requisito formal RNF04) gera o arquivo de exportação via
   `Blob` + `URL.createObjectURL` + `<a download>` clicado por script — um `<a download>` com URL

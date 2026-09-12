@@ -7,12 +7,14 @@ import ReactTestRenderer from 'react-test-renderer';
 import escapeStringRegexp from 'escape-string-regexp';
 import { View } from 'react-native';
 import Keychain from 'react-native-keychain';
+import Share from 'react-native-share';
 import App, {
   AUTH_KEYCHAIN_SERVICE,
   isWithinAppOrigin,
   ORIGIN_WHITELIST,
 } from '../App';
 import { AUTH_TOKEN_CHANGED_MESSAGE_TYPE } from '../sessionBridge';
+import { FILE_DOWNLOAD_MESSAGE_TYPE } from '../downloadBridge';
 
 // __mocks__/react-native-keychain.js expõe jest.fn() — reset entre testes
 // pra não vazar mockResolvedValueOnce/chamadas de um teste pro outro.
@@ -133,6 +135,65 @@ describe('ponte de sessão (Keychain)', () => {
       service: AUTH_KEYCHAIN_SERVICE,
     });
     expect(Keychain.setGenericPassword).not.toHaveBeenCalled();
+  });
+});
+
+describe('ponte de download (Share)', () => {
+  test('mensagem de download abre o Share nativo com a data URI e o filename sem extensão', async () => {
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+
+    const root = await renderApp();
+
+    const webview = getWebViewInstance(root.root);
+    await ReactTestRenderer.act(async () => {
+      webview.props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: FILE_DOWNLOAD_MESSAGE_TYPE,
+            filename: 'meus-dados.json',
+            mimeType: 'application/json',
+            base64: 'eyJhIjoxfQ==',
+          }),
+        },
+      });
+    });
+
+    expect(Share.open).toHaveBeenCalledWith({
+      url: 'data:application/json;base64,eyJhIjoxfQ==',
+      filename: 'meus-dados',
+      type: 'application/json',
+      useInternalStorage: true,
+      failOnCancel: false,
+    });
+    // Mensagem de download não é uma mudança de token — não pode mexer no
+    // Keychain (só a ponte de sessão, tarefa 2.1, faz isso).
+    expect(Keychain.setGenericPassword).not.toHaveBeenCalled();
+    expect(Keychain.resetGenericPassword).not.toHaveBeenCalled();
+  });
+
+  test('cancelamento/erro do share sheet não derruba o app', async () => {
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+    (Share.open as jest.Mock).mockRejectedValueOnce(new Error('User did not share'));
+
+    const root = await renderApp();
+    const webview = getWebViewInstance(root.root);
+
+    await ReactTestRenderer.act(async () => {
+      webview.props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: FILE_DOWNLOAD_MESSAGE_TYPE,
+            filename: 'meus-dados.json',
+            mimeType: 'application/json',
+            base64: 'eyJhIjoxfQ==',
+          }),
+        },
+      });
+      // Deixa a promise rejeitada do Share.open resolver dentro do act.
+      await Promise.resolve();
+    });
+
+    expect(Share.open).toHaveBeenCalled();
   });
 });
 
