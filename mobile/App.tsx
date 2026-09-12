@@ -29,21 +29,36 @@ import { WebView, WebViewHandle } from 'react-native-webview';
 
 const APP_WEB_URL = Config.APP_WEB_URL as string;
 
-// originWhitelist entende cada entrada como regex — escapa os caracteres
-// especiais da URL (o ":" e "." de "http://10.0.2.2:5173", por exemplo) antes
-// de anexar o coringa que libera qualquer caminho dentro da mesma origem.
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-const ORIGIN_WHITELIST = [`${escapeRegExp(APP_WEB_URL)}.*`];
+// react-native-webview NÃO aceita uma regex pronta aqui: cada entrada é uma
+// string estilo wildcard (mesmo formato do defaultOriginWhitelist da lib,
+// ['http://*', 'https://*']) que a própria lib escapa por inteiro
+// (escape-string-regexp) antes de expandir só o "*" literal pra ".*"
+// (WebViewShared.tsx, originWhitelistToRegex). Passar uma regex já escapada
+// por nós (como antes: `${escapeRegExp(APP_WEB_URL)}.*`) causa duplo escape —
+// o "\." que nós inserimos vira "\\." depois de passar pelo escape da lib, e
+// o resultado não bate nem com a própria origem, derrubando toda navegação
+// top-level (inclusive same-origin) pro browser externo via Linking.openURL,
+// silenciosamente, porque isso só afeta navegação de página real, nunca a
+// navegação client-side (pushState) do SPA usada na validação manual das
+// tarefas 1.2/1.3. Bug encontrado na revisão desta fase — corrigido passando
+// a URL crua com um "*" literal, no mesmo formato que a lib espera.
+export const ORIGIN_WHITELIST = [`${APP_WEB_URL}*`];
 
 // Só a origem do frontend entra aqui: chamada de API (fetch/XHR pro gateway)
 // não passa por onShouldStartLoadWithRequest, é o CORS do próprio navegador
 // embutido no WebView que resolve isso — este filtro é só pra navegação de
 // página (troca de URL top-level), não pra requisição de dados.
-function isWithinAppOrigin(url: string): boolean {
-  return url.startsWith(APP_WEB_URL);
+//
+// Comparação de origem exata (scheme+host+port) via URL.origin, não
+// "startsWith" — um "startsWith" seria enganável por um host tipo
+// "https://app.investimenta.com.br.evil.com", que também começa com a
+// string da origem legítima como prefixo literal.
+export function isWithinAppOrigin(url: string): boolean {
+  try {
+    return new URL(url).origin === new URL(APP_WEB_URL).origin;
+  } catch {
+    return false;
+  }
 }
 
 function App() {

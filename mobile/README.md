@@ -1,5 +1,27 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+# Casca do Investimenta
+
+App RN puro (sem Expo) que embrulha o `frontend/` já existente num `WebView` —
+contexto completo em `.claude/arquitetura-app-mobile-react-native-webview.md`
+e `.claude/backlog-app-mobile.md`.
+
+- **Variantes de build**: `.env.debug` aponta pro dev server do Vite via
+  `10.0.2.2` (alias do emulador Android pro loopback da máquina host — nunca
+  `localhost`, que resolveria pro próprio emulador); `.env.release` é um
+  placeholder de URL de produção até a decisão de hosting ser tomada.
+  Mapeamento em `android/app/build.gradle` (`react-native-config`).
+- **Emulador validado neste projeto**: AVD `Pixel_Test_API35` (API 35,
+  x86_64).
+- **Ambiente headless** (sem terminal pra CLI abrir sozinha, ex. sessão
+  remota/CI local): `npx react-native run-android` builda e instala, mas o
+  Metro precisa ser iniciado manualmente em background antes
+  (`npx react-native start`), senão o app trava em "Unable to load script."
+  assim que abre.
+- Rodar contra o backend local: `docker compose up` na raiz do monorepo
+  (`FRONTEND_URL=http://10.0.2.2:5173` pro CORS bater com a origem que o
+  WebView apresenta) + `vite --host 0.0.0.0` em `frontend/`.
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
