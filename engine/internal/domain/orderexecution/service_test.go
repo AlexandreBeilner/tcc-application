@@ -29,7 +29,12 @@ func (f *fakeRepository) Persist(_ context.Context, req Request, outcome Outcome
 }
 
 func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
-	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000}}
+	// Sandbox: true só pra exercitar um cenário de execução garantida sem
+	// precisar montar liquidez real (tarefa A.2 — Mercado Ao Vivo não tem
+	// mais preenchimento sintético; este teste valida a orquestração de
+	// Service.Submit, não a mecânica de liquidez em si, que já tem
+	// cobertura própria em orderexecution_test.go).
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true}}
 	svc := NewService(repo)
 
 	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
@@ -49,7 +54,7 @@ func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
 }
 
 func TestService_Submit_OrdemRejeitadaNaoPersisteNada(t *testing.T) {
-	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1}}
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1, Sandbox: true}}
 	svc := NewService(repo)
 
 	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}

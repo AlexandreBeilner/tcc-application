@@ -2,31 +2,37 @@
 // estado real persistido do Mercado Ao Vivo — reconstrói o book de um
 // ativo a partir das ordens pendentes já gravadas (replay determinístico,
 // mesmo raciocínio de path-dependence já usado pelo Temporizador, tarefa
-// 3.11) e decide o que executa, o que fica pendurado e, pra ordem a
-// mercado, o que precisa de liquidez sintética.
+// 3.11) e decide o que executa e o que fica pendurado.
 //
-// Decisão de modelagem confirmada com o usuário em 2026-08-22 (backlog
-// 3.12, não estava em nenhum dos três documentos de referência): o restante
-// do app (tela 4.7 "Confirmação de Ordem", ausência de qualquer tela de
-// profundidade de book ou de gerenciamento de ordem pendente no inventário)
-// já assume execução imediata e garantida. Por isso ordem a mercado sempre
-// executa por completo — se o book real (ordens de outros usuários,
-// reconstruídas via replay) não tiver profundidade suficiente do lado
-// oposto, o "mercado" em si age como contraparte implícita e ilimitada, ao
-// preço corrente da tabela de cotações (3.11). Ordem limitada nunca recebe
-// esse preenchimento sintético — cruza só contra liquidez real (a de
-// outros usuários) e, se sobrar quantidade, fica pendurada no book,
-// exatamente como orderbook.Book já testa desde a 3.2. Essa escolha não
-// tranca a evolução futura pra um book mais profundo: a liquidez sintética
-// é só um passo a mais depois do matching real, não uma substituição dele —
-// quando o produto quiser depender só de contrapartes reais, basta parar de
-// injetar esse Fill sintético.
+// Reversão de modelagem (tarefa A.2, backlog-motor-mercado-realista,
+// proposta 2.1) da decisão de 2026-08-22 (backlog 3.12): pro Mercado Ao
+// Vivo, ordem a mercado sem profundidade suficiente do lado oposto do book
+// real deixava de ser completada por liquidez sintética — o "mercado"
+// agindo como contraparte implícita e ilimitada ao preço de referência.
+// Isso foi revertido de propósito: bots de liquidez real (Fase B/C deste
+// backlog) são quem deve prover profundidade ao book, não uma contraparte
+// sintética. Agora, pro Mercado Ao Vivo, ordem a mercado cruza só contra
+// liquidez real (ordens de outros usuários, reconstruídas via replay) e,
+// se sobrar quantidade sem contraparte, essa sobra simplesmente não
+// executa — sem erro, sem preenchimento sintético. Diferente de ordem
+// limitada residual, essa sobra também não fica pendurada no book (RF04,
+// TCC cap. 2.3.1: ordem a mercado nunca fica sem preço) — é só quantidade
+// que não foi possível executar agora. A tela de Confirmação de Ordem
+// (4.7) comunica isso ao usuário via Outcome.RemainingQuantity.
+//
+// Ativo sandbox (RF12/RNF08, tarefa 4.11) é a exceção deliberada — proposta
+// motor-mercado-realista 2.7 confirma que o sandbox fica **fora do escopo**
+// deste redesenho (100% roteirizado, sem bot nenhum, pra preservar a
+// garantia pedagógica de execução idêntica pra todo usuário). Por isso
+// Context.Sandbox mantém viva a liquidez sintética (MarketCounterparty)
+// só pra esse caso — ver Execute.
 package orderexecution
 
 import (
 	"errors"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/position"
 )
 
 var (
@@ -40,11 +46,17 @@ var (
 	// passo), mas uma ordem não tem como ser processada sem saldo pra
 	// validar.
 	ErrAccountNotFound = errors.New("conta não encontrada para o usuário da ordem")
+	// ErrFloatExceeded é o mesmo erro de position.ValidateFloatCeiling
+	// (float finito, tarefa A.3), redeclarado aqui pra manter o padrão de
+	// que quem chama Execute (e o handler HTTP) só precisa importar
+	// orderexecution pra checar qualquer erro devolvido.
+	ErrFloatExceeded = position.ErrFloatExceeded
 )
 
 // MarketCounterparty é o UserID sentinela usado num Fill contra liquidez
-// sintética — nunca colide com um UserID real porque contas são
-// identificadas por UUID (nunca string vazia).
+// sintética (só pra ativo sandbox, Context.Sandbox — ver doc do pacote) —
+// nunca colide com um UserID real porque contas são identificadas por UUID
+// (nunca string vazia).
 const MarketCounterparty = ""
 
 // RestingOrder é uma ordem já persistida em order_book aguardando
@@ -76,12 +88,30 @@ type Context struct {
 	Resting              []RestingOrder
 	IncomingUserBalance  float64
 	IncomingUserPosition int
+	// Sandbox indica que o ativo é `is_sandbox = true` (RF12/RNF08, tarefa
+	// 4.11) — único caso em que ordem a mercado ainda recebe preenchimento
+	// sintético ao preço de referência (ver doc do pacote, tarefa A.2).
+	// Mercado Ao Vivo nunca marca isso.
+	Sandbox bool
+	// OutstandingShares é o float finito do ativo (tarefa A.3,
+	// variable_income_assets.outstanding_shares) — nil quando o ativo não
+	// tem esse teto configurado (ex: sandbox, que nasce sempre com esse
+	// campo nulo — ver seedSandboxEquity). Quando presente, Execute valida
+	// que a soma de todas as posições nunca o ultrapassa; quando nil, a
+	// validação de float é pulada por completo.
+	OutstandingShares *int64
+	// TotalHeldExcludingIncoming é a soma das posições de todos os outros
+	// detentores reais do ativo (usuários + bots), sem contar a posição do
+	// usuário da ordem recebida (essa já vem em IncomingUserPosition) — só
+	// precisa vir preenchido quando OutstandingShares não é nil.
+	TotalHeldExcludingIncoming int64
 }
 
-// Fill é uma execução (real ou sintética) resultante do processamento da
-// ordem recebida — granularidade suficiente pra gravar um evento e
-// atualizar accounts/positions dos dois lados. CounterpartyOrderID fica
-// vazio pra liquidez sintética (não existe uma ordem real do outro lado).
+// Fill é uma execução (real ou sintética, só possível pro caso sandbox)
+// resultante do processamento da ordem recebida — granularidade suficiente
+// pra gravar um evento e atualizar accounts/positions dos dois lados.
+// CounterpartyOrderID fica vazio pra liquidez sintética (não existe uma
+// ordem real do outro lado).
 type Fill struct {
 	CounterpartyOrderID string
 	CounterpartyUserID  string
@@ -90,13 +120,18 @@ type Fill struct {
 }
 
 // IsSynthetic indica se o Fill veio de liquidez sintética (o "mercado" como
-// contraparte), não de uma ordem real de outro usuário.
+// contraparte, só possível pra ativo sandbox — Context.Sandbox), não de uma
+// ordem real de outro usuário.
 func (f Fill) IsSynthetic() bool {
 	return f.CounterpartyUserID == MarketCounterparty
 }
 
-// Outcome é o resultado de processar a ordem recebida contra o book
-// reconstruído + liquidez sintética de referência (pra ordem a mercado).
+// Outcome é o resultado de processar a ordem recebida contra o book real
+// reconstruído (mais liquidez sintética, só pro caso sandbox) —
+// RemainingQuantity é a parte que não achou contraparte real e não é
+// sandbox (só possível pra ordem a mercado do Mercado Ao Vivo; ordem
+// limitada residual sempre fica pendurada no book em vez de aparecer
+// aqui).
 type Outcome struct {
 	Fills             []Fill
 	FilledQuantity    int
@@ -104,12 +139,13 @@ type Outcome struct {
 }
 
 // Execute reconstrói o book do ativo a partir de Context.Resting (replay,
-// em ordem de chegada), submete a ordem recebida contra ele e, se for
-// ordem a mercado e ainda sobrar quantidade sem contraparte real,
-// completa com liquidez sintética ao preço de referência (ver doc do
-// pacote). Valida saldo (compra) ou posição (venda) do usuário da ordem
-// recebida contra o resultado já calculado — só depois disso o chamador
-// deve persistir qualquer coisa.
+// em ordem de chegada) e submete a ordem recebida contra ele. Pra ordem a
+// mercado de ativo sandbox (Context.Sandbox) que ainda sobra quantidade
+// sem contraparte real, completa com liquidez sintética ao preço de
+// referência (ver doc do pacote) — Mercado Ao Vivo nunca recebe esse
+// preenchimento, a sobra só não executa. Valida saldo (compra) ou posição
+// (venda) do usuário da ordem recebida contra o resultado já calculado —
+// só depois disso o chamador deve persistir qualquer coisa.
 func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 	if incoming.Quantity <= 0 {
 		return Outcome{}, ErrInvalidQuantity
@@ -144,7 +180,7 @@ func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 	}
 
 	remaining := incoming.Quantity - filled
-	if incoming.Type == orderbook.TypeMarket && remaining > 0 {
+	if incoming.Type == orderbook.TypeMarket && remaining > 0 && ctx.Sandbox {
 		fills = append(fills, Fill{CounterpartyUserID: MarketCounterparty, Price: ctx.ReferencePrice, Quantity: remaining})
 		filled += remaining
 		remaining = 0
@@ -153,8 +189,32 @@ func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 	if err := validateFunds(incoming, fills, ctx); err != nil {
 		return Outcome{}, err
 	}
+	if err := validateFloat(ctx); err != nil {
+		return Outcome{}, err
+	}
 
 	return Outcome{Fills: fills, FilledQuantity: filled, RemainingQuantity: remaining}, nil
+}
+
+// validateFloat garante o float finito do ativo (tarefa A.3): a soma das
+// posições de todos os detentores (TotalHeldExcludingIncoming +
+// IncomingUserPosition, o snapshot que Repository.LoadContext leu antes de
+// chamar Execute) nunca pode ultrapassar OutstandingShares. Pulada por
+// completo quando ctx.OutstandingShares é nil (ativo sem esse teto, ex:
+// sandbox). Basta validar o total pré-negociação, não o pós: Execute só
+// transfere quantidade já existente entre o usuário da ordem recebida e
+// uma contraparte real já contabilizada em TotalHeldExcludingIncoming
+// (nunca cria posição do nada — a liquidez sintética de sandbox é a única
+// exceção, e sandbox nunca marca OutstandingShares), então a soma total
+// nunca muda numa ordem normal; essa checagem só existe como proteção
+// contra uma distribuição inicial malformada (Fase B), não como regra que
+// trava negociação legítima.
+func validateFloat(ctx Context) error {
+	if ctx.OutstandingShares == nil {
+		return nil
+	}
+	totalHeld := ctx.TotalHeldExcludingIncoming + int64(ctx.IncomingUserPosition)
+	return position.ValidateFloatCeiling(totalHeld, *ctx.OutstandingShares)
 }
 
 func validateFunds(incoming orderbook.Order, fills []Fill, ctx Context) error {
@@ -168,7 +228,11 @@ func validateFunds(incoming orderbook.Order, fills []Fill, ctx Context) error {
 			return ErrInsufficientBalance
 		}
 	case orderbook.SideSell:
-		if incoming.Quantity > ctx.IncomingUserPosition {
+		var totalSold int
+		for _, f := range fills {
+			totalSold += f.Quantity
+		}
+		if totalSold > ctx.IncomingUserPosition {
 			return ErrInsufficientPosition
 		}
 	}

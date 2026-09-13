@@ -28,6 +28,7 @@ export type {
 
 const SIDE_LABEL = { buy: 'Comprar', sell: 'Vender' } as const
 const VERB_LABEL = { buy: 'comprou', sell: 'vendeu' } as const
+const PARTICIPLE_LABEL = { buy: 'comprada', sell: 'vendida' } as const
 
 // Confirmação de ordem (tela 4.7, âncora — mockup vivo em identidade-
 // visual-padroes.md §0/§7) — overlay (bottom sheet mobile/tablet, modal
@@ -222,7 +223,20 @@ function successMessage(
     redemptionResult: ReturnType<typeof useRedeemFixedIncomeMutation>['data'],
 ): string {
     if (draft.kind === 'order' && orderResult) {
-        return `Você ${VERB_LABEL[draft.side]} ${orderResult.filled_quantity} ${draft.ticker}.`
+        const { filled_quantity: filled, remaining_quantity: remaining } = orderResult
+        // Tarefa A.2 (backlog-motor-mercado-realista): ordem a mercado do
+        // Mercado Ao Vivo pode não achar contraparte real suficiente — sem
+        // preenchimento sintético, `remaining_quantity` reporta a sobra não
+        // executada. Mensagem clara em vez de só citar `filled_quantity`
+        // (que já refletia a quantidade real desde antes desta tarefa, mas
+        // sem explicar por que ficou menor que o pedido).
+        if (remaining > 0 && filled === 0) {
+            return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora — nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
+        }
+        if (remaining > 0) {
+            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker} — o restante não achou liquidez suficiente e não foi executado.`
+        }
+        return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}.`
     }
     if (draft.kind === 'fixed_income_purchase' && purchaseResult) {
         return `Você investiu ${formatCurrency(draft.amount)} em ${draft.ticker}.`

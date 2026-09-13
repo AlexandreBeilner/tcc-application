@@ -81,3 +81,26 @@ func TestApplySell(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateFloatCeiling(t *testing.T) {
+	tests := []struct {
+		name              string
+		totalHeld         int64
+		outstandingShares int64
+		wantErr           error
+	}{
+		{name: "soma abaixo do teto é válida", totalHeld: 900_000, outstandingShares: 1_000_000, wantErr: nil},
+		{name: "soma exatamente no teto é válida", totalHeld: 1_000_000, outstandingShares: 1_000_000, wantErr: nil},
+		{name: "soma acima do teto é rejeitada", totalHeld: 1_000_001, outstandingShares: 1_000_000, wantErr: ErrFloatExceeded},
+		{name: "float zero (nada distribuído ainda) é válido", totalHeld: 0, outstandingShares: 1_000_000, wantErr: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFloatCeiling(tt.totalHeld, tt.outstandingShares)
+			if err != tt.wantErr {
+				t.Errorf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}

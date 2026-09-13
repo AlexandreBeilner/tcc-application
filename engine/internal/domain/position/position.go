@@ -15,6 +15,12 @@ import "errors"
 // borda de negócio (essa já aconteceu antes).
 var ErrInsufficientQuantity = errors.New("quantidade em posição insuficiente para a venda")
 
+// ErrFloatExceeded é devolvido por ValidateFloatCeiling quando a soma das
+// posições de todos os detentores de um ativo ultrapassaria
+// outstanding_shares — o float finito (tarefa A.3, proposta
+// motor-mercado-realista 2.2).
+var ErrFloatExceeded = errors.New("soma das posições excede outstanding_shares do ativo")
+
 // Position é a posição de um usuário num único ativo.
 type Position struct {
 	Quantity     int
@@ -39,6 +45,21 @@ func ApplySell(current Position, quantity int) (Position, error) {
 		return Position{}, ErrInsufficientQuantity
 	}
 	return Position{Quantity: current.Quantity - quantity, AveragePrice: current.AveragePrice}, nil
+}
+
+// ValidateFloatCeiling confirma que a soma das posições de todos os
+// detentores de um ativo (usuários + bots) nunca excede outstandingShares —
+// float finito (tarefa A.3). Uma ordem normal nunca deveria violar isso:
+// orderexecution.Execute só transfere quantidade já existente de um
+// detentor pra outro (nunca cria posição do nada, exceto liquidez sintética
+// de sandbox, fora do escopo desse teto), então essa validação só pode
+// falhar por uma distribuição inicial malformada (Fase B) — é proteção de
+// invariante, não regra de negócio que trava negociação legítima.
+func ValidateFloatCeiling(totalHeld, outstandingShares int64) error {
+	if totalHeld > outstandingShares {
+		return ErrFloatExceeded
+	}
+	return nil
 }
 
 // Record é uma Position enriquecida com a identificação do ativo (ticker,

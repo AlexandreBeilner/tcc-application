@@ -5,8 +5,12 @@ precificação de Renda Variável — Ações, FIIs, ETFs —, eventos macro e d
 disparado pelo diagnóstico em `tmp/relatorio-logica-mercado.md`). Cobre a substituição do modelo
 estatístico atual (GBM + multiplicadores de evento) por um motor de negociação real orientado a
 book de ofertas e bots comportamentais (Fases A-H), a ligação causal Selic↔IPCA (Fase I), a
-introdução de tipos de ação ON/PN (Fase J), a calibração de fundamentos por setor (Fase K) e as
-correções cirúrgicas de Renda Fixa que não dependem do redesenho de bots (Fase L).
+introdução de tipos de ação ON/PN (Fase J), a calibração de fundamentos por setor (Fase K), as
+correções cirúrgicas de Renda Fixa que não dependem do redesenho de bots (Fase L), tornar Selic e
+IPCA visíveis pro usuário — histórico persistido, API, tela e lições novas (Fase M) — e um painel
+admin pra operar os bots de liquidez (Fase N). Fases M e N nasceram de um pedido do autor numa
+sessão posterior (2026-09-13) que revisou este backlog antes de começar a execução — não fazem
+parte da proposta original.
 
 **Como usar este arquivo** — mesma disciplina dos outros dois backlogs do projeto:
 
@@ -39,7 +43,17 @@ correções cirúrgicas de Renda Fixa que não dependem do redesenho de bots (Fa
    diferenciados por classe de ativo). Nenhuma tarefa abaixo toca essas regras; se alguma parecer
    que precisa, pare e confirme antes.
 8. **Fases I, K e L são independentes do núcleo de bots (A-H)** — podem ser feitas a qualquer
-   momento, inclusive em paralelo, sem bloquear nem serem bloqueadas pelo resto.
+   momento, inclusive em paralelo, sem bloquear nem serem bloqueadas pelo resto. **Fase M
+   (indicadores macro visíveis) e Fase N (painel admin de bots) também são independentes do núcleo
+   A-H**, mas Fase M tem dependência própria da Fase I (ver nota da M.5) e Fase N depende de A.4/C
+   (ver nota da Fase N) — não são "independentes de tudo" como I/K/L, só do núcleo de bots.
+9. **Interação com o backlog principal, segunda ocorrência**: a tarefa `7.1.3`
+   (`backlog-plataforma-investimentos.md`, já concluída) autorou o conteúdo real da lição 2.3
+   (Nomenclatura de tickers) usando `VALR3`/`BNDD4` como exemplo de ON/PN — mas hoje são **duas
+   empresas diferentes**, não um par de verdade da mesma empresa (esse par só nasce na Fase J
+   deste backlog). A tarefa `J.5` abaixo revisita esse conteúdo já escrito pra refletir o par real
+   assim que ele existir — mesmo padrão da nota 6 (não é preciso coordenar ordem entre backlogs,
+   só conferir se a outra já rodou antes de duplicar trabalho).
 
 ---
 
@@ -48,7 +62,7 @@ correções cirúrgicas de Renda Fixa que não dependem do redesenho de bots (Fa
 Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-alto: mexe em
 `orderexecution.go`, peça central e já testada do motor.
 
-### A.1 · Conta de bot (`is_bot`) e exclusão de ranking/social
+### A.1 · Conta de bot (`is_bot`) e exclusão de ranking/social ✅
 
 - **Descrição:** hoje só existe `catalog.Asset.IsSandbox` como flag de "conta não-real". Precisa
   de um equivalente pro lado de conta/usuário — bots são contas reais em `accounts`/`positions`
@@ -61,8 +75,28 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   driven cobrindo pelo menos um bot misturado com usuários reais nos três casos.
 - **Referências:** proposta 2.3.
 - **Dependências:** nenhuma.
+- **Entregável:** decisão da sessão — `is_bot` vive direto em `accounts` (migration
+  `000010_bot_accounts`), não numa tabela auxiliar, já que A.4 (próxima tarefa) precisa do
+  `is_active` na mesma tabela. Bot deliberadamente **não** ganha nenhuma linha em `users` (banco
+  gamification) — só passa pelo fluxo real de cadastro (`POST /accounts`) uma conta humana; bot
+  nasce direto no motor (via `account.NewBot`, tarefa B.2 consome). Isso garante a exclusão de
+  ranking/social **por construção**: `GetRankingUseCase`, `SearchUsersUseCase` e
+  `SendFriendRequestUseCase` leem só `users`, nunca `accounts`, então nunca enxergam um bot — sem
+  precisar de nenhum filtro `WHERE NOT is_bot` espalhado pelo backend. `account.Account` ganhou o
+  campo `IsBot` e o construtor `NewBot(userID, initialBalance)` (valida `userID`/saldo, mesmo
+  padrão de construtor validado já usado em `catalog`/`macroevent`/`fixedincome`); `New` (conta
+  humana) continua com `InitialBalance` fixo (RNF06 intocado). `AccountRepository.Create`/
+  `FindByUserID` persistem/leem a coluna nova. Testes novos: `account_test.go` (`TestNewBot`
+  table-driven — válido, `userID` vazio, saldo negativo) + 3 testes de regressão no backend
+  (`getRanking.test.ts`, `searchUsers.test.ts`, `sendFriendRequest.test.ts`) documentando e
+  travando essa garantia com um bot "misturado" a usuários reais nos leitores que a arquitetura
+  permite (friend graph, level reader, net worth) sem nunca vazar pro resultado. `go build`/
+  `go test ./...`/`golangci-lint run` (Docker, 0 issues) e `npm run lint`/`build`/`test` (565
+  testes) verdes; `docker compose up` confirmou a migration aplicando sem erro sobre o volume
+  real (149 contas humanas pré-existentes, todas com `is_bot = false` por default) e
+  `POST /accounts` continuando a criar conta humana normalmente.
 
-### A.2 · Reverter liquidez sintética em `orderexecution`
+### A.2 · Reverter liquidez sintética em `orderexecution` ✅
 
 - **Descrição:** remove o preenchimento por contraparte ilimitada (`MarketCounterparty`,
   `orderexecution.go:12-23`, decisão de 2026-08-22 revertida — ver nota 5 da seção "Como usar este
@@ -76,8 +110,33 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
 - **Referências:** proposta 2.1.
 - **Dependências:** nenhuma (mas fica sem sentido prático até a Fase B/C popular o book com bots
   — pode ser feita antes, só não terá liquidez nenhuma no ambiente de teste até lá).
+- **Entregável:** achado importante desta sessão que não estava no texto original da tarefa —
+  **sandbox é exceção deliberada, não escopo desta reversão** (proposta motor-mercado-realista
+  2.7: sandbox fica 100% fora do redesenho de bots, sem isso o RF12/RNF08 quebraria por completo,
+  já que o ativo sandbox nunca teve — nem vai ter — contraparte real nenhuma). `orderexecution.
+  Context` ganhou o campo `Sandbox bool`; `Execute` só injeta o Fill sintético
+  (`MarketCounterparty`/`IsSynthetic`, ambos mantidos, não removidos) quando `Sandbox = true` —
+  Mercado Ao Vivo (`Sandbox = false`) executa só a parte real e reporta a sobra em
+  `Outcome.RemainingQuantity`, sem erro. `OrderExecutionRepository.referencePrice` passou a
+  devolver também `isSandbox` (já calculava isso internamente pra escolher a fonte do preço, só
+  não repassava pro chamador). **Bug real de corrupção de replay encontrado e corrigido nesta
+  sessão, fora do texto original:** o `status` de uma ordem `market` sem preenchimento total ainda
+  precisa ser gravado como `pending`/`partially_filled` em `order_book` (auditoria — reflete
+  quantidade pedida vs. preenchida), mas `loadRestingOrders` lia esse status sem filtrar por
+  `type` — sem correção, essa linha voltaria a ser lida como liquidez real pendurada na próxima
+  ordem desse ativo (RF04 proíbe ordem `market` de ficar pendurada). Corrigido com
+  `AND type = 'limit'` na query. Confirmado ao vivo via `docker compose up`: ordem `market` de
+  100 unidades em `VALR3` (Mercado Ao Vivo, sem nenhum bot/float ainda — Fase B/C) devolveu
+  `filled_quantity: 0`/`remaining_quantity: 10`, sem debitar saldo nem criar posição, e a query de
+  `loadRestingOrders` (rodada manualmente) confirmou que essa linha nunca aparece; a mesma ordem
+  em `SAND3` (sandbox) preencheu 100% via liquidez sintética como sempre (`synthetic: true`),
+  confirmando a regressão zero pro RF12. `OrderConfirmationDialog.successMessage` (frontend)
+  ganhou 2 mensagens novas (execução parcial / execução zero) usando `remaining_quantity`, sem
+  mudar o estado de sucesso do diálogo (task pedia mensagem clara, não um novo estado de UI).
+  `go build`/`go test ./...`/`golangci-lint` (Docker, 0 issues), `npm test`/`tsc -b`/`oxlint`/
+  `prettier`/`npm run build` (frontend, 665 testes) verdes.
 
-### A.3 · Float finito (`outstanding_shares` como teto real)
+### A.3 · Float finito (`outstanding_shares` como teto real) ✅
 
 - **Descrição:** hoje `outstanding_shares` só é denominador de LPA/VPA. Vira um teto real — a
   soma de todas as posições de todos os detentores (usuários + bots) de um ativo nunca pode
@@ -91,6 +150,87 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   confirmando que LPA/VPA continuam batendo (não é uma mudança de fórmula, só de garantia).
 - **Referências:** proposta 2.2.
 - **Dependências:** nenhuma.
+- **Entregável:** `position.ValidateFloatCeiling(totalHeld, outstandingShares int64) error` (nova,
+  `internal/domain/position/position.go`) — função pura que rejeita (`ErrFloatExceeded`) qualquer
+  soma acima do teto; `orderexecution.Context` ganhou `OutstandingShares *int64` (nil quando o
+  ativo não tem esse teto, ex: sandbox — `seedSandboxEquity` já grava `outstanding_shares = NULL`
+  de propósito) e `TotalHeldExcludingIncoming int64` (soma das posições de todos os outros
+  detentores reais, excluindo o usuário da ordem recebida); `Execute` valida, via `validateFloat`
+  (nova função interna), que `TotalHeldExcludingIncoming + IncomingUserPosition` — o snapshot
+  **pré-negociação** que `Repository.LoadContext` já lê — nunca excede o teto. Decisão de design
+  desta sessão: a checagem usa o total pré-trade, não um total pós-trade recalculado a partir do
+  fill — como toda transferência real é zero-sum (sai de um detentor já contabilizado em
+  `TotalHeldExcludingIncoming`, entra no usuário da ordem), os dois totais são sempre idênticos;
+  calcular o pós-trade a partir do fill somado ao pré-trade contava a mesma quantidade duas vezes
+  (bug pego pelo teste de sequência antes de fechar a tarefa). `orderexecution.ErrFloatExceeded`
+  (alias de `position.ErrFloatExceeded`) mantém o padrão de handler HTTP só importar
+  `orderexecution`; sem tratamento especial em `writeOrderExecutionError` — cai no `500` genérico
+  de propósito (violação sinaliza corrupção de estado, não rejeição de negócio como saldo/posição
+  insuficiente, que são `422`). `OrderExecutionRepository.LoadContext` (infra) ganhou `floatCeiling`
+  — lê `variable_income_assets.outstanding_shares` (nulo pula a segunda query) e
+  `SUM(quantity) FROM positions WHERE asset_id = $1 AND user_id != $2`. Testes novos:
+  `TestValidateFloatCeiling` (table-driven, `position_test.go`); `TestExecute_FloatFinito`
+  (table-driven: compra/venda que preservam o teto, estado corrompido rejeitado, sandbox sem teto
+  ignora a checagem) e `TestExecute_FloatFinito_PreservaInvarianteAoLongoDeSequencia` (simula 3
+  contas com distribuição inicial somando exatamente `outstandingShares`, roda 3 trades em
+  sequência atualizando holdings a cada passo, confirma que a soma nunca excede — e na prática
+  nunca muda — o teto), ambos em `orderexecution_test.go`. Regressão de `fundamentals.LPA`/`VPA`
+  confirmada sem nenhuma mudança de código (`fundamentals.go`/`indicators.go` intocados — a tarefa
+  não altera a fórmula, só adiciona o teto em outro lugar). `go build`/`go test ./...`/
+  `golangci-lint run` (Docker, 0 issues) verdes. Validado ao vivo via `docker compose up`: conta
+  real criada via `POST /accounts`, posição de um bot forçada via SQL direto pra ficar 1 unidade
+  acima do teto de `VALR3` (500.000.000) — `POST /orders` de compra devolveu `500` sem debitar
+  saldo nem criar posição; corrigido o estado pra ficar exatamente no teto, a mesma ordem passou a
+  executar normalmente (`200`, fill real contra a ordem do bot). Estado de teste revertido
+  (`positions`/`order_book` limpos); as duas contas de teste ficaram no banco porque
+  `market_events` é append-only por trigger (não dá pra apagar o evento de abertura de conta) —
+  resíduo inofensivo, sem posição nem saldo relevante.
+
+### A.4 · Flag `is_active` no bot (interruptor operacional, independente de `is_bot`) ✅
+
+- **Descrição:** pedido do autor além do que a proposta original cobria — precisa de um jeito de
+  desligar um bot específico sem apagá-lo, pro caso de um bot individual sair "fora da curva"
+  (ex: convergindo pra um preço absurdo, esvaziando o próprio caixa) e for preciso isolar o efeito
+  dele pra entender o que aconteceu, sem perder histórico/posição nem mexer nos demais bots. Campo
+  novo `is_active boolean not null default true` na mesma tabela/migration de `is_bot` (A.1) —
+  **não é o mesmo conceito**: `is_bot` é identidade (essa conta é um bot, nunca deixa de ser),
+  `is_active` é controle operacional (esse bot específico está participando das rodadas agora ou
+  não, reversível a qualquer momento). Bot inativo é pulado inteiro na coleta de decisões da
+  rodada de negociação (D.2) — não gera ordem nenhuma, não é considerado profundidade de book —,
+  mas mantém posição/caixa acumulados intocados (não zera, não liquida, não redistribui o float
+  que ele carrega; só para de negociar até reativado). `bot.InitialAllocation` (B.1) não precisa
+  saber de `is_active` — todo bot nasce ativo no seed.
+- **Critérios de aceite:** teste confirmando que um bot com `is_active = false` nunca aparece na
+  lista de bots elegíveis pra decisão de uma rodada (D.2), mesmo com escopo/caixa/posição que o
+  qualificariam; teste confirmando que desativar um bot não altera posição/caixa dele; teste
+  confirmando que reativar volta a incluí-lo normalmente na rodada seguinte.
+- **Referências:** pedido do autor nesta sessão (2026-09-13), não coberto pela proposta original.
+- **Dependências:** A.1 (mesma tabela/migration).
+- **Entregável:** `is_active boolean NOT NULL DEFAULT true` em `accounts` (migration
+  `000011_bot_active_flag`, mesma tabela de `is_bot`/A.1, migration separada porque A.1 já estava
+  fechada e mergeada). `account.Account.IsActive` novo; `New` (humano) e `NewBot` passam a marcar
+  `IsActive: true` explicitamente (não só confiar no `DEFAULT true` do schema — o `INSERT` já lista
+  todas as colunas, então o zero-value `false` do Go seria gravado sem isso). Decisão de escopo
+  desta sessão, já que a Fase D (coleta de decisões da rodada, D.2) ainda não existe: em vez de
+  esperar D.2 pra ter o que testar, a tarefa entrega o pedaço de domínio que D.2 vai consumir depois
+  — `Account.EligibleForTradingRound() bool` (`IsBot && IsActive`, pura) é o predicado de
+  elegibilidade que a futura coleta de bots vai aplicar; `account.Deactivate`/`Activate` (funções
+  puras, mesmo padrão de `position.ApplyBuy`/`ApplySell`) só alternam `IsActive`, nunca tocam
+  `CurrentBalance`/`TotalInvested`/`TotalDividendsReceived` nem `IsBot`/`UserID` — a garantia de
+  "não mexe no saldo" é estrutural (a função nem tem como tocar os outros campos), não uma
+  validação em tempo de execução. Sem endpoint admin nem método de repositório pra alternar
+  `is_active` em produção nesta tarefa — isso é escopo explícito da `N.1` (que já cita "A.4" no seu
+  próprio texto), pra não duplicar trabalho quando essa fase chegar. `AccountRepository.Create`/
+  `FindByUserID` persistem/leem a coluna nova (mesmo padrão de A.1). Testes novos em
+  `account_test.go`: `TestAccount_EligibleForTradingRound` (table-driven, cobrindo bot ativo/
+  inativo e humano ativo/inativo), `TestDeactivate`/`TestActivate` (confirmam saldo intocado e
+  `EligibleForTradingRound()` alternando corretamente); `TestNew`/`TestNewBot` ganharam a
+  asserção `IsActive == true`. `go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues)
+  verdes. Validado ao vivo via `docker compose up`: migration aplicou sobre as 153 contas
+  existentes (todas `is_active = true` por default); `POST /accounts` real confirmado gravando
+  `is_active = true` explicitamente (não só o default do schema); `UPDATE accounts SET is_active =
+  false/true` direto via SQL (não há endpoint ainda) confirmou saldo (`current_balance`) intocado
+  nos dois sentidos, numa das contas de bot deixadas pela sessão da A.3.
 
 ---
 
@@ -463,6 +603,36 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 - **Referências:** proposta 2.8, item 5.
 - **Dependências:** J.1, J.2, J.3.
 
+### J.5 · Revisão da lição 2.3 (Nomenclatura de tickers) pro par ON/PN real + esclarecimento sobre units
+
+- **Descrição:** pedido do autor além do que a proposta original cobria. Duas revisões de
+  conteúdo, não de mecanismo (mesmo padrão de "autoria de conteúdo só" já usado nas sub-tarefas
+  7.1.x do backlog principal):
+  1. `7.1.3` (backlog principal, já concluída) escreveu a revelação de 2.3 contrastando
+     `VALR3`/`BNDD4` como exemplo de ON/PN — mas essas são **duas empresas diferentes** (nota 9
+     desta seção). Assim que `J.4` gerar um par real (mesma empresa, mesmo `company_id`, dois
+     `asset_id`), a revelação passa a usar esse par de verdade — reforça o que a spec 5.1 já
+     promete ("final 3 = ON, final 4 = PN" da mesma empresa) em vez de uma analogia entre
+     empresas distintas.
+  2. **Esclarecimento sobre units** (pedido do autor, decisão desta sessão — 2026-09-13,
+     confirmada via pergunta ao autor: só conteúdo de lição, **sem** criar ativo negociável novo
+     no catálogo, mantendo a decisão já registrada na proposta 2.8 de não reaproveitar o sufixo
+     final 11 pra um instrumento novo). A revelação de 2.3 ganha um parágrafo citando que, no
+     mercado real, o sufixo final 11 não é exclusivo de FII/ETF — units (ON+PN empacotadas numa
+     unidade só, ex: `SANB11` na vida real) também terminam em 11, e a forma de diferenciar não é
+     o sufixo (os três — FII, ETF, unit — compartilham o final 11 na B3 de verdade), é o tipo de
+     instrumento por trás do ticker. Sem unit negociável no catálogo simulado (só FII/ETF usam 11
+     aqui, `SINT11`/`TJLO11`/`PAPL11` já seedados) — o parágrafo é conceitual/comparativo com o
+     mercado real, não introduz um terceiro tipo de ativo terminado em 11 na simulação.
+- **Critérios de aceite:** revelação de 2.3 citando o ticker ON/PN real gerado pela J.4 (não mais
+  `VALR3`/`BNDD4` como empresas separadas); parágrafo sobre units presente e tecnicamente correto
+  (não afirma que a simulação tem um ativo unit, só explica o conceito do mercado real); nenhuma
+  mudança em `unlocksKeys`/`unlocksAssetTicker`/gate de desbloqueio (já corretos desde a 7.1.3,
+  esta tarefa não mexe em mecanismo).
+- **Referências:** nota 9 desta seção; pedido do autor nesta sessão (2026-09-13); spec 5.1, linha
+  247 (2.3).
+- **Dependências:** J.4.
+
 ---
 
 ## Fase K — Calibração de fundamentos por setor (independente)
@@ -547,16 +717,162 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
 
 ---
 
+## Fase M — Indicadores macroeconômicos visíveis (Selic/IPCA)
+
+Pedido do autor além do que a proposta original cobria (2026-09-13): hoje **não existe nenhuma
+tela no frontend mostrando Selic/IPCA** — o usuário nunca vê os dois indicadores que o motor já
+simula, só sente o efeito indireto deles no preço/rendimento dos produtos. E, mais grave, **IPCA
+hoje não tem nenhum consumidor no tick diário** (`ipca.MonthlySeries` existe e é testado desde a
+3.4, mas `tick.Advance`/`tick.go` nunca chama esse pacote — só serve hoje o cálculo sob demanda de
+VNA na compra de Tesouro IPCA+, Fase L.2). Sem uma série de IPCA gerada e persistida dia a dia,
+não tem o que mostrar num gráfico nem o que a Fase I precisa acumular. Esta fase resolve os dois
+problemas juntos: gerar+persistir a série, expor via API, e só então mostrar no frontend.
+
+### M.1 · Histórico diário persistido de Selic e IPCA
+
+- **Descrição:** hoje `market_calendar` (migration `000004_market_calendar_and_quotes.up.sql`) é
+  uma linha singleton só com o dia/Selic **corrente** — não guarda histórico, e IPCA não é gerado
+  no tick (ver nota da Fase M acima). Tabela nova (ex: `market_indicator_history`, mesmo padrão de
+  `asset_quotes` — uma linha por dia simulado, nunca atualizada depois de gravada, unicidade em
+  `simulated_day`) grava, a cada tick: a Selic do dia (já calculada, só passa a ser também
+  persistida em histórico, não só na linha singleton), o IPCA mensal do dia (`ipca.MonthlySeries`
+  passa a ser chamado de dentro de `tick.Advance`, um valor novo por mês simulado — a decidir na
+  sessão a cadência exata: todo dia repete o valor do mês corrente, ou só grava linha nova no dia
+  que vira o mês) e o IPCA acumulado em 12 meses (soma/composição dos últimos 12 valores mensais).
+  **Esta é a mesma peça que a I.1 já sinaliza precisar** ("precisa também de um jeito de acumular
+  o IPCA simulado ao longo do tempo... a decidir na sessão se isso vive em `ipca` ou é calculado
+  por quem orquestra `tick`") — quem pegar M.1 ou I.1 primeiro deve conferir se a outra já
+  resolveu a acumulação antes de duplicar o mecanismo (mesmo padrão de coordenação da nota 6/9).
+- **Critérios de aceite:** depois de N dias de tick simulado, a tabela nova tem exatamente uma
+  linha por dia com Selic e IPCA coerentes; teste confirmando que o IPCA acumulado em 12 meses
+  bate com a composição correta dos últimos 12 valores mensais (não soma simples); teste de
+  regressão confirmando que `market_calendar` (linha singleton, leitura corrente) continua
+  funcionando sem mudança de contrato.
+- **Referências:** proposta seção 6; nota da tarefa I.1 sobre acumular IPCA; relatório
+  `tmp/relatorio-logica-mercado.md` (IPCA sem consumidor).
+- **Dependências:** nenhuma (mas ver nota de coordenação com I.1 acima).
+
+### M.2 · Endpoint HTTP de série histórica (engine)
+
+- **Descrição:** rota nova (ex: `GET /market/indicators/history`) devolvendo a série persistida em
+  M.1 — Selic/IPCA mensal/IPCA acumulado 12m por dia simulado, com parâmetro de janela (ex: último
+  N dias/meses, a decidir na sessão o range default). Mesmo padrão de autenticação/trust boundary
+  das demais rotas de leitura de mercado (motor não valida role, backend decide o que expor
+  publicamente).
+- **Critérios de aceite:** teste de router cobrindo resposta com dados reais persistidos por M.1 e
+  o caso de motor recém-subido (sem histórico ainda, resposta vazia sem erro).
+- **Referências:** proposta seção 6.
+- **Dependências:** M.1.
+
+### M.3 · Rota no backend gamificado + cache Redis
+
+- **Descrição:** módulo `market` (backend) ganha uma rota nova (ex: `GET /market/indicators`)
+  proxying pro endpoint da M.2, com cache Redis de TTL curto (indicador só muda no máximo 1x por
+  dia simulado — mesmo racional de cache já usado pra cotação/ranking, tarefa 5.7). Documentar em
+  `.docs/backend/market.md` (payload, sucesso, erros, regra — template `.docs/README.md`).
+- **Critérios de aceite:** rota valida entrada com Zod (parâmetro de janela, se exposto); teste de
+  caso de uso com fake do port de leitura de mercado; teste de adapter contra Redis real; teste de
+  router via supertest.
+- **Referências:** `.claude/arquitetura-backend-ddd-lite.md`; `.docs/backend/market.md`.
+- **Dependências:** M.2.
+
+### M.4 · Tela "Indicadores Econômicos" no frontend
+
+- **Descrição:** tela nova (a decidir na sessão o ponto de entrada exato — candidato natural é um
+  card em Home/Mercado linkando pra uma tela dedicada, seguindo o padrão de sparkline já
+  estabelecido pra ativos em `.claude/identidade-visual-padroes.md`) mostrando Selic atual + linha
+  histórica, IPCA mensal + acumulado 12m + linha histórica, e a data do próximo Copom simulado
+  (calendário já existente desde a 3.3). Responsiva nos três breakpoints (mobile/tablet/desktop,
+  regra obrigatória do `CLAUDE.md`); desktop ganha composição própria, não coluna única esticada.
+  Atualizar `.claude/inventario-telas-plataforma-investimentos.md` com a tela nova (objetivo,
+  conteúdo, ações, navegação, dados envolvidos).
+- **Critérios de aceite:** tela renderiza dado real do endpoint M.3 (não mockado); validada nos
+  três breakpoints; entrada de navegação confirmada a partir de pelo menos um ponto existente do
+  app (Home ou Mercado).
+- **Referências:** `.claude/identidade-visual-padroes.md`, `.claude/identidade-visual-tokens.md`;
+  `.claude/inventario-telas-plataforma-investimentos.md`.
+- **Dependências:** M.3.
+
+### M.5 · Novas lições: "Como a Selic é formada" e "O que é o IPCA"
+
+- **Descrição:** pedido do autor além do que a proposta original cobria — currículo hoje (spec
+  5.1) não tem nenhuma lição explicando **o mecanismo** por trás da Selic (Copom, reunião, decisão
+  de reação à inflação) nem o que é o IPCA como índice (IBGE, cesta de bens, por que é a referência
+  de meta) — 0.3 (Inflação e poder de compra) é conceitual/genérico, 1.2 (Tesouro Selic) ensina o
+  produto não o indicador, 1.8 (Tesouro IPCA+) ensina VNA não o índice em si. Duas lições novas na
+  Trilha 1 (Renda Fixa), posição sugerida a confirmar na sessão: "Como a Selic é formada" logo
+  após 1.2 (usuário já conhece o produto que rastreia o indicador) e "O que é o IPCA" logo após 0.3
+  ou antes de 1.8 (a decidir — 0.3 já dá o contexto de inflação, 1.8 é onde o aluno primeiro
+  precisa do número de verdade pro VNA). Ambas `reflection`, sem produto novo pra desbloquear
+  (`unlocksKeys` vazio) — mas a Revelação embute/referencia a tela ao vivo da M.4 (mesmo padrão já
+  usado pelo `live_indicator` das lições 2.6.x, "aprender fazendo" com dado real da própria
+  simulação em vez de número de papel). **Esta tarefa deve rodar depois de I.1/I.2** (Selic × IPCA)
+  — sem a regra de reação à inflação implementada, a lição descreveria só reversão à média, não o
+  mecanismo real que o motor de fato simula; rodar antes descreveria um comportamento que o motor
+  ainda não tem. Atualiza a tabela de currículo da spec 5.1 (Trilha 1 passa de 9 para 11 lições,
+  total do currículo de 33 para 35) e reordena `sortOrder` das lições subsequentes da Trilha 1 em
+  `backend/src/db/seedLessons.ts` — mesma disciplina de "autoria real, sem placeholder" já usada
+  em toda a 7.1.x do backlog principal.
+- **Critérios de aceite:** as 2 lições com conteúdo real (`scenarioText`/`microDecisionPrompt`/
+  `revelationText`), sem string vazia; Revelação de cada uma mostrando dado real vindo da M.4/M.3
+  (não hardcoded); spec 5.1 atualizada com a contagem nova; seed idempotente (`onConflictDoUpdate`,
+  mesmo padrão da 7.1.x) rodado duas vezes sem duplicar.
+- **Referências:** spec 5.1 (Trilha 1); proposta seção 6; pedido do autor nesta sessão
+  (2026-09-13).
+- **Dependências:** I.1, I.2, M.4.
+
+---
+
+## Fase N — Painel Admin de Bots
+
+Pedido do autor além do que a proposta original cobria (2026-09-13), **última prioridade da
+sequência sugerida** (palavras do autor: "essa pode ser a última parte") — só depois do núcleo de
+bots (Fase C) existir de verdade, senão não há o que listar/criar. Reaproveita o padrão visual já
+estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
+
+### N.1 · Endpoints admin pra listar/criar/desativar bots
+
+- **Descrição:** motor ganha rotas administrativas (mesmo trust boundary de `POST /admin/tick` —
+  sem checagem de role aqui, backend valida `role = admin` antes de repassar, `admin.go:14-23`):
+  `GET /admin/bots` (lista com personalidade/arquétipo, escopo de especialização, `is_active`
+  (A.4), posição/caixa atual por ativo), `POST /admin/bots` (cria bot novo — personalidade (C.1),
+  escopo de especialização, caixa/posição inicial, reaproveitando validação de domínio já existente
+  em vez de duplicar), `PATCH /admin/bots/:id` (alterna `is_active`, A.4). Backend expõe as 3 rotas
+  atrás de `authMiddleware`/`role = admin` (mesmo padrão do Painel Admin de Eventos Macro, 4.5),
+  documentadas em `.docs/engine/<pacote>.md` e `.docs/backend/admin.md`.
+- **Critérios de aceite:** teste table-driven de criação cobrindo personalidade/escopo válidos e
+  inválidos (reaproveitando a validação da C.1); teste confirmando que `PATCH` alterna `is_active`
+  sem tocar posição/caixa (mesmo critério da A.4); teste de router (backend) confirmando `403` pra
+  usuário não-admin nas 3 rotas.
+- **Referências:** proposta 2.3; `.docs/engine/admin.md` (a criar/estender); tela 10.1/10.2 como
+  precedente de padrão admin.
+- **Dependências:** A.4, C.1, C.6 (catálogo de bots já existente pra listar).
+
+### N.2 · Tela "Painel Admin — Bots" no frontend
+
+- **Descrição:** tela nova dentro da área admin (mesmo padrão visual/navegação do Painel Admin de
+  Eventos Macro, 10.1/10.2) — lista de bots (ticker/setor de cobertura, arquétipo, `is_active`,
+  posição/caixa atual), alternância ativo/inativo por linha, formulário de criação de bot novo
+  (arquétipo, escopo de especialização, ativo(s)-alvo, caixa/posição inicial). Atualizar
+  `.claude/inventario-telas-plataforma-investimentos.md` com a tela nova.
+- **Critérios de aceite:** lista renderiza dado real da N.1; alternar `is_active` reflete na
+  listagem sem reload manual; criação de bot novo confirmada aparecendo na listagem e participando
+  da rodada de negociação seguinte (D.2); responsiva nos três breakpoints.
+- **Referências:** `.claude/identidade-visual-padroes.md`; tela 10.1/10.2 como precedente.
+- **Dependências:** N.1.
+
+---
+
 ## Sequência sugerida
 
-1. **A.1 → A.2 → A.3** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
-   independentes).
+1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
+   independentes; A.4 só depende de A.1, pode entrar assim que A.1 fechar).
 2. **B.1 → B.2** (distribuição do float, depende de A).
 3. **C.1 → C.2 → C.3 → C.4 → C.5 → C.6** (arquétipos, depende de B; ordem interna por
    complexidade crescente).
 4. **D.1 → D.2** (cadência intradiária, depende de C).
-5. **J.1 → J.2 → J.3 → J.4** (ON/PN — só depende de A/C.5, pode entrar em paralelo a partir do
-   passo 3).
+5. **J.1 → J.2 → J.3 → J.4 → J.5** (ON/PN — só depende de A/C.5, pode entrar em paralelo a partir
+   do passo 3; J.5 é revisão de conteúdo de lição, fecha a fase).
 6. **E.1 → E.2** (eventos macro por alvo, depende de C.5/D.2).
 7. **F.1** (balanços via negociação, depende de C.5/E).
 8. **G.1 → G.2 → G.3** (FIIs, depende de D).
@@ -565,3 +881,8 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
     antes de tudo).
 11. **K.1 → K.2** (calibração de fundamentos — independente, idem).
 12. **L.1 → L.2 → L.3 → L.4** (Renda Fixa — independente, idem).
+13. **M.1 → M.2 → M.3 → M.4** (indicadores macro visíveis — M.1 independente como I/K/L, pode
+    rodar a qualquer momento; M.5, a autoria das 2 lições novas, só depois de **I.1 → I.2**
+    fechados, ver nota da M.5).
+14. **N.1 → N.2** (painel admin de bots — última prioridade da sequência, só depois de A.4 e do
+    núcleo de bots, C.1 → C.6, existirem).

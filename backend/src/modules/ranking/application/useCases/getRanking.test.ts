@@ -252,6 +252,74 @@ describe('GetRankingUseCase', () => {
     expect(result.requestingUserPosition).toBe(2)
   })
 
+  it('conta de bot nunca aparece no ranking, em nenhum escopo (tarefa A.1, backlog-motor-mercado-realista) — exclusão por construção: bot só existe em `accounts` no motor, nunca em `users` aqui, então `userDirectory.listAll()` já não o traz, mesmo que outros leitores "soubessem" responder por ele', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+    const botId = 'bot-market-maker-1'
+    const userDirectory = createFakeUserDirectory([
+      { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
+      { id: 'u2', username: 'u2', createdAt: new Date('2026-01-01T00:00:00Z') },
+    ])
+    const netWorthByUserAndAsOf = new Map<string, number>([
+      ['u1|baseline', 10000],
+      ['u1|now', 11000],
+      ['u2|baseline', 10000],
+      ['u2|now', 12000],
+      // Se o ranking algum dia passasse a iterar sobre uma fonte diferente
+      // de `userDirectory.listAll()` (ex: contas do motor direto), este
+      // valor faria o bot aparecer com folga em 1º lugar — o teste falharia
+      // de forma óbvia em vez de passar silenciosamente por falta de dado.
+      ['bot-market-maker-1|baseline', 10000],
+      ['bot-market-maker-1|now', 999999],
+    ])
+    const getNetWorth = {
+      async execute(input: { userId: string; asOf?: Date }) {
+        const key = `${input.userId}|${input.asOf ? 'baseline' : 'now'}`
+        return snapshot({ total: netWorthByUserAndAsOf.get(key) ?? 0 })
+      },
+    }
+    // Simula um grafo de amizade "corrompido" que referencia o bot — mesmo
+    // assim ele não pode aparecer no escopo amigos, porque `scopedUsers`
+    // filtra contra `allUsers` (que já não o contém).
+    const { levelReader, friendGraphReader } = build({
+      friendIdsByUserId: { u1: [botId, 'u2'] },
+      progressionByUserId: { [botId]: { level: 99, xp: 999999 } },
+    })
+    const useCase = new GetRankingUseCase(
+      userDirectory,
+      createFakeSandboxAssetReader(),
+      getNetWorth,
+      levelReader,
+      friendGraphReader,
+    )
+
+    const global = await useCase.execute({
+      window: 'week',
+      scope: 'global',
+      criterion: 'overall',
+      page: 1,
+      requestingUserId: 'u1',
+    })
+    const friends = await useCase.execute({
+      window: 'week',
+      scope: 'friends',
+      criterion: 'overall',
+      page: 1,
+      requestingUserId: 'u1',
+    })
+    const byLevel = await useCase.execute({
+      scope: 'global',
+      criterion: 'level',
+      page: 1,
+      requestingUserId: 'u1',
+    })
+
+    expect(global.entries.map((e) => e.userId)).not.toContain(botId)
+    expect(friends.entries.map((e) => e.userId)).not.toContain(botId)
+    expect(byLevel.entries.map((e) => e.userId)).not.toContain(botId)
+  })
+
   describe('escopo amigos', () => {
     it('inclui só {o próprio usuário} ∪ amigos aceitos, exclui amigo pendente', async () => {
       vi.useFakeTimers()

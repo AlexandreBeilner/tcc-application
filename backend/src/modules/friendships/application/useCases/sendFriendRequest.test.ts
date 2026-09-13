@@ -39,6 +39,12 @@ describe('SendFriendRequestUseCase', () => {
     ).rejects.toThrow(AddresseeNotFoundError)
   })
 
+  it('rejeita solicitação de amizade a uma conta de bot (tarefa A.1, backlog-motor-mercado-realista) — bot nunca existe em `users`, então é indistinguível de um destinatário inexistente', async () => {
+    await expect(
+      useCase.execute({ requesterId: alice.id, addresseeUsername: 'bot_market_maker_1' }),
+    ).rejects.toThrow(AddresseeNotFoundError)
+  })
+
   it('rejeita auto-solicitação', async () => {
     await expect(
       useCase.execute({ requesterId: alice.id, addresseeUsername: alice.username }),

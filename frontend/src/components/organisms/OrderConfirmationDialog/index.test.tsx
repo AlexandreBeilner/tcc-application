@@ -74,6 +74,45 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         await waitFor(() => expect(screen.getByText('tela de portfólio')).toBeInTheDocument())
     })
 
+    // Tarefa A.2 (backlog-motor-mercado-realista): ordem a mercado do
+    // Mercado Ao Vivo sem liquidez real suficiente executa só uma parte —
+    // sem preenchimento sintético, `remaining_quantity` reporta a sobra.
+    it('ordem de compra com execução parcial (sem liquidez suficiente): mensagem clara, sem quebrar a confirmação', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
+        })
+        vi.mocked(placeOrder).mockResolvedValue({ filled_quantity: 4, remaining_quantity: 6, fills: [] })
+
+        renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 10, unitPrice: 30 })
+
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
+
+        await waitFor(() => expect(screen.getByText('Ordem executada')).toBeInTheDocument())
+        expect(
+            screen.getByText('Você comprou 4 de 10 PETR4 — o restante não achou liquidez suficiente e não foi executado.'),
+        ).toBeInTheDocument()
+    })
+
+    it('ordem de compra sem nenhuma liquidez disponível: mensagem clara de nada executado', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
+        })
+        vi.mocked(placeOrder).mockResolvedValue({ filled_quantity: 0, remaining_quantity: 10, fills: [] })
+
+        renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 10, unitPrice: 30 })
+
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
+
+        await waitFor(() => expect(screen.getByText('Ordem executada')).toBeInTheDocument())
+        expect(
+            screen.getByText(
+                'Não havia liquidez suficiente pra negociar PETR4 agora — nenhuma unidade foi comprada. Tente novamente mais tarde.',
+            ),
+        ).toBeInTheDocument()
+    })
+
     it('aporte de renda fixa: confirma via POST /market/fixed-income/purchases', async () => {
         vi.mocked(getAsset).mockResolvedValue({ asset: { id: 'a2', ticker: 'CDB01', name: 'CDB Banco X', type: 'cdb', is_sandbox: false } })
         vi.mocked(purchaseFixedIncome).mockResolvedValue({
