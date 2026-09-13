@@ -133,6 +133,21 @@ describe('TrackMap (tela nova, backlog engajamento O.3)', () => {
         expect(screen.queryByText('tela de lição')).not.toBeInTheDocument()
     })
 
+    it('legenda fica escondida atrás do ícone no cabeçalho, não numa sidebar sempre visível (achado P.2)', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [lesson({ id: '1', title: 'Primeira', status: 'available' }), lesson({ id: '2', title: 'Segunda', status: 'locked' })],
+        })
+
+        renderTrackMap('/trilha/mapa/0')
+
+        const trigger = await screen.findByRole('button', { name: 'Como ler o mapa' })
+        expect(screen.queryByText('Já concluído (sólido)')).not.toBeInTheDocument()
+
+        fireEvent.click(trigger)
+
+        expect(screen.getByText('Já concluído (sólido)')).toBeInTheDocument()
+    })
+
     it('trilha 100% bloqueada ainda renderiza o mapa inteiro (bloqueio é convite)', async () => {
         vi.mocked(listLessons).mockResolvedValue({
             lessons: [lesson({ id: '1', title: 'Primeira', status: 'locked' }), lesson({ id: '2', title: 'Segunda', status: 'locked' })],

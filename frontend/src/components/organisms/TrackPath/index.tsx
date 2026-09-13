@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, Circle, Flag } from 'lucide-react'
 import { computeTrackPathLayout, TRACK_PATH_WIDTH } from '../../../features/lessons/trackPathLayout'
 import { Locked } from '../../atoms/Locked'
@@ -39,6 +39,13 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
     const layout = computeTrackPathLayout(lessons)
     const hasCenteredRef = useRef(false)
     const currentNodeRef = useRef<HTMLDivElement>(null)
+    // Bandeira de marco (achado P.1): texto real de `unlocksDescription`
+    // varia de "Tesouro Selic" a ~165 caracteres (lição 2.8) — não cabe em
+    // `nowrap` numa tag flutuante. Ganha estado próprio (não o
+    // `expandedHintId` do pai) porque a bandeira aparece em nó de qualquer
+    // status, inclusive `available`/`completed`, onde o clique no nó já
+    // navega pra lição — não pode reaproveitar o mesmo gatilho.
+    const [expandedFlagId, setExpandedFlagId] = useState<string | null>(null)
 
     // Abre já rolado até o nó "você está aqui" (a lição `available`, ou a
     // última `completed` se a trilha inteira já foi concluída) — mesmo
@@ -153,17 +160,43 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                                 {point.lesson.id === expandedHintId && (
                                     <p className={styles.hint}>Conclua a lição anterior pra desbloquear.</p>
                                 )}
-                            </div>
 
-                            {/* Bandeira de marco (mockup O.0) — cor dourada de conquista
-                                (`--color-gamify-500`), nunca a cor da trilha, pra não
-                                confundir "libera produto real" com progresso comum. */}
-                            {point.lesson.unlocksDescription && (
-                                <span className={styles.flag}>
-                                    <Flag size={11} strokeWidth={2.4} aria-hidden="true" />
-                                    Libera {point.lesson.unlocksDescription}
-                                </span>
-                            )}
+                                {/* Bandeira de marco (mockup O.0, ajuste P.1) — dentro da
+                                    mesma coluna do título/código (`.nodeMeta`, já quebra
+                                    linha nos 3 breakpoints), não mais uma tag flutuante
+                                    própria de largura livre — conteúdo real chega a ~165
+                                    caracteres (lição 2.8) e vazava com `nowrap`. Cor
+                                    dourada de conquista (`--color-gamify-500`), nunca a
+                                    cor da trilha, pra não confundir "libera produto real"
+                                    com progresso comum. Truncado em 2 linhas por padrão;
+                                    clique/toque revela o texto inteiro — estado próprio
+                                    (`expandedFlagId`) porque a bandeira aparece em nó de
+                                    qualquer status, inclusive `available`/`completed`,
+                                    onde o clique no nó em si já navega pra lição. */}
+                                {point.lesson.unlocksDescription && (
+                                    <button
+                                        type="button"
+                                        className={styles.flag}
+                                        onClick={() =>
+                                            setExpandedFlagId((current) => (current === point.lesson.id ? null : point.lesson.id))
+                                        }
+                                        aria-expanded={expandedFlagId === point.lesson.id}
+                                        aria-label={`Libera ${point.lesson.unlocksDescription}`}
+                                    >
+                                        <Flag size={11} strokeWidth={2.4} aria-hidden="true" />
+                                        <span
+                                            className={
+                                                expandedFlagId === point.lesson.id
+                                                    ? styles.flagTextExpanded
+                                                    : styles.flagText
+                                            }
+                                            aria-hidden="true"
+                                        >
+                                            Libera {point.lesson.unlocksDescription}
+                                        </span>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )
                 })}

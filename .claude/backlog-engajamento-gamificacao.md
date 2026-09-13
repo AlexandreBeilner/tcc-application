@@ -1983,7 +1983,7 @@ ajuste de CSS/interação, não redesenho. Autor pediu só documentação + aná
 (créditos acabando), implementação fica pra uma sessão futura, uma tarefa por vez, mesma disciplina
 do resto do backlog.
 
-### P.1 · Bandeira de marco (`unlocksDescription`) estoura a tela em telas reais
+### P.1 · Bandeira de marco (`unlocksDescription`) estoura a tela em telas reais ✅ concluída
 
 - **Achado:** `TrackPath/index.module.css` `.flag` (bandeira dourada de marco, tarefa O.3) usa
   `white-space: nowrap` e é centralizada por `transform: translate(-50%, 30px)` a partir do nó —
@@ -2012,8 +2012,21 @@ do resto do backlog.
   nunca a cor da trilha).
 - **Referências:** O.3 (bandeira original); `backend/src/db/seedLessons.ts` (conteúdo real).
 - **Dependências:** nenhuma (CSS/composição isolada do `TrackPath`, zero schema).
+- **Entregável:** decisão de composição tomada — bandeira saiu de tag flutuante própria
+  (`position: absolute` sob o nó) e virou `<button>` dentro da própria coluna de `.nodeMeta`
+  (herda `width: clamp(120px, 40vw, 168px)`, mesma que já quebra linha pro título). Texto trunca em
+  2 linhas por padrão (`-webkit-line-clamp`) e expande pro texto inteiro no clique/toque — estado
+  próprio (`expandedFlagId`, local ao componente) em vez de reaproveitar o `expandedHintId` do pai,
+  porque a bandeira aparece em nó de qualquer status (`completed`/`available` inclusive), onde o
+  clique no nó já navega pra lição — não dava pra reusar o mesmo gatilho. `aria-label` carrega o
+  texto completo sempre (acessível mesmo truncado visualmente). Validado em `docker compose` +
+  frontend local: os 3 piores casos reais (lições 1.4/1.5, 1.9, 2.8/2.10 — textos de ~55 a ~165
+  caracteres) renderizam sem vazar em mobile (390px), tablet (820px) e desktop; expandir/colapsar
+  não dispara `onNodeClick`. Teste novo cobrindo o clique isolado em
+  `TrackPath/index.test.tsx`. `npx tsc --noEmit`, `npx oxlint` e `npx vitest run` (660 testes) — tudo
+  verde.
 
-### P.2 · "Como ler o mapa" vira ícone + modal, não painel sempre visível
+### P.2 · "Como ler o mapa" vira ícone + modal, não painel sempre visível ✅ concluída
 
 - **Achado:** `pages/TrackMap/index.tsx` (O.3) renderiza a legenda (`.legendCard`, "Como ler o
   mapa") direto na `<aside>` — sticky na sidebar em desktop (visível o tempo todo enquanto o usuário
@@ -2038,8 +2051,24 @@ do resto do backlog.
 - **Referências:** O.3 (legenda original); `OrderConfirmationDialog` (padrão de overlay
   responsivo já validado); identidade-visual-padroes.md §7.
 - **Dependências:** nenhuma.
+- **Entregável:** auditado `OrderConfirmationDialog` antes de abrir — não existe overlay genérico
+  reaproveitável no projeto (só essa implementação ad hoc), então nasceu um componente novo,
+  `components/organisms/TrackMapLegend/` (ícone `Info` + overlay próprio, mesmo padrão visual
+  copiado — não extraído como abstração compartilhada, pra não forçar um `Modal` genérico sem
+  segundo consumidor real: bottom sheet mobile/tablet, modal central desktop). `pages/TrackMap`:
+  `<aside>`/`.legendCard`/`.legend*` saíram; `.layout`/`.sidebar` (grid de 2 colunas em desktop)
+  viraram `.main` sozinho, centralizado e com `max-width: 560px` só a partir de 1024px — sem 2ª
+  coluna, não faz mais sentido reservar `1fr` de espaço vazio. Ícone entra num novo
+  `.headerActions` ao lado do `.quote`, dentro do `.header` (não da sidebar), sempre visível sem
+  depender de scroll. Conteúdo da legenda idêntico ao anterior (4 itens, mesmas cores). Testes
+  novos em `TrackMapLegend/index.test.tsx` (fechada por padrão, abre no clique, fecha por botão/
+  backdrop/Esc) + 1 teste de integração em `TrackMap/index.test.tsx`. Validado em `docker compose`
+  + frontend local nos 3 breakpoints: ícone some no fechamento, bottom sheet cobre a `TabBar` fixa
+  em mobile (`z-index: 50` > `10` da `TabBar`, mesmo valor já usado por `OrderConfirmationDialog`),
+  modal central em desktop. `npx tsc --noEmit`, `npx oxlint` e `npx vitest run` (666 testes) —
+  tudo verde.
 
-### P.3 · Cabeçalho do Mapa da Trilha quebra errado em nome de trilha longo
+### P.3 · Cabeçalho do Mapa da Trilha quebra errado em nome de trilha longo ✅ concluída
 
 - **Achado:** `pages/TrackMap/index.module.css` `.header` usa `flex-wrap: wrap` e `.identity` não
   tem `min-width: 0` — pro nome real mais longo do currículo (`Trilha 3: Estratégia e Tributação`,
@@ -2063,6 +2092,13 @@ do resto do backlog.
 - **Referências:** `TrilhasHub/index.module.css` `.top`/`.identity`/`.statusPill` (padrão já
   correto, reaproveitar); mockup O.0 ("cabeçalho tipo cotação").
 - **Dependências:** nenhuma.
+- **Entregável:** `pages/TrackMap/index.module.css` — `.header` perdeu `flex-wrap: wrap`,
+  `.identity` ganhou `min-width: 0`, `.quote` ganhou `flex: none`, mesmo trio já validado em
+  `TrilhasHub`. Validado em `docker compose` + frontend local nos 3 breakpoints (mobile 390px,
+  tablet 820px, desktop) contra `Trilha 3: Estratégia e Tributação` (nome real mais longo do
+  currículo, `utils/tracks`) — percentual continua ancorado à direita na mesma altura do ticker em
+  todos os três, sem regressão nas outras trilhas (nomes curtos). `npx tsc --noEmit`, `npx oxlint` e
+  `npx vitest run src/pages/TrackMap` verdes (CSS puro, nenhuma lógica de componente mudou).
 
 ---
 

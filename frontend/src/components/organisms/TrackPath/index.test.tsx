@@ -131,4 +131,21 @@ describe('TrackPath', () => {
         rerender(<TrackPath lessons={lessons} accentColor="var(--color-track-0)" expandedHintId="2" onNodeClick={vi.fn()} />)
         expect(screen.getByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
     })
+
+    it('clicar na bandeira alterna o texto truncado sem chamar onNodeClick nem navegar (achado P.1)', () => {
+        const onNodeClick = vi.fn()
+        const lessons = [
+            lesson({ id: '1', status: 'completed', unlocksDescription: 'Compra real de LCI (LCI2026) e LCA (LCA2026) no Mercado' }),
+            lesson({ id: '2', status: 'locked' }),
+        ]
+        render(<TrackPath lessons={lessons} accentColor="var(--color-track-0)" expandedHintId={null} onNodeClick={onNodeClick} />)
+
+        const flag = screen.getByRole('button', { name: /Libera Compra real de LCI/ })
+        expect(flag).toHaveAttribute('aria-expanded', 'false')
+
+        fireEvent.click(flag)
+
+        expect(flag).toHaveAttribute('aria-expanded', 'true')
+        expect(onNodeClick).not.toHaveBeenCalled()
+    })
 })

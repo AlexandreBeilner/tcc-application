@@ -19,12 +19,15 @@
 
 /* Cabeçalho tipo cotação (mockup O.0) — ticker/nome à esquerda, percentual
    à direita, mesma cor da trilha (F.1) reforçando a identidade "home
-   broker" antes mesmo do path começar. */
+   broker" antes mesmo do path começar. Sem `flex-wrap` (achado P.3): com
+   nome de trilha longo (`Trilha 3: Estratégia e Tributação`), o wrap fazia
+   o `.quote` inteiro pular pra uma 2ª linha em vez de só o título de
+   `.identity` quebrar dentro da própria coluna — mesmo padrão já correto
+   de `TrilhasHub` (`.top`/`.identity`/`.statusPill`), reaproveitado aqui. */
 .header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    flex-wrap: wrap;
     gap: var(--space-3);
     padding-bottom: var(--space-3);
     border-bottom: 1px solid var(--color-border);
@@ -34,6 +37,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    min-width: 0;
 }
 
 .ticker {
@@ -47,6 +51,16 @@
 .title {
     font-size: var(--font-size-2xl);
     color: var(--color-text-primary);
+}
+
+/* Ícone da legenda (P.2) + percentual, lado a lado no canto do cabeçalho —
+   nunca na sidebar (achado P.2: painel sempre visível ocupava espaço fixo
+   em toda visita à tela, mesmo sendo conteúdo estático). */
+.headerActions {
+    flex: none;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
 }
 
 .quote {
@@ -78,90 +92,19 @@
     color: var(--color-feedback-error-500);
 }
 
-.layout {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-}
-
 .main {
     min-width: 0;
-}
-
-.sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
 }
 
 @media (min-width: 1024px) {
     /* Coluna do path com largura máxima confortável pro zigue-zague, não
        full bleed (identidade-visual-padroes.md §7) — a rolagem continua
-       vertical e nativa, só o container que fica mais estreito que o
-       `.layout` inteiro. */
-    .layout {
-        display: grid;
-        grid-template-columns: minmax(0, 560px) 1fr;
-        align-items: start;
-        gap: var(--space-8);
+       vertical e nativa, só o container que fica mais estreito que a
+       página inteira. Sem coluna lateral (P.2 tirou a sidebar da legenda,
+       que virou ícone + modal no cabeçalho): coluna única também em
+       desktop, centralizada. */
+    .main {
+        max-width: 560px;
+        margin: 0 auto;
     }
-
-    .sidebar {
-        position: sticky;
-        top: var(--space-6);
-    }
-}
-
-.legendCard {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-4);
-}
-
-.legendTitle {
-    font-size: var(--font-size-sm);
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-secondary);
-    margin: 0 0 var(--space-3);
-}
-
-.legend {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    margin: 0;
-    padding: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-}
-
-.legend li {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-.legendLine {
-    width: 18px;
-    height: 3px;
-    border-radius: var(--radius-full);
-    flex-shrink: 0;
-}
-
-.legendLineDashed {
-    width: 18px;
-    height: 0;
-    border-top: 2px dashed var(--color-border-strong);
-    flex-shrink: 0;
-}
-
-.legendDot {
-    width: 10px;
-    height: 10px;
-    border-radius: var(--radius-full);
-    flex-shrink: 0;
 }

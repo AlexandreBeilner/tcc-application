@@ -168,24 +168,44 @@
     font-weight: 500;
 }
 
-/* Centrada embaixo do nó, não "ao lado" — nunca sai da largura do card,
-   seja qual for o lado do zigue-zague em que o nó caiu (mesmo achado do
-   mockup O.0). */
+/* Dentro da coluna de `.nodeMeta` (achado P.1), não mais uma tag flutuante
+   de largura livre embaixo do nó — o card de 300px de largura virtual não
+   aguenta `nowrap` com o texto real (~165 caracteres no pior caso, lição
+   2.8). Mesma largura que já quebra linha pro título (`clamp(120px, 40vw,
+   168px)`, herdada do pai por ser item de flex-column sem `align-self`
+   próprio). `<button>`: clique/toque alterna truncamento (`.flagText`) por
+   texto inteiro (`.flagTextExpanded`) — reset dos estilos nativos de botão
+   porque o visual é o mesmo badge de antes, só o container que mudou. */
 .flag {
-    position: absolute;
-    top: 0;
-    left: 0;
-    transform: translate(-50%, 30px);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 5px;
+    font: inherit;
     font-size: 10px;
     font-weight: 600;
     color: var(--color-gamify-500);
     background: var(--color-gamify-100);
+    border: none;
     border-radius: var(--radius-sm);
     padding: 3px 7px;
-    white-space: nowrap;
+    cursor: pointer;
+    text-align: left;
+}
+
+.metaLeft .flag {
+    flex-direction: row-reverse;
+    text-align: right;
+}
+
+.flagText {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.flagTextExpanded {
+    display: block;
 }
 
 .hint {

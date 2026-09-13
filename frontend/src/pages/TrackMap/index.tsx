@@ -5,6 +5,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { groupLessonsByTrack } from '../../features/lessons/trackGroups'
 import { TrackPath } from '../../components/organisms/TrackPath'
+import { TrackMapLegend } from '../../components/organisms/TrackMapLegend'
 import { TRACKS } from '../../utils/tracks'
 import type { Lesson } from '../../services/lessons'
 import styles from './index.module.css'
@@ -66,11 +67,14 @@ export function TrackMap() {
                     <h1 className={styles.title}>{track.name}</h1>
                 </div>
                 {trackLessons.length > 0 && (
-                    <div className={styles.quote}>
-                        <span className={styles.pct}>{completionPct}%</span>
-                        <span className={styles.pctLabel}>
-                            {completedCount}/{trackLessons.length} concluídas
-                        </span>
+                    <div className={styles.headerActions}>
+                        <TrackMapLegend accentColor={track.color} />
+                        <div className={styles.quote}>
+                            <span className={styles.pct}>{completionPct}%</span>
+                            <span className={styles.pctLabel}>
+                                {completedCount}/{trackLessons.length} concluídas
+                            </span>
+                        </div>
                     </div>
                 )}
             </header>
@@ -83,44 +87,15 @@ export function TrackMap() {
 
             {!lessonsQuery.data && !lessonsQuery.isError && <p className={styles.loading}>Carregando mapa…</p>}
 
-            <div className={styles.layout}>
-                <div className={styles.main}>
-                    {trackLessons.length > 0 && (
-                        <TrackPath
-                            lessons={trackLessons}
-                            accentColor={track.color}
-                            expandedHintId={expandedHintId}
-                            onNodeClick={handleNodeClick}
-                        />
-                    )}
-                </div>
-
-                {/* Legenda, não XP/streak (diferente da sidebar do Hub, O.1) — a
-                    progressão já apareceu um passo antes, aqui o painel lateral só
-                    explica a linguagem visual do mapa em si. */}
-                <aside className={styles.sidebar}>
-                    <div className={styles.legendCard}>
-                        <h2 className={styles.legendTitle}>Como ler o mapa</h2>
-                        <ul className={styles.legend}>
-                            <li>
-                                <span className={styles.legendLine} style={{ background: track.color }} aria-hidden="true" />
-                                Já concluído (sólido)
-                            </li>
-                            <li>
-                                <span className={styles.legendLineDashed} aria-hidden="true" />
-                                Ainda não chegou (tracejado)
-                            </li>
-                            <li>
-                                <span className={styles.legendDot} style={{ background: 'var(--color-brand-500)' }} aria-hidden="true" />
-                                Linha "você está aqui"
-                            </li>
-                            <li>
-                                <span className={styles.legendDot} style={{ background: 'var(--color-gamify-500)' }} aria-hidden="true" />
-                                Marco que libera um produto real
-                            </li>
-                        </ul>
-                    </div>
-                </aside>
+            <div className={styles.main}>
+                {trackLessons.length > 0 && (
+                    <TrackPath
+                        lessons={trackLessons}
+                        accentColor={track.color}
+                        expandedHintId={expandedHintId}
+                        onNodeClick={handleNodeClick}
+                    />
+                )}
             </div>
         </main>
     )
