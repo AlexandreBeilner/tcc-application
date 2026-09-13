@@ -157,7 +157,7 @@ describe('FixedIncomeList — estado travado pela trilha (tarefa 7.0.1)', () => 
         renderPage()
 
         await waitFor(() => expect(screen.getAllByText('Tesouro Selic').length).toBeGreaterThan(0))
-        expect(screen.getAllByLabelText('Produto travado, desbloqueia na lição 1.2').length).toBeGreaterThan(0)
+        expect(screen.getAllByLabelText('Produto travado pela trilha').length).toBeGreaterThan(0)
 
         fireEvent.click(screen.getAllByText('Tesouro Selic')[0])
         await waitFor(() => expect(screen.getByText('tela de detalhe')).toBeInTheDocument())

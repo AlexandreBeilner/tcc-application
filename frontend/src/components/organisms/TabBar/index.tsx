@@ -17,14 +17,15 @@ import styles from './index.module.css'
 // da Trilha em vez de na lição se ela ainda não for alcançável, mesma
 // garantia usada em `LockedAssetPanel`/`AssetDetail` (N.2), preventivo aqui
 // já que `portfolio`/`calculator` hoje sempre desbloqueiam nas 2 primeiras
-// lições da trilha. Legenda com o código da
-// lição (tarefa J.2) só aparece em tablet/desktop (`.lockHint`, escondida
-// via CSS abaixo de 768px) — mobile (barra inferior fixa) confia só no
-// toque como caminho, pra não quebrar o layout compacto dos 5 itens.
-// Enquanto `GET /lessons` ainda não resolveu ou falhou (`isLoading`/
-// `isError`), `unlockedKeys` vem vazio sem significar "nada desbloqueado"
-// — renderiza como link normal nesse meio-tempo pra não piscar cadeado
-// numa aba que o usuário já desbloqueou (mesmo cuidado de `RequiresUnlock`).
+// lições da trilha. A legenda visível com o código da lição (`.lockHint`,
+// tarefa J.2) saiu na Fase Q — "Lição X.X" não pode aparecer em nenhum
+// texto de UI fora do próprio Mapa da Trilha (decisão do autor,
+// 2026-09-12); o `aria-label` também não cita mais o código, só o rótulo
+// da aba. Enquanto `GET /lessons` ainda não resolveu ou falhou
+// (`isLoading`/`isError`), `unlockedKeys` vem vazio sem significar "nada
+// desbloqueado" — renderiza como link normal nesse meio-tempo pra não
+// piscar cadeado numa aba que o usuário já desbloqueou (mesmo cuidado de
+// `RequiresUnlock`).
 const TABS = [
     { to: '/', label: 'Portfólio', end: true, Icon: PieChart, unlockKey: 'portfolio' },
     { to: '/trilha', label: 'Trilha', Icon: Map, unlockKey: undefined },
@@ -44,23 +45,17 @@ export function TabBar() {
 
                 if (locked) {
                     const hint = findLessonUnlocking(unlockKey, lessons)
-                    const ariaLabel = hint ? `${label} travado, desbloqueia na lição ${hint.code}` : `${label} travado pela trilha`
 
                     return (
                         <button
                             key={to}
                             type="button"
                             className={`${styles.tab} ${styles.locked}`}
-                            aria-label={ariaLabel}
+                            aria-label={`${label} travado pela trilha`}
                             onClick={() => navigate(hint ? safeUnlockPath(hint) : '/trilha')}
                         >
                             <Lock size={18} strokeWidth={2} aria-hidden="true" />
                             <span aria-hidden="true">{label}</span>
-                            {hint && (
-                                <span aria-hidden="true" className={styles.lockHint}>
-                                    Lição {hint.code}
-                                </span>
-                            )}
                         </button>
                     )
                 }

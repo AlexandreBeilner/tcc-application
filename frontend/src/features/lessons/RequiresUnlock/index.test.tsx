@@ -47,7 +47,7 @@ describe('RequiresUnlock', () => {
         expect(screen.getByText('Ainda não há lição cobrindo este produto.')).toBeInTheDocument()
     })
 
-    it('sem a chave desbloqueada, mas com a lição que libera encontrada, mostra o código dela', () => {
+    it('sem a chave desbloqueada, mas com a lição que libera encontrada, mostra o título dela (nunca o código, Fase Q)', () => {
         vi.mocked(useUnlockedKeys).mockReturnValue({
             unlockedKeys: new Set(),
             lessons: [lesson()],
@@ -57,7 +57,8 @@ describe('RequiresUnlock', () => {
 
         renderWithRouter('portfolio')
 
-        expect(screen.getByText('Desbloqueia na lição 0.1.')).toBeInTheDocument()
+        expect(screen.getByText('Complete a lição "Poupança x CDB" na trilha pra liberar isso.')).toBeInTheDocument()
+        expect(screen.queryByText(/Lição \d/)).not.toBeInTheDocument()
     })
 
     it('lição encontrada mas ainda locked pro usuário (hipotético): CTA cai no Mapa da Trilha, não na lição inacessível (N.3)', async () => {

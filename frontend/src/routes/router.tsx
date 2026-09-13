@@ -91,7 +91,14 @@ export const router = createBrowserRouter([
                         children: [{ path: '/calculadora', element: <Calculator /> }],
                     },
                     { path: '/classificacao', element: <Classificacao /> },
-                    { path: '/noticias', element: <News /> },
+                    // Notícias só desbloqueia de verdade na lição que libera
+                    // `news_feed` (Fase Q, reversão da decisão original de
+                    // 7.0.1 de tratar o feed como "sempre acessível, só
+                    // aviso") — mesmo gate real de Portfólio/Calculadora.
+                    {
+                        element: <RequiresUnlock unlockKey="news_feed" />,
+                        children: [{ path: '/noticias', element: <News /> }],
+                    },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
                     // — conteúdo real (4.8 Extrato, tarefa 6.5).
                     { path: '/extrato', element: <Statement /> },

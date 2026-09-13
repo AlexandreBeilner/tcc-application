@@ -144,8 +144,11 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
 
         await waitFor(() => expect(screen.getByText('Travado pela trilha')).toBeInTheDocument())
-        expect(screen.getByText('Desbloqueia na lição 2.3.')).toBeInTheDocument()
+        expect(screen.getByText('Complete a lição "Nomenclatura de tickers" na trilha pra liberar isso.')).toBeInTheDocument()
         expect(screen.queryByText('Não foi possível concluir a operação agora.')).not.toBeInTheDocument()
+        // Fase Q: parede total do diálogo — nada do resumo/ações de confirmar.
+        expect(screen.queryByText('Ativo')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /Confirmar/ })).not.toBeInTheDocument()
     })
 
     // Regressão da tarefa N.2: o 403 nunca traz `id`, só `code`/`title` —

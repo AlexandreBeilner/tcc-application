@@ -164,7 +164,7 @@ describe('EquityList — estado travado pela trilha (tarefa 7.0.1)', () => {
         renderPage()
 
         await waitFor(() => expect(screen.getAllByText('PETR4').length).toBeGreaterThan(0))
-        expect(screen.getAllByLabelText('Produto travado, desbloqueia na lição 2.3').length).toBeGreaterThan(0)
+        expect(screen.getAllByLabelText('Produto travado pela trilha').length).toBeGreaterThan(0)
 
         fireEvent.click(screen.getAllByText('PETR4')[0])
         await waitFor(() => expect(screen.getByText('tela de detalhe')).toBeInTheDocument())

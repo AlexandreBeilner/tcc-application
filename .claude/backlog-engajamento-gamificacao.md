@@ -2102,6 +2102,116 @@ do resto do backlog.
 
 ---
 
+## Fase Q — Bloqueio é parede em todo lugar macro (reversão definitiva da Fase J)
+
+**Origem: instrução direta do autor (2026-09-12), depois de repetidas idas e vindas sobre o mesmo
+ponto.** A Fase J ("bloqueio como convite, não parede") e o que ela levou pra `LockedAssetPanel`,
+`AssetDetail`, `FixedIncomeDetail`, `News` e `NewsBell` deixava o conteúdo real visível (só leitura)
+mesmo travado, e o feed de notícias nunca era bloqueado de fato — só um aviso. O autor reverteu essa
+filosofia por completo: **ao tentar acessar um recurso ainda bloqueado, a única coisa que aparece na
+tela é um card explicando o que falta pra liberar — nada do conteúdo real (ticker, gráfico,
+indicadores, simulador, feed) escapa disso até a chave desbloquear.** Regra explícita do autor,
+citada aqui porque generaliza pra qualquer bloqueio futuro na aplicação, não só os 3 pontos abaixo:
+
+1. Acessar a tela de um recurso travado sempre é permitido (a rota nunca vira 404/redirect mudo) —
+   mas dentro dela só o card de bloqueio aparece, nunca o conteúdo real ao lado.
+2. O bloqueio é sempre no nível da **funcionalidade macro** (o tipo de ativo, o feed de notícias
+   inteiro, a tela de Portfólio/Calculadora), nunca num item específico dentro de uma lista
+   compartilhada — a lista continua mostrando todos os itens, com um indicador visual simples nos
+   travados; é a tela de destino que vira parede.
+3. Nenhum texto de UI fora do próprio Mapa da Trilha cita o código da lição (`"Lição X.X"`) — só o
+   título, em prosa (`Complete a lição "X" na trilha pra liberar isso.`).
+4. Depois de liberado, o bloqueio desaparece por completo e o recurso funciona normalmente — sem
+   mudança nesta fase, já era assim desde a Fase K/N.
+
+### Q.1 · Vocabulário de UI para de citar código de lição — só título ✅ concluída
+
+- **Achado:** `LockedAssetPanel`/`LockedScreen` recebiam `lessonCode` e montavam texto tipo
+  "Desbloqueia na lição 2.3." — `LockedAssetBadge` ia além, mostrando "Lição 2.3" como texto visível
+  na própria célula da grid (`.tickerCell`), e `TabBar` mostrava "Lição 0.1" como legenda da aba
+  travada (`.lockHint`, tablet/desktop). Instrução direta do autor: nenhum desses textos pode
+  aparecer fora do Mapa da Trilha.
+- **O que mudou na aplicação:** `LockedAssetPanel`/`LockedScreen` (prop `lessonCode` → `lessonTitle`,
+  descrição virou `Complete a lição "${lessonTitle}" na trilha pra liberar isso.`);
+  `LockedAssetBadge` perdeu a prop inteira e o texto visível — virou ícone-só com
+  `aria-label="Produto travado pela trilha"` genérico (o motivo detalhado só aparece depois do
+  clique, na tela de destino); `TabBar` perdeu o `.lockHint`/`Lição {code}` visível, `aria-label`
+  simplificado pra `${label} travado pela trilha`; `OrderConfirmationDialog` (banner do 403
+  descoberto na confirmação) e `RequiresUnlock`/`AssetDetail`/`FixedIncomeDetail` passam
+  `unlockingLesson.title` em vez de `.code`.
+- **Critérios de aceite:** nenhum teste/tela mostra o padrão `Lição \d` fora de `TrackPath`/
+  `LessonNode`/`TrackMap` (que continuam usando código de lição normalmente — são o próprio Mapa da
+  Trilha, a exceção explícita da regra).
+- **Referências:** J.2 (motivo do bloqueio visível, versão original com código); N.1-N.3 (mesmo
+  `LessonUnlockHint`, já tinha `title` disponível, só não era usado nesses 4 pontos).
+- **Dependências:** nenhuma.
+- **Entregável:** `LockedAssetPanel/{index.tsx,types.ts}`, `LockedScreen/{index.tsx,types.ts}`,
+  `LockedAssetBadge/index.tsx` (prop removida, `types.ts` deletado — módulo sem interface própria),
+  `TabBar/{index.tsx,index.module.css}`, `RequiresUnlock/index.tsx`, `AssetDetail/index.tsx`,
+  `FixedIncomeDetail/index.tsx`, `OrderConfirmationDialog/index.tsx`, `NewsBell/index.tsx` (aria-label
+  hardcoded "lição 2.4" removido). Testes atualizados nos mesmos arquivos (`LockedAssetPanel`,
+  `LockedAssetBadge`, `LockedScreen`, `RequiresUnlock`, `TabBar`, `AssetDetail`,
+  `OrderConfirmationDialog` — todos com asserção explícita `queryByText(/Lição \d/)` ausente onde faz
+  sentido). `npx tsc --noEmit`, `npx oxlint` e `npx vitest run` (662 testes) verdes.
+
+### Q.2 · Detalhe de Ativo/Produto travado vira parede total (reversão da J.3) ✅ concluída
+
+- **Achado:** `AssetDetail` (J.3) mantinha ticker/preço/gráfico/indicadores/histórico de proventos
+  visíveis mesmo travado — só o painel de compra virava `LockedAssetPanel`. Pior: `FixedIncomeDetail`
+  **nunca checava lock nenhum** — clicar num produto travado na grid de `FixedIncomeList` (CDB/LCI/
+  Tesouro ainda não liberados) abria a tela cheia, com o simulador de aporte e o CTA "Investir" 100%
+  funcionais, sem trava nenhuma além do 403 que o backend devolveria só no POST de aporte. Bug real,
+  achado do autor testando em produção — exatamente o "consigo acessar eles" citado na instrução.
+- **O que mudou na aplicação:** as duas telas ganharam um retorno antecipado — se
+  `useLockedAssetGate().isLocked(asset)`, a tela inteira vira só `<LockedAssetPanel>` dentro do
+  `<main>` (nada de layout de 2 colunas, chart, indicadores, simulador ou painel de compra ao lado).
+  `FixedIncomeDetail` importou `useLockedAssetGate` pela primeira vez.
+- **Critérios de aceite:** com um produto/ativo travado, a tela mostra só o card "Travado pela
+  trilha" + CTA "Ir pra lição" — nenhum outro elemento da tela (ticker, preço, chart, indicadores,
+  simulador, botão de compra/aporte) é renderizado; destravado, a tela funciona exatamente como
+  antes.
+- **Referências:** J.3 (versão original, "prévia, não parede"); N.2 (CTA nunca aponta pra lição
+  inacessível — preservado, `reachable` continua sendo repassado).
+- **Dependências:** Q.1 (mesma prop `lessonTitle`).
+- **Entregável:** `AssetDetail/index.tsx` e `FixedIncomeDetail/index.tsx` — retorno antecipado logo
+  após resolver `asset`/`fixedIncome`, antes de qualquer JSX de conteúdo real. Testes atualizados
+  (`AssetDetail/index.test.tsx`: describe "ativo travado" reescrito pra afirmar ausência de
+  ticker/indicadores/painel de compra; `FixedIncomeDetail/index.test.tsx`: novo describe "produto
+  travado pela trilha" com mock de `useUnlockedKeys`, cobrindo o gap que não tinha teste nenhum
+  antes). Validado manualmente via `docker compose`/dev server local com um usuário novo (0 lições
+  concluídas): `/mercado/renda-fixa/:id` de um Tesouro Selic ainda travado mostra só o card;
+  `/mercado/ativos/:id` de uma ação travada, idem. `npx tsc --noEmit`, `npx oxlint` e `npx vitest run`
+  (662 testes) verdes.
+
+### Q.3 · Notícias vira gate de rota real, não mais "sempre acessível, só aviso" ✅ concluída
+
+- **Achado:** a decisão original da tarefa 7.0.1 tratava `news_feed` como "conteúdo só-leitura e de
+  baixo risco" — `News` sempre renderizava o feed completo, só acrescentando um parágrafo de aviso
+  quando a chave ainda não estava desbloqueada. `NewsBell` seguia a mesma lógica (cadeado decorativo,
+  link sempre ativo). Decisão revertida pelo autor: sem exceção por classe de risco de conteúdo,
+  bloqueio é parede em todo lugar macro, inclusive Notícias.
+- **O que mudou na aplicação:** `/noticias` ganhou o mesmo gate real de Portfólio/Calculadora —
+  `routes/router.tsx` aninhou a rota sob `<RequiresUnlock unlockKey="news_feed">`. `pages/News`
+  perdeu toda a lógica de lock (import de `useUnlockedKeys`/`findLessonUnlocking`, o parágrafo
+  `.lockNotice`) — o componente já assume a chave desbloqueada sempre que chega a montar.
+  `NewsBell` manteve o cadeado decorativo (macro-indicador consistente com `TabBar`), só perdeu o
+  aria-label hardcoded com o código da lição.
+- **Critérios de aceite:** usuário sem `news_feed` desbloqueado que acessa `/noticias` (navegação
+  direta ou clique no sino) vê só o card de bloqueio — nenhum evento do feed é buscado/renderizado;
+  destravado, o feed funciona exatamente como antes.
+- **Referências:** 7.0.1 (decisão original, revertida); K.2 (mesmo `RequiresUnlock` reaproveitado
+  sem mudança de comportamento pras 2 chaves que já usavam).
+- **Dependências:** nenhuma (reaproveita `RequiresUnlock` já existente).
+- **Entregável:** `routes/router.tsx` (`/noticias` aninhada sob `RequiresUnlock`), `pages/News/
+  {index.tsx,index.module.css}` (lógica de lock e `.lockNotice` removidos), `NewsBell/index.tsx`
+  (aria-label). Teste antigo "avisa (sem bloquear)" removido de `News/index.test.tsx` — o
+  comportamento de gate genérico já é coberto por `RequiresUnlock/index.test.tsx`, sem precisar
+  duplicar por chave. Validado manualmente via dev server local: usuário novo em `/noticias` vê só o
+  card, feed nunca é buscado. `npx tsc --noEmit`, `npx oxlint` e `npx vitest run` (662 testes)
+  verdes.
+
+---
+
 ## Sequência de implementação sugerida
 
 Ordem única, pensada pra sessão solo (uma tarefa por sessão, sem paralelismo real) — não é a ordem
@@ -2211,4 +2321,5 @@ real", que abre schema novo (pequeno, nullable) e alimenta H. D fica por último
 | N | Redirecionamento nunca aponta pra lição inacessível | 3 | Não |
 | O | Trilha vira hub + mapa vertical por trilha | 5 | Não |
 | P | Ajustes finos do redesenho O (achados de validação real) | 3 | Não |
+| Q | Bloqueio é parede em todo lugar macro (reversão da Fase J) | 3 | Não |
 | **Total** | | **46** | |

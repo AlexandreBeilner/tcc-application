@@ -82,7 +82,7 @@ describe('TabBar', () => {
     it('tocar numa aba travada navega pra lição que a desbloqueia', () => {
         renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'] })] })
 
-        fireEvent.click(screen.getByRole('button', { name: /Portfólio travado, desbloqueia na lição 0\.1/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
 
         expect(screen.getByTestId('location')).toHaveTextContent('/trilha/lesson-42')
     })
@@ -90,7 +90,7 @@ describe('TabBar', () => {
     it('lição encontrada mas ainda locked pro usuário (hipotético): navega pro Mapa da Trilha, nunca pra lição inacessível (N.3)', () => {
         renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'], status: 'locked' })] })
 
-        fireEvent.click(screen.getByRole('button', { name: /Portfólio travado, desbloqueia na lição 0\.1/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
 
         expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
         expect(screen.getByTestId('location')).not.toHaveTextContent('/trilha/lesson-42')
@@ -104,14 +104,8 @@ describe('TabBar', () => {
         expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
     })
 
-    it('aba travada mostra o código da lição como legenda visível (não só no aria-label)', () => {
+    it('aba travada nunca mostra o código da lição em texto visível (Fase Q)', () => {
         renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'] })] })
-
-        expect(screen.getByText('Lição 0.1')).toBeInTheDocument()
-    })
-
-    it('sem lição correspondente encontrada, não mostra legenda de lição', () => {
-        renderTabBar(new Set(), { lessons: [] })
 
         expect(screen.queryByText(/^Lição /)).not.toBeInTheDocument()
     })

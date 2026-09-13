@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest'
 import { LockedScreen } from '.'
 
 describe('LockedScreen', () => {
-    it('mostra o código da lição quando conhecido', () => {
+    it('mostra o título da lição quando conhecido (nunca o código, Fase Q)', () => {
         render(
             <MemoryRouter>
-                <LockedScreen lessonId="lesson-1" lessonCode="0.1" />
+                <LockedScreen lessonId="lesson-1" lessonTitle="Poupança x CDB" />
             </MemoryRouter>,
         )
 
-        expect(screen.getByText('Desbloqueia na lição 0.1.')).toBeInTheDocument()
+        expect(screen.getByText('Complete a lição "Poupança x CDB" na trilha pra liberar isso.')).toBeInTheDocument()
     })
 
     it('mensagem genérica quando nenhuma lição ainda cobre a chave', () => {

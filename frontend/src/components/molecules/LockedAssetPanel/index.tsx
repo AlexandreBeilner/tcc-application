@@ -6,19 +6,24 @@ import styles from './index.module.css'
 
 export type { LockedAssetPanelProps } from './types'
 
-// Banner "prévia, não parede" (tarefa J.3) — substitui o painel de compra
-// em `AssetDetail` quando `useLockedAssetGate.isLocked` é verdadeiro, e
-// também aparece em `OrderConfirmationDialog` quando a trava só é
-// descoberta na confirmação (`ProductLockedError`, acesso direto por URL).
-// CTA linka pro Mapa da Trilha (`/trilha`) quando não há `lessonId` (o 403
-// não traz `id`, só `code`/`title` — `.docs/backend/market.md`), quando a
-// lição encontrada ainda não é alcançável pro usuário (`reachable: false`,
-// tarefa N.2 — evita um CTA que navegaria pra uma lição que o backend
-// devolveria 404, `LessonLockedError`), e pra `/trilha/:id` direto nos
-// demais casos.
-export function LockedAssetPanel({ lessonId, lessonCode, reachable }: LockedAssetPanelProps) {
+// Card informativo de bloqueio (Fase Q, reversão definitiva da Fase J
+// "prévia, não parede") — em qualquer tela travada pela trilha (Detalhe de
+// Ativo/Produto de Renda Fixa, `LockedScreen` de rota inteira,
+// `OrderConfirmationDialog` quando a trava só é descoberta na confirmação)
+// este card é a ÚNICA coisa exibida enquanto a chave não for desbloqueada —
+// nunca um complemento a um conteúdo real parcialmente visível. Nunca cita
+// o código da lição (`lessonTitle`, não `lessonCode`): instrução direta do
+// autor (2026-09-12) depois de repetidas idas e vindas sobre esse ponto —
+// "Lição X.X" não pode aparecer em texto de UI fora do próprio Mapa da
+// Trilha. CTA linka pro Mapa da Trilha (`/trilha`) quando não há `lessonId`
+// (o 403 não traz `id`, só `code`/`title` — `.docs/backend/market.md`),
+// quando a lição encontrada ainda não é alcançável pro usuário
+// (`reachable: false`, tarefa N.2 — evita um CTA que navegaria pra uma
+// lição que o backend devolveria 404, `LessonLockedError`), e pra
+// `/trilha/:id` direto nos demais casos.
+export function LockedAssetPanel({ lessonId, lessonTitle, reachable }: LockedAssetPanelProps) {
     const navigate = useNavigate()
-    const description = lessonCode ? `Desbloqueia na lição ${lessonCode}.` : 'Ainda não há lição cobrindo este produto.'
+    const description = lessonTitle ? `Complete a lição "${lessonTitle}" na trilha pra liberar isso.` : 'Ainda não há lição cobrindo este produto.'
     const destination = lessonId && reachable !== false ? `/trilha/${lessonId}` : '/trilha'
 
     return (

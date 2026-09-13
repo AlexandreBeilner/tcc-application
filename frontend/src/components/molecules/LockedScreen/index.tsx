@@ -10,10 +10,10 @@ export type { LockedScreenProps } from './types'
 // Ativo (J.3), reaproveitado aqui em vez de reimplementado, só centralizado
 // numa tela cheia (o `TopBar`/`TabBar` do `AppShell` continuam normais por
 // fora, isto aqui só substitui o conteúdo da rota).
-export function LockedScreen({ lessonId, lessonCode, reachable }: LockedScreenProps) {
+export function LockedScreen({ lessonId, lessonTitle, reachable }: LockedScreenProps) {
     return (
         <main className={styles.page}>
-            <LockedAssetPanel lessonId={lessonId} lessonCode={lessonCode} reachable={reachable} />
+            <LockedAssetPanel lessonId={lessonId} lessonTitle={lessonTitle} reachable={reachable} />
         </main>
     )
 }
