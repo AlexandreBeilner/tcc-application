@@ -101,3 +101,26 @@ func quantityFraction(max int, pct float64) int {
 	}
 	return 1
 }
+
+// quantityForSide deriva a quantidade de um lado único a partir de price
+// (compra: teto de availableCash/price; venda: teto de currentPosition),
+// aplicando quantityFraction sobre pct — sizing compartilhado entre
+// Chartista (C.4) e Fundamentalista (C.5), os dois arquétipos que negociam
+// um único lado a um único preço de referência (Market Maker, C.3, já
+// deriva os dois lados de uma vez com sua própria lógica, não reaproveita
+// esta função). Devolve ErrNoViableOrder quando o lado indicado não tem
+// recurso nenhum (sem caixa pra 1 unidade de compra, sem posição pra
+// vender).
+func quantityForSide(side orderbook.Side, price, availableCash float64, currentPosition int, pct float64) (int, error) {
+	if side == orderbook.SideBuy {
+		maxQuantity := int(availableCash / price)
+		if maxQuantity < 1 {
+			return 0, ErrNoViableOrder
+		}
+		return quantityFraction(maxQuantity, pct), nil
+	}
+	if currentPosition < 1 {
+		return 0, ErrNoViableOrder
+	}
+	return quantityFraction(currentPosition, pct), nil
+}

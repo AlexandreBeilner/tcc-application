@@ -105,19 +105,20 @@ func AssignSpecializations(archetypes []Archetype, sectors []catalog.Sector, ass
 }
 
 // evenSplit divide total em n partes o mais igualmente possível — as
-// primeiras (total mod n) partes recebem um item a mais, mesmo método de
-// rateio proporcional (sem resto perdido) já usado em
-// largestRemainderAllocation (allocation.go), simplificado aqui porque
-// todos os "pesos" são iguais (1 bot = 1 bot, não há fração a ponderar).
+// primeiras (total mod n) partes recebem um item a mais. Reaproveita
+// largestRemainderAllocation (allocation.go) com pesos iguais (1 bot = 1
+// bot, não há fração a ponderar) em vez de duplicar a mesma lógica de
+// rateio proporcional sem resto perdido.
 func evenSplit(total, n int) []int {
-	base := total / n
-	remainder := total % n
+	weights := make([]float64, n)
+	for i := range weights {
+		weights[i] = 1
+	}
+	shares := largestRemainderAllocation(weights, float64(n), int64(total))
+
 	parts := make([]int, n)
-	for i := range parts {
-		parts[i] = base
-		if i < remainder {
-			parts[i]++
-		}
+	for i, s := range shares {
+		parts[i] = int(s)
 	}
 	return parts
 }

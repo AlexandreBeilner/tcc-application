@@ -44,12 +44,13 @@ var (
 // -ChartistTrendThresholdPct vende, dentro da faixa devolve
 // ErrNoClearTrend. A ordem gerada é sempre limitada ao último preço da
 // janela (o preço mais recente observado) — quantidade restrita ao que
-// availableCash/currentPosition permitem, mesma função quantityFraction
-// (fração de RiskProfile.MaxPositionSizePct, nunca menos que 1 quando o
-// lado é viável) já usada por DecideMarketMakerOrders (C.3). Devolve
-// ErrNoViableOrder quando a tendência aponta um lado (compra ou venda) mas
-// o bot não tem recurso nenhum pra esse lado — diferente de
-// ErrNoClearTrend, que é about a ausência de sinal, não de recurso.
+// availableCash/currentPosition permitem via quantityForSide (fração de
+// RiskProfile.MaxPositionSizePct, nunca menos que 1 quando o lado é viável;
+// mesma função reaproveitada por DecideFundamentalistOrder, C.5, pra evitar
+// duplicar a lógica de sizing por lado). Devolve ErrNoViableOrder quando a
+// tendência aponta um lado (compra ou venda) mas o bot não tem recurso
+// nenhum pra esse lado — diferente de ErrNoClearTrend, que é sobre a
+// ausência de sinal, não de recurso.
 func DecideChartistOrder(personality Personality, priceHistory []float64, availableCash float64, currentPosition int) (Decision, error) {
 	if personality.Archetype != ArchetypeChartista {
 		return Decision{}, ErrWrongArchetype
@@ -76,19 +77,9 @@ func DecideChartistOrder(personality Personality, priceHistory []float64, availa
 		return Decision{}, ErrNoClearTrend
 	}
 
-	pct := personality.RiskProfile.MaxPositionSizePct
-	var quantity int
-	if side == orderbook.SideBuy {
-		maxQuantity := int(availableCash / last)
-		if maxQuantity < 1 {
-			return Decision{}, ErrNoViableOrder
-		}
-		quantity = quantityFraction(maxQuantity, pct)
-	} else {
-		if currentPosition < 1 {
-			return Decision{}, ErrNoViableOrder
-		}
-		quantity = quantityFraction(currentPosition, pct)
+	quantity, err := quantityForSide(side, last, availableCash, currentPosition, personality.RiskProfile.MaxPositionSizePct)
+	if err != nil {
+		return Decision{}, err
 	}
 
 	return Decision{Side: side, Type: orderbook.TypeLimit, Price: last, Quantity: quantity}, nil

@@ -120,8 +120,9 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 // ErrNoMispricingDetected quando a diferença é desprezível. A ordem
 // gerada é sempre limitada à própria estimativa de preço justo (já com
 // ruído) — o bot está disposto a negociar até o preço em que acredita,
-// não além. Quantidade reaproveita quantityFraction (mesma função de
-// C.3/C.4) sobre RiskProfile.MaxPositionSizePct.
+// não além. Quantidade reaproveita quantityForSide (marketmaker.go, mesma
+// função de sizing por lado usada por DecideChartistOrder, C.4) sobre
+// RiskProfile.MaxPositionSizePct.
 func DecideFundamentalistOrder(
 	personality Personality,
 	financials fundamentals.Financials,
@@ -169,19 +170,9 @@ func DecideFundamentalistOrder(
 		return Decision{}, ErrNoMispricingDetected
 	}
 
-	pct := personality.RiskProfile.MaxPositionSizePct
-	var quantity int
-	if side == orderbook.SideBuy {
-		maxQuantity := int(availableCash / estimatedFairPrice)
-		if maxQuantity < 1 {
-			return Decision{}, ErrNoViableOrder
-		}
-		quantity = quantityFraction(maxQuantity, pct)
-	} else {
-		if currentPosition < 1 {
-			return Decision{}, ErrNoViableOrder
-		}
-		quantity = quantityFraction(currentPosition, pct)
+	quantity, err := quantityForSide(side, estimatedFairPrice, availableCash, currentPosition, personality.RiskProfile.MaxPositionSizePct)
+	if err != nil {
+		return Decision{}, err
 	}
 
 	return Decision{Side: side, Type: orderbook.TypeLimit, Price: estimatedFairPrice, Quantity: quantity}, nil
