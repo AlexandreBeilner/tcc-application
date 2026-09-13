@@ -24,6 +24,9 @@ func TestNew(t *testing.T) {
 	if acc.IsBot {
 		t.Error("IsBot = true, want false — New() é o caminho de conta humana")
 	}
+	if !acc.IsActive {
+		t.Error("IsActive = false, want true — toda conta nova nasce ativa")
+	}
 }
 
 func TestNewBot(t *testing.T) {
@@ -61,7 +64,66 @@ func TestNewBot(t *testing.T) {
 			if acc.CurrentBalance != tt.initialBalance {
 				t.Errorf("CurrentBalance = %v, want %v", acc.CurrentBalance, tt.initialBalance)
 			}
+			if !acc.IsActive {
+				t.Error("IsActive = false, want true — todo bot nasce ativo")
+			}
 		})
+	}
+}
+
+func TestAccount_EligibleForTradingRound(t *testing.T) {
+	tests := []struct {
+		name string
+		acc  Account
+		want bool
+	}{
+		{name: "bot ativo é elegível", acc: Account{IsBot: true, IsActive: true}, want: true},
+		{name: "bot inativo não é elegível", acc: Account{IsBot: true, IsActive: false}, want: false},
+		{name: "conta humana nunca é elegível, mesmo ativa", acc: Account{IsBot: false, IsActive: true}, want: false},
+		{name: "conta humana inativa (não deveria existir, mas também não é elegível)", acc: Account{IsBot: false, IsActive: false}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.acc.EligibleForTradingRound(); got != tt.want {
+				t.Errorf("EligibleForTradingRound() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDeactivate(t *testing.T) {
+	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDividendsReceived: 30, IsBot: true, IsActive: true}
+
+	got := Deactivate(acc)
+
+	if got.IsActive {
+		t.Error("IsActive = true, want false depois de Deactivate")
+	}
+	if got.UserID != acc.UserID || got.IsBot != acc.IsBot {
+		t.Errorf("identidade da conta mudou: got = %+v, want mesma identidade de %+v", got, acc)
+	}
+	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
+		t.Errorf("saldo mudou por desativar: got = %+v, want saldo intocado de %+v", got, acc)
+	}
+	if got.EligibleForTradingRound() {
+		t.Error("EligibleForTradingRound() = true, want false depois de Deactivate")
+	}
+}
+
+func TestActivate(t *testing.T) {
+	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDividendsReceived: 30, IsBot: true, IsActive: false}
+
+	got := Activate(acc)
+
+	if !got.IsActive {
+		t.Error("IsActive = false, want true depois de Activate")
+	}
+	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
+		t.Errorf("saldo mudou por reativar: got = %+v, want saldo intocado de %+v", got, acc)
+	}
+	if !got.EligibleForTradingRound() {
+		t.Error("EligibleForTradingRound() = false, want true depois de Activate (bot volta a participar da rodada seguinte)")
 	}
 }
 

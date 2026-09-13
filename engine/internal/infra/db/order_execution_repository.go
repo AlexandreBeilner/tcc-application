@@ -65,13 +65,50 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
+	outstandingShares, totalHeldExcludingIncoming, err := r.floatCeiling(ctx, assetID, userID)
+	if err != nil {
+		return orderexecution.Context{}, err
+	}
+
 	return orderexecution.Context{
-		ReferencePrice:       referencePrice,
-		Resting:              resting,
-		IncomingUserBalance:  balance,
-		IncomingUserPosition: positionQty,
-		Sandbox:              isSandbox,
+		ReferencePrice:             referencePrice,
+		Resting:                    resting,
+		IncomingUserBalance:        balance,
+		IncomingUserPosition:       positionQty,
+		Sandbox:                    isSandbox,
+		OutstandingShares:          outstandingShares,
+		TotalHeldExcludingIncoming: totalHeldExcludingIncoming,
 	}, nil
+}
+
+// floatCeiling lê o teto do float finito do ativo (tarefa A.3,
+// variable_income_assets.outstanding_shares — nulo pra sandbox, ver
+// seedSandboxEquity) e, só quando ele existe, a soma das posições de todos
+// os outros detentores reais (usuários + bots) desse ativo — insumo que
+// orderexecution.Execute precisa pra nunca deixar o total ultrapassar o
+// float. Ativo sem linha em variable_income_assets (nenhum tipo tradable
+// hoje cai nesse caso, mas a leitura é defensiva) também pula a checagem.
+func (r *OrderExecutionRepository) floatCeiling(ctx context.Context, assetID, userID string) (*int64, int64, error) {
+	var outstandingShares sql.NullInt64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT outstanding_shares FROM variable_income_assets WHERE asset_id = $1`, assetID,
+	).Scan(&outstandingShares)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, 0, err
+	}
+	if !outstandingShares.Valid {
+		return nil, 0, nil
+	}
+
+	var totalHeldExcludingIncoming int64
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(quantity), 0) FROM positions WHERE asset_id = $1 AND user_id != $2`, assetID, userID,
+	).Scan(&totalHeldExcludingIncoming); err != nil {
+		return nil, 0, err
+	}
+
+	shares := outstandingShares.Int64
+	return &shares, totalHeldExcludingIncoming, nil
 }
 
 // referencePrice resolve o preço de referência e se o ativo é sandbox —

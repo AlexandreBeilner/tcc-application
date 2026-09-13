@@ -32,6 +32,7 @@ import (
 	"errors"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/position"
 )
 
 var (
@@ -45,6 +46,11 @@ var (
 	// passo), mas uma ordem não tem como ser processada sem saldo pra
 	// validar.
 	ErrAccountNotFound = errors.New("conta não encontrada para o usuário da ordem")
+	// ErrFloatExceeded é o mesmo erro de position.ValidateFloatCeiling
+	// (float finito, tarefa A.3), redeclarado aqui pra manter o padrão de
+	// que quem chama Execute (e o handler HTTP) só precisa importar
+	// orderexecution pra checar qualquer erro devolvido.
+	ErrFloatExceeded = position.ErrFloatExceeded
 )
 
 // MarketCounterparty é o UserID sentinela usado num Fill contra liquidez
@@ -87,6 +93,18 @@ type Context struct {
 	// sintético ao preço de referência (ver doc do pacote, tarefa A.2).
 	// Mercado Ao Vivo nunca marca isso.
 	Sandbox bool
+	// OutstandingShares é o float finito do ativo (tarefa A.3,
+	// variable_income_assets.outstanding_shares) — nil quando o ativo não
+	// tem esse teto configurado (ex: sandbox, que nasce sempre com esse
+	// campo nulo — ver seedSandboxEquity). Quando presente, Execute valida
+	// que a soma de todas as posições nunca o ultrapassa; quando nil, a
+	// validação de float é pulada por completo.
+	OutstandingShares *int64
+	// TotalHeldExcludingIncoming é a soma das posições de todos os outros
+	// detentores reais do ativo (usuários + bots), sem contar a posição do
+	// usuário da ordem recebida (essa já vem em IncomingUserPosition) — só
+	// precisa vir preenchido quando OutstandingShares não é nil.
+	TotalHeldExcludingIncoming int64
 }
 
 // Fill é uma execução (real ou sintética, só possível pro caso sandbox)
@@ -171,8 +189,32 @@ func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 	if err := validateFunds(incoming, fills, ctx); err != nil {
 		return Outcome{}, err
 	}
+	if err := validateFloat(ctx); err != nil {
+		return Outcome{}, err
+	}
 
 	return Outcome{Fills: fills, FilledQuantity: filled, RemainingQuantity: remaining}, nil
+}
+
+// validateFloat garante o float finito do ativo (tarefa A.3): a soma das
+// posições de todos os detentores (TotalHeldExcludingIncoming +
+// IncomingUserPosition, o snapshot que Repository.LoadContext leu antes de
+// chamar Execute) nunca pode ultrapassar OutstandingShares. Pulada por
+// completo quando ctx.OutstandingShares é nil (ativo sem esse teto, ex:
+// sandbox). Basta validar o total pré-negociação, não o pós: Execute só
+// transfere quantidade já existente entre o usuário da ordem recebida e
+// uma contraparte real já contabilizada em TotalHeldExcludingIncoming
+// (nunca cria posição do nada — a liquidez sintética de sandbox é a única
+// exceção, e sandbox nunca marca OutstandingShares), então a soma total
+// nunca muda numa ordem normal; essa checagem só existe como proteção
+// contra uma distribuição inicial malformada (Fase B), não como regra que
+// trava negociação legítima.
+func validateFloat(ctx Context) error {
+	if ctx.OutstandingShares == nil {
+		return nil
+	}
+	totalHeld := ctx.TotalHeldExcludingIncoming + int64(ctx.IncomingUserPosition)
+	return position.ValidateFloatCeiling(totalHeld, *ctx.OutstandingShares)
 }
 
 func validateFunds(incoming orderbook.Order, fills []Fill, ctx Context) error {

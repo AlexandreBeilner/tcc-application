@@ -31,12 +31,22 @@ type Account struct {
 	// que garante, por construção, a exclusão de ranking/social (RF/RNF
 	// não mudam, ver migration 000010).
 	IsBot bool
+	// IsActive é o interruptor operacional do bot (tarefa A.4, migration
+	// 000011) — independente de IsBot: IsBot é identidade (nunca muda),
+	// IsActive decide se esse bot específico participa da coleta de
+	// decisões da próxima rodada de negociação (D.2, ainda não
+	// implementada) ou fica de fora, sem gerar ordem nem contar como
+	// profundidade de book. Desativar/reativar (Deactivate/Activate) nunca
+	// altera saldo/posição acumulados — só esse campo. Toda conta nova
+	// (humana ou bot) nasce ativa; ficar inativa é sempre uma transição
+	// posterior, nunca o estado inicial.
+	IsActive bool
 }
 
 // New monta uma conta nova com o capital inicial padronizado — é o único
 // lugar que decide esse valor; Repository só persiste o que New produziu.
 func New(userID string) Account {
-	return Account{UserID: userID, CurrentBalance: InitialBalance}
+	return Account{UserID: userID, CurrentBalance: InitialBalance, IsActive: true}
 }
 
 // NewBot monta uma conta de bot de liquidez — ao contrário de New, o saldo
@@ -53,7 +63,33 @@ func NewBot(userID string, initialBalance float64) (Account, error) {
 	if initialBalance < 0 {
 		return Account{}, fmt.Errorf("%w: saldo inicial negativo (%.2f)", ErrInvalidBotAccount, initialBalance)
 	}
-	return Account{UserID: userID, CurrentBalance: initialBalance, IsBot: true}, nil
+	return Account{UserID: userID, CurrentBalance: initialBalance, IsBot: true, IsActive: true}, nil
+}
+
+// EligibleForTradingRound diz se esta conta deveria entrar na coleta de
+// decisões de uma rodada de negociação (D.2, ainda não implementada) — só
+// bot ativo é elegível: conta humana nunca é coletada dessa forma (ela
+// envia ordem via HTTP, não participa da rodada de bots), e bot com
+// IsActive = false (tarefa A.4) é pulado inteiro, mesmo com
+// escopo/caixa/posição que o qualificariam.
+func (a Account) EligibleForTradingRound() bool {
+	return a.IsBot && a.IsActive
+}
+
+// Deactivate/Activate são transformações puras que só alternam IsActive
+// (tarefa A.4) — nunca tocam saldo (CurrentBalance/TotalInvested/
+// TotalDividendsReceived) nem identidade (IsBot/UserID): desativar um bot
+// "fora da curva" não deveria zerar nem redistribuir o que ele já carrega,
+// só impedi-lo de participar da rodada seguinte; reativar volta a incluí-lo
+// normalmente, sem perder nada do que aconteceu enquanto esteve inativo.
+func Deactivate(acc Account) Account {
+	acc.IsActive = false
+	return acc
+}
+
+func Activate(acc Account) Account {
+	acc.IsActive = true
+	return acc
 }
 
 // Repository persiste a criação de uma conta nova. A implementação

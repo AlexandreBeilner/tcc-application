@@ -136,7 +136,7 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   `go build`/`go test ./...`/`golangci-lint` (Docker, 0 issues), `npm test`/`tsc -b`/`oxlint`/
   `prettier`/`npm run build` (frontend, 665 testes) verdes.
 
-### A.3 · Float finito (`outstanding_shares` como teto real)
+### A.3 · Float finito (`outstanding_shares` como teto real) ✅
 
 - **Descrição:** hoje `outstanding_shares` só é denominador de LPA/VPA. Vira um teto real — a
   soma de todas as posições de todos os detentores (usuários + bots) de um ativo nunca pode
@@ -150,8 +150,43 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   confirmando que LPA/VPA continuam batendo (não é uma mudança de fórmula, só de garantia).
 - **Referências:** proposta 2.2.
 - **Dependências:** nenhuma.
+- **Entregável:** `position.ValidateFloatCeiling(totalHeld, outstandingShares int64) error` (nova,
+  `internal/domain/position/position.go`) — função pura que rejeita (`ErrFloatExceeded`) qualquer
+  soma acima do teto; `orderexecution.Context` ganhou `OutstandingShares *int64` (nil quando o
+  ativo não tem esse teto, ex: sandbox — `seedSandboxEquity` já grava `outstanding_shares = NULL`
+  de propósito) e `TotalHeldExcludingIncoming int64` (soma das posições de todos os outros
+  detentores reais, excluindo o usuário da ordem recebida); `Execute` valida, via `validateFloat`
+  (nova função interna), que `TotalHeldExcludingIncoming + IncomingUserPosition` — o snapshot
+  **pré-negociação** que `Repository.LoadContext` já lê — nunca excede o teto. Decisão de design
+  desta sessão: a checagem usa o total pré-trade, não um total pós-trade recalculado a partir do
+  fill — como toda transferência real é zero-sum (sai de um detentor já contabilizado em
+  `TotalHeldExcludingIncoming`, entra no usuário da ordem), os dois totais são sempre idênticos;
+  calcular o pós-trade a partir do fill somado ao pré-trade contava a mesma quantidade duas vezes
+  (bug pego pelo teste de sequência antes de fechar a tarefa). `orderexecution.ErrFloatExceeded`
+  (alias de `position.ErrFloatExceeded`) mantém o padrão de handler HTTP só importar
+  `orderexecution`; sem tratamento especial em `writeOrderExecutionError` — cai no `500` genérico
+  de propósito (violação sinaliza corrupção de estado, não rejeição de negócio como saldo/posição
+  insuficiente, que são `422`). `OrderExecutionRepository.LoadContext` (infra) ganhou `floatCeiling`
+  — lê `variable_income_assets.outstanding_shares` (nulo pula a segunda query) e
+  `SUM(quantity) FROM positions WHERE asset_id = $1 AND user_id != $2`. Testes novos:
+  `TestValidateFloatCeiling` (table-driven, `position_test.go`); `TestExecute_FloatFinito`
+  (table-driven: compra/venda que preservam o teto, estado corrompido rejeitado, sandbox sem teto
+  ignora a checagem) e `TestExecute_FloatFinito_PreservaInvarianteAoLongoDeSequencia` (simula 3
+  contas com distribuição inicial somando exatamente `outstandingShares`, roda 3 trades em
+  sequência atualizando holdings a cada passo, confirma que a soma nunca excede — e na prática
+  nunca muda — o teto), ambos em `orderexecution_test.go`. Regressão de `fundamentals.LPA`/`VPA`
+  confirmada sem nenhuma mudança de código (`fundamentals.go`/`indicators.go` intocados — a tarefa
+  não altera a fórmula, só adiciona o teto em outro lugar). `go build`/`go test ./...`/
+  `golangci-lint run` (Docker, 0 issues) verdes. Validado ao vivo via `docker compose up`: conta
+  real criada via `POST /accounts`, posição de um bot forçada via SQL direto pra ficar 1 unidade
+  acima do teto de `VALR3` (500.000.000) — `POST /orders` de compra devolveu `500` sem debitar
+  saldo nem criar posição; corrigido o estado pra ficar exatamente no teto, a mesma ordem passou a
+  executar normalmente (`200`, fill real contra a ordem do bot). Estado de teste revertido
+  (`positions`/`order_book` limpos); as duas contas de teste ficaram no banco porque
+  `market_events` é append-only por trigger (não dá pra apagar o evento de abertura de conta) —
+  resíduo inofensivo, sem posição nem saldo relevante.
 
-### A.4 · Flag `is_active` no bot (interruptor operacional, independente de `is_bot`)
+### A.4 · Flag `is_active` no bot (interruptor operacional, independente de `is_bot`) ✅
 
 - **Descrição:** pedido do autor além do que a proposta original cobria — precisa de um jeito de
   desligar um bot específico sem apagá-lo, pro caso de um bot individual sair "fora da curva"
@@ -171,6 +206,31 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   confirmando que reativar volta a incluí-lo normalmente na rodada seguinte.
 - **Referências:** pedido do autor nesta sessão (2026-09-13), não coberto pela proposta original.
 - **Dependências:** A.1 (mesma tabela/migration).
+- **Entregável:** `is_active boolean NOT NULL DEFAULT true` em `accounts` (migration
+  `000011_bot_active_flag`, mesma tabela de `is_bot`/A.1, migration separada porque A.1 já estava
+  fechada e mergeada). `account.Account.IsActive` novo; `New` (humano) e `NewBot` passam a marcar
+  `IsActive: true` explicitamente (não só confiar no `DEFAULT true` do schema — o `INSERT` já lista
+  todas as colunas, então o zero-value `false` do Go seria gravado sem isso). Decisão de escopo
+  desta sessão, já que a Fase D (coleta de decisões da rodada, D.2) ainda não existe: em vez de
+  esperar D.2 pra ter o que testar, a tarefa entrega o pedaço de domínio que D.2 vai consumir depois
+  — `Account.EligibleForTradingRound() bool` (`IsBot && IsActive`, pura) é o predicado de
+  elegibilidade que a futura coleta de bots vai aplicar; `account.Deactivate`/`Activate` (funções
+  puras, mesmo padrão de `position.ApplyBuy`/`ApplySell`) só alternam `IsActive`, nunca tocam
+  `CurrentBalance`/`TotalInvested`/`TotalDividendsReceived` nem `IsBot`/`UserID` — a garantia de
+  "não mexe no saldo" é estrutural (a função nem tem como tocar os outros campos), não uma
+  validação em tempo de execução. Sem endpoint admin nem método de repositório pra alternar
+  `is_active` em produção nesta tarefa — isso é escopo explícito da `N.1` (que já cita "A.4" no seu
+  próprio texto), pra não duplicar trabalho quando essa fase chegar. `AccountRepository.Create`/
+  `FindByUserID` persistem/leem a coluna nova (mesmo padrão de A.1). Testes novos em
+  `account_test.go`: `TestAccount_EligibleForTradingRound` (table-driven, cobrindo bot ativo/
+  inativo e humano ativo/inativo), `TestDeactivate`/`TestActivate` (confirmam saldo intocado e
+  `EligibleForTradingRound()` alternando corretamente); `TestNew`/`TestNewBot` ganharam a
+  asserção `IsActive == true`. `go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues)
+  verdes. Validado ao vivo via `docker compose up`: migration aplicou sobre as 153 contas
+  existentes (todas `is_active = true` por default); `POST /accounts` real confirmado gravando
+  `is_active = true` explicitamente (não só o default do schema); `UPDATE accounts SET is_active =
+  false/true` direto via SQL (não há endpoint ainda) confirmou saldo (`current_balance`) intocado
+  nos dois sentidos, numa das contas de bot deixadas pela sessão da A.3.
 
 ---
 

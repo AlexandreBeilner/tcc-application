@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/position"
 )
 
 func TestExecute_QuantidadeInvalida(t *testing.T) {
@@ -240,6 +241,159 @@ func TestExecute_OrdemAMercadoDeVendaSemLiquidezRealNaoExecutaNada(t *testing.T)
 	}
 	if len(out.Fills) != 0 {
 		t.Errorf("Fills = %+v, want nenhum (Mercado Ao Vivo não tem mais liquidez sintética)", out.Fills)
+	}
+}
+
+// TestExecute_FloatFinito cobre o critério de aceite da tarefa A.3: a soma
+// de posições de todos os detentores nunca pode exceder outstanding_shares
+// depois de aplicar o efeito da ordem recebida.
+func TestExecute_FloatFinito(t *testing.T) {
+	outstandingShares := int64(1_000_000)
+
+	tests := []struct {
+		name    string
+		side    orderbook.Side
+		ctx     Context
+		wantErr error
+	}{
+		{
+			name: "compra que preserva o teto é aceita",
+			side: orderbook.SideBuy,
+			ctx: Context{
+				ReferencePrice: 25,
+				Resting: []RestingOrder{
+					{ID: "ask-1", UserID: "user-vendedor", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 20, RemainingQuantity: 10},
+				},
+				IncomingUserBalance:        10_000,
+				IncomingUserPosition:       0,
+				OutstandingShares:          &outstandingShares,
+				TotalHeldExcludingIncoming: 999_990, // resto do float já distribuído, exceto os 10 que trocam de mão aqui
+			},
+			wantErr: nil,
+		},
+		{
+			name: "venda que preserva o teto é aceita",
+			side: orderbook.SideSell,
+			ctx: Context{
+				ReferencePrice: 25,
+				Resting: []RestingOrder{
+					{ID: "bid-1", UserID: "user-comprador", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 25, RemainingQuantity: 10},
+				},
+				IncomingUserPosition:       10,
+				OutstandingShares:          &outstandingShares,
+				TotalHeldExcludingIncoming: 999_990,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "estado corrompido (distribuição inicial estourando o float) é rejeitado",
+			side: orderbook.SideBuy,
+			ctx: Context{
+				ReferencePrice: 25,
+				Resting: []RestingOrder{
+					{ID: "ask-1", UserID: "user-vendedor", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 20, RemainingQuantity: 10},
+				},
+				IncomingUserBalance:  10_000,
+				IncomingUserPosition: 0,
+				OutstandingShares:    &outstandingShares,
+				// soma já ultrapassa o teto antes mesmo da ordem entrar —
+				// só possível por uma distribuição inicial malformada
+				// (Fase B), nunca por uma ordem legítima.
+				TotalHeldExcludingIncoming: 1_000_001,
+			},
+			wantErr: position.ErrFloatExceeded,
+		},
+		{
+			name: "sem OutstandingShares (ex: sandbox) a checagem é pulada",
+			side: orderbook.SideBuy,
+			ctx: Context{
+				ReferencePrice: 25,
+				Resting: []RestingOrder{
+					{ID: "ask-1", UserID: "user-vendedor", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 20, RemainingQuantity: 10},
+				},
+				IncomingUserBalance:        10_000,
+				OutstandingShares:          nil,
+				TotalHeldExcludingIncoming: 999_999_999, // valor absurdo, mas ignorado sem o teto
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			incoming := orderbook.Order{ID: "incoming", Side: tt.side, Type: orderbook.TypeMarket, Quantity: 10}
+			_, err := Execute(incoming, tt.ctx)
+			if err != tt.wantErr {
+				t.Errorf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestExecute_FloatFinito_PreservaInvarianteAoLongoDeSequencia cobre o
+// critério de aceite da tarefa A.3 na forma de sequência: parte de uma
+// distribuição inicial cuja soma bate exatamente com outstandingShares
+// (simulando o resultado da Fase B) e roda várias execuções reais em
+// sequência (holdings atualizados a cada trade, alimentando o Context da
+// próxima) — a soma total nunca deveria mudar, muito menos exceder o
+// float, porque cada trade só transfere quantidade já existente entre duas
+// contas.
+func TestExecute_FloatFinito_PreservaInvarianteAoLongoDeSequencia(t *testing.T) {
+	outstandingShares := int64(100)
+	holdings := map[string]int{"acc-a": 60, "acc-b": 30, "acc-c": 10}
+
+	sumHoldings := func() int64 {
+		var total int64
+		for _, q := range holdings {
+			total += int64(q)
+		}
+		return total
+	}
+
+	if sumHoldings() != outstandingShares {
+		t.Fatalf("setup inválido: soma inicial = %d, want %d", sumHoldings(), outstandingShares)
+	}
+
+	trades := []struct {
+		buyer, seller string
+		quantity      int
+		price         float64
+	}{
+		{buyer: "acc-b", seller: "acc-a", quantity: 20, price: 10},
+		{buyer: "acc-c", seller: "acc-b", quantity: 15, price: 12},
+		{buyer: "acc-a", seller: "acc-c", quantity: 5, price: 11},
+	}
+
+	for i, tr := range trades {
+		ctx := Context{
+			ReferencePrice: tr.price,
+			Resting: []RestingOrder{
+				{ID: "ask", UserID: tr.seller, Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: tr.price, RemainingQuantity: holdings[tr.seller]},
+			},
+			IncomingUserBalance:        1_000_000,
+			IncomingUserPosition:       holdings[tr.buyer],
+			OutstandingShares:          &outstandingShares,
+			TotalHeldExcludingIncoming: sumHoldings() - int64(holdings[tr.buyer]),
+		}
+		incoming := orderbook.Order{ID: "incoming", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: tr.quantity}
+
+		out, err := Execute(incoming, ctx)
+		if err != nil {
+			t.Fatalf("trade %d: err = %v, want nil", i, err)
+		}
+		if out.FilledQuantity != tr.quantity {
+			t.Fatalf("trade %d: FilledQuantity = %d, want %d", i, out.FilledQuantity, tr.quantity)
+		}
+
+		holdings[tr.buyer] += tr.quantity
+		holdings[tr.seller] -= tr.quantity
+
+		if got := sumHoldings(); got > outstandingShares {
+			t.Fatalf("trade %d: soma total = %d excede outstandingShares = %d", i, got, outstandingShares)
+		}
+		if got := sumHoldings(); got != outstandingShares {
+			t.Errorf("trade %d: soma total = %d, want %d (transferência deveria ser zero-sum)", i, got, outstandingShares)
+		}
 	}
 }
 
