@@ -1,0 +1,13 @@
+-- Fase A.1 do backlog-motor-mercado-realista: bots de liquidez são contas
+-- reais (mesma tabela accounts/positions, mesmo Event Sourcing, mesmo
+-- orderexecution que um usuário humano usa — proposta 2.3), diferenciadas
+-- só por esta flag. Mesmo padrão já usado por assets.is_sandbox.
+--
+-- Deliberadamente NÃO existe nenhuma tabela/linha correspondente a um bot
+-- no banco "gamification" (users) — bots nunca passam pelo fluxo de
+-- cadastro (POST /accounts só é chamado pelo motor de provisionamento do
+-- backend no signup real). Isso garante, por construção, que ranking,
+-- busca de amigos e solicitação de amizade (que leem exclusivamente
+-- `users`, nunca `accounts`) nunca enxergam um bot — sem precisar de um
+-- filtro `WHERE NOT is_bot` espalhado pelo backend.
+ALTER TABLE accounts ADD COLUMN is_bot boolean NOT NULL DEFAULT false;

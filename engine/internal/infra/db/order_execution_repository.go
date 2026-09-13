@@ -55,7 +55,7 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
-	referencePrice, err := r.referencePrice(ctx, assetID, positionQty, positionCreatedAt)
+	referencePrice, isSandbox, err := r.referencePrice(ctx, assetID, positionQty, positionCreatedAt)
 	if err != nil {
 		return orderexecution.Context{}, err
 	}
@@ -70,35 +70,42 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		Resting:              resting,
 		IncomingUserBalance:  balance,
 		IncomingUserPosition: positionQty,
+		Sandbox:              isSandbox,
 	}, nil
 }
 
-// referencePrice resolve o preço de referência (usado pelo preenchimento
-// sintético de ordem a mercado — orderexecution.Execute): ativo sandbox
-// (RF12, tarefa 4.11) usa sandbox.PriceScript, indexado pelo ticker (não dá
-// pra indexar por assetID em tempo de compilação — gerado pelo Postgres) e
-// pelo dia decorrido desde a primeira operação do usuário da ordem *nesse
-// ativo* (positionCreatedAt/positionQty — sandboxDayIndex reinicia em dia 0
-// se ele ainda não tinha posição nenhuma OU se a posição existente está
-// zerada, ver doc de sandboxDayIndex), nunca asset_quotes — o Temporizador
-// nunca gera cotação pra ativo sandbox (ver tick.md). Ativo do Mercado Ao
-// Vivo mantém o comportamento original: última linha de asset_quotes
-// (tarefa 3.11), tick.DefaultInitialPrice se ainda não há nenhuma.
-func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionQty int, positionCreatedAt sql.NullTime) (float64, error) {
+// referencePrice resolve o preço de referência e se o ativo é sandbox —
+// isSandbox é repassado pro chamador (orderexecution.Context.Sandbox)
+// porque só ativo sandbox (RF12/RNF08, tarefa 4.11) ainda recebe
+// preenchimento sintético de ordem a mercado (tarefa A.2, proposta
+// motor-mercado-realista 2.7 — sandbox fica fora do redesenho de liquidez
+// real). Preço de ativo sandbox usa sandbox.PriceScript, indexado pelo
+// ticker (não dá pra indexar por assetID em tempo de compilação — gerado
+// pelo Postgres) e pelo dia decorrido desde a primeira operação do usuário
+// da ordem *nesse ativo* (positionCreatedAt/positionQty — sandboxDayIndex
+// reinicia em dia 0 se ele ainda não tinha posição nenhuma OU se a posição
+// existente está zerada, ver doc de sandboxDayIndex), nunca asset_quotes —
+// o Temporizador nunca gera cotação pra ativo sandbox (ver tick.md). Ativo
+// do Mercado Ao Vivo mantém o comportamento original: última linha de
+// asset_quotes (tarefa 3.11), tick.DefaultInitialPrice se ainda não há
+// nenhuma — mas ali o preço de referência agora só serve pra exibição
+// (ex: weightedAveragePrice de uma ordem sem nenhum fill real), nunca mais
+// pra preencher a ordem sinteticamente.
+func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionQty int, positionCreatedAt sql.NullTime) (float64, bool, error) {
 	var ticker string
 	var isSandbox bool
 	if err := r.db.QueryRowContext(ctx,
 		`SELECT ticker, is_sandbox FROM assets WHERE id = $1`, assetID,
 	).Scan(&ticker, &isSandbox); err != nil {
-		return 0, err
+		return 0, false, err
 	}
 
 	if isSandbox {
 		script, ok := sandbox.PriceScriptForTicker(ticker)
 		if !ok {
-			return 0, ErrSandboxScriptNotFound
+			return 0, false, ErrSandboxScriptNotFound
 		}
-		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
+		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), true, nil
 	}
 
 	// Cache de leitura (tarefa 5.7) — mesma última cotação que
@@ -106,12 +113,12 @@ func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID s
 	// quente; aqui só o Price importa, DailyChangePct é ignorado.
 	quote, found, err := cachedQuote(ctx, r.cache, assetID, r.loadLatestQuoteFromPostgres)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if !found {
-		return tick.DefaultInitialPrice, nil
+		return tick.DefaultInitialPrice, false, nil
 	}
-	return quote.Price, nil
+	return quote.Price, false, nil
 }
 
 func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
@@ -128,11 +135,18 @@ func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Conte
 	return catalog.Quote{Price: price}, true, nil
 }
 
+// loadRestingOrders só lê ordens `limit` (tarefa A.2): ordem `market` nunca
+// fica pendurada no book, mesmo quando sobra quantidade sem contraparte
+// real (`orderexecution.Execute` já garante isso no Outcome), mas a linha
+// dela em order_book pode ainda assim ter status `pending`/`partially_filled`
+// (reflete quantidade pedida vs. preenchida, pra auditoria) — sem esse
+// filtro por `type`, essa linha voltaria a ser lida aqui como se fosse
+// liquidez real pendurada, corrompendo o replay de orderbook.Book.Submit.
 func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetID string) ([]orderexecution.RestingOrder, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, side, type, price, quantity - filled_quantity AS remaining
 		 FROM order_book
-		 WHERE asset_id = $1 AND status IN ('pending', 'partially_filled')
+		 WHERE asset_id = $1 AND type = 'limit' AND status IN ('pending', 'partially_filled')
 		 ORDER BY created_at ASC`, assetID,
 	)
 	if err != nil {
@@ -154,12 +168,13 @@ func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetI
 }
 
 // Persist grava o resultado de orderexecution.Execute atomicamente: pra
-// cada Fill (real ou sintético), o evento imutável em market_events de cada
-// lado envolvido é gravado **antes** de projetar em accounts/positions —
-// Event Sourcing é a fonte da verdade financeira (CLAUDE.md) — e só então a
-// própria ordem recebida é inserida em order_book. Fill sintético
-// (orderexecution.MarketCounterparty) só projeta o lado do usuário que
-// enviou a ordem; não existe uma conta/posição real do outro lado.
+// cada Fill (real, ou sintético só no caso sandbox — tarefa A.2), o evento
+// imutável em market_events de cada lado envolvido é gravado **antes** de
+// projetar em accounts/positions — Event Sourcing é a fonte da verdade
+// financeira (CLAUDE.md) — e só então a própria ordem recebida é inserida
+// em order_book. Fill sintético (orderexecution.MarketCounterparty) só
+// projeta o lado do usuário que enviou a ordem; não existe uma conta/
+// posição real do outro lado.
 //
 // Limitação de escopo conhecida (3.12): a validação de saldo/posição
 // acontece em Execute contra o snapshot lido por LoadContext, sem lock —
