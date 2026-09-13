@@ -76,6 +76,58 @@ func TestInitialAllocation_MarketMakerShareForaDaFaixaRetornaErro(t *testing.T) 
 	}
 }
 
+// TestInitialAllocation_MarketMakerSempreDentroDaFaixaComFloatPequeno confere
+// o mesmo critério de aceite de TestInitialAllocation_MarketMakerSempreDentroDaFaixa
+// (Market Maker sempre em 40-60%), mas em totalFloat pequeno o suficiente pra
+// math.Round(totalFloat*marketMakerSharePct) estourar a faixa sem o clamp
+// contra minShares/maxShares — regressão do bug encontrado no PR #24
+// (totalFloat=1, marketMakerSharePct=0.50 arredondava pra 100%).
+func TestInitialAllocation_MarketMakerSempreDentroDaFaixaComFloatPequeno(t *testing.T) {
+	tests := []struct {
+		totalFloat int64
+		pct        float64
+	}{
+		{totalFloat: 2, pct: 0.50},
+		{totalFloat: 5, pct: 0.60},
+		{totalFloat: 10, pct: 0.41},
+		{totalFloat: 137, pct: 0.59},
+	}
+
+	for _, tt := range tests {
+		got, err := InitialAllocation("ATIVO1", tt.totalFloat, tt.pct, 1, 1)
+		if err != nil {
+			t.Fatalf("totalFloat %d pct %v: err = %v, want nil", tt.totalFloat, tt.pct, err)
+		}
+
+		gotShare := float64(got.MarketMaker) / float64(tt.totalFloat)
+		if gotShare < MarketMakerShareMin-1e-9 || gotShare > MarketMakerShareMax+1e-9 {
+			t.Errorf("totalFloat %d pct %v: MarketMaker share = %v, want dentro de [%v, %v]",
+				tt.totalFloat, tt.pct, gotShare, MarketMakerShareMin, MarketMakerShareMax)
+		}
+	}
+}
+
+// TestInitialAllocation_TotalFloatPequenoDemaisRetornaErro confere o outro
+// lado do mesmo bug: quando totalFloat é tão pequeno que nenhuma quantidade
+// inteira de ações cai dentro de [MarketMakerShareMin, MarketMakerShareMax],
+// a função precisa recusar em vez de devolver uma fatia fora da faixa.
+func TestInitialAllocation_TotalFloatPequenoDemaisRetornaErro(t *testing.T) {
+	tests := []struct {
+		totalFloat int64
+		pct        float64
+	}{
+		{totalFloat: 1, pct: 0.50},
+		{totalFloat: 3, pct: 0.50},
+	}
+
+	for _, tt := range tests {
+		_, err := InitialAllocation("ATIVO1", tt.totalFloat, tt.pct, 1, 1)
+		if !errors.Is(err, ErrInvalidAllocation) {
+			t.Errorf("totalFloat %d pct %v: err = %v, want ErrInvalidAllocation", tt.totalFloat, tt.pct, err)
+		}
+	}
+}
+
 func TestInitialAllocation_TotalFloatInvalidoRetornaErro(t *testing.T) {
 	tests := []struct {
 		name       string

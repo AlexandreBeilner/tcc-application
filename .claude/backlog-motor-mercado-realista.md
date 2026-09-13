@@ -332,6 +332,41 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   Maker com exatamente 50% de cada float; caixa mínimo de todos os 20 bots bem acima do piso;
   reexecução do seed confirmada idempotente (todas as 20 contas + 80 posições puladas com log
   "já existe").
+- **Correções do review do PR #24 (sessão seguinte):** cinco achados corrigidos, dois descartados
+  por já serem decisão documentada. Corrigidos: (1) `bot.InitialAllocation` podia estourar a faixa
+  40-60% do Market Maker por arredondamento quando `totalFloat` é pequeno (ex: `totalFloat=1`,
+  `marketMakerSharePct=0.50` arredondava pra 100%) — agora calcula `minShares`/`maxShares` (teto
+  inteiro da faixa) e limita `marketMakerShares` a esse intervalo, retornando
+  `ErrInvalidAllocation` quando nenhum inteiro cabe nele; testes novos em `allocation_test.go`
+  cobrindo os dois lados. (2) `SeedInitialHolding` não validava
+  `position.ValidateFloatCeiling` antes de gravar — ganhou parâmetro `outstandingShares` e passou a
+  validar o teto logo depois do INSERT, desfazendo a transação inteira se violar (mesma defesa que
+  `orderexecution.Execute` já faz antes de cada negociação); `seedBotLiquidity`/`ensureBotPosition`
+  em `cmd/seed/main.go` repassam o `outstandingShares` de cada ativo. (3) `SeedInitialHolding`
+  fazia `SELECT EXISTS` + `INSERT` separados (janela de corrida entre duas execuções concorrentes
+  do seed) — trocado por `INSERT ... ON CONFLICT (user_id, asset_id) DO NOTHING` (mesma unique
+  constraint de `applyPositionFill`), decidindo `created` via `RowsAffected`; evento e validação de
+  teto só acontecem quando o INSERT realmente cria a linha, mesma transação garante atomicidade
+  mesmo com o INSERT vindo antes do evento. (4) `AccountRepository.Create` gravava o caixa inicial
+  de bot sob `initial_deposit` (tipo pensado pro depósito humano fixo de RNF06) — novo evento
+  `bot_initial_cash` (`domain.EventBotInitialCash`, migration
+  `000014_bot_initial_cash_event`, mesmo padrão de down-migration que falha de propósito sobre
+  linha existente de `000013`); `Create` escolhe o tipo por `acc.IsBot`. `eventstore_test.go`
+  ganhou os dois tipos que faltavam na tabela de regressão contra o enum Postgres (nenhum dos dois
+  estava lá, incluindo o de `000013`, já existente antes desta sessão). Descartados por já serem
+  decisão documentada: duplicação de `deterministicSeed` entre `bot`/`tick` (arquitetura Go do
+  projeto exige domínios irmãos não se importarem — "a little copying is better than a little
+  dependency", `.claude/arquitetura-engine-go.md`) e pool de bots hardcoded em `cmd/seed/main.go`
+  (decisão de escopo já registrada acima, resolve na C.6). Falta de teste unitário pra
+  `AccountRepository`/`SeedInitialHolding`/`SumHumanHoldings` também não foi tratada como gap: nenhum
+  arquivo em `internal/infra/db/` testa SQL contra Postgres real (só `quote_cache_test.go`, que
+  testa uma função pura) — a validação desse pacote é sempre via `docker compose up`, convenção já
+  seguida por todo o pacote antes desta sessão. `go build`/`go test ./...`/`golangci-lint run`
+  (Docker, 0 issues) verdes; `docker compose up` sobre o volume de dev real aplicou a migration
+  `000014` sem erro e confirmou a idempotência do seed pós-fix (reexecução pulou as 20 contas + 80
+  posições existentes, sem erro de constraint) — as contas de bot já existentes nesse volume
+  mantiveram `initial_deposit` (evento imutável, não reescrito retroativamente); só uma conta de
+  bot criada depois desta sessão grava `bot_initial_cash`.
 
 ---
 

@@ -22,6 +22,16 @@ const (
 	// uma ordem executada (sem contraparte real), por isso não reaproveita
 	// EventBuyOrderExecuted.
 	EventBotInitialAllocation MarketEventType = "bot_initial_allocation"
+	// EventBotInitialCash é o caixa inicial de um bot de liquidez nascendo
+	// no seed (tarefa B.2, migration 000014, bot.InitialCash) — não
+	// reaproveita EventInitialDeposit porque esse tipo é o depósito humano
+	// de RNF06 (sempre R$ 10.000,00, CLAUDE.md); caixa de bot tem valor
+	// arbitrário (correlacionado ao papel — Market Maker vs. direcional),
+	// então uma leitura futura do extrato que assumisse initial_deposit ==
+	// "R$ 10.000,00 de RNF06" veria valores de bot misturados, mesmo
+	// raciocínio que já motivou EventBotInitialAllocation pro lado da
+	// posição.
+	EventBotInitialCash MarketEventType = "bot_initial_cash"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

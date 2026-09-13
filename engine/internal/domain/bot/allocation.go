@@ -53,8 +53,12 @@ type Allocation struct {
 // InitialAllocation distribui o float finito de um ativo (totalFloat, o
 // outstanding_shares do catálogo) entre o grupo Market Maker e
 // otherBotCount outros bots (proposta 2.2): o Market Maker recebe a fatia
-// exata de marketMakerSharePct (validada contra MarketMakerShareMin/Max), o
-// restante se distribui entre os demais por pesos sorteados de uma
+// mais próxima possível de marketMakerSharePct que ainda seja uma
+// quantidade inteira de ações dentro de MarketMakerShareMin/Max — nunca uma
+// fatia fora da faixa, mesmo quando arredondar marketMakerSharePct*totalFloat
+// diretamente estouraria ela (totalFloat pequeno); quando nenhum inteiro
+// respeita a faixa, devolve ErrInvalidAllocation em vez de uma alocação
+// inválida. O restante se distribui entre os demais por pesos sorteados de uma
 // distribuição exponencial — normalizados, pesos exponenciais equivalem a
 // fatiar o float por um simplex de Dirichlet(1,...,1): visivelmente
 // concentrado (poucos grandes, muitos pequenos — o mesmo padrão de um float
@@ -84,15 +88,27 @@ func InitialAllocation(assetID string, totalFloat int64, marketMakerSharePct flo
 		return Allocation{}, fmt.Errorf("%w: otherBotCount precisa ser positivo (%d)", ErrInvalidAllocation, otherBotCount)
 	}
 
+	// minShares/maxShares são o intervalo inteiro que efetivamente respeita
+	// MarketMakerShareMin/Max pra este totalFloat — arredondar
+	// marketMakerSharePct*totalFloat sem checar contra esse intervalo pode
+	// estourar a faixa quando totalFloat é pequeno (ex: totalFloat=1,
+	// marketMakerSharePct=0.50 arredonda pra 1 = 100%, não 40-60%). Quando
+	// nenhum inteiro cabe no intervalo (totalFloat pequeno demais pra
+	// sequer uma ação respeitar a faixa), a garantia do critério de aceite
+	// é impossível de cumprir — erro em vez de devolver uma alocação que
+	// violaria a faixa.
+	minShares := int64(math.Ceil(float64(totalFloat) * MarketMakerShareMin))
+	maxShares := int64(math.Floor(float64(totalFloat) * MarketMakerShareMax))
+	if minShares > maxShares {
+		return Allocation{}, fmt.Errorf("%w: totalFloat (%d) é pequeno demais pra garantir a faixa do Market Maker (%.2f-%.2f) com uma quantidade inteira de ações",
+			ErrInvalidAllocation, totalFloat, MarketMakerShareMin, MarketMakerShareMax)
+	}
+
 	marketMakerShares := int64(math.Round(float64(totalFloat) * marketMakerSharePct))
-	// Salvaguarda de arredondamento: com marketMakerSharePct perto do teto
-	// (60%) e totalFloat muito pequeno, o arredondamento poderia em teoria
-	// ultrapassar totalFloat por 1 unidade — nunca deveria acontecer com um
-	// float realista (milhares+ de ações), mas o teto abaixo garante que a
-	// soma final continua batendo exatamente com totalFloat em qualquer
-	// entrada válida, sem depender dessa premissa de magnitude.
-	if marketMakerShares > totalFloat {
-		marketMakerShares = totalFloat
+	if marketMakerShares < minShares {
+		marketMakerShares = minShares
+	} else if marketMakerShares > maxShares {
+		marketMakerShares = maxShares
 	}
 	remaining := totalFloat - marketMakerShares
 

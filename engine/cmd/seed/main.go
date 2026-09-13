@@ -366,6 +366,15 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, as
 		bots[otherBotUserID(i)] = &botHolding{positions: map[string]int64{}}
 	}
 
+	// outstandingSharesByAsset alimenta a validação de teto
+	// (position.ValidateFloatCeiling, tarefa A.3) que SeedInitialHolding faz
+	// por posição gravada — precisa do outstanding_shares de cada ativo no
+	// momento de gravar, não só no momento de calcular a alocação.
+	outstandingSharesByAsset := make(map[string]int64, len(assets))
+	for _, asset := range assets {
+		outstandingSharesByAsset[asset.AssetID] = asset.OutstandingShares
+	}
+
 	for _, asset := range assets {
 		// O float que os bots podem receber é outstanding_shares menos o
 		// que humanos já detêm (accounts.is_bot = false) — nem sempre zero:
@@ -410,7 +419,7 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, as
 			if quantity == 0 {
 				continue
 			}
-			ensureBotPosition(ctx, accountRepo, userID, assetID, int(quantity), tick.DefaultInitialPrice)
+			ensureBotPosition(ctx, accountRepo, userID, assetID, int(quantity), tick.DefaultInitialPrice, outstandingSharesByAsset[assetID])
 		}
 	}
 }
@@ -433,8 +442,8 @@ func ensureBotAccount(ctx context.Context, repo *db.AccountRepository, userID st
 	log.Printf("conta de bot %s criada (caixa inicial %.2f)", userID, initialBalance)
 }
 
-func ensureBotPosition(ctx context.Context, repo *db.AccountRepository, userID, assetID string, quantity int, price float64) {
-	created, err := repo.SeedInitialHolding(ctx, userID, assetID, quantity, price)
+func ensureBotPosition(ctx context.Context, repo *db.AccountRepository, userID, assetID string, quantity int, price float64, outstandingShares int64) {
+	created, err := repo.SeedInitialHolding(ctx, userID, assetID, quantity, price, outstandingShares)
 	if err != nil {
 		log.Fatalf("erro ao gravar posição inicial do bot %s no ativo %s: %v", userID, assetID, err)
 	}
