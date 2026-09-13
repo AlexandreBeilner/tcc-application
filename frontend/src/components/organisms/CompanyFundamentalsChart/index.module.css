@@ -39,7 +39,7 @@
     cursor: default;
 }
 
-/* Tooltip de hover/foco (mesmo padrão de `TrackChart`) — mostra o valor
+/* Tooltip de hover/foco (mesmo padrão de `PriceChart`) — mostra o valor
    exato da barra sem depender do `title` nativo do navegador, que não
    segue o tema da aplicação. */
 .tooltip {

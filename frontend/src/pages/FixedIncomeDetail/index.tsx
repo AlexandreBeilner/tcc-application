@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FixedIncomeSimulator } from '../../components/organisms/FixedIncomeSimulator'
 import { Button } from '../../components/atoms/Button'
+import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftFixedIncomePurchase, OrderDraftFixedIncomeRedemption } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
+import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { useSimulateFixedIncomeQuery } from '../../features/market/useSimulateFixedIncomeQuery'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { daysUntil } from '../../features/market/daysUntil'
@@ -18,13 +20,19 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 
 // "aprender fazendo mesmo fora da lição guiada"). `days_held` da simulação
 // é sempre o prazo até o vencimento (`maturity_date`), pra a projeção
 // mostrar "quanto rende se eu segurar até lá" — o usuário não escolhe esse
-// número nesta tela, só o valor do aporte.
+// número nesta tela, só o valor do aporte. Produto travado (Fase Q) vira
+// parede total, mesmo tratamento de `AssetDetail` — até então esta tela não
+// checava `useLockedAssetGate` nenhuma vez (gap real: clicar num produto
+// travado na grid de `FixedIncomeList` chegava aqui com o simulador/CTA de
+// investir 100% funcionais, sem trava nenhuma além do 403 do backend no
+// POST de aporte).
 export function FixedIncomeDetail() {
     const { id } = useParams<{ id: string }>()
     const assetId = id as string
 
     const assetQuery = useAssetQuery(assetId)
     const accountQuery = useMyAccountQuery()
+    const gate = useLockedAssetGate()
     const [amount, setAmount] = useState(0)
     const [draft, setDraft] = useState<OrderDraftFixedIncomePurchase | OrderDraftFixedIncomeRedemption | null>(null)
 
@@ -49,6 +57,15 @@ export function FixedIncomeDetail() {
         return (
             <main className={styles.page}>
                 <p className={styles.loading}>Carregando produto…</p>
+            </main>
+        )
+    }
+
+    if (gate.isLocked(asset)) {
+        const unlockingLesson = gate.unlockingLessonFor(asset)
+        return (
+            <main className={styles.page}>
+                <LockedAssetPanel lessonId={unlockingLesson?.id} lessonTitle={unlockingLesson?.title} reachable={unlockingLesson?.reachable} />
             </main>
         )
     }

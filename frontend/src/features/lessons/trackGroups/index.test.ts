@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findActiveTrackNumber, groupLessonsByTrack } from '.'
+import { findActiveTrackNumber, groupLessonsByTrack, trackStatusFor } from '.'
 import type { Lesson } from '../../../services/lessons'
 
 function lesson(overrides: Partial<Lesson>): Lesson {
@@ -71,5 +71,31 @@ describe('findActiveTrackNumber', () => {
         const groups = groupLessonsByTrack([lesson({ trackNumber: 0, status: 'completed' })])
 
         expect(findActiveTrackNumber(groups)).toBeUndefined()
+    })
+})
+
+describe('trackStatusFor (backlog engajamento O.1)', () => {
+    it('"completed" quando todas as lições da trilha estão concluídas', () => {
+        const [group] = groupLessonsByTrack([lesson({ status: 'completed' }), lesson({ id: '2', status: 'completed' })])
+
+        expect(trackStatusFor(group)).toBe('completed')
+    })
+
+    it('"active" quando alguma lição está available', () => {
+        const [group] = groupLessonsByTrack([lesson({ status: 'completed' }), lesson({ id: '2', status: 'available' })])
+
+        expect(trackStatusFor(group)).toBe('active')
+    })
+
+    it('"active" quando há lição completed mas nenhuma available ainda (bloqueada por outra trilha)', () => {
+        const [group] = groupLessonsByTrack([lesson({ status: 'completed' }), lesson({ id: '2', status: 'locked' })])
+
+        expect(trackStatusFor(group)).toBe('active')
+    })
+
+    it('"locked" quando nenhuma lição é available nem completed', () => {
+        const [group] = groupLessonsByTrack([lesson({ status: 'locked' }), lesson({ id: '2', status: 'locked' })])
+
+        expect(trackStatusFor(group)).toBe('locked')
     })
 })

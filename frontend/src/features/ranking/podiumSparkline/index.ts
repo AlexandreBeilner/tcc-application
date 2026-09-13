@@ -7,13 +7,13 @@ const MARGIN_Y = 4
 const WAYPOINTS = 5
 const TOTAL_POINTS = WAYPOINTS + 2
 
-// Mesmo princípio de `features/lessons/trackChartLayout` (Mapa da Trilha,
-// 6.4/identidade-visual-padroes.md §4): a linha de progressão nunca é uma
-// reta, mesmo com só 2 marcos reais (início da janela = 0%, agora =
-// `endPct`) — ruído determinístico entre eles é o que faz a leitura ser
-// "gráfico de ativo", não "barra de progresso disfarçada". Hash simples
-// (não `Math.random`) — o mesmo `seedKey` sempre produz o mesmo desenho,
-// senão o pódio "tremeria" a cada re-render.
+// Mesmo princípio do motor de layout do Mapa da Trilha
+// (`features/lessons/trackPathLayout`, identidade-visual-padroes.md §4): a
+// linha de progressão nunca é uma reta, mesmo com só 2 marcos reais (início
+// da janela = 0%, agora = `endPct`) — ruído determinístico entre eles é o
+// que faz a leitura ser "gráfico de ativo", não "barra de progresso
+// disfarçada". Hash simples (não `Math.random`) — o mesmo `seedKey` sempre
+// produz o mesmo desenho, senão o pódio "tremeria" a cada re-render.
 function hashSeed(seed: string): number {
     let hash = 0
     for (let i = 0; i < seed.length; i++) {

@@ -27,10 +27,13 @@ const RANGES = [
 // gráfico de preço e fluxo de compra comuns às 3 classes de renda
 // variável; a seção de indicadores varia por `asset.type` (RF21, CLAUDE.md:
 // nunca reaproveitar o layout de indicadores de Ações pra ETF/FII).
-// Ativo travado (tarefa J.3) chega aqui normalmente — `EquityList` não
-// redireciona mais pra lição, indicadores/gráfico continuam somente
-// leitura (a trava real é só no POST de ordem, RF12/7.0.1) — só o painel
-// de compra é trocado pelo banner `LockedAssetPanel`.
+// Ativo travado (Fase Q, reversão da J.3 "prévia, não parede") chega aqui
+// pelo clique na linha de `EquityList` — mas a tela inteira vira parede:
+// nada de ticker/preço/gráfico/indicadores, só o card `LockedAssetPanel`
+// explicando o que falta pra liberar. A versão original da J.3 mantinha
+// tudo visível (só leitura) e trocava apenas o painel de compra — decisão
+// revertida pelo autor (2026-09-12): "a única coisa que aparece na tela é
+// o card, até liberar".
 export function AssetDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
@@ -64,6 +67,14 @@ export function AssetDetail() {
 
     const locked = gate.isLocked(asset)
     const unlockingLesson = gate.unlockingLessonFor(asset)
+
+    if (locked) {
+        return (
+            <main className={styles.page}>
+                <LockedAssetPanel lessonId={unlockingLesson?.id} lessonTitle={unlockingLesson?.title} reachable={unlockingLesson?.reachable} />
+            </main>
+        )
+    }
 
     function handleSubmitOrder(side: OrderSide, quantity: number) {
         setDraft({
@@ -139,11 +150,7 @@ export function AssetDetail() {
                 </div>
 
                 <aside className={styles.sidebar}>
-                    {locked ? (
-                        <LockedAssetPanel lessonId={unlockingLesson?.id} lessonCode={unlockingLesson?.code} />
-                    ) : (
-                        <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
-                    )}
+                    <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
                 </aside>
             </div>
 

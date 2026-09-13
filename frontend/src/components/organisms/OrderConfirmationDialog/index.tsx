@@ -119,6 +119,30 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
         )
     }
 
+    // Trava só descoberta na confirmação (Fase Q, reversão da J.3: ex.
+    // acesso direto por URL) vira parede total do próprio diálogo — nada de
+    // resumo da ordem/ações de confirmar, só o card explicando o que falta
+    // pra liberar + um jeito de fechar.
+    if (lockedError) {
+        return (
+            <div className={styles.backdrop} onMouseDown={handleBackdropClick}>
+                <div className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="order-confirmation-title">
+                    <h1 id="order-confirmation-title" className={styles.title}>
+                        Confirmar ordem
+                    </h1>
+
+                    <LockedAssetPanel lessonTitle={lockedError.unlockingLesson?.title} />
+
+                    <div className={styles.actions}>
+                        <Button variant="secondary" onClick={onClose}>
+                            Fechar
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     const currentPrice = draft.kind === 'order' ? (assetQuery.data?.asset.current_price ?? draft.unitPrice) : undefined
     const rows = buildRows(draft, currentPrice, cashBalance)
 
@@ -130,8 +154,6 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                 </h1>
 
                 <OrderSummaryList rows={rows} />
-
-                {lockedError && <LockedAssetPanel lessonCode={lockedError.unlockingLesson?.code} />}
 
                 {error && (
                     <p className={styles.error} role="alert">

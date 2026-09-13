@@ -27,7 +27,8 @@ import { Portfolio } from '../pages/Portfolio'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
-import { Track } from '../pages/Track'
+import { TrackMap } from '../pages/TrackMap'
+import { TrilhasHub } from '../pages/TrilhasHub'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
@@ -57,18 +58,24 @@ export const router = createBrowserRouter([
                 element: <AppShell />,
                 children: [
                     // Portfólio/Calculadora só desbloqueiam de verdade depois de
-                    // 0.1/0.2 (tarefa 7.0.1, achado 5) — `RequiresUnlock` redireciona
-                    // pra `/trilha` antes disso, mesmo padrão de nesting de
-                    // `<ProtectedRoute requireRole="admin">` abaixo.
+                    // 0.1/0.2 (tarefa 7.0.1, achado 5) — `RequiresUnlock` renderiza
+                    // `LockedScreen` no lugar do conteúdo antes disso (Fase Q,
+                    // "bloqueio é parede", nunca mais um redirect pra `/trilha`),
+                    // mesmo padrão de nesting de `<ProtectedRoute requireRole="admin">`
+                    // abaixo.
                     {
                         element: <RequiresUnlock unlockKey="portfolio" />,
                         children: [{ path: '/', element: <Portfolio /> }],
                     },
-                    // 3.1 Mapa da Trilha e 3.2 Lição (tarefa 6.4) — `/trilha/:id`
-                    // é rota irmã, não filha de `/trilha`, já que a Lição ocupa a
-                    // tela inteira dentro do mesmo <AppShell> (sem navegação
-                    // aninhada nova).
-                    { path: '/trilha', element: <Track /> },
+                    // 3.1 Hub de trilhas (tarefa 6.4, redesenhado na O.1) e 3.2 Lição
+                    // — `/trilha/:id` é rota irmã, não filha de `/trilha`, já que a
+                    // Lição ocupa a tela inteira dentro do mesmo <AppShell> (sem
+                    // navegação aninhada nova). `/trilha/mapa/:trackNumber` (mapa
+                    // vertical por trilha, O.3) tem segmento estático (`mapa`) próprio
+                    // pra nunca colidir com `/trilha/:id` (UUID) — `trackNumber`
+                    // inválido/fora do currículo redireciona pro Hub.
+                    { path: '/trilha', element: <TrilhasHub /> },
+                    { path: '/trilha/mapa/:trackNumber', element: <TrackMap /> },
                     { path: '/trilha/:id', element: <Lesson /> },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
                     // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é
@@ -86,7 +93,14 @@ export const router = createBrowserRouter([
                         children: [{ path: '/calculadora', element: <Calculator /> }],
                     },
                     { path: '/classificacao', element: <Classificacao /> },
-                    { path: '/noticias', element: <News /> },
+                    // Notícias só desbloqueia de verdade na lição que libera
+                    // `news_feed` (Fase Q, reversão da decisão original de
+                    // 7.0.1 de tratar o feed como "sempre acessível, só
+                    // aviso") — mesmo gate real de Portfólio/Calculadora.
+                    {
+                        element: <RequiresUnlock unlockKey="news_feed" />,
+                        children: [{ path: '/noticias', element: <News /> }],
+                    },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
                     // — conteúdo real (4.8 Extrato, tarefa 6.5).
                     { path: '/extrato', element: <Statement /> },

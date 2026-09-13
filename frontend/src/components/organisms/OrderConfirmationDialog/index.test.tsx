@@ -144,8 +144,64 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
 
         await waitFor(() => expect(screen.getByText('Travado pela trilha')).toBeInTheDocument())
-        expect(screen.getByText('Desbloqueia na lição 2.3.')).toBeInTheDocument()
+        expect(screen.getByText('Complete a lição "Nomenclatura de tickers" na trilha pra liberar isso.')).toBeInTheDocument()
         expect(screen.queryByText('Não foi possível concluir a operação agora.')).not.toBeInTheDocument()
+        // Fase Q: parede total do diálogo — nada do resumo/ações de confirmar.
+        expect(screen.queryByText('Ativo')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /Confirmar/ })).not.toBeInTheDocument()
+    })
+
+    // Regressão da tarefa N.2: o 403 nunca traz `id`, só `code`/`title` —
+    // `LockedAssetPanel` já cai no Mapa da Trilha por omissão de `lessonId`,
+    // continua assim mesmo com o campo `reachable` novo (nunca passado aqui).
+    it('CTA do banner de trava continua caindo no Mapa da Trilha (403 nunca traz id da lição)', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
+        })
+        vi.mocked(placeOrder).mockRejectedValue(
+            new ApiError(403, 'produto travado', {
+                error: 'produto travado',
+                key: 'asset:acao',
+                unlockingLesson: { code: '2.3', title: 'Nomenclatura de tickers' },
+            }),
+        )
+
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        const router = createMemoryRouter(
+            [
+                {
+                    path: '/mercado/ativos/:id',
+                    element: (
+                        <OrderConfirmationDialog
+                            draft={{
+                                kind: 'order',
+                                assetId: 'a1',
+                                ticker: 'PETR4',
+                                name: 'Petrobras',
+                                side: 'buy',
+                                quantity: 10,
+                                unitPrice: 30,
+                            }}
+                            onClose={vi.fn()}
+                        />
+                    ),
+                },
+                { path: '/trilha', element: <div>mapa da trilha</div> },
+            ],
+            { initialEntries: ['/mercado/ativos/a1'] },
+        )
+        render(
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+            </QueryClientProvider>,
+        )
+
+        await waitFor(() => expect(screen.getByText('Confirmar ordem')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('button', { name: 'Confirmar Comprar' }))
+
+        await waitFor(() => expect(screen.getByText('Travado pela trilha')).toBeInTheDocument())
+        fireEvent.click(screen.getByText('Ir pra lição'))
+        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
     })
 
     it('"Cancelar" chama onClose sem persistir nada', async () => {

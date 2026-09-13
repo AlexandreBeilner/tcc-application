@@ -15,7 +15,7 @@ export type { GrowthChartProps } from './types'
 // aportaria) é a linha sólida preenchida por ser um fato do cálculo,
 // "total" (aportado + juros projetados) é tracejada e sem preenchimento
 // por cima, marcando que o ganho é só uma expectativa, nunca "pintada"
-// como se já fosse patrimônio real (mesma lógica de `TrackChart`, que
+// como se já fosse patrimônio real (mesma lógica do Mapa da Trilha, que
 // preenche só o trecho concluído). Ver `features/calculator/
 // growthChartLayout` pro porquê de não ter ruído sintético (§4).
 //

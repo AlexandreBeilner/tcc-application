@@ -117,16 +117,15 @@ describe('Lesson (tela 3.2)', () => {
         expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
     })
 
-    it('passo de micro-decisão (reflection) exige confirmação antes de habilitar Continuar', async () => {
+    it('passo de micro-decisão (reflection, sem opções reais) não exige nenhum gate: Continuar já vem habilitado (backlog engajamento M.1)', async () => {
         vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 1 }) })
 
         renderLesson()
 
         const button = await screen.findByRole('button', { name: 'Continuar' })
-        expect(button).toBeDisabled()
-
-        fireEvent.click(screen.getByRole('checkbox'))
         expect(button).not.toBeDisabled()
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+        expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
     })
 
     it('micro-decisão com opções reais (backlog engajamento B.3) mostra os botões de escolha, não o checkbox', async () => {
@@ -142,15 +141,16 @@ describe('Lesson (tela 3.2)', () => {
         expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
     })
 
-    it('microDecisionOptions vazio (não null) cai de volta pro checkbox, não trava com 0 botões', async () => {
+    it('microDecisionOptions vazio (não null) cai de volta pro Continuar direto, não trava com 0 botões', async () => {
         vi.mocked(getLesson).mockResolvedValue({
             lesson: lesson({ currentStep: 1, microDecisionOptions: [] }),
         })
 
         renderLesson()
 
-        expect(await screen.findByRole('checkbox')).toBeInTheDocument()
-        expect(screen.getByText('Já pensei na minha resposta')).toBeInTheDocument()
+        const button = await screen.findByRole('button', { name: 'Continuar' })
+        expect(button).not.toBeDisabled()
+        expect(screen.queryByRole('group', { name: 'Escolha uma opção' })).not.toBeInTheDocument()
     })
 
     it('micro-decisão com opções reais exige escolher uma opção antes de habilitar Continuar', async () => {
@@ -207,7 +207,7 @@ describe('Lesson (tela 3.2)', () => {
         expect(await screen.findByText('Quase. A resposta certa era: Sim')).toBeInTheDocument()
     })
 
-    it('lição sem opções reais continua mostrando o checkbox de hoje na Revelação (regressão)', async () => {
+    it('lição sem opções reais não mostra badge de acerto/erro na Revelação (regressão)', async () => {
         vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
 
         renderLesson()
@@ -417,7 +417,7 @@ describe('Lesson (tela 3.2)', () => {
         await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
     })
 
-    it('micro-decisão fatiada: checkbox só aparece no último cartão do prompt', async () => {
+    it('micro-decisão fatiada sem opções reais: Continuar habilitado do primeiro ao último cartão, navegando entre eles', async () => {
         vi.mocked(getLesson).mockResolvedValue({
             lesson: lesson({ currentStep: 1, microDecisionPrompt: 'Primeiro cartão.\n\nSegundo cartão.' }),
         })
@@ -425,14 +425,13 @@ describe('Lesson (tela 3.2)', () => {
         renderLesson()
 
         await screen.findByText('Primeiro cartão.')
-        expect(screen.queryByText('Já pensei na minha resposta')).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
 
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 
         expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
-        expect(screen.getByText('Já pensei na minha resposta')).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        expect(advanceLesson).not.toHaveBeenCalled()
     })
 
     it('lição sem \\n\\n continua com 1 cartão só, sem pontinhos de progresso interno', async () => {

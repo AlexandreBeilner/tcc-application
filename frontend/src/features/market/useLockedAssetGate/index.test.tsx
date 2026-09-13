@@ -85,7 +85,12 @@ describe('useLockedAssetGate', () => {
         vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(), lessons: [lesson()], isLoading: false, isError: false })
         const { result } = renderGate()
 
-        expect(result.current.unlockingLessonFor(asset())).toEqual({ id: 'lesson-2-3', code: '2.3', title: 'Nomenclatura de tickers' })
+        expect(result.current.unlockingLessonFor(asset())).toEqual({
+            id: 'lesson-2-3',
+            code: '2.3',
+            title: 'Nomenclatura de tickers',
+            reachable: true,
+        })
     })
 
     it('unlockingLessonFor devolve undefined quando nenhuma lição seedada ainda cobre a chave', () => {

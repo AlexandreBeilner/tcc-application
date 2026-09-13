@@ -3,10 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { getAsset, getMyAccount, purchaseFixedIncome, redeemFixedIncome, simulateFixedIncome } from '../../services/market'
 import { FixedIncomeDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/market', () => ({
     getAsset: vi.fn(),
     getMyAccount: vi.fn(),
@@ -41,6 +43,10 @@ describe('FixedIncomeDetail (tela 4.3)', () => {
             setUser: vi.fn(),
         })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        // CDB já desbloqueado por padrão — os testes deste arquivo não são
+        // sobre o gate da Fase Q, ver describe dedicado abaixo pro estado
+        // travado.
+        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(['asset:cdb']), lessons: [], isLoading: false, isError: false })
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -139,5 +145,78 @@ describe('FixedIncomeDetail (tela 4.3)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Confirmar resgate' }))
         await waitFor(() => expect(redeemFixedIncome).toHaveBeenCalledWith('token', { asset_id: 'a1' }))
+    })
+})
+
+// Fase Q — antes desta tarefa, esta tela não checava nenhum gate: clicar
+// num produto travado na grid de `FixedIncomeList` chegava aqui com o
+// simulador/CTA de investir 100% funcionais (bug real, achado do autor).
+describe('FixedIncomeDetail — produto travado pela trilha (Fase Q)', () => {
+    beforeEach(() => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: 'token',
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'CDB2027',
+                name: 'CDB Banco X',
+                type: 'cdb',
+                is_sandbox: false,
+                fixed_income: {
+                    interest_rate: 12,
+                    maturity_date: '2027-01-01T00:00:00Z',
+                    issuer_type: 'banco',
+                    tax_exempt: false,
+                    minimum_investment: 100,
+                },
+            },
+        })
+    })
+
+    afterEach(() => vi.clearAllMocks())
+
+    it('mostra só o card de bloqueio — nada de taxa/vencimento/simulador', async () => {
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(),
+            lessons: [
+                {
+                    id: 'lesson-1-3',
+                    code: '1.3',
+                    title: 'Compra real de CDB',
+                    trackNumber: 1,
+                    trackName: 'Renda Fixa',
+                    sortOrder: 5,
+                    centralConcept: 'x',
+                    scenarioText: '',
+                    microDecisionPrompt: '',
+                    microDecisionType: 'reflection',
+                    microDecisionAssetTicker: null,
+                    revelationText: '',
+                    unlocksDescription: '',
+                    unlocksKeys: ['asset:cdb'],
+                    unlocksAssetTicker: null,
+                    microDecisionOptions: null,
+                    status: 'available',
+                    currentStep: 0,
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('Travado pela trilha')).toBeInTheDocument())
+        expect(screen.getByText('Complete a lição "Compra real de CDB" na trilha pra liberar isso.')).toBeInTheDocument()
+        expect(screen.queryByText('CDB2027')).not.toBeInTheDocument()
+        expect(screen.queryByLabelText('Valor do aporte')).not.toBeInTheDocument()
+        expect(screen.queryByText(/Lição \d/)).not.toBeInTheDocument()
     })
 })
