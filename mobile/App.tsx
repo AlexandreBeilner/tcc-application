@@ -10,9 +10,11 @@
 
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Config from 'react-native-config';
 import Keychain from 'react-native-keychain';
 import {
+  Alert,
   BackHandler,
   Linking,
   Pressable,
@@ -37,6 +39,10 @@ import {
   buildDownloadInterceptorScript,
   parseFileDownloadMessage,
 } from './downloadBridge';
+import {
+  buildGoogleSignInInterceptorScript,
+  parseGoogleSignInRequestedMessage,
+} from './googleSignInBridge';
 
 // Escopa as credenciais no Keychain/Keystore pra esse app específico — sem
 // isso o react-native-keychain usa um serviço default compartilhado entre
@@ -45,6 +51,32 @@ import {
 export const AUTH_KEYCHAIN_SERVICE = 'br.com.investimenta.auth';
 
 const APP_WEB_URL = Config.APP_WEB_URL as string;
+
+// Origem do gateway, pra chamada de API feita direto do código nativo (fora
+// do WebView, sem o proxy de dev do Vite por trás) — hoje só usada pra
+// POST /auth/google/token (tarefa 3.3). Diferente de APP_WEB_URL, que é a
+// origem da PÁGINA que o WebView carrega.
+const API_BASE_URL = Config.API_BASE_URL as string;
+
+// webClientId é o client ID **Web** (o mesmo GOOGLE_CLIENT_ID do backend,
+// .env.example/backend/.env — não um client novo desta tarefa) — é isso que
+// faz o SDK nativo emitir um idToken com audience verificável pelo backend
+// (runbook-mudanca-identidade-app-conta-google.md, seção 0). iosClientId é o
+// client ID iOS da tarefa 3.1; o client ID Android não entra aqui, o Play
+// Services resolve sozinho a partir do pacote+SHA-1 já cadastrados no
+// Console. Sem configure() nenhuma chamada do SDK funciona — guardado atrás
+// de um `if` porque um ambiente sem GOOGLE_WEB_CLIENT_ID configurado (ainda
+// não preenchido em .env.debug/.env.release nesta sessão) não pode derrubar
+// o app inteiro só por isso, mesmo princípio de
+// createDisabledGoogleIdentityProvider no backend.
+const GOOGLE_WEB_CLIENT_ID = Config.GOOGLE_WEB_CLIENT_ID as string;
+const GOOGLE_IOS_CLIENT_ID = Config.GOOGLE_IOS_CLIENT_ID as string;
+if (GOOGLE_WEB_CLIENT_ID) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+  });
+}
 
 // react-native-webview NÃO aceita uma regex pronta aqui: cada entrada é uma
 // string estilo wildcard (mesmo formato do defaultOriginWhitelist da lib,
@@ -79,11 +111,14 @@ export function isWithinAppOrigin(url: string): boolean {
 }
 
 // Concatenado uma vez só (não depende de nenhum state do componente) — os
-// dois scripts (ponte de sessão, tarefa 2.1, e ponte de download, tarefa
-// 2.3) rodam no mesmo carregamento de página, cada um com seu próprio guard
-// de idempotência (`window.__investimenta*Installed`).
+// três scripts (ponte de sessão, tarefa 2.1; ponte de download, tarefa 2.3;
+// gatilho de login Google, tarefa 3.3) rodam no mesmo carregamento de
+// página, cada um com seu próprio guard de idempotência
+// (`window.__investimenta*Installed`).
 const INJECTED_JAVASCRIPT =
-  buildAuthWatcherScript() + buildDownloadInterceptorScript();
+  buildAuthWatcherScript() +
+  buildDownloadInterceptorScript() +
+  buildGoogleSignInInterceptorScript();
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -146,6 +181,58 @@ function AppContent() {
     };
   }, []);
 
+  // Chama o SDK nativo do Google (nunca dentro do WebView — bloqueado pelo
+  // Google desde 2021, `disallowed_useragent`), troca o idToken pelo JWT da
+  // aplicação (POST /auth/google/token, tarefa 3.2) e aplica esse JWT
+  // exatamente como a ponte de sessão (tarefa 2.1) aplicaria um token de
+  // login por e-mail/senha: grava no Keychain e reinjeta no localStorage do
+  // WebView já em execução. O reload é necessário porque o AuthContext do
+  // SPA só lê localStorage uma vez, no mount (`useState(() =>
+  // localStorage.getItem(...))`) — sem ele, o token novo fica salvo mas a
+  // tela de login continua na tela, esperando o app inteiro reabrir.
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      if (response.type !== 'success') {
+        // Usuário cancelou o seletor de conta do Google — nada a fazer.
+        return;
+      }
+
+      const idToken = response.data.idToken;
+      if (!idToken) {
+        throw new Error('Google não retornou idToken');
+      }
+
+      const apiResponse = await fetch(`${API_BASE_URL}/auth/google/token`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({idToken}),
+      });
+      if (!apiResponse.ok) {
+        throw new Error(
+          `POST /auth/google/token respondeu ${apiResponse.status}`,
+        );
+      }
+      const body = (await apiResponse.json()) as {token: string};
+
+      await Keychain.setGenericPassword('investimenta', body.token, {
+        service: AUTH_KEYCHAIN_SERVICE,
+      });
+      setAuthToken(body.token);
+      webviewRef.current?.injectJavaScript(
+        `${buildAuthTokenReinjectionScript(
+          body.token,
+        )}window.location.reload();true;`,
+      );
+    } catch {
+      Alert.alert(
+        'Não foi possível entrar com o Google',
+        'Tente novamente em instantes.',
+      );
+    }
+  }, []);
+
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     const authMessage = parseAuthTokenChangedMessage(event.nativeEvent.data);
     if (authMessage) {
@@ -194,8 +281,16 @@ function AppContent() {
         // arquivo — nada a fazer, o botão de exportar continua disponível
         // pra tentar de novo.
       });
+      return;
     }
-  }, []);
+
+    const googleSignInMessage = parseGoogleSignInRequestedMessage(
+      event.nativeEvent.data,
+    );
+    if (googleSignInMessage) {
+      signInWithGoogle();
+    }
+  }, [signInWithGoogle]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(

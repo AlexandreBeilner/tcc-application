@@ -5,9 +5,11 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import escapeStringRegexp from 'escape-string-regexp';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Keychain from 'react-native-keychain';
 import Share from 'react-native-share';
+import * as WebviewModule from 'react-native-webview';
 import App, {
   AUTH_KEYCHAIN_SERVICE,
   isWithinAppOrigin,
@@ -15,11 +17,31 @@ import App, {
 } from '../App';
 import { AUTH_TOKEN_CHANGED_MESSAGE_TYPE } from '../sessionBridge';
 import { FILE_DOWNLOAD_MESSAGE_TYPE } from '../downloadBridge';
+import { GOOGLE_SIGNIN_REQUESTED_MESSAGE_TYPE } from '../googleSignInBridge';
+
+// __mocks__/react-native-webview.js exporta `injectJavaScript` como um
+// jest.fn() de módulo, mas o augmentation de tipos em
+// types/react-native-webview.d.ts (tarefa 1.3) descreve só o shape REAL do
+// pacote em runtime (sem esse export solto, que só existe no mock) — importar
+// nomeado direto quebraria o type-check. `import *` (mesmo mecanismo de
+// resolução de módulo que App.tsx usa pra `WebView`, então garantidamente a
+// MESMA instância de jest.fn() por trás — `jest.requireMock` chegou a ser
+// tentado aqui e falhou por criar uma segunda instância de mock isolada) com
+// um cast só pra driblar o tipo.
+const webviewMock = WebviewModule as unknown as {
+  injectJavaScript: jest.Mock;
+};
 
 // __mocks__/react-native-keychain.js expõe jest.fn() — reset entre testes
 // pra não vazar mockResolvedValueOnce/chamadas de um teste pro outro.
 beforeEach(() => {
   jest.clearAllMocks();
+  // `fetch` não existe no ambiente de teste do preset RN (só em runtime real,
+  // via polyfill do próprio React Native) — sem esse stub, o POST
+  // /auth/google/token de App.tsx (tarefa 3.3) lançaria ReferenceError.
+  // `globalThis` (não `global`, que exigiria @types/node — não instalado
+  // neste projeto) é o global padrão da linguagem, já coberto pelos tipos.
+  (globalThis as unknown as {fetch: typeof fetch}).fetch = jest.fn();
 });
 
 test('renders correctly', async () => {
@@ -194,6 +216,101 @@ describe('ponte de download (Share)', () => {
     });
 
     expect(Share.open).toHaveBeenCalled();
+  });
+});
+
+describe('login Google nativo (SDK, tarefa 3.3)', () => {
+  function sendGoogleSignInRequestedMessage(
+    webview: ReactTestRenderer.ReactTestInstance,
+  ) {
+    return ReactTestRenderer.act(async () => {
+      webview.props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({type: GOOGLE_SIGNIN_REQUESTED_MESSAGE_TYPE}),
+        },
+      });
+      // Deixa a cadeia hasPlayServices -> signIn -> fetch -> json() ->
+      // keychain -> injectJavaScript resolver dentro do act antes de
+      // qualquer asserção — vários `await` em sequência, cada um consome
+      // mais de um microtask tick (mesma observação de
+      // downloadBridge.test.ts), por isso a folga generosa aqui.
+      for (let i = 0; i < 10; i += 1) {
+        await Promise.resolve();
+      }
+    });
+  }
+
+  test('sucesso: troca o idToken por JWT, grava no Keychain e reinjeta+recarrega a sessão', async () => {
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+    (GoogleSignin.signIn as jest.Mock).mockResolvedValueOnce({
+      type: 'success',
+      data: {idToken: 'native-id-token', user: {email: 'user@example.com'}},
+    });
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({token: 'jwt-abc', user: {email: 'user@example.com'}}),
+    });
+
+    const root = await renderApp();
+    const webview = getWebViewInstance(root.root);
+    await sendGoogleSignInRequestedMessage(webview);
+
+    expect(GoogleSignin.hasPlayServices).toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://10.0.2.2:8000/auth/google/token',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({idToken: 'native-id-token'}),
+      }),
+    );
+    expect(Keychain.setGenericPassword).toHaveBeenCalledWith(
+      'investimenta',
+      'jwt-abc',
+      {service: AUTH_KEYCHAIN_SERVICE},
+    );
+    expect(webviewMock.injectJavaScript).toHaveBeenCalledWith(
+      expect.stringContaining(JSON.stringify('jwt-abc')),
+    );
+    expect(webviewMock.injectJavaScript).toHaveBeenCalledWith(
+      expect.stringContaining('window.location.reload()'),
+    );
+  });
+
+  test('cancelamento no seletor de conta do Google não chama o backend nem mexe no Keychain', async () => {
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+    (GoogleSignin.signIn as jest.Mock).mockResolvedValueOnce({
+      type: 'cancelled',
+      data: null,
+    });
+
+    const root = await renderApp();
+    const webview = getWebViewInstance(root.root);
+    await sendGoogleSignInRequestedMessage(webview);
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(Keychain.setGenericPassword).not.toHaveBeenCalled();
+  });
+
+  test('idToken rejeitado pelo backend mostra alerta nativo, sem derrubar o app', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+    (GoogleSignin.signIn as jest.Mock).mockResolvedValueOnce({
+      type: 'success',
+      data: {idToken: 'expired-id-token', user: {email: 'user@example.com'}},
+    });
+    (globalThis.fetch as jest.Mock).mockResolvedValueOnce({ok: false, status: 401});
+
+    const root = await renderApp();
+    const webview = getWebViewInstance(root.root);
+    await sendGoogleSignInRequestedMessage(webview);
+
+    expect(Keychain.setGenericPassword).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Não foi possível entrar com o Google',
+      expect.any(String),
+    );
+
+    alertSpy.mockRestore();
   });
 });
 

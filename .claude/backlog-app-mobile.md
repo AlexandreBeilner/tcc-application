@@ -560,8 +560,64 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   usa um `idToken` real, que só dá pra gerar depois que o SDK nativo (3.3) estiver configurado com
   os client IDs Android/iOS da 3.1.
 
-### 3.3 · Mobile: SDK nativo de login Google ponta a ponta
+### 3.3 · Mobile: SDK nativo de login Google ponta a ponta ✅ (código completo; login com conta real pendente — ver nota)
 
+- **Entregável:** `@react-native-google-signin/google-signin@16.1.5` instalado. `GoogleSignin.configure()`
+  chamado uma vez em `App.tsx` (module scope), com `webClientId` = `GOOGLE_WEB_CLIENT_ID` (client ID
+  **Web**, novo em `mobile/.env.debug`/`.env.release` — confirmado com o autor que é o mesmo já usado
+  pelo backend, não um client novo) e `iosClientId` = `GOOGLE_IOS_CLIENT_ID` (da 3.1); guardado atrás
+  de um `if (GOOGLE_WEB_CLIENT_ID)` pra não derrubar o app num ambiente sem essa env var (mesmo
+  princípio de `createDisabledGoogleIdentityProvider` no backend). UI 100% dentro do SPA — decisão
+  desta sessão, entre as duas opções que a tarefa deixava em aberto: `googleSignInBridge.ts` novo
+  (mesmo padrão de `sessionBridge.ts`/`downloadBridge.ts` — funções puras/testáveis, efeito colateral
+  fica em `App.tsx`) intercepta o clique no link "Entrar com Google" já existente
+  (`frontend/src/pages/Login/index.tsx`, **sem nenhuma mudança no frontend/**) comparando o `pathname`
+  resolvido do `href` contra `/auth/google` (funciona com o link relativo ou absoluto, indiferente de
+  `VITE_GATEWAY_URL`), e avisa o nativo via `postMessage`. `App.tsx.signInWithGoogle` (novo):
+  `GoogleSignin.hasPlayServices()` → `GoogleSignin.signIn()` → se `type !== 'success'` (cancelamento),
+  retorna sem fazer nada → `POST ${API_BASE_URL}/auth/google/token` (3.2) com o `idToken` → grava o JWT
+  recebido no Keychain (mesmo serviço da 2.1) → **reinjeta e recarrega a sessão já em execução**
+  (`webviewRef.current.injectJavaScript(buildAuthTokenReinjectionScript(token) +
+  'window.location.reload();true;')`, reaproveitando a função de reinjeção da 2.1) — necessário porque
+  o `AuthContext` do SPA só lê `localStorage` uma vez, no mount; sem o reload, o token ficaria salvo
+  mas a tela de login não perceberia a sessão nova. Qualquer falha (Play Services ausente, cancelamento
+  tratado à parte, backend rejeitando o idToken) cai num `catch` único que mostra `Alert.alert` nativo
+  ("Não foi possível entrar com o Google — Tente novamente em instantes"), sem crashar o app. `API_BASE_URL`
+  novo em `.env.debug`/`.env.release` (origem do gateway pra chamada HTTP nativa, fora do WebView — não
+  confundir com `APP_WEB_URL`, a origem da página).
+  `__mocks__/@react-native-google-signin/google-signin.js` novo; `__mocks__/react-native-webview.js`
+  evoluiu de `WebView = View` pra um `forwardRef`+`useImperativeHandle` com os métodos imperativos
+  (`injectJavaScript` etc.) como `jest.fn()` de módulo — sem isso `webviewRef.current` no teste seria a
+  instância crua da View, sem esses métodos. **Achado de teste (não numérico/de produto, só de
+  ferramenta):** `jest.requireMock('react-native-webview')` cria uma instância de mock ISOLADA da que o
+  `import` estático de `App.tsx` usa (jest.fn()s diferentes, mesmo módulo) — corrigido usando
+  `import * as WebviewModule` (mesmo mecanismo de resolução que `App.tsx`) com cast de tipo, não
+  `jest.requireMock`. `googleSignInBridge.test.ts` novo (interceptor + parser, mesma mecânica sem
+  emulador de `downloadBridge.test.ts`) e testes novos em `App.test.tsx` (sucesso completo grava
+  Keychain+reinjeta+recarrega; cancelamento não chama backend; idToken rejeitado mostra alerta sem
+  derrubar o app) — 41 testes no total no módulo mobile, `npx tsc --noEmit`, `npm run lint` e
+  `npm test` passam. `./gradlew :app:assembleDebug` builda limpo com a dependência nova (só um aviso
+  benigno da própria lib sobre atributo `package` no manifest dela, não nosso código).
+  **Validação no emulador (AVD `Pixel_Test_API35`, imagem "Default"/AOSP, sem Google Play — confirmado
+  via `adb shell pm list packages`, nenhum pacote `gms`/`vending`):** perguntado ao autor se queria criar
+  um AVD com Google Play pra validar com conta real agora ou deixar pra depois — resposta: deixar pra
+  depois. Dentro do que este AVD permite, a validação foi completa: `docker compose up --build backend`
+  com credenciais reais do Google (client ID/secret que o autor forneceu) confirma o backend rejeitando
+  um idToken forjado através da biblioteca real do Google (`google-auth-library`) contra a infraestrutura
+  real do Google (progressão de erros observada: "Wrong number of segments" → "No pem found for envelope",
+  a segunda exige uma consulta de verdade às chaves públicas do Google, não é mais o fallback
+  "desabilitado" da 3.2); app instalado e aberto no emulador sem crash com `GoogleSignin.configure()`
+  ativo (sessão restaurada de uma validação anterior carregou normalmente, sem regressão); app deslogado
+  (`pm clear`) mostra a tela de login; tocar "Entrar com Google" intercepta o clique (sem navegação de
+  browser/tela branca), chama `hasPlayServices()`, que rejeita de verdade
+  (`GooglePlayServicesUtil: com.investimenta requires the Google Play Store, but it is missing` no
+  logcat) e o app mostra o alerta nativo de erro tratado, sem crashar — prova de que o `catch` único
+  cobre esse caminho de erro real, não só em teste unitário. **O que fica pendente, explicitamente por
+  decisão do autor:** login de ponta a ponta com uma conta Google real exige um AVD com imagem
+  `google_apis_playstore` (ou dispositivo físico) e uma conta de teste — nenhuma mudança de código
+  esperada pra essa validação, só ambiente. Sessão também criou `.env` na raiz (gitignored, mesma
+  disciplina de `backend/.env`) com as credenciais reais fornecidas, pra deixar o `docker compose`
+  local já configurado quando essa validação acontecer.
 - **Descrição:** fecha o ciclo — o app obtém o `idToken` nativo, troca pelo JWT da aplicação (3.2),
   e aplica esse JWT pela mesma ponte de sessão da 2.1 (não é um mecanismo novo, é o mesmo).
 - **O que fazer:**
