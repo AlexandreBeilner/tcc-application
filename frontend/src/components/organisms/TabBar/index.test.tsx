@@ -24,7 +24,10 @@ function lesson(overrides: Partial<Lesson> = {}): Lesson {
     } as Lesson
 }
 
-function renderTabBar(unlockedKeys: Set<string>, state: { isLoading?: boolean; isError?: boolean; lessons?: Lesson[] } = {}) {
+function renderTabBar(
+    unlockedKeys: Set<string>,
+    state: { isLoading?: boolean; isError?: boolean; lessons?: Lesson[]; initialPath?: string } = {},
+) {
     vi.mocked(useUnlockedKeys).mockReturnValue({
         unlockedKeys,
         lessons: state.lessons ?? [],
@@ -32,7 +35,7 @@ function renderTabBar(unlockedKeys: Set<string>, state: { isLoading?: boolean; i
         isError: state.isError ?? false,
     })
     return render(
-        <MemoryRouter initialEntries={['/']}>
+        <MemoryRouter initialEntries={[state.initialPath ?? '/']}>
             <LocationDisplay />
             <TabBar />
         </MemoryRouter>,
@@ -79,29 +82,26 @@ describe('TabBar', () => {
         expect(screen.getByText('Calculadora').closest('a')).toBeInTheDocument()
     })
 
-    it('tocar numa aba travada navega pra lição que a desbloqueia', () => {
-        renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'] })] })
+    it('tocar numa aba travada navega pra própria rota da aba, nunca pra outro lugar (Fase Q, bloqueio é parede)', () => {
+        renderTabBar(new Set(), {
+            initialPath: '/mercado',
+            lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'] })],
+        })
 
         fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
 
-        expect(screen.getByTestId('location')).toHaveTextContent('/trilha/lesson-42')
+        // Nunca redireciona pra lição/Mapa da Trilha: a própria rota "/" já
+        // está protegida por `RequiresUnlock`, que renderiza `LockedScreen`
+        // (o card de bloqueio) no lugar do `Portfolio` real.
+        expect(screen.getByTestId('location')).toHaveTextContent('/')
     })
 
-    it('lição encontrada mas ainda locked pro usuário (hipotético): navega pro Mapa da Trilha, nunca pra lição inacessível (N.3)', () => {
-        renderTabBar(new Set(), { lessons: [lesson({ id: 'lesson-42', code: '0.1', unlocksKeys: ['portfolio'], status: 'locked' })] })
+    it('tocar na Calculadora travada navega pra "/calculadora", nunca pra outro lugar', () => {
+        renderTabBar(new Set(), { initialPath: '/mercado', lessons: [] })
 
-        fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Calculadora travado pela trilha' }))
 
-        expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
-        expect(screen.getByTestId('location')).not.toHaveTextContent('/trilha/lesson-42')
-    })
-
-    it('sem lição correspondente encontrada, navega pro Mapa da Trilha', () => {
-        renderTabBar(new Set(), { lessons: [] })
-
-        fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
-
-        expect(screen.getByTestId('location')).toHaveTextContent('/trilha')
+        expect(screen.getByTestId('location')).toHaveTextContent('/calculadora')
     })
 
     it('aba travada nunca mostra o código da lição em texto visível (Fase Q)', () => {
