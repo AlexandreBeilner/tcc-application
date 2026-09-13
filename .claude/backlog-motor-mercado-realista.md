@@ -966,6 +966,56 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
 
 ---
 
+## Fase O — Cancelamento e validade de ordem (Day)
+
+Lacuna identificada numa sessão posterior (2026-09-13), fora da proposta original: a reversão da
+liquidez sintética (A.2) fez ordem limitada sem contraparte passar a ficar pendurada de verdade no
+book (`status = pending`), mas **nada nunca tira ela de lá** — não existe cancelamento pelo usuário
+nem qualquer noção de validade/expiração. Decisão de escopo confirmada com o autor: MVP suporta só
+a modalidade **Day** (expira no fechamento do dia simulado corrente, sem GTC nem data específica) —
+menor escopo, reaproveita o Temporizador que já existe em vez de introduzir coluna de validade e
+scheduler próprios. Independente do núcleo de bots (Fases B-N) — só depende de A.2, já concluída.
+
+### O.1 · Cancelamento manual de ordem pendente
+
+- **Descrição:** rota nova (`POST /orders/{id}/cancel` ou `DELETE /orders/{id}` — a definir na
+  sessão que pegar a tarefa, seguindo o estilo REST já usado pelas demais rotas de `server.go`) que
+  muda `order_book.status` pra `cancelled`, só quando `status` for `pending` ou `partially_filled`
+  e o `user_id` da ordem for o do usuário autenticado (backend valida dono antes de repassar ao
+  motor, mesmo padrão de trust boundary das demais rotas). `filled_quantity` já executado antes do
+  cancelamento não é revertido — só a `RemainingQuantity` deixa de estar sujeita a execução futura.
+  Sem reserva de saldo/posição pra liberar (decisão de escopo da A.2/`orderexecution.go`: ordem
+  pendurada nunca reservou nada), então cancelar não mexe em `accounts`/`positions`.
+- **Critérios de aceite:** teste cobrindo cancelamento de ordem `pending` e `partially_filled`
+  (sucesso, status vira `cancelled`); teste confirmando rejeição (`404`/`409`, a decidir) pra ordem
+  já `filled`/`cancelled` ou pertencente a outro usuário; teste de router confirmando `403`/`404`
+  pra tentativa de cancelar ordem de terceiro.
+- **Referências:** `orderexecution.go` (doc do pacote, decisão de escopo de reserva); `orders.go`/
+  `server.go` como precedente de rota.
+- **Dependências:** A.2 (já concluída).
+
+### O.2 · Expiração automática no fechamento do dia simulado (ordem Day)
+
+- **Descrição:** ao fechar o dia simulado (mesmo ponto do `tick.Advance`/Temporizador que já
+  processa Selic/calendário/proventos 1x por dia — não precisa esperar a Fase D existir, mesmo sem
+  rodadas intradiárias o dia já fecha hoje), toda ordem com `status` `pending` ou
+  `partially_filled` daquele ativo tem a `RemainingQuantity` cancelada (`status = cancelled`) — o
+  que já foi preenchido permanece. Isso implementa a modalidade única do MVP ("Day": válida só até
+  o fechamento do pregão simulado daquele dia, nunca atravessa pro dia seguinte). Sem coluna nova
+  de validade — toda ordem limitada é implicitamente Day.
+- **Critérios de aceite:** teste table-driven confirmando que ordem `pending`/`partially_filled` no
+  fechamento do dia vira `cancelled`; teste de regressão confirmando que ordem já `filled` ou
+  criada num dia posterior não é afetada pelo fechamento de um dia anterior; teste confirmando que
+  o `RemainingQuantity` de uma ordem cancelada por expiração não volta a ser considerado em nenhum
+  replay de book futuro (`Repository.LoadContext`/`loadRestingOrders` só lê ordens ainda
+  `pending`/`partially_filled`).
+- **Referências:** `tick.go` (`Advance`, ponto de fechamento diário); nota da Fase D sobre o
+  Temporizador não mudar de ritmo diário mesmo com rodadas intradiárias.
+- **Dependências:** A.2 (já concluída). Não depende de D — o fechamento de dia já existe
+  independente de sub-tick.
+
+---
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -989,3 +1039,5 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
     fechados, ver nota da M.5).
 14. **N.1 → N.2** (painel admin de bots — última prioridade da sequência, só depois de A.4 e do
     núcleo de bots, C.1 → C.6, existirem).
+15. **O.1 → O.2** (cancelamento e validade Day de ordem — independente como I/K/L, só depende de
+    A.2, já concluída; pode ser feita a qualquer momento, inclusive antes de tudo acima).
