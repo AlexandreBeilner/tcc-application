@@ -29,10 +29,14 @@ func NewAccountRepository(db *sql.DB) *AccountRepository {
 	return &AccountRepository{db: db}
 }
 
-// Create grava o evento imutável ('initial_deposit') via eventstore.AppendTx
-// e só depois projeta a linha em accounts, na mesma transação — ver regra
-// de Event Sourcing no CLAUDE.md e tarefa 2.1. A FK de market_events.user_id
-// pra accounts(user_id) é DEFERRABLE INITIALLY DEFERRED (migration 000002)
+// Create grava o evento imutável ('initial_deposit' pra conta humana,
+// 'bot_initial_cash' pra conta de bot — migration 000014, achado do review
+// do PR #24: reaproveitar 'initial_deposit' pro caixa de bot confundiria
+// qualquer leitura futura do extrato que assumisse esse tipo como sempre
+// os R$ 10.000,00 fixos de RNF06) via eventstore.AppendTx e só depois
+// projeta a linha em accounts, na mesma transação — ver regra de Event
+// Sourcing no CLAUDE.md e tarefa 2.1. A FK de market_events.user_id pra
+// accounts(user_id) é DEFERRABLE INITIALLY DEFERRED (migration 000002)
 // justamente pra permitir essa ordem: o evento é gravado primeiro, e só é
 // checado contra a linha de accounts no commit.
 func (r *AccountRepository) Create(ctx context.Context, acc account.Account) error {
@@ -42,9 +46,13 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	eventType := domain.EventInitialDeposit
+	if acc.IsBot {
+		eventType = domain.EventBotInitialCash
+	}
 	event := domain.MarketEvent{
 		UserID:    acc.UserID,
-		EventType: domain.EventInitialDeposit,
+		EventType: eventType,
 		UnitValue: &acc.CurrentBalance,
 	}
 	if err := eventstore.AppendTx(ctx, tx, event); err != nil {
@@ -163,6 +171,100 @@ func (r *AccountRepository) ListMarketEventsByUser(ctx context.Context, userID s
 		records = append(records, rec)
 	}
 	return records, rows.Err()
+}
+
+// SumHumanHoldings soma quantity de positions cujo dono não é bot
+// (accounts.is_bot = false) num ativo — tarefa B.2 usa isso pra saber
+// quanto do float (outstanding_shares) ainda está livre pra distribuir
+// entre bots no seed: parte pode já pertencer a um usuário real de antes do
+// redesenho de bots (ordem executada pela antiga liquidez sintética,
+// revertida na tarefa A.2, num banco de desenvolvimento que já vinha sendo
+// usado) — devolver 100% do float pros bots nesse caso estouraria o teto
+// (position.ValidateFloatCeiling, tarefa A.3). Devolve 0 (não erro) se
+// ninguém detém o ativo ainda.
+func (r *AccountRepository) SumHumanHoldings(ctx context.Context, assetID string) (int64, error) {
+	var sum sql.NullInt64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT SUM(p.quantity) FROM positions p
+		 JOIN accounts a ON a.user_id = p.user_id
+		 WHERE p.asset_id = $1 AND NOT a.is_bot`,
+		assetID,
+	).Scan(&sum)
+	if err != nil {
+		return 0, err
+	}
+	return sum.Int64, nil
+}
+
+// SeedInitialHolding grava a posição inicial de um bot de liquidez num
+// ativo (tarefa B.2, bot.InitialAllocation/bot.InitialCash — B.1). O INSERT
+// usa ON CONFLICT (user_id, asset_id) DO NOTHING (mesma unique constraint de
+// applyPositionFill, order_execution_repository.go) em vez de um SELECT
+// EXISTS separado seguido de INSERT: o EXISTS + INSERT em duas instruções
+// deixava uma janela de corrida onde duas execuções concorrentes do seed
+// podiam ambas ver "não existe" e uma delas estourar violação de
+// constraint; o INSERT atômico decide via RowsAffected, sem essa janela.
+// Evento (EventBotInitialAllocation) e validação de teto só acontecem
+// quando o INSERT realmente cria a linha (RowsAffected = 1) — a mesma
+// transação garante atomicidade entre projeção e evento imutável (Event
+// Sourcing, CLAUDE.md) mesmo com o INSERT vindo primeiro. outstandingShares
+// é o teto do ativo (tarefa A.3): depois do INSERT, valida que a soma de
+// todas as posições (todos os detentores) ainda respeita
+// position.ValidateFloatCeiling, e desfaz a transação inteira (incluindo o
+// INSERT) se não respeitar — defesa equivalente à que orderexecution.Execute
+// já faz antes de cada negociação, aqui depois porque o "antes" desta
+// função é o próprio INSERT que decide se há algo nulo a validar.
+// Idempotente: se o bot já tem posição nesse ativo (reexecução do seed),
+// não grava evento nem valida teto de novo, devolve created = false.
+func (r *AccountRepository) SeedInitialHolding(ctx context.Context, userID, assetID string, quantity int, price float64, outstandingShares int64) (created bool, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	initial := position.ApplyBuy(position.Position{}, quantity, price)
+	result, err := tx.ExecContext(ctx,
+		`INSERT INTO positions (user_id, asset_id, quantity, average_price)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (user_id, asset_id) DO NOTHING`,
+		userID, assetID, initial.Quantity, initial.AveragePrice,
+	)
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if rowsAffected == 0 {
+		return false, nil
+	}
+
+	var totalHeld sql.NullInt64
+	if err := tx.QueryRowContext(ctx,
+		`SELECT SUM(quantity) FROM positions WHERE asset_id = $1`, assetID,
+	).Scan(&totalHeld); err != nil {
+		return false, err
+	}
+	if err := position.ValidateFloatCeiling(totalHeld.Int64, outstandingShares); err != nil {
+		return false, err
+	}
+
+	if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
+		UserID:    userID,
+		AssetID:   &assetID,
+		EventType: domain.EventBotInitialAllocation,
+		Quantity:  &quantity,
+		UnitValue: &price,
+	}); err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func mapAccountError(err error) error {

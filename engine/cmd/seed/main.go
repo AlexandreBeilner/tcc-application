@@ -11,14 +11,18 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
+	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
+	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
 )
@@ -38,17 +42,27 @@ func main() {
 	// Script standalone de uma execução só — não serve leitura sob carga,
 	// então nunca precisa de Redis de verdade (tarefa 5.7).
 	repo := db.NewCatalogRepository(pool, cache.NoopQuoteCache{})
+	accountRepo := db.NewAccountRepository(pool)
 	ctx := context.Background()
 
 	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao)
 	banco := ensureCompany(ctx, repo, "Banco Nordeste Digital S.A.", "22333444000162", catalog.SectorBancario)
 
-	seedEquity(ctx, repo, "VALR3", "Mineradora Vale do Rio ON", equityRiskConservador, &mineradora, "ON", 500_000_000)
-	seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", 300_000_000)
+	const valr3OutstandingShares = 500_000_000
+	const bndd4OutstandingShares = 300_000_000
+	valr3ID := seedEquity(ctx, repo, "VALR3", "Mineradora Vale do Rio ON", equityRiskConservador, &mineradora, "ON", valr3OutstandingShares)
+	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bndd4OutstandingShares)
 
 	seedETF(ctx, repo)
-	seedFIITijolo(ctx, repo)
-	seedFIIPapel(ctx, repo)
+	tjlo11ID := seedFIITijolo(ctx, repo)
+	papl11ID := seedFIIPapel(ctx, repo)
+
+	seedBotLiquidity(ctx, accountRepo, []botAssetSeed{
+		{AssetID: valr3ID, OutstandingShares: valr3OutstandingShares},
+		{AssetID: bndd4ID, OutstandingShares: bndd4OutstandingShares},
+		{AssetID: tjlo11ID, OutstandingShares: fiiOutstandingShares},
+		{AssetID: papl11ID, OutstandingShares: fiiOutstandingShares},
+	})
 
 	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 10.50, 30.00, false)
 	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75, 30.00, false)
@@ -111,10 +125,10 @@ func ensureAsset(ctx context.Context, repo *db.CatalogRepository, ticker, name s
 	return id, false
 }
 
-func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, riskClass string, companyID *string, shareClass string, outstandingShares int64) {
+func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, riskClass string, companyID *string, shareClass string, outstandingShares int64) string {
 	id, existed := ensureAsset(ctx, repo, ticker, name, catalog.AssetAcao, &riskClass, false)
 	if existed {
-		return
+		return id
 	}
 
 	via, err := catalog.NewVariableIncomeAsset(id, companyID, &shareClass, &outstandingShares)
@@ -124,6 +138,7 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 	if err := repo.CreateVariableIncomeAsset(ctx, via); err != nil {
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
+	return id
 }
 
 func seedETF(ctx context.Context, repo *db.CatalogRepository) {
@@ -154,18 +169,23 @@ func seedETF(ctx context.Context, repo *db.CatalogRepository) {
 	}
 }
 
-func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) {
+// fiiOutstandingShares (cotas em circulação) — sem fórmula de geração ainda
+// (mesmo tratamento ilustrativo de interest_rate/maturity_date, tarefa
+// 3.9), mas precisa estar preenchido desde a tarefa 4.9: é o denominador de
+// dividend.FIIValuePerShare (provento por cota) e, desde a tarefa B.2,
+// também o float finito que bot.InitialAllocation distribui entre bots.
+// Compartilhado pelos dois FIIs seedados (mesmo valor ilustrativo pros
+// dois).
+const fiiOutstandingShares = int64(1_000_000)
+
+func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) string {
 	const ticker = "TJLO11"
 	id, existed := ensureAsset(ctx, repo, ticker, "FII Tijolo Corporativo", catalog.AssetFII, nil, false)
 	if existed {
-		return
+		return id
 	}
 
-	// outstanding_shares (cotas em circulação) — sem fórmula de geração
-	// ainda (mesmo tratamento ilustrativo de interest_rate/maturity_date,
-	// tarefa 3.9), mas precisa estar preenchido desde a tarefa 4.9: é o
-	// denominador de dividend.FIIValuePerShare (provento por cota).
-	outstandingShares := int64(1_000_000)
+	outstandingShares := fiiOutstandingShares
 	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, &outstandingShares)
 	if err != nil {
 		log.Fatalf("variable_income_assets inválido pra %s: %v", ticker, err)
@@ -184,17 +204,18 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) {
 	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar fii_details pra %s: %v", ticker, err)
 	}
+	return id
 }
 
-func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) {
+func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) string {
 	const ticker = "PAPL11"
 	id, existed := ensureAsset(ctx, repo, ticker, "FII Papel Recebíveis", catalog.AssetFII, nil, false)
 	if existed {
-		return
+		return id
 	}
 
-	// outstanding_shares — ver nota de seedFIITijolo (tarefa 4.9).
-	outstandingShares := int64(1_000_000)
+	// outstanding_shares — ver nota de fiiOutstandingShares (tarefa 4.9).
+	outstandingShares := fiiOutstandingShares
 	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, &outstandingShares)
 	if err != nil {
 		log.Fatalf("variable_income_assets inválido pra %s: %v", ticker, err)
@@ -216,6 +237,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) {
 	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar fii_details pra %s: %v", ticker, err)
 	}
+	return id
 }
 
 func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, name string, productType fixedincome.ProductType, creditRiskRating string, interestRate, minimumInvestment float64, isSandbox bool) {
@@ -272,4 +294,162 @@ func seedSandboxEquity(ctx context.Context, repo *db.CatalogRepository) {
 // precisa ser o mesmo do dia 0 do roteiro (é só o que aparece na vitrine).
 func seedSandboxFixedIncome(ctx context.Context, repo *db.CatalogRepository) {
 	seedFixedIncome(ctx, repo, "SANDPRE", "Tesouro Prefixado Sandbox — Lição 1.7", fixedincome.ProductTesouroPrefixado, "", 10.0, 30.00, true)
+}
+
+// Configuração fixa do pool de bots de liquidez desta sessão (tarefa B.2
+// do backlog-motor-mercado-realista) — um único pool compartilhado entre
+// todos os ativos de Ação/FII, não um pool por ativo: a segmentação por
+// especialização/setor de 15-25 bots por ativo (proposta
+// motor-mercado-realista 2.3.2, item 5) só existe a partir do catálogo real
+// da tarefa C.6, que ainda não roda. Até lá, um Market Maker e
+// botOtherBotCount bots direcionais genéricos (sem arquétipo — Fase C)
+// cobrem os quatro ativos seedados; C.6 decide depois se expande esse pool
+// ou anota especialização em cima dele.
+const (
+	// botSeed é fixa (não derivada de time.Now()) pro seed continuar
+	// determinístico/reprodutível entre execuções, mesmo padrão de
+	// qualquer outro valor fixo deste script.
+	botSeed                = int64(20260913)
+	botMarketMakerSharePct = 0.50 // meio da faixa confirmada (bot.MarketMakerShareMin/Max, proposta 2.2)
+	botOtherBotCount       = 19   // + 1 Market Maker = pool de 20, dentro da faixa 15-25 da proposta 2.3.2
+	botMinimumOrderShares  = 100  // "ordem de tamanho médio" ilustrativa usada só pra calibrar o piso de caixa do seed
+	marketMakerBotUserID   = "00000000-0000-0000-0000-000000000001"
+)
+
+// otherBotUserID gera um uuid fixo e determinístico pro bot direcional de
+// índice i (0-based) — literais em vez de gerados em tempo de execução
+// (uuid.New()) porque o seed precisa ser idempotente (ensureBotAccount
+// busca por este mesmo userID numa segunda execução), mesmo raciocínio da
+// tarefa A.1 sobre account.NewBot exigir formato de uuid mas não um usuário
+// cadastrado de verdade.
+func otherBotUserID(i int) string {
+	return fmt.Sprintf("00000000-0000-0000-0000-%012d", i+2)
+}
+
+// botAssetSeed é a entrada de seedBotLiquidity — o outstandingShares de um
+// ativo já seedado (Ação/FII, nunca ETF/sandbox) que bot.InitialAllocation
+// (tarefa B.1) vai distribuir entre o pool de bots.
+type botAssetSeed struct {
+	AssetID           string
+	OutstandingShares int64
+}
+
+// botHolding acumula, em memória, tudo que um bot recebe ao longo de vários
+// ativos antes de gravar qualquer coisa no banco — precisa do valor de
+// mercado agregado de todas as posições (não só a de um ativo) pra calcular
+// o caixa inicial (bot.InitialCash) uma única vez por bot, não uma vez por
+// ativo.
+type botHolding struct {
+	isMarketMaker bool
+	positionValue float64
+	positions     map[string]int64 // assetID -> quantidade
+}
+
+// seedBotLiquidity povoa o pool de bots de liquidez (tarefa B.2) com
+// posição (bot.InitialAllocation, tarefa B.1) e caixa inicial
+// (bot.InitialCash) pra cada ativo de Ação/FII já seedado — nunca ETF (sem
+// outstanding_shares, fora do float finito) nem sandbox (exceção
+// deliberada do redesenho de bots, proposta 2.7/tarefa A.2). Distribui só o
+// que sobra do float depois de descontar o que humanos já detêm
+// (AccountRepository.SumHumanHoldings) — nunca outstanding_shares cru, sob
+// pena de violar o teto (position.ValidateFloatCeiling, tarefa A.3). Preço
+// de referência pra tudo é tick.DefaultInitialPrice — o mesmo preço de
+// partida que o Temporizador usa (tick.Advance) quando ainda não existe
+// cotação anterior, então o bot nasce com average_price coerente com a
+// primeira cotação que o ativo vai ter. Idempotente: ensureBotAccount/
+// ensureBotPosition pulam o que já existe, mesma convenção de ensureAsset.
+func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, assets []botAssetSeed) {
+	bots := map[string]*botHolding{
+		marketMakerBotUserID: {isMarketMaker: true, positions: map[string]int64{}},
+	}
+	for i := 0; i < botOtherBotCount; i++ {
+		bots[otherBotUserID(i)] = &botHolding{positions: map[string]int64{}}
+	}
+
+	// outstandingSharesByAsset alimenta a validação de teto
+	// (position.ValidateFloatCeiling, tarefa A.3) que SeedInitialHolding faz
+	// por posição gravada — precisa do outstanding_shares de cada ativo no
+	// momento de gravar, não só no momento de calcular a alocação.
+	outstandingSharesByAsset := make(map[string]int64, len(assets))
+	for _, asset := range assets {
+		outstandingSharesByAsset[asset.AssetID] = asset.OutstandingShares
+	}
+
+	for _, asset := range assets {
+		// O float que os bots podem receber é outstanding_shares menos o
+		// que humanos já detêm (accounts.is_bot = false) — nem sempre zero:
+		// num banco que já vinha sendo usado antes deste redesenho, ordens
+		// executadas pela antiga liquidez sintética (revertida na tarefa
+		// A.2) já deixaram usuários reais com posição real em VALR3/BNDD4.
+		// Distribuir 100% do outstanding_shares pros bots nesse caso
+		// estouraria position.ValidateFloatCeiling (tarefa A.3) assim que
+		// esses dois lados fossem somados.
+		humanHoldings, err := accountRepo.SumHumanHoldings(ctx, asset.AssetID)
+		if err != nil {
+			log.Fatalf("erro ao somar posições humanas do ativo %s: %v", asset.AssetID, err)
+		}
+		botAvailableFloat := asset.OutstandingShares - humanHoldings
+		if botAvailableFloat <= 0 {
+			log.Printf("ativo %s: humanos já detêm %d/%d do float — nada sobrou pros bots, pulando", asset.AssetID, humanHoldings, asset.OutstandingShares)
+			continue
+		}
+
+		allocation, err := bot.InitialAllocation(asset.AssetID, botAvailableFloat, botMarketMakerSharePct, botOtherBotCount, botSeed)
+		if err != nil {
+			log.Fatalf("erro ao calcular alocação inicial de bots pro ativo %s: %v", asset.AssetID, err)
+		}
+
+		marketMaker := bots[marketMakerBotUserID]
+		marketMaker.positions[asset.AssetID] = allocation.MarketMaker
+		marketMaker.positionValue += float64(allocation.MarketMaker) * tick.DefaultInitialPrice
+
+		for i, shares := range allocation.Others {
+			holder := bots[otherBotUserID(i)]
+			holder.positions[asset.AssetID] = shares
+			holder.positionValue += float64(shares) * tick.DefaultInitialPrice
+		}
+	}
+
+	minimumCash := tick.DefaultInitialPrice * botMinimumOrderShares
+	for userID, holding := range bots {
+		cash := bot.InitialCash(holding.positionValue, minimumCash, holding.isMarketMaker)
+		ensureBotAccount(ctx, accountRepo, userID, cash)
+
+		for assetID, quantity := range holding.positions {
+			if quantity == 0 {
+				continue
+			}
+			ensureBotPosition(ctx, accountRepo, userID, assetID, int(quantity), tick.DefaultInitialPrice, outstandingSharesByAsset[assetID])
+		}
+	}
+}
+
+func ensureBotAccount(ctx context.Context, repo *db.AccountRepository, userID string, initialBalance float64) {
+	if _, found, err := repo.FindByUserID(ctx, userID); err != nil {
+		log.Fatalf("erro ao buscar conta de bot %s: %v", userID, err)
+	} else if found {
+		log.Printf("conta de bot %s já existe — pulando", userID)
+		return
+	}
+
+	acc, err := account.NewBot(userID, initialBalance)
+	if err != nil {
+		log.Fatalf("conta de bot %s inválida: %v", userID, err)
+	}
+	if err := repo.Create(ctx, acc); err != nil {
+		log.Fatalf("erro ao criar conta de bot %s: %v", userID, err)
+	}
+	log.Printf("conta de bot %s criada (caixa inicial %.2f)", userID, initialBalance)
+}
+
+func ensureBotPosition(ctx context.Context, repo *db.AccountRepository, userID, assetID string, quantity int, price float64, outstandingShares int64) {
+	created, err := repo.SeedInitialHolding(ctx, userID, assetID, quantity, price, outstandingShares)
+	if err != nil {
+		log.Fatalf("erro ao gravar posição inicial do bot %s no ativo %s: %v", userID, assetID, err)
+	}
+	if !created {
+		log.Printf("posição do bot %s no ativo %s já existe — pulando", userID, assetID)
+		return
+	}
+	log.Printf("posição inicial do bot %s no ativo %s: %d unidades a %.2f", userID, assetID, quantity, price)
 }
