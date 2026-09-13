@@ -1,0 +1,139 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+
+	"tcc-investimentos/engine/internal/domain/bot"
+	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/equity"
+)
+
+// BotRepository persiste bot.Personality (tarefa C.6) — catálogo/config de
+// bot, não estado financeiro (Event Sourcing/CLAUDE.md não se aplica aqui,
+// mesmo raciocínio de CatalogRepository pra assets/companies).
+type BotRepository struct {
+	db *sql.DB
+}
+
+func NewBotRepository(db *sql.DB) *BotRepository {
+	return &BotRepository{db: db}
+}
+
+// CreatePersonality persiste personality pra accountID: uma linha em
+// bot_personalities mais uma linha em bot_personality_scopes por item de
+// personality.Scope (Sectors/RiskClasses/AssetClasses), tudo na mesma
+// transação — mesmo padrão de CatalogRepository.CreateETFDetails
+// (details + holdings).
+func (r *BotRepository) CreatePersonality(ctx context.Context, accountID string, personality bot.Personality) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO bot_personalities
+			(account_id, archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		accountID, string(personality.Archetype), personality.Scope.WithinScopePct, personality.KnowledgeLevel,
+		personality.RiskProfile.MaxPositionSizePct, personality.RiskProfile.MarketOrderPreference, personality.RiskProfile.SpreadWidthPct,
+	); err != nil {
+		return err
+	}
+
+	for _, sector := range personality.Scope.Sectors {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO bot_personality_scopes (account_id, sector) VALUES ($1, $2)`, accountID, string(sector),
+		); err != nil {
+			return err
+		}
+	}
+	for _, riskClass := range personality.Scope.RiskClasses {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO bot_personality_scopes (account_id, risk_class) VALUES ($1, $2)`, accountID, string(riskClass),
+		); err != nil {
+			return err
+		}
+	}
+	for _, assetClass := range personality.Scope.AssetClasses {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO bot_personality_scopes (account_id, asset_class) VALUES ($1, $2)`, accountID, string(assetClass),
+		); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// FindPersonalityByAccountID devolve a personalidade de accountID, se já
+// persistida — reconstruída via bot.NewSpecializationScope/NewRiskProfile/
+// NewPersonality (não um struct literal direto) pra nunca devolver uma
+// Personality que viole os próprios invariantes do domínio (C.1) mesmo se
+// o dado em banco estiver corrompido de alguma forma.
+func (r *BotRepository) FindPersonalityByAccountID(ctx context.Context, accountID string) (bot.Personality, bool, error) {
+	var archetype string
+	var withinScopePct float64
+	var knowledgeLevel sql.NullFloat64
+	var maxPositionSizePct, marketOrderPreference, spreadWidthPct float64
+
+	err := r.db.QueryRowContext(ctx,
+		`SELECT archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct
+		 FROM bot_personalities WHERE account_id = $1`, accountID,
+	).Scan(&archetype, &withinScopePct, &knowledgeLevel, &maxPositionSizePct, &marketOrderPreference, &spreadWidthPct)
+	if err == sql.ErrNoRows {
+		return bot.Personality{}, false, nil
+	}
+	if err != nil {
+		return bot.Personality{}, false, err
+	}
+
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT sector, risk_class, asset_class FROM bot_personality_scopes WHERE account_id = $1`, accountID,
+	)
+	if err != nil {
+		return bot.Personality{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var sectors []catalog.Sector
+	var riskClasses []equity.RiskClass
+	var assetClasses []catalog.AssetType
+	for rows.Next() {
+		var sector, riskClass, assetClass sql.NullString
+		if err := rows.Scan(&sector, &riskClass, &assetClass); err != nil {
+			return bot.Personality{}, false, err
+		}
+		switch {
+		case sector.Valid:
+			sectors = append(sectors, catalog.Sector(sector.String))
+		case riskClass.Valid:
+			riskClasses = append(riskClasses, equity.RiskClass(riskClass.String))
+		case assetClass.Valid:
+			assetClasses = append(assetClasses, catalog.AssetType(assetClass.String))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return bot.Personality{}, false, err
+	}
+
+	scope, err := bot.NewSpecializationScope(sectors, riskClasses, assetClasses, withinScopePct)
+	if err != nil {
+		return bot.Personality{}, false, err
+	}
+	riskProfile, err := bot.NewRiskProfile(maxPositionSizePct, marketOrderPreference, spreadWidthPct)
+	if err != nil {
+		return bot.Personality{}, false, err
+	}
+	var knowledgeLevelPtr *float64
+	if knowledgeLevel.Valid {
+		knowledgeLevelPtr = &knowledgeLevel.Float64
+	}
+
+	personality, err := bot.NewPersonality(bot.Archetype(archetype), scope, knowledgeLevelPtr, riskProfile)
+	if err != nil {
+		return bot.Personality{}, false, err
+	}
+	return personality, true, nil
+}
