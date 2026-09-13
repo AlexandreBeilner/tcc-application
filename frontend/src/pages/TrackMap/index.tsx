@@ -4,8 +4,9 @@ import { ArrowLeft } from 'lucide-react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { groupLessonsByTrack } from '../../features/lessons/trackGroups'
-import { TrackPath } from '../../components/organisms/TrackPath'
+import { TrackPath, statusLabel } from '../../components/organisms/TrackPath'
 import { TrackMapLegend } from '../../components/organisms/TrackMapLegend'
+import { LessonNode } from '../../components/organisms/LessonNode'
 import { TRACKS } from '../../utils/tracks'
 import type { Lesson } from '../../services/lessons'
 import styles from './index.module.css'
@@ -88,13 +89,32 @@ export function TrackMap() {
             {!lessonsQuery.data && !lessonsQuery.isError && <p className={styles.loading}>Carregando mapa…</p>}
 
             <div className={styles.main}>
-                {trackLessons.length > 0 && (
+                {trackLessons.length >= 2 && (
                     <TrackPath
                         lessons={trackLessons}
                         accentColor={track.color}
                         expandedHintId={expandedHintId}
                         onNodeClick={handleNodeClick}
                     />
+                )}
+
+                {/* `computeTrackPathLayout` exige 2+ lições pro zigue-zague fazer
+                    sentido (`trackPathLayout/index.ts:89`) — trilha de 1 lição só
+                    (caso do teaser Renda Fixa hoje) cai num único `LessonNode`,
+                    mesmo fallback que a página horizontal antiga (`Track`,
+                    removida na O.4) já usava antes da O.3. */}
+                {trackLessons.length === 1 && (
+                    <div className={styles.singleNode}>
+                        <LessonNode
+                            status={trackLessons[0].status}
+                            title={trackLessons[0].title}
+                            meta={statusLabel(trackLessons[0])}
+                            onClick={() => handleNodeClick(trackLessons[0])}
+                        />
+                        {expandedHintId === trackLessons[0].id && (
+                            <p className={styles.hint}>Conclua a lição anterior pra desbloquear.</p>
+                        )}
+                    </div>
                 )}
             </div>
         </main>

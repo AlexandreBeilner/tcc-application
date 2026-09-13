@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Circle, Flag } from 'lucide-react'
 import { computeTrackPathLayout, TRACK_PATH_WIDTH } from '../../../features/lessons/trackPathLayout'
 import { Locked } from '../../atoms/Locked'
@@ -14,7 +14,7 @@ const STATUS_ICON: Record<'completed' | 'available', typeof Check> = {
     available: Circle,
 }
 
-function statusLabel(lesson: Lesson): string {
+export function statusLabel(lesson: Lesson): string {
     if (lesson.status === 'completed') return 'Concluída'
     if (lesson.status === 'available') return 'Disponível'
     return lesson.unlocksDescription ? `Bloqueada: libera ${lesson.unlocksDescription}` : 'Bloqueada'
@@ -36,7 +36,7 @@ function toPercent(value: number): string {
 // são posicionados a PARTIR dele (`.nodeWrap`, âncora de tamanho zero),
 // nunca o inverso.
 export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }: TrackPathProps) {
-    const layout = computeTrackPathLayout(lessons)
+    const layout = useMemo(() => computeTrackPathLayout(lessons), [lessons])
     const hasCenteredRef = useRef(false)
     const currentNodeRef = useRef<HTMLDivElement>(null)
     // Bandeira de marco (achado P.1): texto real de `unlocksDescription`
@@ -57,7 +57,7 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
         if (hasCenteredRef.current) return
         hasCenteredRef.current = true
         currentNodeRef.current?.scrollIntoView?.({ block: 'center' })
-    })
+    }, [])
 
     if (!layout) return null
 

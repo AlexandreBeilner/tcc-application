@@ -103,7 +103,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
     const hasRealOptions = (lesson?.microDecisionOptions?.length ?? 0) > 0
-    const canAdvanceMicroDecision = usesEmbeddedWidget || (hasRealOptions ? selectedOption !== undefined : true)
+    const canAdvanceMicroDecision = usesEmbeddedWidget || !hasRealOptions || selectedOption !== undefined
     // Badge de acerto/erro da Revelação (B.3) — só existe quando o servidor
     // já devolveu o veredito desta escolha (`handleAdvance` abaixo grava em
     // `microDecisionResult` no `onSuccess` do avanço que saiu do passo

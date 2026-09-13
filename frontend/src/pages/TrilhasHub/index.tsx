@@ -1,23 +1,13 @@
-import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
-import { groupLessonsByTrack, trackStatusFor } from '../../features/lessons/trackGroups'
-import type { TrackGroup, TrackStatus } from '../../features/lessons/trackGroups'
+import { groupLessonsByTrack } from '../../features/lessons/trackGroups'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
-import { computeTrackHubSparkline, TRACK_HUB_SPARKLINE_HEIGHT, TRACK_HUB_SPARKLINE_WIDTH } from '../../features/lessons/trackHubSparkline'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
-import { Locked } from '../../components/atoms/Locked'
-import { TRACKS } from '../../utils/tracks'
+import { TrackCard } from '../../components/organisms/TrackCard'
 import styles from './index.module.css'
-
-const STATUS_LABEL: Record<TrackStatus, string> = {
-    completed: 'Concluída',
-    active: 'Em andamento',
-    locked: 'Bloqueada',
-}
 
 // Tela 3.1 redesenhada (backlog engajamento O.1, mockup vivo em
 // `.claude/backlog-engajamento-gamificacao.md` Fase O/O.0) — troca o
@@ -79,77 +69,5 @@ export function TrilhasHub() {
                 </aside>
             </div>
         </main>
-    )
-}
-
-function TrackCard({ group, onClick }: { group: TrackGroup; onClick: () => void }) {
-    const status = trackStatusFor(group)
-    const statusLabel = STATUS_LABEL[status]
-    const done = group.lessons.filter((lesson) => lesson.status === 'completed').length
-    const total = group.lessons.length
-    const completionPct = total === 0 ? 0 : Math.round((done / total) * 100)
-    const track = TRACKS.find((candidate) => candidate.number === group.trackNumber)
-    const accent = track?.color ?? 'var(--color-text-muted)'
-    const accentBg = track?.background ?? 'var(--color-bg-surface-elevated)'
-    const ticker = track?.ticker ?? `TRLH${group.trackNumber}`
-    const { linePath, fillPath } = computeTrackHubSparkline(group.trackNumber, completionPct)
-
-    return (
-        <button
-            type="button"
-            className={[styles.trackCard, status === 'locked' && styles.locked].filter(Boolean).join(' ')}
-            style={{ '--accent': accent, '--accent-bg': accentBg } as CSSProperties}
-            onClick={onClick}
-            aria-label={`${group.trackName}, ${statusLabel}, ${done} de ${total} lições concluídas`}
-        >
-            <span className={styles.top}>
-                <span className={styles.identity}>
-                    <span className={styles.ticker}>{ticker}</span>
-                    <span className={styles.cardTitle}>{group.trackName}</span>
-                </span>
-                <span className={[styles.statusPill, styles[`status_${status}`]].join(' ')}>
-                    <span className={styles.dot} aria-hidden="true" />
-                    {statusLabel}
-                </span>
-            </span>
-
-            <svg
-                className={styles.sparkline}
-                viewBox={`0 0 ${TRACK_HUB_SPARKLINE_WIDTH} ${TRACK_HUB_SPARKLINE_HEIGHT}`}
-                preserveAspectRatio="none"
-                aria-hidden="true"
-            >
-                <path d={fillPath} fill={accent} opacity={0.16} />
-                <path d={linePath} fill="none" stroke={accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-
-            <span className={styles.footer}>
-                <span className={styles.count}>
-                    <b>{done}</b>/{total} lições
-                </span>
-                <span className={styles.candleRow} aria-hidden="true">
-                    {group.lessons.map((lesson, index) => (
-                        <span
-                            key={lesson.id}
-                            className={[
-                                styles.candle,
-                                lesson.status === 'completed' && styles.candleDone,
-                                lesson.status === 'available' && styles.candleCurrent,
-                            ]
-                                .filter(Boolean)
-                                .join(' ')}
-                            style={{ height: `${6 + ((index * 37) % 12)}px` }}
-                        />
-                    ))}
-                </span>
-            </span>
-
-            {status === 'locked' && (
-                <span className={styles.hint}>
-                    <Locked size={12} />
-                    Desbloqueia ao concluir a trilha anterior
-                </span>
-            )}
-        </button>
     )
 }

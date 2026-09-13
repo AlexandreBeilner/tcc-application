@@ -96,15 +96,32 @@
     min-width: 0;
 }
 
+.singleNode {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.hint {
+    margin: calc(var(--space-2) * -1) 0 0 calc(30px + var(--space-3) + var(--space-4));
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--color-border-strong);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
 @media (min-width: 1024px) {
-    /* Coluna do path com largura máxima confortável pro zigue-zague, não
-       full bleed (identidade-visual-padroes.md §7) — a rolagem continua
+    /* Coluna do path com largura confortável pro zigue-zague, não full
+       bleed (identidade-visual-padroes.md §7) — a rolagem continua
        vertical e nativa, só o container que fica mais estreito que a
-       página inteira. Sem coluna lateral (P.2 tirou a sidebar da legenda,
-       que virou ícone + modal no cabeçalho): coluna única também em
-       desktop, centralizada. */
+       página inteira. 720px (não mais os 560px originais da P.2): largura
+       maior reduz o espaço morto nas laterais sem precisar de uma sidebar
+       com informação que já aparece em outro lugar do app (Hub de Trilhas,
+       Portfólio) — decisão do autor (2026-09-12) depois de testar a
+       sidebar com `ProgressionSummary`/`ResumeLessonCard` e achar redundante
+       ter esses dados sempre visíveis aqui também. */
     .main {
-        max-width: 560px;
+        max-width: 720px;
         margin: 0 auto;
     }
 }

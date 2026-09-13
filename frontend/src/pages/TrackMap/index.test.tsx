@@ -148,6 +148,33 @@ describe('TrackMap (tela nova, backlog engajamento O.3)', () => {
         expect(screen.getByText('Já concluído (sólido)')).toBeInTheDocument()
     })
 
+    it('trilha com 1 única lição cai no fallback de nó único, em vez de tela em branco', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [lesson({ id: '1', trackNumber: 1, trackName: 'Renda Fixa', title: 'Teaser', status: 'available' })],
+        })
+
+        renderTrackMap('/trilha/mapa/1')
+
+        const node = await screen.findByRole('button', { name: /Teaser: Disponível/ })
+        fireEvent.click(node)
+
+        expect(await screen.findByText('tela de lição')).toBeInTheDocument()
+    })
+
+    it('trilha com 1 única lição bloqueada expande o aviso inline no fallback, sem navegar', async () => {
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [lesson({ id: '1', trackNumber: 1, trackName: 'Renda Fixa', title: 'Teaser', status: 'locked' })],
+        })
+
+        renderTrackMap('/trilha/mapa/1')
+
+        const node = await screen.findByRole('button', { name: /Teaser: Bloqueada/ })
+        fireEvent.click(node)
+
+        expect(screen.getByText('Conclua a lição anterior pra desbloquear.')).toBeInTheDocument()
+        expect(screen.queryByText('tela de lição')).not.toBeInTheDocument()
+    })
+
     it('trilha 100% bloqueada ainda renderiza o mapa inteiro (bloqueio é convite)', async () => {
         vi.mocked(listLessons).mockResolvedValue({
             lessons: [lesson({ id: '1', title: 'Primeira', status: 'locked' }), lesson({ id: '2', title: 'Segunda', status: 'locked' })],
