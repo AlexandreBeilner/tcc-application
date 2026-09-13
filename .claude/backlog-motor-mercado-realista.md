@@ -375,7 +375,7 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
 Fase mais densa do redesenho — o "cérebro" de cada bot. Ordem interna pensada por complexidade
 crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro).
 
-### C.1 · Domínio `bot`: struct de personalidade
+### C.1 · Domínio `bot`: struct de personalidade ✅
 
 - **Descrição:** define o tipo `bot.Personality` (ou nome equivalente) com as 4 dimensões da
   proposta 2.3.2: arquétipo (enum: ruído/market_maker/chartista/fundamentalista), escopo de
@@ -391,8 +391,43 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   validação.
 - **Referências:** proposta 2.3.2.
 - **Dependências:** A.1.
+- **Entregável:** `internal/domain/bot/personality.go` (mesmo pacote `bot` de B.1/B.2, novo
+  arquivo). `Archetype` (`ruido`/`market_maker`/`chartista`/`fundamentalista`) com
+  `IsValidArchetype` no mesmo padrão de `catalog.IsValidAssetType`/`IsValidSector`. Escopo de
+  especialização é `SpecializationScope{Sectors []catalog.Sector, RiskClasses []equity.RiskClass,
+  AssetClasses []catalog.AssetType, WithinScopePct float64}` — deliberadamente uma **união**
+  (0+ setores + 0+ risk_classes + 0+ classes de ativo simultâneas), diferente do XOR de
+  `macroevent.Target` (que descreve um único alvo por vez, não um conjunto); `NewSpecializationScope`
+  exige pelo menos uma das três listas não-vazia e valida cada valor contra o conjunto conhecido —
+  `RiskClasses`/`AssetClasses` usam cópias locais de validação (`validRiskClasses`/
+  `validAssetClasses`, não expostas por `equity`/`catalog`), mesmo raciocínio de "domínios irmãos
+  não se importam" já registrado em `allocation.go`; `AssetClasses` restrito às 3 classes de Renda
+  Variável (`AssetAcao`/`AssetETF`/`AssetFII`), nunca os 8 tipos de Renda Fixa (bots não cobrem
+  Renda Fixa, proposta seção 9). `WithinScopePct` validado contra `SpecializationWithinScopeMin`/
+  `Max` (0.85/0.90, escala fração — não 0-100 — pra bater com o padrão já estabelecido por
+  `MarketMakerShareMin`/`Max` no mesmo pacote), mesma técnica de "faixa garantida pelo construtor,
+  não por sorteio" de B.1. Perfil de risco é `RiskProfile{MaxPositionSizePct, MarketOrderPreference,
+  SpreadWidthPct float64}` com `NewRiskProfile` validando `(0,1]`/`[0,1]`/`>=0` respectivamente.
+  `Personality{Archetype, Scope, KnowledgeLevel *float64, RiskProfile}` — `KnowledgeLevel` é
+  ponteiro deliberadamente (nil pros 3 arquétipos sem essa dimensão) e `NewPersonality` valida a
+  regra cruzada do critério de aceite nos dois sentidos: `ArchetypeFundamentalista` exige
+  `KnowledgeLevel` não-nil dentro de `[0,1]`, os outros 3 rejeitam (erro, não silenciosamente
+  ignoram) qualquer valor não-nil. Sem interface de colaborador externo nesta tarefa — `Personality`
+  só descreve dados; a nota do texto original sobre "interface pequena no ponto de consumo" fica
+  documentada no comentário do pacote como responsabilidade de C.2-C.5 (cada função de decisão
+  declara a sua própria quando existir, não uma abstração prematura aqui). Testes novos
+  (`personality_test.go`, table-driven): `TestNewSpecializationScope` (união válida em cada
+  combinação das 3 listas, escopo vazio, valor desconhecido em cada lista, classe de ativo de Renda
+  Fixa rejeitada, `WithinScopePct` abaixo/acima da faixa), `TestNewRiskProfile` (limites de cada um
+  dos 3 campos), `TestNewPersonality` (os 4 arquétipos válidos, arquétipo desconhecido, os 3
+  arquétipos não-fundamentalistas rejeitando `KnowledgeLevel`, fundamentalista exigindo e validando
+  `KnowledgeLevel`), `TestIsValidArchetype`. `gofmt`/`go build`/`go test ./...`/`golangci-lint run`
+  (Docker, 0 issues) verdes. Sem `.docs/engine/` (sem rota HTTP nova) e sem validação via
+  `docker compose up` (função pura de domínio sem ponto de infra/DB tocado, mesma nota de escopo já
+  registrada em B.1 — a integração real só chega em C.6, que monta o catálogo de bots consumindo
+  `Personality`).
 
-### C.2 · Arquétipo Ruído (Zero-Intelligence com restrição de orçamento)
+### C.2 · Arquétipo Ruído (Zero-Intelligence com restrição de orçamento) ✅
 
 - **Descrição:** função de decisão mais simples — sorteia lado (compra/venda), quantidade e
   preço-limite aleatórios, restrito ao que o caixa/posição do bot permite (nunca compra acima do
@@ -401,8 +436,37 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   restrição de orçamento/posição, em várias seeds.
 - **Referências:** proposta 2.3.1, 2.3.2 (Gode & Sunder 1993).
 - **Dependências:** C.1.
+- **Entregável:** `internal/domain/bot/noise.go` (mesmo pacote `bot`). `Decision{Side, Type, Price,
+  Quantity}` novo — tipo de resultado **compartilhado** por qualquer arquétipo (C.3-C.5 devolvem o
+  mesmo tipo, só muda a função `Decide*`); reaproveita `orderbook.Side`/`orderbook.Type` em vez de
+  redeclarar os mesmos dois enums (mesmo raciocínio de reuso de tipo canônico já usado por
+  `macroevent.Target` com `catalog.Sector`). `DecideNoiseOrder(referencePrice, availableCash
+  float64, currentPosition int, seed int64) (Decision, error)` — deliberadamente **não recebe
+  `Personality`**: Ruído "não tem opinião" (nem sobre valor do ativo, nem sobre `Scope`/
+  `RiskProfile`), então threadar a struct inteira só pra ler `Archetype` seria uma dependência sem
+  uso real; quem despachar por arquétipo (futuro consumidor em C.6/Fase D) já sabe que é Ruído antes
+  de chamar esta função. Preço-limite sorteado dentro de `NoisePriceBandPct` (±5%, constante nova,
+  **valor ilustrativo desta sessão — a proposta não fixa uma faixa numérica**, mesma nota de
+  "sujeito a calibração futura" já usada em `fundamentals.go`) ao redor de `referencePrice`.
+  Restrição de orçamento/posição garantida por construção, não por validação a posteriori: lado só é
+  sorteado entre compra/venda quando ambos são viáveis (`availableCash >= preço sorteado` e
+  `currentPosition >= 1`); quando só um é viável, o lado é forçado pra esse (nunca sorteia uma venda
+  sem posição nem uma compra sem caixa suficiente pra 1 unidade); quando nenhum é viável, devolve
+  `ErrNoViableOrder` em vez de uma ordem de tamanho zero — o bot simplesmente não participa da
+  rodada (consumo futuro da Fase D). `maxQuantity` (teto do sorteio uniforme `1 + rng.Intn(...)`) é
+  `int(availableCash/preço)` na compra ou `currentPosition` na venda — sempre ≥ 1 no ponto em que é
+  usado, porque a checagem de viabilidade já passou antes. Determinística por seed (`rand.New(rand.
+  NewSource(seed))`, mesmo padrão de `InitialAllocation`/`InitialCash`). Testes novos (`noise_test.go`,
+  table-driven, 200 seeds por caso): nunca excede caixa/posição em 6 combinações de caixa/posição/
+  preço (incluindo casos "só 1 unidade cabe" nos dois lados), preço sempre dentro da faixa, mesma
+  seed reproduz a mesma decisão, lado forçado corretamente quando só um é viável (50 seeds ×2
+  sub-casos), erro `ErrNoViableOrder` sem caixa nem posição e com caixa insuficiente pra 1 unidade
+  (mesmo com posição zero), erro `ErrInvalidReferencePrice` pra preço ≤ 0. `gofmt`/`go build`/
+  `go test ./...`/`golangci-lint run` (Docker, 0 issues) verdes. Sem `.docs/engine/` e sem
+  `docker compose up` (mesma nota de escopo de C.1/B.1 — função pura, sem infra tocada; a chamada
+  real só existe a partir da Fase D, que orquestra a rodada de negociação).
 
-### C.3 · Arquétipo Market Maker
+### C.3 · Arquétipo Market Maker ✅
 
 - **Descrição:** mantém oferta simétrica dos dois lados do book ao redor do preço corrente
   (spread configurável), sem viés direcional — prioridade em nunca deixar o book vazio. Recebeu a
@@ -412,8 +476,39 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   lados após uma rodada de decisão, dado caixa/posição suficiente.
 - **Referências:** proposta 2.3.2.
 - **Dependências:** C.1.
+- **Entregável:** `internal/domain/bot/marketmaker.go` (mesmo pacote `bot`).
+  `DecideMarketMakerOrders(personality Personality, referencePrice, availableCash float64,
+  currentPosition int) ([]Decision, error)` — diferente de `DecideNoiseOrder` (C.2), **recebe a
+  `Personality` inteira** (não só parâmetros soltos), porque de fato consome `RiskProfile.
+  SpreadWidthPct` (largura do spread) e `RiskProfile.MaxPositionSizePct` (fração de caixa/posição
+  ofertada por lado) — a nota de C.2 sobre "só recebe o que o arquétipo realmente consome" se
+  confirma aqui no sentido oposto. Primeira função do pacote a validar `personality.Archetype`
+  contra o arquétipo esperado (`ErrWrongArchetype` novo, genérico o suficiente pra C.4/C.5
+  reaproveitarem em vez de recriar por arquétipo). **100% determinístico, sem seed** — diferente do
+  Ruído, Market Maker não sorteia nada: mesmo preço de referência + mesmo estado de caixa/posição
+  sempre produz a mesma cotação; "reabastecer a cada rodada" não é estado guardado por esta função,
+  é só o efeito de chamá-la de novo (Fase D) com o caixa/posição já atualizados pelos fills da
+  rodada anterior — confirmado por um teste dedicado que simula 5 rodadas sucessivas atualizando
+  caixa/posição a cada iteração. Preço de compra/venda: `referencePrice*(1 ∓ spread/2)` — `spread`
+  é a largura **total** (não a meia largura); `ErrInvalidSpreadForQuote` novo rejeita
+  `SpreadWidthPct >= 2` (preço de compra ficaria ≤ 0), um teto que `NewRiskProfile` (C.1) não
+  aplica de propósito (só Market Maker deriva preço a partir do spread; os outros arquétipos não
+  têm essa restrição). Quantidade de cada lado usa a função interna `quantityFraction(max, pct)` —
+  `int(max*pct)`, nunca menos que 1 quando esse lado já é viável (garante "nunca deixar o book
+  vazio" mesmo quando a fração arredondaria pra zero) e nunca mais que `max` (porque `pct <= 1`,
+  validado por `NewRiskProfile`). Devolve os dois lados (`[]Decision{compra, venda}`, nessa ordem)
+  quando ambos são viáveis; só o lado viável quando falta caixa suficiente pra 1 unidade de compra
+  ou não há posição pra vender; `ErrNoViableOrder` (reaproveitado de C.2, mesmo pacote) quando
+  nenhum dos dois é viável. Testes novos (`marketmaker_test.go`, table-driven): sempre 2 lados com
+  recurso suficiente (3 combinações de spread/fração/preço), spread simétrico exato ao redor do
+  preço de referência, determinismo (mesma chamada duas vezes), só lado de venda sem caixa, só lado
+  de compra sem posição, sustentação ao longo de 5 rodadas simuladas, erro sem caixa nem posição,
+  erro de arquétipo errado (`Personality` de Ruído passada por engano), erro de preço de referência
+  inválido, erro de spread inválido (`>= 2`). `gofmt`/`go build`/`go test ./...`/
+  `golangci-lint run` (Docker, 0 issues) verdes. Sem `.docs/engine/` e sem `docker compose up`
+  (mesma nota de escopo de C.1/C.2/B.1 — função pura, consumo real só a partir da Fase D).
 
-### C.4 · Arquétipo Chartista/Momentum
+### C.4 · Arquétipo Chartista/Momentum ✅
 
 - **Descrição:** função de decisão que só olha a série de preço recente (últimas N rodadas/dias,
   a definir) — compra se a tendência for de alta, vende se for de baixa. Não consulta fundamento
@@ -422,8 +517,35 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   confirmando a direção esperada da ordem gerada.
 - **Referências:** proposta 2.3.1, 2.3.2.
 - **Dependências:** C.1.
+- **Entregável:** `internal/domain/bot/chartist.go` (mesmo pacote `bot`).
+  `DecideChartistOrder(personality Personality, priceHistory []float64, availableCash float64,
+  currentPosition int) (Decision, error)` — `priceHistory` é a janela de preço recente em ordem
+  cronológica (mais antigo primeiro); "quantas rodadas/dias entram na janela" é decisão de quem
+  chama (Fase D), não desta função — ela só precisa do primeiro e do último ponto pra calcular a
+  variação percentual (`momentum = (último-primeiro)/primeiro`). **100% determinístico**, mesmo
+  padrão de `DecideMarketMakerOrders` (C.3) — sem seed, a proposta não pede nenhum sorteio pro
+  Chartista. Tendência: `momentum > ChartistTrendThresholdPct` (1%, constante nova — mesma nota de
+  "valor ilustrativo sujeito a calibração" de `NoisePriceBandPct`, C.2) compra;
+  `momentum < -ChartistTrendThresholdPct` vende; dentro da faixa devolve `ErrNoClearTrend` novo — a
+  distinção importante desta tarefa: **`ErrNoClearTrend` (sem sinal, mercado lateral) é um erro
+  diferente de `ErrNoViableOrder`** (sinal existe, mas falta caixa/posição pro lado indicado) —
+  ambos fazem o bot ficar de fora da rodada, mas por motivos semanticamente distintos, úteis pra
+  quem for logar/depurar o comportamento do motor depois. Preço da ordem é sempre o último preço da
+  janela (o mais recente observado); quantidade reaproveita `quantityFraction` (mesma função
+  interna de C.3) sobre `RiskProfile.MaxPositionSizePct` — nenhuma duplicação de lógica de
+  "fração de caixa/posição, nunca zero quando o lado é viável" entre os dois arquétipos, como já
+  antecipado na memória de progresso da C.3. Reaproveita `ErrWrongArchetype`/`ErrInvalidReferencePrice`/
+  `ErrNoViableOrder` do resto do pacote em vez de redeclarar. Testes novos (`chartist_test.go`,
+  table-driven): direção conforme a tendência (alta/baixa/lateral em dois formatos, incluindo
+  primeiro==último), nunca excede caixa/posição (4 combinações de tendência/recurso × 3 frações de
+  `MaxPositionSizePct`), preço da ordem é o último da janela, determinismo, erro de recurso
+  insuficiente pro lado indicado pela tendência (alta sem caixa, baixa sem posição), erro de
+  histórico insuficiente (`nil`/vazio/1 ponto), erro de preço inválido no primeiro ou último ponto
+  da janela, erro de arquétipo errado. `gofmt`/`go build`/`go test ./...`/`golangci-lint run`
+  (Docker, 0 issues) verdes. Sem `.docs/engine/` e sem `docker compose up` (mesma nota de escopo de
+  C.1-C.3/B.1).
 
-### C.5 · Arquétipo Fundamentalista
+### C.5 · Arquétipo Fundamentalista ✅
 
 - **Descrição:** o mais complexo — estima um "preço justo" a partir de `company_fundamentals`
   (P/L, ROE, crescimento) e da Selic simulada (setores cíclicos mais sensíveis que defensivos,
@@ -439,8 +561,57 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   empresa (setor sofisticado mais sensível que conservador).
 - **Referências:** proposta 2.3.1, 2.3.2.
 - **Dependências:** C.1.
+- **Entregável:** `internal/domain/bot/fundamentalist.go` (mesmo pacote `bot`). Decisão de design
+  central desta sessão, documentada no comentário do pacote: **modelo de "preço justo" é Justified
+  Price-to-Book** — `fairPrice = VPA × (ROE / retorno_exigido) × (1 + crescimento)` — em vez de uma
+  razão P/L literal, porque P/L exigiria o preço como insumo (circular: não dá pra estimar preço a
+  partir de uma razão que já contém preço). "P/L" da descrição da tarefa entra indiretamente via
+  ROE/VPA, o par canônico de valuation por patrimônio equivalente ao papel que P/L cumpriria numa
+  razão preço/lucro — decisão sem fórmula fechada na proposta, mesmo tratamento "ilustrativo,
+  sujeito a calibração futura" já dado a outros coeficientes de `fundamentals.go`.
+  `retorno_exigido = selicNeutral + fundamentals.SensitivityByRiskClass[riskClass] × (selicAnnualRate
+  − selicNeutral)` — **reaproveita o coeficiente já existente** (0.02 Conservador / 0.06
+  Sofisticado, `fundamentals.go`) em vez de inventar uma tabela nova, e é isso que produz a
+  sensibilidade proporcional ao `risk_class` do critério de aceite por construção (retorno exigido
+  sobe mais pro Sofisticado com o mesmo choque de Selic → `ROE/retorno_exigido` cai mais → preço
+  justo cai mais). `FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares
+  int64, growthRate, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64,
+  error)` é a estimativa **sem ruído** ("verdadeira") — reaproveita `fundamentals.ROE`/
+  `fundamentals.VPA`/`fundamentals.SensitivityByRiskClass` diretamente (nenhuma fórmula duplicada);
+  clampada em `FundamentalistMinFairPrice` (0.01, piso arbitrário — ROE muito negativo pode produzir
+  um valor não-positivo, que não faz sentido como preço-limite). `DecideFundamentalistOrder(...)`
+  (11 parâmetros — a função com mais entradas do pacote, refletindo ser "a mais cara" da proposta)
+  chama `FundamentalistFairPrice` e aplica ruído multiplicativo (`rand.NormFloat64() ×
+  FundamentalistMaxNoiseStdDevPct × (1 − *personality.KnowledgeLevel)`, 10% de desvio-padrão no
+  conhecimento zero decaindo linearmente a 0 no conhecimento 1 — mesma nota de "valor ilustrativo"
+  de `NoisePriceBandPct`/`ChartistTrendThresholdPct`), compara a estimativa (já com ruído) contra
+  `currentMarketPrice` com uma faixa morta (`FundamentalistMispricingThresholdPct`, 1%) — dentro
+  dela devolve `ErrNoMispricingDetected` **novo**, deliberadamente distinto de `ErrNoClearTrend` (C.4):
+  lá é "mercado lateral, sem sinal", aqui é "preço já convergiu à minha estimativa", semânticas
+  diferentes mesmo com efeito prático igual (bot fica de fora da rodada). A ordem gerada é sempre
+  limitada à própria estimativa de preço justo (o bot negocia até o preço em que acredita, não
+  além); quantidade reaproveita `quantityFraction` (mesma função de C.3/C.4) sem duplicação.
+  Reaproveita `ErrWrongArchetype` (C.3), `ErrMissingKnowledgeLevel` (C.1, checado defensivamente
+  aqui embora `NewPersonality` já garanta não-nil pro Fundamentalista), `ErrInvalidReferencePrice`
+  (C.2) e `ErrNoViableOrder` (C.2) do resto do pacote — três erros novos específicos desta tarefa:
+  `ErrUnknownRiskClass`, `ErrInvalidFinancials` (ROE/VPA indefinidos), `ErrInvalidRequiredReturn`
+  (retorno exigido ≤ 0). Testes novos (`fundamentalist_test.go`): sensibilidade à Selic proporcional
+  ao `risk_class` (queda percentual do Sofisticado maior que a do Conservador com o mesmo choque) +
+  regressão "sem choque de Selic, `risk_class` não importa"; conhecimento alto converge bem mais
+  (desvio médio absoluto sobre 300 seeds, margem de segurança de 2x sobre uma proporção teórica de
+  ~19x, preço de mercado deliberadamente a 30% do preço justo pra nenhuma amostra inverter de lado
+  por causa do ruído); direção conforme o desvio (compra/venda, ruído zerado com conhecimento=1);
+  erro de "sem mispricing claro"; nunca excede caixa/posição (4 cenários × 3 níveis de conhecimento
+  × 3 frações de `MaxPositionSizePct` × 20 seeds); determinismo; erro de recurso insuficiente pro
+  lado indicado (compra sem caixa, venda sem posição); erro de arquétipo errado; erro de
+  `KnowledgeLevel` nil (`Personality` montada direto, não via `NewPersonality`, simulando estado
+  inválido defensivamente); erro de preço de mercado inválido; erro de `risk_class` desconhecida;
+  erro de financeiros inválidos (patrimônio líquido zero, ações em circulação zero); erro de retorno
+  exigido inválido (Selic extrema o suficiente pra ficar ≤ 0). `gofmt`/`go build`/`go test ./...`/
+  `golangci-lint run` (Docker, 0 issues) verdes. Sem `.docs/engine/` e sem `docker compose up`
+  (mesma nota de escopo de C.1-C.4/B.1 — função pura, consumo real só a partir da Fase D/E).
 
-### C.6 · Escopo de especialização + catálogo de bots
+### C.6 · Escopo de especialização + catálogo de bots ✅
 
 - **Descrição:** monta o catálogo de bots do seed — pool de 15-25 bots por ativo de Renda
   Variável (Ação/FII/ETF), somando os 4 arquétipos, cobrindo os 6 setores fixos da spec 3.3.2 e
@@ -451,6 +622,66 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   bots especializados.
 - **Referências:** proposta 2.3.2.
 - **Dependências:** C.2, C.3, C.4, C.5, B.2.
+- **Entregável:** decisão de escopo desta sessão — **não cria um pool novo**: o pool de 20 contas
+  já criado por B.2 (1 Market Maker + 19 direcionais) já cai dentro da faixa 15-25 confirmada pela
+  proposta, então C.6 só **atribui personalidade** (arquétipo + escopo de especialização) a essas
+  20 contas já existentes, em vez de criar contas adicionais. `internal/domain/bot/catalog.go`
+  (mesmo pacote `bot`) — `AssignSpecializations(archetypes []Archetype, sectors []catalog.Sector,
+  assetClasses []catalog.AssetType, botCount int) ([]SpecializationAssignment, error)`, pura e
+  100% determinística (mesmo espírito de C.3/C.4: é partição, não sorteio): distribui `botCount`
+  bots entre `archetypes` o mais igualmente possível (`evenSplit`, mesmo raciocínio de rateio
+  proporcional de `largestRemainderAllocation`/B.1, simplificado porque todo "peso" aqui é igual —
+  1 bot = 1 bot); dentro de cada arquétipo, `sectors`+`assetClasses` viram uma sequência única de
+  "chaves de cobertura" (`coverageKey`, união opaca das duas) particionada entre os bots daquele
+  arquétipo via `chunkKeysAcrossBots` — dois caminhos: `botCount >= chaves` (mais bots que chaves:
+  os primeiros recebem 1 chave distinta cada, o excedente repete a partir do início, round-robin —
+  nunca um bot fica com escopo vazio, o que violaria `NewSpecializationScope`/C.1) e
+  `botCount < chaves` (menos bots que chaves: chaves particionadas em `botCount` grupos contíguos
+  o mais equilibrados possível via `evenSplit`, cobrindo todas sem repetição). Erros novos:
+  `ErrNoArchetypesToAssign`, `ErrInsufficientBotsForArchetypes` (`botCount < len(archetypes)`),
+  `ErrNoCoverageKeys`. **Ação não é uma chave de cobertura própria** — decisão de design: todo
+  ativo `type=acao` já tem `company_sector`, então cobertura por setor já cobre Ação por
+  construção; só FII/ETF (sem setor no catálogo atual) entram como chaves de classe de ativo
+  (`nonEquityAssetClasses`), evitando um grupo "genérico de Ação" redundante com os grupos por
+  setor. Testes novos (`catalog_test.go`, table-driven): cobertura completa por arquétipo (cenário
+  real — 3 arquétipos, 6 setores + FII/ETF, 19 bots), nenhum bot com escopo vazio, tamanho total
+  bate com `botCount`, distribuição equilibrada entre arquétipos (diferença máxima de 1),
+  determinismo, os dois caminhos de `chunkKeysAcrossBots` isolados (mais bots que chaves — força
+  wraparound; menos bots que chaves — força chunking, confirma soma exata sem repetição), os 3
+  erros de validação. `go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues) verdes.
+  **Persistência nova** (diferente de C.1-C.5, que eram só domínio): migration
+  `000015_bot_personalities` — tabela `bot_personalities` (arquétipo, `within_scope_pct`,
+  `knowledge_level` nullable com `CHECK` espelhando a mesma regra de `NewPersonality` — só
+  não-nulo pra `fundamentalista` —, perfil de risco) + `bot_personality_scopes` (uma linha por
+  item de escopo — união, não uma linha só com 3 colunas nullable como `macro_event_targets`, que
+  é XOR; `CHECK num_nonnulls(sector, risk_class, asset_class) = 1` por linha, mesmo padrão de
+  `macro_target_scope_chk`). Coluna `risk_class` incluída na tabela de escopo mesmo não usada por
+  este seed (`AssignSpecializations` não cobre por risk_class) — decisão desta sessão pra deixar o
+  schema completo relativo ao que `bot.Personality`/`NewSpecializationScope` já suportam, evitando
+  uma migration de retrabalho quando `N.1` (painel admin, `POST /admin/bots` com personalidade
+  arbitrária) chegar. `internal/infra/db/bot_repository.go` (`BotRepository`, novo, mesmo padrão
+  não-event-sourced de `CatalogRepository` — personalidade é dado de catálogo/config, não estado
+  financeiro) — `CreatePersonality`/`FindPersonalityByAccountID`; a leitura reconstrói via
+  `bot.NewSpecializationScope`/`NewRiskProfile`/`NewPersonality` (nunca um struct literal direto),
+  então uma linha corrompida no banco nunca produz uma `Personality` que viole os próprios
+  invariantes do domínio. Sem teste unitário pro pacote `db` (mesma convenção já registrada em
+  B.2 — só `docker compose up` valida SQL contra Postgres real). `cmd/seed/main.go`:
+  `seedBotPersonalities` (nova) chama `AssignSpecializations` com `sixFixedSectors`/
+  `nonEquityAssetClasses`/`botOtherBotCount` pros 19 bots direcionais e monta a personalidade do
+  Market Maker à parte (escopo amplo — todos os 6 setores + FII/ETF, `WithinScopePct` no teto da
+  faixa — coerente com já concentrar a maior fatia do float/caixa desde B.1/B.2);
+  `botSpecializationWithinScopePct` fixo no meio da faixa (0.875, mesmo raciocínio de
+  `botMarketMakerSharePct` em B.2); nível de conhecimento dos bots Fundamentalistas sorteado
+  (determinístico por `botSeed`, não um valor único igual pra todos); `ensureBotPersonality`
+  idempotente, mesmo padrão de `ensureBotAccount`/`ensureBotPosition`. Validado ao vivo via
+  `docker compose up` (build limpo do `engine`, migration `000015` aplicada sem erro): seed criou
+  as 20 personalidades (1 `market_maker`, 7 `ruido`, 6 `chartista`, 6 `fundamentalista` —
+  `evenSplit(19,3)`), reexecução do seed confirmada idempotente (20 "já existe — pulando"); query
+  direta contra `bot_personality_scopes`/`bot_personalities` confirmou os 4 arquétipos presentes
+  em cada um dos 6 setores + FII + ETF (32 combinações arquétipo×chave, todas com pelo menos 1
+  bot) — critério de aceite satisfeito; `knowledge_level` populado só nas 6 linhas
+  `fundamentalista` (valores distintos entre si, confirmando o sorteio), nulo nas 14 restantes,
+  batendo exatamente com o `CHECK` da migration.
 
 ---
 

@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -43,6 +44,7 @@ func main() {
 	// então nunca precisa de Redis de verdade (tarefa 5.7).
 	repo := db.NewCatalogRepository(pool, cache.NoopQuoteCache{})
 	accountRepo := db.NewAccountRepository(pool)
+	botRepo := db.NewBotRepository(pool)
 	ctx := context.Background()
 
 	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao)
@@ -63,6 +65,7 @@ func main() {
 		{AssetID: tjlo11ID, OutstandingShares: fiiOutstandingShares},
 		{AssetID: papl11ID, OutstandingShares: fiiOutstandingShares},
 	})
+	seedBotPersonalities(ctx, botRepo)
 
 	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 10.50, 30.00, false)
 	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75, 30.00, false)
@@ -298,13 +301,15 @@ func seedSandboxFixedIncome(ctx context.Context, repo *db.CatalogRepository) {
 
 // Configuração fixa do pool de bots de liquidez desta sessão (tarefa B.2
 // do backlog-motor-mercado-realista) — um único pool compartilhado entre
-// todos os ativos de Ação/FII, não um pool por ativo: a segmentação por
-// especialização/setor de 15-25 bots por ativo (proposta
-// motor-mercado-realista 2.3.2, item 5) só existe a partir do catálogo real
-// da tarefa C.6, que ainda não roda. Até lá, um Market Maker e
-// botOtherBotCount bots direcionais genéricos (sem arquétipo — Fase C)
-// cobrem os quatro ativos seedados; C.6 decide depois se expande esse pool
-// ou anota especialização em cima dele.
+// todos os ativos de Ação/FII, não um pool por ativo: a segmentação real de
+// 15-25 bots *por ativo* (proposta 2.3.2, item 5) exigiria um pool
+// dedicado por ativo, que este catálogo mínimo (4 ativos de Renda
+// Variável) não tem razão de ter ainda — em vez disso, a tarefa C.6
+// (seedBotPersonalities, abaixo) atribui personalidade/escopo de
+// especialização a este mesmo pool de 20 contas já existente (1 Market
+// Maker + botOtherBotCount direcionais), o que já cai dentro da faixa
+// 15-25 confirmada, cobrindo todos os 6 setores fixos (spec 3.3.2) e as
+// classes FII/ETF (Ação já é coberta via setor).
 const (
 	// botSeed é fixa (não derivada de time.Now()) pro seed continuar
 	// determinístico/reprodutível entre execuções, mesmo padrão de
@@ -452,4 +457,122 @@ func ensureBotPosition(ctx context.Context, repo *db.AccountRepository, userID, 
 		return
 	}
 	log.Printf("posição inicial do bot %s no ativo %s: %d unidades a %.2f", userID, assetID, quantity, price)
+}
+
+// botSpecializationWithinScopePct é fixo no meio da faixa confirmada
+// (bot.SpecializationWithinScopeMin/Max, proposta 2.3.2) — mesmo raciocínio
+// de botMarketMakerSharePct ficar no meio de MarketMakerShareMin/Max (B.2):
+// quem decide o valor exato dentro da faixa é quem monta o catálogo, e
+// meio da faixa é a escolha mais neutra possível sem nenhum motivo pra
+// puxar pra uma ponta.
+const botSpecializationWithinScopePct = (bot.SpecializationWithinScopeMin + bot.SpecializationWithinScopeMax) / 2
+
+// botDirectionalMaxPositionSizePct/botMarketOrderPreference/
+// botMarketMakerSpreadWidthPct são o perfil de risco (RiskProfile,
+// tarefa C.1) desta sessão — valores ilustrativos sem calibração fina
+// (mesmo tratamento de qualquer outro coeficiente deste seed), únicos por
+// enquanto porque nenhuma tarefa até aqui (C.2-C.5) diferencia perfil de
+// risco por bot individual, só por arquétipo. SpreadWidthPct só importa de
+// fato pro Market Maker (DecideMarketMakerOrders, C.3) — os outros 3
+// arquétipos não leem esse campo, por isso ficam com 0.
+const (
+	botDirectionalMaxPositionSizePct = 0.20
+	botMarketOrderPreference         = 0.50
+	botMarketMakerMaxPositionSizePct = 0.50
+	botMarketMakerSpreadWidthPct     = 0.02
+)
+
+// sixFixedSectors são os 6 setores fixos da spec 3.3.2 — mesma lista que
+// catalog.IsValidSector valida, repetida aqui como slice concreto porque
+// bot.AssignSpecializations precisa iterar sobre eles (catalog não expõe
+// essa lista como slice, só o predicado de validade).
+var sixFixedSectors = []catalog.Sector{
+	catalog.SectorMineracao, catalog.SectorAgronegocio, catalog.SectorBancario,
+	catalog.SectorVarejo, catalog.SectorEnergia, catalog.SectorTecnologia,
+}
+
+// nonEquityAssetClasses são as classes de Renda Variável sem setor próprio
+// no catálogo atual (FII/ETF, catalog.go) — Ação já é coberta via
+// sixFixedSectors (todo ativo type=acao tem uma company_sector), então não
+// entra aqui de novo (evita um bot "genérico de Ação" redundante com os
+// grupos por setor).
+var nonEquityAssetClasses = []catalog.AssetType{catalog.AssetFII, catalog.AssetETF}
+
+// botDirectionalArchetypes são os 3 arquétipos que botOtherBotCount
+// (direcionais) se dividem entre — Market Maker fica de fora porque já tem
+// sua própria conta única e escopo próprio (todo o pool, ver
+// seedBotPersonalities), não faz parte da distribuição por especialização.
+var botDirectionalArchetypes = []bot.Archetype{bot.ArchetypeRuido, bot.ArchetypeChartista, bot.ArchetypeFundamentalista}
+
+// seedBotPersonalities atribui personalidade (tarefa C.1) a cada conta do
+// pool de bots já criado por seedBotLiquidity (B.2, tarefa anterior) — o
+// Market Maker (marketMakerBotUserID) recebe escopo amplo (todos os 6
+// setores + FII/ETF, WithinScopePct no teto da faixa — ele já concentra a
+// maior fatia do float/caixa, então faz sentido que também tenha o maior
+// alcance de especialização) e os botOtherBotCount bots direcionais se
+// dividem entre os 3 arquétipos restantes via bot.AssignSpecializations
+// (C.6), que garante que todo setor/classe tem pelo menos um bot de cada
+// arquétipo cobrindo-o. Nível de conhecimento dos bots Fundamentalistas é
+// sorteado (determinístico por botSeed) — o único jeito de ter bots "que
+// sabem mais que outros" sem hardcodar um valor igual pra todos.
+// Idempotente: ensureBotPersonality pula bots que já têm personalidade
+// persistida, mesma convenção de ensureBotAccount/ensureBotPosition.
+func seedBotPersonalities(ctx context.Context, repo *db.BotRepository) {
+	marketMakerScope, err := bot.NewSpecializationScope(sixFixedSectors, nil, nonEquityAssetClasses, bot.SpecializationWithinScopeMax)
+	if err != nil {
+		log.Fatalf("escopo de especialização do Market Maker inválido: %v", err)
+	}
+	marketMakerRisk, err := bot.NewRiskProfile(botMarketMakerMaxPositionSizePct, botMarketOrderPreference, botMarketMakerSpreadWidthPct)
+	if err != nil {
+		log.Fatalf("perfil de risco do Market Maker inválido: %v", err)
+	}
+	marketMakerPersonality, err := bot.NewPersonality(bot.ArchetypeMarketMaker, marketMakerScope, nil, marketMakerRisk)
+	if err != nil {
+		log.Fatalf("personalidade do Market Maker inválida: %v", err)
+	}
+	ensureBotPersonality(ctx, repo, marketMakerBotUserID, marketMakerPersonality)
+
+	assignments, err := bot.AssignSpecializations(botDirectionalArchetypes, sixFixedSectors, nonEquityAssetClasses, botOtherBotCount)
+	if err != nil {
+		log.Fatalf("erro ao distribuir especialização entre os %d bots direcionais: %v", botOtherBotCount, err)
+	}
+
+	knowledgeRNG := rand.New(rand.NewSource(botSeed))
+	directionalRisk, err := bot.NewRiskProfile(botDirectionalMaxPositionSizePct, botMarketOrderPreference, 0)
+	if err != nil {
+		log.Fatalf("perfil de risco dos bots direcionais inválido: %v", err)
+	}
+
+	for i, assignment := range assignments {
+		scope, err := bot.NewSpecializationScope(assignment.Sectors, nil, assignment.AssetClasses, botSpecializationWithinScopePct)
+		if err != nil {
+			log.Fatalf("escopo de especialização do bot direcional %d inválido: %v", i, err)
+		}
+
+		var knowledgeLevel *float64
+		if assignment.Archetype == bot.ArchetypeFundamentalista {
+			level := knowledgeRNG.Float64()
+			knowledgeLevel = &level
+		}
+
+		personality, err := bot.NewPersonality(assignment.Archetype, scope, knowledgeLevel, directionalRisk)
+		if err != nil {
+			log.Fatalf("personalidade do bot direcional %d inválida: %v", i, err)
+		}
+		ensureBotPersonality(ctx, repo, otherBotUserID(i), personality)
+	}
+}
+
+func ensureBotPersonality(ctx context.Context, repo *db.BotRepository, userID string, personality bot.Personality) {
+	if _, found, err := repo.FindPersonalityByAccountID(ctx, userID); err != nil {
+		log.Fatalf("erro ao buscar personalidade do bot %s: %v", userID, err)
+	} else if found {
+		log.Printf("personalidade do bot %s já existe — pulando", userID)
+		return
+	}
+
+	if err := repo.CreatePersonality(ctx, userID, personality); err != nil {
+		log.Fatalf("erro ao criar personalidade do bot %s: %v", userID, err)
+	}
+	log.Printf("personalidade do bot %s criada (arquétipo %s)", userID, personality.Archetype)
 }
