@@ -17,6 +17,11 @@ const (
 	EventFixedIncomePurchase   MarketEventType = "fixed_income_purchase"
 	EventFixedIncomeRedemption MarketEventType = "fixed_income_redemption"
 	EventDividendPayment       MarketEventType = "dividend_payment"
+	// EventBotInitialAllocation é o float finito de um ativo nascendo
+	// distribuído entre bots no seed (tarefa B.2, migration 000013) — não é
+	// uma ordem executada (sem contraparte real), por isso não reaproveita
+	// EventBuyOrderExecuted.
+	EventBotInitialAllocation MarketEventType = "bot_initial_allocation"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

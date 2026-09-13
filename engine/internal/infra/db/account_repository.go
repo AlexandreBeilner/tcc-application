@@ -165,6 +165,78 @@ func (r *AccountRepository) ListMarketEventsByUser(ctx context.Context, userID s
 	return records, rows.Err()
 }
 
+// SumHumanHoldings soma quantity de positions cujo dono não é bot
+// (accounts.is_bot = false) num ativo — tarefa B.2 usa isso pra saber
+// quanto do float (outstanding_shares) ainda está livre pra distribuir
+// entre bots no seed: parte pode já pertencer a um usuário real de antes do
+// redesenho de bots (ordem executada pela antiga liquidez sintética,
+// revertida na tarefa A.2, num banco de desenvolvimento que já vinha sendo
+// usado) — devolver 100% do float pros bots nesse caso estouraria o teto
+// (position.ValidateFloatCeiling, tarefa A.3). Devolve 0 (não erro) se
+// ninguém detém o ativo ainda.
+func (r *AccountRepository) SumHumanHoldings(ctx context.Context, assetID string) (int64, error) {
+	var sum sql.NullInt64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT SUM(p.quantity) FROM positions p
+		 JOIN accounts a ON a.user_id = p.user_id
+		 WHERE p.asset_id = $1 AND NOT a.is_bot`,
+		assetID,
+	).Scan(&sum)
+	if err != nil {
+		return 0, err
+	}
+	return sum.Int64, nil
+}
+
+// SeedInitialHolding grava a posição inicial de um bot de liquidez num
+// ativo (tarefa B.2, bot.InitialAllocation/bot.InitialCash — B.1) — grava o
+// evento imutável EventBotInitialAllocation antes de projetar a posição
+// (Event Sourcing, CLAUDE.md), mesmo padrão de Create/applyPositionFill
+// (order_execution_repository.go). Idempotente: se o bot já tem posição
+// nesse ativo (reexecução do seed), não grava evento nem posição de novo,
+// devolve created = false.
+func (r *AccountRepository) SeedInitialHolding(ctx context.Context, userID, assetID string, quantity int, price float64) (created bool, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var exists bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM positions WHERE user_id = $1 AND asset_id = $2)`,
+		userID, assetID,
+	).Scan(&exists); err != nil {
+		return false, err
+	}
+	if exists {
+		return false, nil
+	}
+
+	if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
+		UserID:    userID,
+		AssetID:   &assetID,
+		EventType: domain.EventBotInitialAllocation,
+		Quantity:  &quantity,
+		UnitValue: &price,
+	}); err != nil {
+		return false, err
+	}
+
+	initial := position.ApplyBuy(position.Position{}, quantity, price)
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO positions (user_id, asset_id, quantity, average_price) VALUES ($1, $2, $3, $4)`,
+		userID, assetID, initial.Quantity, initial.AveragePrice,
+	); err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func mapAccountError(err error) error {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) && pqErr.Code == pqUniqueViolation {

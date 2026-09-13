@@ -236,7 +236,7 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
 
 ## Fase B — Distribuição inicial do float
 
-### B.1 · Função pura `bot.InitialAllocation`
+### B.1 · Função pura `bot.InitialAllocation` ✅
 
 - **Descrição:** nova função pura em `internal/domain/bot` (pacote novo): recebe
   `(assetID, totalFloat, marketMakerSharePct, seed)` e devolve a distribuição de posições entre um
@@ -250,8 +250,36 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   muitos pequenos), não uniforme.
 - **Referências:** proposta 2.2.
 - **Dependências:** A.1 (bot precisa existir como conta antes de receber posição).
+- **Entregável:** `internal/domain/bot/allocation.go` (pacote `bot` novo). Assinatura final
+  acrescenta um parâmetro que a descrição original não listava mas que a função precisa pra
+  existir de fato — `otherBotCount int` (quantos bots além do Market Maker recebem fatia; contagem
+  real do pool por ativo só é decidida no catálogo da C.6, então quem chama informa quantas contas
+  já criou) —, ficando `InitialAllocation(assetID string, totalFloat int64, marketMakerSharePct
+  float64, otherBotCount int, seed int64) (Allocation, error)`. `Allocation{MarketMaker int64,
+  Others []int64}` — `MarketMaker` é um agregado único (C.6 ainda não decidiu se o grupo Market
+  Maker é uma ou várias contas; quem chama fatia depois); `Others` é posicional (índice, não
+  identidade de bot), B.2 associa a uma conta concreta. `marketMakerSharePct` fora de
+  `[MarketMakerShareMin, MarketMakerShareMax]` (0.40-0.60, constantes exportadas) retorna
+  `ErrInvalidAllocation` — a faixa do critério de aceite é garantida por validação, não por
+  sorteio. Restante distribuído por pesos `rand.ExpFloat64()` normalizados (equivalente a um
+  simplex de Dirichlet(1,...,1), visivelmente concentrado por estatística de valores extremos) e
+  convertidos a inteiros pelo método dos maiores restos (Hamilton apportionment) — garante soma
+  exata com `totalFloat` por construção, sem viés sistemático a favor de nenhum índice. Seed por
+  ativo derivada via `fnv.New64a()` do `assetID` somado à seed base (mesma técnica de
+  `tick.deterministicSeed`, reimplementada localmente porque domínios irmãos não se importam —
+  `.claude/arquitetura-engine-go.md`): dois ativos com a mesma seed base nunca sorteiam a mesma
+  sequência. Testes novos em `allocation_test.go` (table-driven): soma exata em várias
+  combinações de float/contagem/seed; Market Maker sempre dentro da faixa em toda a faixa de
+  `marketMakerSharePct`; erro pra `marketMakerSharePct`/`totalFloat`/`otherBotCount` inválidos;
+  mesma seed reproduz a mesma distribuição; seeds diferentes e `assetID`s diferentes (mesma seed
+  base) produzem distribuições diferentes; concentração (maior fatia individual bem acima da
+  fatia uniforme, 20 bots, 10 seeds); caso de 1 único outro bot recebe 100% do restante; fatias do
+  método dos maiores restos nunca negativas. `go build`/`go test ./...`/`golangci-lint run`
+  (Docker, 0 issues) verdes. Sem tarefa de `.docs/engine/` (função pura de domínio, sem rota HTTP
+  nova) e sem validação via `docker compose up` (sem ponto de infra/DB tocado ainda — a integração
+  real só existe a partir da B.2, que consome esta função no seed).
 
-### B.2 · Seed populando bots com posição e caixa inicial
+### B.2 · Seed populando bots com posição e caixa inicial ✅
 
 - **Descrição:** `cmd/seed/main.go` passa a criar as contas de bot (A.1) e, pra cada ativo de
   Ação/FII já seedado, chamar `bot.InitialAllocation` (B.1) pra popular `positions` — mais um
@@ -264,6 +292,46 @@ Base de tudo — sem isso nenhuma fase seguinte tem onde pousar. Risco médio-al
   tamanho médio no ativo que detém.
 - **Referências:** proposta 2.2.
 - **Dependências:** B.1.
+- **Entregável:** pool único de 20 bots (1 Market Maker + 19 direcionais genéricos, uuids fixos
+  `00000000-0000-0000-0000-000000000001..020`) compartilhado entre os quatro ativos de
+  Ação/FII já seedados (VALR3/BNDD4/TJLO11/PAPL11) — decisão de escopo desta sessão: a segmentação
+  real de 15-25 bots *por ativo* (proposta 2.3.2, item 5) só existe a partir do catálogo da C.6,
+  que ainda não roda; até lá um pool só cobre os quatro. `bot.MarketMakerShareMin`/`Max` no meio
+  da faixa (50%) e `botOtherBotCount = 19` (constantes em `cmd/seed/main.go`).
+  Nova função pura `bot.InitialCash(positionMarketValue, minimumCash, isMarketMaker) float64`
+  (`internal/domain/bot/cash.go`, com `cash_test.go`) — Market Maker ganha multiplicador maior
+  (`MarketMakerCashMultiplier = 2.0`) que bot direcional (`OtherCashMultiplier = 0.5`) sobre o
+  valor de mercado da posição agregada (todos os ativos que o bot detém, a preço
+  `tick.DefaultInitialPrice`), com piso (`minimumCash`) pra nenhum bot da cauda da distribuição
+  (B.1) nascer sem caixa suficiente pra uma ordem de tamanho médio — piso calibrado no seed como
+  100 unidades a `tick.DefaultInitialPrice` (R$ 10.000).
+  **Achado crítico desta sessão, não previsto no texto original da tarefa:** o banco de
+  desenvolvimento já usado em sessões anteriores tinha posições humanas reais em VALR3/BNDD4
+  (ordens executadas pela antiga liquidez sintética, revertida na tarefa A.2, semanas antes deste
+  redesenho existir) — distribuir 100% de `outstanding_shares` pros bots nesse cenário estourou o
+  teto (`position.ValidateFloatCeiling`, tarefa A.3) por exatamente a quantidade que humanos já
+  detinham. A proposta 2.2 assume implicitamente base zerada ("o float nasce 100% alocado a
+  bots"), premissa que só vale de fato num banco vazio. Corrigido com
+  `AccountRepository.SumHumanHoldings(ctx, assetID)` (nova, soma `positions.quantity` de contas
+  `NOT is_bot`) — o seed agora distribui só `outstanding_shares - SumHumanHoldings`, nunca o bruto;
+  se o resultado for ≤ 0 (humanos já saturaram o float), pula o ativo com log em vez de estourar.
+  Isso é permanente, não só um contorno pra essa sessão: **qualquer seed/repovoamento futuro de
+  bots precisa descontar o que humanos já detêm**, mesmo num banco novo onde isso hoje é sempre
+  zero. Evento novo `bot_initial_allocation` (`domain.EventBotInitialAllocation`, migration
+  `000013_bot_initial_allocation_event`, `ALTER TYPE market_event_type ADD VALUE`) — não reaproveita
+  `buy_order_executed` porque a alocação inicial não tem contraparte real (é o float nascendo, não
+  uma ordem casada); down migration recria o enum sem o valor novo (Postgres não suporta remover
+  valor de enum direto), falha de propósito se alguma linha já usa o valor (Event Sourcing não
+  permite apagar evento). `AccountRepository.SeedInitialHolding` (nova) grava esse evento antes de
+  projetar `positions`, mesmo padrão de `Create`/`applyPositionFill`
+  (`order_execution_repository.go`); idempotente (pula se o bot já tem posição nesse ativo).
+  `go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues) verdes. Validado ao vivo via
+  `docker compose up` (volume resetado a pedido do autor depois do achado acima deixar dado
+  inconsistente num teste anterior): depois do seed, `SUM(positions.quantity)` bate exatamente com
+  `outstanding_shares` nos quatro ativos (nenhuma posição solta, nenhum estouro de teto); Market
+  Maker com exatamente 50% de cada float; caixa mínimo de todos os 20 bots bem acima do piso;
+  reexecução do seed confirmada idempotente (todas as 20 contas + 80 posições puladas com log
+  "já existe").
 
 ---
 
