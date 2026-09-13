@@ -6,7 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 )
+
+// uuidPattern valida só a forma (8-4-4-4-12 hex), não a versão/variante —
+// accounts.user_id é `uuid PRIMARY KEY` (migration 000001), então qualquer
+// userID de bot precisa ser aceito por esse tipo de coluna no Postgres.
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // InitialBalance é o capital inicial de toda conta nova, no mercado ao vivo
 // — fixado como premissa (spec 3.5), não configurável (CLAUDE.md).
@@ -55,10 +61,14 @@ func New(userID string) Account {
 // papel que exerce (Market Maker vs. direcional — proposta 2.2), calculado
 // por quem chama (bot.InitialAllocation, tarefa B.1/B.2), não por esta
 // função. userID aqui não precisa corresponder a um usuário real cadastrado
-// — só precisa ser único dentro de `accounts` (mesma unicidade de sempre).
+// em `users` (banco gamification) — só precisa ser único dentro de
+// `accounts` — mas precisa ter formato de uuid (não um slug tipo
+// "bot-market-maker-1"): accounts.user_id é `uuid PRIMARY KEY` (migration
+// 000001), então quem chama (seed/provisionamento de bot, Fase B/C) deve
+// gerar um uuid próprio pra cada bot.
 func NewBot(userID string, initialBalance float64) (Account, error) {
-	if userID == "" {
-		return Account{}, fmt.Errorf("%w: userID vazio", ErrInvalidBotAccount)
+	if !uuidPattern.MatchString(userID) {
+		return Account{}, fmt.Errorf("%w: userID precisa ter formato de uuid (%q)", ErrInvalidBotAccount, userID)
 	}
 	if initialBalance < 0 {
 		return Account{}, fmt.Errorf("%w: saldo inicial negativo (%.2f)", ErrInvalidBotAccount, initialBalance)

@@ -228,7 +228,11 @@ func validateFunds(incoming orderbook.Order, fills []Fill, ctx Context) error {
 			return ErrInsufficientBalance
 		}
 	case orderbook.SideSell:
-		if incoming.Quantity > ctx.IncomingUserPosition {
+		var totalSold int
+		for _, f := range fills {
+			totalSold += f.Quantity
+		}
+		if totalSold > ctx.IncomingUserPosition {
 			return ErrInsufficientPosition
 		}
 	}

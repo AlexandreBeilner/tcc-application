@@ -220,11 +220,49 @@ func TestExecute_CompraRejeitadaPorSaldoInsuficiente(t *testing.T) {
 
 func TestExecute_VendaRejeitadaPorPosicaoInsuficiente(t *testing.T) {
 	incoming := orderbook.Order{ID: "sell-1", Side: orderbook.SideSell, Type: orderbook.TypeMarket, Quantity: 10}
-	ctx := Context{ReferencePrice: 25, IncomingUserPosition: 3}
+	ctx := Context{
+		ReferencePrice: 25,
+		Resting: []RestingOrder{
+			// Liquidez real suficiente pra preencher a ordem inteira — sem
+			// isso a ordem simplesmente não executaria nada em vez de ser
+			// rejeitada por posição insuficiente (mesmo raciocínio da tarefa
+			// A.2 já aplicado ao teste equivalente do lado da compra,
+			// TestExecute_CompraRejeitadaPorSaldoInsuficiente).
+			{ID: "bid-1", UserID: "user-comprador", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 20, RemainingQuantity: 10},
+		},
+		IncomingUserPosition: 3,
+	}
 
 	_, err := Execute(incoming, ctx)
 	if err != ErrInsufficientPosition {
 		t.Errorf("err = %v, want %v", err, ErrInsufficientPosition)
+	}
+}
+
+// TestExecute_VendaParcialDentroDaPosicaoNaoEhRejeitada cobre a correção da
+// asymmetria com o lado da compra: validateFunds deve validar a posição
+// contra o que de fato foi preenchido (fills), não contra incoming.Quantity
+// — profundidade real insuficiente já limita naturalmente quanto executa
+// (TestExecute_OrdemAMercadoExecutaSoAPorcaoComContrapartesReais, lado da
+// compra), então uma venda que pede mais do que o usuário tem, mas só acha
+// contraparte real pra uma quantidade dentro da posição, deve executar essa
+// parte em vez de ser rejeitada por inteiro.
+func TestExecute_VendaParcialDentroDaPosicaoNaoEhRejeitada(t *testing.T) {
+	incoming := orderbook.Order{ID: "sell-1", Side: orderbook.SideSell, Type: orderbook.TypeMarket, Quantity: 10}
+	ctx := Context{
+		ReferencePrice: 25,
+		Resting: []RestingOrder{
+			{ID: "bid-1", UserID: "user-comprador", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 20, RemainingQuantity: 2},
+		},
+		IncomingUserPosition: 3,
+	}
+
+	out, err := Execute(incoming, ctx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if out.FilledQuantity != 2 || out.RemainingQuantity != 8 {
+		t.Errorf("FilledQuantity/RemainingQuantity = %d/%d, want 2/8", out.FilledQuantity, out.RemainingQuantity)
 	}
 }
 

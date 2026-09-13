@@ -36,11 +36,12 @@ func TestNewBot(t *testing.T) {
 		initialBalance float64
 		wantErr        bool
 	}{
-		{name: "market maker com caixa alto", userID: "bot-market-maker-1", initialBalance: 500000, wantErr: false},
-		{name: "bot direcional com caixa modesto", userID: "bot-chartista-3", initialBalance: 1200.50, wantErr: false},
-		{name: "saldo zero é válido (bot sem caixa alocado ainda)", userID: "bot-ruido-2", initialBalance: 0, wantErr: false},
+		{name: "market maker com caixa alto", userID: "11111111-1111-4111-8111-111111111111", initialBalance: 500000, wantErr: false},
+		{name: "bot direcional com caixa modesto", userID: "22222222-2222-4222-8222-222222222222", initialBalance: 1200.50, wantErr: false},
+		{name: "saldo zero é válido (bot sem caixa alocado ainda)", userID: "33333333-3333-4333-8333-333333333333", initialBalance: 0, wantErr: false},
 		{name: "userID vazio é inválido", userID: "", initialBalance: 1000, wantErr: true},
-		{name: "saldo negativo é inválido", userID: "bot-1", initialBalance: -0.01, wantErr: true},
+		{name: "userID que não tem formato de uuid é inválido (accounts.user_id é uuid)", userID: "bot-market-maker-1", initialBalance: 1000, wantErr: true},
+		{name: "saldo negativo é inválido", userID: "44444444-4444-4444-8444-444444444444", initialBalance: -0.01, wantErr: true},
 	}
 
 	for _, tt := range tests {

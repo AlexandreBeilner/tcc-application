@@ -355,6 +355,13 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 		status = "filled"
 	case outcome.FilledQuantity > 0:
 		status = "partially_filled"
+	case req.Type == orderbook.TypeMarket:
+		// Ordem a mercado nunca fica pendurada esperando contraparte (RF04,
+		// tarefa A.2) — sem nenhum fill real, a sobra não vai executar
+		// depois (loadRestingOrders só lê type = 'limit'), então "pending"
+		// seria enganoso pra sempre; 'cancelled' reflete que já está
+		// definitivamente resolvida.
+		status = "cancelled"
 	}
 
 	price := req.Price

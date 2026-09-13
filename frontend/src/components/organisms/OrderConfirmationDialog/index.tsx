@@ -234,7 +234,7 @@ function successMessage(
             return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora — nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
         }
         if (remaining > 0) {
-            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${filled + remaining} ${draft.ticker} — o restante não achou liquidez suficiente e não foi executado.`
+            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker} — o restante não achou liquidez suficiente e não foi executado.`
         }
         return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}.`
     }
