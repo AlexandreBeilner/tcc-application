@@ -6,6 +6,7 @@
 package fundamentals
 
 import (
+	"errors"
 	"math/rand"
 
 	"tcc-investimentos/engine/internal/domain/equity"
@@ -197,4 +198,82 @@ func DeriveFinancials(netRevenue float64) Financials {
 		GrossDebt:       netEquity * DefaultDebtToEquityRatio,
 		CashEquivalents: netRevenue * DefaultCashToRevenueRatio,
 	}
+}
+
+var (
+	// ErrInvalidTargetPrice é devolvido por BootstrapFinancialsForTargetPrice
+	// quando targetPrice não é positivo — não existe VPA que produza um
+	// preço justo não-positivo.
+	ErrInvalidTargetPrice = errors.New("preço-alvo precisa ser positivo para calibrar fundamentos iniciais")
+	// ErrInvalidOutstandingShares é devolvido quando outstandingShares não é
+	// positivo — não dá pra converter patrimônio líquido em VPA sem uma
+	// base de ações em circulação válida.
+	ErrInvalidOutstandingShares = errors.New("ações em circulação precisam ser positivas para calibrar fundamentos iniciais")
+	// ErrInvalidNeutralRate é devolvido quando selicNeutral não é positivo —
+	// mesma exigência de bot.ErrInvalidRequiredReturn (retorno exigido
+	// precisa ser positivo pra uma leitura útil de Justified P/B), aqui
+	// verificada direto porque BootstrapFinancialsForTargetPrice assume
+	// requiredReturn == selicNeutral (dia zero do seed, sem desvio de
+	// Selic ainda — ver comentário da função).
+	ErrInvalidNeutralRate = errors.New("selic neutra precisa ser positiva para calibrar fundamentos iniciais")
+	// ErrInvalidGrowthRate é devolvido quando growthRate é tão negativo que
+	// zera ou inverte o fator (1+growthRate) — a mesma fórmula de Justified
+	// P/B que bot.FundamentalistFairPrice usa não tem leitura útil com esse
+	// fator não-positivo.
+	ErrInvalidGrowthRate = errors.New("taxa de crescimento não pode zerar ou inverter o fator (1+crescimento) ao calibrar fundamentos iniciais")
+)
+
+// BootstrapFinancialsForTargetPrice deriva os fundamentos iniciais
+// (`company_fundamentals`) de uma empresa nova de modo que o preço justo
+// que bot.FundamentalistFairPrice calcularia a partir deles bata,
+// exatamente, com targetPrice — em vez de escolher um net_revenue "no
+// chute" e verificar depois se o preço justo resultante é plausível
+// (o que produziu o achado 003 de
+// .claude/pontos-em-aberto-decisao-produto.md: um net_revenue pequeno
+// demais gerava VPA≈0 pra VALR3/BNDD4, o Fundamentalista tentava convergir
+// o mercado pra um "preço justo" de bilhões e corrompia o book).
+//
+// A inversão parte da mesma fórmula de Justified Price-to-Book de
+// FundamentalistFairPrice — fairPrice = VPA × (ROE/requiredReturn) ×
+// (1+growth) — e resolve pra VPA dado um fairPrice-alvo:
+//
+//	VPA = targetPrice / ((ROE/requiredReturn) × (1+growthRate))
+//	netEquity = VPA × outstandingShares
+//	netRevenue = netEquity / DefaultEquityToRevenueRatio
+//
+// ROE usa DefaultNetMarginPct/DefaultEquityToRevenueRatio — os mesmos
+// coeficientes ilustrativos globais que DeriveFinancials já aplica (ainda
+// não diferenciados por setor; isso é a pesquisa de calibração setorial já
+// reservada pra Fase K, proposta motor-mercado-realista seção 7, um
+// problema separado deste). requiredReturn assume == selicNeutral: no
+// instante do seed, antes de qualquer ciclo de relatório, a Selic simulada
+// ainda não teve chance de desviar da sua âncora neutra, então o termo de
+// desvio de FundamentalistFairPrice (sensibilidade × desvio) é zero —
+// riskClass não entra na conta por isso, symmetric ao caso
+// selicAnnualRate == selicNeutral de FundamentalistFairPrice.
+//
+// Generaliza pra qualquer ativo futuro (currículo completo, tarefa 7.2):
+// dado qualquer outstandingShares/targetPrice, devolve o net_revenue exato
+// que faz o Fundamentalista nascer "satisfeito" com o preço de partida —
+// nenhuma álgebra manual nem constante por ativo.
+func BootstrapFinancialsForTargetPrice(targetPrice float64, outstandingShares int64, growthRate, selicNeutral float64) (Financials, error) {
+	if targetPrice <= 0 {
+		return Financials{}, ErrInvalidTargetPrice
+	}
+	if outstandingShares <= 0 {
+		return Financials{}, ErrInvalidOutstandingShares
+	}
+	if selicNeutral <= 0 {
+		return Financials{}, ErrInvalidNeutralRate
+	}
+	growthFactor := 1 + growthRate
+	if growthFactor <= 0 {
+		return Financials{}, ErrInvalidGrowthRate
+	}
+
+	roe := DefaultNetMarginPct / DefaultEquityToRevenueRatio
+	vpa := targetPrice / ((roe / selicNeutral) * growthFactor)
+	netEquity := vpa * float64(outstandingShares)
+	netRevenue := netEquity / DefaultEquityToRevenueRatio
+	return DeriveFinancials(netRevenue), nil
 }

@@ -24,6 +24,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
@@ -147,29 +148,6 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 	return id
 }
 
-// initialFundamentalsRevenuePerShare calibra a receita líquida inicial de
-// uma empresa (net_revenue) contra o outstanding_shares do ativo que ela
-// emite — achado da sessão D.2 (backlog-motor-mercado-realista): sem uma
-// linha inicial de company_fundamentals, a empresa cai no fallback genérico
-// fundamentals.DefaultBaseRevenue (1 milhão, calibrado pra uma "empresa
-// pequena qualquer", nunca contra outstanding_shares na casa das centenas
-// de milhões dos ativos já seedados aqui) — o preço justo do Fundamentalista
-// (bot.FundamentalistFairPrice, Justified Price-to-Book) sai microscópico
-// (VPA = net_equity/outstanding_shares ≈ 0), o bot tenta convergir o mercado
-// pra esse valor via negociação real e corrompe o book. Cálculo: ROE =
-// DefaultNetMarginPct/DefaultEquityToRevenueRatio (constante, independente
-// da escala de receita — os dois escalam junto); sem choque de Selic,
-// requiredReturn ≈ selicNeutral (decimal) e growth ≈ DefaultBaseGrowth, logo
-// fairPrice ≈ VPA × (ROE/requiredReturn) × (1+growth) ≈ VPA × 0.86 —
-// resolvendo pra VPA ≈ 116 (perto de tick.DefaultInitialPrice = 100, a
-// cotação de partida real) dá net_revenue ≈ 97 × outstanding_shares.
-// Valor ilustrativo desta sessão (mesma nota de "sujeito a calibração
-// futura", agora a cargo da Fase K — calibração de fundamentos por setor
-// com dado real de B3/CVM, proposta motor-mercado-realista seção 7) — só o
-// suficiente pra manter o Fundamentalista numa faixa plausível desde o
-// primeiro tick, não uma pesquisa setorial.
-const initialFundamentalsRevenuePerShare = 97.0
-
 func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, outstandingShares int64) {
 	if _, found, err := repo.FindLatestFundamentals(ctx, companyID); err != nil {
 		log.Fatalf("erro ao buscar fundamentos da empresa %s: %v", companyID, err)
@@ -178,8 +156,27 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 		return
 	}
 
-	netRevenue := initialFundamentalsRevenuePerShare * float64(outstandingShares)
-	financials := fundamentals.DeriveFinancials(netRevenue)
+	// Sem uma linha inicial de company_fundamentals, a empresa cai no
+	// fallback genérico fundamentals.DefaultBaseRevenue (1 milhão, pensado
+	// pra uma "empresa pequena qualquer", nunca contra outstanding_shares
+	// na casa das centenas de milhões dos ativos seedados aqui) — o preço
+	// justo do Fundamentalista (bot.FundamentalistFairPrice) sai
+	// microscópico (VPA≈0), o bot tenta convergir o mercado pra um valor
+	// de bilhões e corrompe o book (achado 003 de
+	// .claude/pontos-em-aberto-decisao-produto.md). Em vez de resolver
+	// isso à mão por empresa (como a sessão D.2 fez, cravando uma
+	// constante de receita-por-ação), BootstrapFinancialsForTargetPrice
+	// deriva o net_revenue que faz o preço justo nascer exatamente em
+	// tick.DefaultInitialPrice, pra qualquer outstandingShares — vale pra
+	// qualquer empresa futura da tarefa 7.2, não só VALR3/BNDD4. A
+	// diferenciação de coeficientes por setor (margens, sensibilidade à
+	// Selic) continua fora de escopo, reservada pra Fase K (proposta
+	// motor-mercado-realista seção 7) — problema separado deste.
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(
+		tick.DefaultInitialPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selic.DefaultNeutralRate/100)
+	if err != nil {
+		log.Fatalf("erro ao calibrar fundamentos iniciais da empresa %s: %v", companyID, err)
+	}
 	if err := repo.CreateInitialFundamentals(ctx, companyID, financials); err != nil {
 		log.Fatalf("erro ao criar fundamentos iniciais da empresa %s: %v", companyID, err)
 	}

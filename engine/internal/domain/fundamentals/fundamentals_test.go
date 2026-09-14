@@ -1,6 +1,7 @@
 package fundamentals
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -251,5 +252,105 @@ func TestDeriveFinancials_EBITMarginMaiorQueNetMargin(t *testing.T) {
 
 	if got.EBIT <= got.NetIncome {
 		t.Errorf("EBIT (%v) deveria ser maior que NetIncome (%v)", got.EBIT, got.NetIncome)
+	}
+}
+
+// fairPriceFromFinancials recalcula o preço justo pela mesma fórmula de
+// Justified Price-to-Book que bot.FundamentalistFairPrice usa
+// (fairPrice = VPA × (ROE/requiredReturn) × (1+growth)), sem importar o
+// pacote bot — importar bot em fundamentals criaria um ciclo (bot já
+// importa fundamentals). Existe só pra verificar, no teste, o round-trip
+// de BootstrapFinancialsForTargetPrice contra a fórmula real que ela
+// inverte, sem duplicar essa verificação com um cálculo diferente.
+func fairPriceFromFinancials(f Financials, outstandingShares int64, growthRate, requiredReturn float64) float64 {
+	vpa := f.NetEquity / float64(outstandingShares)
+	roe := f.NetIncome / f.NetEquity
+	return vpa * (roe / requiredReturn) * (1 + growthRate)
+}
+
+// TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo é o
+// critério de aceite central: pra qualquer combinação de
+// targetPrice/outstandingShares/growthRate/selicNeutral, o preço justo
+// recalculado a partir dos fundamentos devolvidos precisa bater com
+// targetPrice — é essa propriedade que substitui a antiga constante
+// initialFundamentalsRevenuePerShare "achada por tentativa" (achado 003 de
+// .claude/pontos-em-aberto-decisao-produto.md).
+func TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo(t *testing.T) {
+	tests := []struct {
+		name              string
+		targetPrice       float64
+		outstandingShares int64
+		growthRate        float64
+		selicNeutral      float64
+	}{
+		{"VALR3-like", 100, 500_000_000, 0.03, 0.10},
+		{"BNDD4-like", 100, 300_000_000, 0.03, 0.10},
+		{"empresa pequena, preço alto", 250, 10_000_000, 0.03, 0.10},
+		{"empresa grande, preço baixo", 12.50, 2_000_000_000, 0.03, 0.10},
+		{"crescimento maior", 100, 500_000_000, 0.08, 0.10},
+		{"Selic neutra diferente", 100, 500_000_000, 0.03, 0.12},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BootstrapFinancialsForTargetPrice(tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			if err != nil {
+				t.Fatalf("erro inesperado: %v", err)
+			}
+
+			fairPrice := fairPriceFromFinancials(got, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			if math.Abs(fairPrice-tt.targetPrice) > 1e-6 {
+				t.Errorf("preço justo recalculado = %v, want %v (dentro de 1e-6)", fairPrice, tt.targetPrice)
+			}
+		})
+	}
+}
+
+// TestBootstrapFinancialsForTargetPrice_ReproduzConstanteHistorica ancora
+// que, pros parâmetros já usados em produção (tick.DefaultInitialPrice=100,
+// DefaultBaseGrowth=0.03, selic.DefaultNeutralRate/100=0.10), a receita por
+// ação resultante bate com o ~97.0 que initialFundamentalsRevenuePerShare
+// fixava à mão antes desta função existir — a fórmula deriva o mesmo
+// número, só que agora por construção, pra qualquer outstandingShares.
+func TestBootstrapFinancialsForTargetPrice_ReproduzConstanteHistorica(t *testing.T) {
+	const outstandingShares = 500_000_000
+
+	got, err := BootstrapFinancialsForTargetPrice(100, outstandingShares, 0.03, 0.10)
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+
+	revenuePerShare := got.NetRevenue / outstandingShares
+	if math.Abs(revenuePerShare-97.0) > 0.5 {
+		t.Errorf("net_revenue por ação = %v, want ≈97.0 (mesma calibração já validada manualmente na sessão D.2)", revenuePerShare)
+	}
+}
+
+func TestBootstrapFinancialsForTargetPrice_ErrosDeEntrada(t *testing.T) {
+	tests := []struct {
+		name              string
+		targetPrice       float64
+		outstandingShares int64
+		growthRate        float64
+		selicNeutral      float64
+		wantErr           error
+	}{
+		{"preço-alvo zero", 0, 500_000_000, 0.03, 0.10, ErrInvalidTargetPrice},
+		{"preço-alvo negativo", -10, 500_000_000, 0.03, 0.10, ErrInvalidTargetPrice},
+		{"ações em circulação zero", 100, 0, 0.03, 0.10, ErrInvalidOutstandingShares},
+		{"ações em circulação negativas", 100, -1, 0.03, 0.10, ErrInvalidOutstandingShares},
+		{"Selic neutra zero", 100, 500_000_000, 0.03, 0, ErrInvalidNeutralRate},
+		{"Selic neutra negativa", 100, 500_000_000, 0.03, -0.05, ErrInvalidNeutralRate},
+		{"crescimento anula o fator (1+growth)", 100, 500_000_000, -1, 0.10, ErrInvalidGrowthRate},
+		{"crescimento inverte o fator (1+growth)", 100, 500_000_000, -1.5, 0.10, ErrInvalidGrowthRate},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := BootstrapFinancialsForTargetPrice(tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
 	}
 }
