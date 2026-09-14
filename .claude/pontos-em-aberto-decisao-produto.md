@@ -71,6 +71,32 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   perto do teto).
 - **Status:** aberto
 
+### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
+
+- **Local:** `engine/cmd/seed/main.go` (`initialFundamentalsRevenuePerShare = 97.0`,
+  `seedInitialFundamentals`), consumido por `bot.FundamentalistFairPrice`
+  (`engine/internal/domain/bot/fundamentalist.go`)
+- **Origem:** implementação da tarefa D.2 (backlog-motor-mercado-realista), 2026-09-13
+- **O que é:** sem uma linha inicial de `company_fundamentals`, VALR3/BNDD4 caíam no fallback genérico
+  `fundamentals.DefaultBaseRevenue` (1 milhão, pensado pra uma empresa pequena qualquer) — contra um
+  `outstanding_shares` de centenas de milhões, isso produz um VPA microscópico e um "preço justo"
+  (Justified Price-to-Book) do arquétipo Fundamentalista completamente desconectado do preço real
+  (~R$100), fazendo o bot tentar convergir o mercado pra esse valor via negociação real e corromper o
+  book (chegou a gerar uma ordem de ~90 bilhões de unidades num teste manual). Corrigido nesta sessão
+  com `net_revenue ≈ 97 × outstanding_shares` — valor calculado pra fazer `fairPrice` bater
+  aproximadamente com `tick.DefaultInitialPrice = 100`, não uma pesquisa setorial real.
+- **Por que não foi corrigido "de vez":** a proposta motor-mercado-realista (seção 7) já reserva a
+  calibração de fundamentos por setor com dado real (B3/CVM) pra uma sessão futura de pesquisa
+  (Fase K deste backlog) — inventar um número "definitivo" agora seria decisão de produto/pesquisa,
+  não uma correção mecânica. `97.0` é só o suficiente pra não quebrar a Fase D.2, mesmo tratamento
+  "ilustrativo, sujeito a calibração futura" já dado a outros coeficientes do motor.
+- **Opções:** (a) Fase K substitui `initialFundamentalsRevenuePerShare` (e o restante do seed de
+  `company_fundamentals`) por valores derivados de dado setorial real, por empresa/setor — provável
+  destino natural; (b) generalizar `seedInitialFundamentals` pra qualquer empresa nova que o catálogo
+  ganhar no futuro (hoje só chamado pras 2 empresas de 3.9), se a Fase 7.2 (currículo completo) criar
+  companies sem passar por esse mesmo seed.
+- **Status:** aberto
+
 ## Resolvidos
 
 _(vazio até o momento)_

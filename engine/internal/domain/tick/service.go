@@ -7,13 +7,18 @@ import (
 )
 
 // Service executa um tick completo (ler estado → calcular próximo passo →
-// persistir), tanto pro job diário automático quanto pro disparo manual via
-// POST /admin/tick (tarefa 3.11) — os dois caminhos chamam Run, a única
-// diferença é quem aciona.
+// executar as rodadas de negociação de bot (Fase D.2, rounds.go) → persistir),
+// tanto pro job diário automático quanto pro disparo manual via POST
+// /admin/tick (tarefa 3.11) — os dois caminhos chamam Run, a única diferença
+// é quem aciona.
 type Service struct {
-	repo     Repository
-	selicCfg selic.Config
-	seed     int64
+	repo           Repository
+	bots           BotRoster
+	priceHistory   PriceHistoryReader
+	orderContext   OrderContextLoader
+	orderSubmitter OrderSubmitter
+	selicCfg       selic.Config
+	seed           int64
 }
 
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é
@@ -21,9 +26,21 @@ type Service struct {
 // ReversionSpeed, Volatility) calibram a reversão à média da Selic
 // simulada, mesma calibração de selic.DefaultConfig. seed é a seed base da
 // simulação (RNF08) — fixa entre reinícios, configurada uma vez na
-// composição (cmd/api/main.go).
-func NewService(repo Repository, selicCfg selic.Config, seed int64) *Service {
-	return &Service{repo: repo, selicCfg: selicCfg, seed: seed}
+// composição (cmd/api/main.go). bots/priceHistory/orderContext/orderSubmitter
+// (Fase D.2, rounds.go) alimentam runIntradayRounds — concretamente
+// *db.BotRepository, *db.TickRepository, *db.OrderExecutionRepository e
+// *orderexecution.Service (o mesmo já usado por POST /orders, sem caminho
+// paralelo pra ordem de bot).
+func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader, orderContext OrderContextLoader, orderSubmitter OrderSubmitter, selicCfg selic.Config, seed int64) *Service {
+	return &Service{
+		repo:           repo,
+		bots:           bots,
+		priceHistory:   priceHistory,
+		orderContext:   orderContext,
+		orderSubmitter: orderSubmitter,
+		selicCfg:       selicCfg,
+		seed:           seed,
+	}
 }
 
 // Run lê o último estado persistido, calcula o próximo tick (Advance) e
@@ -65,6 +82,16 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 
 	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.seed)
+
+	dayIndex := result.State.Day - 1 // 0-based, mesma convenção de Advance
+	closingPrices, fillsExecuted, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
+	if err != nil {
+		return Result{}, err
+	}
+	for assetID, price := range closingPrices {
+		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: price})
+	}
+	result.IntradayFillsCount = fillsExecuted
 
 	if err := s.repo.SaveTick(ctx, result); err != nil {
 		return Result{}, err

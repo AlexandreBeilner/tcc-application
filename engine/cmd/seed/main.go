@@ -23,6 +23,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
@@ -54,6 +55,8 @@ func main() {
 	const bndd4OutstandingShares = 300_000_000
 	valr3ID := seedEquity(ctx, repo, "VALR3", "Mineradora Vale do Rio ON", equityRiskConservador, &mineradora, "ON", valr3OutstandingShares)
 	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bndd4OutstandingShares)
+	seedInitialFundamentals(ctx, repo, mineradora, valr3OutstandingShares)
+	seedInitialFundamentals(ctx, repo, banco, bndd4OutstandingShares)
 
 	seedETF(ctx, repo)
 	tjlo11ID := seedFIITijolo(ctx, repo)
@@ -142,6 +145,45 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
 	return id
+}
+
+// initialFundamentalsRevenuePerShare calibra a receita líquida inicial de
+// uma empresa (net_revenue) contra o outstanding_shares do ativo que ela
+// emite — achado da sessão D.2 (backlog-motor-mercado-realista): sem uma
+// linha inicial de company_fundamentals, a empresa cai no fallback genérico
+// fundamentals.DefaultBaseRevenue (1 milhão, calibrado pra uma "empresa
+// pequena qualquer", nunca contra outstanding_shares na casa das centenas
+// de milhões dos ativos já seedados aqui) — o preço justo do Fundamentalista
+// (bot.FundamentalistFairPrice, Justified Price-to-Book) sai microscópico
+// (VPA = net_equity/outstanding_shares ≈ 0), o bot tenta convergir o mercado
+// pra esse valor via negociação real e corrompe o book. Cálculo: ROE =
+// DefaultNetMarginPct/DefaultEquityToRevenueRatio (constante, independente
+// da escala de receita — os dois escalam junto); sem choque de Selic,
+// requiredReturn ≈ selicNeutral (decimal) e growth ≈ DefaultBaseGrowth, logo
+// fairPrice ≈ VPA × (ROE/requiredReturn) × (1+growth) ≈ VPA × 0.86 —
+// resolvendo pra VPA ≈ 116 (perto de tick.DefaultInitialPrice = 100, a
+// cotação de partida real) dá net_revenue ≈ 97 × outstanding_shares.
+// Valor ilustrativo desta sessão (mesma nota de "sujeito a calibração
+// futura", agora a cargo da Fase K — calibração de fundamentos por setor
+// com dado real de B3/CVM, proposta motor-mercado-realista seção 7) — só o
+// suficiente pra manter o Fundamentalista numa faixa plausível desde o
+// primeiro tick, não uma pesquisa setorial.
+const initialFundamentalsRevenuePerShare = 97.0
+
+func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, outstandingShares int64) {
+	if _, found, err := repo.FindLatestFundamentals(ctx, companyID); err != nil {
+		log.Fatalf("erro ao buscar fundamentos da empresa %s: %v", companyID, err)
+	} else if found {
+		log.Printf("empresa %s já tem fundamentos — pulando", companyID)
+		return
+	}
+
+	netRevenue := initialFundamentalsRevenuePerShare * float64(outstandingShares)
+	financials := fundamentals.DeriveFinancials(netRevenue)
+	if err := repo.CreateInitialFundamentals(ctx, companyID, financials); err != nil {
+		log.Fatalf("erro ao criar fundamentos iniciais da empresa %s: %v", companyID, err)
+	}
+	log.Printf("fundamentos iniciais da empresa %s criados (net_revenue=%.2f)", companyID, financials.NetRevenue)
 }
 
 func seedETF(ctx context.Context, repo *db.CatalogRepository) {

@@ -90,10 +90,12 @@ func main() {
 	accountRepository := db.NewAccountRepository(pool)
 	accountService := account.NewService(accountRepository)
 	catalogRepository := db.NewCatalogRepository(pool, quoteCache)
-	orderExecutionService := orderexecution.NewService(db.NewOrderExecutionRepository(pool, quoteCache))
+	orderExecutionRepository := db.NewOrderExecutionRepository(pool, quoteCache)
+	orderExecutionService := orderexecution.NewService(orderExecutionRepository)
 	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool))
 	macroEventRepository := db.NewMacroEventRepository(pool)
 	macroEventTriggerService := macroeventtrigger.NewService(macroEventRepository)
+	botRepository := db.NewBotRepository(pool)
 
 	seed := int64(defaultSimulationSeed)
 	if raw := os.Getenv("SIMULATION_SEED"); raw != "" {
@@ -104,7 +106,12 @@ func main() {
 		seed = parsed
 	}
 	selicConfig := selic.DefaultConfig(selic.DefaultNeutralRate, seed)
-	tickService := tick.NewService(db.NewTickRepository(pool, quoteCache), selicConfig, seed)
+	tickRepository := db.NewTickRepository(pool, quoteCache)
+	// bots/orderExecutionRepository (peek de contexto)/orderExecutionService
+	// (submissão) alimentam a coleta de decisão de bot dentro do sub-tick
+	// (Fase D.2, tick/rounds.go) — ordem de bot passa pelo mesmíssimo
+	// orderexecution.Service que POST /orders já usa, sem caminho paralelo.
+	tickService := tick.NewService(tickRepository, botRepository, tickRepository, orderExecutionRepository, orderExecutionService, selicConfig, seed)
 
 	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick

@@ -28,6 +28,12 @@ import (
 // tarefa 3.9).
 const DefaultInitialPrice = 100.00
 
+// assetTypeAcao é o valor cru de AssetForPricing.Type pra ações — usado só
+// pra decidir quando Advance pula o GBM (Fase D.2, preço de Ação passa a vir
+// da rodada de negociação real). Não é o mesmo conceito de catalog.AssetAcao
+// (tick não importa catalog só pra isso, mesma nota de Sector/RiskClass).
+const assetTypeAcao = "acao"
+
 // State é o estado do calendário simulado do Mercado Ao Vivo — Day é o dia
 // simulado atual (0 = nenhum tick rodou ainda; contagem 1-based depois do
 // primeiro tick, mesma convenção de selic.IsCopomMeetingDay/
@@ -61,6 +67,13 @@ type AssetForPricing struct {
 	// resolver o fan-out de um evento macro de alvo setorial pros ativos
 	// das empresas daquele setor.
 	Sector *string
+	// Type é o tipo do ativo (assets.type: "acao"/"etf"/"fii", cru — mesma
+	// convenção de Sector/RiskClass acima, tick não importa catalog só pra
+	// isso) — usado por Advance (Fase D.2) pra excluir Ação do GBM: preço de
+	// Ação passa a nascer só da rodada de negociação real (runIntradayRounds,
+	// rounds.go), nunca mais do GBM. FII/ETF continuam no GBM até as Fases
+	// G/H estenderem o mesmo motor de negociação real pra eles.
+	Type string
 }
 
 // CompanyForFundamentals é o insumo mínimo do catálogo que Advance precisa
@@ -227,6 +240,33 @@ type Result struct {
 	// o evento dividend_payment em market_events **antes** de projetar o
 	// saldo (Event Sourcing, CLAUDE.md), e marca paid = true.
 	DuePayments []PendingDividendPayment
+	// IntradayRounds é a cadência intradiária sorteada pra newDay (Fase
+	// D.1, IntradayRounds) — quantas rodadas de negociação de bot o dia
+	// terá e em que ponto do expediente simulado cada uma cai. Consumido
+	// por Service.Run (Fase D.2, runIntradayRounds, rounds.go) depois de
+	// Advance devolver; não afeta nenhum outro campo deste Result — Selic,
+	// calendário de relatório e proventos são calculados do jeito que já
+	// eram, sem depender desta cadência.
+	IntradayRounds []IntradayRound
+	// CompanyContext é "o que se sabe hoje" sobre cada empresa (financeiros
+	// derivados + crescimento esperado, CompanyRoundContext, rounds.go),
+	// pra todas elas — não só as que bateram dia de relatório neste tick
+	// (diferente de Fundamentals/reportEffects, que só cobrem o dia exato do
+	// relatório). Consumido só pelo arquétipo Fundamentalista dentro de
+	// runIntradayRounds (Fase D.2): fora do dia de relatório, ele reavalia o
+	// preço justo com os últimos financeiros conhecidos e o crescimento
+	// esperado ajustado pela Selic de hoje (fundamentals.ExpectedGrowth),
+	// mesmo sem relatório novo — não persistido, existe só pra alimentar a
+	// rodada dentro desta mesma chamada de Run.
+	CompanyContext map[string]CompanyRoundContext
+	// IntradayFillsCount é quantos fills reais aconteceram nas rodadas de
+	// negociação de bot deste tick (Fase D.2, runIntradayRounds) — sempre 0
+	// vindo de Advance (Advance não roda rodada nenhuma, é puro); Service.Run
+	// preenche depois de chamar runIntradayRounds, só pra observabilidade
+	// (ver tickResponse, httpserver/admin.go). Não é persistido — os fills em
+	// si já estão em order_book/market_events (Event Sourcing),
+	// reconstituíveis sem precisar deste contador.
+	IntradayFillsCount int
 }
 
 // Repository é o colaborador que Advance precisa pra ler o último estado
@@ -322,6 +362,40 @@ func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.Ris
 		NoiseStdDev: fundamentals.DefaultNoiseStdDev,
 		Seed:        deterministicSeed(seed, companyID),
 	}
+}
+
+// companyRoundContexts monta, pra CADA empresa (não só as que bateram dia de
+// relatório neste tick — diferente do loop que produz reportEffects/
+// fundamentalsRecords acima), o que a Fase D.2 (runIntradayRounds, rounds.go)
+// precisa pro arquétipo Fundamentalista reavaliar seu preço justo hoje:
+// financeiros derivados (a partir de reportEffects[cid].NetRevenue quando a
+// empresa relatou agora nesse mesmo tick; senão c.LastRevenue/
+// fundamentals.DefaultBaseRevenue, o mesmo fallback que o loop de relatório
+// já usa) e o crescimento esperado — sempre fundamentals.ExpectedGrowth
+// contra a Selic de hoje (newSelicRate), nunca o crescimento realizado com
+// ruído idiossincrático (actualGrowth): o Fundamentalista projeta a
+// expectativa sistêmica de todo dia, não o resultado de uma empresa
+// específica, que só existe no dia exato do relatório dela.
+func companyRoundContexts(companies []CompanyForFundamentals, reportEffects map[string]companyReportEffect, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64) map[string]CompanyRoundContext {
+	contexts := make(map[string]CompanyRoundContext, len(companies))
+	for _, c := range companies {
+		riskClass := equityRiskClasses[c.CompanyID]
+		cfg := fundamentalsConfig(seed, c.CompanyID, riskClass)
+
+		baseRevenue := fundamentals.DefaultBaseRevenue
+		if c.LastRevenue != nil {
+			baseRevenue = *c.LastRevenue
+		}
+		if reported, ok := reportEffects[c.CompanyID]; ok {
+			baseRevenue = reported.NetRevenue
+		}
+
+		contexts[c.CompanyID] = CompanyRoundContext{
+			Financials: fundamentals.DeriveFinancials(baseRevenue),
+			GrowthRate: fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
+		}
+	}
+	return contexts
 }
 
 // companyEquityRiskClasses mapeia company_id -> risk_class de um dos ativos
@@ -560,7 +634,12 @@ func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDi
 // dividendRecordsForCycle gera um novo dividend_events por ativo pagador
 // no dia de relatório (Result.NewDividends), e duePaymentsForDay filtra os
 // PendingDividendPayment cujo pagamento vence exatamente em newDay
-// (Result.DuePayments).
+// (Result.DuePayments). Advance também sorteia a cadência intradiária do
+// dia (Fase D.1, IntradayRounds) — quantas rodadas de negociação de bot
+// newDay terá e em que ponto do expediente simulado cada uma cai
+// (Result.IntradayRounds) — sem consumir esse sorteio ainda (Fase D.2,
+// execução de rodadas, ainda não implementada); nenhum outro cálculo deste
+// Advance muda de comportamento por causa disso.
 func Advance(current State, assets []AssetForPricing, companies []CompanyForFundamentals, macroEvents []MacroEventForApplication, dividendPayers []DividendPayerAsset, pendingDividends []PendingDividendPayment, selicCfg selic.Config, seed int64) Result {
 	newDay := current.Day + 1
 	dayIndex := newDay - 1 // 0-based, mesma convenção de IsCopomMeetingDay/IsReportDay
@@ -613,8 +692,19 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		})
 	}
 
+	companyContext := companyRoundContexts(companies, reportEffects, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral)
+
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
+		if a.Type == assetTypeAcao {
+			// Fase D.2: Ação não nasce mais de GBM — o preço de fechamento
+			// vem da rodada de negociação real (runIntradayRounds, rounds.go,
+			// chamada por Service.Run depois de Advance), que anexa sua
+			// própria Quote a Result.Quotes antes de SaveTick. FII/ETF
+			// continuam aqui até as Fases G/H.
+			continue
+		}
+
 		lastPrice := DefaultInitialPrice
 		if a.LastPrice != nil {
 			lastPrice = *a.LastPrice
@@ -640,6 +730,8 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		quotes = append(quotes, Quote{AssetID: a.AssetID, Price: price})
 	}
 
+	intradayRounds := IntradayRounds(seed, dayIndex)
+
 	appliedMacroEventIDs := make([]string, 0)
 	for _, ev := range macroEvents {
 		if macroEventDone(ev, newDay) {
@@ -656,5 +748,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		AppliedMacroEventIDs: appliedMacroEventIDs,
 		NewDividends:         dividendRecordsForCycle(dividendPayers, netIncomeByCompany, dayIndex, newDay),
 		DuePayments:          duePaymentsForDay(pendingDividends, newDay),
+		IntradayRounds:       intradayRounds,
+		CompanyContext:       companyContext,
 	}
 }
