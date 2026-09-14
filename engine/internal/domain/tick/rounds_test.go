@@ -19,7 +19,12 @@ func mustRoundPersonality(t *testing.T, archetype bot.Archetype) bot.Personality
 	if err != nil {
 		t.Fatalf("risk profile de setup inválido: %v", err)
 	}
-	personality, err := bot.NewPersonality(archetype, scope, nil, riskProfile)
+	var knowledgeLevel *float64
+	if archetype == bot.ArchetypeFundamentalista {
+		level := 0.7
+		knowledgeLevel = &level
+	}
+	personality, err := bot.NewPersonality(archetype, scope, knowledgeLevel, riskProfile)
 	if err != nil {
 		t.Fatalf("personality de setup inválida: %v", err)
 	}
@@ -188,6 +193,36 @@ func TestRunIntradayRounds_PropagaErroDeListEligibleForTradingRound(t *testing.T
 	_, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de ListEligibleForTradingRound")
+	}
+}
+
+// TestRunIntradayRounds_FundamentalistaSemCompanyIDNuncaChamaLoadContext
+// cobre a otimização do review do PR da Fase D (backlog-motor-mercado-
+// realista): um bot Fundamentalista cujo ativo sorteado não tem CompanyID
+// vai ser descartado de qualquer jeito (decisionInputFor, case
+// ArchetypeFundamentalista) — o pre-check em fundamentalistHasCompanyContext
+// deve pular a chamada de LoadContext (round trip real ao banco) em vez de
+// pagar o IO pra só descartar o resultado depois.
+func TestRunIntradayRounds_FundamentalistaSemCompanyIDNuncaChamaLoadContext(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeFundamentalista)}}}
+	loader := &fakeOrderContextLoader{balance: 1_000_000}
+	svc.orderContext = loader
+
+	riskClass := "Conservador"
+	sector := "Mineração"
+	lastPrice := 100.0
+	assets := []AssetForPricing{{AssetID: "a1", Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector, LastPrice: &lastPrice}} // CompanyID nil
+
+	_, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills != 0 {
+		t.Errorf("fills = %d, want 0 — Fundamentalista sem CompanyID nunca decide", fills)
+	}
+	if loader.calls != 0 {
+		t.Errorf("LoadContext calls = %d, want 0 — pre-check deveria pular a chamada de IO pra bot que vai ser descartado", loader.calls)
 	}
 }
 

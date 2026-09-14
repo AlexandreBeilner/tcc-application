@@ -158,7 +158,7 @@ func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 	restingUserByOrderID := make(map[string]string, len(ctx.Resting))
 	for _, r := range ctx.Resting {
 		restingUserByOrderID[r.ID] = r.UserID
-		book.Submit(orderbook.Order{ID: r.ID, Side: r.Side, Type: r.Type, Price: r.Price, Quantity: r.RemainingQuantity})
+		book.Submit(orderbook.Order{ID: r.ID, UserID: r.UserID, Side: r.Side, Type: r.Type, Price: r.Price, Quantity: r.RemainingQuantity})
 	}
 
 	trades := book.Submit(incoming)

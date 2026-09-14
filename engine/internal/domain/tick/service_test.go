@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -96,9 +97,11 @@ type fakeOrderContextLoader struct {
 	balance   float64
 	positions map[string]int
 	loadErr   error
+	calls     int
 }
 
 func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ string) (orderexecution.Context, error) {
+	f.calls++
 	if f.loadErr != nil {
 		return orderexecution.Context{}, f.loadErr
 	}
@@ -261,11 +264,77 @@ func TestService_Run_PersisteFundamentalsNoDiaDeRelatorio(t *testing.T) {
 	}
 }
 
+// TestService_Run_SerializaChamadasConcorrentes cobre a proteção contra o
+// job diário (scheduler.RunDaily) e um POST /admin/tick concorrente
+// correrem juntos (achado do review do PR da Fase D, backlog-motor-mercado-
+// realista): sem Service.mu, LoadState/SaveTick de duas goroutines
+// intercalariam livremente sobre o mesmo *fakeRepository — sob -race isso
+// seria acusado como data race. Roda com `go test -race` pra ter valor real
+// (sem -race, o teste só confirma saveCalls, não a ausência de corrida).
+func TestService_Run_SerializaChamadasConcorrentes(t *testing.T) {
+	repo := &fakeRepository{assets: []AssetForPricing{{AssetID: "a1"}}}
+	svc := newTestService(repo)
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := svc.Run(context.Background()); err != nil {
+				t.Errorf("Run() erro inesperado: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if repo.saveCalls != goroutines {
+		t.Errorf("saveCalls = %d, want %d", repo.saveCalls, goroutines)
+	}
+}
+
 func TestService_Run_PropagaErroDeSaveTick(t *testing.T) {
 	repo := &fakeRepository{saveErr: errors.New("falha de conexão")}
 	svc := newTestService(repo)
 
 	if _, err := svc.Run(context.Background()); err == nil {
 		t.Fatal("Run() err = nil, want erro propagado de SaveTick")
+	}
+}
+
+// TestService_Run_QuotesDeAcaoEmOrdemDeterministica cobre RNF08 (mesma
+// seed, mesmo resultado): result.Quotes das Ações vem de closingPrices, um
+// map em runIntradayRounds — sem ordenação explícita por AssetID, a ordem
+// de iteração do map é aleatória a cada execução do Go, mesmo com estado/
+// seed idênticos. Achado do review do PR da Fase D, backlog-motor-mercado-
+// realista.
+func TestService_Run_QuotesDeAcaoEmOrdemDeterministica(t *testing.T) {
+	riskClass := "Conservador"
+	repo := &fakeRepository{assets: []AssetForPricing{
+		{AssetID: "z-acao", Type: assetTypeAcao, RiskClass: &riskClass},
+		{AssetID: "a-acao", Type: assetTypeAcao, RiskClass: &riskClass},
+		{AssetID: "m-acao", Type: assetTypeAcao, RiskClass: &riskClass},
+	}}
+	svc := newTestService(repo)
+
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+
+	var acaoIDs []string
+	for _, q := range result.Quotes {
+		if q.AssetID == "a-acao" || q.AssetID == "m-acao" || q.AssetID == "z-acao" {
+			acaoIDs = append(acaoIDs, q.AssetID)
+		}
+	}
+	want := []string{"a-acao", "m-acao", "z-acao"}
+	if len(acaoIDs) != len(want) {
+		t.Fatalf("acaoIDs = %v, want %v", acaoIDs, want)
+	}
+	for i := range want {
+		if acaoIDs[i] != want[i] {
+			t.Fatalf("Quotes de Ação fora de ordem: %v, want %v (ordenado por AssetID)", acaoIDs, want)
+		}
 	}
 }

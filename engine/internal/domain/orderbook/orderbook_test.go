@@ -167,3 +167,47 @@ func TestSubmit_OrdemAMercadoConsomeMultiplosNiveisDePreco(t *testing.T) {
 		t.Errorf("trades[1] = %+v, want {SellOrderID: ask-2, Quantity: 2, Price: 11}", trades[1])
 	}
 }
+
+func TestSubmit_NuncaCasaContraOrdemDoMesmoDono(t *testing.T) {
+	var book Book
+
+	book.Submit(Order{ID: "ask-1", UserID: "bot-1", Side: SideSell, Type: TypeLimit, Price: 10, Quantity: 5})
+
+	trades := book.Submit(Order{ID: "buy-1", UserID: "bot-1", Side: SideBuy, Type: TypeMarket, Quantity: 5})
+
+	if len(trades) != 0 {
+		t.Fatalf("trades = %+v, want 0 — mesmo dono nos dois lados nunca deve gerar self-trade", trades)
+	}
+}
+
+func TestSubmit_PulaOrdemDoMesmoDonoECasaContraProximaDeOutroDono(t *testing.T) {
+	var book Book
+
+	book.Submit(Order{ID: "ask-proprio", UserID: "bot-1", Side: SideSell, Type: TypeLimit, Price: 10, Quantity: 5})
+	book.Submit(Order{ID: "ask-outro", UserID: "bot-2", Side: SideSell, Type: TypeLimit, Price: 11, Quantity: 5})
+
+	trades := book.Submit(Order{ID: "buy-1", UserID: "bot-1", Side: SideBuy, Type: TypeMarket, Quantity: 5})
+
+	if len(trades) != 1 || trades[0].SellOrderID != "ask-outro" {
+		t.Fatalf("trades = %+v, want 1 trade contra ask-outro — ordem própria (melhor preço) deve ser pulada, não bloquear o book inteiro", trades)
+	}
+
+	// A ordem própria pulada continua pendurada no book, disponível pra
+	// casar contra a ordem de um terceiro dono.
+	trades = book.Submit(Order{ID: "buy-terceiro", UserID: "bot-3", Side: SideBuy, Type: TypeMarket, Quantity: 5})
+	if len(trades) != 1 || trades[0].SellOrderID != "ask-proprio" {
+		t.Fatalf("trades = %+v, want 1 trade contra ask-proprio — ordem pulada não deveria ter sido removida do book", trades)
+	}
+}
+
+func TestSubmit_UserIDVazioNuncaAtivaPrevencaoDeSelfTrade(t *testing.T) {
+	var book Book
+
+	book.Submit(Order{ID: "ask-1", Side: SideSell, Type: TypeLimit, Price: 10, Quantity: 5})
+
+	trades := book.Submit(Order{ID: "buy-1", Side: SideBuy, Type: TypeMarket, Quantity: 5})
+
+	if len(trades) != 1 {
+		t.Fatalf("trades = %+v, want 1 — UserID vazio (dono desconhecido) nunca deve ser tratado como mesmo dono", trades)
+	}
+}

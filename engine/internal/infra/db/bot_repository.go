@@ -24,6 +24,29 @@ func NewBotRepository(db *sql.DB) *BotRepository {
 	return &BotRepository{db: db}
 }
 
+// scopeAccumulator classifica e acumula linhas de bot_personality_scopes —
+// exatamente uma das três colunas (sector/risk_class/asset_class) é
+// preenchida por linha (CreatePersonality nunca grava mais de uma por
+// INSERT). Reaproveitado por FindPersonalityByAccountID (uma conta, uma
+// instância) e ListEligibleForTradingRound (N contas, uma instância por
+// account_id) pra não duplicar essa classificação em dois lugares.
+type scopeAccumulator struct {
+	sectors      []catalog.Sector
+	riskClasses  []equity.RiskClass
+	assetClasses []catalog.AssetType
+}
+
+func (a *scopeAccumulator) add(sector, riskClass, assetClass sql.NullString) {
+	switch {
+	case sector.Valid:
+		a.sectors = append(a.sectors, catalog.Sector(sector.String))
+	case riskClass.Valid:
+		a.riskClasses = append(a.riskClasses, equity.RiskClass(riskClass.String))
+	case assetClass.Valid:
+		a.assetClasses = append(a.assetClasses, catalog.AssetType(assetClass.String))
+	}
+}
+
 // CreatePersonality persiste personality pra accountID: uma linha em
 // bot_personalities mais uma linha em bot_personality_scopes por item de
 // personality.Scope (Sectors/RiskClasses/AssetClasses), tudo na mesma
@@ -101,28 +124,19 @@ func (r *BotRepository) FindPersonalityByAccountID(ctx context.Context, accountI
 	}
 	defer func() { _ = rows.Close() }()
 
-	var sectors []catalog.Sector
-	var riskClasses []equity.RiskClass
-	var assetClasses []catalog.AssetType
+	var acc scopeAccumulator
 	for rows.Next() {
 		var sector, riskClass, assetClass sql.NullString
 		if err := rows.Scan(&sector, &riskClass, &assetClass); err != nil {
 			return bot.Personality{}, false, err
 		}
-		switch {
-		case sector.Valid:
-			sectors = append(sectors, catalog.Sector(sector.String))
-		case riskClass.Valid:
-			riskClasses = append(riskClasses, equity.RiskClass(riskClass.String))
-		case assetClass.Valid:
-			assetClasses = append(assetClasses, catalog.AssetType(assetClass.String))
-		}
+		acc.add(sector, riskClass, assetClass)
 	}
 	if err := rows.Err(); err != nil {
 		return bot.Personality{}, false, err
 	}
 
-	scope, err := bot.NewSpecializationScope(sectors, riskClasses, assetClasses, withinScopePct)
+	scope, err := bot.NewSpecializationScope(acc.sectors, acc.riskClasses, acc.assetClasses, withinScopePct)
 	if err != nil {
 		return bot.Personality{}, false, err
 	}
@@ -207,23 +221,19 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 	}
 	defer func() { _ = scopeRows.Close() }()
 
-	sectorsByAccount := make(map[string][]catalog.Sector)
-	riskClassesByAccount := make(map[string][]equity.RiskClass)
-	assetClassesByAccount := make(map[string][]catalog.AssetType)
+	scopesByAccount := make(map[string]*scopeAccumulator)
 	for scopeRows.Next() {
 		var accountID string
 		var sector, riskClass, assetClass sql.NullString
 		if err := scopeRows.Scan(&accountID, &sector, &riskClass, &assetClass); err != nil {
 			return nil, err
 		}
-		switch {
-		case sector.Valid:
-			sectorsByAccount[accountID] = append(sectorsByAccount[accountID], catalog.Sector(sector.String))
-		case riskClass.Valid:
-			riskClassesByAccount[accountID] = append(riskClassesByAccount[accountID], equity.RiskClass(riskClass.String))
-		case assetClass.Valid:
-			assetClassesByAccount[accountID] = append(assetClassesByAccount[accountID], catalog.AssetType(assetClass.String))
+		acc, ok := scopesByAccount[accountID]
+		if !ok {
+			acc = &scopeAccumulator{}
+			scopesByAccount[accountID] = acc
 		}
+		acc.add(sector, riskClass, assetClass)
 	}
 	if err := scopeRows.Err(); err != nil {
 		return nil, err
@@ -231,7 +241,11 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 
 	roster := make([]tick.BotForRound, 0, len(eligible))
 	for _, raw := range eligible {
-		scope, err := bot.NewSpecializationScope(sectorsByAccount[raw.userID], riskClassesByAccount[raw.userID], assetClassesByAccount[raw.userID], raw.withinScopePct)
+		acc := scopesByAccount[raw.userID]
+		if acc == nil {
+			acc = &scopeAccumulator{}
+		}
+		scope, err := bot.NewSpecializationScope(acc.sectors, acc.riskClasses, acc.assetClasses, raw.withinScopePct)
 		if err != nil {
 			return nil, err
 		}

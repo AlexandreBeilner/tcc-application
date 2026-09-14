@@ -2,6 +2,8 @@ package tick
 
 import (
 	"context"
+	"sort"
+	"sync"
 
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -10,7 +12,16 @@ import (
 // executar as rodadas de negociação de bot (Fase D.2, rounds.go) → persistir),
 // tanto pro job diário automático quanto pro disparo manual via POST
 // /admin/tick (tarefa 3.11) — os dois caminhos chamam Run, a única diferença
-// é quem aciona.
+// é quem aciona. mu serializa as duas chamadas dentro do mesmo processo
+// (achado do review do PR da Fase D, backlog-motor-mercado-realista): sem
+// ela, o job diário (scheduler.RunDaily) e um POST /admin/tick concorrente
+// podiam ler o mesmo State.Day, cada um rodar suas próprias rodadas
+// intradiárias e os dois chamarem SaveTick, quebrando a invariante de uma
+// linha de asset_quotes por ativo por dia. A Fase D.2 tornou essa janela
+// bem mais larga (Run passou de poucas queries pra O(rodadas × bots
+// elegíveis) round trips síncronos), por isso a proteção passou a valer a
+// pena mesmo sem lock distribuído — motor roda como processo único (sem
+// múltiplas réplicas), então sync.Mutex já basta.
 type Service struct {
 	repo           Repository
 	bots           BotRoster
@@ -19,6 +30,7 @@ type Service struct {
 	orderSubmitter OrderSubmitter
 	selicCfg       selic.Config
 	seed           int64
+	mu             sync.Mutex
 }
 
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é
@@ -48,6 +60,9 @@ func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader
 // sem linha em market_calendar), começa do dia 0 com a Selic neutra de
 // selicCfg como taxa inicial.
 func (s *Service) Run(ctx context.Context) (Result, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	current, found, err := s.repo.LoadState(ctx)
 	if err != nil {
 		return Result{}, err
@@ -88,8 +103,16 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	for assetID, price := range closingPrices {
-		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: price})
+	// Ordenado por AssetID (não a ordem de iteração do map, não-determinística
+	// em Go) — RNF08 exige que a mesma seed produza o mesmo Result inteiro,
+	// Quotes incluso, não só os mesmos preços.
+	closingAssetIDs := make([]string, 0, len(closingPrices))
+	for assetID := range closingPrices {
+		closingAssetIDs = append(closingAssetIDs, assetID)
+	}
+	sort.Strings(closingAssetIDs)
+	for _, assetID := range closingAssetIDs {
+		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: closingPrices[assetID]})
 	}
 	result.IntradayFillsCount = fillsExecuted
 

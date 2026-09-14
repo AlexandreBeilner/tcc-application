@@ -145,6 +145,25 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 	return equities, universe
 }
 
+// fundamentalistHasCompanyContext reporta se um bot Fundamentalista tem o
+// que precisa pra participar da rodada (state.CompanyID e uma entrada
+// correspondente em companyContext) — checagem em memória, sem custo de IO,
+// que decisionInputFor também faz (ver seu case ArchetypeFundamentalista)
+// mas só depois de já ter pago o round trip de LoadContext. Chamar isto
+// antes de LoadContext evita esse round trip pra bots que vão ser
+// descartados de qualquer forma; devolve true pra qualquer outro arquétipo
+// (sem precondição própria que não dependa de execCtx).
+func fundamentalistHasCompanyContext(personality bot.Personality, state *equityRoundState, companyContext map[string]CompanyRoundContext) bool {
+	if personality.Archetype != bot.ArchetypeFundamentalista {
+		return true
+	}
+	if state.CompanyID == nil {
+		return false
+	}
+	_, ok := companyContext[*state.CompanyID]
+	return ok
+}
+
 // decisionInputFor monta o bot.DecisionInput de um bot pro ativo escolhido
 // nesta rodada — campos comuns aos 4 arquétipos vêm de state/execCtx/Selic;
 // PriceHistory (Chartista) e Financials/GrowthRate/OutstandingShares
@@ -267,6 +286,10 @@ func (s *Service) runIntradayRounds(
 				continue
 			}
 			state := equities[chosen.AssetID]
+
+			if !fundamentalistHasCompanyContext(b.Personality, state, companyContext) {
+				continue
+			}
 
 			execCtx, err := s.orderContext.LoadContext(ctx, chosen.AssetID, b.UserID)
 			if err != nil {
