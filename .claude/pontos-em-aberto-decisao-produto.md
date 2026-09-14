@@ -73,4 +73,31 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Resolvidos
 
-_(vazio até o momento)_
+### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
+
+- **Decisão (2026-09-13):** o achado misturava dois problemas de natureza diferente, e só um deles
+  exigia decisão de produto:
+  1. **Mecanismo** (resolvido nesta sessão, sem decisão de produto pendente — pesquisa em
+     [literatura de simulação de mercado por agentes](https://arxiv.org/pdf/1909.11650) confirma que o
+     "valor fundamental" inicial deve ser tratado como entrada exógena escolhida pra ser consistente
+     com o preço de partida, nunca derivado à parte e reconciliado por tentativa): `97.0` era álgebra
+     resolvida uma única vez à mão e cravada numa constante — não generalizava pra nenhuma empresa
+     futura da tarefa 7.2 (currículo completo) sem repetir o mesmo exercício manual, com o mesmo risco
+     de corromper o book se esquecido. Substituído por
+     `fundamentals.BootstrapFinancialsForTargetPrice(targetPrice, outstandingShares, growthRate,
+     selicNeutral)` (`engine/internal/domain/fundamentals/fundamentals.go`) — inverte a fórmula de
+     Justified Price-to-Book de `FundamentalistFairPrice` e resolve algebricamente o `net_revenue` que
+     faz o preço justo nascer exatamente em `targetPrice`, pra qualquer `outstandingShares`/preço-alvo.
+     `seedInitialFundamentals` (`engine/cmd/seed/main.go`) passa a chamá-la com
+     `tick.DefaultInitialPrice`, generalizando automaticamente pra qualquer ativo futuro sem álgebra
+     manual nova. Testado (round-trip: preço justo recalculado bate com o alvo dentro de 1e-6, pra
+     várias combinações de preço/ações/crescimento/Selic — não só os dois casos atuais; e reproduz o
+     `~97.0` histórico como caso particular) em
+     `engine/internal/domain/fundamentals/fundamentals_test.go`.
+  2. **Dado** (continua em aberto, sem duplicar rastreio): quais coeficientes usar (margem líquida,
+     margem EBIT, patrimônio/receita, sensibilidade à Selic) por setor real, com pesquisa B3/CVM — isso
+     já tinha dono antes deste achado: `.claude/proposta-motor-mercado-realista.md` seção 7, a
+     executar na Fase K de `backlog-motor-mercado-realista.md`. Não vira uma segunda entrada aqui.
+- **Validação:** `go build ./...`, `go test ./...` e `golangci-lint run ./...` (via Docker,
+  `golangci/golangci-lint:v2.5.0-alpine`) passando; `docker compose up` (postgres + engine) confirma
+  migrations aplicadas e o seed rodando ponta a ponta contra o banco real sem erro.

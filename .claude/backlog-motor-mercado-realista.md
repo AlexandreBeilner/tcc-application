@@ -687,7 +687,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase D — Cadência intradiária
 
-### D.1 · Sub-tick no Temporizador
+### D.1 · Sub-tick no Temporizador ✅
 
 - **Descrição:** `tick.Advance` ganha uma etapa nova — sorteia (determinístico por seed do dia)
   quantas rodadas de negociação o dia terá (enviesado pra 2-3, com 1 e 4 mais raros, proposta 2.4)
@@ -700,8 +700,45 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 - **Referências:** proposta 2.4.
 - **Dependências:** nenhuma (pode ser feita em paralelo à Fase C, já que só mexe no
   Temporizador/calendário, não na decisão de bot em si).
+- **Entregável:** `internal/domain/tick/intraday.go` (mesmo pacote `tick`, novo arquivo — decisão
+  de escopo desta sessão: fica dentro de `tick`, não um pacote novo, porque é uma etapa da própria
+  orquestração diária do Temporizador, não um conceito de domínio reutilizável por outro pacote
+  ainda; se a Fase D.2 precisar expor isso pra fora de `tick`, revisita então). `IntradayRound
+  {SequenceIndex int, TimeOfDay float64}` — `TimeOfDay` é a posição relativa dentro do "expediente"
+  simulado (`[0,1)`, não um horário de relógio real — o motor não modela hora do dia) usada só pra
+  ordenar as rodadas entre si; `IntradayRounds(seed int64, dayIndex int) []IntradayRound` sorteia
+  quantas rodadas (1-4, `intradayRoundCount`, pesos ilustrativos 15%/35%/35%/15% — mesma nota de
+  "sujeito a calibração futura" já usada em `bot.NoisePriceBandPct`/`bot.ChartistTrendThresholdPct`)
+  e os N pontos (sorteios independentes em `[0,1)`, ordenados) em vez de slots fixos — atende
+  literalmente o pedido do autor de horário "variável e não previsível", já que nenhum cronograma
+  fixo é usado. RNG derivado via `deterministicSeed(seed, "intraday-rounds") + dayIndex` — mesma
+  técnica de isolamento de processo por entidade já usada em `equity.NextPrice`/
+  `fundamentalsConfig`, aqui com um id fixo em vez de `asset_id`/`company_id` (é um processo único
+  por dia, não por entidade do catálogo); garante que esta sortição nunca compartilha o stream de
+  números aleatórios de Selic/GBM/fundamentos no mesmo dia, mesmo reaproveitando a mesma seed base.
+  `Advance` chama `IntradayRounds(seed, dayIndex)` e expõe o resultado em `Result.IntradayRounds`
+  (campo novo) — decisão desta sessão: vira parte do `Result` (não fica só uma função solta) porque
+  a descrição da tarefa pede explicitamente que `Advance` "ganhe uma etapa nova", mas nada mais no
+  `Advance` consome esse valor ainda (nenhum outro campo do `Result` muda de comportamento) — é
+  só o novo insumo que a D.2 vai usar; `Repository.SaveTick`/schema não mudam (nada novo pra
+  persistir ainda, sem tabela/rota pra isso nesta tarefa). Testes novos: `intraday_test.go`
+  (`TestIntradayRounds_CountAlwaysWithinRange`, `TestIntradayRounds_DistributionBiasedTowards2And3`
+  — 5000 amostras confirmando todo count 1-4 aparece e `count(2)+count(3) > count(1)+count(4)` —,
+  `TestIntradayRounds_Deterministic`, `TestIntradayRounds_DifferentDaysProduceDifferentSchedules`,
+  `TestIntradayRounds_SequenceIndexAndTimeOfDayAreValid` — `TimeOfDay` dentro de `[0,1)` e ordenado
+  ascendente, `SequenceIndex` batendo com a posição); regressão em `tick_test.go`
+  (`TestAdvance_IntradayRounds_PopulaDeterministicamentePorDia`,
+  `TestAdvance_IntradayRounds_NaoAfetaOutrosCamposDoResult` — mesma asserção de
+  `TestAdvance_SemCotacaoAnteriorUsaDefaultInitialPrice`, confirmando que a cotação gerada não mudou
+  com a sortição nova). `gofmt`/`go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues)
+  verdes. Sem `.docs/engine/` (sem rota HTTP nova ou alterada — `tickResponse`/`handleAdminTick` não
+  expõem `IntradayRounds`, decisão de escopo: nada consome esse dado publicamente ainda). Validado
+  ao vivo via `docker compose up`: `POST /admin/tick` (via rede interna do Compose, motor não expõe
+  porta pro host) respondeu normalmente (`day: 1`, 5 cotações), confirmando que adicionar o campo
+  novo ao `Result` não quebrou o fluxo real do Temporizador; containers parados ao final
+  (`docker compose stop`, sem `-v`) preservando o volume de dev existente.
 
-### D.2 · Execução de rodadas de negociação dentro do sub-tick
+### D.2 · Execução de rodadas de negociação dentro do sub-tick ✅
 
 - **Descrição:** pra cada rodada sorteada em D.1, o motor coleta a decisão de cada bot elegível
   (dentro do escopo + a fração fora do escopo, C.6) mais qualquer ordem de usuário chegada nesse
@@ -716,6 +753,117 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   gráfico intradiário).
 - **Referências:** proposta 2.4.
 - **Dependências:** D.1, C.6, A.2.
+- **Entregável:** escopo restrito a Ação (VALR3/BNDD4 hoje) — FII/ETF continuam em GBM até as Fases
+  G/H estenderem o mesmo motor pra eles; "ordem de usuário chegada nesse meio-tempo" não exigiu
+  nenhuma mudança no fluxo humano (`POST /orders` continua síncrono, mesmo `orderexecution.Service`)
+  porque o book real já reflete qualquer ordem/posição humana pendurada — a coleta de bot só precisa
+  negociar contra o mesmo book, não esperar por nada.
+  - `internal/domain/bot/round.go` (novo): `SpecializationScope.MatchesEquity` (checa se um
+    setor/risk_class cai no escopo do bot, união igual a `NewSpecializationScope`);
+    `SelectAssetForRound` (sorteia o ativo da rodada — `WithinScopePct` das vezes um ativo dentro do
+    escopo, o resto fora, com fallback pro grupo não-vazio quando um dos dois lados não existe pro
+    universo atual — cobre tanto o Market Maker, cujo escopo cobre tudo, quanto um bot cujo escopo
+    não bate com nenhum ativo hoje seedado); `DecisionInput`/`Decide` (dispatcher único por
+    arquétipo, normaliza o retorno de C.2-C.5 pra `[]Decision`, propaga sem tradução os erros de
+    "bot não participa desta rodada").
+  - `internal/domain/tick/rounds.go` (novo) — `Service.runIntradayRounds`, não é função pura (só
+    `Advance` é, `rounds.go` documenta isso explicitamente): roda cada rodada sequencialmente, bot a
+    bot (roster ordenado por `UserID`, RNF08), rastreando o preço de referência de cada Ação **em
+    memória** (não em `asset_quotes`, que só reflete o fechamento do dia anterior até o fim do tick)
+    e atualizando a cada fill real — é isso que dá path-dependence dentro do próprio dia, entre
+    rodadas e entre bots da mesma rodada. Novas interfaces pequenas no ponto de consumo:
+    `BotRoster`/`PriceHistoryReader`/`OrderContextLoader`/`OrderSubmitter` — as duas últimas
+    redeclaram (1 método cada) capacidades que `orderexecution.Repository`/`Service` já expõem,
+    implementadas pelos mesmos `*db.OrderExecutionRepository`/`*orderexecution.Service` que
+    `POST /orders` usa, sem caminho paralelo pra ordem de bot. `roundSeed` deriva uma seed
+    determinística e independente por (dia, rodada, bot, propósito) via `deterministicSeed` (já
+    existia em `tick.go`). Erro de decisão (`ErrNoViableOrder`/`ErrNoClearTrend`/
+    `ErrNoMispricingDetected`/`ErrInsufficientPriceHistory`, ou insumo ausente pro arquétipo — ex:
+    Fundamentalista sem `CompanyID`/`OutstandingShares`/`CompanyContext`) só pula o bot nessa rodada;
+    erro de IO (`LoadContext`/`Submit`/leitura de roster/histórico) propaga e aborta o tick inteiro,
+    mesmo padrão do resto de `Run`.
+  - `tick.go`: `AssetForPricing` ganhou `Type string` (cru, mesma convenção de `Sector`/`RiskClass`
+    já documentada) — `Advance` pula Ação (`assetTypeAcao`) no loop de GBM, e `Result` ganhou
+    `IntradayFillsCount` (observabilidade, preenchido só por `Service.Run` depois de
+    `runIntradayRounds`, nunca por `Advance`) e `CompanyContext map[string]CompanyRoundContext`
+    (financeiros derivados + crescimento esperado de **toda** empresa, não só as de dia de relatório
+    — `companyRoundContexts`, novo — pro Fundamentalista reavaliar preço justo em qualquer dia, não
+    só no dia da divulgação). `Service.Run` chama `runIntradayRounds` logo depois de `Advance` e
+    antes de `SaveTick`, mesclando o fechamento de cada Ação em `result.Quotes` — `SaveTick`
+    continua gravando exatamente uma linha por ativo por dia sem nenhuma mudança de schema/contrato
+    (critério de aceite).
+  - `db.BotRepository.ListEligibleForTradingRound` (novo) — junta `accounts`+`bot_personalities`,
+    filtra por `account.EligibleForTradingRound` (`IsBot && IsActive`, A.4) **em Go**, reaproveitando
+    o predicado que A.4 construiu pra este uso exato, em vez de duplicar `is_bot AND is_active` cru
+    em SQL. `db.TickRepository.RecentClosingPrices` (novo) — janela de fechamentos diários pro
+    Chartista (`tick.ChartistPriceHistoryDays = 5`, ilustrativo). `ListPricingAssets` ganhou a
+    coluna `type` na projeção.
+  - `httpserver/admin.go`: `tickResponse` ganhou `bot_fills_count` (= `Result.IntradayFillsCount`).
+    `.docs/engine/tick.md`/`catalog.md` atualizados (rota alterada, mesmo tick/sessão).
+  - **Achado crítico desta sessão, fora do texto original da tarefa — bug de unidade em
+    `bot.FundamentalistFairPrice` (C.5), só surgiu ao integrar com Selic real pela primeira vez:**
+    a fórmula usa `requiredReturn` (derivado de `selicAnnualRate`/`selicNeutral`) como denominador de
+    uma razão com ROE (fração decimal, ex: 0.08) — precisa estar na mesma escala. `fundamentalist_test.go`
+    (C.5) sempre testou com Selic em fração decimal (`0.10` = 10%), nunca contra a escala 0-100 que
+    `selic.Config`/`equity.Config`/o resto do motor usa de verdade (`selicAnnualRate/100` já aparece
+    em `equity.go`) — como C.5 documentou "consumo real só a partir da Fase D/E", esse descasamento
+    ficou adormecido até agora. Corrigido convertendo só na fronteira `tick → bot`
+    (`decisionInputFor`, `rounds.go`: `SelicAnnualRate: selicRate/100, SelicNeutral: selicNeutral/100`)
+    — `bot/fundamentalist.go` e seus testes ficam intocados (já corretos, só nunca antes exercitados
+    contra a escala real); `fundamentals.ExpectedGrowth` (crescimento) não precisou de conversão
+    nenhuma, já usa a escala 0-100 corretamente há várias sessões.
+  - **Segundo achado crítico, também fora do texto original — calibração ausente de
+    `company_fundamentals`:** mesmo com a unidade corrigida, o preço justo do Fundamentalista pra
+    VALR3/BNDD4 saía ~100x menor que o preço real, porque as duas empresas nunca tinham uma linha de
+    `company_fundamentals` seedada — caíam no fallback genérico `fundamentals.DefaultBaseRevenue`
+    (1 milhão, calibrado pra uma empresa pequena qualquer) contra um `outstanding_shares` de
+    centenas de milhões, produzindo um VPA microscópico. Confirmado ao vivo: um bot Ruído chegou a
+    gerar uma ordem de compra de **~90 bilhões de unidades** a R$0,01 depois de um Fundamentalista
+    negociar contra esse preço justo corrompido, e o tick abortava com `ErrInsufficientPosition`.
+    Corrigido com `db.CatalogRepository.CreateInitialFundamentals` (novo) + `cmd/seed/main.go`
+    `seedInitialFundamentals` — grava a primeira linha de `company_fundamentals` calibrada pra que
+    `fairPrice` bata aproximadamente com `tick.DefaultInitialPrice` (`net_revenue ≈ 97 ×
+    outstanding_shares`, valor calculado nesta sessão, não pesquisa setorial real). **Registrado em
+    `.claude/pontos-em-aberto-decisao-produto.md` (item 003)**: `97.0` é ilustrativo, mesmo
+    tratamento dado a outros coeficientes do motor — a calibração de verdade (dado real B3/CVM) é
+    escopo da Fase K.
+  - **Nota pra quem pegar a Fase F.1** (não é achado desta sessão precisar de ação agora, só
+    registro): excluir Ação do loop de GBM também tornou inalcançável, na prática, o trecho que
+    aplicava `reportEffects[*a.CompanyID].PriceEffect` — ver nota adicionada na própria entrada de
+    F.1 abaixo antes de começá-la, pra não duplicar trabalho nem reabrir os dois testes que ainda
+    cobrem esse caminho morto (`TestAdvance_EfeitoDePrecoSoNoDiaDoRelatorio`/
+    `TestAdvance_SemEfeitoDePrecoForaDoDiaDeRelatorio`).
+  - **Limitação conhecida, aceita por ora:** Market Maker nunca cancela suas próprias ofertas de
+    rodadas passadas (Fase O, cancelamento de ordem, ainda não implementada) — a cada rodada ele
+    refresca a cotação submetendo ordens novas, mas as antigas seguem penduradas no book até
+    executarem ou até O.1/O.2 existirem. Não corrompe estado (float finito/saldo continuam
+    validados normalmente a cada execução, confirmado ao vivo) nem foi pedido pelo texto desta
+    tarefa — só um book com mais profundidade "de sobra" do que um MM real deixaria, esperado até a
+    Fase O chegar.
+  - Testes novos: `internal/domain/bot/round_test.go` (`MatchesEquity`, `SelectAssetForRound` —
+    distribuição respeitando `WithinScopePct`, fallback nos dois sentidos, determinismo,
+    `ErrNoEquityAvailable` com universo vazio —, `Decide` — um caso por arquétipo, arquétipo
+    desconhecido, propagação de erro de decisão); `internal/domain/tick/rounds_test.go` (fakes
+    novas em `service_test.go` — `fakeBotRoster`/`fakePriceHistoryReader`/`fakeOrderContextLoader`/
+    `fakeOrderSubmitter`, roster/histórico vazios viram no-op pros testes que não são sobre D.2):
+    sem Ação no universo/sem rodada sorteada não faz nada, fechamento usa o último fill de todas as
+    rodadas, sem fill mantém o preço anterior (carrega adiante — critério de aceite "exatamente uma
+    linha por ativo por dia" mesmo sem negociação), bot inelegível nunca é submetido, determinismo
+    entre duas execuções idênticas, propagação de erro de `ListEligibleForTradingRound`/
+    `LoadContext`/`Submit`; mais o teste de ponta a ponta do critério de aceite em `Service.Run`
+    (`TestService_Run_RodadasDeAcaoEntramEmResultQuotesUmaVezSo` — exatamente 1 `Quote` por Ação em
+    `result.Quotes`, `IntradayFillsCount` > 0, propagado a `SaveTick`). `gofmt`/`go build`/
+    `go test ./...`/`golangci-lint run` (Docker, 0 issues) verdes.
+  - Validado ao vivo via `docker compose up` (volume resetado a pedido do autor no meio da sessão —
+    ordens de bot de tentativas de debug anteriores, cada uma commitada independentemente do tick,
+    tinham deixado saldo/posição de bot inconsistentes com o seed original): seed reaplicado, 18
+    ticks consecutivos via `POST /admin/tick` sem erro, `bot_fills_count` sempre > 0
+    (14-38 fills/dia), preços de VALR3/BNDD4 oscilando numa faixa plausível (~95-106, perto do
+    `tick.DefaultInitialPrice`/preço inicial ~100-101) com movimento real entre dias (não só
+    ruído/travado), `SUM(positions.quantity) = outstanding_shares` intacto nos dois ativos (float
+    finito, A.3, preservado por toda a sessão), nenhuma conta com saldo/posição negativa, FII/ETF/
+    sandbox (SAND3) inalterados (continuam em GBM/roteirizado). Containers parados ao final
+    (`docker compose stop`, sem `-v`).
 
 ---
 
@@ -766,6 +914,23 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   esperado) produz pouco ou nenhum movimento.
 - **Referências:** proposta 2.5.
 - **Dependências:** C.5, E.2 (compartilha a mesma leitura de fundamentos pelo Fundamentalista).
+- **Achado da sessão D.2 (2026-09-13), conferir antes de começar:** como Ação já não passa mais por
+  GBM desde D.2 (`tick.go` pula `assetTypeAcao` inteiro no loop de cotação), o trecho que aplica
+  `reportEffects[*a.CompanyID].PriceEffect` (`tick.go`, dentro do mesmo loop, logo depois do `continue`
+  de Ação) já está **inalcançável na prática** — Ação é a única classe com `CompanyID`, e ela nunca
+  chega mais até esse trecho. `fundamentals.ReportSurprise`/`ReportDayPriceEffect` continuam
+  computados e chamados (não removidos por D.2 — remover a fórmula é escopo explícito desta tarefa,
+  não da D.2, que não tocou `fundamentals_test.go` nem os dois testes que ainda exercitam esse
+  caminho via um ativo sintético sem `Type` setado — `TestAdvance_EfeitoDePrecoSoNoDiaDoRelatorio`/
+  `TestAdvance_SemEfeitoDePrecoForaDoDiaDeRelatorio`, `tick_test.go`). Como o mecanismo de reação via
+  negociação real do Fundamentalista (`companyRoundContexts`, `tick.go`/`rounds.go`) já lê os
+  financeiros mais recentes de toda empresa todo dia (não só no dia de relatório), o essencial desta
+  tarefa (F.1) pode já estar entregue como efeito colateral de D.2 — confirme com um teste de
+  ponta a ponta próprio (resultado melhor/pior que o esperado movendo preço via negociação, "sem
+  surpresa" pouco/nenhum movimento) antes de assumir que falta implementação; o que sobra de fato pra
+  F.1 é provavelmente só a limpeza (remover `PriceEffect`/`companyReportEffect`/o trecho morto de
+  `tick.go` e os dois testes acima, que passam a testar um cenário que não existe mais no catálogo
+  real) mais a validação formal dos critérios de aceite.
 
 ---
 

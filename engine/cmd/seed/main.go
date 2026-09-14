@@ -23,6 +23,8 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
@@ -54,6 +56,8 @@ func main() {
 	const bndd4OutstandingShares = 300_000_000
 	valr3ID := seedEquity(ctx, repo, "VALR3", "Mineradora Vale do Rio ON", equityRiskConservador, &mineradora, "ON", valr3OutstandingShares)
 	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bndd4OutstandingShares)
+	seedInitialFundamentals(ctx, repo, mineradora, valr3OutstandingShares)
+	seedInitialFundamentals(ctx, repo, banco, bndd4OutstandingShares)
 
 	seedETF(ctx, repo)
 	tjlo11ID := seedFIITijolo(ctx, repo)
@@ -142,6 +146,41 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
 	return id
+}
+
+func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, outstandingShares int64) {
+	if _, found, err := repo.FindLatestFundamentals(ctx, companyID); err != nil {
+		log.Fatalf("erro ao buscar fundamentos da empresa %s: %v", companyID, err)
+	} else if found {
+		log.Printf("empresa %s já tem fundamentos — pulando", companyID)
+		return
+	}
+
+	// Sem uma linha inicial de company_fundamentals, a empresa cai no
+	// fallback genérico fundamentals.DefaultBaseRevenue (1 milhão, pensado
+	// pra uma "empresa pequena qualquer", nunca contra outstanding_shares
+	// na casa das centenas de milhões dos ativos seedados aqui) — o preço
+	// justo do Fundamentalista (bot.FundamentalistFairPrice) sai
+	// microscópico (VPA≈0), o bot tenta convergir o mercado pra um valor
+	// de bilhões e corrompe o book (achado 003 de
+	// .claude/pontos-em-aberto-decisao-produto.md). Em vez de resolver
+	// isso à mão por empresa (como a sessão D.2 fez, cravando uma
+	// constante de receita-por-ação), BootstrapFinancialsForTargetPrice
+	// deriva o net_revenue que faz o preço justo nascer exatamente em
+	// tick.DefaultInitialPrice, pra qualquer outstandingShares — vale pra
+	// qualquer empresa futura da tarefa 7.2, não só VALR3/BNDD4. A
+	// diferenciação de coeficientes por setor (margens, sensibilidade à
+	// Selic) continua fora de escopo, reservada pra Fase K (proposta
+	// motor-mercado-realista seção 7) — problema separado deste.
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(
+		tick.DefaultInitialPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selic.DefaultNeutralRate/100)
+	if err != nil {
+		log.Fatalf("erro ao calibrar fundamentos iniciais da empresa %s: %v", companyID, err)
+	}
+	if err := repo.CreateInitialFundamentals(ctx, companyID, financials); err != nil {
+		log.Fatalf("erro ao criar fundamentos iniciais da empresa %s: %v", companyID, err)
+	}
+	log.Printf("fundamentos iniciais da empresa %s criados (net_revenue=%.2f)", companyID, financials.NetRevenue)
 }
 
 func seedETF(ctx context.Context, repo *db.CatalogRepository) {

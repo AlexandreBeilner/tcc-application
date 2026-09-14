@@ -630,3 +630,37 @@ func TestAdvance_SemPagadoresNemPendenciasNaoGeraNemPaga(t *testing.T) {
 		t.Errorf("len(DuePayments) = %d, want 0", len(result.DuePayments))
 	}
 }
+
+func TestAdvance_IntradayRounds_PopulaDeterministicamentePorDia(t *testing.T) {
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	first := Advance(State{Day: 4, SelicRate: 10}, nil, nil, nil, nil, nil, cfg, 7)
+	second := Advance(State{Day: 4, SelicRate: 10}, nil, nil, nil, nil, nil, cfg, 7)
+
+	if len(first.IntradayRounds) < 1 || len(first.IntradayRounds) > 4 {
+		t.Fatalf("len(IntradayRounds) = %d, want between 1 and 4", len(first.IntradayRounds))
+	}
+	if len(first.IntradayRounds) != len(second.IntradayRounds) {
+		t.Fatalf("IntradayRounds count differs across identical calls: %d vs %d", len(first.IntradayRounds), len(second.IntradayRounds))
+	}
+	for i := range first.IntradayRounds {
+		if first.IntradayRounds[i] != second.IntradayRounds[i] {
+			t.Fatalf("IntradayRounds[%d] differs across identical calls: %+v vs %+v", i, first.IntradayRounds[i], second.IntradayRounds[i])
+		}
+	}
+}
+
+func TestAdvance_IntradayRounds_NaoAfetaOutrosCamposDoResult(t *testing.T) {
+	riskClass := "Conservador"
+	assets := []AssetForPricing{{AssetID: "a1", RiskClass: &riskClass, LastPrice: nil}}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
+
+	// Mesma asserção de TestAdvance_SemCotacaoAnteriorUsaDefaultInitialPrice
+	// — confirma que adicionar a sortição de cadência intradiária não mudou
+	// o cálculo de cotação já existente.
+	if len(result.Quotes) != 1 || result.Quotes[0].Price <= 0 {
+		t.Errorf("Quotes = %v, want 1 cotação com preço > 0 (regressão: sortição de IntradayRounds não deve afetar isto)", result.Quotes)
+	}
+}

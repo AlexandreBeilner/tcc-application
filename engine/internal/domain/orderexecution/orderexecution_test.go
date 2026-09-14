@@ -80,6 +80,36 @@ func TestExecute_OrdemAMercadoExecutaSoAPorcaoComContrapartesReais(t *testing.T)
 	}
 }
 
+// TestExecute_NuncaCasaContraOrdemPenduradaDoMesmoUsuario cobre a
+// prevenção de self-trade (achado do review do PR da Fase D,
+// backlog-motor-mercado-realista): um bot que ainda tem ordem pendurada de
+// uma rodada anterior nunca deve executar contra si mesmo quando o preço se
+// move o bastante pra cruzar — isso corromperia average_price (ApplyBuy
+// recalcula preço médio ponderado, ApplySell não) e criaria um trade sem
+// contraparte real de fato em market_events.
+func TestExecute_NuncaCasaContraOrdemPenduradaDoMesmoUsuario(t *testing.T) {
+	incoming := orderbook.Order{ID: "buy-1", UserID: "bot-1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 5}
+	ctx := Context{
+		ReferencePrice: 25,
+		Resting: []RestingOrder{
+			{ID: "ask-proprio", UserID: "bot-1", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 20, RemainingQuantity: 5},
+			{ID: "ask-outro", UserID: "bot-2", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 21, RemainingQuantity: 5},
+		},
+		IncomingUserBalance: 1000,
+	}
+
+	out, err := Execute(incoming, ctx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(out.Fills) != 1 {
+		t.Fatalf("Fills = %+v, want 1 fill — a própria oferta (melhor preço) deve ser pulada, não bloquear o casamento inteiro", out.Fills)
+	}
+	if out.Fills[0].CounterpartyOrderID != "ask-outro" || out.Fills[0].CounterpartyUserID != "bot-2" {
+		t.Errorf("fill inesperado, want contraparte ask-outro/bot-2: %+v", out.Fills[0])
+	}
+}
+
 // TestExecute_OrdemAMercadoSandboxAindaUsaLiquidezSintetica cobre a exceção
 // deliberada (proposta motor-mercado-realista 2.7): ativo sandbox continua
 // com execução garantida ao preço de referência, mesmo sem nenhuma

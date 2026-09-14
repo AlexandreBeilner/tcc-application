@@ -37,6 +37,13 @@ type tickResponse struct {
 	// e quantos venceram e foram pagos (payment_day == day) neste tick.
 	DividendsGeneratedCount int `json:"dividends_generated_count"`
 	DividendsPaidCount      int `json:"dividends_paid_count"`
+	// BotFillsCount (Fase D.2) é quantos fills reais aconteceram nas rodadas
+	// de negociação de bot deste tick, somando todas as rodadas sorteadas
+	// (tick.IntradayRounds, Fase D.1) — só observabilidade; os fills em si
+	// já estão em order_book/market_events (Event Sourcing), reconstituíveis
+	// sem depender deste contador. 0 quando o catálogo ainda não tem nenhuma
+	// Ação (Fases G/H vão estender o mesmo mecanismo pra FII/ETF).
+	BotFillsCount int `json:"bot_fills_count"`
 }
 
 // handleAdminTick serve POST /admin/tick — força um tick fora do
@@ -64,6 +71,7 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 			IsReportDay:             result.IsReportDay,
 			DividendsGeneratedCount: len(result.NewDividends),
 			DividendsPaidCount:      len(result.DuePayments),
+			BotFillsCount:           result.IntradayFillsCount,
 		})
 	}
 }

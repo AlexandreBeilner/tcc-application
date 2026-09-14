@@ -2,18 +2,35 @@ package tick
 
 import (
 	"context"
+	"sort"
+	"sync"
 
 	"tcc-investimentos/engine/internal/domain/selic"
 )
 
 // Service executa um tick completo (ler estado → calcular próximo passo →
-// persistir), tanto pro job diário automático quanto pro disparo manual via
-// POST /admin/tick (tarefa 3.11) — os dois caminhos chamam Run, a única
-// diferença é quem aciona.
+// executar as rodadas de negociação de bot (Fase D.2, rounds.go) → persistir),
+// tanto pro job diário automático quanto pro disparo manual via POST
+// /admin/tick (tarefa 3.11) — os dois caminhos chamam Run, a única diferença
+// é quem aciona. mu serializa as duas chamadas dentro do mesmo processo
+// (achado do review do PR da Fase D, backlog-motor-mercado-realista): sem
+// ela, o job diário (scheduler.RunDaily) e um POST /admin/tick concorrente
+// podiam ler o mesmo State.Day, cada um rodar suas próprias rodadas
+// intradiárias e os dois chamarem SaveTick, quebrando a invariante de uma
+// linha de asset_quotes por ativo por dia. A Fase D.2 tornou essa janela
+// bem mais larga (Run passou de poucas queries pra O(rodadas × bots
+// elegíveis) round trips síncronos), por isso a proteção passou a valer a
+// pena mesmo sem lock distribuído — motor roda como processo único (sem
+// múltiplas réplicas), então sync.Mutex já basta.
 type Service struct {
-	repo     Repository
-	selicCfg selic.Config
-	seed     int64
+	repo           Repository
+	bots           BotRoster
+	priceHistory   PriceHistoryReader
+	orderContext   OrderContextLoader
+	orderSubmitter OrderSubmitter
+	selicCfg       selic.Config
+	seed           int64
+	mu             sync.Mutex
 }
 
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é
@@ -21,9 +38,21 @@ type Service struct {
 // ReversionSpeed, Volatility) calibram a reversão à média da Selic
 // simulada, mesma calibração de selic.DefaultConfig. seed é a seed base da
 // simulação (RNF08) — fixa entre reinícios, configurada uma vez na
-// composição (cmd/api/main.go).
-func NewService(repo Repository, selicCfg selic.Config, seed int64) *Service {
-	return &Service{repo: repo, selicCfg: selicCfg, seed: seed}
+// composição (cmd/api/main.go). bots/priceHistory/orderContext/orderSubmitter
+// (Fase D.2, rounds.go) alimentam runIntradayRounds — concretamente
+// *db.BotRepository, *db.TickRepository, *db.OrderExecutionRepository e
+// *orderexecution.Service (o mesmo já usado por POST /orders, sem caminho
+// paralelo pra ordem de bot).
+func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader, orderContext OrderContextLoader, orderSubmitter OrderSubmitter, selicCfg selic.Config, seed int64) *Service {
+	return &Service{
+		repo:           repo,
+		bots:           bots,
+		priceHistory:   priceHistory,
+		orderContext:   orderContext,
+		orderSubmitter: orderSubmitter,
+		selicCfg:       selicCfg,
+		seed:           seed,
+	}
 }
 
 // Run lê o último estado persistido, calcula o próximo tick (Advance) e
@@ -31,6 +60,9 @@ func NewService(repo Repository, selicCfg selic.Config, seed int64) *Service {
 // sem linha em market_calendar), começa do dia 0 com a Selic neutra de
 // selicCfg como taxa inicial.
 func (s *Service) Run(ctx context.Context) (Result, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	current, found, err := s.repo.LoadState(ctx)
 	if err != nil {
 		return Result{}, err
@@ -65,6 +97,24 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 
 	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.seed)
+
+	dayIndex := result.State.Day - 1 // 0-based, mesma convenção de Advance
+	closingPrices, fillsExecuted, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
+	if err != nil {
+		return Result{}, err
+	}
+	// Ordenado por AssetID (não a ordem de iteração do map, não-determinística
+	// em Go) — RNF08 exige que a mesma seed produza o mesmo Result inteiro,
+	// Quotes incluso, não só os mesmos preços.
+	closingAssetIDs := make([]string, 0, len(closingPrices))
+	for assetID := range closingPrices {
+		closingAssetIDs = append(closingAssetIDs, assetID)
+	}
+	sort.Strings(closingAssetIDs)
+	for _, assetID := range closingAssetIDs {
+		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: closingPrices[assetID]})
+	}
+	result.IntradayFillsCount = fillsExecuted
 
 	if err := s.repo.SaveTick(ctx, result); err != nil {
 		return Result{}, err

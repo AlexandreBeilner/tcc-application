@@ -64,6 +64,7 @@ func (s *Service) Submit(ctx context.Context, req Request) (Outcome, error) {
 
 	incoming := orderbook.Order{
 		ID:       incomingOrderID,
+		UserID:   req.UserID,
 		Side:     req.Side,
 		Type:     req.Type,
 		Price:    req.Price,

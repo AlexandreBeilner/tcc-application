@@ -9,6 +9,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
 )
 
 // listAssetsColumns é reaproveitada por ListAssets/FindAssetByID — mesma
@@ -531,6 +532,27 @@ func (r *CatalogRepository) FindLatestFundamentals(ctx context.Context, companyI
 		return catalog.FundamentalsSnapshot{}, false, err
 	}
 	return f, true, nil
+}
+
+// CreateInitialFundamentals grava a primeira linha de company_fundamentals
+// de uma empresa fora do ciclo do Temporizador (achado da sessão D.2, seed)
+// — sem isso, uma empresa recém-cadastrada cai no fallback genérico
+// fundamentals.DefaultBaseRevenue (calibrado pra uma empresa pequena
+// qualquer, nunca contra o outstanding_shares real de um ativo específico
+// do catálogo) até o primeiro dia de relatório dela, produzindo um preço
+// justo (bot.FundamentalistFairPrice, Fase D.2) sem nenhuma relação com o
+// preço de mercado seedado. period_date usa o relógio real (mesma
+// convenção de SaveTick/company_fundamentals). Não passa por Event
+// Sourcing (mesmo raciocínio de dado cadastral já documentado no resto
+// deste arquivo). Chame só depois de confirmar via FindLatestFundamentals
+// que a empresa ainda não tem nenhum ciclo — não é idempotente sozinha.
+func (r *CatalogRepository) CreateInitialFundamentals(ctx context.Context, companyID string, f fundamentals.Financials) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO company_fundamentals (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		companyID, time.Now(), f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
+	)
+	return err
 }
 
 // ListDividendHistory devolve o histórico de dividend_events de assetID,

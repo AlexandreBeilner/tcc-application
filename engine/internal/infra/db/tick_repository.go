@@ -54,7 +54,7 @@ func (r *TickRepository) LoadState(ctx context.Context) (tick.State, bool, error
 // de alvo setorial.
 func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetForPricing, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.risk_class, q.price, via.company_id, co.sector
+		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector
 		 FROM assets a
 		 LEFT JOIN LATERAL (
 		   SELECT price FROM asset_quotes
@@ -75,12 +75,46 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 	var assets []tick.AssetForPricing
 	for rows.Next() {
 		var a tick.AssetForPricing
-		if err := rows.Scan(&a.AssetID, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector); err != nil {
+		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)
 	}
 	return assets, rows.Err()
+}
+
+// RecentClosingPrices lê os últimos `days` fechamentos diários
+// (asset_quotes) de assetID, em ordem cronológica (mais antigo primeiro) —
+// insumo do arquétipo Chartista (Fase D.2, tick.ChartistPriceHistoryDays).
+// Devolve menos de `days` preços (ou nenhum) sem erro quando o ativo ainda
+// não acumulou histórico suficiente — mesmo tratamento de "dado insuficiente
+// não é erro" já dado ao restante do motor (ver
+// bot.ErrInsufficientPriceHistory, consumido por quem chama).
+func (r *TickRepository) RecentClosingPrices(ctx context.Context, assetID string, days int) ([]float64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT price FROM (
+		   SELECT price, simulated_day FROM asset_quotes
+		   WHERE asset_id = $1
+		   ORDER BY simulated_day DESC
+		   LIMIT $2
+		 ) recent
+		 ORDER BY simulated_day ASC`,
+		assetID, days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var prices []float64
+	for rows.Next() {
+		var price float64
+		if err := rows.Scan(&price); err != nil {
+			return nil, err
+		}
+		prices = append(prices, price)
+	}
+	return prices, rows.Err()
 }
 
 // ListCompaniesForFundamentals devolve toda empresa cadastrada com sua
