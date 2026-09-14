@@ -107,10 +107,16 @@ type DecisionInput struct {
 	Financials        fundamentals.Financials
 	OutstandingShares int64
 	GrowthRate        float64
-	SelicAnnualRate   float64
-	SelicNeutral      float64
-	RiskClass         equity.RiskClass
-	Seed              int64
+	// MacroEffectPct (tarefa E.2) só é consumido pelo arquétipo
+	// Fundamentalista (ver DecideFundamentalistOrder) — o sinal/magnitude
+	// bruto (por alvo, E.1) de qualquer evento macro ativo que atinge a
+	// empresa deste ativo, 0 quando nenhum. Ignorado pelos demais 3
+	// arquétipos, mesmo tratamento já dado a Financials/GrowthRate.
+	MacroEffectPct  float64
+	SelicAnnualRate float64
+	SelicNeutral    float64
+	RiskClass       equity.RiskClass
+	Seed            int64
 }
 
 // Decide despacha pra função de decisão do arquétipo de personality
@@ -142,7 +148,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		return []Decision{d}, nil
 	case ArchetypeFundamentalista:
 		d, err := DecideFundamentalistOrder(
-			personality, input.Financials, input.OutstandingShares, input.GrowthRate,
+			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct,
 			input.ReferencePrice, input.SelicAnnualRate, input.SelicNeutral, input.RiskClass,
 			input.AvailableCash, input.CurrentPosition, input.Seed,
 		)

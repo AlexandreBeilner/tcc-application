@@ -5,7 +5,6 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
-	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
 
@@ -257,108 +256,127 @@ func macroPriceEventTest(id string, triggeredOnDay, durationDays int, pricePct f
 	}
 }
 
-func TestAdvance_EfeitoDePrecoMacroAtivoDuranteADuracao(t *testing.T) {
+// TestAdvance_MacroEffectPctAtivoDuranteADuracao cobre a tarefa E.2: o
+// sinal/magnitude de um evento macro ativo (macroevent.IsPriceEffectActive)
+// vira CompanyRoundContext.MacroEffectPct da empresa alcançada — nunca mais
+// um multiplicador direto sobre a cotação (macroPriceMultiplier, removida
+// nesta tarefa). A cotação GBM do ativo (ainda alcançável aqui só por
+// FII/ETF, já que Ação sai do loop desde D.2) fica idêntica com e sem
+// evento — critério de aceite "sem nenhum salto instantâneo de preço".
+func TestAdvance_MacroEffectPctAtivoDuranteADuracao(t *testing.T) {
 	riskClass := "Conservador"
+	companyID := "c1"
 	assetID := "a1"
-	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil}}
+	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
+	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &assetID}})
 
 	// Day: 0 -> newDay = 1, dentro da janela [1, 1+2) do evento.
-	withEvent := Advance(State{Day: 0, SelicRate: 10}, assets, nil, []MacroEventForApplication{event}, nil, nil, cfg, 1)
-	withoutEvent := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
+	withEvent := Advance(State{Day: 0, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, 1)
+	withoutEvent := Advance(State{Day: 0, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, 1)
 
-	if withEvent.Quotes[0].Price == withoutEvent.Quotes[0].Price {
-		t.Error("preço com evento macro ativo veio igual ao preço sem evento — efeito de preço não foi aplicado")
+	if got := withEvent.CompanyContext[companyID].MacroEffectPct; got != 10 {
+		t.Errorf("MacroEffectPct = %v, want 10 (valor do evento inteiro, alvo sem direção própria)", got)
 	}
-
-	wantMultiplier := macroevent.DailyPriceEffectMultiplier(10, 2)
-	got := withEvent.Quotes[0].Price / withoutEvent.Quotes[0].Price
-	if diff := got - wantMultiplier; diff > 1e-9 || diff < -1e-9 {
-		t.Errorf("multiplicador aplicado = %v, want %v", got, wantMultiplier)
+	if got := withoutEvent.CompanyContext[companyID].MacroEffectPct; got != 0 {
+		t.Errorf("MacroEffectPct sem evento = %v, want 0", got)
+	}
+	if withEvent.Quotes[0].Price != withoutEvent.Quotes[0].Price {
+		t.Errorf("cotação GBM divergiu (%v != %v) — evento macro não deveria mais saltar o preço instantaneamente", withEvent.Quotes[0].Price, withoutEvent.Quotes[0].Price)
 	}
 }
 
-func TestAdvance_EfeitoDePrecoMacroParaAposADuracao(t *testing.T) {
-	riskClass := "Conservador"
+func TestAdvance_MacroEffectPctParaAposADuracao(t *testing.T) {
+	companyID := "c1"
 	assetID := "a1"
-	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil}}
+	riskClass := "Conservador"
+	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
+	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &assetID}})
 
 	// Day: 2 -> newDay = 3 = triggeredOnDay(1) + duration(2), primeiro dia
 	// fora da janela — efeito não deveria mais ser aplicado.
-	withEvent := Advance(State{Day: 2, SelicRate: 10}, assets, nil, []MacroEventForApplication{event}, nil, nil, cfg, 1)
-	withoutEvent := Advance(State{Day: 2, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
+	withEvent := Advance(State{Day: 2, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, 1)
 
-	if withEvent.Quotes[0].Price != withoutEvent.Quotes[0].Price {
-		t.Errorf("preço divergiu no dia seguinte ao fim da duração (%v != %v) — efeito deveria ter parado", withEvent.Quotes[0].Price, withoutEvent.Quotes[0].Price)
+	if got := withEvent.CompanyContext[companyID].MacroEffectPct; got != 0 {
+		t.Errorf("MacroEffectPct = %v, want 0 — janela do efeito já encerrou", got)
 	}
 }
 
-func TestAdvance_EventoDePrecoSoAtingeAlvoCorreto(t *testing.T) {
+func TestAdvance_EventoDePrecoSoAtingeAEmpresaAlvo(t *testing.T) {
 	riskClass := "Conservador"
-	targetID, otherID := "a1", "a2"
+	targetCompanyID, otherCompanyID := "c1", "c2"
+	targetAssetID, otherAssetID := "a1", "a2"
 	assets := []AssetForPricing{
-		{AssetID: targetID, RiskClass: &riskClass, LastPrice: nil},
-		{AssetID: otherID, RiskClass: &riskClass, LastPrice: nil},
+		{AssetID: targetAssetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &targetCompanyID},
+		{AssetID: otherAssetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &otherCompanyID},
+	}
+	companies := []CompanyForFundamentals{
+		{CompanyID: targetCompanyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays},
+		{CompanyID: otherCompanyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays},
 	}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
-	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &targetID}})
+	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &targetAssetID}})
 
-	withEvent := Advance(State{Day: 0, SelicRate: 10}, assets, nil, []MacroEventForApplication{event}, nil, nil, cfg, 1)
-	withoutEvent := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
+	result := Advance(State{Day: 0, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, 1)
 
-	quoteByID := func(r Result, id string) float64 {
-		for _, q := range r.Quotes {
-			if q.AssetID == id {
-				return q.Price
-			}
-		}
-		t.Fatalf("cotação de %q não encontrada", id)
-		return 0
+	if got := result.CompanyContext[targetCompanyID].MacroEffectPct; got != 10 {
+		t.Errorf("MacroEffectPct da empresa alvo = %v, want 10", got)
 	}
-
-	if quoteByID(withEvent, targetID) == quoteByID(withoutEvent, targetID) {
-		t.Error("ativo alvo não sofreu o efeito de preço macro")
-	}
-	if quoteByID(withEvent, otherID) != quoteByID(withoutEvent, otherID) {
-		t.Error("ativo fora do alvo sofreu o efeito de preço macro — fan-out incorreto")
+	if got := result.CompanyContext[otherCompanyID].MacroEffectPct; got != 0 {
+		t.Errorf("MacroEffectPct de empresa fora do alvo = %v, want 0 — fan-out incorreto", got)
 	}
 }
 
-func TestAdvance_EventoDePrecoPorSetorAtingeTodosOsAtivosDoSetor(t *testing.T) {
+func TestAdvance_EventoDePrecoPorSetorAtingeTodasAsEmpresasDoSetor(t *testing.T) {
 	riskClass := "Conservador"
 	sector := "Mineração"
 	otherSector := "Energia"
-	inSectorID, outSectorID := "a1", "a2"
+	inSectorID, outSectorID := "c1", "c2"
+	assetInSector, assetOutSector := "a1", "a2"
 	assets := []AssetForPricing{
-		{AssetID: inSectorID, RiskClass: &riskClass, LastPrice: nil, Sector: &sector},
-		{AssetID: outSectorID, RiskClass: &riskClass, LastPrice: nil, Sector: &otherSector},
+		{AssetID: assetInSector, RiskClass: &riskClass, LastPrice: nil, CompanyID: &inSectorID, Sector: &sector},
+		{AssetID: assetOutSector, RiskClass: &riskClass, LastPrice: nil, CompanyID: &outSectorID, Sector: &otherSector},
+	}
+	companies := []CompanyForFundamentals{
+		{CompanyID: inSectorID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: sector},
+		{CompanyID: outSectorID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: otherSector},
 	}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
-	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{Sector: &sector}})
+	event := macroPriceEventTest("event-1", 1, 2, -10, []MacroEventTargetForApplication{{Sector: &sector}})
 
-	withEvent := Advance(State{Day: 0, SelicRate: 10}, assets, nil, []MacroEventForApplication{event}, nil, nil, cfg, 1)
-	withoutEvent := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
+	result := Advance(State{Day: 0, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, 1)
 
-	quoteByID := func(r Result, id string) float64 {
-		for _, q := range r.Quotes {
-			if q.AssetID == id {
-				return q.Price
-			}
-		}
-		t.Fatalf("cotação de %q não encontrada", id)
-		return 0
+	if got := result.CompanyContext[inSectorID].MacroEffectPct; got != -10 {
+		t.Errorf("MacroEffectPct da empresa do setor alvo = %v, want -10", got)
 	}
-
-	if quoteByID(withEvent, inSectorID) == quoteByID(withoutEvent, inSectorID) {
-		t.Error("ativo do setor alvo não sofreu o efeito de preço macro")
+	if got := result.CompanyContext[outSectorID].MacroEffectPct; got != 0 {
+		t.Errorf("MacroEffectPct de empresa de outro setor = %v, want 0 — fan-out setorial incorreto", got)
 	}
-	if quoteByID(withEvent, outSectorID) != quoteByID(withoutEvent, outSectorID) {
-		t.Error("ativo de outro setor sofreu o efeito de preço macro — fan-out setorial incorreto")
+}
+
+// TestAdvance_TargetComDirecaoPropriaSobrepoeAoValorDoEvento cobre a
+// integração com a E.1: um alvo que declarou direção própria (evento
+// "misto") usa a própria magnitude, não a do evento inteiro.
+func TestAdvance_TargetComDirecaoPropriaSobrepoeAoValorDoEvento(t *testing.T) {
+	riskClass := "Conservador"
+	companyID := "c1"
+	assetID := "a1"
+	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
+	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	ownPct := -18.0
+	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &assetID, PriceEffectPct: &ownPct}})
+
+	result := Advance(State{Day: 0, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, 1)
+
+	if got := result.CompanyContext[companyID].MacroEffectPct; got != -18 {
+		t.Errorf("MacroEffectPct = %v, want -18 (magnitude própria do alvo, não os 10 do evento)", got)
 	}
 }
 

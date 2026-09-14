@@ -40,6 +40,13 @@ const ChartistPriceHistoryDays = 5
 type CompanyRoundContext struct {
 	Financials fundamentals.Financials
 	GrowthRate float64
+	// MacroEffectPct (tarefa E.2) é o efeito de preço macro combinado
+	// (macroPriceEffectsByCompany, tick.go) que atinge esta empresa hoje —
+	// 0 quando nenhum evento macro ativo afeta a empresa. Repassado ao
+	// arquétipo Fundamentalista via decisionInputFor/bot.DecisionInput.
+	// MacroEffectPct — o único consumidor: Chartista/Ruído nunca leem o
+	// evento diretamente (proposta 2.3.2/3).
+	MacroEffectPct float64
 }
 
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
@@ -228,6 +235,7 @@ func (s *Service) decisionInputFor(
 		}
 		input.Financials = cc.Financials
 		input.GrowthRate = cc.GrowthRate
+		input.MacroEffectPct = cc.MacroEffectPct
 		input.OutstandingShares = *execCtx.OutstandingShares
 	}
 

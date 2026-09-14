@@ -869,7 +869,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase E — Eventos macro por alvo
 
-### E.1 · Direção própria por alvo em `macro_event_targets`
+### E.1 · Direção própria por alvo em `macro_event_targets` ✅
 
 - **Descrição:** `macro_event_targets` ganha um campo de direção/magnitude próprio por alvo, em
   vez de sempre herdar a direção única do evento (`macroevent.go`). Evento "misto" passa a
@@ -881,8 +881,47 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   confirmando que evento "não-misto" continua funcionando sem precisar declarar nada por alvo.
 - **Referências:** proposta seção 3.
 - **Dependências:** nenhuma (mudança de schema/domínio isolada do motor de bot).
+- **Entregável:** `macroevent.Target` ganhou `Direction *Direction` (`NewTarget` recebe o quinto
+  parâmetro, validado por `ErrTargetDirectionMustBeSigned` — só `positivo`/`negativo`, `misto`
+  nunca é sinal de um único alvo) mais `ResolvedDirection(eventDirection) Direction` (nil ⇒ herda
+  do evento). `Target` também ganhou `PriceEffectPct`/`FundamentalsEffectPct` próprios (espelham
+  os campos de `Event`), só preenchidos pra alvos com `Direction` explícita —
+  `macroeventtrigger.Service.Trigger` (`sampleTargetEffects`, novo) sorteia esses dois campos por
+  alvo, mesma banda do evento, só depois de amostrar o efeito do evento inteiro; alvo sem
+  `Direction` própria não ganha amostra nova, continua lendo o efeito do evento como sempre
+  (critério de aceite "não-misto não precisa declarar nada por alvo"). `TargetInput.Direction`
+  (novo) propaga isso do payload HTTP (`macroevents.go`: `triggerMacroEventTargetRequest.direction`
+  no request, `macroEventTargetResponse.direction/price_effect_pct/fundamentals_effect_pct` —
+  todos `omitempty` — na resposta) até o domínio. Persistência: migration
+  `000016_macro_event_target_direction` (`macro_event_targets` ganha `direction`/`price_effect_pct`
+  /`fundamentals_effect_pct`, nullable, `CHECK` espelhando `ErrTargetDirectionMustBeSigned` a nível
+  de banco — sem backfill, tabela já não tinha nenhuma linha gravada); `MacroEventRepository.
+  Persist`/`attachTargets` gravam/leem as três colunas novas. **Fora de escopo desta tarefa,
+  documentado pra não ser reaberto:** `Target` não ganhou uma `Band` própria (a proposta seção 3
+  menciona isso como "se necessário", não como requisito, e nenhum critério de aceite cobre isso —
+  todo alvo com direção própria ainda amostra dentro da mesma banda do evento); o backend Node
+  (`schemas.ts`/`adminMacroEventsRouter.ts`) e o painel admin (tela 10.2) **não foram tocados** —
+  `targets[].direction` só é alcançável hoje via chamada direta ao motor (fora da rede do Compose,
+  só em teste/`docker compose exec`), porque o dado amostrado por esta tarefa ainda não é
+  consumido por nada (isso é a E.2, que "lê o sinal/magnitude por alvo" — só faz sentido expor no
+  formulário do admin depois que a E.2 fizer esse dado significar algo pro Fundamentalista). Testes
+  novos: `macroevent_test.go` (`TestNewTarget_DirecaoPropria`, `TestTarget_ResolvedDirection`),
+  `macroeventtrigger_test.go` (`TestTrigger_EventoMistoComDirecaoPropriaPorAlvo` — critério de
+  aceite principal, 2 alvos sinais opostos —, `TestTrigger_EventoNaoMistoNaoPrecisaDeclararDirecaoPorAlvo`
+  — regressão —, `TestTrigger_AlvoComDirecaoMistaEhRejeitado`), `macroevents_test.go`
+  (`TestHandleTriggerMacroEvent_DirecaoPropriaPorAlvo`, fronteira HTTP request→domínio→resposta).
+  `gofmt`/`go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues) verdes. `.docs/engine/
+  macroevent.md` atualizado (payload/resposta/regra de `POST /macro-events`, nota explícita de que
+  a aplicação de efeito — `tick.Advance`/regra do `GET /macro-events` — ainda lê só os campos do
+  evento, não os do alvo, até a E.2). Validado ao vivo via `docker compose up`: evento misto real
+  (setor Mineração positivo/Tecnologia negativo) devolveu `price_effect_pct` com sinais opostos
+  corretos por alvo (`+11.45`/`-8.28`) tanto no `POST` quanto no `GET /macro-events` subsequente
+  (valores arredondados por `numeric(6,3)`, confirmando a persistência); evento não-misto (setor
+  Bancário/Financeiro, sem `direction` por alvo) devolveu o item de `targets` sem `direction`/
+  `price_effect_pct` (herda do evento, zero regressão); alvo com `direction: "misto"` rejeitado
+  com `400` como esperado. Containers parados ao final (`docker compose stop`, sem `-v`).
 
-### E.2 · Efeito de evento macro vira parâmetro de comportamento de bot
+### E.2 · Efeito de evento macro vira parâmetro de comportamento de bot ✅
 
 - **Descrição:** remove `PriceEffectPct`/`macroPriceMultiplier` (multiplicador direto de preço,
   `tick.go:403-423`). O sinal/magnitude por alvo (E.1) passa a ser lido só pelo arquétipo
@@ -895,6 +934,57 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   negociação), sem nenhum salto instantâneo de preço no momento do disparo do evento.
 - **Referências:** proposta 2.5, seção 3.
 - **Dependências:** E.1, C.5, D.2.
+- **Entregável:** `macroPriceMultiplier`/`eventTargetsAsset` removidas de `tick.go` — a linha
+  `price *= macroPriceMultiplier(...)` que sobrevivia só pro caminho GBM (FII/ETF, já que Ação sai
+  desse loop desde D.2) saiu sem substituto (regressão aceita e documentada: FII/ETF ficam sem
+  reação a evento macro de preço até as Fases G/H trazerem o mesmo motor de negociação real pra
+  eles — mesmo precedente já aberto pelo efeito de surpresa de balanço em D.2/nota da F.1).
+  `eventTargetsCompany` (usada só por `macroFundamentalsEffectsByCompany`, que não mudou de
+  comportamento) e a nova `macroPriceEffectsByCompany` (tarefa desta sessão) compartilham o fan-out
+  via `matchingTarget` (novo, devolve o `Target` que bateu, não só um bool) — `macroPriceEffectsByCompany`
+  soma, **sem teto** (mesma ausência de limite que `macroPriceMultiplier` já tinha, só que agora
+  aditivo sobre uma estimativa em vez de multiplicativo sobre o GBM), o `PriceEffectPct` de todo
+  evento ativo (`macroevent.IsPriceEffectActive`) que alcança a empresa — usando a magnitude do
+  próprio `Target` (E.1) quando ele declarou direção própria, senão a do evento inteiro. Resultado
+  vira `CompanyRoundContext.MacroEffectPct` (novo campo, `rounds.go`), populado em
+  `companyRoundContexts` (novo parâmetro) e propagado por `decisionInputFor` pro
+  `bot.DecisionInput.MacroEffectPct` (novo campo) — só lido no `case ArchetypeFundamentalista` de
+  `bot.Decide`, nunca por Chartista/Ruído/Market Maker.
+  `bot.FundamentalistFairPrice` ganhou o parâmetro `macroEffectPct` (desloca multiplicativamente:
+  `fairPrice *= 1 + macroEffectPct/100`) e `bot.DecideFundamentalistOrder` ganhou o mesmo parâmetro,
+  ponderado por `*personality.KnowledgeLevel` antes de repassar pra `FundamentalistFairPrice`
+  ("proporcional ao nível de conhecimento", critério de aceite da proposta 2.5) — conhecimento 1.0
+  incorpora o efeito inteiro, conhecimento 0.0 o ignora, mesmo raciocínio já usado no ruído de
+  leitura (`FundamentalistMaxNoiseStdDevPct`). `MacroEventTargetForApplication` (tipo espelho de
+  `tick`, não reaproveita `macroevent.Target`) ganhou `Direction`/`PriceEffectPct`, lidos por
+  `db.TickRepository.ListPendingMacroEvents` (`SELECT` ganhou `t.direction, t.price_effect_pct`).
+  Testes novos: `bot/fundamentalist_test.go`
+  (`TestFundamentalistFairPrice_MacroEffectPctDeslocaOPrecoJusto`,
+  `TestDecideFundamentalistOrder_MacroEffectPctProporcionalAoConhecimento` — média de 400 seeds por
+  nível de conhecimento, cancela o ruído de leitura, confirma proporcionalidade sem flakiness —,
+  `TestFundamentalistFairPrice_MacroEffectPctZeroMantemFormulaOriginal`, regressão); `tick/tick_test.go`
+  (4 testes recriados sobre `CompanyContext[...].MacroEffectPct` em vez de `Quotes`, já que o
+  multiplicador não existe mais — inclusive um novo caso confirmando que a magnitude própria de um
+  `Target` sobrepõe a do evento); `tick/rounds_test.go`
+  (`TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao`, **o teste do critério de
+  aceite principal**: 3 bots Fundamentalistas com conhecimento crescente 0.3/0.6/0.9, `fakeOrderSubmitter`
+  novo (`fillAtRequestedPrice`, preenche exatamente no preço pedido — simula uma contraparte sempre
+  disponível, evitando construir um book de verdade só pra este teste) — confirma >= 2 negociações
+  reais, preço final bem abaixo do início, vários preços distintos negociados (convergência
+  gradual: 100 → ~91.8 → ~79.1 → ~77.4 na validação ao vivo) e nenhuma ordem no efeito bruto máximo
+  (prova que o deslocamento é sempre filtrado por conhecimento). Ordem do roster (conhecimento
+  crescente por `UserID`) é deliberada: evita o bot de conhecimento baixo "comprar de volta" o que
+  o de conhecimento alto já vendeu — o último bot de cada rodada é sempre o de crença mais extrema,
+  então o fechamento converge pra perto da crença dele independente de quantas rodadas o dia
+  sortear (Fase D.1). `gofmt`/`go build`/`go test ./...`/`golangci-lint run` (Docker, 0 issues)
+  verdes. `.docs/engine/macroevent.md` atualizado (duas notas antigas que citavam
+  `macroPriceMultiplier`/"ainda não consumido" corrigidas). Validado ao vivo via `docker compose
+  up`: evento severo negativo (`-16.35%`) disparado no setor Mineração (VALR3) — preço moveu de
+  103.76 para 102.73 (~-1%) no primeiro tick dentro da janela ativa, com 18 fills reais (nenhum
+  salto pro efeito bruto), voltando a 103.76 no tick seguinte à janela expirar (evento só afetava
+  preço, não fundamentos — comportamento emergente esperado: sem dano permanente aos fundamentos,
+  o Fundamentalista arbitra de volta ao preço justo "sem choque" assim que `MacroEffectPct` some).
+  Containers parados ao final (`docker compose stop`, sem `-v`).
 
 ---
 

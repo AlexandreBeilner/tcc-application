@@ -7,6 +7,8 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/selic"
 )
 
 func mustRoundPersonality(t *testing.T, archetype bot.Archetype) bot.Personality {
@@ -25,6 +27,28 @@ func mustRoundPersonality(t *testing.T, archetype bot.Archetype) bot.Personality
 		knowledgeLevel = &level
 	}
 	personality, err := bot.NewPersonality(archetype, scope, knowledgeLevel, riskProfile)
+	if err != nil {
+		t.Fatalf("personality de setup inválida: %v", err)
+	}
+	return personality
+}
+
+// mustFundamentalistRoundPersonality é mustRoundPersonality com
+// knowledgeLevel configurável — usado pelo teste ponta a ponta da E.2, que
+// precisa de vários bots Fundamentalistas com níveis de conhecimento
+// diferentes (o parâmetro que faz cada um perceber uma fração diferente do
+// mesmo evento macro).
+func mustFundamentalistRoundPersonality(t *testing.T, knowledgeLevel float64) bot.Personality {
+	t.Helper()
+	scope, err := bot.NewSpecializationScope([]catalog.Sector{catalog.SectorMineracao}, nil, nil, 0.85)
+	if err != nil {
+		t.Fatalf("scope de setup inválido: %v", err)
+	}
+	riskProfile, err := bot.NewRiskProfile(0.5, 0.5, 0.02)
+	if err != nil {
+		t.Fatalf("risk profile de setup inválido: %v", err)
+	}
+	personality, err := bot.NewPersonality(bot.ArchetypeFundamentalista, scope, &knowledgeLevel, riskProfile)
 	if err != nil {
 		t.Fatalf("personality de setup inválida: %v", err)
 	}
@@ -246,6 +270,137 @@ func TestRunIntradayRounds_PropagaErroDeSubmit(t *testing.T) {
 	_, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Submit")
+	}
+}
+
+// TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao é o
+// teste ponta a ponta do critério de aceite da E.2: um evento macro severo
+// negativo num setor move o preço dos ativos daquele setor pra baixo ao
+// longo de algumas negociações reais de bot Fundamentalista — nunca por um
+// salto instantâneo no momento em que o tick roda (não existe mais
+// multiplicador direto, macroPriceMultiplier foi removida). financials são
+// calibradas (fundamentals.BootstrapFinancialsForTargetPrice) pra que o
+// preço justo SEM efeito macro comece igual a startPrice — assim qualquer
+// queda observada só pode vir do deslocamento do evento, não de um
+// mispricing pré-existente. Três bots com conhecimento diferente (0.9, 0.6,
+// 0.3) percebem frações diferentes do mesmo evento (proposta 2.5:
+// "proporcional ao nível de conhecimento") — cada negociação real desloca o
+// preço um pouco mais, nunca tudo de uma vez só.
+func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *testing.T) {
+	const (
+		startPrice        = 100.0
+		outstandingShares = 1_000_000
+		selicNeutral      = 10.0 // escala 0-100, mesma convenção de selic.Config
+		selicNeutralFrac  = selicNeutral / 100
+	)
+	riskClass := "Conservador"
+	sector := "Mineração"
+	companyID := "c1"
+	assetID := "a1"
+	shares := int64(outstandingShares)
+	startPriceCopy := startPrice
+
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	if err != nil {
+		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
+	}
+
+	asset := AssetForPricing{
+		AssetID: assetID, Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector,
+		CompanyID: &companyID, LastPrice: &startPriceCopy,
+	}
+	company := CompanyForFundamentals{
+		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
+		Sector: sector, LastRevenue: &financials.NetRevenue,
+	}
+
+	severePct := -25.0
+	event := MacroEventForApplication{
+		ID: "event-1", TriggeredOnDay: 1, DurationDays: 3, AffectsPrice: true,
+		PriceEffectPct: &severePct,
+		Targets:        []MacroEventTargetForApplication{{Sector: &sector}},
+	}
+
+	repo := &fakeRepository{
+		assets:      []AssetForPricing{asset},
+		companies:   []CompanyForFundamentals{company},
+		macroEvents: []MacroEventForApplication{event},
+	}
+
+	// Selic == Selic neutra, sem choque — garante growthRate ==
+	// fundamentals.DefaultBaseGrowth, o mesmo valor usado pra calibrar
+	// financials acima (mesma técnica de determinismo de
+	// TestAdvance_MacroEffectPctAtivoDuranteADuracao/tick_test.go).
+	selicCfg := selic.Config{Neutral: selicNeutral, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	roster := []BotForRound{
+		// UserID cresce na mesma ordem de conhecimento crescente (roster
+		// ordenado por UserID, RNF08) — o bot de conhecimento mais baixo
+		// (crença mais próxima do preço sem evento) negocia primeiro, o de
+		// conhecimento mais alto (crença mais deslocada) por último. Isso
+		// garante convergência monotônica dentro de cada rodada — cada bot
+		// seguinte tem uma crença mais extrema que a anterior, nunca "compra
+		// de volta" o que o bot anterior já vendeu — e mantém o fechamento
+		// robusto mesmo que o dia sorteie mais de uma rodada (Fase D.1): o
+		// último bot de cada rodada é sempre o de conhecimento mais alto,
+		// então o preço sempre converge de volta pra perto da crença dele
+		// ao fim de qualquer rodada, nunca fica preso num valor intermediário.
+		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustFundamentalistRoundPersonality(t, 0.3)},
+		{UserID: "22222222-2222-2222-2222-222222222222", Personality: mustFundamentalistRoundPersonality(t, 0.6)},
+		{UserID: "33333333-3333-3333-3333-333333333333", Personality: mustFundamentalistRoundPersonality(t, 0.9)},
+	}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc := NewService(
+		repo,
+		&fakeBotRoster{bots: roster},
+		&fakePriceHistoryReader{},
+		&fakeOrderContextLoader{balance: 10_000_000, positions: map[string]int{assetID: 10_000}, outstandingShares: &shares},
+		submitter,
+		selicCfg,
+		1,
+	)
+
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+
+	if len(submitter.submitted) < 2 {
+		t.Fatalf("len(submitted) = %d, want >= 2 — o efeito precisa vir de mais de uma negociação real, não um salto único", len(submitter.submitted))
+	}
+
+	var closing float64
+	found := false
+	for _, q := range result.Quotes {
+		if q.AssetID == assetID {
+			closing = q.Price
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
+	}
+	if closing >= startPrice*0.95 {
+		t.Errorf("closing = %.4f, want bem abaixo de %.4f — evento severo negativo deveria mover o preço pra baixo", closing, startPrice)
+	}
+
+	distinctPrices := make(map[float64]bool)
+	for _, s := range submitter.submitted {
+		distinctPrices[s.req.Price] = true
+	}
+	if len(distinctPrices) < 2 {
+		t.Errorf("preços submetidos = %v, want pelo menos 2 valores distintos — convergência precisa ser gradual (vários passos), não um único preço final repetido", distinctPrices)
+	}
+
+	// Nenhuma ordem chega perto do efeito bruto máximo (-25% cheio, sem
+	// nenhuma ponderação de conhecimento) — confirma que o deslocamento
+	// percebido é sempre filtrado por KnowledgeLevel, nunca o valor "cru"
+	// do evento direto (nenhum dos três bots tem conhecimento 1.0).
+	fullEffectPrice := startPrice * 0.75
+	for _, s := range submitter.submitted {
+		if s.req.Price <= fullEffectPrice+1e-6 {
+			t.Errorf("ordem submetida a %.4f, <= efeito bruto máximo (%.4f) — deveria estar sempre acima, ponderado pelo conhecimento de cada bot", s.req.Price, fullEffectPrice)
+		}
 	}
 }
 

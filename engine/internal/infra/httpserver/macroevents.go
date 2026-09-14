@@ -27,6 +27,10 @@ type triggerMacroEventTargetRequest struct {
 	Sector    *string `json:"sector"`
 	RiskClass *string `json:"risk_class"`
 	AssetID   *string `json:"asset_id"`
+	// Direction (E.1) é opcional — só declarado num evento "misto" pra dar
+	// a este alvo um sinal próprio (positivo/negativo, nunca misto) em vez
+	// de herdar a direção do evento. Ausente na maioria dos disparos.
+	Direction *string `json:"direction"`
 }
 
 // triggerMacroEventRequest espelha o payload da tarefa 4.4: com
@@ -49,11 +53,18 @@ type triggerMacroEventRequest struct {
 // Sector/RiskClass/AssetID preenchido (macroevent.NewTarget já garante essa
 // exclusividade antes da persistência). AffectedMetric não é exposto: é
 // derivado deterministicamente de affects_price/affects_fundamentals (já no
-// nível do evento), redundante pra quem consome esta resposta.
+// nível do evento), redundante pra quem consome esta resposta. Direction/
+// PriceEffectPct/FundamentalsEffectPct (E.1) só aparecem quando este alvo
+// declarou uma direção própria — omitidos (não null) no caso comum, em que
+// o alvo herda o efeito do evento (campos de mesmo nome na raiz da
+// resposta).
 type macroEventTargetResponse struct {
-	Sector    *string `json:"sector,omitempty"`
-	RiskClass *string `json:"risk_class,omitempty"`
-	AssetID   *string `json:"asset_id,omitempty"`
+	Sector                *string  `json:"sector,omitempty"`
+	RiskClass             *string  `json:"risk_class,omitempty"`
+	AssetID               *string  `json:"asset_id,omitempty"`
+	Direction             *string  `json:"direction,omitempty"`
+	PriceEffectPct        *float64 `json:"price_effect_pct,omitempty"`
+	FundamentalsEffectPct *float64 `json:"fundamentals_effect_pct,omitempty"`
 }
 
 type macroEventResponse struct {
@@ -87,10 +98,18 @@ func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse 
 			s := string(*target.Sector)
 			sector = &s
 		}
+		var direction *string
+		if target.Direction != nil {
+			d := string(*target.Direction)
+			direction = &d
+		}
 		targets = append(targets, macroEventTargetResponse{
-			Sector:    sector,
-			RiskClass: target.RiskClass,
-			AssetID:   target.AssetID,
+			Sector:                sector,
+			RiskClass:             target.RiskClass,
+			AssetID:               target.AssetID,
+			Direction:             direction,
+			PriceEffectPct:        target.PriceEffectPct,
+			FundamentalsEffectPct: target.FundamentalsEffectPct,
 		})
 	}
 
@@ -166,10 +185,16 @@ func handleTriggerMacroEvent(macroEvents macroEventTriggerer) http.HandlerFunc {
 		}
 		req.Targets = make([]macroeventtrigger.TargetInput, 0, len(body.Targets))
 		for _, t := range body.Targets {
+			var direction *macroevent.Direction
+			if t.Direction != nil {
+				d := macroevent.Direction(*t.Direction)
+				direction = &d
+			}
 			req.Targets = append(req.Targets, macroeventtrigger.TargetInput{
 				Sector:    t.Sector,
 				RiskClass: t.RiskClass,
 				AssetID:   t.AssetID,
+				Direction: direction,
 			})
 		}
 
@@ -292,6 +317,7 @@ func writeMacroEventTriggerError(w http.ResponseWriter, err error) {
 		errors.Is(err, macroevent.ErrNoEffectEnabled),
 		errors.Is(err, macroevent.ErrNoTarget),
 		errors.Is(err, macroevent.ErrTargetScopeAmbiguous),
+		errors.Is(err, macroevent.ErrTargetDirectionMustBeSigned),
 		errors.Is(err, macroevent.ErrUnknownBand):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
 	default:

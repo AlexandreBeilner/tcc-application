@@ -248,6 +248,127 @@ func TestTrigger_ErroAoCarregarDiaCorrentePropaga(t *testing.T) {
 	}
 }
 
+// TestTrigger_EventoMistoComDirecaoPropriaPorAlvo cobre o critério de
+// aceite principal da tarefa E.1: um evento "misto" com 2 alvos de sinais
+// opostos (o caso didático da spec — câmbio beneficia Exportador,
+// prejudica Importador, no mesmo evento) — cada alvo precisa carregar sua
+// própria direção corretamente, com o efeito de preço amostrado com o
+// sinal certo por alvo (não mais um único sinal sorteado pro evento
+// inteiro aplicado a todos).
+func TestTrigger_EventoMistoComDirecaoPropriaPorAlvo(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionMisto
+	band := macroevent.BandModerado
+	positivo := macroevent.DirectionPositivo
+	negativo := macroevent.DirectionNegativo
+
+	req := Request{
+		Title:               ptr("desvalorização do real"),
+		Narrative:           ptr("exportadoras ganham, importadoras perdem"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets: []TargetInput{
+			{Sector: ptr("Mineração"), Direction: &positivo},
+			{Sector: ptr("Tecnologia"), Direction: &negativo},
+		},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(event.Targets) != 2 {
+		t.Fatalf("len(Targets) = %d, want 2", len(event.Targets))
+	}
+
+	exportador := event.Targets[0]
+	importador := event.Targets[1]
+
+	if exportador.Direction == nil || *exportador.Direction != macroevent.DirectionPositivo {
+		t.Fatalf("exportador.Direction = %v, want %v", exportador.Direction, macroevent.DirectionPositivo)
+	}
+	if importador.Direction == nil || *importador.Direction != macroevent.DirectionNegativo {
+		t.Fatalf("importador.Direction = %v, want %v", importador.Direction, macroevent.DirectionNegativo)
+	}
+
+	if exportador.PriceEffectPct == nil || *exportador.PriceEffectPct <= 0 {
+		t.Fatalf("exportador.PriceEffectPct = %v, want positivo", exportador.PriceEffectPct)
+	}
+	if importador.PriceEffectPct == nil || *importador.PriceEffectPct >= 0 {
+		t.Fatalf("importador.PriceEffectPct = %v, want negativo", importador.PriceEffectPct)
+	}
+}
+
+// TestTrigger_EventoNaoMistoNaoPrecisaDeclararDirecaoPorAlvo é o teste de
+// regressão do critério de aceite da E.1: um evento "não-misto" continua
+// funcionando sem que nenhum Target declare direção própria — os alvos
+// ficam com Direction/PriceEffectPct/FundamentalsEffectPct nil (herdam o
+// efeito do evento, exatamente como antes da E.1).
+func TestTrigger_EventoNaoMistoNaoPrecisaDeclararDirecaoPorAlvo(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionNegativo
+	band := macroevent.BandLeve
+
+	req := Request{
+		Title:               ptr("evento simples"),
+		Narrative:           ptr("narrativa"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{Sector: ptr("Mineração")}},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(event.Targets) != 1 {
+		t.Fatalf("len(Targets) = %d, want 1", len(event.Targets))
+	}
+
+	target := event.Targets[0]
+	if target.Direction != nil {
+		t.Errorf("target.Direction = %v, want nil (evento não-misto não precisa declarar por alvo)", *target.Direction)
+	}
+	if target.PriceEffectPct != nil {
+		t.Errorf("target.PriceEffectPct = %v, want nil (herda Event.PriceEffectPct)", *target.PriceEffectPct)
+	}
+	if event.PriceEffectPct == nil {
+		t.Fatal("event.PriceEffectPct = nil, want amostrado")
+	}
+}
+
+func TestTrigger_AlvoComDirecaoMistaEhRejeitado(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionMisto
+	band := macroevent.BandModerado
+	misto := macroevent.DirectionMisto
+
+	req := Request{
+		Title:               ptr("t"),
+		Narrative:           ptr("n"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{Sector: ptr("Mineração"), Direction: &misto}},
+	}
+
+	_, _, err := svc.Trigger(context.Background(), req)
+	if !errors.Is(err, macroevent.ErrTargetDirectionMustBeSigned) {
+		t.Errorf("err = %v, want %v", err, macroevent.ErrTargetDirectionMustBeSigned)
+	}
+	if repo.persistCalled {
+		t.Error("Persist não deveria ser chamado com direção de alvo misto")
+	}
+}
+
 func TestTrigger_ErroAoPersistirPropaga(t *testing.T) {
 	repo := &fakeRepository{currentDay: 1, persistErr: errors.New("falha de escrita")}
 	svc := NewService(repo)

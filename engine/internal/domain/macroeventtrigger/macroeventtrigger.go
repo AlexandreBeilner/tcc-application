@@ -36,10 +36,15 @@ var (
 
 // TargetInput é um alvo recebido no payload de disparo, antes de validado
 // — mesma forma de macroevent.Target, exatamente um dos três preenchido.
+// Direction (E.1) é opcional e só faz sentido num evento "misto" — nil
+// significa "este alvo herda a direção do evento" (caso comum, sem UX
+// nova), preenchido significa "este alvo tem sinal próprio" (positivo ou
+// negativo, nunca misto — macroevent.NewTarget valida isso).
 type TargetInput struct {
 	Sector    *string
 	RiskClass *string
 	AssetID   *string
+	Direction *macroevent.Direction
 }
 
 // Request é o disparo recebido via POST /macro-events (tarefa 4.4). Com
@@ -127,7 +132,7 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 			sector = &s
 		}
 
-		target, err := macroevent.NewTarget(sector, t.RiskClass, t.AssetID, targetMetric(*affectsPrice, *affectsFundamentals))
+		target, err := macroevent.NewTarget(sector, t.RiskClass, t.AssetID, targetMetric(*affectsPrice, *affectsFundamentals), t.Direction)
 		if err != nil {
 			return "", macroevent.Event{}, err
 		}
@@ -170,11 +175,50 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 		event.FundamentalsReportDay = &reportDay
 	}
 
+	if err := sampleTargetEffects(event.Targets, event, s.rng); err != nil {
+		return "", macroevent.Event{}, err
+	}
+
 	id, err := s.repo.Persist(ctx, event)
 	if err != nil {
 		return "", macroevent.Event{}, err
 	}
 	return id, event, nil
+}
+
+// sampleTargetEffects amostra PriceEffectPct/FundamentalsEffectPct
+// próprios (E.1) só dos alvos que declararam uma direção própria
+// (Target.Direction != nil) — os demais continuam sem nenhum dado por
+// alvo, lendo o efeito do evento (Event.PriceEffectPct/
+// FundamentalsEffectPct) normalmente, mesmo comportamento de antes da
+// E.1 (critério de aceite: evento "não-misto" não precisa declarar nada
+// por alvo). Muta targets em memória — mesma fatia que event.Targets já
+// aponta, então o efeito amostrado chega em event.Targets sem precisar
+// reatribuir o slice.
+func sampleTargetEffects(targets []macroevent.Target, event macroevent.Event, rng *rand.Rand) error {
+	for i := range targets {
+		t := &targets[i]
+		if t.Direction == nil {
+			continue
+		}
+
+		if event.AffectsPrice {
+			pct, err := macroevent.SamplePriceEffectPct(event.MagnitudeBand, *t.Direction, rng)
+			if err != nil {
+				return err
+			}
+			t.PriceEffectPct = &pct
+		}
+
+		if event.AffectsFundamentals {
+			pct, err := macroevent.SampleFundamentalsEffectPct(event.MagnitudeBand, *t.Direction, rng)
+			if err != nil {
+				return err
+			}
+			t.FundamentalsEffectPct = &pct
+		}
+	}
+	return nil
 }
 
 // targetMetric deriva o Metric obrigatório de um Target (coluna NOT NULL

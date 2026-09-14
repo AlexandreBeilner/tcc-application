@@ -335,6 +335,66 @@ func TestHandleTriggerMacroEvent_Avulso(t *testing.T) {
 	}
 }
 
+// TestHandleTriggerMacroEvent_DirecaoPropriaPorAlvo cobre a fronteira HTTP
+// da tarefa E.1: `targets[].direction` do payload chega até
+// macroeventtrigger.TargetInput.Direction, e Target.Direction/
+// PriceEffectPct de volta do Service aparecem no item de `targets` da
+// resposta (só quando o próprio Target os carrega, não os campos do
+// evento).
+func TestHandleTriggerMacroEvent_DirecaoPropriaPorAlvo(t *testing.T) {
+	exportadorSector := catalog.Sector("Mineração")
+	priceEffect := 8.2
+	direction := macroevent.DirectionPositivo
+	fake := &fakeMacroEventTriggerer{
+		id: "event-3",
+		event: macroevent.Event{
+			Title:         "desvalorização do real",
+			Narrative:     "narrativa",
+			Direction:     macroevent.DirectionMisto,
+			MagnitudeBand: macroevent.BandModerado,
+			AffectsPrice:  true,
+			Status:        macroevent.StatusPendente,
+			Targets: []macroevent.Target{
+				{Sector: &exportadorSector, AffectedMetric: macroevent.MetricPrice, Direction: &direction, PriceEffectPct: &priceEffect},
+			},
+		},
+	}
+
+	body := `{
+		"title": "desvalorização do real",
+		"narrative": "narrativa",
+		"direction": "misto",
+		"magnitude_band": "moderado",
+		"affects_price": true,
+		"affects_fundamentals": false,
+		"targets": [{"sector": "Mineração", "direction": "positivo"}]
+	}`
+
+	rec := postMacroEvent(t, fake, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+
+	if len(fake.got.Targets) != 1 || fake.got.Targets[0].Direction == nil || *fake.got.Targets[0].Direction != macroevent.DirectionPositivo {
+		t.Fatalf("direction do alvo não repassada ao Service: %+v", fake.got.Targets)
+	}
+
+	var respBody macroEventResponse
+	if err := json.NewDecoder(rec.Body).Decode(&respBody); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(respBody.Targets) != 1 {
+		t.Fatalf("Targets = %+v, want 1", respBody.Targets)
+	}
+	target := respBody.Targets[0]
+	if target.Direction == nil || *target.Direction != "positivo" {
+		t.Errorf("target.Direction = %v, want \"positivo\"", target.Direction)
+	}
+	if target.PriceEffectPct == nil || *target.PriceEffectPct != 8.2 {
+		t.Errorf("target.PriceEffectPct = %v, want 8.2", target.PriceEffectPct)
+	}
+}
+
 func TestHandleTriggerMacroEvent_SemAlvoRetorna400(t *testing.T) {
 	fake := &fakeMacroEventTriggerer{}
 	rec := postMacroEvent(t, fake, `{"template_key":"legislacao-ambiental-mineracao","targets":[]}`)
