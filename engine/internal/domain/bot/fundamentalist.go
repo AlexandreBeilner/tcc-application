@@ -83,10 +83,19 @@ var (
 // empresa a partir de financials/outstandingShares (ROE, VPA), growthRate
 // (crescimento do ciclo corrente — o mesmo valor que
 // fundamentals.ExpectedGrowth/NextGrowth já calculou pra essa empresa, não
-// recalculado aqui) e da Selic simulada ajustada pela sensibilidade de
-// riskClass (fundamentals.SensitivityByRiskClass). Clampada em
-// FundamentalistMinFairPrice — nunca devolve um preço não-positivo.
-func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares int64, growthRate, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64, error) {
+// recalculado aqui), da Selic simulada ajustada pela sensibilidade de
+// riskClass (fundamentals.SensitivityByRiskClass) e de macroEffectPct
+// (tarefa E.2, escala percentual — 10 significa 10%, mesma convenção de
+// macroevent.EffectRange): o sinal/magnitude por alvo de um evento macro
+// ativo (macroevent.Target.ResolvedDirection/PriceEffectPct, tarefa E.1)
+// que atinge esta empresa, já resolvido por quem chama (tick.
+// companyRoundContexts) — 0 quando nenhum evento afeta a empresa agora.
+// Desloca a estimativa multiplicativamente, mesmo efeito qualitativo que
+// growthRate já tem: um evento negativo severo (-25%) reduz o preço justo
+// na mesma proporção que reduziria se fosse um crescimento esperado pior.
+// Clampada em FundamentalistMinFairPrice — nunca devolve um preço
+// não-positivo.
+func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares int64, growthRate, macroEffectPct, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64, error) {
 	if !validRiskClasses[riskClass] {
 		return 0, ErrUnknownRiskClass
 	}
@@ -103,7 +112,7 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 		return 0, ErrInvalidRequiredReturn
 	}
 
-	fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate)
+	fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100)
 	if fairPrice < FundamentalistMinFairPrice {
 		fairPrice = FundamentalistMinFairPrice
 	}
@@ -123,11 +132,23 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 // não além. Quantidade reaproveita quantityForSide (marketmaker.go, mesma
 // função de sizing por lado usada por DecideChartistOrder, C.4) sobre
 // RiskProfile.MaxPositionSizePct.
+//
+// macroEffectPct (tarefa E.2) é o sinal/magnitude bruto (escala
+// percentual) de qualquer evento macro ativo que atinge esta empresa —
+// "bruto" porque ainda não passou pela lente do bot: é ponderado por
+// personality.KnowledgeLevel antes de chegar em FundamentalistFairPrice
+// ("proporcional ao nível de conhecimento do bot", proposta 2.5/seção 3) —
+// um Fundamentalista de conhecimento 1.0 incorpora o efeito inteiro, um de
+// conhecimento 0.0 o ignora por completo, igual ao mesmo raciocínio já
+// usado no ruído de leitura logo abaixo (FundamentalistMaxNoiseStdDevPct).
+// Chartista/Ruído nunca recebem este parâmetro — só reagem ao preço que já
+// mudou pela negociação do Fundamentalista, nunca ao evento em si.
 func DecideFundamentalistOrder(
 	personality Personality,
 	financials fundamentals.Financials,
 	outstandingShares int64,
 	growthRate float64,
+	macroEffectPct float64,
 	currentMarketPrice float64,
 	selicAnnualRate float64,
 	selicNeutral float64,
@@ -146,7 +167,8 @@ func DecideFundamentalistOrder(
 		return Decision{}, ErrInvalidReferencePrice
 	}
 
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, selicAnnualRate, selicNeutral, riskClass)
+	perceivedMacroEffectPct := macroEffectPct * *personality.KnowledgeLevel
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, perceivedMacroEffectPct, selicAnnualRate, selicNeutral, riskClass)
 	if err != nil {
 		return Decision{}, err
 	}

@@ -98,10 +98,25 @@ type CompanyForFundamentals struct {
 // (sector/risk_class/asset_id, exatamente um preenchido), mas Sector fica
 // cru (*string, não catalog.Sector) pela mesma razão de AssetForPricing.
 // RiskClass já ser cru: tick não precisa importar catalog só pra isso.
+// Direction/PriceEffectPct (tarefa E.1) espelham macroevent.Target — nil
+// no caso comum (alvo herda a direção/magnitude do evento inteiro,
+// MacroEventForApplication.PriceEffectPct), preenchidos só quando este
+// alvo declarou direção própria (evento "misto" com sinais diferentes por
+// alvo). Só PriceEffectPct é de fato lido, por macroPriceEffectsByCompany
+// (tarefa E.2) — o sinal já está embutido nele desde a amostragem
+// (macroeventtrigger.sampleTargetEffects), então Direction chega até aqui
+// (lido só pelo SELECT de ListPendingMacroEvents) sem nenhum consumidor —
+// não confundir com "lido por macroPriceEffectsByCompany" (achado de
+// review: comentário anterior alegava isso, nunca foi verdade). Nenhum dos
+// dois é usado por macroFundamentalsEffectsByCompany, que continua lendo só
+// o valor do evento (granularidade por alvo da parte de fundamentos fica
+// fora do escopo da E.2, que é só sobre o preço justo do Fundamentalista).
 type MacroEventTargetForApplication struct {
-	Sector    *string
-	RiskClass *string
-	AssetID   *string
+	Sector         *string
+	RiskClass      *string
+	AssetID        *string
+	Direction      *string
+	PriceEffectPct *float64
 }
 
 // MacroEventForApplication é um evento macro com status = 'pendente' —
@@ -371,12 +386,14 @@ func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.Ris
 // financeiros derivados (a partir de reportEffects[cid].NetRevenue quando a
 // empresa relatou agora nesse mesmo tick; senão c.LastRevenue/
 // fundamentals.DefaultBaseRevenue, o mesmo fallback que o loop de relatório
-// já usa) e o crescimento esperado — sempre fundamentals.ExpectedGrowth
+// já usa), o crescimento esperado — sempre fundamentals.ExpectedGrowth
 // contra a Selic de hoje (newSelicRate), nunca o crescimento realizado com
 // ruído idiossincrático (actualGrowth): o Fundamentalista projeta a
 // expectativa sistêmica de todo dia, não o resultado de uma empresa
-// específica, que só existe no dia exato do relatório dela.
-func companyRoundContexts(companies []CompanyForFundamentals, reportEffects map[string]companyReportEffect, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64) map[string]CompanyRoundContext {
+// específica, que só existe no dia exato do relatório dela — e o efeito de
+// preço macro combinado (macroPriceEffects[c.CompanyID], tarefa E.2, zero
+// value 0 quando nenhum evento afeta a empresa hoje).
+func companyRoundContexts(companies []CompanyForFundamentals, reportEffects map[string]companyReportEffect, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
 	contexts := make(map[string]CompanyRoundContext, len(companies))
 	for _, c := range companies {
 		riskClass := equityRiskClasses[c.CompanyID]
@@ -391,8 +408,9 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportEffects map[
 		}
 
 		contexts[c.CompanyID] = CompanyRoundContext{
-			Financials: fundamentals.DeriveFinancials(baseRevenue),
-			GrowthRate: fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
+			Financials:     fundamentals.DeriveFinancials(baseRevenue),
+			GrowthRate:     fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
+			MacroEffectPct: macroPriceEffects[c.CompanyID],
 		}
 	}
 	return contexts
@@ -433,54 +451,67 @@ func assetCompanies(assets []AssetForPricing) map[string]string {
 	return companies
 }
 
-// eventTargetsAsset confere se algum dos targets de um evento macro
-// alcança o ativo a (setor da empresa emissora, risk_class ou o próprio
-// asset_id) — tarefa 4.5, fan-out de alvo setorial/risk_class deixado em
-// aberto pela escrita do alvo (tarefa 4.4).
-func eventTargetsAsset(targets []MacroEventTargetForApplication, a AssetForPricing) bool {
-	for _, t := range targets {
-		if t.AssetID != nil && *t.AssetID == a.AssetID {
-			return true
-		}
-		if t.RiskClass != nil && a.RiskClass != nil && *t.RiskClass == *a.RiskClass {
-			return true
-		}
-		if t.Sector != nil && a.Sector != nil && *t.Sector == *a.Sector {
-			return true
-		}
-	}
-	return false
-}
-
-// eventTargetsCompany confere se algum dos targets de um evento macro
-// alcança a empresa companyID (setor, risk_class de um de seus ativos de
+// matchingTarget devolve (matched=true) o target mais específico de targets
+// que alcança a empresa companyID (setor, risk_class de um de seus ativos de
 // renda variável, ou asset_id de um ativo que ela emite, via
-// assetToCompany) — mesmo fan-out de eventTargetsAsset, do lado de
-// company_fundamentals em vez de asset_quotes.
-func eventTargetsCompany(targets []MacroEventTargetForApplication, companyID, sector string, riskClass equity.RiskClass, assetToCompany map[string]string) bool {
+// assetToCompany) — fan-out compartilhado por macroFundamentalsEffectsByCompany
+// (só precisa do bool) e macroPriceEffectsByCompany (tarefa E.2, também
+// precisa do Target em si, pra ler Direction/PriceEffectPct próprios,
+// tarefa E.1). Checagem por ordem de especificidade (asset_id > risk_class >
+// sector), não pela ordem de targets em si — ListPendingMacroEvents não
+// garante (nem deveria precisar garantir) a ordem das linhas de
+// macro_event_targets de um mesmo evento, então um override por ativo
+// específico (o caso de uso central da E.1: setor inteiro com um sinal,
+// uma empresa daquele setor com sinal próprio oposto) nunca pode depender de
+// qual target foi inserido/lido primeiro. Um evento com mais de um target
+// batendo a mesma empresa no mesmo nível de especificidade (raro) usa o
+// primeiro encontrado nesse nível.
+func matchingTarget(targets []MacroEventTargetForApplication, companyID, sector string, riskClass equity.RiskClass, assetToCompany map[string]string) (MacroEventTargetForApplication, bool) {
 	for _, t := range targets {
-		if t.Sector != nil && *t.Sector == sector {
-			return true
-		}
-		if t.RiskClass != nil && *t.RiskClass == string(riskClass) {
-			return true
-		}
 		if t.AssetID != nil {
 			if cid, ok := assetToCompany[*t.AssetID]; ok && cid == companyID {
-				return true
+				return t, true
 			}
 		}
 	}
-	return false
+	for _, t := range targets {
+		if t.RiskClass != nil && *t.RiskClass == string(riskClass) {
+			return t, true
+		}
+	}
+	for _, t := range targets {
+		if t.Sector != nil && *t.Sector == sector {
+			return t, true
+		}
+	}
+	return MacroEventTargetForApplication{}, false
 }
 
-// macroPriceMultiplier combina (multiplicativamente — cada evento
-// empilha sobre o GBM e sobre os demais eventos ativos, mesma lógica já
-// documentada em macroevent.DailyPriceEffectMultiplier) o efeito de preço
-// de todo evento macro pendente cujo efeito de preço está ativo em newDay
-// (macroevent.IsPriceEffectActive) e cujo alvo alcança o ativo a.
-func macroPriceMultiplier(macroEvents []MacroEventForApplication, a AssetForPricing, newDay int) float64 {
-	multiplier := 1.0
+// eventTargetsCompany confere se algum dos targets de um evento macro
+// alcança a empresa companyID — usado só por macroFundamentalsEffectsByCompany,
+// que não precisa do Target em si (granularidade por alvo da parte de
+// fundamentos fica fora do escopo da E.2).
+func eventTargetsCompany(targets []MacroEventTargetForApplication, companyID, sector string, riskClass equity.RiskClass, assetToCompany map[string]string) bool {
+	_, matched := matchingTarget(targets, companyID, sector, riskClass, assetToCompany)
+	return matched
+}
+
+// macroPriceEffectsByCompany soma (sem teto — mesmo comportamento
+// "empilha sem limite" que macroPriceMultiplier já tinha antes de ser
+// removida nesta tarefa, só que agora um deslocamento aditivo da
+// estimativa de preço justo em vez de um multiplicador direto sobre o
+// GBM) o efeito de preço de todo evento macro pendente cujo efeito de
+// preço está ativo em newDay (macroevent.IsPriceEffectActive) e cujo alvo
+// alcança a empresa. A magnitude usada é a do próprio Target quando ele
+// declarou direção própria (t.PriceEffectPct != nil — evento "misto" com
+// sinal por alvo, tarefa E.1), senão o valor do evento inteiro
+// (ev.PriceEffectPct, caso comum — "não-misto" ou alvo que herda a
+// direção, sem precisar declarar nada por alvo). Resultado: um
+// deslocamento (escala percentual) por empresa, consumido só pelo
+// arquétipo Fundamentalista (tarefa E.2, via CompanyRoundContext.
+// MacroEffectPct) — nunca mais um multiplicador direto sobre o preço.
+func macroPriceEffectsByCompany(macroEvents []MacroEventForApplication, companies []CompanyForFundamentals, equityRiskClasses map[string]equity.RiskClass, assetToCompany map[string]string, newDay int) map[string]float64 {
+	effects := make(map[string]float64)
 	for _, ev := range macroEvents {
 		if !ev.AffectsPrice || ev.PriceEffectPct == nil {
 			continue
@@ -488,12 +519,19 @@ func macroPriceMultiplier(macroEvents []MacroEventForApplication, a AssetForPric
 		if !macroevent.IsPriceEffectActive(ev.TriggeredOnDay, ev.DurationDays, newDay) {
 			continue
 		}
-		if !eventTargetsAsset(ev.Targets, a) {
-			continue
+		for _, c := range companies {
+			t, matched := matchingTarget(ev.Targets, c.CompanyID, c.Sector, equityRiskClasses[c.CompanyID], assetToCompany)
+			if !matched {
+				continue
+			}
+			pct := *ev.PriceEffectPct
+			if t.PriceEffectPct != nil {
+				pct = *t.PriceEffectPct
+			}
+			effects[c.CompanyID] += pct
 		}
-		multiplier *= macroevent.DailyPriceEffectMultiplier(*ev.PriceEffectPct, ev.DurationDays)
 	}
-	return multiplier
+	return effects
 }
 
 // macroFundamentalsEffectsByCompany soma (macroevent.CombinePendingEffects,
@@ -623,23 +661,30 @@ func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDi
 // encadeado a partir de CompanyForFundamentals.LastRevenue) e aplica o
 // efeito de preço da surpresa (fundamentals.ReportDayPriceEffect) só na
 // cotação desse mesmo dia dos ativos vinculados à empresa — nos demais dias
-// do ciclo o preço não sofre esse efeito, só o drift do GBM. macroEvents são
-// os eventos macro pendentes (tarefa 4.5, Repository.ListPendingMacroEvents)
-// — seu efeito de preço empilha sobre o GBM (macroPriceMultiplier) enquanto
-// ativo, e seu efeito de fundamentos entra no crescimento real do ciclo
+// do ciclo o preço não sofre esse efeito, só o drift do GBM (esse trecho só
+// alcança FII/ETF na prática desde a Fase D.2, que tirou Ação do loop de
+// GBM — ver nota da tarefa F.1 mais abaixo). macroEvents são os eventos
+// macro pendentes (tarefa 4.5, Repository.ListPendingMacroEvents): seu
+// efeito de fundamentos entra no crescimento real do ciclo
 // (fundamentals.ActualGrowthWithMacroEffect) no dia de relatório atribuído;
-// Result.AppliedMacroEventIDs sinaliza quais desses eventos já podem virar
-// status = 'aplicado'. dividendPayers/pendingDividends alimentam a geração
-// e o pagamento de proventos (tarefa 4.9, RF21/lição 2.7):
-// dividendRecordsForCycle gera um novo dividend_events por ativo pagador
-// no dia de relatório (Result.NewDividends), e duePaymentsForDay filtra os
+// seu efeito de preço (tarefa E.2, sinal/magnitude por alvo da E.1) não é
+// mais um multiplicador direto sobre o GBM (macroPriceMultiplier, removida
+// nesta tarefa) — vira CompanyRoundContext.MacroEffectPct
+// (macroPriceEffectsByCompany), lido só pelo arquétipo Fundamentalista
+// dentro de runIntradayRounds (rounds.go) pra deslocar sua estimativa de
+// preço justo, ponderado por KnowledgeLevel. Result.AppliedMacroEventIDs
+// sinaliza quais desses eventos já podem virar status = 'aplicado'.
+// dividendPayers/pendingDividends alimentam a geração e o pagamento de
+// proventos (tarefa 4.9, RF21/lição 2.7): dividendRecordsForCycle gera um
+// novo dividend_events por ativo pagador no dia de relatório
+// (Result.NewDividends), e duePaymentsForDay filtra os
 // PendingDividendPayment cujo pagamento vence exatamente em newDay
 // (Result.DuePayments). Advance também sorteia a cadência intradiária do
 // dia (Fase D.1, IntradayRounds) — quantas rodadas de negociação de bot
 // newDay terá e em que ponto do expediente simulado cada uma cai
-// (Result.IntradayRounds) — sem consumir esse sorteio ainda (Fase D.2,
-// execução de rodadas, ainda não implementada); nenhum outro cálculo deste
-// Advance muda de comportamento por causa disso.
+// (Result.IntradayRounds), consumida por Service.Run logo depois (Fase D.2,
+// runIntradayRounds, rounds.go) — nenhum outro cálculo deste Advance muda
+// de comportamento por causa disso.
 func Advance(current State, assets []AssetForPricing, companies []CompanyForFundamentals, macroEvents []MacroEventForApplication, dividendPayers []DividendPayerAsset, pendingDividends []PendingDividendPayment, selicCfg selic.Config, seed int64) Result {
 	newDay := current.Day + 1
 	dayIndex := newDay - 1 // 0-based, mesma convenção de IsCopomMeetingDay/IsReportDay
@@ -649,6 +694,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	equityRiskClasses := companyEquityRiskClasses(assets)
 	assetToCompany := assetCompanies(assets)
 	macroFundamentalsEffects := macroFundamentalsEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, newDay)
+	macroPriceEffects := macroPriceEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, newDay)
 
 	reportEffects := make(map[string]companyReportEffect, len(companies))
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
@@ -692,7 +738,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		})
 	}
 
-	companyContext := companyRoundContexts(companies, reportEffects, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral)
+	companyContext := companyRoundContexts(companies, reportEffects, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
@@ -719,7 +765,18 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			continue
 		}
 
-		price *= macroPriceMultiplier(macroEvents, a, newDay)
+		// Tarefa E.2: nenhum multiplicador direto de evento macro sobre o
+		// GBM daqui em diante (macroPriceMultiplier, removida) — o
+		// sinal/magnitude por alvo (E.1) agora só é lido pelo arquétipo
+		// Fundamentalista (macroPriceEffectsByCompany acima,
+		// CompanyRoundContext.MacroEffectPct), que só decide sobre Ação
+		// (assetTypeAcao, já pulada por este loop desde D.2). Efeito
+		// colateral aceito/documentado: FII/ETF (as duas classes que ainda
+		// chegam até aqui) ficam sem reação a evento macro de preço até as
+		// Fases G/H trazerem o mesmo motor de negociação real pra elas —
+		// mesmo precedente já aberto por D.2 pro efeito de surpresa de
+		// balanço (reportEffects[*a.CompanyID].PriceEffect logo abaixo,
+		// nota da F.1).
 
 		if a.CompanyID != nil {
 			if effect, reported := reportEffects[*a.CompanyID]; reported {

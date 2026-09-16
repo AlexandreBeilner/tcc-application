@@ -72,11 +72,19 @@ func (r *MacroEventRepository) Persist(ctx context.Context, event macroevent.Eve
 			s := string(*target.Sector)
 			sector = &s
 		}
+		var direction *string
+		if target.Direction != nil {
+			d := string(*target.Direction)
+			direction = &d
+		}
 
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO macro_event_targets (macro_event_id, sector, risk_class, asset_id, affected_metric)
-			 VALUES ($1, $2, $3, $4, $5)`,
+			`INSERT INTO macro_event_targets (
+				macro_event_id, sector, risk_class, asset_id, affected_metric,
+				direction, price_effect_pct, fundamentals_effect_pct
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			id, sector, target.RiskClass, target.AssetID, string(target.AffectedMetric),
+			direction, target.PriceEffectPct, target.FundamentalsEffectPct,
 		); err != nil {
 			return "", err
 		}
@@ -168,7 +176,8 @@ func (r *MacroEventRepository) attachTargets(ctx context.Context, records []macr
 	}
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT macro_event_id, sector, risk_class, asset_id, affected_metric
+		`SELECT macro_event_id, sector, risk_class, asset_id, affected_metric,
+		        direction, price_effect_pct, fundamentals_effect_pct
 		 FROM macro_event_targets
 		 WHERE macro_event_id = ANY($1)`,
 		pq.Array(ids),
@@ -180,9 +189,13 @@ func (r *MacroEventRepository) attachTargets(ctx context.Context, records []macr
 
 	for rows.Next() {
 		var eventID string
-		var sector, riskClass, assetID sql.NullString
+		var sector, riskClass, assetID, direction sql.NullString
 		var affectedMetric string
-		if err := rows.Scan(&eventID, &sector, &riskClass, &assetID, &affectedMetric); err != nil {
+		var priceEffectPct, fundamentalsEffectPct sql.NullFloat64
+		if err := rows.Scan(
+			&eventID, &sector, &riskClass, &assetID, &affectedMetric,
+			&direction, &priceEffectPct, &fundamentalsEffectPct,
+		); err != nil {
 			return err
 		}
 
@@ -196,6 +209,16 @@ func (r *MacroEventRepository) attachTargets(ctx context.Context, records []macr
 		}
 		if assetID.Valid {
 			target.AssetID = &assetID.String
+		}
+		if direction.Valid {
+			d := macroevent.Direction(direction.String)
+			target.Direction = &d
+		}
+		if priceEffectPct.Valid {
+			target.PriceEffectPct = &priceEffectPct.Float64
+		}
+		if fundamentalsEffectPct.Valid {
+			target.FundamentalsEffectPct = &fundamentalsEffectPct.Float64
 		}
 
 		i := indexByID[eventID]

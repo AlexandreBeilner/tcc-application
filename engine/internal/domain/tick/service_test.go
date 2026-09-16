@@ -94,10 +94,11 @@ func (f *fakePriceHistoryReader) RecentClosingPrices(_ context.Context, assetID 
 }
 
 type fakeOrderContextLoader struct {
-	balance   float64
-	positions map[string]int
-	loadErr   error
-	calls     int
+	balance           float64
+	positions         map[string]int
+	loadErr           error
+	calls             int
+	outstandingShares *int64
 }
 
 func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ string) (orderexecution.Context, error) {
@@ -105,7 +106,11 @@ func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ strin
 	if f.loadErr != nil {
 		return orderexecution.Context{}, f.loadErr
 	}
-	return orderexecution.Context{IncomingUserBalance: f.balance, IncomingUserPosition: f.positions[assetID]}, nil
+	return orderexecution.Context{
+		IncomingUserBalance:  f.balance,
+		IncomingUserPosition: f.positions[assetID],
+		OutstandingShares:    f.outstandingShares,
+	}, nil
 }
 
 type submittedOrder struct {
@@ -115,10 +120,20 @@ type submittedOrder struct {
 type fakeOrderSubmitter struct {
 	// fillPrice, quando > 0, faz todo Submit devolver um Fill único nesse
 	// preço (simula a ordem casando de cara) — 0 simula uma ordem limitada
-	// que só fica pendurada no book, sem fill nenhum.
+	// que só fica pendurada no book, sem fill nenhum. Ignorado quando
+	// fillAtRequestedPrice é true.
 	fillPrice float64
-	submitErr error
-	submitted []submittedOrder
+	// fillAtRequestedPrice (tarefa E.2) simula uma contraparte sempre
+	// disposta a fechar no preço que o próprio bot pediu (req.Price) —
+	// diferente de fillPrice (um preço fixo igual pra qualquer ordem), isso
+	// deixa o preço de fechamento de cada rodada refletir de verdade a
+	// estimativa do Fundamentalista que decidiu naquele momento, o insumo
+	// que TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao
+	// precisa pra observar convergência real (não instantânea) ao preço
+	// justo deslocado pelo evento macro.
+	fillAtRequestedPrice bool
+	submitErr            error
+	submitted            []submittedOrder
 }
 
 func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
@@ -126,6 +141,12 @@ func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Reques
 		return orderexecution.Outcome{}, f.submitErr
 	}
 	f.submitted = append(f.submitted, submittedOrder{req: req})
+	if f.fillAtRequestedPrice {
+		return orderexecution.Outcome{
+			Fills:          []orderexecution.Fill{{Price: req.Price, Quantity: req.Quantity}},
+			FilledQuantity: req.Quantity,
+		}, nil
+	}
 	if f.fillPrice <= 0 {
 		return orderexecution.Outcome{RemainingQuantity: req.Quantity}, nil
 	}

@@ -14,6 +14,7 @@ package tick
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"sort"
 
@@ -40,6 +41,13 @@ const ChartistPriceHistoryDays = 5
 type CompanyRoundContext struct {
 	Financials fundamentals.Financials
 	GrowthRate float64
+	// MacroEffectPct (tarefa E.2) é o efeito de preço macro combinado
+	// (macroPriceEffectsByCompany, tick.go) que atinge esta empresa hoje —
+	// 0 quando nenhum evento macro ativo afeta a empresa. Repassado ao
+	// arquétipo Fundamentalista via decisionInputFor/bot.DecisionInput.
+	// MacroEffectPct — o único consumidor: Chartista/Ruído nunca leem o
+	// evento diretamente (proposta 2.3.2/3).
+	MacroEffectPct float64
 }
 
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
@@ -84,6 +92,20 @@ type OrderContextLoader interface {
 // vale pra ordem de bot sem nenhum caso especial.
 type OrderSubmitter interface {
 	Submit(ctx context.Context, req orderexecution.Request) (orderexecution.Outcome, error)
+}
+
+// businessRejection reporta se err é uma rejeição de negócio normal de
+// orderexecution.Service.Submit (saldo/posição/float insuficiente pra ESTA
+// ordem, no estado do book já refletindo os fills de bots anteriores nesta
+// mesma rodada) — nunca uma falha de infraestrutura. Submit devolve esses
+// três erros pelo mesmo canal usado por uma falha real de IO (achado de
+// review: runIntradayRounds tratava qualquer erro de Submit como abortante,
+// contradizendo o próprio contrato documentado acima de "erro de decisão só
+// pula o bot"), então precisa deste distinguishing explícito via errors.Is.
+func businessRejection(err error) bool {
+	return errors.Is(err, orderexecution.ErrInsufficientBalance) ||
+		errors.Is(err, orderexecution.ErrInsufficientPosition) ||
+		errors.Is(err, orderexecution.ErrFloatExceeded)
 }
 
 // equityRoundState é o estado mutável (em memória, só durante esta chamada
@@ -228,6 +250,7 @@ func (s *Service) decisionInputFor(
 		}
 		input.Financials = cc.Financials
 		input.GrowthRate = cc.GrowthRate
+		input.MacroEffectPct = cc.MacroEffectPct
 		input.OutstandingShares = *execCtx.OutstandingShares
 	}
 
@@ -247,9 +270,14 @@ func (s *Service) decisionInputFor(
 // Erro de decisão (bot.ErrNoViableOrder/ErrNoClearTrend/
 // ErrNoMispricingDetected/ErrInsufficientPriceHistory, ou insumo ausente pro
 // arquétipo — ver decisionInputFor) só pula o bot nesta rodada, nunca aborta
-// o tick inteiro (mesmo contrato documentado em cada Decide*, C.2-C.5). Erro
-// de IO (LoadContext/Submit/RecentClosingPrices/ListEligibleForTradingRound)
-// propaga e aborta — mesmo padrão de qualquer outra leitura de Run.
+// o tick inteiro (mesmo contrato documentado em cada Decide*, C.2-C.5).
+// Rejeição de negócio do Submit (businessRejection — saldo/posição/float
+// insuficiente pra ESTA ordem, mesmo canal de erro de orderexecution.Execute)
+// tem o mesmo tratamento: um bot perdeu a corrida por liquidez/float pra
+// outro bot que já negociou nesta mesma rodada, só essa ordem é descartada.
+// Qualquer outro erro (LoadContext/Submit por falha de IO/
+// RecentClosingPrices/ListEligibleForTradingRound) propaga e aborta — mesmo
+// padrão de qualquer outra leitura de Run.
 //
 // Devolve o preço de fechamento (última negociação real de todo o dia,
 // nenhuma se nada negociou) de cada Ação negociável — vazio se não há
@@ -320,6 +348,9 @@ func (s *Service) runIntradayRounds(
 					Quantity: d.Quantity,
 				})
 				if err != nil {
+					if businessRejection(err) {
+						continue
+					}
 					return nil, fillsExecuted, err
 				}
 				fillsExecuted += len(outcome.Fills)

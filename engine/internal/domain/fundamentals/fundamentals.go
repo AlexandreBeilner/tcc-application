@@ -271,7 +271,16 @@ func BootstrapFinancialsForTargetPrice(targetPrice float64, outstandingShares in
 		return Financials{}, ErrInvalidGrowthRate
 	}
 
-	roe := DefaultNetMarginPct / DefaultEquityToRevenueRatio
+	// DefaultNetMarginPct/DefaultEquityToRevenueRatio são proporcionais ao
+	// mesmo net_revenue desconhecido que esta função resolve (netIncome =
+	// netRevenue × DefaultNetMarginPct, netEquity = netRevenue ×
+	// DefaultEquityToRevenueRatio) — netRevenue cancela na razão, sobra
+	// exatamente DefaultNetMarginPct/DefaultEquityToRevenueRatio. Chama ROE
+	// com esses dois coeficientes (em vez de dividir os dois à mão) pra não
+	// duplicar a fórmula que bot.FundamentalistFairPrice também usa via
+	// fundamentals.ROE — ok é sempre true aqui (DefaultEquityToRevenueRatio é
+	// uma constante > 0, nunca o net_equity real de uma empresa).
+	roe, _ := ROE(DefaultNetMarginPct, DefaultEquityToRevenueRatio)
 	vpa := targetPrice / ((roe / selicNeutral) * growthFactor)
 	netEquity := vpa * float64(outstandingShares)
 	netRevenue := netEquity / DefaultEquityToRevenueRatio

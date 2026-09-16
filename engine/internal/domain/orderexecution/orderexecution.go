@@ -36,10 +36,23 @@ import (
 )
 
 var (
-	ErrInvalidQuantity      = errors.New("quantidade deve ser maior que zero")
-	ErrInvalidPrice         = errors.New("preço deve ser maior que zero para ordem limitada")
-	ErrInsufficientBalance  = errors.New("saldo insuficiente para executar a ordem")
-	ErrInsufficientPosition = errors.New("quantidade em posição insuficiente para a venda")
+	ErrInvalidQuantity     = errors.New("quantidade deve ser maior que zero")
+	ErrInvalidPrice        = errors.New("preço deve ser maior que zero para ordem limitada")
+	ErrInsufficientBalance = errors.New("saldo insuficiente para executar a ordem")
+	// ErrInsufficientPosition é o mesmo erro de position.ErrInsufficientQuantity
+	// (achado de review, ao vivo: validateFunds usava um errors.New próprio com
+	// o mesmo texto em vez de reaproveitar o valor de position, então
+	// db.OrderExecutionRepository.Persist — que chama position.ApplySell de
+	// novo pra projetar o Fill, contra a posição real lida com FOR UPDATE
+	// dentro da própria transação, não o snapshot que Execute validou — podia
+	// devolver um erro com texto idêntico mas identidade diferente, escapando
+	// de todo errors.Is(err, ErrInsufficientPosition) — inclusive o de
+	// tick.businessRejection, rounds.go, que existe exatamente pra não abortar
+	// o tick inteiro nesse caso). Redeclarado aqui, mesmo padrão de
+	// ErrFloatExceeded logo abaixo, pra manter o padrão de que quem chama
+	// Execute/Persist (e o handler HTTP) só precisa importar orderexecution
+	// pra checar qualquer erro devolvido.
+	ErrInsufficientPosition = position.ErrInsufficientQuantity
 	// ErrAccountNotFound é devolvido por Repository.LoadContext quando o
 	// usuário da ordem não tem conta aberta em accounts — nunca deveria
 	// acontecer num fluxo normal (POST /accounts é sempre o primeiro

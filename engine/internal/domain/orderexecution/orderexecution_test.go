@@ -269,6 +269,24 @@ func TestExecute_VendaRejeitadaPorPosicaoInsuficiente(t *testing.T) {
 	}
 }
 
+// TestErrInsufficientPosition_MesmaIdentidadeDePositionErrInsufficientQuantity
+// cobre o achado de review confirmado ao vivo (docker compose up, ~50 ticks
+// de negociação real de bot): ErrInsufficientPosition era um errors.New
+// próprio com o mesmo texto de position.ErrInsufficientQuantity, mas
+// identidade diferente — position.ApplySell (chamado de novo por
+// db.OrderExecutionRepository.Persist pro lado da contraparte, contra a
+// posição real lida com FOR UPDATE, não o snapshot que Execute validou) podia
+// devolver position.ErrInsufficientQuantity direto, invisível pra qualquer
+// errors.Is(err, ErrInsufficientPosition) rio acima — inclusive
+// tick.businessRejection (rounds.go), que existe exatamente pra reconhecer
+// essa rejeição e não abortar o tick inteiro. Mesmo padrão de teste que
+// TestExecute_FloatFinito já cobre pra ErrFloatExceeded/position.ErrFloatExceeded.
+func TestErrInsufficientPosition_MesmaIdentidadeDePositionErrInsufficientQuantity(t *testing.T) {
+	if ErrInsufficientPosition != position.ErrInsufficientQuantity {
+		t.Error("ErrInsufficientPosition não é o mesmo valor de position.ErrInsufficientQuantity — um erro devolvido por position.ApplySell (ex: dentro de db.OrderExecutionRepository.Persist, pro lado da contraparte) não seria reconhecido por errors.Is(err, ErrInsufficientPosition)")
+	}
+}
+
 // TestExecute_VendaParcialDentroDaPosicaoNaoEhRejeitada cobre a correção da
 // asymmetria com o lado da compra: validateFunds deve validar a posição
 // contra o que de fato foi preenchido (fills), não contra incoming.Quantity

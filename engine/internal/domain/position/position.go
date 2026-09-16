@@ -9,10 +9,19 @@ package position
 import "errors"
 
 // ErrInsufficientQuantity é devolvido por ApplySell quando a venda excede a
-// quantidade em carteira — nunca deveria acontecer de fato, porque
-// orderexecution.Execute já valida saldo/posição antes de chegar aqui; serve
-// de guarda de invariante contra chamada incorreta, não de validação de
-// borda de negócio (essa já aconteceu antes).
+// quantidade em carteira. orderexecution.Execute valida a posição do usuário
+// da ordem recebida contra o snapshot de LoadContext antes de chegar aqui,
+// mas isso NÃO cobre a contraparte de um Fill: db.OrderExecutionRepository.
+// Persist chama ApplySell de novo, pro lado da contraparte, contra a posição
+// real lida com FOR UPDATE dentro da própria transação — se a posição dela
+// mudou desde que a ordem pendurada foi originalmente aceita (outro Fill já
+// consumiu parte, achado confirmado ao vivo via docker compose up depois de
+// ~50 ticks de negociação real de bot), este erro acontece de fato, não é só
+// guarda de invariante. orderexecution.ErrInsufficientPosition redeclara
+// este mesmo valor (mesmo padrão de ErrFloatExceeded) exatamente pra quem
+// chama Persist (ex: tick.businessRejection, rounds.go) conseguir
+// reconhecer essa rejeição de negócio via errors.Is, sem precisar importar
+// este pacote.
 var ErrInsufficientQuantity = errors.New("quantidade em posição insuficiente para a venda")
 
 // ErrFloatExceeded é devolvido por ValidateFloatCeiling quando a soma das

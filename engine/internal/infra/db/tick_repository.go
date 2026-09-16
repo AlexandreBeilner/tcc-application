@@ -11,6 +11,7 @@ import (
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
@@ -158,12 +159,16 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 // a cada tick. Um evento sem nenhum target não deveria existir
 // (macroevent.NewEvent exige pelo menos um), mas o INNER JOIN reflete
 // exatamente essa garantia: nenhuma linha de macro_events sem
-// macro_event_targets correspondente aparece aqui.
+// macro_event_targets correspondente aparece aqui. t.direction/
+// t.price_effect_pct (tarefa E.1/E.2) só vêm preenchidos quando o próprio
+// alvo declarou direção própria — nil no caso comum, consumido por
+// tick.macroPriceEffectsByCompany como "este alvo herda o efeito do
+// evento" (ev.price_effect_pct, colunas 6-8 desta mesma query).
 func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.MacroEventForApplication, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT e.id, e.triggered_on_day, e.duration_days, e.affects_price, e.affects_fundamentals,
 		        e.price_effect_pct, e.fundamentals_effect_pct, e.fundamentals_report_day,
-		        t.sector, t.risk_class, t.asset_id
+		        t.sector, t.risk_class, t.asset_id, t.direction, t.price_effect_pct
 		 FROM macro_events e
 		 JOIN macro_event_targets t ON t.macro_event_id = e.id
 		 WHERE e.status = 'pendente'
@@ -183,7 +188,7 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 		if err := rows.Scan(
 			&id, &ev.TriggeredOnDay, &ev.DurationDays, &ev.AffectsPrice, &ev.AffectsFundamentals,
 			&ev.PriceEffectPct, &ev.FundamentalsEffectPct, &ev.FundamentalsReportDay,
-			&target.Sector, &target.RiskClass, &target.AssetID,
+			&target.Sector, &target.RiskClass, &target.AssetID, &target.Direction, &target.PriceEffectPct,
 		); err != nil {
 			return nil, err
 		}
@@ -373,12 +378,15 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 	if len(result.Fundamentals) > 0 {
 		periodDate := time.Now()
 		for _, f := range result.Fundamentals {
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO company_fundamentals
-				   (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-				f.CompanyID, periodDate, f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
-			); err != nil {
+			financials := fundamentals.Financials{
+				NetRevenue:      f.NetRevenue,
+				NetIncome:       f.NetIncome,
+				EBIT:            f.EBIT,
+				NetEquity:       f.NetEquity,
+				GrossDebt:       f.GrossDebt,
+				CashEquivalents: f.CashEquivalents,
+			}
+			if err := insertCompanyFundamentals(ctx, tx, f.CompanyID, periodDate, financials); err != nil {
 				return err
 			}
 		}
