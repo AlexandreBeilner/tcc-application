@@ -26,11 +26,6 @@ const (
 	// DefaultNoiseStdDev é o desvio-padrão ilustrativo do ruído
 	// idiossincrático por ciclo de relatório.
 	DefaultNoiseStdDev = 0.02
-	// DefaultReportPriceSensitivity converte ReportSurprise num efeito de
-	// preço no dia do relatório (ReportDayPriceEffect) — 1.5 amplifica a
-	// surpresa de crescimento um pouco além de 1:1, coerente com o "efeito
-	// alívio" qualitativo descrito na spec 3.3.
-	DefaultReportPriceSensitivity = 1.5
 	// DefaultBaseRevenue é a receita líquida de partida de uma empresa sem
 	// nenhuma linha de company_fundamentals gerada ainda — mesmo papel que
 	// tick.DefaultInitialPrice cumpre pro preço de um ativo sem cotação
@@ -98,9 +93,13 @@ type Config struct {
 // crescimento_base ajustado pelo fator Selic (spec 3.2.2), sem o ruído
 // idiossincrático de GrowthSeries. É esse valor, conhecido/precificado
 // antes da divulgação do relatório, que serve de referência de
-// "expectativa" pra ReportSurprise (tarefa 3.6): o preço reage ao
-// resultado divulgado só na medida em que ele diverge desta expectativa,
-// não ao resultado em si (spec 3.3).
+// "expectativa": o Fundamentalista (bot.FundamentalistFairPrice) sempre
+// projeta o preço justo com este componente sistêmico, nunca com o
+// crescimento realizado (actualGrowth, com ruído) de uma empresa
+// específica — é assim que o preço reage ao resultado divulgado só na
+// medida em que ele diverge desta expectativa, não ao resultado em si
+// (spec 3.3), sem precisar de uma fórmula de "surpresa" separada (tarefa
+// F.1, backlog-motor-mercado-realista).
 func ExpectedGrowth(cfg Config, selicAnnualRate, selicNeutral float64) float64 {
 	return cfg.BaseGrowth - cfg.Sensitivity*(selicAnnualRate-selicNeutral)
 }

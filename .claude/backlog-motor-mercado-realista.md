@@ -990,7 +990,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase F — Balanços via negociação
 
-### F.1 · Remoção da fórmula de surpresa de balanço
+### F.1 · Remoção da fórmula de surpresa de balanço ✅
 
 - **Descrição:** remove `fundamentals.ReportSurprise`/`ReportDayPriceEffect` (fórmula de
   sensibilidade direta que move preço no dia do relatório). No dia do relatório, os bots
@@ -1021,6 +1021,43 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   F.1 é provavelmente só a limpeza (remover `PriceEffect`/`companyReportEffect`/o trecho morto de
   `tick.go` e os dois testes acima, que passam a testar um cenário que não existe mais no catálogo
   real) mais a validação formal dos critérios de aceite.
+- **Entregável:** a suspeita da nota da D.2 se confirmou — o mecanismo já estava entregue como
+  efeito colateral de D.2/E.2, sem nenhuma linha de produção nova. `internal/domain/tick/rounds_test.go`
+  ganhou os três testes de ponta a ponta do critério de aceite (`newReportCycleService`,
+  `findReportGrowthSeed` — helper que busca, por varredura determinística sobre
+  `fundamentals.NextGrowth`, qual seed base produz um ciclo de relatório melhor/pior/sem surpresa
+  clara em relação a `fundamentals.ExpectedGrowth`, já que o ruído do ciclo não tem inversa fechada):
+  `TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao`,
+  `TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao`,
+  `TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento` — todos passando sem nenhuma
+  mudança de domínio, confirmando que `companyRoundContexts` (net_revenue recém-divulgado, com o
+  ruído do ciclo embutido, contra `GrowthRate` sempre sistêmico) já entrega "resultado vs.
+  expectativa" via negociação real do Fundamentalista. Com isso confirmado, a limpeza prevista pela
+  nota da D.2 foi feita: `fundamentals.ReportSurprise`/`ReportDayPriceEffect` (`reportcycle.go`) e
+  `fundamentals.DefaultReportPriceSensitivity` (`fundamentals.go`) removidas — `fundamentals.
+  ActualGrowthWithMacroEffect` (efeito de evento macro sobre o crescimento realizado, tarefa 4.2, sem
+  relação com a fórmula de surpresa removida) **não foi tocada**, continua em uso por
+  `macroFundamentalsEffectsByCompany`. `tick.go`: `companyReportEffect` (struct com só `NetRevenue`
+  sobrando depois de tirar `PriceEffect`) virou `map[string]float64` (`reportedRevenue`, renomeado de
+  `reportEffects`) — simplificação direta, não uma abstração nova; o trecho morto que aplicava
+  `reportEffects[*a.CompanyID].PriceEffect` multiplicativamente na cotação GBM (inalcançável desde
+  D.2, ver nota acima) foi removido do loop de `quotes` em `Advance`, junto da variável `expectedGrowth`
+  que só existia pra alimentar `ReportSurprise`. Testes removidos por testarem diretamente as funções
+  apagadas: `TestReportSurprise_*`/`TestReportDayPriceEffect_*`/`TestReportCycle_SurpresaIncluiEfeitoMacro`/
+  `TestReportCycle_PrecoSoReageNoDiaDoRelatorio` (`reportcycle_test.go` — substituído por
+  `TestActualGrowthWithMacroEffect_PreservaSinalDoEfeito`, cobrindo só a parte de
+  `ActualGrowthWithMacroEffect` que continua existindo) e
+  `TestAdvance_EfeitoDePrecoSoNoDiaDoRelatorio`/`TestAdvance_SemEfeitoDePrecoForaDoDiaDeRelatorio`
+  (`tick_test.go` — substituídos por `TestAdvance_QuotesDeCompanhiaNuncaSofremEfeitoDePrecoDireto`,
+  confirmando a regressão oposta: `companies` nunca mais afeta `Result.Quotes` direto, dentro ou fora
+  do dia de relatório). `gofmt`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2 —
+  mesma versão pinada em `.github/workflows/engine-ci.yml` — 0 issues) verdes. `.docs/engine/tick.md`
+  atualizado (a frase que descrevia o multiplicador de `ReportDayPriceEffect` agora descreve o
+  mecanismo real: `net_revenue` recém-divulgado entra em `Result.CompanyContext` pra toda empresa, e
+  é o Fundamentalista, dentro de `runIntradayRounds`, que reage a ele negociando). Sem
+  `docker compose up` — tarefa é só remoção de função pura + simplificação de tipo interno de
+  `tick.go`, sem schema/rota nova, e os três testes de ponta a ponta novos já validam o comportamento
+  real via `Service.Run` (fakes, sem infra).
 
 ---
 

@@ -212,36 +212,36 @@ func TestAdvance_UsaLastRevenueQuandoExiste(t *testing.T) {
 	}
 }
 
-func TestAdvance_EfeitoDePrecoSoNoDiaDoRelatorio(t *testing.T) {
+// TestAdvance_QuotesDeCompanhiaNuncaSofremEfeitoDePrecoDireto é o que
+// sobrou, depois da tarefa F.1, de TestAdvance_EfeitoDePrecoSoNoDiaDoRelatorio/
+// TestAdvance_SemEfeitoDePrecoForaDoDiaDeRelatorio (removidos): os dois
+// testavam fundamentals.ReportDayPriceEffect sendo aplicado multiplicativamente
+// à cotação GBM de um ativo vinculado a uma empresa, dentro e fora do dia de
+// relatório — mecanismo removido nesta tarefa (o resultado divulgado agora
+// só move preço via negociação real do Fundamentalista, nunca um
+// multiplicador direto na cotação; ver TestAdvance_EfeitoDeFundamentosMacroNoDiaDoRelatorio
+// pra confirmação de que o net_revenue continua reagindo ao ciclo de
+// relatório, e tick/rounds_test.go — TestService_Run_Relatorio* — pro
+// critério de aceite de "resultado vs. expectativa move o preço via
+// negociação"). Este teste confirma só a regressão oposta: a cotação
+// GBM (só alcançável por FII/ETF na prática, CompanyID nil) nunca muda por
+// causa de companies estar presente ou não, dentro ou fora do dia de
+// relatório — companies não tem mais NENHUM jeito de afetar Result.Quotes
+// diretamente.
+func TestAdvance_QuotesDeCompanhiaNuncaSofremEfeitoDePrecoDireto(t *testing.T) {
 	riskClass := "Sofisticado"
 	companyID := "c1"
 	assets := []AssetForPricing{{AssetID: "a1", RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
 	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 13 -> newDay = 14 = dia de relatório da empresa vinculada.
-	withReport := Advance(State{Day: 13, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, 1)
-	withoutReport := Advance(State{Day: 13, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
+	for _, day := range []int{0, 13} { // newDay = 1 (fora do ciclo) e 14 (dia de relatório)
+		withCompanies := Advance(State{Day: day, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, 1)
+		withoutCompanies := Advance(State{Day: day, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
 
-	if withReport.Quotes[0].Price == withoutReport.Quotes[0].Price {
-		t.Error("preço no dia de relatório com companies veio igual a sem companies — efeito de surpresa (ReportDayPriceEffect) não foi aplicado")
-	}
-}
-
-func TestAdvance_SemEfeitoDePrecoForaDoDiaDeRelatorio(t *testing.T) {
-	riskClass := "Sofisticado"
-	companyID := "c1"
-	assets := []AssetForPricing{{AssetID: "a1", RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
-	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
-
-	// Day: 0 -> newDay = 1, fora do ciclo de 14 dias — preço não deveria
-	// sofrer efeito de surpresa mesmo com companies presentes.
-	withCompanies := Advance(State{Day: 0, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, 1)
-	withoutCompanies := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, 1)
-
-	if withCompanies.Quotes[0].Price != withoutCompanies.Quotes[0].Price {
-		t.Errorf("preço fora do dia de relatório divergiu (%v != %v) — efeito só deveria aparecer no dia da divulgação", withCompanies.Quotes[0].Price, withoutCompanies.Quotes[0].Price)
+		if withCompanies.Quotes[0].Price != withoutCompanies.Quotes[0].Price {
+			t.Errorf("Day=%d: preço com companies (%v) != sem companies (%v) — Result.Quotes não deveria mais sofrer nenhum efeito direto de companies", day, withCompanies.Quotes[0].Price, withoutCompanies.Quotes[0].Price)
+		}
 	}
 }
 

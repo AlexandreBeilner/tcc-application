@@ -56,9 +56,12 @@ type AssetForPricing struct {
 	LastPrice *float64
 	// CompanyID identifica a empresa emissora, pra ações vinculadas a uma
 	// company (variable_income_assets.company_id) — nil pra ETF/FII, que
-	// não têm empresa individual (spec 3.6). Usado por Advance (tarefa
-	// 3.14) pra saber em qual cotação aplicar o efeito de preço do
-	// resultado divulgado no dia do relatório da empresa correspondente.
+	// não têm empresa individual (spec 3.6). Usado por companyEquityRiskClasses/
+	// assetCompanies (tick.go) pra resolver o fan-out de risk_class/evento
+	// macro por empresa — o efeito de preço do resultado divulgado não é
+	// mais aplicado direto numa cotação (tarefa F.1): nasce da negociação
+	// real do Fundamentalista contra o net_revenue recém-divulgado
+	// (companyRoundContexts).
 	CompanyID *string
 	// Sector é o setor (company_sector, mesma string crua de
 	// macro_event_targets.sector/companies.sector — não catalog.Sector
@@ -351,16 +354,6 @@ func deterministicSeed(baseSeed int64, id string) int64 {
 	return baseSeed + int64(h.Sum64())
 }
 
-// companyReportEffect é o resultado do ciclo de relatório de uma empresa no
-// dia de relatório — NetRevenue vira uma FundamentalsRecord (persistida em
-// company_fundamentals), PriceEffect é aplicado multiplicativamente sobre a
-// cotação de cada ativo vinculado à empresa (spec 3.3: efeito de preço da
-// surpresa só no dia da divulgação, tarefa 3.14).
-type companyReportEffect struct {
-	NetRevenue  float64
-	PriceEffect float64
-}
-
 // fundamentalsConfig monta o fundamentals.Config de uma empresa pro ciclo
 // de relatório — Sensitivity vem da risk_class de um ativo de renda
 // variável vinculado à empresa (equityRiskClass), a mesma tabela
@@ -380,11 +373,11 @@ func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.Ris
 }
 
 // companyRoundContexts monta, pra CADA empresa (não só as que bateram dia de
-// relatório neste tick — diferente do loop que produz reportEffects/
+// relatório neste tick — diferente do loop que produz reportedRevenue/
 // fundamentalsRecords acima), o que a Fase D.2 (runIntradayRounds, rounds.go)
 // precisa pro arquétipo Fundamentalista reavaliar seu preço justo hoje:
-// financeiros derivados (a partir de reportEffects[cid].NetRevenue quando a
-// empresa relatou agora nesse mesmo tick; senão c.LastRevenue/
+// financeiros derivados (a partir de reportedRevenue[cid] quando a empresa
+// relatou agora nesse mesmo tick; senão c.LastRevenue/
 // fundamentals.DefaultBaseRevenue, o mesmo fallback que o loop de relatório
 // já usa), o crescimento esperado — sempre fundamentals.ExpectedGrowth
 // contra a Selic de hoje (newSelicRate), nunca o crescimento realizado com
@@ -392,8 +385,16 @@ func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.Ris
 // expectativa sistêmica de todo dia, não o resultado de uma empresa
 // específica, que só existe no dia exato do relatório dela — e o efeito de
 // preço macro combinado (macroPriceEffects[c.CompanyID], tarefa E.2, zero
-// value 0 quando nenhum evento afeta a empresa hoje).
-func companyRoundContexts(companies []CompanyForFundamentals, reportEffects map[string]companyReportEffect, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
+// value 0 quando nenhum evento afeta a empresa hoje). É esta combinação —
+// VPA derivado do net_revenue recém-divulgado (com o ruído idiossincrático
+// do ciclo já embutido) contra um GrowthRate sempre sistêmico — que produz
+// o "resultado vs. expectativa" da spec 3.3 sem nenhuma fórmula de
+// surpresa/efeito de preço separada (fundamentals.ReportSurprise/
+// ReportDayPriceEffect, removidas na tarefa F.1 do
+// backlog-motor-mercado-realista): o Fundamentalista reage à divergência
+// entre o VPA que acabou de mudar e a expectativa de crescimento que já
+// estava precificada, negociando de acordo.
+func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
 	contexts := make(map[string]CompanyRoundContext, len(companies))
 	for _, c := range companies {
 		riskClass := equityRiskClasses[c.CompanyID]
@@ -403,8 +404,8 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportEffects map[
 		if c.LastRevenue != nil {
 			baseRevenue = *c.LastRevenue
 		}
-		if reported, ok := reportEffects[c.CompanyID]; ok {
-			baseRevenue = reported.NetRevenue
+		if reported, ok := reportedRevenue[c.CompanyID]; ok {
+			baseRevenue = reported
 		}
 
 		contexts[c.CompanyID] = CompanyRoundContext{
@@ -658,13 +659,16 @@ func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDi
 // a seed base da simulação (RNF08: fixa entre reinícios, configurada uma
 // vez na composição). No dia de relatório de uma empresa (companies,
 // tarefa 3.14), Advance gera sua FundamentalsRecord (fundamentals.NextGrowth
-// encadeado a partir de CompanyForFundamentals.LastRevenue) e aplica o
-// efeito de preço da surpresa (fundamentals.ReportDayPriceEffect) só na
-// cotação desse mesmo dia dos ativos vinculados à empresa — nos demais dias
-// do ciclo o preço não sofre esse efeito, só o drift do GBM (esse trecho só
-// alcança FII/ETF na prática desde a Fase D.2, que tirou Ação do loop de
-// GBM — ver nota da tarefa F.1 mais abaixo). macroEvents são os eventos
-// macro pendentes (tarefa 4.5, Repository.ListPendingMacroEvents): seu
+// encadeado a partir de CompanyForFundamentals.LastRevenue) — o efeito de
+// preço do resultado divulgado não é mais uma fórmula direta aplicada aqui
+// (fundamentals.ReportSurprise/ReportDayPriceEffect, removidas na tarefa
+// F.1 do backlog-motor-mercado-realista): o net_revenue recém-divulgado
+// (reportedRevenue, abaixo) entra em companyRoundContexts pra TODA empresa,
+// e é o arquétipo Fundamentalista (runIntradayRounds, rounds.go) que reage
+// a ele via negociação real, comparando o preço justo recém-atualizado
+// contra o preço de mercado — nunca um multiplicador aplicado direto na
+// cotação. macroEvents são os eventos macro pendentes (tarefa 4.5,
+// Repository.ListPendingMacroEvents): seu
 // efeito de fundamentos entra no crescimento real do ciclo
 // (fundamentals.ActualGrowthWithMacroEffect) no dia de relatório atribuído;
 // seu efeito de preço (tarefa E.2, sinal/magnitude por alvo da E.1) não é
@@ -696,7 +700,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	macroFundamentalsEffects := macroFundamentalsEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, newDay)
 	macroPriceEffects := macroPriceEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, newDay)
 
-	reportEffects := make(map[string]companyReportEffect, len(companies))
+	reportedRevenue := make(map[string]float64, len(companies))
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
 	netIncomeByCompany := make(map[string]float64, len(companies))
 	for _, c := range companies {
@@ -710,7 +714,6 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		if macroEffect, affected := macroFundamentalsEffects[c.CompanyID]; affected {
 			actualGrowth = fundamentals.ActualGrowthWithMacroEffect(actualGrowth, macroEffect)
 		}
-		expectedGrowth := fundamentals.ExpectedGrowth(cfg, newSelicRate, selicCfg.Neutral)
 
 		baseRevenue := fundamentals.DefaultBaseRevenue
 		if c.LastRevenue != nil {
@@ -720,13 +723,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		financials := fundamentals.DeriveFinancials(netRevenue)
 		netIncomeByCompany[c.CompanyID] = financials.NetIncome
 
-		reportEffects[c.CompanyID] = companyReportEffect{
-			NetRevenue: netRevenue,
-			PriceEffect: fundamentals.ReportDayPriceEffect(
-				fundamentals.ReportSurprise(actualGrowth, expectedGrowth),
-				fundamentals.DefaultReportPriceSensitivity,
-			),
-		}
+		reportedRevenue[c.CompanyID] = netRevenue
 		fundamentalsRecords = append(fundamentalsRecords, FundamentalsRecord{
 			CompanyID:       c.CompanyID,
 			NetRevenue:      financials.NetRevenue,
@@ -738,7 +735,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		})
 	}
 
-	companyContext := companyRoundContexts(companies, reportEffects, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
+	companyContext := companyRoundContexts(companies, reportedRevenue, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
@@ -770,19 +767,14 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		// sinal/magnitude por alvo (E.1) agora só é lido pelo arquétipo
 		// Fundamentalista (macroPriceEffectsByCompany acima,
 		// CompanyRoundContext.MacroEffectPct), que só decide sobre Ação
-		// (assetTypeAcao, já pulada por este loop desde D.2). Efeito
-		// colateral aceito/documentado: FII/ETF (as duas classes que ainda
-		// chegam até aqui) ficam sem reação a evento macro de preço até as
-		// Fases G/H trazerem o mesmo motor de negociação real pra elas —
-		// mesmo precedente já aberto por D.2 pro efeito de surpresa de
-		// balanço (reportEffects[*a.CompanyID].PriceEffect logo abaixo,
-		// nota da F.1).
-
-		if a.CompanyID != nil {
-			if effect, reported := reportEffects[*a.CompanyID]; reported {
-				price *= 1 + effect.PriceEffect
-			}
-		}
+		// (assetTypeAcao, já pulada por este loop desde D.2). Tarefa F.1:
+		// mesma coisa pro efeito de preço do resultado divulgado — nenhum
+		// multiplicador aplicado direto na cotação (a antiga
+		// reportEffects[*a.CompanyID].PriceEffect, removida). Efeito
+		// colateral aceito/documentado (mesmo precedente da E.2): FII/ETF
+		// (as duas classes que ainda chegam até aqui) ficam sem reação a
+		// evento macro OU a resultado de relatório até as Fases G/H
+		// trazerem o mesmo motor de negociação real pra elas.
 
 		quotes = append(quotes, Quote{AssetID: a.AssetID, Price: price})
 	}
