@@ -1462,6 +1462,33 @@ a modalidade **Day** (expira no fechamento do dia simulado corrente, sem GTC nem
 menor escopo, reaproveita o Temporizador que já existe em vez de introduzir coluna de validade e
 scheduler próprios. Independente do núcleo de bots (Fases B-N) — só depende de A.2, já concluída.
 
+**Achado confirmado ao vivo (review do PR da Fase E, 2026-09-16, `docker compose up` com seed real +
+~100 ticks de negociação de bot sequenciais):** a falta de reserva de saldo/posição (nota de escopo
+de `orderexecution.go`, citada no O.1 abaixo) não é só uma lacuna teórica — ela produz, na prática,
+ordens penduradas **furadas** (o dono vendeu a posição por outra ordem depois de deixar esta
+pendurada) com frequência real de negociação de bot, não um caso extremo raro. Sintoma observado:
+`db.OrderExecutionRepository.Persist` tentando aplicar o fill do lado da contraparte pendurada
+(`applyPositionFill` → `position.ApplySell`) contra a posição real da tabela (lida com `FOR UPDATE`
+dentro da própria transação, não o snapshot que `Execute` validou) e recebendo
+`position.ErrInsufficientQuantity` — que só foi corretamente reconhecido como rejeição de negócio
+(não falha de IO) depois de uma correção de identidade de erro nessa mesma sessão
+(`orderexecution.ErrInsufficientPosition` virou alias de `position.ErrInsufficientQuantity`, mesmo
+padrão que `ErrFloatExceeded` já usava — antes disso, esse erro escapava de todo `errors.Is` rio
+acima e abortava o tick inteiro). Com a correção, `tick.businessRejection` (rounds.go, Fase D.2)
+passa a **pular só a ordem do bot que perdeu a corrida**, não abortar o tick — seguro, mas isso por
+si só **não resolve a ordem pendurada furada**: ela continua em `status = pending`/
+`partially_filled` no book, com a `RemainingQuantity` original intacta (o `Persist` da tentativa
+falha faz rollback de tudo, inclusive de `fillRestingOrder`), pronta pra ser escolhida de novo no
+replay do próximo incoming order que cruzar aquele preço — e falhar de novo, pulada de novo,
+repetidamente, até o fim do dia simulado. A **O.2** abaixo (expiração no fechamento do dia) limita
+até onde essa ordem furada pode viver (nunca atravessa pro dia seguinte), mas **não impede múltiplas
+tentativas de match falhas contra ela dentro do mesmo dia** — não travou nada nos ~100 ticks
+observados (fills variaram normalmente, sem padrão de queda), mas é um desperdício de replay
+(`Execute` reconstrói o book inteiro a cada tentativa) que cresce com o volume de negociação, e
+quem pegar a Fase O deveria decidir explicitamente se isso é aceitável pro MVP ou se O.1/O.2 (ou um
+O.3 novo) devem também cancelar/marcar a ordem pendurada furada assim que ela falhar dessa forma,
+em vez de só no fechamento do dia.
+
 ### O.1 · Cancelamento manual de ordem pendente
 
 - **Descrição:** rota nova (`POST /orders/{id}/cancel` ou `DELETE /orders/{id}` — a definir na
@@ -1471,7 +1498,12 @@ scheduler próprios. Independente do núcleo de bots (Fases B-N) — só depende
   motor, mesmo padrão de trust boundary das demais rotas). `filled_quantity` já executado antes do
   cancelamento não é revertido — só a `RemainingQuantity` deixa de estar sujeita a execução futura.
   Sem reserva de saldo/posição pra liberar (decisão de escopo da A.2/`orderexecution.go`: ordem
-  pendurada nunca reservou nada), então cancelar não mexe em `accounts`/`positions`.
+  pendurada nunca reservou nada), então cancelar não mexe em `accounts`/`positions` — é exatamente
+  essa ausência de reserva que produz a ordem pendurada furada do achado confirmado ao vivo logo
+  acima (intro desta fase); um cancelamento manual (usuário percebendo que vendeu por outro canal)
+  ajudaria, mas não é a única via de detecção — considerar se o caminho automático (`Execute`/
+  `Persist`, quando o match falha por posição insuficiente do lado pendurado) também deveria
+  cancelar a ordem furada ali mesmo, em vez de só no fechamento do dia (O.2).
 - **Critérios de aceite:** teste cobrindo cancelamento de ordem `pending` e `partially_filled`
   (sucesso, status vira `cancelled`); teste confirmando rejeição (`404`/`409`, a decidir) pra ordem
   já `filled`/`cancelled` ou pertencente a outro usuário; teste de router confirmando `403`/`404`

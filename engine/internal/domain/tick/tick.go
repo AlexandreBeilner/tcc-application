@@ -102,10 +102,15 @@ type CompanyForFundamentals struct {
 // no caso comum (alvo herda a direção/magnitude do evento inteiro,
 // MacroEventForApplication.PriceEffectPct), preenchidos só quando este
 // alvo declarou direção própria (evento "misto" com sinais diferentes por
-// alvo). Consumidos por macroPriceEffectsByCompany (tarefa E.2) — nunca
-// por macroFundamentalsEffectsByCompany, que continua lendo só o valor do
-// evento (granularidade por alvo da parte de fundamentos fica fora do
-// escopo da E.2, que é só sobre o preço justo do Fundamentalista).
+// alvo). Só PriceEffectPct é de fato lido, por macroPriceEffectsByCompany
+// (tarefa E.2) — o sinal já está embutido nele desde a amostragem
+// (macroeventtrigger.sampleTargetEffects), então Direction chega até aqui
+// (lido só pelo SELECT de ListPendingMacroEvents) sem nenhum consumidor —
+// não confundir com "lido por macroPriceEffectsByCompany" (achado de
+// review: comentário anterior alegava isso, nunca foi verdade). Nenhum dos
+// dois é usado por macroFundamentalsEffectsByCompany, que continua lendo só
+// o valor do evento (granularidade por alvo da parte de fundamentos fica
+// fora do escopo da E.2, que é só sobre o preço justo do Fundamentalista).
 type MacroEventTargetForApplication struct {
 	Sector         *string
 	RiskClass      *string
@@ -446,27 +451,37 @@ func assetCompanies(assets []AssetForPricing) map[string]string {
 	return companies
 }
 
-// matchingTarget devolve (matched=true) o primeiro target de targets que
-// alcança a empresa companyID (setor, risk_class de um de seus ativos de
+// matchingTarget devolve (matched=true) o target mais específico de targets
+// que alcança a empresa companyID (setor, risk_class de um de seus ativos de
 // renda variável, ou asset_id de um ativo que ela emite, via
 // assetToCompany) — fan-out compartilhado por macroFundamentalsEffectsByCompany
 // (só precisa do bool) e macroPriceEffectsByCompany (tarefa E.2, também
 // precisa do Target em si, pra ler Direction/PriceEffectPct próprios,
-// tarefa E.1). Um evento com mais de um target batendo a mesma empresa
-// (raro — ex: setor E asset_id específico da mesma empresa) usa só o
-// primeiro match, mesmo critério que valia antes desta função existir.
+// tarefa E.1). Checagem por ordem de especificidade (asset_id > risk_class >
+// sector), não pela ordem de targets em si — ListPendingMacroEvents não
+// garante (nem deveria precisar garantir) a ordem das linhas de
+// macro_event_targets de um mesmo evento, então um override por ativo
+// específico (o caso de uso central da E.1: setor inteiro com um sinal,
+// uma empresa daquele setor com sinal próprio oposto) nunca pode depender de
+// qual target foi inserido/lido primeiro. Um evento com mais de um target
+// batendo a mesma empresa no mesmo nível de especificidade (raro) usa o
+// primeiro encontrado nesse nível.
 func matchingTarget(targets []MacroEventTargetForApplication, companyID, sector string, riskClass equity.RiskClass, assetToCompany map[string]string) (MacroEventTargetForApplication, bool) {
 	for _, t := range targets {
-		if t.Sector != nil && *t.Sector == sector {
-			return t, true
-		}
-		if t.RiskClass != nil && *t.RiskClass == string(riskClass) {
-			return t, true
-		}
 		if t.AssetID != nil {
 			if cid, ok := assetToCompany[*t.AssetID]; ok && cid == companyID {
 				return t, true
 			}
+		}
+	}
+	for _, t := range targets {
+		if t.RiskClass != nil && *t.RiskClass == string(riskClass) {
+			return t, true
+		}
+	}
+	for _, t := range targets {
+		if t.Sector != nil && *t.Sector == sector {
+			return t, true
 		}
 	}
 	return MacroEventTargetForApplication{}, false

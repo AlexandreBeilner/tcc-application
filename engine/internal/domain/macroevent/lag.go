@@ -5,8 +5,6 @@
 // imediato de preço pelos dias simulados de sua duração.
 package macroevent
 
-import "math"
-
 // ReportCutoffDays é a "janela de corte" da spec 3.3: um evento só afeta
 // o relatório mais próximo se disparado com pelo menos esse número de
 // dias simulados de antecedência do fechamento do ciclo — evita o cenário
@@ -61,20 +59,4 @@ func CombinePendingEffects(effects []float64, capPct float64) float64 {
 // tarefa 4.2).
 func IsPriceEffectActive(triggeredOnDay, durationDays, currentDay int) bool {
 	return currentDay >= triggeredOnDay && currentDay < triggeredOnDay+durationDays
-}
-
-// DailyPriceEffectMultiplier converte o efeito total de preço já
-// amostrado (totalPct, escala percentual — SamplePriceEffectPct) num
-// multiplicador diário a aplicar, uma vez por dia, sobre o preço que o
-// GBM (equity.Series/equity.NextPrice, tarefa 3.1) já gerou naquele dia —
-// empilha sobre o GBM, não o substitui. O efeito é espalhado igualmente
-// pelos durationDays dias via (1+total)^(1/duration): compor esse
-// multiplicador diário durationDays vezes reproduz exatamente 1+total no
-// preço acumulado, então nenhum dia isolado sofre o choque inteiro de uma
-// vez. Pressupõe durationDays >= 1 — sempre verdade pra qualquer Band
-// conhecida (ver DurationDays), nunca chamada fora do resultado de
-// DurationDays.
-func DailyPriceEffectMultiplier(totalPct float64, durationDays int) float64 {
-	total := totalPct / 100
-	return math.Pow(1+total, 1/float64(durationDays))
 }

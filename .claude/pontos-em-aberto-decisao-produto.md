@@ -71,6 +71,42 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   perto do teto).
 - **Status:** aberto
 
+### 004 · `macroPriceEffectsByCompany` soma sem teto pode inverter o sinal do preço justo
+
+- **Local:** `engine/internal/domain/tick/tick.go:498` (`macroPriceEffectsByCompany`), consumido em
+  `engine/internal/domain/bot/fundamentalist.go:115` (`FundamentalistFairPrice`:
+  `fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100)`)
+- **Origem:** review do PR #27 (Fase E do backlog-motor-mercado-realista), 2026-09-14/16
+- **O que é:** a tarefa E.2 (`.claude/backlog-motor-mercado-realista.md`, já ✅) documenta
+  deliberadamente que `macroPriceEffectsByCompany` soma `PriceEffectPct` **sem teto**, descrito como "a
+  mesma ausência de limite que `macroPriceMultiplier` já tinha" antes de ser removida nesta mesma
+  tarefa. Essa equivalência não é exata: o `macroPriceMultiplier` antigo empilhava
+  *multiplicativamente* (`multiplier *= (1+pct/100)^(1/duration)` por evento) — produto de fatores
+  positivos, nunca inverte de sinal não importa quantos eventos se acumulem. O novo caminho soma os
+  `PriceEffectPct` brutos (cada um até ±25%, banda severa) e só então aplica um único fator
+  `(1 + soma/100)` — se a soma de eventos concorrentes sobre a mesma empresa passar de -100% (ex: 5
+  eventos severos negativos no mesmo setor, nada no domínio impede isso hoje), o fator vira negativo e
+  `fairPrice` inverte de sinal antes do clamp em `FundamentalistMinFairPrice` (0.01). Não é um crash
+  nem um `NaN` — o piso já existente absorve o caso — mas dois cenários bem diferentes (evento
+  moderadamente stackado vs. o sinal efetivamente invertido) colapsam no mesmo preço-piso artificial,
+  perdendo a proporcionalidade que `macroFundamentalsEffectsByCompany` preserva no caminho irmão via
+  `macroevent.CombinePendingEffects`/`DefaultFundamentalsCapPct` (spec 3.3: "evita o resultado
+  didaticamente absurdo de vários eventos severos empilhados sem limite" — a mesma justificativa
+  citada por E.2 pra *não* aplicar um teto ao efeito de preço).
+- **Por que não foi corrigido:** o valor do teto (se algum) é um número de negócio sem valor confirmado
+  em nenhum documento — `DefaultFundamentalsCapPct = 40.0` é especificamente sobre fundamentos (spec
+  3.3), nunca foi proposto como valor também válido pro efeito de preço do Fundamentalista. Além disso
+  "sem teto" foi uma escolha deliberada e já registrada (não um descuido mecânico) — corrigir sem
+  confirmar com o autor seria redecidir algo já fechado (CLAUDE.md).
+- **Opções:** (a) aplicar `macroevent.CombinePendingEffects` (ou um teto novo e próprio) também a
+  `macroPriceEffectsByCompany`, alinhando de fato com o comportamento do multiplicador antigo (nunca
+  inverte sinal); (b) manter sem teto, mas documentar explicitamente que o piso
+  `FundamentalistMinFairPrice` é a proteção intencional pra esse caso (aceitar a perda de
+  proporcionalidade em eventos concorrentes extremos como já coberto, não um gap); (c) impedir múltiplos
+  eventos macro concorrentes sobre a mesma empresa/setor no disparo (`macroeventtrigger.Trigger`),
+  tornando o cenário de estouro impossível na origem em vez de tratado no consumo.
+- **Status:** aberto
+
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado

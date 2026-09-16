@@ -534,6 +534,28 @@ func (r *CatalogRepository) FindLatestFundamentals(ctx context.Context, companyI
 	return f, true, nil
 }
 
+// sqlExecer é o subconjunto de *sql.DB/*sql.Tx que insertCompanyFundamentals
+// precisa — deixa a mesma query reaproveitável fora (CreateInitialFundamentals,
+// sem transação) e dentro (TickRepository.SaveTick, tick_repository.go,
+// dentro da transação do tick) de uma transação, sem duplicar o SQL.
+type sqlExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// insertCompanyFundamentals grava uma linha nova de company_fundamentals —
+// única fonte do INSERT (mesmas 8 colunas, mesma ordem) usada tanto por
+// CreateInitialFundamentals (achado de review: estava duplicado à mão aqui e
+// em TickRepository.SaveTick, tick_repository.go) quanto pelo ciclo diário
+// de relatório do Temporizador.
+func insertCompanyFundamentals(ctx context.Context, exec sqlExecer, companyID string, periodDate time.Time, f fundamentals.Financials) error {
+	_, err := exec.ExecContext(ctx,
+		`INSERT INTO company_fundamentals (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		companyID, periodDate, f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
+	)
+	return err
+}
+
 // CreateInitialFundamentals grava a primeira linha de company_fundamentals
 // de uma empresa fora do ciclo do Temporizador (achado da sessão D.2, seed)
 // — sem isso, uma empresa recém-cadastrada cai no fallback genérico
@@ -547,12 +569,7 @@ func (r *CatalogRepository) FindLatestFundamentals(ctx context.Context, companyI
 // deste arquivo). Chame só depois de confirmar via FindLatestFundamentals
 // que a empresa ainda não tem nenhum ciclo — não é idempotente sozinha.
 func (r *CatalogRepository) CreateInitialFundamentals(ctx context.Context, companyID string, f fundamentals.Financials) error {
-	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO company_fundamentals (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		companyID, time.Now(), f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
-	)
-	return err
+	return insertCompanyFundamentals(ctx, r.db, companyID, time.Now(), f)
 }
 
 // ListDividendHistory devolve o histórico de dividend_events de assetID,

@@ -8,6 +8,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
 
@@ -270,6 +271,37 @@ func TestRunIntradayRounds_PropagaErroDeSubmit(t *testing.T) {
 	_, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Submit")
+	}
+}
+
+// TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick cobre o
+// achado do review do PR da E.2: ErrInsufficientBalance/ErrInsufficientPosition/
+// ErrFloatExceeded (orderexecution.Service.Submit, rejeição de negócio
+// normal — ex: um bot perdeu a corrida por float/liquidez pra outro bot
+// nesta mesma rodada) não podem abortar o tick inteiro como uma falha de IO
+// abortaria (TestRunIntradayRounds_PropagaErroDeSubmit acima, com um erro
+// genérico) — só a ordem daquele bot é descartada, mesmo contrato já
+// documentado pra erro de decisão (bot.ErrNoViableOrder etc.).
+func TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick(t *testing.T) {
+	for _, businessErr := range []error{
+		orderexecution.ErrInsufficientBalance,
+		orderexecution.ErrInsufficientPosition,
+		orderexecution.ErrFloatExceeded,
+	} {
+		t.Run(businessErr.Error(), func(t *testing.T) {
+			svc := newTestService(&fakeRepository{})
+			svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
+			svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+			svc.orderSubmitter = &fakeOrderSubmitter{submitErr: businessErr}
+
+			_, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+			if err != nil {
+				t.Fatalf("err = %v, want nil — rejeição de negócio só deve descartar a ordem, não abortar o tick", err)
+			}
+			if fills != 0 {
+				t.Errorf("fills = %d, want 0 — nenhuma ordem rejeitada deveria contar como fill", fills)
+			}
+		})
 	}
 }
 

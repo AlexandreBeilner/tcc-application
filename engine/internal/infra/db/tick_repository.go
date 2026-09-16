@@ -11,6 +11,7 @@ import (
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
@@ -377,12 +378,15 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 	if len(result.Fundamentals) > 0 {
 		periodDate := time.Now()
 		for _, f := range result.Fundamentals {
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO company_fundamentals
-				   (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-				f.CompanyID, periodDate, f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
-			); err != nil {
+			financials := fundamentals.Financials{
+				NetRevenue:      f.NetRevenue,
+				NetIncome:       f.NetIncome,
+				EBIT:            f.EBIT,
+				NetEquity:       f.NetEquity,
+				GrossDebt:       f.GrossDebt,
+				CashEquivalents: f.CashEquivalents,
+			}
+			if err := insertCompanyFundamentals(ctx, tx, f.CompanyID, periodDate, financials); err != nil {
 				return err
 			}
 		}

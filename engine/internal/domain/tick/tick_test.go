@@ -380,6 +380,41 @@ func TestAdvance_TargetComDirecaoPropriaSobrepoeAoValorDoEvento(t *testing.T) {
 	}
 }
 
+// TestAdvance_TargetPorAtivoSobrepoeTargetPorSetorIndependenteDaOrdem cobre
+// o achado do review do PR da E.2 (matchingTarget): um evento "misto" com um
+// target de setor inteiro e um target de ativo específico (de uma empresa
+// daquele mesmo setor) com magnitude própria oposta precisa sempre resolver
+// pro target mais específico (asset_id), não pro primeiro da lista —
+// ListPendingMacroEvents não garante ordem entre os targets de um mesmo
+// evento. Testado nas duas ordens pra provar que o resultado independe da
+// ordem do slice.
+func TestAdvance_TargetPorAtivoSobrepoeTargetPorSetorIndependenteDaOrdem(t *testing.T) {
+	riskClass := "Conservador"
+	sector := "Mineração"
+	companyID := "c1"
+	assetID := "a1"
+	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID, Sector: &sector}}
+	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: sector}}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	ownPct := -18.0
+	sectorTarget := MacroEventTargetForApplication{Sector: &sector}
+	assetTarget := MacroEventTargetForApplication{AssetID: &assetID, PriceEffectPct: &ownPct}
+
+	sectorFirst := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{sectorTarget, assetTarget})
+	assetFirst := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{assetTarget, sectorTarget})
+
+	resultSectorFirst := Advance(State{Day: 0, SelicRate: 10}, assets, companies, []MacroEventForApplication{sectorFirst}, nil, nil, cfg, 1)
+	resultAssetFirst := Advance(State{Day: 0, SelicRate: 10}, assets, companies, []MacroEventForApplication{assetFirst}, nil, nil, cfg, 1)
+
+	if got := resultSectorFirst.CompanyContext[companyID].MacroEffectPct; got != -18 {
+		t.Errorf("MacroEffectPct (setor antes do ativo na lista) = %v, want -18 (override por ativo deve vencer, não o primeiro da lista)", got)
+	}
+	if got := resultAssetFirst.CompanyContext[companyID].MacroEffectPct; got != -18 {
+		t.Errorf("MacroEffectPct (ativo antes do setor na lista) = %v, want -18", got)
+	}
+}
+
 func TestAdvance_EfeitoDeFundamentosMacroNoDiaDoRelatorio(t *testing.T) {
 	companyID := "c1"
 	riskClass := "Sofisticado"

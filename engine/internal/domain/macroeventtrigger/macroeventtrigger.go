@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"sync"
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
@@ -76,10 +77,19 @@ type Repository interface {
 	Persist(ctx context.Context, event macroevent.Event) (string, error)
 }
 
-// Service dispara um evento macro ponta a ponta (tarefa 4.4).
+// Service dispara um evento macro ponta a ponta (tarefa 4.4). rngMu guarda
+// rng — *rand.Rand não é seguro pra uso concorrente (diferente das funções
+// top-level de math/rand, que usam uma fonte com lock própria), e POST
+// /macro-events roda num handler HTTP comum: duas requisições concorrentes
+// (dois admins, ou um duplo clique) chamam Trigger em goroutines diferentes,
+// cada uma sorteando o efeito do próprio evento a partir do mesmo rng
+// (achado de review: Trigger/sampleTargetEffects chamam s.rng várias vezes
+// por disparo, sem essa trava seria uma data race real, detectável com
+// `go test -race`).
 type Service struct {
-	repo Repository
-	rng  *rand.Rand
+	repo  Repository
+	rng   *rand.Rand
+	rngMu sync.Mutex
 }
 
 // NewService monta o Service. Diferente do padrão SIMULATION_SEED usado
@@ -156,26 +166,7 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 	}
 	event.DurationDays = durationDays
 
-	if event.AffectsPrice {
-		pct, err := macroevent.SamplePriceEffectPct(event.MagnitudeBand, event.Direction, s.rng)
-		if err != nil {
-			return "", macroevent.Event{}, err
-		}
-		event.PriceEffectPct = &pct
-	}
-
-	if event.AffectsFundamentals {
-		pct, err := macroevent.SampleFundamentalsEffectPct(event.MagnitudeBand, event.Direction, s.rng)
-		if err != nil {
-			return "", macroevent.Event{}, err
-		}
-		event.FundamentalsEffectPct = &pct
-
-		reportDay := macroevent.AssignReportDay(currentDay, fundamentals.DefaultReportFrequencyDays, nextGlobalReportDay(currentDay))
-		event.FundamentalsReportDay = &reportDay
-	}
-
-	if err := sampleTargetEffects(event.Targets, event, s.rng); err != nil {
+	if err := s.sampleEffects(&event, currentDay); err != nil {
 		return "", macroevent.Event{}, err
 	}
 
@@ -184,6 +175,37 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 		return "", macroevent.Event{}, err
 	}
 	return id, event, nil
+}
+
+// sampleEffects amostra o efeito de preço/fundamentos do evento inteiro
+// (magnitude.go) e, em seguida, o efeito próprio de cada Target que
+// declarou direção própria (sampleTargetEffects, E.1) — muta event in-place.
+// Todas as chamadas de rng deste disparo ficam sob rngMu (ver doc de
+// Service), única seção de Trigger que toca s.rng.
+func (s *Service) sampleEffects(event *macroevent.Event, currentDay int) error {
+	s.rngMu.Lock()
+	defer s.rngMu.Unlock()
+
+	if event.AffectsPrice {
+		pct, err := macroevent.SamplePriceEffectPct(event.MagnitudeBand, event.Direction, s.rng)
+		if err != nil {
+			return err
+		}
+		event.PriceEffectPct = &pct
+	}
+
+	if event.AffectsFundamentals {
+		pct, err := macroevent.SampleFundamentalsEffectPct(event.MagnitudeBand, event.Direction, s.rng)
+		if err != nil {
+			return err
+		}
+		event.FundamentalsEffectPct = &pct
+
+		reportDay := macroevent.AssignReportDay(currentDay, fundamentals.DefaultReportFrequencyDays, nextGlobalReportDay(currentDay))
+		event.FundamentalsReportDay = &reportDay
+	}
+
+	return sampleTargetEffects(event.Targets, *event, s.rng)
 }
 
 // sampleTargetEffects amostra PriceEffectPct/FundamentalsEffectPct

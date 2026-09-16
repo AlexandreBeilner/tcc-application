@@ -3,6 +3,7 @@ package macroeventtrigger
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/macroevent"
@@ -379,5 +380,81 @@ func TestTrigger_ErroAoPersistirPropaga(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Persist")
+	}
+}
+
+// concurrentFakeRepository é fakeRepository com Persist seguro pra chamada
+// concorrente (mutex própria) — usado só por
+// TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng, que dispara Trigger
+// de várias goroutines ao mesmo tempo (o cenário real de dois admins, ou um
+// duplo clique, batendo em POST /macro-events quase juntos).
+type concurrentFakeRepository struct {
+	mu         sync.Mutex
+	currentDay int
+	calls      int
+}
+
+func (f *concurrentFakeRepository) LoadCurrentDay(_ context.Context) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.currentDay, nil
+}
+
+func (f *concurrentFakeRepository) Persist(_ context.Context, _ macroevent.Event) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	return "event-id", nil
+}
+
+// TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng cobre o achado do
+// review do PR da E.1/E.2: s.rng é um *rand.Rand compartilhado por todo
+// disparo (NewService), e Trigger/sampleTargetEffects passaram a chamá-lo
+// várias vezes por disparo — sem a trava (rngMu, ver doc de Service), duas
+// chamadas concorrentes de Trigger dariam uma data race real (detectável
+// com `go test -race ./...`, que este teste sozinho não liga, mas que passa
+// a não falhar mais nele depois da correção). Evento "misto" com 2 alvos de
+// direção própria maximiza quantas vezes cada goroutine toca s.rng.
+func TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng(t *testing.T) {
+	repo := &concurrentFakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionMisto
+	band := macroevent.BandSevero
+	positivo := macroevent.DirectionPositivo
+	negativo := macroevent.DirectionNegativo
+
+	req := Request{
+		Title:               ptr("evento concorrente"),
+		Narrative:           ptr("narrativa"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(true),
+		Targets: []TargetInput{
+			{Sector: ptr("Mineração"), Direction: &positivo},
+			{Sector: ptr("Tecnologia"), Direction: &negativo},
+		},
+	}
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	errs := make([]error, goroutines)
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, _, err := svc.Trigger(context.Background(), req)
+			errs[i] = err
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("goroutine %d: err = %v, want nil", i, err)
+		}
+	}
+	if repo.calls != goroutines {
+		t.Errorf("Persist calls = %d, want %d", repo.calls, goroutines)
 	}
 }

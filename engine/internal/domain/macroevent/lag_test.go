@@ -1,7 +1,6 @@
 package macroevent
 
 import (
-	"math"
 	"testing"
 )
 
@@ -90,48 +89,5 @@ func TestIsPriceEffectActive_DuracaoDeDoisDias(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("IsPriceEffectActive(%d, %d, %d) = %v, want %v", triggeredOnDay, durationDays, tt.currentDay, got, tt.want)
 		}
-	}
-}
-
-// TestDailyPriceEffectMultiplier_SerieDePrecosComposASegundaTotal cobre o
-// critério de aceite "efeito de preço multiplica o preço gerado pelo GBM
-// em cada um dos duration_days dias" — a composição diária do
-// multiplicador reproduz exatamente 1+total no preço acumulado ao fim da
-// duração, nem mais nem menos.
-func TestDailyPriceEffectMultiplier_SerieDePrecosComposASegundaTotal(t *testing.T) {
-	tests := []struct {
-		name         string
-		totalPct     float64
-		durationDays int
-	}{
-		{"efeito positivo, duração 1 dia", 5, 1},
-		{"efeito positivo, duração 3 dias", 25, 3},
-		{"efeito negativo, duração 2 dias", -12, 2},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			multiplier := DailyPriceEffectMultiplier(tt.totalPct, tt.durationDays)
-
-			gbmPrice := 100.0
-			accumulated := 1.0
-			for day := 0; day < tt.durationDays; day++ {
-				gbmPrice *= 1.02 // preço "gerado pelo GBM" naquele dia, arbitrário
-				accumulated *= multiplier
-				_ = gbmPrice
-			}
-
-			wantAccumulated := 1 + tt.totalPct/100
-			if math.Abs(accumulated-wantAccumulated) > 1e-9 {
-				t.Errorf("multiplicador composto %d vezes = %v, want %v (1 + totalPct/100)", tt.durationDays, accumulated, wantAccumulated)
-			}
-		})
-	}
-}
-
-func TestDailyPriceEffectMultiplier_SemEfeitoNaoMudaOPreco(t *testing.T) {
-	got := DailyPriceEffectMultiplier(0, 3)
-	if math.Abs(got-1) > 1e-12 {
-		t.Errorf("DailyPriceEffectMultiplier(0, 3) = %v, want 1", got)
 	}
 }
