@@ -132,6 +132,41 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 	}
 }
 
+// TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado cobre o
+// achado de review "LoadContext duplicado por decisão de bot" (Fase E do
+// backlog-motor-mercado-realista): decisionInputFor já carrega o
+// orderexecution.Context antes de bot.Decide rodar, então a primeira ordem
+// de cada bot/rodada não precisa que orderSubmitter releia o mesmo contexto
+// — só a segunda ordem em diante (ArchetypeMarketMaker, que pode decidir
+// comprar e vender na mesma rodada) precisa de fato recarregar, porque o
+// fill da primeira ordem pode ter mudado saldo/posição.
+func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillPrice: 105}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{acaoAsset("a1", 100)}
+
+	_, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	// Market Maker decide 2 ordens por rodada, 2 rodadas: a primeira ordem
+	// de cada rodada reaproveita o contexto (SubmitWithContext), a segunda
+	// recarrega (Submit).
+	if submitter.submitWithContextCalls != 2 {
+		t.Errorf("submitWithContextCalls = %d, want 2 (uma por rodada, só a primeira ordem de cada bot)", submitter.submitWithContextCalls)
+	}
+	if len(submitter.submitted) != 4 {
+		t.Fatalf("len(submitted) = %d, want 4 (2 ordens x 2 rodadas)", len(submitter.submitted))
+	}
+}
+
 func TestRunIntradayRounds_SemFillMantemPrecoAnterior(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}

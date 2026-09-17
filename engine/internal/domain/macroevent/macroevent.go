@@ -79,7 +79,8 @@ var (
 //
 // Direction é a direção própria do alvo (proposta seção 3, tarefa E.1) —
 // nil na maioria dos eventos (o alvo simplesmente herda Event.Direction,
-// via ResolvedDirection, sem UX nova no caso simples). Só é preenchido
+// sem UX nova no caso simples — nenhum dado por alvo é sorteado nesse
+// caso, ver PriceEffectPct/FundamentalsEffectPct abaixo). Só é preenchido
 // quando o admin declara um sinal específico pra este alvo dentro de um
 // evento "misto" (ex: setor Exportador positivo, Importador negativo, no
 // mesmo evento — o caso didático da spec de câmbio). PriceEffectPct/
@@ -124,19 +125,6 @@ func NewTarget(sector *catalog.Sector, riskClass *string, assetID *string, affec
 	return Target{Sector: sector, RiskClass: riskClass, AssetID: assetID, AffectedMetric: affectedMetric, Direction: direction}, nil
 }
 
-// ResolvedDirection devolve a direção efetiva do alvo pra sorteio/leitura
-// de sinal: a direção própria (t.Direction) quando declarada, senão a
-// direção do evento — é assim que um evento "não-misto" continua simples
-// (nenhum alvo declara Direction, todos resolvem pra eventDirection) e um
-// evento "misto" ganha sinais diferentes por alvo (E.1) sem precisar que
-// todo alvo declare a própria direção.
-func (t Target) ResolvedDirection(eventDirection Direction) Direction {
-	if t.Direction != nil {
-		return *t.Direction
-	}
-	return eventDirection
-}
-
 // Event é um evento macro (macro_events) — a definição do evento em si
 // (título, narrativa, direção, banda, quais efeitos habilitados, alvos)
 // mais o estado de disparo (dia simulado, duração, efeitos já amostrados).
@@ -160,6 +148,9 @@ type Event struct {
 	// 4.4), a partir do dia simulado corrente do Temporizador (3.11) e do
 	// sorteio/tabela de duração por banda de magnitude (tarefa 4.2) —
 	// ficam zero-valued/nil num Event recém-criado por NewEvent.
+	// TriggeredOnDay é o dia simulado corrente + 1 (o primeiro dia que um
+	// tick futuro de fato avalia), não o dia simulado corrente em si — ver
+	// comentário em macroeventtrigger.Service.Trigger.
 	TriggeredOnDay        int
 	DurationDays          int
 	PriceEffectPct        *float64

@@ -158,7 +158,17 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 	if err != nil {
 		return "", macroevent.Event{}, err
 	}
-	event.TriggeredOnDay = currentDay
+	// market_calendar.current_day é o último dia já simulado (tick.Advance
+	// grava newDay ali ao final de cada tick) — o próximo Advance a rodar
+	// computa newDay = currentDay+1, e nenhum tick futuro volta a avaliar
+	// currentDay. TriggeredOnDay precisa ser currentDay+1 (o primeiro dia
+	// que um tick futuro de fato avalia), não currentDay: gravar o dia já
+	// fechado faz macroevent.IsPriceEffectActive contar um dia de duração
+	// que nenhum tick nunca observa — achado de review do PR de eventos
+	// macro por alvo (E), zerava por completo o efeito de preço de todo
+	// evento BandLeve (duração 1) e cortava 1 dia do efeito de Moderado/
+	// Severo.
+	event.TriggeredOnDay = currentDay + 1
 
 	durationDays, err := macroevent.DurationDays(event.MagnitudeBand)
 	if err != nil {

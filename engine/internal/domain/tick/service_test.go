@@ -134,9 +134,23 @@ type fakeOrderSubmitter struct {
 	fillAtRequestedPrice bool
 	submitErr            error
 	submitted            []submittedOrder
+	// submitWithContextCalls conta chamadas de SubmitWithContext em vez de
+	// Submit — TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado
+	// usa pra confirmar que a primeira ordem de cada bot/rodada reaproveita o
+	// execCtx de decisionInputFor (achado de review: LoadContext duplicado).
+	submitWithContextCalls int
 }
 
 func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
+	return f.submit(req)
+}
+
+func (f *fakeOrderSubmitter) SubmitWithContext(_ context.Context, req orderexecution.Request, _ orderexecution.Context) (orderexecution.Outcome, error) {
+	f.submitWithContextCalls++
+	return f.submit(req)
+}
+
+func (f *fakeOrderSubmitter) submit(req orderexecution.Request) (orderexecution.Outcome, error) {
 	if f.submitErr != nil {
 		return orderexecution.Outcome{}, f.submitErr
 	}

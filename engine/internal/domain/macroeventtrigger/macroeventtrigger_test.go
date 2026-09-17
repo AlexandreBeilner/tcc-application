@@ -130,8 +130,10 @@ func TestTrigger_AvulsoValidoSoAfetaPreco(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	if event.TriggeredOnDay != 3 {
-		t.Errorf("TriggeredOnDay = %d, want 3", event.TriggeredOnDay)
+	// currentDay+1, não currentDay: dia 3 já foi simulado, o próximo tick
+	// a rodar computa newDay=4 — ver comentário em Service.Trigger.
+	if event.TriggeredOnDay != 4 {
+		t.Errorf("TriggeredOnDay = %d, want 4 (currentDay+1)", event.TriggeredOnDay)
 	}
 	if event.DurationDays != 2 {
 		t.Errorf("DurationDays = %d, want 2 (BandModerado)", event.DurationDays)
@@ -147,6 +149,41 @@ func TestTrigger_AvulsoValidoSoAfetaPreco(t *testing.T) {
 	}
 	if event.Status != macroevent.StatusPendente {
 		t.Errorf("Status = %v, want %v", event.Status, macroevent.StatusPendente)
+	}
+}
+
+// TestTrigger_TriggeredOnDayFicaAtivoNoProximoTick é a regressão do achado
+// de review "BandLeve nunca tem efeito de preço aplicado": TriggeredOnDay
+// precisa ser o primeiro dia que um tick futuro de fato avalia (currentDay
+// do Temporizador já é um dia fechado, nenhum tick futuro recomputa
+// currentDay) — sem o +1, macroevent.IsPriceEffectActive(triggeredOnDay,
+// durationDays=1, currentDay+1) nunca é true, e um evento BandLeve não tem
+// nenhum dia simulado em que seu efeito de preço é lido.
+func TestTrigger_TriggeredOnDayFicaAtivoNoProximoTick(t *testing.T) {
+	repo := &fakeRepository{currentDay: 5}
+	svc := NewService(repo)
+	direction := macroevent.DirectionNegativo
+	band := macroevent.BandLeve
+
+	req := Request{
+		Title:               ptr("t"),
+		Narrative:           ptr("n"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{AssetID: ptr("asset-1")}},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	nextTickDay := repo.currentDay + 1
+	if !macroevent.IsPriceEffectActive(event.TriggeredOnDay, event.DurationDays, nextTickDay) {
+		t.Errorf("IsPriceEffectActive(%d, %d, %d) = false, want true (o próximo tick a rodar depois do disparo precisa observar o efeito)",
+			event.TriggeredOnDay, event.DurationDays, nextTickDay)
 	}
 }
 

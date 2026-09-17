@@ -80,6 +80,31 @@ func TestService_Submit_ErroAoCarregarContexto(t *testing.T) {
 	}
 }
 
+// TestService_SubmitWithContext_NaoChamaLoadContext cobre o achado de review
+// "runIntradayRounds carrega o mesmo contexto duas vezes": um chamador que já
+// tem um Context válido (ex: tick.runIntradayRounds, que já leu via
+// OrderContextLoader.LoadContext pra montar a decisão do bot) usa
+// SubmitWithContext pra pular a releitura redundante — Execute/Persist
+// seguem no mesmo caminho de Submit, só o LoadContext é evitado.
+func TestService_SubmitWithContext_NaoChamaLoadContext(t *testing.T) {
+	repo := &fakeRepository{loadErr: errors.New("LoadContext não deveria ser chamado")}
+	svc := NewService(repo)
+
+	execCtx := Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
+
+	outcome, err := svc.SubmitWithContext(context.Background(), req, execCtx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil (LoadContext nunca deveria ser consultado)", err)
+	}
+	if outcome.FilledQuantity != 10 {
+		t.Errorf("FilledQuantity = %d, want 10", outcome.FilledQuantity)
+	}
+	if !repo.persistCalled {
+		t.Fatal("Persist não foi chamado pra ordem válida")
+	}
+}
+
 func TestService_Submit_ErroAoPersistir(t *testing.T) {
 	repo := &fakeRepository{
 		loadCtx:    Context{ReferencePrice: 25, IncomingUserBalance: 1000},
