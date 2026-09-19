@@ -259,3 +259,49 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   pegar a integração real de H.2/H.3 só
   precisa consumir `Details.Holdings` de `SINT11` como está hoje (já 100% real); a regra "todo ETF
   operado pelo robô nasce 100% real" vale igual pra qualquer ETF novo que o catálogo ganhar depois.
+
+### 007 · `InflationWeight`/`ipcaAccumulatedDeviation` numa escala que nunca move a Selic com desvio realista
+
+- **Local:** `engine/internal/domain/selic/copom.go:29-33` (`reactionStep`), `selic.go:20-33`
+  (`DefaultInflationWeight`)
+- **Origem:** teste de ponta a ponta da Fase I (backlog-motor-mercado-realista), 2026-09-19
+- **O que é:** `ipcaAccumulatedDeviation` é documentado e usado como decimal (`0.02` para 2 p.p.,
+  mesma convenção de `ipca.Config`), mas é somado direto contra um passo medido em pontos
+  percentuais inteiros — a mesma escala de `Config.Neutral`/`Config.Initial` (`10.0` = 10%, não
+  `0.10`; mesma convenção já usada por `fundamentals.ExpectedGrowth` ao fazer
+  `selicAnnualRate-selicNeutral` direto). Com `DefaultInflationWeight = 1.5` original ("próximo do
+  coeficiente clássico de Taylor", proposta seção 6), um desvio de IPCA de 2 p.p. — grande pros
+  padrões reais de política monetária — somava só `1.5×0.02 = 0.03` p.p., abaixo de meio passo do
+  Copom (`CopomStepIncrement/2 = 0.125`), e quantizava pra `0`. O limiar exato pra cruzar meio passo
+  era `0.0833` (8,33 p.p. de desvio acumulado) — um choque inflacionário extremo, não a faixa
+  "pequena variação em torno da meta" que `ipca.MonthlySeries` está documentado a produzir, nem a
+  faixa que a composição de 12 meses da M.1 deve produzir em uso normal. Na prática, o termo de
+  reação à inflação criado pela I.1 ficava inerte pro caso de uso real.
+- **Por que não foi corrigido na hora:** a correção dependia de escolher **um número de calibração
+  sem valor confirmado em nenhum documento** — nem a proposta (seção 6) nem o backlog (I.1) fechavam
+  se `peso_inflação` deveria operar sobre desvio em pontos percentuais (exigindo converter o desvio
+  antes de chamar `selic`) ou se o peso em si deveria ser ~100x maior pra compensar a escala decimal
+  — as duas leituras eram compatíveis com o texto ambíguo da proposta ("coeficiente ~1.5x o
+  desvio").
+- **Decisão (2026-09-19, mesma sessão, a pedido do autor):** manter `ipcaAccumulatedDeviation`
+  decimal (opção b das listadas originalmente) — trocar de convenção pra pontos percentuais mantendo
+  o peso em 1.5 foi descartado depois de simular: como o termo de inflação soma de novo a cada
+  reunião enquanto o desvio persistir (não é um nível calculado uma vez, é um incremento repetido a
+  cada `CopomMeetingIntervalDays`), a escala de pontos com peso 1.5 diverge pra valores absurdos
+  (simulado: 1 p.p. de desvio persistente levaria a Selic a +30 p.p. acima da neutra no patamar de
+  equilíbrio, dado `ReversionSpeed = 0.05`). `DefaultInflationWeight` recalibrado pra **7.5**
+  (mantendo decimal), escolhido simulando `NextCalendarRate` reunião a reunião — não só o efeito
+  isolado de uma reunião — contra `ReversionSpeed`/`CopomStepIncrement`: ignora desvio de ruído (<1
+  p.p.), reage em passos de 0,25 realistas a um desvio persistente de 2-5 p.p., e converge a um
+  patamar estável em vez de divergir. Regressão viva em
+  `TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel` (`copom_test.go`), que
+  prova as três propriedades (ruído ignorado, reação gradual, convergência) simulando 8-12 reuniões
+  seguidas — os testes de I.1 que usavam desvios artificiais de 10 p.p. só pra cruzar o
+  arredondamento (`TestNextCalendarRate_RegraDeReacaoAoDesvioDoIPCA`,
+  `TestCalendarSeries_IPCAPersistenteMoveASelicNasReuniõesSeguintes`) também foram atualizados pra
+  2 p.p., já suficiente com o novo peso. `.docs/engine/tick.md` atualizado com o novo default.
+  `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+  verdes.
+- **Status:** resolvido — nada pendente pra I.1/I.2. Quem implementar a Fase M continua precisando
+  alimentar `ipcaAccumulatedDeviation` como decimal (`IPCA_acumulado - meta_IPCA`, sem multiplicar
+  por 100), consistente com a convenção que `ipca.Config`/`ipca.MonthlySeries` já usam.

@@ -1459,7 +1459,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase I — Selic × IPCA (independente, pode rodar a qualquer momento)
 
-### I.1 · Regra de reação à inflação em `selic.Config`
+### I.1 · Regra de reação à inflação em `selic.Config` ✅
 
 - **Descrição:** `selic.NextCalendarRate`/`CalendarSeries` ganham um termo novo —
   `peso_inflação × (IPCA_acumulado − meta_IPCA)` — somado ao termo de reversão à média já
@@ -1475,8 +1475,27 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   comportamento atual (retrocompatibilidade da fórmula).
 - **Referências:** proposta seção 6.
 - **Dependências:** nenhuma.
+- **Entregável (sessão 2026-09-19):** `selic.Config.InflationWeight` (novo, `DefaultInflationWeight
+  = 1.5`, mesmo padrão de `Neutral`/`ReversionSpeed`/`Volatility`). `NextCalendarRate`/
+  `CalendarSeries` ganham um parâmetro novo pro desvio do IPCA acumulado frente à meta —
+  `ipcaAccumulatedDeviation float64` (escalar, `NextCalendarRate`) e `ipcaAccumulatedDeviations
+  []float64` (paralelo aos dias, `CalendarSeries`) — em vez de o pacote `selic` importar `ipca`
+  (domínios irmãos não se importam, `.claude/arquitetura-engine-go.md`, mesmo precedente de
+  `equity.Series` recebendo a Selic simulada como parâmetro). **Decisão de acumulação (pergunta
+  aberta no texto original da tarefa):** o cálculo do IPCA acumulado 12m fica com quem orquestra —
+  hoje ninguém, porque `ipca.MonthlySeries` ainda não tem consumidor no tick diário (achado já
+  documentado na Fase M); `tick.Advance` passa o desvio fixo em `0` (comentado no código,
+  referenciando a Fase M) até M.1 gerar+persistir a série de verdade e alimentar esse valor —
+  índice fora do slice (incluindo slice `nil`) também vale `0`, sem pânico, o mesmo tratamento
+  usado por quem ainda não tem série de IPCA disponível. Nova função interna `reactionStep`
+  (`copom.go`) unifica o cálculo do movimento bruto (reversão + inflação + ruído), compartilhada
+  por `NextCalendarRate` e `CalendarSeries` — extraída na mesma tarefa porque I.2 (quantização)
+  precisa do mesmo valor bruto nos dois pontos de entrada. `gofmt`/`go vet`/`go build`/`go test
+  ./...`/`golangci-lint run` (Docker, `golangci/golangci-lint:v2.12.2`, 0 issues) verdes. `.docs/
+  engine/tick.md` atualizado. Sem `.docs/engine/` novo nem `docker compose up` (função pura de
+  domínio, sem rota HTTP nem schema tocado — mesma nota de escopo de B.1/C.1-C.5/H.1).
 
-### I.2 · Passos discretos do Copom
+### I.2 · Passos discretos do Copom ✅
 
 - **Descrição:** o tamanho do movimento em cada reunião do Copom simulado passa a ser quantizado
   em incrementos de 0,25 p.p. (arredondando o resultado da regra de reação, I.1, pro múltiplo de
@@ -1485,6 +1504,39 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   é sempre um múltiplo de 0,25 p.p.
 - **Referências:** proposta seção 6.
 - **Dependências:** I.1.
+- **Entregável (sessão 2026-09-19, mesma sessão da I.1):** `selic.CopomStepIncrement = 0.25` +
+  `quantizeStep` (nova, `math.Round(step/CopomStepIncrement)*CopomStepIncrement`) aplicada ao
+  resultado de `reactionStep` (I.1) antes de somar à taxa corrente, nos dois pontos de entrada
+  (`NextCalendarRate`/`CalendarSeries`) — o piso de "Selic nunca negativa" continua aplicado
+  **depois** da quantização, sobre a taxa já somada (não sobre o passo em si). **Achado de sessão
+  que vale lembrar pra calibração futura (tarefa 8.1) ou pra qualquer teste novo desta regra:** com
+  `InflationWeight` no default (1.5), um desvio de IPCA pequeno (ex: 2 p.p.) quantiza pra `0` —
+  `1.5×0.02 = 0.03`, abaixo de meio passo (`0.125`) — e não move a Selic simulada sozinho numa
+  única reunião; isso é o comportamento real esperado (o Copom não muda a taxa por um desvio
+  insignificante), não um bug, mas os testes precisam de desvios grandes o bastante (usado `0.1`,
+  10 p.p.) pra cruzar o arredondamento e provar a direção do efeito de forma determinística. Teste
+  novo confere que toda mudança em dia de reunião, ao longo de 100 reuniões com ruído/inflação
+  ativos, é sempre múltiplo exato de `CopomStepIncrement` (com uma exceção documentada no próprio
+  teste: quando o piso de taxa-nunca-negativa clampa o resultado, o delta final deixa de ser um
+  múltiplo — não é uma "decisão de tamanho" do Copom, é o clamp de não-negatividade já existente
+  desde a tarefa 2.2). `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker,
+  v2.12.2, 0 issues) verdes. Mesma nota de escopo de I.1 (sem `.docs/engine/` novo, sem `docker
+  compose up`).
+- **Nota do teste de ponta a ponta (sessão 2026-09-19, mesmo dia) — achado 007, resolvido:** o
+  achado acima ("2 p.p. de IPCA não move a Selic, comportamento esperado") foi revisitado — o
+  motivo raiz não era só "o Copom ignora desvio pequeno", era uma mistura de escala entre
+  `ipcaAccumulatedDeviation` (decimal) e o passo medido em pontos percentuais inteiros: o limiar
+  real pra cruzar meio passo era **8,33 p.p.** com o peso original (1.5), bem acima de qualquer
+  desvio de IPCA realista que a composição de 12 meses da M.1 deve produzir. Registrado como achado
+  007 em `pontos-em-aberto-decisao-produto.md` e, a pedido do autor na mesma sessão,
+  **`DefaultInflationWeight` recalibrado de 1.5 pra 7.5** (mantendo `ipcaAccumulatedDeviation`
+  decimal — trocar pra escala de pontos com o mesmo peso 1.5 foi testado e diverge, ver decisão
+  completa no achado 007): agora um desvio de ruído (<1 p.p.) segue sem mover a Selic, mas um
+  desvio persistente de 2-5 p.p. reage em passos de 0,25 realistas e converge a um patamar estável.
+  Regressão viva em `TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel`
+  (`copom_test.go`). **M.1 não precisa mais resolver nada de escala** — só alimentar
+  `ipcaAccumulatedDeviation` como decimal (`IPCA_acumulado - meta_IPCA`, sem multiplicar por 100),
+  mesma convenção que `ipca.Config` já usa.
 
 ---
 
@@ -1676,13 +1728,19 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   o IPCA simulado ao longo do tempo... a decidir na sessão se isso vive em `ipca` ou é calculado
   por quem orquestra `tick`") — quem pegar M.1 ou I.1 primeiro deve conferir se a outra já
   resolveu a acumulação antes de duplicar o mecanismo (mesmo padrão de coordenação da nota 6/9).
+  **Achado 007 (`pontos-em-aberto-decisao-produto.md`, notado no teste de ponta a ponta da Fase I)
+  já resolvido — `DefaultInflationWeight` recalibrado de 1.5 pra 7.5 na própria sessão da I.1/I.2.
+  M.1 só precisa alimentar `ipcaAccumulatedDeviation` como decimal** (`IPCA_acumulado - meta_IPCA`,
+  ex: `0.02` pra 2 p.p., sem multiplicar por 100 — mesma convenção que `ipca.Config` já usa), sem
+  nenhum ajuste de escala adicional.
 - **Critérios de aceite:** depois de N dias de tick simulado, a tabela nova tem exatamente uma
   linha por dia com Selic e IPCA coerentes; teste confirmando que o IPCA acumulado em 12 meses
   bate com a composição correta dos últimos 12 valores mensais (não soma simples); teste de
   regressão confirmando que `market_calendar` (linha singleton, leitura corrente) continua
   funcionando sem mudança de contrato.
-- **Referências:** proposta seção 6; nota da tarefa I.1 sobre acumular IPCA; relatório
-  `tmp/relatorio-logica-mercado.md` (IPCA sem consumidor).
+- **Referências:** proposta seção 6; nota da tarefa I.1 sobre acumular IPCA; achado 007
+  (`pontos-em-aberto-decisao-produto.md`); relatório `tmp/relatorio-logica-mercado.md` (IPCA sem
+  consumidor).
 - **Dependências:** nenhuma (mas ver nota de coordenação com I.1 acima).
 
 ### M.2 · Endpoint HTTP de série histórica (engine)
