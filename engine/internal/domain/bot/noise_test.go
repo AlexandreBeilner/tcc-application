@@ -135,22 +135,58 @@ func TestDecideNoiseOrder_ErroPrecoDeReferenciaInvalido(t *testing.T) {
 }
 
 // TestDecideNoiseOrder_QuantidadeDeCompraNuncaExcedeOFloat cobre o achado
-// 005 (pontos-em-aberto-decisao-produto.md): caixa muito maior que o float
-// do ativo não pode gerar uma ordem de compra maior que floatCeiling — sem
-// esse teto, availableCash/price sozinho produzia quantidades maiores que
-// 100% das ações/cotas em circulação, nunca preenchíveis.
+// 005 (pontos-em-aberto-decisao-produto.md): caixa muito maior que o teto
+// de tamanho de ordem não pode gerar uma ordem de compra maior que
+// orderSizeCeiling — sem esse teto, availableCash/price sozinho produzia
+// quantidades maiores que 100% das ações/cotas em circulação, nunca
+// preenchíveis.
 func TestDecideNoiseOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
-	floatCeiling := int64(1_000_000)
+	orderSizeCeiling := int64(1_000_000)
 	for seed := int64(0); seed < 50; seed++ {
-		got, err := DecideNoiseOrder(134.65, 104_866_356_108.88, 0, seed, &floatCeiling)
+		got, err := DecideNoiseOrder(134.65, 104_866_356_108.88, 0, seed, &orderSizeCeiling)
 		if err != nil {
 			t.Fatalf("seed %d: err = %v, want nil", seed, err)
 		}
 		if got.Side != orderbook.SideBuy {
 			t.Fatalf("seed %d: Side = %v, want buy (sem posição, sem lado de venda possível)", seed, got.Side)
 		}
-		if got.Quantity > int(floatCeiling) {
-			t.Fatalf("seed %d: Quantity = %d, want <= floatCeiling (%d)", seed, got.Quantity, floatCeiling)
+		if got.Quantity > int(orderSizeCeiling) {
+			t.Fatalf("seed %d: Quantity = %d, want <= orderSizeCeiling (%d)", seed, got.Quantity, orderSizeCeiling)
 		}
+	}
+}
+
+// TestDecideNoiseOrder_TetoZeraQuantidadeCompravelNuncaPanicaEVaiPraVenda
+// cobre um bug latente exposto pela correção do achado 005 parte B: um
+// orderSizeCeiling pequeno o bastante (ex: 20% de um volume médio recente
+// baixo) pode zerar a quantidade comprável (capToFloat devolvendo 0) —
+// antes desta correção, canBuy só olhava availableCash/price, então o bot
+// achava que podia comprar, chegava em `1 + rng.Intn(maxQuantity)` com
+// maxQuantity == 0 e `rand.Intn(0)` panicava (runtime: "invalid argument to
+// Intn"), derrubando o tick inteiro. Com posição >= 1, o bot deve preferir
+// vender em vez de panicar quando o lado de compra não é viável.
+func TestDecideNoiseOrder_TetoZeraQuantidadeCompravelNuncaPanicaEVaiPraVenda(t *testing.T) {
+	ceiling := int64(0)
+	for seed := int64(0); seed < 50; seed++ {
+		got, err := DecideNoiseOrder(134.65, 104_866_356_108.88, 10_000, seed, &ceiling)
+		if err != nil {
+			t.Fatalf("seed %d: err = %v, want nil (posição disponível pra vender)", seed, err)
+		}
+		if got.Side != orderbook.SideSell {
+			t.Fatalf("seed %d: Side = %v, want sell (compra inviável por causa do teto zerado)", seed, got.Side)
+		}
+	}
+}
+
+// TestDecideNoiseOrder_TetoZeraQuantidadeCompravelSemPosicaoDevolveErro é o
+// mesmo cenário acima, mas sem posição nenhuma pra vender: nem compra
+// (teto zerado) nem venda (sem posição) são viáveis, então o bot não gera
+// ordem nenhuma nessa rodada — nunca um panic, nunca uma ordem de
+// quantidade zero.
+func TestDecideNoiseOrder_TetoZeraQuantidadeCompravelSemPosicaoDevolveErro(t *testing.T) {
+	ceiling := int64(0)
+	_, err := DecideNoiseOrder(134.65, 104_866_356_108.88, 0, 1, &ceiling)
+	if !errors.Is(err, ErrNoViableOrder) {
+		t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 	}
 }

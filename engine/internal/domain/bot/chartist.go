@@ -50,10 +50,10 @@ var (
 // duplicar a lógica de sizing por lado). Devolve ErrNoViableOrder quando a
 // tendência aponta um lado (compra ou venda) mas o bot não tem recurso
 // nenhum pra esse lado — diferente de ErrNoClearTrend, que é sobre a
-// ausência de sinal, não de recurso. floatCeiling repassado direto a
+// ausência de sinal, não de recurso. orderSizeCeiling repassado direto a
 // quantityForSide (capToFloat, marketmaker.go — achado 005,
-// pontos-em-aberto-decisao-produto.md); nil pra ativo sem float finito.
-func DecideChartistOrder(personality Personality, priceHistory []float64, availableCash float64, currentPosition int, floatCeiling *int64) (Decision, error) {
+// pontos-em-aberto-decisao-produto.md); nil quando nenhum teto se aplica.
+func DecideChartistOrder(personality Personality, priceHistory []float64, availableCash float64, currentPosition int, orderSizeCeiling *int64) (Decision, error) {
 	if personality.Archetype != ArchetypeChartista {
 		return Decision{}, ErrWrongArchetype
 	}
@@ -79,7 +79,7 @@ func DecideChartistOrder(personality Personality, priceHistory []float64, availa
 		return Decision{}, ErrNoClearTrend
 	}
 
-	quantity, err := quantityForSide(side, last, availableCash, currentPosition, personality.RiskProfile.MaxPositionSizePct, floatCeiling)
+	quantity, err := quantityForSide(side, last, availableCash, currentPosition, personality.RiskProfile.MaxPositionSizePct, orderSizeCeiling)
 	if err != nil {
 		return Decision{}, err
 	}

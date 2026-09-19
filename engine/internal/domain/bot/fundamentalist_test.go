@@ -161,8 +161,8 @@ func TestDecideFundamentalistOrder_DirecaoConformeAoDesvio(t *testing.T) {
 // TestDecideFundamentalistOrder_QuantidadeDeCompraNuncaExcedeOFloat cobre
 // o achado 005 (pontos-em-aberto-decisao-produto.md), via quantityForSide
 // (marketmaker.go, compartilhada com Chartista) — caixa muito maior que o
-// float do ativo não pode gerar uma ordem de compra maior que
-// floatCeiling.
+// teto de tamanho de ordem não pode gerar uma ordem de compra maior que
+// orderSizeCeiling.
 func TestDecideFundamentalistOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
 	financials, outstandingShares := financialsFixture()
 	const growthRate = 0.03
@@ -174,11 +174,11 @@ func TestDecideFundamentalistOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testin
 	}
 
 	personality := mustFundamentalistPersonality(t, 1.0, 0.9) // fração alta, pra não mascarar o teto
-	floatCeiling := int64(1_000_000)
+	orderSizeCeiling := int64(1_000_000)
 
 	got, err := DecideFundamentalistOrder(
 		personality, financials, outstandingShares, growthRate, 0, fairPrice*0.5, selicNeutral, selicNeutral,
-		equity.RiskClassConservador, 104_866_356_108.88, 0, 1, &floatCeiling,
+		equity.RiskClassConservador, 104_866_356_108.88, 0, 1, &orderSizeCeiling,
 	)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
@@ -186,8 +186,8 @@ func TestDecideFundamentalistOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testin
 	if got.Side != orderbook.SideBuy {
 		t.Fatalf("Side = %v, want buy (mercado abaixo do preço justo)", got.Side)
 	}
-	if got.Quantity > int(floatCeiling) {
-		t.Fatalf("Quantity = %d, want <= floatCeiling (%d)", got.Quantity, floatCeiling)
+	if got.Quantity > int(orderSizeCeiling) {
+		t.Fatalf("Quantity = %d, want <= orderSizeCeiling (%d)", got.Quantity, orderSizeCeiling)
 	}
 }
 

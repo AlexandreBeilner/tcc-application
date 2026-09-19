@@ -20,6 +20,11 @@ type Request struct {
 	Type     orderbook.Type
 	Price    float64 // ignorado por ordens a mercado
 	Quantity int
+	// SimulatedDay é preenchido por SubmitWithContext a partir de
+	// Context.SimulatedDay (achado 005 parte A) — quem monta um Request não
+	// precisa saber o dia simulado corrente, só Persist precisa dele pra
+	// gravar order_book.simulated_day.
+	SimulatedDay int
 }
 
 // Repository é o colaborador que Service precisa pra ler o contexto de
@@ -76,6 +81,13 @@ func (s *Service) Submit(ctx context.Context, req Request) (Outcome, error) {
 // mesma rodada pode ter saldo/posição diferentes por causa do fill da
 // primeira, e precisa voltar a usar Submit (recarrega fresco).
 func (s *Service) SubmitWithContext(ctx context.Context, req Request, execCtx Context) (Outcome, error) {
+	// SimulatedDay sempre vem do Context recém-carregado, nunca do que o
+	// chamador já tinha em req (achado 005 parte A) — LoadContext é a única
+	// fonte confiável do dia simulado corrente (market_calendar), tanto pra
+	// ordem humana (POST /orders, via Submit) quanto pra ordem de bot
+	// (rounds.go, que já leu esse mesmo Context antes de decidir).
+	req.SimulatedDay = execCtx.SimulatedDay
+
 	incoming := orderbook.Order{
 		ID:       incomingOrderID,
 		UserID:   req.UserID,

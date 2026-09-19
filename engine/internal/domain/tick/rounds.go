@@ -25,6 +25,24 @@ import (
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 )
 
+// MaxOrderPctOfAverageVolumePct (achado 005 parte B, pontos-em-aberto-
+// decisao-produto.md) é a fração do volume médio negociado recente
+// (RecentTradedVolume, janela de ChartistPriceHistoryDays dias — mesma
+// janela do Chartista, sem introduzir uma constante nova só pra dividir o
+// conceito) que uma única ordem de compra pode representar — substitui
+// "100% do float" como único teto de tamanho de ordem: 100% do float
+// sozinho era um teto gigante, sem relação com o que o mercado de fato
+// absorve num dia (a causa raiz de ordens de bot nunca preenchíveis
+// travando o preço de fechamento por dias/semanas simulados). Valor
+// ilustrativo desta sessão, mesma nota de "sujeito à calibração da tarefa
+// 8.1" já dada a outros coeficientes do motor (NoisePriceBandPct,
+// ChartistTrendThresholdPct etc.) — a causa raiz de fundo (caixa de bot
+// ordens de grandeza maior que qualquer float individual) fica deferida
+// pra Fase K (calibração com dados reais B3/CVM), decisão confirmada com o
+// autor: este teto já torna qualquer ordem matematicamente impossível de
+// exceder o que o mercado suporta, independente do caixa do bot.
+const MaxOrderPctOfAverageVolumePct = 0.20
+
 // ChartistPriceHistoryDays é o tamanho da janela de fechamentos diários
 // (asset_quotes) que o arquétipo Chartista usa pra avaliar tendência
 // (bot.DecideChartistOrder) — a proposta 2.4/C.4 não fixa "quantos dias",
@@ -71,6 +89,16 @@ type PriceHistoryReader interface {
 	RecentClosingPrices(ctx context.Context, assetID string, days int) ([]float64, error)
 }
 
+// TradedVolumeReader lê o volume total negociado nos últimos dias
+// (asset_quotes.total_quantity, achado 005 parte B) de um ativo, em ordem
+// cronológica — insumo do teto de tamanho de ordem por volume médio
+// recente (effectiveOrderSizeCeiling), mesmo contrato de
+// PriceHistoryReader.RecentClosingPrices (devolve menos que `days` sem erro
+// quando não há histórico suficiente). Implementado por *db.TickRepository.
+type TradedVolumeReader interface {
+	RecentTradedVolume(ctx context.Context, assetID string, days int) ([]int, error)
+}
+
 // OrderContextLoader é o "peek" de saldo/posição/float finito que a coleta
 // de decisão de bot precisa antes de decidir uma ordem — mesmo LoadContext
 // que orderexecution.Repository já expõe (implementado pelo mesmo
@@ -97,6 +125,27 @@ type OrderContextLoader interface {
 type OrderSubmitter interface {
 	Submit(ctx context.Context, req orderexecution.Request) (orderexecution.Outcome, error)
 	SubmitWithContext(ctx context.Context, req orderexecution.Request, execCtx orderexecution.Context) (orderexecution.Outcome, error)
+}
+
+// OrderLifecycleManager agrupa as duas operações de ciclo de vida de ordem
+// do achado 005 parte A (pontos-em-aberto-decisao-produto.md) que tocam
+// order_book fora do caminho normal de matching (orderexecution.Execute):
+// expirar ordens obsoletas entre dias simulados e cancelar a cotação
+// anterior de um Market Maker antes de recotar dentro do mesmo dia.
+// Implementado por *db.OrderExecutionRepository (mesma tabela order_book
+// que OrderContextLoader/OrderSubmitter já tocam).
+type OrderLifecycleManager interface {
+	// ExpireStaleOrders cancela toda ordem pending/partially_filled de um
+	// dia simulado anterior a currentSimulatedDay — chamado por
+	// Service.Run (service.go) antes de runIntradayRounds do dia novo, não
+	// por runIntradayRounds em si. Devolve quantas ordens expiraram, só
+	// pra observabilidade (Result.ExpiredOrdersCount).
+	ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error)
+	// CancelUserRestingOrders cancela toda ordem pending/partially_filled
+	// de userID em assetID — chamado por runIntradayRounds logo antes de
+	// um bot ArchetypeMarketMaker recotar, pra nunca acumular mais de 1
+	// ordem de compra + 1 de venda pendente por ativo (achado 005 A.4).
+	CancelUserRestingOrders(ctx context.Context, userID, assetID string) error
 }
 
 // businessRejection reporta se err é uma rejeição de negócio normal de
@@ -203,6 +252,33 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 	return ok
 }
 
+// effectiveOrderSizeCeiling combina o float finito do ativo (floatCeiling,
+// execCtx.OutstandingShares) com o teto de volume médio negociado recente
+// (MaxOrderPctOfAverageVolumePct × média de recentVolume, achado 005 parte
+// B) — devolve o menor dos dois quando ambos existem. Sem histórico de
+// volume ainda (recentVolume vazio — ativo novo, RecentTradedVolume nunca
+// achou nenhuma linha) cai pro float sozinho, nunca bloqueia a negociação
+// por falta de dado, só fica mais permissivo até o histórico se formar;
+// float nil (ex: sandbox) com histórico de volume disponível usa o teto de
+// volume sozinho; os dois nil/vazios devolve nil (nenhum teto se aplica).
+func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
+	if len(recentVolume) == 0 {
+		return floatCeiling
+	}
+
+	var sum int
+	for _, v := range recentVolume {
+		sum += v
+	}
+	avgVolume := float64(sum) / float64(len(recentVolume))
+	volumeCeiling := int64(avgVolume * MaxOrderPctOfAverageVolumePct)
+
+	if floatCeiling == nil || volumeCeiling < *floatCeiling {
+		return &volumeCeiling
+	}
+	return floatCeiling
+}
+
 // decisionInputFor monta o bot.DecisionInput de um bot pro ativo escolhido
 // nesta rodada — campos comuns aos 4 arquétipos vêm de state/execCtx/Selic;
 // PriceHistory (Chartista) e Financials/GrowthRate/OutstandingShares
@@ -222,8 +298,19 @@ func (s *Service) decisionInputFor(
 	selicRate, selicNeutral float64,
 	seed int64,
 	priceHistoryCache map[string][]float64,
+	volumeCache map[string][]int,
 	assetID string,
 ) (bot.DecisionInput, bool, error) {
+	recentVolume, cached := volumeCache[assetID]
+	if !cached {
+		var err error
+		recentVolume, err = s.tradedVolume.RecentTradedVolume(ctx, assetID, ChartistPriceHistoryDays)
+		if err != nil {
+			return bot.DecisionInput{}, false, err
+		}
+		volumeCache[assetID] = recentVolume
+	}
+
 	input := bot.DecisionInput{
 		ReferencePrice:  state.Price,
 		AvailableCash:   execCtx.IncomingUserBalance,
@@ -242,14 +329,18 @@ func (s *Service) decisionInputFor(
 		SelicNeutral:    selicNeutral / 100,
 		RiskClass:       state.RiskClass,
 		Seed:            seed,
-		// FloatCeiling vem do mesmo execCtx.OutstandingShares que o case
-		// ArchetypeFundamentalista abaixo já exige pra VPA — aqui repassado
-		// pros 4 arquétipos (bot.capToFloat), não só o Fundamentalista,
-		// achado 005 (pontos-em-aberto-decisao-produto.md): sem isso, o
-		// caixa acumulado de um bot podia gerar uma ordem de compra maior
-		// que o float inteiro do ativo, nunca preenchível, travando o
-		// preço de fechamento no mesmo valor por dias/semanas simulados.
-		FloatCeiling: execCtx.OutstandingShares,
+		// OrderSizeCeiling (achado 005 partes A/B, pontos-em-aberto-
+		// decisao-produto.md) combina o float finito do ativo
+		// (execCtx.OutstandingShares, que o case ArchetypeFundamentalista
+		// abaixo também exige pra VPA) com o volume médio negociado recente
+		// — repassado pros 4 arquétipos (bot.capToFloat), não só o
+		// Fundamentalista: sem nenhum teto, o caixa acumulado de um bot
+		// podia gerar uma ordem de compra maior que 100% do float, nunca
+		// preenchível; só com o float como teto, uma ordem ainda podia ser
+		// gigante demais pro que o mercado de fato absorve num dia — os
+		// dois travavam o preço de fechamento no mesmo valor por dias/
+		// semanas simulados.
+		OrderSizeCeiling: effectiveOrderSizeCeiling(execCtx.OutstandingShares, recentVolume),
 	}
 
 	switch personality.Archetype {
@@ -305,10 +396,11 @@ func (s *Service) decisionInputFor(
 // padrão de qualquer outra leitura de Run.
 //
 // Devolve o preço de fechamento (última negociação real de todo o dia,
-// nenhuma se nada negociou) de cada Ação/FII negociável — vazio se não há
-// nenhum dos dois no catálogo ainda (Fase H, quando ETF entrar aqui, vai
-// alimentar o mesmo mecanismo) — e quantos fills reais aconteceram no
-// total, só pra observabilidade (ver tickResponse, httpserver/admin.go).
+// nenhuma se nada negociou) e o total negociado (achado 005 parte B) de
+// cada Ação/FII negociável — vazios se não há nenhum dos dois no catálogo
+// ainda (Fase H, quando ETF entrar aqui, vai alimentar o mesmo mecanismo) —
+// e quantos fills reais aconteceram no total, só pra observabilidade (ver
+// tickResponse, httpserver/admin.go).
 func (s *Service) runIntradayRounds(
 	ctx context.Context,
 	dayIndex int,
@@ -316,19 +408,21 @@ func (s *Service) runIntradayRounds(
 	assets []AssetForPricing,
 	companyContext map[string]CompanyRoundContext,
 	selicRate, selicNeutral float64,
-) (map[string]float64, int, error) {
+) (map[string]float64, map[string]int, int, error) {
 	equities, universe := buildEquityUniverse(assets)
 	if len(universe) == 0 || len(rounds) == 0 {
-		return nil, 0, nil
+		return nil, nil, 0, nil
 	}
 
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 	sort.Slice(roster, func(i, j int) bool { return roster[i].UserID < roster[j].UserID })
 
 	priceHistoryCache := make(map[string][]float64)
+	volumeCache := make(map[string][]int)
+	volumeByAssetID := make(map[string]int)
 	fillsExecuted := 0
 
 	for _, round := range rounds {
@@ -344,15 +438,29 @@ func (s *Service) runIntradayRounds(
 				continue
 			}
 
+			// Achado 005 parte A.4: um Market Maker nunca deixa a própria
+			// cotação da rodada anterior pendurada — cancela antes de
+			// recotar o mesmo (bot, ativo), incondicionalmente (mesmo que
+			// bot.Decide abaixo não gere nenhuma ordem nova nesta rodada,
+			// ex: sem caixa nem posição). Os outros 3 arquétipos colocam
+			// uma ordem oportunista por sinal, não uma cotação contínua —
+			// não cancelar a deles entre rodadas é comportamento correto,
+			// não um gap.
+			if b.Personality.Archetype == bot.ArchetypeMarketMaker {
+				if err := s.orderLifecycle.CancelUserRestingOrders(ctx, b.UserID, chosen.AssetID); err != nil {
+					return nil, nil, fillsExecuted, err
+				}
+			}
+
 			execCtx, err := s.orderContext.LoadContext(ctx, chosen.AssetID, b.UserID)
 			if err != nil {
-				return nil, fillsExecuted, err
+				return nil, nil, fillsExecuted, err
 			}
 
 			decisionSeed := roundSeed(s.seed, dayIndex, round.SequenceIndex, b.UserID, "decision")
-			input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, companyContext, selicRate, selicNeutral, decisionSeed, priceHistoryCache, chosen.AssetID)
+			input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, companyContext, selicRate, selicNeutral, decisionSeed, priceHistoryCache, volumeCache, chosen.AssetID)
 			if err != nil {
-				return nil, fillsExecuted, err
+				return nil, nil, fillsExecuted, err
 			}
 			if !ok {
 				continue
@@ -391,9 +499,10 @@ func (s *Service) runIntradayRounds(
 					if businessRejection(err) {
 						continue
 					}
-					return nil, fillsExecuted, err
+					return nil, nil, fillsExecuted, err
 				}
 				fillsExecuted += len(outcome.Fills)
+				volumeByAssetID[chosen.AssetID] += outcome.FilledQuantity
 				if len(outcome.Fills) > 0 {
 					state.Price = outcome.Fills[len(outcome.Fills)-1].Price
 				}
@@ -405,5 +514,5 @@ func (s *Service) runIntradayRounds(
 	for assetID, state := range equities {
 		closingPrices[assetID] = state.Price
 	}
-	return closingPrices, fillsExecuted, nil
+	return closingPrices, volumeByAssetID, fillsExecuted, nil
 }

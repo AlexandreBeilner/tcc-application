@@ -167,6 +167,14 @@ type FundamentalsRecord struct {
 type Quote struct {
 	AssetID string
 	Price   float64
+	// Quantity (achado 005 parte B) é o total negociado de assetID neste
+	// dia simulado, somando todo fill real das rodadas de bot
+	// (runIntradayRounds) — 0 pra ativo que não negociou (ou que ainda está
+	// no caminho de GBM, ex: ETF). Persistido em asset_quotes.total_quantity
+	// (SaveTick), insumo de RecentTradedVolume, que alimenta o teto de
+	// tamanho de ordem por volume médio recente (decisionInputFor,
+	// rounds.go).
+	Quantity int
 }
 
 // PositionHolder é a posição de um usuário num ativo pagador de provento,
@@ -329,6 +337,13 @@ type Result struct {
 	// si já estão em order_book/market_events (Event Sourcing),
 	// reconstituíveis sem precisar deste contador.
 	IntradayFillsCount int
+	// ExpiredOrdersCount (achado 005 parte A.3) é quantas ordens
+	// pendentes/parciais de um dia simulado anterior foram canceladas por
+	// OrderLifecycleManager.ExpireStaleOrders antes das rodadas deste tick
+	// rodarem — sempre 0 vindo de Advance (Advance não toca order_book, é
+	// puro); Service.Run preenche depois, só pra observabilidade (mesmo
+	// padrão de IntradayFillsCount, ver tickResponse, httpserver/admin.go).
+	ExpiredOrdersCount int
 }
 
 // Repository é o colaborador que Advance precisa pra ler o último estado

@@ -227,17 +227,17 @@ func TestCapToFloat(t *testing.T) {
 // fechamento no mesmo valor por dias/semanas simulados.
 func TestDecideMarketMakerOrders_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.02, 0.9) // fração alta, pra não mascarar o teto
-	floatCeiling := int64(1_000_000)
+	orderSizeCeiling := int64(1_000_000)
 
-	decisions, err := DecideMarketMakerOrders(personality, 134.65, 104_866_356_108.88, 0, &floatCeiling)
+	decisions, err := DecideMarketMakerOrders(personality, 134.65, 104_866_356_108.88, 0, &orderSizeCeiling)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	if len(decisions) != 1 || decisions[0].Side != orderbook.SideBuy {
 		t.Fatalf("decisions = %+v, want 1 decisão de compra (sem posição, sem lado de venda)", decisions)
 	}
-	if decisions[0].Quantity > int(floatCeiling) {
-		t.Fatalf("Quantity = %d, want <= floatCeiling (%d)", decisions[0].Quantity, floatCeiling)
+	if decisions[0].Quantity > int(orderSizeCeiling) {
+		t.Fatalf("Quantity = %d, want <= orderSizeCeiling (%d)", decisions[0].Quantity, orderSizeCeiling)
 	}
 }
 

@@ -44,6 +44,11 @@ type tickResponse struct {
 	// sem depender deste contador. 0 quando o catálogo ainda não tem nenhuma
 	// Ação (Fases G/H vão estender o mesmo mecanismo pra FII/ETF).
 	BotFillsCount int `json:"bot_fills_count"`
+	// ExpiredOrdersCount (achado 005 parte A.3) é quantas ordens
+	// pendentes/parciais de um dia simulado anterior foram canceladas antes
+	// das rodadas deste tick rodarem — só observabilidade, mesma natureza
+	// de BotFillsCount.
+	ExpiredOrdersCount int `json:"expired_orders_count"`
 }
 
 // handleAdminTick serve POST /admin/tick — força um tick fora do
@@ -72,6 +77,7 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 			DividendsGeneratedCount: len(result.NewDividends),
 			DividendsPaidCount:      len(result.DuePayments),
 			BotFillsCount:           result.IntradayFillsCount,
+			ExpiredOrdersCount:      result.ExpiredOrdersCount,
 		})
 	}
 }

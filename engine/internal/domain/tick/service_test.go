@@ -113,6 +113,55 @@ func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ strin
 	}, nil
 }
 
+// fakeTradedVolumeReader (achado 005 parte B) — mesmo padrão de
+// fakePriceHistoryReader: zero value (volumes nil) faz effectiveOrderSizeCeiling
+// cair pro float sozinho (sem histórico de volume ainda), preservando o
+// comportamento que todo teste anterior à parte B já esperava.
+type fakeTradedVolumeReader struct {
+	volumes map[string][]int
+	readErr error
+}
+
+func (f *fakeTradedVolumeReader) RecentTradedVolume(_ context.Context, assetID string, _ int) ([]int, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	return f.volumes[assetID], nil
+}
+
+// fakeOrderLifecycleManager (achado 005 partes A.3/A.4) — conta chamadas de
+// ExpireStaleOrders (com o currentSimulatedDay recebido, pra confirmar que
+// Service.Run passa dayIndex) e de CancelUserRestingOrders por (userID,
+// assetID), sem nenhum estado real de order_book (esse mecanismo só é
+// validado ponta a ponta via docker compose — mesma convenção já usada por
+// todo outro método de infra deste pacote, nenhum tem teste de adapter
+// contra Postgres real).
+type fakeOrderLifecycleManager struct {
+	expireCount int
+	expireErr   error
+	expireCalls []int
+	cancelErr   error
+	cancelCalls []cancelUserRestingOrdersCall
+}
+
+type cancelUserRestingOrdersCall struct {
+	userID  string
+	assetID string
+}
+
+func (f *fakeOrderLifecycleManager) ExpireStaleOrders(_ context.Context, currentSimulatedDay int) (int, error) {
+	f.expireCalls = append(f.expireCalls, currentSimulatedDay)
+	if f.expireErr != nil {
+		return 0, f.expireErr
+	}
+	return f.expireCount, nil
+}
+
+func (f *fakeOrderLifecycleManager) CancelUserRestingOrders(_ context.Context, userID, assetID string) error {
+	f.cancelCalls = append(f.cancelCalls, cancelUserRestingOrdersCall{userID: userID, assetID: assetID})
+	return f.cancelErr
+}
+
 type submittedOrder struct {
 	req orderexecution.Request
 }
@@ -176,7 +225,7 @@ func (f *fakeOrderSubmitter) submit(req orderexecution.Request) (orderexecution.
 // testes de Advance/calendário/fundamentos/dividendos já cobriam antes desta
 // tarefa.
 func newTestService(repo Repository) *Service {
-	return NewService(repo, &fakeBotRoster{}, &fakePriceHistoryReader{}, &fakeOrderContextLoader{}, &fakeOrderSubmitter{}, testSelicConfigService(), 1)
+	return NewService(repo, &fakeBotRoster{}, &fakePriceHistoryReader{}, &fakeTradedVolumeReader{}, &fakeOrderContextLoader{}, &fakeOrderSubmitter{}, &fakeOrderLifecycleManager{}, testSelicConfigService(), 1)
 }
 
 func TestService_Run_PrimeiraExecucaoComecaNoDia1(t *testing.T) {
@@ -334,6 +383,42 @@ func TestService_Run_PropagaErroDeSaveTick(t *testing.T) {
 
 	if _, err := svc.Run(context.Background()); err == nil {
 		t.Fatal("Run() err = nil, want erro propagado de SaveTick")
+	}
+}
+
+// TestService_Run_ExpiraOrdensObsoletasAntesDasRodadas cobre o achado 005
+// parte A.3: Service.Run chama ExpireStaleOrders com currentSimulatedDay =
+// dayIndex (= result.State.Day - 1 = current.Day, o mesmo dia que toda
+// ordem nova deste tick carimba — ver doc de OrderLifecycleManager,
+// rounds.go) antes de runIntradayRounds, e propaga a contagem devolvida
+// pra Result.ExpiredOrdersCount, só pra observabilidade.
+func TestService_Run_ExpiraOrdensObsoletasAntesDasRodadas(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 10}, stateFound: true}
+	svc := newTestService(repo)
+	lifecycle := &fakeOrderLifecycleManager{expireCount: 3}
+	svc.orderLifecycle = lifecycle
+
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+	if len(lifecycle.expireCalls) != 1 || lifecycle.expireCalls[0] != 20 {
+		t.Fatalf("expireCalls = %v, want [20] (dayIndex = newDay(21) - 1)", lifecycle.expireCalls)
+	}
+	if result.ExpiredOrdersCount != 3 {
+		t.Errorf("ExpiredOrdersCount = %d, want 3", result.ExpiredOrdersCount)
+	}
+	if repo.savedResult.ExpiredOrdersCount != 3 {
+		t.Errorf("SaveTick recebeu ExpiredOrdersCount = %d, want 3", repo.savedResult.ExpiredOrdersCount)
+	}
+}
+
+func TestService_Run_PropagaErroDeExpireStaleOrders(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.orderLifecycle = &fakeOrderLifecycleManager{expireErr: errors.New("falha de conexão")}
+
+	if _, err := svc.Run(context.Background()); err == nil {
+		t.Fatal("Run() err = nil, want erro propagado de ExpireStaleOrders")
 	}
 }
 

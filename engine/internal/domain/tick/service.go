@@ -26,8 +26,10 @@ type Service struct {
 	repo           Repository
 	bots           BotRoster
 	priceHistory   PriceHistoryReader
+	tradedVolume   TradedVolumeReader
 	orderContext   OrderContextLoader
 	orderSubmitter OrderSubmitter
+	orderLifecycle OrderLifecycleManager
 	selicCfg       selic.Config
 	seed           int64
 	mu             sync.Mutex
@@ -38,18 +40,22 @@ type Service struct {
 // ReversionSpeed, Volatility) calibram a reversão à média da Selic
 // simulada, mesma calibração de selic.DefaultConfig. seed é a seed base da
 // simulação (RNF08) — fixa entre reinícios, configurada uma vez na
-// composição (cmd/api/main.go). bots/priceHistory/orderContext/orderSubmitter
-// (Fase D.2, rounds.go) alimentam runIntradayRounds — concretamente
-// *db.BotRepository, *db.TickRepository, *db.OrderExecutionRepository e
-// *orderexecution.Service (o mesmo já usado por POST /orders, sem caminho
-// paralelo pra ordem de bot).
-func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader, orderContext OrderContextLoader, orderSubmitter OrderSubmitter, selicCfg selic.Config, seed int64) *Service {
+// composição (cmd/api/main.go). bots/priceHistory/tradedVolume/orderContext/
+// orderSubmitter/orderLifecycle (Fase D.2/achado 005, rounds.go) alimentam
+// runIntradayRounds/Run — concretamente *db.BotRepository, *db.TickRepository
+// (repassado duas vezes: PriceHistoryReader e TradedVolumeReader),
+// *db.OrderExecutionRepository (repassado duas vezes: OrderContextLoader e
+// OrderLifecycleManager) e *orderexecution.Service (submissão — o mesmo já
+// usado por POST /orders, sem caminho paralelo pra ordem de bot).
+func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader, tradedVolume TradedVolumeReader, orderContext OrderContextLoader, orderSubmitter OrderSubmitter, orderLifecycle OrderLifecycleManager, selicCfg selic.Config, seed int64) *Service {
 	return &Service{
 		repo:           repo,
 		bots:           bots,
 		priceHistory:   priceHistory,
+		tradedVolume:   tradedVolume,
 		orderContext:   orderContext,
 		orderSubmitter: orderSubmitter,
+		orderLifecycle: orderLifecycle,
 		selicCfg:       selicCfg,
 		seed:           seed,
 	}
@@ -99,7 +105,22 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.seed)
 
 	dayIndex := result.State.Day - 1 // 0-based, mesma convenção de Advance
-	closingPrices, fillsExecuted, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
+
+	// Achado 005 parte A.3: expira ordens obsoletas (pending/partially_filled
+	// de um dia simulado anterior) antes de rodar as rodadas do dia novo —
+	// nenhuma ordem de um dia anterior chega a competir pela liquidez de
+	// hoje. currentSimulatedDay = dayIndex porque market_calendar.current_day
+	// ainda não foi atualizado por SaveTick neste ponto: seu valor de agora
+	// é exatamente current.Day, que é igual a dayIndex por construção
+	// (dayIndex = result.State.Day - 1 = (current.Day+1) - 1 = current.Day)
+	// — o mesmo dia que toda ordem nova (humana ou de bot) submetida durante
+	// este tick carimba via orderexecution.Context.SimulatedDay.
+	expiredOrdersCount, err := s.orderLifecycle.ExpireStaleOrders(ctx, dayIndex)
+	if err != nil {
+		return Result{}, err
+	}
+
+	closingPrices, volumeByAssetID, fillsExecuted, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
 	if err != nil {
 		return Result{}, err
 	}
@@ -112,9 +133,10 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 	sort.Strings(closingAssetIDs)
 	for _, assetID := range closingAssetIDs {
-		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: closingPrices[assetID]})
+		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: closingPrices[assetID], Quantity: volumeByAssetID[assetID]})
 	}
 	result.IntradayFillsCount = fillsExecuted
+	result.ExpiredOrdersCount = expiredOrdersCount
 
 	if err := s.repo.SaveTick(ctx, result); err != nil {
 		return Result{}, err

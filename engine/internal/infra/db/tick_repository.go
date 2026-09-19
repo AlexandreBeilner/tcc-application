@@ -118,6 +118,46 @@ func (r *TickRepository) RecentClosingPrices(ctx context.Context, assetID string
 	return prices, rows.Err()
 }
 
+// RecentTradedVolume lê o `total_quantity` (achado 005 parte B) dos
+// últimos `days` dias simulados (asset_quotes) de assetID, em ordem
+// cronológica (mais antigo primeiro) — insumo do teto de tamanho de ordem
+// por volume médio recente (tick.effectiveOrderSizeCeiling, rounds.go).
+// Mesmo contrato de RecentClosingPrices: devolve menos de `days` valores
+// (ou nenhum) sem erro quando o ativo ainda não acumulou histórico
+// suficiente. `total_quantity IS NOT NULL` exclui dia simulado anterior à
+// migration 000017 (coluna nullable, sem DEFAULT, de propósito — ver
+// comentário da migration): sem esse filtro, um ativo já em produção antes
+// desta correção teria dias "zerados por desconhecimento" contados como
+// "volume real zero", zerando o teto de tamanho de ordem pra sempre (achado
+// do teste de ponta a ponta desta correção) em vez de cair pro float
+// sozinho, como um ativo novo sem histórico nenhum.
+func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string, days int) ([]int, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT total_quantity FROM (
+		   SELECT total_quantity, simulated_day FROM asset_quotes
+		   WHERE asset_id = $1 AND total_quantity IS NOT NULL
+		   ORDER BY simulated_day DESC
+		   LIMIT $2
+		 ) recent
+		 ORDER BY simulated_day ASC`,
+		assetID, days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var volumes []int
+	for rows.Next() {
+		var quantity int
+		if err := rows.Scan(&quantity); err != nil {
+			return nil, err
+		}
+		volumes = append(volumes, quantity)
+	}
+	return volumes, rows.Err()
+}
+
 // ListCompaniesForFundamentals devolve toda empresa cadastrada com sua
 // última net_revenue conhecida (company_fundamentals, via LEFT JOIN LATERAL
 // ordenado por period_date), usado por Advance (tarefa 3.14) pra decidir o
@@ -341,8 +381,10 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 }
 
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
-// as cotações geradas e as novas linhas de company_fundamentals (tarefa
-// 3.14, os 6 campos desde a tarefa 4.8), na mesma transação — nem
+// as cotações geradas (Quote.Quantity vira asset_quotes.total_quantity,
+// achado 005 parte B — insumo de RecentTradedVolume) e as novas linhas de
+// company_fundamentals (tarefa 3.14, os 6 campos desde a tarefa 4.8), na
+// mesma transação — nem
 // calendário, cotações nem fundamentos são escrita de saldo/posição de
 // usuário, por isso não passa por Event Sourcing (mesma distinção de
 // catalog_repository.go pra dado cadastral). period_date usa o relógio
@@ -373,8 +415,8 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 
 	for _, q := range result.Quotes {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO asset_quotes (asset_id, simulated_day, price) VALUES ($1, $2, $3)`,
-			q.AssetID, result.State.Day, q.Price,
+			`INSERT INTO asset_quotes (asset_id, simulated_day, price, total_quantity) VALUES ($1, $2, $3, $4)`,
+			q.AssetID, result.State.Day, q.Price, q.Quantity,
 		); err != nil {
 			return err
 		}

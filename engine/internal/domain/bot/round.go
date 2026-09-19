@@ -127,15 +127,18 @@ type DecisionInput struct {
 	SelicNeutral    float64
 	RiskClass       equity.RiskClass
 	Seed            int64
-	// FloatCeiling é o mesmo orderexecution.Context.OutstandingShares —
-	// nil pra ativo sem float finito (ex: sandbox). Repassado aos 4
-	// arquétipos (capToFloat, marketmaker.go) pra nenhum gerar uma ordem
-	// de compra maior que 100% do float do ativo (achado 005,
-	// pontos-em-aberto-decisao-produto.md, auditoria de ponta a ponta da
-	// Fase G, 2026-09-19) — sem este teto, o caixa acumulado de um bot ao
-	// longo de muitos ciclos gerava ordens nunca preenchíveis que travavam
-	// o preço de fechamento no mesmo valor por dias/semanas simulados.
-	FloatCeiling *int64
+	// OrderSizeCeiling (achado 005, pontos-em-aberto-decisao-produto.md) é
+	// o teto de tamanho de ordem de compra repassado aos 4 arquétipos
+	// (capToFloat, marketmaker.go) — nil quando nenhum teto se aplica (ex:
+	// sandbox). Composto por tick.decisionInputFor como o menor entre o
+	// float finito do ativo (o antigo FloatCeiling, sozinho até a correção
+	// de 2026-09-19: sem ele, o caixa acumulado de um bot ao longo de
+	// muitos ciclos gerava ordens de compra maiores que 100% do float,
+	// nunca preenchíveis) e o volume médio negociado recente (parte B da
+	// mesma correção: 100% do float ainda era um teto gigante, sem relação
+	// com o que o mercado de fato absorve) — nenhum dos 4 arquétipos
+	// precisa saber de onde o teto veio, só que não pode ser excedido.
+	OrderSizeCeiling *int64
 }
 
 // Decide despacha pra função de decisão do arquétipo de personality
@@ -152,15 +155,15 @@ type DecisionInput struct {
 func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 	switch personality.Archetype {
 	case ArchetypeRuido:
-		d, err := DecideNoiseOrder(input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed, input.FloatCeiling)
+		d, err := DecideNoiseOrder(input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed, input.OrderSizeCeiling)
 		if err != nil {
 			return nil, err
 		}
 		return []Decision{d}, nil
 	case ArchetypeMarketMaker:
-		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.FloatCeiling)
+		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
 	case ArchetypeChartista:
-		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition, input.FloatCeiling)
+		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +172,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		d, err := DecideFundamentalistOrder(
 			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct,
 			input.ReferencePrice, input.SelicAnnualRate, input.SelicNeutral, input.RiskClass,
-			input.AvailableCash, input.CurrentPosition, input.Seed, input.FloatCeiling,
+			input.AvailableCash, input.CurrentPosition, input.Seed, input.OrderSizeCeiling,
 		)
 		if err != nil {
 			return nil, err

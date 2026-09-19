@@ -196,20 +196,20 @@ func TestDecideChartistOrder_ErroArquetipoErrado(t *testing.T) {
 // TestDecideChartistOrder_QuantidadeDeCompraNuncaExcedeOFloat cobre o
 // achado 005 (pontos-em-aberto-decisao-produto.md), via quantityForSide
 // (marketmaker.go, compartilhada com Fundamentalista) — caixa muito maior
-// que o float do ativo não pode gerar uma ordem de compra maior que
-// floatCeiling.
+// que o teto de tamanho de ordem não pode gerar uma ordem de compra maior
+// que orderSizeCeiling.
 func TestDecideChartistOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
 	personality := mustChartistPersonality(t, 0.9) // fração alta, pra não mascarar o teto
-	floatCeiling := int64(1_000_000)
+	orderSizeCeiling := int64(1_000_000)
 
-	got, err := DecideChartistOrder(personality, []float64{10, 10.5, 11, 11.5, 12}, 104_866_356_108.88, 0, &floatCeiling)
+	got, err := DecideChartistOrder(personality, []float64{10, 10.5, 11, 11.5, 12}, 104_866_356_108.88, 0, &orderSizeCeiling)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	if got.Side != orderbook.SideBuy {
 		t.Fatalf("Side = %v, want buy (tendência de alta)", got.Side)
 	}
-	if got.Quantity > int(floatCeiling) {
-		t.Fatalf("Quantity = %d, want <= floatCeiling (%d)", got.Quantity, floatCeiling)
+	if got.Quantity > int(orderSizeCeiling) {
+		t.Fatalf("Quantity = %d, want <= orderSizeCeiling (%d)", got.Quantity, orderSizeCeiling)
 	}
 }
