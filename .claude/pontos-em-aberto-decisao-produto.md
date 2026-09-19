@@ -202,3 +202,60 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   bug do `total_quantity`/`DEFAULT 0` descrito na Parte B acima — sem essa correção, o ambiente real
   ficava com o lado de compra travado em zero permanentemente a partir do primeiro tick pós-migration
   (comportamento observado e revertido nesta mesma validação, antes de fechar o achado).
+
+### 006 · Peso de `Holding` real não soma 100% sozinho quando a cesta do ETF tem constituinte cosmético
+
+- **Local:** `engine/internal/domain/etf/rebalance.go` (`RebalanceOrders`, consumida por
+  `DecideAuthorizedParticipantAction`), em conjunto com `engine/internal/domain/etf/etf.go`
+  (`Holding.WeightPct`) e `engine/internal/domain/etf/basket.go` (`ConstituentsFromHoldings`)
+- **Origem:** teste de ponta a ponta da Fase H (branch `fase-h-etfs-nav-rebalanceamento-ap`),
+  2026-09-19 — achado de teste ativo que combinou as peças de H.1-H.4 como a integração real vai
+  precisar fazer (nenhum teste existente até aqui exercitava H.1/H.2/H.4 juntos). Regressão viva em
+  `engine/internal/domain/etf/basket_test.go:TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConstituinteCosmetico`.
+- **O que era:** `etf.NewDetails` exige que a soma de `WeightPct` de **todos** os holdings
+  (cosméticos + reais) fique dentro de `WeightTolerance` de 100%. `ConstituentsFromHoldings` (H.4)
+  filtra pra só enxergar holding com `AssetID` preenchido — é assim que H.1 (NAV) soma corretamente
+  só os constituintes reais. Mas `RebalanceOrders` (H.2, também consumida por
+  `DecideAuthorizedParticipantAction`/H.3) exige a **mesma** validação de soma-100% sobre
+  `TargetWeightPct` — alimentar `RebalanceConstituent.TargetWeightPct` direto do `WeightPct` dos
+  holdings reais de `Details.Holdings` (o caminho óbvio) faz a soma ficar abaixo de 100% por
+  exatamente o peso cosmético excluído, rejeitando com `ErrWeightsDoNotSumTo100`.
+- **Decisão (2026-09-19):** a dúvida real por trás do achado — "o que o peso cosmético representa
+  de fato?" — se resolveu ao confirmar um ponto de produto que já estava certo na spec (3.6:
+  "composição... derivada da carteira teórica do **índice simulado**") mas não estava claro pra quem
+  revisou: a plataforma **não** replica a composição de um índice real (Ibovespa/B3) — o
+  `BenchmarkIndex`/nome do índice é só rótulo de exibição pra familiaridade pedagógica; a cesta é um
+  índice lógico **inteiramente nosso**, construído só com ativos do nosso próprio catálogo simulado.
+  Não existe, portanto, nenhum motivo de produto pra um ETF ter uma fatia "fora do catálogo" que o
+  robô mecânico não consegue enxergar — confirma a **opção (c)** das listadas originalmente: **todo
+  ETF elegível pro robô mecânico (NAV/rebalanceamento/Participante Autorizado) precisa ter a cesta
+  100% em holdings reais (`AssetID` preenchido em todas as linhas), sem constituinte cosmético.** O
+  papel cosmético de `Holding.AssetID = nil` (H.4) continua existindo no domínio — não foi removido,
+  nem devia ser: um ETF puramente ilustrativo/decorativo (não operado pelo robô) ainda pode usá-lo —
+  só deixou de ser uma opção válida pra qualquer ETF que participe de rebalanceamento/arbitragem de
+  verdade.
+- **É regra de dado, e o único dado que existia foi corrigido na mesma sessão:** nenhuma validação
+  nova foi adicionada em `etf.NewDetails`/`RebalanceOrders` (a função não sabe, e não deveria saber,
+  se quem a chama pretende usar um dado ETF com o robô mecânico — isso é decisão de quem monta o
+  catálogo, não do domínio `etf`; a própria `RebalanceOrders` já recusa sozinha se um holding
+  cosmético vazar pra lá, funcionando como guarda-corpo). O ETF de exemplo do seed
+  (`cmd/seed/main.go:seedETF`, `SINT11`) — único ETF que existe hoje, e candidato natural a ganhar o
+  robô mecânico quando H.2/H.3 forem integrados — foi re-autorado nesta mesma sessão: as 2 empresas
+  fictícias + a linha "Outros" (100% cosmético) viraram 100% holdings reais (`VALR3` 50%/`TJLO11`
+  35%/`LFT2029` 15%, mesma combinação Ação/FII/renda fixa já validada ao vivo em H.4).
+  `main()` precisou reordenar a chamada de `seedETF` pra depois de `VALR3`/`TJLO11`/`LFT2029` já
+  seedados (a cesta referencia `asset_id` real, então a ordem importa agora) — nova função auxiliar
+  `mustFindAssetID` resolve cada ticker. Validado primeiro contra um Postgres descartável (container
+  `postgres:16-alpine` avulso, sem tocar o volume de dev persistente): migrations + seed rodaram
+  limpo do zero, `etf_holdings` confirmado com as 3 linhas reais somando 100%, reexecução do seed
+  idempotente (`SINT11 já existe — pulando`). **Depois, a pedido do autor, a mesma correção foi
+  aplicada no volume de dev persistente também** (não só em bancos novos): confirmado que `SINT11`
+  não tinha nenhuma posição/ordem real referenciando o ativo (só cotação histórica de `asset_quotes`,
+  intocada), então a cesta antiga foi substituída pela real via `DELETE`+`INSERT` direto em
+  `etf_holdings` (mesmo resultado que `seedETF` produziria, sem apagar `assets`/`etf_details`/
+  cotações) — `GET /assets/:id` real contra o motor rodando confirmou a resposta certa depois da
+  troca, sem erro de serialização.
+- **Status:** resolvido e implementado, inclusive no dado de dev existente — nada pendente. Quem
+  pegar a integração real de H.2/H.3 só
+  precisa consumir `Details.Holdings` de `SINT11` como está hoje (já 100% real); a regra "todo ETF
+  operado pelo robô nasce 100% real" vale igual pra qualquer ETF novo que o catálogo ganhar depois.

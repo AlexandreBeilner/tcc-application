@@ -1424,6 +1424,37 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   do schema. Estado revertido ao final (holdings de teste removidos, pesos originais restaurados) e
   stack parada com `docker compose down`.
 
+  **Addendum — teste de ponta a ponta da Fase H inteira (sessão separada, 2026-09-19):** achou e
+  corrigiu, mecanicamente, um gap que a validação acima não cobria — nada impedia um ETF de
+  referenciar a si mesmo como constituinte da própria cesta (`etf_holdings.asset_id =
+  etf_holdings.etf_asset_id`), o que faria H.1 (NAV) somar o valor do próprio ETF como parte do
+  patrimônio que sustenta seu próprio preço. Migration `000019_etf_holdings_no_self_reference`
+  (`CHECK (asset_id IS NULL OR asset_id <> etf_asset_id)`) fecha isso — validado ao vivo (inserção de
+  auto-referência rejeitada pela CHECK nova; cesta mista real de H.4 e cascade de FK revalidados sem
+  regressão). Achou também um segundo gap, este de decisão de produto (registrado e **já resolvido**
+  como achado 006 em `pontos-em-aberto-decisao-produto.md`, seção "Resolvidos"): `RebalanceOrders`/
+  H.2/H.3 exigem que `TargetWeightPct` some ~100%, mas os pesos reais de `Details.Holdings` sozinhos
+  (excluindo cosmético) somam menos que isso sempre que a cesta documentada tem uma linha cosmética
+  com peso não-trivial. **Decisão do autor:** como a plataforma nunca replicou a composição de um
+  índice real (spec 3.6 já falava em "índice simulado" — `BenchmarkIndex` é só rótulo de exibição),
+  não há motivo de produto pra um ETF operado pelo robô mecânico ter fatia cosmética — todo ETF
+  elegível pra H.2/H.3 precisa nascer com cesta 100% real (todo `Holding` com `AssetID` preenchido);
+  o constituinte cosmético (`AssetID = nil`, H.4) continua existindo no domínio só pra ETF puramente
+  ilustrativo, nunca operado pelo robô. Regra de **dado/catálogo**, não mudança de código em `etf` —
+  mas o único dado existente (`SINT11`, `cmd/seed/main.go:seedETF`) já foi corrigido na mesma sessão:
+  as 2 empresas fictícias + "Outros" (100% cosmético) viraram 100% holdings reais (`VALR3` 50%/
+  `TJLO11` 35%/`LFT2029` 15%), com `seedETF` reordenada em `main()` pra rodar só depois dos 3
+  constituintes já seedados. Validado primeiro contra um Postgres descartável (não o volume de dev):
+  migration + seed do zero, `etf_holdings` com as 3 linhas reais somando 100%, reexecução idempotente.
+  **A pedido do autor, o volume de dev persistente também foi corrigido** (não só bancos novos
+  criados a partir daqui): `SINT11` não tinha posição/ordem real referenciando o ativo (só cotação
+  histórica de `asset_quotes`, intocada), então a cesta antiga foi substituída pela real via
+  `DELETE`+`INSERT` direto em `etf_holdings` (mesmo resultado que `seedETF` produz), sem apagar
+  `assets`/`etf_details`/cotações — `GET /assets/:id` contra o motor rodando confirmou a resposta
+  certa depois da troca. Regressão viva em `basket_test.go`
+  (`TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConstituinteCosmetico`)
+  continua útil como documentação do porquê da regra existe.
+
 ---
 
 ## Fase I — Selic × IPCA (independente, pode rodar a qualquer momento)

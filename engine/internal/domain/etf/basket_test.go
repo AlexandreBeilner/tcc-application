@@ -84,3 +84,50 @@ func TestConstituentsFromHoldings_PrecoAusente(t *testing.T) {
 		t.Errorf("err = %v, want ErrMissingConstituentPrice", err)
 	}
 }
+
+// TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConstituinteCosmetico
+// documenta um gap de integração encontrado no teste de ponta a ponta da
+// Fase H (achado 006, pontos-em-aberto-decisao-produto.md): Holding.WeightPct
+// soma ~100% contando o(s) constituinte(s) cosmético(s) (etf.NewDetails
+// exige isso), mas RebalanceOrders (H.2) só enxerga holding com AssetID
+// preenchido — se uma sessão futura de integração alimentar
+// RebalanceConstituent.TargetWeightPct direto com o WeightPct de
+// Details.Holdings (ignorando os cosméticos, mesmo filtro de
+// ConstituentsFromHoldings), a soma dos pesos reais fica abaixo de 100% por
+// exatamente o peso cosmético excluído, e RebalanceOrders rejeita com
+// ErrWeightsDoNotSumTo100. Este teste não prova um bug do código desta
+// sessão (H.2/H.3 não têm esse consumidor ainda, achado 006 documenta a
+// pendência) — é uma trava viva: se a normalização de peso for esquecida
+// quando esse wiring for escrito, este teste já mostra o erro esperado no
+// próprio pacote de domínio, sem precisar chegar a um `docker compose up`
+// pra descobrir.
+func TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConstituinteCosmetico(t *testing.T) {
+	details, err := NewDetails("Índice Misto", "", []Holding{
+		{ConstituentName: "VALR3", AssetID: assetID("valr3"), WeightPct: 50},
+		{ConstituentName: "TJLO11", AssetID: assetID("tjlo11"), WeightPct: 45},
+		// Constituinte cosmético: participa da soma de 100% em NewDetails,
+		// mas não tem AssetID — não é utilizável pelo bot mecânico.
+		{ConstituentName: "Outros (fora do catálogo)", WeightPct: 5},
+	})
+	if err != nil {
+		t.Fatalf("NewDetails err = %v, want nil", err)
+	}
+
+	var reconciliation []RebalanceConstituent
+	for _, h := range details.Holdings {
+		if h.AssetID == nil {
+			continue
+		}
+		reconciliation = append(reconciliation, RebalanceConstituent{
+			AssetID:         *h.AssetID,
+			CurrentQuantity: 0,
+			Price:           10,
+			TargetWeightPct: h.WeightPct, // ingenuamente não renormalizado
+		})
+	}
+
+	_, err = RebalanceOrders(reconciliation, 0, 0)
+	if !errors.Is(err, ErrWeightsDoNotSumTo100) {
+		t.Errorf("err = %v, want ErrWeightsDoNotSumTo100 (soma real = 95%%, peso cosmético de 5%% não renormalizado — ver achado 006)", err)
+	}
+}
