@@ -141,8 +141,8 @@ func (r *CatalogRepository) CreateETFDetails(ctx context.Context, assetID string
 
 	for _, h := range details.Holdings {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO etf_holdings (etf_asset_id, constituent_name, weight_pct) VALUES ($1, $2, $3)`,
-			assetID, h.ConstituentName, h.WeightPct,
+			`INSERT INTO etf_holdings (etf_asset_id, constituent_name, asset_id, weight_pct) VALUES ($1, $2, $3, $4)`,
+			assetID, h.ConstituentName, h.AssetID, h.WeightPct,
 		); err != nil {
 			return err
 		}
@@ -272,7 +272,7 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 	}
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT constituent_name, weight_pct FROM etf_holdings WHERE etf_asset_id = $1 ORDER BY weight_pct DESC`, assetID,
+		`SELECT constituent_name, asset_id, weight_pct FROM etf_holdings WHERE etf_asset_id = $1 ORDER BY weight_pct DESC`, assetID,
 	)
 	if err != nil {
 		return etf.Details{}, false, err
@@ -282,8 +282,12 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 	var holdings []etf.Holding
 	for rows.Next() {
 		var h etf.Holding
-		if err := rows.Scan(&h.ConstituentName, &h.WeightPct); err != nil {
+		var holdingAssetID sql.NullString
+		if err := rows.Scan(&h.ConstituentName, &holdingAssetID, &h.WeightPct); err != nil {
 			return etf.Details{}, false, err
+		}
+		if holdingAssetID.Valid {
+			h.AssetID = &holdingAssetID.String
 		}
 		holdings = append(holdings, h)
 	}

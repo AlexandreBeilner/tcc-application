@@ -1,0 +1,18 @@
+-- Tarefa H.4 (backlog-motor-mercado-realista.md, proposta 5.5): etf_holdings
+-- nasceu (000001) só como constituinte cosmético (constituent_name +
+-- weight_pct, sem ligação com o catálogo real) pra alimentar a tela de
+-- detalhe de ativo (RF21). Agora pode também referenciar um asset_id real
+-- de qualquer classe do catálogo — Ação, FII, ETF ou instrumento de renda
+-- fixa (assets.id é a tabela guarda-chuva de todas), o que torna o holding
+-- utilizável pelo cálculo de NAV (H.1) e pelo bot mecânico
+-- (rebalanceamento H.2, Participante Autorizado H.3), não só pela tela.
+--
+-- NULLABLE de propósito, sem backfill: um holding sem asset_id continua
+-- válido — constituinte puramente cosmético (ex: nome de referência do
+-- índice real que o ETF replica, mas que não existe no catálogo simulado
+-- desta plataforma) — etf.NewDetails (H.4) já reflete essa regra no
+-- domínio: holdings sem AssetID entram na tela, nunca no NAV/rebalanceamento
+-- real. ON DELETE CASCADE: se o ativo referenciado for removido do
+-- catálogo, o holding que o referencia não faz mais sentido como linha
+-- própria (mesmo padrão de FK já usado por etf_holdings.etf_asset_id).
+ALTER TABLE etf_holdings ADD COLUMN asset_id uuid REFERENCES assets(id) ON DELETE CASCADE;
