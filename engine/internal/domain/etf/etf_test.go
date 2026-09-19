@@ -99,3 +99,58 @@ func TestNewDetails_SemHoldings(t *testing.T) {
 		t.Errorf("err = %v, want ErrNoHoldings", err)
 	}
 }
+
+func assetID(id string) *string { return &id }
+
+func TestNewDetails_CestaMistaComEHoldingsSemAssetID(t *testing.T) {
+	holdings := []Holding{
+		{ConstituentName: "VALR3", AssetID: assetID("ativo-acao"), WeightPct: 40},
+		{ConstituentName: "TJLO11", AssetID: assetID("ativo-fii"), WeightPct: 35},
+		// Constituinte cosmético (H.4): sem asset_id, continua válido —
+		// entra na tela de detalhe, nunca no NAV/rebalanceamento real.
+		{ConstituentName: "Outros", WeightPct: 25},
+	}
+
+	got, err := NewDetails("Índice Misto", "", holdings)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(got.Holdings) != 3 {
+		t.Errorf("len(Holdings) = %d, want 3", len(got.Holdings))
+	}
+}
+
+func TestNewDetails_AssetIDVazioRejeitado(t *testing.T) {
+	empty := ""
+	holdings := []Holding{
+		{ConstituentName: "X", AssetID: &empty, WeightPct: 100},
+	}
+
+	_, err := NewDetails("IBOVESPA", "", holdings)
+	if !errors.Is(err, ErrEmptyHoldingAssetID) {
+		t.Errorf("err = %v, want ErrEmptyHoldingAssetID", err)
+	}
+}
+
+func TestNewDetails_AssetIDDuplicadoRejeitado(t *testing.T) {
+	holdings := []Holding{
+		{ConstituentName: "VALR3 (linha 1)", AssetID: assetID("ativo-acao"), WeightPct: 50},
+		{ConstituentName: "VALR3 (linha 2)", AssetID: assetID("ativo-acao"), WeightPct: 50},
+	}
+
+	_, err := NewDetails("IBOVESPA", "", holdings)
+	if !errors.Is(err, ErrDuplicateHoldingAssetID) {
+		t.Errorf("err = %v, want ErrDuplicateHoldingAssetID", err)
+	}
+}
+
+func TestNewDetails_VariosHoldingsSemAssetIDNaoContamComoDuplicata(t *testing.T) {
+	holdings := []Holding{
+		{ConstituentName: "Outros 1", WeightPct: 50},
+		{ConstituentName: "Outros 2", WeightPct: 50},
+	}
+
+	if _, err := NewDetails("IBOVESPA", "", holdings); err != nil {
+		t.Errorf("err = %v, want nil (dois holdings sem asset_id não são duplicata entre si)", err)
+	}
+}

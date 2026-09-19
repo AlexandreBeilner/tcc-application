@@ -1,0 +1,1 @@
+ALTER TABLE etf_holdings DROP CONSTRAINT etf_holdings_no_self_reference_chk;

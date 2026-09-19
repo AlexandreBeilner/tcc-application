@@ -59,7 +59,6 @@ func main() {
 	seedInitialFundamentals(ctx, repo, mineradora, valr3OutstandingShares)
 	seedInitialFundamentals(ctx, repo, banco, bndd4OutstandingShares)
 
-	seedETF(ctx, repo)
 	tjlo11ID := seedFIITijolo(ctx, repo)
 	papl11ID := seedFIIPapel(ctx, repo)
 
@@ -72,6 +71,10 @@ func main() {
 	seedBotPersonalities(ctx, botRepo)
 
 	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 10.50, 30.00, false)
+	// seedETF só pode rodar daqui em diante: sua cesta (achado 006,
+	// pontos-em-aberto-decisao-produto.md) referencia VALR3/TJLO11/LFT2029
+	// reais, então os 3 precisam já existir no catálogo.
+	seedETF(ctx, repo)
 	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75, 30.00, false)
 	seedFixedIncome(ctx, repo, "NTNB2035", "Tesouro IPCA+ 2035", fixedincome.ProductTesouroIPCA, "", 6.00, 30.00, false)
 	seedFixedIncome(ctx, repo, "CDB2027", "CDB Banco Invest 2027", fixedincome.ProductCDB, "", 12.00, 100.00, false)
@@ -183,6 +186,19 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 	log.Printf("fundamentos iniciais da empresa %s criados (net_revenue=%.2f)", companyID, financials.NetRevenue)
 }
 
+// seedETF monta a cesta 100% em ativos reais do catálogo — decisão do
+// achado 006 (pontos-em-aberto-decisao-produto.md, resolvido em
+// 2026-09-19): a plataforma nunca pretendeu replicar a composição de um
+// índice real (spec 3.6 já falava em "índice simulado" — o nome do índice
+// abaixo é só rótulo de exibição pra familiaridade pedagógica, nunca uma
+// promessa de bater com a composição real do Ibovespa), então não há razão
+// de produto pra manter constituinte cosmético (`Holding.AssetID = nil`)
+// no único ETF do seed: ele é o candidato natural a ganhar o robô mecânico
+// (rebalanceamento H.2/Participante Autorizado H.3) quando essa integração
+// for escrita, e `RebalanceOrders`/`DecideAuthorizedParticipantAction` só
+// enxergam holding com AssetID preenchido. Precisa rodar depois de
+// VALR3/TJLO11/LFT2029 já seedados (ver ordem em main()) — mesma
+// combinação Ação/FII/renda fixa validada ao vivo na sessão de H.4.
 func seedETF(ctx context.Context, repo *db.CatalogRepository) {
 	const ticker = "SINT11"
 	id, existed := ensureAsset(ctx, repo, ticker, "ETF Índice Sintético", catalog.AssetETF, nil, false)
@@ -199,9 +215,9 @@ func seedETF(ctx context.Context, repo *db.CatalogRepository) {
 	}
 
 	details, err := etf.NewDetails("Ibovespa", "Replicação sintética por amostragem representativa do índice.", []etf.Holding{
-		{ConstituentName: "Mineradora Vale do Rio S.A.", WeightPct: 40},
-		{ConstituentName: "Banco Nordeste Digital S.A.", WeightPct: 35},
-		{ConstituentName: "Outros", WeightPct: 25},
+		{ConstituentName: "Mineradora Vale do Rio ON (VALR3)", AssetID: mustFindAssetID(ctx, repo, "VALR3"), WeightPct: 50},
+		{ConstituentName: "FII Tijolo Corporativo (TJLO11)", AssetID: mustFindAssetID(ctx, repo, "TJLO11"), WeightPct: 35},
+		{ConstituentName: "Tesouro Selic 2029 (LFT2029)", AssetID: mustFindAssetID(ctx, repo, "LFT2029"), WeightPct: 15},
 	})
 	if err != nil {
 		log.Fatalf("etf_details inválido pra %s: %v", ticker, err)
@@ -209,6 +225,22 @@ func seedETF(ctx context.Context, repo *db.CatalogRepository) {
 	if err := repo.CreateETFDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar etf_details pra %s: %v", ticker, err)
 	}
+}
+
+// mustFindAssetID resolve o asset_id de um ticker já seedado — usado por
+// seedETF pra montar a cesta 100% real do achado 006. Falha alto
+// (log.Fatalf) se o ticker ainda não existir, porque isso só pode
+// significar que seedETF foi movida pra antes do constituinte que ela
+// referencia (ver comentário de ordem em main()).
+func mustFindAssetID(ctx context.Context, repo *db.CatalogRepository, ticker string) *string {
+	id, found, err := repo.FindAssetByTicker(ctx, ticker)
+	if err != nil {
+		log.Fatalf("erro ao buscar ativo %s pra cesta do ETF: %v", ticker, err)
+	}
+	if !found {
+		log.Fatalf("ativo %s não encontrado — seedETF precisa rodar depois dele ser seedado", ticker)
+	}
+	return &id
 }
 
 // fiiOutstandingShares (cotas em circulação) — sem fórmula de geração ainda

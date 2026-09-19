@@ -1229,7 +1229,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase H — ETFs: NAV + Participante Autorizado + rebalanceamento
 
-### H.1 · NAV / iNAV
+### H.1 · NAV / iNAV ✅
 
 - **Descrição:** função pura que calcula o valor patrimonial do fundo a partir da soma do valor
   de mercado corrente de todos os ativos da cesta (renda variável, renda fixa marcada a mercado,
@@ -1239,8 +1239,34 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   confirmando o cálculo correto de NAV pra cada combinação de preços de constituinte.
 - **Referências:** proposta 5.1, 5.5.
 - **Dependências:** G.1 (FII precisa já ter preço de mercado real se estiver na cesta).
+- **Entregável:** `internal/domain/etf/nav.go` (pacote `etf` já existente, novo arquivo).
+  Decisão de design desta sessão, documentada no comentário do pacote: `NAV` **não decide como
+  cada classe de constituinte é precificada** — recebe `Constituent{Quantity int64, Price
+  float64}` já com o preço correto resolvido por quem chama (preço de mercado corrente pra
+  Ação/FII, PU marcado a mercado pra renda fixa) e só soma `Quantity×Price` de cada um, mais
+  caixa, menos passivos, dividido por `sharesOutstanding` — mesmo raciocínio de "domínios irmãos
+  não se importam" já registrado em `bot/allocation.go`. Isso é o que permite fechar H.1 sem
+  esperar H.4 (schema real de `etf_holdings` com `asset_id`): a função é agnóstica a de onde vêm
+  os valores, então o teste da cesta mista (Ação+FII+renda fixa) só precisa variar `Price` por
+  constituinte, sem precisar de nenhuma tabela/migration nova. Mesma fórmula serve pro NAV oficial
+  e pro iNAV (D.1) — não há função separada, só frequência de chamada diferente (documentado no
+  comentário de `NAV`, confirmado por `TestNAV_UsaMesmaFormulaComoINAV`). Validações: cesta vazia
+  (`ErrNoConstituents`, mesmo padrão de `ErrNoHoldings` já existente no pacote pra composição
+  sintética), `sharesOutstanding <= 0` (`ErrInvalidSharesOutstanding`), caixa/passivo negativo
+  (`ErrNegativeCashOrLiabilities`), quantidade/preço de constituinte negativo
+  (`ErrNegativeConstituent`) — NAV resultante negativo (passivo > ativos) não é validado de
+  propósito, é um resultado matematicamente válido ainda que degenerado, sem decisão confirmada na
+  proposta pra travar isso. Testes novos (`nav_test.go`, table-driven):
+  `TestNAV_CestaMistaComPrecoCorretoPorConstituinte` (3 cenários variando preço de
+  Ação/FII/renda-fixa simultaneamente, com e sem passivo, incluindo deságio de renda fixa),
+  `TestNAV_UsaMesmaFormulaComoINAV`, e um teste por validação (cesta vazia, cotas emitidas
+  zero/negativa, caixa/passivo negativo, quantidade/preço de constituinte negativo, caso
+  degenerado só-caixa-sem-passivo). `gofmt`/`go build`/`go vet`/`go test ./...`/
+  `golangci-lint run` (Docker, v2.12.2, 0 issues) verdes. Sem `.docs/engine/` (sem rota HTTP nova)
+  e sem `docker compose up` (função pura, sem infra/DB tocado — mesma nota de escopo já registrada
+  em B.1/C.1-C.5; a integração real com `etf_holdings`/preço de mercado só chega em H.4).
 
-### H.2 · Bot mecânico rebalanceador
+### H.2 · Bot mecânico rebalanceador ✅
 
 - **Descrição:** rotina determinística (não personalidade — proposta 5.4) que, dado uma nova
   composição-alvo do índice (revisão periódica ou evento corporativo), calcula a diferença entre a
@@ -1252,8 +1278,48 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   ativo da cesta sofrendo forte variação de preço mudando seu peso).
 - **Referências:** proposta 5.4.
 - **Dependências:** H.1, D.2.
+- **Entregável:** `internal/domain/etf/rebalance.go` (mesmo pacote `etf` de H.1). Decisão de
+  design central desta sessão: `RebalanceConstituent{AssetID, CurrentQuantity int64, Price
+  float64, TargetWeightPct float64}` é uma **reconciliação numa linha só por ativo** — zero value
+  de `CurrentQuantity` é "ativo novo entrando na cesta", zero value de `TargetWeightPct` é "ativo
+  saindo da cesta" — em vez de duas listas (cesta atual + composição-alvo) que a função precisaria
+  casar por `AssetID` internamente; quem chama já monta a reconciliação. `RebalanceOrder` carrega
+  `AssetID` (diferente de `bot.Decision`, que não precisa disso porque cada arquétipo decide um
+  único ativo por rodada, C.2-C.5) — **não embrulha `bot.Decision`** de propósito, só reaproveita
+  `orderbook.Side`/`orderbook.Type` (mesmo padrão de reuso já estabelecido por `bot.Decision`).
+  `Type` é sempre `orderbook.TypeMarket` — o gestor mecânico não tem preço-limite, só converge
+  pro peso-alvo (proposta 5.4: "100% determinístico dado o índice-alvo"). Os dois gatilhos da
+  proposta (revisão periódica e evento corporativo) caem na **mesma função, sem distinção de
+  código**: revisão periódica muda `TargetWeightPct` entre chamadas; evento corporativo muda
+  `Price` de um constituinte o bastante pra desviar o peso real do peso-alvo mesmo com
+  `TargetWeightPct` idêntico à chamada anterior — os testes tratam os dois como o mesmo mecanismo
+  com inputs diferentes, confirmando que não precisava de nenhum código especial por gatilho.
+  `netAssets` (a base sobre a qual os pesos-alvo são aplicados) é sempre calculado a partir da
+  cesta **atual** (Σ CurrentQuantity×Price + caixa − passivos), nunca de um valor hipotético
+  pós-rebalanceamento — mesmo raciocínio de "o teto é uma propriedade do snapshot" já usado em
+  `position.ValidateFloatCeiling` (A.3). Quantidade-alvo por constituinte é `math.Round(peso-alvo
+  × netAssets / preço)` — arredondamento pro inteiro de ações mais próximo, sem apportionment tipo
+  Hamilton (B.1): o resíduo de caixa não alocado é o "cash drag" que a própria proposta 5.4 cita
+  como gancho pedagógico, não um bug a esconder. Validação de soma de peso-alvo **reaproveita**
+  `ErrWeightsDoNotSumTo100`/`WeightTolerance` (já existentes no pacote, de `NewDetails`/H.1) em vez
+  de duplicar a mesma regra com um nome novo — mesma tolerância de ~100% vale pra composição
+  cosmética (`etf.go`) e pra composição-alvo real do rebalanceamento. `ErrNegativeCashOrLiabilities`
+  também reaproveitado de `nav.go` (mesma semântica exata). Testes novos (`rebalance_test.go`,
+  table-driven): `TestRebalanceOrders_ComposicaoAntigaParaComposicaoNova` cobre os 2 cenários do
+  critério de aceite (revisão periódica com pesos mudando sem variação de preço; evento
+  corporativo com preço disparando sem o índice mudar) mais 4 cenários adicionais (constituinte
+  novo entrando + outro perdendo peso, constituinte saindo inteiramente da cesta, cesta já
+  convergida sem nenhuma ordem, caixa do fundo entrando no cálculo do peso-alvo) — todos com
+  ordens esperadas calculadas à mão e comparadas via `reflect.DeepEqual`; mais um teste por
+  validação (cesta vazia, caixa/passivo negativo, quantidade/peso negativo, preço zero/negativo,
+  soma de peso fora/dentro da tolerância). `gofmt`/`go build`/`go vet`/`go test ./...`/
+  `golangci-lint run` (Docker, v2.12.2, 0 issues) verdes. Sem `.docs/engine/` e sem
+  `docker compose up` (mesma nota de escopo de H.1/B.1/C.1-C.5 — função pura; a orquestração real
+  — "executando na última rodada do dia de rebalanceamento", com uma conta de bot mecânico de
+  verdade e `etf_holdings` real — fica pra H.4/uma tarefa de integração futura, ver nota na
+  memória de progresso sobre por que isso não é escopo de H.2).
 
-### H.3 · Bot mecânico Participante Autorizado (creation/redemption)
+### H.3 · Bot mecânico Participante Autorizado (creation/redemption) ✅
 
 - **Descrição:** reaproveita a mesma função "mecânica" de H.2 com um papel diferente — arbitragem
   entre preço de mercado do ETF e NAV (H.1). Ágio: compra a cesta ao preço de mercado, entrega ao
@@ -1265,8 +1331,48 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   muda na direção certa (cresce no ágio, encolhe no deságio).
 - **Referências:** proposta 5.3.
 - **Dependências:** H.1, D.2.
+- **Entregável:** `internal/domain/etf/authorizedparticipant.go` (mesmo pacote `etf` de H.1/H.2).
+  `DecideAuthorizedParticipantAction(etfAssetID string, marketPrice, nav float64, arbitrageShares
+  int64, basket []BasketConstituentWeight) (AuthorizedParticipantAction, error)` — a "mesma função
+  mecânica de H.2" do texto da tarefa vira **reuso literal de `RebalanceOrders`** (não só reuso
+  conceitual do bot mecânico como ator): `basketOrdersFromWeights` (privada, novo arquivo) chama
+  `RebalanceOrders` a partir de uma cesta **zerada** (`CurrentQuantity: 0` em todo constituinte —
+  o bot-AP não carrega estoque próprio entre arbitragens, proposta 5.3) com
+  `arbitrageShares×nav` como "caixa" disponível — como todo constituinte parte de zero, toda ordem
+  nasce do lado de compra por construção (`diff = alvo − 0` nunca é negativo). A criação usa esse
+  resultado direto (o bot-AP compra a cesta pra entregar ao fundo); o resgate reaproveita a
+  **mesma chamada** (mesma matemática peso→quantidade) e só inverte `Side` de cada ordem pra venda
+  (o bot-AP vende os ativos recebidos do fundo) — evita duplicar a fórmula duas vezes. Decisão de
+  design que fecha o critério de aceite "arbitragem sempre empurra o preço em direção ao NAV": o
+  lado de `ETFOrder` **é** a prova de direção — ágio (`marketPrice > nav`) gera `ETFOrder.Side =
+  Sell` (aumenta oferta de cotas, pressão pra baixo, rumo ao NAV que é menor); deságio gera
+  `ETFOrder.Side = Buy` (aumenta demanda, pressão pra cima, rumo ao NAV que é maior) — confirmado
+  por asserção direta do `Side` nos dois testes principais, sem precisar simular o book de verdade
+  (fora de escopo de um teste de domínio puro). `ArbitrageMispricingThresholdPct = 0.005` (faixa
+  morta, mais estreita que `FundamentalistMispricingThresholdPct` do pacote `bot`, 0.01 — arbitragem
+  NAV é mecânica/sem ruído, diferente da estimativa do Fundamentalista — valor ilustrativo sujeito
+  a calibração, mesma nota já dada a outros coeficientes do motor). `arbitrageShares` é sempre
+  parâmetro de quem chama (tamanho do lote da arbitragem) — mesmo padrão de "sizing é decisão de
+  quem orquestra" já usado por `otherBotCount` em `bot.InitialAllocation` (B.1). Preço de
+  referência pra dimensionar o valor da transação é sempre `nav` (não `marketPrice`) — é o valor
+  pelo qual o fundo de fato troca cotas por cesta na criação/resgate real, `marketPrice` só entra
+  no `ETFOrder` (onde o bot-AP negocia as próprias cotas). Testes novos
+  (`authorizedparticipant_test.go`): `TestDecideAuthorizedParticipantAction_AgioGeraCriacaoQue...`/
+  `...DesagioGeraResgateQue...` (os 2 cenários do critério de aceite, comparando a ação inteira —
+  `ETFOrder`+`BasketOrders`+`SharesOutstandingDelta` — via `reflect.DeepEqual` contra valores
+  calculados à mão, mais uma asserção explícita de sinal em `SharesOutstandingDelta`),
+  `TestDecideAuthorizedParticipantAction_DentroDaToleranciaSemOportunidade` (5 casos incluindo os
+  dois limites exatos da faixa morta — estritamente `>`/`<`, não `>=`/`<=`, documentado no teste),
+  mais um teste por validação (preço/NAV inválido, `arbitrageShares` inválido,
+  `TestDecideAuthorizedParticipantAction_CestaInvalidaPropagaErroDeRebalanceOrders` confirmando
+  que os 3 erros de `RebalanceOrders` — cesta vazia, pesos fora da tolerância, preço de
+  constituinte inválido — propagam sem tradução tanto no caminho de ágio quanto no de deságio).
+  `gofmt`/`go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+  verdes. Sem `.docs/engine/` e sem `docker compose up` (mesma nota de escopo de H.1/H.2 — função
+  pura; nenhuma conta de bot-AP real, nenhum `bot_type`, nenhum gatilho em `tick.go` ainda — mesma
+  integração futura já documentada como pendente na entrada de H.2).
 
-### H.4 · `etf_holdings` suporta qualquer classe de ativo na cesta
+### H.4 · `etf_holdings` suporta qualquer classe de ativo na cesta ✅
 
 - **Descrição:** `etf_holdings` (hoje só pensado pra constituinte de renda variável com peso
   percentual) passa a referenciar qualquer `asset_id` do catálogo — Ação, FII ou instrumento de
@@ -1275,6 +1381,79 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   fixa) e que H.1 precifica cada tipo pela regra correta.
 - **Referências:** proposta 5.5.
 - **Dependências:** H.1.
+- **Entregável:** migration `000018_etf_holdings_asset_reference` — `asset_id uuid REFERENCES
+  assets(id) ON DELETE CASCADE` **nullable**, sem backfill (`assets` é a tabela guarda-chuva que
+  `positions`/`order_book` já referenciam, então um único FK cobre as 4 classes — Ação, FII, ETF,
+  renda fixa — sem precisar de FK condicional por tabela de especialização). Nullable é a decisão
+  de design central desta sessão: `etf_holdings` passa a servir dois papéis na mesma tabela —
+  constituinte **cosmético** (nome de referência do índice real que o ETF replica, sem existir no
+  catálogo simulado — ex: "Outros", ou empresa real fora do catálogo, `asset_id = NULL`) e
+  constituinte **real** (`asset_id` preenchido, utilizável por H.1/H.2/H.3) — os dois coexistem na
+  mesma cesta (tela de detalhe RF21 continua mostrando ambos; NAV/rebalanceamento só enxergam o
+  segundo). `etf.Holding` (mesmo pacote `etf` de H.1-H.3, `etf.go`) ganhou `AssetID *string`;
+  `etf.NewDetails` ganhou duas validações novas — `ErrEmptyHoldingAssetID` (ponteiro não-nil não
+  pode apontar pra string vazia) e `ErrDuplicateHoldingAssetID` (mesmo `asset_id` em duas linhas da
+  cesta — um fundo não detém o mesmo ativo duas vezes; dois holdings com `AssetID = nil` **não**
+  contam como duplicata entre si, testado explicitamente). Peça central que fecha o critério de
+  aceite: `etf.ConstituentsFromHoldings(holdings []Holding, quantities map[string]int64, prices
+  map[string]float64) ([]Constituent, error)` (`basket.go`, novo) — converte a composição real
+  (`Details.Holdings`) nos `Constituent` que `NAV` (H.1) já sabia consumir, ignorando (sem erro)
+  holding sem `AssetID` (constituinte cosmético nunca entra no NAV) e devolvendo
+  `ErrMissingConstituentQuantity`/`ErrMissingConstituentPrice` quando falta dado pra um holding
+  real — mesma regra de "esta função não decide como precificar" já documentada em `Constituent`:
+  `quantities`/`prices` chegam resolvidos por quem chama (cotação de mercado corrente pra Ação/FII,
+  PU marcado a mercado pra renda fixa). `CatalogRepository.CreateETFDetails`/`FindETFDetails`
+  (`catalog_repository.go`) persistem/leem a coluna nova (`sql.NullString` no scan, mesmo padrão já
+  usado pro resto do pacote). Nenhuma rota HTTP tocada — `GET /assets/:id` (`assets.go`) continua
+  serializando só `constituent_name`/`weight_pct` (decisão de escopo desta sessão: expor `asset_id`
+  na API é passo de produto separado, sem pedido/consumidor ainda — nada no frontend ou em H.2/H.3
+  precisa disso via HTTP, só via domínio) — por isso sem `.docs/engine/` atualizado. Testes novos:
+  `etf_test.go` (cesta mista com/sem `AssetID` coexistindo, `AssetID` vazio rejeitado, `AssetID`
+  duplicado rejeitado, dois holdings sem `AssetID` não conflitam), `basket_test.go` —
+  `TestConstituentsFromHoldings_CestaMistaAcaoFiiRendaFixaPrecificadaCorretamente` é o teste do
+  critério de aceite propriamente dito (3 holdings reais — Ação/FII/renda fixa — mais um cosmético,
+  convertidos via `ConstituentsFromHoldings` e alimentando `NAV` de verdade, confirmando o valor
+  exato) — mais holding cosmético ignorado sem erro e os dois erros de dado ausente. `gofmt`/
+  `go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues) verdes.
+  **Validado ao vivo via `docker compose up -d --build`** (dados reais já seedados, sem `down -v`):
+  migration aplicou limpo (`\d etf_holdings` confirmou a coluna + FK); holdings cosméticos
+  pré-existentes do seed (`asset_id = NULL`) intocados; inserção manual de 3 holdings reais
+  referenciando VALR3 (Ação)/TJLO11 (FII)/LFT2029 (renda fixa) — os três já seedados — bem-sucedida,
+  coexistindo com os cosméticos na mesma cesta somando 100%; FK rejeitou (`23503`) uma inserção com
+  `asset_id` inexistente, confirmando a integridade referencial na prática, não só pela declaração
+  do schema. Estado revertido ao final (holdings de teste removidos, pesos originais restaurados) e
+  stack parada com `docker compose down`.
+
+  **Addendum — teste de ponta a ponta da Fase H inteira (sessão separada, 2026-09-19):** achou e
+  corrigiu, mecanicamente, um gap que a validação acima não cobria — nada impedia um ETF de
+  referenciar a si mesmo como constituinte da própria cesta (`etf_holdings.asset_id =
+  etf_holdings.etf_asset_id`), o que faria H.1 (NAV) somar o valor do próprio ETF como parte do
+  patrimônio que sustenta seu próprio preço. Migration `000019_etf_holdings_no_self_reference`
+  (`CHECK (asset_id IS NULL OR asset_id <> etf_asset_id)`) fecha isso — validado ao vivo (inserção de
+  auto-referência rejeitada pela CHECK nova; cesta mista real de H.4 e cascade de FK revalidados sem
+  regressão). Achou também um segundo gap, este de decisão de produto (registrado e **já resolvido**
+  como achado 006 em `pontos-em-aberto-decisao-produto.md`, seção "Resolvidos"): `RebalanceOrders`/
+  H.2/H.3 exigem que `TargetWeightPct` some ~100%, mas os pesos reais de `Details.Holdings` sozinhos
+  (excluindo cosmético) somam menos que isso sempre que a cesta documentada tem uma linha cosmética
+  com peso não-trivial. **Decisão do autor:** como a plataforma nunca replicou a composição de um
+  índice real (spec 3.6 já falava em "índice simulado" — `BenchmarkIndex` é só rótulo de exibição),
+  não há motivo de produto pra um ETF operado pelo robô mecânico ter fatia cosmética — todo ETF
+  elegível pra H.2/H.3 precisa nascer com cesta 100% real (todo `Holding` com `AssetID` preenchido);
+  o constituinte cosmético (`AssetID = nil`, H.4) continua existindo no domínio só pra ETF puramente
+  ilustrativo, nunca operado pelo robô. Regra de **dado/catálogo**, não mudança de código em `etf` —
+  mas o único dado existente (`SINT11`, `cmd/seed/main.go:seedETF`) já foi corrigido na mesma sessão:
+  as 2 empresas fictícias + "Outros" (100% cosmético) viraram 100% holdings reais (`VALR3` 50%/
+  `TJLO11` 35%/`LFT2029` 15%), com `seedETF` reordenada em `main()` pra rodar só depois dos 3
+  constituintes já seedados. Validado primeiro contra um Postgres descartável (não o volume de dev):
+  migration + seed do zero, `etf_holdings` com as 3 linhas reais somando 100%, reexecução idempotente.
+  **A pedido do autor, o volume de dev persistente também foi corrigido** (não só bancos novos
+  criados a partir daqui): `SINT11` não tinha posição/ordem real referenciando o ativo (só cotação
+  histórica de `asset_quotes`, intocada), então a cesta antiga foi substituída pela real via
+  `DELETE`+`INSERT` direto em `etf_holdings` (mesmo resultado que `seedETF` produz), sem apagar
+  `assets`/`etf_details`/cotações — `GET /assets/:id` contra o motor rodando confirmou a resposta
+  certa depois da troca. Regressão viva em `basket_test.go`
+  (`TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConstituinteCosmetico`)
+  continua útil como documentação do porquê da regra existe.
 
 ---
 
