@@ -1743,7 +1743,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
     verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — `ListPricingAssets` ganhou uma
     coluna a mais na mesma query, `GET /companies/:id`/`GET /assets/:id` já existiam).
 
-### J.4 · Seed reflete a composição real do mercado
+### J.4 · Seed reflete a composição real do mercado ✅
 
 - **Descrição:** ajusta `cmd/seed/main.go` pra que a maioria das empresas nasça só-ON (padrão
   Novo Mercado), com pelo menos uma ou duas empresas clássicas ON+PN (aproveitando ou substituindo
@@ -1753,6 +1753,57 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   com prioridade, preços independentes) e maioria só-ON entre as demais.
 - **Referências:** proposta 2.8, item 5.
 - **Dependências:** J.1, J.2, J.3.
+- **Entregável:** `cmd/seed/main.go` ganha `BNDD3` (ON) como par real de `BNDD4` (PN, já existia),
+  usando exatamente o par citado na nota 6 — como a Fase J rodou antes da `7.2` (backlog
+  principal, ainda não concluída), é esta tarefa quem entrega o par corretamente; `7.2` só precisa
+  reconhecer que ele já existe, sem duplicar. `Mineradora Vale do Rio S.A.` (`VALR3`) continua
+  só-ON — com só 2 empresas no catálogo mínimo desta fase (3.9, não o catálogo completo da `7.2`,
+  que não rodou ainda), "maioria só-ON entre as demais" já é satisfeito por construção (a única
+  empresa fora do par ON+PN é só-ON). **Decisão de design desta sessão:** `BNDD3`/`BNDD4` nascem
+  com a **mesma** `outstanding_shares` (300.000.000, constante única `bancoOutstandingShares`,
+  substituindo a antiga `bndd4OutstandingShares`) — deliberadamente igual, não uma base diferente
+  por classe. Isso isola o spread de preço entre as duas classes a uma causa só, o premium de
+  dividendo da PN (`companies.pn_dividend_premium_pct`, J.2/J.3, default 10%), em vez de misturar
+  esse efeito com uma diluição de VPA por base de ações diferente — sinal mais limpo pra lição 2.3
+  (`J.5`) explicar a causa raiz certa. Valor idêntico ao antigo `bndd4OutstandingShares`
+  (só-PN, pré-J.4) de propósito: um banco de dev que já tinha `BNDD4` sozinho (sem `BNDD3`) não
+  tem seus fundamentos recalibrados por esta tarefa — `seedInitialFundamentals` já é idempotente
+  (pula se a empresa já tem fundamentos), então o `net_revenue`/histórico de `BNDD4` pré-existente
+  continua intocado, só `BNDD3` nasce novo compartilhando o mesmo `company_fundamentals`. Mesmo
+  `risk_class` (`Sofisticado`) nas duas classes — convenção que a própria J.1 já apontava como "a
+  decisão certa, óbvia o suficiente pra não precisar confirmação do autor"
+  (`companyEquityRiskClasses` usa o risk_class "do primeiro encontrado" pra toda ação da mesma
+  empresa; divergir aqui produziria inconsistência sem motivo de produto). `seedBotLiquidity`
+  ganha `BNDD3` na lista de `botAssetSeed` (mesmo pool de 20 bots compartilhado desde B.2/C.6, sem
+  pool novo) — `bot.InitialAllocation` distribui o float de `BNDD3` entre os bots exatamente como
+  já fazia pra qualquer outro ativo de Ação. Sem migration nova (schema já suportava desde J.1/J.2)
+  e sem teste Go novo — `cmd/seed/main.go` é script, não domínio/fórmula (mesmo precedente de
+  B.2/C.6, sessões de seed sem tarefa de teste table-driven própria); a lógica de domínio que o
+  seed agora exercita pra valer (prioridade de dividendo, preço justo por classe) já está coberta
+  por testes exatos desde J.2/J.3.
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — só dado de seed).
+  - **Validado ao vivo via `docker compose up -d --build`** (volume de dev existente, sem
+    `down -v` — já tinha só `BNDD4` sozinho de sessões anteriores à Fase J): `go run ./cmd/seed`
+    real (via `DATABASE_URL` apontando pra `localhost:5432`, porta já exposta no
+    `docker-compose.yml`) criou `BNDD3` novo e confirmou, via `psql` direto, os dois ativos
+    compartilhando `company_id`/`pn_dividend_premium_pct = 10.00` e `outstanding_shares =
+    300.000.000` cada; `SUM(positions.quantity)` bateu exatamente 300.000.000 nos dois (float
+    100% distribuído entre os 20 bots, sem violar `position.ValidateFloatCeiling`). `GET
+    /companies/:id` real confirmou os dois ativos (`share_class` ON/PN) com a mesma lista de
+    `fundamentals`. 22 `POST /admin/tick` consecutivos: preços de `BNDD3`/`BNDD4` divergiram pra
+    valores bem diferentes (89-100 vs ~27) — divergência maior do que só o premium explicaria,
+    causada pelo histórico de negociação de semanas de `BNDD4` (pré-existente à sessão) vs.
+    `BNDD3` nascendo do zero em `tick.DefaultInitialPrice` sem esse histórico; **não é regressão
+    desta tarefa**, é o retrato exato do critério "preços independentes" (dois books realmente
+    desacoplados, cada um com sua própria trajetória) — o mecanismo do premium em si (não a
+    trajetória de preço acumulada) já está coberto por valor exato nos testes automatizados de
+    J.2/J.3. O dia de relatório seguinte (`is_report_day: true`) confirmou a prioridade de
+    dividendo funcionando pro par novo: `BNDD3 (ON) = 4.99` / `BNDD4 (PN) = 5.48`, razão ≈ 1.10,
+    batendo exatamente o premium de 10% da empresa. `docker compose down` (sem `-v`) ao final —
+    dia simulado do volume de dev avançou de ~306 pra 342 (efeito colateral aceito de avançar o
+    Temporizador manualmente pra alcançar o próximo ciclo de relatório, mesmo padrão de toda
+    validação anterior deste backlog).
 
 ### J.5 · Revisão da lição 2.3 (Nomenclatura de tickers) pro par ON/PN real + esclarecimento sobre units
 
