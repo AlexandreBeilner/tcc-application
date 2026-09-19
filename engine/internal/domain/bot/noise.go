@@ -56,8 +56,10 @@ type Decision struct {
 // Quando nem compra nem venda são viáveis (sem caixa suficiente pra 1
 // unidade e sem posição nenhuma), devolve ErrNoViableOrder — o bot não gera
 // ordem nenhuma nessa rodada, em vez de uma ordem inválida ou de tamanho
-// zero.
-func DecideNoiseOrder(referencePrice, availableCash float64, currentPosition int, seed int64) (Decision, error) {
+// zero. floatCeiling capa o lado de compra pelo float finito do ativo
+// (capToFloat, marketmaker.go — achado 005, pontos-em-aberto-decisao-
+// produto.md); nil pra ativo sem float finito (ex: sandbox).
+func DecideNoiseOrder(referencePrice, availableCash float64, currentPosition int, seed int64, floatCeiling *int64) (Decision, error) {
 	if referencePrice <= 0 {
 		return Decision{}, ErrInvalidReferencePrice
 	}
@@ -81,7 +83,7 @@ func DecideNoiseOrder(referencePrice, availableCash float64, currentPosition int
 		side = orderbook.SideSell
 	}
 
-	maxQuantity := int(availableCash / price)
+	maxQuantity := capToFloat(int(availableCash/price), floatCeiling)
 	if side == orderbook.SideSell {
 		maxQuantity = currentPosition
 	}

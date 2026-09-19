@@ -25,7 +25,7 @@ func TestDecideNoiseOrder_NuncaViolaOrcamentoOuPosicao(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for seed := int64(0); seed < 200; seed++ {
-				got, err := DecideNoiseOrder(tt.referencePrice, tt.availableCash, tt.currentPosition, seed)
+				got, err := DecideNoiseOrder(tt.referencePrice, tt.availableCash, tt.currentPosition, seed, nil)
 				if err != nil {
 					t.Fatalf("seed %d: err = %v, want nil", seed, err)
 				}
@@ -63,7 +63,7 @@ func TestDecideNoiseOrder_PrecoDentroDaFaixaAoRedorDoPrecoDeReferencia(t *testin
 	max := referencePrice * (1 + NoisePriceBandPct)
 
 	for seed := int64(0); seed < 200; seed++ {
-		got, err := DecideNoiseOrder(referencePrice, 1_000_000, 1_000_000, seed)
+		got, err := DecideNoiseOrder(referencePrice, 1_000_000, 1_000_000, seed, nil)
 		if err != nil {
 			t.Fatalf("seed %d: err = %v, want nil", seed, err)
 		}
@@ -74,11 +74,11 @@ func TestDecideNoiseOrder_PrecoDentroDaFaixaAoRedorDoPrecoDeReferencia(t *testin
 }
 
 func TestDecideNoiseOrder_Determinismo(t *testing.T) {
-	first, err := DecideNoiseOrder(20, 5_000, 100, 42)
+	first, err := DecideNoiseOrder(20, 5_000, 100, 42, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	second, err := DecideNoiseOrder(20, 5_000, 100, 42)
+	second, err := DecideNoiseOrder(20, 5_000, 100, 42, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -90,7 +90,7 @@ func TestDecideNoiseOrder_Determinismo(t *testing.T) {
 func TestDecideNoiseOrder_ForcaLadoQuandoSoUmEViavel(t *testing.T) {
 	for seed := int64(0); seed < 50; seed++ {
 		t.Run("sem posição, só compra é viável", func(t *testing.T) {
-			got, err := DecideNoiseOrder(10, 1_000_000, 0, seed)
+			got, err := DecideNoiseOrder(10, 1_000_000, 0, seed, nil)
 			if err != nil {
 				t.Fatalf("seed %d: err = %v, want nil", seed, err)
 			}
@@ -99,7 +99,7 @@ func TestDecideNoiseOrder_ForcaLadoQuandoSoUmEViavel(t *testing.T) {
 			}
 		})
 		t.Run("sem caixa, só venda é viável", func(t *testing.T) {
-			got, err := DecideNoiseOrder(10, 0, 100, seed)
+			got, err := DecideNoiseOrder(10, 0, 100, seed, nil)
 			if err != nil {
 				t.Fatalf("seed %d: err = %v, want nil", seed, err)
 			}
@@ -111,14 +111,14 @@ func TestDecideNoiseOrder_ForcaLadoQuandoSoUmEViavel(t *testing.T) {
 }
 
 func TestDecideNoiseOrder_ErroSemCaixaNemPosicao(t *testing.T) {
-	_, err := DecideNoiseOrder(10, 0, 0, 1)
+	_, err := DecideNoiseOrder(10, 0, 0, 1, nil)
 	if !errors.Is(err, ErrNoViableOrder) {
 		t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 	}
 }
 
 func TestDecideNoiseOrder_ErroCaixaInsuficienteParaUmaUnidadeESemPosicao(t *testing.T) {
-	_, err := DecideNoiseOrder(100, 5, 0, 1)
+	_, err := DecideNoiseOrder(100, 5, 0, 1, nil)
 	if !errors.Is(err, ErrNoViableOrder) {
 		t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 	}
@@ -127,9 +127,30 @@ func TestDecideNoiseOrder_ErroCaixaInsuficienteParaUmaUnidadeESemPosicao(t *test
 func TestDecideNoiseOrder_ErroPrecoDeReferenciaInvalido(t *testing.T) {
 	tests := []float64{0, -10}
 	for _, price := range tests {
-		_, err := DecideNoiseOrder(price, 1000, 10, 1)
+		_, err := DecideNoiseOrder(price, 1000, 10, 1, nil)
 		if !errors.Is(err, ErrInvalidReferencePrice) {
 			t.Fatalf("referencePrice %v: err = %v, want %v", price, err, ErrInvalidReferencePrice)
+		}
+	}
+}
+
+// TestDecideNoiseOrder_QuantidadeDeCompraNuncaExcedeOFloat cobre o achado
+// 005 (pontos-em-aberto-decisao-produto.md): caixa muito maior que o float
+// do ativo não pode gerar uma ordem de compra maior que floatCeiling — sem
+// esse teto, availableCash/price sozinho produzia quantidades maiores que
+// 100% das ações/cotas em circulação, nunca preenchíveis.
+func TestDecideNoiseOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
+	floatCeiling := int64(1_000_000)
+	for seed := int64(0); seed < 50; seed++ {
+		got, err := DecideNoiseOrder(134.65, 104_866_356_108.88, 0, seed, &floatCeiling)
+		if err != nil {
+			t.Fatalf("seed %d: err = %v, want nil", seed, err)
+		}
+		if got.Side != orderbook.SideBuy {
+			t.Fatalf("seed %d: Side = %v, want buy (sem posição, sem lado de venda possível)", seed, got.Side)
+		}
+		if got.Quantity > int(floatCeiling) {
+			t.Fatalf("seed %d: Quantity = %d, want <= floatCeiling (%d)", seed, got.Quantity, floatCeiling)
 		}
 	}
 }

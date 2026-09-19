@@ -127,6 +127,15 @@ type DecisionInput struct {
 	SelicNeutral    float64
 	RiskClass       equity.RiskClass
 	Seed            int64
+	// FloatCeiling é o mesmo orderexecution.Context.OutstandingShares —
+	// nil pra ativo sem float finito (ex: sandbox). Repassado aos 4
+	// arquétipos (capToFloat, marketmaker.go) pra nenhum gerar uma ordem
+	// de compra maior que 100% do float do ativo (achado 005,
+	// pontos-em-aberto-decisao-produto.md, auditoria de ponta a ponta da
+	// Fase G, 2026-09-19) — sem este teto, o caixa acumulado de um bot ao
+	// longo de muitos ciclos gerava ordens nunca preenchíveis que travavam
+	// o preço de fechamento no mesmo valor por dias/semanas simulados.
+	FloatCeiling *int64
 }
 
 // Decide despacha pra função de decisão do arquétipo de personality
@@ -143,15 +152,15 @@ type DecisionInput struct {
 func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 	switch personality.Archetype {
 	case ArchetypeRuido:
-		d, err := DecideNoiseOrder(input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed)
+		d, err := DecideNoiseOrder(input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed, input.FloatCeiling)
 		if err != nil {
 			return nil, err
 		}
 		return []Decision{d}, nil
 	case ArchetypeMarketMaker:
-		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition)
+		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.FloatCeiling)
 	case ArchetypeChartista:
-		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition)
+		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition, input.FloatCeiling)
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +169,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		d, err := DecideFundamentalistOrder(
 			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct,
 			input.ReferencePrice, input.SelicAnnualRate, input.SelicNeutral, input.RiskClass,
-			input.AvailableCash, input.CurrentPosition, input.Seed,
+			input.AvailableCash, input.CurrentPosition, input.Seed, input.FloatCeiling,
 		)
 		if err != nil {
 			return nil, err

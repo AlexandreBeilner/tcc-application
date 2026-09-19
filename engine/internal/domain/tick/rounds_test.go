@@ -9,6 +9,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -146,6 +147,43 @@ func TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal(t *testing.T) {
 	for _, s := range submitter.submitted {
 		if s.req.AssetID != "fii1" {
 			t.Errorf("ordem submetida pro ativo %q, want fii1", s.req.AssetID)
+		}
+	}
+}
+
+// TestRunIntradayRounds_QuantidadeDeCompraNuncaExcedeOFloat cobre o achado
+// 005 (pontos-em-aberto-decisao-produto.md), na ponta de wiring de
+// decisionInputFor: antes desta correção, execCtx.OutstandingShares só era
+// lido dentro do case ArchetypeFundamentalista — um bot Ruído com caixa
+// ordens de grandeza maior que o float do ativo (o mesmo padrão observado
+// em produção durante a auditoria de ponta a ponta da Fase G, 2026-09-19)
+// gerava uma ordem de compra maior que 100% do float, nunca preenchível,
+// travando o preço de fechamento no mesmo valor por dias/semanas
+// simulados. FloatCeiling (bot.DecisionInput) agora vem do mesmo
+// execCtx.OutstandingShares pros 4 arquétipos, não só o Fundamentalista.
+func TestRunIntradayRounds_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}}
+	floatCeiling := int64(1_000_000)
+	svc.orderContext = &fakeOrderContextLoader{balance: 104_866_356_108.88, outstandingShares: &floatCeiling}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
+
+	_, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 {
+		t.Fatal("fills = 0, want > 0 (bot especializado em FII deveria ter negociado)")
+	}
+	for _, s := range submitter.submitted {
+		if s.req.Side != orderbook.SideBuy {
+			continue
+		}
+		if s.req.Quantity > int(floatCeiling) {
+			t.Errorf("ordem de compra Quantity = %d, want <= floatCeiling (%d)", s.req.Quantity, floatCeiling)
 		}
 	}
 }

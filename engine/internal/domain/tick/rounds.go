@@ -242,6 +242,14 @@ func (s *Service) decisionInputFor(
 		SelicNeutral:    selicNeutral / 100,
 		RiskClass:       state.RiskClass,
 		Seed:            seed,
+		// FloatCeiling vem do mesmo execCtx.OutstandingShares que o case
+		// ArchetypeFundamentalista abaixo já exige pra VPA — aqui repassado
+		// pros 4 arquétipos (bot.capToFloat), não só o Fundamentalista,
+		// achado 005 (pontos-em-aberto-decisao-produto.md): sem isso, o
+		// caixa acumulado de um bot podia gerar uma ordem de compra maior
+		// que o float inteiro do ativo, nunca preenchível, travando o
+		// preço de fechamento no mesmo valor por dias/semanas simulados.
+		FloatCeiling: execCtx.OutstandingShares,
 	}
 
 	switch personality.Archetype {
