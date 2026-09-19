@@ -1522,6 +1522,17 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   desde a tarefa 2.2). `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker,
   v2.12.2, 0 issues) verdes. Mesma nota de escopo de I.1 (sem `.docs/engine/` novo, sem `docker
   compose up`).
+- **Nota do teste de ponta a ponta (sessão 2026-09-19, mesmo dia):** o achado acima ("2 p.p. de
+  IPCA não move a Selic, comportamento esperado") foi revisitado — o motivo raiz não é só "o
+  Copom ignora desvio pequeno", é uma mistura de escala entre `ipcaAccumulatedDeviation` (decimal)
+  e o passo medido em pontos percentuais inteiros: o limiar real pra cruzar meio passo é **8,33
+  p.p.**, não uma fração pequena — bem acima de qualquer desvio de IPCA realista que a composição
+  de 12 meses da M.1 deve produzir. Formalmente registrado como achado 007 em
+  `pontos-em-aberto-decisao-produto.md` (exige decisão de calibração/escala do autor, não é
+  mecânico), com regressão viva em `TestNextCalendarRate_DesvioRealistaDeIPCANaoMoveASelic`
+  (`copom_test.go`). **M.1/quem ligar o desvio de verdade deve resolver o achado 007 antes ou
+  junto**, senão a Selic simulada nunca vai reagir de forma perceptível ao IPCA mesmo depois da
+  Fase M — o que esvaziaria o motivo pedagógico da própria Fase I.
 
 ---
 
@@ -1713,13 +1724,19 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   o IPCA simulado ao longo do tempo... a decidir na sessão se isso vive em `ipca` ou é calculado
   por quem orquestra `tick`") — quem pegar M.1 ou I.1 primeiro deve conferir se a outra já
   resolveu a acumulação antes de duplicar o mecanismo (mesmo padrão de coordenação da nota 6/9).
+  **Antes de alimentar `ipcaAccumulatedDeviation` de verdade, resolver o achado 007
+  (`pontos-em-aberto-decisao-produto.md`, notado no teste de ponta a ponta da Fase I): o desvio
+  decimal (ex: `0.02` pra 2 p.p.) somado direto contra `InflationWeight = 1.5` só cruza meio passo
+  do Copom com ~8,33 p.p. de desvio — sem ajustar a escala (ou o peso), o IPCA acumulado 12 meses
+  desta tarefa nunca vai mover a Selic simulada em uso normal.**
 - **Critérios de aceite:** depois de N dias de tick simulado, a tabela nova tem exatamente uma
   linha por dia com Selic e IPCA coerentes; teste confirmando que o IPCA acumulado em 12 meses
   bate com a composição correta dos últimos 12 valores mensais (não soma simples); teste de
   regressão confirmando que `market_calendar` (linha singleton, leitura corrente) continua
   funcionando sem mudança de contrato.
-- **Referências:** proposta seção 6; nota da tarefa I.1 sobre acumular IPCA; relatório
-  `tmp/relatorio-logica-mercado.md` (IPCA sem consumidor).
+- **Referências:** proposta seção 6; nota da tarefa I.1 sobre acumular IPCA; achado 007
+  (`pontos-em-aberto-decisao-produto.md`); relatório `tmp/relatorio-logica-mercado.md` (IPCA sem
+  consumidor).
 - **Dependências:** nenhuma (mas ver nota de coordenação com I.1 acima).
 
 ### M.2 · Endpoint HTTP de série histórica (engine)

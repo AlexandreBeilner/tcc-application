@@ -275,6 +275,48 @@ func TestNextCalendarRate_IndiceDeDesvioForaDoSliceValeZero(t *testing.T) {
 	}
 }
 
+// TestNextCalendarRate_DesvioRealistaDeIPCANaoMoveASelic documenta o achado
+// 007 (pontos-em-aberto-decisao-produto.md), notado no teste de ponta a
+// ponta da Fase I: `ipcaAccumulatedDeviation` é decimal (ex: 0.02 para 2
+// p.p., mesma convenção de `ipca.Config`), mas soma direto contra um passo
+// medido em pontos percentuais inteiros (`Config.Neutral = 10` representa
+// 10%, não 0.10 — mesma escala usada por
+// `fundamentals.ExpectedGrowth(selicAnnualRate-selicNeutral, ...)`). Com
+// `DefaultInflationWeight = 1.5`, um desvio de 2 p.p. (0.02) — grande pros
+// padrões reais de política monetária, e maior que a banda "pequena
+// variação em torno da meta" que `ipca.MonthlySeries` está documentado a
+// produzir — ainda soma só 0.03 p.p., abaixo de meio passo
+// (`CopomStepIncrement/2 = 0.125`), e quantiza pra 0. Limiar exato pra
+// cruzar meio passo: `(CopomStepIncrement/2) / DefaultInflationWeight` ≈
+// 0.0833, ou seja, 8,33 p.p. de desvio de IPCA acumulado — um choque
+// inflacionário extremo, não um desvio realista. Antes da Fase M passar a
+// alimentar este parâmetro com o IPCA acumulado 12 meses de verdade
+// (`ipca.MonthlySeries` composto), o termo de reação à inflação criado pela
+// I.1 é, na prática, inerte — o teste trava esse comportamento pra ele não
+// regredir silenciosamente pra "corrigido" sem que a escala/peso seja de
+// fato recalibrada (decisão do achado 007, não mecânica).
+func TestNextCalendarRate_DesvioRealistaDeIPCANaoMoveASelic(t *testing.T) {
+	cfg := Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, InflationWeight: DefaultInflationWeight, Seed: 1}
+	dayIndex := CopomMeetingIntervalDays - 1
+
+	tests := []struct {
+		name                     string
+		ipcaAccumulatedDeviation float64
+	}{
+		{"1 p.p. acima da meta", 0.01},
+		{"2 p.p. acima da meta", 0.02},
+		{"3 p.p. acima da meta (choque relevante no mundo real)", 0.03},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NextCalendarRate(cfg, dayIndex, 10, tt.ipcaAccumulatedDeviation)
+			if got != 10 {
+				t.Fatalf("got = %v, want 10 (desvio realista de IPCA não deveria mover a Selic com o peso/escala atuais — achado 007)", got)
+			}
+		})
+	}
+}
+
 // --- Tarefa I.2: passos discretos do Copom (backlog-motor-mercado-realista) ---
 
 func Test_quantizeStep(t *testing.T) {
