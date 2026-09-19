@@ -24,7 +24,7 @@ func TestDecideMarketMakerOrders_SempreOfertaDoisLadosComRecursoSuficiente(t *te
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			personality := mustMarketMakerPersonality(t, tt.spreadWidthPct, tt.maxPositionSizePct)
-			decisions, err := DecideMarketMakerOrders(personality, tt.referencePrice, tt.availableCash, tt.currentPosition)
+			decisions, err := DecideMarketMakerOrders(personality, tt.referencePrice, tt.availableCash, tt.currentPosition, nil)
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -60,7 +60,7 @@ func TestDecideMarketMakerOrders_SpreadSimetricoAoRedorDoPrecoDeReferencia(t *te
 	spreadWidthPct := 0.10
 	personality := mustMarketMakerPersonality(t, spreadWidthPct, 0.5)
 
-	decisions, err := DecideMarketMakerOrders(personality, referencePrice, 1_000_000, 1_000_000)
+	decisions, err := DecideMarketMakerOrders(personality, referencePrice, 1_000_000, 1_000_000, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -77,11 +77,11 @@ func TestDecideMarketMakerOrders_SpreadSimetricoAoRedorDoPrecoDeReferencia(t *te
 
 func TestDecideMarketMakerOrders_Deterministico(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.04, 0.3)
-	first, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300)
+	first, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	second, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300)
+	second, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -97,7 +97,7 @@ func TestDecideMarketMakerOrders_Deterministico(t *testing.T) {
 
 func TestDecideMarketMakerOrders_ApenasLadoDeVendaSemCaixa(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
-	decisions, err := DecideMarketMakerOrders(personality, 20, 0, 100)
+	decisions, err := DecideMarketMakerOrders(personality, 20, 0, 100, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -114,7 +114,7 @@ func TestDecideMarketMakerOrders_ApenasLadoDeVendaSemCaixa(t *testing.T) {
 
 func TestDecideMarketMakerOrders_ApenasLadoDeCompraSemPosicao(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
-	decisions, err := DecideMarketMakerOrders(personality, 20, 100_000, 0)
+	decisions, err := DecideMarketMakerOrders(personality, 20, 100_000, 0, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -132,7 +132,7 @@ func TestDecideMarketMakerOrders_SustentaOfertaAoLongoDeVariasRodadas(t *testing
 
 	cash, position := 1_000.0, 40
 	for round := 0; round < 5; round++ {
-		decisions, err := DecideMarketMakerOrders(personality, referencePrice, cash, position)
+		decisions, err := DecideMarketMakerOrders(personality, referencePrice, cash, position, nil)
 		if err != nil {
 			t.Fatalf("rodada %d: err = %v, want nil", round, err)
 		}
@@ -151,7 +151,7 @@ func TestDecideMarketMakerOrders_SustentaOfertaAoLongoDeVariasRodadas(t *testing
 
 func TestDecideMarketMakerOrders_ErroSemCaixaNemPosicao(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
-	_, err := DecideMarketMakerOrders(personality, 20, 0, 0)
+	_, err := DecideMarketMakerOrders(personality, 20, 0, 0, nil)
 	if !errors.Is(err, ErrNoViableOrder) {
 		t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 	}
@@ -168,7 +168,7 @@ func TestDecideMarketMakerOrders_ErroArquetipoErrado(t *testing.T) {
 		t.Fatalf("personality de setup inválida: %v", err)
 	}
 
-	_, err = DecideMarketMakerOrders(personality, 20, 1_000, 100)
+	_, err = DecideMarketMakerOrders(personality, 20, 1_000, 100, nil)
 	if !errors.Is(err, ErrWrongArchetype) {
 		t.Fatalf("err = %v, want %v", err, ErrWrongArchetype)
 	}
@@ -177,7 +177,7 @@ func TestDecideMarketMakerOrders_ErroArquetipoErrado(t *testing.T) {
 func TestDecideMarketMakerOrders_ErroPrecoDeReferenciaInvalido(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
 	for _, price := range []float64{0, -1} {
-		_, err := DecideMarketMakerOrders(personality, price, 1_000, 100)
+		_, err := DecideMarketMakerOrders(personality, price, 1_000, 100, nil)
 		if !errors.Is(err, ErrInvalidReferencePrice) {
 			t.Fatalf("referencePrice %v: err = %v, want %v", price, err, ErrInvalidReferencePrice)
 		}
@@ -186,9 +186,58 @@ func TestDecideMarketMakerOrders_ErroPrecoDeReferenciaInvalido(t *testing.T) {
 
 func TestDecideMarketMakerOrders_ErroSpreadInvalido(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 2.0, 0.5)
-	_, err := DecideMarketMakerOrders(personality, 20, 1_000, 100)
+	_, err := DecideMarketMakerOrders(personality, 20, 1_000, 100, nil)
 	if !errors.Is(err, ErrInvalidSpreadForQuote) {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidSpreadForQuote)
+	}
+}
+
+// TestCapToFloat cobre o achado 005 (pontos-em-aberto-decisao-produto.md):
+// capToFloat nunca deixa passar uma quantidade maior que floatCeiling, e é
+// transparente (devolve quantity sem alteração) quando floatCeiling é nil
+// (ativo sem float finito, ex: sandbox).
+func TestCapToFloat(t *testing.T) {
+	ceiling := int64(1_000_000)
+	tests := []struct {
+		name         string
+		quantity     int
+		floatCeiling *int64
+		want         int
+	}{
+		{name: "quantidade dentro do float, sem alteração", quantity: 500, floatCeiling: &ceiling, want: 500},
+		{name: "quantidade exatamente no teto, sem alteração", quantity: 1_000_000, floatCeiling: &ceiling, want: 1_000_000},
+		{name: "quantidade maior que o float, capada no teto", quantity: 24_419_788, floatCeiling: &ceiling, want: 1_000_000},
+		{name: "floatCeiling nil (ativo sandbox), sem alteração mesmo gigante", quantity: 24_419_788, floatCeiling: nil, want: 24_419_788},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := capToFloat(tt.quantity, tt.floatCeiling); got != tt.want {
+				t.Errorf("capToFloat(%d, %v) = %d, want %d", tt.quantity, tt.floatCeiling, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDecideMarketMakerOrders_QuantidadeDeCompraNuncaExcedeOFloat reproduz
+// o cenário real do achado 005: um bot com caixa ordens de grandeza maior
+// que o float do ativo (o mesmo padrão observado em produção — bot com
+// R$ 104,8 bilhões de saldo negociando um FII com float de 1.000.000 de
+// cotas) não pode gerar uma ordem de compra maior que o float inteiro,
+// porque essa ordem nunca seria preenchível e travaria o preço de
+// fechamento no mesmo valor por dias/semanas simulados.
+func TestDecideMarketMakerOrders_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
+	personality := mustMarketMakerPersonality(t, 0.02, 0.9) // fração alta, pra não mascarar o teto
+	orderSizeCeiling := int64(1_000_000)
+
+	decisions, err := DecideMarketMakerOrders(personality, 134.65, 104_866_356_108.88, 0, &orderSizeCeiling)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(decisions) != 1 || decisions[0].Side != orderbook.SideBuy {
+		t.Fatalf("decisions = %+v, want 1 decisão de compra (sem posição, sem lado de venda)", decisions)
+	}
+	if decisions[0].Quantity > int(orderSizeCeiling) {
+		t.Fatalf("Quantity = %d, want <= orderSizeCeiling (%d)", decisions[0].Quantity, orderSizeCeiling)
 	}
 }
 

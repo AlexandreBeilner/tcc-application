@@ -118,6 +118,22 @@ type Context struct {
 	// usuário da ordem recebida (essa já vem em IncomingUserPosition) — só
 	// precisa vir preenchido quando OutstandingShares não é nil.
 	TotalHeldExcludingIncoming int64
+	// SimulatedDay é o dia simulado corrente (market_calendar.current_day,
+	// achado 005 parte A, pontos-em-aberto-decisao-produto.md) no momento em
+	// que o contexto foi carregado — repassado por Service.SubmitWithContext
+	// pra Request.SimulatedDay antes de persistir, pra toda ordem nova
+	// carregar o dia em que nasceu (ExpireStaleOrders, tick.Service.Run, usa
+	// isso pra cancelar ordens de dias anteriores antes de cada novo dia
+	// simulado, em vez de acumular indefinidamente em order_book). Repository.
+	// LoadContext lê market_calendar direto (0 quando o Temporizador nunca
+	// rodou) — mesmo valor, por construção, que dayIndex assume dentro do
+	// próprio tick que está gerando o dia novo (tick.Service.Run: dayIndex =
+	// result.State.Day - 1 = current.Day, o mesmo current_day que
+	// market_calendar ainda não teve tempo de atualizar até SaveTick
+	// commitar), então ordem de bot (dentro do tick) e ordem humana (entre
+	// ticks) sempre carimbam o mesmo dia lógico sem precisar de dois
+	// caminhos de leitura diferentes.
+	SimulatedDay int
 }
 
 // Fill é uma execução (real ou sintética, só possível pro caso sandbox)

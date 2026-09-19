@@ -137,3 +137,68 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Validação:** `go build ./...`, `go test ./...` e `golangci-lint run ./...` (via Docker,
   `golangci/golangci-lint:v2.5.0-alpine`) passando; `docker compose up` (postgres + engine) confirma
   migrations aplicadas e o seed rodando ponta a ponta contra o banco real sem erro.
+
+### 005 · Tamanho de ordem de bot sem teto contra o float — preço "trava" por semanas/meses simulados
+
+- **Decisão (2026-09-19):** achado fechado em duas partes (A/B), com a terceira (C) deliberadamente
+  deferida — decisão confirmada com o autor de que as duas primeiras já bastam pra corretude, a
+  terceira é só calibração/realismo:
+  1. **Parte A — ciclo de vida de ordem** (resolvido, mecanismo geral, não um número de negócio): a
+     causa por trás de "331 ordens já excediam sozinhas o float, pior caso 553x" não era só o
+     dimensionamento de uma ordem nova — era a ausência completa de expiração. Nenhuma ordem
+     cancelava a anterior nem expirava, então `order_book` crescia sem limite pra sempre.
+     `order_book.simulated_day` (coluna nova, migration `000017`) carimba o dia simulado em que cada
+     ordem nasceu (`orderexecution.Context.SimulatedDay`/`Request.SimulatedDay`, carimbado por
+     `Service.SubmitWithContext` a partir do `Context` recém-carregado — nunca do valor que o
+     chamador já tinha, mesmo pra ordem humana via `POST /orders` e ordem de bot via
+     `tick.runIntradayRounds`). `OrderExecutionRepository.ExpireStaleOrders`, chamado por
+     `tick.Service.Run` antes de cada dia novo, cancela toda ordem `pending`/`partially_filled` de um
+     dia anterior — cancelar não reverte saldo/posição (nada é reservado na submissão), então não
+     passa por Event Sourcing. `OrderExecutionRepository.CancelUserRestingOrders`, chamado por
+     `runIntradayRounds` só pro arquétipo `market_maker`, cancela a cotação da rodada anterior antes
+     de recotar o mesmo (bot, ativo) — sem isso ele empilhava um par novo por rodada em vez de
+     substituir.
+  2. **Parte B — teto de tamanho de ordem por volume negociado real** (resolvido, valor ilustrativo
+     sujeito à mesma calibração futura de outros coeficientes do motor, não uma decisão bloqueada):
+     100% do float sozinho continuava um teto gigante, sem relação com o que o mercado de fato
+     absorve num dia. `TickRepository.RecentTradedVolume` (mesmo contrato de `RecentClosingPrices`,
+     alimentado por `asset_quotes.total_quantity`, coluna nova da mesma migration) mede o volume médio
+     dos últimos `ChartistPriceHistoryDays` dias; `tick.effectiveOrderSizeCeiling` usa o menor entre o
+     float e `MaxOrderPctOfAverageVolumePct` (20%, ilustrativo) desse volume — `bot.DecisionInput.
+     FloatCeiling` renomeado pra `OrderSizeCeiling` nos 4 arquétipos, deixando claro que o teto pode
+     vir de qualquer um dos dois. `total_quantity` nasce **nullable, sem `DEFAULT`** de propósito —
+     achado do próprio teste de ponta a ponta desta correção: um `DEFAULT 0` faria todo dia anterior à
+     migration virar "volume real zero" (em vez de "não rastreado"), zerando o teto de compra de todo
+     bot já em produção permanentemente (nenhum jeito de sair do zero, porque comprar exige o teto
+     ser positivo). `NULL` nas linhas antigas + `RecentTradedVolume` filtrando `IS NOT NULL` corrige
+     isso: dia sem dado conta como "sem histórico ainda" (cai pro float sozinho), não "zero
+     negociado".
+  3. **Parte C — causa raiz do caixa/alocação inicial de bot** (continua em aberto, sem duplicar
+     rastreio): já tinha dono antes deste achado — mesmo raciocínio do achado 003 acima, Fase K de
+     `backlog-motor-mercado-realista.md` (calibração com dados reais B3/CVM). Recalibrar o
+     multiplicador de `bot.InitialCash`/`InitialAllocation` sem essa pesquisa só trocaria um número
+     arbitrário por outro. As partes A/B já tornam qualquer ordem matematicamente impossível de
+     exceder o que o mercado suporta, **independente** do caixa do bot — a causa raiz vira um
+     problema de realismo, não de corretude (ex: `VALR3`/`BNDD4` ainda mostram ordens de venda na
+     casa de dezenas de milhões de cotas, refletindo posição de bot desproporcional herdada da
+     alocação inicial — não mais um risco de acúmulo indefinido, porque expiram no dia seguinte se
+     não preenchidas).
+- **Testes:** `bot` (rename de `capToFloat`/`floatCeiling` pra `OrderSizeCeiling` nos testes
+  existentes, mais dois novos cobrindo o teto zerando a quantidade comprável sem panicar —
+  `rng.Intn(0)` panicaria se `canBuy` não considerasse o teto, achado do próprio trabalho desta
+  correção em `noise.go`); `tick` (`TestEffectiveOrderSizeCeiling` table-driven; wiring de
+  `ExpireStaleOrders`/`CancelUserRestingOrders` em `rounds_test.go`/`service_test.go`, com fakes
+  novos; volume acumulado por ativo; teto de volume efetivamente mais apertado que o float quando
+  aplicável); `orderexecution` (`SimulatedDay` sempre vem do `Context` recém-carregado, nunca do que
+  o chamador já tinha em `Request`).
+- **Validação:** `go build ./...`, `go vet ./...`, `go test ./...` (incl. `-race`) e
+  `golangci-lint run ./...` (Docker, `v2.12.2`) verdes. `docker compose up -d --build` contra os
+  mesmos dados reais da auditoria original (sem `down -v`): as 1.891 ordens pendentes/parciais
+  pré-existentes (incl. os 553.598.866 cotas de `TJLO11`) foram canceladas já no primeiro
+  `POST /admin/tick` pós-deploy (`expired_orders_count: 1891`, exatamente o total pendente antes);
+  `order_book` se manteve estável (~10-30 pendentes por tick, nunca crescendo) por ~20 ticks
+  seguidos; um Market Maker nunca acumulou mais de 1 ordem de compra + 1 de venda pendente por ativo
+  em nenhum momento observado. O teste de ponta a ponta também expôs e corrigiu, na própria sessão, o
+  bug do `total_quantity`/`DEFAULT 0` descrito na Parte B acima — sem essa correção, o ambiente real
+  ficava com o lado de compra travado em zero permanentemente a partir do primeiro tick pós-migration
+  (comportamento observado e revertido nesta mesma validação, antes de fechar o achado).

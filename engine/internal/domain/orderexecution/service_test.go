@@ -105,6 +105,28 @@ func TestService_SubmitWithContext_NaoChamaLoadContext(t *testing.T) {
 	}
 }
 
+// TestService_SubmitWithContext_CarimbaSimulatedDayDoContexto cobre o
+// achado 005 parte A (pontos-em-aberto-decisao-produto.md): SimulatedDay
+// persistido vem sempre de execCtx.SimulatedDay (a leitura fresca de
+// market_calendar.current_day feita por Repository.LoadContext), nunca do
+// valor que o chamador já tinha em Request — nem tick.runIntradayRounds
+// (que não preenche SimulatedDay, achado 005 parte A.2) nem qualquer outro
+// chamador precisam saber o dia simulado corrente de antemão.
+func TestService_SubmitWithContext_CarimbaSimulatedDayDoContexto(t *testing.T) {
+	repo := &fakeRepository{}
+	svc := NewService(repo)
+
+	execCtx := Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true, SimulatedDay: 7}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10, SimulatedDay: 999}
+
+	if _, err := svc.SubmitWithContext(context.Background(), req, execCtx); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if repo.persistedReq.SimulatedDay != 7 {
+		t.Errorf("persistedReq.SimulatedDay = %d, want 7 (do Context, não do valor que o chamador já tinha em req)", repo.persistedReq.SimulatedDay)
+	}
+}
+
 func TestService_Submit_ErroAoPersistir(t *testing.T) {
 	repo := &fakeRepository{
 		loadCtx:    Context{ReferencePrice: 25, IncomingUserBalance: 1000},

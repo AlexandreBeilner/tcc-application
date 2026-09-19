@@ -118,6 +118,46 @@ func (r *TickRepository) RecentClosingPrices(ctx context.Context, assetID string
 	return prices, rows.Err()
 }
 
+// RecentTradedVolume lê o `total_quantity` (achado 005 parte B) dos
+// últimos `days` dias simulados (asset_quotes) de assetID, em ordem
+// cronológica (mais antigo primeiro) — insumo do teto de tamanho de ordem
+// por volume médio recente (tick.effectiveOrderSizeCeiling, rounds.go).
+// Mesmo contrato de RecentClosingPrices: devolve menos de `days` valores
+// (ou nenhum) sem erro quando o ativo ainda não acumulou histórico
+// suficiente. `total_quantity IS NOT NULL` exclui dia simulado anterior à
+// migration 000017 (coluna nullable, sem DEFAULT, de propósito — ver
+// comentário da migration): sem esse filtro, um ativo já em produção antes
+// desta correção teria dias "zerados por desconhecimento" contados como
+// "volume real zero", zerando o teto de tamanho de ordem pra sempre (achado
+// do teste de ponta a ponta desta correção) em vez de cair pro float
+// sozinho, como um ativo novo sem histórico nenhum.
+func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string, days int) ([]int, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT total_quantity FROM (
+		   SELECT total_quantity, simulated_day FROM asset_quotes
+		   WHERE asset_id = $1 AND total_quantity IS NOT NULL
+		   ORDER BY simulated_day DESC
+		   LIMIT $2
+		 ) recent
+		 ORDER BY simulated_day ASC`,
+		assetID, days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var volumes []int
+	for rows.Next() {
+		var quantity int
+		if err := rows.Scan(&quantity); err != nil {
+			return nil, err
+		}
+		volumes = append(volumes, quantity)
+	}
+	return volumes, rows.Err()
+}
+
 // ListCompaniesForFundamentals devolve toda empresa cadastrada com sua
 // última net_revenue conhecida (company_fundamentals, via LEFT JOIN LATERAL
 // ordenado por period_date), usado por Advance (tarefa 3.14) pra decidir o
@@ -217,11 +257,13 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // FII, is_sandbox = false) do catálogo, com a posição de cada usuário
 // nesse ativo (positions, quantity > 0) — usado por Advance (tarefa 4.9)
 // pra decidir o valor por ação/cota do ciclo e o snapshot de elegibilidade
-// (posição na data ex) de um novo dividend_events. ETF nunca aparece aqui
-// — não é pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
+// (posição na data ex) de um novo dividend_events, e (tarefas G.2/G.3) pra
+// reavaliar NetWorth/PortfolioValue no mesmo calendário — indexador só vem
+// preenchido pro perfil papel (G.3). ETF nunca aparece aqui — não é
+// pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value
+		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -238,7 +280,7 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
 			return nil, err
 		}
 		a.Type = assetType
@@ -339,14 +381,19 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 }
 
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
-// as cotações geradas e as novas linhas de company_fundamentals (tarefa
-// 3.14, os 6 campos desde a tarefa 4.8), na mesma transação — nem
+// as cotações geradas (Quote.Quantity vira asset_quotes.total_quantity,
+// achado 005 parte B — insumo de RecentTradedVolume) e as novas linhas de
+// company_fundamentals (tarefa 3.14, os 6 campos desde a tarefa 4.8), na
+// mesma transação — nem
 // calendário, cotações nem fundamentos são escrita de saldo/posição de
 // usuário, por isso não passa por Event Sourcing (mesma distinção de
 // catalog_repository.go pra dado cadastral). period_date usa o relógio
 // real (time.Now()), não o dia simulado — mesma decisão já tomada pra DU
 // restante de renda fixa na tarefa 3.13 (coerente com "1 tick = 1 dia
-// real").
+// real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates (tarefa
+// G.3) são um UPDATE por item em fii_details.net_worth/portfolio_value,
+// não um INSERT — diferente de company_fundamentals, não existe tabela de
+// histórico pra essas reavaliações.
 func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -368,8 +415,8 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 
 	for _, q := range result.Quotes {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO asset_quotes (asset_id, simulated_day, price) VALUES ($1, $2, $3)`,
-			q.AssetID, result.State.Day, q.Price,
+			`INSERT INTO asset_quotes (asset_id, simulated_day, price, total_quantity) VALUES ($1, $2, $3, $4)`,
+			q.AssetID, result.State.Day, q.Price, q.Quantity,
 		); err != nil {
 			return err
 		}
@@ -407,6 +454,24 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 
 	if err := payDueDividends(ctx, tx, result.DuePayments); err != nil {
 		return err
+	}
+
+	for _, u := range result.NetWorthUpdates {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE fii_details SET net_worth = $1 WHERE asset_id = $2`,
+			u.NetWorth, u.AssetID,
+		); err != nil {
+			return err
+		}
+	}
+
+	for _, u := range result.PortfolioValueUpdates {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE fii_details SET portfolio_value = $1 WHERE asset_id = $2`,
+			u.PortfolioValue, u.AssetID,
+		); err != nil {
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

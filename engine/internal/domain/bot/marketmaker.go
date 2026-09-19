@@ -43,13 +43,19 @@ var (
 // permite — nunca menos que 1 unidade quando esse lado é viável (garante o
 // "nunca deixar o book vazio" da proposta 2.3.2, mesmo quando a fração
 // arredondaria pra zero), e nunca mais do que availableCash/currentPosition
-// cobrem, por construção.
+// cobrem, por construção — capado por capToFloat no lado de compra (achado
+// 005, pontos-em-aberto-decisao-produto.md), pra nunca gerar uma ordem
+// maior que o teto de tamanho de ordem do ativo.
 //
 // Devolve os dois lados (nessa ordem: compra, venda) quando ambos são
 // viáveis; só o lado viável quando falta caixa suficiente pra 1 unidade de
 // compra ou posição nenhuma pra vender; ErrNoViableOrder quando nenhum dos
 // dois é viável (mesmo caso de saída do arquétipo Ruído, mesmo pacote).
-func DecideMarketMakerOrders(personality Personality, referencePrice, availableCash float64, currentPosition int) ([]Decision, error) {
+// orderSizeCeiling é o teto de tamanho de ordem (bot.DecisionInput.
+// OrderSizeCeiling — o menor entre o float finito do ativo e o volume médio
+// negociado recente, achado 005 partes A/B) — nil quando nenhum teto se
+// aplica (ex: sandbox).
+func DecideMarketMakerOrders(personality Personality, referencePrice, availableCash float64, currentPosition int, orderSizeCeiling *int64) ([]Decision, error) {
 	if personality.Archetype != ArchetypeMarketMaker {
 		return nil, ErrWrongArchetype
 	}
@@ -68,7 +74,7 @@ func DecideMarketMakerOrders(personality Personality, referencePrice, availableC
 	pct := personality.RiskProfile.MaxPositionSizePct
 
 	var decisions []Decision
-	if maxBid := int(availableCash / bidPrice); maxBid >= 1 {
+	if maxBid := capToFloat(int(availableCash/bidPrice), orderSizeCeiling); maxBid >= 1 {
 		decisions = append(decisions, Decision{
 			Side:     orderbook.SideBuy,
 			Type:     orderbook.TypeLimit,
@@ -102,18 +108,49 @@ func quantityFraction(max int, pct float64) int {
 	return 1
 }
 
+// capToFloat garante que uma quantidade de compra nunca ultrapasse o teto
+// de tamanho de ordem recebido (achado 005, pontos-em-aberto-decisao-
+// produto.md, auditoria de ponta a ponta da Fase G, 2026-09-19): sem
+// nenhum teto, o caixa acumulado de um bot ao longo de muitos ciclos
+// simulados podia gerar uma ordem de compra maior que 100% das ações/cotas
+// em circulação — uma ordem assim nunca é preenchível (orderexecution.
+// validateFloat só protege a soma pós-negociação, nunca o tamanho da ordem
+// recebida), então ela fica pendente no book indefinidamente e trava o
+// preço de fechamento no mesmo valor por dias/semanas simulados seguidos,
+// todo fill seguinte casando contra ela no mesmo preço. O nome do parâmetro
+// é histórico (só existia o teto de float até a correção de 2026-09-19) —
+// hoje quem chama pode passar o float sozinho ou o teto já composto com o
+// volume médio negociado recente (bot.DecisionInput.OrderSizeCeiling,
+// achado 005 parte B), capToFloat não distingue os dois: "capar contra um
+// teto" é o mesmo mecanismo, seja qual for a origem do valor. nil (nenhum
+// teto se aplica, ex: sandbox) devolve quantity sem alteração. Só o lado de
+// compra precisa deste teto — o lado de venda já é limitado por
+// currentPosition, que nunca ultrapassa o float por construção (invariante
+// mantido por validateFloat).
+func capToFloat(quantity int, floatCeiling *int64) int {
+	if floatCeiling == nil {
+		return quantity
+	}
+	if ceiling := int(*floatCeiling); quantity > ceiling {
+		return ceiling
+	}
+	return quantity
+}
+
 // quantityForSide deriva a quantidade de um lado único a partir de price
-// (compra: teto de availableCash/price; venda: teto de currentPosition),
-// aplicando quantityFraction sobre pct — sizing compartilhado entre
-// Chartista (C.4) e Fundamentalista (C.5), os dois arquétipos que negociam
-// um único lado a um único preço de referência (Market Maker, C.3, já
-// deriva os dois lados de uma vez com sua própria lógica, não reaproveita
-// esta função). Devolve ErrNoViableOrder quando o lado indicado não tem
-// recurso nenhum (sem caixa pra 1 unidade de compra, sem posição pra
-// vender).
-func quantityForSide(side orderbook.Side, price, availableCash float64, currentPosition int, pct float64) (int, error) {
+// (compra: teto de availableCash/price, capado por capToFloat; venda: teto
+// de currentPosition), aplicando quantityFraction sobre pct — sizing
+// compartilhado entre Chartista (C.4) e Fundamentalista (C.5), os dois
+// arquétipos que negociam um único lado a um único preço de referência
+// (Market Maker, C.3, já deriva os dois lados de uma vez com sua própria
+// lógica, não reaproveita esta função). Devolve ErrNoViableOrder quando o
+// lado indicado não tem recurso nenhum (sem caixa pra 1 unidade de compra,
+// sem posição pra vender). orderSizeCeiling é o teto de tamanho de ordem
+// (bot.DecisionInput.OrderSizeCeiling, achado 005 partes A/B) — nil quando
+// nenhum teto se aplica.
+func quantityForSide(side orderbook.Side, price, availableCash float64, currentPosition int, pct float64, orderSizeCeiling *int64) (int, error) {
 	if side == orderbook.SideBuy {
-		maxQuantity := int(availableCash / price)
+		maxQuantity := capToFloat(int(availableCash/price), orderSizeCeiling)
 		if maxQuantity < 1 {
 			return 0, ErrNoViableOrder
 		}

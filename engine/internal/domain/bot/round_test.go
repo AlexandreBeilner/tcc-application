@@ -34,10 +34,28 @@ func TestSpecializationScope_MatchesEquity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := scope.MatchesEquity(tt.sector, tt.riskClass); got != tt.want {
-				t.Errorf("MatchesEquity(%v, %v) = %v, want %v", tt.sector, tt.riskClass, got, tt.want)
+			if got := scope.MatchesEquity(tt.sector, tt.riskClass, ""); got != tt.want {
+				t.Errorf("MatchesEquity(%v, %v, \"\") = %v, want %v", tt.sector, tt.riskClass, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestSpecializationScope_MatchesEquity_PorClasseDeAtivo cobre a tarefa
+// G.1: FII não tem setor nem risk_class própria (spec 3.6), então o único
+// jeito de um bot especializado em FII (AssetClasses, C.6) alcançá-lo é essa
+// terceira via de match, independente de Sector/RiskClass.
+func TestSpecializationScope_MatchesEquity_PorClasseDeAtivo(t *testing.T) {
+	scope, err := NewSpecializationScope(nil, nil, []catalog.AssetType{catalog.AssetFII}, 0.85)
+	if err != nil {
+		t.Fatalf("scope de setup inválido: %v", err)
+	}
+
+	if !scope.MatchesEquity("", "", catalog.AssetFII) {
+		t.Error("MatchesEquity(\"\", \"\", AssetFII) = false, want true (bot especializado em FII)")
+	}
+	if scope.MatchesEquity("", "", catalog.AssetETF) {
+		t.Error("MatchesEquity(\"\", \"\", AssetETF) = true, want false (escopo não cobre ETF)")
 	}
 }
 

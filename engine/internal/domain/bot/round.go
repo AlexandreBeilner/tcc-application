@@ -26,24 +26,29 @@ var ErrNoEquityAvailable = errors.New("nenhum ativo disponível pra sortear nest
 // SelectAssetForRound precisa pra checar se ele cai dentro do escopo de um
 // bot — CompanyID/preço/histórico/fundamentos ficam a cargo de quem orquestra
 // a rodada (tick.Service, Fase D.2), este pacote só decide "cai no escopo ou
-// não".
+// não". Type (tarefa G.1) é a classe de ativo crua (catalog.AssetAcao/
+// AssetETF/AssetFII) — zero value "" pra quem construía EquityForRound antes
+// da G.1 sem se importar com este campo (mesma tolerância a zero value já
+// dada a Sector/RiskClass).
 type EquityForRound struct {
 	AssetID   string
 	Sector    catalog.Sector
 	RiskClass equity.RiskClass
+	Type      catalog.AssetType
 }
 
 // MatchesEquity confere se o escopo de especialização do bot alcança um
-// ativo de Renda Variável com o setor/risk_class dados — união (não XOR,
-// mesma semântica de NewSpecializationScope/C.1): basta um dos dois bater.
-// Mesmo raciocínio de fan-out de macroevent.Target/tick.eventTargetsAsset,
-// aqui pro escopo de bot em vez de alvo de evento macro. AssetClasses do
-// escopo não entra nesta checagem porque nenhuma Ação carrega
-// catalog.AssetAcao no próprio escopo do bot (C.6: "Ação não é uma chave de
-// cobertura própria... setor já cobre Ação por construção") — esta função é
-// só pro caso de Ação; FII/ETF (Fases G/H) vão precisar da própria checagem
-// por AssetClasses quando entrarem no mesmo motor de rodada.
-func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equity.RiskClass) bool {
+// ativo de Renda Variável com o setor/risk_class/classe de ativo dados —
+// união (não XOR, mesma semântica de NewSpecializationScope/C.1): basta um
+// dos três bater. Mesmo raciocínio de fan-out de macroevent.Target/
+// tick.eventTargetsAsset, aqui pro escopo de bot em vez de alvo de evento
+// macro. Ação nunca bate pela checagem de AssetClasses (C.6: "Ação não é uma
+// chave de cobertura própria... setor já cobre Ação por construção" — nenhum
+// bot carrega catalog.AssetAcao no próprio escopo), mas FII (tarefa G.1) não
+// tem setor nem risk_class própria (spec 3.6) — pra ele, AssetClasses é a
+// única via de match possível. ETF (Fase H) vai depender do mesmo mecanismo
+// quando entrar no motor de rodada.
+func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equity.RiskClass, assetType catalog.AssetType) bool {
 	for _, sc := range s.Sectors {
 		if sc == sector {
 			return true
@@ -51,6 +56,11 @@ func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equi
 	}
 	for _, rc := range s.RiskClasses {
 		if rc == riskClass {
+			return true
+		}
+	}
+	for _, ac := range s.AssetClasses {
+		if ac == assetType {
 			return true
 		}
 	}
@@ -74,7 +84,7 @@ func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, r
 
 	var inScope, outOfScope []EquityForRound
 	for _, e := range universe {
-		if scope.MatchesEquity(e.Sector, e.RiskClass) {
+		if scope.MatchesEquity(e.Sector, e.RiskClass, e.Type) {
 			inScope = append(inScope, e)
 		} else {
 			outOfScope = append(outOfScope, e)
@@ -117,6 +127,18 @@ type DecisionInput struct {
 	SelicNeutral    float64
 	RiskClass       equity.RiskClass
 	Seed            int64
+	// OrderSizeCeiling (achado 005, pontos-em-aberto-decisao-produto.md) é
+	// o teto de tamanho de ordem de compra repassado aos 4 arquétipos
+	// (capToFloat, marketmaker.go) — nil quando nenhum teto se aplica (ex:
+	// sandbox). Composto por tick.decisionInputFor como o menor entre o
+	// float finito do ativo (o antigo FloatCeiling, sozinho até a correção
+	// de 2026-09-19: sem ele, o caixa acumulado de um bot ao longo de
+	// muitos ciclos gerava ordens de compra maiores que 100% do float,
+	// nunca preenchíveis) e o volume médio negociado recente (parte B da
+	// mesma correção: 100% do float ainda era um teto gigante, sem relação
+	// com o que o mercado de fato absorve) — nenhum dos 4 arquétipos
+	// precisa saber de onde o teto veio, só que não pode ser excedido.
+	OrderSizeCeiling *int64
 }
 
 // Decide despacha pra função de decisão do arquétipo de personality
@@ -133,15 +155,15 @@ type DecisionInput struct {
 func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 	switch personality.Archetype {
 	case ArchetypeRuido:
-		d, err := DecideNoiseOrder(input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed)
+		d, err := DecideNoiseOrder(input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed, input.OrderSizeCeiling)
 		if err != nil {
 			return nil, err
 		}
 		return []Decision{d}, nil
 	case ArchetypeMarketMaker:
-		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition)
+		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
 	case ArchetypeChartista:
-		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition)
+		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +172,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		d, err := DecideFundamentalistOrder(
 			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct,
 			input.ReferencePrice, input.SelicAnnualRate, input.SelicNeutral, input.RiskClass,
-			input.AvailableCash, input.CurrentPosition, input.Seed,
+			input.AvailableCash, input.CurrentPosition, input.Seed, input.OrderSizeCeiling,
 		)
 		if err != nil {
 			return nil, err

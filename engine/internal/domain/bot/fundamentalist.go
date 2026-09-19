@@ -131,7 +131,11 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 // ruído) — o bot está disposto a negociar até o preço em que acredita,
 // não além. Quantidade reaproveita quantityForSide (marketmaker.go, mesma
 // função de sizing por lado usada por DecideChartistOrder, C.4) sobre
-// RiskProfile.MaxPositionSizePct.
+// RiskProfile.MaxPositionSizePct, capada pelo teto de tamanho de ordem
+// (orderSizeCeiling — capToFloat, achado 005, pontos-em-aberto-decisao-
+// produto.md; nil quando nenhum teto se aplica). Diferente do
+// outstandingShares acima (obrigatório, usado na fórmula de VPA),
+// orderSizeCeiling é opcional e só limita o tamanho da ordem.
 //
 // macroEffectPct (tarefa E.2) é o sinal/magnitude bruto (escala
 // percentual) de qualquer evento macro ativo que atinge esta empresa —
@@ -156,6 +160,7 @@ func DecideFundamentalistOrder(
 	availableCash float64,
 	currentPosition int,
 	seed int64,
+	orderSizeCeiling *int64,
 ) (Decision, error) {
 	if personality.Archetype != ArchetypeFundamentalista {
 		return Decision{}, ErrWrongArchetype
@@ -192,7 +197,7 @@ func DecideFundamentalistOrder(
 		return Decision{}, ErrNoMispricingDetected
 	}
 
-	quantity, err := quantityForSide(side, estimatedFairPrice, availableCash, currentPosition, personality.RiskProfile.MaxPositionSizePct)
+	quantity, err := quantityForSide(side, estimatedFairPrice, availableCash, currentPosition, personality.RiskProfile.MaxPositionSizePct, orderSizeCeiling)
 	if err != nil {
 		return Decision{}, err
 	}

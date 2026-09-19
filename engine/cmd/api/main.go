@@ -107,11 +107,16 @@ func main() {
 	}
 	selicConfig := selic.DefaultConfig(selic.DefaultNeutralRate, seed)
 	tickRepository := db.NewTickRepository(pool, quoteCache)
-	// bots/orderExecutionRepository (peek de contexto)/orderExecutionService
-	// (submissão) alimentam a coleta de decisão de bot dentro do sub-tick
-	// (Fase D.2, tick/rounds.go) — ordem de bot passa pelo mesmíssimo
-	// orderexecution.Service que POST /orders já usa, sem caminho paralelo.
-	tickService := tick.NewService(tickRepository, botRepository, tickRepository, orderExecutionRepository, orderExecutionService, selicConfig, seed)
+	// bots/tickRepository (histórico de preço/volume)/orderExecutionRepository
+	// (peek de contexto + ciclo de vida de ordem, achado 005)/
+	// orderExecutionService (submissão) alimentam a coleta de decisão de bot
+	// dentro do sub-tick (Fase D.2, tick/rounds.go) — ordem de bot passa pelo
+	// mesmíssimo orderexecution.Service que POST /orders já usa, sem caminho
+	// paralelo. tickRepository e orderExecutionRepository são cada um
+	// repassados duas vezes (PriceHistoryReader+TradedVolumeReader e
+	// OrderContextLoader+OrderLifecycleManager, respectivamente) — a mesma
+	// instância concreta já implementa os dois papéis.
+	tickService := tick.NewService(tickRepository, botRepository, tickRepository, tickRepository, orderExecutionRepository, orderExecutionService, orderExecutionRepository, selicConfig, seed)
 
 	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick

@@ -70,6 +70,11 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
+	simulatedDay, err := r.currentSimulatedDay(ctx)
+	if err != nil {
+		return orderexecution.Context{}, err
+	}
+
 	return orderexecution.Context{
 		ReferencePrice:             referencePrice,
 		Resting:                    resting,
@@ -78,7 +83,68 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		Sandbox:                    isSandbox,
 		OutstandingShares:          outstandingShares,
 		TotalHeldExcludingIncoming: totalHeldExcludingIncoming,
+		SimulatedDay:               simulatedDay,
 	}, nil
+}
+
+// currentSimulatedDay lê market_calendar.current_day (achado 005 parte A,
+// pontos-em-aberto-decisao-produto.md) — 0 quando o Temporizador nunca
+// rodou (motor recém-subido, tabela ainda vazia), mesmo fallback que
+// tick.Service.Run já usa (State{Day: 0, ...}). Chamado por LoadContext pra
+// carimbar Context.SimulatedDay, repassado por Service.SubmitWithContext
+// pra Request.SimulatedDay antes de persistir.
+func (r *OrderExecutionRepository) currentSimulatedDay(ctx context.Context) (int, error) {
+	var day int
+	err := r.db.QueryRowContext(ctx, `SELECT current_day FROM market_calendar WHERE id = 1`).Scan(&day)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return day, err
+}
+
+// ExpireStaleOrders cancela toda ordem ainda pendente/parcial de um dia
+// simulado anterior a currentSimulatedDay (achado 005 parte A) — sem isso,
+// order_book cresce sem limite e uma ordem de dias passados (ex: gerada por
+// um bot cujo caixa excedia o float do ativo, achado 005 original) continua
+// pendurada disputando liquidez indefinidamente, travando o preço de
+// fechamento. Chamado por tick.Service.Run antes de runIntradayRounds do
+// dia novo — nenhuma ordem de um dia anterior chega a competir pela
+// liquidez do dia que está começando. Cancelar não reverte saldo/posição
+// (nada é reservado na submissão de uma ordem — só o fill move dinheiro,
+// orderexecution.go), então um UPDATE simples é suficiente e correto, sem
+// precisar de evento novo em market_events (Event Sourcing só exige evento
+// pra escrita de saldo/posição, CLAUDE.md). Devolve quantas ordens
+// expiraram, só pra observabilidade (mesmo padrão de bot_fills_count/
+// dividends_paid_count na resposta de POST /admin/tick).
+func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error) {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled'
+		 WHERE status IN ('pending', 'partially_filled') AND simulated_day < $1`,
+		currentSimulatedDay,
+	)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	return int(affected), err
+}
+
+// CancelUserRestingOrders cancela toda ordem ainda pendente/parcial de
+// userID em assetID (achado 005 parte A.4) — chamado por runIntradayRounds
+// logo antes de um bot ArchetypeMarketMaker recotar um ativo: sem isso, o
+// Market Maker nunca cancelava a própria cotação da rodada anterior, só
+// empilhava mais uma a cada rodada, mesmo problema de acúmulo indefinido
+// que ExpireStaleOrders resolve entre dias, mas dentro do mesmo dia. Só os
+// outros 3 arquétipos (que colocam uma ordem oportunista por sinal, não uma
+// cotação contínua) não precisam disso — não é um gap, é o comportamento
+// correto pra eles (ver doc de A.4 no plano da correção).
+func (r *OrderExecutionRepository) CancelUserRestingOrders(ctx context.Context, userID, assetID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled'
+		 WHERE user_id = $1 AND asset_id = $2 AND status IN ('pending', 'partially_filled')`,
+		userID, assetID,
+	)
+	return err
 }
 
 // floatCeiling lê o teto do float finito do ativo (tarefa A.3,
@@ -348,6 +414,10 @@ func fillRestingOrder(ctx context.Context, tx *sql.Tx, orderID string, quantity 
 // pra ordem a mercado (sem preço próprio — Type == market ignora Price,
 // orderbook.go) é o preço médio ponderado de execução, porque a coluna é
 // NOT NULL e não existe "o preço" de uma ordem a mercado antes de executar.
+// simulated_day (achado 005 parte A) vem de req.SimulatedDay, carimbado por
+// Service.SubmitWithContext a partir do Context recém-carregado — todo
+// order_book novo já nasce sabendo em que dia simulado nasceu, insumo que
+// ExpireStaleOrders precisa pra nunca deixar ordem acumular indefinidamente.
 func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) error {
 	status := "pending"
 	switch {
@@ -370,9 +440,9 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 	}
 
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status,
+		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status, simulated_day)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status, req.SimulatedDay,
 	)
 	return err
 }

@@ -1063,7 +1063,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase G — FIIs no motor de negociação real
 
-### G.1 · FII entra no book real (mesmo mecanismo de Ações)
+### G.1 · FII entra no book real (mesmo mecanismo de Ações) ✅
 
 - **Descrição:** remove o GBM/tratamento Conservador de FII (`tick.riskClassForPricing`,
   `tick.go:281-286`, pro lado de FII) — FII passa a negociar no mesmo book/bots de Ações (Fases
@@ -1074,8 +1074,48 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   confirmando ausência de qualquer resquício de GBM no caminho de precificação de FII.
 - **Referências:** proposta seção 4.
 - **Dependências:** D.2, C.6.
+- **Achado da sessão (conferir antes de reabrir):** C.6 (`cmd/seed/main.go`,
+  `nonEquityAssetClasses`) já atribuía `catalog.AssetFII`/`AssetETF` ao escopo dos bots desde antes
+  desta tarefa, antecipando as Fases G/H — nenhuma mudança de seed foi necessária aqui, só o
+  domínio (`tick`/`bot`) precisava passar a ler essa atribuição pro book real.
+- **Entregável:** `tick.go` — `assetTypeAcao` virou um bloco `const` com `assetTypeFII = "fii"` ao
+  lado; o loop de `quotes` em `Advance` pula as duas classes (`a.Type == assetTypeAcao ||
+  a.Type == assetTypeFII`), igual à Ação desde D.2 — ETF é a única classe que ainda cai no GBM
+  (`riskClassForPricing`, doc atualizada pra refletir isso). `rounds.go` —
+  `buildEquityUniverse` passa a incluir `assetTypeFII` no filtro; pra FII, `Sector`/`RiskClass`
+  ficam em zero value de propósito (não chama mais `riskClassForPricing` — é exatamente o
+  "tratamento Conservador" que o critério de aceite pede pra remover), porque o único jeito de um
+  bot alcançar FII agora é por classe de ativo, não por setor/risk_class que ele não tem.
+  `bot/round.go` — `EquityForRound` ganhou o campo `Type catalog.AssetType`; `MatchesEquity` ganhou
+  um terceiro parâmetro (`assetType`) e uma terceira checagem de união contra `s.AssetClasses` (até
+  aqui morta pro caminho de Ação — "Ação não é chave de cobertura própria", C.6 — mas agora a única
+  via de match pra FII); `SelectAssetForRound` repassa `e.Type`. Fundamentalista nunca decide uma
+  ordem pra FII: `fundamentalistHasCompanyContext` já descartava qualquer ativo com `CompanyID nil`
+  (mesma checagem que já valia pra Ação sem empresa vinculada), e FII nunca tem `CompanyID` (spec
+  3.6) — nenhum código novo precisou tratar esse caso, é consequência direta do que já existia.
+  G.2/G.3 (reavaliação de `NetWorth`/`PortfolioValue`, sensibilidade de bot a vacância/indexador)
+  ficam fora desta tarefa, como a proposta seção 4 já separa.
+  Testes novos: `bot/round_test.go` —
+  `TestSpecializationScope_MatchesEquity_PorClasseDeAtivo` (match por `AssetClasses`, ignora
+  Sector/RiskClass vazios); `tick/tick_test.go` — `TestAdvance_FIINaoNasceMaisDeGBM` (FII com
+  `RiskClass`/`LastPrice` nulos não gera nenhuma `Quote` em `Advance`, cenário que antes da G.1
+  caía no fallback Conservador e gerava preço via GBM); `tick/rounds_test.go` —
+  `TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal` (bot Ruído especializado em FII por
+  `AssetClasses` negocia via `orderexecution` real, fechamento reflete o fill) e
+  `TestRunIntradayRounds_FundamentalistaNuncaNegociaFII` (Fundamentalista especializado em FII é
+  descartado antes de qualquer `LoadContext`, `fills = 0`). `gofmt`/`go vet`/`go build`/
+  `go test ./...`/`golangci-lint run` (Docker, v2.12.2) verdes. `.docs/engine/tick.md` atualizado
+  (FII saiu do caminho de GBM, só ETF resta; menção a `bot_fills_count` agora inclui FII).
+  Validado ponta a ponta via `docker compose up -d --build` (sem `down -v` — nenhuma migration
+  nova) contra dados reais já seedados em sessões anteriores (bots com posição/personalidade em
+  TJLO11/PAPL11 desde B.2/C.6): `POST /admin/tick` (dia 102→103) gerou `bot_fills_count: 22` e
+  `order_book` confirmou fills reais em TJLO11/PAPL11 (`status = filled`/`partially_filled`, preços
+  de negociação, não um salto instantâneo de GBM) — `asset_quotes` do dia 103 tem exatamente 5
+  linhas (2 Ações + 2 FIIs vindas do fechamento de `runIntradayRounds`, 1 ETF ainda vindo do GBM de
+  `Advance`), confirmando que FII deixou o caminho antigo. Stack parada com `docker compose down`
+  (sem `-v`) ao final, dados preservados.
 
-### G.2 · Reavaliação periódica de `NetWorth` (FII tijolo)
+### G.2 · Reavaliação periódica de `NetWorth` (FII tijolo) ✅
 
 - **Descrição:** `fii.Details.NetWorth` (hoje fixo desde o seed) passa a ser reavaliado no mesmo
   ciclo de 14 dias do relatório de empresas, com variação sintética ligada à Selic simulada (juro
@@ -1086,8 +1126,49 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   confirmando nova linha de `NetWorth` a cada ciclo de 14 dias.
 - **Referências:** proposta seção 4.
 - **Dependências:** G.1.
+- **Entregável:** pacote novo `engine/internal/domain/fii/networth.go` — `NetWorthConfig`
+  (`Sensitivity`/`NoiseStdDev`/`Seed`, mesmo papel de `fundamentals.Config` pro ciclo de relatório
+  de empresa) + `NetWorthVariation` (fração decimal, sinal invertido em relação ao desvio da
+  Selic — `-Sensitivity×(selicRate-selicNeutral) + ruído`, mesma técnica de
+  `fundamentals.ExpectedGrowth`/`NextGrowth`: seed determinística por `cfg.Seed + cycleIndex`,
+  RNF08) + `NextNetWorth` (aplica a variação multiplicativamente sobre o valor vigente, nunca
+  regenera do zero — mesma decisão de `equity.NextPrice`). `DefaultNetWorthSelicSensitivity =
+  0.03`/`DefaultNetWorthNoiseStdDev = 0.01`: valores ilustrativos únicos e globais (FII não tem
+  `risk_class` própria, spec 3.6, então nada equivalente à tabela por risk_class de
+  `fundamentals.SensitivityByRiskClass`) — sujeitos à calibração da tarefa 8.1, mesmo tratamento já
+  dado a todo coeficiente sem tabela fechada na spec. `tick.go`: `NetWorthUpdate{AssetID,
+  NetWorth}` novo (doc deixa explícito que **não** é uma linha de histórico como
+  `FundamentalsRecord` — `fii_details.net_worth` é coluna mutável de uma tabela com `asset_id` como
+  chave primária, então `SaveTick` faz `UPDATE`, não `INSERT`); `fiiNetWorthUpdatesForCycle`
+  reaproveita a mesma lista `dividendPayers` (`DividendPayerAsset`, já carregada pra dividendo, já
+  tem `NetWorth`/`AssetID` prontos) — nenhuma consulta nova ao catálogo precisou ser criada. Roda
+  no mesmo calendário quinzenal global (`fundamentals.IsReportDay(dayIndex,
+  fundamentals.DefaultReportFrequencyDays)`) que já dispara relatório de empresa/dividendo; filtra
+  só `Type == "fii" && NetWorth != nil` — FII papel (`PortfolioValue` preenchido, `NetWorth` nil)
+  nunca entra aqui, fica pra G.3. `Result.NetWorthUpdates` novo, preenchido em `Advance`.
+  `internal/infra/db/tick_repository.go`: `SaveTick` ganha um loop `UPDATE fii_details SET
+  net_worth = $1 WHERE asset_id = $2` por item, na mesma transação do resto do tick — sem
+  Repository novo nem query de leitura adicional (o dado de entrada já vinha de
+  `ListDividendPayerAssets`, existente desde a 4.9). Testes novos: `fii/networth_test.go`
+  (table-driven — `TestNetWorthVariation_JuroAltoReduzJuroBaixoAumenta` com os 3 casos do critério
+  de aceite, mais determinismo por seed/cycleIndex, seeds diferentes gerando ruído diferente, e
+  `NextNetWorth` aplicando a variação multiplicativamente/mantendo o valor sem desvio nem ruído);
+  `tick/tick_test.go` — `TestAdvance_NetWorth_ReavaliaFIITijoloNoCalendarioGlobalDeRelatorio`
+  (bate exatamente com `fii.NextNetWorth` chamada com os mesmos parâmetros que `Advance` usa de
+  verdade, mesma técnica de `TestNextGrowth_*`), `TestAdvance_NetWorth_FIIPapelNuncaReavaliado`,
+  `TestAdvance_NetWorth_NaoReavaliaForaDoDiaDeRelatorioGlobal`. `gofmt`/`go vet`/`go build`/
+  `go test ./...`/`golangci-lint run` (Docker, v2.12.2) verdes. `.docs/engine/tick.md` atualizado
+  (parágrafo novo depois do de dividendos, deixando explícito que não existe tabela de histórico
+  pra `net_worth`, só o valor mais recente exposto em `GET /assets/:id`). Validado ponta a ponta
+  via `docker compose up -d --build` (sem `down -v`, mesmos dados reais de G.1) + 9 chamadas
+  `POST /admin/tick` (dia 103→112, até bater o próximo ciclo quinzenal): `TJLO11.net_worth` saiu de
+  `500000000.00` (valor fixo do seed) pra `495173146.68` exatamente no tick `is_report_day: true`
+  (Selic simulada em 9,885%, levemente abaixo dos 10% neutros — pequena valorização esperada,
+  parcialmente compensada pelo ruído da amostra), enquanto `PAPL11.portfolio_value` (perfil papel)
+  ficou inalterado no mesmo tick, confirmando que a reavaliação não vaza pro outro perfil. Stack
+  parada com `docker compose down` (sem `-v`) ao final.
 
-### G.3 · Reavaliação periódica de `PortfolioValue` (FII papel)
+### G.3 · Reavaliação periódica de `PortfolioValue` (FII papel) ✅
 
 - **Descrição:** `fii.Details.PortfolioValue` (hoje fixo) passa a ser reavaliado no mesmo ciclo de
   14 dias, variando conforme o indexador da carteira (CDI/IPCA+/prefixado) — análogo a como um
@@ -1096,6 +1177,53 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   `PortfolioValue` acumula corretamente ao longo de ciclos sucessivos.
 - **Referências:** proposta seção 4.
 - **Dependências:** G.1.
+- **Achado da sessão (decisão de escopo, conferir antes de reabrir):** IPCA+ **não** lê o IPCA
+  simulado de verdade — `ipca.MonthlySeries` não tem nenhum consumidor no tick diário ainda
+  (achado documentado na própria Fase M do backlog, que resolve isso), e essa tarefa depende só de
+  G.1. `IPCA+`/`Prefixado` usam uma taxa anual nominal ilustrativa fixa
+  (`fii.DefaultIPCAPlusAnnualRatePct`/`DefaultPrefixadoAnnualRatePct`, mesmo tratamento "sujeito à
+  calibração 8.1" de todo coeficiente sem tabela fechada na spec) — só `CDI` reage a uma variável
+  simulada de verdade (a Selic do dia, mesma simplificação de `tesouro_selic` ser 1:1 com a Selic
+  em outras partes do motor). Diferente de G.2 (NetWorth, com ruído idiossincrático — avaliação de
+  mercado), esta reavaliação é **determinística, sem ruído**: rendimento de carteira de renda fixa
+  é contratado/indexado, não sujeito a surpresa.
+- **Entregável:** pacote novo `engine/internal/domain/fii/portfoliovalue.go` — `IndexadorCDI`/
+  `IndexadorIPCAPlus`/`IndexadorPrefixado` (constantes string; `fii_details.indexador` é
+  `varchar(20)` livre no Postgres, sem `CHECK`/enum, então `PortfolioValueVariation` devolve
+  `ErrUnknownIndexador` — não um `panic`/valor arbitrário — pra qualquer string fora das três) +
+  `PortfolioValueVariation` (fração decimal por ciclo, `(1+taxaAnual/100)^(cycleDays/365) - 1`,
+  dias corridos sobre 365 — FII não segue a convenção de 252 dias úteis de
+  `fixedincome.BusinessDaysPerYear` em nenhum outro lugar do motor) + `NextPortfolioValue`
+  (aplica multiplicativamente sobre o valor vigente, nunca regenera do zero — mesma decisão de
+  `fii.NextNetWorth`/`equity.NextPrice`). `tick.go`: `PortfolioValueUpdate{AssetID,
+  PortfolioValue}` novo (mesma natureza de `NetWorthUpdate` — `UPDATE`, não `INSERT`, sem tabela
+  de histórico); `fiiPortfolioValueUpdatesForCycle` reaproveita a mesma lista `dividendPayers` de
+  G.2 — `DividendPayerAsset` ganhou o campo `Indexador *string` (só preenchido pro perfil papel);
+  filtra `Type == "fii" && PortfolioValue != nil && Indexador != nil`, pula (sem travar o tick)
+  qualquer indexador que `fii.NextPortfolioValue` não reconheça. `Result.PortfolioValueUpdates`
+  novo, preenchido em `Advance` no mesmo dia de relatório global de G.2 (independentes entre si —
+  um FII só tem um dos dois perfis, nunca os dois). `internal/infra/db/tick_repository.go`:
+  `ListDividendPayerAssets` ganha `fd.indexador` no `SELECT`/`Scan` (mesma query, sem JOIN novo);
+  `SaveTick` ganha um loop `UPDATE fii_details SET portfolio_value = $1 WHERE asset_id = $2` por
+  item, mesma transação. Testes novos: `fii/portfoliovalue_test.go` (table-driven — os 3
+  indexadores em `TestPortfolioValueVariation_TresIndexadores`, indexador desconhecido devolvendo
+  `ErrUnknownIndexador`, CDI reagindo a mudança de Selic, e
+  `TestNextPortfolioValue_AcumulaCorretamenteAoLongoDeCiclosSucessivos` — 3 ciclos sucessivos por
+  indexador batendo com a composição fechada `inicial × fator³` e crescendo monotonicamente);
+  `tick/tick_test.go` — `TestAdvance_PortfolioValue_ReavaliaFIIPapelNoCalendarioGlobalDeRelatorio`
+  (bate exatamente com `fii.NextPortfolioValue` chamada com os mesmos parâmetros que `Advance` usa
+  de verdade), `TestAdvance_PortfolioValue_FIITijoloNuncaReavaliado`,
+  `TestAdvance_PortfolioValue_IndexadorDesconhecidoNaoReavalia`,
+  `TestAdvance_PortfolioValue_NaoReavaliaForaDoDiaDeRelatorioGlobal`. `gofmt`/`go vet`/`go build`/
+  `go test ./...`/`golangci-lint run` (Docker, v2.12.2 — um achado de `staticcheck` QF1005 no teste,
+  `math.Pow(x, 3)` trocado por `x*x*x`, corrigido antes do lint final) verdes. `.docs/engine/tick.md`
+  atualizado (parágrafo novo depois do de G.2). Validado ponta a ponta via `docker compose up -d
+  --build` (sem `down -v`, mesmos dados reais de G.1/G.2) + 14 `POST /admin/tick` (dia 112→126, até
+  bater o próximo ciclo quinzenal): `PAPL11.portfolio_value` (indexador `CDI`) saiu de
+  `300000000.00` pra `301091368.48` (+0,364%, batendo com Selic simulada ~9,93% a.a. sobre 14 dias
+  corridos) exatamente no tick com `is_report_day: true`, no mesmo tick em que `TJLO11.net_worth`
+  (G.2) também mudou — confirmando que as duas reavaliações convivem no mesmo ciclo sem interferir
+  uma na outra. Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ---
 
