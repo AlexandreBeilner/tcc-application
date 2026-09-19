@@ -1670,7 +1670,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
     verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada).
 
-### J.3 · Bot Fundamentalista valoriza por classe
+### J.3 · Bot Fundamentalista valoriza por classe ✅
 
 - **Descrição:** o arquétipo Fundamentalista (C.5) calcula "preço justo" separadamente pra ON e
   PN da mesma empresa — mesmo fundamento (lucro, ROE), mas dividendo esperado por ação diferente
@@ -1680,6 +1680,68 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   o de ON, proporcional ao premium.
 - **Referências:** proposta 2.8, item 3.
 - **Dependências:** J.2, C.5.
+- **Entregável:** `bot.FundamentalistFairPrice` (`fundamentalist.go`) ganha um parâmetro novo,
+  `pnPremiumPct` (posicionado ao lado de `macroEffectPct`, mesmo tratamento multiplicativo) —
+  `fairPrice = vpa × (roe/requiredReturn) × (1+growthRate) × (1+macroEffectPct/100) ×
+  (1+pnPremiumPct/100)`. `pnPremiumPct = 0` (ação ON, ou empresa só de uma classe) reduz
+  exatamente à fórmula anterior — sem quebra de compatibilidade, mesma nota já dada a
+  `macroEffectPct = 0` na E.2. Diferente de `macroEffectPct`, **não** passa pelo filtro de
+  `personality.KnowledgeLevel` em `DecideFundamentalistOrder` — é um fato estrutural conhecido da
+  empresa (`companies.pn_dividend_premium_pct`, J.2), mesma categoria de `growthRate`/Selic, não
+  uma leitura ruidosa de evento ao vivo. `DecideFundamentalistOrder` e `bot.DecisionInput`
+  (`round.go`) ganham o mesmo parâmetro/campo, repassado sem tradução.
+  - `tick/tick.go`: `AssetForPricing` ganha `ShareClass *string` (mesma convenção "ON"/"PN" de
+    `DividendPayerAsset.ShareClass`, J.2) — nil (ou != "PN") conta como ON. `companyRoundContexts`
+    passa a copiar `CompanyForFundamentals.PnDividendPremiumPct` (já existente desde a J.2) pro
+    novo campo `CompanyRoundContext.PnDividendPremiumPct` (`tick/rounds.go`), compartilhado pelas
+    duas classes da mesma empresa (indexado por `company_id`, não por `asset_id`, mesma garantia
+    já provada pela J.1).
+  - `tick/rounds.go`: `equityRoundState` ganha `ShareClass *string` (espelha
+    `AssetForPricing.ShareClass`, populado em `buildEquityUniverse`). `decisionInputFor` (case
+    `ArchetypeFundamentalista`) só preenche `input.PnDividendPremiumPct` quando
+    `state.ShareClass != nil && *state.ShareClass == "PN"` — fica em 0 (fórmula original) pra
+    qualquer ativo ON.
+  - `infra/db/tick_repository.go`: `ListPricingAssets` passa a ler `via.share_class` (mesma
+    coluna que `ListDividendPayerAssets`, J.2, já lia) — sem migration nova, coluna já existia
+    desde a J.1.
+  - Testes novos: `bot/fundamentalist_test.go` —
+    `TestFundamentalistFairPrice_PnPremiumDeslocaOPrecoJustoProporcionalmente` (table-driven,
+    10/20/25% de premium, confirma `pnPrice == onPrice × (1+premium/100)` exatamente) e
+    `TestFundamentalistFairPrice_PnPremiumZeroMantemFormulaOriginal` (regressão, mesmo padrão do
+    par de testes já existente pra `macroEffectPct`). `tick/rounds_test.go` —
+    `TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremium`, prova de
+    ponta a ponta dentro do domínio via `runIntradayRounds` real (Fundamentalista com
+    `knowledgeLevel = 1.0`, sem ruído): dois ativos (`on1`/`pn1`) do mesmo `company_id`,
+    `CompanyRoundContext.PnDividendPremiumPct = 20`, confirma os preços submetidos batendo
+    exatamente com `10.3`/`12.36` (VPA=10, ROE=0.1, requiredReturn=0.10, growthRate=0.03).
+  - **Validado ao vivo via `docker compose up -d --build`** (dados reais já seedados, sem `down
+    -v`): inseri manualmente `VALR4` (PN, `outstanding_shares` 500.000.000) vinculado ao mesmo
+    `company_id` de `VALR3` (ON) — mesma técnica de inserção manual da J.1/J.2 — `GET
+    /companies/:id` real confirmou os dois ativos com `share_class` corretos e `fundamentals`
+    compartilhados; consulta SQL direta reproduzindo `ListPricingAssets` confirmou `share_class`
+    vindo certo via `via.share_class` pra `VALR3`("ON")/`VALR4`("PN")/`BNDD4`("PN"). `POST
+    /admin/tick` avançado várias vezes sem erro (migrations/wiring OK). **Achado, não corrigido
+    nesta sessão:** o mercado ao vivo desta instância de dev está com liquidez travada há vários
+    dias simulados (`asset_quotes.total_quantity = 0` pra todo ativo nos últimos 5+ dias, `POST
+    /admin/tick` reportando `bot_fills_count: 0` de forma consistente) — não é uma regressão desta
+    tarefa: `effectiveOrderSizeCeiling` (`rounds.go`, achado 005 parte B) usa a média de volume dos
+    últimos `ChartistPriceHistoryDays` dias como teto de tamanho de ordem, e quando essa média é 0
+    (não "sem histórico", mas "histórico todo zerado"), o teto trava em 0 pra sempre — nenhuma
+    ordem de compra consegue quantidade ≥ 1 (`quantityForSide`/`capToFloat`), então nenhuma ordem
+    de compra nova entra no book, e sem contraparte de compra as vendas também nunca casam,
+    perpetuando o próprio travamento. Isso impediu observar convergência de preço via fills reais
+    pra `VALR4` (ficou parado no `DefaultInitialPrice` = 100 pelos ticks avançados) — a fórmula em
+    si já está integralmente coberta pelos testes automatizados acima (valores exatos). Já é a
+    mesma causa raiz que o comentário de `MaxOrderPctOfAverageVolumePct` (`rounds.go`) documenta
+    como "deferida pra Fase K (calibração com dados reais B3/CVM), decisão confirmada com o
+    autor" — não é um gap novo, só a manifestação prática desse limite já conhecido; não registrado
+    em `pontos-em-aberto-decisao-produto.md` por não ser uma decisão de produto em aberto (é
+    mecânico, e a causa raiz já tem dono — Fase K). `VALR4` de teste removido ao final (mesma
+    transação cobrindo `order_book`, `asset_quotes`, `variable_income_assets`, `assets`), `docker
+    compose down` (sem `-v`).
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — `ListPricingAssets` ganhou uma
+    coluna a mais na mesma query, `GET /companies/:id`/`GET /assets/:id` já existiam).
 
 ### J.4 · Seed reflete a composição real do mercado
 

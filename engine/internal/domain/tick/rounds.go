@@ -66,6 +66,14 @@ type CompanyRoundContext struct {
 	// MacroEffectPct — o único consumidor: Chartista/Ruído nunca leem o
 	// evento diretamente (proposta 2.3.2/3).
 	MacroEffectPct float64
+	// PnDividendPremiumPct (tarefa J.3) é CompanyForFundamentals.
+	// PnDividendPremiumPct (J.2) repassado sem alteração — o Fundamentalista
+	// usa esse mesmo valor pra deslocar sua estimativa de preço justo quando
+	// o ativo sendo avaliado é PN (equityRoundState.ShareClass, ver
+	// decisionInputFor), 0 pra ON. Compartilhado pelas duas classes da mesma
+	// empresa igual a Financials/GrowthRate acima — é a empresa que declara
+	// o percentual, não o ativo.
+	PnDividendPremiumPct float64
 }
 
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
@@ -178,6 +186,12 @@ type equityRoundState struct {
 	RiskClass equity.RiskClass
 	CompanyID *string
 	Price     float64
+	// ShareClass (tarefa J.3) espelha AssetForPricing.ShareClass — nil (FII,
+	// ou Ação sem classe reconhecida) conta como ON, mesma convenção de
+	// equityShareClassesByCompany (tick.go). Consumido só por decisionInputFor
+	// (case ArchetypeFundamentalista) pra decidir se o premium de dividendo
+	// da PN entra na estimativa de preço justo deste ativo.
+	ShareClass *string
 }
 
 // roundSeed deriva uma seed determinística e independente por (dia, rodada,
@@ -227,7 +241,7 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 			price = *a.LastPrice
 		}
 
-		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price}
+		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price, ShareClass: a.ShareClass}
 		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type)})
 	}
 	return equities, universe
@@ -368,6 +382,13 @@ func (s *Service) decisionInputFor(
 		input.GrowthRate = cc.GrowthRate
 		input.MacroEffectPct = cc.MacroEffectPct
 		input.OutstandingShares = *execCtx.OutstandingShares
+		// PnDividendPremiumPct (tarefa J.3) só se aplica a um ativo PN —
+		// state.ShareClass nil ou qualquer valor != "PN" conta como ON
+		// (mesma convenção de equityShareClassesByCompany, tick.go), então
+		// fica em 0 (fórmula original de FundamentalistFairPrice).
+		if state.ShareClass != nil && *state.ShareClass == "PN" {
+			input.PnDividendPremiumPct = cc.PnDividendPremiumPct
+		}
 	}
 
 	return input, true, nil

@@ -52,10 +52,11 @@ func (r *TickRepository) LoadState(ctx context.Context) (tick.State, bool, error
 // (Advance aplica tick.DefaultInitialPrice nesse caso). Sector (setor da
 // empresa emissora, via companies, tarefa 4.5) fica nil pra ETF/FII, sem
 // CompanyID — usado por Advance pra resolver o fan-out de um evento macro
-// de alvo setorial.
+// de alvo setorial. ShareClass (tarefa J.3) idem via.share_class, mesma
+// coluna que ListDividendPayerAssets já lê (J.2).
 func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetForPricing, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector
+		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector, via.share_class
 		 FROM assets a
 		 LEFT JOIN LATERAL (
 		   SELECT price FROM asset_quotes
@@ -76,7 +77,7 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 	var assets []tick.AssetForPricing
 	for rows.Next() {
 		var a tick.AssetForPricing
-		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector); err != nil {
+		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector, &a.ShareClass); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)

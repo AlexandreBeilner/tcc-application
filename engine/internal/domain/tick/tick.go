@@ -83,6 +83,14 @@ type AssetForPricing struct {
 	// real (runIntradayRounds, rounds.go), nunca mais do GBM. ETF continua
 	// no GBM até a Fase H estender o mesmo motor de negociação real pra ele.
 	Type string
+	// ShareClass (tarefa J.3) só vem preenchido pra "acao" — "ON"/"PN"
+	// (convenção do seed, catalog.VariableIncomeAsset.ShareClass, mesma de
+	// DividendPayerAsset.ShareClass abaixo) — usado por buildEquityUniverse
+	// (rounds.go) pra decidir se o Fundamentalista aplica o premium de
+	// dividendo da PN (companies.pn_dividend_premium_pct) na estimativa de
+	// preço justo desse ativo. nil (ou qualquer valor != "PN") conta como
+	// ON, mesma convenção de equityShareClassesByCompany.
+	ShareClass *string
 }
 
 // CompanyForFundamentals é o insumo mínimo do catálogo que Advance precisa
@@ -482,9 +490,10 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 		}
 
 		contexts[c.CompanyID] = CompanyRoundContext{
-			Financials:     fundamentals.DeriveFinancials(baseRevenue),
-			GrowthRate:     fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
-			MacroEffectPct: macroPriceEffects[c.CompanyID],
+			Financials:           fundamentals.DeriveFinancials(baseRevenue),
+			GrowthRate:           fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
+			MacroEffectPct:       macroPriceEffects[c.CompanyID],
+			PnDividendPremiumPct: c.PnDividendPremiumPct,
 		}
 	}
 	return contexts

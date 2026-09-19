@@ -2,6 +2,7 @@ package bot
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -36,16 +37,16 @@ func TestFundamentalistFairPrice_SensibilidadeASelicProporcionalAoRiskClass(t *t
 	const selicNeutral = 0.10
 	const shockedSelic = 0.14 // +4 p.p. acima da neutra
 
-	basePrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	basePrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("basePrice: err = %v, want nil", err)
 	}
 
-	conservadorPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, shockedSelic, selicNeutral, equity.RiskClassConservador)
+	conservadorPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, shockedSelic, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("conservadorPrice: err = %v, want nil", err)
 	}
-	sofisticadoPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, shockedSelic, selicNeutral, equity.RiskClassSofisticado)
+	sofisticadoPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, shockedSelic, selicNeutral, equity.RiskClassSofisticado)
 	if err != nil {
 		t.Fatalf("sofisticadoPrice: err = %v, want nil", err)
 	}
@@ -69,11 +70,11 @@ func TestFundamentalistFairPrice_SemChoqueDeSelicRiskClassNaoImporta(t *testing.
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	conservadorPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	conservadorPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	sofisticadoPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassSofisticado)
+	sofisticadoPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassSofisticado)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -87,7 +88,7 @@ func TestDecideFundamentalistOrder_ConhecimentoAltoConvergeMaisDoQueBaixo(t *tes
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("fairPrice: err = %v, want nil", err)
 	}
@@ -101,7 +102,7 @@ func TestDecideFundamentalistOrder_ConhecimentoAltoConvergeMaisDoQueBaixo(t *tes
 		var sum float64
 		const samples = 300
 		for seed := int64(0); seed < samples; seed++ {
-			decision, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, currentMarketPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 0, seed, nil)
+			decision, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, 0, currentMarketPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 0, seed, nil)
 			if err != nil {
 				t.Fatalf("knowledgeLevel %.2f, seed %d: err = %v, want nil", knowledgeLevel, seed, err)
 			}
@@ -129,7 +130,7 @@ func TestDecideFundamentalistOrder_DirecaoConformeAoDesvio(t *testing.T) {
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("fairPrice: err = %v, want nil", err)
 	}
@@ -139,7 +140,7 @@ func TestDecideFundamentalistOrder_DirecaoConformeAoDesvio(t *testing.T) {
 	personality := mustFundamentalistPersonality(t, 1.0, 0.5)
 
 	t.Run("mercado abaixo do preço justo, compra", func(t *testing.T) {
-		got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, fairPrice*0.5, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 0, 1, nil)
+		got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, 0, fairPrice*0.5, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 0, 1, nil)
 		if err != nil {
 			t.Fatalf("err = %v, want nil", err)
 		}
@@ -148,7 +149,7 @@ func TestDecideFundamentalistOrder_DirecaoConformeAoDesvio(t *testing.T) {
 		}
 	})
 	t.Run("mercado acima do preço justo, venda", func(t *testing.T) {
-		got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, fairPrice*2, selicNeutral, selicNeutral, equity.RiskClassConservador, 0, 1_000, 1, nil)
+		got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, 0, fairPrice*2, selicNeutral, selicNeutral, equity.RiskClassConservador, 0, 1_000, 1, nil)
 		if err != nil {
 			t.Fatalf("err = %v, want nil", err)
 		}
@@ -168,7 +169,7 @@ func TestDecideFundamentalistOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testin
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("fairPrice: err = %v, want nil", err)
 	}
@@ -177,9 +178,8 @@ func TestDecideFundamentalistOrder_QuantidadeDeCompraNuncaExcedeOFloat(t *testin
 	orderSizeCeiling := int64(1_000_000)
 
 	got, err := DecideFundamentalistOrder(
-		personality, financials, outstandingShares, growthRate, 0, fairPrice*0.5, selicNeutral, selicNeutral,
-		equity.RiskClassConservador, 104_866_356_108.88, 0, 1, &orderSizeCeiling,
-	)
+		personality, financials, outstandingShares, growthRate, 0, 0, fairPrice*0.5, selicNeutral, selicNeutral,
+		equity.RiskClassConservador, 104_866_356_108.88, 0, 1, &orderSizeCeiling)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -196,13 +196,13 @@ func TestDecideFundamentalistOrder_ErroSemMispricingClaro(t *testing.T) {
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("fairPrice: err = %v, want nil", err)
 	}
 
 	personality := mustFundamentalistPersonality(t, 1.0, 0.5)
-	_, err = DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, fairPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 1_000, 1, nil)
+	_, err = DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, 0, fairPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 1_000, 1, nil)
 	if !errors.Is(err, ErrNoMispricingDetected) {
 		t.Fatalf("err = %v, want %v", err, ErrNoMispricingDetected)
 	}
@@ -213,7 +213,7 @@ func TestDecideFundamentalistOrder_NuncaExcedeCaixaOuPosicao(t *testing.T) {
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("fairPrice: err = %v, want nil", err)
 	}
@@ -236,7 +236,7 @@ func TestDecideFundamentalistOrder_NuncaExcedeCaixaOuPosicao(t *testing.T) {
 				for _, pct := range []float64{0.1, 0.5, 1.0} {
 					personality := mustFundamentalistPersonality(t, knowledgeLevel, pct)
 					for seed := int64(0); seed < 20; seed++ {
-						got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, tt.currentMarketPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, tt.availableCash, tt.currentPosition, seed, nil)
+						got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, 0, 0, tt.currentMarketPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, tt.availableCash, tt.currentPosition, seed, nil)
 						if err != nil {
 							t.Fatalf("knowledge %.1f pct %.1f seed %d: err = %v, want nil", knowledgeLevel, pct, seed, err)
 						}
@@ -264,11 +264,11 @@ func TestDecideFundamentalistOrder_Deterministico(t *testing.T) {
 	financials, outstandingShares := financialsFixture()
 	personality := mustFundamentalistPersonality(t, 0.4, 0.5)
 
-	first, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 5, 0.10, 0.10, equity.RiskClassConservador, 10_000, 0, 42, nil)
+	first, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, 5, 0.10, 0.10, equity.RiskClassConservador, 10_000, 0, 42, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	second, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 5, 0.10, 0.10, equity.RiskClassConservador, 10_000, 0, 42, nil)
+	second, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, 5, 0.10, 0.10, equity.RiskClassConservador, 10_000, 0, 42, nil)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -282,13 +282,13 @@ func TestDecideFundamentalistOrder_ErroSemRecursoParaOLadoIndicado(t *testing.T)
 	personality := mustFundamentalistPersonality(t, 1.0, 0.5)
 
 	t.Run("compra, sem caixa suficiente", func(t *testing.T) {
-		_, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 1, 0.10, 0.10, equity.RiskClassConservador, 0, 0, 1, nil)
+		_, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, 1, 0.10, 0.10, equity.RiskClassConservador, 0, 0, 1, nil)
 		if !errors.Is(err, ErrNoViableOrder) {
 			t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 		}
 	})
 	t.Run("venda, sem posição", func(t *testing.T) {
-		_, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 1_000, 0.10, 0.10, equity.RiskClassConservador, 0, 0, 1, nil)
+		_, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, 1_000, 0.10, 0.10, equity.RiskClassConservador, 0, 0, 1, nil)
 		if !errors.Is(err, ErrNoViableOrder) {
 			t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 		}
@@ -307,7 +307,7 @@ func TestDecideFundamentalistOrder_ErroArquetipoErrado(t *testing.T) {
 	}
 
 	financials, outstandingShares := financialsFixture()
-	_, err = DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 10, 0.10, 0.10, equity.RiskClassConservador, 1_000, 10, 1, nil)
+	_, err = DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, 10, 0.10, 0.10, equity.RiskClassConservador, 1_000, 10, 1, nil)
 	if !errors.Is(err, ErrWrongArchetype) {
 		t.Fatalf("err = %v, want %v", err, ErrWrongArchetype)
 	}
@@ -324,7 +324,7 @@ func TestDecideFundamentalistOrder_ErroSemKnowledgeLevel(t *testing.T) {
 	personality := Personality{Archetype: ArchetypeFundamentalista, RiskProfile: riskProfile}
 
 	financials, outstandingShares := financialsFixture()
-	_, err = DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 10, 0.10, 0.10, equity.RiskClassConservador, 1_000, 10, 1, nil)
+	_, err = DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, 10, 0.10, 0.10, equity.RiskClassConservador, 1_000, 10, 1, nil)
 	if !errors.Is(err, ErrMissingKnowledgeLevel) {
 		t.Fatalf("err = %v, want %v", err, ErrMissingKnowledgeLevel)
 	}
@@ -334,7 +334,7 @@ func TestDecideFundamentalistOrder_ErroPrecoDeMercadoInvalido(t *testing.T) {
 	personality := mustFundamentalistPersonality(t, 0.5, 0.5)
 	financials, outstandingShares := financialsFixture()
 	for _, price := range []float64{0, -1} {
-		_, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, price, 0.10, 0.10, equity.RiskClassConservador, 1_000, 10, 1, nil)
+		_, err := DecideFundamentalistOrder(personality, financials, outstandingShares, 0.03, 0, 0, price, 0.10, 0.10, equity.RiskClassConservador, 1_000, 10, 1, nil)
 		if !errors.Is(err, ErrInvalidReferencePrice) {
 			t.Fatalf("price %v: err = %v, want %v", price, err, ErrInvalidReferencePrice)
 		}
@@ -343,7 +343,7 @@ func TestDecideFundamentalistOrder_ErroPrecoDeMercadoInvalido(t *testing.T) {
 
 func TestFundamentalistFairPrice_ErroRiskClassDesconhecida(t *testing.T) {
 	financials, outstandingShares := financialsFixture()
-	_, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, 0.10, 0.10, "inexistente")
+	_, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, 0, 0.10, 0.10, "inexistente")
 	if !errors.Is(err, ErrUnknownRiskClass) {
 		t.Fatalf("err = %v, want %v", err, ErrUnknownRiskClass)
 	}
@@ -360,7 +360,7 @@ func TestFundamentalistFairPrice_ErroFinanceirosInvalidos(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := FundamentalistFairPrice(tt.financials, tt.outstandingShares, 0.03, 0, 0.10, 0.10, equity.RiskClassConservador)
+			_, err := FundamentalistFairPrice(tt.financials, tt.outstandingShares, 0.03, 0, 0, 0.10, 0.10, equity.RiskClassConservador)
 			if !errors.Is(err, ErrInvalidFinancials) {
 				t.Fatalf("err = %v, want %v", err, ErrInvalidFinancials)
 			}
@@ -372,7 +372,7 @@ func TestFundamentalistFairPrice_ErroRetornoExigidoInvalido(t *testing.T) {
 	financials, outstandingShares := financialsFixture()
 	// selicNeutral pequeno + choque bem negativo faz o retorno exigido
 	// (selicNeutral + sensibilidade×desvio) cair a zero ou abaixo.
-	_, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, -10, 0.01, equity.RiskClassSofisticado)
+	_, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, 0, -10, 0.01, equity.RiskClassSofisticado)
 	if !errors.Is(err, ErrInvalidRequiredReturn) {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidRequiredReturn)
 	}
@@ -389,15 +389,15 @@ func TestFundamentalistFairPrice_MacroEffectPctDeslocaOPrecoJusto(t *testing.T) 
 	const growthRate = 0.03
 	const selicNeutral = 0.10
 
-	base, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	base, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("base: err = %v, want nil", err)
 	}
-	positivo, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 15, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	positivo, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 15, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("positivo: err = %v, want nil", err)
 	}
-	negativo, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, -15, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	negativo, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, -15, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("negativo: err = %v, want nil", err)
 	}
@@ -426,7 +426,7 @@ func TestDecideFundamentalistOrder_MacroEffectPctProporcionalAoConhecimento(t *t
 	const selicNeutral = 0.10
 	const macroEffectPct = 20.0
 
-	base, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	base, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("base: err = %v, want nil", err)
 	}
@@ -447,7 +447,7 @@ func TestDecideFundamentalistOrder_MacroEffectPctProporcionalAoConhecimento(t *t
 		var sum float64
 		const samples = 400
 		for seed := int64(0); seed < samples; seed++ {
-			got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, macroEffectPct, currentMarketPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 0, seed, nil)
+			got, err := DecideFundamentalistOrder(personality, financials, outstandingShares, growthRate, macroEffectPct, 0, currentMarketPrice, selicNeutral, selicNeutral, equity.RiskClassConservador, 1_000_000, 0, seed, nil)
 			if err != nil {
 				t.Fatalf("knowledgeLevel %.2f, seed %d: err = %v, want nil", knowledgeLevel, seed, err)
 			}
@@ -485,7 +485,7 @@ func TestDecideFundamentalistOrder_MacroEffectPctProporcionalAoConhecimento(t *t
 // a mais.
 func TestFundamentalistFairPrice_MacroEffectPctZeroMantemFormulaOriginal(t *testing.T) {
 	financials, outstandingShares := financialsFixture()
-	got, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, 0.10, 0.10, equity.RiskClassConservador)
+	got, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, 0, 0.10, 0.10, equity.RiskClassConservador)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -495,5 +495,57 @@ func TestFundamentalistFairPrice_MacroEffectPctZeroMantemFormulaOriginal(t *test
 	const want = 10.3
 	if math.Abs(got-want) > 1e-9 {
 		t.Errorf("FairPrice = %.6f, want %.6f — macroEffectPct=0 deveria manter exatamente a fórmula original (regressão)", got, want)
+	}
+}
+
+// TestFundamentalistFairPrice_PnPremiumDeslocaOPrecoJustoProporcionalmente
+// cobre a tarefa J.3 (Ações ON/PN): pra uma empresa com premium de dividendo
+// da PN configurado (companies.pn_dividend_premium_pct, J.2), o preço justo
+// estimado pra PN (pnPremiumPct > 0) é sempre maior que o de ON
+// (pnPremiumPct = 0) com o mesmo fundamento (financials/growthRate/Selic),
+// e a razão entre os dois é exatamente 1 + pnPremiumPct/100 — mesmo
+// tratamento multiplicativo já dado a macroEffectPct
+// (TestFundamentalistFairPrice_MacroEffectPctDeslocaOPrecoJusto).
+func TestFundamentalistFairPrice_PnPremiumDeslocaOPrecoJustoProporcionalmente(t *testing.T) {
+	financials, outstandingShares := financialsFixture()
+	const growthRate = 0.03
+	const selicNeutral = 0.10
+
+	onPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, 0, selicNeutral, selicNeutral, equity.RiskClassConservador)
+	if err != nil {
+		t.Fatalf("onPrice: err = %v, want nil", err)
+	}
+
+	for _, pnPremiumPct := range []float64{10, 20, 25} {
+		t.Run(fmt.Sprintf("premium %.0f%%", pnPremiumPct), func(t *testing.T) {
+			pnPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, 0, pnPremiumPct, selicNeutral, selicNeutral, equity.RiskClassConservador)
+			if err != nil {
+				t.Fatalf("pnPrice: err = %v, want nil", err)
+			}
+			if pnPrice <= onPrice {
+				t.Fatalf("pnPrice (%.6f) deveria ser maior que onPrice (%.6f) com pnPremiumPct = %.0f", pnPrice, onPrice, pnPremiumPct)
+			}
+			want := onPrice * (1 + pnPremiumPct/100)
+			if math.Abs(pnPrice-want) > 1e-9 {
+				t.Errorf("pnPrice = %.6f, want %.6f (onPrice × (1 + %.0f%%))", pnPrice, want, pnPremiumPct)
+			}
+		})
+	}
+}
+
+// TestFundamentalistFairPrice_PnPremiumZeroMantemFormulaOriginal é o teste
+// de regressão da J.3: pnPremiumPct = 0 (ação ON, ou empresa só de uma
+// classe) devolve exatamente o mesmo valor que a fórmula sem o fator de
+// premium já produzia — mesmo tratamento de
+// TestFundamentalistFairPrice_MacroEffectPctZeroMantemFormulaOriginal.
+func TestFundamentalistFairPrice_PnPremiumZeroMantemFormulaOriginal(t *testing.T) {
+	financials, outstandingShares := financialsFixture()
+	got, err := FundamentalistFairPrice(financials, outstandingShares, 0.03, 0, 0, 0.10, 0.10, equity.RiskClassConservador)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	const want = 10.3
+	if math.Abs(got-want) > 1e-9 {
+		t.Errorf("FairPrice = %.6f, want %.6f — pnPremiumPct=0 deveria manter exatamente a fórmula original (regressão)", got, want)
 	}
 }

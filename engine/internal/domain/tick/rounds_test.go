@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/bot"
@@ -66,6 +67,16 @@ func acaoAsset(assetID string, lastPrice float64) AssetForPricing {
 		AssetID: assetID, Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector,
 		CompanyID: &companyID, LastPrice: &lastPrice,
 	}
+}
+
+// acaoAssetWithShareClass é acaoAsset com ShareClass preenchido (tarefa
+// J.3) — usado pelos testes que precisam distinguir ON/PN da mesma empresa
+// (acaoAsset sozinha nunca preenche ShareClass, contando como ON por
+// convenção, mesma nota do campo em tick.go).
+func acaoAssetWithShareClass(assetID string, lastPrice float64, shareClass string) AssetForPricing {
+	a := acaoAsset(assetID, lastPrice)
+	a.ShareClass = &shareClass
+	return a
 }
 
 // fiiAsset monta um FII pra teste (tarefa G.1) — sem RiskClass/Sector/
@@ -437,6 +448,88 @@ func TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto
 	}
 	if ctxForOn != ctxForPn {
 		t.Errorf("contexto de fundamentos de ON (%+v) difere do de PN (%+v) — mesma empresa deveria compartilhar exatamente o mesmo balanço", ctxForOn, ctxForPn)
+	}
+}
+
+// TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremium
+// cobre a tarefa J.3 (Ações ON/PN, backlog-motor-mercado-realista): o
+// Fundamentalista calcula preço justo separadamente pra ON e PN da mesma
+// empresa — mesmo fundamento (CompanyRoundContext.Financials/GrowthRate,
+// compartilhado por company_id, J.1), mas o dividendo esperado por ação
+// diferente (companies.pn_dividend_premium_pct, J.2) desloca a estimativa da
+// PN acima da ON, proporcionalmente ao premium configurado
+// (CompanyRoundContext.PnDividendPremiumPct, decisionInputFor só aplica pra
+// state.ShareClass == "PN"). knowledgeLevel = 1.0
+// (mustFundamentalistRoundPersonality) elimina o ruído de leitura, tornando
+// os preços submetidos determinísticos — mesma técnica de
+// TestDecideFundamentalistOrder_DirecaoConformeAoDesvio (bot package).
+func TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremium(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustFundamentalistRoundPersonality(t, 1.0)},
+	}}
+	shares := int64(100_000)
+	svc.orderContext = &fakeOrderContextLoader{balance: 10_000_000, positions: map[string]int{"on1": 0, "pn1": 0}, outstandingShares: &shares}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	// LastPrice bem abaixo do preço justo (~10.3, ver comentário do want
+	// abaixo) — garante lado de compra claro pras duas classes, sem
+	// depender de sorteio de lado.
+	assets := []AssetForPricing{acaoAsset("on1", 1), acaoAssetWithShareClass("pn1", 1, "PN")}
+	const pnPremiumPct = 20.0
+	companyContext := map[string]CompanyRoundContext{
+		"c1": {
+			Financials:           fundamentals.Financials{NetIncome: 100_000, NetEquity: 1_000_000},
+			GrowthRate:           0.03,
+			PnDividendPremiumPct: pnPremiumPct,
+		},
+	}
+
+	// 20 rodadas (mesma técnica de
+	// TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes)
+	// só pra este bot único alcançar os dois ativos do universo pelo menos
+	// uma vez cada, seed determinística.
+	rounds := make([]IntradayRound, 20)
+	for i := range rounds {
+		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
+	}
+
+	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, companyContext, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 {
+		t.Fatal("fills = 0, want > 0")
+	}
+
+	var onPrice, pnPrice float64
+	for _, s := range submitter.submitted {
+		switch s.req.AssetID {
+		case "on1":
+			onPrice = s.req.Price
+		case "pn1":
+			pnPrice = s.req.Price
+		}
+	}
+	if onPrice == 0 || pnPrice == 0 {
+		t.Fatalf("onPrice=%v pnPrice=%v, want ambos > 0 — as duas classes precisam ter negociado (ajustar fixture)", onPrice, pnPrice)
+	}
+
+	// VPA = 1_000_000/100_000 = 10; ROE = 100_000/1_000_000 = 0.1;
+	// requiredReturn = selicNeutral (sem desvio) = 0.10; fairPrice ON =
+	// 10 × (0.1/0.10) × 1.03 = 10.3; fairPrice PN = 10.3 × 1.20 = 12.36
+	// (premium de 20% configurado acima).
+	const wantOn = 10.3
+	wantPn := wantOn * (1 + pnPremiumPct/100)
+	if math.Abs(onPrice-wantOn) > 1e-9 {
+		t.Errorf("onPrice = %.6f, want %.6f", onPrice, wantOn)
+	}
+	if math.Abs(pnPrice-wantPn) > 1e-9 {
+		t.Errorf("pnPrice = %.6f, want %.6f", pnPrice, wantPn)
+	}
+	if pnPrice <= onPrice {
+		t.Errorf("pnPrice (%.6f) deveria ser maior que onPrice (%.6f) — prioridade legal de dividendo da PN", pnPrice, onPrice)
 	}
 }
 
