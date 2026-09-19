@@ -18,6 +18,12 @@ const (
 	// DefaultDailyVolatility é o desvio-padrão do ruído por passo, em
 	// pontos percentuais de taxa anual.
 	DefaultDailyVolatility = 0.15
+	// DefaultInflationWeight é o peso do termo de reação ao desvio do IPCA
+	// acumulado frente à meta (tarefa I.1, proposta seção 6) — moderado,
+	// próximo do coeficiente clássico da regra de Taylor (~1.5x o desvio),
+	// não um valor fraco nem deixado em branco (decisão confirmada na
+	// proposta, não uma estimativa como os demais Default* deste bloco).
+	DefaultInflationWeight = 1.5
 )
 
 // Config parametriza o processo estocástico da Selic simulada. Initial é a
@@ -27,18 +33,25 @@ type Config struct {
 	Neutral        float64
 	ReversionSpeed float64
 	Volatility     float64
-	Seed           int64
+	// InflationWeight pondera o termo `peso_inflação × (IPCA_acumulado −
+	// meta_IPCA)` da regra de reação (tarefa I.1) — somado ao termo de
+	// reversão à média já existente antes de cada decisão do Copom.
+	// InflationWeight = 0 desativa o termo por completo, reproduzindo
+	// exatamente a fórmula anterior a esta tarefa (retrocompatibilidade).
+	InflationWeight float64
+	Seed            int64
 }
 
 // DefaultConfig monta a configuração de referência da spec 3.2.2, variando
 // só os dois parâmetros que mudam por simulação: taxa inicial e seed.
 func DefaultConfig(initial float64, seed int64) Config {
 	return Config{
-		Initial:        initial,
-		Neutral:        DefaultNeutralRate,
-		ReversionSpeed: DefaultReversionSpeed,
-		Volatility:     DefaultDailyVolatility,
-		Seed:           seed,
+		Initial:         initial,
+		Neutral:         DefaultNeutralRate,
+		ReversionSpeed:  DefaultReversionSpeed,
+		Volatility:      DefaultDailyVolatility,
+		InflationWeight: DefaultInflationWeight,
+		Seed:            seed,
 	}
 }
 

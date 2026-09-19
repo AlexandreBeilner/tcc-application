@@ -827,7 +827,14 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	newDay := current.Day + 1
 	dayIndex := newDay - 1 // 0-based, mesma convenção de IsCopomMeetingDay/IsReportDay
 
-	newSelicRate := selic.NextCalendarRate(selicCfg, dayIndex, current.SelicRate)
+	// ipcaAccumulatedDeviation fixo em 0 por ora: IPCA simulado ainda não
+	// tem nenhum consumidor no tick diário (achado documentado na Fase M
+	// do backlog-motor-mercado-realista — M.1 é quem vai gerar+persistir
+	// a série e alimentar esse desvio de verdade). Com desvio 0, o termo
+	// de reação ao IPCA (selic.Config.InflationWeight, tarefa I.1) fica
+	// neutro por construção — comportamento inalterado até M.1 fechar.
+	const ipcaAccumulatedDeviation = 0
+	newSelicRate := selic.NextCalendarRate(selicCfg, dayIndex, current.SelicRate, ipcaAccumulatedDeviation)
 
 	equityRiskClasses := companyEquityRiskClasses(assets)
 	assetToCompany := assetCompanies(assets)

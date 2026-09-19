@@ -90,6 +90,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Volatility != DefaultDailyVolatility {
 		t.Errorf("Volatility = %v, want %v", cfg.Volatility, DefaultDailyVolatility)
 	}
+	if cfg.InflationWeight != DefaultInflationWeight {
+		t.Errorf("InflationWeight = %v, want %v", cfg.InflationWeight, DefaultInflationWeight)
+	}
 	if cfg.Seed != 99 {
 		t.Errorf("Seed = %v, want 99", cfg.Seed)
 	}

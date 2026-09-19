@@ -1459,7 +1459,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase I — Selic × IPCA (independente, pode rodar a qualquer momento)
 
-### I.1 · Regra de reação à inflação em `selic.Config`
+### I.1 · Regra de reação à inflação em `selic.Config` ✅
 
 - **Descrição:** `selic.NextCalendarRate`/`CalendarSeries` ganham um termo novo —
   `peso_inflação × (IPCA_acumulado − meta_IPCA)` — somado ao termo de reversão à média já
@@ -1475,8 +1475,27 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   comportamento atual (retrocompatibilidade da fórmula).
 - **Referências:** proposta seção 6.
 - **Dependências:** nenhuma.
+- **Entregável (sessão 2026-09-19):** `selic.Config.InflationWeight` (novo, `DefaultInflationWeight
+  = 1.5`, mesmo padrão de `Neutral`/`ReversionSpeed`/`Volatility`). `NextCalendarRate`/
+  `CalendarSeries` ganham um parâmetro novo pro desvio do IPCA acumulado frente à meta —
+  `ipcaAccumulatedDeviation float64` (escalar, `NextCalendarRate`) e `ipcaAccumulatedDeviations
+  []float64` (paralelo aos dias, `CalendarSeries`) — em vez de o pacote `selic` importar `ipca`
+  (domínios irmãos não se importam, `.claude/arquitetura-engine-go.md`, mesmo precedente de
+  `equity.Series` recebendo a Selic simulada como parâmetro). **Decisão de acumulação (pergunta
+  aberta no texto original da tarefa):** o cálculo do IPCA acumulado 12m fica com quem orquestra —
+  hoje ninguém, porque `ipca.MonthlySeries` ainda não tem consumidor no tick diário (achado já
+  documentado na Fase M); `tick.Advance` passa o desvio fixo em `0` (comentado no código,
+  referenciando a Fase M) até M.1 gerar+persistir a série de verdade e alimentar esse valor —
+  índice fora do slice (incluindo slice `nil`) também vale `0`, sem pânico, o mesmo tratamento
+  usado por quem ainda não tem série de IPCA disponível. Nova função interna `reactionStep`
+  (`copom.go`) unifica o cálculo do movimento bruto (reversão + inflação + ruído), compartilhada
+  por `NextCalendarRate` e `CalendarSeries` — extraída na mesma tarefa porque I.2 (quantização)
+  precisa do mesmo valor bruto nos dois pontos de entrada. `gofmt`/`go vet`/`go build`/`go test
+  ./...`/`golangci-lint run` (Docker, `golangci/golangci-lint:v2.12.2`, 0 issues) verdes. `.docs/
+  engine/tick.md` atualizado. Sem `.docs/engine/` novo nem `docker compose up` (função pura de
+  domínio, sem rota HTTP nem schema tocado — mesma nota de escopo de B.1/C.1-C.5/H.1).
 
-### I.2 · Passos discretos do Copom
+### I.2 · Passos discretos do Copom ✅
 
 - **Descrição:** o tamanho do movimento em cada reunião do Copom simulado passa a ser quantizado
   em incrementos de 0,25 p.p. (arredondando o resultado da regra de reação, I.1, pro múltiplo de
@@ -1485,6 +1504,24 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   é sempre um múltiplo de 0,25 p.p.
 - **Referências:** proposta seção 6.
 - **Dependências:** I.1.
+- **Entregável (sessão 2026-09-19, mesma sessão da I.1):** `selic.CopomStepIncrement = 0.25` +
+  `quantizeStep` (nova, `math.Round(step/CopomStepIncrement)*CopomStepIncrement`) aplicada ao
+  resultado de `reactionStep` (I.1) antes de somar à taxa corrente, nos dois pontos de entrada
+  (`NextCalendarRate`/`CalendarSeries`) — o piso de "Selic nunca negativa" continua aplicado
+  **depois** da quantização, sobre a taxa já somada (não sobre o passo em si). **Achado de sessão
+  que vale lembrar pra calibração futura (tarefa 8.1) ou pra qualquer teste novo desta regra:** com
+  `InflationWeight` no default (1.5), um desvio de IPCA pequeno (ex: 2 p.p.) quantiza pra `0` —
+  `1.5×0.02 = 0.03`, abaixo de meio passo (`0.125`) — e não move a Selic simulada sozinho numa
+  única reunião; isso é o comportamento real esperado (o Copom não muda a taxa por um desvio
+  insignificante), não um bug, mas os testes precisam de desvios grandes o bastante (usado `0.1`,
+  10 p.p.) pra cruzar o arredondamento e provar a direção do efeito de forma determinística. Teste
+  novo confere que toda mudança em dia de reunião, ao longo de 100 reuniões com ruído/inflação
+  ativos, é sempre múltiplo exato de `CopomStepIncrement` (com uma exceção documentada no próprio
+  teste: quando o piso de taxa-nunca-negativa clampa o resultado, o delta final deixa de ser um
+  múltiplo — não é uma "decisão de tamanho" do Copom, é o clamp de não-negatividade já existente
+  desde a tarefa 2.2). `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker,
+  v2.12.2, 0 issues) verdes. Mesma nota de escopo de I.1 (sem `.docs/engine/` novo, sem `docker
+  compose up`).
 
 ---
 
