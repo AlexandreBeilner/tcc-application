@@ -61,7 +61,21 @@ func (s *Service) Submit(ctx context.Context, req Request) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
+	return s.SubmitWithContext(ctx, req, execCtx)
+}
 
+// SubmitWithContext é Submit pulando o LoadContext, pro chamador que já leu
+// um Context válido pra esse mesmo assetID/userID e sabe que nada mudou
+// desde então (Context é um snapshot imutável, passado por valor — Execute
+// nunca o muta). Único chamador hoje: tick.runIntradayRounds (rounds.go),
+// que já chama OrderContextLoader.LoadContext pra montar a decisão do bot
+// antes de decidir a ordem — reler o mesmo contexto de novo aqui seria um
+// round trip ao banco puramente redundante pro caso comum (achado de
+// review: 1 decisão por bot/rodada, só ArchetypeMarketMaker decide mais de
+// uma). Só serve pra ESSA primeira ordem: uma segunda ordem do mesmo bot na
+// mesma rodada pode ter saldo/posição diferentes por causa do fill da
+// primeira, e precisa voltar a usar Submit (recarrega fresco).
+func (s *Service) SubmitWithContext(ctx context.Context, req Request, execCtx Context) (Outcome, error) {
 	incoming := orderbook.Order{
 		ID:       incomingOrderID,
 		UserID:   req.UserID,

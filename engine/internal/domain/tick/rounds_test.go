@@ -7,6 +7,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
@@ -128,6 +129,41 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 		if s.req.AssetID != "a1" {
 			t.Errorf("ordem submetida pro ativo %q, want a1", s.req.AssetID)
 		}
+	}
+}
+
+// TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado cobre o
+// achado de review "LoadContext duplicado por decisão de bot" (Fase E do
+// backlog-motor-mercado-realista): decisionInputFor já carrega o
+// orderexecution.Context antes de bot.Decide rodar, então a primeira ordem
+// de cada bot/rodada não precisa que orderSubmitter releia o mesmo contexto
+// — só a segunda ordem em diante (ArchetypeMarketMaker, que pode decidir
+// comprar e vender na mesma rodada) precisa de fato recarregar, porque o
+// fill da primeira ordem pode ter mudado saldo/posição.
+func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillPrice: 105}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{acaoAsset("a1", 100)}
+
+	_, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	// Market Maker decide 2 ordens por rodada, 2 rodadas: a primeira ordem
+	// de cada rodada reaproveita o contexto (SubmitWithContext), a segunda
+	// recarrega (Submit).
+	if submitter.submitWithContextCalls != 2 {
+		t.Errorf("submitWithContextCalls = %d, want 2 (uma por rodada, só a primeira ordem de cada bot)", submitter.submitWithContextCalls)
+	}
+	if len(submitter.submitted) != 4 {
+		t.Fatalf("len(submitted) = %d, want 4 (2 ordens x 2 rodadas)", len(submitter.submitted))
 	}
 }
 
@@ -471,5 +507,190 @@ func TestService_Run_RodadasDeAcaoEntramEmResultQuotesUmaVezSo(t *testing.T) {
 	}
 	if repo.savedResult.IntradayFillsCount != result.IntradayFillsCount {
 		t.Errorf("SaveTick recebeu IntradayFillsCount = %d, want %d", repo.savedResult.IntradayFillsCount, result.IntradayFillsCount)
+	}
+}
+
+// findReportGrowthSeed acha, por busca (não por cálculo fechado — o ruído de
+// fundamentals.NextGrowth vem de rand.NormFloat64, sem inversa simples), uma
+// seed base cujo ciclo de relatório de companyID produz um crescimento
+// realizado (actualGrowth) que satisfaz match em relação ao crescimento
+// esperado (fundamentals.DefaultBaseGrowth — o mesmo valor que
+// fundamentalsConfig sempre usa como BaseGrowth, e que ExpectedGrowth
+// devolve quando Selic == Selic neutra, o cenário dos três testes F.1
+// abaixo). Reimplementa a mesmíssima derivação de fundamentalsConfig/
+// deterministicSeed/fundamentals.NextGrowth que Advance usa de verdade
+// (tick.go) — não um mock, é o cálculo real feito adiantado, só pra
+// escolher qual seed base produz a condição de ruído que cada teste precisa
+// (melhor, pior ou sem surpresa) antes de rodar Service.Run com ela de
+// verdade.
+func findReportGrowthSeed(t *testing.T, companyID string, riskClass equity.RiskClass, cycleIndex int, selicNeutralFrac float64, match func(surprise float64) bool) int64 {
+	t.Helper()
+	for candidate := int64(1); candidate < 20_000; candidate++ {
+		cfg := fundamentalsConfig(candidate, companyID, riskClass)
+		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, selicNeutralFrac, selicNeutralFrac)
+		if match(actualGrowth - fundamentals.DefaultBaseGrowth) {
+			return candidate
+		}
+	}
+	t.Fatal("nenhuma seed encontrada satisfazendo a condição de ruído do ciclo de relatório")
+	return 0
+}
+
+// newReportCycleService monta o cenário comum aos três testes ponta a ponta
+// da F.1 abaixo: uma única Ação/empresa, Selic == Selic neutra (isola o
+// efeito em teste do desvio de crescimento realizado vs. esperado, sem
+// nenhuma interferência do fator Selic da fórmula de preço justo — mesma
+// técnica de isolamento já usada em
+// TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao),
+// financials calibrados (fundamentals.BootstrapFinancialsForTargetPrice)
+// pra que o preço justo do Fundamentalista, SEM nenhuma surpresa de
+// relatório (actualGrowth == expectedGrowth exatamente), bata exatamente com
+// startPrice — assim qualquer desvio observado só pode vir da surpresa do
+// ciclo, nunca de um mispricing pré-existente. Um único bot Fundamentalista
+// de conhecimento 1.0 (sem ruído de leitura próprio, FundamentalistMaxNoiseStdDevPct
+// zerado nesse nível) garante que a única fonte de ruído restante no teste é
+// a surpresa do relatório em si. state.Day é o dia imediatamente anterior ao
+// de relatório (ReportFrequencyDays-1) — newDay cai exatamente no ciclo.
+func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID string, startPrice float64) {
+	t.Helper()
+	const (
+		outstandingShares = 1_000_000
+		selicNeutral      = 10.0 // escala 0-100, mesma convenção de selic.Config
+		selicNeutralFrac  = selicNeutral / 100
+	)
+	startPrice = 100.0
+	riskClass := "Conservador"
+	sector := "Mineração"
+	companyID := "c1"
+	assetID = "a1"
+	shares := int64(outstandingShares)
+	startPriceCopy := startPrice
+
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	if err != nil {
+		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
+	}
+	// LastRevenue é a receita ANTES do ciclo de relatório que este tick vai
+	// gerar — reportEffects[companyID].NetRevenue = LastRevenue×(1+actualGrowth)
+	// (tick.go); dividindo o net_revenue-alvo por (1+DefaultBaseGrowth) aqui
+	// garante que, quando actualGrowth bater exatamente com
+	// DefaultBaseGrowth (sem surpresa), a receita reportada bata exatamente
+	// com o net_revenue que Bootstrap calibrou pra fairPrice == startPrice.
+	lastRevenue := financials.NetRevenue / (1 + fundamentals.DefaultBaseGrowth)
+
+	asset := AssetForPricing{
+		AssetID: assetID, Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector,
+		CompanyID: &companyID, LastPrice: &startPriceCopy,
+	}
+	company := CompanyForFundamentals{
+		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
+		Sector: sector, LastRevenue: &lastRevenue,
+	}
+
+	repo := &fakeRepository{
+		state:      State{Day: fundamentals.DefaultReportFrequencyDays - 1, SelicRate: selicNeutral},
+		stateFound: true,
+		assets:     []AssetForPricing{asset},
+		companies:  []CompanyForFundamentals{company},
+	}
+	selicCfg := selic.Config{Neutral: selicNeutral, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	roster := []BotForRound{
+		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustFundamentalistRoundPersonality(t, 1.0)},
+	}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+
+	svc = NewService(
+		repo,
+		&fakeBotRoster{bots: roster},
+		&fakePriceHistoryReader{},
+		&fakeOrderContextLoader{balance: 10_000_000, positions: map[string]int{assetID: 10_000}, outstandingShares: &shares},
+		submitter,
+		selicCfg,
+		seed,
+	)
+	return svc, assetID, startPrice
+}
+
+func closingPriceFor(result Result, assetID string) (float64, bool) {
+	for _, q := range result.Quotes {
+		if q.AssetID == assetID {
+			return q.Price, true
+		}
+	}
+	return 0, false
+}
+
+// TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao é
+// um dos dois testes do critério de aceite principal da F.1: um ciclo de
+// relatório com resultado MELHOR que o esperado (actualGrowth bem acima de
+// fundamentals.DefaultBaseGrowth) move o preço pra cima através de
+// negociação real do Fundamentalista — nunca por
+// fundamentals.ReportDayPriceEffect (removida nesta tarefa).
+func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t *testing.T) {
+	const selicNeutralFrac = 0.10
+	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > 0.02 })
+
+	svc, assetID, startPrice := newReportCycleService(t, seed)
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+
+	closing, found := closingPriceFor(result, assetID)
+	if !found {
+		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
+	}
+	if closing <= startPrice*1.01 {
+		t.Errorf("closing = %.4f, want bem acima de %.4f — resultado melhor que o esperado deveria subir o preço via negociação", closing, startPrice)
+	}
+}
+
+// TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao é
+// o segundo teste do critério de aceite principal da F.1: um ciclo de
+// relatório com resultado PIOR que o esperado move o preço pra baixo,
+// espelhando o teste acima.
+func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *testing.T) {
+	const selicNeutralFrac = 0.10
+	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise < -0.02 })
+
+	svc, assetID, startPrice := newReportCycleService(t, seed)
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+
+	closing, found := closingPriceFor(result, assetID)
+	if !found {
+		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
+	}
+	if closing >= startPrice*0.99 {
+		t.Errorf("closing = %.4f, want bem abaixo de %.4f — resultado pior que o esperado deveria derrubar o preço via negociação", closing, startPrice)
+	}
+}
+
+// TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento fecha o
+// critério de aceite da F.1: um ciclo de relatório cujo resultado bate quase
+// exatamente com o esperado (actualGrowth ≈ DefaultBaseGrowth) não dá ao
+// Fundamentalista nenhuma mispricing clara pra negociar
+// (bot.ErrNoMispricingDetected, limiar FundamentalistMispricingThresholdPct)
+// — nenhuma ordem é submetida e o preço de fechamento permanece exatamente o
+// de abertura, ao contrário dos dois testes acima.
+func TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento(t *testing.T) {
+	const selicNeutralFrac = 0.10
+	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > -0.002 && surprise < 0.002 })
+
+	svc, assetID, startPrice := newReportCycleService(t, seed)
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+
+	closing, found := closingPriceFor(result, assetID)
+	if !found {
+		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
+	}
+	if diff := closing - startPrice; diff > 1 || diff < -1 {
+		t.Errorf("closing = %.4f, want perto de %.4f (desvio <= 1%%) — sem surpresa clara não deveria mover o preço de forma perceptível", closing, startPrice)
 	}
 }

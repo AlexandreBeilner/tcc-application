@@ -84,9 +84,9 @@ func DurationDays(band Band) (int, error) {
 // misto sorteia o sinal 50/50. Quem decide *qual* direção entra aqui é
 // quem chama: SamplePriceEffectPct/SampleFundamentalsEffectPct continuam
 // recebendo uma Direction "crua", sem saber se veio de Event.Direction
-// (caso comum) ou de Target.ResolvedDirection (evento "misto" com sinal
-// próprio por alvo, E.1) — a granularidade por alvo é resolvida por quem
-// orquestra o disparo (macroeventtrigger.Service.Trigger), não aqui.
+// (caso comum) ou de Target.Direction (evento "misto" com sinal próprio
+// por alvo, E.1) — a granularidade por alvo é resolvida por quem orquestra
+// o disparo (macroeventtrigger.Service.sampleTargetEffects), não aqui.
 func sampleMagnitudeAndSign(r EffectRange, direction Direction, rng *rand.Rand) float64 {
 	magnitude := r.MinPct + rng.Float64()*(r.MaxPct-r.MinPct)
 

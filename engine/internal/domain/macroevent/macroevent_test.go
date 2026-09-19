@@ -191,28 +191,3 @@ func TestNewTarget_DirecaoPropria(t *testing.T) {
 		})
 	}
 }
-
-// TestTarget_ResolvedDirection cobre os dois critérios de aceite da E.1:
-// alvo sem direção própria herda a do evento (caso "não-misto", sem
-// declarar nada por alvo); alvo com direção própria a mantém mesmo que o
-// evento seja "misto" — é assim que 2+ alvos do mesmo evento acabam com
-// sinais diferentes.
-func TestTarget_ResolvedDirection(t *testing.T) {
-	sector := catalog.SectorTecnologia
-
-	semDirecaoPropria, err := NewTarget(&sector, nil, nil, MetricPrice, nil)
-	if err != nil {
-		t.Fatalf("NewTarget sem direção própria: %v", err)
-	}
-	if got := semDirecaoPropria.ResolvedDirection(DirectionNegativo); got != DirectionNegativo {
-		t.Errorf("ResolvedDirection = %v, want %v (herda do evento)", got, DirectionNegativo)
-	}
-
-	comDirecaoPropria, err := NewTarget(&sector, nil, nil, MetricPrice, ptr(DirectionPositivo))
-	if err != nil {
-		t.Fatalf("NewTarget com direção própria: %v", err)
-	}
-	if got := comDirecaoPropria.ResolvedDirection(DirectionMisto); got != DirectionPositivo {
-		t.Errorf("ResolvedDirection = %v, want %v (mantém a direção própria mesmo com evento misto)", got, DirectionPositivo)
-	}
-}

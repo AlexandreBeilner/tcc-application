@@ -89,9 +89,14 @@ type OrderContextLoader interface {
 // Submit que orderexecution.Service já expõe pro fluxo HTTP de usuário
 // humano (POST /orders); um bot é só mais uma conta real (A.1), então o
 // mesmíssimo caminho (Event Sourcing, validação de saldo/posição/float)
-// vale pra ordem de bot sem nenhum caso especial.
+// vale pra ordem de bot sem nenhum caso especial. SubmitWithContext é o
+// mesmo Submit pulando o LoadContext interno — runIntradayRounds usa pra
+// primeira ordem de cada bot/rodada, reaproveitando o OrderContextLoader.
+// LoadContext que já leu pra montar a decisão (ver doc de
+// orderexecution.Service.SubmitWithContext).
 type OrderSubmitter interface {
 	Submit(ctx context.Context, req orderexecution.Request) (orderexecution.Outcome, error)
+	SubmitWithContext(ctx context.Context, req orderexecution.Request, execCtx orderexecution.Context) (orderexecution.Outcome, error)
 }
 
 // businessRejection reporta se err é uma rejeição de negócio normal de
@@ -338,15 +343,30 @@ func (s *Service) runIntradayRounds(
 				continue
 			}
 
-			for _, d := range decisions {
-				outcome, err := s.orderSubmitter.Submit(ctx, orderexecution.Request{
+			for i, d := range decisions {
+				req := orderexecution.Request{
 					UserID:   b.UserID,
 					AssetID:  chosen.AssetID,
 					Side:     d.Side,
 					Type:     d.Type,
 					Price:    d.Price,
 					Quantity: d.Quantity,
-				})
+				}
+
+				var outcome orderexecution.Outcome
+				var err error
+				if i == 0 {
+					// execCtx já foi lido acima (decisionInputFor) e nada
+					// mudou desde então (bots são processados
+					// sequencialmente, doc de runIntradayRounds) —
+					// reaproveita em vez de recarregar o mesmo contexto.
+					outcome, err = s.orderSubmitter.SubmitWithContext(ctx, req, execCtx)
+				} else {
+					// Da segunda ordem em diante (só ArchetypeMarketMaker
+					// decide mais de uma por rodada), o fill da anterior
+					// pode ter mudado saldo/posição — precisa recarregar.
+					outcome, err = s.orderSubmitter.Submit(ctx, req)
+				}
 				if err != nil {
 					if businessRejection(err) {
 						continue
