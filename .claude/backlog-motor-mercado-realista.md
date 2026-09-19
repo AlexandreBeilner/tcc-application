@@ -1522,17 +1522,21 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   desde a tarefa 2.2). `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker,
   v2.12.2, 0 issues) verdes. Mesma nota de escopo de I.1 (sem `.docs/engine/` novo, sem `docker
   compose up`).
-- **Nota do teste de ponta a ponta (sessão 2026-09-19, mesmo dia):** o achado acima ("2 p.p. de
-  IPCA não move a Selic, comportamento esperado") foi revisitado — o motivo raiz não é só "o
-  Copom ignora desvio pequeno", é uma mistura de escala entre `ipcaAccumulatedDeviation` (decimal)
-  e o passo medido em pontos percentuais inteiros: o limiar real pra cruzar meio passo é **8,33
-  p.p.**, não uma fração pequena — bem acima de qualquer desvio de IPCA realista que a composição
-  de 12 meses da M.1 deve produzir. Formalmente registrado como achado 007 em
-  `pontos-em-aberto-decisao-produto.md` (exige decisão de calibração/escala do autor, não é
-  mecânico), com regressão viva em `TestNextCalendarRate_DesvioRealistaDeIPCANaoMoveASelic`
-  (`copom_test.go`). **M.1/quem ligar o desvio de verdade deve resolver o achado 007 antes ou
-  junto**, senão a Selic simulada nunca vai reagir de forma perceptível ao IPCA mesmo depois da
-  Fase M — o que esvaziaria o motivo pedagógico da própria Fase I.
+- **Nota do teste de ponta a ponta (sessão 2026-09-19, mesmo dia) — achado 007, resolvido:** o
+  achado acima ("2 p.p. de IPCA não move a Selic, comportamento esperado") foi revisitado — o
+  motivo raiz não era só "o Copom ignora desvio pequeno", era uma mistura de escala entre
+  `ipcaAccumulatedDeviation` (decimal) e o passo medido em pontos percentuais inteiros: o limiar
+  real pra cruzar meio passo era **8,33 p.p.** com o peso original (1.5), bem acima de qualquer
+  desvio de IPCA realista que a composição de 12 meses da M.1 deve produzir. Registrado como achado
+  007 em `pontos-em-aberto-decisao-produto.md` e, a pedido do autor na mesma sessão,
+  **`DefaultInflationWeight` recalibrado de 1.5 pra 7.5** (mantendo `ipcaAccumulatedDeviation`
+  decimal — trocar pra escala de pontos com o mesmo peso 1.5 foi testado e diverge, ver decisão
+  completa no achado 007): agora um desvio de ruído (<1 p.p.) segue sem mover a Selic, mas um
+  desvio persistente de 2-5 p.p. reage em passos de 0,25 realistas e converge a um patamar estável.
+  Regressão viva em `TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel`
+  (`copom_test.go`). **M.1 não precisa mais resolver nada de escala** — só alimentar
+  `ipcaAccumulatedDeviation` como decimal (`IPCA_acumulado - meta_IPCA`, sem multiplicar por 100),
+  mesma convenção que `ipca.Config` já usa.
 
 ---
 
@@ -1724,11 +1728,11 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   o IPCA simulado ao longo do tempo... a decidir na sessão se isso vive em `ipca` ou é calculado
   por quem orquestra `tick`") — quem pegar M.1 ou I.1 primeiro deve conferir se a outra já
   resolveu a acumulação antes de duplicar o mecanismo (mesmo padrão de coordenação da nota 6/9).
-  **Antes de alimentar `ipcaAccumulatedDeviation` de verdade, resolver o achado 007
-  (`pontos-em-aberto-decisao-produto.md`, notado no teste de ponta a ponta da Fase I): o desvio
-  decimal (ex: `0.02` pra 2 p.p.) somado direto contra `InflationWeight = 1.5` só cruza meio passo
-  do Copom com ~8,33 p.p. de desvio — sem ajustar a escala (ou o peso), o IPCA acumulado 12 meses
-  desta tarefa nunca vai mover a Selic simulada em uso normal.**
+  **Achado 007 (`pontos-em-aberto-decisao-produto.md`, notado no teste de ponta a ponta da Fase I)
+  já resolvido — `DefaultInflationWeight` recalibrado de 1.5 pra 7.5 na própria sessão da I.1/I.2.
+  M.1 só precisa alimentar `ipcaAccumulatedDeviation` como decimal** (`IPCA_acumulado - meta_IPCA`,
+  ex: `0.02` pra 2 p.p., sem multiplicar por 100 — mesma convenção que `ipca.Config` já usa), sem
+  nenhum ajuste de escala adicional.
 - **Critérios de aceite:** depois de N dias de tick simulado, a tabela nova tem exatamente uma
   linha por dia com Selic e IPCA coerentes; teste confirmando que o IPCA acumulado em 12 meses
   bate com a composição correta dos últimos 12 valores mensais (não soma simples); teste de

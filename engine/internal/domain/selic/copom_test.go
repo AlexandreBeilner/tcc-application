@@ -189,14 +189,13 @@ func TestNextCalendarRate_RegraDeReacaoAoDesvioDoIPCA(t *testing.T) {
 		ipcaAccumulatedDeviation float64
 		wantDirection            int // +1 sobe, -1 desce, 0 sem mudança
 	}{
-		// 0.1 (10 p.p.) — grande o bastante pra que
-		// InflationWeight×desvio cruze meio passo de CopomStepIncrement
-		// (tarefa I.2) e produza um movimento não-nulo depois de
-		// quantizado; um desvio pequeno demais quantiza pra 0, mesmo
-		// comportamento real do Copom de não mover a taxa por um desvio
-		// insignificante.
-		{"IPCA acumulado acima da meta empurra a Selic simulada pra cima", 0.1, +1},
-		{"IPCA acumulado abaixo da meta empurra a Selic simulada pra baixo", -0.1, -1},
+		// 0.02 (2 p.p.) — desvio realista (achado 007, resolvido:
+		// DefaultInflationWeight recalibrado pra 7.5 exatamente pra que um
+		// desvio desse tamanho já cruze meio passo de CopomStepIncrement —
+		// 7.5×0.02 = 0.15 > 0.125 — em vez de precisar de um choque
+		// artificial de 10 p.p. como antes da recalibração.
+		{"IPCA acumulado acima da meta empurra a Selic simulada pra cima", 0.02, +1},
+		{"IPCA acumulado abaixo da meta empurra a Selic simulada pra baixo", -0.02, -1},
 		{"IPCA acumulado na meta não move a Selic via o termo de inflação", 0, 0},
 	}
 
@@ -236,12 +235,16 @@ func TestCalendarSeries_IPCAPersistenteMoveASelicNasReuniõesSeguintes(t *testin
 	above := make([]float64, days)
 	below := make([]float64, days)
 	for i := range above {
-		// 0.1 (10 p.p.): mesma magnitude de
-		// TestNextCalendarRate_RegraDeReacaoAoDesvioDoIPCA, grande o
-		// bastante pra cruzar o arredondamento de CopomStepIncrement
-		// (tarefa I.2) numa única reunião.
-		above[i] = 0.1
-		below[i] = -0.1
+		// 0.02 (2 p.p.), mesma magnitude realista de
+		// TestNextCalendarRate_RegraDeReacaoAoDesvioDoIPCA (achado 007,
+		// resolvido) — com ruído ativo (Volatility=0.2) nem toda reunião
+		// isolada teria garantia de cruzar o arredondamento na direção
+		// certa por si só, mas o teste soma 3 reuniões consecutivas com o
+		// mesmo desvio persistente, e cada curva usa exatamente o mesmo
+		// ruído sorteado (mesmo Seed) — só o termo de inflação diferencia
+		// above/below/baseline, então o efeito acumula na direção certa.
+		above[i] = 0.02
+		below[i] = -0.02
 	}
 
 	baseline := CalendarSeries(cfg, days, nil)
@@ -275,46 +278,79 @@ func TestNextCalendarRate_IndiceDeDesvioForaDoSliceValeZero(t *testing.T) {
 	}
 }
 
-// TestNextCalendarRate_DesvioRealistaDeIPCANaoMoveASelic documenta o achado
-// 007 (pontos-em-aberto-decisao-produto.md), notado no teste de ponta a
-// ponta da Fase I: `ipcaAccumulatedDeviation` é decimal (ex: 0.02 para 2
-// p.p., mesma convenção de `ipca.Config`), mas soma direto contra um passo
-// medido em pontos percentuais inteiros (`Config.Neutral = 10` representa
-// 10%, não 0.10 — mesma escala usada por
-// `fundamentals.ExpectedGrowth(selicAnnualRate-selicNeutral, ...)`). Com
-// `DefaultInflationWeight = 1.5`, um desvio de 2 p.p. (0.02) — grande pros
-// padrões reais de política monetária, e maior que a banda "pequena
-// variação em torno da meta" que `ipca.MonthlySeries` está documentado a
-// produzir — ainda soma só 0.03 p.p., abaixo de meio passo
-// (`CopomStepIncrement/2 = 0.125`), e quantiza pra 0. Limiar exato pra
-// cruzar meio passo: `(CopomStepIncrement/2) / DefaultInflationWeight` ≈
-// 0.0833, ou seja, 8,33 p.p. de desvio de IPCA acumulado — um choque
-// inflacionário extremo, não um desvio realista. Antes da Fase M passar a
-// alimentar este parâmetro com o IPCA acumulado 12 meses de verdade
-// (`ipca.MonthlySeries` composto), o termo de reação à inflação criado pela
-// I.1 é, na prática, inerte — o teste trava esse comportamento pra ele não
-// regredir silenciosamente pra "corrigido" sem que a escala/peso seja de
-// fato recalibrada (decisão do achado 007, não mecânica).
-func TestNextCalendarRate_DesvioRealistaDeIPCANaoMoveASelic(t *testing.T) {
-	cfg := Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, InflationWeight: DefaultInflationWeight, Seed: 1}
-	dayIndex := CopomMeetingIntervalDays - 1
+// TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel
+// documenta a resolução do achado 007 (pontos-em-aberto-decisao-produto.md,
+// decisão do autor em 2026-09-19): `DefaultInflationWeight` recalibrado de
+// 1.5 pra 7.5, mantendo `ipcaAccumulatedDeviation` decimal (ex: 0.02 para 2
+// p.p., mesma convenção de `ipca.Config`) — o valor original tomava o
+// coeficiente clássico da regra de Taylor (~1.5x) ao pé da letra sem
+// considerar essa escala, deixando o termo praticamente inerte (só reagia
+// a choques acima de 8,33 p.p., ver histórico do achado). 7.5 foi escolhido
+// simulando `NextCalendarRate` reunião a reunião, não só o efeito isolado
+// de uma reunião — porque o termo de inflação soma de novo a cada reunião
+// enquanto o desvio persistir, e precisa conviver com `ReversionSpeed`/
+// `CopomStepIncrement` sem divergir pra valores absurdos: este teste prova
+// as três propriedades que a calibração buscou (rodando reunião a reunião
+// com `ReversionSpeed`/`Volatility` puros de `DefaultConfig`, sem isolar o
+// termo de inflação como os testes de I.1 acima) — desvio de ruído (<1
+// p.p.) nunca move a Selic; um desvio persistente de 2 p.p. move em passos
+// de 0,25 realistas e converge (não diverge) a um patamar estável; sinal
+// negativo espelha o positivo.
+func TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel(t *testing.T) {
+	cfg := DefaultConfig(10, 1)
+	cfg.Volatility = 0 // isola o efeito do termo de inflação do ruído
 
-	tests := []struct {
-		name                     string
-		ipcaAccumulatedDeviation float64
-	}{
-		{"1 p.p. acima da meta", 0.01},
-		{"2 p.p. acima da meta", 0.02},
-		{"3 p.p. acima da meta (choque relevante no mundo real)", 0.03},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := NextCalendarRate(cfg, dayIndex, 10, tt.ipcaAccumulatedDeviation)
-			if got != 10 {
-				t.Fatalf("got = %v, want 10 (desvio realista de IPCA não deveria mover a Selic com o peso/escala atuais — achado 007)", got)
+	run := func(deviation float64, meetings int) (finalRate float64, changedMeetings int) {
+		rate := cfg.Neutral
+		dayIndex := CopomMeetingIntervalDays - 1
+		for m := 0; m < meetings; m++ {
+			next := NextCalendarRate(cfg, dayIndex, rate, deviation)
+			if next != rate {
+				changedMeetings++
 			}
-		})
+			rate = next
+			dayIndex += CopomMeetingIntervalDays
+		}
+		return rate, changedMeetings
 	}
+
+	t.Run("desvio de ruído (0.5 p.p.) nunca move a Selic", func(t *testing.T) {
+		finalRate, changed := run(0.005, 8)
+		if changed != 0 || finalRate != cfg.Neutral {
+			t.Fatalf("changed = %d, finalRate = %v — desvio de ruído não devia mover a Selic (achado 007)", changed, finalRate)
+		}
+	})
+
+	t.Run("desvio persistente de 2 p.p. move em passos e converge, não diverge", func(t *testing.T) {
+		finalRate, changed := run(0.02, 12)
+		if changed == 0 {
+			t.Fatal("desvio persistente de 2 p.p. devia mover a Selic em pelo menos uma reunião")
+		}
+		// Converge a um patamar estável bem antes das 12 reuniões — se
+		// ainda estivesse mudando na última reunião simulada, é sinal de
+		// que o termo está divergindo em vez de convergir (a regressão que
+		// a recalibração do achado 007 quis evitar).
+		penultimate, _ := run(0.02, 11)
+		if finalRate != penultimate {
+			t.Fatalf("finalRate(12 reuniões) = %v != finalRate(11 reuniões) = %v — devia ter convergido antes da 12ª", finalRate, penultimate)
+		}
+		// Ordem de grandeza plausível: nem inerte (achado 007 original),
+		// nem um choque de política monetária inteiro numa única direção.
+		if finalRate <= cfg.Neutral || finalRate-cfg.Neutral > 2.0 {
+			t.Fatalf("finalRate = %v, esperava um patamar acima da neutra (%v) mas plausível (<= +2.0 p.p.)", finalRate, cfg.Neutral)
+		}
+	})
+
+	t.Run("desvio negativo espelha o positivo", func(t *testing.T) {
+		above, _ := run(0.02, 12)
+		below, _ := run(-0.02, 12)
+		if below >= cfg.Neutral {
+			t.Fatalf("below = %v, esperava Selic abaixo da neutra (%v)", below, cfg.Neutral)
+		}
+		if math.Abs((above-cfg.Neutral)-(cfg.Neutral-below)) > 1e-9 {
+			t.Fatalf("assimetria entre desvio positivo (+%v) e negativo (-%v) em torno da neutra", above-cfg.Neutral, cfg.Neutral-below)
+		}
+	})
 }
 
 // --- Tarefa I.2: passos discretos do Copom (backlog-motor-mercado-realista) ---

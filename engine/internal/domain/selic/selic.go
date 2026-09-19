@@ -19,11 +19,21 @@ const (
 	// pontos percentuais de taxa anual.
 	DefaultDailyVolatility = 0.15
 	// DefaultInflationWeight é o peso do termo de reação ao desvio do IPCA
-	// acumulado frente à meta (tarefa I.1, proposta seção 6) — moderado,
-	// próximo do coeficiente clássico da regra de Taylor (~1.5x o desvio),
-	// não um valor fraco nem deixado em branco (decisão confirmada na
-	// proposta, não uma estimativa como os demais Default* deste bloco).
-	DefaultInflationWeight = 1.5
+	// acumulado frente à meta (tarefa I.1, proposta seção 6). Recalibrado
+	// (achado 007, pontos-em-aberto-decisao-produto.md, decisão do autor em
+	// 2026-09-19) — o valor original (1.5, "coeficiente clássico da regra
+	// de Taylor") tomava o coeficiente clássico ao pé da letra sem
+	// considerar que `ipcaAccumulatedDeviation` é decimal (0.02 = 2 p.p.,
+	// mesma convenção de `ipca.Config`), não pontos percentuais inteiros
+	// como `Neutral`: nessa escala, 1.5 deixava o termo praticamente inerte
+	// (só reagia a choques acima de 8,33 p.p.). 7.5 foi escolhido simulando
+	// `NextCalendarRate` contra `ReversionSpeed`/`CopomStepIncrement`
+	// (mesma composição que qualquer novo valor precisa respeitar, não só
+	// o termo isolado): ignora desvio de ruído (<1 p.p.), reage em passos
+	// de 0,25 realistas a um desvio persistente de 2-5 p.p. e converge a um
+	// deslocamento estável (não diverge) enquanto o desvio persistir — ver
+	// TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel.
+	DefaultInflationWeight = 7.5
 )
 
 // Config parametriza o processo estocástico da Selic simulada. Initial é a
