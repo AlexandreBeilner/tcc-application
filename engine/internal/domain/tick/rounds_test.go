@@ -338,6 +338,108 @@ func TestRunIntradayRounds_VolumeNegociadoAcumuladoPorAtivo(t *testing.T) {
 	}
 }
 
+// TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes
+// cobre a metade "preços independentes (books separados)" do critério de
+// aceite da tarefa J.1 (Ações ON/PN, backlog-motor-mercado-realista):
+// acaoAsset hardcoda companyID "c1" pra todo ativo que cria — chamá-la duas
+// vezes com asset_id diferente já reproduz o cenário real de ON/PN da mesma
+// empresa. O ponto central: state := equities[chosen.AssetID] (rounds.go)
+// já indexa o preço por asset_id, nunca por company_id — este teste trava
+// isso via observável externo (closingPrices), não só lendo o código.
+func TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"on1": 10_000, "pn1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
+	if *assets[0].CompanyID != *assets[1].CompanyID {
+		t.Fatalf("setup inválido: on1/pn1 precisam compartilhar CompanyID, got %q e %q", *assets[0].CompanyID, *assets[1].CompanyID)
+	}
+
+	// 20 rodadas (bem mais que as 1-4 reais de D.1) só pra este bot único
+	// alcançar os dois ativos do universo pelo menos uma vez cada — seed
+	// determinística (svc.seed, roundSeed), sem aleatoriedade real entre
+	// execuções do teste.
+	rounds := make([]IntradayRound, 20)
+	for i := range rounds {
+		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
+	}
+
+	closing, volumes, fills, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 || volumes["on1"] == 0 || volumes["pn1"] == 0 {
+		t.Fatalf("volumes = %+v, fills = %d — cenário precisa gerar negociação real nos dois ativos (ajustar fixture)", volumes, fills)
+	}
+
+	var lastOn, lastPn float64
+	for _, s := range submitter.submitted {
+		switch s.req.AssetID {
+		case "on1":
+			lastOn = s.req.Price
+		case "pn1":
+			lastPn = s.req.Price
+		}
+	}
+	if closing["on1"] != lastOn {
+		t.Errorf("closing[on1] = %v, want %v (último fill submetido pra on1 — book de on1 não pode refletir fill de pn1)", closing["on1"], lastOn)
+	}
+	if closing["pn1"] != lastPn {
+		t.Errorf("closing[pn1] = %v, want %v (último fill submetido pra pn1 — book de pn1 não pode refletir fill de on1)", closing["pn1"], lastPn)
+	}
+	if closing["on1"] == closing["pn1"] {
+		t.Errorf("closing[on1] == closing[pn1] (%v) — dois preços iniciais diferentes (100/200) convergindo pro mesmo valor sugere books cruzados entre as duas classes", closing["on1"])
+	}
+}
+
+// TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto
+// cobre a metade "compartilham o mesmo company_fundamentals (mesmo balanço)"
+// do critério de aceite da J.1: companyRoundContexts é indexado por
+// CompanyID (não por AssetID) — uma empresa com dois ativos vinculados (ON/
+// PN) produz UMA entrada só no mapa, que os dois ativos leem via
+// assetCompanies. Não é uma mudança de comportamento desta tarefa: já valia
+// por construção desde a Fase D/E (tick.go só itera CompanyForFundamentals,
+// nunca AssetForPricing, pra montar este mapa) — este teste documenta e
+// trava essa garantia explicitamente pro caso real de ON/PN, em vez de só
+// inferir do código.
+func TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto(t *testing.T) {
+	const companyID = "c1"
+	revenue := 1_000_000.0
+	company := CompanyForFundamentals{
+		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
+		Sector: "Mineração", LastRevenue: &revenue,
+	}
+	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
+
+	riskClasses := companyEquityRiskClasses(assets)
+	contexts := companyRoundContexts([]CompanyForFundamentals{company}, map[string]float64{}, riskClasses, 1, 10, 10, map[string]float64{})
+	if len(contexts) != 1 {
+		t.Fatalf("len(contexts) = %d, want 1 — duas ações da mesma empresa compartilham um ciclo de fundamentos só, não um por ativo", len(contexts))
+	}
+
+	assetToCompany := assetCompanies(assets)
+	if assetToCompany["on1"] != companyID || assetToCompany["pn1"] != companyID {
+		t.Fatalf("assetCompanies = %+v, want ambos apontando pra %q", assetToCompany, companyID)
+	}
+
+	ctxForOn, ok := contexts[assetToCompany["on1"]]
+	if !ok {
+		t.Fatal("contexto de ON não encontrado")
+	}
+	ctxForPn, ok := contexts[assetToCompany["pn1"]]
+	if !ok {
+		t.Fatal("contexto de PN não encontrado")
+	}
+	if ctxForOn != ctxForPn {
+		t.Errorf("contexto de fundamentos de ON (%+v) difere do de PN (%+v) — mesma empresa deveria compartilhar exatamente o mesmo balanço", ctxForOn, ctxForPn)
+	}
+}
+
 // TestRunIntradayRounds_MarketMakerCancelaCotacaoAnteriorAntesDeRecotar
 // cobre o achado 005 parte A.4: um Market Maker nunca deixa a cotação da
 // rodada anterior pendurada — CancelUserRestingOrders é chamado pro mesmo

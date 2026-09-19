@@ -1542,7 +1542,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase J — Ações ON/PN
 
-### J.1 · Empresa com 1 ou 2 ativos de Ação vinculados
+### J.1 · Empresa com 1 ou 2 ativos de Ação vinculados ✅
 
 - **Descrição:** o catálogo passa a suportar uma empresa (`company_id`) com dois ativos de Ação
   (`asset_id` diferentes, ON e PN), cada um com seu próprio ticker/book, ambos compartilhando o
@@ -1552,6 +1552,64 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   `company_fundamentals` (mesmo balanço) mas têm preços independentes (books separados).
 - **Referências:** proposta 2.8, item 1.
 - **Dependências:** A.1, A.2 (book real já revertido).
+- **Entregável:** achado principal desta sessão — **o catálogo já suportava isso desde antes deste
+  redesenho começar**, por construção, sem precisar de nenhuma migration/mudança de domínio nova:
+  `variable_income_assets.company_id` (schema `000001`) já é nullable e **sem nenhuma constraint de
+  unicidade**, `catalog.NewVariableIncomeAsset` nunca validou "um ativo por empresa", e as três
+  peças que leem por `company_id` (`ListCompaniesForFundamentals`/`companyRoundContexts` no motor de
+  rodada, `ListAssetsByCompany`/`GET /companies/:id`) já são naturalmente 1-empresa-para-N-ativos —
+  o único motivo de nunca ter existido na prática é o seed (`cmd/seed/main.go`) sempre ter criado
+  uma empresa nova por ticker (`VALR3`/`BNDD4`), nunca reaproveitado uma já existente. Sessão foi
+  majoritariamente prova, não implementação (mesmo precedente da F.1): nenhuma migration, nenhuma
+  mudança em `internal/domain/catalog/`, `internal/infra/db/catalog_repository.go` ou
+  `internal/infra/httpserver/companies.go` — só testes novos, mais uma nota de código já existente
+  (`tick.go:486`) que documentava essa lacuna de cobertura desde a Fase D/E ("uma empresa com mais
+  de um ativo vinculado usa o risk_class do primeiro encontrado... a função não trava se acontecer")
+  e que este teste finalmente exercita de verdade.
+  - `catalog/variableincome_test.go`: subteste novo `"duas classes (ON+PN) vinculadas à mesma
+    empresa"` — confirma que dois `NewVariableIncomeAsset` com o mesmo `CompanyID` e `ShareClass`
+    diferentes (`asset_id` também diferentes) são ambos válidos, sem nenhuma validação nova
+    precisando ser escrita (o construtor já aceitava isso).
+  - `tick/rounds_test.go`: dois testes novos cobrem as duas metades do critério de aceite
+    separadamente. `TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto`
+    prova "compartilham o mesmo `company_fundamentals`" no nível certo — `companyRoundContexts` é
+    indexado por `CompanyID` (nunca por `AssetID`), então duas ações da mesma empresa produzem
+    **uma única entrada** no mapa (`len(contexts) == 1`), e `assetCompanies` resolve as duas de
+    volta pra essa mesma entrada — comparação direta de struct (`ctxForOn != ctxForPn`) confirma
+    que são literalmente o mesmo valor, não só "parecidos". `TestRunIntradayRounds_
+    DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes` prova a outra metade ("preços
+    independentes/books separados") via `runIntradayRounds` real (Market Maker, 20 rodadas,
+    seed determinística — sem flakiness, `rand.Intn` seedado por `roundSeed` já era 100%
+    reprodutível antes desta tarefa): `closing[on1]`/`closing[pn1]` batem exatamente com o último
+    fill submetido pra cada `asset_id` respectivamente, provando que `state := equities[chosen.
+    AssetID]` (o mecanismo de tracking de preço por ativo já existente desde D.2) nunca deixa um
+    fill de uma classe vazar pro preço da outra.
+  - **Achado explorado, não é regressão desta tarefa (documentado no próprio comentário de
+    `companyEquityRiskClasses`, `tick.go:482-488`, desde a Fase D/E):** se duas classes da mesma
+    empresa fossem seedadas com `risk_class` diferente entre si (não deveria acontecer na prática —
+    é a mesma empresa, mesmo perfil de risco —, mas o schema não impede), o Fundamentalista usaria
+    o risk_class "do primeiro encontrado" pras duas, nunca travando mas potencialmente inconsistente
+    pra uma delas. Como isso não é uma regra de negócio testável isoladamente sem mudar a assinatura
+    de `companyEquityRiskClasses`, e a J.4 (seed real) é quem decide os valores de `risk_class` de
+    cada classe, não foi necessário registrar isso em `pontos-em-aberto-decisao-produto.md` — a
+    decisão certa (mesma classe de risco pras duas classes da mesma empresa) é óbvia o suficiente
+    pra não precisar de confirmação do autor, e a J.4 deve simplesmente seguir essa convenção.
+  - **Validado ao vivo via `docker compose up -d --build`** (dados reais já seedados, sem `down
+    -v`): inseri manualmente `VALR4` (PN, `outstanding_shares` 200.000.000) vinculado ao mesmo
+    `company_id` da `Mineradora Vale do Rio S.A.` que já tinha `VALR3` (ON, 500.000.000) — `GET
+    /companies/:id` real (via `curlimages/curl` na rede interna do Compose, mesma técnica de sessões
+    anteriores) passou a devolver os dois ativos (`VALR3`/`VALR4`, `share_class` `ON`/`PN`) com a
+    **mesma** lista de `fundamentals` (21 ciclos de relatório idênticos para os dois); `GET
+    /assets/:id` de cada um confirmou `outstanding_shares` e indicadores por ação (LPA/VPA)
+    diferentes entre as duas classes (esperado — dividem o mesmo lucro/patrimônio por uma base de
+    ações diferente) enquanto `VALR3` manteve seu `current_price`/book histórico intocado e `VALR4`
+    (recém-inserido, sem alocação de bot/float ainda — isso é trabalho da J.4, não desta tarefa)
+    corretamente sem nenhum `current_price` ainda. `VALR4` de teste removido ao final (`DELETE` nas
+    duas tabelas, mesma transação) — volume de dev restaurado ao estado anterior à sessão, `docker
+    compose down` (sem `-v`).
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — `GET /companies/:id` e `GET
+    /assets/:id` já existiam e já suportavam isso).
 
 ### J.2 · Dividendo com prioridade legal de PN
 
