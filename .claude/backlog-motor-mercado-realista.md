@@ -1611,7 +1611,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
     verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — `GET /companies/:id` e `GET
     /assets/:id` já existiam e já suportavam isso).
 
-### J.2 · Dividendo com prioridade legal de PN
+### J.2 · Dividendo com prioridade legal de PN ✅
 
 - **Descrição:** `dividend.EquityValuePerShare` (`dividend.go:44-49`) deixa de assumir uma única
   classe — passa a considerar as duas bases de ações em circulação (ON + PN) e aplicar a vantagem
@@ -1623,6 +1623,52 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   com premium customizado acima do mínimo.
 - **Referências:** proposta 2.8, item 2.
 - **Dependências:** J.1.
+- **Entregável:** migration `000020_company_pn_dividend_premium` adiciona
+  `companies.pn_dividend_premium_pct numeric(5,2) NOT NULL DEFAULT 10` — empresa existente
+  (`VALR3`/`BNDD4`, cada uma ainda só-ON/só-PN nesta tarefa, J.4 é quem funde num par real) recebeu
+  o default via backfill automático da própria coluna `NOT NULL DEFAULT`, sem migration de dado
+  separada. `dividend.EquityValuePerShare` (`dividend.go`) muda de assinatura — de
+  `(netIncome, outstandingShares) (float64, bool)` pra
+  `(netIncome, onShares, pnShares int64, pnPremiumPct float64) (onValue, pnValue float64, ok bool)`:
+  o provento total do ciclo (`netIncome * DefaultEquityPayoutRatio`) é dividido entre as duas bases
+  de forma que `pnValue` seja exatamente `pnPremiumPct`% maior que `onValue`, não uma divisão
+  igualitária das duas bases — `onShares`/`pnShares` = 0 (empresa só de uma classe) reduz
+  exatamente à fórmula antiga (`netIncome * payout / shares`), confirmando o critério de "sem
+  quebra de compatibilidade". Nova constante `DefaultPnDividendPremiumPct = 10.0`.
+  - `tick.go`: `CompanyForFundamentals` ganha `PnDividendPremiumPct`; `DividendPayerAsset` ganha
+    `ShareClass *string` ("ON"/"PN", só preenchido pra "acao", mesma convenção do seed). Novo tipo
+    `equityShareClasses` (`On`/`Pn int64`) e `equityShareClassesByCompany` agregam a base de ações
+    de cada classe de uma empresa a partir da lista completa de `payers` (J.1 já permite 1 ou 2
+    `asset_id` por `company_id`) — pré-computado uma vez por tick, não recalculado por ativo.
+    `dividendRecordsForCycle` ganha o parâmetro `pnPremiumPctByCompany map[string]float64` e, pro
+    caso `"acao"`, chama `dividend.EquityValuePerShare` com as duas bases agregadas + o premium da
+    empresa, escolhendo `pnValue` ou `onValue` conforme `a.ShareClass` do ativo sendo processado.
+  - `tick_repository.go`: `ListCompaniesForFundamentals` passa a ler `c.pn_dividend_premium_pct`;
+    `ListDividendPayerAssets` passa a ler `via.share_class`.
+  - Testes novos: `dividend_test.go` (`TestEquityValuePerShare` reescrito, 5 casos table-driven —
+    só-ON normal/zero/negativo/net_income-negativo + ON+PN premium default 10% + ON+PN premium
+    customizado 20%, todos os três critérios de aceite cobertos) e `tick_test.go`
+    (`TestAdvance_Dividendos_EmpresaOnPnAplicaPrioridadeLegalDaPn`, prova de ponta a ponta dentro do
+    domínio: duas `DividendPayerAsset` do mesmo `company_id` com `ShareClass` ON/PN geram dois
+    `DividendRecord` distintos, com `pn.ValuePerShare == on.ValuePerShare * 1.25` pro premium de
+    25% configurado no teste).
+  - **Validado ao vivo via `docker compose up -d --build`** (mesma técnica de sessões
+    anteriores — dados reais já seedados, sem `down -v`): confirmado `\d companies` com a coluna
+    nova e as duas empresas existentes já com `pn_dividend_premium_pct = 10.00` via backfill
+    automático do `DEFAULT`. Inseri manualmente `VALR4` (PN, `outstanding_shares` 250.000.000)
+    vinculado ao mesmo `company_id` de `VALR3` (ON, 500.000.000, mesma técnica de inserção manual
+    da J.1) e avancei o Temporizador via `POST /admin/tick` (rede interna do Compose) até o próximo
+    dia de relatório da empresa — `dividend_events` gerado mostrou `VALR3 (ON) = 6.73` e
+    `VALR4 (PN) = 7.40`, razão ≈ 1.10, exatamente o premium default de 10% configurado na empresa.
+    `VALR4` de teste removido ao final (mesma transação cobrindo `dividend_event_recipients`,
+    `dividend_events`, `order_book`, `asset_quotes`, `variable_income_assets`, `assets` — mais
+    dependências de FK que a remoção da J.1 por causa dos fills de bot acumulados nas rodadas
+    intradiárias entre os ticks avançados), `docker compose down` (sem `-v`). Efeito colateral
+    aceito e não revertido: o dia simulado avançou de 293 pra 308 (15 ticks forçados pra alcançar o
+    próximo ciclo de relatório de 14 dias) — mesmo tipo de avanço de tempo que qualquer validação
+    ao vivo via `POST /admin/tick` já produz, não é um dado corrompido.
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada).
 
 ### J.3 · Bot Fundamentalista valoriza por classe
 
