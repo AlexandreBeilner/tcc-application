@@ -7,9 +7,9 @@
 // mudam a cada fill dentro do próprio dia, coisa que Result.Quotes/
 // asset_quotes só reflete no fechamento) — por isso vive como método de
 // *Service, não como função de domínio testável isoladamente igual a
-// Advance. Escopo restrito a Ação por enquanto (tick.go já exclui Ação do
-// GBM, ver assetTypeAcao) — FII/ETF continuam fora até as Fases G/H
-// estenderem o mesmo motor.
+// Advance. Escopo cobre Ação e FII (tick.go já exclui as duas classes do
+// GBM, ver assetTypeAcao/assetTypeFII) desde a tarefa G.1 — ETF continua
+// fora até a Fase H estender o mesmo motor.
 package tick
 
 import (
@@ -114,12 +114,16 @@ func businessRejection(err error) bool {
 }
 
 // equityRoundState é o estado mutável (em memória, só durante esta chamada
-// de runIntradayRounds) de um ativo de Ação ao longo do dia — Price começa
-// no último fechamento conhecido (ou DefaultInitialPrice, sem nenhum ainda)
-// e é atualizado a cada fill real, refletindo o preço da negociação mais
-// recente pra qualquer bot que decida depois dentro do mesmo dia (mesma e
-// qualquer rodada seguinte) — é isso que dá a "path-dependence" intradiária
-// que asset_quotes (só 1 linha por dia) não consegue expressar sozinho.
+// de runIntradayRounds) de um ativo de Ação ou FII (tarefa G.1) ao longo do
+// dia — Price começa no último fechamento conhecido (ou DefaultInitialPrice,
+// sem nenhum ainda) e é atualizado a cada fill real, refletindo o preço da
+// negociação mais recente pra qualquer bot que decida depois dentro do mesmo
+// dia (mesma e qualquer rodada seguinte) — é isso que dá a "path-dependence"
+// intradiária que asset_quotes (só 1 linha por dia) não consegue expressar
+// sozinho. Sector/RiskClass ficam zero value ("") pra FII (spec 3.6: sem
+// setor nem risk_class própria) — CompanyID nil é o mesmo sinal que já fazia
+// fundamentalistHasCompanyContext descartar o Fundamentalista pra qualquer
+// ativo sem empresa emissora, agora também o caso natural de FII.
 type equityRoundState struct {
 	Sector    catalog.Sector
 	RiskClass equity.RiskClass
@@ -142,24 +146,32 @@ func roundSeed(baseSeed int64, dayIndex, roundIndex int, botUserID, purpose stri
 	return deterministicSeed(baseSeed, botUserID+":"+purpose) + int64(dayIndex)*10 + int64(roundIndex)
 }
 
-// buildEquityUniverse filtra assets pras Ações (Fase D.2 — FII/ETF ainda
-// fora, ver assetTypeAcao) e monta tanto o estado mutável por ativo
-// (equities, indexado por AssetID) quanto o universo pequeno que
-// bot.SelectAssetForRound precisa (sem preço/CompanyID, só o que importa pra
-// checar escopo).
+// buildEquityUniverse filtra assets pras Ações e FIIs (Fase D.2 / tarefa
+// G.1 — ETF ainda fora, ver assetTypeAcao/assetTypeFII) e monta tanto o
+// estado mutável por ativo (equities, indexado por AssetID) quanto o
+// universo pequeno que bot.SelectAssetForRound precisa (sem preço/CompanyID,
+// só o que importa pra checar escopo). Sector/RiskClass só são resolvidos
+// pra Ação — FII (tarefa G.1) fica com os dois em zero value de propósito
+// (remove o tratamento "Conservador" que riskClassForPricing dava a ele
+// enquanto passava por GBM): o único jeito de um bot alcançar FII agora é
+// via AssetClasses (bot.EquityForRound.Type, bot.MatchesEquity), nunca por
+// setor/risk_class que ele não tem.
 func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState, []bot.EquityForRound) {
 	equities := make(map[string]*equityRoundState)
 	universe := make([]bot.EquityForRound, 0, len(assets))
 	for _, a := range assets {
-		if a.Type != assetTypeAcao {
+		if a.Type != assetTypeAcao && a.Type != assetTypeFII {
 			continue
 		}
 
 		var sector catalog.Sector
-		if a.Sector != nil {
-			sector = catalog.Sector(*a.Sector)
+		var riskClass equity.RiskClass
+		if a.Type == assetTypeAcao {
+			if a.Sector != nil {
+				sector = catalog.Sector(*a.Sector)
+			}
+			riskClass = riskClassForPricing(a.RiskClass)
 		}
-		riskClass := riskClassForPricing(a.RiskClass)
 
 		price := DefaultInitialPrice
 		if a.LastPrice != nil {
@@ -167,7 +179,7 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 		}
 
 		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price}
-		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass})
+		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type)})
 	}
 	return equities, universe
 }
@@ -285,9 +297,9 @@ func (s *Service) decisionInputFor(
 // padrão de qualquer outra leitura de Run.
 //
 // Devolve o preço de fechamento (última negociação real de todo o dia,
-// nenhuma se nada negociou) de cada Ação negociável — vazio se não há
-// nenhuma Ação no catálogo ainda (Fases G/H, quando FII/ETF entrarem aqui,
-// vão alimentar o mesmo mecanismo) — e quantos fills reais aconteceram no
+// nenhuma se nada negociou) de cada Ação/FII negociável — vazio se não há
+// nenhum dos dois no catálogo ainda (Fase H, quando ETF entrar aqui, vai
+// alimentar o mesmo mecanismo) — e quantos fills reais aconteceram no
 // total, só pra observabilidade (ver tickResponse, httpserver/admin.go).
 func (s *Service) runIntradayRounds(
 	ctx context.Context,

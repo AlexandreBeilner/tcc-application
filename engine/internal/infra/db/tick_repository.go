@@ -217,11 +217,13 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // FII, is_sandbox = false) do catálogo, com a posição de cada usuário
 // nesse ativo (positions, quantity > 0) — usado por Advance (tarefa 4.9)
 // pra decidir o valor por ação/cota do ciclo e o snapshot de elegibilidade
-// (posição na data ex) de um novo dividend_events. ETF nunca aparece aqui
-// — não é pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
+// (posição na data ex) de um novo dividend_events, e (tarefas G.2/G.3) pra
+// reavaliar NetWorth/PortfolioValue no mesmo calendário — indexador só vem
+// preenchido pro perfil papel (G.3). ETF nunca aparece aqui — não é
+// pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value
+		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -238,7 +240,7 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
 			return nil, err
 		}
 		a.Type = assetType
@@ -346,7 +348,10 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 // catalog_repository.go pra dado cadastral). period_date usa o relógio
 // real (time.Now()), não o dia simulado — mesma decisão já tomada pra DU
 // restante de renda fixa na tarefa 3.13 (coerente com "1 tick = 1 dia
-// real").
+// real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates (tarefa
+// G.3) são um UPDATE por item em fii_details.net_worth/portfolio_value,
+// não um INSERT — diferente de company_fundamentals, não existe tabela de
+// histórico pra essas reavaliações.
 func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -407,6 +412,24 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 
 	if err := payDueDividends(ctx, tx, result.DuePayments); err != nil {
 		return err
+	}
+
+	for _, u := range result.NetWorthUpdates {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE fii_details SET net_worth = $1 WHERE asset_id = $2`,
+			u.NetWorth, u.AssetID,
+		); err != nil {
+			return err
+		}
+	}
+
+	for _, u := range result.PortfolioValueUpdates {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE fii_details SET portfolio_value = $1 WHERE asset_id = $2`,
+			u.PortfolioValue, u.AssetID,
+		); err != nil {
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

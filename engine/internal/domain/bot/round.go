@@ -26,24 +26,29 @@ var ErrNoEquityAvailable = errors.New("nenhum ativo disponível pra sortear nest
 // SelectAssetForRound precisa pra checar se ele cai dentro do escopo de um
 // bot — CompanyID/preço/histórico/fundamentos ficam a cargo de quem orquestra
 // a rodada (tick.Service, Fase D.2), este pacote só decide "cai no escopo ou
-// não".
+// não". Type (tarefa G.1) é a classe de ativo crua (catalog.AssetAcao/
+// AssetETF/AssetFII) — zero value "" pra quem construía EquityForRound antes
+// da G.1 sem se importar com este campo (mesma tolerância a zero value já
+// dada a Sector/RiskClass).
 type EquityForRound struct {
 	AssetID   string
 	Sector    catalog.Sector
 	RiskClass equity.RiskClass
+	Type      catalog.AssetType
 }
 
 // MatchesEquity confere se o escopo de especialização do bot alcança um
-// ativo de Renda Variável com o setor/risk_class dados — união (não XOR,
-// mesma semântica de NewSpecializationScope/C.1): basta um dos dois bater.
-// Mesmo raciocínio de fan-out de macroevent.Target/tick.eventTargetsAsset,
-// aqui pro escopo de bot em vez de alvo de evento macro. AssetClasses do
-// escopo não entra nesta checagem porque nenhuma Ação carrega
-// catalog.AssetAcao no próprio escopo do bot (C.6: "Ação não é uma chave de
-// cobertura própria... setor já cobre Ação por construção") — esta função é
-// só pro caso de Ação; FII/ETF (Fases G/H) vão precisar da própria checagem
-// por AssetClasses quando entrarem no mesmo motor de rodada.
-func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equity.RiskClass) bool {
+// ativo de Renda Variável com o setor/risk_class/classe de ativo dados —
+// união (não XOR, mesma semântica de NewSpecializationScope/C.1): basta um
+// dos três bater. Mesmo raciocínio de fan-out de macroevent.Target/
+// tick.eventTargetsAsset, aqui pro escopo de bot em vez de alvo de evento
+// macro. Ação nunca bate pela checagem de AssetClasses (C.6: "Ação não é uma
+// chave de cobertura própria... setor já cobre Ação por construção" — nenhum
+// bot carrega catalog.AssetAcao no próprio escopo), mas FII (tarefa G.1) não
+// tem setor nem risk_class própria (spec 3.6) — pra ele, AssetClasses é a
+// única via de match possível. ETF (Fase H) vai depender do mesmo mecanismo
+// quando entrar no motor de rodada.
+func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equity.RiskClass, assetType catalog.AssetType) bool {
 	for _, sc := range s.Sectors {
 		if sc == sector {
 			return true
@@ -51,6 +56,11 @@ func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equi
 	}
 	for _, rc := range s.RiskClasses {
 		if rc == riskClass {
+			return true
+		}
+	}
+	for _, ac := range s.AssetClasses {
+		if ac == assetType {
 			return true
 		}
 	}
@@ -74,7 +84,7 @@ func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, r
 
 	var inScope, outOfScope []EquityForRound
 	for _, e := range universe {
-		if scope.MatchesEquity(e.Sector, e.RiskClass) {
+		if scope.MatchesEquity(e.Sector, e.RiskClass, e.Type) {
 			inScope = append(inScope, e)
 		} else {
 			outOfScope = append(outOfScope, e)

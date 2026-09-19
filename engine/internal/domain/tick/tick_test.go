@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/dividend"
+	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -71,14 +72,33 @@ func TestAdvance_UsaLastPriceQuandoExiste(t *testing.T) {
 }
 
 func TestAdvance_RiskClassAusenteUsaConservadorComoDefault(t *testing.T) {
-	// ETF/FII não têm risk_class no catálogo hoje (tarefa 3.9) — Advance
-	// não deve simplesmente pular esses ativos.
+	// ETF não tem risk_class no catálogo hoje (tarefa 3.9) — Advance não
+	// deve simplesmente pular esse ativo (FII saiu deste caminho na tarefa
+	// G.1, ver TestAdvance_FIINaoNasceMaisDeGBM abaixo).
 	assets := []AssetForPricing{{AssetID: "etf1", RiskClass: nil, LastPrice: nil}}
 
 	result := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, testSelicConfig(), 1)
 
 	if len(result.Quotes) != 1 {
 		t.Fatalf("len(Quotes) = %d, want 1 (risk_class nula deveria usar Conservador como default)", len(result.Quotes))
+	}
+}
+
+// TestAdvance_FIINaoNasceMaisDeGBM cobre o critério de aceite da tarefa
+// G.1: FII não deve deixar nenhum resquício de GBM no caminho de
+// precificação — igual a Ação desde a Fase D.2, Advance pula FII inteiro no
+// loop de quotes (assetTypeFII, tick.go), mesmo com risk_class nula e sem
+// LastPrice (cenário que, antes da G.1, teria caído no fallback Conservador
+// de riskClassForPricing e gerado uma Quote via equity.NextPrice). O preço
+// de FII só nasce da rodada de negociação real (runIntradayRounds,
+// rounds.go) — coberto por TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal.
+func TestAdvance_FIINaoNasceMaisDeGBM(t *testing.T) {
+	assets := []AssetForPricing{{AssetID: "fii1", Type: assetTypeFII, RiskClass: nil, LastPrice: nil}}
+
+	result := Advance(State{Day: 0, SelicRate: 10}, assets, nil, nil, nil, nil, testSelicConfig(), 1)
+
+	if len(result.Quotes) != 0 {
+		t.Fatalf("len(Quotes) = %d, want 0 — FII não nasce mais de GBM desde a tarefa G.1 (nasce da rodada de negociação real)", len(result.Quotes))
 	}
 }
 
@@ -653,6 +673,147 @@ func TestAdvance_Dividendos_FIINaoGeraForaDoDiaDeRelatorioGlobal(t *testing.T) {
 
 	if len(result.NewDividends) != 0 {
 		t.Errorf("len(NewDividends) = %d, want 0 (fora do dia de relatório global)", len(result.NewDividends))
+	}
+}
+
+// TestAdvance_NetWorth_ReavaliaFIITijoloNoCalendarioGlobalDeRelatorio cobre
+// o critério de aceite da tarefa G.2: uma nova reavaliação de NetWorth pra
+// cada FII tijolo no mesmo dia de relatório global que já dispara
+// dividendos/fundamentos — valor final determinístico por seed, batendo
+// exatamente com fii.NextNetWorth chamada com os mesmos parâmetros que
+// Advance usa de verdade (mesma técnica de TestNextGrowth_* em
+// fundamentals_test.go).
+func TestAdvance_NetWorth_ReavaliaFIITijoloNoCalendarioGlobalDeRelatorio(t *testing.T) {
+	netWorth := 500_000_000.0
+	payer := DividendPayerAsset{AssetID: "fii1", Type: assetTypeFII, NetWorth: &netWorth}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	// Day: 13 -> newDay = 14 = dia de relatório global.
+	result := Advance(State{Day: 13, SelicRate: 15}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.NetWorthUpdates) != 1 {
+		t.Fatalf("len(NetWorthUpdates) = %d, want 1", len(result.NetWorthUpdates))
+	}
+	if result.NetWorthUpdates[0].AssetID != "fii1" {
+		t.Errorf("AssetID = %q, want fii1", result.NetWorthUpdates[0].AssetID)
+	}
+
+	fiiCfg := fii.NetWorthConfig{
+		Sensitivity: fii.DefaultNetWorthSelicSensitivity,
+		NoiseStdDev: fii.DefaultNetWorthNoiseStdDev,
+		Seed:        deterministicSeed(1, "fii1"),
+	}
+	want := fii.NextNetWorth(fiiCfg, 0, netWorth, result.State.SelicRate, cfg.Neutral)
+	if result.NetWorthUpdates[0].NetWorth != want {
+		t.Errorf("NetWorth = %v, want %v", result.NetWorthUpdates[0].NetWorth, want)
+	}
+}
+
+// TestAdvance_NetWorth_FIIPapelNuncaReavaliado confere que FII papel
+// (NetWorth nil, PortfolioValue preenchido) nunca gera NetWorthUpdate —
+// PortfolioValue tem sua própria reavaliação (tarefa G.3), fora de escopo
+// aqui.
+func TestAdvance_NetWorth_FIIPapelNuncaReavaliado(t *testing.T) {
+	portfolioValue := 300_000_000.0
+	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.NetWorthUpdates) != 0 {
+		t.Errorf("len(NetWorthUpdates) = %d, want 0 (FII papel não tem NetWorth)", len(result.NetWorthUpdates))
+	}
+}
+
+// TestAdvance_NetWorth_NaoReavaliaForaDoDiaDeRelatorioGlobal confere que
+// nenhuma reavaliação acontece fora do calendário quinzenal — mesmo
+// tratamento de TestAdvance_Dividendos_FIINaoGeraForaDoDiaDeRelatorioGlobal.
+func TestAdvance_NetWorth_NaoReavaliaForaDoDiaDeRelatorioGlobal(t *testing.T) {
+	netWorth := 500_000_000.0
+	payer := DividendPayerAsset{AssetID: "fii1", Type: assetTypeFII, NetWorth: &netWorth}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 5, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.NetWorthUpdates) != 0 {
+		t.Errorf("len(NetWorthUpdates) = %d, want 0 (fora do dia de relatório global)", len(result.NetWorthUpdates))
+	}
+}
+
+// TestAdvance_PortfolioValue_ReavaliaFIIPapelNoCalendarioGlobalDeRelatorio
+// cobre o critério de aceite da tarefa G.3: uma nova reavaliação de
+// PortfolioValue pra cada FII papel no mesmo dia de relatório global,
+// batendo exatamente com fii.NextPortfolioValue chamada com os mesmos
+// parâmetros que Advance usa de verdade.
+func TestAdvance_PortfolioValue_ReavaliaFIIPapelNoCalendarioGlobalDeRelatorio(t *testing.T) {
+	portfolioValue := 300_000_000.0
+	indexador := fii.IndexadorCDI
+	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue, Indexador: &indexador}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	// Day: 13 -> newDay = 14 = dia de relatório global.
+	result := Advance(State{Day: 13, SelicRate: 12}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.PortfolioValueUpdates) != 1 {
+		t.Fatalf("len(PortfolioValueUpdates) = %d, want 1", len(result.PortfolioValueUpdates))
+	}
+	if result.PortfolioValueUpdates[0].AssetID != "fii2" {
+		t.Errorf("AssetID = %q, want fii2", result.PortfolioValueUpdates[0].AssetID)
+	}
+
+	want, err := fii.NextPortfolioValue(indexador, portfolioValue, result.State.SelicRate, fundamentals.DefaultReportFrequencyDays)
+	if err != nil {
+		t.Fatalf("fii.NextPortfolioValue: err = %v, want nil", err)
+	}
+	if result.PortfolioValueUpdates[0].PortfolioValue != want {
+		t.Errorf("PortfolioValue = %v, want %v", result.PortfolioValueUpdates[0].PortfolioValue, want)
+	}
+}
+
+// TestAdvance_PortfolioValue_FIITijoloNuncaReavaliado confere que FII
+// tijolo (PortfolioValue nil, NetWorth preenchido) nunca gera
+// PortfolioValueUpdate — NetWorth tem sua própria reavaliação (tarefa G.2).
+func TestAdvance_PortfolioValue_FIITijoloNuncaReavaliado(t *testing.T) {
+	netWorth := 500_000_000.0
+	payer := DividendPayerAsset{AssetID: "fii1", Type: assetTypeFII, NetWorth: &netWorth}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.PortfolioValueUpdates) != 0 {
+		t.Errorf("len(PortfolioValueUpdates) = %d, want 0 (FII tijolo não tem PortfolioValue)", len(result.PortfolioValueUpdates))
+	}
+}
+
+// TestAdvance_PortfolioValue_IndexadorDesconhecidoNaoReavalia confere que
+// um FII papel com indexador fora dos 3 conhecidos (fii.ErrUnknownIndexador)
+// é pulado, sem travar o tick.
+func TestAdvance_PortfolioValue_IndexadorDesconhecidoNaoReavalia(t *testing.T) {
+	portfolioValue := 300_000_000.0
+	indexador := "SELIC-ANTIGO"
+	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue, Indexador: &indexador}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.PortfolioValueUpdates) != 0 {
+		t.Errorf("len(PortfolioValueUpdates) = %d, want 0 (indexador desconhecido)", len(result.PortfolioValueUpdates))
+	}
+}
+
+// TestAdvance_PortfolioValue_NaoReavaliaForaDoDiaDeRelatorioGlobal confere
+// que nenhuma reavaliação acontece fora do calendário quinzenal — mesmo
+// tratamento de TestAdvance_NetWorth_NaoReavaliaForaDoDiaDeRelatorioGlobal.
+func TestAdvance_PortfolioValue_NaoReavaliaForaDoDiaDeRelatorioGlobal(t *testing.T) {
+	portfolioValue := 300_000_000.0
+	indexador := fii.IndexadorCDI
+	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue, Indexador: &indexador}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	result := Advance(State{Day: 5, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, 1)
+
+	if len(result.PortfolioValueUpdates) != 0 {
+		t.Errorf("len(PortfolioValueUpdates) = %d, want 0 (fora do dia de relatório global)", len(result.PortfolioValueUpdates))
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/equity"
+	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/selic"
@@ -28,11 +29,16 @@ import (
 // tarefa 3.9).
 const DefaultInitialPrice = 100.00
 
-// assetTypeAcao é o valor cru de AssetForPricing.Type pra ações — usado só
-// pra decidir quando Advance pula o GBM (Fase D.2, preço de Ação passa a vir
-// da rodada de negociação real). Não é o mesmo conceito de catalog.AssetAcao
-// (tick não importa catalog só pra isso, mesma nota de Sector/RiskClass).
-const assetTypeAcao = "acao"
+// assetTypeAcao/assetTypeFII são os valores crus de AssetForPricing.Type
+// pra ações/FIIs — usados só pra decidir quando Advance pula o GBM (Fase
+// D.2 pra Ação, tarefa G.1 pra FII — preço passa a vir da rodada de
+// negociação real, rounds.go). Não é o mesmo conceito de catalog.AssetAcao/
+// AssetFII (tick não importa catalog só pra isso, mesma nota de
+// Sector/RiskClass). ETF continua fora dos dois até a Fase H.
+const (
+	assetTypeAcao = "acao"
+	assetTypeFII  = "fii"
+)
 
 // State é o estado do calendário simulado do Mercado Ao Vivo — Day é o dia
 // simulado atual (0 = nenhum tick rodou ainda; contagem 1-based depois do
@@ -72,10 +78,10 @@ type AssetForPricing struct {
 	Sector *string
 	// Type é o tipo do ativo (assets.type: "acao"/"etf"/"fii", cru — mesma
 	// convenção de Sector/RiskClass acima, tick não importa catalog só pra
-	// isso) — usado por Advance (Fase D.2) pra excluir Ação do GBM: preço de
-	// Ação passa a nascer só da rodada de negociação real (runIntradayRounds,
-	// rounds.go), nunca mais do GBM. FII/ETF continuam no GBM até as Fases
-	// G/H estenderem o mesmo motor de negociação real pra eles.
+	// isso) — usado por Advance pra excluir Ação (Fase D.2) e FII (tarefa
+	// G.1) do GBM: preço de ambos passa a nascer só da rodada de negociação
+	// real (runIntradayRounds, rounds.go), nunca mais do GBM. ETF continua
+	// no GBM até a Fase H estender o mesmo motor de negociação real pra ele.
 	Type string
 }
 
@@ -184,7 +190,13 @@ type PositionHolder struct {
 // dividend.FIIValuePerShare como a mesma grandeza numérica de origem
 // (fórmula não muda, só a coluna). Holders é a posição de cada usuário
 // nesse ativo, carregada eagerly pelo Repository — vira Recipients de um
-// DividendRecord se o ativo gerar provento neste tick.
+// DividendRecord se o ativo gerar provento neste tick. Desde a tarefa G.2,
+// esta mesma lista também alimenta fiiNetWorthUpdatesForCycle — NetWorth
+// (tijolo) é o insumo da reavaliação periódica, sem precisar de mais
+// nenhuma leitura do catálogo. Indexador (tarefa G.3) só vem preenchido
+// pra "fii" perfil papel (fii_details.indexador, mutuamente exclusivo com
+// NetWorth/tijolo desde a 3.8) — insumo de fiiPortfolioValueUpdatesForCycle,
+// mesma reutilização de lista sem query nova.
 type DividendPayerAsset struct {
 	AssetID           string
 	Type              string
@@ -192,6 +204,7 @@ type DividendPayerAsset struct {
 	CompanyID         *string
 	NetWorth          *float64
 	PortfolioValue    *float64
+	Indexador         *string
 	Holders           []PositionHolder
 }
 
@@ -211,6 +224,26 @@ type DividendRecord struct {
 	ValuePerShare float64
 	PaymentDay    int
 	Recipients    []PositionHolder
+}
+
+// NetWorthUpdate é o novo `fii_details.net_worth` de um FII tijolo pronto
+// pra persistir (tarefa G.2) — diferente de FundamentalsRecord/
+// DividendRecord, não é uma linha nova numa tabela de histórico: `net_worth`
+// é uma coluna mutável de `fii_details` (asset_id como chave primária), e
+// SaveTick faz um UPDATE simples, não um INSERT. Gerado no mesmo dia de
+// relatório global (fundamentals.DefaultReportFrequencyDays) que já dispara
+// o relatório de empresas/dividendos.
+type NetWorthUpdate struct {
+	AssetID  string
+	NetWorth float64
+}
+
+// PortfolioValueUpdate é o novo `fii_details.portfolio_value` de um FII
+// papel pronto pra persistir (tarefa G.3) — mesma natureza de NetWorthUpdate
+// (UPDATE de coluna mutável, não uma linha nova de histórico).
+type PortfolioValueUpdate struct {
+	AssetID        string
+	PortfolioValue float64
 }
 
 // PendingDividendPayment é um dividend_events com paid = false —
@@ -258,6 +291,17 @@ type Result struct {
 	// o evento dividend_payment em market_events **antes** de projetar o
 	// saldo (Event Sourcing, CLAUDE.md), e marca paid = true.
 	DuePayments []PendingDividendPayment
+	// NetWorthUpdates são os novos `fii_details.net_worth` de cada FII
+	// tijolo reavaliado neste tick (tarefa G.2) — só populado no mesmo dia
+	// de relatório global que também gera Fundamentals/NewDividends;
+	// SaveTick faz um UPDATE por item, não um INSERT (ver doc de
+	// NetWorthUpdate).
+	NetWorthUpdates []NetWorthUpdate
+	// PortfolioValueUpdates são os novos `fii_details.portfolio_value` de
+	// cada FII papel reavaliado neste tick (tarefa G.3) — mesmo calendário
+	// de NetWorthUpdates, populado por fiiPortfolioValueUpdatesForCycle;
+	// SaveTick faz um UPDATE por item, não um INSERT.
+	PortfolioValueUpdates []PortfolioValueUpdate
 	// IntradayRounds é a cadência intradiária sorteada pra newDay (Fase
 	// D.1, IntradayRounds) — quantas rodadas de negociação de bot o dia
 	// terá e em que ponto do expediente simulado cada uma cai. Consumido
@@ -310,12 +354,14 @@ type Repository interface {
 	ListPendingMacroEvents(ctx context.Context) ([]MacroEventForApplication, error)
 	// ListDividendPayerAssets devolve todo ativo pagador de provento (ação
 	// ou FII, is_sandbox = false) com outstanding_shares/net_worth/
-	// portfolio_value (net_worth/portfolio_value mutuamente exclusivos por
-	// perfil de FII, tarefa 4.10) do catálogo e a posição de cada usuário
-	// nesse ativo — usado por Advance
-	// (tarefa 4.9) pra decidir, no dia de relatório, o valor por ação/cota
-	// do ciclo e o snapshot de elegibilidade (posição na data ex) de um
-	// novo dividend_events.
+	// portfolio_value/indexador (net_worth/portfolio_value mutuamente
+	// exclusivos por perfil de FII, tarefa 4.10; indexador só vem
+	// preenchido pro perfil papel, tarefa G.3) do catálogo e a posição de
+	// cada usuário nesse ativo — usado por Advance (tarefa 4.9) pra
+	// decidir, no dia de relatório, o valor por ação/cota do ciclo e o
+	// snapshot de elegibilidade (posição na data ex) de um novo
+	// dividend_events, e (tarefas G.2/G.3) pra reavaliar NetWorth/
+	// PortfolioValue no mesmo calendário.
 	ListDividendPayerAssets(ctx context.Context) ([]DividendPayerAsset, error)
 	// ListPendingDividendPayments devolve todo dividend_events com paid =
 	// false, com seus Recipients (dividend_event_recipients) — usado por
@@ -331,11 +377,12 @@ type Repository interface {
 }
 
 // riskClassForPricing resolve a risk_class usada como calibração do GBM —
-// ETF/FII não têm risk_class própria no catálogo hoje (a spec só define a
+// ETF não tem risk_class própria no catálogo hoje (a spec só define a
 // tabela de volatilidade/drift por risk_class pra ações, seção 3.2); até um
-// modelo de precificação próprio pra ETF/FII existir, tratamos como
-// Conservador (mais estável), decisão de escopo desta tarefa (3.11), não
-// uma calibração fechada da spec.
+// modelo de precificação próprio pra ETF existir (Fase H), tratamos como
+// Conservador (mais estável), decisão de escopo da tarefa 3.11, não uma
+// calibração fechada da spec. FII saiu deste tratamento na tarefa G.1 (não
+// passa mais por GBM, então não chama mais esta função).
 func riskClassForPricing(riskClass *string) equity.RiskClass {
 	if riskClass == nil {
 		return equity.RiskClassConservador
@@ -638,6 +685,69 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 	return records
 }
 
+// fiiNetWorthUpdatesForCycle reavalia o NetWorth de cada FII tijolo (tarefa
+// G.2) no mesmo calendário quinzenal global do relatório de
+// empresas/dividendos (fundamentals.DefaultReportFrequencyDays, mesmo
+// fiiReportDay que dividendRecordsForCycle já usa) — fora desse dia,
+// devolve nil (nenhuma reavaliação nova, mesmo tratamento de "nada gerado
+// hoje" já dado a dividendRecordsForCycle). FII papel (NetWorth nil,
+// PortfolioValue preenchido) fica fora — PortfolioValue tem sua própria
+// reavaliação (tarefa G.3, indexador da carteira, não Selic). cycleIndex
+// (0-based, um por ciclo já fechado) usa a mesma contagem que o loop de
+// empresas de Advance já deriva a partir de dayIndex/ReportFrequencyDays —
+// aqui sempre fundamentals.DefaultReportFrequencyDays porque FII não tem
+// report_frequency_days próprio (mesma nota já dada a fiiReportDay).
+func fiiNetWorthUpdatesForCycle(payers []DividendPayerAsset, dayIndex int, newSelicRate, selicNeutral float64, seed int64) []NetWorthUpdate {
+	if !fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays) {
+		return nil
+	}
+	cycleIndex := (dayIndex+1)/fundamentals.DefaultReportFrequencyDays - 1
+
+	updates := make([]NetWorthUpdate, 0)
+	for _, a := range payers {
+		if a.Type != assetTypeFII || a.NetWorth == nil {
+			continue
+		}
+
+		cfg := fii.NetWorthConfig{
+			Sensitivity: fii.DefaultNetWorthSelicSensitivity,
+			NoiseStdDev: fii.DefaultNetWorthNoiseStdDev,
+			Seed:        deterministicSeed(seed, a.AssetID),
+		}
+		newNetWorth := fii.NextNetWorth(cfg, cycleIndex, *a.NetWorth, newSelicRate, selicNeutral)
+		updates = append(updates, NetWorthUpdate{AssetID: a.AssetID, NetWorth: newNetWorth})
+	}
+	return updates
+}
+
+// fiiPortfolioValueUpdatesForCycle reavalia o PortfolioValue de cada FII
+// papel (tarefa G.3) no mesmo calendário quinzenal global de
+// fiiNetWorthUpdatesForCycle — fora do dia de relatório, devolve nil (mesmo
+// tratamento). FII tijolo (PortfolioValue nil) fica fora — tem sua própria
+// reavaliação (NetWorthUpdates, tarefa G.2). Ativo sem Indexador
+// reconhecido (fii.ErrUnknownIndexador — coluna livre no Postgres, sem
+// CHECK) é pulado, não trava o tick, mesmo tratamento de "dado inesperado
+// do catálogo não é erro" já dado a dividendRecordsForCycle.
+func fiiPortfolioValueUpdatesForCycle(payers []DividendPayerAsset, dayIndex int, newSelicRate float64) []PortfolioValueUpdate {
+	if !fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays) {
+		return nil
+	}
+
+	updates := make([]PortfolioValueUpdate, 0)
+	for _, a := range payers {
+		if a.Type != assetTypeFII || a.PortfolioValue == nil || a.Indexador == nil {
+			continue
+		}
+
+		newValue, err := fii.NextPortfolioValue(*a.Indexador, *a.PortfolioValue, newSelicRate, fundamentals.DefaultReportFrequencyDays)
+		if err != nil {
+			continue
+		}
+		updates = append(updates, PortfolioValueUpdate{AssetID: a.AssetID, PortfolioValue: newValue})
+	}
+	return updates
+}
+
 // duePaymentsForDay filtra, de todo PendingDividendPayment ainda não pago,
 // os que vencem exatamente em newDay — mesmo padrão de
 // macroFundamentalsEffectsByCompany filtrando por FundamentalsReportDay ==
@@ -683,7 +793,16 @@ func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDi
 // novo dividend_events por ativo pagador no dia de relatório
 // (Result.NewDividends), e duePaymentsForDay filtra os
 // PendingDividendPayment cujo pagamento vence exatamente em newDay
-// (Result.DuePayments). Advance também sorteia a cadência intradiária do
+// (Result.DuePayments). No mesmo dia de relatório global,
+// fiiNetWorthUpdatesForCycle (tarefa G.2) reavalia o NetWorth de cada FII
+// tijolo a partir do último valor persistido (dividendPayers, mesma lista
+// da linha acima) e da Selic simulada de hoje (fii.NextNetWorth) —
+// Result.NetWorthUpdates, um UPDATE por item em SaveTick, não uma linha
+// nova de histórico. fiiPortfolioValueUpdatesForCycle (tarefa G.3) faz o
+// mesmo pro PortfolioValue de cada FII papel, sem ruído (fii.
+// NextPortfolioValue, determinístico por indexador — CDI/IPCA+/Prefixado)
+// — Result.PortfolioValueUpdates, mesma natureza de UPDATE. Advance também
+// sorteia a cadência intradiária do
 // dia (Fase D.1, IntradayRounds) — quantas rodadas de negociação de bot
 // newDay terá e em que ponto do expediente simulado cada uma cai
 // (Result.IntradayRounds), consumida por Service.Run logo depois (Fase D.2,
@@ -739,12 +858,12 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
-		if a.Type == assetTypeAcao {
-			// Fase D.2: Ação não nasce mais de GBM — o preço de fechamento
-			// vem da rodada de negociação real (runIntradayRounds, rounds.go,
-			// chamada por Service.Run depois de Advance), que anexa sua
-			// própria Quote a Result.Quotes antes de SaveTick. FII/ETF
-			// continuam aqui até as Fases G/H.
+		if a.Type == assetTypeAcao || a.Type == assetTypeFII {
+			// Fase D.2 (Ação) / tarefa G.1 (FII): nenhum dos dois nasce mais
+			// de GBM — o preço de fechamento vem da rodada de negociação real
+			// (runIntradayRounds, rounds.go, chamada por Service.Run depois de
+			// Advance), que anexa sua própria Quote a Result.Quotes antes de
+			// SaveTick. ETF continua aqui até a Fase H.
 			continue
 		}
 
@@ -766,15 +885,15 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		// GBM daqui em diante (macroPriceMultiplier, removida) — o
 		// sinal/magnitude por alvo (E.1) agora só é lido pelo arquétipo
 		// Fundamentalista (macroPriceEffectsByCompany acima,
-		// CompanyRoundContext.MacroEffectPct), que só decide sobre Ação
-		// (assetTypeAcao, já pulada por este loop desde D.2). Tarefa F.1:
-		// mesma coisa pro efeito de preço do resultado divulgado — nenhum
-		// multiplicador aplicado direto na cotação (a antiga
-		// reportEffects[*a.CompanyID].PriceEffect, removida). Efeito
-		// colateral aceito/documentado (mesmo precedente da E.2): FII/ETF
-		// (as duas classes que ainda chegam até aqui) ficam sem reação a
-		// evento macro OU a resultado de relatório até as Fases G/H
-		// trazerem o mesmo motor de negociação real pra elas.
+		// CompanyRoundContext.MacroEffectPct), que só decide sobre Ação/FII
+		// (assetTypeAcao/assetTypeFII, já puladas por este loop desde D.2/
+		// G.1). Tarefa F.1: mesma coisa pro efeito de preço do resultado
+		// divulgado — nenhum multiplicador aplicado direto na cotação (a
+		// antiga reportEffects[*a.CompanyID].PriceEffect, removida). Efeito
+		// colateral aceito/documentado (mesmo precedente da E.2): ETF (única
+		// classe que ainda chega até aqui) fica sem reação a evento macro OU
+		// a resultado de relatório até a Fase H trazer o mesmo motor de
+		// negociação real pra ele.
 
 		quotes = append(quotes, Quote{AssetID: a.AssetID, Price: price})
 	}
@@ -789,15 +908,17 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	}
 
 	return Result{
-		State:                State{Day: newDay, SelicRate: newSelicRate},
-		Quotes:               quotes,
-		Fundamentals:         fundamentalsRecords,
-		IsCopomDay:           selic.IsCopomMeetingDay(dayIndex),
-		IsReportDay:          fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
-		AppliedMacroEventIDs: appliedMacroEventIDs,
-		NewDividends:         dividendRecordsForCycle(dividendPayers, netIncomeByCompany, dayIndex, newDay),
-		DuePayments:          duePaymentsForDay(pendingDividends, newDay),
-		IntradayRounds:       intradayRounds,
-		CompanyContext:       companyContext,
+		State:                 State{Day: newDay, SelicRate: newSelicRate},
+		Quotes:                quotes,
+		Fundamentals:          fundamentalsRecords,
+		IsCopomDay:            selic.IsCopomMeetingDay(dayIndex),
+		IsReportDay:           fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
+		AppliedMacroEventIDs:  appliedMacroEventIDs,
+		NewDividends:          dividendRecordsForCycle(dividendPayers, netIncomeByCompany, dayIndex, newDay),
+		DuePayments:           duePaymentsForDay(pendingDividends, newDay),
+		NetWorthUpdates:       fiiNetWorthUpdatesForCycle(dividendPayers, dayIndex, newSelicRate, selicCfg.Neutral, seed),
+		PortfolioValueUpdates: fiiPortfolioValueUpdatesForCycle(dividendPayers, dayIndex, newSelicRate),
+		IntradayRounds:        intradayRounds,
+		CompanyContext:        companyContext,
 	}
 }

@@ -67,6 +67,41 @@ func acaoAsset(assetID string, lastPrice float64) AssetForPricing {
 	}
 }
 
+// fiiAsset monta um FII pra teste (tarefa G.1) — sem RiskClass/Sector/
+// CompanyID, mesma forma crua que o catálogo real produz pra essa classe
+// (spec 3.6: FII não tem risk_class nem setor próprio, e não é vinculado a
+// uma company).
+func fiiAsset(assetID string, lastPrice float64) AssetForPricing {
+	return AssetForPricing{AssetID: assetID, Type: assetTypeFII, LastPrice: &lastPrice}
+}
+
+// mustFIIScopedRoundPersonality monta uma personalidade de bot cujo escopo
+// de especialização cobre FII só por AssetClasses (tarefa G.1) — sem nenhum
+// setor/risk_class, porque FII não tem nenhum dos dois (mesma nota de
+// fiiAsset acima). WithinScopePct no teto pra minimizar o sorteio "fora do
+// escopo" nos testes que precisam de um fill garantido.
+func mustFIIScopedRoundPersonality(t *testing.T, archetype bot.Archetype) bot.Personality {
+	t.Helper()
+	scope, err := bot.NewSpecializationScope(nil, nil, []catalog.AssetType{catalog.AssetFII}, bot.SpecializationWithinScopeMax)
+	if err != nil {
+		t.Fatalf("scope de setup inválido: %v", err)
+	}
+	riskProfile, err := bot.NewRiskProfile(0.5, 0.5, 0.02)
+	if err != nil {
+		t.Fatalf("risk profile de setup inválido: %v", err)
+	}
+	var knowledgeLevel *float64
+	if archetype == bot.ArchetypeFundamentalista {
+		level := 0.7
+		knowledgeLevel = &level
+	}
+	personality, err := bot.NewPersonality(archetype, scope, knowledgeLevel, riskProfile)
+	if err != nil {
+		t.Fatalf("personality de setup inválida: %v", err)
+	}
+	return personality
+}
+
 func twoIntradayRounds() []IntradayRound {
 	return []IntradayRound{{SequenceIndex: 0, TimeOfDay: 0.3}, {SequenceIndex: 1, TimeOfDay: 0.7}}
 }
@@ -81,6 +116,64 @@ func TestRunIntradayRounds_SemAcaoNoUniversoNaoFazNada(t *testing.T) {
 	}
 	if len(closing) != 0 || fills != 0 {
 		t.Fatalf("closing=%v fills=%d, want vazio/0 sem nenhuma Ação no universo", closing, fills)
+	}
+}
+
+// TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal cobre o critério de
+// aceite central da tarefa G.1: FII entra no mesmo book/bots de Ações —
+// um bot Ruído especializado em FII só por AssetClasses (sem setor/risk_class,
+// que FII não tem) consegue negociá-lo via orderexecution real, e o preço de
+// fechamento reflete o fill de verdade (não GBM).
+func TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"fii1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillPrice: 105}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{fiiAsset("fii1", 100)}
+
+	closing, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if closing["fii1"] != 105 {
+		t.Errorf("closing[fii1] = %v, want 105 (preço do último fill via orderexecution, não GBM)", closing["fii1"])
+	}
+	if fills == 0 {
+		t.Error("fills = 0, want > 0 (bot especializado em FII deveria ter negociado)")
+	}
+	for _, s := range submitter.submitted {
+		if s.req.AssetID != "fii1" {
+			t.Errorf("ordem submetida pro ativo %q, want fii1", s.req.AssetID)
+		}
+	}
+}
+
+// TestRunIntradayRounds_FundamentalistaNuncaNegociaFII confere que o
+// arquétipo Fundamentalista, mesmo especializado em FII por AssetClasses,
+// nunca chega a decidir uma ordem pra ele — FII não tem CompanyID (spec
+// 3.6), então fundamentalistHasCompanyContext descarta o bot antes de
+// qualquer LoadContext/Decide (mesma checagem que já vale pra Ação sem
+// empresa vinculada).
+func TestRunIntradayRounds_FundamentalistaNuncaNegociaFII(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeFundamentalista)}}}
+	loader := &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"fii1": 10_000}}
+	svc.orderContext = loader
+	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
+
+	assets := []AssetForPricing{fiiAsset("fii1", 100)}
+
+	closing, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills != 0 || loader.calls != 0 {
+		t.Errorf("fills=%d LoadContext.calls=%d, want 0/0 (Fundamentalista sem CompanyID nunca participa)", fills, loader.calls)
+	}
+	if closing["fii1"] != 100 {
+		t.Errorf("closing[fii1] = %v, want 100 (preço de partida, nenhum fill aconteceu)", closing["fii1"])
 	}
 }
 
