@@ -243,12 +243,21 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 		},
 		{
 			// Histórico com volume zerado em todos os dias (ativo sem
-			// nenhuma negociação ainda, mas já com `days` linhas de
-			// asset_quotes) produz ceiling 0 — comportamento emergente
-			// aceito (mercado sem liquidez observada), não um bug: capToFloat
-			// bloqueia o lado de compra nesse caso, nunca panica (ver
-			// TestDecideNoiseOrder_TetoZeraQuantidadeCompravel*).
-			name: "histórico existente mas todo zerado produz ceiling zero", floatCeiling: &floatCeiling,
+			// nenhuma negociação real recente, mas já com `days` linhas de
+			// asset_quotes) não pode mais produzir ceiling 0 (achado 005
+			// parte C, J.6) — isso travava a liquidez do ativo pra sempre
+			// (nenhuma ordem de compra nova conseguia quantidade >= 1, e sem
+			// contraparte de compra as vendas também paravam de casar).
+			// MinOrderSizeCeiling (piso de 1) garante que o teto de volume
+			// nunca colapsa a zero enquanto o float disponível é positivo.
+			name: "histórico existente mas todo zerado usa o piso mínimo, não zero", floatCeiling: &floatCeiling,
+			recentVolume: []int{0, 0, 0}, want: ptr(MinOrderSizeCeiling),
+		},
+		{
+			// floatCeiling também zerado (sem float disponível pra comprar
+			// de jeito nenhum) continua devolvendo 0 mesmo com o piso — o
+			// piso nunca infla o teto além do que o float realmente permite.
+			name: "float zero permanece zero mesmo com o piso mínimo", floatCeiling: ptr(0),
 			recentVolume: []int{0, 0, 0}, want: ptr(0),
 		},
 	}
@@ -296,6 +305,50 @@ func TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat(t *testin
 		if s.req.Quantity > wantCeiling {
 			t.Errorf("ordem de compra Quantity = %d, want <= %d (teto de volume, bem menor que o float de %d)", s.req.Quantity, wantCeiling, floatCeiling)
 		}
+	}
+}
+
+// TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra
+// cobre o achado 005 (Parte C)/tarefa J.6: vários dias simulados seguidos
+// com volume real negociado zerado (recentVolume todo 0 — diferente de "sem
+// histórico ainda", já tratado por effectiveOrderSizeCeiling desde a parte
+// B) não pode mais zerar o teto de tamanho de ordem pra sempre. Sem
+// MinOrderSizeCeiling, o teste falharia com fills == 0: capToFloat
+// devolveria maxBuyQuantity == 0 pro bot Ruído (mesma personalidade dos
+// outros testes desta função), DecideNoiseOrder nunca conseguiria gerar uma
+// ordem de compra viável (sem posição pra vender tampouco), e nenhum fill
+// aconteceria — exatamente o travamento observado no teste de ponta a ponta
+// da Fase J (2026-09-19/20).
+func TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}}
+	floatCeiling := int64(1_000_000)
+	svc.orderContext = &fakeOrderContextLoader{balance: 104_866_356_108.88, outstandingShares: &floatCeiling}
+	svc.tradedVolume = &fakeTradedVolumeReader{volumes: map[string][]int{"fii1": {0, 0, 0, 0, 0}}}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
+
+	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 {
+		t.Fatal("fills = 0, want > 0 (o piso mínimo deveria ter permitido pelo menos uma ordem de compra viável, quebrando o travamento)")
+	}
+	var sawBuy bool
+	for _, s := range submitter.submitted {
+		if s.req.Side != orderbook.SideBuy {
+			continue
+		}
+		sawBuy = true
+		if s.req.Quantity != MinOrderSizeCeiling {
+			t.Errorf("ordem de compra Quantity = %d, want %d (teto de volume no piso mínimo, sem histórico real além de zero)", s.req.Quantity, MinOrderSizeCeiling)
+		}
+	}
+	if !sawBuy {
+		t.Fatal("nenhuma ordem de compra submetida — travamento de liquidez não foi corrigido")
 	}
 }
 

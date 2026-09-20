@@ -1864,7 +1864,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   `VALR3` (`onConflictDoUpdate`, seed idempotente). **Fase J fechada por completo** (`J.1`-`J.5`);
   `J.6` abaixo foi acrescentada depois, a partir de um achado do teste de ponta a ponta desta fase.
 
-### J.6 · Corrige o travamento de liquidez quando o volume médio real zera (achado 005, Parte C)
+### J.6 · Corrige o travamento de liquidez quando o volume médio real zera (achado 005, Parte C) ✅
 
 - **Descrição:** `tick.effectiveOrderSizeCeiling` (`rounds.go`, achado 005 Parte B) usa o menor
   entre o float e `MaxOrderPctOfAverageVolumePct` da média de volume real dos últimos
@@ -1902,6 +1902,50 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   (`RecentTradedVolume`).
 - **Dependências:** nenhuma — correção isolada em `rounds.go`/`tick_repository.go`, não depende
   de nenhuma tarefa J.1-J.5 nem da Fase K (calibração de fundamentos é área diferente do motor).
+- **Entregável:** `tick.MinOrderSizeCeiling = 1` (`rounds.go`) — piso mínimo aplicado depois de
+  computar `volumeCeiling` em `effectiveOrderSizeCeiling`: quando o histórico real de volume existe
+  mas a média é 0, `volumeCeiling` é elevado pro piso antes da comparação com `floatCeiling`, em vez
+  de propagar 0. Nenhuma mudança em `tick_repository.go`/`RecentTradedVolume` — a distinção "sem
+  dado ainda" vs "histórico real zerado" já estava correta desde a Parte B (`total_quantity`
+  nullable), a correção é só no piso do lado do domínio. Comportamento preservado por construção
+  pros dois lados do critério de aceite: `floatCeiling == nil` continua caindo pro teto de volume
+  sozinho (agora com piso), `recentVolume` vazio continua caindo pro float sozinho (piso nunca entra
+  em jogo), e `floatCeiling` já zerado continua devolvendo 0 mesmo com o piso ativo (o piso nunca
+  infla o teto além do que o float realmente permite — caso novo coberto no teste table-driven).
+  - `rounds.go`: `effectiveOrderSizeCeiling` ganha `if volumeCeiling < MinOrderSizeCeiling { volumeCeiling = MinOrderSizeCeiling }`
+    logo após o cálculo de `volumeCeiling`, antes da comparação com `floatCeiling` — sem alterar a
+    assinatura da função nem nenhum outro call site (`decisionInputFor`, wiring já existente desde a
+    Parte B).
+  - `rounds_test.go`: `TestEffectiveOrderSizeCeiling` — o caso "histórico existente mas todo zerado"
+    (antes documentado como "comportamento emergente aceito") passa a esperar
+    `ptr(MinOrderSizeCeiling)` em vez de `ptr(0)`, mais um caso novo confirmando que `floatCeiling`
+    zerado continua devolvendo 0 mesmo com o piso ativo. `TestRunIntradayRounds_
+    VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra` (novo, mesmo padrão de
+    `TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat`) prova de ponta a ponta via
+    `runIntradayRounds` real: bot Ruído sem posição, `RecentTradedVolume` devolvendo `{0,0,0,0,0}`
+    (5 dias reais zerados) — antes da correção o teste falharia com `fills == 0`
+    (`DecideNoiseOrder` nunca gera ordem de compra viável com `orderSizeCeiling == 0` e sem posição
+    pra vender); depois da correção, `fills > 0` e toda ordem de compra submetida tem
+    `Quantity == MinOrderSizeCeiling` (exatamente 1, o teto no piso).
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — correção isolada em domínio).
+  - **Validado ao vivo via `docker compose up -d --build`** (volume de dev existente, sem `down
+    -v` — o mesmo travamento observado no teste de ponta a ponta da J.3, `BNDD4`/`PAPL11` com
+    `total_quantity = 0` por 20+ dias simulados seguidos e preço congelado em 27.17/89.76): antes de
+    aplicar o build novo, confirmado via `psql` direto que os dois ativos estavam de fato travados
+    (dias 330-351, `total_quantity = 0` ininterrupto). `POST /admin/tick` real (rede interna do
+    Compose, `curlimages/curl`) avançado 26 vezes seguidas após o build com a correção — `BNDD4`
+    voltou a negociar já no primeiro tick seguinte (`total_quantity` 5/2/4/4/7/6/6/2/6/3 nos dias
+    352-361, preço saindo de 27.17 fixo pra variar entre 25.13-29.26) e `PAPL11` também recuperou
+    (`total_quantity` 2/0/0/0/4/2/1/2/2/1, preço variando 84.20-90.33) — confirma o critério de
+    aceite "uma ordem de compra volta a ser possível depois da correção" com o cenário real que
+    motivou a tarefa, não só o teste sintético. `SINT11` (ETF, mecanismo de NAV/AP da Fase H, fora do
+    escopo desta tarefa — nunca passou por `effectiveOrderSizeCeiling`) permaneceu com
+    `total_quantity = 0` nos mesmos ticks, confirmado via `psql` que isso é o padrão em toda a
+    história do ativo (376 dias, nunca teve `total_quantity > 0`), não uma regressão desta correção.
+    `docker compose down` (sem `-v`) ao final — dia simulado do volume de dev avançou de 350 pra 376
+    (mesmo efeito colateral aceito de toda validação ao vivo anterior deste backlog via `POST
+    /admin/tick`).
 
 ---
 
