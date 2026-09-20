@@ -65,11 +65,12 @@ func main() {
 	if databaseURL == "" {
 		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
 		// as rotas de catálogo (incl. cotações, tarefa 4.6), POST /admin/tick,
-		// as rotas de renda fixa, POST/GET /macro-events e as rotas de leitura
-		// de conta/posições/extrato (tarefa 4.7) respondem 503 (ver
-		// internal/infra/httpserver/account.go, assets.go, admin.go,
-		// fixedincome.go, macroevents.go e positions.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		// as rotas de renda fixa, POST/GET /macro-events, as rotas de leitura
+		// de conta/posições/extrato (tarefa 4.7) e GET /market/indicators/history
+		// (tarefa M.2) respondem 503 (ver internal/infra/httpserver/account.go,
+		// assets.go, admin.go, fixedincome.go, macroevents.go, positions.go e
+		// indicators.go).
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -135,7 +136,7 @@ func main() {
 		return err
 	})
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

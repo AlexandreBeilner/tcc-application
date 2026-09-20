@@ -380,6 +380,38 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 	return payments, nil
 }
 
+// ListIndicatorHistory devolve a série histórica de
+// market_indicator_history, ordenada cronologicamente e limitada aos days
+// dias mais recentes — mesmo padrão de ListQuoteHistory (asset_quotes),
+// usada só por GET /market/indicators/history (tarefa M.2). Lista vazia
+// (não erro) se o Temporizador nunca rodou (motor recém-subido, tabela
+// ainda vazia) — mesmo tratamento de "sem histórico ainda" já dado a
+// ListQuoteHistory/handleListMacroEvents.
+func (r *TickRepository) ListIndicatorHistory(ctx context.Context, days int) ([]tick.IndicatorHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m FROM (
+		   SELECT simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m FROM market_indicator_history
+		   ORDER BY simulated_day DESC
+		   LIMIT $1
+		 ) recent ORDER BY simulated_day ASC`,
+		days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]tick.IndicatorHistoryEntry, 0)
+	for rows.Next() {
+		var e tick.IndicatorHistoryEntry
+		if err := rows.Scan(&e.SimulatedDay, &e.SelicRate, &e.IPCAMonthlyRate, &e.IPCAAccumulated12m); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
 // uma nova linha em market_indicator_history (tarefa M.1 — histórico
 // completo de Selic/IPCA, nunca atualizada depois de gravada, diferente da

@@ -360,6 +360,19 @@ type Result struct {
 	IPCAAccumulated12m float64
 }
 
+// IndicatorHistoryEntry é uma linha de market_indicator_history (tarefa
+// M.1) — usado só pela leitura da série histórica (GET
+// /market/indicators/history, tarefa M.2), nunca por Advance/Result (que já
+// tem os mesmos três valores achatados em State.SelicRate/IPCAMonthlyRate/
+// IPCAAccumulated12m, sem o dia junto, porque Result é sempre "o dia que
+// acabou de ser gerado" — aqui é preciso o dia explícito por ser uma série).
+type IndicatorHistoryEntry struct {
+	SimulatedDay       int
+	SelicRate          float64
+	IPCAMonthlyRate    float64
+	IPCAAccumulated12m float64
+}
+
 // Repository é o colaborador que Advance precisa pra ler o último estado
 // persistido e gravar o próximo — implementado por *db.TickRepository,
 // injetado em NewService.

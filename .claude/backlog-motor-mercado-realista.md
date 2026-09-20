@@ -1783,7 +1783,7 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   (`current_day = 35`, `selic_rate = 9.750`) continua espelhando a última linha do histórico sem
   mudança de contrato. Stack parada com `docker compose down` (sem `-v`) ao final.
 
-### M.2 · Endpoint HTTP de série histórica (engine)
+### M.2 · Endpoint HTTP de série histórica (engine) ✅
 
 - **Descrição:** rota nova (ex: `GET /market/indicators/history`) devolvendo a série persistida em
   M.1 — Selic/IPCA mensal/IPCA acumulado 12m por dia simulado, com parâmetro de janela (ex: último
@@ -1794,6 +1794,36 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   o caso de motor recém-subido (sem histórico ainda, resposta vazia sem erro).
 - **Referências:** proposta seção 6.
 - **Dependências:** M.1.
+- **Entregável:** `GET /market/indicators/history` (`internal/infra/httpserver/indicators.go`),
+  mesmo padrão de trust boundary de `POST /admin/tick`/`GET /macro-events` (motor não valida role).
+  `?days=` opcional, default `defaultIndicatorHistoryDays = 90` — bem maior que os 30 de `GET
+  /assets/:id/quotes` (tarefa 4.6) porque Selic/IPCA só mudam por ciclo (Copom a cada 21 dias
+  simulados, mês de IPCA a cada 30), 90 dias cobre ~4 ciclos de Copom e 3 meses de IPCA, o bastante
+  pra um gráfico com movimento real (tarefa M.4). `TickRepository.ListIndicatorHistory`
+  (`internal/infra/db/tick_repository.go`) lê `market_indicator_history` com o mesmo padrão SQL de
+  `CatalogRepository.ListQuoteHistory` (subquery `ORDER BY ... DESC LIMIT $1` seguida de `ORDER BY
+  ... ASC`) — `TickRepository` já é quem escreve a tabela desde M.1, então ganhar a leitura também
+  é só um método a mais no mesmo adapter, não uma responsabilidade nova. Tipo novo
+  `tick.IndicatorHistoryEntry` (dia + os três indicadores juntos — diferente de `Result`, que já
+  tem os mesmos três valores achatados sem o dia, porque `Result` é sempre "o dia que acabou de ser
+  gerado"; aqui é uma série, precisa do dia explícito). Lista vazia (nunca `null`) se o Temporizador
+  nunca rodou — mesmo tratamento de `GET /assets/:id/quotes`/`GET /macro-events`. `New`/`Run`
+  (`server.go`) ganharam o parâmetro `indicatorHistory indicatorHistoryReader`, preenchido em
+  `main.go` pela mesma instância de `tickRepository` já usada pelo `tick.Service` (nenhum
+  repositório novo instanciado) — 13 call-sites de teste (`New("", ...)`) atualizados com mais um
+  `nil`/fake posicional. Testes novos em `indicators_test.go`: dados reais persistidos, motor
+  recém-subido (lista vazia sem erro), `?days=` custom, `days` inválido (400), erro de repositório
+  (500), serviço indisponível (503) — os dois primeiros são exatamente os critérios de aceite desta
+  tarefa. `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0
+  issues) verdes. `.docs/engine/tick.md` atualizado (seção nova do endpoint + nota da tabela
+  `market_indicator_history` que dizia "sem rota de leitura própria até a tarefa M.2" corrigida).
+  **Validado ponta a ponta via `docker compose up -d --build engine postgres redis`**, reusando o
+  volume Postgres da validação da M.1 (35 dias já persistidos, sem reseed): `?days=5` devolveu
+  exatamente os dias 31-35 (`selic_rate = 9.750`, `ipca_monthly_rate` do segundo mês simulado,
+  0.002307); sem `?days=`, default 90 devolveu os 35 dias inteiros (dia 1 ao 35, janela maior que o
+  histórico existente); `?days=0` devolveu `400`; um novo `POST /admin/tick` (dia 36) apareceu
+  imediatamente em `?days=1` sem reiniciar o motor. Stack parada com `docker compose down` (sem
+  `-v`, volume preservado) ao final.
 
 ### M.3 · Rota no backend gamificado + cache Redis
 

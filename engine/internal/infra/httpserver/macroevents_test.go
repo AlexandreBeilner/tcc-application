@@ -31,7 +31,7 @@ func postMacroEvent(t *testing.T, triggerer macroEventTriggerer, body string) *h
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/macro-events", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, triggerer, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, triggerer, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -58,7 +58,7 @@ func getMacroEvents(t *testing.T, lister macroEventLister, query string) *httpte
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/macro-events"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, nil, lister, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, nil, lister, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
