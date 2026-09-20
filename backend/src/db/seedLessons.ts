@@ -1,9 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import { createDb } from './client'
+import { createDb, type Database } from './client'
 import { lessons } from './schema'
 import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 
-interface LessonSeed {
+export interface LessonSeed {
+  // Chave de upsert do seed (tarefa M.6, achado 010) — atribuída uma vez e
+  // nunca mais alterada, mesmo que `code` mude numa renumeração futura do
+  // currículo. Hoje coincide com `code` porque é o primeiro valor atribuído
+  // (snapshot do `code` vigente no momento em que a coluna nasceu); a partir
+  // daqui os dois só continuam iguais por coincidência de uma lição nunca
+  // ter sido renumerada.
+  stableKey: string
   code: string
   trackNumber: number
   trackName: string
@@ -42,27 +49,17 @@ interface LessonSeed {
 // massa — mantido aqui como está.
 //
 // Renumeração da tarefa M.5 (Trilha 1 passa de 9 para 11 lições): o `code`
-// de 7 lições existentes (`1.3`–`1.9` originais) muda pra abrir espaço pras
+// de 7 lições existentes (`1.3`–`1.9` originais) mudou pra abrir espaço pras
 // 2 lições novas, deslocando o conteúdo de cada uma pro `code` seguinte
-// (`1.3`→`1.4`, `1.4`→`1.5`, ..., `1.9`→`1.11`). Como `onConflictDoUpdate`
-// casa por `code` (não por conteúdo/título) e `code` nunca está no `set`, um
-// `npm run db:seed:lessons` rodado depois desta tarefa **não insere linha
-// nova pra essas 7** — ele reaproveita a linha física que já existia com
-// aquele `code` e sobrescreve título/textos pro conteúdo do próximo degrau
-// (ex: a linha que já era `code = '1.3'` numa base antiga passa a mostrar
-// "Como a Selic é formada" no lugar de "CDB e o CDI", com o mesmo `id`).
-// Resultado: `user_lesson_progress.lessonId` (que referencia esse `id`, não
-// o `code`) de qualquer usuário que já tivesse concluído uma dessas 7 lições
-// antes da M.5 passa a apontar, depois do reseed, pra uma lição de conteúdo
-// diferente do que ele realmente viu — `completedAt` preservado, badge de
-// "concluída" continua aparecendo, só que pro texto errado. Registrado em
-// `.claude/pontos-em-aberto-decisao-produto.md` (acerto/erro de decisão de
-// produto: aceitar esse desvio silencioso em ambiente de dev/staging já
-// usado, ou truncar `lessons`/`user_lesson_progress` antes de todo reseed
-// que renumera `code`). Só os 2 `code` que não existiam em nenhuma base
-// anterior (`1.10`/`1.11`, o degrau final da cadeia de deslocamento) ganham
-// linha e `id` de verdade novos; `1.3` e `1.9` (as 2 lições novas desta
-// tarefa) caem exatamente no `code` de uma lição que já existia antes.
+// (`1.3`→`1.4`, `1.4`→`1.5`, ..., `1.9`→`1.11`). Na época, isso causou o
+// achado 010 (`.claude/pontos-em-aberto-decisao-produto.md`, resolvido pela
+// tarefa M.6 logo abaixo): o upsert casava por `code`, que nunca entrava no
+// `set` — então um reseed reaproveitava a linha física antiga em vez de
+// criar linha nova, arrastando `user_lesson_progress` de quem já tinha
+// progresso real pra um conteúdo diferente do que ele viu. A M.6 trocou a
+// chave de casamento pra `stableKey` (imutável, ver campo acima) e passou a
+// incluir `code` no `set` — o cenário deste parágrafo não se repete em
+// nenhuma renumeração futura.
 //
 // Auditoria de aposta com acerto/erro real (backlog engajamento B.4): das 33
 // lições originais, 3 ficaram sem opções reais (microDecisionOptions/
@@ -100,6 +97,7 @@ interface LessonSeed {
 // só uma bate com o texto de `revelationText`).
 const LESSON_SEEDS: LessonSeed[] = [
   {
+    stableKey: '0.1',
     code: '0.1',
     trackNumber: 0,
     trackName: 'Trilha 0: Fundamentos',
@@ -138,6 +136,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '0.2',
     code: '0.2',
     trackNumber: 0,
     trackName: 'Trilha 0: Fundamentos',
@@ -170,6 +169,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '0.3',
     code: '0.3',
     trackNumber: 0,
     trackName: 'Trilha 0: Fundamentos',
@@ -198,6 +198,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '0.4',
     code: '0.4',
     trackNumber: 0,
     trackName: 'Trilha 0: Fundamentos',
@@ -228,6 +229,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '0.5',
     code: '0.5',
     trackNumber: 0,
     trackName: 'Trilha 0: Fundamentos',
@@ -267,6 +269,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '1.1',
     code: '1.1',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -311,6 +314,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '1.2',
     code: '1.2',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -344,6 +348,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'LFT2029',
   },
   {
+    stableKey: '1.3',
     code: '1.3',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -382,6 +387,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '1.4',
     code: '1.4',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -419,6 +425,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'CDB2027',
   },
   {
+    stableKey: '1.5',
     code: '1.5',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -450,6 +457,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '1.6',
     code: '1.6',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -499,6 +507,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'LCI2026',
   },
   {
+    stableKey: '1.7',
     code: '1.7',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -533,6 +542,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'LTN2027',
   },
   {
+    stableKey: '1.8',
     code: '1.8',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -573,6 +583,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '1.9',
     code: '1.9',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -607,6 +618,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '1.10',
     code: '1.10',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -642,6 +654,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'NTNB2035',
   },
   {
+    stableKey: '1.11',
     code: '1.11',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
@@ -681,6 +694,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'CRI2028',
   },
   {
+    stableKey: '2.1',
     code: '2.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -717,6 +731,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.2',
     code: '2.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -747,6 +762,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.3',
     code: '2.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -789,6 +805,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'VALR3',
   },
   {
+    stableKey: '2.4',
     code: '2.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -825,6 +842,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.5',
     code: '2.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -863,6 +881,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.1',
     code: '2.6.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -901,6 +920,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.2',
     code: '2.6.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -936,6 +956,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.3',
     code: '2.6.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -968,6 +989,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.4',
     code: '2.6.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1001,6 +1023,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.5',
     code: '2.6.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1036,6 +1059,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.6',
     code: '2.6.6',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1072,6 +1096,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.7',
     code: '2.7',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1108,6 +1133,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.8',
     code: '2.8',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1147,6 +1173,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.9',
     code: '2.9',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1184,6 +1211,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'SINT11',
   },
   {
+    stableKey: '2.10',
     code: '2.10',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
@@ -1227,6 +1255,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'TJLO11',
   },
   {
+    stableKey: '3.1',
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
@@ -1273,6 +1302,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '3.2',
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
@@ -1312,6 +1342,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '3.3',
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
@@ -1351,6 +1382,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '3.4',
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
@@ -1402,6 +1434,43 @@ const LESSON_SEEDS: LessonSeed[] = [
   },
 ]
 
+// `onConflictDoUpdate` (não só `onConflictDoNothing`): a autoria de conteúdo
+// por bloco (7.1.1–7.1.6) precisa *atualizar* lições já seedadas em sessões
+// anteriores com o conteúdo pedagógico novo, não só inserir as que ainda não
+// existem — decisão da introdução da 7.1. `target: lessons.stableKey` (não
+// `code`, desde a M.6/achado 010): `stableKey` é a única coluna garantida
+// imutável por lição, então é a única que casa a linha física certa numa
+// renumeração de `code`. `id`/`stableKey` nunca mudam num conflito — `code`
+// agora entra no `set` de propósito, já que ele passou a ser mutável.
+export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
+  const [row] = await db
+    .insert(lessons)
+    .values({ id: randomUUID(), ...seed })
+    .onConflictDoUpdate({
+      target: lessons.stableKey,
+      set: {
+        code: seed.code,
+        trackNumber: seed.trackNumber,
+        trackName: seed.trackName,
+        sortOrder: seed.sortOrder,
+        title: seed.title,
+        centralConcept: seed.centralConcept,
+        scenarioText: seed.scenarioText,
+        microDecisionPrompt: seed.microDecisionPrompt,
+        microDecisionType: seed.microDecisionType,
+        microDecisionAssetTicker: seed.microDecisionAssetTicker,
+        microDecisionOptions: seed.microDecisionOptions,
+        microDecisionCorrectOption: seed.microDecisionCorrectOption,
+        revelationText: seed.revelationText,
+        unlocksDescription: seed.unlocksDescription,
+        unlocksKeys: seed.unlocksKeys,
+        unlocksAssetTicker: seed.unlocksAssetTicker,
+      },
+    })
+    .returning()
+  return row
+}
+
 // Idempotente: DATABASE_URL=... npm run db:seed:lessons
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
@@ -1412,41 +1481,15 @@ async function main() {
 
   const db = createDb(databaseUrl)
   for (const seed of LESSON_SEEDS) {
-    // `onConflictDoUpdate` (não só `onConflictDoNothing`): a autoria de
-    // conteúdo por bloco (7.1.1–7.1.6) precisa *atualizar* lições já
-    // seedadas em sessões anteriores com o conteúdo pedagógico novo, não só
-    // inserir as que ainda não existem — decisão da introdução da 7.1.
-    // `code`/`id` nunca mudam num conflito, o restante do seed sim.
-    const [row] = await db
-      .insert(lessons)
-      .values({ id: randomUUID(), ...seed })
-      .onConflictDoUpdate({
-        target: lessons.code,
-        set: {
-          trackNumber: seed.trackNumber,
-          trackName: seed.trackName,
-          sortOrder: seed.sortOrder,
-          title: seed.title,
-          centralConcept: seed.centralConcept,
-          scenarioText: seed.scenarioText,
-          microDecisionPrompt: seed.microDecisionPrompt,
-          microDecisionType: seed.microDecisionType,
-          microDecisionAssetTicker: seed.microDecisionAssetTicker,
-          microDecisionOptions: seed.microDecisionOptions,
-          microDecisionCorrectOption: seed.microDecisionCorrectOption,
-          revelationText: seed.revelationText,
-          unlocksDescription: seed.unlocksDescription,
-          unlocksKeys: seed.unlocksKeys,
-          unlocksAssetTicker: seed.unlocksAssetTicker,
-        },
-      })
-      .returning()
+    const row = await upsertLessonSeed(db, seed)
     console.log(row ? `lição ${seed.code} criada/atualizada` : `lição ${seed.code} sem alteração`)
   }
   process.exit(0)
 }
 
-main().catch((err) => {
-  console.error('erro ao rodar seed de lições:', err)
-  process.exit(1)
-})
+if (process.env.VITEST === undefined) {
+  main().catch((err) => {
+    console.error('erro ao rodar seed de lições:', err)
+    process.exit(1)
+  })
+}

@@ -2384,6 +2384,64 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   reaproveitado dentro da lição. Hub da Trilha confirmado mostrando "7 de 35 lições concluídas no
   total" e "2/11 lições" na Trilha 1. Stack parada com `docker compose down` (sem `-v`) ao final.
 
+### M.6 · `lessons.stable_key` como chave de upsert do seed, liberando `code` pra ser mutável ✅
+
+- **Descrição:** resolve o achado 010 (`.claude/pontos-em-aberto-decisao-produto.md`) — opção (c)
+  escolhida pelo autor (2026-09-20): hoje `seedLessons.ts` casa o upsert por `lessons.code`
+  (`onConflictDoUpdate({ target: lessons.code })`) e nunca inclui `code` no `set`; toda renumeração
+  de `code` (como a que a própria M.5 fez em 7 lições) reaproveita a linha física/`id` existente em
+  vez de criar linha nova, arrastando `user_lesson_progress` de quem já tinha progresso real pra uma
+  lição de conteúdo diferente, sem erro nem log. Muda a chave de casamento do upsert pra uma coluna
+  nova e estável (`stable_key`, `varchar`, `UNIQUE`, nunca reordenada — um valor por lição, atribuído
+  uma vez e nunca mais tocado mesmo que a posição didática mude), deixando `code` livre pra refletir
+  só a posição atual no currículo e podendo, portanto, entrar no `set` do upsert dali em diante.
+  Análise de impacto feita nesta sessão (2026-09-20, ver achado 010) confirmou que gating de
+  trilha/desbloqueio usa inteiramente `sortOrder` (nunca `code`) tanto no backend
+  (`modules/lessons/domain/lesson.ts`) quanto no espelho do frontend (`features/lessons/
+  unlockedKeys`, `nextUnlockFor`) — risco de regressão em desbloqueio é baixo. `user_lesson_progress`
+  já referencia `lessons.id` (uuid), não `code` — não precisa de mudança de schema própria. Como a
+  aplicação **não está em produção**, não há dado real a preservar: a tarefa pode truncar
+  `lessons`/`user_lesson_progress` (e o que mais depender deles, ex: XP já concedido por lição) e
+  reseedar do zero com o schema novo, sem precisar de uma política de migração de dado legado.
+  Dois efeitos colaterais que a análise encontrou e que entram no mesmo escopo (não são bugs à
+  parte, são consequência direta de `code` virar mutável):
+  1. `application/useCases/advanceLesson.ts:160` usa `` `licao:${lesson.code}` `` como chave de
+     idempotência do XP (`xpAwarder.award`) — se `code` mudar numa renumeração futura, essa chave
+     muda junto e abre brecha pra reconceder XP da mesma lição já concluída. Trocar pra uma chave
+     baseada em `id`/`stable_key` (imutável) no mesmo commit.
+  2. `.docs/backend/lessons.md:73` já documenta o seed incorretamente (`ON CONFLICT (code) DO
+     NOTHING`, quando o código real sempre fez `onConflictDoUpdate`) — corrigir junto e documentar o
+     `stable_key` novo, regra do CLAUDE.md de doc no mesmo commit.
+  Fora de escopo: o markup de conteúdo `{{ref:X.Y}}` (`pages/Lesson/index.tsx`, resolvido comparando
+  `code`) continua funcionando sem mudança — é responsabilidade de quem edita conteúdo manter esse
+  texto em sincronia com o `code` vigente quando a posição de uma lição mudar, mesma natureza de
+  qualquer outro texto de lição, não uma regra de sistema.
+- **Critérios de aceite:** migration nova adiciona `lessons.stable_key` (`UNIQUE NOT NULL`);
+  `seedLessons.ts` casa por `stable_key`, inclui `code` no `set`; rodar o seed duas vezes seguidas
+  sem duplicar linha nem trocar `id` de nenhuma lição; teste cobrindo o cenário do achado 010 (mudar
+  o `code` de uma entrada de `LESSON_SEEDS` mantendo o mesmo `stable_key` e confirmar que o upsert
+  atualiza a linha existente, não cria uma nova, e preserva `id`); chave de idempotência de XP em
+  `advanceLesson.ts` não depende mais de `code`; `.docs/backend/lessons.md` atualizado; `npm run
+  lint`/`npm run build`/`npm test` verdes.
+- **Referências:** achado 010 (`.claude/pontos-em-aberto-decisao-produto.md`); decisão do autor
+  (2026-09-20, opção (c)).
+- **Dependências:** nenhuma (independente do núcleo A-M, é uma correção de infraestrutura de seed).
+- **Entregável:** `lessons.stable_key` (`varchar(20) UNIQUE NOT NULL`, migration `0016`) — chave de
+  upsert nova e imutável, atribuída uma vez por lição (hoje coincide com o `code` vigente no momento em
+  que a coluna nasceu). `seedLessons.ts`: upsert extraído pra `upsertLessonSeed` (testável), `target:
+  lessons.stableKey`, `code` agora no `set`. Migration trunca `user_lesson_progress`/`lessons` antes de
+  tornar `stable_key` NOT NULL (app não está em produção, sem dado real a preservar). `AdvanceLessonUseCase`:
+  chave de idempotência do XP trocada de `licao:${lesson.code}` pra `licao:${lesson.id}` (imutável,
+  efeito colateral direto de `code` virar mutável). `.docs/backend/lessons.md` corrigido (documentava
+  `ON CONFLICT (code) DO NOTHING`, nunca foi verdade) e atualizado com `stable_key`. Achado 010 movido
+  pra "Resolvidos" em `.claude/pontos-em-aberto-decisao-produto.md`. Teste novo
+  (`seedLessons.test.ts`, fake in-memory reproduzindo `ON CONFLICT` do Postgres) cobrindo o cenário do
+  achado — renumerar `code` mantendo `stableKey` atualiza a linha existente sem duplicar, preservando
+  `id`. Validado ponta a ponta via `docker compose up` (postgres+redis+engine+backend): migration
+  aplicada sobre um banco já seedado por sessões anteriores (truncate rodou), seed rodado 2x seguidas —
+  35 lições, mesmos `id`s nas duas rodadas, `GET /lessons` respondendo. `npm run lint`/`npm run
+  build`/`npm test` verdes (585 testes).
+
 ---
 
 ## Fase N — Painel Admin de Bots

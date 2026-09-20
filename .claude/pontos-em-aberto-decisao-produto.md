@@ -171,36 +171,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   o resto é só realismo de "quão ativo o mercado parece", não corretude.
 - **Status:** aberto — sem tarefa de backlog aberta, não bloqueia `J.6` (achado 005 Parte C).
 
-### 010 · Renumeração de `code` na tarefa M.5 relabela lições existentes em vez de criar linhas novas
-
-- **Local:** `backend/src/db/seedLessons.ts:1408-1432` (`onConflictDoUpdate({ target: lessons.code, ... })`
-  dentro de `main()`), comentário de auditoria em `seedLessons.ts:~43-58`
-- **Origem:** implementação da tarefa M.5 (backlog-motor-mercado-realista), 2026-09-20
-- **O que é:** M.5 insere 2 lições novas na Trilha 1 (`Como a Selic é formada`, `O que é o IPCA`),
-  deslocando o `code` de 7 lições existentes um degrau adiante (`1.3`→`1.4`, `1.4`→`1.5`, ...,
-  `1.9`→`1.11`). O upsert de `seedLessons.ts` casa por `code` (não por conteúdo) e nunca inclui `code`
-  no `set` — então rodar `npm run db:seed:lessons` num banco que já tinha as 33 lições antigas **não
-  cria linha nova pras 7 renumeradas**: reaproveita a linha física que já existia com aquele `code` e
-  sobrescreve título/textos pro conteúdo do próximo degrau, preservando o `id`. Qualquer
-  `user_lesson_progress` que já apontasse pro `id` de uma dessas 7 lições (ex: usuário que já tinha
-  concluído "CDB e o CDI", antigo `code = '1.3'`) passa, depois do reseed, a apontar pra uma lição de
-  conteúdo diferente (agora "Como a Selic é formada") com `completedAt` preservado — a UI mostra a
-  lição errada como concluída, sem erro nem log.
-- **Por que não foi corrigido:** a correção envolve decidir uma política de dado que nenhum documento
-  fecha — se um reseed que renumera `code` deveria truncar `lessons`/`user_lesson_progress` primeiro
-  (perda de progresso real de quem já usou o ambiente), migrar `user_lesson_progress` por conteúdo
-  antigo→novo (mapeamento manual por sessão de renumeração, não generalizável), ou trocar o upsert pra
-  casar por outra chave estável (ex: um `stableKey` novo, nunca reordenado, diferente do `code`
-  didático que descreve posição no currículo). Nenhuma opção é mecânica — todas mudam contrato de dado
-  ou aceitam perda de progresso.
-- **Opções:** (a) aceitar o relabeling silencioso como característica conhecida de ambiente de
-  dev/staging (documentar e seguir, truncando manualmente quando incomodar); (b) todo reseed que
-  renumera `code` vem acompanhado de um `TRUNCATE lessons, user_lesson_progress RESTART IDENTITY
-  CASCADE` explícito no runbook da tarefa; (c) trocar a chave de upsert de `lessons.code` pra uma
-  coluna nova e estável (`stable_key`, nunca reordenada), deixando `code` livre pra refletir só posição
-  didática atual — maior mudança de schema/seed, mas resolve a raiz pra qualquer renumeração futura.
-- **Status:** aberto
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -418,3 +388,36 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Status:** resolvido — nada pendente pra I.1/I.2. Quem implementar a Fase M continua precisando
   alimentar `ipcaAccumulatedDeviation` como decimal (`IPCA_acumulado - meta_IPCA`, sem multiplicar
   por 100), consistente com a convenção que `ipca.Config`/`ipca.MonthlySeries` já usam.
+
+### 010 · Renumeração de `code` na tarefa M.5 relabela lições existentes em vez de criar linhas novas
+
+- **Local:** `backend/src/db/seedLessons.ts` (`upsertLessonSeed`, antes inline em `main()`),
+  `backend/src/db/schema.ts` (`lessons`), `backend/src/modules/lessons/application/useCases/
+  advanceLesson.ts:160`, `.docs/backend/lessons.md`
+- **Origem:** implementação da tarefa M.5 (backlog-motor-mercado-realista), 2026-09-20
+- **O que é:** M.5 insere 2 lições novas na Trilha 1 (`Como a Selic é formada`, `O que é o IPCA`),
+  deslocando o `code` de 7 lições existentes um degrau adiante (`1.3`→`1.4`, `1.4`→`1.5`, ...,
+  `1.9`→`1.11`). O upsert de `seedLessons.ts` casava por `code` (não por conteúdo) e nunca incluía
+  `code` no `set` — então rodar `npm run db:seed:lessons` num banco que já tinha as 33 lições antigas
+  não criava linha nova pras 7 renumeradas: reaproveitava a linha física que já existia com aquele
+  `code` e sobrescrevia título/textos pro conteúdo do próximo degrau, preservando o `id`. Qualquer
+  `user_lesson_progress` que já apontasse pro `id` de uma dessas 7 lições passava, depois do reseed, a
+  apontar pra uma lição de conteúdo diferente com `completedAt` preservado — a UI mostraria a lição
+  errada como concluída, sem erro nem log.
+- **Decisão (2026-09-20, mesma sessão, a pedido do autor):** opção (c) das listadas originalmente —
+  trocar a chave de upsert de `lessons.code` pra uma coluna nova e estável, deixando `code` livre pra
+  refletir só a posição didática atual. Implementado na tarefa M.6: `lessons.stable_key` (`varchar(20)
+  UNIQUE NOT NULL`, migration `0016`) — atribuído uma vez por lição (hoje coincide com o `code`
+  vigente no momento em que a coluna nasceu, por ser o primeiro valor atribuído) e nunca mais tocado
+  em renumeração futura. `seedLessons.ts` (`upsertLessonSeed`, extraída de `main()` pra ficar
+  testável) casa o upsert por `stable_key` e passa a incluir `code` no `set`. Como a aplicação não
+  está em produção, a migration trunca `user_lesson_progress`/`lessons` antes de tornar `stable_key`
+  NOT NULL, em vez de exigir uma política de migração de dado legado — reseed do zero. Efeito
+  colateral corrigido no mesmo commit: `AdvanceLessonUseCase` usava `licao:${lesson.code}` como chave
+  de idempotência do XP — trocado pra `licao:${lesson.id}` (imutável), já que `code` virou mutável e
+  reabriria brecha de reconceder XP numa renumeração futura. `.docs/backend/lessons.md` corrigido
+  (documentava `ON CONFLICT (code) DO NOTHING`, incorreto desde sempre — o código real já fazia
+  `onConflictDoUpdate`) e atualizado com `stable_key`. Teste cobrindo o cenário do achado
+  (`seedLessons.test.ts`, fake in-memory do upsert): renumerar `code` mantendo o mesmo `stable_key`
+  atualiza a linha existente sem duplicar e preservando `id`.
+- **Status:** resolvido. `npm run lint`/`npm run build`/`npm test` verdes (585 testes).
