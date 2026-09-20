@@ -73,9 +73,13 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ### 004 · `macroPriceEffectsByCompany` soma sem teto pode inverter o sinal do preço justo
 
-- **Local:** `engine/internal/domain/tick/tick.go:498` (`macroPriceEffectsByCompany`), consumido em
-  `engine/internal/domain/bot/fundamentalist.go:115` (`FundamentalistFairPrice`:
-  `fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100)`)
+- **Local:** `engine/internal/domain/tick/tick.go:600` (`macroPriceEffectsByCompany`, linha atualizada
+  pós-Fase J — mecanismo/achado inalterados), consumido em
+  `engine/internal/domain/bot/fundamentalist.go:129` (`FundamentalistFairPrice`:
+  `fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100) * (1 +
+  pnPremiumPct/100)` — a tarefa J.3 acrescentou o fator `pnPremiumPct` ao final, mas ele nunca é
+  negativo (piso legal de dividendo da PN, sempre >= 0), então não interage com o problema deste
+  achado)
 - **Origem:** review do PR #27 (Fase E do backlog-motor-mercado-realista), 2026-09-14/16
 - **O que é:** a tarefa E.2 (`.claude/backlog-motor-mercado-realista.md`, já ✅) documenta
   deliberadamente que `macroPriceEffectsByCompany` soma `PriceEffectPct` **sem teto**, descrito como "a
