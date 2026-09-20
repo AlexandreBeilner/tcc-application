@@ -653,7 +653,8 @@ const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 17,
     title: 'Nomenclatura de tickers',
-    centralConcept: 'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 pode ser ETF, FII ou unit',
+    centralConcept:
+      'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 pode ser ETF, FII ou unit',
     scenarioText:
       'BNDD3 e BNDD4 parecem códigos aleatórios, mas seguem uma convenção: quatro letras identificando o ' +
       'emissor, seguidas de um número que diz que tipo de ação é essa.' +
