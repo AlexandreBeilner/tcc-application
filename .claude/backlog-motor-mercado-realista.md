@@ -1692,7 +1692,7 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
   reage à Selic **corrente** no resgate, não à taxa da compra. `go test ./...`, `golangci-lint run`
   (via Docker, 0 issues) e os 666 testes do frontend (`npx vitest run`) verdes.
 
-### L.2 · VNA real pro Tesouro IPCA+
+### L.2 · VNA real pro Tesouro IPCA+ ✅
 
 - **Descrição:** liga `fixedincome.VNAProjected`/`IPCAPrice` (já implementado e testado, sem
   consumidor) na compra/resgate real de Tesouro IPCA+, em vez de continuar usando deságio nominal.
@@ -1703,6 +1703,47 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
   confirmando que eles continuam usando deságio nominal sem mudança.
 - **Referências:** proposta seção 9, item 2; relatório seção 8.4.
 - **Dependências:** nenhuma.
+- **Entregável:** `ipca.DefaultConfig(seed)` (novo, `ipca.go`) calibra a meta contínua real do CMN
+  (3% a.a. → `DefaultMonthlyTarget = 0.0025` via composição, não divisão simples por 12) com banda/
+  volatilidade aproximando a tolerância oficial — mesmo tratamento de "default calibrado, ajustável
+  na semana 8" já dado a `selic.DefaultConfig`. Decisão de escopo desta sessão que diverge do texto
+  original da tarefa ("uma série mensal de IPCA persistida"): em vez de gravar um estado mutável
+  (linha singleton tipo `market_calendar`, avançada por `tick.Advance`), `fixedincome.
+  CurrentVNAWindow` (novo, `ipcaplus.go`) deriva `(vnaBase, monthlyIPCA)` **sem nenhuma persistência**
+  — encadeia `ipca.MonthlySeries` desde `fixedincome.VNAEpoch` (data-base fixa, 15/07/2000, mesma
+  convenção do Tesouro Direto real) até a janela de `now` via `VNAMonthlySeries`, puramente como
+  função de `(cfg, now)`. Mesma cfg/seed sempre reproduz o mesmo VNA numa data (RNF08), então nenhum
+  consumidor precisa de histórico gravado dia a dia — isso ficou para a tarefa M.1 (independente,
+  cobre EXIBIR a série ao usuário/painel admin, não CALCULAR o VNA) evitar duplicar. `fixedincome.
+  IsIPCAMais` (novo, `product.go`, mesmo padrão de `IsPostFixado` da L.1) decide o branch em
+  `fixedincomeexecution.Purchase`/`Redeem`: Purchase precifica `unitPrice = IPCAPrice(VNAProjected(
+  vnaBase, monthlyIPCA, now), IPCAQuote(taxaReal, DU))` no lugar de `PrefixedPrice`; Redeem usa
+  `fixedincome.IPCAEarlyRedemption` (novo, `ipcaplus.go` — mesma decomposição de `EarlyRedemption`,
+  só que sobre o VNA em vez do Valor Nominal fixo) no lugar de `EarlyRedemption`. Taxa real
+  contratada (`Position.AverageRate`) continua travada na compra (nota 2 do doc do pacote
+  `fixedincomeexecution`, atualizada) — só o VNA multiplicador varia; taxa de mercado pro resgate
+  continua reaproveitando `ctx.CurrentMarketRatePct` (Selic nominal) como proxy de taxa REAL de
+  mercado, sem correção de Fisher — mesma simplificação documentada (nota 3), decisão de escopo não
+  confirmada com o usuário, a L.3 decide se essa marcação a mercado deveria valer pra IPCA+. `ipca.
+  Config` é injetado em `fixedincomeexecution.Service` (não em `Purchase`/`Redeem`, que ganharam só
+  `vnaBase`/`monthlyIPCA float64` resolvidos — mantém as duas funções puras/testáveis sem RNG),
+  composto em `cmd/api/main.go` com `ipcaSeed := seed + 1` — nunca a mesma raw seed de
+  `selicConfig`, pra não correlacionar o ruído dos dois processos estocásticos independentes.
+  Testes novos: `TestMonthsBetween`, `TestCurrentVNAWindow_*` (5 casos, incl. consistência com
+  `VNAMonthlySeries` computado manualmente e reprodutibilidade) e `TestIPCAEarlyRedemption_*` (3
+  casos) em `fixedincome`; `TestPurchase_IPCAMais_UsaVNAEmVezDeDesagioNominal` e `TestRedeem_
+  IPCAMais_VNACrescePorInflacaoAumentaOResgate` em `fixedincomeexecution` (ponta a ponta, critério
+  de aceite principal) — os 16 testes pré-existentes de `Purchase`/`Redeem` (Prefixado/pós-fixado)
+  seguem passando inalterados com os dois parâmetros novos ignorados (`fixedincome.IsIPCAMais` dá
+  `false`), cobrindo a regressão dos outros 7 produtos. `go build`/`go test ./...`/`golangci-lint
+  run` (Docker, 0 issues) verdes. Validado ao vivo via `docker compose up`: compra de NTNB2035
+  (Tesouro IPCA+, taxa real 6%) devolveu `unit_price = 1953.13` (bem acima do deságio nominal
+  puro, ~943 — prova de que o VNA composto por ~26 anos de IPCA simulado desde `VNAEpoch` está em
+  jogo); com a Selic simulada temporariamente igualada à taxa contratada (6%, via `UPDATE
+  market_calendar`), resgate no mesmo dia devolveu `total_value ≈ 2000` (o valor aportado) e
+  `vs_contracted_rate = 0`, confirmando a mecânica; Tesouro Prefixado e CDB (pós-fixado) comprados/
+  resgatados na sequência devolveram exatamente os preços/mecânica de antes (regressão), sem
+  nenhuma mudança de comportamento.
 
 ### L.3 · Marcação a mercado restrita a produtos prefixados
 

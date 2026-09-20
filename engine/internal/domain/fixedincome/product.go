@@ -33,7 +33,7 @@ var (
 )
 
 // IndexType classifica como o rendimento de um produto de renda fixa é
-// determinado (TCC cap. 2.2) — consumido pela tarefa L.1
+// determinado (TCC cap. 2.2) — consumido pelas tarefas L.1/L.2
 // (backlog-motor-mercado-realista) pra decidir a fórmula de precificação
 // certa em fixedincomeexecution.Purchase/Redeem, e pela L.3 (restringir
 // marcação a mercado a produtos prefixados de verdade, spec 3.2.1).
@@ -54,9 +54,9 @@ const (
 	// "isentos de risco de mercado").
 	IndexPosFixado IndexType = "pos_fixado"
 	// IndexIPCAMais rende IPCA + uma taxa real contratada (VNA), via
-	// fixedincome.VNAProjected/IPCAPrice — fora do escopo desta
-	// classificação (fixedincomeexecution ainda não os consome, tarefa
-	// L.2). Só Tesouro IPCA+.
+	// fixedincome.VNAProjected/IPCAPrice (tarefa L.2 liga as duas fórmulas
+	// em fixedincomeexecution.Purchase/Redeem — antes disso, IPCA+
+	// reaproveitava o deságio nominal do Prefixado). Só Tesouro IPCA+.
 	IndexIPCAMais IndexType = "ipca_mais"
 )
 
@@ -99,6 +99,15 @@ func IndexOf(productType ProductType) (IndexType, bool) {
 func IsPostFixado(productType ProductType) bool {
 	idx, ok := IndexOf(productType)
 	return ok && idx == IndexPosFixado
+}
+
+// IsIPCAMais indica se productType rende IPCA + uma taxa real contratada,
+// via VNA (IndexIPCAMais) — usado por fixedincomeexecution.Purchase/Redeem
+// (tarefa L.2) pra escolher fixedincome.VNAProjected/IPCAPrice em vez de
+// PrefixedPrice. Só Tesouro IPCA+ hoje.
+func IsIPCAMais(productType ProductType) bool {
+	idx, ok := IndexOf(productType)
+	return ok && idx == IndexIPCAMais
 }
 
 // RequiresCreditRiskRating indica se o produto precisa de uma

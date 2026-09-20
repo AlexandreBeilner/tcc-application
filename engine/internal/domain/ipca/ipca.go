@@ -30,6 +30,46 @@ type Config struct {
 	Seed       int64
 }
 
+// Valores de referência calibrados na tarefa L.2 (backlog-motor-mercado-
+// realista) — até aqui `Config` não tinha nenhum default (ver doc do tipo
+// acima), porque `VNAProjected`/`IPCAPrice` não tinham consumidor real no
+// motor. L.2 liga os dois em `fixedincomeexecution.Purchase`/`Redeem`
+// (Tesouro IPCA+), o que exige uma calibração concreta pra existir. Meta
+// de 3% a.a. reflete a meta contínua de inflação do CMN vigente (substitui
+// o regime de metas anuais escalonadas); convertida pra mensal via
+// composição ((1+0,03)^(1/12) - 1), não divisão simples por 12 (mesmo
+// cuidado de juros compostos do resto do pacote `fixedincome`).
+// MaxDeviation/Volatility aproximam a banda de tolerância oficial (meta ±
+// 1,5 p.p. a.a.) sem reproduzi-la exatamente — "ajustável conforme
+// calibração" (semana 8 do roadmap), mesmo tratamento dado a
+// selic.DefaultNeutralRate/DefaultReversionSpeed/DefaultVolatility.
+const (
+	// DefaultMonthlyTarget é a meta de IPCA mensal (decimal) — (1.03)^(1/12)
+	// - 1 ≈ 0,4% a.m., arredondado.
+	DefaultMonthlyTarget = 0.0025
+	// DefaultMaxDeviation é a banda mensal em torno da meta — aproxima o
+	// intervalo de tolerância oficial (1,5 a 4,5% a.a.) sem replicar a
+	// conversão exata mês a mês.
+	DefaultMaxDeviation = 0.0015
+	// DefaultVolatility é o desvio-padrão do ruído mensal — menor que
+	// MaxDeviation de propósito, pra clamp (MonthlySeries) raramente ser o
+	// fator dominante, e a "pequena variação em torno de uma meta" da spec
+	// 3.2 continuar visível na série.
+	DefaultVolatility = 0.0008
+)
+
+// DefaultConfig monta a configuração de referência calibrada nesta tarefa
+// (L.2), variando só a seed (RNF08 — mesma seed sempre reproduz a mesma
+// série, mesmo raciocínio de selic.DefaultConfig).
+func DefaultConfig(seed int64) Config {
+	return Config{
+		MonthlyTarget: DefaultMonthlyTarget,
+		MaxDeviation:  DefaultMaxDeviation,
+		Volatility:    DefaultVolatility,
+		Seed:          seed,
+	}
+}
+
 // MonthlySeries gera `months` valores determinísticos de IPCA mensal
 // sintético (decimal, ex: 0.004 = 0,4% a.m.), sempre dentro da banda
 // [MonthlyTarget-MaxDeviation, MonthlyTarget+MaxDeviation]. Mesmos Config e

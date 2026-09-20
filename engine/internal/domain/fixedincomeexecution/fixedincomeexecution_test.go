@@ -7,6 +7,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
+	"tcc-investimentos/engine/internal/domain/ipca"
 )
 
 func almostEqual(a, b, tolerance float64) bool {
@@ -24,7 +25,7 @@ var (
 func TestPurchase_ValorInvalido(t *testing.T) {
 	ctx := PurchaseContext{AccountBalance: 5000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
 
-	_, err := Purchase(Request{Amount: 0}, ctx, purchaseNow)
+	_, err := Purchase(Request{Amount: 0}, ctx, purchaseNow, 0, 0)
 	if err != ErrInvalidAmount {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidAmount)
 	}
@@ -33,7 +34,7 @@ func TestPurchase_ValorInvalido(t *testing.T) {
 func TestPurchase_AbaixoDaAplicacaoMinima(t *testing.T) {
 	ctx := PurchaseContext{AccountBalance: 5000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
 
-	_, err := Purchase(Request{Amount: 50}, ctx, purchaseNow)
+	_, err := Purchase(Request{Amount: 50}, ctx, purchaseNow, 0, 0)
 	if err != ErrBelowMinimumInvestment {
 		t.Fatalf("err = %v, want %v", err, ErrBelowMinimumInvestment)
 	}
@@ -42,7 +43,7 @@ func TestPurchase_AbaixoDaAplicacaoMinima(t *testing.T) {
 func TestPurchase_SaldoInsuficiente(t *testing.T) {
 	ctx := PurchaseContext{AccountBalance: 1000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
 
-	_, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow)
+	_, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow, 0, 0)
 	if err != ErrInsufficientBalance {
 		t.Fatalf("err = %v, want %v", err, ErrInsufficientBalance)
 	}
@@ -51,7 +52,7 @@ func TestPurchase_SaldoInsuficiente(t *testing.T) {
 func TestPurchase_PrecificaEBlendaNaPosicao(t *testing.T) {
 	ctx := PurchaseContext{AccountBalance: 5000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
 
-	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow)
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -71,7 +72,7 @@ func TestPurchase_PrecificaEBlendaNaPosicao(t *testing.T) {
 
 func TestPurchase_SegundaCompraBlendaComAPosicaoExistente(t *testing.T) {
 	ctxFirst := PurchaseContext{AccountBalance: 10000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
-	first, err := Purchase(Request{Amount: 2000}, ctxFirst, purchaseNow)
+	first, err := Purchase(Request{Amount: 2000}, ctxFirst, purchaseNow, 0, 0)
 	if err != nil {
 		t.Fatalf("primeira compra: err = %v, want nil", err)
 	}
@@ -83,7 +84,7 @@ func TestPurchase_SegundaCompraBlendaComAPosicaoExistente(t *testing.T) {
 		MaturityDate:      purchaseMaturity,
 		CurrentPosition:   first.NewPosition,
 	}
-	second, err := Purchase(Request{Amount: 1000}, ctxSecond, purchaseNow)
+	second, err := Purchase(Request{Amount: 1000}, ctxSecond, purchaseNow, 0, 0)
 	if err != nil {
 		t.Fatalf("segunda compra: err = %v, want nil", err)
 	}
@@ -99,7 +100,7 @@ func TestPurchase_SegundaCompraBlendaComAPosicaoExistente(t *testing.T) {
 }
 
 func TestRedeem_PosicaoInexistente(t *testing.T) {
-	_, err := Redeem(RedeemContext{Position: fixedincomeposition.Position{Quantity: 0}}, purchaseNow)
+	_, err := Redeem(RedeemContext{Position: fixedincomeposition.Position{Quantity: 0}}, purchaseNow, 0, 0)
 	if err != ErrPositionNotFound {
 		t.Fatalf("err = %v, want %v", err, ErrPositionNotFound)
 	}
@@ -122,7 +123,7 @@ func TestRedeem_MarcacaoAMercado_TaxaSubiu_RentabilidadeInferiorAContratada(t *t
 		CurrentMarketRatePct: 15,
 	}
 
-	outcome, err := Redeem(ctx, now)
+	outcome, err := Redeem(ctx, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -149,7 +150,7 @@ func TestRedeem_TotalValueEscalaComAQuantidade(t *testing.T) {
 		CurrentMarketRatePct: 6,
 	}
 
-	outcome, err := Redeem(ctx, now)
+	outcome, err := Redeem(ctx, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -182,7 +183,7 @@ func TestRedeem_AplicaImpostoRegressivoSobreOGanho(t *testing.T) {
 		PurchasedAt:          now.AddDate(0, 0, -200),
 	}
 
-	outcome, err := Redeem(ctx, now)
+	outcome, err := Redeem(ctx, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -218,7 +219,7 @@ func TestRedeem_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
 		TaxExempt:            true,
 	}
 
-	outcome, err := Redeem(ctx, now)
+	outcome, err := Redeem(ctx, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -241,7 +242,7 @@ func TestPurchase_PosFixado_CompraAoParSemDesagio(t *testing.T) {
 		MaturityDate: purchaseMaturity, ProductType: fixedincome.ProductCDB,
 	}
 
-	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow)
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -274,7 +275,7 @@ func TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente(t *testing.T) {
 		ProductType:          fixedincome.ProductTesouroSelic,
 	}
 
-	outcome, err := Redeem(ctx, now)
+	outcome, err := Redeem(ctx, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -299,14 +300,14 @@ func TestRedeem_PosFixado_SelicMaisAltaRendeMais(t *testing.T) {
 	baixa, err := Redeem(RedeemContext{
 		Position: basePosition, CurrentMarketRatePct: 5,
 		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
-	}, now)
+	}, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err (Selic baixa) = %v, want nil", err)
 	}
 	alta, err := Redeem(RedeemContext{
 		Position: basePosition, CurrentMarketRatePct: 15,
 		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
-	}, now)
+	}, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err (Selic alta) = %v, want nil", err)
 	}
@@ -329,12 +330,98 @@ func TestRedeem_PosFixado_ResgateNoMesmoDiaDaCompraNaoRendeNada(t *testing.T) {
 		ProductType:          fixedincome.ProductCDB,
 	}
 
-	outcome, err := Redeem(ctx, now)
+	outcome, err := Redeem(ctx, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	if !almostEqual(outcome.TotalValue, fixedincome.FaceValue, 1e-9) {
 		t.Errorf("TotalValue = %v, want %v (resgate no mesmo dia da compra, sem rendimento)", outcome.TotalValue, fixedincome.FaceValue)
+	}
+}
+
+// ipcaExecutionTestConfig gera uma série de IPCA sem ruído (Volatility = 0
+// — mesmo raciocínio de fixedincome.ipcaTestConfig), pra deixar
+// determinístico o VNA usado nos testes de Purchase/Redeem de Tesouro
+// IPCA+ abaixo (tarefa L.2), sem depender da seed.
+var ipcaExecutionTestConfig = ipca.Config{MonthlyTarget: 0.004, MaxDeviation: 0.01, Volatility: 0, Seed: 1}
+
+// TestPurchase_IPCAMais_UsaVNAEmVezDeDesagioNominal confere o critério de
+// aceite central da L.2: Tesouro IPCA+ (fixedincome.IsIPCAMais) precifica a
+// unidade pelo VNA (fixedincome.VNAProjected + IPCAPrice), não mais pelo
+// deságio nominal (fixedincome.PrefixedPrice) que TestPurchase_
+// PrecificaEBlendaNaPosicao (acima) confirma pro Tesouro Prefixado com os
+// mesmos AnnualRatePct/prazo — vnaBase aqui vem de vários meses depois de
+// VNAEpoch (windowIndex > 0), então UnitPrice != PrefixedPrice por
+// construção (o VNA já compôs inflação, deixou de ser o FaceValue puro).
+func TestPurchase_IPCAMais_UsaVNAEmVezDeDesagioNominal(t *testing.T) {
+	now := fixedincome.VNAEpoch.AddDate(2, 0, 3)
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, now)
+	maturity := now.AddDate(1, 0, 0)
+
+	ctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: 6, MinimumInvestment: 100,
+		MaturityDate: maturity, ProductType: fixedincome.ProductTesouroIPCA,
+	}
+
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, now, vnaBase, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	remainingDays := remainingBusinessDays(now, maturity)
+	wantUnitPrice := fixedincome.IPCAPrice(fixedincome.VNAProjected(vnaBase, monthlyIPCA, now), fixedincome.IPCAQuote(0.06, remainingDays))
+	if !almostEqual(outcome.UnitPrice, wantUnitPrice, 1e-6) {
+		t.Errorf("UnitPrice = %v, want %v (VNAProjected × IPCAQuote)", outcome.UnitPrice, wantUnitPrice)
+	}
+
+	nominalUnitPrice := fixedincome.PrefixedPrice(0.06, remainingDays)
+	if almostEqual(outcome.UnitPrice, nominalUnitPrice, 0.01) {
+		t.Errorf("UnitPrice = %v, ficou igual ao deságio nominal (%v) — VNA não teve efeito", outcome.UnitPrice, nominalUnitPrice)
+	}
+
+	wantQuantity := 2000 / wantUnitPrice
+	if !almostEqual(outcome.QuantityPurchased, wantQuantity, 1e-6) {
+		t.Errorf("QuantityPurchased = %v, want %v", outcome.QuantityPurchased, wantQuantity)
+	}
+	if !almostEqual(outcome.NewPosition.AverageRate, 0.06, 1e-9) {
+		t.Errorf("NewPosition.AverageRate = %v, want 0.06 (taxa real contratada, travada)", outcome.NewPosition.AverageRate)
+	}
+}
+
+// TestRedeem_IPCAMais_VNACrescePorInflacaoAumentaOResgate confere que o
+// resgate de Tesouro IPCA+ rende de acordo com o VNA de hoje — comprado há
+// 3 anos com a mesma taxa real de mercado da compra (VsContractedRate
+// isolado em 0, só o efeito do VNA em jogo), o valor resgatado precisa
+// superar o principal investido puramente pela inflação simulada acumulada
+// (ipcaExecutionTestConfig.MonthlyTarget > 0).
+func TestRedeem_IPCAMais_VNACrescePorInflacaoAumentaOResgate(t *testing.T) {
+	const realRate = 0.06
+	purchasedAt := fixedincome.VNAEpoch
+	now := purchasedAt.AddDate(3, 0, 0)
+
+	vnaAtPurchase, _ := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, purchasedAt)
+	purchasePrice := fixedincome.IPCAPrice(vnaAtPurchase, fixedincome.IPCAQuote(realRate, 252))
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, now)
+
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: realRate},
+		MaturityDate:         now.AddDate(2, 0, 0),
+		CurrentMarketRatePct: realRate * 100, // taxa de mercado igual à contratada — isola o efeito do VNA
+		PurchasedAt:          purchasedAt,
+		ProductType:          fixedincome.ProductTesouroIPCA,
+	}
+
+	outcome, err := Redeem(ctx, now, vnaBase, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	invested := ctx.Position.AveragePrice * ctx.Position.Quantity
+	if !(outcome.TotalValue > invested) {
+		t.Errorf("TotalValue = %v, want maior que o valor investido (%v) — VNA deveria ter crescido com a inflação em 3 anos", outcome.TotalValue, invested)
+	}
+	if math.Abs(outcome.MarkToMarket.VsContractedRate) > 1e-6 {
+		t.Errorf("VsContractedRate = %v, want ≈0 (taxa de mercado igual à contratada, só o VNA mudou)", outcome.MarkToMarket.VsContractedRate)
 	}
 }
 

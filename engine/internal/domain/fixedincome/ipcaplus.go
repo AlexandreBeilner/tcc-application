@@ -3,6 +3,8 @@ package fixedincome
 import (
 	"math"
 	"time"
+
+	"tcc-investimentos/engine/internal/domain/ipca"
 )
 
 // VNAMonthlySeries encadeia leituras sucessivas de IPCA mensal sintético
@@ -70,4 +72,67 @@ func IPCAQuote(annualRealRate float64, businessDaysToMaturity int) float64 {
 // produto do VNA projetado (VNAProjected) pela cotação (IPCAQuote).
 func IPCAPrice(vnaProjected, quote float64) float64 {
 	return vnaProjected * quote
+}
+
+// VNAEpoch é a data-base do VNA sintético do Tesouro IPCA+ — 15/07/2000,
+// mesma convenção do Tesouro Nacional real (VNA = R$1.000,00 na data-base,
+// FaceValue aqui). Fixa (não amarrada à data de deploy/seed do catálogo) de
+// propósito, pra CurrentVNAWindow ficar 100% determinística a partir só de
+// `ipca.Config`/`now` (RNF08) — nenhum estado precisa ser persistido nem
+// avançado por tick pra essa reprodutibilidade valer (tarefa L.2,
+// backlog-motor-mercado-realista; ver nota do pacote fixedincomeexecution).
+var VNAEpoch = time.Date(2000, time.July, 15, 0, 0, 0, 0, time.UTC)
+
+// monthsBetween conta quantos meses civis separam duas datas fixadas no
+// dia 15 (a e b sempre vêm de VNAEpoch/day15Window, nunca de uma data
+// arbitrária) — base pra saber quantos "meses" de ipca.MonthlySeries já se
+// passaram desde VNAEpoch até a janela corrente.
+func monthsBetween(a, b time.Time) int {
+	return (b.Year()-a.Year())*12 + int(b.Month()-a.Month())
+}
+
+// CurrentVNAWindow deriva, sem nenhum estado persistido, o par
+// (vnaBase, monthlyIPCA) que VNAProjected espera pra `now` — vnaBase é o
+// VNA conhecido no dia 15 do mês-base da janela que contém `now`
+// (day15Window), monthlyIPCA é o IPCA sintético desse mês. Os dois nascem
+// encadeando ipca.MonthlySeries (determinística por cfg/seed, RNF08) desde
+// VNAEpoch (vna inicial = FaceValue, mesma convenção real) via
+// VNAMonthlySeries — mesma cfg e mesma data sempre devolvem o mesmo par,
+// então nenhum consumidor (fixedincomeexecution.Purchase/Redeem) precisa
+// de um histórico gravado dia a dia: essa é a tarefa M.1 (independente),
+// que serve pra EXIBIR a série ao usuário, não pra calculá-la aqui.
+func CurrentVNAWindow(cfg ipca.Config, now time.Time) (vnaBase, monthlyIPCA float64) {
+	base, _ := day15Window(now)
+	windowIndex := monthsBetween(VNAEpoch, base)
+
+	series := ipca.MonthlySeries(cfg, windowIndex+1)
+	monthlyIPCA = series[windowIndex]
+	if windowIndex == 0 {
+		return FaceValue, monthlyIPCA
+	}
+	vnas := VNAMonthlySeries(FaceValue, series[:windowIndex])
+	return vnas[windowIndex-1], monthlyIPCA
+}
+
+// IPCAEarlyRedemption calcula o preço marcado a mercado no resgate
+// antecipado de um Tesouro IPCA+ (TCC cap. 2.2.3) — mesma decomposição de
+// EarlyRedemption (Prefixado), só que sobre o VNA projetado hoje (vnaNow,
+// CurrentVNAWindow + VNAProjected) em vez do Valor Nominal fixo: o preço de
+// mercado é o produto do VNA pela cotação de juro real vigente (IPCAQuote
+// com a taxa de mercado corrente); o que o título valeria hoje se a taxa
+// real contratada não tivesse mudado usa o mesmo VNA (a atualização
+// monetária não depende da taxa contratada, só o componente de juro real
+// muda). currentMarketRealRate reaproveita a mesma fonte que Prefixado usa
+// (Selic simulada corrente como proxy de taxa de mercado real — nenhuma
+// correção de Fisher nominal/real feita aqui, decisão de escopo desta
+// tarefa, mesma simplificação documentada em fixedincomeexecution.go).
+func IPCAEarlyRedemption(purchasePrice, purchaseRealRate, currentMarketRealRate, vnaNow float64, remainingBusinessDays int) EarlyRedemptionResult {
+	markPrice := IPCAPrice(vnaNow, IPCAQuote(currentMarketRealRate, remainingBusinessDays))
+	accruedAtContractedRate := IPCAPrice(vnaNow, IPCAQuote(purchaseRealRate, remainingBusinessDays))
+
+	return EarlyRedemptionResult{
+		MarkToMarketPrice: markPrice,
+		RealizedReturnPct: (markPrice/purchasePrice - 1) * 100,
+		VsContractedRate:  markPrice - accruedAtContractedRate,
+	}
 }

@@ -20,19 +20,25 @@
 //     RENDIMENTO em si (não a taxa contratada) acompanha a Selic simulada
 //     dia a dia via fixedincome.PostFixedValue, em vez de ficar travado
 //     pra sempre no valor da compra. Tesouro Prefixado continua sem
-//     mudança nenhuma (IndexPrefixado); Tesouro IPCA+ também (nota 2
-//     abaixo, L.2 ainda não rodou).
+//     mudança nenhuma (IndexPrefixado); Tesouro IPCA+ passou por mudança
+//     própria na L.2 (nota 2 abaixo) — não a mesma da pós-fixado (a taxa
+//     contratada continua travada na compra, só o VNA muda).
 //
-//  2. Tesouro IPCA+ reaproveita a MESMA precificação por deságio nominal
+//  2. Tesouro IPCA+ reaproveitava a MESMA precificação por deságio nominal
 //     (PrefixedPrice) do Tesouro Prefixado, não a projeção real de VNA
-//     (fixedincome.VNAProjected/IPCAPrice). A precificação por VNA
-//     exigiria um estado de série mensal de IPCA persistido e
-//     path-dependent (não existe hoje — nem sequer o pacote ipca tem
-//     Config calibrado, ver seu doc: "travar um default aqui seria
-//     inventar um número que a tarefa 8.1 ainda vai decidir") — fora do
-//     escopo desta tarefa. VNAProjected/IPCAPrice continuam sem
-//     consumidor real no motor (tarefa L.2 do backlog-motor-mercado-
-//     realista resolve isso).
+//     (fixedincome.VNAProjected/IPCAPrice) — **resolvido na tarefa L.2**:
+//     Purchase/Redeem (fixedincome.IsIPCAMais(ctx.ProductType)) usam
+//     fixedincome.CurrentVNAWindow (nenhum estado persistido — ver doc da
+//     função: deriva vnaBase/monthlyIPCA determinística a partir de
+//     ipca.Config/seed e VNAEpoch, mesmo raciocínio de "relógio de parede
+//     como proxy do dia simulado" da nota 4 abaixo) + VNAProjected pra
+//     achar o VNA de hoje, e fixedincome.IPCAPrice (compra) /
+//     fixedincome.IPCAEarlyRedemption (resgate) no lugar de PrefixedPrice/
+//     EarlyRedemption. ipca.Config vem calibrado por ipca.DefaultConfig
+//     (seed própria, derivada da seed global — nunca a mesma raw seed do
+//     selic.Config injetado no Temporizador, pra não correlacionar o
+//     ruído dos dois processos estocásticos independentes), injetado em
+//     Service (composição em cmd/api/main.go).
 //
 //  3. Taxa de mercado corrente pra marcação a mercado no resgate =
 //     market_calendar.selic_rate do dia simulado (Selic/Copom, tarefa
@@ -41,10 +47,14 @@
 //     nenhuma (não faz sentido "marcar a mercado" um produto cujo próprio
 //     rendimento já É o índice de mercado — não há taxa de mercado
 //     "diferente" da Selic pra ele divergir); Redeem usa
-//     fixedincome.PostFixedValue direto. Continua uniforme (e sem
-//     distinção) só entre Tesouro Prefixado e Tesouro IPCA+ — a L.3
-//     formaliza essa restrição também pro IPCA+, que hoje ainda reusa a
-//     mesma fórmula do Prefixado por causa da nota 2 acima.
+//     fixedincome.PostFixedValue direto. Tesouro Prefixado e Tesouro
+//     IPCA+ continuam os dois usando essa mesma taxa (ctx.
+//     CurrentMarketRatePct) como proxy de "taxa de mercado" — pra IPCA+
+//     (L.2), isso significa reaproveitar a Selic NOMINAL simulada como
+//     proxy de taxa de juro REAL de mercado (sem correção de Fisher),
+//     decisão de escopo desta sessão, não confirmada com o usuário; a L.3
+//     formaliza se essa marcação a mercado deveria valer pra IPCA+ ou não
+//     (spec 3.2.1 fala só em "títulos prefixados").
 //
 //     3.1. A série diária de Selic que fixedincome.PostFixedFactor recebe
 //     (um valor por dia útil decorrido desde a compra) é hoje uma
@@ -63,14 +73,15 @@
 //
 //     3.2. GET /fixed-income/simulate (Simulate, abaixo) continua usando
 //     fixedincome.PrefixedPrice pra TODOS os 8 tipos, inclusive
-//     pós-fixados — não corrigido nesta tarefa. Diferente de Purchase/
-//     Redeem, Simulate não recebe nenhum Repository (só dado de catálogo,
-//     ver doc de SimulateContext) — estender pra pós-fixado exigiria um
-//     colaborador novo só pra ler market_calendar.selic_rate na camada
-//     HTTP (handleFixedIncomeSimulate, fixedincome.go), fora do escopo
-//     cirúrgico desta tarefa. Simulador de aporte (tela 4.3) mostra
-//     projeção levemente incorreta pra produto pós-fixado até uma sessão
-//     futura estender essa mesma mudança até aqui.
+//     pós-fixados e IPCA+ — não corrigido nem pela L.1 nem pela L.2.
+//     Diferente de Purchase/Redeem, Simulate não recebe nenhum Repository
+//     (só dado de catálogo, ver doc de SimulateContext) — estender pra
+//     pós-fixado exigiria um colaborador novo só pra ler market_calendar.
+//     selic_rate na camada HTTP, e pra IPCA+ um colaborador pra ipca.
+//     Config/CurrentVNAWindow — os dois fora do escopo cirúrgico desta
+//     tarefa. Simulador de aporte (tela 4.3) mostra projeção levemente
+//     incorreta pra produto pós-fixado/IPCA+ até uma sessão futura
+//     estender essa mesma mudança até aqui.
 //
 //  4. DU restante até o vencimento é calculado a partir de time.Now() vs
 //     fixed_income_assets.maturity_date (data de calendário real, seedada
@@ -217,15 +228,19 @@ type SimulateOutcome struct {
 // Purchase valida o aporte (valor positivo, acima da aplicação mínima do
 // produto, dentro do saldo disponível) e blenda a compra na posição já
 // existente (fixedincomeposition.ApplyBuy). A unidade nocional é
-// precificada de dois jeitos diferentes, a depender do índice do produto
-// (fixedincome.IndexOf, tarefa L.1): produto pós-fixado
+// precificada de três jeitos diferentes, a depender do índice do produto
+// (fixedincome.IndexOf, tarefas L.1/L.2): produto pós-fixado
 // (fixedincome.IsPostFixado) compra "ao par" — unitPrice =
 // fixedincome.FaceValue, sem deságio — porque não há taxa travada na
 // compra pra descontar (o rendimento só nasce depois, dia a dia, em
-// Redeem); qualquer outro tipo continua descontando pelo deságio nominal
-// (fixedincome.PrefixedPrice, taxa contratada = taxa do catálogo — ver
-// nota 1/2 do doc do pacote), comportamento inalterado desde a 3.13.
-func Purchase(req Request, ctx PurchaseContext, now time.Time) (PurchaseOutcome, error) {
+// Redeem); Tesouro IPCA+ (fixedincome.IsIPCAMais, tarefa L.2) precifica
+// pelo VNA (fixedincome.IPCAPrice = VNAProjected(vnaBase, monthlyIPCA,
+// now) × IPCAQuote(rate, remainingDays) — vnaBase/monthlyIPCA vêm
+// resolvidos por quem chama, ver nota 2 do doc do pacote); qualquer outro
+// tipo (só Tesouro Prefixado sobra) continua descontando pelo deságio
+// nominal (fixedincome.PrefixedPrice, taxa contratada = taxa do catálogo),
+// comportamento inalterado desde a 3.13.
+func Purchase(req Request, ctx PurchaseContext, now time.Time, vnaBase, monthlyIPCA float64) (PurchaseOutcome, error) {
 	if req.Amount <= 0 {
 		return PurchaseOutcome{}, ErrInvalidAmount
 	}
@@ -238,9 +253,14 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time) (PurchaseOutcome,
 
 	rate := ctx.AnnualRatePct / 100
 	var unitPrice float64
-	if fixedincome.IsPostFixado(ctx.ProductType) {
+	switch {
+	case fixedincome.IsPostFixado(ctx.ProductType):
 		unitPrice = fixedincome.FaceValue
-	} else {
+	case fixedincome.IsIPCAMais(ctx.ProductType):
+		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
+		vna := fixedincome.VNAProjected(vnaBase, monthlyIPCA, now)
+		unitPrice = fixedincome.IPCAPrice(vna, fixedincome.IPCAQuote(rate, remainingDays))
+	default:
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 		unitPrice = fixedincome.PrefixedPrice(rate, remainingDays)
 	}
@@ -255,16 +275,21 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time) (PurchaseOutcome,
 	}, nil
 }
 
-// Redeem valoriza a posição inteira até hoje — de dois jeitos diferentes,
-// a depender do índice do produto (mesma decisão de Purchase, tarefa L.1).
-// Produto pós-fixado (fixedincome.IsPostFixado) usa
+// Redeem valoriza a posição inteira até hoje — de três jeitos diferentes,
+// a depender do índice do produto (mesma decisão de Purchase, tarefas
+// L.1/L.2). Produto pós-fixado (fixedincome.IsPostFixado) usa
 // fixedincome.PostFixedValue: o principal investido (Position.AveragePrice
 // × Position.Quantity) rende o percentual contratado do índice
 // (Position.AverageRate, já em decimal — ex: 1.10 pra "110% do CDI",
 // mesma unidade de rate em Purchase) sobre uma série diária de Selic
 // simulada (postFixedDailyRates, abaixo — ver nota 3.1 do doc do pacote
-// pra por que hoje é o mesmo valor repetido, não histórico real). Qualquer
-// outro tipo continua marcado a mercado (fixedincome.EarlyRedemption,
+// pra por que hoje é o mesmo valor repetido, não histórico real). Tesouro
+// IPCA+ (fixedincome.IsIPCAMais, tarefa L.2) usa
+// fixedincome.IPCAEarlyRedemption sobre o VNA de hoje
+// (VNAProjected(vnaBase, monthlyIPCA, now) — vnaBase/monthlyIPCA resolvidos
+// por quem chama, nota 2 do doc do pacote), no lugar do Valor Nominal fixo
+// que EarlyRedemption usa pra Prefixado. Qualquer outro tipo (só Tesouro
+// Prefixado sobra) continua marcado a mercado (fixedincome.EarlyRedemption,
 // taxa de mercado corrente = Selic simulada do dia — nota 3 do doc do
 // pacote), comportamento inalterado desde a 3.13. Resgate é sempre
 // integral (nota 5 do doc do pacote) — não há resgate parcial.
@@ -273,7 +298,7 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time) (PurchaseOutcome,
 // (TotalValue − valor efetivamente aplicado, Position.AveragePrice ×
 // Position.Quantity), contado em dias corridos desde PurchasedAt — nunca
 // sobre ativo TaxExempt, que sempre devolve líquido = bruto.
-func Redeem(ctx RedeemContext, now time.Time) (RedeemOutcome, error) {
+func Redeem(ctx RedeemContext, now time.Time, vnaBase, monthlyIPCA float64) (RedeemOutcome, error) {
 	if ctx.Position.Quantity <= 0 {
 		return RedeemOutcome{}, ErrPositionNotFound
 	}
@@ -283,7 +308,8 @@ func Redeem(ctx RedeemContext, now time.Time) (RedeemOutcome, error) {
 
 	var totalValue float64
 	var result fixedincome.EarlyRedemptionResult
-	if fixedincome.IsPostFixado(ctx.ProductType) {
+	switch {
+	case fixedincome.IsPostFixado(ctx.ProductType):
 		pctOfIndex := ctx.Position.AverageRate * 100
 		totalValue = fixedincome.PostFixedValue(investedAmount, pctOfIndex, postFixedDailyRates(ctx.CurrentMarketRatePct, daysHeld))
 		result = fixedincome.EarlyRedemptionResult{
@@ -291,7 +317,12 @@ func Redeem(ctx RedeemContext, now time.Time) (RedeemOutcome, error) {
 			RealizedReturnPct: (totalValue/investedAmount - 1) * 100,
 			VsContractedRate:  0,
 		}
-	} else {
+	case fixedincome.IsIPCAMais(ctx.ProductType):
+		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
+		vna := fixedincome.VNAProjected(vnaBase, monthlyIPCA, now)
+		result = fixedincome.IPCAEarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, ctx.CurrentMarketRatePct/100, vna, remainingDays)
+		totalValue = ctx.Position.Quantity * result.MarkToMarketPrice
+	default:
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 		result = fixedincome.EarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, ctx.CurrentMarketRatePct/100, remainingDays)
 		totalValue = ctx.Position.Quantity * result.MarkToMarketPrice

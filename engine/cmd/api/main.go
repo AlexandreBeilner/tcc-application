@@ -11,6 +11,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
+	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
@@ -87,16 +88,6 @@ func main() {
 
 	quoteCache := newQuoteCache()
 
-	accountRepository := db.NewAccountRepository(pool)
-	accountService := account.NewService(accountRepository)
-	catalogRepository := db.NewCatalogRepository(pool, quoteCache)
-	orderExecutionRepository := db.NewOrderExecutionRepository(pool, quoteCache)
-	orderExecutionService := orderexecution.NewService(orderExecutionRepository)
-	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool))
-	macroEventRepository := db.NewMacroEventRepository(pool)
-	macroEventTriggerService := macroeventtrigger.NewService(macroEventRepository)
-	botRepository := db.NewBotRepository(pool)
-
 	seed := int64(defaultSimulationSeed)
 	if raw := os.Getenv("SIMULATION_SEED"); raw != "" {
 		parsed, err := strconv.ParseInt(raw, 10, 64)
@@ -105,6 +96,24 @@ func main() {
 		}
 		seed = parsed
 	}
+
+	accountRepository := db.NewAccountRepository(pool)
+	accountService := account.NewService(accountRepository)
+	catalogRepository := db.NewCatalogRepository(pool, quoteCache)
+	orderExecutionRepository := db.NewOrderExecutionRepository(pool, quoteCache)
+	orderExecutionService := orderexecution.NewService(orderExecutionRepository)
+	// ipcaSeed (tarefa L.2) nunca reaproveita a seed raw do selicConfig
+	// abaixo — os dois processos estocásticos (selic.Series/ipca.
+	// MonthlySeries) são independentes de propósito (spec 3.2/6 da
+	// proposta motor-mercado-realista); usar exatamente a mesma seed nos
+	// dois consumiria o mesmo stream de math/rand em paralelo, correlacionando
+	// o ruído de dois indicadores que deveriam poder divergir.
+	ipcaSeed := seed + 1
+	fixedIncomeExecutionService := fixedincomeexecution.NewService(db.NewFixedIncomeExecutionRepository(pool), ipca.DefaultConfig(ipcaSeed))
+	macroEventRepository := db.NewMacroEventRepository(pool)
+	macroEventTriggerService := macroeventtrigger.NewService(macroEventRepository)
+	botRepository := db.NewBotRepository(pool)
+
 	selicConfig := selic.DefaultConfig(selic.DefaultNeutralRate, seed)
 	tickRepository := db.NewTickRepository(pool, quoteCache)
 	// bots/tickRepository (histórico de preço/volume)/orderExecutionRepository
