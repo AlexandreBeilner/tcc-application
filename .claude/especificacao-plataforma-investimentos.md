@@ -224,19 +224,21 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 0.4 | Rendimento nominal vs real | Descontar a inflação do retorno | — |
 | 0.5 | Por que a poupança geralmente perde | Comparação direta poupança vs Selic/CDI | Acesso à Trilha 1 (Renda Fixa) |
 
-**Trilha 1: Renda Fixa (9 lições)**
+**Trilha 1: Renda Fixa (11 lições)**
 
 | # | Lição | Conceito central | Desbloqueia |
 |---|---|---|---|
 | 1.1 | O que é renda fixa | Emprestar dinheiro a um emissor | Tesouro Selic |
 | 1.2 | Tesouro Selic | O "porto seguro", liquidez diária | Primeira operação real de Renda Fixa |
-| 1.3 | CDB e o CDI | Remuneração bancária, garantia FGC | CDB |
-| 1.4 | Tributação regressiva de IR | Tabela regressiva, líquido vs bruto | — |
-| 1.5 | LCI e LCA | Isenção de IR — comparação de retorno líquido | LCI/LCA |
-| 1.6 | Tesouro Prefixado | Deságio, taxa travada na compra | Tesouro Prefixado |
-| 1.7 | Marcação a mercado | Risco de vender antes do vencimento | — |
-| 1.8 | Tesouro IPCA+ | Proteção contra inflação, VNA | Tesouro IPCA+ |
-| 1.9 | CRI e CRA | Risco de crédito sem FGC, maior remuneração | CRI/CRA, acesso à Trilha 2 (Renda Variável) |
+| 1.3 | Como a Selic é formada | Reunião do Copom reagindo ao desvio do IPCA frente à meta (tarefa M.5) | — |
+| 1.4 | CDB e o CDI | Remuneração bancária, garantia FGC | CDB |
+| 1.5 | Tributação regressiva de IR | Tabela regressiva, líquido vs bruto | — |
+| 1.6 | LCI e LCA | Isenção de IR — comparação de retorno líquido | LCI/LCA |
+| 1.7 | Tesouro Prefixado | Deságio, taxa travada na compra | Tesouro Prefixado |
+| 1.8 | Marcação a mercado | Risco de vender antes do vencimento | — |
+| 1.9 | O que é o IPCA | Índice de preços ao consumidor (IBGE), referência da meta de inflação (tarefa M.5) | — |
+| 1.10 | Tesouro IPCA+ | Proteção contra inflação, VNA | Tesouro IPCA+ |
+| 1.11 | CRI e CRA | Risco de crédito sem FGC, maior remuneração | CRI/CRA, acesso à Trilha 2 (Renda Variável) |
 
 **Trilha 2: Renda Variável (15 lições)**
 
@@ -267,7 +269,7 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 3.3 | Comparando produtos na prática | Ex: CDB 110% CDI líquido vs LCI 90% CDI isento — qual rende mais? | — |
 | 3.4 | Desafio final da trilha | Cenário combinando renda fixa + variável + um evento macro | Conclusão da trilha guiada, mundo aberto liberado por completo |
 
-**Total: 33 lições** (5 + 9 + 15 + 4), todas reaproveitando o mesmo componente de UI (5.2).
+**Total: 35 lições** (5 + 11 + 15 + 4 — Trilha 1 ganhou 2 lições na tarefa M.5, backlog-motor-mercado-realista, sobre o mecanismo real por trás de Selic/IPCA), todas reaproveitando o mesmo componente de UI (5.2).
 
 ### 5.2 Padrão de lição ("aprender fazendo")
 
@@ -386,7 +388,7 @@ Dado o prazo de ~2 meses com Claude Code e a preferência por não reduzir o esc
 - Eventos macro completos: motor, regras de defasagem preço↔fundamentos, catálogo inicial de 10 templates, painel administrativo (3.3).
 - Capital inicial padronizado (3.5) e ranking por janela fixa (seção 6).
 - Sandbox reaproveitando as tabelas reais com ativos isolados (3.1).
-- As 33 lições do currículo completo (5.1).
+- As 35 lições do currículo completo (5.1).
 - Sistema social completo: amizade bilateral com aceite, busca por `username`, visibilidade de perfil, ranking com escopo Global/Amigos (seção 8, RF18–RF20, RNF09).
 - Missões diárias formalizadas (`daily_missions`/`user_mission_progress`, seção 6.1, RF22).
 - Indicadores diferenciados por classe de ativo — Ações/ETFs/FIIs tijolo e papel (seção 3.6, RF21).

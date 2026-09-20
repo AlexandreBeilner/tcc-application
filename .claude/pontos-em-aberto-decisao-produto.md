@@ -73,9 +73,13 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ### 004 · `macroPriceEffectsByCompany` soma sem teto pode inverter o sinal do preço justo
 
-- **Local:** `engine/internal/domain/tick/tick.go:498` (`macroPriceEffectsByCompany`), consumido em
-  `engine/internal/domain/bot/fundamentalist.go:115` (`FundamentalistFairPrice`:
-  `fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100)`)
+- **Local:** `engine/internal/domain/tick/tick.go:600` (`macroPriceEffectsByCompany`, linha atualizada
+  pós-Fase J — mecanismo/achado inalterados), consumido em
+  `engine/internal/domain/bot/fundamentalist.go:129` (`FundamentalistFairPrice`:
+  `fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100) * (1 +
+  pnPremiumPct/100)` — a tarefa J.3 acrescentou o fator `pnPremiumPct` ao final, mas ele nunca é
+  negativo (piso legal de dividendo da PN, sempre >= 0), então não interage com o problema deste
+  achado)
 - **Origem:** review do PR #27 (Fase E do backlog-motor-mercado-realista), 2026-09-14/16
 - **O que é:** a tarefa E.2 (`.claude/backlog-motor-mercado-realista.md`, já ✅) documenta
   deliberadamente que `macroPriceEffectsByCompany` soma `PriceEffectPct` **sem teto**, descrito como "a
@@ -106,6 +110,66 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   eventos macro concorrentes sobre a mesma empresa/setor no disparo (`macroeventtrigger.Trigger`),
   tornando o cenário de estouro impossível na origem em vez de tratado no consumo.
 - **Status:** aberto
+
+### 008 · Duas fontes de sensibilidade à Selic para a mesma empresa (setor vs. `risk_class`)
+
+- **Local:** `engine/internal/domain/fundamentals/fundamentals.go` (`CoefficientsBySector[...].
+  SelicSensitivity`, usada por `ExpectedGrowth`/`GrowthSeries`/`NextGrowth` via `tick.
+  fundamentalsConfig`) vs. `engine/internal/domain/bot/fundamentalist.go:109`
+  (`fundamentals.SensitivityByRiskClass[riskClass]`, usada por `FundamentalistFairPrice` no cálculo
+  do retorno exigido da fórmula de Justified Price-to-Book)
+- **Origem:** tarefa K.2 (`backlog-motor-mercado-realista.md`), 2026-09-19 — a K.1
+  (`.claude/calibracao-fundamentos-setor.md`) já tinha sinalizado isso como recomendação de
+  implementação não-decidida
+- **O que é:** antes da K.2, as duas fórmulas (crescimento de receita e retorno exigido no preço
+  justo) liam a mesma tabela `SensitivityByRiskClass` (2 valores, por `risk_class` do ativo) — o
+  comentário original de `bot.FundamentalistFairPrice` até dizia explicitamente "reaproveitado aqui,
+  não duplicado". A K.2 migrou só a primeira fórmula pra uma tabela por setor (`CoefficientsBySector`,
+  6 valores, calibrados com fonte real pela K.1), porque o próprio texto da tarefa a escopava em
+  "aplicação da calibração em `fundamentals.go`" — `bot.FundamentalistFairPrice` fica fora desse
+  arquivo e, principalmente, fora do escopo de uma sessão (mudar sua assinatura de 11 parâmetros
+  rippla por `bot/round.go`, `tick/rounds.go` e os testes das Fases C/D/E, já fechadas). Resultado:
+  hoje as duas fórmulas podem divergir pra uma mesma empresa — ex: VALR3 (Mineração) usa sensibilidade
+  0.02 pro crescimento de receita (tabela por setor) mas 0.02 (Conservador) pro retorno exigido
+  (tabela por risk_class, coincidência dos números atuais, não garantia); BNDD4 (Bancário) usa 0.05
+  (tabela por setor) pro crescimento mas 0.06 (Sofisticado) pro retorno exigido — já divergem hoje.
+- **Por que não foi corrigido:** decidir se as duas fórmulas devem convergir pra uma fonte única
+  (sector) é uma escolha de design que muda o comportamento de todo o arquétipo Fundamentalista
+  (Fase C, já fechada e validada ao vivo) — não é um número sem valor confirmado, é uma escolha de
+  arquitetura/comportamento entre manter dois conceitos de sensibilidade deliberadamente separados
+  (um por setor pra fundamentos, um por risk_class pra valuation) ou unificar os dois por setor.
+- **Opções:** (a) migrar `bot.FundamentalistFairPrice`/`DecideFundamentalistOrder` pra receber
+  `catalog.Sector` em vez de `equity.RiskClass` e ler `fundamentals.CoefficientsForSector(sector).
+  SelicSensitivity`, unificando as duas fórmulas numa fonte só — maior blast radius (assinatura de
+  11 parâmetros, `bot.DecisionInput.RiskClass`, call sites em `round.go`/`rounds.go`, testes de
+  C.5/D.2/E.2); (b) manter as duas tabelas deliberadamente separadas (crescimento de receita
+  reflete margem/alavancagem setorial real, retorno exigido reflete um conceito de risco por classe
+  de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
+- **Status:** aberto
+
+### 009 · Capital/alocação inicial do bot não é calibrado com dados reais (mitigação de realismo do achado 005)
+
+- **Local:** `engine/internal/domain/bot/allocation.go` (`InitialAllocation`, distribui o float
+  entre os 20 bots) e `engine/cmd/seed/main.go` (`botMinimumOrderShares`/multiplicadores de
+  `bot.InitialCash`, achado 005 Parte B)
+- **Origem:** achado 005 Parte C (`.claude/pontos-em-aberto-decisao-produto.md`), separado nesta
+  sessão (2026-09-20) da correção mecânica que virou `J.6` — teste de ponta a ponta da Fase J
+  (`.claude/backlog-motor-mercado-realista.md`), 2026-09-19/20
+- **O que é:** o capital/posição inicial de cada bot vem de constantes ilustrativas
+  (`cmd/seed/main.go`), nunca calibradas contra dados reais de participação de liquidez/free float
+  da B3 — mesma natureza do achado 003 (coeficientes de fundamentos), mas aplicada a um insumo
+  diferente. Capital insuficiente pra sustentar negociação contínua aumenta a *frequência* com que
+  a média de volume real de um ativo (`RecentTradedVolume`, achado 005 Parte B) chega a zero, que é
+  a condição que `J.6` corrige na raiz mecânica — mais capital reduziria a chance desse cenário
+  acontecer, mas não o eliminaria sozinho (é estatístico, não determinístico).
+- **Por que não foi corrigido:** o valor certo de capital/alocação por bot é um número de negócio
+  sem fonte real confirmada em nenhum documento — exigiria uma pesquisa dedicada tipo K.1 (dados
+  B3/CVM de participação de market maker/free float), não só uma decisão de comportamento.
+- **Opções:** (a) pesquisa dedicada (mesmo formato de K.1) seguida de aplicação em
+  `cmd/seed/main.go`/`bot.InitialCash` (mesmo formato de K.2); (b) manter os valores ilustrativos
+  atuais indefinidamente, já que `J.6` remove a consequência mais grave (travamento permanente) e
+  o resto é só realismo de "quão ativo o mercado parece", não corretude.
+- **Status:** aberto — sem tarefa de backlog aberta, não bloqueia `J.6` (achado 005 Parte C).
 
 ## Resolvidos
 
@@ -173,16 +237,35 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
      ser positivo). `NULL` nas linhas antigas + `RecentTradedVolume` filtrando `IS NOT NULL` corrige
      isso: dia sem dado conta como "sem histórico ainda" (cai pro float sozinho), não "zero
      negociado".
-  3. **Parte C — causa raiz do caixa/alocação inicial de bot** (continua em aberto, sem duplicar
-     rastreio): já tinha dono antes deste achado — mesmo raciocínio do achado 003 acima, Fase K de
-     `backlog-motor-mercado-realista.md` (calibração com dados reais B3/CVM). Recalibrar o
-     multiplicador de `bot.InitialCash`/`InitialAllocation` sem essa pesquisa só trocaria um número
-     arbitrário por outro. As partes A/B já tornam qualquer ordem matematicamente impossível de
-     exceder o que o mercado suporta, **independente** do caixa do bot — a causa raiz vira um
-     problema de realismo, não de corretude (ex: `VALR3`/`BNDD4` ainda mostram ordens de venda na
-     casa de dezenas de milhões de cotas, refletindo posição de bot desproporcional herdada da
-     alocação inicial — não mais um risco de acúmulo indefinido, porque expiram no dia seguinte se
-     não preenchidas).
+  3. **Parte C — agora com dono real: `J.6`** (`.claude/backlog-motor-mercado-realista.md`,
+     2026-09-20): esta entrada original (2026-09-19) apontava "já tinha dono... Fase K de
+     `backlog-motor-mercado-realista.md`", reaproveitando o mesmo raciocínio do achado 003 acima
+     sem checar se a Fase K *como escrita no backlog* de fato cobria isso. Não cobria: K.1/K.2
+     (implementadas e fechadas — teste de ponta a ponta da Fase J confirmou, 2026-09-19) escopam
+     literalmente "calibração de fundamentos por setor" — margem líquida, margem EBIT,
+     patrimônio/receita, dívida/patrimônio, caixa/receita e sensibilidade à Selic de
+     `fundamentals.go` —, nunca mencionando `bot.InitialCash`/`InitialAllocation`
+     (`engine/internal/domain/bot/`, módulo diferente). Efeito prático confirmado ao vivo em dois
+     testes de ponta a ponta da Fase J (não é só "ordens de venda desproporcionais", como o texto
+     original registrava): rodando o motor do zero (seed novo) por ~50-60 dias simulados seguidos,
+     o mercado trava por completo — `RecentTradedVolume` (Parte B) cai a 0 real depois de dias sem
+     negociação suficiente, `effectiveOrderSizeCeiling` fica preso em 0 pro lado de compra, e sem
+     contraparte de compra as vendas também param de casar, perpetuando o zero indefinidamente
+     (`BNDD4`/`PAPL11`/`TJLO11` observados presos exatamente no preço inicial, `total_quantity = 0`
+     por dezenas de ticks seguidos) — impacto real pro usuário: uma vez travado, fica impossível
+     **vender** aquele ativo (o lado comprador nunca mais se regenera), não só um problema estético
+     de preço congelado. **Decisão (2026-09-20, confirmada com o autor):** a correção mecânica
+     (piso mínimo em `effectiveOrderSizeCeiling`, nunca removendo o teto em si — só impedindo o
+     colapso total quando o float disponível é positivo) resolve o bug de corretude observado
+     sozinha, sem depender de nenhuma pesquisa nova — virou a tarefa `J.6`. A recalibração de
+     `bot.InitialCash`/`InitialAllocation` com dados reais (que mitigaria a *frequência* do
+     travamento, mas não o eliminaria sozinha) foi deliberadamente separada pro achado 009 abaixo —
+     não bloqueia `J.6` nem duplica o escopo dela.
+- **Status:** Resolvido por completo — Partes A/B (ver testes/validação abaixo) e Parte C via `J.6`
+  (`.claude/backlog-motor-mercado-realista.md`, 2026-09-20): `tick.MinOrderSizeCeiling` (piso de 1)
+  em `effectiveOrderSizeCeiling`, validado ao vivo contra o mesmo travamento real de `BNDD4`/`PAPL11`
+  (`total_quantity = 0` por 20+ dias simulados) — os dois recuperaram negociação já no primeiro
+  `POST /admin/tick` pós-correção.
 - **Testes:** `bot` (rename de `capToFloat`/`floatCeiling` pra `OrderSizeCeiling` nos testes
   existentes, mais dois novos cobrindo o teto zerando a quantidade comprável sem panicar —
   `rng.Intn(0)` panicaria se `canBuy` não considerasse o teto, achado do próprio trabalho desta
@@ -305,3 +388,36 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Status:** resolvido — nada pendente pra I.1/I.2. Quem implementar a Fase M continua precisando
   alimentar `ipcaAccumulatedDeviation` como decimal (`IPCA_acumulado - meta_IPCA`, sem multiplicar
   por 100), consistente com a convenção que `ipca.Config`/`ipca.MonthlySeries` já usam.
+
+### 010 · Renumeração de `code` na tarefa M.5 relabela lições existentes em vez de criar linhas novas
+
+- **Local:** `backend/src/db/seedLessons.ts` (`upsertLessonSeed`, antes inline em `main()`),
+  `backend/src/db/schema.ts` (`lessons`), `backend/src/modules/lessons/application/useCases/
+  advanceLesson.ts:160`, `.docs/backend/lessons.md`
+- **Origem:** implementação da tarefa M.5 (backlog-motor-mercado-realista), 2026-09-20
+- **O que é:** M.5 insere 2 lições novas na Trilha 1 (`Como a Selic é formada`, `O que é o IPCA`),
+  deslocando o `code` de 7 lições existentes um degrau adiante (`1.3`→`1.4`, `1.4`→`1.5`, ...,
+  `1.9`→`1.11`). O upsert de `seedLessons.ts` casava por `code` (não por conteúdo) e nunca incluía
+  `code` no `set` — então rodar `npm run db:seed:lessons` num banco que já tinha as 33 lições antigas
+  não criava linha nova pras 7 renumeradas: reaproveitava a linha física que já existia com aquele
+  `code` e sobrescrevia título/textos pro conteúdo do próximo degrau, preservando o `id`. Qualquer
+  `user_lesson_progress` que já apontasse pro `id` de uma dessas 7 lições passava, depois do reseed, a
+  apontar pra uma lição de conteúdo diferente com `completedAt` preservado — a UI mostraria a lição
+  errada como concluída, sem erro nem log.
+- **Decisão (2026-09-20, mesma sessão, a pedido do autor):** opção (c) das listadas originalmente —
+  trocar a chave de upsert de `lessons.code` pra uma coluna nova e estável, deixando `code` livre pra
+  refletir só a posição didática atual. Implementado na tarefa M.6: `lessons.stable_key` (`varchar(20)
+  UNIQUE NOT NULL`, migration `0016`) — atribuído uma vez por lição (hoje coincide com o `code`
+  vigente no momento em que a coluna nasceu, por ser o primeiro valor atribuído) e nunca mais tocado
+  em renumeração futura. `seedLessons.ts` (`upsertLessonSeed`, extraída de `main()` pra ficar
+  testável) casa o upsert por `stable_key` e passa a incluir `code` no `set`. Como a aplicação não
+  está em produção, a migration trunca `user_lesson_progress`/`lessons` antes de tornar `stable_key`
+  NOT NULL, em vez de exigir uma política de migração de dado legado — reseed do zero. Efeito
+  colateral corrigido no mesmo commit: `AdvanceLessonUseCase` usava `licao:${lesson.code}` como chave
+  de idempotência do XP — trocado pra `licao:${lesson.id}` (imutável), já que `code` virou mutável e
+  reabriria brecha de reconceder XP numa renumeração futura. `.docs/backend/lessons.md` corrigido
+  (documentava `ON CONFLICT (code) DO NOTHING`, incorreto desde sempre — o código real já fazia
+  `onConflictDoUpdate`) e atualizado com `stable_key`. Teste cobrindo o cenário do achado
+  (`seedLessons.test.ts`, fake in-memory do upsert): renumerar `code` mantendo o mesmo `stable_key`
+  atualiza a linha existente sem duplicar e preservando `id`.
+- **Status:** resolvido. `npm run lint`/`npm run build`/`npm test` verdes (585 testes).

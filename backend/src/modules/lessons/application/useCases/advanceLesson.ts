@@ -154,10 +154,14 @@ export class AdvanceLessonUseCase {
     // conquista como recém-desbloqueada, duplicando o teatro de recompensa
     // (a escrita em si é protegida por `onConflictDoNothing`, o resultado
     // devolvido pra I.1 não).
+    // Chave por `lesson.id` (não `lesson.code`, desde a M.6/achado 010):
+    // `code` virou mutável (reflete só posição didática atual), então usá-lo
+    // aqui reabriria a mesma lição pra reconceder XP se uma renumeração
+    // futura mudasse o `code` de uma lição já concluída. `id` nunca muda.
     const xpResult = await this.xpAwarder.award(
       input.userId,
       LESSON_XP_REWARD,
-      `licao:${lesson.code}`,
+      `licao:${lesson.id}`,
     )
     const streakResult = await this.streakTracker.touch(input.userId)
     await this.recordTrackCompletionIfJustFinished(

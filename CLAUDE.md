@@ -12,7 +12,7 @@ Toda decisão de produto e arquitetura já está fechada nestes três documentos
 
 | Arquivo | O que contém |
 |---|---|
-| `.claude/especificacao-plataforma-investimentos.md` | Fonte da verdade: arquitetura, modelo de dados (DER), motor de mercado, currículo de 33 lições, requisitos formais (RF/RNF), corte de MVP, roadmap de 8 semanas, changelog de decisões (v0.1–v0.5) |
+| `.claude/especificacao-plataforma-investimentos.md` | Fonte da verdade: arquitetura, modelo de dados (DER), motor de mercado, currículo de 35 lições, requisitos formais (RF/RNF), corte de MVP, roadmap de 8 semanas, changelog de decisões (v0.1–v0.5) |
 | `.claude/inventario-telas-plataforma-investimentos.md` | As 28 telas da aplicação — objetivo, conteúdo, ações e navegação de cada uma |
 | `.claude/backlog-plataforma-investimentos.md` | Quebra de tarefas executáveis, organizada pelas 8 semanas do roadmap, com critérios de aceite e dependências |
 | `.claude/identidade-visual-tokens.md` | Tokens de design (tarefa 1.0): paleta dark/light, tipografia, espaçamento, raio/elevação — toda estilização de componente/tela deve seguir este documento |

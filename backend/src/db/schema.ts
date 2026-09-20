@@ -46,6 +46,11 @@ export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'growth_calculator',
   'fixed_income_comparison',
   'live_indicator',
+  // Indicador macro ao vivo (tarefa M.5) — mesma ideia do `live_indicator`
+  // acima, mas a Revelação busca Selic/IPCA via `GET /market/indicators`
+  // (M.3) em vez de um ativo específico; por isso não usa
+  // `microDecisionAssetTicker`.
+  'live_macro_indicator',
 ])
 
 export const users = pgTable('users', {
@@ -119,7 +124,18 @@ export const lessons = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     trackNumber: integer('track_number').notNull(),
     trackName: varchar('track_name', { length: 60 }).notNull(),
-    // Código do currículo (spec 5.1), ex: "0.1", "2.6.3", "3.4".
+    // Chave de upsert do seed (achado 010, tarefa M.6) — atribuída uma vez
+    // por lição e nunca mais tocada, mesmo quando a posição didática muda.
+    // `code` deixou de ser a chave de casamento do upsert justamente porque
+    // ele *é* mutável (reflete posição atual no currículo, como a
+    // renumeração da M.5 exercitou) — usá-lo como chave fazia uma
+    // renumeração reaproveitar a linha física errada, arrastando
+    // `user_lesson_progress` de quem já tinha progresso pra um conteúdo
+    // diferente. Ver `seedLessons.ts` pro upsert real.
+    stableKey: varchar('stable_key', { length: 20 }).notNull(),
+    // Código do currículo (spec 5.1), ex: "0.1", "2.6.3", "3.4" — só posição
+    // didática atual, mutável em renumeração (ex: M.5). Nunca usado como
+    // chave de upsert do seed desde a M.6, ver `stableKey` acima.
     code: varchar('code', { length: 10 }).notNull(),
     sortOrder: integer('sort_order').notNull(),
     title: varchar('title', { length: 150 }).notNull(),
@@ -166,6 +182,7 @@ export const lessons = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    unique('lessons_stable_key_unique').on(table.stableKey),
     unique('lessons_code_unique').on(table.code),
     unique('lessons_sort_order_unique').on(table.sortOrder),
   ],

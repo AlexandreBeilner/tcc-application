@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math/rand"
 
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
 )
 
@@ -16,8 +17,8 @@ import (
 // 3.3 não fecha estes números como fechou pro GBM (tabela da tarefa 3.1),
 // só os invariantes qualitativos (Sofisticado mais sensível à Selic,
 // surpresa positiva sobe o preço/negativa desce). Mesmo tratamento de
-// SensitivityByRiskClass/selic.DefaultNeutralRate/tick.DefaultInitialPrice:
-// sujeitos à calibração fina da tarefa 8.1.
+// selic.DefaultNeutralRate/tick.DefaultInitialPrice: sujeitos à calibração
+// fina da tarefa 8.1.
 const (
 	// DefaultBaseGrowth é o crescimento_base ilustrativo aplicado a toda
 	// empresa seedada, na ausência de uma calibração por empresa (a spec
@@ -32,31 +33,32 @@ const (
 	// anterior.
 	DefaultBaseRevenue = 1_000_000.0
 
-	// Os cinco coeficientes abaixo (tarefa 4.8) derivam net_income/ebit/
-	// net_equity/gross_debt/cash_equivalents a partir de net_revenue já
-	// calculado (RevenueSeries/NextGrowth) — igual a DefaultBaseGrowth e
-	// SensitivityByRiskClass, são margens/alavancagem ilustrativas sem
-	// tabela numérica fechada pela spec, sujeitas à calibração da tarefa
-	// 8.1. EBITMargin > NetMargin reflete o efeito de impostos/juros entre
-	// os dois indicadores, mesmo invariante contábil qualquer companhia
-	// real respeita.
+	// Os cinco coeficientes abaixo (tarefa 4.8) eram, até a tarefa K.2
+	// (backlog-motor-mercado-realista), um único conjunto genérico aplicado
+	// a toda empresa — hoje só sobrevivem como fallback de
+	// CoefficientsForSector pra um catalog.Sector fora dos 6 fixos da spec
+	// 3.3.2 (não deveria acontecer: catalog.NewCompany já valida o setor na
+	// criação da empresa). EBITMargin > NetMargin reflete o efeito de
+	// impostos/juros entre os dois indicadores, mesmo invariante contábil
+	// que qualquer companhia real — e qualquer setor calibrado em
+	// CoefficientsBySector — respeita.
 
-	// DefaultNetMarginPct é a margem líquida ilustrativa (net_income /
-	// net_revenue) aplicada a toda empresa seedada.
+	// DefaultNetMarginPct é a margem líquida de fallback (net_income /
+	// net_revenue), usada só quando o setor não é um dos 6 fixos.
 	DefaultNetMarginPct = 0.10
-	// DefaultEBITMarginPct é a margem EBIT ilustrativa (ebit / net_revenue)
+	// DefaultEBITMarginPct é a margem EBIT de fallback (ebit / net_revenue)
 	// — maior que DefaultNetMarginPct pelo mesmo motivo que EBIT > net
 	// income numa demonstração de resultado real (antes de juros/impostos).
 	DefaultEBITMarginPct = 0.18
-	// DefaultEquityToRevenueRatio converte net_revenue em net_equity
-	// ilustrativo (patrimônio líquido tipicamente maior que a receita de um
+	// DefaultEquityToRevenueRatio (fallback) converte net_revenue em
+	// net_equity (patrimônio líquido tipicamente maior que a receita de um
 	// único ciclo trimestral).
 	DefaultEquityToRevenueRatio = 1.2
-	// DefaultDebtToEquityRatio converte net_equity em gross_debt ilustrativo
+	// DefaultDebtToEquityRatio (fallback) converte net_equity em gross_debt
 	// — alavancagem moderada (dívida bruta menor que o patrimônio líquido).
 	DefaultDebtToEquityRatio = 0.4
-	// DefaultCashToRevenueRatio converte net_revenue em cash_equivalents
-	// ilustrativo.
+	// DefaultCashToRevenueRatio (fallback) converte net_revenue em
+	// cash_equivalents.
 	DefaultCashToRevenueRatio = 0.15
 )
 
@@ -64,14 +66,104 @@ const (
 // desvios da Selic por `risk_class` do ativo vinculado à empresa (spec
 // 3.2.2: setores cíclicos/mais alavancados — Sofisticado — são mais
 // sensíveis a juros altos que setores de fluxo de caixa mais estável —
-// Conservador). A spec não fecha uma tabela numérica pra isso como fechou
-// pro GBM (tarefa 3.1) — só o invariante relativo (Sofisticado mais
-// sensível que Conservador) é exigido —, então estes números, como
-// selic.DefaultNeutralRate, ficam sujeitos à calibração fina da tarefa
-// 8.1, não são "a" resposta fechada da spec.
+// Conservador). Continua em uso só por bot.FundamentalistFairPrice (retorno
+// exigido na fórmula de Justified Price-to-Book) — o crescimento
+// (ExpectedGrowth/GrowthSeries/NextGrowth, abaixo) passou a usar
+// CoefficientsBySector[sector].SelicSensitivity a partir da tarefa K.2, não
+// mais este mapa. As duas fontes de sensibilidade podem divergir pra uma
+// mesma empresa (uma por setor, outra por risk_class do ativo) — achado
+// registrado em .claude/pontos-em-aberto-decisao-produto.md, decisão de
+// unificação (ou não) fica pra uma sessão futura, fora do escopo de K.2
+// ("Aplicação da calibração em fundamentals.go").
 var SensitivityByRiskClass = map[equity.RiskClass]float64{
 	equity.RiskClassConservador: 0.02,
 	equity.RiskClassSofisticado: 0.06,
+}
+
+// SectorCoefficients agrupa os 5 coeficientes de DeriveFinancials mais a
+// sensibilidade de crescimento à Selic — os 6 números que a tarefa K.1
+// (.claude/calibracao-fundamentos-setor.md) recalibrou por catalog.Sector,
+// com fonte real citada por setor, em vez do único conjunto genérico
+// (Default*) usado até a tarefa K.2. Cada campo aqui é o CENTRO da faixa
+// que o documento da K.1 propõe pra cada setor, não um teto/piso — a faixa
+// de variação plausível entre empresas do mesmo setor (pedido explícito do
+// autor: "podemos ter empresas acima ou abaixo da média") ainda não tem
+// mecanismo de sorteio implementado; a nota de implementação da K.1 (seção
+// "Recomendação de implementação para a K.2" do documento) já registra isso
+// como trabalho futuro, não coberto por esta struct.
+type SectorCoefficients struct {
+	NetMarginPct         float64
+	EBITMarginPct        float64
+	EquityToRevenueRatio float64
+	DebtToEquityRatio    float64
+	CashToRevenueRatio   float64
+	SelicSensitivity     float64
+}
+
+// CoefficientsBySector são os coeficientes centrais propostos pela pesquisa
+// da tarefa K.1 pros 6 setores fixos da spec 3.3.2 — cada um ancorado em
+// empresa(s) real(is) da B3 e fonte citada (detalhe completo, com fonte por
+// número, em .claude/calibracao-fundamentos-setor.md):
+//
+//   - Mineração: Vale (release 1T25) — sensibilidade baixa à Selic, receita
+//     majoritariamente dolarizada/exportadora.
+//   - Agronegócio: SLC Agrícola (resultado 2024) — alavancagem elevada,
+//     dependência de crédito rural.
+//   - Bancário/Financeiro: ROE/Basileia do sistema bancário (Banco
+//     Central) — patrimônio/dívida são proxy simplificado (banco não tem
+//     dívida bruta convencional, ver nota no documento da K.1).
+//   - Varejo: Lojas Renner + Magazine Luiza (releases 3T24) — as duas
+//     pontas reais da mesma faixa (margem alta vs. margem fina).
+//   - Energia: Equatorial + Energisa (releases 4T24/4T25/1T26) — setor
+//     defensivo/regulado apesar da alavancagem alta.
+//   - Tecnologia: TOTVS (release 4T25) — maior sensibilidade à Selic entre
+//     os 6 setores (fluxo de caixa de longo prazo).
+var CoefficientsBySector = map[catalog.Sector]SectorCoefficients{
+	catalog.SectorMineracao: {
+		NetMarginPct: 0.15, EBITMarginPct: 0.24, EquityToRevenueRatio: 1.3,
+		DebtToEquityRatio: 0.45, CashToRevenueRatio: 0.15, SelicSensitivity: 0.02,
+	},
+	catalog.SectorAgronegocio: {
+		NetMarginPct: 0.07, EBITMarginPct: 0.12, EquityToRevenueRatio: 1.0,
+		DebtToEquityRatio: 1.0, CashToRevenueRatio: 0.08, SelicSensitivity: 0.05,
+	},
+	catalog.SectorBancario: {
+		NetMarginPct: 0.22, EBITMarginPct: 0.30, EquityToRevenueRatio: 2.2,
+		DebtToEquityRatio: 1.5, CashToRevenueRatio: 0.30, SelicSensitivity: 0.05,
+	},
+	catalog.SectorVarejo: {
+		NetMarginPct: 0.05, EBITMarginPct: 0.09, EquityToRevenueRatio: 0.6,
+		DebtToEquityRatio: 0.9, CashToRevenueRatio: 0.08, SelicSensitivity: 0.06,
+	},
+	catalog.SectorEnergia: {
+		NetMarginPct: 0.12, EBITMarginPct: 0.22, EquityToRevenueRatio: 1.4,
+		DebtToEquityRatio: 1.2, CashToRevenueRatio: 0.15, SelicSensitivity: 0.025,
+	},
+	catalog.SectorTecnologia: {
+		NetMarginPct: 0.15, EBITMarginPct: 0.22, EquityToRevenueRatio: 0.9,
+		DebtToEquityRatio: 0.35, CashToRevenueRatio: 0.25, SelicSensitivity: 0.07,
+	},
+}
+
+// CoefficientsForSector devolve os coeficientes calibrados de um setor
+// (CoefficientsBySector) — com fallback pros 5 coeficientes genéricos
+// antigos (Default*, SelicSensitivity 0) quando sector não é um dos 6 fixos
+// da spec 3.3.2. Não deveria acontecer com o catálogo validado
+// (catalog.NewCompany já rejeita setor fora da lista na criação da
+// empresa) — mesmo tratamento defensivo já dado a
+// SensitivityByRiskClass[risk_class desconhecida] (zero value do map):
+// não trava o ciclo de relatório por um dado de catálogo inesperado.
+func CoefficientsForSector(sector catalog.Sector) SectorCoefficients {
+	if c, ok := CoefficientsBySector[sector]; ok {
+		return c
+	}
+	return SectorCoefficients{
+		NetMarginPct:         DefaultNetMarginPct,
+		EBITMarginPct:        DefaultEBITMarginPct,
+		EquityToRevenueRatio: DefaultEquityToRevenueRatio,
+		DebtToEquityRatio:    DefaultDebtToEquityRatio,
+		CashToRevenueRatio:   DefaultCashToRevenueRatio,
+	}
 }
 
 // Config parametriza a geração de fundamentos sintéticos de uma empresa
@@ -181,21 +273,20 @@ type Financials struct {
 
 // DeriveFinancials deriva net_income/ebit/net_equity/gross_debt/
 // cash_equivalents a partir de net_revenue já calculado (RevenueSeries/
-// NextGrowth), aplicando os coeficientes ilustrativos DefaultNetMarginPct/
-// DefaultEBITMarginPct/DefaultEquityToRevenueRatio/
-// DefaultDebtToEquityRatio/DefaultCashToRevenueRatio — mesmo tratamento
-// "sujeito à calibração 8.1" já dado a SensitivityByRiskClass/
-// priceSensitivity (tarefa 3.5/3.6). Usada pelo Temporizador (tarefa 3.14)
-// a cada ciclo de relatório, junto de RevenueSeries/NextGrowth.
-func DeriveFinancials(netRevenue float64) Financials {
-	netEquity := netRevenue * DefaultEquityToRevenueRatio
+// NextGrowth), aplicando os coeficientes calibrados por setor
+// (CoefficientsForSector, tarefa K.2 — antes da K.2, um único conjunto
+// genérico pra toda empresa). Usada pelo Temporizador (tarefa 3.14) a cada
+// ciclo de relatório, junto de RevenueSeries/NextGrowth.
+func DeriveFinancials(sector catalog.Sector, netRevenue float64) Financials {
+	coeffs := CoefficientsForSector(sector)
+	netEquity := netRevenue * coeffs.EquityToRevenueRatio
 	return Financials{
 		NetRevenue:      netRevenue,
-		NetIncome:       netRevenue * DefaultNetMarginPct,
-		EBIT:            netRevenue * DefaultEBITMarginPct,
+		NetIncome:       netRevenue * coeffs.NetMarginPct,
+		EBIT:            netRevenue * coeffs.EBITMarginPct,
 		NetEquity:       netEquity,
-		GrossDebt:       netEquity * DefaultDebtToEquityRatio,
-		CashEquivalents: netRevenue * DefaultCashToRevenueRatio,
+		GrossDebt:       netEquity * coeffs.DebtToEquityRatio,
+		CashEquivalents: netRevenue * coeffs.CashToRevenueRatio,
 	}
 }
 
@@ -238,13 +329,11 @@ var (
 //
 //	VPA = targetPrice / ((ROE/requiredReturn) × (1+growthRate))
 //	netEquity = VPA × outstandingShares
-//	netRevenue = netEquity / DefaultEquityToRevenueRatio
+//	netRevenue = netEquity / coeffs.EquityToRevenueRatio
 //
-// ROE usa DefaultNetMarginPct/DefaultEquityToRevenueRatio — os mesmos
-// coeficientes ilustrativos globais que DeriveFinancials já aplica (ainda
-// não diferenciados por setor; isso é a pesquisa de calibração setorial já
-// reservada pra Fase K, proposta motor-mercado-realista seção 7, um
-// problema separado deste). requiredReturn assume == selicNeutral: no
+// ROE usa os coeficientes calibrados de sector (CoefficientsForSector,
+// tarefa K.2 — antes da K.2, o único conjunto genérico global que
+// DeriveFinancials aplicava). requiredReturn assume == selicNeutral: no
 // instante do seed, antes de qualquer ciclo de relatório, a Selic simulada
 // ainda não teve chance de desviar da sua âncora neutra, então o termo de
 // desvio de FundamentalistFairPrice (sensibilidade × desvio) é zero —
@@ -252,10 +341,10 @@ var (
 // selicAnnualRate == selicNeutral de FundamentalistFairPrice.
 //
 // Generaliza pra qualquer ativo futuro (currículo completo, tarefa 7.2):
-// dado qualquer outstandingShares/targetPrice, devolve o net_revenue exato
-// que faz o Fundamentalista nascer "satisfeito" com o preço de partida —
-// nenhuma álgebra manual nem constante por ativo.
-func BootstrapFinancialsForTargetPrice(targetPrice float64, outstandingShares int64, growthRate, selicNeutral float64) (Financials, error) {
+// dado qualquer sector/outstandingShares/targetPrice, devolve o net_revenue
+// exato que faz o Fundamentalista nascer "satisfeito" com o preço de
+// partida — nenhuma álgebra manual nem constante por ativo.
+func BootstrapFinancialsForTargetPrice(sector catalog.Sector, targetPrice float64, outstandingShares int64, growthRate, selicNeutral float64) (Financials, error) {
 	if targetPrice <= 0 {
 		return Financials{}, ErrInvalidTargetPrice
 	}
@@ -270,18 +359,19 @@ func BootstrapFinancialsForTargetPrice(targetPrice float64, outstandingShares in
 		return Financials{}, ErrInvalidGrowthRate
 	}
 
-	// DefaultNetMarginPct/DefaultEquityToRevenueRatio são proporcionais ao
+	// coeffs.NetMarginPct/coeffs.EquityToRevenueRatio são proporcionais ao
 	// mesmo net_revenue desconhecido que esta função resolve (netIncome =
-	// netRevenue × DefaultNetMarginPct, netEquity = netRevenue ×
-	// DefaultEquityToRevenueRatio) — netRevenue cancela na razão, sobra
-	// exatamente DefaultNetMarginPct/DefaultEquityToRevenueRatio. Chama ROE
-	// com esses dois coeficientes (em vez de dividir os dois à mão) pra não
-	// duplicar a fórmula que bot.FundamentalistFairPrice também usa via
-	// fundamentals.ROE — ok é sempre true aqui (DefaultEquityToRevenueRatio é
-	// uma constante > 0, nunca o net_equity real de uma empresa).
-	roe, _ := ROE(DefaultNetMarginPct, DefaultEquityToRevenueRatio)
+	// netRevenue × NetMarginPct, netEquity = netRevenue ×
+	// EquityToRevenueRatio) — netRevenue cancela na razão, sobra exatamente
+	// NetMarginPct/EquityToRevenueRatio. Chama ROE com esses dois
+	// coeficientes (em vez de dividir os dois à mão) pra não duplicar a
+	// fórmula que bot.FundamentalistFairPrice também usa via fundamentals.
+	// ROE — ok é sempre true aqui (EquityToRevenueRatio é uma constante > 0
+	// calibrada por setor, nunca o net_equity real de uma empresa).
+	coeffs := CoefficientsForSector(sector)
+	roe, _ := ROE(coeffs.NetMarginPct, coeffs.EquityToRevenueRatio)
 	vpa := targetPrice / ((roe / selicNeutral) * growthFactor)
 	netEquity := vpa * float64(outstandingShares)
-	netRevenue := netEquity / DefaultEquityToRevenueRatio
-	return DeriveFinancials(netRevenue), nil
+	netRevenue := netEquity / coeffs.EquityToRevenueRatio
+	return DeriveFinancials(sector, netRevenue), nil
 }

@@ -65,11 +65,12 @@ func main() {
 	if databaseURL == "" {
 		// Sem DATABASE_URL, o motor sobe só com /health — POST /accounts,
 		// as rotas de catálogo (incl. cotações, tarefa 4.6), POST /admin/tick,
-		// as rotas de renda fixa, POST/GET /macro-events e as rotas de leitura
-		// de conta/posições/extrato (tarefa 4.7) respondem 503 (ver
-		// internal/infra/httpserver/account.go, assets.go, admin.go,
-		// fixedincome.go, macroevents.go e positions.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		// as rotas de renda fixa, POST/GET /macro-events, as rotas de leitura
+		// de conta/posições/extrato (tarefa 4.7) e GET /market/indicators/history
+		// (tarefa M.2) respondem 503 (ver internal/infra/httpserver/account.go,
+		// assets.go, admin.go, fixedincome.go, macroevents.go, positions.go e
+		// indicators.go).
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -115,6 +116,12 @@ func main() {
 	botRepository := db.NewBotRepository(pool)
 
 	selicConfig := selic.DefaultConfig(selic.DefaultNeutralRate, seed)
+	// ipcaConfig usa seed+1, não a mesma seed de selicConfig — os dois
+	// processos são singletons globais (sem id de entidade pra derivar via
+	// deterministicSeed, tick.go), então um offset fixo é quem decorrelaciona
+	// o ruído mensal do IPCA do ruído diário da Selic (tarefa M.1); mesmos
+	// SIMULATION_SEED entre reinícios continuam determinísticos (RNF08).
+	ipcaConfig := ipca.DefaultConfig(seed + 1)
 	tickRepository := db.NewTickRepository(pool, quoteCache)
 	// bots/tickRepository (histórico de preço/volume)/orderExecutionRepository
 	// (peek de contexto + ciclo de vida de ordem, achado 005)/
@@ -125,7 +132,7 @@ func main() {
 	// repassados duas vezes (PriceHistoryReader+TradedVolumeReader e
 	// OrderContextLoader+OrderLifecycleManager, respectivamente) — a mesma
 	// instância concreta já implementa os dois papéis.
-	tickService := tick.NewService(tickRepository, botRepository, tickRepository, tickRepository, orderExecutionRepository, orderExecutionService, orderExecutionRepository, selicConfig, seed)
+	tickService := tick.NewService(tickRepository, botRepository, tickRepository, tickRepository, orderExecutionRepository, orderExecutionService, orderExecutionRepository, selicConfig, ipcaConfig, seed)
 
 	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick
@@ -137,7 +144,7 @@ func main() {
 		return err
 	})
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

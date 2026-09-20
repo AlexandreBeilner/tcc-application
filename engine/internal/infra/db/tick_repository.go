@@ -52,10 +52,11 @@ func (r *TickRepository) LoadState(ctx context.Context) (tick.State, bool, error
 // (Advance aplica tick.DefaultInitialPrice nesse caso). Sector (setor da
 // empresa emissora, via companies, tarefa 4.5) fica nil pra ETF/FII, sem
 // CompanyID — usado por Advance pra resolver o fan-out de um evento macro
-// de alvo setorial.
+// de alvo setorial. ShareClass (tarefa J.3) idem via.share_class, mesma
+// coluna que ListDividendPayerAssets já lê (J.2).
 func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetForPricing, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector
+		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector, via.share_class
 		 FROM assets a
 		 LEFT JOIN LATERAL (
 		   SELECT price FROM asset_quotes
@@ -76,7 +77,7 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 	var assets []tick.AssetForPricing
 	for rows.Next() {
 		var a tick.AssetForPricing
-		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector); err != nil {
+		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector, &a.ShareClass); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)
@@ -167,7 +168,7 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, c.sector, f.net_revenue
+		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, f.net_revenue
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -185,7 +186,7 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	var companies []tick.CompanyForFundamentals
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.LastRevenue); err != nil {
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.LastRevenue); err != nil {
 			return nil, err
 		}
 		companies = append(companies, c)
@@ -259,11 +260,14 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // pra decidir o valor por ação/cota do ciclo e o snapshot de elegibilidade
 // (posição na data ex) de um novo dividend_events, e (tarefas G.2/G.3) pra
 // reavaliar NetWorth/PortfolioValue no mesmo calendário — indexador só vem
-// preenchido pro perfil papel (G.3). ETF nunca aparece aqui — não é
-// pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
+// preenchido pro perfil papel (G.3). ShareClass (tarefa J.2) só vem
+// preenchido pra "acao" (via.share_class, "ON"/"PN") — usado por
+// dividendRecordsForCycle pra separar o valor por ação de cada classe.
+// ETF nunca aparece aqui — não é pagador de provento nesta fase (só ação e
+// FII, RF21/lição 2.7).
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
+		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -280,7 +284,7 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.ShareClass, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
 			return nil, err
 		}
 		a.Type = assetType
@@ -380,20 +384,55 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 	return payments, nil
 }
 
+// ListIndicatorHistory devolve a série histórica de
+// market_indicator_history, ordenada cronologicamente e limitada aos days
+// dias mais recentes — mesmo padrão de ListQuoteHistory (asset_quotes),
+// usada só por GET /market/indicators/history (tarefa M.2). Lista vazia
+// (não erro) se o Temporizador nunca rodou (motor recém-subido, tabela
+// ainda vazia) — mesmo tratamento de "sem histórico ainda" já dado a
+// ListQuoteHistory/handleListMacroEvents.
+func (r *TickRepository) ListIndicatorHistory(ctx context.Context, days int) ([]tick.IndicatorHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m FROM (
+		   SELECT simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m FROM market_indicator_history
+		   ORDER BY simulated_day DESC
+		   LIMIT $1
+		 ) recent ORDER BY simulated_day ASC`,
+		days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]tick.IndicatorHistoryEntry, 0)
+	for rows.Next() {
+		var e tick.IndicatorHistoryEntry
+		if err := rows.Scan(&e.SimulatedDay, &e.SelicRate, &e.IPCAMonthlyRate, &e.IPCAAccumulated12m); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
-// as cotações geradas (Quote.Quantity vira asset_quotes.total_quantity,
-// achado 005 parte B — insumo de RecentTradedVolume) e as novas linhas de
+// uma nova linha em market_indicator_history (tarefa M.1 — histórico
+// completo de Selic/IPCA, nunca atualizada depois de gravada, diferente da
+// linha singleton de market_calendar), as cotações geradas (Quote.Quantity
+// vira asset_quotes.total_quantity, achado 005 parte B — insumo de
+// RecentTradedVolume) e as novas linhas de
 // company_fundamentals (tarefa 3.14, os 6 campos desde a tarefa 4.8), na
 // mesma transação — nem
-// calendário, cotações nem fundamentos são escrita de saldo/posição de
-// usuário, por isso não passa por Event Sourcing (mesma distinção de
-// catalog_repository.go pra dado cadastral). period_date usa o relógio
-// real (time.Now()), não o dia simulado — mesma decisão já tomada pra DU
-// restante de renda fixa na tarefa 3.13 (coerente com "1 tick = 1 dia
-// real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates (tarefa
-// G.3) são um UPDATE por item em fii_details.net_worth/portfolio_value,
-// não um INSERT — diferente de company_fundamentals, não existe tabela de
-// histórico pra essas reavaliações.
+// calendário, histórico de indicador, cotações nem fundamentos são escrita
+// de saldo/posição de usuário, por isso não passam por Event Sourcing
+// (mesma distinção de catalog_repository.go pra dado cadastral). period_date
+// usa o relógio real (time.Now()), não o dia simulado — mesma decisão já
+// tomada pra DU restante de renda fixa na tarefa 3.13 (coerente com "1 tick
+// = 1 dia real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates
+// (tarefa G.3) são um UPDATE por item em fii_details.net_worth/
+// portfolio_value, não um INSERT — diferente de company_fundamentals, não
+// existe tabela de histórico pra essas reavaliações.
 func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -409,6 +448,14 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		   selic_rate = EXCLUDED.selic_rate,
 		   updated_at = now()`,
 		result.State.Day, result.State.SelicRate,
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO market_indicator_history (simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m)
+		 VALUES ($1, $2, $3, $4)`,
+		result.State.Day, result.State.SelicRate, result.IPCAMonthlyRate, result.IPCAAccumulated12m,
 	); err != nil {
 		return err
 	}

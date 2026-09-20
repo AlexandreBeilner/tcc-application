@@ -15,9 +15,11 @@ import { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseF
 import { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
+import { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
 import { createFakeAccountReader } from '../../test/fakes/fakeAccountReader'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeFixedIncomeExecutor } from '../../test/fakes/fakeFixedIncomeExecutor'
+import { createFakeIndicatorHistoryReader } from '../../test/fakes/fakeIndicatorHistoryReader'
 import { createFakeOrderExecutor } from '../../test/fakes/fakeOrderExecutor'
 import { createFakeProductUnlockReader } from '../../test/fakes/fakeProductUnlockReader'
 import { createMarketRouter } from './marketRouter'
@@ -95,6 +97,11 @@ function buildApp(
     },
     getTaxRate: { tax_rate: 0.175 },
   })
+  const indicatorHistoryReader = createFakeIndicatorHistoryReader({
+    history: [
+      { simulated_day: 1, selic_rate: 10, ipca_monthly_rate: 0.0037, ipca_accumulated_12m: 0.045 },
+    ],
+  })
   // Desbloqueado por padrão (`asset:acao`, o único tipo usado pelo
   // catalogReader fake acima) — os testes que não são sobre o gate da
   // 7.0.1 continuam exercitando só o caminho feliz; `productUnlockReader`
@@ -123,6 +130,7 @@ function buildApp(
       redeemFixedIncome: new RedeemFixedIncomeUseCase(fixedIncomeExecutor),
       simulateFixedIncome: new SimulateFixedIncomeUseCase(fixedIncomeExecutor),
       getFixedIncomeTaxRate: new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor),
+      getIndicatorHistory: new GetIndicatorHistoryUseCase(indicatorHistoryReader),
       authMiddleware,
     }),
   )
@@ -135,6 +143,7 @@ function buildApp(
     orderExecutor,
     fixedIncomeExecutor,
     productUnlockReader,
+    indicatorHistoryReader,
   }
 }
 
@@ -209,6 +218,60 @@ describe('GET /market/companies/:id', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.company.name).toBe('Petrobras')
+  })
+})
+
+describe('GET /market/indicators', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    const res = await request(app).get('/market/indicators')
+    expect(res.status).toBe(401)
+  })
+
+  it('retorna a série histórica de Selic/IPCA', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/indicators?days=30')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.indicators).toEqual([
+      { simulated_day: 1, selic_rate: 10, ipca_monthly_rate: 0.0037, ipca_accumulated_12m: 0.045 },
+    ])
+  })
+
+  it('repassa days pro reader, sem default próprio (motor decide)', async () => {
+    const { app, tokenIssuer, indicatorHistoryReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    await request(app).get('/market/indicators?days=30').set('Authorization', `Bearer ${token}`)
+    await request(app).get('/market/indicators').set('Authorization', `Bearer ${token}`)
+
+    expect(indicatorHistoryReader.getIndicatorHistoryCalls).toEqual([30, undefined])
+  })
+
+  it('retorna 400 pra days inválido', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/indicators?days=0')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('traduz um EngineRequestError do motor 1:1 pro cliente', async () => {
+    const { app, tokenIssuer, indicatorHistoryReader } = buildApp()
+    indicatorHistoryReader.errorToThrow = new EngineRequestError(503, 'motor indisponível')
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app).get('/market/indicators').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(503)
+    expect(res.body).toEqual({ error: 'motor indisponível' })
   })
 })
 

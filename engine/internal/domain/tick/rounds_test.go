@@ -3,11 +3,11 @@ package tick
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
-	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -66,6 +66,16 @@ func acaoAsset(assetID string, lastPrice float64) AssetForPricing {
 		AssetID: assetID, Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector,
 		CompanyID: &companyID, LastPrice: &lastPrice,
 	}
+}
+
+// acaoAssetWithShareClass é acaoAsset com ShareClass preenchido (tarefa
+// J.3) — usado pelos testes que precisam distinguir ON/PN da mesma empresa
+// (acaoAsset sozinha nunca preenche ShareClass, contando como ON por
+// convenção, mesma nota do campo em tick.go).
+func acaoAssetWithShareClass(assetID string, lastPrice float64, shareClass string) AssetForPricing {
+	a := acaoAsset(assetID, lastPrice)
+	a.ShareClass = &shareClass
+	return a
 }
 
 // fiiAsset monta um FII pra teste (tarefa G.1) — sem RiskClass/Sector/
@@ -233,12 +243,21 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 		},
 		{
 			// Histórico com volume zerado em todos os dias (ativo sem
-			// nenhuma negociação ainda, mas já com `days` linhas de
-			// asset_quotes) produz ceiling 0 — comportamento emergente
-			// aceito (mercado sem liquidez observada), não um bug: capToFloat
-			// bloqueia o lado de compra nesse caso, nunca panica (ver
-			// TestDecideNoiseOrder_TetoZeraQuantidadeCompravel*).
-			name: "histórico existente mas todo zerado produz ceiling zero", floatCeiling: &floatCeiling,
+			// nenhuma negociação real recente, mas já com `days` linhas de
+			// asset_quotes) não pode mais produzir ceiling 0 (achado 005
+			// parte C, J.6) — isso travava a liquidez do ativo pra sempre
+			// (nenhuma ordem de compra nova conseguia quantidade >= 1, e sem
+			// contraparte de compra as vendas também paravam de casar).
+			// MinOrderSizeCeiling (piso de 1) garante que o teto de volume
+			// nunca colapsa a zero enquanto o float disponível é positivo.
+			name: "histórico existente mas todo zerado usa o piso mínimo, não zero", floatCeiling: &floatCeiling,
+			recentVolume: []int{0, 0, 0}, want: ptr(MinOrderSizeCeiling),
+		},
+		{
+			// floatCeiling também zerado (sem float disponível pra comprar
+			// de jeito nenhum) continua devolvendo 0 mesmo com o piso — o
+			// piso nunca infla o teto além do que o float realmente permite.
+			name: "float zero permanece zero mesmo com o piso mínimo", floatCeiling: ptr(0),
 			recentVolume: []int{0, 0, 0}, want: ptr(0),
 		},
 	}
@@ -289,6 +308,50 @@ func TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat(t *testin
 	}
 }
 
+// TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra
+// cobre o achado 005 (Parte C)/tarefa J.6: vários dias simulados seguidos
+// com volume real negociado zerado (recentVolume todo 0 — diferente de "sem
+// histórico ainda", já tratado por effectiveOrderSizeCeiling desde a parte
+// B) não pode mais zerar o teto de tamanho de ordem pra sempre. Sem
+// MinOrderSizeCeiling, o teste falharia com fills == 0: capToFloat
+// devolveria maxBuyQuantity == 0 pro bot Ruído (mesma personalidade dos
+// outros testes desta função), DecideNoiseOrder nunca conseguiria gerar uma
+// ordem de compra viável (sem posição pra vender tampouco), e nenhum fill
+// aconteceria — exatamente o travamento observado no teste de ponta a ponta
+// da Fase J (2026-09-19/20).
+func TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}}
+	floatCeiling := int64(1_000_000)
+	svc.orderContext = &fakeOrderContextLoader{balance: 104_866_356_108.88, outstandingShares: &floatCeiling}
+	svc.tradedVolume = &fakeTradedVolumeReader{volumes: map[string][]int{"fii1": {0, 0, 0, 0, 0}}}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
+
+	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 {
+		t.Fatal("fills = 0, want > 0 (o piso mínimo deveria ter permitido pelo menos uma ordem de compra viável, quebrando o travamento)")
+	}
+	var sawBuy bool
+	for _, s := range submitter.submitted {
+		if s.req.Side != orderbook.SideBuy {
+			continue
+		}
+		sawBuy = true
+		if s.req.Quantity != MinOrderSizeCeiling {
+			t.Errorf("ordem de compra Quantity = %d, want %d (teto de volume no piso mínimo, sem histórico real além de zero)", s.req.Quantity, MinOrderSizeCeiling)
+		}
+	}
+	if !sawBuy {
+		t.Fatal("nenhuma ordem de compra submetida — travamento de liquidez não foi corrigido")
+	}
+}
+
 // TestRunIntradayRounds_PropagaErroDeRecentTradedVolume espelha
 // TestRunIntradayRounds_PropagaErroDeLoadContext, pro novo colaborador
 // TradedVolumeReader (achado 005 parte B) — falha de IO aborta o tick,
@@ -335,6 +398,189 @@ func TestRunIntradayRounds_VolumeNegociadoAcumuladoPorAtivo(t *testing.T) {
 	}
 	if volumes["a1"] != wantVolume {
 		t.Errorf("volumes[a1] = %d, want %d (soma de Quantity de toda ordem submetida e preenchida)", volumes["a1"], wantVolume)
+	}
+}
+
+// TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes
+// cobre a metade "preços independentes (books separados)" do critério de
+// aceite da tarefa J.1 (Ações ON/PN, backlog-motor-mercado-realista):
+// acaoAsset hardcoda companyID "c1" pra todo ativo que cria — chamá-la duas
+// vezes com asset_id diferente já reproduz o cenário real de ON/PN da mesma
+// empresa. O ponto central: state := equities[chosen.AssetID] (rounds.go)
+// já indexa o preço por asset_id, nunca por company_id — este teste trava
+// isso via observável externo (closingPrices), não só lendo o código.
+func TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"on1": 10_000, "pn1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
+	if *assets[0].CompanyID != *assets[1].CompanyID {
+		t.Fatalf("setup inválido: on1/pn1 precisam compartilhar CompanyID, got %q e %q", *assets[0].CompanyID, *assets[1].CompanyID)
+	}
+
+	// 20 rodadas (bem mais que as 1-4 reais de D.1) só pra este bot único
+	// alcançar os dois ativos do universo pelo menos uma vez cada — seed
+	// determinística (svc.seed, roundSeed), sem aleatoriedade real entre
+	// execuções do teste.
+	rounds := make([]IntradayRound, 20)
+	for i := range rounds {
+		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
+	}
+
+	closing, volumes, fills, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 || volumes["on1"] == 0 || volumes["pn1"] == 0 {
+		t.Fatalf("volumes = %+v, fills = %d — cenário precisa gerar negociação real nos dois ativos (ajustar fixture)", volumes, fills)
+	}
+
+	var lastOn, lastPn float64
+	for _, s := range submitter.submitted {
+		switch s.req.AssetID {
+		case "on1":
+			lastOn = s.req.Price
+		case "pn1":
+			lastPn = s.req.Price
+		}
+	}
+	if closing["on1"] != lastOn {
+		t.Errorf("closing[on1] = %v, want %v (último fill submetido pra on1 — book de on1 não pode refletir fill de pn1)", closing["on1"], lastOn)
+	}
+	if closing["pn1"] != lastPn {
+		t.Errorf("closing[pn1] = %v, want %v (último fill submetido pra pn1 — book de pn1 não pode refletir fill de on1)", closing["pn1"], lastPn)
+	}
+	if closing["on1"] == closing["pn1"] {
+		t.Errorf("closing[on1] == closing[pn1] (%v) — dois preços iniciais diferentes (100/200) convergindo pro mesmo valor sugere books cruzados entre as duas classes", closing["on1"])
+	}
+}
+
+// TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto
+// cobre a metade "compartilham o mesmo company_fundamentals (mesmo balanço)"
+// do critério de aceite da J.1: companyRoundContexts é indexado por
+// CompanyID (não por AssetID) — uma empresa com dois ativos vinculados (ON/
+// PN) produz UMA entrada só no mapa, que os dois ativos leem via
+// assetCompanies. Não é uma mudança de comportamento desta tarefa: já valia
+// por construção desde a Fase D/E (tick.go só itera CompanyForFundamentals,
+// nunca AssetForPricing, pra montar este mapa) — este teste documenta e
+// trava essa garantia explicitamente pro caso real de ON/PN, em vez de só
+// inferir do código.
+func TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto(t *testing.T) {
+	const companyID = "c1"
+	revenue := 1_000_000.0
+	company := CompanyForFundamentals{
+		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
+		Sector: "Mineração", LastRevenue: &revenue,
+	}
+	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
+
+	contexts := companyRoundContexts([]CompanyForFundamentals{company}, map[string]float64{}, 1, 10, 10, map[string]float64{})
+	if len(contexts) != 1 {
+		t.Fatalf("len(contexts) = %d, want 1 — duas ações da mesma empresa compartilham um ciclo de fundamentos só, não um por ativo", len(contexts))
+	}
+
+	assetToCompany := assetCompanies(assets)
+	if assetToCompany["on1"] != companyID || assetToCompany["pn1"] != companyID {
+		t.Fatalf("assetCompanies = %+v, want ambos apontando pra %q", assetToCompany, companyID)
+	}
+
+	ctxForOn, ok := contexts[assetToCompany["on1"]]
+	if !ok {
+		t.Fatal("contexto de ON não encontrado")
+	}
+	ctxForPn, ok := contexts[assetToCompany["pn1"]]
+	if !ok {
+		t.Fatal("contexto de PN não encontrado")
+	}
+	if ctxForOn != ctxForPn {
+		t.Errorf("contexto de fundamentos de ON (%+v) difere do de PN (%+v) — mesma empresa deveria compartilhar exatamente o mesmo balanço", ctxForOn, ctxForPn)
+	}
+}
+
+// TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremium
+// cobre a tarefa J.3 (Ações ON/PN, backlog-motor-mercado-realista): o
+// Fundamentalista calcula preço justo separadamente pra ON e PN da mesma
+// empresa — mesmo fundamento (CompanyRoundContext.Financials/GrowthRate,
+// compartilhado por company_id, J.1), mas o dividendo esperado por ação
+// diferente (companies.pn_dividend_premium_pct, J.2) desloca a estimativa da
+// PN acima da ON, proporcionalmente ao premium configurado
+// (CompanyRoundContext.PnDividendPremiumPct, decisionInputFor só aplica pra
+// state.ShareClass == "PN"). knowledgeLevel = 1.0
+// (mustFundamentalistRoundPersonality) elimina o ruído de leitura, tornando
+// os preços submetidos determinísticos — mesma técnica de
+// TestDecideFundamentalistOrder_DirecaoConformeAoDesvio (bot package).
+func TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremium(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustFundamentalistRoundPersonality(t, 1.0)},
+	}}
+	shares := int64(100_000)
+	svc.orderContext = &fakeOrderContextLoader{balance: 10_000_000, positions: map[string]int{"on1": 0, "pn1": 0}, outstandingShares: &shares}
+	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
+	svc.orderSubmitter = submitter
+
+	// LastPrice bem abaixo do preço justo (~10.3, ver comentário do want
+	// abaixo) — garante lado de compra claro pras duas classes, sem
+	// depender de sorteio de lado.
+	assets := []AssetForPricing{acaoAsset("on1", 1), acaoAssetWithShareClass("pn1", 1, "PN")}
+	const pnPremiumPct = 20.0
+	companyContext := map[string]CompanyRoundContext{
+		"c1": {
+			Financials:           fundamentals.Financials{NetIncome: 100_000, NetEquity: 1_000_000},
+			GrowthRate:           0.03,
+			PnDividendPremiumPct: pnPremiumPct,
+		},
+	}
+
+	// 20 rodadas (mesma técnica de
+	// TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes)
+	// só pra este bot único alcançar os dois ativos do universo pelo menos
+	// uma vez cada, seed determinística.
+	rounds := make([]IntradayRound, 20)
+	for i := range rounds {
+		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
+	}
+
+	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, companyContext, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if fills == 0 {
+		t.Fatal("fills = 0, want > 0")
+	}
+
+	var onPrice, pnPrice float64
+	for _, s := range submitter.submitted {
+		switch s.req.AssetID {
+		case "on1":
+			onPrice = s.req.Price
+		case "pn1":
+			pnPrice = s.req.Price
+		}
+	}
+	if onPrice == 0 || pnPrice == 0 {
+		t.Fatalf("onPrice=%v pnPrice=%v, want ambos > 0 — as duas classes precisam ter negociado (ajustar fixture)", onPrice, pnPrice)
+	}
+
+	// VPA = 1_000_000/100_000 = 10; ROE = 100_000/1_000_000 = 0.1;
+	// requiredReturn = selicNeutral (sem desvio) = 0.10; fairPrice ON =
+	// 10 × (0.1/0.10) × 1.03 = 10.3; fairPrice PN = 10.3 × 1.20 = 12.36
+	// (premium de 20% configurado acima).
+	const wantOn = 10.3
+	wantPn := wantOn * (1 + pnPremiumPct/100)
+	if math.Abs(onPrice-wantOn) > 1e-9 {
+		t.Errorf("onPrice = %.6f, want %.6f", onPrice, wantOn)
+	}
+	if math.Abs(pnPrice-wantPn) > 1e-9 {
+		t.Errorf("pnPrice = %.6f, want %.6f", pnPrice, wantPn)
+	}
+	if pnPrice <= onPrice {
+		t.Errorf("pnPrice (%.6f) deveria ser maior que onPrice (%.6f) — prioridade legal de dividendo da PN", pnPrice, onPrice)
 	}
 }
 
@@ -720,7 +966,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -779,6 +1025,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 		submitter,
 		&fakeOrderLifecycleManager{},
 		selicCfg,
+		testIPCAConfig(),
 		1,
 	)
 
@@ -877,10 +1124,10 @@ func TestService_Run_RodadasDeAcaoEntramEmResultQuotesUmaVezSo(t *testing.T) {
 // escolher qual seed base produz a condição de ruído que cada teste precisa
 // (melhor, pior ou sem surpresa) antes de rodar Service.Run com ela de
 // verdade.
-func findReportGrowthSeed(t *testing.T, companyID string, riskClass equity.RiskClass, cycleIndex int, selicNeutralFrac float64, match func(surprise float64) bool) int64 {
+func findReportGrowthSeed(t *testing.T, companyID string, sector catalog.Sector, cycleIndex int, selicNeutralFrac float64, match func(surprise float64) bool) int64 {
 	t.Helper()
 	for candidate := int64(1); candidate < 20_000; candidate++ {
-		cfg := fundamentalsConfig(candidate, companyID, riskClass)
+		cfg := fundamentalsConfig(candidate, companyID, sector)
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, selicNeutralFrac, selicNeutralFrac)
 		if match(actualGrowth - fundamentals.DefaultBaseGrowth) {
 			return candidate
@@ -920,7 +1167,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -963,6 +1210,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 		submitter,
 		&fakeOrderLifecycleManager{},
 		selicCfg,
+		testIPCAConfig(),
 		seed,
 	)
 	return svc, assetID, startPrice
@@ -985,7 +1233,7 @@ func closingPriceFor(result Result, assetID string) (float64, bool) {
 // fundamentals.ReportDayPriceEffect (removida nesta tarefa).
 func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t *testing.T) {
 	const selicNeutralFrac = 0.10
-	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > 0.02 })
+	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > 0.02 })
 
 	svc, assetID, startPrice := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
@@ -1008,7 +1256,7 @@ func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t 
 // espelhando o teste acima.
 func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *testing.T) {
 	const selicNeutralFrac = 0.10
-	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise < -0.02 })
+	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise < -0.02 })
 
 	svc, assetID, startPrice := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
@@ -1034,7 +1282,7 @@ func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *
 // de abertura, ao contrário dos dois testes acima.
 func TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento(t *testing.T) {
 	const selicNeutralFrac = 0.10
-	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > -0.002 && surprise < 0.002 })
+	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > -0.002 && surprise < 0.002 })
 
 	svc, assetID, startPrice := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())

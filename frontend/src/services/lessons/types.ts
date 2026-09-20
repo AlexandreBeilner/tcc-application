@@ -1,7 +1,7 @@
 // Vocabulário fixo do widget de Micro-decisão (tarefa 7.0.2) — 'reflection'
 // é o padrão (checkbox "já pensei"); os outros embutem um componente já
 // existente (tarefa 6.7) — ver `pages/Lesson/index.tsx`.
-export type MicroDecisionType = 'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator'
+export type MicroDecisionType = 'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator' | 'live_macro_indicator'
 
 // Espelha `.docs/backend/lessons.md` (`GET /lessons`) — `status` já vem
 // calculado por usuário (`completed`/`available`/`locked`), ordenado por

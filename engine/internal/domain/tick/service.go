@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
 
@@ -31,6 +32,7 @@ type Service struct {
 	orderSubmitter OrderSubmitter
 	orderLifecycle OrderLifecycleManager
 	selicCfg       selic.Config
+	ipcaCfg        ipca.Config
 	seed           int64
 	mu             sync.Mutex
 }
@@ -38,7 +40,10 @@ type Service struct {
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é
 // ignorado (Advance usa o estado persistido); os demais campos (Neutral,
 // ReversionSpeed, Volatility) calibram a reversão à média da Selic
-// simulada, mesma calibração de selic.DefaultConfig. seed é a seed base da
+// simulada, mesma calibração de selic.DefaultConfig. ipcaCfg (tarefa M.1)
+// calibra o IPCA mensal sintético (ipca.DefaultConfig) — diferente de
+// selicCfg, não tem um campo "Initial" (IPCA não tem estado/memória entre
+// meses, ver doc do pacote ipca). seed é a seed base da
 // simulação (RNF08) — fixa entre reinícios, configurada uma vez na
 // composição (cmd/api/main.go). bots/priceHistory/tradedVolume/orderContext/
 // orderSubmitter/orderLifecycle (Fase D.2/achado 005, rounds.go) alimentam
@@ -47,7 +52,7 @@ type Service struct {
 // *db.OrderExecutionRepository (repassado duas vezes: OrderContextLoader e
 // OrderLifecycleManager) e *orderexecution.Service (submissão — o mesmo já
 // usado por POST /orders, sem caminho paralelo pra ordem de bot).
-func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader, tradedVolume TradedVolumeReader, orderContext OrderContextLoader, orderSubmitter OrderSubmitter, orderLifecycle OrderLifecycleManager, selicCfg selic.Config, seed int64) *Service {
+func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader, tradedVolume TradedVolumeReader, orderContext OrderContextLoader, orderSubmitter OrderSubmitter, orderLifecycle OrderLifecycleManager, selicCfg selic.Config, ipcaCfg ipca.Config, seed int64) *Service {
 	return &Service{
 		repo:           repo,
 		bots:           bots,
@@ -57,6 +62,7 @@ func NewService(repo Repository, bots BotRoster, priceHistory PriceHistoryReader
 		orderSubmitter: orderSubmitter,
 		orderLifecycle: orderLifecycle,
 		selicCfg:       selicCfg,
+		ipcaCfg:        ipcaCfg,
 		seed:           seed,
 	}
 }
@@ -102,7 +108,7 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.seed)
+	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.ipcaCfg, s.seed)
 
 	dayIndex := result.State.Day - 1 // 0-based, mesma convenção de Advance
 

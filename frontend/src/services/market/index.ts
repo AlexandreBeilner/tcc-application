@@ -4,6 +4,7 @@ import type {
     AssetSummary,
     AssetType,
     Company,
+    IndicatorHistoryEntry,
     MarketEvent,
     MyAccount,
     PlaceOrderInput,
@@ -36,6 +37,7 @@ export type {
     FiiDetail,
     FixedIncomeDetail,
     FixedIncomePositionSummary,
+    IndicatorHistoryEntry,
     MarketEvent,
     MarkToMarket,
     MyAccount,
@@ -73,6 +75,14 @@ export function getAsset(token: string, id: string): Promise<{ asset: AssetDetai
 export function getAssetQuotes(token: string, id: string, days?: number): Promise<{ quotes: QuoteHistoryEntry[] }> {
     const query = days ? `?days=${days}` : ''
     return apiRequest<{ quotes: QuoteHistoryEntry[] }>(`/market/assets/${id}/quotes${query}`, { token })
+}
+
+// Tela "Indicadores Econômicos" (tarefa M.4). Sem default próprio aqui —
+// omitido, o backend/motor decide (`defaultIndicatorHistoryDays = 90`,
+// `.docs/backend/market.md`).
+export function getIndicatorHistory(token: string, days?: number): Promise<{ indicators: IndicatorHistoryEntry[] }> {
+    const query = days ? `?days=${days}` : ''
+    return apiRequest<{ indicators: IndicatorHistoryEntry[] }>(`/market/indicators${query}`, { token })
 }
 
 export function getCompany(token: string, id: string): Promise<{ company: Company }> {
