@@ -71,8 +71,8 @@ func main() {
 	// de produto, já que é a mesma empresa/mesmo perfil de risco).
 	bndd3ID := seedEquity(ctx, repo, "BNDD3", "Banco Nordeste Digital ON", equityRiskSofisticado, &banco, "ON", bancoOutstandingShares)
 	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bancoOutstandingShares)
-	seedInitialFundamentals(ctx, repo, mineradora, valr3OutstandingShares)
-	seedInitialFundamentals(ctx, repo, banco, bancoOutstandingShares)
+	seedInitialFundamentals(ctx, repo, mineradora, catalog.SectorMineracao, valr3OutstandingShares)
+	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bancoOutstandingShares)
 
 	tjlo11ID := seedFIITijolo(ctx, repo)
 	papl11ID := seedFIIPapel(ctx, repo)
@@ -167,7 +167,7 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 	return id
 }
 
-func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, outstandingShares int64) {
+func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, sector catalog.Sector, outstandingShares int64) {
 	if _, found, err := repo.FindLatestFundamentals(ctx, companyID); err != nil {
 		log.Fatalf("erro ao buscar fundamentos da empresa %s: %v", companyID, err)
 	} else if found {
@@ -186,13 +186,13 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 	// isso à mão por empresa (como a sessão D.2 fez, cravando uma
 	// constante de receita-por-ação), BootstrapFinancialsForTargetPrice
 	// deriva o net_revenue que faz o preço justo nascer exatamente em
-	// tick.DefaultInitialPrice, pra qualquer outstandingShares — vale pra
-	// qualquer empresa futura da tarefa 7.2, não só VALR3/BNDD4. A
-	// diferenciação de coeficientes por setor (margens, sensibilidade à
-	// Selic) continua fora de escopo, reservada pra Fase K (proposta
-	// motor-mercado-realista seção 7) — problema separado deste.
+	// tick.DefaultInitialPrice, pra qualquer sector/outstandingShares —
+	// vale pra qualquer empresa futura da tarefa 7.2, não só VALR3/BNDD4.
+	// Os coeficientes já variam por setor desde a tarefa K.2 (margens,
+	// alavancagem, sensibilidade à Selic — fundamentals.CoefficientsBySector,
+	// calibrados na pesquisa da K.1, .claude/calibracao-fundamentos-setor.md).
 	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(
-		tick.DefaultInitialPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selic.DefaultNeutralRate/100)
+		sector, tick.DefaultInitialPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selic.DefaultNeutralRate/100)
 	if err != nil {
 		log.Fatalf("erro ao calibrar fundamentos iniciais da empresa %s: %v", companyID, err)
 	}

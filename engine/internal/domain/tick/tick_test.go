@@ -3,6 +3,7 @@ package tick
 import (
 	"testing"
 
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
@@ -187,7 +188,7 @@ func TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals(t *testing.T) {
 		t.Fatalf("len(Fundamentals) = %d, want 1", len(result.Fundamentals))
 	}
 	f := result.Fundamentals[0]
-	want := fundamentals.DeriveFinancials(f.NetRevenue)
+	want := fundamentals.DeriveFinancials(catalog.Sector(companies[0].Sector), f.NetRevenue)
 
 	if f.NetIncome != want.NetIncome {
 		t.Errorf("NetIncome = %v, want %v", f.NetIncome, want.NetIncome)

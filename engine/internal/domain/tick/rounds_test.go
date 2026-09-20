@@ -8,7 +8,6 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
-	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -915,7 +914,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -1072,10 +1071,10 @@ func TestService_Run_RodadasDeAcaoEntramEmResultQuotesUmaVezSo(t *testing.T) {
 // escolher qual seed base produz a condição de ruído que cada teste precisa
 // (melhor, pior ou sem surpresa) antes de rodar Service.Run com ela de
 // verdade.
-func findReportGrowthSeed(t *testing.T, companyID string, riskClass equity.RiskClass, cycleIndex int, selicNeutralFrac float64, match func(surprise float64) bool) int64 {
+func findReportGrowthSeed(t *testing.T, companyID string, sector catalog.Sector, cycleIndex int, selicNeutralFrac float64, match func(surprise float64) bool) int64 {
 	t.Helper()
 	for candidate := int64(1); candidate < 20_000; candidate++ {
-		cfg := fundamentalsConfig(candidate, companyID, riskClass)
+		cfg := fundamentalsConfig(candidate, companyID, sector)
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, selicNeutralFrac, selicNeutralFrac)
 		if match(actualGrowth - fundamentals.DefaultBaseGrowth) {
 			return candidate
@@ -1115,7 +1114,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -1180,7 +1179,7 @@ func closingPriceFor(result Result, assetID string) (float64, bool) {
 // fundamentals.ReportDayPriceEffect (removida nesta tarefa).
 func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t *testing.T) {
 	const selicNeutralFrac = 0.10
-	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > 0.02 })
+	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > 0.02 })
 
 	svc, assetID, startPrice := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
@@ -1203,7 +1202,7 @@ func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t 
 // espelhando o teste acima.
 func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *testing.T) {
 	const selicNeutralFrac = 0.10
-	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise < -0.02 })
+	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise < -0.02 })
 
 	svc, assetID, startPrice := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
@@ -1229,7 +1228,7 @@ func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *
 // de abertura, ao contrário dos dois testes acima.
 func TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento(t *testing.T) {
 	const selicNeutralFrac = 0.10
-	seed := findReportGrowthSeed(t, "c1", equity.RiskClassConservador, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > -0.002 && surprise < 0.002 })
+	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > -0.002 && surprise < 0.002 })
 
 	svc, assetID, startPrice := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
