@@ -209,16 +209,32 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
      ser positivo). `NULL` nas linhas antigas + `RecentTradedVolume` filtrando `IS NOT NULL` corrige
      isso: dia sem dado conta como "sem histórico ainda" (cai pro float sozinho), não "zero
      negociado".
-  3. **Parte C — causa raiz do caixa/alocação inicial de bot** (continua em aberto, sem duplicar
-     rastreio): já tinha dono antes deste achado — mesmo raciocínio do achado 003 acima, Fase K de
-     `backlog-motor-mercado-realista.md` (calibração com dados reais B3/CVM). Recalibrar o
-     multiplicador de `bot.InitialCash`/`InitialAllocation` sem essa pesquisa só trocaria um número
-     arbitrário por outro. As partes A/B já tornam qualquer ordem matematicamente impossível de
-     exceder o que o mercado suporta, **independente** do caixa do bot — a causa raiz vira um
-     problema de realismo, não de corretude (ex: `VALR3`/`BNDD4` ainda mostram ordens de venda na
-     casa de dezenas de milhões de cotas, refletindo posição de bot desproporcional herdada da
-     alocação inicial — não mais um risco de acúmulo indefinido, porque expiram no dia seguinte se
-     não preenchidas).
+  3. **Parte C — causa raiz do caixa/alocação inicial de bot** (continua em aberto, **sem dono
+     real** — correção abaixo): esta entrada original (2026-09-19) apontava "já tinha dono... Fase
+     K de `backlog-motor-mercado-realista.md`", reaproveitando o mesmo raciocínio do achado 003
+     acima sem checar se a Fase K *como escrita no backlog* de fato cobria isso. Não cobria: K.1/K.2
+     (implementadas e fechadas — teste de ponta a ponta da Fase J confirmou, 2026-09-19) escopam
+     literalmente "calibração de fundamentos por setor" — margem líquida, margem EBIT,
+     patrimônio/receita, dívida/patrimônio, caixa/receita e sensibilidade à Selic de
+     `fundamentals.go` —, nunca mencionando `bot.InitialCash`/`InitialAllocation`
+     (`engine/internal/domain/bot/`, módulo diferente). Com a Fase K fechada sem tocar nisso, a
+     Parte C fica **sem tarefa de backlog nenhuma rastreando ela** — só este achado. Efeito prático
+     confirmado ao vivo (não é só "ordens de venda desproporcionais", como o texto original
+     registrava): rodando o motor do zero (seed novo) por ~50-60 dias simulados seguidos, o mercado
+     inteiro trava — `RecentTradedVolume` (Parte B) some pra 0 real depois de dias sem negociação
+     suficiente, `effectiveOrderSizeCeiling` fica preso em 0 pro lado de compra, e sem contraparte
+     de compra as vendas também param de casar, perpetuando o zero indefinidamente
+     (`BNDD4`/`PAPL11`/`TJLO11` observados presos exatamente no preço inicial, `total_quantity = 0`
+     por dezenas de ticks seguidos). Recalibrar o multiplicador de `bot.InitialCash`/
+     `InitialAllocation` (dar mais caixa/posição inicial ao bot, reduzindo a chance de a média de
+     volume zerar antes do mercado "pegar tração") seria uma forma de mitigar, mas ainda depende da
+     mesma pesquisa de dados reais (B3/CVM) que K.1 fez pra fundamentos — só que aplicada a um
+     insumo diferente (capital/posição de bot, não coeficiente de balanço). Decisão pendente:
+     recalibrar `bot.InitialCash`/`InitialAllocation` com uma nova pesquisa dedicada, ou revisar o
+     próprio mecanismo de teto (ex: nunca deixar o teto de compra zerar de vez, mesmo com volume
+     médio real igual a zero) — as partes A/B já tornam qualquer ordem matematicamente impossível de
+     exceder o que o mercado suporta, **independente** do caixa do bot, então a causa raiz continua
+     sendo um problema de realismo/disponibilidade de liquidez, não de corretude.
 - **Testes:** `bot` (rename de `capToFloat`/`floatCeiling` pra `OrderSizeCeiling` nos testes
   existentes, mais dois novos cobrindo o teto zerando a quantidade comprável sem panicar —
   `rng.Intn(0)` panicaria se `canBuy` não considerasse o teto, achado do próprio trabalho desta
