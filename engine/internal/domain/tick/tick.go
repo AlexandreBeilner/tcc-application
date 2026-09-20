@@ -14,6 +14,7 @@ import (
 	"context"
 	"hash/fnv"
 
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fii"
@@ -417,18 +418,21 @@ func deterministicSeed(baseSeed int64, id string) int64 {
 }
 
 // fundamentalsConfig monta o fundamentals.Config de uma empresa pro ciclo
-// de relatório — Sensitivity vem da risk_class de um ativo de renda
-// variável vinculado à empresa (equityRiskClass), a mesma tabela
-// (fundamentals.SensitivityByRiskClass) usada pra calibrar o quanto a
-// empresa reage a desvios da Selic (spec 3.2.2). Sensitivity fica 0
-// (SensitivityByRiskClass[""] , zero value do map) se a empresa não tiver
-// nenhum ativo de renda variável vinculado com risk_class conhecida — não
-// deveria acontecer com o catálogo seedado (toda ação tem risk_class), mas
-// não trava o ciclo de relatório se acontecer.
-func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.RiskClass) fundamentals.Config {
+// de relatório — Sensitivity vem do setor da empresa
+// (fundamentals.CoefficientsForSector, tarefa K.2) usada pra calibrar o
+// quanto a empresa reage a desvios da Selic (spec 3.2.2). Antes da K.2,
+// Sensitivity vinha da risk_class de um ativo de renda variável vinculado à
+// empresa (fundamentals.SensitivityByRiskClass) — essa tabela continua
+// existindo e em uso só por bot.FundamentalistFairPrice (retorno exigido,
+// consumo fora do escopo da K.2), não mais aqui. Sensitivity cai no
+// fallback genérico (CoefficientsForSector) se sector não for um dos 6
+// fixos da spec 3.3.2 — não deveria acontecer com o catálogo seedado
+// (catalog.NewCompany já valida o setor na criação), mas não trava o ciclo
+// de relatório se acontecer.
+func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector) fundamentals.Config {
 	return fundamentals.Config{
 		BaseGrowth:  fundamentals.DefaultBaseGrowth,
-		Sensitivity: fundamentals.SensitivityByRiskClass[equityRiskClass],
+		Sensitivity: fundamentals.CoefficientsForSector(sector).SelicSensitivity,
 		NoiseStdDev: fundamentals.DefaultNoiseStdDev,
 		Seed:        deterministicSeed(seed, companyID),
 	}
@@ -456,11 +460,11 @@ func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.Ris
 // backlog-motor-mercado-realista): o Fundamentalista reage à divergência
 // entre o VPA que acabou de mudar e a expectativa de crescimento que já
 // estava precificada, negociando de acordo.
-func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
+func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
 	contexts := make(map[string]CompanyRoundContext, len(companies))
 	for _, c := range companies {
-		riskClass := equityRiskClasses[c.CompanyID]
-		cfg := fundamentalsConfig(seed, c.CompanyID, riskClass)
+		sector := catalog.Sector(c.Sector)
+		cfg := fundamentalsConfig(seed, c.CompanyID, sector)
 
 		baseRevenue := fundamentals.DefaultBaseRevenue
 		if c.LastRevenue != nil {
@@ -471,7 +475,7 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 		}
 
 		contexts[c.CompanyID] = CompanyRoundContext{
-			Financials:     fundamentals.DeriveFinancials(baseRevenue),
+			Financials:     fundamentals.DeriveFinancials(sector, baseRevenue),
 			GrowthRate:     fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
 			MacroEffectPct: macroPriceEffects[c.CompanyID],
 		}
@@ -849,7 +853,8 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			continue
 		}
 
-		cfg := fundamentalsConfig(seed, c.CompanyID, equityRiskClasses[c.CompanyID])
+		sector := catalog.Sector(c.Sector)
+		cfg := fundamentalsConfig(seed, c.CompanyID, sector)
 		cycleIndex := (dayIndex+1)/c.ReportFrequencyDays - 1 // 0-based, um por ciclo de relatório já fechado
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, newSelicRate, selicCfg.Neutral)
 		if macroEffect, affected := macroFundamentalsEffects[c.CompanyID]; affected {
@@ -861,7 +866,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			baseRevenue = *c.LastRevenue
 		}
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
-		financials := fundamentals.DeriveFinancials(netRevenue)
+		financials := fundamentals.DeriveFinancials(sector, netRevenue)
 		netIncomeByCompany[c.CompanyID] = financials.NetIncome
 
 		reportedRevenue[c.CompanyID] = netRevenue
@@ -876,7 +881,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		})
 	}
 
-	companyContext := companyRoundContexts(companies, reportedRevenue, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
+	companyContext := companyRoundContexts(companies, reportedRevenue, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {

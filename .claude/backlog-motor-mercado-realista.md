@@ -1622,7 +1622,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase K — Calibração de fundamentos por setor (independente)
 
-### K.1 · Pesquisa de dados reais por setor
+### K.1 · Pesquisa de dados reais por setor ✅
 
 - **Descrição:** levantamento de margens/alavancagem médias reais e públicas (B3/CVM/relatórios
   setoriais) pros 6 setores fixos da spec 3.3.2 (Mineração, Agronegócio, Bancário/Financeiro,
@@ -1633,8 +1633,22 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   número, entregue como documento/anexo (não precisa de código nesta tarefa — é pesquisa).
 - **Referências:** proposta seção 7.
 - **Dependências:** nenhuma.
+- **Entregável:** `.claude/calibracao-fundamentos-setor.md` — tabela dos 6 coeficientes de
+  `fundamentals.go` por setor (margem líquida, margem EBIT, patrimônio/receita, dívida/patrimônio,
+  caixa/receita, sensibilidade à Selic), cada um com **valor central + faixa plausível de variação
+  entre empresas do mesmo setor** (pedido explícito do autor nesta sessão — média é base, não
+  valor único aplicado a toda empresa do setor) e fonte real citada por setor (Vale/PwC pra
+  Mineração, SLC Agrícola pra Agronegócio, Banco Central/Índice de Basileia pra Bancário, Lojas
+  Renner + Magazine Luiza pra Varejo — as duas pontas da mesma faixa —, Equatorial/Energisa pra
+  Energia, TOTVS pra Tecnologia). Inclui ressalva de que o proxy de "dívida/patrimônio" pra
+  Bancário é simplificado (banco não tem dívida bruta convencional, captação é o próprio negócio)
+  e uma seção de recomendações não-vinculantes pra `K.2` (sensibilidade migra de `risk_class` pra
+  `Sector`, threading do setor até `DeriveFinancials`/`BootstrapFinancialsForTargetPrice`,
+  mecanismo de sorteio determinístico por empresa pra aplicar a faixa sem re-sortear a cada ciclo,
+  Bancário como setor de maior risco de preço-justo implausível a validar primeiro). Nenhum código
+  tocado nesta sessão (fora de escopo de K.1).
 
-### K.2 · Aplicação da calibração em `fundamentals.go`
+### K.2 · Aplicação da calibração em `fundamentals.go` ✅
 
 - **Descrição:** os coeficientes agora variam por setor (K.1) em vez de um único conjunto genérico
   pra toda empresa — `fundamentals.go` passa a receber o setor da empresa como insumo pra escolher
@@ -1644,6 +1658,51 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   (crescimento base + ruído + fator Selic) continua funcionando igual, só os coeficientes mudam.
 - **Referências:** proposta seção 7.
 - **Dependências:** K.1.
+- **Entregável:** `fundamentals.SectorCoefficients` (5 coeficientes de `DeriveFinancials` +
+  `SelicSensitivity`) e `fundamentals.CoefficientsBySector map[catalog.Sector]SectorCoefficients`,
+  populado com os valores centrais da pesquisa da K.1 (`.claude/calibracao-fundamentos-setor.md`)
+  pros 6 setores fixos da spec 3.3.2 — `fundamentals.CoefficientsForSector(sector)` resolve o
+  conjunto certo, com fallback pros 5 antigos `Default*` (mantidos só como fallback, não mais
+  aplicados a toda empresa) quando `sector` não é um dos 6 fixos (não deveria acontecer com o
+  catálogo validado). `DeriveFinancials(sector, netRevenue)` e
+  `BootstrapFinancialsForTargetPrice(sector, targetPrice, outstandingShares, growthRate,
+  selicNeutral)` ganharam `sector` como primeiro parâmetro; `ExpectedGrowth`/`GrowthSeries`/
+  `NextGrowth` não mudaram de assinatura — só a fonte do `Config.Sensitivity` que os alimenta
+  (`tick.fundamentalsConfig`) migrou de `fundamentals.SensitivityByRiskClass[equityRiskClass]` pra
+  `fundamentals.CoefficientsForSector(sector).SelicSensitivity`, usando `CompanyForFundamentals.
+  Sector` (já existente, cru, convertido só na borda de chamada — `catalog.Sector(c.Sector)`, mesmo
+  padrão de conversão cru→domínio já usado por `riskClassForPricing`). `companyRoundContexts`
+  perdeu o parâmetro `equityRiskClasses` (não usado mais depois da migração). `cmd/seed/main.go`
+  (`seedInitialFundamentals`) passou a receber e repassar o `catalog.Sector` de cada empresa
+  seedada (Mineração pra VALR3, Bancário pra BNDD4). **Escopo deliberadamente não coberto** (achado
+  008, `pontos-em-aberto-decisao-produto.md`): `bot.FundamentalistFairPrice`/
+  `DecideFundamentalistOrder` (retorno exigido na fórmula de Justified Price-to-Book) continuam
+  lendo `fundamentals.SensitivityByRiskClass` por `risk_class`, não por setor — migrar isso também
+  rippla pela Fase C/D/E já fechadas (assinatura de 11 parâmetros, `bot.DecisionInput.RiskClass`,
+  call sites e testes de C.5/D.2/E.2), fora do escopo de uma sessão cujo texto era "aplicação da
+  calibração em `fundamentals.go`"; registrado como decisão de design pendente, não gap mecânico.
+  `SensitivityByRiskClass` (2 valores) continua existindo só pra esse consumo.
+  Testes novos/atualizados em `fundamentals_test.go`
+  (`TestDeriveFinancials_CoeficientesVariamPorSetor` — os 6 setores, valores exatos, nenhum
+  colidindo com outro; `TestDeriveFinancials_SetorDesconhecidoUsaFallbackGenerico` — regressão do
+  fallback; `TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo` — round-trip exato
+  agora variando o setor entre os casos, incluindo um setor desconhecido) e em `tick/*_test.go`
+  (`TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals`, `findReportGrowthSeed` e os 3 testes
+  de ponta a ponta da F.1 que dependem dele, adaptados de `riskClass` pra `sector`). A antiga âncora
+  numérica `TestBootstrapFinancialsForTargetPrice_ReproduzConstanteHistorica` (~97.0, calibrada só
+  contra o coeficiente genérico) foi recalculada pra Mineração (~64.72,
+  `TestBootstrapFinancialsForTargetPrice_RevenuePorAcaoReflecteCoeficientesDoSetor`) — mudança de
+  número esperada e documentada, não regressão. `gofmt`/`go vet`/`go build`/`go test ./...`/
+  `golangci-lint run` (Docker, v2.12.2, 0 issues) verdes. `.docs/engine/tick.md` atualizado.
+  **Validado ponta a ponta via `docker compose up -d --build`** (volume novo, isolado deste
+  worktree — stack compartilhado já em uso por outra sessão foi derrubado e resubido com
+  autorização do autor): seed real gravou `company_fundamentals` de VALR3/BNDD4 já com as razões
+  exatas do setor (Mineração: margem 0.15/patrimônio 1.3×/dívida 0.45×; Bancário: margem
+  0.22/patrimônio 2.2×/dívida 1.5×, confirmado via `psql` direto); 14 `POST /admin/tick`
+  consecutivos (dia 1→14, até bater o ciclo de relatório) sem erro, `fundamentals_count: 2` no dia
+  14, razões calibradas preservadas na nova linha de `company_fundamentals` de cada empresa após o
+  ciclo; `SUM(positions.quantity) = outstanding_shares` intacto nos 4 ativos, nenhuma conta com
+  saldo negativo. Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ---
 

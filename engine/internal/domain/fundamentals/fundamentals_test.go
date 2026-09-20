@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
 )
 
@@ -223,35 +224,94 @@ func TestRevenueSeries_ReageDeFormaPlausivelAMudancasDeSelic(t *testing.T) {
 	}
 }
 
-// TestDeriveFinancials_NumerosConhecidos é o critério de aceite central da
-// tarefa 4.8, com números conhecidos: net_revenue = 1.000.000 deveria
-// derivar exatamente os 5 campos a partir dos coeficientes ilustrativos
-// (DefaultNetMarginPct etc.), não aproximadamente.
-func TestDeriveFinancials_NumerosConhecidos(t *testing.T) {
-	got := DeriveFinancials(1_000_000)
+// TestDeriveFinancials_SetorDesconhecidoUsaFallbackGenerico é o teste de
+// regressão da tarefa K.2: um setor fora dos 6 fixos da spec 3.3.2 (não
+// deveria acontecer com o catálogo validado, mas CoefficientsForSector não
+// trava por isso) continua derivando os 5 campos exatamente pelos mesmos
+// números conhecidos que a tarefa 4.8 já travava (DefaultNetMarginPct
+// etc.) — o "resto da fórmula" (netEquity = receita×ratio, netIncome =
+// receita×margem, dívida = patrimônio×ratio, caixa = receita×ratio)
+// continua funcionando igual, só a fonte do coeficiente mudou.
+func TestDeriveFinancials_SetorDesconhecidoUsaFallbackGenerico(t *testing.T) {
+	got := DeriveFinancials(catalog.Sector("Inexistente"), 1_000_000)
 
 	want := Financials{
 		NetRevenue:      1_000_000,
-		NetIncome:       100_000,   // 1.000.000 × 0.10
-		EBIT:            180_000,   // 1.000.000 × 0.18
-		NetEquity:       1_200_000, // 1.000.000 × 1.2
-		GrossDebt:       480_000,   // 1.200.000 × 0.4
-		CashEquivalents: 150_000,   // 1.000.000 × 0.15
+		NetIncome:       100_000,   // 1.000.000 × 0.10 (DefaultNetMarginPct)
+		EBIT:            180_000,   // 1.000.000 × 0.18 (DefaultEBITMarginPct)
+		NetEquity:       1_200_000, // 1.000.000 × 1.2 (DefaultEquityToRevenueRatio)
+		GrossDebt:       480_000,   // 1.200.000 × 0.4 (DefaultDebtToEquityRatio)
+		CashEquivalents: 150_000,   // 1.000.000 × 0.15 (DefaultCashToRevenueRatio)
 	}
 
 	if got != want {
-		t.Errorf("DeriveFinancials(1_000_000) = %+v, want %+v", got, want)
+		t.Errorf("DeriveFinancials(setor desconhecido, 1_000_000) = %+v, want %+v", got, want)
+	}
+}
+
+// TestDeriveFinancials_CoeficientesVariamPorSetor é o critério de aceite
+// central da tarefa K.2: setores diferentes (todos os 6 fixos da spec
+// 3.3.2, calibrados pela pesquisa da K.1 — .claude/calibracao-fundamentos-
+// setor.md) devolvem coeficientes visivelmente distintos pro mesmo
+// net_revenue, não mais um único conjunto genérico.
+func TestDeriveFinancials_CoeficientesVariamPorSetor(t *testing.T) {
+	const netRevenue = 1_000_000.0
+
+	tests := []struct {
+		sector catalog.Sector
+		want   Financials
+	}{
+		{catalog.SectorMineracao, Financials{
+			NetRevenue: 1_000_000, NetIncome: 150_000, EBIT: 240_000,
+			NetEquity: 1_300_000, GrossDebt: 585_000, CashEquivalents: 150_000,
+		}},
+		{catalog.SectorAgronegocio, Financials{
+			NetRevenue: 1_000_000, NetIncome: 70_000, EBIT: 120_000,
+			NetEquity: 1_000_000, GrossDebt: 1_000_000, CashEquivalents: 80_000,
+		}},
+		{catalog.SectorBancario, Financials{
+			NetRevenue: 1_000_000, NetIncome: 220_000, EBIT: 300_000,
+			NetEquity: 2_200_000, GrossDebt: 3_300_000, CashEquivalents: 300_000,
+		}},
+		{catalog.SectorVarejo, Financials{
+			NetRevenue: 1_000_000, NetIncome: 50_000, EBIT: 90_000,
+			NetEquity: 600_000, GrossDebt: 540_000, CashEquivalents: 80_000,
+		}},
+		{catalog.SectorEnergia, Financials{
+			NetRevenue: 1_000_000, NetIncome: 120_000, EBIT: 220_000,
+			NetEquity: 1_400_000, GrossDebt: 1_680_000, CashEquivalents: 150_000,
+		}},
+		{catalog.SectorTecnologia, Financials{
+			NetRevenue: 1_000_000, NetIncome: 150_000, EBIT: 220_000,
+			NetEquity: 900_000, GrossDebt: 315_000, CashEquivalents: 250_000,
+		}},
+	}
+
+	seen := make(map[Financials]bool, len(tests))
+	for _, tt := range tests {
+		t.Run(string(tt.sector), func(t *testing.T) {
+			got := DeriveFinancials(tt.sector, netRevenue)
+			if got != tt.want {
+				t.Errorf("DeriveFinancials(%s, %v) = %+v, want %+v", tt.sector, netRevenue, got, tt.want)
+			}
+			if seen[got] {
+				t.Errorf("setor %s produziu os mesmos fundamentos de outro setor já testado — coeficientes deveriam ser visivelmente distintos", tt.sector)
+			}
+			seen[got] = true
+		})
 	}
 }
 
 func TestDeriveFinancials_EBITMarginMaiorQueNetMargin(t *testing.T) {
-	// Invariante contábil que qualquer calibração futura (tarefa 8.1)
-	// precisa continuar respeitando: EBIT vem antes de juros/impostos, por
+	// Invariante contábil que qualquer calibração futura precisa continuar
+	// respeitando, em todo setor: EBIT vem antes de juros/impostos, por
 	// isso é sempre >= net_income pra receita positiva.
-	got := DeriveFinancials(500_000)
+	for sector := range CoefficientsBySector {
+		got := DeriveFinancials(sector, 500_000)
 
-	if got.EBIT <= got.NetIncome {
-		t.Errorf("EBIT (%v) deveria ser maior que NetIncome (%v)", got.EBIT, got.NetIncome)
+		if got.EBIT <= got.NetIncome {
+			t.Errorf("setor %s: EBIT (%v) deveria ser maior que NetIncome (%v)", sector, got.EBIT, got.NetIncome)
+		}
 	}
 }
 
@@ -269,31 +329,36 @@ func fairPriceFromFinancials(f Financials, outstandingShares int64, growthRate, 
 }
 
 // TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo é o
-// critério de aceite central: pra qualquer combinação de
+// critério de aceite central: pra qualquer combinação de sector/
 // targetPrice/outstandingShares/growthRate/selicNeutral, o preço justo
 // recalculado a partir dos fundamentos devolvidos precisa bater com
 // targetPrice — é essa propriedade que substitui a antiga constante
 // initialFundamentalsRevenuePerShare "achada por tentativa" (achado 003 de
-// .claude/pontos-em-aberto-decisao-produto.md).
+// .claude/pontos-em-aberto-decisao-produto.md). Varia o sector entre os
+// casos (tarefa K.2) pra provar que o round-trip continua exato
+// independente de qual conjunto de coeficientes (CoefficientsBySector) é
+// usado — "o resto da fórmula continua igual, só os coeficientes mudam".
 func TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo(t *testing.T) {
 	tests := []struct {
 		name              string
+		sector            catalog.Sector
 		targetPrice       float64
 		outstandingShares int64
 		growthRate        float64
 		selicNeutral      float64
 	}{
-		{"VALR3-like", 100, 500_000_000, 0.03, 0.10},
-		{"BNDD4-like", 100, 300_000_000, 0.03, 0.10},
-		{"empresa pequena, preço alto", 250, 10_000_000, 0.03, 0.10},
-		{"empresa grande, preço baixo", 12.50, 2_000_000_000, 0.03, 0.10},
-		{"crescimento maior", 100, 500_000_000, 0.08, 0.10},
-		{"Selic neutra diferente", 100, 500_000_000, 0.03, 0.12},
+		{"VALR3-like (Mineração)", catalog.SectorMineracao, 100, 500_000_000, 0.03, 0.10},
+		{"BNDD4-like (Bancário)", catalog.SectorBancario, 100, 300_000_000, 0.03, 0.10},
+		{"Agronegócio, empresa pequena, preço alto", catalog.SectorAgronegocio, 250, 10_000_000, 0.03, 0.10},
+		{"Varejo, empresa grande, preço baixo", catalog.SectorVarejo, 12.50, 2_000_000_000, 0.03, 0.10},
+		{"Tecnologia, crescimento maior", catalog.SectorTecnologia, 100, 500_000_000, 0.08, 0.10},
+		{"Energia, Selic neutra diferente", catalog.SectorEnergia, 100, 500_000_000, 0.03, 0.12},
+		{"setor desconhecido (fallback genérico)", catalog.Sector("Inexistente"), 100, 500_000_000, 0.03, 0.10},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := BootstrapFinancialsForTargetPrice(tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			got, err := BootstrapFinancialsForTargetPrice(tt.sector, tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
 			if err != nil {
 				t.Fatalf("erro inesperado: %v", err)
 			}
@@ -306,23 +371,26 @@ func TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo(t *testing
 	}
 }
 
-// TestBootstrapFinancialsForTargetPrice_ReproduzConstanteHistorica ancora
-// que, pros parâmetros já usados em produção (tick.DefaultInitialPrice=100,
-// DefaultBaseGrowth=0.03, selic.DefaultNeutralRate/100=0.10), a receita por
-// ação resultante bate com o ~97.0 que initialFundamentalsRevenuePerShare
-// fixava à mão antes desta função existir — a fórmula deriva o mesmo
-// número, só que agora por construção, pra qualquer outstandingShares.
-func TestBootstrapFinancialsForTargetPrice_ReproduzConstanteHistorica(t *testing.T) {
+// TestBootstrapFinancialsForTargetPrice_RevenuePorAcaoReflecteCoeficientesDoSetor
+// substitui, depois da tarefa K.2, a antiga âncora "~97.0" (calibrada só
+// contra o conjunto genérico de coeficientes, sessão D.2) — agora que
+// VALR3 é uma empresa real de Mineração (cmd/seed/main.go), a receita por
+// ação de partida reflete o ROE calibrado desse setor (NetMarginPct/
+// EquityToRevenueRatio = 0.15/1.3), não mais o genérico 0.10/1.2. O valor
+// abaixo foi derivado uma única vez à mão pela mesma fórmula que
+// BootstrapFinancialsForTargetPrice inverte (documentada no comentário da
+// função) e travado aqui como regressão — value ≈64.72, não mais ≈97.0.
+func TestBootstrapFinancialsForTargetPrice_RevenuePorAcaoReflecteCoeficientesDoSetor(t *testing.T) {
 	const outstandingShares = 500_000_000
 
-	got, err := BootstrapFinancialsForTargetPrice(100, outstandingShares, 0.03, 0.10)
+	got, err := BootstrapFinancialsForTargetPrice(catalog.SectorMineracao, 100, outstandingShares, 0.03, 0.10)
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
 
 	revenuePerShare := got.NetRevenue / outstandingShares
-	if math.Abs(revenuePerShare-97.0) > 0.5 {
-		t.Errorf("net_revenue por ação = %v, want ≈97.0 (mesma calibração já validada manualmente na sessão D.2)", revenuePerShare)
+	if math.Abs(revenuePerShare-64.72) > 0.5 {
+		t.Errorf("net_revenue por ação = %v, want ≈64.72 (recalibrado pra Mineração na tarefa K.2, antes era ≈97.0 com o coeficiente genérico)", revenuePerShare)
 	}
 }
 
@@ -347,7 +415,7 @@ func TestBootstrapFinancialsForTargetPrice_ErrosDeEntrada(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := BootstrapFinancialsForTargetPrice(tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			_, err := BootstrapFinancialsForTargetPrice(catalog.SectorMineracao, tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("err = %v, want %v", err, tt.wantErr)
 			}
