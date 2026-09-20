@@ -1851,7 +1851,47 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   real: `DATABASE_URL=... npm run db:seed:lessons` contra o Postgres do `docker compose` (container
   `tcc-postgres` já em execução, reaproveitado — outra sessão em paralelo, mesmo padrão da `J.3`),
   `SELECT` na tabela `lessons` confirmou o texto novo persistido e `unlocks_asset_ticker` continua
-  `VALR3` (`onConflictDoUpdate`, seed idempotente). **Fase J fechada por completo** (`J.1`-`J.5`).
+  `VALR3` (`onConflictDoUpdate`, seed idempotente). **Fase J fechada por completo** (`J.1`-`J.5`);
+  `J.6` abaixo foi acrescentada depois, a partir de um achado do teste de ponta a ponta desta fase.
+
+### J.6 · Corrige o travamento de liquidez quando o volume médio real zera (achado 005, Parte C)
+
+- **Descrição:** `tick.effectiveOrderSizeCeiling` (`rounds.go`, achado 005 Parte B) usa o menor
+  entre o float e `MaxOrderPctOfAverageVolumePct` da média de volume real dos últimos
+  `ChartistPriceHistoryDays` dias (`TickRepository.RecentTradedVolume`). Quando essa média
+  **cai a zero de verdade** (dias reais sem nenhum fill — diferente de "sem dado ainda", já
+  tratado pela própria Parte B via `total_quantity` nullable), o teto trava em 0 pra sempre:
+  nenhuma ordem de compra nova consegue tamanho ≥ 1 (`quantityForSide`/`capToFloat`), e sem
+  contraparte de compra as vendas também param de casar — autoperpetuando o zero indefinidamente,
+  sem nenhum caminho de recuperação sozinho. Achado do teste de ponta a ponta desta Fase J
+  (2026-09-19/20, antes e depois do merge com a Fase K): partindo de um seed novo (sem nenhum
+  histórico prévio), `BNDD4`/`PAPL11` travaram assim dentro de ~50 dias simulados e nunca se
+  recuperaram nos ticks seguintes observados — não é um cenário raro/extremo, aconteceu em 2 de 5
+  ativos negociáveis do catálogo mínimo em ambos os testes. Impacto real: uma vez travado, um
+  usuário fica sem contraparte pra **vender** aquele ativo (o lado comprador nunca mais se
+  regenera) — o core loop de compra/venda para de funcionar pra aquele ativo especificamente, não
+  é só um problema estético de preço congelado. Correção puramente mecânica (piso mínimo no teto,
+  nunca removendo o teto em si) — deliberadamente **não** inclui a recalibração de
+  `bot.InitialCash`/`InitialAllocation` (capital/alocação inicial do bot com pesquisa B3/CVM
+  dedicada), que fica registrada à parte como melhoria de realismo futura, sem tarefa de backlog
+  aberta (achado 009, `.claude/pontos-em-aberto-decisao-produto.md`) — mais capital reduziria a
+  chance estatística do travamento, mas não o eliminaria sozinho, e não é o que resolve o bug
+  observado.
+- **Critérios de aceite:** teste table-driven confirmando que `effectiveOrderSizeCeiling` nunca
+  devolve um teto que zere a quantidade comprável quando o float disponível é positivo, mesmo com
+  a média de volume real em zero (piso mínimo — não removendo o teto, só impedindo o colapso
+  total); teste de regressão confirmando que o comportamento das Partes A/B continua idêntico
+  quando a média de volume é positiva (teto = menor entre float e volume) e que "sem dado ainda"
+  (`total_quantity` nulo) continua caindo pro float sozinho, não pro piso novo; teste de ponta a
+  ponta (mesmo padrão de `TestRunIntradayRounds_*`) reproduzindo o cenário observado — vários dias
+  seguidos de volume real zero — e confirmando que uma ordem de compra volta a ser possível depois
+  da correção.
+- **Referências:** achado 005 (Parte C), `.claude/pontos-em-aberto-decisao-produto.md`;
+  `engine/internal/domain/tick/rounds.go` (`effectiveOrderSizeCeiling`,
+  `MaxOrderPctOfAverageVolumePct`); `engine/internal/infra/db/tick_repository.go`
+  (`RecentTradedVolume`).
+- **Dependências:** nenhuma — correção isolada em `rounds.go`/`tick_repository.go`, não depende
+  de nenhuma tarefa J.1-J.5 nem da Fase K (calibração de fundamentos é área diferente do motor).
 
 ---
 
@@ -2239,7 +2279,10 @@ em vez de só no fechamento do dia.
    complexidade crescente).
 4. **D.1 → D.2** (cadência intradiária, depende de C).
 5. **J.1 → J.2 → J.3 → J.4 → J.5** (ON/PN — só depende de A/C.5, pode entrar em paralelo a partir
-   do passo 3; J.5 é revisão de conteúdo de lição, fecha a fase).
+   do passo 3; J.5 é revisão de conteúdo de lição, fecha a fase). **J.6** é independente do resto
+   da fase (achado 005 Parte C, mecanismo de `rounds.go`) — pode entrar a qualquer momento depois
+   de D.2 (precisa de `effectiveOrderSizeCeiling` já existir), inclusive antes de J.1-J.5 ou em
+   paralelo a qualquer outra fase.
 6. **E.1 → E.2** (eventos macro por alvo, depende de C.5/D.2).
 7. **F.1** (balanços via negociação, depende de C.5/E).
 8. **G.1 → G.2 → G.3** (FIIs, depende de D).
