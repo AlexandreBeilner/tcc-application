@@ -1935,7 +1935,7 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   gráficos empilhados; 1920px desktop — 3 colunas no hub de Mercado, 4 colunas de stat card, 2
   colunas de gráfico lado a lado). Stack parada com `docker compose down` (sem `-v`) ao final.
 
-### M.5 · Novas lições: "Como a Selic é formada" e "O que é o IPCA"
+### M.5 · Novas lições: "Como a Selic é formada" e "O que é o IPCA" ✅
 
 - **Descrição:** pedido do autor além do que a proposta original cobria — currículo hoje (spec
   5.1) não tem nenhuma lição explicando **o mecanismo** por trás da Selic (Copom, reunião, decisão
@@ -1962,6 +1962,39 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
 - **Referências:** spec 5.1 (Trilha 1); proposta seção 6; pedido do autor nesta sessão
   (2026-09-13).
 - **Dependências:** I.1, I.2, M.4.
+- **Entregável:** posição decidida na sessão — "Como a Selic é formada" logo após 1.2 (código
+  `1.3`) e "O que é o IPCA" logo antes de 1.8/Tesouro IPCA+ (código `1.9`, não após 0.3: a opção de
+  0.3 colocaria a lição na Trilha 0, contradizendo o "Duas lições novas na Trilha 1" da descrição
+  original) — Trilha 1 renumerada `1.1`-`1.11` (`code`/`sortOrder` das 7 lições entre `1.3` e `1.9`
+  originais deslocados um degrau, Trilhas 2/3 só com `sortOrder` +2, `code` intocado), currículo
+  35 lições. Tipo de Micro-decisão novo `live_macro_indicator` (`lesson_micro_decision_type`,
+  migration `0015`, `ALTER TYPE ... ADD VALUE`, sem TTY) — mesmo padrão do `live_indicator` das
+  2.6.x, mas a Revelação busca `GET /market/indicators` (M.3) via `useIndicatorHistoryQuery` (ganhou
+  `options.enabled`) em vez de um ticker de ativo, renderizando `IndicatorSummaryCards` (M.4)
+  dentro de `pages/Lesson`. As duas lições ganham aposta real (`microDecisionOptions`/
+  `microDecisionCorrectOption`), consistente com as demais da Trilha 1. `backend`: 582 testes (1
+  novo, `Lesson` reaproveitado sem teste de domínio novo — nenhuma regra de negócio nova além do
+  enum); `frontend`: 685 testes (1 novo, cobrindo a Revelação `live_macro_indicator`);
+  `npm run lint`/`npm run build`/`prettier --check` verdes nos dois lados (únicos warnings restantes
+  são os 5/7 já pré-existentes, confirmados via `git stash` antes desta sessão). Achado registrado
+  em `.claude/pontos-em-aberto-decisao-produto.md` (008): a renumeração de `code` faz o seed
+  reaproveitar a linha física de uma lição existente em vez de criar linha nova, então
+  `user_lesson_progress` de ambiente já usado antes da M.5 pode ficar atribuído à lição errada após
+  o reseed — sem correção mecânica possível, decisão de produto em aberto. Achievement "Formado na
+  Trilha" recalibrado de 33 para 35 (`seedAchievements.ts`, mesma ressalva: seed só insere por nome,
+  não atualiza um ambiente que já tinha a conquista). **Validado ponta a ponta via
+  `docker compose up -d --build postgres redis engine backend gateway`** (worktree própria,
+  migration `0015` aplicada automaticamente no start do backend) + `db:seed:lessons`/
+  `db:seed:achievements` contra o Postgres do compose (35 lições confirmadas via
+  `select count(*) from lessons`, sem duplicata, reseed rodado 2x idempotente) + `vite` local
+  apontando pro gateway containerizado. Usuário novo registrado via `POST /auth/register`, 7
+  primeiras lições completadas via API pra desbloquear `1.3`; Chrome real (login via UI, não
+  localStorage — porta do Vite precisa bater com o `CORS_ORIGIN` do backend, `5173`) confirmou
+  Cenário/Micro-decisão (aposta "Sobe" acertada, badge "Você acertou")/Revelação da lição `1.3`
+  mostrando os 4 cards ao vivo (Selic `9,8%`/IPCA mensal `0.2%`/IPCA acumulado `0.6%`/Próximo Copom
+  `Dia 63`) com dado real do endpoint, mesmo painel da tela Indicadores Econômicos (M.4)
+  reaproveitado dentro da lição. Hub da Trilha confirmado mostrando "7 de 35 lições concluídas no
+  total" e "2/11 lições" na Trilha 1. Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ---
 

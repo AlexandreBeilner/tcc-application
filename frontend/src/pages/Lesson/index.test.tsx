@@ -6,8 +6,8 @@ import { useAuth } from '../../features/auth/AuthContext'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import { advanceLesson, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
-import { getAsset, getFixedIncomeTaxRate, listAssets } from '../../services/market'
-import type { AssetDetail, AssetSummary } from '../../services/market'
+import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
+import type { AssetDetail, AssetSummary, IndicatorHistoryEntry } from '../../services/market'
 import { listMissions } from '../../services/missions'
 import { Lesson } from '.'
 
@@ -18,7 +18,12 @@ vi.mock('../../services/lessons', () => ({
     advanceLesson: vi.fn(),
     reviewLesson: vi.fn(),
 }))
-vi.mock('../../services/market', () => ({ listAssets: vi.fn(), getAsset: vi.fn(), getFixedIncomeTaxRate: vi.fn() }))
+vi.mock('../../services/market', () => ({
+    listAssets: vi.fn(),
+    getAsset: vi.fn(),
+    getFixedIncomeTaxRate: vi.fn(),
+    getIndicatorHistory: vi.fn(),
+}))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
 
 function renderLesson(id = 'lesson-1') {
@@ -262,6 +267,22 @@ describe('Lesson (tela 3.2)', () => {
 
         expect(await screen.findByText('P/L')).toBeInTheDocument()
         expect(screen.getByText('8,4')).toBeInTheDocument()
+    })
+
+    it('revelação de lição live_macro_indicator busca a série de indicadores e mostra os cards ao vivo', async () => {
+        const entries: IndicatorHistoryEntry[] = [
+            { simulated_day: 40, selic_rate: 10.5, ipca_monthly_rate: 0.004, ipca_accumulated_12m: 0.048 },
+        ]
+        vi.mocked(getIndicatorHistory).mockResolvedValue({ indicators: entries })
+        vi.mocked(getLesson).mockResolvedValue({
+            lesson: lesson({ currentStep: 2, microDecisionType: 'live_macro_indicator' }),
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Selic (meta anual)')).toBeInTheDocument()
+        expect(screen.getByText('10,5%')).toBeInTheDocument()
+        expect(screen.getByText('Dia 42')).toBeInTheDocument()
     })
 
     it('ao chegar no passo 3 mostra o desbloqueio com o que foi liberado', async () => {

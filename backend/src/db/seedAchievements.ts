@@ -34,9 +34,14 @@ const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
   },
   {
     name: 'Formado na Trilha',
-    description: 'Complete todas as 33 lições da trilha.',
+    // 35 desde a tarefa M.5 (backlog-motor-mercado-realista) — Trilha 1
+    // ganhou 2 lições novas (33→35 no currículo, spec 5.1). Seed só insere
+    // (nunca atualiza por nome), então um ambiente que já tinha esta
+    // conquista com `criteriaValue = '33'` não é corrigido por rodar o seed
+    // de novo — precisa de um update manual nessa linha.
+    description: 'Complete todas as 35 lições da trilha.',
     criteriaType: 'lessons_completed',
-    criteriaValue: '33',
+    criteriaValue: '35',
   },
   {
     name: 'Primeiro Patrimônio',

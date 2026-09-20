@@ -29,24 +29,49 @@ interface LessonSeed {
   unlocksAssetTicker: string | null
 }
 
-// Currículo (tarefa 7.1, spec seção 5.1) — 33 lições no total, autoradas
-// bloco a bloco (7.1.1 a 7.1.6). `onConflictDoUpdate` abaixo garante que
-// completar um bloco novo também *atualiza* o conteúdo de lições já
-// seedadas em sessões anteriores (ex: 0.1–0.5/1.1 vinham só com
-// `centralConcept`/`unlocksDescription` da 5.6), não só insere as que
-// faltam. `1.2` (Tesouro Selic) foi a exceção deliberada da tarefa 7.0.2:
-// conteúdo pedagógico completo, escrito pra provar o pipeline
-// schema→API→tela (scenarioText/microDecisionPrompt/revelationText reais +
+// Currículo (tarefa 7.1, spec seção 5.1) — 35 lições no total (33 originais
+// + as 2 da tarefa M.5, `1.3`/`1.9` abaixo), autoradas bloco a bloco (7.1.1
+// a 7.1.6, depois M.5). `onConflictDoUpdate` abaixo garante que completar um
+// bloco novo também *atualiza* o conteúdo de lições já seedadas em sessões
+// anteriores (ex: 0.1–0.5/1.1 vinham só com `centralConcept`/
+// `unlocksDescription` da 5.6), não só insere as que faltam. `1.2` (Tesouro
+// Selic) foi a exceção deliberada da tarefa 7.0.2: conteúdo pedagógico
+// completo, escrito pra provar o pipeline schema→API→tela
+// (scenarioText/microDecisionPrompt/revelationText reais +
 // unlocksAssetTicker/"Comprar agora") ponta a ponta antes da autoria em
 // massa — mantido aqui como está.
 //
+// Renumeração da tarefa M.5 (Trilha 1 passa de 9 para 11 lições): o `code`
+// de 7 lições existentes (`1.3`–`1.9` originais) muda pra abrir espaço pras
+// 2 lições novas, deslocando o conteúdo de cada uma pro `code` seguinte
+// (`1.3`→`1.4`, `1.4`→`1.5`, ..., `1.9`→`1.11`). Como `onConflictDoUpdate`
+// casa por `code` (não por conteúdo/título) e `code` nunca está no `set`, um
+// `npm run db:seed:lessons` rodado depois desta tarefa **não insere linha
+// nova pra essas 7** — ele reaproveita a linha física que já existia com
+// aquele `code` e sobrescreve título/textos pro conteúdo do próximo degrau
+// (ex: a linha que já era `code = '1.3'` numa base antiga passa a mostrar
+// "Como a Selic é formada" no lugar de "CDB e o CDI", com o mesmo `id`).
+// Resultado: `user_lesson_progress.lessonId` (que referencia esse `id`, não
+// o `code`) de qualquer usuário que já tivesse concluído uma dessas 7 lições
+// antes da M.5 passa a apontar, depois do reseed, pra uma lição de conteúdo
+// diferente do que ele realmente viu — `completedAt` preservado, badge de
+// "concluída" continua aparecendo, só que pro texto errado. Registrado em
+// `.claude/pontos-em-aberto-decisao-produto.md` (acerto/erro de decisão de
+// produto: aceitar esse desvio silencioso em ambiente de dev/staging já
+// usado, ou truncar `lessons`/`user_lesson_progress` antes de todo reseed
+// que renumera `code`). Só os 2 `code` que não existiam em nenhuma base
+// anterior (`1.10`/`1.11`, o degrau final da cadeia de deslocamento) ganham
+// linha e `id` de verdade novos; `1.3` e `1.9` (as 2 lições novas desta
+// tarefa) caem exatamente no `code` de uma lição que já existia antes.
+//
 // Auditoria de aposta com acerto/erro real (backlog engajamento B.4): das 33
-// lições, 3 ficaram sem opções reais (microDecisionOptions/
+// lições originais, 3 ficaram sem opções reais (microDecisionOptions/
 // microDecisionCorrectOption = null, mantêm o checkbox "já pensei" de hoje)
 // e 30 ganharam. O critério de elegibilidade não é "microDecisionType =
 // reflection" (como o texto original da tarefa supunha) e sim "o passo
 // Micro-decisão hoje mostra o checkbox" — que também vale pras 6 lições
-// `live_indicator` (2.6.1–2.6.6), já que `EMBEDDED_WIDGET_TYPES`
+// `live_indicator` (2.6.1–2.6.6) e, desde a M.5, pras 2 `live_macro_indicator`
+// (1.3/1.9) abaixo, já que `EMBEDDED_WIDGET_TYPES`
 // (`frontend/src/pages/Lesson/index.tsx`) só cobre `growth_calculator`/
 // `fixed_income_comparison`. Achado de auditoria corrigindo a suposição
 // original da B.4.
@@ -59,12 +84,13 @@ interface LessonSeed {
 //   0.2    — `growth_calculator`: o widget embutido já é a interação real.
 //   3.3    — `fixed_income_comparison`: mesmo motivo da 0.2.
 //
-// Dentro (30) — índice da opção correta entre colchetes, conferido contra o
-// veredito de `revelationText` de cada lição:
-//   0.3 [2] 0.4 [0] 0.5 [1] 1.1 [0] 1.2 [0] 1.3 [0] 1.4 [0] 1.5 [0] 1.6 [1]
-//   1.7 [1] 1.8 [0] 1.9 [1] 2.1 [1] 2.2 [1] 2.3 [0] 2.4 [1] 2.5 [0]
-//   2.6.1 [0] 2.6.2 [1] 2.6.3 [0] 2.6.4 [0] 2.6.5 [1] 2.6.6 [1] 2.7 [0]
-//   2.8 [1] 2.9 [1] 2.10 [1] 3.1 [0] 3.2 [0] 3.4 [3]
+// Dentro (32 — 30 originais + as 2 novas da M.5) — índice da opção correta
+// entre colchetes, conferido contra o veredito de `revelationText` de cada
+// lição, já nos códigos renumerados pela M.5:
+//   0.3 [2] 0.4 [0] 0.5 [1] 1.1 [0] 1.2 [0] 1.3 [0] 1.4 [0] 1.5 [0] 1.6 [0]
+//   1.7 [1] 1.8 [1] 1.9 [1] 1.10 [0] 1.11 [1] 2.1 [1] 2.2 [1] 2.3 [0] 2.4 [1]
+//   2.5 [0] 2.6.1 [0] 2.6.2 [1] 2.6.3 [0] 2.6.4 [0] 2.6.5 [1] 2.6.6 [1]
+//   2.7 [0] 2.8 [1] 2.9 [1] 2.10 [1] 3.1 [0] 3.2 [0] 3.4 [3]
 // A maioria (yes/no, maior/menor, sobe/desce/igual) reaproveita literalmente
 // as alternativas que o próprio `microDecisionPrompt` já enumera em texto —
 // não inventa vocabulário novo. Exceções que combinam duas leituras numa
@@ -322,6 +348,44 @@ const LESSON_SEEDS: LessonSeed[] = [
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
     sortOrder: 8,
+    title: 'Como a Selic é formada',
+    centralConcept: 'Reunião periódica do Copom reagindo ao desvio do IPCA frente à meta',
+    scenarioText:
+      'A lição anterior mostrou que o Tesouro Selic rende acompanhando a taxa Selic, mas essa taxa não ' +
+      'sai do nada: ela é decidida periodicamente pelo Copom (Comitê de Política Monetária do Banco ' +
+      'Central), reunido a cada 21 dias simulados nesta plataforma.' +
+      '\n\n' +
+      'Em cada reunião, a taxa não muda de qualquer jeito: ela reage principalmente a uma pergunta — a ' +
+      'inflação (IPCA) está rodando acima ou abaixo da meta?',
+    microDecisionPrompt:
+      'Se o IPCA acumulado em 12 meses estiver rodando acima da meta numa reunião do Copom simulado, ' +
+      'você espera que a Selic suba, desça ou fique igual nessa reunião?',
+    microDecisionType: 'live_macro_indicator',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
+    microDecisionCorrectOption: 0,
+    revelationText:
+      'Sobe. A regra de reação simulada (uma versão simplificada da regra de Taylor) soma três forças: ' +
+      'uma reversão à taxa neutra de longo prazo, um termo proporcional ao desvio do IPCA acumulado ' +
+      'frente à meta, e um ruído aleatório pequeno.' +
+      '\n\n' +
+      'Quanto mais a inflação passa da meta, maior a pressão pra subir a taxa; abaixo da meta, a pressão ' +
+      'vai na direção contrária.' +
+      '\n\n' +
+      'O resultado é sempre arredondado pro múltiplo mais próximo de 0,25 ponto percentual (o mesmo passo ' +
+      'do Copom real, nunca uma casa decimal solta), e a Selic simulada nunca fica negativa.' +
+      '\n\n' +
+      'É por isso que a taxa fica parada entre uma reunião e outra: ela só muda nesses dias específicos, ' +
+      'não dia a dia. Veja abaixo o valor atual da Selic simulada e em quantos dias sai a próxima decisão.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '1.4',
+    trackNumber: 1,
+    trackName: 'Trilha 1: Renda Fixa',
+    sortOrder: 9,
     title: 'CDB e o CDI',
     centralConcept: 'Remuneração bancária atrelada ao CDI, com garantia do FGC',
     scenarioText:
@@ -355,10 +419,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'CDB2027',
   },
   {
-    code: '1.4',
+    code: '1.5',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 9,
+    sortOrder: 10,
     title: 'Tributação regressiva de IR',
     centralConcept: 'Tabela regressiva de Imposto de Renda: quanto mais tempo, menor a alíquota',
     scenarioText:
@@ -386,10 +450,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    code: '1.5',
+    code: '1.6',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 10,
+    sortOrder: 11,
     title: 'LCI e LCA',
     centralConcept: 'Isenção de IR, comparação de retorno líquido entre produtos',
     scenarioText:
@@ -404,7 +468,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'LCI e LCA são isentos de Imposto de Renda; o CDB não.' +
       '\n\n' +
       'Resgatando os dois com só 60 dias corridos de aplicação (alíquota de 22,5% sobre o CDB, ' +
-      'lição 1.4), qual rende mais líquido: o LCI a 9,50% isento ou o CDB a 12,00% com IR?',
+      'lição 1.5), qual rende mais líquido: o LCI a 9,50% isento ou o CDB a 12,00% com IR?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     // Modelo de referência da tarefa A.2 (5 cartões, mesmo do exemplo
@@ -435,10 +499,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'LCI2026',
   },
   {
-    code: '1.6',
+    code: '1.7',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 11,
+    sortOrder: 12,
     title: 'Tesouro Prefixado',
     centralConcept: 'Deságio: preço menor que o valor de face, taxa travada na compra',
     scenarioText:
@@ -469,10 +533,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'LTN2027',
   },
   {
-    code: '1.7',
+    code: '1.8',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 12,
+    sortOrder: 13,
     title: 'Marcação a mercado',
     centralConcept: 'Risco de vender um título prefixado antes do vencimento',
     scenarioText:
@@ -509,10 +573,44 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    code: '1.8',
+    code: '1.9',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 13,
+    sortOrder: 14,
+    title: 'O que é o IPCA',
+    centralConcept: 'Índice de preços ao consumidor (IBGE), referência da meta de inflação',
+    scenarioText:
+      'O IPCA (Índice de Preços ao Consumidor Amplo) é calculado todo mês pelo IBGE a partir do preço de ' +
+      'uma cesta de bens e serviços representativa do consumo das famílias brasileiras: é o termômetro ' +
+      'oficial da inflação no Brasil e a referência que o Banco Central usa pra decidir a Selic (lição 1.3).' +
+      '\n\n' +
+      'Nesta plataforma, o IPCA mensal simulado varia pouco em torno de uma meta, mês a mês, sem depender ' +
+      'do valor do mês anterior.',
+    microDecisionPrompt:
+      'O IPCA acumulado em 12 meses (o número que costuma aparecer no noticiário) é a soma simples dos 12 ' +
+      'valores mensais, ou o produto composto deles, um mês sobre o outro?',
+    microDecisionType: 'live_macro_indicator',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Soma simples dos 12 valores mensais', 'Produto composto, mês sobre mês'],
+    microDecisionCorrectOption: 1,
+    revelationText:
+      'Produto composto: acumulado 12m = (1 + IPCA₁) × (1 + IPCA₂) × ... × (1 + IPCA₁₂) − 1, a mesma lógica ' +
+      'de juros compostos da lição 0.2, aplicada a uma sequência de taxas mensais em vez de uma taxa só.' +
+      '\n\n' +
+      'É esse acumulado, comparado com a meta composta pelo mesmo número de meses, que alimenta duas coisas ' +
+      'nesta plataforma: a reação da Selic simulada a cada reunião do Copom (lição 1.3) e a correção do ' +
+      'Valor Nominal Atualizado do Tesouro IPCA+ (próxima lição).' +
+      '\n\n' +
+      'Veja abaixo o IPCA mensal e o acumulado em 12 meses simulados até agora.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    code: '1.10',
+    trackNumber: 1,
+    trackName: 'Trilha 1: Renda Fixa',
+    sortOrder: 15,
     title: 'Tesouro IPCA+',
     centralConcept: 'Proteção contra inflação: rendimento real garantido acima do IPCA',
     scenarioText:
@@ -520,7 +618,8 @@ const LESSON_SEEDS: LessonSeed[] = [
       'acima da inflação, o que quer que ela seja no período.' +
       '\n\n' +
       'Isso é possível porque o Valor Nominal Atualizado (VNA) do título é corrigido mês a mês ' +
-      'pelo IPCA simulado, e só depois disso a taxa de 6,00% incide sobre esse valor já atualizado.',
+      'pelo IPCA simulado (lição anterior), e só depois disso a taxa de 6,00% incide sobre esse valor já ' +
+      'atualizado.',
     microDecisionPrompt:
       'Se a inflação simulada nesta plataforma rodar mais alta que o previsto ao longo dos anos ' +
       'até o vencimento, o valor final recebido no NTNB2035 aumenta, diminui ou fica igual?',
@@ -529,7 +628,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     microDecisionOptions: ['Aumenta', 'Diminui', 'Fica igual'],
     microDecisionCorrectOption: 0,
     revelationText:
-      'Aumenta. Diferente do Tesouro Prefixado (lição 1.6), cujo valor final é sempre R$1.000,00 ' +
+      'Aumenta. Diferente do Tesouro Prefixado (lição 1.7), cujo valor final é sempre R$1.000,00 ' +
       'fixo, o Tesouro IPCA+ tem seu Valor Nominal corrigido mensalmente pela inflação acumulada.' +
       '\n\n' +
       'Quanto maior o IPCA no período, maior o VNA no vencimento, e os 6,00% ao ano incidem sobre ' +
@@ -543,10 +642,10 @@ const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'NTNB2035',
   },
   {
-    code: '1.9',
+    code: '1.11',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 14,
+    sortOrder: 16,
     title: 'CRI e CRA',
     centralConcept: 'Risco de crédito privado sem FGC, compensado por maior remuneração',
     scenarioText:
@@ -585,7 +684,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 15,
+    sortOrder: 17,
     title: 'O que é uma ação',
     centralConcept: 'Comprar uma ação é se tornar sócio de uma empresa',
     scenarioText:
@@ -621,7 +720,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 16,
+    sortOrder: 18,
     title: 'IPO',
     centralConcept: 'Como uma empresa vai à bolsa',
     scenarioText:
@@ -651,7 +750,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 17,
+    sortOrder: 19,
     title: 'Nomenclatura de tickers',
     centralConcept: 'Final 3 (ON), final 4 (PN), final 11 (units/FII)',
     scenarioText:
@@ -687,7 +786,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 18,
+    sortOrder: 20,
     title: 'Lendo notícias de mercado',
     centralConcept: 'Como interpretar um evento macro e decidir',
     scenarioText:
@@ -723,7 +822,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 19,
+    sortOrder: 21,
     title: 'Oferta e demanda',
     centralConcept: 'Formação de preço no livro de ofertas (TCC cap. 2.3.3)',
     scenarioText:
@@ -761,7 +860,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 20,
+    sortOrder: 22,
     title: 'Lendo um balanço',
     centralConcept:
       'Peças básicas: Receita, EBIT, Lucro Líquido, Patrimônio Líquido, Dívida Bruta, Caixa',
@@ -799,7 +898,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 21,
+    sortOrder: 23,
     title: 'Margens de rentabilidade',
     centralConcept: 'O que é EBIT na prática, diferença para lucro líquido',
     scenarioText:
@@ -834,7 +933,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 22,
+    sortOrder: 24,
     title: 'Retorno sobre patrimônio (ROE)',
     centralConcept: 'Quão bem a empresa usa o capital dos sócios',
     scenarioText:
@@ -866,7 +965,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 23,
+    sortOrder: 25,
     title: 'Indicadores de preço (P/L e P/VP)',
     centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
     scenarioText:
@@ -899,7 +998,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 24,
+    sortOrder: 26,
     title: 'Endividamento',
     centralConcept: 'Risco de alavancagem',
     scenarioText:
@@ -934,7 +1033,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.6',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 25,
+    sortOrder: 27,
     title: 'Dividend Yield',
     centralConcept: 'Quanto a ação "paga" em relação ao preço',
     scenarioText:
@@ -970,7 +1069,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.7',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 26,
+    sortOrder: 28,
     title: 'Dividendos e data ex',
     centralConcept: 'Como e quando o acionista recebe',
     scenarioText:
@@ -1006,7 +1105,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.8',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 27,
+    sortOrder: 29,
     title: 'Setores e ciclicidade',
     centralConcept: 'Conecta com Selic afetando fundamentos (3.2.2), defensivo vs cíclico',
     scenarioText:
@@ -1045,7 +1144,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.9',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 28,
+    sortOrder: 30,
     title: 'ETFs',
     centralConcept: 'Diversificação automática via índice',
     scenarioText:
@@ -1082,7 +1181,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '2.10',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 29,
+    sortOrder: 31,
     title: 'FIIs',
     centralConcept: 'Fundos imobiliários, tickers final 11',
     scenarioText:
@@ -1125,7 +1224,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 30,
+    sortOrder: 32,
     title: 'Diversificação',
     centralConcept: 'Por que não concentrar tudo num ativo',
     scenarioText:
@@ -1171,7 +1270,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 31,
+    sortOrder: 33,
     title: 'Perfil de risco',
     centralConcept: 'Conservador vs Sofisticado, risco x retorno',
     scenarioText:
@@ -1210,11 +1309,11 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 32,
+    sortOrder: 34,
     title: 'Comparando produtos na prática',
     centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
     scenarioText:
-      'Você já viu, na lição 1.5, que CDB é tributado pela tabela regressiva de IR e LCI é isento.' +
+      'Você já viu, na lição 1.6, que CDB é tributado pela tabela regressiva de IR e LCI é isento.' +
       '\n\n' +
       'Mas taxa bruta maior e isenção de imposto são coisas diferentes, e comparar os dois de verdade exige ' +
       'olhar o valor líquido no bolso, não só o percentual anunciado.',
@@ -1231,7 +1330,7 @@ const LESSON_SEEDS: LessonSeed[] = [
       'bruto rende R$10.907,50 líquidos contra R$10.900,00 do LCI a 9,00% a.a. isento: o CDB vence, mas por ' +
       'pouco.' +
       '\n\n' +
-      'Em 180 dias, a alíquota sobe pra 22,5% (a faixa mais alta da tabela regressiva, mesma da lição 1.4), ' +
+      'Em 180 dias, a alíquota sobe pra 22,5% (a faixa mais alta da tabela regressiva, mesma da lição 1.5), ' +
       'e o resultado se inverte: o CDB rende R$10.409,30 líquidos contra R$10.434,15 do LCI, que agora ' +
       'vence.' +
       '\n\n' +
@@ -1249,7 +1348,7 @@ const LESSON_SEEDS: LessonSeed[] = [
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 33,
+    sortOrder: 35,
     title: 'Desafio final da trilha',
     centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
     scenarioText:

@@ -46,6 +46,11 @@ export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'growth_calculator',
   'fixed_income_comparison',
   'live_indicator',
+  // Indicador macro ao vivo (tarefa M.5) — mesma ideia do `live_indicator`
+  // acima, mas a Revelação busca Selic/IPCA via `GET /market/indicators`
+  // (M.3) em vez de um ativo específico; por isso não usa
+  // `microDecisionAssetTicker`.
+  'live_macro_indicator',
 ])
 
 export const users = pgTable('users', {

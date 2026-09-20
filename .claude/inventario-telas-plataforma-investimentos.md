@@ -117,8 +117,8 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** nav primária ("Trilha"), ou via atalho do Portfólio (2.1).
 - **Conteúdo:**
   - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) como seções/módulos expansíveis.
-  - Cada uma das 33 lições como um "nó" no formato mapa de progressão (concluída / disponível / bloqueada), mostrando o que cada lição desbloqueia (ex: "Tesouro Selic" ao lado da lição 1.2).
-  - Indicador de progresso geral (ex: "12 de 33 lições concluídas").
+  - Cada uma das 35 lições como um "nó" no formato mapa de progressão (concluída / disponível / bloqueada), mostrando o que cada lição desbloqueia (ex: "Tesouro Selic" ao lado da lição 1.2).
+  - Indicador de progresso geral (ex: "12 de 35 lições concluídas").
 - **Ações:**
   - Clique em lição disponível → **3.2 Lição**.
   - Clique em lição bloqueada → estado informativo (o que falta pra desbloquear), sem navegação.
@@ -127,7 +127,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Dados envolvidos:** `lessons`, `user_lesson_progress`.
 
 ### 3.2 Lição (componente genérico reutilizável)
-- **Objetivo:** ensinar um conceito através do padrão "aprender fazendo" (seção 5.2 da spec) — reutilizado pelas 33 lições e por produtos parecidos (CDB/LCI/LCA/CRI/CRA compartilham a mesma estrutura de tela).
+- **Objetivo:** ensinar um conceito através do padrão "aprender fazendo" (seção 5.2 da spec) — reutilizado pelas 35 lições e por produtos parecidos (CDB/LCI/LCA/CRI/CRA compartilham a mesma estrutura de tela).
 - **Acesso:** a partir do Mapa da Trilha (3.1) ou do atalho "Retomar lição" (2.1).
 - **Conteúdo, em 4 estados sequenciais dentro da mesma tela:**
   1. **Cenário/gatilho** — texto + ilustração da situação simulada.

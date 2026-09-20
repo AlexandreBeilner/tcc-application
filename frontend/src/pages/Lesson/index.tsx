@@ -9,8 +9,11 @@ import { Button } from '../../components/atoms/Button'
 import { GrowthCalculatorForm } from '../../components/organisms/GrowthCalculatorForm'
 import { FixedIncomeComparisonForm } from '../../components/organisms/FixedIncomeComparisonForm'
 import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicatorsPanel'
+import { IndicatorSummaryCards } from '../../components/organisms/IndicatorSummaryCards'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
+import { useIndicatorHistoryQuery } from '../../features/market/useIndicatorHistoryQuery'
+import { nextCopomSimulatedDay } from '../../features/market/nextCopomDay'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import { splitIntoCards } from '../../features/lessons/splitIntoCards'
 import type { Card } from '../../features/lessons/splitIntoCards'
@@ -21,11 +24,18 @@ import styles from './index.module.css'
 
 const TOTAL_STEPS = 4
 
+// Janela de busca do indicador macro ao vivo (tarefa M.5, `live_macro_indicator`)
+// — só precisa do valor mais recente pros cards de resumo, mesma fonte de
+// `GET /market/indicators` (M.3) da tela Indicadores Econômicos (M.4), sem
+// endpoint próprio.
+const LIVE_MACRO_INDICATOR_WINDOW_DAYS = 90
+
 // Widget do passo Micro-decisão que não precisa do checkbox "já pensei" —
 // os dois embutem um componente já existente (tarefa 6.7) que já traz sua
-// própria interação. Os outros dois (`reflection`, `live_indicator`)
-// mantêm o checkbox (tarefa 7.0.2 — a revelação de `live_indicator` busca
-// o indicador ao vivo, mas a micro-decisão em si continua sendo reflexão).
+// própria interação. Os outros três (`reflection`, `live_indicator`,
+// `live_macro_indicator`) mantêm o checkbox (tarefa 7.0.2/M.5 — a
+// revelação desses dois últimos busca o indicador ao vivo, mas a
+// micro-decisão em si continua sendo reflexão).
 const EMBEDDED_WIDGET_TYPES = new Set<LessonType['microDecisionType']>(['growth_calculator', 'fixed_income_comparison'])
 
 // Tela 3.2 (tarefa 6.4/7.0.2) — máquina de estado de 4 passos, mockup em
@@ -36,8 +46,9 @@ const EMBEDDED_WIDGET_TYPES = new Set<LessonType['microDecisionType']>(['growth_
 // desde a 6.4). Agora cada passo renderiza seu próprio campo real
 // (`scenarioText`/`microDecisionPrompt`/`revelationText`), o widget de
 // Micro-decisão varia por `microDecisionType`, a Revelação de uma lição
-// `live_indicator` busca o indicador real via `GET /market/assets/:id`, e
-// o Desbloqueio ganha "Comprar agora" quando `unlocksAssetTicker` existe.
+// `live_indicator` busca o indicador real via `GET /market/assets/:id` (uma
+// `live_macro_indicator`, via `GET /market/indicators`, tarefa M.5), e o
+// Desbloqueio ganha "Comprar agora" quando `unlocksAssetTicker` existe.
 export function Lesson() {
     const { id } = useParams<{ id: string }>()
     const lessonId = id as string
@@ -99,6 +110,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
     const indicatorAsset = useAssetByTicker(isLiveIndicator ? (lesson?.microDecisionAssetTicker ?? null) : null)
+    const isLiveMacroIndicator = lesson?.microDecisionType === 'live_macro_indicator'
+    const macroIndicatorHistory = useIndicatorHistoryQuery(LIVE_MACRO_INDICATOR_WINDOW_DAYS, { enabled: isLiveMacroIndicator })
     const unlockAsset = useAssetByTicker(lesson?.unlocksAssetTicker ?? null)
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
@@ -289,6 +302,19 @@ function LessonView({ lessonId }: { lessonId: string }) {
                             <p className={styles.loading}>Carregando indicador ao vivo…</p>
                         ) : (
                             <EquityIndicatorsPanel indicators={indicatorAsset.asset?.equity?.indicators} />
+                        ))}
+
+                    {isRevelationLastCard &&
+                        isLiveMacroIndicator &&
+                        (macroIndicatorHistory.isLoading ? (
+                            <p className={styles.loading}>Carregando indicador ao vivo…</p>
+                        ) : (
+                            <IndicatorSummaryCards
+                                latest={macroIndicatorHistory.data?.indicators.at(-1)}
+                                nextCopomSimulatedDay={nextCopomSimulatedDay(
+                                    macroIndicatorHistory.data?.indicators.at(-1)?.simulated_day ?? 0,
+                                )}
+                            />
                         ))}
 
                     <div className={styles.ctaRow}>
