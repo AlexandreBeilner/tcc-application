@@ -54,6 +54,16 @@ parte da proposta original.
    deste backlog). A tarefa `J.5` abaixo revisita esse conteúdo já escrito pra refletir o par real
    assim que ele existir — mesmo padrão da nota 6 (não é preciso coordenar ordem entre backlogs,
    só conferir se a outra já rodou antes de duplicar trabalho).
+10. **Achados sem tarefa própria neste backlog** (`.claude/pontos-em-aberto-decisao-produto.md`,
+    seção "Em aberto", auditados de novo em 2026-09-20 — nenhum é bug mecânico, todos dependem de
+    decisão de produto/design ainda não tomada): achado 001 (`RiskProfile.MarketOrderPreference`
+    nunca lido por nenhum arquétipo), achado 004 (`macroPriceEffectsByCompany` soma sem teto, pode
+    inverter o sinal do preço justo em eventos concorrentes extremos), achado 008 (Fundamentalista
+    lê sensibilidade à Selic por `risk_class` pro retorno exigido, mas por setor — K.2 — pro
+    crescimento; as duas podem divergir pra mesma empresa). Nenhum dos três bloqueia nenhuma tarefa
+    listada acima nem tem uma tarefa própria aberta — ficam pendentes até o autor decidir corrigir
+    ou documentar como comportamento aceito. **Achado 002** (teto de `SpreadWidthPct` do Market
+    Maker) é diferente dos outros três — tem localização concreta, ver nota da tarefa `N.1` abaixo.
 
 ---
 
@@ -2171,6 +2181,11 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
   usuário não-admin nas 3 rotas.
 - **Referências:** proposta 2.3; `.docs/engine/admin.md` (a criar/estender); tela 10.1/10.2 como
   precedente de padrão admin.
+- **Nota (achado 002, `.claude/pontos-em-aberto-decisao-produto.md`):** `POST /admin/bots` é o
+  primeiro consumidor real de `bot.NewRiskProfile` fora do seed (que hoje só cria com `0.02`
+  fixo) — `SpreadWidthPct` não tem teto superior (só rejeita `< 0`) antes do `>= 2` de
+  `DecideMarketMakerOrders` colapsar o book. Achado ainda sem decisão de produto (qual teto máximo
+  é razoável) — resolver antes de aceitar esse campo vindo de input externo nesta tarefa.
 - **Dependências:** A.4, C.1, C.6 (catálogo de bots já existente pra listar).
 
 ### N.2 · Tela "Painel Admin — Bots" no frontend
