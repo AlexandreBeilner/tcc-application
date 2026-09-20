@@ -261,8 +261,11 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
      `bot.InitialCash`/`InitialAllocation` com dados reais (que mitigaria a *frequência* do
      travamento, mas não o eliminaria sozinha) foi deliberadamente separada pro achado 009 abaixo —
      não bloqueia `J.6` nem duplica o escopo dela.
-- **Status:** Partes A/B resolvidas (ver testes/validação abaixo); Parte C tem tarefa aberta (`J.6`),
-  não implementada ainda.
+- **Status:** Resolvido por completo — Partes A/B (ver testes/validação abaixo) e Parte C via `J.6`
+  (`.claude/backlog-motor-mercado-realista.md`, 2026-09-20): `tick.MinOrderSizeCeiling` (piso de 1)
+  em `effectiveOrderSizeCeiling`, validado ao vivo contra o mesmo travamento real de `BNDD4`/`PAPL11`
+  (`total_quantity = 0` por 20+ dias simulados) — os dois recuperaram negociação já no primeiro
+  `POST /admin/tick` pós-correção.
 - **Testes:** `bot` (rename de `capToFloat`/`floatCeiling` pra `OrderSizeCeiling` nos testes
   existentes, mais dois novos cobrindo o teto zerando a quantidade comprável sem panicar —
   `rng.Intn(0)` panicaria se `canBuy` não considerasse o teto, achado do próprio trabalho desta
