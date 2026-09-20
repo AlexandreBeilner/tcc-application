@@ -425,6 +425,42 @@ func TestRedeem_IPCAMais_VNACrescePorInflacaoAumentaOResgate(t *testing.T) {
 	}
 }
 
+// TestRedeem_IPCAMais_MarcacaoAMercado_TaxaRealSubiu_RentabilidadeInferiorAContratada
+// é o critério de aceite da L.3 (backlog-motor-mercado-realista):
+// Tesouro IPCA+ continua sofrendo marcação a mercado no resgate antecipado,
+// igual Tesouro Prefixado (TestRedeem_MarcacaoAMercado_TaxaSubiu... acima) —
+// decisão confirmada com o usuário, já que a taxa real contratada na compra
+// funciona como uma prefixada sobre o VNA (diferente dos 6 produtos
+// pós-fixados, cujo rendimento É o índice de mercado). Mesmo cenário de
+// fixedincome.TestIPCAEarlyRedemption_TaxaRealSubiu_RentabilidadeInferiorAContratada,
+// agora ponta a ponta via Redeem, com o VNA parado (CurrentVNAWindow na
+// mesma janela da compra) pra isolar o efeito da taxa.
+func TestRedeem_IPCAMais_MarcacaoAMercado_TaxaRealSubiu_RentabilidadeInferiorAContratada(t *testing.T) {
+	const purchaseRealRate = 0.06
+	purchasedAt := fixedincome.VNAEpoch
+	now := purchasedAt.AddDate(0, 0, 5) // mesma janela de VNA da compra
+
+	vnaBase, _ := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, purchasedAt)
+	purchasePrice := fixedincome.IPCAPrice(vnaBase, fixedincome.IPCAQuote(purchaseRealRate, 252))
+	vnaNow, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, now)
+
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: purchaseRealRate},
+		MaturityDate:         purchasedAt.AddDate(1, 0, 0),
+		CurrentMarketRatePct: 9, // taxa real de mercado subiu (6% → 9%)
+		PurchasedAt:          purchasedAt,
+		ProductType:          fixedincome.ProductTesouroIPCA,
+	}
+
+	outcome, err := Redeem(ctx, now, vnaNow, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.MarkToMarket.VsContractedRate >= 0 {
+		t.Errorf("VsContractedRate = %v, want negativo (taxa real de mercado subiu)", outcome.MarkToMarket.VsContractedRate)
+	}
+}
+
 func TestSimulate_ValorInvalido(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 

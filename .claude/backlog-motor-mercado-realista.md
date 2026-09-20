@@ -1745,7 +1745,7 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
   resgatados na sequência devolveram exatamente os preços/mecânica de antes (regressão), sem
   nenhuma mudança de comportamento.
 
-### L.3 · Marcação a mercado restrita a produtos prefixados
+### ✅ L.3 · Marcação a mercado restrita a produtos prefixados
 
 - **Descrição:** hoje a marcação a mercado via Selic se aplica uniformemente aos 8 tipos de
   produto. Restringe a produtos prefixados de verdade (spec 3.2.1), removendo o efeito de
@@ -1756,6 +1756,37 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
 - **Referências:** proposta seção 9, item 3; relatório seção 8.5.
 - **Dependências:** L.1 (produto pós-fixado precisa já ter rendimento real pra fazer sentido não
   sofrer marcação a mercado via Selic).
+- **Entregável:** a exclusão dos 6 pós-fixados já tinha sido resolvida na prática pela L.1
+  (`IsPostFixado` não passa mais por `EarlyRedemption`) — o que faltava era a pergunta que a
+  própria L.2 tinha deixado em aberto (`fixedincomeexecution.go:43-57`, nota 3): a spec 3.2.1 fala
+  só em "títulos prefixados", então Tesouro IPCA+ deveria continuar sofrendo marcação a mercado
+  ou virar um sétimo/oitavo tipo isento junto dos pós-fixados? **Perguntado ao usuário nesta
+  sessão** (não estava em nenhum dos documentos de referência) — decisão: IPCA+ **continua**
+  sofrendo marcação a mercado junto com o Prefixado, porque a taxa real contratada na compra
+  funciona como uma prefixada sobre o VNA (`fixedincome.IPCAEarlyRedemption`, já implementada na
+  L.2), diferente dos 6 pós-fixados cujo rendimento já É o índice de mercado. Como a mecânica de
+  código já estava correta desde a L.1/L.2 (nenhuma mudança de fórmula necessária), o trabalho
+  desta sessão foi: (1) fechar o gap de teste ponta a ponta que faltava — o único teste de resgate
+  de IPCA+ existente (`TestRedeem_IPCAMais_VNACrescePorInflacaoAumentaOResgate`) isolava
+  deliberadamente `VsContractedRate ≈ 0`, então não provava a marcação a mercado de verdade;
+  `TestRedeem_IPCAMais_MarcacaoAMercado_TaxaRealSubiu_RentabilidadeInferiorAContratada` (novo,
+  `fixedincomeexecution_test.go`) reproduz o mesmo cenário do teste ponta a ponta do Prefixado
+  (`TestRedeem_MarcacaoAMercado_TaxaSubiu_RentabilidadeInferiorAContratada`) — VNA parado na mesma
+  janela da compra, taxa real de mercado subindo de 6% pra 9%, confirma `VsContractedRate < 0`; e
+  (2) formalizar a decisão nos três lugares que sinalizavam "não confirmada com o usuário":
+  `fixedincomeexecution.go:43-62` (nota 3 do doc do pacote), `fixedincome/product.go`
+  (`IndexType`/`IndexIPCAMais`) e `.docs/engine/fixedincome.md` (`POST /fixed-income/redemptions`
+  e a nota 3 de "Escopo não coberto"). A simplificação separada de reaproveitar a Selic NOMINAL
+  como proxy de taxa REAL de mercado (sem correção de Fisher) continua sem confirmação — não é o
+  que a L.3 pediu pra decidir, fica pra L.4 revisitar. `go build`/`go test ./...`/`golangci-lint
+  run` (Docker, `v2.12.2`, 0 issues) verdes. **`docker compose up` não repetido nesta sessão:**
+  outro worktree (`fase-m-indicadores-macro-selic-ipca`) já tinha a stack de pé nos mesmos
+  nomes/portas fixos de container (`tcc-engine`/`tcc-postgres`/etc.) no momento desta sessão —
+  subir/derrubar por cima arriscaria interromper esse outro trabalho em andamento. Como a mudança
+  desta tarefa é só teste + comentário/doc (nenhum caminho de execução HTTP/infra mudou — a lógica
+  de precificação já estava correta desde a L.1/L.2), `go test ./...` já cobre o critério de
+  aceite ponta a ponta no nível de domínio; fica pra uma sessão futura confirmar via HTTP se
+  necessário.
 
 ### L.4 · Revisitar as 5 decisões de escopo do `fixedincomeexecution`
 

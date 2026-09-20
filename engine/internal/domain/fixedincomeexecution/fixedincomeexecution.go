@@ -49,12 +49,17 @@
 //     "diferente" da Selic pra ele divergir); Redeem usa
 //     fixedincome.PostFixedValue direto. Tesouro Prefixado e Tesouro
 //     IPCA+ continuam os dois usando essa mesma taxa (ctx.
-//     CurrentMarketRatePct) como proxy de "taxa de mercado" — pra IPCA+
-//     (L.2), isso significa reaproveitar a Selic NOMINAL simulada como
-//     proxy de taxa de juro REAL de mercado (sem correção de Fisher),
-//     decisão de escopo desta sessão, não confirmada com o usuário; a L.3
-//     formaliza se essa marcação a mercado deveria valer pra IPCA+ ou não
-//     (spec 3.2.1 fala só em "títulos prefixados").
+//     CurrentMarketRatePct) como proxy de "taxa de mercado" — **confirmado
+//     com o usuário na L.3**: apesar da spec 3.2.1 falar só em "títulos
+//     prefixados", Tesouro IPCA+ tem uma taxa REAL contratada travada na
+//     compra que funciona como uma prefixada sobre o VNA (diferente dos 6
+//     pós-fixados, cujo rendimento já É o índice de mercado) — por isso
+//     continua sofrendo marcação a mercado, não vira um sétimo/oitavo tipo
+//     isento. Pra IPCA+ (L.2), isso ainda significa reaproveitar a Selic
+//     NOMINAL simulada como proxy de taxa de juro REAL de mercado (sem
+//     correção de Fisher) — essa simplificação de calibração específica
+//     continua sem confirmação com o usuário (decisão separada da L.3
+//     acima, ver L.4 pra revisitar).
 //
 //     3.1. A série diária de Selic que fixedincome.PostFixedFactor recebe
 //     (um valor por dia útil decorrido desde a compra) é hoje uma

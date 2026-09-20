@@ -36,7 +36,9 @@ var (
 // determinado (TCC cap. 2.2) — consumido pelas tarefas L.1/L.2
 // (backlog-motor-mercado-realista) pra decidir a fórmula de precificação
 // certa em fixedincomeexecution.Purchase/Redeem, e pela L.3 (restringir
-// marcação a mercado a produtos prefixados de verdade, spec 3.2.1).
+// marcação a mercado a produtos com taxa travada na compra — Prefixado e
+// IPCA+, spec 3.2.1 — excluindo os pós-fixados; decisão confirmada com o
+// usuário).
 type IndexType string
 
 const (
@@ -56,7 +58,11 @@ const (
 	// IndexIPCAMais rende IPCA + uma taxa real contratada (VNA), via
 	// fixedincome.VNAProjected/IPCAPrice (tarefa L.2 liga as duas fórmulas
 	// em fixedincomeexecution.Purchase/Redeem — antes disso, IPCA+
-	// reaproveitava o deságio nominal do Prefixado). Só Tesouro IPCA+.
+	// reaproveitava o deságio nominal do Prefixado). Só Tesouro IPCA+. A
+	// taxa real contratada funciona como uma prefixada sobre o VNA, então
+	// segue sujeita a marcação a mercado se vendida antes do vencimento
+	// (fixedincome.IPCAEarlyRedemption) — mesmo grupo do IndexPrefixado
+	// pra esse efeito, decisão confirmada com o usuário na L.3.
 	IndexIPCAMais IndexType = "ipca_mais"
 )
 
