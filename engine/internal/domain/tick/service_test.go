@@ -225,7 +225,7 @@ func (f *fakeOrderSubmitter) submit(req orderexecution.Request) (orderexecution.
 // testes de Advance/calendário/fundamentos/dividendos já cobriam antes desta
 // tarefa.
 func newTestService(repo Repository) *Service {
-	return NewService(repo, &fakeBotRoster{}, &fakePriceHistoryReader{}, &fakeTradedVolumeReader{}, &fakeOrderContextLoader{}, &fakeOrderSubmitter{}, &fakeOrderLifecycleManager{}, testSelicConfigService(), 1)
+	return NewService(repo, &fakeBotRoster{}, &fakePriceHistoryReader{}, &fakeTradedVolumeReader{}, &fakeOrderContextLoader{}, &fakeOrderSubmitter{}, &fakeOrderLifecycleManager{}, testSelicConfigService(), testIPCAConfig(), 1)
 }
 
 func TestService_Run_PrimeiraExecucaoComecaNoDia1(t *testing.T) {

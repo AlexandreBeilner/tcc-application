@@ -1713,7 +1713,7 @@ VNA na compra de Tesouro IPCA+, Fase L.2). Sem uma série de IPCA gerada e persi
 não tem o que mostrar num gráfico nem o que a Fase I precisa acumular. Esta fase resolve os dois
 problemas juntos: gerar+persistir a série, expor via API, e só então mostrar no frontend.
 
-### M.1 · Histórico diário persistido de Selic e IPCA
+### M.1 · Histórico diário persistido de Selic e IPCA ✅
 
 - **Descrição:** hoje `market_calendar` (migration `000004_market_calendar_and_quotes.up.sql`) é
   uma linha singleton só com o dia/Selic **corrente** — não guarda histórico, e IPCA não é gerado
@@ -1742,6 +1742,46 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   (`pontos-em-aberto-decisao-produto.md`); relatório `tmp/relatorio-logica-mercado.md` (IPCA sem
   consumidor).
 - **Dependências:** nenhuma (mas ver nota de coordenação com I.1 acima).
+- **Entregável:** tabela nova `market_indicator_history` (migration `000020`, `simulated_day`
+  único, `selic_rate`/`ipca_monthly`/`ipca_accumulated_12m`) gravada a cada tick por
+  `TickRepository.SaveTick`, sem mudar o contrato de `market_calendar` (continua a linha singleton
+  de leitura corrente). Cadência decidida: **todo dia repete o valor do mês corrente** — pacote
+  `ipca` ganhou `CurrentMonthIndex(dayIndex, monthDays)` (todo dia simulado já pertence a um mês
+  desde o dia 0, diferente de `IsReportDay`/`IsCopomMeetingDay`, que só disparam no último dia de
+  um ciclo) e `DefaultMonthDays = 30` (mês simulado ilustrativo, dias fixos — mesma simplificação
+  de `CopomMeetingIntervalDays` pro Copom, não um mês de calendário real). **Acumulação resolvida
+  aqui, não em `ipca`** (a pergunta que I.1 deixava em aberto): `ipca.MonthlyRate(cfg, monthIndex)`
+  deriva sua própria rng de `(cfg.Seed, monthIndex)` — IPCA não tem memória entre meses (cada mês é
+  a meta mais ruído), então, diferente de `selic.NextCalendarRate`, `Advance` nunca precisa de
+  nenhum estado persistido pra IPCA: recalcula o mês corrente e o acumulado de 12 meses
+  (`ipca.Accumulated12m`, composição por produto — não soma simples, janela parcial antes do
+  primeiro ano simulado) inteiramente a partir de `dayIndex`, sempre O(12), a cada tick.
+  `ipcaAccumulatedDeviation` (o placeholder `0` que a I.1 deixava em `tick.go`) agora vem de
+  `ipca.AccumulatedDeviation`, que fechou o achado desta sessão: comparar um acumulado de poucos
+  meses contra a meta **anualizada** (12 meses fixos) sempre pareceria "abaixo da meta" antes do
+  primeiro ano simulado, mesmo com o IPCA mensal batendo exatamente a própria meta — corrigido
+  comparando sempre contra `ipca.TargetForWindow` com a MESMA janela do acumulado (não sempre 12
+  meses), eliminando o viés. `ipca.DefaultConfig(seed+1)` (offset fixo, não a mesma seed de
+  `selicConfig` — os dois são singletons globais do processo, sem id de entidade pra decorrelacionar
+  via hash) com meta/banda/volatilidade ilustrativas (`DefaultMonthlyTarget = 0.00367` ≈ 4,5% a.a.,
+  coerente com `selic.DefaultNeutralRate = 10%`), documentadas como sujeitas a calibração futura,
+  mesmo tratamento já dado a outros defaults do motor. `tick.Advance`/`tick.Service`/`NewService`
+  ganharam o parâmetro `ipcaCfg ipca.Config` (56 call-sites de teste atualizados). Testes novos:
+  pacote `ipca` (`MonthlyRate`/`Accumulated12m`/`TargetForWindow`/`AnnualizedTarget`/
+  `AccumulatedDeviation`/`CurrentMonthIndex`, incluindo o teste que provou e depois fechou o viés de
+  janela parcial) e pacote `tick` (IPCA repete dentro do mês/muda quando o mês vira, acumulado bate
+  a composição, Selic recebe exatamente o desvio que `ipca.AccumulatedDeviation` calcula no dia de
+  reunião). `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0
+  issues) verdes. `.docs/engine/tick.md` atualizado (tabela nova, parágrafo da regra de Selic, nota
+  da G.3 sobre IPCA+ de FII papel corrigida — deixou de ser "sem consumidor"). **Validado ponta a
+  ponta via `docker compose up -d --build`** (worktree com volume novo, sem dado pré-existente):
+  seed + 34 `POST /admin/tick` (dias 1→35) confirmaram — `market_indicator_history` com exatamente
+  35 linhas, uma por dia; `ipca_monthly` idêntico do dia 1 ao 30 (0.003758) e mudando exatamente no
+  dia 31 (0.002307, primeiro dia do mês simulado 1); `ipca_accumulated_12m` bate a composição por
+  produto dos dois meses (0.006073, não a soma 0.006065); `selic_rate` mudou exatamente no dia 21
+  (10.000 → 9.750, dia de reunião do Copom) e ficou constante nos dias vizinhos; `market_calendar`
+  (`current_day = 35`, `selic_rate = 9.750`) continua espelhando a última linha do histórico sem
+  mudança de contrato. Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ### M.2 · Endpoint HTTP de série histórica (engine)
 
