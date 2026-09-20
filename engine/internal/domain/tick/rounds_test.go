@@ -426,8 +426,7 @@ func TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto
 	}
 	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
 
-	riskClasses := companyEquityRiskClasses(assets)
-	contexts := companyRoundContexts([]CompanyForFundamentals{company}, map[string]float64{}, riskClasses, 1, 10, 10, map[string]float64{})
+	contexts := companyRoundContexts([]CompanyForFundamentals{company}, map[string]float64{}, 1, 10, 10, map[string]float64{})
 	if len(contexts) != 1 {
 		t.Fatalf("len(contexts) = %d, want 1 — duas ações da mesma empresa compartilham um ciclo de fundamentos só, não um por ativo", len(contexts))
 	}
