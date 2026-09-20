@@ -70,6 +70,62 @@ func TestPurchase_PrecificaEBlendaNaPosicao(t *testing.T) {
 	}
 }
 
+// TestPurchase_Prefixado_TaxaOfertadaAcompanhaSelicCorrente é o critério de
+// aceite principal da L.4 (backlog-motor-mercado-realista, decisão 1): a
+// taxa que uma compra NOVA trava não pode ficar presa ao valor do seed pra
+// sempre — o mesmo spread contratual (AnnualRatePct, reinterpretado por
+// esta tarefa) travado em dois momentos com a Selic simulada em patamares
+// diferentes tem que travar taxas diferentes.
+func TestPurchase_Prefixado_TaxaOfertadaAcompanhaSelicCorrente(t *testing.T) {
+	spread := 1.75
+	ctxSelicBaixa := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: spread, MinimumInvestment: 100, MaturityDate: purchaseMaturity,
+		ProductType: fixedincome.ProductTesouroPrefixado, CurrentMarketRatePct: 8,
+	}
+	ctxSelicAlta := ctxSelicBaixa
+	ctxSelicAlta.CurrentMarketRatePct = 14
+
+	low, err := Purchase(Request{Amount: 2000}, ctxSelicBaixa, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("Selic baixa: err = %v, want nil", err)
+	}
+	high, err := Purchase(Request{Amount: 2000}, ctxSelicAlta, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("Selic alta: err = %v, want nil", err)
+	}
+
+	wantRateLow := (spread + 8) / 100
+	wantRateHigh := (spread + 14) / 100
+	if !almostEqual(low.NewPosition.AverageRate, wantRateLow, 1e-9) {
+		t.Errorf("AverageRate (Selic 8%%) = %v, want %v (spread + Selic)", low.NewPosition.AverageRate, wantRateLow)
+	}
+	if !almostEqual(high.NewPosition.AverageRate, wantRateHigh, 1e-9) {
+		t.Errorf("AverageRate (Selic 14%%) = %v, want %v (spread + Selic)", high.NewPosition.AverageRate, wantRateHigh)
+	}
+	if high.NewPosition.AverageRate <= low.NewPosition.AverageRate {
+		t.Errorf("Selic mais alta deveria travar uma taxa contratada maior: baixa=%v alta=%v", low.NewPosition.AverageRate, high.NewPosition.AverageRate)
+	}
+}
+
+// TestPurchase_Prefixado_Sandbox_NaoSomaSelicSobreORoteiro prova a ressalva
+// documentada em PurchaseContext.IsSandbox: o roteiro sandbox já entrega
+// AnnualRatePct como taxa ABSOLUTA pronta (Repository, RF12) — Purchase não
+// pode somar CurrentMarketRatePct em cima, ou dobraria o efeito da Selic.
+func TestPurchase_Prefixado_Sandbox_NaoSomaSelicSobreORoteiro(t *testing.T) {
+	ctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity,
+		ProductType: fixedincome.ProductTesouroPrefixado, CurrentMarketRatePct: 20, IsSandbox: true,
+	}
+
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if !almostEqual(outcome.NewPosition.AverageRate, 0.10, 1e-9) {
+		t.Errorf("AverageRate = %v, want 0.10 (taxa do roteiro sandbox, sem somar CurrentMarketRatePct)", outcome.NewPosition.AverageRate)
+	}
+}
+
 func TestPurchase_SegundaCompraBlendaComAPosicaoExistente(t *testing.T) {
 	ctxFirst := PurchaseContext{AccountBalance: 10000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
 	first, err := Purchase(Request{Amount: 2000}, ctxFirst, purchaseNow, 0, 0)
@@ -458,6 +514,85 @@ func TestRedeem_IPCAMais_MarcacaoAMercado_TaxaRealSubiu_RentabilidadeInferiorACo
 	}
 	if outcome.MarkToMarket.VsContractedRate >= 0 {
 		t.Errorf("VsContractedRate = %v, want negativo (taxa real de mercado subiu)", outcome.MarkToMarket.VsContractedRate)
+	}
+}
+
+// TestPurchase_IPCAMais_TaxaOfertadaUsaCorrecaoDeFisherNaoSelicNominalDireta
+// é o critério de aceite da L.4 (decisão 3, sub-decisão de Fisher): a taxa
+// real ofertada não pode reaproveitar a Selic NOMINAL direto como se já
+// fosse real — precisa descontar o IPCA acumulado via fixedincome.
+// FisherRealRate antes de somar o spread.
+func TestPurchase_IPCAMais_TaxaOfertadaUsaCorrecaoDeFisherNaoSelicNominalDireta(t *testing.T) {
+	now := fixedincome.VNAEpoch.AddDate(2, 0, 3)
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, now)
+	maturity := now.AddDate(1, 0, 0)
+	spread := 0.5
+
+	ctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: spread, MinimumInvestment: 100,
+		MaturityDate: maturity, ProductType: fixedincome.ProductTesouroIPCA,
+		CurrentMarketRatePct: 10, IPCAAccumulated12m: 0.03,
+	}
+
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, now, vnaBase, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	wantFisherReal := fixedincome.FisherRealRate(0.10, 0.03)
+	wantRate := (spread / 100) + wantFisherReal
+	if !almostEqual(outcome.NewPosition.AverageRate, wantRate, 1e-9) {
+		t.Errorf("AverageRate = %v, want %v (spread + Fisher(Selic, IPCA))", outcome.NewPosition.AverageRate, wantRate)
+	}
+
+	naiveRate := (spread / 100) + 0.10
+	if almostEqual(outcome.NewPosition.AverageRate, naiveRate, 1e-6) {
+		t.Errorf("AverageRate = %v ficou igual à Selic nominal direta (%v) — correção de Fisher não teve efeito", outcome.NewPosition.AverageRate, naiveRate)
+	}
+}
+
+// TestRedeem_IPCAMais_MarcacaoAMercadoUsaCorrecaoDeFisher prova o achado da
+// L.4 do lado do resgate: a Selic NOMINAL subindo não significa que a taxa
+// REAL de mercado subiu junto — se o IPCA acumulado também subiu o
+// suficiente, a taxa real (via Fisher) pode até CAIR frente à contratada,
+// invertendo o sinal do ganho/perda que a simplificação antiga (Selic
+// nominal usada direto como proxy de taxa real, sem descontar a inflação)
+// erraria.
+func TestRedeem_IPCAMais_MarcacaoAMercadoUsaCorrecaoDeFisher(t *testing.T) {
+	const purchaseRealRate = 0.06
+	purchasedAt := fixedincome.VNAEpoch
+	now := purchasedAt.AddDate(0, 0, 5) // mesma janela de VNA da compra
+
+	vnaBase, _ := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, purchasedAt)
+	purchasePrice := fixedincome.IPCAPrice(vnaBase, fixedincome.IPCAQuote(purchaseRealRate, 252))
+	vnaNow, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, now)
+
+	// Selic nominal subiu de 9% (6% real + 3% inflação) pra 12%, mas o IPCA
+	// acumulado também subiu de 3% pra 6% — a taxa REAL de mercado (Fisher
+	// (12%, 6%) ≈ 5,66%) na verdade ficou ABAIXO dos 6% contratados, então
+	// a posição vale MAIS que uma emissão nova a essa taxa real mais baixa
+	// (ganho extraordinário) — o oposto do que a leitura ingênua ("Selic
+	// nominal subiu, deveria perder") sugeriria sem a correção de Fisher.
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: purchaseRealRate},
+		MaturityDate:         purchasedAt.AddDate(1, 0, 0),
+		CurrentMarketRatePct: 12,
+		IPCAAccumulated12m:   0.06,
+		PurchasedAt:          purchasedAt,
+		ProductType:          fixedincome.ProductTesouroIPCA,
+	}
+
+	outcome, err := Redeem(ctx, now, vnaNow, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	wantFisherReal := fixedincome.FisherRealRate(0.12, 0.06)
+	if wantFisherReal >= purchaseRealRate {
+		t.Fatalf("cenário mal montado: Fisher(12%%, 6%%) = %v deveria ficar abaixo de 6%% contratados", wantFisherReal)
+	}
+	if outcome.MarkToMarket.VsContractedRate <= 0 {
+		t.Errorf("VsContractedRate = %v, want positivo (taxa REAL de mercado, via Fisher, ficou abaixo da contratada — ganho extraordinário mesmo com a Selic nominal tendo subido)", outcome.MarkToMarket.VsContractedRate)
 	}
 }
 

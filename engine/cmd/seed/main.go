@@ -105,8 +105,19 @@ func main() {
 	// pontos-em-aberto-decisao-produto.md) referencia VALR3/TJLO11/LFT2029
 	// reais, então os 3 precisam já existir no catálogo.
 	seedETF(ctx, repo)
-	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75, 30.00, false)
-	seedFixedIncome(ctx, repo, "NTNB2035", "Tesouro IPCA+ 2035", fixedincome.ProductTesouroIPCA, "", 6.00, 30.00, false)
+	// LTN2027/NTNB2035 (tarefa L.4): interest_rate deixou de ser a taxa
+	// ofertada em si e virou o SPREAD sobre o benchmark de mercado corrente
+	// (Selic nominal pro Prefixado, taxa real via Fisher pro IPCA+) — mesmo
+	// raciocínio da reinterpretação que a L.1 já tinha aplicado aos 6 tipos
+	// pós-fixados abaixo ("% do CDI" em vez de "% a.a."). 1,75 p.p. sobre
+	// Selic=10% (selic.DefaultNeutralRate, seed) reproduz os 11,75% a.a.
+	// que o catálogo oferecia antes desta tarefa; 0,5 p.p. sobre a taxa
+	// real implícita da Selic seed (~6,75%, Fisher com IPCA acumulado ~3%
+	// a.a., ipca.DefaultConfig) fica perto dos 6,00% reais que NTNB2035
+	// oferecia antes — os dois passam a se mover com a Selic/IPCA simulada
+	// a partir daqui, em vez de ficar travados nesse valor pra sempre.
+	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 1.75, 30.00, false)
+	seedFixedIncome(ctx, repo, "NTNB2035", "Tesouro IPCA+ 2035", fixedincome.ProductTesouroIPCA, "", 0.50, 30.00, false)
 	seedFixedIncome(ctx, repo, "CDB2027", "CDB Banco Invest 2027", fixedincome.ProductCDB, "", 110.00, 100.00, false)
 	seedFixedIncome(ctx, repo, "LCI2026", "LCI Banco Invest 2026", fixedincome.ProductLCI, "", 90.00, 500.00, false)
 	seedFixedIncome(ctx, repo, "LCA2026", "LCA Banco Invest 2026", fixedincome.ProductLCA, "", 90.00, 500.00, false)

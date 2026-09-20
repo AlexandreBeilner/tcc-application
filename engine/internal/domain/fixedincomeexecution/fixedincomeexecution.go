@@ -149,6 +149,18 @@ type RedeemRequest struct {
 // usa fixedincome.FaceValue como unidade (compra "ao par" — não há deságio
 // pra uma taxa que não está travada), qualquer outro tipo continua usando
 // fixedincome.PrefixedPrice (comportamento anterior à L.1, inalterado).
+// AnnualRatePct (tarefa L.4) foi reinterpretado pra Prefixado/IPCA+, mesmo
+// raciocínio da reinterpretação que a L.1 já tinha aplicado aos 6 tipos
+// pós-fixados ("% do CDI" em vez de "% a.a."): agora é o SPREAD contratual
+// sobre CurrentMarketRatePct (Selic nominal simulada, mesma fonte que
+// RedeemContext já usa pra marcação a mercado), não mais a taxa ofertada
+// final — fixedincome.OfferedRate soma os dois na hora de travar a taxa
+// contratada de uma compra nova, pra ela acompanhar a Selic corrente em
+// vez de ficar presa ao valor do seed pra sempre. IsSandbox faz Purchase
+// pular esse cálculo (nota 5 do doc do pacote sandbox_helpers.go): o
+// roteiro sandbox já sobrescreve AnnualRatePct com uma taxa absoluta
+// pronta (Repository), somar CurrentMarketRatePct em cima duplicaria o
+// efeito da Selic.
 type PurchaseContext struct {
 	AccountBalance    float64
 	AnnualRatePct     float64
@@ -156,6 +168,19 @@ type PurchaseContext struct {
 	MinimumInvestment float64
 	CurrentPosition   fixedincomeposition.Position
 	ProductType       fixedincome.ProductType
+	// CurrentMarketRatePct é a Selic simulada corrente (%), usada pra
+	// reprecificar a taxa ofertada de Prefixado/IPCA+ (tarefa L.4) —
+	// nunca lida pra pós-fixado (rate já é "% do CDI", sem benchmark a
+	// somar) nem pra sandbox (IsSandbox true).
+	CurrentMarketRatePct float64
+	// IPCAAccumulated12m é o IPCA acumulado em 12 meses simulados mais
+	// recente (decimal, ex: 0.03), lido do histórico persistido (M.1) —
+	// só usado pra Tesouro IPCA+, pra converter CurrentMarketRatePct
+	// (nominal) numa taxa real via fixedincome.FisherRealRate antes de
+	// somar o spread (tarefa L.4, resolve a simplificação documentada
+	// desde a L.2/L.3).
+	IPCAAccumulated12m float64
+	IsSandbox          bool
 }
 
 // PurchaseOutcome é o resultado de Purchase, pronto pra persistência.
@@ -182,6 +207,11 @@ type RedeemContext struct {
 	PurchasedAt          time.Time
 	TaxExempt            bool
 	ProductType          fixedincome.ProductType
+	// IPCAAccumulated12m (tarefa L.4) — mesmo campo/fonte de
+	// PurchaseContext.IPCAAccumulated12m, só usado pra Tesouro IPCA+
+	// converter CurrentMarketRatePct (Selic nominal) numa taxa real via
+	// fixedincome.FisherRealRate antes de marcar a mercado.
+	IPCAAccumulated12m float64
 }
 
 // RedeemOutcome é o resultado de Redeem, pronto pra persistência. NetValue
@@ -261,11 +291,20 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time, vnaBase, monthlyI
 	switch {
 	case fixedincome.IsPostFixado(ctx.ProductType):
 		unitPrice = fixedincome.FaceValue
+	case ctx.IsSandbox:
+		// Roteiro sandbox já resolveu AnnualRatePct pra uma taxa absoluta
+		// (Repository) — nunca soma CurrentMarketRatePct em cima (nota do
+		// doc de PurchaseContext).
+		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
+		unitPrice = fixedincome.PrefixedPrice(rate, remainingDays)
 	case fixedincome.IsIPCAMais(ctx.ProductType):
+		realBenchmark := fixedincome.FisherRealRate(ctx.CurrentMarketRatePct/100, ctx.IPCAAccumulated12m)
+		rate = fixedincome.OfferedRate(ctx.AnnualRatePct/100, realBenchmark)
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 		vna := fixedincome.VNAProjected(vnaBase, monthlyIPCA, now)
 		unitPrice = fixedincome.IPCAPrice(vna, fixedincome.IPCAQuote(rate, remainingDays))
 	default:
+		rate = fixedincome.OfferedRate(ctx.AnnualRatePct/100, ctx.CurrentMarketRatePct/100)
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 		unitPrice = fixedincome.PrefixedPrice(rate, remainingDays)
 	}
@@ -325,7 +364,8 @@ func Redeem(ctx RedeemContext, now time.Time, vnaBase, monthlyIPCA float64) (Red
 	case fixedincome.IsIPCAMais(ctx.ProductType):
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 		vna := fixedincome.VNAProjected(vnaBase, monthlyIPCA, now)
-		result = fixedincome.IPCAEarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, ctx.CurrentMarketRatePct/100, vna, remainingDays)
+		currentMarketRealRate := fixedincome.FisherRealRate(ctx.CurrentMarketRatePct/100, ctx.IPCAAccumulated12m)
+		result = fixedincome.IPCAEarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, currentMarketRealRate, vna, remainingDays)
 		totalValue = ctx.Position.Quantity * result.MarkToMarketPrice
 	default:
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)

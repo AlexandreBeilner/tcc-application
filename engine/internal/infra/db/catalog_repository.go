@@ -206,16 +206,28 @@ func (r *CatalogRepository) FindAssetByID(ctx context.Context, id string) (catal
 }
 
 // FindFixedIncomeSpecialization devolve a especialização de renda fixa de
-// assetID, se existir — usado por GET /assets/:id pra ativos de renda fixa
-// (tarefa 3.10, RF21).
+// assetID, se existir — usado por GET /assets/:id (tela 3.10, RF21) e por
+// GET /fixed-income/simulate (handleFixedIncomeSimulate), os dois únicos
+// consumidores de InterestRate fora da compra/resgate real. InterestRate
+// (tarefa L.4) deixa de ser sempre o dado cru do catálogo pra Prefixado/
+// IPCA+: reprecificaOfertaParaExibicao (abaixo) devolve a mesma taxa
+// ofertada hoje que fixedincomeexecution.Purchase travaria numa compra
+// nova (fixedincome.OfferedRate/FisherRealRate — mesmas fórmulas, mesma
+// fonte de Selic/IPCA), garantindo que listagem/simulador nunca mostrem um
+// número diferente do que a compra de verdade cobraria. Pós-fixado e
+// sandbox não passam por essa reprecificação (nota do doc de
+// reprecificarOfertaParaExibicao).
 func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, assetID string) (catalog.FixedIncomeSpecialization, bool, error) {
 	var spec catalog.FixedIncomeSpecialization
 	var issuerType string
 	var creditRiskRating sql.NullString
+	var productType string
+	var isSandbox bool
 	err := r.db.QueryRowContext(ctx,
-		`SELECT interest_rate, maturity_date, issuer_type, tax_exempt, credit_risk_rating, minimum_investment
-		 FROM fixed_income_assets WHERE asset_id = $1`, assetID,
-	).Scan(&spec.InterestRate, &spec.MaturityDate, &issuerType, &spec.TaxExempt, &creditRiskRating, &spec.MinimumInvestment)
+		`SELECT fia.interest_rate, fia.maturity_date, fia.issuer_type, fia.tax_exempt, fia.credit_risk_rating, fia.minimum_investment, a.type, a.is_sandbox
+		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
+		 WHERE fia.asset_id = $1`, assetID,
+	).Scan(&spec.InterestRate, &spec.MaturityDate, &issuerType, &spec.TaxExempt, &creditRiskRating, &spec.MinimumInvestment, &productType, &isSandbox)
 	if err == sql.ErrNoRows {
 		return catalog.FixedIncomeSpecialization{}, false, nil
 	}
@@ -226,7 +238,52 @@ func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, a
 	if creditRiskRating.Valid {
 		spec.CreditRiskRating = &creditRiskRating.String
 	}
+	if !isSandbox && spec.InterestRate != nil {
+		if offered, ok, err := r.reprecificarOfertaParaExibicao(ctx, fixedincome.ProductType(productType), *spec.InterestRate); err != nil {
+			return catalog.FixedIncomeSpecialization{}, false, err
+		} else if ok {
+			spec.InterestRate = &offered
+		}
+	}
 	return spec, true, nil
+}
+
+// reprecificarOfertaParaExibicao aplica fixedincome.OfferedRate/
+// FisherRealRate (tarefa L.4) sobre o spread do catálogo (spreadPct),
+// mesma fórmula que fixedincomeexecution.Purchase usa pra travar a taxa
+// contratada de uma compra nova — só pra Prefixado (benchmark = Selic
+// nominal corrente) e IPCA+ (benchmark = taxa real via Fisher, Selic
+// nominal + IPCA acumulado em 12 meses, M.1). Pós-fixado (spread já é "%
+// do CDI", L.1 — sem benchmark a somar) devolve ok=false, sem reprecificar
+// — spec.InterestRate fica com o valor cru do catálogo. ok=false também
+// quando o Temporizador ainda não rodou nenhum tick (currentSelicRatePct/
+// currentIPCAAccumulated12m sem linha) — diferente de Purchase/Redeem
+// (que tratam essa falta de precondição como erro via
+// ErrMarketCalendarNotInitialized), aqui é só exibição: melhor mostrar o
+// spread cru do que devolver 500 numa tela de listagem antes do primeiro
+// tick.
+func (r *CatalogRepository) reprecificarOfertaParaExibicao(ctx context.Context, productType fixedincome.ProductType, spreadPct float64) (float64, bool, error) {
+	switch {
+	case fixedincome.IsPrefixado(productType):
+		selic, ok, err := currentSelicRatePct(ctx, r.db)
+		if err != nil || !ok {
+			return 0, false, err
+		}
+		return fixedincome.OfferedRate(spreadPct/100, selic/100) * 100, true, nil
+	case fixedincome.IsIPCAMais(productType):
+		selic, ok, err := currentSelicRatePct(ctx, r.db)
+		if err != nil || !ok {
+			return 0, false, err
+		}
+		accumulated, ok, err := currentIPCAAccumulated12m(ctx, r.db)
+		if err != nil || !ok {
+			return 0, false, err
+		}
+		realBenchmark := fixedincome.FisherRealRate(selic/100, accumulated)
+		return fixedincome.OfferedRate(spreadPct/100, realBenchmark) * 100, true, nil
+	default:
+		return 0, false, nil
+	}
 }
 
 // FindEquitySpecialization devolve a especialização de ação de assetID

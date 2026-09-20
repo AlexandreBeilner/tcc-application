@@ -107,6 +107,17 @@ func IsPostFixado(productType ProductType) bool {
 	return ok && idx == IndexPosFixado
 }
 
+// IsPrefixado indica se productType trava uma taxa nominal contratada na
+// compra, deságio sobre o Valor Nominal (IndexPrefixado) — usado pela
+// tarefa L.4 pra decidir quando a taxa OFERTADA hoje (fixed_income_assets.
+// interest_rate, reinterpretado como spread) precisa acompanhar a Selic
+// simulada corrente via fixedincome.OfferedRate, em vez de ficar travada
+// no valor do seed pra sempre. Só Tesouro Prefixado hoje.
+func IsPrefixado(productType ProductType) bool {
+	idx, ok := IndexOf(productType)
+	return ok && idx == IndexPrefixado
+}
+
 // IsIPCAMais indica se productType rende IPCA + uma taxa real contratada,
 // via VNA (IndexIPCAMais) — usado por fixedincomeexecution.Purchase/Redeem
 // (tarefa L.2) pra escolher fixedincome.VNAProjected/IPCAPrice em vez de

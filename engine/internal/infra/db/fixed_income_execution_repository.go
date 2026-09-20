@@ -82,6 +82,7 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
 	pctx.CurrentPosition = pos
+	pctx.IsSandbox = isSandbox
 
 	if isSandbox {
 		script, ok := sandbox.RateScriptForTicker(ticker)
@@ -89,6 +90,34 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 			return fixedincomeexecution.PurchaseContext{}, ErrSandboxScriptNotFound
 		}
 		pctx.AnnualRatePct = sandbox.RateOnDay(script, sandboxDayIndex(positionCreatedAt, pos.Quantity))
+		return pctx, nil
+	}
+
+	// Selic/IPCA (tarefa L.4) só são lidas pra Prefixado/IPCA+ — pós-fixado
+	// não soma nenhum benchmark (AnnualRatePct já é "% do CDI", L.1) e não
+	// paga o custo/dependência de market_calendar/market_indicator_history
+	// à toa (mesmo raciocínio de OrderExecutionRepository.floatCeiling só
+	// rodar a segunda query quando a primeira não é nula).
+	if fixedincome.IsPrefixado(pctx.ProductType) || fixedincome.IsIPCAMais(pctx.ProductType) {
+		selic, ok, err := currentSelicRatePct(ctx, r.db)
+		if err != nil {
+			return fixedincomeexecution.PurchaseContext{}, err
+		}
+		if !ok {
+			return fixedincomeexecution.PurchaseContext{}, ErrMarketCalendarNotInitialized
+		}
+		pctx.CurrentMarketRatePct = selic
+
+		if fixedincome.IsIPCAMais(pctx.ProductType) {
+			accumulated, ok, err := currentIPCAAccumulated12m(ctx, r.db)
+			if err != nil {
+				return fixedincomeexecution.PurchaseContext{}, err
+			}
+			if !ok {
+				return fixedincomeexecution.PurchaseContext{}, ErrMarketCalendarNotInitialized
+			}
+			pctx.IPCAAccumulated12m = accumulated
+		}
 	}
 
 	return pctx, nil
@@ -148,6 +177,21 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
 		}
 		return fixedincomeexecution.RedeemContext{}, err
+	}
+
+	// IPCAAccumulated12m (tarefa L.4) só é lida pro Tesouro IPCA+ — é o
+	// único tipo cuja marcação a mercado precisa converter
+	// CurrentMarketRatePct (Selic nominal) numa taxa real via
+	// fixedincome.FisherRealRate antes de comparar com a taxa contratada.
+	if fixedincome.IsIPCAMais(rctx.ProductType) {
+		accumulated, ok, err := currentIPCAAccumulated12m(ctx, r.db)
+		if err != nil {
+			return fixedincomeexecution.RedeemContext{}, err
+		}
+		if !ok {
+			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
+		}
+		rctx.IPCAAccumulated12m = accumulated
 	}
 
 	return rctx, nil
