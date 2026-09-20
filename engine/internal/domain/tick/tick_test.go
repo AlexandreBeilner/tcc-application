@@ -601,6 +601,57 @@ func TestAdvance_Dividendos_AcaoSemOutstandingSharesNaoGeraProvento(t *testing.T
 	}
 }
 
+// tarefa J.2: PN recebe valor por ação maior que ON, proporcional ao
+// pn_dividend_premium_pct da empresa — mesmo net_income/ciclo, duas bases
+// de ações em circulação diferentes (J.1: dois asset_id, mesmo company_id).
+func TestAdvance_Dividendos_EmpresaOnPnAplicaPrioridadeLegalDaPn(t *testing.T) {
+	companyID := "c1"
+	onShares := int64(1000)
+	pnShares := int64(500)
+	onClass, pnClass := "ON", "PN"
+	onHolders := []PositionHolder{{UserID: "u1", Quantity: 10}}
+	pnHolders := []PositionHolder{{UserID: "u2", Quantity: 5}}
+	onPayer := DividendPayerAsset{AssetID: "on1", Type: "acao", CompanyID: &companyID, ShareClass: &onClass, OutstandingShares: &onShares, Holders: onHolders}
+	pnPayer := DividendPayerAsset{AssetID: "pn1", Type: "acao", CompanyID: &companyID, ShareClass: &pnClass, OutstandingShares: &pnShares, Holders: pnHolders}
+	companies := []CompanyForFundamentals{{
+		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
+		Sector: "Mineração", PnDividendPremiumPct: 25,
+	}}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	// Day: 13 -> newDay = 14 = dia de relatório da empresa.
+	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{onPayer, pnPayer}, nil, cfg, 1)
+
+	if len(result.NewDividends) != 2 {
+		t.Fatalf("len(NewDividends) = %d, want 2", len(result.NewDividends))
+	}
+	byAsset := make(map[string]DividendRecord, 2)
+	for _, rec := range result.NewDividends {
+		byAsset[rec.AssetID] = rec
+	}
+	on, ok := byAsset["on1"]
+	if !ok {
+		t.Fatalf("nenhum DividendRecord pra on1, got %v", result.NewDividends)
+	}
+	pn, ok := byAsset["pn1"]
+	if !ok {
+		t.Fatalf("nenhum DividendRecord pra pn1, got %v", result.NewDividends)
+	}
+	if on.ValuePerShare <= 0 {
+		t.Fatalf("on.ValuePerShare = %v, want > 0", on.ValuePerShare)
+	}
+	wantPn := on.ValuePerShare * 1.25
+	if diff := pn.ValuePerShare - wantPn; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("pn.ValuePerShare = %v, want %v (on * 1.25, premium de 25%%)", pn.ValuePerShare, wantPn)
+	}
+	if len(on.Recipients) != 1 || on.Recipients[0] != onHolders[0] {
+		t.Errorf("on.Recipients = %v, want %v", on.Recipients, onHolders)
+	}
+	if len(pn.Recipients) != 1 || pn.Recipients[0] != pnHolders[0] {
+		t.Errorf("pn.Recipients = %v, want %v", pn.Recipients, pnHolders)
+	}
+}
+
 func TestAdvance_Dividendos_FIIGeraProventoNoCalendarioGlobalDeRelatorio(t *testing.T) {
 	netWorth := 100_000_000.0
 	shares := int64(1_000_000)

@@ -34,18 +34,43 @@ const (
 	// relatório (14 dias) pra sempre liquidar antes do próximo ciclo gerar
 	// um novo provento sobre o mesmo ativo.
 	DefaultPaymentLagDays = 5
+	// DefaultPnDividendPremiumPct é o piso legal da vantagem mínima de
+	// dividendo da ação PN sobre a ON (Lei 6.404/76, art. 17, reforma da
+	// Lei 10.303/2001) — default de companies.pn_dividend_premium_pct
+	// (tarefa J.2) pra empresa que não personaliza o percentual no próprio
+	// estatuto.
+	DefaultPnDividendPremiumPct = 10.0
 )
 
-// EquityValuePerShare deriva o provento por ação do ciclo — netIncome já
-// calculado (fundamentals.DeriveFinancials, tarefa 4.8), outstandingShares
-// do catálogo (variable_income_assets). Mesmo formato (float64, bool) de
-// fundamentals.LPA/VPA — ok = false sem ações em circulação, em vez de
-// propagar divisão por zero.
-func EquityValuePerShare(netIncome float64, outstandingShares int64) (float64, bool) {
-	if outstandingShares <= 0 {
-		return 0, false
+// EquityValuePerShare deriva o provento por ação do ciclo pras duas classes
+// de ação de uma empresa (tarefa J.2) — netIncome já calculado
+// (fundamentals.DeriveFinancials, tarefa 4.8), onShares/pnShares (bases de
+// ações em circulação de cada classe, do catálogo variable_income_assets)
+// somadas a zero quando a empresa não tem aquela classe. O provento total do
+// ciclo (netIncome * DefaultEquityPayoutRatio) é dividido entre as duas
+// bases de forma que o valor por ação da PN seja exatamente pnPremiumPct%
+// maior que o da ON (piso legal do art. 17 — chamador passa
+// DefaultPnDividendPremiumPct quando a empresa não personaliza) — não uma
+// simples divisão igualitária das duas bases.
+//
+// Empresa só-ON (pnShares = 0) reduz à mesma fórmula de antes desta tarefa
+// (netIncome * payout / onShares) — sem quebra de compatibilidade. onValue é
+// inválido (não deve ser lido) se a empresa não tem ativo ON — mesma regra
+// vale pra pnValue sem ativo PN; ok = false só quando nenhuma das duas
+// classes tem ação em circulação, mesmo tratamento de "sem dado, não
+// divisão por zero" de fundamentals.LPA/VPA.
+func EquityValuePerShare(netIncome float64, onShares, pnShares int64, pnPremiumPct float64) (onValue, pnValue float64, ok bool) {
+	if onShares < 0 || pnShares < 0 || (onShares == 0 && pnShares == 0) {
+		return 0, 0, false
 	}
-	return netIncome * DefaultEquityPayoutRatio / float64(outstandingShares), true
+
+	pool := netIncome * DefaultEquityPayoutRatio
+	premiumFactor := 1 + pnPremiumPct/100
+	denom := float64(onShares) + float64(pnShares)*premiumFactor
+
+	onValue = pool / denom
+	pnValue = onValue * premiumFactor
+	return onValue, pnValue, true
 }
 
 // FIIValuePerShare deriva o provento por cota do ciclo a partir da

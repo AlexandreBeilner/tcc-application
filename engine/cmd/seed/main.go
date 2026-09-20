@@ -53,18 +53,34 @@ func main() {
 	banco := ensureCompany(ctx, repo, "Banco Nordeste Digital S.A.", "22333444000162", catalog.SectorBancario)
 
 	const valr3OutstandingShares = 500_000_000
-	const bndd4OutstandingShares = 300_000_000
+	// bancoOutstandingShares é compartilhado por BNDD3 (ON) e BNDD4 (PN) —
+	// decisão da tarefa J.4 (backlog-motor-mercado-realista): as duas classes
+	// nascem com a MESMA base de ações, então o spread de preço entre elas
+	// vem só do premium de dividendo da PN (companies.pn_dividend_premium_pct,
+	// J.2/J.3, default 10%), não de uma VPA diferente por diluição de base —
+	// sinal mais limpo pra lição 2.3 (J.5) atribuir a causa certa. Valor
+	// idêntico ao antigo bndd4OutstandingShares (só-PN, pré-J.4) de propósito:
+	// um banco de dev que já seedou BNDD4 sozinho não tem seus fundamentos
+	// recalibrados por esta tarefa (seedInitialFundamentals já é idempotente).
+	const bancoOutstandingShares = 300_000_000
 	valr3ID := seedEquity(ctx, repo, "VALR3", "Mineradora Vale do Rio ON", equityRiskConservador, &mineradora, "ON", valr3OutstandingShares)
-	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bndd4OutstandingShares)
+	// Mesmo risk_class (Sofisticado) nas duas classes de ação do banco —
+	// convenção confirmada pela própria J.1 (companyEquityRiskClasses usa o
+	// risk_class "do primeiro encontrado" pra toda ação da mesma empresa,
+	// então divergir entre ON/PN aqui produziria inconsistência sem sentido
+	// de produto, já que é a mesma empresa/mesmo perfil de risco).
+	bndd3ID := seedEquity(ctx, repo, "BNDD3", "Banco Nordeste Digital ON", equityRiskSofisticado, &banco, "ON", bancoOutstandingShares)
+	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bancoOutstandingShares)
 	seedInitialFundamentals(ctx, repo, mineradora, catalog.SectorMineracao, valr3OutstandingShares)
-	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bndd4OutstandingShares)
+	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bancoOutstandingShares)
 
 	tjlo11ID := seedFIITijolo(ctx, repo)
 	papl11ID := seedFIIPapel(ctx, repo)
 
 	seedBotLiquidity(ctx, accountRepo, []botAssetSeed{
 		{AssetID: valr3ID, OutstandingShares: valr3OutstandingShares},
-		{AssetID: bndd4ID, OutstandingShares: bndd4OutstandingShares},
+		{AssetID: bndd3ID, OutstandingShares: bancoOutstandingShares},
+		{AssetID: bndd4ID, OutstandingShares: bancoOutstandingShares},
 		{AssetID: tjlo11ID, OutstandingShares: fiiOutstandingShares},
 		{AssetID: papl11ID, OutstandingShares: fiiOutstandingShares},
 	})
