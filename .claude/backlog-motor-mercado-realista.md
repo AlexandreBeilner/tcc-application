@@ -1805,7 +1805,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
     Temporizador manualmente pra alcançar o próximo ciclo de relatório, mesmo padrão de toda
     validação anterior deste backlog).
 
-### J.5 · Revisão da lição 2.3 (Nomenclatura de tickers) pro par ON/PN real + esclarecimento sobre units
+### J.5 · Revisão da lição 2.3 (Nomenclatura de tickers) pro par ON/PN real + esclarecimento sobre units ✅
 
 - **Descrição:** pedido do autor além do que a proposta original cobria. Duas revisões de
   conteúdo, não de mecanismo (mesmo padrão de "autoria de conteúdo só" já usado nas sub-tarefas
@@ -1834,6 +1834,24 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 - **Referências:** nota 9 desta seção; pedido do autor nesta sessão (2026-09-13); spec 5.1, linha
   247 (2.3).
 - **Dependências:** J.4.
+- **Entregável:** `backend/src/db/seedLessons.ts`, lição `2.3` — `scenarioText`/`microDecisionPrompt`/
+  `microDecisionOptions`/`revelationText` reescritos usando `BNDD3`/`BNDD4` (par real ON/PN da
+  mesma empresa, Banco Nordeste Digital, gerado pela `J.4`) em vez do contraste `VALR3`/`BNDD4`
+  entre empresas diferentes. `revelationText` ganhou o parágrafo de units: final 11 não é exclusivo
+  de FII/ETF, no mercado real também identifica units (ON+PN empacotadas, ex: `SANB11`), o que
+  diferencia os três é o tipo de instrumento, não o número; deixa explícito que esta plataforma não
+  tem unit negociável no catálogo. `unlocksKeys`/`unlocksAssetTicker` (`VALR3`) e `unlocksDescription`
+  não mudaram, por critério de aceite — a lição ensina o conceito ON/PN com o par real, mas o
+  primeiro ativo liberado pra compra continua sendo `VALR3` (ON única, sem escolha de classe,
+  mais simples pra uma primeira operação, já apresentada desde a `2.1`). Comentário de auditoria do
+  índice de opção correta (linha ~71) atualizado de `VALR3 e BNDD4` pra `BNDD3 e BNDD4` pra não
+  ficar desatualizado. Sem migration, sem teste Go/TS novo (autoria de conteúdo só, mesmo
+  precedente das sub-tarefas `7.1.x` do backlog principal e da `J.4`/`B.2`/`C.6` deste backlog) —
+  `npm run build`/`npm run lint`/`npm test` (565 testes) verdes, sem regressão. Validado via seed
+  real: `DATABASE_URL=... npm run db:seed:lessons` contra o Postgres do `docker compose` (container
+  `tcc-postgres` já em execução, reaproveitado — outra sessão em paralelo, mesmo padrão da `J.3`),
+  `SELECT` na tabela `lessons` confirmou o texto novo persistido e `unlocks_asset_ticker` continua
+  `VALR3` (`onConflictDoUpdate`, seed idempotente). **Fase J fechada por completo** (`J.1`-`J.5`).
 
 ---
 

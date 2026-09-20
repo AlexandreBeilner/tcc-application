@@ -68,7 +68,7 @@ interface LessonSeed {
 // A maioria (yes/no, maior/menor, sobe/desce/igual) reaproveita literalmente
 // as alternativas que o próprio `microDecisionPrompt` já enumera em texto —
 // não inventa vocabulário novo. Exceções que combinam duas leituras numa
-// opção só: 2.3 (ON/PN de VALR3 e BNDD4 juntos, pergunta original já pede os
+// opção só: 2.3 (ON/PN de BNDD3 e BNDD4 juntos, pergunta original já pede os
 // dois), 3.4 (efeito nos fundamentos + o que acontece com o Tesouro Selic,
 // desafio final da trilha sintetizando 2.8+3.2 — 4 combinações possíveis,
 // só uma bate com o texto de `revelationText`).
@@ -653,30 +653,35 @@ const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 17,
     title: 'Nomenclatura de tickers',
-    centralConcept: 'Final 3 (ON), final 4 (PN), final 11 (units/FII)',
+    centralConcept: 'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 pode ser ETF, FII ou unit',
     scenarioText:
-      'VALR3 e BNDD4 parecem códigos aleatórios, mas seguem uma convenção: quatro letras identificando o ' +
-      'emissor, seguidas de um número que diz que tipo de ação (ou cota) é essa.' +
+      'BNDD3 e BNDD4 parecem códigos aleatórios, mas seguem uma convenção: quatro letras identificando o ' +
+      'emissor, seguidas de um número que diz que tipo de ação é essa.' +
       '\n\n' +
-      'Reparando nos dois tickers, VALR3 termina em 3 e BNDD4 termina em 4.',
+      'As duas são do mesmo emissor, o Banco Nordeste Digital: BNDD3 termina em 3, BNDD4 termina em 4.',
     microDecisionPrompt:
-      'VALR3 (Mineradora Vale do Rio) dá direito a voto nas decisões da empresa; BNDD4 (Banco Nordeste ' +
-      'Digital) geralmente tem prioridade no recebimento de dividendos, mas sem voto.' +
+      'BNDD3 dá direito a voto nas decisões do Banco Nordeste Digital; BNDD4 geralmente tem prioridade no ' +
+      'recebimento de dividendos, mas sem voto.' +
       '\n\n' +
       'Qual delas você acha que é a ação ordinária (ON) e qual é a preferencial (PN)?',
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: [
-      'VALR3 é ON (com voto), BNDD4 é PN (sem voto)',
-      'VALR3 é PN (sem voto), BNDD4 é ON (com voto)',
+      'BNDD3 é ON (com voto), BNDD4 é PN (sem voto)',
+      'BNDD3 é PN (sem voto), BNDD4 é ON (com voto)',
     ],
     microDecisionCorrectOption: 0,
     revelationText:
-      'VALR3 (final 3) é ordinária (ON), com direito a voto; BNDD4 (final 4) é preferencial (PN), sem voto ' +
-      'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa.' +
+      'BNDD3 (final 3) é ordinária (ON), com direito a voto; BNDD4 (final 4) é preferencial (PN), sem voto ' +
+      'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa. ' +
+      'Repare que as duas são do mesmo emissor, o Banco Nordeste Digital: um ticker por classe de ação, não ' +
+      'duas empresas diferentes.' +
       '\n\n' +
-      'Já o final 11, como em SINT11 (o ETF que você vai conhecer na lição 2.9), identifica cotas de fundos ' +
-      'ou units, uma convenção que também vale pros FIIs da lição 2.10.' +
+      'Já o final 11 não é exclusivo de um tipo de ativo: identifica cotas de fundos, como o ETF SINT11 (lição ' +
+      '2.9) e os FIIs da lição 2.10, mas no mercado real também identifica units, que empacotam a ON e a PN da ' +
+      'mesma empresa numa cota só (ex: SANB11 na B3 de verdade). O que diferencia os três não é o número final, ' +
+      'que os três compartilham, é o tipo de instrumento por trás do ticker. Esta plataforma não tem unit ' +
+      'negociável no catálogo, só ETF e FII terminam em 11 aqui.' +
       '\n\n' +
       'Completar esta lição libera sua primeira operação real de ações no Mercado.',
     unlocksDescription: 'Primeira compra real de ações (VALR3) no Mercado',
