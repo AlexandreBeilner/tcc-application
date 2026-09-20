@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain"
+	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
 	"tcc-investimentos/engine/internal/domain/sandbox"
@@ -61,13 +62,15 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 
 	var ticker string
 	var isSandbox bool
+	var productType string
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT fia.interest_rate, fia.maturity_date, fia.minimum_investment, a.ticker, a.is_sandbox
+		`SELECT fia.interest_rate, fia.maturity_date, fia.minimum_investment, a.ticker, a.is_sandbox, a.type
 		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
 		 WHERE fia.asset_id = $1`, assetID,
-	).Scan(&pctx.AnnualRatePct, &pctx.MaturityDate, &pctx.MinimumInvestment, &ticker, &isSandbox); err != nil {
+	).Scan(&pctx.AnnualRatePct, &pctx.MaturityDate, &pctx.MinimumInvestment, &ticker, &isSandbox, &productType); err != nil {
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
+	pctx.ProductType = fixedincome.ProductType(productType)
 
 	var pos fixedincomeposition.Position
 	var positionCreatedAt sql.NullTime
@@ -118,13 +121,15 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 
 	var ticker string
 	var isSandbox bool
+	var productType string
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox
+		`SELECT fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox, a.type
 		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
 		 WHERE fia.asset_id = $1`, assetID,
-	).Scan(&rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox); err != nil {
+	).Scan(&rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox, &productType); err != nil {
 		return fixedincomeexecution.RedeemContext{}, err
 	}
+	rctx.ProductType = fixedincome.ProductType(productType)
 
 	if isSandbox {
 		script, ok := sandbox.RateScriptForTicker(ticker)

@@ -230,6 +230,114 @@ func TestRedeem_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
 	}
 }
 
+// TestPurchase_PosFixado_CompraAoParSemDesagio confere a nota 1 do doc do
+// pacote (tarefa L.1): produto pós-fixado (Tesouro Selic, CDB, LCI, LCA,
+// CRI, CRA) compra "ao par" — unitPrice = fixedincome.FaceValue, nenhum
+// deságio — diferente de um prefixado, cujo unitPrice varia com
+// AnnualRatePct/prazo (TestPurchase_PrecificaEBlendaNaPosicao acima).
+func TestPurchase_PosFixado_CompraAoParSemDesagio(t *testing.T) {
+	ctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: 110, MinimumInvestment: 100,
+		MaturityDate: purchaseMaturity, ProductType: fixedincome.ProductCDB,
+	}
+
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.UnitPrice != fixedincome.FaceValue {
+		t.Errorf("UnitPrice = %v, want %v (compra ao par)", outcome.UnitPrice, fixedincome.FaceValue)
+	}
+	wantQuantity := 2000 / fixedincome.FaceValue
+	if !almostEqual(outcome.QuantityPurchased, wantQuantity, 1e-9) {
+		t.Errorf("QuantityPurchased = %v, want %v", outcome.QuantityPurchased, wantQuantity)
+	}
+	// AnnualRatePct = 110 ("110% do CDI") vira 1.10 decimal na posição —
+	// mesma convenção 0-1 de rate pra qualquer tipo de produto.
+	if !almostEqual(outcome.NewPosition.AverageRate, 1.10, 1e-9) {
+		t.Errorf("NewPosition.AverageRate = %v, want 1.10 (110%% do CDI)", outcome.NewPosition.AverageRate)
+	}
+}
+
+// TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente confere o núcleo do
+// critério de aceite da L.1: produto pós-fixado rende de acordo com a
+// Selic simulada corrente (ctx.CurrentMarketRatePct), não com uma taxa
+// travada na compra — comprado "ao par" (AveragePrice = FaceValue, mesmo
+// preço que Purchase produziria) a 100% do CDI, segurado por dias
+// suficientes pra render algo mensurável, deve valorizar.
+func TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 10, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0},
+		CurrentMarketRatePct: 10,
+		PurchasedAt:          now.AddDate(0, 0, -365),
+		ProductType:          fixedincome.ProductTesouroSelic,
+	}
+
+	outcome, err := Redeem(ctx, now)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	invested := ctx.Position.AveragePrice * ctx.Position.Quantity
+	if !(outcome.TotalValue > invested) {
+		t.Errorf("TotalValue = %v, want maior que o valor investido (%v) — 1 ano a 10%% a.a. deveria render", outcome.TotalValue, invested)
+	}
+	if outcome.MarkToMarket.VsContractedRate != 0 {
+		t.Errorf("VsContractedRate = %v, want 0 (não há marcação a mercado pra pós-fixado)", outcome.MarkToMarket.VsContractedRate)
+	}
+}
+
+// TestRedeem_PosFixado_SelicMaisAltaRendeMais confere que o resgate reage à
+// Selic CORRENTE (do dia do resgate), não à taxa vigente na compra — a
+// prova, ponta a ponta, de que "nunca uma taxa fixa travada na compra"
+// (critério de aceite da L.1) vale pro fluxo real, não só pra
+// fixedincome.PostFixedFactor isolado.
+func TestRedeem_PosFixado_SelicMaisAltaRendeMais(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	basePosition := fixedincomeposition.Position{Quantity: 1, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0}
+
+	baixa, err := Redeem(RedeemContext{
+		Position: basePosition, CurrentMarketRatePct: 5,
+		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
+	}, now)
+	if err != nil {
+		t.Fatalf("err (Selic baixa) = %v, want nil", err)
+	}
+	alta, err := Redeem(RedeemContext{
+		Position: basePosition, CurrentMarketRatePct: 15,
+		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
+	}, now)
+	if err != nil {
+		t.Fatalf("err (Selic alta) = %v, want nil", err)
+	}
+
+	if !(alta.TotalValue > baixa.TotalValue) {
+		t.Errorf("TotalValue com Selic alta (%v) não rendeu mais que com Selic baixa (%v)", alta.TotalValue, baixa.TotalValue)
+	}
+}
+
+// TestRedeem_PosFixado_ResgateNoMesmoDiaDaCompraNaoRendeNada confere o
+// caso-limite (série vazia de fixedincome.PostFixedFactor, tarefa L.1):
+// resgatar no mesmo dia da compra devolve exatamente o principal, sem
+// erro.
+func TestRedeem_PosFixado_ResgateNoMesmoDiaDaCompraNaoRendeNada(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0},
+		CurrentMarketRatePct: 10,
+		PurchasedAt:          now,
+		ProductType:          fixedincome.ProductCDB,
+	}
+
+	outcome, err := Redeem(ctx, now)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if !almostEqual(outcome.TotalValue, fixedincome.FaceValue, 1e-9) {
+		t.Errorf("TotalValue = %v, want %v (resgate no mesmo dia da compra, sem rendimento)", outcome.TotalValue, fixedincome.FaceValue)
+	}
+}
+
 func TestSimulate_ValorInvalido(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 

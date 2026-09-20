@@ -1652,7 +1652,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 Nenhuma destas depende do redesenho de bots/order book — são correções de fórmula já existente e
 não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
 
-### L.1 · Rendimento pós-fixado real (Tesouro Selic/CDB %CDI)
+### L.1 · Rendimento pós-fixado real (Tesouro Selic/CDB %CDI) ✅
 
 - **Descrição:** implementa uma fórmula de rendimento pós-fixado de verdade — hoje usa
   `PrefixedPrice` com taxa estática do catálogo, nunca acompanhando a Selic simulada dia a dia.
@@ -1661,6 +1661,36 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
   pós-fixado acompanha a série de Selic simulada dia a dia (não uma taxa fixa travada na compra).
 - **Referências:** proposta seção 9, item 1; relatório seção 8.3.
 - **Dependências:** nenhuma.
+- **Entregável:** classificação nova `fixedincome.IndexType`/`IndexOf`/`IsPostFixado` (`product.go`)
+  marca os 6 tipos pós-fixados (Tesouro Selic, CDB, LCI, LCA, CRI, CRA — mesma lista que a L.3 já
+  cita como "isentos de risco de mercado") vs. `IndexPrefixado` (só Tesouro Prefixado) vs.
+  `IndexIPCAMais` (Tesouro IPCA+, fora do escopo, L.2). Fórmula pura nova `fixedincome.
+  PostFixedFactor`/`PostFixedValue` (`postfixado.go`) compõe um fator diário por dia útil a partir
+  de uma série de Selic simulada (mesmo padrão `[]float64` de `equity.Config.SelicAnnualRates`) —
+  tabela-driven prova (desigualdade de Jensen) que uma série que varia rende diferente de aplicar a
+  média constante, não só "trava a taxa da compra". `fixedincomeexecution.Purchase`/`Redeem`
+  ganharam `ProductType` no contexto: produto pós-fixado compra "ao par" (`unitPrice = FaceValue`,
+  sem deságio) e resgata via `PostFixedValue` (principal × fator, usando a Selic corrente do
+  resgate — não mais marcado a mercado, `VsContractedRate` sempre 0); qualquer outro tipo continua
+  no caminho anterior (`PrefixedPrice`/`EarlyRedemption`), comportamento inalterado. Decisão de
+  escopo tomada na sessão (documentada no cabeçalho de `fixedincomeexecution.go`, notas 1/3/3.1/3.2,
+  e em `.docs/engine/fixedincome.md`): como `market_calendar` só guarda a Selic corrente (histórico
+  diário é a M.1, independente desta), a série usada em `Redeem` repete o valor corrente por todo o
+  período decorrido — mesma simplificação de `fii.PortfolioValueVariation`/indexador CDI; o
+  mecanismo aceita qualquer série, então a troca por histórico real (pós-M.1) não muda a fórmula.
+  `GET /fixed-income/simulate` deliberadamente **não** foi corrigido nesta sessão (gap conhecido,
+  documentado — exigiria um colaborador novo na camada HTTP pra ler `market_calendar.selic_rate`,
+  fora do escopo cirúrgico). `fixed_income_assets.interest_rate` mudou de significado pros 6 tipos
+  pós-fixados — "% do CDI/Selic" (ex: `110` = "110% do CDI", convenção da lição 3.3) em vez de "%
+  a.a." — catálogo reseedado (`cmd/seed/main.go`: LFT2029 100, CDB2027 110, LCI/LCA2026 90,
+  CRI2028 115, CRA2028 112) e label do frontend (`FixedIncomeDetail`, tela 4.3) ajustado pra mostrar
+  "do CDI" nesses 6 tipos e "a.a." só pra Tesouro Prefixado/IPCA+ (`fixedIncomeRateLabel`,
+  `features/market/format`). Validado ponta a ponta via `docker compose up`: CDB a 110% CDI/Selic
+  10% rendeu exatamente 11% em 1 ano simulado (dia de compra retroativo via `UPDATE
+  fixed_income_positions.created_at`); Tesouro Selic a 100% CDI rendeu exatamente os 10% da Selic;
+  subir a Selic pra 20% antes do resgate (mesma posição) fez o retorno pular pra 22% — prova de que
+  reage à Selic **corrente** no resgate, não à taxa da compra. `go test ./...`, `golangci-lint run`
+  (via Docker, 0 issues) e os 666 testes do frontend (`npx vitest run`) verdes.
 
 ### L.2 · VNA real pro Tesouro IPCA+
 

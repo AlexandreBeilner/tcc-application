@@ -70,18 +70,32 @@ func main() {
 	})
 	seedBotPersonalities(ctx, botRepo)
 
-	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 10.50, 30.00, false)
+	// Produtos pós-fixados (fixedincome.IndexPosFixado, tarefa L.1 do
+	// backlog-motor-mercado-realista) — o número abaixo não é mais "taxa
+	// anual em %", é "% do CDI/Selic contratado" (ex: 110.00 = "110% do
+	// CDI"), mesma convenção da lição 3.3 da spec ("CDB 110% CDI líquido
+	// vs LCI 90% CDI isento"). Tesouro Selic ~100% (rastreia a Selic
+	// quase 1:1, mesmo perfil de uma LFT real); CDB/CRI/CRA acima de 100%
+	// (prêmio de crédito bancário/securitizadora, sem a isenção de IR de
+	// LCI/LCA/CRI/CRA — CDB é tributado); LCI/LCA abaixo de 100% (isentos
+	// de IR, rendimento líquido menor é o ponto pedagógico da lição 3.3);
+	// CRI acima de CRA (sem garantia FGC nenhum dos dois, mas mantém a
+	// mesma ordem relativa que já existia antes desta tarefa). Valores
+	// ilustrativos, sujeitos à mesma calibração fina da tarefa 8.1 que já
+	// se aplica a todo coeficiente sem tabela numérica fechada pela
+	// spec/proposta.
+	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 100.00, 30.00, false)
 	// seedETF só pode rodar daqui em diante: sua cesta (achado 006,
 	// pontos-em-aberto-decisao-produto.md) referencia VALR3/TJLO11/LFT2029
 	// reais, então os 3 precisam já existir no catálogo.
 	seedETF(ctx, repo)
 	seedFixedIncome(ctx, repo, "LTN2027", "Tesouro Prefixado 2027", fixedincome.ProductTesouroPrefixado, "", 11.75, 30.00, false)
 	seedFixedIncome(ctx, repo, "NTNB2035", "Tesouro IPCA+ 2035", fixedincome.ProductTesouroIPCA, "", 6.00, 30.00, false)
-	seedFixedIncome(ctx, repo, "CDB2027", "CDB Banco Invest 2027", fixedincome.ProductCDB, "", 12.00, 100.00, false)
-	seedFixedIncome(ctx, repo, "LCI2026", "LCI Banco Invest 2026", fixedincome.ProductLCI, "", 9.50, 500.00, false)
-	seedFixedIncome(ctx, repo, "LCA2026", "LCA Banco Invest 2026", fixedincome.ProductLCA, "", 9.50, 500.00, false)
-	seedFixedIncome(ctx, repo, "CRI2028", "CRI Securitizadora X 2028", fixedincome.ProductCRI, "AA", 11.00, 1000.00, false)
-	seedFixedIncome(ctx, repo, "CRA2028", "CRA Securitizadora X 2028", fixedincome.ProductCRA, "A", 10.50, 1000.00, false)
+	seedFixedIncome(ctx, repo, "CDB2027", "CDB Banco Invest 2027", fixedincome.ProductCDB, "", 110.00, 100.00, false)
+	seedFixedIncome(ctx, repo, "LCI2026", "LCI Banco Invest 2026", fixedincome.ProductLCI, "", 90.00, 500.00, false)
+	seedFixedIncome(ctx, repo, "LCA2026", "LCA Banco Invest 2026", fixedincome.ProductLCA, "", 90.00, 500.00, false)
+	seedFixedIncome(ctx, repo, "CRI2028", "CRI Securitizadora X 2028", fixedincome.ProductCRI, "AA", 115.00, 1000.00, false)
+	seedFixedIncome(ctx, repo, "CRA2028", "CRA Securitizadora X 2028", fixedincome.ProductCRA, "A", 112.00, 1000.00, false)
 
 	seedSandboxEquity(ctx, repo)
 	seedSandboxFixedIncome(ctx, repo)
