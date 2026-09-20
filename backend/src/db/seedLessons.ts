@@ -602,7 +602,10 @@ const LESSON_SEEDS: LessonSeed[] = [
       'valores mensais, ou o produto composto deles, um mês sobre o outro?',
     microDecisionType: 'live_macro_indicator',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Soma simples dos 12 valores mensais', 'Produto composto, mês sobre mês'],
+    microDecisionOptions: [
+      'Soma simples dos 12 valores mensais',
+      'Produto composto, mês sobre mês',
+    ],
     microDecisionCorrectOption: 1,
     revelationText:
       'Produto composto: acumulado 12m = (1 + IPCA₁) × (1 + IPCA₂) × ... × (1 + IPCA₁₂) − 1, a mesma lógica ' +
