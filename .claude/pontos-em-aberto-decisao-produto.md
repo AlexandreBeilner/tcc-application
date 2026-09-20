@@ -388,3 +388,36 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Status:** resolvido — nada pendente pra I.1/I.2. Quem implementar a Fase M continua precisando
   alimentar `ipcaAccumulatedDeviation` como decimal (`IPCA_acumulado - meta_IPCA`, sem multiplicar
   por 100), consistente com a convenção que `ipca.Config`/`ipca.MonthlySeries` já usam.
+
+### 010 · Renumeração de `code` na tarefa M.5 relabela lições existentes em vez de criar linhas novas
+
+- **Local:** `backend/src/db/seedLessons.ts` (`upsertLessonSeed`, antes inline em `main()`),
+  `backend/src/db/schema.ts` (`lessons`), `backend/src/modules/lessons/application/useCases/
+  advanceLesson.ts:160`, `.docs/backend/lessons.md`
+- **Origem:** implementação da tarefa M.5 (backlog-motor-mercado-realista), 2026-09-20
+- **O que é:** M.5 insere 2 lições novas na Trilha 1 (`Como a Selic é formada`, `O que é o IPCA`),
+  deslocando o `code` de 7 lições existentes um degrau adiante (`1.3`→`1.4`, `1.4`→`1.5`, ...,
+  `1.9`→`1.11`). O upsert de `seedLessons.ts` casava por `code` (não por conteúdo) e nunca incluía
+  `code` no `set` — então rodar `npm run db:seed:lessons` num banco que já tinha as 33 lições antigas
+  não criava linha nova pras 7 renumeradas: reaproveitava a linha física que já existia com aquele
+  `code` e sobrescrevia título/textos pro conteúdo do próximo degrau, preservando o `id`. Qualquer
+  `user_lesson_progress` que já apontasse pro `id` de uma dessas 7 lições passava, depois do reseed, a
+  apontar pra uma lição de conteúdo diferente com `completedAt` preservado — a UI mostraria a lição
+  errada como concluída, sem erro nem log.
+- **Decisão (2026-09-20, mesma sessão, a pedido do autor):** opção (c) das listadas originalmente —
+  trocar a chave de upsert de `lessons.code` pra uma coluna nova e estável, deixando `code` livre pra
+  refletir só a posição didática atual. Implementado na tarefa M.6: `lessons.stable_key` (`varchar(20)
+  UNIQUE NOT NULL`, migration `0016`) — atribuído uma vez por lição (hoje coincide com o `code`
+  vigente no momento em que a coluna nasceu, por ser o primeiro valor atribuído) e nunca mais tocado
+  em renumeração futura. `seedLessons.ts` (`upsertLessonSeed`, extraída de `main()` pra ficar
+  testável) casa o upsert por `stable_key` e passa a incluir `code` no `set`. Como a aplicação não
+  está em produção, a migration trunca `user_lesson_progress`/`lessons` antes de tornar `stable_key`
+  NOT NULL, em vez de exigir uma política de migração de dado legado — reseed do zero. Efeito
+  colateral corrigido no mesmo commit: `AdvanceLessonUseCase` usava `licao:${lesson.code}` como chave
+  de idempotência do XP — trocado pra `licao:${lesson.id}` (imutável), já que `code` virou mutável e
+  reabriria brecha de reconceder XP numa renumeração futura. `.docs/backend/lessons.md` corrigido
+  (documentava `ON CONFLICT (code) DO NOTHING`, incorreto desde sempre — o código real já fazia
+  `onConflictDoUpdate`) e atualizado com `stable_key`. Teste cobrindo o cenário do achado
+  (`seedLessons.test.ts`, fake in-memory do upsert): renumerar `code` mantendo o mesmo `stable_key`
+  atualiza a linha existente sem duplicar e preservando `id`.
+- **Status:** resolvido. `npm run lint`/`npm run build`/`npm test` verdes (585 testes).

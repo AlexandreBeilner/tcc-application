@@ -1,0 +1,1 @@
+ALTER TYPE "public"."lesson_micro_decision_type" ADD VALUE 'live_macro_indicator';

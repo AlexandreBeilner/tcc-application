@@ -384,20 +384,55 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 	return payments, nil
 }
 
+// ListIndicatorHistory devolve a série histórica de
+// market_indicator_history, ordenada cronologicamente e limitada aos days
+// dias mais recentes — mesmo padrão de ListQuoteHistory (asset_quotes),
+// usada só por GET /market/indicators/history (tarefa M.2). Lista vazia
+// (não erro) se o Temporizador nunca rodou (motor recém-subido, tabela
+// ainda vazia) — mesmo tratamento de "sem histórico ainda" já dado a
+// ListQuoteHistory/handleListMacroEvents.
+func (r *TickRepository) ListIndicatorHistory(ctx context.Context, days int) ([]tick.IndicatorHistoryEntry, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m FROM (
+		   SELECT simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m FROM market_indicator_history
+		   ORDER BY simulated_day DESC
+		   LIMIT $1
+		 ) recent ORDER BY simulated_day ASC`,
+		days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]tick.IndicatorHistoryEntry, 0)
+	for rows.Next() {
+		var e tick.IndicatorHistoryEntry
+		if err := rows.Scan(&e.SimulatedDay, &e.SelicRate, &e.IPCAMonthlyRate, &e.IPCAAccumulated12m); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 // SaveTick grava o novo estado do calendário (upsert na linha singleton),
-// as cotações geradas (Quote.Quantity vira asset_quotes.total_quantity,
-// achado 005 parte B — insumo de RecentTradedVolume) e as novas linhas de
+// uma nova linha em market_indicator_history (tarefa M.1 — histórico
+// completo de Selic/IPCA, nunca atualizada depois de gravada, diferente da
+// linha singleton de market_calendar), as cotações geradas (Quote.Quantity
+// vira asset_quotes.total_quantity, achado 005 parte B — insumo de
+// RecentTradedVolume) e as novas linhas de
 // company_fundamentals (tarefa 3.14, os 6 campos desde a tarefa 4.8), na
 // mesma transação — nem
-// calendário, cotações nem fundamentos são escrita de saldo/posição de
-// usuário, por isso não passa por Event Sourcing (mesma distinção de
-// catalog_repository.go pra dado cadastral). period_date usa o relógio
-// real (time.Now()), não o dia simulado — mesma decisão já tomada pra DU
-// restante de renda fixa na tarefa 3.13 (coerente com "1 tick = 1 dia
-// real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates (tarefa
-// G.3) são um UPDATE por item em fii_details.net_worth/portfolio_value,
-// não um INSERT — diferente de company_fundamentals, não existe tabela de
-// histórico pra essas reavaliações.
+// calendário, histórico de indicador, cotações nem fundamentos são escrita
+// de saldo/posição de usuário, por isso não passam por Event Sourcing
+// (mesma distinção de catalog_repository.go pra dado cadastral). period_date
+// usa o relógio real (time.Now()), não o dia simulado — mesma decisão já
+// tomada pra DU restante de renda fixa na tarefa 3.13 (coerente com "1 tick
+// = 1 dia real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates
+// (tarefa G.3) são um UPDATE por item em fii_details.net_worth/
+// portfolio_value, não um INSERT — diferente de company_fundamentals, não
+// existe tabela de histórico pra essas reavaliações.
 func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -413,6 +448,14 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		   selic_rate = EXCLUDED.selic_rate,
 		   updated_at = now()`,
 		result.State.Day, result.State.SelicRate,
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO market_indicator_history (simulated_day, selic_rate, ipca_monthly, ipca_accumulated_12m)
+		 VALUES ($1, $2, $3, $4)`,
+		result.State.Day, result.State.SelicRate, result.IPCAMonthlyRate, result.IPCAAccumulated12m,
 	); err != nil {
 		return err
 	}

@@ -23,6 +23,13 @@ export const getAssetQuotesQuerySchema = z.object({
   days: z.coerce.number().int().min(1).optional(),
 })
 
+// Mesma convenção de coerção de getAssetQuotesQuerySchema — `days` aqui é
+// quantos dias simulados de histórico de Selic/IPCA vêm na resposta
+// (motor aplica o próprio default, tarefa M.2/M.3).
+export const indicatorHistoryQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).optional(),
+})
+
 // Mesma convenção de paginação de `listMacroEventsQuerySchema`
 // (`modules/admin`) — limit/offset opcionais, o motor aplica o default.
 export const listMyEventsQuerySchema = z.object({

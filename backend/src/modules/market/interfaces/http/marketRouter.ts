@@ -14,9 +14,11 @@ import type { PurchaseFixedIncomeUseCase } from '../../application/useCases/purc
 import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
 import type { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import type { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
+import type { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
 import {
   fixedIncomeTaxRateQuerySchema,
   getAssetQuotesQuerySchema,
+  indicatorHistoryQuerySchema,
   listAssetsQuerySchema,
   listMyEventsQuerySchema,
   placeOrderBodySchema,
@@ -37,6 +39,7 @@ export interface MarketRouterDeps {
   redeemFixedIncome: RedeemFixedIncomeUseCase
   simulateFixedIncome: SimulateFixedIncomeUseCase
   getFixedIncomeTaxRate: GetFixedIncomeTaxRateUseCase
+  getIndicatorHistory: GetIndicatorHistoryUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -111,6 +114,25 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     try {
       const company = await deps.getCompany.execute({ id: req.params.id as string })
       res.status(200).json({ company })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  // Proxy com cache Redis (tarefa M.3, composição em app.ts) pra
+  // GET /market/indicators/history do motor (tarefa M.2) — série de
+  // Selic/IPCA, qualquer usuário autenticado (sem regra de negócio própria
+  // aqui, mesma convenção do resto da seção de catálogo).
+  router.get('/market/indicators', deps.authMiddleware.authenticate, async (req, res) => {
+    const parsed = indicatorHistoryQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      const indicators = await deps.getIndicatorHistory.execute({ days: parsed.data.days })
+      res.status(200).json({ indicators })
     } catch (err) {
       sendEngineError(err, res)
     }

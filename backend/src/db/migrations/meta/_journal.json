@@ -106,6 +106,20 @@
       "when": 1788992390264,
       "tag": "0014_add_achievement_criteria_quality_types",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789911284228,
+      "tag": "0015_add_lesson_live_macro_indicator_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789925238091,
+      "tag": "0016_add_lesson_stable_key",
+      "breakpoints": true
     }
   ]
 }

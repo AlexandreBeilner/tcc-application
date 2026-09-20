@@ -19,6 +19,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -364,6 +365,32 @@ type Result struct {
 	// puro); Service.Run preenche depois, só pra observabilidade (mesmo
 	// padrão de IntradayFillsCount, ver tickResponse, httpserver/admin.go).
 	ExpiredOrdersCount int
+	// IPCAMonthlyRate (tarefa M.1) é o IPCA mensal sintético (decimal) do
+	// mês simulado ao qual newDay pertence (ipca.CurrentMonthIndex) —
+	// repete o mesmo valor todo dia dentro do mesmo mês simulado, só muda
+	// no dia em que o mês vira (ipca.MonthlyRate, memoryless, sem depender
+	// dos meses anteriores).
+	IPCAMonthlyRate float64
+	// IPCAAccumulated12m (tarefa M.1) é o IPCA acumulado nos últimos 12
+	// meses simulados (decimal, composição — não soma simples,
+	// ipca.Accumulated12m) — janela parcial (menos de 12 meses compostos)
+	// antes do primeiro ano simulado. Persistido junto de
+	// IPCAMonthlyRate/State.SelicRate em market_indicator_history
+	// (SaveTick), uma linha por dia simulado.
+	IPCAAccumulated12m float64
+}
+
+// IndicatorHistoryEntry é uma linha de market_indicator_history (tarefa
+// M.1) — usado só pela leitura da série histórica (GET
+// /market/indicators/history, tarefa M.2), nunca por Advance/Result (que já
+// tem os mesmos três valores achatados em State.SelicRate/IPCAMonthlyRate/
+// IPCAAccumulated12m, sem o dia junto, porque Result é sempre "o dia que
+// acabou de ser gerado" — aqui é preciso o dia explícito por ser uma série).
+type IndicatorHistoryEntry struct {
+	SimulatedDay       int
+	SelicRate          float64
+	IPCAMonthlyRate    float64
+	IPCAAccumulated12m float64
 }
 
 // Repository é o colaborador que Advance precisa pra ler o último estado
@@ -850,7 +877,13 @@ func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDi
 // Advance calcula o próximo tick a partir do estado persistido — nunca
 // regenera a série do zero (ver doc do pacote). selicCfg parametriza a
 // reversão à média da Selic (mesmo Config de selic.Series/CalendarSeries,
-// Initial ignorado — quem manda a taxa inicial é current.SelicRate); seed é
+// Initial ignorado — quem manda a taxa inicial é current.SelicRate); ipcaCfg
+// (tarefa M.1) parametriza o IPCA mensal sintético (ipca.MonthlyRate) —
+// diferente de selicCfg, não precisa de nenhum estado anterior (IPCA não
+// tem memória entre meses, ver doc do pacote ipca), então Advance recalcula
+// o mês corrente (ipca.CurrentMonthIndex) e o acumulado de 12 meses
+// (ipca.Accumulated12m) inteiramente a partir de dayIndex a cada chamada,
+// sem precisar de um IPCAState equivalente a State.SelicRate. seed é
 // a seed base da simulação (RNF08: fixa entre reinícios, configurada uma
 // vez na composição). No dia de relatório de uma empresa (companies,
 // tarefa 3.14), Advance gera sua FundamentalsRecord (fundamentals.NextGrowth
@@ -893,17 +926,21 @@ func duePaymentsForDay(pending []PendingDividendPayment, newDay int) []PendingDi
 // (Result.IntradayRounds), consumida por Service.Run logo depois (Fase D.2,
 // runIntradayRounds, rounds.go) — nenhum outro cálculo deste Advance muda
 // de comportamento por causa disso.
-func Advance(current State, assets []AssetForPricing, companies []CompanyForFundamentals, macroEvents []MacroEventForApplication, dividendPayers []DividendPayerAsset, pendingDividends []PendingDividendPayment, selicCfg selic.Config, seed int64) Result {
+func Advance(current State, assets []AssetForPricing, companies []CompanyForFundamentals, macroEvents []MacroEventForApplication, dividendPayers []DividendPayerAsset, pendingDividends []PendingDividendPayment, selicCfg selic.Config, ipcaCfg ipca.Config, seed int64) Result {
 	newDay := current.Day + 1
 	dayIndex := newDay - 1 // 0-based, mesma convenção de IsCopomMeetingDay/IsReportDay
 
-	// ipcaAccumulatedDeviation fixo em 0 por ora: IPCA simulado ainda não
-	// tem nenhum consumidor no tick diário (achado documentado na Fase M
-	// do backlog-motor-mercado-realista — M.1 é quem vai gerar+persistir
-	// a série e alimentar esse desvio de verdade). Com desvio 0, o termo
-	// de reação ao IPCA (selic.Config.InflationWeight, tarefa I.1) fica
-	// neutro por construção — comportamento inalterado até M.1 fechar.
-	const ipcaAccumulatedDeviation = 0
+	// Tarefa M.1: IPCA simulado passa a ser gerado dentro do tick
+	// (ipca.MonthlyRate/Accumulated12m/AccumulatedDeviation, memoryless —
+	// nenhum dos três precisa de histórico persistido, só de
+	// ipca.CurrentMonthIndex derivado de dayIndex). ipcaAccumulatedDeviation
+	// alimenta o termo de reação ao IPCA que a tarefa I.1 já deixava pronto
+	// em selic.Config.InflationWeight/selic.NextCalendarRate — antes desta
+	// tarefa era uma constante 0 (comentário apontava exatamente pra cá).
+	ipcaMonthIndex := ipca.CurrentMonthIndex(dayIndex, ipca.DefaultMonthDays)
+	ipcaMonthlyRate := ipca.MonthlyRate(ipcaCfg, ipcaMonthIndex)
+	ipcaAccumulated12m := ipca.Accumulated12m(ipcaCfg, ipcaMonthIndex)
+	ipcaAccumulatedDeviation := ipca.AccumulatedDeviation(ipcaCfg, ipcaMonthIndex)
 	newSelicRate := selic.NextCalendarRate(selicCfg, dayIndex, current.SelicRate, ipcaAccumulatedDeviation)
 
 	equityRiskClasses := companyEquityRiskClasses(assets)
@@ -1016,5 +1053,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		PortfolioValueUpdates: fiiPortfolioValueUpdatesForCycle(dividendPayers, dayIndex, newSelicRate),
 		IntradayRounds:        intradayRounds,
 		CompanyContext:        companyContext,
+		IPCAMonthlyRate:       ipcaMonthlyRate,
+		IPCAAccumulated12m:    ipcaAccumulated12m,
 	}
 }

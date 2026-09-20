@@ -134,8 +134,12 @@ import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCase
 import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
+import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
+import { createEngineIndicatorHistoryReader } from './modules/market/infrastructure/engine/engineIndicatorHistoryReader'
+import { createRedisIndicatorHistoryCache } from './modules/market/infrastructure/cache/redisIndicatorHistoryCache'
+import { createRedisIndicatorHistoryCacheStore } from './modules/market/infrastructure/cache/redisIndicatorHistoryCacheStore'
 import { createEngineFixedIncomeExecutor } from './modules/market/infrastructure/engine/engineFixedIncomeExecutor'
 import { createEngineOrderExecutor } from './modules/market/infrastructure/engine/engineOrderExecutor'
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
@@ -220,6 +224,15 @@ export function createApp(deps: AppDeps = {}): Express {
   const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
   const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
   const getFixedIncomeTaxRate = new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor)
+  // Proxy com cache Redis (tarefa M.3) pra GET /market/indicators/history
+  // do motor (tarefa M.2) — mesmo padrão de cache de leitura de
+  // createRedisNetWorthCache abaixo, chave por `days` em vez de userId/asOf
+  // (a série é a mesma pra qualquer chamador).
+  const cachedIndicatorHistoryReader = createRedisIndicatorHistoryCache(
+    createEngineIndicatorHistoryReader(engineUrl),
+    createRedisIndicatorHistoryCacheStore(redisClient),
+  )
+  const getIndicatorHistory = new GetIndicatorHistoryUseCase(cachedIndicatorHistoryReader)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -459,6 +472,7 @@ export function createApp(deps: AppDeps = {}): Express {
       redeemFixedIncome,
       simulateFixedIncome,
       getFixedIncomeTaxRate,
+      getIndicatorHistory,
       authMiddleware,
     }),
   )

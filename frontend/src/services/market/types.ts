@@ -144,6 +144,20 @@ export interface QuoteHistoryEntry {
     price: number
 }
 
+// `GET /market/indicators` (tarefa M.3) — proxy 1:1 do motor
+// (`GET /market/indicators/history`, `.docs/engine/tick.md`), snake_case
+// sem tradução como o resto desta seção. `selic_rate` já vem em pontos
+// percentuais (ex: `9.75` = 9,75% a.a., mesma convenção de
+// `fixed_income.interest_rate` — `formatRatePercent`); `ipca_monthly_rate`/
+// `ipca_accumulated_12m` vêm como razão 0–1 (mesma convenção de
+// `roe`/`dividend_yield` — `formatPercentage`), não em pontos percentuais.
+export interface IndicatorHistoryEntry {
+    simulated_day: number
+    selic_rate: number
+    ipca_monthly_rate: number
+    ipca_accumulated_12m: number
+}
+
 export interface CompanyAssetSummary {
     id: string
     ticker: string

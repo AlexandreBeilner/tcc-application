@@ -3,6 +3,7 @@ import {
     getAsset,
     getAssetQuotes,
     getCompany,
+    getIndicatorHistory,
     getMyAccount,
     listAssets,
     listMyEvents,
@@ -53,6 +54,18 @@ describe('services/market', () => {
         const fetchMock = mockFetchOnce({ quotes: [] })
         await getAssetQuotes('token', 'a1', 90)
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1/quotes?days=90')
+    })
+
+    it('getIndicatorHistory sem days faz GET /market/indicators sem query', async () => {
+        const fetchMock = mockFetchOnce({ indicators: [] })
+        await getIndicatorHistory('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/indicators')
+    })
+
+    it('getIndicatorHistory repassa days quando informado', async () => {
+        const fetchMock = mockFetchOnce({ indicators: [] })
+        await getIndicatorHistory('token', 180)
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/indicators?days=180')
     })
 
     it('getCompany faz GET /market/companies/:id', async () => {

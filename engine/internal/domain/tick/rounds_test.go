@@ -1025,6 +1025,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 		submitter,
 		&fakeOrderLifecycleManager{},
 		selicCfg,
+		testIPCAConfig(),
 		1,
 	)
 
@@ -1209,6 +1210,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 		submitter,
 		&fakeOrderLifecycleManager{},
 		selicCfg,
+		testIPCAConfig(),
 		seed,
 	)
 	return svc, assetID, startPrice

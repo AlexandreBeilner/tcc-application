@@ -33,7 +33,7 @@ export function findActiveTrackNumber(groups: TrackGroup[]): number | undefined 
 // Status do card de trilha no Hub (tarefa O.1) — mesmo critério de
 // `findActiveTrackNumber`: uma trilha só é "bloqueada" quando NENHUMA das
 // suas lições é `available`/`completed` (não dá pra usar "primeira lição
-// locked", já que `sortOrder` é sequencial pra trilha inteira de 33 lições,
+// locked", já que `sortOrder` é sequencial pra trilha inteira de 35 lições,
 // não por trilha isolada).
 export function trackStatusFor(group: TrackGroup): TrackStatus {
     if (group.lessons.every((lesson) => lesson.status === 'completed')) return 'completed'

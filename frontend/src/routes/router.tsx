@@ -15,6 +15,7 @@ import { CriarEventoMacro } from '../pages/CriarEventoMacro'
 import { EquityList } from '../pages/EquityList'
 import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
 import { FixedIncomeList } from '../pages/FixedIncomeList'
+import { IndicadoresEconomicos } from '../pages/IndicadoresEconomicos'
 import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
 import { Market } from '../pages/Market'
@@ -88,6 +89,10 @@ export const router = createBrowserRouter([
                     { path: '/mercado/renda-variavel', element: <EquityList /> },
                     { path: '/mercado/ativos/:id', element: <AssetDetail /> },
                     { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
+                    // 4.9 Indicadores Econômicos (tarefa M.4) — irmã de
+                    // `/mercado/*`, não desbloqueada pela trilha (mesmo
+                    // tratamento do hub 4.1, dado informativo, não produto).
+                    { path: '/mercado/indicadores', element: <IndicadoresEconomicos /> },
                     {
                         element: <RequiresUnlock unlockKey="calculator" />,
                         children: [{ path: '/calculadora', element: <Calculator /> }],

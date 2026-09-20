@@ -71,7 +71,7 @@ describe('AdvanceLessonUseCase', () => {
       unlockedAchievements: [],
     })
     expect(xpAwarder.awarded).toEqual([
-      { userId: 'u1', amount: LESSON_XP_REWARD, reason: 'licao:0.1' },
+      { userId: 'u1', amount: LESSON_XP_REWARD, reason: 'licao:l1' },
     ])
     expect(streakTracker.touchedUserIds).toEqual(['u1'])
     // l1 não é a última lição da Trilha 0 (l2 ainda falta) — nenhum evento

@@ -2101,7 +2101,7 @@ VNA na compra de Tesouro IPCA+, Fase L.2). Sem uma série de IPCA gerada e persi
 não tem o que mostrar num gráfico nem o que a Fase I precisa acumular. Esta fase resolve os dois
 problemas juntos: gerar+persistir a série, expor via API, e só então mostrar no frontend.
 
-### M.1 · Histórico diário persistido de Selic e IPCA
+### M.1 · Histórico diário persistido de Selic e IPCA ✅
 
 - **Descrição:** hoje `market_calendar` (migration `000004_market_calendar_and_quotes.up.sql`) é
   uma linha singleton só com o dia/Selic **corrente** — não guarda histórico, e IPCA não é gerado
@@ -2130,8 +2130,48 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   (`pontos-em-aberto-decisao-produto.md`); relatório `tmp/relatorio-logica-mercado.md` (IPCA sem
   consumidor).
 - **Dependências:** nenhuma (mas ver nota de coordenação com I.1 acima).
+- **Entregável:** tabela nova `market_indicator_history` (migration `000021`, `simulated_day`
+  único, `selic_rate`/`ipca_monthly`/`ipca_accumulated_12m`) gravada a cada tick por
+  `TickRepository.SaveTick`, sem mudar o contrato de `market_calendar` (continua a linha singleton
+  de leitura corrente). Cadência decidida: **todo dia repete o valor do mês corrente** — pacote
+  `ipca` ganhou `CurrentMonthIndex(dayIndex, monthDays)` (todo dia simulado já pertence a um mês
+  desde o dia 0, diferente de `IsReportDay`/`IsCopomMeetingDay`, que só disparam no último dia de
+  um ciclo) e `DefaultMonthDays = 30` (mês simulado ilustrativo, dias fixos — mesma simplificação
+  de `CopomMeetingIntervalDays` pro Copom, não um mês de calendário real). **Acumulação resolvida
+  aqui, não em `ipca`** (a pergunta que I.1 deixava em aberto): `ipca.MonthlyRate(cfg, monthIndex)`
+  deriva sua própria rng de `(cfg.Seed, monthIndex)` — IPCA não tem memória entre meses (cada mês é
+  a meta mais ruído), então, diferente de `selic.NextCalendarRate`, `Advance` nunca precisa de
+  nenhum estado persistido pra IPCA: recalcula o mês corrente e o acumulado de 12 meses
+  (`ipca.Accumulated12m`, composição por produto — não soma simples, janela parcial antes do
+  primeiro ano simulado) inteiramente a partir de `dayIndex`, sempre O(12), a cada tick.
+  `ipcaAccumulatedDeviation` (o placeholder `0` que a I.1 deixava em `tick.go`) agora vem de
+  `ipca.AccumulatedDeviation`, que fechou o achado desta sessão: comparar um acumulado de poucos
+  meses contra a meta **anualizada** (12 meses fixos) sempre pareceria "abaixo da meta" antes do
+  primeiro ano simulado, mesmo com o IPCA mensal batendo exatamente a própria meta — corrigido
+  comparando sempre contra `ipca.TargetForWindow` com a MESMA janela do acumulado (não sempre 12
+  meses), eliminando o viés. `ipca.DefaultConfig(seed+1)` (offset fixo, não a mesma seed de
+  `selicConfig` — os dois são singletons globais do processo, sem id de entidade pra decorrelacionar
+  via hash) com meta/banda/volatilidade ilustrativas (`DefaultMonthlyTarget = 0.00367` ≈ 4,5% a.a.,
+  coerente com `selic.DefaultNeutralRate = 10%`), documentadas como sujeitas a calibração futura,
+  mesmo tratamento já dado a outros defaults do motor. `tick.Advance`/`tick.Service`/`NewService`
+  ganharam o parâmetro `ipcaCfg ipca.Config` (56 call-sites de teste atualizados). Testes novos:
+  pacote `ipca` (`MonthlyRate`/`Accumulated12m`/`TargetForWindow`/`AnnualizedTarget`/
+  `AccumulatedDeviation`/`CurrentMonthIndex`, incluindo o teste que provou e depois fechou o viés de
+  janela parcial) e pacote `tick` (IPCA repete dentro do mês/muda quando o mês vira, acumulado bate
+  a composição, Selic recebe exatamente o desvio que `ipca.AccumulatedDeviation` calcula no dia de
+  reunião). `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0
+  issues) verdes. `.docs/engine/tick.md` atualizado (tabela nova, parágrafo da regra de Selic, nota
+  da G.3 sobre IPCA+ de FII papel corrigida — deixou de ser "sem consumidor"). **Validado ponta a
+  ponta via `docker compose up -d --build`** (worktree com volume novo, sem dado pré-existente):
+  seed + 34 `POST /admin/tick` (dias 1→35) confirmaram — `market_indicator_history` com exatamente
+  35 linhas, uma por dia; `ipca_monthly` idêntico do dia 1 ao 30 (0.003758) e mudando exatamente no
+  dia 31 (0.002307, primeiro dia do mês simulado 1); `ipca_accumulated_12m` bate a composição por
+  produto dos dois meses (0.006073, não a soma 0.006065); `selic_rate` mudou exatamente no dia 21
+  (10.000 → 9.750, dia de reunião do Copom) e ficou constante nos dias vizinhos; `market_calendar`
+  (`current_day = 35`, `selic_rate = 9.750`) continua espelhando a última linha do histórico sem
+  mudança de contrato. Stack parada com `docker compose down` (sem `-v`) ao final.
 
-### M.2 · Endpoint HTTP de série histórica (engine)
+### M.2 · Endpoint HTTP de série histórica (engine) ✅
 
 - **Descrição:** rota nova (ex: `GET /market/indicators/history`) devolvendo a série persistida em
   M.1 — Selic/IPCA mensal/IPCA acumulado 12m por dia simulado, com parâmetro de janela (ex: último
@@ -2142,8 +2182,38 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   o caso de motor recém-subido (sem histórico ainda, resposta vazia sem erro).
 - **Referências:** proposta seção 6.
 - **Dependências:** M.1.
+- **Entregável:** `GET /market/indicators/history` (`internal/infra/httpserver/indicators.go`),
+  mesmo padrão de trust boundary de `POST /admin/tick`/`GET /macro-events` (motor não valida role).
+  `?days=` opcional, default `defaultIndicatorHistoryDays = 90` — bem maior que os 30 de `GET
+  /assets/:id/quotes` (tarefa 4.6) porque Selic/IPCA só mudam por ciclo (Copom a cada 21 dias
+  simulados, mês de IPCA a cada 30), 90 dias cobre ~4 ciclos de Copom e 3 meses de IPCA, o bastante
+  pra um gráfico com movimento real (tarefa M.4). `TickRepository.ListIndicatorHistory`
+  (`internal/infra/db/tick_repository.go`) lê `market_indicator_history` com o mesmo padrão SQL de
+  `CatalogRepository.ListQuoteHistory` (subquery `ORDER BY ... DESC LIMIT $1` seguida de `ORDER BY
+  ... ASC`) — `TickRepository` já é quem escreve a tabela desde M.1, então ganhar a leitura também
+  é só um método a mais no mesmo adapter, não uma responsabilidade nova. Tipo novo
+  `tick.IndicatorHistoryEntry` (dia + os três indicadores juntos — diferente de `Result`, que já
+  tem os mesmos três valores achatados sem o dia, porque `Result` é sempre "o dia que acabou de ser
+  gerado"; aqui é uma série, precisa do dia explícito). Lista vazia (nunca `null`) se o Temporizador
+  nunca rodou — mesmo tratamento de `GET /assets/:id/quotes`/`GET /macro-events`. `New`/`Run`
+  (`server.go`) ganharam o parâmetro `indicatorHistory indicatorHistoryReader`, preenchido em
+  `main.go` pela mesma instância de `tickRepository` já usada pelo `tick.Service` (nenhum
+  repositório novo instanciado) — 13 call-sites de teste (`New("", ...)`) atualizados com mais um
+  `nil`/fake posicional. Testes novos em `indicators_test.go`: dados reais persistidos, motor
+  recém-subido (lista vazia sem erro), `?days=` custom, `days` inválido (400), erro de repositório
+  (500), serviço indisponível (503) — os dois primeiros são exatamente os critérios de aceite desta
+  tarefa. `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0
+  issues) verdes. `.docs/engine/tick.md` atualizado (seção nova do endpoint + nota da tabela
+  `market_indicator_history` que dizia "sem rota de leitura própria até a tarefa M.2" corrigida).
+  **Validado ponta a ponta via `docker compose up -d --build engine postgres redis`**, reusando o
+  volume Postgres da validação da M.1 (35 dias já persistidos, sem reseed): `?days=5` devolveu
+  exatamente os dias 31-35 (`selic_rate = 9.750`, `ipca_monthly_rate` do segundo mês simulado,
+  0.002307); sem `?days=`, default 90 devolveu os 35 dias inteiros (dia 1 ao 35, janela maior que o
+  histórico existente); `?days=0` devolveu `400`; um novo `POST /admin/tick` (dia 36) apareceu
+  imediatamente em `?days=1` sem reiniciar o motor. Stack parada com `docker compose down` (sem
+  `-v`, volume preservado) ao final.
 
-### M.3 · Rota no backend gamificado + cache Redis
+### M.3 · Rota no backend gamificado + cache Redis ✅
 
 - **Descrição:** módulo `market` (backend) ganha uma rota nova (ex: `GET /market/indicators`)
   proxying pro endpoint da M.2, com cache Redis de TTL curto (indicador só muda no máximo 1x por
@@ -2154,8 +2224,45 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   router via supertest.
 - **Referências:** `.claude/arquitetura-backend-ddd-lite.md`; `.docs/backend/market.md`.
 - **Dependências:** M.2.
+- **Entregável:** `GET /market/indicators` (`marketRouter.ts`) — mesma convenção de autenticação
+  do resto do módulo (Bearer token, qualquer usuário, motor não valida role). Porta nova
+  `IndicatorHistoryReader` (`application/ports/indicatorHistoryReader.ts`) — deliberadamente **não**
+  estendida de `CatalogReader`: indicador macro não é um ativo do catálogo, mesmo racional de
+  `market` já ter portas finas separadas por natureza do dado (`accountReader`/`orderExecutor`
+  etc.), não uma porta única genérica. `GetIndicatorHistoryUseCase` → adapter de motor
+  (`engineIndicatorHistoryReader.ts`, `GET /market/indicators/history?days=`) decorado com cache
+  Redis em `app.ts` (`createRedisIndicatorHistoryCache`/`redisIndicatorHistoryCacheStore.ts`) —
+  mesmo padrão de `createRedisNetWorthCache`/`redisNetWorthCacheStore.ts` de `modules/ranking`
+  (tarefa 5.7): TTL curto (`DEFAULT_TTL_SECONDS = 5 * 60`, mesmo valor de `redisNetWorthCache.ts`
+  por simplicidade), chave por `days` (`indicators:history:<days|'default'>`) em vez de userId/asOf
+  — a série histórica é a mesma pra qualquer chamador, não por usuário. Redis fora do ar cai pro
+  motor direto (mesma garantia best-effort do cache de ranking, nunca propaga erro do store).
+  Resposta wrapada em `{ indicators: [...] }` (mesma convenção de `{ quotes: [...] }` da
+  `GET /market/assets/:id/quotes`), campos em snake_case sem tradução (`simulated_day`/
+  `selic_rate`/`ipca_monthly_rate`/`ipca_accumulated_12m`, 1:1 com o motor). Query `days` validada
+  por `indicatorHistoryQuerySchema` (`z.coerce.number().int().min(1).optional()`, mesma forma de
+  `getAssetQuotesQuerySchema`) — omitido, sem default próprio neste módulo, o motor decide
+  (`defaultIndicatorHistoryDays = 90`). Testes novos: `getIndicatorHistory.test.ts` (caso de uso
+  com fake), `engineIndicatorHistoryReader.test.ts` (adapter, `fetch` mockado — mesmo padrão de
+  `engineCatalogReader.test.ts`), `redisIndicatorHistoryCacheStore.test.ts` (adapter contra cliente
+  `ioredis` mockado — mesmo padrão de `redisNetWorthCacheStore.test.ts`, não Redis real: é o padrão
+  já estabelecido pelo precedente da 5.7 nesta base de código), `redisIndicatorHistoryCache.test.ts`
+  (decorator — cache frio/quente, chaves distintas por `days`, Redis fora do ar não quebra leitura),
+  e 5 testes novos em `marketRouter.test.ts` (401 sem token, 200 com série, `days` repassado sem
+  default do backend, 400 pra `days` inválido, erro do motor traduzido 1:1). `npm run lint`/
+  `build`/`test` (582 testes) verdes; `npx prettier --check` verde. `.docs/backend/market.md`
+  atualizado (seção nova `GET /market/indicators` na categoria Catálogo). **Validado ponta a ponta
+  via `docker compose up -d --build postgres redis engine backend`** (worktree própria, volume
+  Postgres/Redis já com ~36 dias de tick de sessões anteriores): 10 `POST /admin/tick` avançaram
+  pra dia 46, cadastro de usuário via `POST /auth/register` gerou token, `GET
+  /market/indicators?days=5` devolveu exatamente os dias 42-46; `redis-cli -n 1 keys
+  'indicators:*'` confirmou a chave `indicators:history:5` populada com TTL ~300s; um novo
+  `POST /admin/tick` (dia 47) seguido do mesmo `?days=5` continuou servindo o dado velho (dia 46 no
+  topo, cache quente), enquanto `?days=1` (chave nova, nunca cacheada) foi direto ao motor e trouxe
+  o dia 47 fresco — confirma cache por chave de `days`, não global. `?days=0` devolveu `400`; sem
+  token devolveu `401`. Stack parada com `docker compose down` (sem `-v`) ao final.
 
-### M.4 · Tela "Indicadores Econômicos" no frontend
+### M.4 · Tela "Indicadores Econômicos" no frontend ✅
 
 - **Descrição:** tela nova (a decidir na sessão o ponto de entrada exato — candidato natural é um
   card em Home/Mercado linkando pra uma tela dedicada, seguindo o padrão de sparkline já
@@ -2171,8 +2278,52 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
 - **Referências:** `.claude/identidade-visual-padroes.md`, `.claude/identidade-visual-tokens.md`;
   `.claude/inventario-telas-plataforma-investimentos.md`.
 - **Dependências:** M.3.
+- **Entregável:** ponto de entrada decidido na sessão — card novo "Indicadores Econômicos" no hub
+  de Mercado (4.1, `pages/Market`), 3ª coluna a partir do desktop (`Market/index.module.css`, regra
+  nova de `grid-template-columns: repeat(3, 1fr)` em `min-width: 1024px`, pra não sobrar um card
+  órfão numa grade de 2 colunas). Tela nova `pages/IndicadoresEconomicos` (4.9 no inventário,
+  rota `/mercado/indicadores`, irmã de `/mercado/*`, sem `RequiresUnlock` — dado informativo, não
+  produto da trilha) consome uma única fonte de dado (`GET /market/indicators`, M.3, via
+  `useIndicatorHistoryQuery` novo) pra alimentar tanto os cards de valor corrente quanto os dois
+  gráficos: o último item da série (ordem cronológica, mais recente por último) vira "valor
+  corrente". Organism novo `IndicatorSummaryCards` (4 cards: Selic meta anual — `formatRatePercent`,
+  já em pontos percentuais —, IPCA mensal e IPCA acumulado 12m — `formatPercentage`, razão 0–1,
+  mesma distinção de escala de `services/market/types.ts` — e Próximo Copom simulado) —
+  deliberadamente **sem sparkline por card** (identidade-visual-padroes.md §2: a regra é só pra
+  card monetário ou de métrica de progresso, nenhum dos dois é o caso de dado macro). "Próximo
+  Copom simulado" não vem de nenhum endpoint novo — o motor só marca reunião já ocorrida, nunca a
+  próxima — então é derivado no cliente por `features/market/nextCopomDay`
+  (`nextCopomSimulatedDay`, espelha `selic.CopomMeetingIntervalDays = 21` do motor: reunião cai em
+  todo `simulated_day` múltiplo de 21, próxima é sempre o múltiplo estritamente maior que o último
+  dia conhecido). Gráficos: `features/market/indicatorChartLayout`
+  (`computeIndicatorChartLayout`, generaliza `priceChartLayout` por `value` em vez de `price` — sem
+  semântica de ganho/perda, sempre `--color-brand-500`, nunca `--color-gain-*`/`--color-loss-*`,
+  que têm semântica própria de rentabilidade) + organism `IndicatorLineChart` (mesmo motivo visual
+  "papel de gráfico"/área preenchida/hover com tooltip de `PriceChart`, mas com `title` +
+  `formatValue` próprios por instância — reusado 2x na tela: "Selic (meta anual)" e "IPCA acumulado
+  12m", com o mesmo seletor de intervalo 3M/6M/1A compartilhado, dias maiores que o `RANGES` de
+  ativo (4.5) porque Selic/IPCA só mudam por ciclo de ~21-30 dias). IPCA mensal aparece só como
+  stat corrente, não charted — ele e o acumulado 12m têm ordem de grandeza ~12x diferente (mensal
+  ~0,3-0,4%, acumulado ~4-5%), um eixo compartilhado deixaria o mensal ilegível; acumulado 12m é o
+  número "de manchete" de qualquer forma. Responsivo nos 3 breakpoints: mobile/tablet 1 coluna
+  empilhada (2 colunas de stat card a partir de 768px), desktop (≥1024px) ganha composição própria
+  — 4 colunas de stat card, 2 colunas de gráfico lado a lado, nunca coluna única esticada.
+  `npm run lint` (oxlint, 0 issues novos)/`tsc -b`/`npm test` (684 testes, frontend) verdes;
+  `npx prettier --check` verde. `.claude/inventario-telas-plataforma-investimentos.md` atualizado
+  (4.9 nova + 4.1 com o card novo). **Validado ponta a ponta via `docker compose up -d --build
+  postgres redis engine backend gateway`** (worktree própria) + `vite` local apontando pro gateway
+  containerizado (`VITE_GATEWAY_URL` default `http://localhost:8000`): cadastro via
+  `POST /auth/register` + 47 `POST /admin/tick` deram um usuário logado com histórico real; tela
+  acessada via Chrome (login por `localStorage` direto, mesmo mecanismo de `AuthContext`) mostrou
+  Selic `9,8%`/IPCA mensal `0.2%`/IPCA acumulado `0.6%`/Próximo Copom `Dia 63` (bate com
+  `nextCopomSimulatedDay(47) = 63`) e os dois gráficos desenhando o degrau real do dia 21 (Copom) e
+  do dia 31 (virada de mês do IPCA); troca de intervalo (3M→1A) e hover com tooltip (`Dia 24` /
+  `9,8%`) confirmados interativamente; os 3 breakpoints confirmados via aba própria por largura
+  (420px mobile — tab bar inferior fixa; 834px tablet — nav horizontal, 2 colunas de stat card,
+  gráficos empilhados; 1920px desktop — 3 colunas no hub de Mercado, 4 colunas de stat card, 2
+  colunas de gráfico lado a lado). Stack parada com `docker compose down` (sem `-v`) ao final.
 
-### M.5 · Novas lições: "Como a Selic é formada" e "O que é o IPCA"
+### M.5 · Novas lições: "Como a Selic é formada" e "O que é o IPCA" ✅
 
 - **Descrição:** pedido do autor além do que a proposta original cobria — currículo hoje (spec
   5.1) não tem nenhuma lição explicando **o mecanismo** por trás da Selic (Copom, reunião, decisão
@@ -2199,6 +2350,97 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
 - **Referências:** spec 5.1 (Trilha 1); proposta seção 6; pedido do autor nesta sessão
   (2026-09-13).
 - **Dependências:** I.1, I.2, M.4.
+- **Entregável:** posição decidida na sessão — "Como a Selic é formada" logo após 1.2 (código
+  `1.3`) e "O que é o IPCA" logo antes de 1.8/Tesouro IPCA+ (código `1.9`, não após 0.3: a opção de
+  0.3 colocaria a lição na Trilha 0, contradizendo o "Duas lições novas na Trilha 1" da descrição
+  original) — Trilha 1 renumerada `1.1`-`1.11` (`code`/`sortOrder` das 7 lições entre `1.3` e `1.9`
+  originais deslocados um degrau, Trilhas 2/3 só com `sortOrder` +2, `code` intocado), currículo
+  35 lições. Tipo de Micro-decisão novo `live_macro_indicator` (`lesson_micro_decision_type`,
+  migration `0015`, `ALTER TYPE ... ADD VALUE`, sem TTY) — mesmo padrão do `live_indicator` das
+  2.6.x, mas a Revelação busca `GET /market/indicators` (M.3) via `useIndicatorHistoryQuery` (ganhou
+  `options.enabled`) em vez de um ticker de ativo, renderizando `IndicatorSummaryCards` (M.4)
+  dentro de `pages/Lesson`. As duas lições ganham aposta real (`microDecisionOptions`/
+  `microDecisionCorrectOption`), consistente com as demais da Trilha 1. `backend`: 582 testes (1
+  novo, `Lesson` reaproveitado sem teste de domínio novo — nenhuma regra de negócio nova além do
+  enum); `frontend`: 685 testes (1 novo, cobrindo a Revelação `live_macro_indicator`);
+  `npm run lint`/`npm run build`/`prettier --check` verdes nos dois lados (únicos warnings restantes
+  são os 5/7 já pré-existentes, confirmados via `git stash` antes desta sessão). Achado registrado
+  em `.claude/pontos-em-aberto-decisao-produto.md` (008): a renumeração de `code` faz o seed
+  reaproveitar a linha física de uma lição existente em vez de criar linha nova, então
+  `user_lesson_progress` de ambiente já usado antes da M.5 pode ficar atribuído à lição errada após
+  o reseed — sem correção mecânica possível, decisão de produto em aberto. Achievement "Formado na
+  Trilha" recalibrado de 33 para 35 (`seedAchievements.ts`, mesma ressalva: seed só insere por nome,
+  não atualiza um ambiente que já tinha a conquista). **Validado ponta a ponta via
+  `docker compose up -d --build postgres redis engine backend gateway`** (worktree própria,
+  migration `0015` aplicada automaticamente no start do backend) + `db:seed:lessons`/
+  `db:seed:achievements` contra o Postgres do compose (35 lições confirmadas via
+  `select count(*) from lessons`, sem duplicata, reseed rodado 2x idempotente) + `vite` local
+  apontando pro gateway containerizado. Usuário novo registrado via `POST /auth/register`, 7
+  primeiras lições completadas via API pra desbloquear `1.3`; Chrome real (login via UI, não
+  localStorage — porta do Vite precisa bater com o `CORS_ORIGIN` do backend, `5173`) confirmou
+  Cenário/Micro-decisão (aposta "Sobe" acertada, badge "Você acertou")/Revelação da lição `1.3`
+  mostrando os 4 cards ao vivo (Selic `9,8%`/IPCA mensal `0.2%`/IPCA acumulado `0.6%`/Próximo Copom
+  `Dia 63`) com dado real do endpoint, mesmo painel da tela Indicadores Econômicos (M.4)
+  reaproveitado dentro da lição. Hub da Trilha confirmado mostrando "7 de 35 lições concluídas no
+  total" e "2/11 lições" na Trilha 1. Stack parada com `docker compose down` (sem `-v`) ao final.
+
+### M.6 · `lessons.stable_key` como chave de upsert do seed, liberando `code` pra ser mutável ✅
+
+- **Descrição:** resolve o achado 010 (`.claude/pontos-em-aberto-decisao-produto.md`) — opção (c)
+  escolhida pelo autor (2026-09-20): hoje `seedLessons.ts` casa o upsert por `lessons.code`
+  (`onConflictDoUpdate({ target: lessons.code })`) e nunca inclui `code` no `set`; toda renumeração
+  de `code` (como a que a própria M.5 fez em 7 lições) reaproveita a linha física/`id` existente em
+  vez de criar linha nova, arrastando `user_lesson_progress` de quem já tinha progresso real pra uma
+  lição de conteúdo diferente, sem erro nem log. Muda a chave de casamento do upsert pra uma coluna
+  nova e estável (`stable_key`, `varchar`, `UNIQUE`, nunca reordenada — um valor por lição, atribuído
+  uma vez e nunca mais tocado mesmo que a posição didática mude), deixando `code` livre pra refletir
+  só a posição atual no currículo e podendo, portanto, entrar no `set` do upsert dali em diante.
+  Análise de impacto feita nesta sessão (2026-09-20, ver achado 010) confirmou que gating de
+  trilha/desbloqueio usa inteiramente `sortOrder` (nunca `code`) tanto no backend
+  (`modules/lessons/domain/lesson.ts`) quanto no espelho do frontend (`features/lessons/
+  unlockedKeys`, `nextUnlockFor`) — risco de regressão em desbloqueio é baixo. `user_lesson_progress`
+  já referencia `lessons.id` (uuid), não `code` — não precisa de mudança de schema própria. Como a
+  aplicação **não está em produção**, não há dado real a preservar: a tarefa pode truncar
+  `lessons`/`user_lesson_progress` (e o que mais depender deles, ex: XP já concedido por lição) e
+  reseedar do zero com o schema novo, sem precisar de uma política de migração de dado legado.
+  Dois efeitos colaterais que a análise encontrou e que entram no mesmo escopo (não são bugs à
+  parte, são consequência direta de `code` virar mutável):
+  1. `application/useCases/advanceLesson.ts:160` usa `` `licao:${lesson.code}` `` como chave de
+     idempotência do XP (`xpAwarder.award`) — se `code` mudar numa renumeração futura, essa chave
+     muda junto e abre brecha pra reconceder XP da mesma lição já concluída. Trocar pra uma chave
+     baseada em `id`/`stable_key` (imutável) no mesmo commit.
+  2. `.docs/backend/lessons.md:73` já documenta o seed incorretamente (`ON CONFLICT (code) DO
+     NOTHING`, quando o código real sempre fez `onConflictDoUpdate`) — corrigir junto e documentar o
+     `stable_key` novo, regra do CLAUDE.md de doc no mesmo commit.
+  Fora de escopo: o markup de conteúdo `{{ref:X.Y}}` (`pages/Lesson/index.tsx`, resolvido comparando
+  `code`) continua funcionando sem mudança — é responsabilidade de quem edita conteúdo manter esse
+  texto em sincronia com o `code` vigente quando a posição de uma lição mudar, mesma natureza de
+  qualquer outro texto de lição, não uma regra de sistema.
+- **Critérios de aceite:** migration nova adiciona `lessons.stable_key` (`UNIQUE NOT NULL`);
+  `seedLessons.ts` casa por `stable_key`, inclui `code` no `set`; rodar o seed duas vezes seguidas
+  sem duplicar linha nem trocar `id` de nenhuma lição; teste cobrindo o cenário do achado 010 (mudar
+  o `code` de uma entrada de `LESSON_SEEDS` mantendo o mesmo `stable_key` e confirmar que o upsert
+  atualiza a linha existente, não cria uma nova, e preserva `id`); chave de idempotência de XP em
+  `advanceLesson.ts` não depende mais de `code`; `.docs/backend/lessons.md` atualizado; `npm run
+  lint`/`npm run build`/`npm test` verdes.
+- **Referências:** achado 010 (`.claude/pontos-em-aberto-decisao-produto.md`); decisão do autor
+  (2026-09-20, opção (c)).
+- **Dependências:** nenhuma (independente do núcleo A-M, é uma correção de infraestrutura de seed).
+- **Entregável:** `lessons.stable_key` (`varchar(20) UNIQUE NOT NULL`, migration `0016`) — chave de
+  upsert nova e imutável, atribuída uma vez por lição (hoje coincide com o `code` vigente no momento em
+  que a coluna nasceu). `seedLessons.ts`: upsert extraído pra `upsertLessonSeed` (testável), `target:
+  lessons.stableKey`, `code` agora no `set`. Migration trunca `user_lesson_progress`/`lessons` antes de
+  tornar `stable_key` NOT NULL (app não está em produção, sem dado real a preservar). `AdvanceLessonUseCase`:
+  chave de idempotência do XP trocada de `licao:${lesson.code}` pra `licao:${lesson.id}` (imutável,
+  efeito colateral direto de `code` virar mutável). `.docs/backend/lessons.md` corrigido (documentava
+  `ON CONFLICT (code) DO NOTHING`, nunca foi verdade) e atualizado com `stable_key`. Achado 010 movido
+  pra "Resolvidos" em `.claude/pontos-em-aberto-decisao-produto.md`. Teste novo
+  (`seedLessons.test.ts`, fake in-memory reproduzindo `ON CONFLICT` do Postgres) cobrindo o cenário do
+  achado — renumerar `code` mantendo `stableKey` atualiza a linha existente sem duplicar, preservando
+  `id`. Validado ponta a ponta via `docker compose up` (postgres+redis+engine+backend): migration
+  aplicada sobre um banco já seedado por sessões anteriores (truncate rodou), seed rodado 2x seguidas —
+  35 lições, mesmos `id`s nas duas rodadas, `GET /lessons` respondendo. `npm run lint`/`npm run
+  build`/`npm test` verdes (585 testes).
 
 ---
 
