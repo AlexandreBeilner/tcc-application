@@ -1825,7 +1825,7 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   imediatamente em `?days=1` sem reiniciar o motor. Stack parada com `docker compose down` (sem
   `-v`, volume preservado) ao final.
 
-### M.3 · Rota no backend gamificado + cache Redis
+### M.3 · Rota no backend gamificado + cache Redis ✅
 
 - **Descrição:** módulo `market` (backend) ganha uma rota nova (ex: `GET /market/indicators`)
   proxying pro endpoint da M.2, com cache Redis de TTL curto (indicador só muda no máximo 1x por
@@ -1836,6 +1836,43 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   router via supertest.
 - **Referências:** `.claude/arquitetura-backend-ddd-lite.md`; `.docs/backend/market.md`.
 - **Dependências:** M.2.
+- **Entregável:** `GET /market/indicators` (`marketRouter.ts`) — mesma convenção de autenticação
+  do resto do módulo (Bearer token, qualquer usuário, motor não valida role). Porta nova
+  `IndicatorHistoryReader` (`application/ports/indicatorHistoryReader.ts`) — deliberadamente **não**
+  estendida de `CatalogReader`: indicador macro não é um ativo do catálogo, mesmo racional de
+  `market` já ter portas finas separadas por natureza do dado (`accountReader`/`orderExecutor`
+  etc.), não uma porta única genérica. `GetIndicatorHistoryUseCase` → adapter de motor
+  (`engineIndicatorHistoryReader.ts`, `GET /market/indicators/history?days=`) decorado com cache
+  Redis em `app.ts` (`createRedisIndicatorHistoryCache`/`redisIndicatorHistoryCacheStore.ts`) —
+  mesmo padrão de `createRedisNetWorthCache`/`redisNetWorthCacheStore.ts` de `modules/ranking`
+  (tarefa 5.7): TTL curto (`DEFAULT_TTL_SECONDS = 5 * 60`, mesmo valor de `redisNetWorthCache.ts`
+  por simplicidade), chave por `days` (`indicators:history:<days|'default'>`) em vez de userId/asOf
+  — a série histórica é a mesma pra qualquer chamador, não por usuário. Redis fora do ar cai pro
+  motor direto (mesma garantia best-effort do cache de ranking, nunca propaga erro do store).
+  Resposta wrapada em `{ indicators: [...] }` (mesma convenção de `{ quotes: [...] }` da
+  `GET /market/assets/:id/quotes`), campos em snake_case sem tradução (`simulated_day`/
+  `selic_rate`/`ipca_monthly_rate`/`ipca_accumulated_12m`, 1:1 com o motor). Query `days` validada
+  por `indicatorHistoryQuerySchema` (`z.coerce.number().int().min(1).optional()`, mesma forma de
+  `getAssetQuotesQuerySchema`) — omitido, sem default próprio neste módulo, o motor decide
+  (`defaultIndicatorHistoryDays = 90`). Testes novos: `getIndicatorHistory.test.ts` (caso de uso
+  com fake), `engineIndicatorHistoryReader.test.ts` (adapter, `fetch` mockado — mesmo padrão de
+  `engineCatalogReader.test.ts`), `redisIndicatorHistoryCacheStore.test.ts` (adapter contra cliente
+  `ioredis` mockado — mesmo padrão de `redisNetWorthCacheStore.test.ts`, não Redis real: é o padrão
+  já estabelecido pelo precedente da 5.7 nesta base de código), `redisIndicatorHistoryCache.test.ts`
+  (decorator — cache frio/quente, chaves distintas por `days`, Redis fora do ar não quebra leitura),
+  e 5 testes novos em `marketRouter.test.ts` (401 sem token, 200 com série, `days` repassado sem
+  default do backend, 400 pra `days` inválido, erro do motor traduzido 1:1). `npm run lint`/
+  `build`/`test` (582 testes) verdes; `npx prettier --check` verde. `.docs/backend/market.md`
+  atualizado (seção nova `GET /market/indicators` na categoria Catálogo). **Validado ponta a ponta
+  via `docker compose up -d --build postgres redis engine backend`** (worktree própria, volume
+  Postgres/Redis já com ~36 dias de tick de sessões anteriores): 10 `POST /admin/tick` avançaram
+  pra dia 46, cadastro de usuário via `POST /auth/register` gerou token, `GET
+  /market/indicators?days=5` devolveu exatamente os dias 42-46; `redis-cli -n 1 keys
+  'indicators:*'` confirmou a chave `indicators:history:5` populada com TTL ~300s; um novo
+  `POST /admin/tick` (dia 47) seguido do mesmo `?days=5` continuou servindo o dado velho (dia 46 no
+  topo, cache quente), enquanto `?days=1` (chave nova, nunca cacheada) foi direto ao motor e trouxe
+  o dia 47 fresco — confirma cache por chave de `days`, não global. `?days=0` devolveu `400`; sem
+  token devolveu `401`. Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ### M.4 · Tela "Indicadores Econômicos" no frontend
 

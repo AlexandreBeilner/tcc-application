@@ -46,6 +46,16 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Erros:** `401`; `404` (traduzido do motor).
 - **Regra:** `GetCompanyUseCase` → `CatalogReader.getCompany`.
 
+### `GET /market/indicators`
+
+*(Tarefa M.3, `backlog-motor-mercado-realista.md` — proxy de `GET /market/indicators/history` do motor, ver `.docs/engine/tick.md`.)*
+
+- **Autenticação:** Bearer token — qualquer usuário autenticado, sem regra de negócio própria (mesma convenção do resto desta seção).
+- **Payload:** query `days` (opcional, inteiro ≥ 1 — `indicatorHistoryQuerySchema`, coerção via `z.coerce`, mesma convenção de `GET /market/assets/:id/quotes`). Sem default próprio neste módulo — omitido, o motor aplica o dele (`defaultIndicatorHistoryDays = 90`).
+- **Sucesso:** `200` → `{ indicators: [...] }`, proxy 1:1 de `GET /market/indicators/history` (`[{ simulated_day, selic_rate, ipca_monthly_rate, ipca_accumulated_12m }, ...]`, cronológico, mais antigo primeiro). Lista vazia (não erro) se o Temporizador nunca rodou ainda — mesmo tratamento de `GET /market/assets/:id/quotes`.
+- **Erros:** `400` — `days` inválido. `401`. Qualquer erro do motor (`503`/`500`) é repassado com o mesmo status.
+- **Regra:** `GetIndicatorHistoryUseCase` → `IndicatorHistoryReader.getIndicatorHistory` (port própria do módulo, não estende `CatalogReader` — indicador macro não é um ativo do catálogo). Composição em `app.ts` decora o adapter do motor (`engineIndicatorHistoryReader.ts`) com cache Redis (`createRedisIndicatorHistoryCache`/`redisIndicatorHistoryCacheStore.ts`, mesmo padrão de `createRedisNetWorthCache` do módulo `ranking`, tarefa 5.7) — TTL curto (5 minutos, ilustrativo/sujeito a calibração), chave por `days` (não por usuário, já que a série é a mesma pra qualquer chamador). Redis fora do ar nunca derruba a leitura — cai pro motor direto (mesma garantia best-effort do cache de `ranking`).
+
 ---
 
 ## Conta do próprio usuário (leitura)
