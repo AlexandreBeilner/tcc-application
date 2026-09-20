@@ -9,6 +9,7 @@ function renderMarket() {
             { path: '/mercado', element: <Market /> },
             { path: '/mercado/renda-fixa', element: <div>tela de renda fixa</div> },
             { path: '/mercado/renda-variavel', element: <div>tela de renda variável</div> },
+            { path: '/mercado/indicadores', element: <div>tela de indicadores</div> },
         ],
         { initialEntries: ['/mercado'] },
     )
@@ -26,5 +27,11 @@ describe('Market (tela 4.1)', () => {
         renderMarket()
         fireEvent.click(screen.getByText('Renda Variável'))
         expect(screen.getByText('tela de renda variável')).toBeInTheDocument()
+    })
+
+    it('card Indicadores Econômicos navega pra 4.9', () => {
+        renderMarket()
+        fireEvent.click(screen.getByText('Indicadores Econômicos'))
+        expect(screen.getByText('tela de indicadores')).toBeInTheDocument()
     })
 })

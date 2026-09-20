@@ -145,12 +145,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 ## 4. Mercado
 
 ### 4.1 Navegação de Mercado (hub)
-- **Objetivo:** roteador principal entre Renda Fixa e Renda Variável (herdado do wireframe original, Fig. 4).
+- **Objetivo:** roteador principal entre Renda Fixa, Renda Variável e os indicadores macro por trás dos dois (herdado do wireframe original, Fig. 4, com extensão da tarefa M.4).
 - **Acesso:** nav primária ("Mercado"), ou via "Investir" no Portfólio (2.1).
-- **Conteúdo:** dois cards — Renda Fixa e Renda Variável — com descrição curta de cada um.
+- **Conteúdo:** três cards — Renda Fixa, Renda Variável e Indicadores Econômicos — com descrição curta de cada um.
 - **Ações:**
   - Card Renda Fixa → **4.2 Lista de Renda Fixa**.
   - Card Renda Variável → **4.4 Lista de Renda Variável**.
+  - Card Indicadores Econômicos → **4.9 Indicadores Econômicos**.
 - **Estados especiais:** produtos ainda bloqueados pela trilha aparecem visualmente atenuados dentro das listas (não nesta tela-hub, que se mantém simples).
 - **Dados envolvidos:** nenhum dado próprio, só roteamento.
 
@@ -230,6 +231,16 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Ações:** clique num item → detalhe expandido inline (sem navegação nova, é só um "accordion").
 - **Estados especiais:** sem transações ainda (estado vazio).
 - **Dados envolvidos:** `market_events` (fonte de verdade, Event Sourcing).
+
+### 4.9 Indicadores Econômicos
+- **Objetivo:** tornar visíveis os dois indicadores macro que o motor já simula por trás do rendimento/preço de todo produto (Selic e IPCA) — hoje o usuário só sente o efeito indireto deles, nunca vê o número (tarefa M.4, pedido do autor além da proposta original, 2026-09-13).
+- **Acesso:** card "Indicadores Econômicos" no hub de Mercado (4.1).
+- **Conteúdo:**
+  - 4 cards de valor corrente: Selic (meta anual), IPCA mensal, IPCA acumulado 12m, e a data do próximo Copom simulado (derivada no cliente a partir do último dia simulado conhecido, cadência fixa de 21 dias — o motor só marca reuniões já ocorridas).
+  - 2 gráficos de linha histórica (mesmo motivo visual "papel de gráfico" do gráfico de preço, 4.5, sem a semântica de ganho/perda): Selic ao longo do tempo, IPCA acumulado 12m ao longo do tempo — com seletor de intervalo (3M/6M/1A) compartilhado entre os dois.
+- **Ações:** nenhuma navegação a partir daqui — tela só de leitura.
+- **Estados especiais:** motor recém-subido, sem nenhum tick ainda (cards mostram "Aguardando primeiro tick", gráficos mostram estado vazio, sem erro).
+- **Dados envolvidos:** `market_indicator_history` (via `GET /market/indicators`, proxy do motor — `.docs/backend/market.md`).
 
 ---
 

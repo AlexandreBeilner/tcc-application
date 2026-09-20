@@ -1874,7 +1874,7 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   o dia 47 fresco — confirma cache por chave de `days`, não global. `?days=0` devolveu `400`; sem
   token devolveu `401`. Stack parada com `docker compose down` (sem `-v`) ao final.
 
-### M.4 · Tela "Indicadores Econômicos" no frontend
+### M.4 · Tela "Indicadores Econômicos" no frontend ✅
 
 - **Descrição:** tela nova (a decidir na sessão o ponto de entrada exato — candidato natural é um
   card em Home/Mercado linkando pra uma tela dedicada, seguindo o padrão de sparkline já
@@ -1890,6 +1890,50 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
 - **Referências:** `.claude/identidade-visual-padroes.md`, `.claude/identidade-visual-tokens.md`;
   `.claude/inventario-telas-plataforma-investimentos.md`.
 - **Dependências:** M.3.
+- **Entregável:** ponto de entrada decidido na sessão — card novo "Indicadores Econômicos" no hub
+  de Mercado (4.1, `pages/Market`), 3ª coluna a partir do desktop (`Market/index.module.css`, regra
+  nova de `grid-template-columns: repeat(3, 1fr)` em `min-width: 1024px`, pra não sobrar um card
+  órfão numa grade de 2 colunas). Tela nova `pages/IndicadoresEconomicos` (4.9 no inventário,
+  rota `/mercado/indicadores`, irmã de `/mercado/*`, sem `RequiresUnlock` — dado informativo, não
+  produto da trilha) consome uma única fonte de dado (`GET /market/indicators`, M.3, via
+  `useIndicatorHistoryQuery` novo) pra alimentar tanto os cards de valor corrente quanto os dois
+  gráficos: o último item da série (ordem cronológica, mais recente por último) vira "valor
+  corrente". Organism novo `IndicatorSummaryCards` (4 cards: Selic meta anual — `formatRatePercent`,
+  já em pontos percentuais —, IPCA mensal e IPCA acumulado 12m — `formatPercentage`, razão 0–1,
+  mesma distinção de escala de `services/market/types.ts` — e Próximo Copom simulado) —
+  deliberadamente **sem sparkline por card** (identidade-visual-padroes.md §2: a regra é só pra
+  card monetário ou de métrica de progresso, nenhum dos dois é o caso de dado macro). "Próximo
+  Copom simulado" não vem de nenhum endpoint novo — o motor só marca reunião já ocorrida, nunca a
+  próxima — então é derivado no cliente por `features/market/nextCopomDay`
+  (`nextCopomSimulatedDay`, espelha `selic.CopomMeetingIntervalDays = 21` do motor: reunião cai em
+  todo `simulated_day` múltiplo de 21, próxima é sempre o múltiplo estritamente maior que o último
+  dia conhecido). Gráficos: `features/market/indicatorChartLayout`
+  (`computeIndicatorChartLayout`, generaliza `priceChartLayout` por `value` em vez de `price` — sem
+  semântica de ganho/perda, sempre `--color-brand-500`, nunca `--color-gain-*`/`--color-loss-*`,
+  que têm semântica própria de rentabilidade) + organism `IndicatorLineChart` (mesmo motivo visual
+  "papel de gráfico"/área preenchida/hover com tooltip de `PriceChart`, mas com `title` +
+  `formatValue` próprios por instância — reusado 2x na tela: "Selic (meta anual)" e "IPCA acumulado
+  12m", com o mesmo seletor de intervalo 3M/6M/1A compartilhado, dias maiores que o `RANGES` de
+  ativo (4.5) porque Selic/IPCA só mudam por ciclo de ~21-30 dias). IPCA mensal aparece só como
+  stat corrente, não charted — ele e o acumulado 12m têm ordem de grandeza ~12x diferente (mensal
+  ~0,3-0,4%, acumulado ~4-5%), um eixo compartilhado deixaria o mensal ilegível; acumulado 12m é o
+  número "de manchete" de qualquer forma. Responsivo nos 3 breakpoints: mobile/tablet 1 coluna
+  empilhada (2 colunas de stat card a partir de 768px), desktop (≥1024px) ganha composição própria
+  — 4 colunas de stat card, 2 colunas de gráfico lado a lado, nunca coluna única esticada.
+  `npm run lint` (oxlint, 0 issues novos)/`tsc -b`/`npm test` (684 testes, frontend) verdes;
+  `npx prettier --check` verde. `.claude/inventario-telas-plataforma-investimentos.md` atualizado
+  (4.9 nova + 4.1 com o card novo). **Validado ponta a ponta via `docker compose up -d --build
+  postgres redis engine backend gateway`** (worktree própria) + `vite` local apontando pro gateway
+  containerizado (`VITE_GATEWAY_URL` default `http://localhost:8000`): cadastro via
+  `POST /auth/register` + 47 `POST /admin/tick` deram um usuário logado com histórico real; tela
+  acessada via Chrome (login por `localStorage` direto, mesmo mecanismo de `AuthContext`) mostrou
+  Selic `9,8%`/IPCA mensal `0.2%`/IPCA acumulado `0.6%`/Próximo Copom `Dia 63` (bate com
+  `nextCopomSimulatedDay(47) = 63`) e os dois gráficos desenhando o degrau real do dia 21 (Copom) e
+  do dia 31 (virada de mês do IPCA); troca de intervalo (3M→1A) e hover com tooltip (`Dia 24` /
+  `9,8%`) confirmados interativamente; os 3 breakpoints confirmados via aba própria por largura
+  (420px mobile — tab bar inferior fixa; 834px tablet — nav horizontal, 2 colunas de stat card,
+  gráficos empilhados; 1920px desktop — 3 colunas no hub de Mercado, 4 colunas de stat card, 2
+  colunas de gráfico lado a lado). Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ### M.5 · Novas lições: "Como a Selic é formada" e "O que é o IPCA"
 

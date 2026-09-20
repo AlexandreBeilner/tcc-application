@@ -1,0 +1,52 @@
+/* 1 coluna mobile, 2 tablet, 4 desktop (composição própria — não coluna
+   única esticada, regra do CLAUDE.md). */
+.cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+@media (min-width: 768px) {
+    .cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .cards {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.iconBadge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+}
+
+.label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.value {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}

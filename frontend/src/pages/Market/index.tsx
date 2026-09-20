@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Landmark, TrendingUp } from 'lucide-react'
+import { Landmark, LineChart, TrendingUp } from 'lucide-react'
 import { Card } from '../../components/atoms/Card'
 import styles from './index.module.css'
 
@@ -29,6 +29,14 @@ export function Market() {
                     </span>
                     <span className={styles.cardTitle}>Renda Variável</span>
                     <span className={styles.cardBody}>Ações, ETFs e FIIs: negociação a preço de mercado.</span>
+                </Card>
+
+                <Card className={styles.card} onClick={() => navigate('/mercado/indicadores')}>
+                    <span className={styles.icon} aria-hidden="true">
+                        <LineChart size={22} strokeWidth={2} />
+                    </span>
+                    <span className={styles.cardTitle}>Indicadores Econômicos</span>
+                    <span className={styles.cardBody}>Selic e IPCA simulados: os indicadores por trás do rendimento dos produtos.</span>
                 </Card>
             </div>
         </main>
