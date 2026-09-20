@@ -52,10 +52,11 @@ func (r *TickRepository) LoadState(ctx context.Context) (tick.State, bool, error
 // (Advance aplica tick.DefaultInitialPrice nesse caso). Sector (setor da
 // empresa emissora, via companies, tarefa 4.5) fica nil pra ETF/FII, sem
 // CompanyID — usado por Advance pra resolver o fan-out de um evento macro
-// de alvo setorial.
+// de alvo setorial. ShareClass (tarefa J.3) idem via.share_class, mesma
+// coluna que ListDividendPayerAssets já lê (J.2).
 func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetForPricing, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector
+		`SELECT a.id, a.type, a.risk_class, q.price, via.company_id, co.sector, via.share_class
 		 FROM assets a
 		 LEFT JOIN LATERAL (
 		   SELECT price FROM asset_quotes
@@ -76,7 +77,7 @@ func (r *TickRepository) ListPricingAssets(ctx context.Context) ([]tick.AssetFor
 	var assets []tick.AssetForPricing
 	for rows.Next() {
 		var a tick.AssetForPricing
-		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector); err != nil {
+		if err := rows.Scan(&a.AssetID, &a.Type, &a.RiskClass, &a.LastPrice, &a.CompanyID, &a.Sector, &a.ShareClass); err != nil {
 			return nil, err
 		}
 		assets = append(assets, a)
@@ -167,7 +168,7 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, c.sector, f.net_revenue
+		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, f.net_revenue
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -185,7 +186,7 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	var companies []tick.CompanyForFundamentals
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.LastRevenue); err != nil {
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.LastRevenue); err != nil {
 			return nil, err
 		}
 		companies = append(companies, c)
@@ -259,11 +260,14 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // pra decidir o valor por ação/cota do ciclo e o snapshot de elegibilidade
 // (posição na data ex) de um novo dividend_events, e (tarefas G.2/G.3) pra
 // reavaliar NetWorth/PortfolioValue no mesmo calendário — indexador só vem
-// preenchido pro perfil papel (G.3). ETF nunca aparece aqui — não é
-// pagador de provento nesta fase (só ação e FII, RF21/lição 2.7).
+// preenchido pro perfil papel (G.3). ShareClass (tarefa J.2) só vem
+// preenchido pra "acao" (via.share_class, "ON"/"PN") — usado por
+// dividendRecordsForCycle pra separar o valor por ação de cada classe.
+// ETF nunca aparece aqui — não é pagador de provento nesta fase (só ação e
+// FII, RF21/lição 2.7).
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
+		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -280,7 +284,7 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.ShareClass, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
 			return nil, err
 		}
 		a.Type = assetType

@@ -54,6 +54,16 @@ parte da proposta original.
    deste backlog). A tarefa `J.5` abaixo revisita esse conteúdo já escrito pra refletir o par real
    assim que ele existir — mesmo padrão da nota 6 (não é preciso coordenar ordem entre backlogs,
    só conferir se a outra já rodou antes de duplicar trabalho).
+10. **Achados sem tarefa própria neste backlog** (`.claude/pontos-em-aberto-decisao-produto.md`,
+    seção "Em aberto", auditados de novo em 2026-09-20 — nenhum é bug mecânico, todos dependem de
+    decisão de produto/design ainda não tomada): achado 001 (`RiskProfile.MarketOrderPreference`
+    nunca lido por nenhum arquétipo), achado 004 (`macroPriceEffectsByCompany` soma sem teto, pode
+    inverter o sinal do preço justo em eventos concorrentes extremos), achado 008 (Fundamentalista
+    lê sensibilidade à Selic por `risk_class` pro retorno exigido, mas por setor — K.2 — pro
+    crescimento; as duas podem divergir pra mesma empresa). Nenhum dos três bloqueia nenhuma tarefa
+    listada acima nem tem uma tarefa própria aberta — ficam pendentes até o autor decidir corrigir
+    ou documentar como comportamento aceito. **Achado 002** (teto de `SpreadWidthPct` do Market
+    Maker) é diferente dos outros três — tem localização concreta, ver nota da tarefa `N.1` abaixo.
 
 ---
 
@@ -1542,7 +1552,7 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 
 ## Fase J — Ações ON/PN
 
-### J.1 · Empresa com 1 ou 2 ativos de Ação vinculados
+### J.1 · Empresa com 1 ou 2 ativos de Ação vinculados ✅
 
 - **Descrição:** o catálogo passa a suportar uma empresa (`company_id`) com dois ativos de Ação
   (`asset_id` diferentes, ON e PN), cada um com seu próprio ticker/book, ambos compartilhando o
@@ -1552,8 +1562,66 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   `company_fundamentals` (mesmo balanço) mas têm preços independentes (books separados).
 - **Referências:** proposta 2.8, item 1.
 - **Dependências:** A.1, A.2 (book real já revertido).
+- **Entregável:** achado principal desta sessão — **o catálogo já suportava isso desde antes deste
+  redesenho começar**, por construção, sem precisar de nenhuma migration/mudança de domínio nova:
+  `variable_income_assets.company_id` (schema `000001`) já é nullable e **sem nenhuma constraint de
+  unicidade**, `catalog.NewVariableIncomeAsset` nunca validou "um ativo por empresa", e as três
+  peças que leem por `company_id` (`ListCompaniesForFundamentals`/`companyRoundContexts` no motor de
+  rodada, `ListAssetsByCompany`/`GET /companies/:id`) já são naturalmente 1-empresa-para-N-ativos —
+  o único motivo de nunca ter existido na prática é o seed (`cmd/seed/main.go`) sempre ter criado
+  uma empresa nova por ticker (`VALR3`/`BNDD4`), nunca reaproveitado uma já existente. Sessão foi
+  majoritariamente prova, não implementação (mesmo precedente da F.1): nenhuma migration, nenhuma
+  mudança em `internal/domain/catalog/`, `internal/infra/db/catalog_repository.go` ou
+  `internal/infra/httpserver/companies.go` — só testes novos, mais uma nota de código já existente
+  (`tick.go:486`) que documentava essa lacuna de cobertura desde a Fase D/E ("uma empresa com mais
+  de um ativo vinculado usa o risk_class do primeiro encontrado... a função não trava se acontecer")
+  e que este teste finalmente exercita de verdade.
+  - `catalog/variableincome_test.go`: subteste novo `"duas classes (ON+PN) vinculadas à mesma
+    empresa"` — confirma que dois `NewVariableIncomeAsset` com o mesmo `CompanyID` e `ShareClass`
+    diferentes (`asset_id` também diferentes) são ambos válidos, sem nenhuma validação nova
+    precisando ser escrita (o construtor já aceitava isso).
+  - `tick/rounds_test.go`: dois testes novos cobrem as duas metades do critério de aceite
+    separadamente. `TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto`
+    prova "compartilham o mesmo `company_fundamentals`" no nível certo — `companyRoundContexts` é
+    indexado por `CompanyID` (nunca por `AssetID`), então duas ações da mesma empresa produzem
+    **uma única entrada** no mapa (`len(contexts) == 1`), e `assetCompanies` resolve as duas de
+    volta pra essa mesma entrada — comparação direta de struct (`ctxForOn != ctxForPn`) confirma
+    que são literalmente o mesmo valor, não só "parecidos". `TestRunIntradayRounds_
+    DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes` prova a outra metade ("preços
+    independentes/books separados") via `runIntradayRounds` real (Market Maker, 20 rodadas,
+    seed determinística — sem flakiness, `rand.Intn` seedado por `roundSeed` já era 100%
+    reprodutível antes desta tarefa): `closing[on1]`/`closing[pn1]` batem exatamente com o último
+    fill submetido pra cada `asset_id` respectivamente, provando que `state := equities[chosen.
+    AssetID]` (o mecanismo de tracking de preço por ativo já existente desde D.2) nunca deixa um
+    fill de uma classe vazar pro preço da outra.
+  - **Achado explorado, não é regressão desta tarefa (documentado no próprio comentário de
+    `companyEquityRiskClasses`, `tick.go:482-488`, desde a Fase D/E):** se duas classes da mesma
+    empresa fossem seedadas com `risk_class` diferente entre si (não deveria acontecer na prática —
+    é a mesma empresa, mesmo perfil de risco —, mas o schema não impede), o Fundamentalista usaria
+    o risk_class "do primeiro encontrado" pras duas, nunca travando mas potencialmente inconsistente
+    pra uma delas. Como isso não é uma regra de negócio testável isoladamente sem mudar a assinatura
+    de `companyEquityRiskClasses`, e a J.4 (seed real) é quem decide os valores de `risk_class` de
+    cada classe, não foi necessário registrar isso em `pontos-em-aberto-decisao-produto.md` — a
+    decisão certa (mesma classe de risco pras duas classes da mesma empresa) é óbvia o suficiente
+    pra não precisar de confirmação do autor, e a J.4 deve simplesmente seguir essa convenção.
+  - **Validado ao vivo via `docker compose up -d --build`** (dados reais já seedados, sem `down
+    -v`): inseri manualmente `VALR4` (PN, `outstanding_shares` 200.000.000) vinculado ao mesmo
+    `company_id` da `Mineradora Vale do Rio S.A.` que já tinha `VALR3` (ON, 500.000.000) — `GET
+    /companies/:id` real (via `curlimages/curl` na rede interna do Compose, mesma técnica de sessões
+    anteriores) passou a devolver os dois ativos (`VALR3`/`VALR4`, `share_class` `ON`/`PN`) com a
+    **mesma** lista de `fundamentals` (21 ciclos de relatório idênticos para os dois); `GET
+    /assets/:id` de cada um confirmou `outstanding_shares` e indicadores por ação (LPA/VPA)
+    diferentes entre as duas classes (esperado — dividem o mesmo lucro/patrimônio por uma base de
+    ações diferente) enquanto `VALR3` manteve seu `current_price`/book histórico intocado e `VALR4`
+    (recém-inserido, sem alocação de bot/float ainda — isso é trabalho da J.4, não desta tarefa)
+    corretamente sem nenhum `current_price` ainda. `VALR4` de teste removido ao final (`DELETE` nas
+    duas tabelas, mesma transação) — volume de dev restaurado ao estado anterior à sessão, `docker
+    compose down` (sem `-v`).
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — `GET /companies/:id` e `GET
+    /assets/:id` já existiam e já suportavam isso).
 
-### J.2 · Dividendo com prioridade legal de PN
+### J.2 · Dividendo com prioridade legal de PN ✅
 
 - **Descrição:** `dividend.EquityValuePerShare` (`dividend.go:44-49`) deixa de assumir uma única
   classe — passa a considerar as duas bases de ações em circulação (ON + PN) e aplicar a vantagem
@@ -1565,8 +1633,54 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   com premium customizado acima do mínimo.
 - **Referências:** proposta 2.8, item 2.
 - **Dependências:** J.1.
+- **Entregável:** migration `000020_company_pn_dividend_premium` adiciona
+  `companies.pn_dividend_premium_pct numeric(5,2) NOT NULL DEFAULT 10` — empresa existente
+  (`VALR3`/`BNDD4`, cada uma ainda só-ON/só-PN nesta tarefa, J.4 é quem funde num par real) recebeu
+  o default via backfill automático da própria coluna `NOT NULL DEFAULT`, sem migration de dado
+  separada. `dividend.EquityValuePerShare` (`dividend.go`) muda de assinatura — de
+  `(netIncome, outstandingShares) (float64, bool)` pra
+  `(netIncome, onShares, pnShares int64, pnPremiumPct float64) (onValue, pnValue float64, ok bool)`:
+  o provento total do ciclo (`netIncome * DefaultEquityPayoutRatio`) é dividido entre as duas bases
+  de forma que `pnValue` seja exatamente `pnPremiumPct`% maior que `onValue`, não uma divisão
+  igualitária das duas bases — `onShares`/`pnShares` = 0 (empresa só de uma classe) reduz
+  exatamente à fórmula antiga (`netIncome * payout / shares`), confirmando o critério de "sem
+  quebra de compatibilidade". Nova constante `DefaultPnDividendPremiumPct = 10.0`.
+  - `tick.go`: `CompanyForFundamentals` ganha `PnDividendPremiumPct`; `DividendPayerAsset` ganha
+    `ShareClass *string` ("ON"/"PN", só preenchido pra "acao", mesma convenção do seed). Novo tipo
+    `equityShareClasses` (`On`/`Pn int64`) e `equityShareClassesByCompany` agregam a base de ações
+    de cada classe de uma empresa a partir da lista completa de `payers` (J.1 já permite 1 ou 2
+    `asset_id` por `company_id`) — pré-computado uma vez por tick, não recalculado por ativo.
+    `dividendRecordsForCycle` ganha o parâmetro `pnPremiumPctByCompany map[string]float64` e, pro
+    caso `"acao"`, chama `dividend.EquityValuePerShare` com as duas bases agregadas + o premium da
+    empresa, escolhendo `pnValue` ou `onValue` conforme `a.ShareClass` do ativo sendo processado.
+  - `tick_repository.go`: `ListCompaniesForFundamentals` passa a ler `c.pn_dividend_premium_pct`;
+    `ListDividendPayerAssets` passa a ler `via.share_class`.
+  - Testes novos: `dividend_test.go` (`TestEquityValuePerShare` reescrito, 5 casos table-driven —
+    só-ON normal/zero/negativo/net_income-negativo + ON+PN premium default 10% + ON+PN premium
+    customizado 20%, todos os três critérios de aceite cobertos) e `tick_test.go`
+    (`TestAdvance_Dividendos_EmpresaOnPnAplicaPrioridadeLegalDaPn`, prova de ponta a ponta dentro do
+    domínio: duas `DividendPayerAsset` do mesmo `company_id` com `ShareClass` ON/PN geram dois
+    `DividendRecord` distintos, com `pn.ValuePerShare == on.ValuePerShare * 1.25` pro premium de
+    25% configurado no teste).
+  - **Validado ao vivo via `docker compose up -d --build`** (mesma técnica de sessões
+    anteriores — dados reais já seedados, sem `down -v`): confirmado `\d companies` com a coluna
+    nova e as duas empresas existentes já com `pn_dividend_premium_pct = 10.00` via backfill
+    automático do `DEFAULT`. Inseri manualmente `VALR4` (PN, `outstanding_shares` 250.000.000)
+    vinculado ao mesmo `company_id` de `VALR3` (ON, 500.000.000, mesma técnica de inserção manual
+    da J.1) e avancei o Temporizador via `POST /admin/tick` (rede interna do Compose) até o próximo
+    dia de relatório da empresa — `dividend_events` gerado mostrou `VALR3 (ON) = 6.73` e
+    `VALR4 (PN) = 7.40`, razão ≈ 1.10, exatamente o premium default de 10% configurado na empresa.
+    `VALR4` de teste removido ao final (mesma transação cobrindo `dividend_event_recipients`,
+    `dividend_events`, `order_book`, `asset_quotes`, `variable_income_assets`, `assets` — mais
+    dependências de FK que a remoção da J.1 por causa dos fills de bot acumulados nas rodadas
+    intradiárias entre os ticks avançados), `docker compose down` (sem `-v`). Efeito colateral
+    aceito e não revertido: o dia simulado avançou de 293 pra 308 (15 ticks forçados pra alcançar o
+    próximo ciclo de relatório de 14 dias) — mesmo tipo de avanço de tempo que qualquer validação
+    ao vivo via `POST /admin/tick` já produz, não é um dado corrompido.
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada).
 
-### J.3 · Bot Fundamentalista valoriza por classe
+### J.3 · Bot Fundamentalista valoriza por classe ✅
 
 - **Descrição:** o arquétipo Fundamentalista (C.5) calcula "preço justo" separadamente pra ON e
   PN da mesma empresa — mesmo fundamento (lucro, ROE), mas dividendo esperado por ação diferente
@@ -1576,8 +1690,70 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   o de ON, proporcional ao premium.
 - **Referências:** proposta 2.8, item 3.
 - **Dependências:** J.2, C.5.
+- **Entregável:** `bot.FundamentalistFairPrice` (`fundamentalist.go`) ganha um parâmetro novo,
+  `pnPremiumPct` (posicionado ao lado de `macroEffectPct`, mesmo tratamento multiplicativo) —
+  `fairPrice = vpa × (roe/requiredReturn) × (1+growthRate) × (1+macroEffectPct/100) ×
+  (1+pnPremiumPct/100)`. `pnPremiumPct = 0` (ação ON, ou empresa só de uma classe) reduz
+  exatamente à fórmula anterior — sem quebra de compatibilidade, mesma nota já dada a
+  `macroEffectPct = 0` na E.2. Diferente de `macroEffectPct`, **não** passa pelo filtro de
+  `personality.KnowledgeLevel` em `DecideFundamentalistOrder` — é um fato estrutural conhecido da
+  empresa (`companies.pn_dividend_premium_pct`, J.2), mesma categoria de `growthRate`/Selic, não
+  uma leitura ruidosa de evento ao vivo. `DecideFundamentalistOrder` e `bot.DecisionInput`
+  (`round.go`) ganham o mesmo parâmetro/campo, repassado sem tradução.
+  - `tick/tick.go`: `AssetForPricing` ganha `ShareClass *string` (mesma convenção "ON"/"PN" de
+    `DividendPayerAsset.ShareClass`, J.2) — nil (ou != "PN") conta como ON. `companyRoundContexts`
+    passa a copiar `CompanyForFundamentals.PnDividendPremiumPct` (já existente desde a J.2) pro
+    novo campo `CompanyRoundContext.PnDividendPremiumPct` (`tick/rounds.go`), compartilhado pelas
+    duas classes da mesma empresa (indexado por `company_id`, não por `asset_id`, mesma garantia
+    já provada pela J.1).
+  - `tick/rounds.go`: `equityRoundState` ganha `ShareClass *string` (espelha
+    `AssetForPricing.ShareClass`, populado em `buildEquityUniverse`). `decisionInputFor` (case
+    `ArchetypeFundamentalista`) só preenche `input.PnDividendPremiumPct` quando
+    `state.ShareClass != nil && *state.ShareClass == "PN"` — fica em 0 (fórmula original) pra
+    qualquer ativo ON.
+  - `infra/db/tick_repository.go`: `ListPricingAssets` passa a ler `via.share_class` (mesma
+    coluna que `ListDividendPayerAssets`, J.2, já lia) — sem migration nova, coluna já existia
+    desde a J.1.
+  - Testes novos: `bot/fundamentalist_test.go` —
+    `TestFundamentalistFairPrice_PnPremiumDeslocaOPrecoJustoProporcionalmente` (table-driven,
+    10/20/25% de premium, confirma `pnPrice == onPrice × (1+premium/100)` exatamente) e
+    `TestFundamentalistFairPrice_PnPremiumZeroMantemFormulaOriginal` (regressão, mesmo padrão do
+    par de testes já existente pra `macroEffectPct`). `tick/rounds_test.go` —
+    `TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremium`, prova de
+    ponta a ponta dentro do domínio via `runIntradayRounds` real (Fundamentalista com
+    `knowledgeLevel = 1.0`, sem ruído): dois ativos (`on1`/`pn1`) do mesmo `company_id`,
+    `CompanyRoundContext.PnDividendPremiumPct = 20`, confirma os preços submetidos batendo
+    exatamente com `10.3`/`12.36` (VPA=10, ROE=0.1, requiredReturn=0.10, growthRate=0.03).
+  - **Validado ao vivo via `docker compose up -d --build`** (dados reais já seedados, sem `down
+    -v`): inseri manualmente `VALR4` (PN, `outstanding_shares` 500.000.000) vinculado ao mesmo
+    `company_id` de `VALR3` (ON) — mesma técnica de inserção manual da J.1/J.2 — `GET
+    /companies/:id` real confirmou os dois ativos com `share_class` corretos e `fundamentals`
+    compartilhados; consulta SQL direta reproduzindo `ListPricingAssets` confirmou `share_class`
+    vindo certo via `via.share_class` pra `VALR3`("ON")/`VALR4`("PN")/`BNDD4`("PN"). `POST
+    /admin/tick` avançado várias vezes sem erro (migrations/wiring OK). **Achado, não corrigido
+    nesta sessão:** o mercado ao vivo desta instância de dev está com liquidez travada há vários
+    dias simulados (`asset_quotes.total_quantity = 0` pra todo ativo nos últimos 5+ dias, `POST
+    /admin/tick` reportando `bot_fills_count: 0` de forma consistente) — não é uma regressão desta
+    tarefa: `effectiveOrderSizeCeiling` (`rounds.go`, achado 005 parte B) usa a média de volume dos
+    últimos `ChartistPriceHistoryDays` dias como teto de tamanho de ordem, e quando essa média é 0
+    (não "sem histórico", mas "histórico todo zerado"), o teto trava em 0 pra sempre — nenhuma
+    ordem de compra consegue quantidade ≥ 1 (`quantityForSide`/`capToFloat`), então nenhuma ordem
+    de compra nova entra no book, e sem contraparte de compra as vendas também nunca casam,
+    perpetuando o próprio travamento. Isso impediu observar convergência de preço via fills reais
+    pra `VALR4` (ficou parado no `DefaultInitialPrice` = 100 pelos ticks avançados) — a fórmula em
+    si já está integralmente coberta pelos testes automatizados acima (valores exatos). Já é a
+    mesma causa raiz que o comentário de `MaxOrderPctOfAverageVolumePct` (`rounds.go`) documenta
+    como "deferida pra Fase K (calibração com dados reais B3/CVM), decisão confirmada com o
+    autor" — não é um gap novo, só a manifestação prática desse limite já conhecido; não registrado
+    em `pontos-em-aberto-decisao-produto.md` por não ser uma decisão de produto em aberto (é
+    mecânico, e a causa raiz já tem dono — Fase K). `VALR4` de teste removido ao final (mesma
+    transação cobrindo `order_book`, `asset_quotes`, `variable_income_assets`, `assets`), `docker
+    compose down` (sem `-v`).
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — `ListPricingAssets` ganhou uma
+    coluna a mais na mesma query, `GET /companies/:id`/`GET /assets/:id` já existiam).
 
-### J.4 · Seed reflete a composição real do mercado
+### J.4 · Seed reflete a composição real do mercado ✅
 
 - **Descrição:** ajusta `cmd/seed/main.go` pra que a maioria das empresas nasça só-ON (padrão
   Novo Mercado), com pelo menos uma ou duas empresas clássicas ON+PN (aproveitando ou substituindo
@@ -1587,8 +1763,59 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   com prioridade, preços independentes) e maioria só-ON entre as demais.
 - **Referências:** proposta 2.8, item 5.
 - **Dependências:** J.1, J.2, J.3.
+- **Entregável:** `cmd/seed/main.go` ganha `BNDD3` (ON) como par real de `BNDD4` (PN, já existia),
+  usando exatamente o par citado na nota 6 — como a Fase J rodou antes da `7.2` (backlog
+  principal, ainda não concluída), é esta tarefa quem entrega o par corretamente; `7.2` só precisa
+  reconhecer que ele já existe, sem duplicar. `Mineradora Vale do Rio S.A.` (`VALR3`) continua
+  só-ON — com só 2 empresas no catálogo mínimo desta fase (3.9, não o catálogo completo da `7.2`,
+  que não rodou ainda), "maioria só-ON entre as demais" já é satisfeito por construção (a única
+  empresa fora do par ON+PN é só-ON). **Decisão de design desta sessão:** `BNDD3`/`BNDD4` nascem
+  com a **mesma** `outstanding_shares` (300.000.000, constante única `bancoOutstandingShares`,
+  substituindo a antiga `bndd4OutstandingShares`) — deliberadamente igual, não uma base diferente
+  por classe. Isso isola o spread de preço entre as duas classes a uma causa só, o premium de
+  dividendo da PN (`companies.pn_dividend_premium_pct`, J.2/J.3, default 10%), em vez de misturar
+  esse efeito com uma diluição de VPA por base de ações diferente — sinal mais limpo pra lição 2.3
+  (`J.5`) explicar a causa raiz certa. Valor idêntico ao antigo `bndd4OutstandingShares`
+  (só-PN, pré-J.4) de propósito: um banco de dev que já tinha `BNDD4` sozinho (sem `BNDD3`) não
+  tem seus fundamentos recalibrados por esta tarefa — `seedInitialFundamentals` já é idempotente
+  (pula se a empresa já tem fundamentos), então o `net_revenue`/histórico de `BNDD4` pré-existente
+  continua intocado, só `BNDD3` nasce novo compartilhando o mesmo `company_fundamentals`. Mesmo
+  `risk_class` (`Sofisticado`) nas duas classes — convenção que a própria J.1 já apontava como "a
+  decisão certa, óbvia o suficiente pra não precisar confirmação do autor"
+  (`companyEquityRiskClasses` usa o risk_class "do primeiro encontrado" pra toda ação da mesma
+  empresa; divergir aqui produziria inconsistência sem motivo de produto). `seedBotLiquidity`
+  ganha `BNDD3` na lista de `botAssetSeed` (mesmo pool de 20 bots compartilhado desde B.2/C.6, sem
+  pool novo) — `bot.InitialAllocation` distribui o float de `BNDD3` entre os bots exatamente como
+  já fazia pra qualquer outro ativo de Ação. Sem migration nova (schema já suportava desde J.1/J.2)
+  e sem teste Go novo — `cmd/seed/main.go` é script, não domínio/fórmula (mesmo precedente de
+  B.2/C.6, sessões de seed sem tarefa de teste table-driven própria); a lógica de domínio que o
+  seed agora exercita pra valer (prioridade de dividendo, preço justo por classe) já está coberta
+  por testes exatos desde J.2/J.3.
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — só dado de seed).
+  - **Validado ao vivo via `docker compose up -d --build`** (volume de dev existente, sem
+    `down -v` — já tinha só `BNDD4` sozinho de sessões anteriores à Fase J): `go run ./cmd/seed`
+    real (via `DATABASE_URL` apontando pra `localhost:5432`, porta já exposta no
+    `docker-compose.yml`) criou `BNDD3` novo e confirmou, via `psql` direto, os dois ativos
+    compartilhando `company_id`/`pn_dividend_premium_pct = 10.00` e `outstanding_shares =
+    300.000.000` cada; `SUM(positions.quantity)` bateu exatamente 300.000.000 nos dois (float
+    100% distribuído entre os 20 bots, sem violar `position.ValidateFloatCeiling`). `GET
+    /companies/:id` real confirmou os dois ativos (`share_class` ON/PN) com a mesma lista de
+    `fundamentals`. 22 `POST /admin/tick` consecutivos: preços de `BNDD3`/`BNDD4` divergiram pra
+    valores bem diferentes (89-100 vs ~27) — divergência maior do que só o premium explicaria,
+    causada pelo histórico de negociação de semanas de `BNDD4` (pré-existente à sessão) vs.
+    `BNDD3` nascendo do zero em `tick.DefaultInitialPrice` sem esse histórico; **não é regressão
+    desta tarefa**, é o retrato exato do critério "preços independentes" (dois books realmente
+    desacoplados, cada um com sua própria trajetória) — o mecanismo do premium em si (não a
+    trajetória de preço acumulada) já está coberto por valor exato nos testes automatizados de
+    J.2/J.3. O dia de relatório seguinte (`is_report_day: true`) confirmou a prioridade de
+    dividendo funcionando pro par novo: `BNDD3 (ON) = 4.99` / `BNDD4 (PN) = 5.48`, razão ≈ 1.10,
+    batendo exatamente o premium de 10% da empresa. `docker compose down` (sem `-v`) ao final —
+    dia simulado do volume de dev avançou de ~306 pra 342 (efeito colateral aceito de avançar o
+    Temporizador manualmente pra alcançar o próximo ciclo de relatório, mesmo padrão de toda
+    validação anterior deste backlog).
 
-### J.5 · Revisão da lição 2.3 (Nomenclatura de tickers) pro par ON/PN real + esclarecimento sobre units
+### J.5 · Revisão da lição 2.3 (Nomenclatura de tickers) pro par ON/PN real + esclarecimento sobre units ✅
 
 - **Descrição:** pedido do autor além do que a proposta original cobria. Duas revisões de
   conteúdo, não de mecanismo (mesmo padrão de "autoria de conteúdo só" já usado nas sub-tarefas
@@ -1617,12 +1844,114 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
 - **Referências:** nota 9 desta seção; pedido do autor nesta sessão (2026-09-13); spec 5.1, linha
   247 (2.3).
 - **Dependências:** J.4.
+- **Entregável:** `backend/src/db/seedLessons.ts`, lição `2.3` — `scenarioText`/`microDecisionPrompt`/
+  `microDecisionOptions`/`revelationText` reescritos usando `BNDD3`/`BNDD4` (par real ON/PN da
+  mesma empresa, Banco Nordeste Digital, gerado pela `J.4`) em vez do contraste `VALR3`/`BNDD4`
+  entre empresas diferentes. `revelationText` ganhou o parágrafo de units: final 11 não é exclusivo
+  de FII/ETF, no mercado real também identifica units (ON+PN empacotadas, ex: `SANB11`), o que
+  diferencia os três é o tipo de instrumento, não o número; deixa explícito que esta plataforma não
+  tem unit negociável no catálogo. `unlocksKeys`/`unlocksAssetTicker` (`VALR3`) e `unlocksDescription`
+  não mudaram, por critério de aceite — a lição ensina o conceito ON/PN com o par real, mas o
+  primeiro ativo liberado pra compra continua sendo `VALR3` (ON única, sem escolha de classe,
+  mais simples pra uma primeira operação, já apresentada desde a `2.1`). Comentário de auditoria do
+  índice de opção correta (linha ~71) atualizado de `VALR3 e BNDD4` pra `BNDD3 e BNDD4` pra não
+  ficar desatualizado. Sem migration, sem teste Go/TS novo (autoria de conteúdo só, mesmo
+  precedente das sub-tarefas `7.1.x` do backlog principal e da `J.4`/`B.2`/`C.6` deste backlog) —
+  `npm run build`/`npm run lint`/`npm test` (565 testes) verdes, sem regressão. Validado via seed
+  real: `DATABASE_URL=... npm run db:seed:lessons` contra o Postgres do `docker compose` (container
+  `tcc-postgres` já em execução, reaproveitado — outra sessão em paralelo, mesmo padrão da `J.3`),
+  `SELECT` na tabela `lessons` confirmou o texto novo persistido e `unlocks_asset_ticker` continua
+  `VALR3` (`onConflictDoUpdate`, seed idempotente). **Fase J fechada por completo** (`J.1`-`J.5`);
+  `J.6` abaixo foi acrescentada depois, a partir de um achado do teste de ponta a ponta desta fase.
+
+### J.6 · Corrige o travamento de liquidez quando o volume médio real zera (achado 005, Parte C) ✅
+
+- **Descrição:** `tick.effectiveOrderSizeCeiling` (`rounds.go`, achado 005 Parte B) usa o menor
+  entre o float e `MaxOrderPctOfAverageVolumePct` da média de volume real dos últimos
+  `ChartistPriceHistoryDays` dias (`TickRepository.RecentTradedVolume`). Quando essa média
+  **cai a zero de verdade** (dias reais sem nenhum fill — diferente de "sem dado ainda", já
+  tratado pela própria Parte B via `total_quantity` nullable), o teto trava em 0 pra sempre:
+  nenhuma ordem de compra nova consegue tamanho ≥ 1 (`quantityForSide`/`capToFloat`), e sem
+  contraparte de compra as vendas também param de casar — autoperpetuando o zero indefinidamente,
+  sem nenhum caminho de recuperação sozinho. Achado do teste de ponta a ponta desta Fase J
+  (2026-09-19/20, antes e depois do merge com a Fase K): partindo de um seed novo (sem nenhum
+  histórico prévio), `BNDD4`/`PAPL11` travaram assim dentro de ~50 dias simulados e nunca se
+  recuperaram nos ticks seguintes observados — não é um cenário raro/extremo, aconteceu em 2 de 5
+  ativos negociáveis do catálogo mínimo em ambos os testes. Impacto real: uma vez travado, um
+  usuário fica sem contraparte pra **vender** aquele ativo (o lado comprador nunca mais se
+  regenera) — o core loop de compra/venda para de funcionar pra aquele ativo especificamente, não
+  é só um problema estético de preço congelado. Correção puramente mecânica (piso mínimo no teto,
+  nunca removendo o teto em si) — deliberadamente **não** inclui a recalibração de
+  `bot.InitialCash`/`InitialAllocation` (capital/alocação inicial do bot com pesquisa B3/CVM
+  dedicada), que fica registrada à parte como melhoria de realismo futura, sem tarefa de backlog
+  aberta (achado 009, `.claude/pontos-em-aberto-decisao-produto.md`) — mais capital reduziria a
+  chance estatística do travamento, mas não o eliminaria sozinho, e não é o que resolve o bug
+  observado.
+- **Critérios de aceite:** teste table-driven confirmando que `effectiveOrderSizeCeiling` nunca
+  devolve um teto que zere a quantidade comprável quando o float disponível é positivo, mesmo com
+  a média de volume real em zero (piso mínimo — não removendo o teto, só impedindo o colapso
+  total); teste de regressão confirmando que o comportamento das Partes A/B continua idêntico
+  quando a média de volume é positiva (teto = menor entre float e volume) e que "sem dado ainda"
+  (`total_quantity` nulo) continua caindo pro float sozinho, não pro piso novo; teste de ponta a
+  ponta (mesmo padrão de `TestRunIntradayRounds_*`) reproduzindo o cenário observado — vários dias
+  seguidos de volume real zero — e confirmando que uma ordem de compra volta a ser possível depois
+  da correção.
+- **Referências:** achado 005 (Parte C), `.claude/pontos-em-aberto-decisao-produto.md`;
+  `engine/internal/domain/tick/rounds.go` (`effectiveOrderSizeCeiling`,
+  `MaxOrderPctOfAverageVolumePct`); `engine/internal/infra/db/tick_repository.go`
+  (`RecentTradedVolume`).
+- **Dependências:** nenhuma — correção isolada em `rounds.go`/`tick_repository.go`, não depende
+  de nenhuma tarefa J.1-J.5 nem da Fase K (calibração de fundamentos é área diferente do motor).
+- **Entregável:** `tick.MinOrderSizeCeiling = 1` (`rounds.go`) — piso mínimo aplicado depois de
+  computar `volumeCeiling` em `effectiveOrderSizeCeiling`: quando o histórico real de volume existe
+  mas a média é 0, `volumeCeiling` é elevado pro piso antes da comparação com `floatCeiling`, em vez
+  de propagar 0. Nenhuma mudança em `tick_repository.go`/`RecentTradedVolume` — a distinção "sem
+  dado ainda" vs "histórico real zerado" já estava correta desde a Parte B (`total_quantity`
+  nullable), a correção é só no piso do lado do domínio. Comportamento preservado por construção
+  pros dois lados do critério de aceite: `floatCeiling == nil` continua caindo pro teto de volume
+  sozinho (agora com piso), `recentVolume` vazio continua caindo pro float sozinho (piso nunca entra
+  em jogo), e `floatCeiling` já zerado continua devolvendo 0 mesmo com o piso ativo (o piso nunca
+  infla o teto além do que o float realmente permite — caso novo coberto no teste table-driven).
+  - `rounds.go`: `effectiveOrderSizeCeiling` ganha `if volumeCeiling < MinOrderSizeCeiling { volumeCeiling = MinOrderSizeCeiling }`
+    logo após o cálculo de `volumeCeiling`, antes da comparação com `floatCeiling` — sem alterar a
+    assinatura da função nem nenhum outro call site (`decisionInputFor`, wiring já existente desde a
+    Parte B).
+  - `rounds_test.go`: `TestEffectiveOrderSizeCeiling` — o caso "histórico existente mas todo zerado"
+    (antes documentado como "comportamento emergente aceito") passa a esperar
+    `ptr(MinOrderSizeCeiling)` em vez de `ptr(0)`, mais um caso novo confirmando que `floatCeiling`
+    zerado continua devolvendo 0 mesmo com o piso ativo. `TestRunIntradayRounds_
+    VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra` (novo, mesmo padrão de
+    `TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat`) prova de ponta a ponta via
+    `runIntradayRounds` real: bot Ruído sem posição, `RecentTradedVolume` devolvendo `{0,0,0,0,0}`
+    (5 dias reais zerados) — antes da correção o teste falharia com `fills == 0`
+    (`DecideNoiseOrder` nunca gera ordem de compra viável com `orderSizeCeiling == 0` e sem posição
+    pra vender); depois da correção, `fills > 0` e toda ordem de compra submetida tem
+    `Quantity == MinOrderSizeCeiling` (exatamente 1, o teto no piso).
+  - `gofmt`/`go vet`/`go build`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues)
+    verdes. Sem `.docs/engine/` (nenhuma rota HTTP nova/alterada — correção isolada em domínio).
+  - **Validado ao vivo via `docker compose up -d --build`** (volume de dev existente, sem `down
+    -v` — o mesmo travamento observado no teste de ponta a ponta da J.3, `BNDD4`/`PAPL11` com
+    `total_quantity = 0` por 20+ dias simulados seguidos e preço congelado em 27.17/89.76): antes de
+    aplicar o build novo, confirmado via `psql` direto que os dois ativos estavam de fato travados
+    (dias 330-351, `total_quantity = 0` ininterrupto). `POST /admin/tick` real (rede interna do
+    Compose, `curlimages/curl`) avançado 26 vezes seguidas após o build com a correção — `BNDD4`
+    voltou a negociar já no primeiro tick seguinte (`total_quantity` 5/2/4/4/7/6/6/2/6/3 nos dias
+    352-361, preço saindo de 27.17 fixo pra variar entre 25.13-29.26) e `PAPL11` também recuperou
+    (`total_quantity` 2/0/0/0/4/2/1/2/2/1, preço variando 84.20-90.33) — confirma o critério de
+    aceite "uma ordem de compra volta a ser possível depois da correção" com o cenário real que
+    motivou a tarefa, não só o teste sintético. `SINT11` (ETF, mecanismo de NAV/AP da Fase H, fora do
+    escopo desta tarefa — nunca passou por `effectiveOrderSizeCeiling`) permaneceu com
+    `total_quantity = 0` nos mesmos ticks, confirmado via `psql` que isso é o padrão em toda a
+    história do ativo (376 dias, nunca teve `total_quantity > 0`), não uma regressão desta correção.
+    `docker compose down` (sem `-v`) ao final — dia simulado do volume de dev avançou de 350 pra 376
+    (mesmo efeito colateral aceito de toda validação ao vivo anterior deste backlog via `POST
+    /admin/tick`).
 
 ---
 
 ## Fase K — Calibração de fundamentos por setor (independente)
 
-### K.1 · Pesquisa de dados reais por setor
+### K.1 · Pesquisa de dados reais por setor ✅
 
 - **Descrição:** levantamento de margens/alavancagem médias reais e públicas (B3/CVM/relatórios
   setoriais) pros 6 setores fixos da spec 3.3.2 (Mineração, Agronegócio, Bancário/Financeiro,
@@ -1633,8 +1962,22 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   número, entregue como documento/anexo (não precisa de código nesta tarefa — é pesquisa).
 - **Referências:** proposta seção 7.
 - **Dependências:** nenhuma.
+- **Entregável:** `.claude/calibracao-fundamentos-setor.md` — tabela dos 6 coeficientes de
+  `fundamentals.go` por setor (margem líquida, margem EBIT, patrimônio/receita, dívida/patrimônio,
+  caixa/receita, sensibilidade à Selic), cada um com **valor central + faixa plausível de variação
+  entre empresas do mesmo setor** (pedido explícito do autor nesta sessão — média é base, não
+  valor único aplicado a toda empresa do setor) e fonte real citada por setor (Vale/PwC pra
+  Mineração, SLC Agrícola pra Agronegócio, Banco Central/Índice de Basileia pra Bancário, Lojas
+  Renner + Magazine Luiza pra Varejo — as duas pontas da mesma faixa —, Equatorial/Energisa pra
+  Energia, TOTVS pra Tecnologia). Inclui ressalva de que o proxy de "dívida/patrimônio" pra
+  Bancário é simplificado (banco não tem dívida bruta convencional, captação é o próprio negócio)
+  e uma seção de recomendações não-vinculantes pra `K.2` (sensibilidade migra de `risk_class` pra
+  `Sector`, threading do setor até `DeriveFinancials`/`BootstrapFinancialsForTargetPrice`,
+  mecanismo de sorteio determinístico por empresa pra aplicar a faixa sem re-sortear a cada ciclo,
+  Bancário como setor de maior risco de preço-justo implausível a validar primeiro). Nenhum código
+  tocado nesta sessão (fora de escopo de K.1).
 
-### K.2 · Aplicação da calibração em `fundamentals.go`
+### K.2 · Aplicação da calibração em `fundamentals.go` ✅
 
 - **Descrição:** os coeficientes agora variam por setor (K.1) em vez de um único conjunto genérico
   pra toda empresa — `fundamentals.go` passa a receber o setor da empresa como insumo pra escolher
@@ -1644,6 +1987,51 @@ crescente (Ruído primeiro, mais barato; Fundamentalista por último, mais caro)
   (crescimento base + ruído + fator Selic) continua funcionando igual, só os coeficientes mudam.
 - **Referências:** proposta seção 7.
 - **Dependências:** K.1.
+- **Entregável:** `fundamentals.SectorCoefficients` (5 coeficientes de `DeriveFinancials` +
+  `SelicSensitivity`) e `fundamentals.CoefficientsBySector map[catalog.Sector]SectorCoefficients`,
+  populado com os valores centrais da pesquisa da K.1 (`.claude/calibracao-fundamentos-setor.md`)
+  pros 6 setores fixos da spec 3.3.2 — `fundamentals.CoefficientsForSector(sector)` resolve o
+  conjunto certo, com fallback pros 5 antigos `Default*` (mantidos só como fallback, não mais
+  aplicados a toda empresa) quando `sector` não é um dos 6 fixos (não deveria acontecer com o
+  catálogo validado). `DeriveFinancials(sector, netRevenue)` e
+  `BootstrapFinancialsForTargetPrice(sector, targetPrice, outstandingShares, growthRate,
+  selicNeutral)` ganharam `sector` como primeiro parâmetro; `ExpectedGrowth`/`GrowthSeries`/
+  `NextGrowth` não mudaram de assinatura — só a fonte do `Config.Sensitivity` que os alimenta
+  (`tick.fundamentalsConfig`) migrou de `fundamentals.SensitivityByRiskClass[equityRiskClass]` pra
+  `fundamentals.CoefficientsForSector(sector).SelicSensitivity`, usando `CompanyForFundamentals.
+  Sector` (já existente, cru, convertido só na borda de chamada — `catalog.Sector(c.Sector)`, mesmo
+  padrão de conversão cru→domínio já usado por `riskClassForPricing`). `companyRoundContexts`
+  perdeu o parâmetro `equityRiskClasses` (não usado mais depois da migração). `cmd/seed/main.go`
+  (`seedInitialFundamentals`) passou a receber e repassar o `catalog.Sector` de cada empresa
+  seedada (Mineração pra VALR3, Bancário pra BNDD4). **Escopo deliberadamente não coberto** (achado
+  008, `pontos-em-aberto-decisao-produto.md`): `bot.FundamentalistFairPrice`/
+  `DecideFundamentalistOrder` (retorno exigido na fórmula de Justified Price-to-Book) continuam
+  lendo `fundamentals.SensitivityByRiskClass` por `risk_class`, não por setor — migrar isso também
+  rippla pela Fase C/D/E já fechadas (assinatura de 11 parâmetros, `bot.DecisionInput.RiskClass`,
+  call sites e testes de C.5/D.2/E.2), fora do escopo de uma sessão cujo texto era "aplicação da
+  calibração em `fundamentals.go`"; registrado como decisão de design pendente, não gap mecânico.
+  `SensitivityByRiskClass` (2 valores) continua existindo só pra esse consumo.
+  Testes novos/atualizados em `fundamentals_test.go`
+  (`TestDeriveFinancials_CoeficientesVariamPorSetor` — os 6 setores, valores exatos, nenhum
+  colidindo com outro; `TestDeriveFinancials_SetorDesconhecidoUsaFallbackGenerico` — regressão do
+  fallback; `TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo` — round-trip exato
+  agora variando o setor entre os casos, incluindo um setor desconhecido) e em `tick/*_test.go`
+  (`TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals`, `findReportGrowthSeed` e os 3 testes
+  de ponta a ponta da F.1 que dependem dele, adaptados de `riskClass` pra `sector`). A antiga âncora
+  numérica `TestBootstrapFinancialsForTargetPrice_ReproduzConstanteHistorica` (~97.0, calibrada só
+  contra o coeficiente genérico) foi recalculada pra Mineração (~64.72,
+  `TestBootstrapFinancialsForTargetPrice_RevenuePorAcaoReflecteCoeficientesDoSetor`) — mudança de
+  número esperada e documentada, não regressão. `gofmt`/`go vet`/`go build`/`go test ./...`/
+  `golangci-lint run` (Docker, v2.12.2, 0 issues) verdes. `.docs/engine/tick.md` atualizado.
+  **Validado ponta a ponta via `docker compose up -d --build`** (volume novo, isolado deste
+  worktree — stack compartilhado já em uso por outra sessão foi derrubado e resubido com
+  autorização do autor): seed real gravou `company_fundamentals` de VALR3/BNDD4 já com as razões
+  exatas do setor (Mineração: margem 0.15/patrimônio 1.3×/dívida 0.45×; Bancário: margem
+  0.22/patrimônio 2.2×/dívida 1.5×, confirmado via `psql` direto); 14 `POST /admin/tick`
+  consecutivos (dia 1→14, até bater o ciclo de relatório) sem erro, `fundamentals_count: 2` no dia
+  14, razões calibradas preservadas na nova linha de `company_fundamentals` de cada empresa após o
+  ciclo; `SUM(positions.quantity) = outstanding_shares` intacto nos 4 ativos, nenhuma conta com
+  saldo negativo. Stack parada com `docker compose down` (sem `-v`) ao final.
 
 ---
 
@@ -1742,7 +2130,7 @@ problemas juntos: gerar+persistir a série, expor via API, e só então mostrar 
   (`pontos-em-aberto-decisao-produto.md`); relatório `tmp/relatorio-logica-mercado.md` (IPCA sem
   consumidor).
 - **Dependências:** nenhuma (mas ver nota de coordenação com I.1 acima).
-- **Entregável:** tabela nova `market_indicator_history` (migration `000020`, `simulated_day`
+- **Entregável:** tabela nova `market_indicator_history` (migration `000021`, `simulated_day`
   único, `selic_rate`/`ipca_monthly`/`ipca_accumulated_12m`) gravada a cada tick por
   `TickRepository.SaveTick`, sem mudar o contrato de `market_calendar` (continua a linha singleton
   de leitura corrente). Cadência decidida: **todo dia repete o valor do mês corrente** — pacote
@@ -2021,6 +2409,11 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
   usuário não-admin nas 3 rotas.
 - **Referências:** proposta 2.3; `.docs/engine/admin.md` (a criar/estender); tela 10.1/10.2 como
   precedente de padrão admin.
+- **Nota (achado 002, `.claude/pontos-em-aberto-decisao-produto.md`):** `POST /admin/bots` é o
+  primeiro consumidor real de `bot.NewRiskProfile` fora do seed (que hoje só cria com `0.02`
+  fixo) — `SpreadWidthPct` não tem teto superior (só rejeita `< 0`) antes do `>= 2` de
+  `DecideMarketMakerOrders` colapsar o book. Achado ainda sem decisão de produto (qual teto máximo
+  é razoável) — resolver antes de aceitar esse campo vindo de input externo nesta tarefa.
 - **Dependências:** A.4, C.1, C.6 (catálogo de bots já existente pra listar).
 
 ### N.2 · Tela "Painel Admin — Bots" no frontend
@@ -2129,7 +2522,10 @@ em vez de só no fechamento do dia.
    complexidade crescente).
 4. **D.1 → D.2** (cadência intradiária, depende de C).
 5. **J.1 → J.2 → J.3 → J.4 → J.5** (ON/PN — só depende de A/C.5, pode entrar em paralelo a partir
-   do passo 3; J.5 é revisão de conteúdo de lição, fecha a fase).
+   do passo 3; J.5 é revisão de conteúdo de lição, fecha a fase). **J.6** é independente do resto
+   da fase (achado 005 Parte C, mecanismo de `rounds.go`) — pode entrar a qualquer momento depois
+   de D.2 (precisa de `effectiveOrderSizeCeiling` já existir), inclusive antes de J.1-J.5 ou em
+   paralelo a qualquer outra fase.
 6. **E.1 → E.2** (eventos macro por alvo, depende de C.5/D.2).
 7. **F.1** (balanços via negociação, depende de C.5/E).
 8. **G.1 → G.2 → G.3** (FIIs, depende de D).

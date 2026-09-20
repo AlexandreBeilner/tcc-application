@@ -14,6 +14,7 @@ import (
 	"context"
 	"hash/fnv"
 
+	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fii"
@@ -84,6 +85,14 @@ type AssetForPricing struct {
 	// real (runIntradayRounds, rounds.go), nunca mais do GBM. ETF continua
 	// no GBM até a Fase H estender o mesmo motor de negociação real pra ele.
 	Type string
+	// ShareClass (tarefa J.3) só vem preenchido pra "acao" — "ON"/"PN"
+	// (convenção do seed, catalog.VariableIncomeAsset.ShareClass, mesma de
+	// DividendPayerAsset.ShareClass abaixo) — usado por buildEquityUniverse
+	// (rounds.go) pra decidir se o Fundamentalista aplica o premium de
+	// dividendo da PN (companies.pn_dividend_premium_pct) na estimativa de
+	// preço justo desse ativo. nil (ou qualquer valor != "PN") conta como
+	// ON, mesma convenção de equityShareClassesByCompany.
+	ShareClass *string
 }
 
 // CompanyForFundamentals é o insumo mínimo do catálogo que Advance precisa
@@ -101,6 +110,11 @@ type CompanyForFundamentals struct {
 	// pra resolver o fan-out de um evento macro de alvo setorial pras
 	// empresas daquele setor.
 	Sector string
+	// PnDividendPremiumPct é companies.pn_dividend_premium_pct (tarefa J.2)
+	// — vantagem legal de dividendo da ação PN sobre a ON dessa empresa
+	// (Lei 6.404/76, art. 17), consumida por dividend.EquityValuePerShare.
+	// Empresa só-ON nunca chega a usar esse valor (pnShares = 0 no cálculo).
+	PnDividendPremiumPct float64
 }
 
 // MacroEventTargetForApplication espelha uma linha de macro_event_targets
@@ -211,10 +225,16 @@ type DividendPayerAsset struct {
 	Type              string
 	OutstandingShares *int64
 	CompanyID         *string
-	NetWorth          *float64
-	PortfolioValue    *float64
-	Indexador         *string
-	Holders           []PositionHolder
+	// ShareClass (tarefa J.2) só vem preenchido pra "acao" — "ON"/"PN"
+	// (convenção do seed, catalog.VariableIncomeAsset.ShareClass) usada por
+	// dividendRecordsForCycle pra separar o valor por ação de cada classe
+	// (dividend.EquityValuePerShare) e agregar as duas bases de ações em
+	// circulação da mesma empresa antes de dividir o provento entre elas.
+	ShareClass     *string
+	NetWorth       *float64
+	PortfolioValue *float64
+	Indexador      *string
+	Holders        []PositionHolder
 }
 
 // DividendRecord é um novo dividend_events pronto pra persistir — gerado
@@ -444,18 +464,21 @@ func deterministicSeed(baseSeed int64, id string) int64 {
 }
 
 // fundamentalsConfig monta o fundamentals.Config de uma empresa pro ciclo
-// de relatório — Sensitivity vem da risk_class de um ativo de renda
-// variável vinculado à empresa (equityRiskClass), a mesma tabela
-// (fundamentals.SensitivityByRiskClass) usada pra calibrar o quanto a
-// empresa reage a desvios da Selic (spec 3.2.2). Sensitivity fica 0
-// (SensitivityByRiskClass[""] , zero value do map) se a empresa não tiver
-// nenhum ativo de renda variável vinculado com risk_class conhecida — não
-// deveria acontecer com o catálogo seedado (toda ação tem risk_class), mas
-// não trava o ciclo de relatório se acontecer.
-func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.RiskClass) fundamentals.Config {
+// de relatório — Sensitivity vem do setor da empresa
+// (fundamentals.CoefficientsForSector, tarefa K.2) usada pra calibrar o
+// quanto a empresa reage a desvios da Selic (spec 3.2.2). Antes da K.2,
+// Sensitivity vinha da risk_class de um ativo de renda variável vinculado à
+// empresa (fundamentals.SensitivityByRiskClass) — essa tabela continua
+// existindo e em uso só por bot.FundamentalistFairPrice (retorno exigido,
+// consumo fora do escopo da K.2), não mais aqui. Sensitivity cai no
+// fallback genérico (CoefficientsForSector) se sector não for um dos 6
+// fixos da spec 3.3.2 — não deveria acontecer com o catálogo seedado
+// (catalog.NewCompany já valida o setor na criação), mas não trava o ciclo
+// de relatório se acontecer.
+func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector) fundamentals.Config {
 	return fundamentals.Config{
 		BaseGrowth:  fundamentals.DefaultBaseGrowth,
-		Sensitivity: fundamentals.SensitivityByRiskClass[equityRiskClass],
+		Sensitivity: fundamentals.CoefficientsForSector(sector).SelicSensitivity,
 		NoiseStdDev: fundamentals.DefaultNoiseStdDev,
 		Seed:        deterministicSeed(seed, companyID),
 	}
@@ -483,11 +506,11 @@ func fundamentalsConfig(seed int64, companyID string, equityRiskClass equity.Ris
 // backlog-motor-mercado-realista): o Fundamentalista reage à divergência
 // entre o VPA que acabou de mudar e a expectativa de crescimento que já
 // estava precificada, negociando de acordo.
-func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, equityRiskClasses map[string]equity.RiskClass, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
+func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
 	contexts := make(map[string]CompanyRoundContext, len(companies))
 	for _, c := range companies {
-		riskClass := equityRiskClasses[c.CompanyID]
-		cfg := fundamentalsConfig(seed, c.CompanyID, riskClass)
+		sector := catalog.Sector(c.Sector)
+		cfg := fundamentalsConfig(seed, c.CompanyID, sector)
 
 		baseRevenue := fundamentals.DefaultBaseRevenue
 		if c.LastRevenue != nil {
@@ -498,9 +521,10 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 		}
 
 		contexts[c.CompanyID] = CompanyRoundContext{
-			Financials:     fundamentals.DeriveFinancials(baseRevenue),
-			GrowthRate:     fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
-			MacroEffectPct: macroPriceEffects[c.CompanyID],
+			Financials:           fundamentals.DeriveFinancials(sector, baseRevenue),
+			GrowthRate:           fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
+			MacroEffectPct:       macroPriceEffects[c.CompanyID],
+			PnDividendPremiumPct: c.PnDividendPremiumPct,
 		}
 	}
 	return contexts
@@ -665,12 +689,51 @@ func macroEventDone(ev MacroEventForApplication, newDay int) bool {
 	return priceDone && fundamentalsDone
 }
 
+// equityShareClasses é a base de ações em circulação de cada classe de uma
+// mesma empresa (tarefa J.2) — On e Pn somados a partir de todo
+// DividendPayerAsset "acao" vinculado a esse company_id (J.1 já permite 1 ou
+// 2 ativos por empresa, cada um com seu próprio outstanding_shares). Ação
+// sem ShareClass "PN" reconhecida conta como ON — mesma convenção do seed
+// (cmd/seed/main.go), que sempre preenche "ON"/"PN" explicitamente pra
+// type = 'acao'.
+type equityShareClasses struct {
+	On int64
+	Pn int64
+}
+
+// equityShareClassesByCompany agrega equityShareClasses por company_id a
+// partir da lista completa de payers — pré-computado uma vez por tick e
+// consultado por dividendRecordsForCycle pra cada ativo "acao", em vez de
+// cada ativo escanear a lista inteira de novo.
+func equityShareClassesByCompany(payers []DividendPayerAsset) map[string]equityShareClasses {
+	byCompany := make(map[string]equityShareClasses)
+	for _, a := range payers {
+		if a.Type != "acao" || a.CompanyID == nil || a.OutstandingShares == nil {
+			continue
+		}
+		classes := byCompany[*a.CompanyID]
+		if a.ShareClass != nil && *a.ShareClass == "PN" {
+			classes.Pn += *a.OutstandingShares
+		} else {
+			classes.On += *a.OutstandingShares
+		}
+		byCompany[*a.CompanyID] = classes
+	}
+	return byCompany
+}
+
 // dividendRecordsForCycle monta os novos dividend_events do dia de
 // relatório (tarefa 4.9) — ação usa o net_income já calculado no loop de
 // empresas deste mesmo tick (netIncomeByCompany, só preenchido pras
-// empresas que bateram IsReportDay agora); FII usa o mesmo calendário
-// global de relatório (fundamentals.DefaultReportFrequencyDays), porque não
-// é vinculado a uma company (spec 3.6) e não tem report_frequency_days
+// empresas que bateram IsReportDay agora) e, desde a tarefa J.2, a base de
+// ações de cada classe da empresa (equityShareClassesByCompany) mais o
+// percentual de vantagem da PN (pnPremiumPctByCompany, companies.
+// pn_dividend_premium_pct) pra decidir o valor por ação de cada classe
+// separadamente — empresa só-ON continua recebendo exatamente o mesmo valor
+// de antes desta tarefa (dividend.EquityValuePerShare reduz à fórmula
+// antiga quando pnShares = 0). FII usa o mesmo calendário global de
+// relatório (fundamentals.DefaultReportFrequencyDays), porque não é
+// vinculado a uma company (spec 3.6) e não tem report_frequency_days
 // próprio, e NetWorth (tijolo) ou PortfolioValue (papel, tarefa 4.10) como
 // grandeza numérica de origem — mutuamente exclusivos por perfil, a mesma
 // dividend.FIIValuePerShare consome qualquer um dos dois sem mudar a
@@ -679,8 +742,9 @@ func macroEventDone(ev MacroEventForApplication, newDay int) bool {
 // nem FII sem NetWorth nem PortfolioValue preenchidos, mesmo tratamento de
 // "indicador omitido, não erro nem 0" já dado a dado de origem ausente em
 // outros lugares do RF21.
-func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
+func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map[string]float64, pnPremiumPctByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
 	fiiReportDay := fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays)
+	shareClasses := equityShareClassesByCompany(payers)
 
 	records := make([]DividendRecord, 0)
 	for _, a := range payers {
@@ -699,7 +763,13 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 			if !reported {
 				continue
 			}
-			value, ok = dividend.EquityValuePerShare(netIncome, *a.OutstandingShares)
+			classes := shareClasses[*a.CompanyID]
+			onValue, pnValue, valueOK := dividend.EquityValuePerShare(netIncome, classes.On, classes.Pn, pnPremiumPctByCompany[*a.CompanyID])
+			if a.ShareClass != nil && *a.ShareClass == "PN" {
+				value, ok = pnValue, valueOK
+			} else {
+				value, ok = onValue, valueOK
+			}
 		case "fii":
 			if !fiiReportDay {
 				continue
@@ -881,12 +951,16 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	reportedRevenue := make(map[string]float64, len(companies))
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
 	netIncomeByCompany := make(map[string]float64, len(companies))
+	pnPremiumPctByCompany := make(map[string]float64, len(companies))
 	for _, c := range companies {
+		pnPremiumPctByCompany[c.CompanyID] = c.PnDividendPremiumPct
+
 		if !fundamentals.IsReportDay(dayIndex, c.ReportFrequencyDays) {
 			continue
 		}
 
-		cfg := fundamentalsConfig(seed, c.CompanyID, equityRiskClasses[c.CompanyID])
+		sector := catalog.Sector(c.Sector)
+		cfg := fundamentalsConfig(seed, c.CompanyID, sector)
 		cycleIndex := (dayIndex+1)/c.ReportFrequencyDays - 1 // 0-based, um por ciclo de relatório já fechado
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, newSelicRate, selicCfg.Neutral)
 		if macroEffect, affected := macroFundamentalsEffects[c.CompanyID]; affected {
@@ -898,7 +972,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			baseRevenue = *c.LastRevenue
 		}
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
-		financials := fundamentals.DeriveFinancials(netRevenue)
+		financials := fundamentals.DeriveFinancials(sector, netRevenue)
 		netIncomeByCompany[c.CompanyID] = financials.NetIncome
 
 		reportedRevenue[c.CompanyID] = netRevenue
@@ -913,7 +987,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		})
 	}
 
-	companyContext := companyRoundContexts(companies, reportedRevenue, equityRiskClasses, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
+	companyContext := companyRoundContexts(companies, reportedRevenue, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
@@ -973,7 +1047,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		IsCopomDay:            selic.IsCopomMeetingDay(dayIndex),
 		IsReportDay:           fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
 		AppliedMacroEventIDs:  appliedMacroEventIDs,
-		NewDividends:          dividendRecordsForCycle(dividendPayers, netIncomeByCompany, dayIndex, newDay),
+		NewDividends:          dividendRecordsForCycle(dividendPayers, netIncomeByCompany, pnPremiumPctByCompany, dayIndex, newDay),
 		DuePayments:           duePaymentsForDay(pendingDividends, newDay),
 		NetWorthUpdates:       fiiNetWorthUpdatesForCycle(dividendPayers, dayIndex, newSelicRate, selicCfg.Neutral, seed),
 		PortfolioValueUpdates: fiiPortfolioValueUpdatesForCycle(dividendPayers, dayIndex, newSelicRate),

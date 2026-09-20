@@ -95,7 +95,21 @@ var (
 // na mesma proporção que reduziria se fosse um crescimento esperado pior.
 // Clampada em FundamentalistMinFairPrice — nunca devolve um preço
 // não-positivo.
-func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares int64, growthRate, macroEffectPct, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64, error) {
+//
+// pnPremiumPct (tarefa J.3) é a vantagem de dividendo esperado por ação da
+// classe PN sobre a ON da mesma empresa (companies.pn_dividend_premium_pct,
+// J.2, dividend.EquityValuePerShare) — 0 pra uma ação ON ou pra empresa
+// só-ON/só-PN (reduz à fórmula original, mesma nota de compatibilidade já
+// dada a macroEffectPct=0). Desloca o preço justo multiplicativamente, mesmo
+// tratamento de growthRate/macroEffectPct: o Fundamentalista projeta o mesmo
+// fundamento (ROE, VPA) pras duas classes da mesma empresa — o único motivo
+// do preço justo divergir entre elas é o provento por ação diferente que a
+// prioridade legal da PN garante, e essa fórmula soma esse mesmo percentual
+// de vantagem sobre o resultado. Diferente de macroEffectPct, não passa pelo
+// filtro de personality.KnowledgeLevel em DecideFundamentalistOrder — é um
+// fato estrutural conhecido da empresa (mesma categoria de growthRate/
+// Selic), não uma leitura ruidosa de um evento ao vivo.
+func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares int64, growthRate, macroEffectPct, pnPremiumPct, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64, error) {
 	if !validRiskClasses[riskClass] {
 		return 0, ErrUnknownRiskClass
 	}
@@ -112,7 +126,7 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 		return 0, ErrInvalidRequiredReturn
 	}
 
-	fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100)
+	fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100) * (1 + pnPremiumPct/100)
 	if fairPrice < FundamentalistMinFairPrice {
 		fairPrice = FundamentalistMinFairPrice
 	}
@@ -147,12 +161,18 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 // usado no ruído de leitura logo abaixo (FundamentalistMaxNoiseStdDevPct).
 // Chartista/Ruído nunca recebem este parâmetro — só reagem ao preço que já
 // mudou pela negociação do Fundamentalista, nunca ao evento em si.
+//
+// pnPremiumPct (tarefa J.3) é repassado direto a FundamentalistFairPrice,
+// sem passar pelo filtro de personality.KnowledgeLevel — ver nota no doc
+// daquela função sobre por que este insumo não recebe o mesmo tratamento de
+// "leitura ruidosa" que macroEffectPct recebe aqui.
 func DecideFundamentalistOrder(
 	personality Personality,
 	financials fundamentals.Financials,
 	outstandingShares int64,
 	growthRate float64,
 	macroEffectPct float64,
+	pnPremiumPct float64,
 	currentMarketPrice float64,
 	selicAnnualRate float64,
 	selicNeutral float64,
@@ -173,7 +193,7 @@ func DecideFundamentalistOrder(
 	}
 
 	perceivedMacroEffectPct := macroEffectPct * *personality.KnowledgeLevel
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, perceivedMacroEffectPct, selicAnnualRate, selicNeutral, riskClass)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, perceivedMacroEffectPct, pnPremiumPct, selicAnnualRate, selicNeutral, riskClass)
 	if err != nil {
 		return Decision{}, err
 	}

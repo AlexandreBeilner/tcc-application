@@ -43,6 +43,22 @@ import (
 // exceder o que o mercado suporta, independente do caixa do bot.
 const MaxOrderPctOfAverageVolumePct = 0.20
 
+// MinOrderSizeCeiling (achado 005 parte C, pontos-em-aberto-decisao-
+// produto.md, tarefa J.6) é o piso mínimo do teto de volume — sem ele,
+// vários dias simulados seguidos de volume real zero (RecentTradedVolume
+// devolvendo só zeros, diferente de "sem dado ainda") produzem
+// avgVolume == 0, então volumeCeiling == 0, e capToFloat/quantityForSide
+// (marketmaker.go) zeram toda ordem de compra nova pra sempre: sem
+// contraparte de compra o lado de venda também para de casar,
+// autoperpetuando o travamento sem nenhum caminho de recuperação sozinho
+// (achado do teste de ponta a ponta da Fase J, 2026-09-19/20 — 2 de 5
+// ativos negociáveis do catálogo mínimo travaram assim dentro de ~50 dias
+// simulados). 1 (a menor quantidade não-zero possível) é o piso mínimo que
+// corrige isso sem remover o teto em si — effectiveOrderSizeCeiling ainda
+// escolhe o menor entre o float e o teto de volume, só nunca deixa o teto
+// de volume colapsar a zero quando o float disponível é positivo.
+const MinOrderSizeCeiling = 1
+
 // ChartistPriceHistoryDays é o tamanho da janela de fechamentos diários
 // (asset_quotes) que o arquétipo Chartista usa pra avaliar tendência
 // (bot.DecideChartistOrder) — a proposta 2.4/C.4 não fixa "quantos dias",
@@ -66,6 +82,14 @@ type CompanyRoundContext struct {
 	// MacroEffectPct — o único consumidor: Chartista/Ruído nunca leem o
 	// evento diretamente (proposta 2.3.2/3).
 	MacroEffectPct float64
+	// PnDividendPremiumPct (tarefa J.3) é CompanyForFundamentals.
+	// PnDividendPremiumPct (J.2) repassado sem alteração — o Fundamentalista
+	// usa esse mesmo valor pra deslocar sua estimativa de preço justo quando
+	// o ativo sendo avaliado é PN (equityRoundState.ShareClass, ver
+	// decisionInputFor), 0 pra ON. Compartilhado pelas duas classes da mesma
+	// empresa igual a Financials/GrowthRate acima — é a empresa que declara
+	// o percentual, não o ativo.
+	PnDividendPremiumPct float64
 }
 
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
@@ -178,6 +202,12 @@ type equityRoundState struct {
 	RiskClass equity.RiskClass
 	CompanyID *string
 	Price     float64
+	// ShareClass (tarefa J.3) espelha AssetForPricing.ShareClass — nil (FII,
+	// ou Ação sem classe reconhecida) conta como ON, mesma convenção de
+	// equityShareClassesByCompany (tick.go). Consumido só por decisionInputFor
+	// (case ArchetypeFundamentalista) pra decidir se o premium de dividendo
+	// da PN entra na estimativa de preço justo deste ativo.
+	ShareClass *string
 }
 
 // roundSeed deriva uma seed determinística e independente por (dia, rodada,
@@ -227,7 +257,7 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 			price = *a.LastPrice
 		}
 
-		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price}
+		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price, ShareClass: a.ShareClass}
 		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type)})
 	}
 	return equities, universe
@@ -261,6 +291,11 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 // por falta de dado, só fica mais permissivo até o histórico se formar;
 // float nil (ex: sandbox) com histórico de volume disponível usa o teto de
 // volume sozinho; os dois nil/vazios devolve nil (nenhum teto se aplica).
+// Histórico real todo zerado (achado 005 parte C, MinOrderSizeCeiling) nunca
+// produz um teto de volume menor que o piso mínimo — sem esse piso,
+// volumeCeiling zerava pra sempre e nenhuma ordem de compra nova conseguia
+// tamanho >= 1 (capToFloat/quantityForSide, marketmaker.go), travando a
+// liquidez do ativo indefinidamente.
 func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	if len(recentVolume) == 0 {
 		return floatCeiling
@@ -272,6 +307,9 @@ func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	}
 	avgVolume := float64(sum) / float64(len(recentVolume))
 	volumeCeiling := int64(avgVolume * MaxOrderPctOfAverageVolumePct)
+	if volumeCeiling < MinOrderSizeCeiling {
+		volumeCeiling = MinOrderSizeCeiling
+	}
 
 	if floatCeiling == nil || volumeCeiling < *floatCeiling {
 		return &volumeCeiling
@@ -368,6 +406,13 @@ func (s *Service) decisionInputFor(
 		input.GrowthRate = cc.GrowthRate
 		input.MacroEffectPct = cc.MacroEffectPct
 		input.OutstandingShares = *execCtx.OutstandingShares
+		// PnDividendPremiumPct (tarefa J.3) só se aplica a um ativo PN —
+		// state.ShareClass nil ou qualquer valor != "PN" conta como ON
+		// (mesma convenção de equityShareClassesByCompany, tick.go), então
+		// fica em 0 (fórmula original de FundamentalistFairPrice).
+		if state.ShareClass != nil && *state.ShareClass == "PN" {
+			input.PnDividendPremiumPct = cc.PnDividendPremiumPct
+		}
 	}
 
 	return input, true, nil
