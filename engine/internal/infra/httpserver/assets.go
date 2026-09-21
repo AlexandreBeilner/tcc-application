@@ -20,6 +20,12 @@ type assetCatalogReader interface {
 	ListAssets(ctx context.Context, assetType string) ([]catalog.AssetRecord, error)
 	FindAssetByID(ctx context.Context, id string) (catalog.AssetRecord, bool, error)
 	FindFixedIncomeSpecialization(ctx context.Context, assetID string) (catalog.FixedIncomeSpecialization, bool, error)
+	// CurrentSelicRatePct devolve a Selic simulada corrente (%) —
+	// consumida só por handleFixedIncomeSimulate (achado do teste de ponta
+	// a ponta da Fase L, fixedincome.go) pra projetar produto pós-fixado
+	// (fixedincome.IsPostFixado). ok = false antes do primeiro tick do
+	// Temporizador.
+	CurrentSelicRatePct(ctx context.Context) (float64, bool, error)
 	FindEquitySpecialization(ctx context.Context, assetID string) (catalog.EquitySpecialization, bool, error)
 	FindETFDetails(ctx context.Context, assetID string) (etf.Details, bool, error)
 	FindFIIDetails(ctx context.Context, assetID string) (fii.Details, bool, error)

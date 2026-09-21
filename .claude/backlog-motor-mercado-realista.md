@@ -2261,6 +2261,107 @@ não usada (relatório `tmp/relatorio-logica-mercado.md`, seções 8.3-8.6).
 
 **Fase L fechada** (L.1-L.4).
 
+### Achado do teste de ponta a ponta (pós-fechamento)
+
+Sessão de review dedicada (não uma tarefa numerada) rodou um teste de ponta a ponta sobre L.1-L.4
+depois da fase fechada, caçando bug/gap além do caminho feliz já validado nas sessões acima.
+Achado real, corrigido na mesma sessão (bug mecânico, sem decisão de produto envolvida — CLAUDE.md):
+`GET /fixed-income/simulate` (`fixedincomeexecution.Simulate`) continuava alimentando
+`fixedincome.PrefixedPrice` (deságio nominal) com `interest_rate` cru pra **qualquer** tipo de
+produto — pré-existente desde a 6.0.5, mas a L.1 reinterpretou esse campo de "% a.a." pra "% do
+CDI" pros 6 tipos pós-fixados (ex: `110` = "110% do CDI"), o que transformou um gap conhecido numa
+distorção de ordem de grandeza: o simulador projetava um CDB 110% CDI como se rendesse **110% a.a.**
+(deveria ser ~11% a.a. com Selic 10%) — uma regressão introduzida pela própria L.1, não coberta
+pelas notas "gap remanescente" de L.1/L.2/L.4 (que só falavam da taxa estar desatualizada, não da
+fórmula estar errada por uma ordem de grandeza). Corrigido: `SimulateContext` ganhou
+`ProductType`/`CurrentMarketRatePct`; `Simulate` ramifica pra `fixedincome.PostFixedValue` (compra
+ao par, `UnitPrice = FaceValue`, projeção via Selic corrente repetida pelos dias simulados — mesma
+mecânica de `Redeem`) quando `fixedincome.IsPostFixado(ProductType)`. `CatalogRepository` ganhou
+`CurrentSelicRatePct` (método público, reaproveita o helper `currentSelicRatePct` já usado por
+`Purchase`/`Redeem`/`reprecificarOfertaParaExibicao`), exposto em `assetCatalogReader`;
+`handleFixedIncomeSimulate` lê a Selic corrente só pra produto pós-fixado e devolve `503`
+(`ErrMarketCalendarNotInitialized`, mesmo tratamento de precondição de `Purchase`/`Redeem`) se o
+Temporizador ainda não rodou nenhum tick. Testes novos:
+`TestSimulate_PosFixadoCompraAoParEProjetaPostFixedValue`
+(`fixedincomeexecution_test.go`); `TestHandleFixedIncomeSimulate_PosFixadoUsaPostFixedValueNaoDesagioNominal`/
+`TestHandleFixedIncomeSimulate_PosFixadoSemTickDoTemporizadorDevolve503` (`fixedincome_test.go`,
+httpserver) — os dois testes de simulate pré-existentes que já usavam CDB/LCI (postfixado) como
+fixture (`fixedIncomeSimulateReader`, `TestHandleFixedIncomeSimulate_AtivoIsentoNuncaAplicaImposto`)
+foram ajustados pra fornecer `selicRateOK`/`selicRate` (antes passavam só porque só checavam
+positividade, nunca o valor exato — não pegavam esse achado). Achado secundário, só documentação:
+o comentário de `fixedincome.IPCAEarlyRedemption` (`ipcaplus.go`) ainda dizia "nenhuma correção de
+Fisher feita aqui" — verdade quando escrito na L.2, defasado depois da L.4 aplicar Fisher no
+chamador (`fixedincomeexecution.Redeem`); comentário atualizado, nenhuma mudança de comportamento.
+`go build`/`go test ./...`/`golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes.
+
+**Terceiro achado — Tesouro IPCA+ do `GET /fixed-income/simulate`, registrado como gap remanescente
+na primeira passada desta sessão e corrigido depois do autor pedir explicitamente pra fechar os dois
+gaps documentados, não só o achado 011:** mesma distorção de fundo do achado do pós-fixado
+(`Simulate` alimentando `PrefixedPrice` com um número que não é uma taxa nominal simples), mas
+pré-existente desde a 6.0.5/L.2, não uma regressão da L.1 — `unit_price` chegava a menos da metade
+do preço real de compra (deságio nominal ignorando o VNA composto por anos de IPCA simulado).
+Corrigido: `fixedIncomeExecutor` (a interface que o handler consome) ganhou `Simulate` como método —
+`*fixedincomeexecution.Service.Simulate` resolve `vnaBase`/`monthlyIPCA` (na compra) e
+`projectedVNABase`/`projectedMonthlyIPCA` (na projeção futura, `days_held` à frente — pode cair numa
+janela de VNA diferente) via `fixedincome.CurrentVNAWindow`, mesma fonte de `Purchase`/`Redeem`; a
+função pura `Simulate` ganhou esses 4 parâmetros e uma branch nova (`simulateIPCAMais`) que precifica
+via `IPCAPrice`/`VNAProjected` em vez de `PrefixedPrice`. `handleFixedIncomeSimulate` deixou de chamar
+a função pura direto — chama `exec.Simulate` agora. Teste novo:
+`TestSimulate_IPCAMaisUsaVNAEmVezDeDesagioNominal`; `fakeFixedIncomeExecutor` (httpserver) ganhou
+`Simulate` delegando pra função pura de verdade (não um outcome canônico, pra continuar provando o
+cálculo real nos testes HTTP já existentes).
+
+**Quarto achado — Selic repetida no resgate de pós-fixado, mesmo gap "aceitável" registrado na nota
+3.1 desde a L.1, também fechado a pedido do autor:** sem histórico diário persistido, `Redeem`
+repetia a Selic do dia do RESGATE por todo o período decorrido — uma alta de Selic no fim do período
+rendia retroativamente sobre os dias em que a Selic estava baixa, um ganho que um investidor real
+nunca teria (só se beneficiaria da alta dali pra frente). Como a Fase M já persiste o histórico
+diário real (`market_indicator_history`, com `created_at` — timestamp real, não só `simulated_day`),
+corrigido: `RedeemContext` ganhou `SelicRatesSincePurchase []float64`; `LoadRedeemContext` lê a série
+real via `db.selicRatesSince(ctx, db, positionCreatedAt)` (`WHERE created_at >= $1 ORDER BY
+simulated_day`) só pra produto pós-fixado; `Redeem` usa essa série direto em `PostFixedValue`, em vez
+de sintetizar uma série repetida internamente (`postFixedDailyRates` continua servindo só `Simulate`
+— uma projeção pro FUTURO nunca tem histórico real pra usar). Testes novos/ajustados:
+`TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente`/`TestRedeem_PosFixado_SelicMaisAltaRendeMais`
+passaram a montar `SelicRatesSincePurchase` explicitamente (helper `flatSelicSeries`);
+`TestRedeem_PosFixado_RendeConformeOCaminhoRealNaoUmaTaxaFinalRetroativa` (novo) prova o critério de
+aceite central: dois cenários com a MESMA Selic final, um que ficou nela o ano inteiro e outro que só
+chegou nela no fim, têm que render valores diferentes (o segundo, menos). Validado ao vivo via
+`docker compose up`: posição de Tesouro Selic backdatada 400 dias, com 252 linhas sintéticas de
+histórico real a 5% inseridas em `market_indicator_history` (cobrindo o período da posição) enquanto
+`market_calendar.selic_rate` corrente ficava em 30% — resgate devolveu `realized_return_pct ≈ 5,08%`
+(a série real), não ~30% (o que a Selic corrente teria dado sob o comportamento antigo). IPCA+
+simulado antes/depois: `unit_price` do NTNB2035 foi de `735,89` (deságio nominal puro, achado) pra
+`1614,98` (com VNA — bate exatamente com o preço que uma compra real cobraria no mesmo instante).
+`go build`/`go test ./...`/`golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes pros dois achados.
+
+**Segundo achado, mais grave — registrado como 011 em `pontos-em-aberto-decisao-produto.md` e
+corrigido na mesma sessão** depois do autor pedir o impacto do achado e confirmar a correção
+recomendada: a marcação a mercado de `Redeem` (Prefixado/IPCA+) comparava a taxa CHEIA travada na
+compra (spread + benchmark, `fixedincome.OfferedRate`, tarefa L.4) contra o benchmark corrente SEM o
+mesmo spread — como esse número vira `total_value`/`net_value` de verdade em
+`accounts.current_balance` (não só o rótulo `vs_contracted_rate`), isso não era uma inconsistência de
+exibição, era **dinheiro duplicável de verdade**: compra e resgate instantâneo do mesmo título, sem
+nenhum tick do Temporizador entre os dois, sem carência nenhuma na API, creditava mais do que foi
+investido — validado ao vivo repetindo o ciclo 4 vezes em LTN2027 (Selic parada em 30%): saldo foi de
+R$ 10.000,00 pra R$ 11.129,06 em segundos, compondo a cada rodada. Corrigido pela fórmula (opção
+recomendada e confirmada com o autor, não uma carência mínima — a fórmula fecha o exploit por
+completo, a carência só desaceleraria): `RedeemContext` ganhou `AnnualRatePct` (spread do catálogo,
+mesma fonte de `PurchaseContext.AnnualRatePct`) e `IsSandbox`; `Redeem` soma esse spread ao benchmark
+corrente antes de marcar a mercado (Prefixado via Selic nominal, IPCA+ via Fisher), exceto sandbox
+(taxa do roteiro já vem pronta, sem spread separado). `LoadRedeemContext` passou a ler
+`fixed_income_assets.interest_rate` (mesma query, mais uma coluna) e propagar `is_sandbox`. Testes
+novos: `TestRedeem_Prefixado_SpreadNaoGeraGanhoArtificialQuandoSelicNaoMudou`,
+`TestRedeem_Prefixado_ComSpread_SelicSubiuAindaGeraPerdaReal` (prova que a marcação genuína continua
+funcionando),
+`TestRedeem_Prefixado_Sandbox_NaoSomaSpreadSobreATaxaDoRoteiro`,
+`TestRedeem_IPCAMais_SpreadNaoGeraGanhoArtificialQuandoBenchmarkNaoMudou` — os testes pré-existentes
+de marcação a mercado continuam passando sem alteração (não setavam `AnnualRatePct`, zero-value é
+identidade em `OfferedRate`). Validado ao vivo repetindo o mesmo cenário de exploração pós-correção:
+saldo ficou em R$ 10.000,00 nos 4 ciclos seguidos (antes: R$ 11.129,06). `go build`/`go test
+./...`/`golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes. Detalhe completo do achado (com/sem
+a correção) em `pontos-em-aberto-decisao-produto.md`, achado 011 (seção "Resolvidos").
+
 ---
 
 ## Fase M — Indicadores macroeconômicos visíveis (Selic/IPCA)

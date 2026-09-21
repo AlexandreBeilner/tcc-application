@@ -194,6 +194,119 @@ func TestRedeem_MarcacaoAMercado_TaxaSubiu_RentabilidadeInferiorAContratada(t *t
 	}
 }
 
+// TestRedeem_Prefixado_SpreadNaoGeraGanhoArtificialQuandoSelicNaoMudou é o
+// achado 011 (pontos-em-aberto-decisao-produto.md, teste de ponta a ponta
+// da Fase L): antes da correção, comprar e resgatar Tesouro Prefixado no
+// mesmo instante, com a Selic simulada parada, devolvia um "ganho"
+// artificial — a marcação a mercado comparava a taxa CHEIA travada na
+// compra (spread + Selic) contra a Selic CRUA de agora (sem o mesmo
+// spread), nunca zero mesmo sem nenhum movimento real de mercado. Validado
+// ao vivo: 4 ciclos seguidos de compra+resgate instantâneo em LTN2027
+// levaram uma conta de R$ 10.000 pra R$ 11.129 sem nenhum tick do
+// Temporizador rodar. Round-trip via Purchase (não construído à mão) pra
+// reproduzir exatamente o cenário real: a mesma taxa que a compra trava é
+// a que o resgate teria que igualar pra não gerar dinheiro do nada.
+func TestRedeem_Prefixado_SpreadNaoGeraGanhoArtificialQuandoSelicNaoMudou(t *testing.T) {
+	const spread = 1.75
+	const selic = 10.0
+
+	pctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: spread, MinimumInvestment: 100,
+		MaturityDate: purchaseMaturity, ProductType: fixedincome.ProductTesouroPrefixado,
+		CurrentMarketRatePct: selic,
+	}
+	purchase, err := Purchase(Request{Amount: 2000}, pctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("compra: err = %v, want nil", err)
+	}
+
+	rctx := RedeemContext{
+		Position:             purchase.NewPosition,
+		MaturityDate:         purchaseMaturity,
+		CurrentMarketRatePct: selic, // Selic não mudou desde a compra
+		PurchasedAt:          purchaseNow,
+		ProductType:          fixedincome.ProductTesouroPrefixado,
+		AnnualRatePct:        spread,
+	}
+
+	outcome, err := Redeem(rctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("resgate: err = %v, want nil", err)
+	}
+	if !almostEqual(outcome.MarkToMarket.VsContractedRate, 0, 1e-6) {
+		t.Errorf("VsContractedRate = %v, want 0 (Selic não mudou desde a compra — achado 011)", outcome.MarkToMarket.VsContractedRate)
+	}
+	if !almostEqual(outcome.TotalValue, 2000, 1e-6) {
+		t.Errorf("TotalValue = %v, want 2000 (resgate instantâneo devolve exatamente o valor aplicado, sem ganho nem perda — achado 011)", outcome.TotalValue)
+	}
+}
+
+// TestRedeem_Prefixado_ComSpread_SelicSubiuAindaGeraPerdaReal confere que a
+// correção do achado 011 não anula a marcação a mercado genuína — só o
+// componente artificial do spread. Com a Selic realmente subindo depois da
+// compra, o resgate antecipado ainda deve mostrar perda.
+func TestRedeem_Prefixado_ComSpread_SelicSubiuAindaGeraPerdaReal(t *testing.T) {
+	const spread = 1.75
+
+	pctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: spread, MinimumInvestment: 100,
+		MaturityDate: purchaseMaturity, ProductType: fixedincome.ProductTesouroPrefixado,
+		CurrentMarketRatePct: 10,
+	}
+	purchase, err := Purchase(Request{Amount: 2000}, pctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("compra: err = %v, want nil", err)
+	}
+
+	rctx := RedeemContext{
+		Position:             purchase.NewPosition,
+		MaturityDate:         purchaseMaturity,
+		CurrentMarketRatePct: 15, // Selic subiu de 10% pra 15%
+		PurchasedAt:          purchaseNow,
+		ProductType:          fixedincome.ProductTesouroPrefixado,
+		AnnualRatePct:        spread,
+	}
+
+	outcome, err := Redeem(rctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("resgate: err = %v, want nil", err)
+	}
+	if outcome.MarkToMarket.VsContractedRate >= 0 {
+		t.Errorf("VsContractedRate = %v, want negativo (Selic subiu de verdade)", outcome.MarkToMarket.VsContractedRate)
+	}
+}
+
+// TestRedeem_Prefixado_Sandbox_NaoSomaSpreadSobreATaxaDoRoteiro prova que a
+// correção do achado 011 não alcança sandbox: a taxa do roteiro
+// (sandbox.RateOnDay, resolvida pelo Repository em CurrentMarketRatePct) já
+// é uma taxa absoluta pronta, sem spread separado — mesma taxa que a compra
+// sandbox trava em Position.AverageRate (PurchaseContext.IsSandbox). Usa um
+// AnnualRatePct absurdo (999) de propósito: se a correção fosse aplicada
+// por engano num resgate sandbox, isso distorceria o resultado longe de
+// zero — devolver exatamente 0 confirma que IsSandbox bloqueou a soma.
+func TestRedeem_Prefixado_Sandbox_NaoSomaSpreadSobreATaxaDoRoteiro(t *testing.T) {
+	const sandboxRate = 0.10
+	purchasePrice := fixedincome.PrefixedPrice(sandboxRate, 252)
+
+	rctx := RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: sandboxRate},
+		MaturityDate:         purchaseMaturity,
+		CurrentMarketRatePct: 10, // mesma taxa do roteiro sandbox usada na compra
+		PurchasedAt:          purchaseNow,
+		ProductType:          fixedincome.ProductTesouroPrefixado,
+		AnnualRatePct:        999,
+		IsSandbox:            true,
+	}
+
+	outcome, err := Redeem(rctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if !almostEqual(outcome.MarkToMarket.VsContractedRate, 0, 1e-6) {
+		t.Errorf("VsContractedRate = %v, want 0 (sandbox não soma spread — AnnualRatePct=999 deveria ser ignorado)", outcome.MarkToMarket.VsContractedRate)
+	}
+}
+
 func TestRedeem_TotalValueEscalaComAQuantidade(t *testing.T) {
 	purchaseRate := 0.10
 	purchasePrice := fixedincome.PrefixedPrice(purchaseRate, 252)
@@ -316,19 +429,34 @@ func TestPurchase_PosFixado_CompraAoParSemDesagio(t *testing.T) {
 	}
 }
 
+// flatSelicSeries monta uma série de n dias com a mesma Selic repetida —
+// usada pelos testes abaixo pra simular "a Selic ficou parada nesse
+// patamar por todo o período" via ctx.SelicRatesSincePurchase (achado do
+// teste de ponta a ponta da Fase L: Redeem passou a receber a série REAL
+// desde a compra, em vez de sintetizá-la internamente a partir da Selic
+// corrente — ver nota do campo em RedeemContext).
+func flatSelicSeries(rate float64, n int) []float64 {
+	series := make([]float64, n)
+	for i := range series {
+		series[i] = rate
+	}
+	return series
+}
+
 // TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente confere o núcleo do
 // critério de aceite da L.1: produto pós-fixado rende de acordo com a
-// Selic simulada corrente (ctx.CurrentMarketRatePct), não com uma taxa
-// travada na compra — comprado "ao par" (AveragePrice = FaceValue, mesmo
-// preço que Purchase produziria) a 100% do CDI, segurado por dias
-// suficientes pra render algo mensurável, deve valorizar.
+// série real de Selic simulada desde a compra
+// (ctx.SelicRatesSincePurchase), não com uma taxa travada na compra —
+// comprado "ao par" (AveragePrice = FaceValue, mesmo preço que Purchase
+// produziria) a 100% do CDI, segurado por dias suficientes pra render algo
+// mensurável, deve valorizar.
 func TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	ctx := RedeemContext{
-		Position:             fixedincomeposition.Position{Quantity: 10, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0},
-		CurrentMarketRatePct: 10,
-		PurchasedAt:          now.AddDate(0, 0, -365),
-		ProductType:          fixedincome.ProductTesouroSelic,
+		Position:                fixedincomeposition.Position{Quantity: 10, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0},
+		SelicRatesSincePurchase: flatSelicSeries(10, 252),
+		PurchasedAt:             now.AddDate(0, 0, -365),
+		ProductType:             fixedincome.ProductTesouroSelic,
 	}
 
 	outcome, err := Redeem(ctx, now, 0, 0)
@@ -345,23 +473,24 @@ func TestRedeem_PosFixado_RendeDeVerdadeComASelicCorrente(t *testing.T) {
 }
 
 // TestRedeem_PosFixado_SelicMaisAltaRendeMais confere que o resgate reage à
-// Selic CORRENTE (do dia do resgate), não à taxa vigente na compra — a
-// prova, ponta a ponta, de que "nunca uma taxa fixa travada na compra"
-// (critério de aceite da L.1) vale pro fluxo real, não só pra
+// série REAL de Selic percorrida desde a compra (ctx.
+// SelicRatesSincePurchase), não a uma taxa fixa travada — a prova, ponta a
+// ponta, de que "nunca uma taxa fixa travada na compra" (critério de
+// aceite da L.1) vale pro fluxo real, não só pra
 // fixedincome.PostFixedFactor isolado.
 func TestRedeem_PosFixado_SelicMaisAltaRendeMais(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	basePosition := fixedincomeposition.Position{Quantity: 1, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0}
 
 	baixa, err := Redeem(RedeemContext{
-		Position: basePosition, CurrentMarketRatePct: 5,
+		Position: basePosition, SelicRatesSincePurchase: flatSelicSeries(5, 252),
 		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
 	}, now, 0, 0)
 	if err != nil {
 		t.Fatalf("err (Selic baixa) = %v, want nil", err)
 	}
 	alta, err := Redeem(RedeemContext{
-		Position: basePosition, CurrentMarketRatePct: 15,
+		Position: basePosition, SelicRatesSincePurchase: flatSelicSeries(15, 252),
 		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
 	}, now, 0, 0)
 	if err != nil {
@@ -370,6 +499,42 @@ func TestRedeem_PosFixado_SelicMaisAltaRendeMais(t *testing.T) {
 
 	if !(alta.TotalValue > baixa.TotalValue) {
 		t.Errorf("TotalValue com Selic alta (%v) não rendeu mais que com Selic baixa (%v)", alta.TotalValue, baixa.TotalValue)
+	}
+}
+
+// TestRedeem_PosFixado_RendeConformeOCaminhoRealNaoUmaTaxaFinalRetroativa é
+// o achado do teste de ponta a ponta da Fase L que motivou a correção:
+// antes, Redeem repetia a Selic do dia do RESGATE por todo o período
+// decorrido — uma alta de Selic no fim do período rendia retroativamente
+// sobre os dias em que a Selic estava baixa, um ganho que um investidor
+// real nunca teria (só se beneficiaria da alta dali pra frente). Compara
+// dois cenários com a MESMA Selic final (15%) mas caminhos diferentes: um
+// que ficou o ano inteiro a 15%, outro que passou a maior parte do ano a
+// 5% e só virou 15% perto do resgate — o segundo tem que render MENOS,
+// nunca igual.
+func TestRedeem_PosFixado_RendeConformeOCaminhoRealNaoUmaTaxaFinalRetroativa(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	position := fixedincomeposition.Position{Quantity: 1, AveragePrice: fixedincome.FaceValue, AverageRate: 1.0}
+
+	semprePresa, err := Redeem(RedeemContext{
+		Position: position, SelicRatesSincePurchase: flatSelicSeries(15, 252),
+		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
+	}, now, 0, 0)
+	if err != nil {
+		t.Fatalf("err (sempre 15%%) = %v, want nil", err)
+	}
+
+	caminhoReal := append(flatSelicSeries(5, 230), flatSelicSeries(15, 22)...)
+	subiuNoFim, err := Redeem(RedeemContext{
+		Position: position, SelicRatesSincePurchase: caminhoReal,
+		PurchasedAt: now.AddDate(0, 0, -365), ProductType: fixedincome.ProductTesouroSelic,
+	}, now, 0, 0)
+	if err != nil {
+		t.Fatalf("err (subiu no fim) = %v, want nil", err)
+	}
+
+	if !(subiuNoFim.TotalValue < semprePresa.TotalValue) {
+		t.Errorf("TotalValue (subiu no fim) = %v, want menor que TotalValue (sempre 15%%) = %v — a alta não pode render retroativamente sobre os dias em que a Selic estava baixa", subiuNoFim.TotalValue, semprePresa.TotalValue)
 	}
 }
 
@@ -596,10 +761,54 @@ func TestRedeem_IPCAMais_MarcacaoAMercadoUsaCorrecaoDeFisher(t *testing.T) {
 	}
 }
 
+// TestRedeem_IPCAMais_SpreadNaoGeraGanhoArtificialQuandoBenchmarkNaoMudou é
+// o achado 011 (pontos-em-aberto-decisao-produto.md) aplicado a Tesouro
+// IPCA+: sem a correção, Redeem comparava a taxa real contratada CHEIA
+// (spread + taxa real via Fisher, tarefa L.4) contra a taxa real CRUA de
+// agora (sem o mesmo spread) — round-trip via Purchase prova que a
+// correção zera o "ganho" quando Selic/IPCA não mudaram desde a compra.
+func TestRedeem_IPCAMais_SpreadNaoGeraGanhoArtificialQuandoBenchmarkNaoMudou(t *testing.T) {
+	const spread = 0.5
+	purchasedAt := fixedincome.VNAEpoch
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, purchasedAt)
+	maturity := purchasedAt.AddDate(2, 0, 0)
+
+	pctx := PurchaseContext{
+		AccountBalance: 5000, AnnualRatePct: spread, MinimumInvestment: 100,
+		MaturityDate: maturity, ProductType: fixedincome.ProductTesouroIPCA,
+		CurrentMarketRatePct: 10, IPCAAccumulated12m: 0.03,
+	}
+	purchase, err := Purchase(Request{Amount: 2000}, pctx, purchasedAt, vnaBase, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("compra: err = %v, want nil", err)
+	}
+
+	rctx := RedeemContext{
+		Position:             purchase.NewPosition,
+		MaturityDate:         maturity,
+		CurrentMarketRatePct: 10,   // Selic não mudou
+		IPCAAccumulated12m:   0.03, // IPCA acumulado não mudou
+		PurchasedAt:          purchasedAt,
+		ProductType:          fixedincome.ProductTesouroIPCA,
+		AnnualRatePct:        spread,
+	}
+
+	outcome, err := Redeem(rctx, purchasedAt, vnaBase, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("resgate: err = %v, want nil", err)
+	}
+	if !almostEqual(outcome.MarkToMarket.VsContractedRate, 0, 1e-6) {
+		t.Errorf("VsContractedRate = %v, want 0 (Selic/IPCA não mudaram desde a compra — achado 011)", outcome.MarkToMarket.VsContractedRate)
+	}
+	if !almostEqual(outcome.TotalValue, 2000, 1e-6) {
+		t.Errorf("TotalValue = %v, want 2000 (resgate instantâneo devolve o valor aplicado, sem ganho nem perda — achado 011)", outcome.TotalValue)
+	}
+}
+
 func TestSimulate_ValorInvalido(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 
-	_, err := Simulate(SimulateRequest{Amount: 0, DaysHeld: 180}, ctx, purchaseNow)
+	_, err := Simulate(SimulateRequest{Amount: 0, DaysHeld: 180}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != ErrInvalidAmount {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidAmount)
 	}
@@ -608,7 +817,7 @@ func TestSimulate_ValorInvalido(t *testing.T) {
 func TestSimulate_DiasInvalidos(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 
-	_, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 0}, ctx, purchaseNow)
+	_, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 0}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != ErrInvalidDaysHeld {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidDaysHeld)
 	}
@@ -617,7 +826,7 @@ func TestSimulate_DiasInvalidos(t *testing.T) {
 func TestSimulate_PrecificaAUnidadeIgualAPurchase(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 
-	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 180}, ctx, purchaseNow)
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 180}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -632,14 +841,89 @@ func TestSimulate_PrecificaAUnidadeIgualAPurchase(t *testing.T) {
 	}
 }
 
-func TestSimulate_ProjecaoAoLongoDoTempoValorizaPertoDoValorNominal(t *testing.T) {
-	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+// TestSimulate_PosFixadoCompraAoParEProjetaPostFixedValue é o achado do
+// teste de ponta a ponta da Fase L (nota 3.2 do doc do pacote): antes desta
+// correção, Simulate ignorava ProductType e sempre descontava
+// fixedincome.PrefixedPrice — pra um CDB 110% CDI (AnnualRatePct = 110, "%
+// do CDI" desde a L.1), isso tratava 110 como "110% a.a.", uma ordem de
+// grandeza maior que o retorno real. UnitPrice = FaceValue (compra ao par)
+// e GrossProjectedValue = fixedincome.PostFixedValue são a mesma mecânica
+// de Purchase/Redeem desde a L.1.
+func TestSimulate_PosFixadoCompraAoParEProjetaPostFixedValue(t *testing.T) {
+	ctx := SimulateContext{
+		AnnualRatePct:        110,
+		CurrentMarketRatePct: 10,
+		MaturityDate:         purchaseMaturity,
+		ProductType:          fixedincome.ProductCDB,
+	}
 
-	curto, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 30}, ctx, purchaseNow)
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	longo, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow)
+
+	if outcome.UnitPrice != fixedincome.FaceValue {
+		t.Errorf("UnitPrice = %v, want %v (comprado ao par, sem deságio)", outcome.UnitPrice, fixedincome.FaceValue)
+	}
+	wantGross := fixedincome.PostFixedValue(2000, 110, postFixedDailyRates(10, 360))
+	if !almostEqual(outcome.GrossProjectedValue, wantGross, 1e-6) {
+		t.Errorf("GrossProjectedValue = %v, want %v (fixedincome.PostFixedValue, mesma fórmula de Redeem)", outcome.GrossProjectedValue, wantGross)
+	}
+	// CDB 110% CDI sobre Selic 10% ~1 ano rende ~11% a.a. — bem longe da
+	// distorção antiga (~110% a.a., que devolveria algo perto de 4200).
+	if outcome.GrossProjectedValue <= 2000 || outcome.GrossProjectedValue > 2400 {
+		t.Errorf("GrossProjectedValue = %v, want perto de 2220 (~11%% sobre 2000), não ~4200 (achado da Fase L: taxa antiga tratava 110 como %% a.a.)", outcome.GrossProjectedValue)
+	}
+}
+
+// TestSimulate_IPCAMaisUsaVNAEmVezDeDesagioNominal é o achado do teste de
+// ponta a ponta da Fase L (nota 3.2 do doc do pacote): antes desta
+// correção, Simulate ignorava o VNA pra Tesouro IPCA+, descontando a taxa
+// REAL contratada como se fosse uma taxa NOMINAL sobre o Valor Nominal
+// fixo (fixedincome.PrefixedPrice) — o unit_price mostrado ficava bem
+// abaixo do preço real de compra (que embute décadas de IPCA simulado
+// composto desde fixedincome.VNAEpoch, ver TestPurchase_
+// IPCAMais_UsaVNAEmVezDeDesagioNominal). UnitPrice agora bate exatamente
+// com o que Purchase cobraria no mesmo instante, com os mesmos parâmetros.
+func TestSimulate_IPCAMaisUsaVNAEmVezDeDesagioNominal(t *testing.T) {
+	now := fixedincome.VNAEpoch.AddDate(2, 0, 3)
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(ipcaExecutionTestConfig, now)
+	maturity := now.AddDate(1, 0, 0)
+	const realRate = 6.0 // já reprecificado (spread + Fisher), mesma convenção de PurchaseContext.AnnualRatePct pós-L.4
+
+	ctx := SimulateContext{
+		AnnualRatePct: realRate,
+		MaturityDate:  maturity,
+		ProductType:   fixedincome.ProductTesouroIPCA,
+	}
+
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 30}, ctx, now, vnaBase, monthlyIPCA, vnaBase, monthlyIPCA)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	remainingDays := remainingBusinessDays(now, maturity)
+	wantUnitPrice := fixedincome.IPCAPrice(fixedincome.VNAProjected(vnaBase, monthlyIPCA, now), fixedincome.IPCAQuote(realRate/100, remainingDays))
+	if !almostEqual(outcome.UnitPrice, wantUnitPrice, 1e-6) {
+		t.Errorf("UnitPrice = %v, want %v (fixedincome.IPCAPrice/VNAProjected, mesma fórmula de Purchase)", outcome.UnitPrice, wantUnitPrice)
+	}
+	// PrefixedPrice(0.06, remainingDays) (deságio nominal puro, valor da
+	// distorção antiga) fica bem abaixo do preço real com VNA, que embute o
+	// IPCA composto desde 2000.
+	wantWrongUnitPrice := fixedincome.PrefixedPrice(realRate/100, remainingDays)
+	if outcome.UnitPrice <= wantWrongUnitPrice {
+		t.Errorf("UnitPrice = %v, want maior que o deságio nominal puro (%v) — achado da Fase L: o VNA composto por anos de IPCA simulado precisa estar em jogo", outcome.UnitPrice, wantWrongUnitPrice)
+	}
+}
+
+func TestSimulate_ProjecaoAoLongoDoTempoValorizaPertoDoValorNominal(t *testing.T) {
+	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
+
+	curto, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 30}, ctx, purchaseNow, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	longo, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -652,7 +936,7 @@ func TestSimulate_ProjecaoAoLongoDoTempoValorizaPertoDoValorNominal(t *testing.T
 func TestSimulate_AlemDoVencimentoProjetaValorNominal(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 
-	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 3650}, ctx, purchaseNow)
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 3650}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -666,7 +950,7 @@ func TestSimulate_AlemDoVencimentoProjetaValorNominal(t *testing.T) {
 func TestSimulate_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity, TaxExempt: true}
 
-	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow)
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 360}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -681,7 +965,7 @@ func TestSimulate_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
 func TestSimulate_AplicaAliquotaCorrespondenteAosDiasSimulados(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
 
-	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 200}, ctx, purchaseNow)
+	outcome, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 200}, ctx, purchaseNow, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -709,7 +993,7 @@ func TestSimulate_AplicaAliquotaCorrespondenteAosDiasSimulados(t *testing.T) {
 // ponta a ponta via docker compose (.docs/engine/fixedincome.md).
 func TestSimulate_NaoRecebeRepositoryNemPersisteNada(t *testing.T) {
 	ctx := SimulateContext{AnnualRatePct: 10, MaturityDate: purchaseMaturity}
-	if _, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 180}, ctx, purchaseNow); err != nil {
+	if _, err := Simulate(SimulateRequest{Amount: 2000, DaysHeld: 180}, ctx, purchaseNow, 0, 0, 0, 0); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 }

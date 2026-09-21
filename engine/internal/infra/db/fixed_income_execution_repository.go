@@ -131,7 +131,9 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 // mercado, ver doc do pacote sandbox) no dia decorrido desde a primeira
 // operação do usuário (fixed_income_positions.created_at — sempre existe
 // aqui, a posição já foi encontrada acima), nunca market_calendar.selic_rate
-// — o Temporizador nunca avança nada de sandbox.
+// — o Temporizador nunca avança nada de sandbox. AnnualRatePct/IsSandbox
+// (achado 011, teste de ponta a ponta da Fase L) alimentam a correção do
+// spread em Redeem — ver nota do campo em RedeemContext.
 func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, userID, assetID string) (fixedincomeexecution.RedeemContext, error) {
 	var rctx fixedincomeexecution.RedeemContext
 	var positionCreatedAt time.Time
@@ -152,13 +154,14 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 	var isSandbox bool
 	var productType string
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox, a.type
+		`SELECT fia.interest_rate, fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox, a.type
 		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
 		 WHERE fia.asset_id = $1`, assetID,
-	).Scan(&rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox, &productType); err != nil {
+	).Scan(&rctx.AnnualRatePct, &rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox, &productType); err != nil {
 		return fixedincomeexecution.RedeemContext{}, err
 	}
 	rctx.ProductType = fixedincome.ProductType(productType)
+	rctx.IsSandbox = isSandbox
 
 	if isSandbox {
 		script, ok := sandbox.RateScriptForTicker(ticker)
@@ -177,6 +180,19 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
 		}
 		return fixedincomeexecution.RedeemContext{}, err
+	}
+
+	// SelicRatesSincePurchase (gap remanescente fechado no teste de ponta a
+	// ponta da Fase L, nota 3.1 do doc do pacote fixedincomeexecution) só é
+	// lida pro pós-fixado — a série real de Selic desde a compra é o que
+	// fixedincome.PostFixedValue usa pra valorizar de verdade, em vez de
+	// repetir só a Selic corrente.
+	if fixedincome.IsPostFixado(rctx.ProductType) {
+		rates, err := selicRatesSince(ctx, r.db, positionCreatedAt)
+		if err != nil {
+			return fixedincomeexecution.RedeemContext{}, err
+		}
+		rctx.SelicRatesSincePurchase = rates
 	}
 
 	// IPCAAccumulated12m (tarefa L.4) só é lida pro Tesouro IPCA+ — é o

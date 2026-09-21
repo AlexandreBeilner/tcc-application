@@ -94,3 +94,19 @@ func (s *Service) Redeem(ctx context.Context, req RedeemRequest) (RedeemOutcome,
 	}
 	return outcome, nil
 }
+
+// Simulate projeta o retorno de um aporte hipotético (tarefa 6.0.5,
+// achado do teste de ponta a ponta da Fase L — Simulate ganhou acesso ao
+// VNA do Tesouro IPCA+ pelo mesmo caminho de Purchase/Redeem). Nunca toca
+// s.repo (crítério de aceite original: simulação não persiste nada, ver
+// TestSimulate_NaoRecebeRepositoryNemPersisteNada) — só resolve
+// vnaBase/monthlyIPCA (na data de hoje) e projectedVNABase/
+// projectedMonthlyIPCA (na data projetada, req.DaysHeld à frente — pode
+// cair numa janela de VNA diferente, por isso um CurrentVNAWindow
+// separado) a partir de s.ipcaCfg, mesma fonte de Purchase/Redeem.
+func (s *Service) Simulate(req SimulateRequest, ctx SimulateContext) (SimulateOutcome, error) {
+	now := time.Now()
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now)
+	projectedVNABase, projectedMonthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now.AddDate(0, 0, req.DaysHeld))
+	return Simulate(req, ctx, now, vnaBase, monthlyIPCA, projectedVNABase, projectedMonthlyIPCA)
+}

@@ -58,35 +58,86 @@
 //     isento. Pra IPCA+ (L.2), isso ainda significa reaproveitar a Selic
 //     NOMINAL simulada como proxy de taxa de juro REAL de mercado (sem
 //     correção de Fisher) — essa simplificação de calibração específica
-//     continua sem confirmação com o usuário (decisão separada da L.3
-//     acima, ver L.4 pra revisitar).
+//     foi resolvida pela L.4 (fixedincome.FisherRealRate).
 //
-//     3.1. A série diária de Selic que fixedincome.PostFixedFactor recebe
-//     (um valor por dia útil decorrido desde a compra) é hoje uma
-//     aproximação: como `market_calendar` só guarda a Selic CORRENTE
-//     (linha singleton, sem histórico — a persistência diária real é a
-//     tarefa M.1, independente desta), Redeem (abaixo) repete o único
-//     valor conhecido (ctx.CurrentMarketRatePct, o de hoje) por todo o
-//     período decorrido — mesma simplificação já usada por
-//     fii.PortfolioValueVariation pro indexador CDI
-//     (fii/portfoliovalue.go). O resultado ainda é genuinamente melhor que
-//     antes (reage à Selic corrente, não trava a taxa da compra pra
-//     sempre) e o mecanismo (PostFixedFactor aceita qualquer série) já
-//     fica pronto pro dia em que M.1 persistir o histórico de verdade —
-//     troca é só nessa montagem da série dentro de Redeem, sem mudar a
-//     fórmula nem RedeemContext.
+//     3.3. **Achado 011 corrigido no teste de ponta a ponta da Fase L**
+//     (pontos-em-aberto-decisao-produto.md): até aqui, "ctx.
+//     CurrentMarketRatePct como proxy de taxa de mercado" comparava a taxa
+//     CHEIA travada na compra (Position.AverageRate = spread +
+//     benchmark-na-compra, fixedincome.OfferedRate desde a L.4) contra o
+//     benchmark CRU de agora (sem spread nenhum) — mesmo com o benchmark
+//     parado entre compra e resgate, todo resgate antecipado de
+//     Prefixado/IPCA+ mostrava um "ganho" artificial de graça, do tamanho
+//     do spread do produto. Como o valor creditado em accounts.
+//     current_balance vem exatamente dessa marcação (não só o rótulo
+//     vs_contracted_rate), isso não era só um número mal rotulado — era
+//     dinheiro duplicável de verdade via compra+resgate instantâneo
+//     repetido (sem nenhuma carência entre as duas rotas HTTP), validado
+//     ao vivo: 4 ciclos seguidos em LTN2027 sem nenhum tick do
+//     Temporizador entre eles levaram uma conta de R$ 10.000 pra R$
+//     11.129, ~2,71% líquido de IR por ciclo, compondo. Corrigido: Redeem
+//     agora soma esse mesmo spread ao benchmark corrente
+//     (fixedincome.OfferedRate(ctx.AnnualRatePct/100, benchmarkAtual))
+//     antes de marcar a mercado, pros dois branches (Prefixado, IPCA+) —
+//     quando o benchmark realmente não mudou desde a compra, os dois lados
+//     da comparação ficam idênticos e VsContractedRate vira exatamente 0,
+//     em vez de um "ganho" fantasma. Sandbox (RF12) é a exceção: a taxa do
+//     roteiro (sandbox.RateOnDay) já vem pronta, sem separar spread de
+//     benchmark (mesmo raciocínio de PurchaseContext.IsSandbox) —
+//     RedeemContext.IsSandbox faz Redeem pular essa soma pra não quebrar
+//     essa taxa já resolvida.
 //
-//     3.2. GET /fixed-income/simulate (Simulate, abaixo) continua usando
+//     3.1. **Corrigido no teste de ponta a ponta da Fase L, depois de
+//     confirmado com o autor.** A série diária de Selic que
+//     fixedincome.PostFixedFactor recebe pra marcar a mercado um resgate
+//     de produto pós-fixado era, até aqui, uma aproximação: como
+//     `market_calendar` só guarda a Selic CORRENTE (linha singleton, sem
+//     histórico), Redeem repetia o único valor conhecido
+//     (ctx.CurrentMarketRatePct, o de hoje) por todo o período decorrido —
+//     mesma simplificação ainda usada por fii.PortfolioValueVariation pro
+//     indexador CDI (fii/portfoliovalue.go). Isso não era só impreciso: uma
+//     alta de Selic depois da compra rendia retroativamente sobre TODO o
+//     período já decorrido, inclusive os dias em que a Selic estava mais
+//     baixa — um ganho que um investidor real nunca teria (só se
+//     beneficiaria da alta dali pra frente). Como a tarefa M.1
+//     (independente desta) já persiste o histórico diário de verdade
+//     (market_indicator_history), Redeem passou a usar a série REAL
+//     (ctx.SelicRatesSincePurchase, resolvida por
+//     FixedIncomeExecutionRepository.LoadRedeemContext via
+//     db.selicRatesSince — um valor por dia simulado registrado desde
+//     Position criada) em vez de repetir a Selic corrente — ver nota do
+//     campo em RedeemContext. Simulate (nota 3.2 abaixo) continua repetindo
+//     a Selic corrente via postFixedDailyRates: é uma projeção pro FUTURO,
+//     nunca vai ter "histórico real" pra usar, então a aproximação ali
+//     continua sendo a fórmula certa, não um gap.
+//
+//     3.2. GET /fixed-income/simulate (Simulate, abaixo) continuava usando
 //     fixedincome.PrefixedPrice pra TODOS os 8 tipos, inclusive
 //     pós-fixados e IPCA+ — não corrigido nem pela L.1 nem pela L.2.
-//     Diferente de Purchase/Redeem, Simulate não recebe nenhum Repository
-//     (só dado de catálogo, ver doc de SimulateContext) — estender pra
-//     pós-fixado exigiria um colaborador novo só pra ler market_calendar.
-//     selic_rate na camada HTTP, e pra IPCA+ um colaborador pra ipca.
-//     Config/CurrentVNAWindow — os dois fora do escopo cirúrgico desta
-//     tarefa. Simulador de aporte (tela 4.3) mostra projeção levemente
-//     incorreta pra produto pós-fixado/IPCA+ até uma sessão futura
-//     estender essa mesma mudança até aqui.
+//     **Corrigido pros dois no teste de ponta a ponta da Fase L**
+//     (achado da revisão: L.1 reinterpretou fixed_income_assets.
+//     interest_rate de "% a.a." pra "% do CDI" pros 6 tipos pós-fixados,
+//     mas Simulate continuou alimentando esse número (agora ~100-115) direto
+//     em PrefixedPrice como se fosse uma taxa anual — um CDB 110% CDI
+//     projetava retorno como se rendesse 110% a.a., ~10x o valor real — uma
+//     regressão nova desta fase, não só um gap pré-existente). Simulate
+//     agora recebe ProductType/CurrentMarketRatePct (SimulateContext,
+//     resolvidos pela camada HTTP via assetCatalogReader.
+//     CurrentSelicRatePct) e ramifica pra fixedincome.PostFixedValue —
+//     mesma fórmula/aproximação de Redeem (nota 3.1 acima, mas a de
+//     Simulate continua sendo uma projeção repetida, não histórico real) —
+//     quando fixedincome.IsPostFixado(ctx.ProductType); e pra
+//     simulateIPCAMais (fixedincome.IPCAPrice/VNAProjected — mesma
+//     composição de Purchase/Redeem desde a L.2) quando
+//     fixedincome.IsIPCAMais(ctx.ProductType) — vnaBase/monthlyIPCA (na
+//     data de hoje) e projectedVNABase/projectedMonthlyIPCA (na data
+//     projetada, req.DaysHeld à frente) resolvidos por Service.Simulate,
+//     mesmo raciocínio de Purchase/Redeem. Antes da correção, o unit_price
+//     mostrado pro Tesouro IPCA+ chegava a menos da metade do preço real de
+//     compra (deságio nominal puro ignorando o VNA composto por anos de
+//     inflação simulada desde fixedincome.VNAEpoch) — mesma categoria de
+//     distorção do achado do pós-fixado acima, só que sem regressão
+//     recente associada (esse gap já existia desde a L.2).
 //
 //  4. DU restante até o vencimento é calculado a partir de time.Now() vs
 //     fixed_income_assets.maturity_date (data de calendário real, seedada
@@ -212,6 +263,45 @@ type RedeemContext struct {
 	// converter CurrentMarketRatePct (Selic nominal) numa taxa real via
 	// fixedincome.FisherRealRate antes de marcar a mercado.
 	IPCAAccumulated12m float64
+	// AnnualRatePct (achado 011, teste de ponta a ponta da Fase L —
+	// pontos-em-aberto-decisao-produto.md) é o spread contratual do
+	// catálogo (fixed_income_assets.interest_rate, mesma convenção de
+	// PurchaseContext.AnnualRatePct pra Prefixado/IPCA+ desde a L.4). Sem
+	// ele, Redeem comparava a taxa CHEIA travada na compra (spread +
+	// benchmark-na-compra, Position.AverageRate) contra o benchmark CRU
+	// de agora (sem spread) — todo resgate mostrava "ganho" mesmo com o
+	// benchmark parado, de graça, repetível via compra+resgate instantâneo
+	// (dinheiro duplicado de verdade em accounts.current_balance, não só um
+	// rótulo errado). Redeem agora soma esse mesmo spread ao benchmark
+	// corrente (fixedincome.OfferedRate) antes de marcar a mercado — os
+	// dois lados da comparação ficam "maçã com maçã", e a marcação some
+	// (VsContractedRate == 0) quando o benchmark realmente não se moveu
+	// desde a compra.
+	AnnualRatePct float64
+	// IsSandbox (achado 011) — sandbox (RF12) já entrega
+	// CurrentMarketRatePct como taxa absoluta pronta (sandbox.RateOnDay,
+	// mesmo roteiro usado na compra, sem separar spread de benchmark —
+	// Position.AverageRate de um ativo sandbox também não tem spread
+	// somado, ver PurchaseContext.IsSandbox) — Redeem não soma
+	// AnnualRatePct em cima pra não duplicar/quebrar essa taxa já pronta.
+	IsSandbox bool
+	// SelicRatesSincePurchase (gap remanescente da nota 3.1 do doc do
+	// pacote, fechado no teste de ponta a ponta da Fase L depois da tarefa
+	// M.1 já existir) é a série REAL de Selic simulada registrada desde a
+	// compra (market_indicator_history, um valor por dia simulado — db.
+	// selicRatesSince), só usada pra produto pós-fixado
+	// (fixedincome.IsPostFixado). Substitui a aproximação anterior de
+	// repetir só a Selic CORRENTE por todo o período decorrido
+	// (postFixedDailyRates, abaixo, que continua servindo Simulate — uma
+	// projeção pro FUTURO nunca tem "histórico real" pra usar). Sem essa
+	// série real, uma alta de Selic depois da compra era aplicada
+	// retroativamente sobre TODO o período já decorrido (inclusive os dias
+	// em que a Selic estava mais baixa) — um ganho que um investidor real
+	// nunca teria (só se beneficiaria da alta dali pra frente). Série
+	// vazia é um resultado válido (resgate no mesmo dia simulado da
+	// compra) — fixedincome.PostFixedFactor já trata isso como "nenhum
+	// crescimento".
+	SelicRatesSincePurchase []float64
 }
 
 // RedeemOutcome é o resultado de Redeem, pronto pra persistência. NetValue
@@ -244,11 +334,25 @@ type SimulateRequest struct {
 // direto na camada HTTP a partir de assetCatalogReader.
 // FindFixedIncomeSpecialization (tarefa 3.10), sem repositório dedicado:
 // diferente de Purchase/Redeem, a simulação não lê saldo de conta nem
-// posição existente, só dado de catálogo já exposto.
+// posição existente, só dado de catálogo já exposto. ProductType/
+// CurrentMarketRatePct (achado do teste de ponta a ponta da Fase L, nota
+// 3.2 do doc do pacote) decidem se Simulate ramifica pra
+// fixedincome.PostFixedValue (fixedincome.IsPostFixado(ProductType)) em vez
+// do deságio nominal — CurrentMarketRatePct só precisa vir preenchido nesse
+// caso (assetCatalogReader.CurrentSelicRatePct, camada HTTP); zero-value
+// nos dois campos preserva o comportamento anterior (Prefixado/IPCA+, ver
+// nota 3.2).
 type SimulateContext struct {
 	AnnualRatePct float64
 	MaturityDate  time.Time
 	TaxExempt     bool
+	// ProductType (achado da revisão e2e da Fase L) decide, junto de
+	// CurrentMarketRatePct, se Simulate usa a projeção pós-fixada em vez do
+	// deságio nominal — ver nota 3.2 do doc do pacote.
+	ProductType fixedincome.ProductType
+	// CurrentMarketRatePct é a Selic simulada corrente (%) — só lida/usada
+	// quando fixedincome.IsPostFixado(ProductType) (nota 3.2).
+	CurrentMarketRatePct float64
 }
 
 // SimulateOutcome é o resultado da simulação, pronto pra resposta HTTP.
@@ -325,9 +429,10 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time, vnaBase, monthlyI
 // fixedincome.PostFixedValue: o principal investido (Position.AveragePrice
 // × Position.Quantity) rende o percentual contratado do índice
 // (Position.AverageRate, já em decimal — ex: 1.10 pra "110% do CDI",
-// mesma unidade de rate em Purchase) sobre uma série diária de Selic
-// simulada (postFixedDailyRates, abaixo — ver nota 3.1 do doc do pacote
-// pra por que hoje é o mesmo valor repetido, não histórico real). Tesouro
+// mesma unidade de rate em Purchase) sobre a série REAL de Selic simulada
+// desde a compra (ctx.SelicRatesSincePurchase — ver nota da struct e nota
+// 3.1 do doc do pacote pra história do porquê isso já foi uma aproximação).
+// Tesouro
 // IPCA+ (fixedincome.IsIPCAMais, tarefa L.2) usa
 // fixedincome.IPCAEarlyRedemption sobre o VNA de hoje
 // (VNAProjected(vnaBase, monthlyIPCA, now) — vnaBase/monthlyIPCA resolvidos
@@ -355,7 +460,7 @@ func Redeem(ctx RedeemContext, now time.Time, vnaBase, monthlyIPCA float64) (Red
 	switch {
 	case fixedincome.IsPostFixado(ctx.ProductType):
 		pctOfIndex := ctx.Position.AverageRate * 100
-		totalValue = fixedincome.PostFixedValue(investedAmount, pctOfIndex, postFixedDailyRates(ctx.CurrentMarketRatePct, daysHeld))
+		totalValue = fixedincome.PostFixedValue(investedAmount, pctOfIndex, ctx.SelicRatesSincePurchase)
 		result = fixedincome.EarlyRedemptionResult{
 			MarkToMarketPrice: totalValue / ctx.Position.Quantity,
 			RealizedReturnPct: (totalValue/investedAmount - 1) * 100,
@@ -365,11 +470,22 @@ func Redeem(ctx RedeemContext, now time.Time, vnaBase, monthlyIPCA float64) (Red
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
 		vna := fixedincome.VNAProjected(vnaBase, monthlyIPCA, now)
 		currentMarketRealRate := fixedincome.FisherRealRate(ctx.CurrentMarketRatePct/100, ctx.IPCAAccumulated12m)
+		if !ctx.IsSandbox {
+			// Soma o mesmo spread que Position.AverageRate já embute
+			// (fixedincome.OfferedRate, tarefa L.4) — achado 011, ver nota
+			// do campo AnnualRatePct em RedeemContext.
+			currentMarketRealRate = fixedincome.OfferedRate(ctx.AnnualRatePct/100, currentMarketRealRate)
+		}
 		result = fixedincome.IPCAEarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, currentMarketRealRate, vna, remainingDays)
 		totalValue = ctx.Position.Quantity * result.MarkToMarketPrice
 	default:
 		remainingDays := remainingBusinessDays(now, ctx.MaturityDate)
-		result = fixedincome.EarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, ctx.CurrentMarketRatePct/100, remainingDays)
+		marketRate := ctx.CurrentMarketRatePct / 100
+		if !ctx.IsSandbox {
+			// Mesmo raciocínio do branch IPCA+ acima — achado 011.
+			marketRate = fixedincome.OfferedRate(ctx.AnnualRatePct/100, marketRate)
+		}
+		result = fixedincome.EarlyRedemption(ctx.Position.AveragePrice, ctx.Position.AverageRate, marketRate, remainingDays)
 		totalValue = ctx.Position.Quantity * result.MarkToMarketPrice
 	}
 
@@ -409,19 +525,39 @@ func postFixedDailyRates(currentMarketRatePct float64, daysHeld int) []float64 {
 }
 
 // Simulate projeta o retorno de um aporte hipotético em renda fixa sem
-// gravar nada (tarefa 6.0.5): precifica a unidade nocional pelo deságio
+// gravar nada (tarefa 6.0.5). Produto pós-fixado (fixedincome.IsPostFixado,
+// achado do teste de ponta a ponta da Fase L, nota 3.2 do doc do pacote)
+// ramifica pra simulatePostFixado — o deságio nominal abaixo não faz
+// sentido pra um produto comprado ao par, mesmo raciocínio de Purchase/
+// Redeem desde a L.1. Tesouro IPCA+ (fixedincome.IsIPCAMais, achado da
+// mesma revisão) ramifica pra simulateIPCAMais — vnaBase/monthlyIPCA (na
+// data da compra) e projectedVNABase/projectedMonthlyIPCA (na data
+// projetada, req.DaysHeld à frente — pode cair numa janela de VNA
+// diferente, por isso um par separado, não reaproveitado do primeiro) são
+// resolvidos por quem chama (Service.Simulate), mesmo raciocínio de
+// Purchase/Redeem (nota 2 do doc do pacote): CurrentVNAWindow é pura/
+// barata, sem I/O, então nenhum custo real em resolver os dois pares
+// sempre, mesmo pra produto que não é IPCA+. Qualquer outro tipo (só
+// Tesouro Prefixado sobra) precifica a unidade nocional pelo deságio
 // nominal na data de hoje (fixedincome.PrefixedPrice, mesma fórmula de
 // Purchase), depois reaplica a mesma fórmula com o DU restante encolhido
 // pelos dias simulados (menos tempo até o vencimento → preço mais próximo
 // do Valor Nominal → ganho projetado) e aplica a alíquota regressiva de IR
 // (fixedincome.RegressiveIncomeTaxRate) sobre esse ganho, se o produto não
 // for isento.
-func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time) (SimulateOutcome, error) {
+func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time, vnaBase, monthlyIPCA, projectedVNABase, projectedMonthlyIPCA float64) (SimulateOutcome, error) {
 	if req.Amount <= 0 {
 		return SimulateOutcome{}, ErrInvalidAmount
 	}
 	if req.DaysHeld <= 0 {
 		return SimulateOutcome{}, ErrInvalidDaysHeld
+	}
+
+	if fixedincome.IsPostFixado(ctx.ProductType) {
+		return simulatePostFixado(req, ctx), nil
+	}
+	if fixedincome.IsIPCAMais(ctx.ProductType) {
+		return simulateIPCAMais(req, ctx, now, vnaBase, monthlyIPCA, projectedVNABase, projectedMonthlyIPCA), nil
 	}
 
 	remainingDaysAtPurchase := remainingBusinessDays(now, ctx.MaturityDate)
@@ -451,6 +587,84 @@ func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time) (Simulate
 		TaxRate:             taxRate,
 		NetProjectedValue:   netValue,
 	}, nil
+}
+
+// simulatePostFixado projeta o retorno de um produto pós-fixado (achado do
+// teste de ponta a ponta da Fase L, nota 3.2 do doc do pacote): unidade
+// comprada ao par (fixedincome.FaceValue, sem deságio — mesma decisão de
+// Purchase desde a L.1) e projeção via fixedincome.PostFixedValue sobre a
+// Selic corrente repetida pelos dias simulados (mesma aproximação de
+// postFixedDailyRates/Redeem, nota 3.1 do doc do pacote). ctx.AnnualRatePct
+// aqui é o percentual do CDI/Selic contratado (convenção da L.1, ex: 110
+// para "110% do CDI"), nunca "% a.a." — Simulate (chamador) já garantiu
+// req.Amount/req.DaysHeld positivos antes de chamar esta função.
+func simulatePostFixado(req SimulateRequest, ctx SimulateContext) SimulateOutcome {
+	unitPrice := fixedincome.FaceValue
+	quantity := req.Amount / unitPrice
+	grossValue := fixedincome.PostFixedValue(req.Amount, ctx.AnnualRatePct, postFixedDailyRates(ctx.CurrentMarketRatePct, req.DaysHeld))
+
+	taxRate := 0.0
+	netValue := grossValue
+	if !ctx.TaxExempt {
+		taxRate = fixedincome.RegressiveIncomeTaxRate(req.DaysHeld)
+		if profit := grossValue - req.Amount; profit > 0 {
+			netValue = grossValue - profit*taxRate
+		}
+	}
+
+	return SimulateOutcome{
+		UnitPrice:           unitPrice,
+		QuantityPurchased:   quantity,
+		GrossProjectedValue: grossValue,
+		TaxRate:             taxRate,
+		NetProjectedValue:   netValue,
+	}
+}
+
+// simulateIPCAMais projeta o retorno de um Tesouro IPCA+ (achado do teste
+// de ponta a ponta da Fase L, nota 3.2 do doc do pacote): antes desta
+// correção, Simulate alimentava fixedincome.PrefixedPrice (deságio nominal
+// puro) com a taxa REAL contratada, ignorando o VNA inteiramente — o
+// simulador mostrava um `unit_price` inferior à metade do preço real de
+// compra (fixedincome.IPCAPrice/VNAProjected, mesma fórmula de Purchase
+// desde a L.2). Corrigido: precifica a unidade pelo VNA na data de hoje
+// (vnaBase/monthlyIPCA), depois reprecifica a mesma taxa real contratada
+// sobre o VNA projetado na data futura (projectedVNABase/
+// projectedMonthlyIPCA — pode cair numa janela de VNA diferente da compra
+// se req.DaysHeld atravessar o dia 15 de um mês, por isso um
+// CurrentVNAWindow separado, não o mesmo par reaproveitado) — mesma
+// composição de Purchase/Redeem, nunca deságio nominal puro.
+func simulateIPCAMais(req SimulateRequest, ctx SimulateContext, now time.Time, vnaBase, monthlyIPCA, projectedVNABase, projectedMonthlyIPCA float64) SimulateOutcome {
+	rate := ctx.AnnualRatePct / 100
+	remainingDaysAtPurchase := remainingBusinessDays(now, ctx.MaturityDate)
+	vna := fixedincome.VNAProjected(vnaBase, monthlyIPCA, now)
+	unitPrice := fixedincome.IPCAPrice(vna, fixedincome.IPCAQuote(rate, remainingDaysAtPurchase))
+	quantity := req.Amount / unitPrice
+
+	remainingAtProjection := remainingDaysAtPurchase - calendarToBusinessDays(req.DaysHeld)
+	if remainingAtProjection < 0 {
+		remainingAtProjection = 0
+	}
+	projectedAt := now.AddDate(0, 0, req.DaysHeld)
+	vnaAtProjection := fixedincome.VNAProjected(projectedVNABase, projectedMonthlyIPCA, projectedAt)
+	grossValue := quantity * fixedincome.IPCAPrice(vnaAtProjection, fixedincome.IPCAQuote(rate, remainingAtProjection))
+
+	taxRate := 0.0
+	netValue := grossValue
+	if !ctx.TaxExempt {
+		taxRate = fixedincome.RegressiveIncomeTaxRate(req.DaysHeld)
+		if profit := grossValue - req.Amount; profit > 0 {
+			netValue = grossValue - profit*taxRate
+		}
+	}
+
+	return SimulateOutcome{
+		UnitPrice:           unitPrice,
+		QuantityPurchased:   quantity,
+		GrossProjectedValue: grossValue,
+		TaxRate:             taxRate,
+		NetProjectedValue:   netValue,
+	}
 }
 
 // calendarToBusinessDays converte dias corridos em DU aproximado, mesma

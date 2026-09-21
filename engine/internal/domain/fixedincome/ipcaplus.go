@@ -122,10 +122,10 @@ func CurrentVNAWindow(cfg ipca.Config, now time.Time) (vnaBase, monthlyIPCA floa
 // com a taxa de mercado corrente); o que o título valeria hoje se a taxa
 // real contratada não tivesse mudado usa o mesmo VNA (a atualização
 // monetária não depende da taxa contratada, só o componente de juro real
-// muda). currentMarketRealRate reaproveita a mesma fonte que Prefixado usa
-// (Selic simulada corrente como proxy de taxa de mercado real — nenhuma
-// correção de Fisher nominal/real feita aqui, decisão de escopo desta
-// tarefa, mesma simplificação documentada em fixedincomeexecution.go).
+// muda). currentMarketRealRate já vem convertido pelo chamador
+// (fixedincomeexecution.Redeem) via FisherRealRate — a correção de Fisher
+// nominal/real foi resolvida pela tarefa L.4, esta função em si continua
+// agnóstica de onde a taxa real veio (recebe o número já pronto).
 func IPCAEarlyRedemption(purchasePrice, purchaseRealRate, currentMarketRealRate, vnaNow float64, remainingBusinessDays int) EarlyRedemptionResult {
 	markPrice := IPCAPrice(vnaNow, IPCAQuote(currentMarketRealRate, remainingBusinessDays))
 	accruedAtContractedRate := IPCAPrice(vnaNow, IPCAQuote(purchaseRealRate, remainingBusinessDays))

@@ -248,6 +248,17 @@ func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, a
 	return spec, true, nil
 }
 
+// CurrentSelicRatePct devolve a Selic simulada corrente (%), lida de
+// market_calendar — exposta como método público (em vez de só o helper
+// pacote-privado currentSelicRatePct) pra handleFixedIncomeSimulate
+// (achado do teste de ponta a ponta da Fase L, httpserver/fixedincome.go)
+// poder projetar produto pós-fixado sem duplicar a query. ok = false (sem
+// erro) antes do primeiro tick do Temporizador — mesmo contrato de
+// currentSelicRatePct.
+func (r *CatalogRepository) CurrentSelicRatePct(ctx context.Context) (float64, bool, error) {
+	return currentSelicRatePct(ctx, r.db)
+}
+
 // reprecificarOfertaParaExibicao aplica fixedincome.OfferedRate/
 // FisherRealRate (tarefa L.4) sobre o spread do catálogo (spreadPct),
 // mesma fórmula que fixedincomeexecution.Purchase usa pra travar a taxa
