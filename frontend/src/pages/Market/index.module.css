@@ -30,11 +30,12 @@
     }
 }
 
-/* Desktop ganha a 3ª coluna (composição própria, não coluna única
-   esticada nem 2 colunas sobrando um card órfão embaixo). */
+/* Desktop ganha uma coluna por card (composição própria, não coluna única
+   esticada nem card órfão sobrando numa linha final — 4 cards desde a
+   tarefa O.4, antes 3 desde a M.4). */
 @media (min-width: 1024px) {
     .cards {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
     }
 }
 

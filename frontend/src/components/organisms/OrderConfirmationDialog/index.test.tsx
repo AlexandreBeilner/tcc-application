@@ -57,7 +57,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
         })
-        vi.mocked(placeOrder).mockResolvedValue({ filled_quantity: 10, remaining_quantity: 0, fills: [] })
+        vi.mocked(placeOrder).mockResolvedValue({ order_id: 'o1', filled_quantity: 10, remaining_quantity: 0, fills: [] })
 
         renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 10, unitPrice: 30 })
 
@@ -81,7 +81,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
         })
-        vi.mocked(placeOrder).mockResolvedValue({ filled_quantity: 4, remaining_quantity: 6, fills: [] })
+        vi.mocked(placeOrder).mockResolvedValue({ order_id: 'o1', filled_quantity: 4, remaining_quantity: 6, fills: [] })
 
         renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 10, unitPrice: 30 })
 
@@ -98,7 +98,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 30 },
         })
-        vi.mocked(placeOrder).mockResolvedValue({ filled_quantity: 0, remaining_quantity: 10, fills: [] })
+        vi.mocked(placeOrder).mockResolvedValue({ order_id: 'o1', filled_quantity: 0, remaining_quantity: 10, fills: [] })
 
         renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 10, unitPrice: 30 })
 

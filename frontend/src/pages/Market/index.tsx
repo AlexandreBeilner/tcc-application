@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Landmark, LineChart, TrendingUp } from 'lucide-react'
+import { ClipboardList, Landmark, LineChart, TrendingUp } from 'lucide-react'
 import { Card } from '../../components/atoms/Card'
 import styles from './index.module.css'
 
@@ -37,6 +37,16 @@ export function Market() {
                     </span>
                     <span className={styles.cardTitle}>Indicadores Econômicos</span>
                     <span className={styles.cardBody}>Selic e IPCA simulados: os indicadores por trás do rendimento dos produtos.</span>
+                </Card>
+
+                <Card className={styles.card} onClick={() => navigate('/mercado/ordens')}>
+                    <span className={styles.icon} aria-hidden="true">
+                        <ClipboardList size={22} strokeWidth={2} />
+                    </span>
+                    <span className={styles.cardTitle}>Minhas Ordens</span>
+                    <span className={styles.cardBody}>
+                        Acompanhe ordens pendentes, executadas e recusadas, e cancele o que ainda não fechou.
+                    </span>
                 </Card>
             </div>
         </main>

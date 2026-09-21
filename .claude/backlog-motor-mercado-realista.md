@@ -3007,7 +3007,7 @@ em vez de só no fechamento do dia.
   código (mesmo `switch`/`UPDATE` já testado indiretamente pelas Fases D/O.1/O.2) e pelos testes de
   unidade acima. Containers parados ao final (`docker compose stop`, sem `-v`).
 
-### O.4 · Tela "Minhas Ordens" no frontend
+### O.4 · Tela "Minhas Ordens" no frontend ✅
 
 - **Descrição:** tela nova (candidato natural de entrada: ícone/link a partir do hub de Mercado,
   mesmo padrão de ponto de entrada da M.4) com 3 abas — **Pendentes**, **Executadas**, **Recusadas**
@@ -3031,6 +3031,54 @@ em vez de só no fechamento do dia.
 - **Referências:** `.claude/identidade-visual-padroes.md`, `.claude/identidade-visual-tokens.md`;
   `.claude/inventario-telas-plataforma-investimentos.md`.
 - **Dependências:** O.3.
+- **Entregável (sessão 2026-09-21):** ponto de entrada decidido — 4º card "Minhas Ordens" no hub de
+  Mercado (`pages/Market`, mesmo padrão de entrada da M.4), grid do hub passou de 3 pra 4 colunas no
+  desktop (`Market/index.module.css`, `repeat(4, 1fr)` em `min-width: 1024px` — nenhum card órfão
+  sobrando numa linha final). Tela nova `pages/MinhasOrdens` (4.10 no inventário, rota
+  `/mercado/ordens`, irmã de `/mercado/*`, sem `RequiresUnlock` — mesmo tratamento de 4.9, histórico
+  da própria conta não é produto travado pela trilha). Serviço: `listMyOrders`/`cancelOrder`
+  (`services/market`, `GET`/`POST /market/orders...`), `PlaceOrderResult` ganhou `order_id` (campo
+  que já existia no motor/backend desde a O.3 mas nunca tinha chegado ao tipo do frontend) e
+  `MyOrderRecord` novo espelhando a resposta de `GET /market/orders`. `features/market/
+  useMyOrdersQuery`/`useCancelOrderMutation` (o segundo só invalida a própria lista de ordens, não
+  conta/extrato — cancelar não mexe em `accounts`/`positions`, `.docs/engine/orders.md`). Organism
+  novo `OrdersList` — mesma tela-tipo "lista com abas" de `pages/EquityList`/`pages/FixedIncomeList`
+  (nunca documentada até agora, fechada nesta sessão em `identidade-visual-padroes.md` §4c), com a
+  mesma dupla tabela (≥1024px)/cards empilhados de `AssetTable`, mas **sem reaproveitar
+  `AssetTable`**: a linha aqui não navega (sem `onSelect`) e a aba Pendentes precisa de um botão de
+  ação por linha ("Cancelar ordem"), que o card-como-`<button>` de `AssetTable` não comporta (elemento
+  interativo aninhado) — decisão registrada em §4c como regra geral pra qualquer lista futura com
+  ação por item. Agrupamento client-side (decisão da O.3): Pendentes = `pending`/`partially_filled`
+  (quantidade mostra `filled_quantity/quantity` só quando parcial), Executadas = `filled`, Recusadas
+  = `cancelled` (motivo humanizado por `cancel_reason`, `requoted` mapeado mas nunca alcançável por
+  usuário real). Cancelamento segue a mesma confirmação leve em duas etapas de "Desfazer amizade"
+  (`FriendsList`, tarefa 6.9.3) — sem `window.confirm` nativo. `npx tsc -b`/`npm run lint`
+  (oxlint, 0 issues novos)/`npx vitest run` (695 testes)/`npx prettier --check`/`npm run build`
+  verdes. `.claude/inventario-telas-plataforma-investimentos.md` (4.10 nova + 4.1 atualizada pro 4º
+  card) e `.claude/identidade-visual-padroes.md` (§4c nova) atualizados — sem alteração em `.docs/`,
+  nenhuma rota HTTP nova ou mudou nesta tarefa (O.3 já documentou `GET`/`POST /market/orders...`).
+  Validado ponta a ponta via `docker compose up -d --build postgres redis engine backend gateway`
+  (worktree própria) + `vite` local apontando pro gateway containerizado: usuário real registrado
+  (`POST /auth/register`), ordem `limit` em ativo sandbox (`SAND3`) deixada pendurada de propósito
+  (sem contraparte de bot em sandbox) + ordem `market` no mesmo ativo (preenchimento sintético
+  imediato) via chamada direta ao gateway — tela acessada via Chrome (login por `localStorage`
+  direto, mesmo mecanismo de `AuthContext`, mesmo precedente da M.4) mostrou a ordem `limit` em
+  Pendentes (`Limitada`, `5`, `R$ 10,00`) e a ordem `market` em Executadas (`Mercado`, `3`,
+  `R$ 100,00`); clique em "Cancelar ordem" → confirmação em duas etapas (`Voltar`/`Confirmar
+  cancelamento`) → `POST /market/orders/:id/cancel` real → aba Pendentes esvaziou, aba Recusadas
+  passou a mostrar a ordem com motivo "Cancelada por você", confirmando o refetch automático.
+  Breakpoint desktop (1920px) confirmado interativamente (grid 4 colunas no hub, tabela na tela de
+  ordens). **Breakpoints mobile/tablet não confirmados visualmente nesta sessão** — o ambiente de
+  automação de browser disponível não conseguiu redimensionar a janela real (`resize_window`
+  reportou sucesso mas `window.innerWidth` seguiu preso à resolução do display virtual, 1920px, em
+  duas tentativas incluindo aba nova) — verificado por alternativa: a dupla marcação tabela/cards
+  (técnica idêntica, já validada ao vivo em telas anteriores como 4.2/4.4/4.9) está de fato no DOM
+  com o conteúdo correto (`getComputedStyle` confirmou `display: table` ativo e `display: none` no
+  container de cards na largura atual — exatamente a regra do `@media (min-width: 1024px)`), e a
+  mesma regra de mídia (`1024px`) é copiada literalmente de `AssetTable`, já confirmada ao vivo em
+  420px/834px por sessões anteriores (M.4). Sem regressão esperada, mas não é a mesma barra de
+  confirmação ao vivo das demais tarefas — registrar se uma sessão futura tiver acesso a
+  redimensionamento de janela real. Stack parada com `docker compose stop` (sem `-v`) ao final.
 
 ---
 

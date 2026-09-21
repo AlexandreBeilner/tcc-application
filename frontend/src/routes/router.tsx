@@ -20,6 +20,7 @@ import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
 import { Market } from '../pages/Market'
 import { MeuPerfil } from '../pages/MeuPerfil'
+import { MinhasOrdens } from '../pages/MinhasOrdens'
 import { News } from '../pages/News'
 import { Onboarding } from '../pages/Onboarding'
 import { PainelAdmin } from '../pages/PainelAdmin'
@@ -93,6 +94,10 @@ export const router = createBrowserRouter([
                     // `/mercado/*`, não desbloqueada pela trilha (mesmo
                     // tratamento do hub 4.1, dado informativo, não produto).
                     { path: '/mercado/indicadores', element: <IndicadoresEconomicos /> },
+                    // 4.10 Minhas Ordens (tarefa O.4) — irmã de `/mercado/*`,
+                    // mesmo tratamento de 4.9: lista as próprias ordens do
+                    // usuário, não é produto travado pela trilha.
+                    { path: '/mercado/ordens', element: <MinhasOrdens /> },
                     {
                         element: <RequiresUnlock unlockKey="calculator" />,
                         children: [{ path: '/calculadora', element: <Calculator /> }],

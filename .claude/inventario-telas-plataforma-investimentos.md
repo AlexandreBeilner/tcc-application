@@ -145,13 +145,14 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 ## 4. Mercado
 
 ### 4.1 Navegação de Mercado (hub)
-- **Objetivo:** roteador principal entre Renda Fixa, Renda Variável e os indicadores macro por trás dos dois (herdado do wireframe original, Fig. 4, com extensão da tarefa M.4).
+- **Objetivo:** roteador principal entre Renda Fixa, Renda Variável, os indicadores macro por trás dos dois e o histórico de ordens do usuário (herdado do wireframe original, Fig. 4, com extensão das tarefas M.4/O.4).
 - **Acesso:** nav primária ("Mercado"), ou via "Investir" no Portfólio (2.1).
-- **Conteúdo:** três cards — Renda Fixa, Renda Variável e Indicadores Econômicos — com descrição curta de cada um.
+- **Conteúdo:** quatro cards — Renda Fixa, Renda Variável, Indicadores Econômicos e Minhas Ordens — com descrição curta de cada um.
 - **Ações:**
   - Card Renda Fixa → **4.2 Lista de Renda Fixa**.
   - Card Renda Variável → **4.4 Lista de Renda Variável**.
   - Card Indicadores Econômicos → **4.9 Indicadores Econômicos**.
+  - Card Minhas Ordens → **4.10 Minhas Ordens**.
 - **Estados especiais:** produtos ainda bloqueados pela trilha aparecem visualmente atenuados dentro das listas (não nesta tela-hub, que se mantém simples).
 - **Dados envolvidos:** nenhum dado próprio, só roteamento.
 
@@ -241,6 +242,18 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Ações:** nenhuma navegação a partir daqui — tela só de leitura.
 - **Estados especiais:** motor recém-subido, sem nenhum tick ainda (cards mostram "Aguardando primeiro tick", gráficos mostram estado vazio, sem erro).
 - **Dados envolvidos:** `market_indicator_history` (via `GET /market/indicators`, proxy do motor — `.docs/backend/market.md`).
+
+### 4.10 Minhas Ordens
+- **Objetivo:** fecha o achado 012 (`pontos-em-aberto-decisao-produto.md`) junto com a O.3 — sem uma tela real, o cancelamento manual de ordem (O.1) fica correto no motor mas inutilizável ponta a ponta, já que nenhum cliente tinha como descobrir qual `order_id` passar (tarefa O.4, 2026-09-21).
+- **Acesso:** card "Minhas Ordens" no hub de Mercado (4.1).
+- **Conteúdo:**
+  - Três abas — **Pendentes** (`pending`/`partially_filled`), **Executadas** (`filled`), **Recusadas** (`cancelled`, qualquer `cancel_reason`) — mesma tela-tipo "lista com abas" de 4.2/4.4 (identidade-visual-padroes.md).
+  - Tabela por ordem (desktop) / cards empilhados (mobile/tablet, mesma dupla responsiva de 4.2/4.4): ativo (ticker/nome), lado (compra/venda), tipo (mercado/limitada), quantidade (preenchida/total quando `partially_filled`), preço.
+  - Aba Recusadas ganha uma coluna a mais: motivo humanizado a partir de `cancel_reason` (`user_cancelled` → "Cancelada por você"; `expired` → "Expirada no fechamento do dia"; `no_liquidity` → "Sem liquidez disponível"; `requoted` nunca aparece pra um usuário real).
+  - Aba Pendentes ganha um botão "Cancelar ordem" por linha, com confirmação leve em duas etapas (clicar de novo confirma, mesmo padrão de "Desfazer amizade" em 8.1 — sem `window.confirm` nativo).
+- **Ações:** "Cancelar ordem" (confirmado) → `POST /market/orders/:id/cancel` (O.1); a linha sai de Pendentes e entra em Recusadas com o motivo "Cancelada por você" assim que a lista refaz o fetch.
+- **Estados especiais:** aba sem nenhuma ordem naquele grupo (mensagem vazia própria por aba); erro ao carregar `GET /market/orders`; erro ao cancelar (mensagem inline, a linha permanece em Pendentes).
+- **Dados envolvidos:** `order_book` (via `GET /market/orders`, proxy enriquecido do motor — `.docs/backend/market.md`).
 
 ---
 
