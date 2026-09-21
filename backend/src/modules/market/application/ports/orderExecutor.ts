@@ -18,9 +18,31 @@ export interface OrderFill {
 }
 
 export interface OrderResult {
+  // order_id (tarefa O.3, achado 012) — sem ele nenhum cliente tinha como
+  // descobrir qual id passar pra `cancel` depois de colocar a ordem.
+  order_id: string
   filled_quantity: number
   remaining_quantity: number
   fills: OrderFill[]
+}
+
+// EngineOrderRecord espelha `orderResponse` de `GET /orders` no motor
+// (tarefa O.3) — snake_case, sem tradução, mesma convenção do resto deste
+// port. `asset_id` só, sem ticker/nome: quem enriquece é `ListMyOrdersUseCase`
+// via `CatalogReader`, mesmo padrão de `assertProductUnlocked` já usar
+// `catalogReader.getAsset` em vez do motor devolver o catálogo embutido em
+// cada rota.
+export interface EngineOrderRecord {
+  order_id: string
+  asset_id: string
+  side: 'buy' | 'sell'
+  type: 'market' | 'limit'
+  quantity: number
+  filled_quantity: number
+  price: number
+  status: string
+  cancel_reason?: 'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted'
+  created_at: string
 }
 
 // Executa uma ordem de renda variável no motor de simulação —
@@ -33,4 +55,8 @@ export interface OrderExecutor {
   // inexistente quanto pra ordem de outro usuário (EngineRequestError),
   // 409 se ela já não está mais pending/partially_filled.
   cancel(orderId: string, userId: string): Promise<void>
+  // list devolve todas as ordens de userId (tarefa O.3), mais recente
+  // primeiro, sem paginação nem filtro de status (escopo de protótipo) —
+  // fecha o achado 012.
+  list(userId: string): Promise<EngineOrderRecord[]>
 }

@@ -23,6 +23,10 @@ type fakeOrderSubmitter struct {
 	cancelErr        error
 	cancelledOrderID string
 	cancelledUserID  string
+
+	listOrders    []orderexecution.OrderRecord
+	listOrdersErr error
+	listedUserID  string
 }
 
 func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
@@ -34,6 +38,11 @@ func (f *fakeOrderSubmitter) Cancel(_ context.Context, orderID, userID string) e
 	f.cancelledOrderID = orderID
 	f.cancelledUserID = userID
 	return f.cancelErr
+}
+
+func (f *fakeOrderSubmitter) ListOrders(_ context.Context, userID string) ([]orderexecution.OrderRecord, error) {
+	f.listedUserID = userID
+	return f.listOrders, f.listOrdersErr
 }
 
 func postOrder(t *testing.T, reader catalogReader, orders orderSubmitter, body string) *httptest.ResponseRecorder {
@@ -54,6 +63,14 @@ func postCancelOrder(t *testing.T, orders orderSubmitter, orderID, body string) 
 	return rec
 }
 
+func getOrders(t *testing.T, orders orderSubmitter, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/orders?"+query, nil)
+	rec := httptest.NewRecorder()
+	New("", nil, nil, nil, orders, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	return rec
+}
+
 func tradableAssetReader() *fakeCatalogReader {
 	return &fakeCatalogReader{
 		asset:      catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
@@ -67,6 +84,7 @@ func validOrderBody() string {
 
 func TestHandleSubmitOrder(t *testing.T) {
 	submitter := &fakeOrderSubmitter{outcome: orderexecution.Outcome{
+		OrderID:        validOrderID,
 		FilledQuantity: 10,
 		Fills:          []orderexecution.Fill{{Price: 25, Quantity: 10}},
 	}}
@@ -79,6 +97,12 @@ func TestHandleSubmitOrder(t *testing.T) {
 	var body submitOrderResponse
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
+	}
+	// order_id (tarefa O.3, achado 012): resposta ecoa o id que
+	// Repository.Persist devolveu, sem ele nenhum cliente descobre qual id
+	// passar pra POST /orders/{id}/cancel (O.1).
+	if body.OrderID != validOrderID {
+		t.Errorf("OrderID = %q, want %q", body.OrderID, validOrderID)
 	}
 	if body.FilledQuantity != 10 || body.RemainingQuantity != 0 {
 		t.Errorf("FilledQuantity/RemainingQuantity = %d/%d, want 10/0", body.FilledQuantity, body.RemainingQuantity)
@@ -264,4 +288,72 @@ func TestHandleSubmitOrder_SemDependencias(t *testing.T) {
 			t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 		}
 	})
+}
+
+// TestHandleListOrders cobre a tarefa O.3 (achado 012): GET /orders?user_id=
+// devolve as ordens do usuário, incluindo cancel_reason só pras que têm.
+func TestHandleListOrders(t *testing.T) {
+	reason := orderexecution.CancelReasonUserCancelled
+	submitter := &fakeOrderSubmitter{listOrders: []orderexecution.OrderRecord{
+		{ID: "o1", AssetID: validAssetID, Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10, FilledQuantity: 10, Price: 25, Status: "filled"},
+		{ID: "o2", AssetID: validAssetID, Side: orderbook.SideSell, Type: orderbook.TypeLimit, Quantity: 5, FilledQuantity: 0, Price: 30, Status: "cancelled", CancelReason: &reason},
+	}}
+
+	rec := getOrders(t, submitter, "user_id="+validUserID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if submitter.listedUserID != validUserID {
+		t.Errorf("ListOrders chamado com userID = %q, want %q", submitter.listedUserID, validUserID)
+	}
+
+	var body []orderResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body) != 2 {
+		t.Fatalf("len(body) = %d, want 2", len(body))
+	}
+	if body[0].OrderID != "o1" || body[0].CancelReason != nil {
+		t.Errorf("body[0] = %+v, want order_id=o1 sem cancel_reason", body[0])
+	}
+	if body[1].OrderID != "o2" || body[1].CancelReason == nil || *body[1].CancelReason != "user_cancelled" {
+		t.Errorf("body[1] = %+v, want order_id=o2 com cancel_reason=user_cancelled", body[1])
+	}
+}
+
+func TestHandleListOrders_ListaVazia(t *testing.T) {
+	rec := getOrders(t, &fakeOrderSubmitter{}, "user_id="+validUserID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body []orderResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body) != 0 {
+		t.Errorf("len(body) = %d, want 0", len(body))
+	}
+}
+
+func TestHandleListOrders_UserIDInvalido(t *testing.T) {
+	rec := getOrders(t, &fakeOrderSubmitter{}, "user_id=não-um-uuid")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleListOrders_ErroDoRepositorio(t *testing.T) {
+	rec := getOrders(t, &fakeOrderSubmitter{listOrdersErr: context.DeadlineExceeded}, "user_id="+validUserID)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleListOrders_SemOrderSubmitter(t *testing.T) {
+	rec := getOrders(t, nil, "user_id="+validUserID)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
 }

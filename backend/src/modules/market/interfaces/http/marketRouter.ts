@@ -10,6 +10,7 @@ import type { GetMyAccountUseCase } from '../../application/useCases/getMyAccoun
 import type { ListAssetsUseCase } from '../../application/useCases/listAssets'
 import type { ListMyEventsUseCase } from '../../application/useCases/listMyEvents'
 import type { CancelOrderUseCase } from '../../application/useCases/cancelOrder'
+import type { ListMyOrdersUseCase } from '../../application/useCases/listMyOrders'
 import type { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import type { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
@@ -37,6 +38,7 @@ export interface MarketRouterDeps {
   listMyEvents: ListMyEventsUseCase
   placeOrder: PlaceOrderUseCase
   cancelOrder: CancelOrderUseCase
+  listMyOrders: ListMyOrdersUseCase
   purchaseFixedIncome: PurchaseFixedIncomeUseCase
   redeemFixedIncome: RedeemFixedIncomeUseCase
   simulateFixedIncome: SimulateFixedIncomeUseCase
@@ -182,6 +184,25 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
   })
 
+  // Lista as ordens do próprio usuário (tarefa O.3, achado 012) — leitura,
+  // mas fica ao lado das rotas de ordem abaixo (mesmo recurso), não na
+  // seção de catálogo acima. Sem paginação/filtro de status (escopo de
+  // protótipo); o agrupamento em Pendentes/Executadas/Recusadas (O.4) é
+  // responsabilidade do frontend.
+  router.get('/market/orders', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    try {
+      const orders = await deps.listMyOrders.execute({ userId: req.auth.userId })
+      res.status(200).json({ orders })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
   // --- Escrita (execução real — RF01–RF03) ---
 
   router.post('/market/orders', deps.authMiddleware.authenticate, async (req, res) => {
@@ -218,7 +239,10 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
 
     try {
-      await deps.cancelOrder.execute({ order_id: req.params.id as string, user_id: req.auth.userId })
+      await deps.cancelOrder.execute({
+        order_id: req.params.id as string,
+        user_id: req.auth.userId,
+      })
       res.status(204).end()
     } catch (err) {
       sendEngineError(err, res)

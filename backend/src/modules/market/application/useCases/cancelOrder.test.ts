@@ -5,6 +5,7 @@ import { CancelOrderUseCase } from './cancelOrder'
 describe('CancelOrderUseCase', () => {
   it('repassa order_id/user_id direto pro OrderExecutor', async () => {
     const orderExecutor = createFakeOrderExecutor({
+      order_id: 'order-1',
       filled_quantity: 0,
       remaining_quantity: 0,
       fills: [],
@@ -18,6 +19,7 @@ describe('CancelOrderUseCase', () => {
 
   it('propaga o erro do OrderExecutor (ex: EngineRequestError 404/409 traduzido pelo motor)', async () => {
     const orderExecutor = createFakeOrderExecutor({
+      order_id: 'order-1',
       filled_quantity: 0,
       remaining_quantity: 0,
       fills: [],

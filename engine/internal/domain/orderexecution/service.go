@@ -42,8 +42,10 @@ type Repository interface {
 	// imutável em market_events de cada Fill (real e sintético) **antes**
 	// de projetar em accounts/positions/order_book — Event Sourcing é a
 	// fonte da verdade financeira (CLAUDE.md). Nunca chamado se Execute
-	// devolveu erro (nada é persistido de uma ordem rejeitada).
-	Persist(ctx context.Context, req Request, outcome Outcome) error
+	// devolveu erro (nada é persistido de uma ordem rejeitada). Devolve o
+	// id da linha recém-criada em order_book (tarefa O.3, achado 012) —
+	// SubmitWithContext repassa pra Outcome.OrderID.
+	Persist(ctx context.Context, req Request, outcome Outcome) (orderID string, err error)
 	// CancelOrder marca como cancelled a ordem orderID de userID (tarefa
 	// O.1), validando dono e status antes de mudar o estado: devolve
 	// ErrOrderNotFound se a ordem não existe ou pertence a outro usuário,
@@ -52,6 +54,12 @@ type Repository interface {
 	// decisão de escopo de ExpireStaleOrders/CancelUserRestingOrders
 	// (nenhuma ordem pendurada reserva saldo/posição na submissão).
 	CancelOrder(ctx context.Context, orderID, userID string) error
+	// ListOrders devolve todas as ordens de userID (tarefa O.3, GET
+	// /orders), mais recente primeiro, sem paginação (escopo de
+	// protótipo) — fecha o achado 012: sem isso, POST /orders/{id}/cancel
+	// (O.1) não tinha nenhum caminho real pelo qual um cliente descobrisse
+	// qual id passar depois de um reload.
+	ListOrders(ctx context.Context, userID string) ([]OrderRecord, error)
 }
 
 // Service orquestra a execução de uma ordem ponta a ponta (tarefa 3.12):
@@ -110,9 +118,11 @@ func (s *Service) SubmitWithContext(ctx context.Context, req Request, execCtx Co
 		return Outcome{}, err
 	}
 
-	if err := s.repo.Persist(ctx, req, outcome); err != nil {
+	orderID, err := s.repo.Persist(ctx, req, outcome)
+	if err != nil {
 		return Outcome{}, err
 	}
+	outcome.OrderID = orderID
 	return outcome, nil
 }
 
@@ -122,4 +132,10 @@ func (s *Service) SubmitWithContext(ctx context.Context, req Request, execCtx Co
 // repositório, que decide dono/status.
 func (s *Service) Cancel(ctx context.Context, orderID, userID string) error {
 	return s.repo.CancelOrder(ctx, orderID, userID)
+}
+
+// ListOrders devolve todas as ordens de userID (tarefa O.3) — sem regra de
+// domínio própria, repassa direto pro repositório.
+func (s *Service) ListOrders(ctx context.Context, userID string) ([]OrderRecord, error) {
+	return s.repo.ListOrders(ctx, userID)
 }

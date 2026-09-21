@@ -11,6 +11,7 @@ import { GetMyAccountUseCase } from '../../application/useCases/getMyAccount'
 import { ListAssetsUseCase } from '../../application/useCases/listAssets'
 import { ListMyEventsUseCase } from '../../application/useCases/listMyEvents'
 import { CancelOrderUseCase } from '../../application/useCases/cancelOrder'
+import { ListMyOrdersUseCase } from '../../application/useCases/listMyOrders'
 import { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
@@ -69,6 +70,7 @@ function buildApp(
     events: [{ id: 'event-1', event_type: 'initial_deposit', timestamp: '2026-01-01T00:00:00Z' }],
   })
   const orderExecutor = createFakeOrderExecutor({
+    order_id: 'order-1',
     filled_quantity: 10,
     remaining_quantity: 0,
     fills: [],
@@ -124,6 +126,7 @@ function buildApp(
       listMyEvents: new ListMyEventsUseCase(accountReader),
       placeOrder: new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader),
       cancelOrder: new CancelOrderUseCase(orderExecutor),
+      listMyOrders: new ListMyOrdersUseCase(orderExecutor, catalogReader),
       purchaseFixedIncome: new PurchaseFixedIncomeUseCase(
         fixedIncomeExecutor,
         catalogReader,
@@ -303,6 +306,52 @@ describe('GET /market/me/events', () => {
     expect(res.body.events).toHaveLength(1)
     expect(accountReader.listAccountEventsCalls).toEqual([
       { userId: 'user-1', query: { limit: 10, offset: 0 } },
+    ])
+  })
+})
+
+describe('GET /market/orders', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    const res = await request(app).get('/market/orders')
+    expect(res.status).toBe(401)
+  })
+
+  it('lista as ordens do usuário do token, enriquecidas com ticker/nome do ativo', async () => {
+    const { app, tokenIssuer, orderExecutor } = buildApp()
+    orderExecutor.listResult = [
+      {
+        order_id: 'order-1',
+        asset_id: 'asset-1',
+        side: 'buy',
+        type: 'market',
+        quantity: 10,
+        filled_quantity: 10,
+        price: 25,
+        status: 'filled',
+        created_at: '2026-01-01T00:00:00Z',
+      },
+    ]
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app).get('/market/orders').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(orderExecutor.listCalls).toEqual(['user-1'])
+    expect(res.body.orders).toEqual([
+      {
+        order_id: 'order-1',
+        asset_id: 'asset-1',
+        ticker: 'PETR4',
+        name: 'Petrobras',
+        side: 'buy',
+        type: 'market',
+        quantity: 10,
+        filled_quantity: 10,
+        price: 25,
+        status: 'filled',
+        created_at: '2026-01-01T00:00:00Z',
+      },
     ])
   })
 })

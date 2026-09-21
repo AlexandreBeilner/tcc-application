@@ -130,6 +130,7 @@ import { GetCompanyUseCase } from './modules/market/application/useCases/getComp
 import { GetMyAccountUseCase } from './modules/market/application/useCases/getMyAccount'
 import { ListAssetsUseCase } from './modules/market/application/useCases/listAssets'
 import { ListMyEventsUseCase } from './modules/market/application/useCases/listMyEvents'
+import { ListMyOrdersUseCase } from './modules/market/application/useCases/listMyOrders'
 import { PlaceOrderUseCase } from './modules/market/application/useCases/placeOrder'
 import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCases/purchaseFixedIncome'
 import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
@@ -218,6 +219,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const listMyEvents = new ListMyEventsUseCase(accountReader)
   const placeOrder = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
   const cancelOrder = new CancelOrderUseCase(orderExecutor)
+  const listMyOrders = new ListMyOrdersUseCase(orderExecutor, catalogReader)
   const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(
     fixedIncomeExecutor,
     catalogReader,
@@ -471,6 +473,7 @@ export function createApp(deps: AppDeps = {}): Express {
       listMyEvents,
       placeOrder,
       cancelOrder,
+      listMyOrders,
       purchaseFixedIncome,
       redeemFixedIncome,
       simulateFixedIncome,

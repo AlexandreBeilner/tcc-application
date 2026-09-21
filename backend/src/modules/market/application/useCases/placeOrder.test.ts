@@ -31,7 +31,7 @@ const input = {
 
 describe('PlaceOrderUseCase', () => {
   it('repassa a ordem pro OrderExecutor quando o ativo já está desbloqueado', async () => {
-    const result = { filled_quantity: 10, remaining_quantity: 0, fills: [] }
+    const result = { order_id: 'order-1', filled_quantity: 10, remaining_quantity: 0, fills: [] }
     const orderExecutor = createFakeOrderExecutor(result)
     const catalogReader = createFakeCatalogReader({ asset: equityAsset })
     const productUnlockReader = createFakeProductUnlockReader({
@@ -46,7 +46,7 @@ describe('PlaceOrderUseCase', () => {
   })
 
   it('repassa direto pro OrderExecutor sem checar desbloqueio quando o ativo é sandbox (RF12)', async () => {
-    const result = { filled_quantity: 10, remaining_quantity: 0, fills: [] }
+    const result = { order_id: 'order-1', filled_quantity: 10, remaining_quantity: 0, fills: [] }
     const orderExecutor = createFakeOrderExecutor(result)
     const catalogReader = createFakeCatalogReader({ asset: sandboxAsset })
     const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
@@ -60,6 +60,7 @@ describe('PlaceOrderUseCase', () => {
 
   it('rejeita com ProductLockedError, citando a lição que desbloqueia, quando a chave não está no conjunto do usuário', async () => {
     const orderExecutor = createFakeOrderExecutor({
+      order_id: 'order-1',
       filled_quantity: 0,
       remaining_quantity: 0,
       fills: [],
@@ -76,7 +77,7 @@ describe('PlaceOrderUseCase', () => {
   })
 
   it('repassa ordem de venda direto pro OrderExecutor mesmo com o ativo travado (vender posição já detida não é comprar)', async () => {
-    const result = { filled_quantity: 10, remaining_quantity: 0, fills: [] }
+    const result = { order_id: 'order-1', filled_quantity: 10, remaining_quantity: 0, fills: [] }
     const orderExecutor = createFakeOrderExecutor(result)
     const catalogReader = createFakeCatalogReader({ asset: equityAsset })
     const productUnlockReader = createFakeProductUnlockReader({ unlockedKeys: new Set() })
@@ -90,6 +91,7 @@ describe('PlaceOrderUseCase', () => {
 
   it('não checa desbloqueio quando o asset_id é de uma classe fora do escopo deste endpoint (deixa o motor validar a classe)', async () => {
     const orderExecutor = createFakeOrderExecutor({
+      order_id: 'order-1',
       filled_quantity: 0,
       remaining_quantity: 0,
       fills: [],

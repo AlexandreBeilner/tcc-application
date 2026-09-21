@@ -15,26 +15,35 @@ type fakeRepository struct {
 	persistedReq     Request
 	persistedOutcome Outcome
 	persistCalled    bool
+	persistOrderID   string
 	cancelErr        error
 	cancelledOrderID string
 	cancelledUserID  string
+	listOrders       []OrderRecord
+	listOrdersErr    error
+	listedUserID     string
 }
 
 func (f *fakeRepository) LoadContext(_ context.Context, _, _ string) (Context, error) {
 	return f.loadCtx, f.loadErr
 }
 
-func (f *fakeRepository) Persist(_ context.Context, req Request, outcome Outcome) error {
+func (f *fakeRepository) Persist(_ context.Context, req Request, outcome Outcome) (string, error) {
 	f.persistCalled = true
 	f.persistedReq = req
 	f.persistedOutcome = outcome
-	return f.persistErr
+	return f.persistOrderID, f.persistErr
 }
 
 func (f *fakeRepository) CancelOrder(_ context.Context, orderID, userID string) error {
 	f.cancelledOrderID = orderID
 	f.cancelledUserID = userID
 	return f.cancelErr
+}
+
+func (f *fakeRepository) ListOrders(_ context.Context, userID string) ([]OrderRecord, error) {
+	f.listedUserID = userID
+	return f.listOrders, f.listOrdersErr
 }
 
 func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
@@ -157,6 +166,53 @@ func TestService_Cancel_PropagaErroDoRepositorio(t *testing.T) {
 
 	if err := svc.Cancel(context.Background(), "order-1", "user-1"); err != ErrOrderNotCancellable {
 		t.Fatalf("err = %v, want %v", err, ErrOrderNotCancellable)
+	}
+}
+
+// TestService_SubmitWithContext_PropagaOrderIDDoRepositorio cobre a tarefa
+// O.3 (achado 012): Outcome.OrderID devolvido pro chamador é sempre o id
+// que Repository.Persist devolveu, nunca algo calculado localmente.
+func TestService_SubmitWithContext_PropagaOrderIDDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{persistOrderID: "order-123"}
+	svc := NewService(repo)
+
+	execCtx := Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
+
+	outcome, err := svc.SubmitWithContext(context.Background(), req, execCtx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.OrderID != "order-123" {
+		t.Errorf("OrderID = %q, want %q", outcome.OrderID, "order-123")
+	}
+}
+
+// TestService_ListOrders_RepassaProRepositorio cobre a tarefa O.3: sem
+// regra de domínio própria, ListOrders só repassa userID pro repositório.
+func TestService_ListOrders_RepassaProRepositorio(t *testing.T) {
+	want := []OrderRecord{{ID: "o1"}, {ID: "o2"}}
+	repo := &fakeRepository{listOrders: want}
+	svc := NewService(repo)
+
+	got, err := svc.ListOrders(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(got) != 2 || got[0].ID != "o1" || got[1].ID != "o2" {
+		t.Errorf("ListOrders = %+v, want %+v", got, want)
+	}
+	if repo.listedUserID != "user-1" {
+		t.Errorf("listedUserID = %q, want %q", repo.listedUserID, "user-1")
+	}
+}
+
+func TestService_ListOrders_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{listOrdersErr: errors.New("falha de leitura")}
+	svc := NewService(repo)
+
+	if _, err := svc.ListOrders(context.Background(), "user-1"); err == nil {
+		t.Fatal("err = nil, want erro propagado de ListOrders")
 	}
 }
 

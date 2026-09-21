@@ -2929,7 +2929,7 @@ em vez de só no fechamento do dia.
   convenção existente, sem gap novo a registrar** — não abrir tarefa nem entrada em
   `pontos-em-aberto-decisao-produto.md` pra isso.
 
-### O.3 · `order_id` na resposta, listagem de ordens e motivo do cancelamento
+### O.3 · `order_id` na resposta, listagem de ordens e motivo do cancelamento ✅
 
 - **Descrição:** fecha o achado 012 (`pontos-em-aberto-decisao-produto.md`, decisão do autor
   2026-09-21) — hoje `POST /orders`/`POST /market/orders` não devolvem o `id` da ordem recém-criada
@@ -2966,6 +2966,46 @@ em vez de só no fechamento do dia.
   achado 012 em `pontos-em-aberto-decisao-produto.md` (decisão completa registrada lá, seção
   Resolvidos).
 - **Dependências:** O.1, O.2 (ambas concluídas).
+- **Entregável (sessão 2026-09-21):** os 3 itens da descrição implementados como desenhado. Motor:
+  `orderexecution.Outcome.OrderID`/`OrderRecord`/`CancelReason` (4 constantes) novos;
+  `Repository.Persist` muda de assinatura pra `(orderID string, err error)`
+  (`insertIncomingOrder` ganha `RETURNING id`); `Repository.ListOrders(ctx, userID)` novo, exposto
+  em `Service.ListOrders` e na interface `orderSubmitter` do `httpserver` (mesmo
+  `*orderexecution.Service` que já implementa `Submit`/`Cancel`, sem parâmetro novo em `New`/`Run`).
+  `cancel_reason` gravado nos 4 pontos do achado 012: `CancelOrder` → `user_cancelled`,
+  `ExpireStaleOrders` → `expired`, `insertIncomingOrder` (branch de ordem `market` sem fill) →
+  `no_liquidity`, `CancelUserRestingOrders` → `requoted`. Migration `000022`
+  (`order_cancel_reason` enum + coluna nullable em `order_book`). Rota nova `GET /orders?user_id=`
+  (`handleListOrders`), `POST /orders` (`submitOrderResponse`) ganhou `order_id`. Backend:
+  `EngineOrderRecord`/`OrderExecutor.list` no port; `ListMyOrdersUseCase` (novo) enriquece
+  `asset_id` cru do motor com `ticker`/`name` via `CatalogReader.getAsset`, deduplicado por
+  `asset_id` (evita 1 chamada ao motor por ordem repetida do mesmo ativo) — mesmo padrão de
+  `assertProductUnlocked` já usar `getAsset` por id. Rota nova `GET /market/orders`
+  (`user_id` sempre `req.auth.userId`, nunca aceito de query/corpo do cliente); `OrderResult`
+  (`PlaceOrderUseCase`) ganhou `order_id`. Testes novos em todas as camadas (Go:
+  `service_test.go` — `OrderID`/`ListOrders`; `orders_test.go` — `handleListOrders`, `order_id` na
+  resposta de `POST /orders`; Node: `listMyOrders.test.ts`, `engineOrderExecutor.test.ts` —
+  `list()`, `marketRouter.test.ts` — `GET /market/orders`, mais os call-sites existentes de
+  `OrderResult` ajustados pro campo novo obrigatório). `go build`/`go vet`/`go test ./...`/
+  `golangci-lint run` (Docker, `v2.12.2`, 0 issues) e `npm run build`/`npm run lint`/`npx vitest run`
+  (599 testes) verdes. `.docs/engine/orders.md`/`.docs/backend/market.md` atualizados.
+  **Nota sobre os critérios de aceite (mesma decisão da O.2, mesma sessão):** o critério "teste
+  table-driven cobrindo os 4 caminhos de cancelamento gravando o `cancel_reason` esperado" pede
+  teste automatizado contra Postgres real pra lógica que vive inteira em `order_execution_repository.go`
+  (`internal/infra/db`) — camada que, por decisão já confirmada com o autor na O.2 desta mesma
+  sessão, segue a convenção existente do projeto (validação via `docker compose` ao vivo, nunca
+  teste automatizado contra Postgres real). Aplicada a mesma convenção aqui, sem gap novo a
+  registrar. Validado ao vivo via `docker compose up -d --build`: usuário real registrado, ordem
+  `market` sandbox (`SAND3`) executada (`order_id` no `201`, sem `cancel_reason` no `GET
+  /market/orders`, `status = filled`), ordem `limit` sem contraparte deixada pendurada e cancelada
+  via `POST /market/orders/:id/cancel` (`cancel_reason = user_cancelled` confirmado tanto no
+  Postgres quanto no `GET /market/orders`, mais recente primeiro), `GET /market/orders` sem token
+  devolveu `401`, `GET /orders` do motor sem `user_id` devolveu `400`. Caminhos `no_liquidity`/
+  `expired`/`requoted` não reproduzidos ao vivo nesta sessão (`no_liquidity` exigiria um ativo real
+  sem nenhuma liquidez de bot no momento do teste, não garantido com os bots já ativos no ambiente;
+  `expired`/`requoted` exigiriam avançar dia simulado/rodar Market Maker) — cobertos por leitura de
+  código (mesmo `switch`/`UPDATE` já testado indiretamente pelas Fases D/O.1/O.2) e pelos testes de
+  unidade acima. Containers parados ao final (`docker compose stop`, sem `-v`).
 
 ### O.4 · Tela "Minhas Ordens" no frontend
 

@@ -2,7 +2,7 @@
 
 Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Semana 6 (tarefa 6.0.3): até esta tarefa, nenhuma rota de catálogo/conta/execução do motor tinha proxy no backend — o gateway só expõe o `backend`, nunca o `engine/` diretamente, então o frontend não tinha nenhum caminho pra listar ativo, ver extrato ou executar uma ordem. Sem regra de negócio própria: a regra de fato (matching, precificação, marcação a mercado, Event Sourcing) vive inteira no `engine/` — este módulo só autentica (Bearer token) e repassa.
 
-**Convenção de tradução adotada nesta tarefa:** rotas de catálogo/extrato/escrita são proxy 1:1 — mesmos nomes de campo do motor, em snake_case, sem tradução (mesma convenção já usada por `modules/admin` pros eventos macro). A única exceção é `GET /market/me/account`, que agrega 3 chamadas ao motor numa resposta nova, em camelCase — não é um proxy, é uma composição.
+**Convenção de tradução adotada nesta tarefa:** rotas de catálogo/extrato/escrita são proxy 1:1 — mesmos nomes de campo do motor, em snake_case, sem tradução (mesma convenção já usada por `modules/admin` pros eventos macro). `GET /market/me/account` agrega 3 chamadas ao motor numa resposta nova, em camelCase — não é um proxy, é uma composição. `GET /market/orders` (tarefa O.3) é um meio-termo: proxy 1:1 de `GET /orders` (mesmo snake_case), mas enriquece cada linha com `ticker`/`name` via uma segunda chamada ao motor (`CatalogReader.getAsset`) — o motor não embute catálogo na resposta de ordens.
 
 **Decisão de dependência (perguntada no início desta sessão, ver `getMyAccount.ts`):** `market` **não** reaproveita `GetNetWorthUseCase`/`CurrentAccountStateReader` de `modules/ranking`. Aquele caminho calcula um único número (patrimônio total, sandbox excluído) pro ranking; `GET /market/me/account` precisa da lista de posições completa (ticker/nome/tipo/quantidade) pra tela de portfólio do próprio usuário. Reaproveitar criaria uma dependência `market → ranking` só pra descartar metade do que aquele caso de uso calcula — `market` tem seus próprios adapters finos de leitura do motor (`infrastructure/engine/`).
 
@@ -85,7 +85,7 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 
 - **Autenticação:** Bearer token.
 - **Payload:** `asset_id` (UUID), `side` (`buy`/`sell`), `type` (`market`/`limit`), `price` (obrigatório e > 0 só se `type = limit`), `quantity` (inteiro > 0) — ver `.docs/engine/orders.md`.
-- **Sucesso:** `201` → `{ filled_quantity, remaining_quantity, fills: [...] }`, corpo idêntico ao do motor.
+- **Sucesso:** `201` → `{ order_id, filled_quantity, remaining_quantity, fills: [...] }`, corpo idêntico ao do motor. `order_id` (tarefa O.3) é o id da ordem recém-criada, necessário pra chamar `POST /market/orders/:id/cancel` depois.
 - **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `403` — produto travado pela trilha (tarefa 7.0.1, abaixo); `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente **ou** a ordem pendurada que seria casada foi cancelada pelo dono entre a leitura e a escrita do match (achado ao vivo/corrigido na sessão da tarefa O.1, ver `.docs/engine/orders.md`) — traduzido do motor, nada é persistido.
 - **Regra:** `PlaceOrderUseCase` → resolve o `AssetType` do ativo (`CatalogReader.getAsset`) e, se **não for sandbox**, exige `asset:<type>` no conjunto de chaves desbloqueadas do usuário (`ProductUnlockReader`, port sobre `modules/lessons` — tarefa 7.0.1) antes de repassar pro `OrderExecutor.submit`. Sandbox (`is_sandbox = true`) segue isento (RF12). Validado ponta a ponta via `docker compose up`: uma ordem `market` reflete em `GET /market/me/account`/`GET /market/me/events` imediatamente. Desde a tarefa A.2 (backlog-motor-mercado-realista), ordem `market` de ativo do Mercado Ao Vivo só executa a parte com contraparte real disponível (`remaining_quantity` reporta a sobra não executada, sem erro) — só ativo sandbox mantém a execução garantida via liquidez sintética (`.docs/engine/orders.md`).
 
@@ -98,6 +98,15 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Sucesso:** `204`, sem corpo.
 - **Erros:** `401`; `404` (traduzido do motor) — ordem não encontrada **ou** pertence a outro usuário (as duas causas colapsam no mesmo erro no motor, de propósito); `409` (traduzido do motor) — ordem já `filled`/`cancelled`.
 - **Regra:** `CancelOrderUseCase` → `OrderExecutor.cancel` — proxy fino, sem regra de negócio própria (diferente de `PlaceOrderUseCase`, não passa pelo gate de desbloqueio da 7.0.1: cancelar não é "comprar produto travado"). Ver `.docs/engine/orders.md` pro detalhe de por que `filled_quantity` já executado não é revertido.
+
+### `GET /market/orders`
+
+*(Tarefa O.3, `backlog-motor-mercado-realista.md` — fecha o achado 012 em `pontos-em-aberto-decisao-produto.md`: sem esta rota, nenhum cliente tinha como descobrir qual `order_id` passar pra `POST /market/orders/:id/cancel` depois de um reload de página.)*
+
+- **Autenticação:** Bearer token. Sem query string aceita do cliente — `user_id` sempre `req.auth.userId`, mesma convenção das outras rotas desta seção.
+- **Sucesso:** `200` → `{ orders: [{ order_id, asset_id, ticker, name, side, type, quantity, filled_quantity, price, status, cancel_reason, created_at }] }`, mais recente primeiro, sem paginação nem filtro de status (escopo de protótipo) — `[]` se o usuário não tem ordem nenhuma. `cancel_reason` só aparece pra ordem `cancelled` (`user_cancelled`/`expired`/`no_liquidity`/`requoted` — os 3 primeiros podem aparecer pra um usuário real, `requoted` só acontece com bot Market Maker). O agrupamento em Pendentes/Executadas/Recusadas (tela "Minhas Ordens", O.4) é responsabilidade do frontend, não desta rota.
+- **Erros:** `401`.
+- **Regra:** `ListMyOrdersUseCase` → `OrderExecutor.list` (motor devolve `asset_id` cru) + `CatalogReader.getAsset` (deduplicado por `asset_id` — a mesma ação costuma se repetir em várias ordens) pra enriquecer cada linha com `ticker`/`name`, mesmo padrão de `assertProductUnlocked` já usar `getAsset` por id em vez do motor embutir o catálogo em cada rota. Ver `.docs/engine/orders.md` pro formato cru que o motor devolve.
 
 ### `GET /market/fixed-income/simulate`
 

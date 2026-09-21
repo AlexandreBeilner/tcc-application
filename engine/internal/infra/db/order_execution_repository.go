@@ -118,7 +118,7 @@ func (r *OrderExecutionRepository) currentSimulatedDay(ctx context.Context) (int
 // dividends_paid_count na resposta de POST /admin/tick).
 func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error) {
 	result, err := r.db.ExecContext(ctx,
-		`UPDATE order_book SET status = 'cancelled'
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'expired'
 		 WHERE status IN ('pending', 'partially_filled') AND simulated_day < $1`,
 		currentSimulatedDay,
 	)
@@ -140,7 +140,7 @@ func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, curren
 // correto pra eles (ver doc de A.4 no plano da correção).
 func (r *OrderExecutionRepository) CancelUserRestingOrders(ctx context.Context, userID, assetID string) error {
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE order_book SET status = 'cancelled'
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'requoted'
 		 WHERE user_id = $1 AND asset_id = $2 AND status IN ('pending', 'partially_filled')`,
 		userID, assetID,
 	)
@@ -185,11 +185,51 @@ func (r *OrderExecutionRepository) CancelOrder(ctx context.Context, orderID, use
 		return orderexecution.ErrOrderNotCancellable
 	}
 
-	if _, err := tx.ExecContext(ctx, `UPDATE order_book SET status = 'cancelled' WHERE id = $1`, orderID); err != nil {
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'user_cancelled' WHERE id = $1`, orderID,
+	); err != nil {
 		return err
 	}
 
 	return tx.Commit()
+}
+
+// ListOrders devolve todas as ordens de userID (tarefa O.3, GET /orders),
+// mais recente primeiro, sem paginação (escopo de protótipo) — fecha o
+// achado 012 (pontos-em-aberto-decisao-produto.md): sem esta rota,
+// CancelOrder não tinha nenhum caminho real pelo qual um cliente
+// descobrisse qual id de ordem passar depois de um reload de página.
+func (r *OrderExecutionRepository) ListOrders(ctx context.Context, userID string) ([]orderexecution.OrderRecord, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, asset_id, side, type, quantity, filled_quantity, price, status, cancel_reason, created_at
+		 FROM order_book
+		 WHERE user_id = $1
+		 ORDER BY created_at DESC`, userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	records := make([]orderexecution.OrderRecord, 0)
+	for rows.Next() {
+		var rec orderexecution.OrderRecord
+		var side, orderType, status string
+		var cancelReason sql.NullString
+		if err := rows.Scan(
+			&rec.ID, &rec.AssetID, &side, &orderType, &rec.Quantity, &rec.FilledQuantity,
+			&rec.Price, &status, &cancelReason, &rec.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		rec.Side, rec.Type, rec.Status = orderbook.Side(side), orderbook.Type(orderType), status
+		if cancelReason.Valid {
+			reason := orderexecution.CancelReason(cancelReason.String)
+			rec.CancelReason = &reason
+		}
+		records = append(records, rec)
+	}
+	return records, rows.Err()
 }
 
 // floatCeiling lê o teto do float finito do ativo (tarefa A.3,
@@ -335,16 +375,19 @@ func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetI
 // na demonstração); uma correção completa exigiria mover a leitura de
 // saldo/posição pra dentro desta mesma transação, com FOR UPDATE, antes de
 // chamar Execute.
-func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecution.Request, outcome orderexecution.Outcome) error {
+//
+// Devolve o id da linha de order_book recém-criada pra ordem recebida
+// (tarefa O.3, achado 012) — insertIncomingOrder usa RETURNING id.
+func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecution.Request, outcome orderexecution.Outcome) (string, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	for _, fill := range outcome.Fills {
 		if err := applyFillSide(ctx, tx, req.AssetID, req.UserID, req.Side, fill.Quantity, fill.Price); err != nil {
-			return err
+			return "", err
 		}
 		if !fill.IsSynthetic() {
 			counterpartySide := orderbook.SideSell
@@ -352,19 +395,23 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 				counterpartySide = orderbook.SideBuy
 			}
 			if err := applyFillSide(ctx, tx, req.AssetID, fill.CounterpartyUserID, counterpartySide, fill.Quantity, fill.Price); err != nil {
-				return err
+				return "", err
 			}
 			if err := fillRestingOrder(ctx, tx, fill.CounterpartyOrderID, fill.Quantity); err != nil {
-				return err
+				return "", err
 			}
 		}
 	}
 
-	if err := insertIncomingOrder(ctx, tx, req, outcome); err != nil {
-		return err
+	orderID, err := insertIncomingOrder(ctx, tx, req, outcome)
+	if err != nil {
+		return "", err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return orderID, nil
 }
 
 // applyFillSide grava o evento e projeta saldo/posição de um dos lados de
@@ -483,16 +530,20 @@ func fillRestingOrder(ctx context.Context, tx *sql.Tx, orderID string, quantity 
 }
 
 // insertIncomingOrder grava a ordem recebida como uma nova linha de
-// order_book. Price é o limite informado pelo usuário pra ordem limitada;
-// pra ordem a mercado (sem preço próprio — Type == market ignora Price,
-// orderbook.go) é o preço médio ponderado de execução, porque a coluna é
-// NOT NULL e não existe "o preço" de uma ordem a mercado antes de executar.
-// simulated_day (achado 005 parte A) vem de req.SimulatedDay, carimbado por
-// Service.SubmitWithContext a partir do Context recém-carregado — todo
-// order_book novo já nasce sabendo em que dia simulado nasceu, insumo que
-// ExpireStaleOrders precisa pra nunca deixar ordem acumular indefinidamente.
-func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) error {
+// order_book e devolve o id gerado (tarefa O.3, RETURNING id — antes desta
+// tarefa o id nunca era lido de volta, então POST /orders não tinha como
+// ecoá-lo pro cliente). Price é o limite informado pelo usuário pra ordem
+// limitada; pra ordem a mercado (sem preço próprio — Type == market ignora
+// Price, orderbook.go) é o preço médio ponderado de execução, porque a
+// coluna é NOT NULL e não existe "o preço" de uma ordem a mercado antes de
+// executar. simulated_day (achado 005 parte A) vem de req.SimulatedDay,
+// carimbado por Service.SubmitWithContext a partir do Context recém-
+// carregado — todo order_book novo já nasce sabendo em que dia simulado
+// nasceu, insumo que ExpireStaleOrders precisa pra nunca deixar ordem
+// acumular indefinidamente.
+func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) (string, error) {
 	status := "pending"
+	var cancelReason *orderexecution.CancelReason
 	switch {
 	case outcome.FilledQuantity >= req.Quantity:
 		status = "filled"
@@ -503,8 +554,11 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 		// tarefa A.2) — sem nenhum fill real, a sobra não vai executar
 		// depois (loadRestingOrders só lê type = 'limit'), então "pending"
 		// seria enganoso pra sempre; 'cancelled' reflete que já está
-		// definitivamente resolvida.
+		// definitivamente resolvida, com cancel_reason = no_liquidity
+		// (tarefa O.3) marcando a causa pra tela "Minhas Ordens" (O.4).
 		status = "cancelled"
+		reason := orderexecution.CancelReasonNoLiquidity
+		cancelReason = &reason
 	}
 
 	price := req.Price
@@ -512,12 +566,20 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 		price = weightedAveragePrice(outcome.Fills)
 	}
 
-	_, err := tx.ExecContext(ctx,
-		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status, simulated_day)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status, req.SimulatedDay,
-	)
-	return err
+	var cancelReasonParam *string
+	if cancelReason != nil {
+		r := string(*cancelReason)
+		cancelReasonParam = &r
+	}
+
+	var orderID string
+	err := tx.QueryRowContext(ctx,
+		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status, simulated_day, cancel_reason)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 RETURNING id`,
+		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status, req.SimulatedDay, cancelReasonParam,
+	).Scan(&orderID)
+	return orderID, err
 }
 
 func weightedAveragePrice(fills []orderexecution.Fill) float64 {

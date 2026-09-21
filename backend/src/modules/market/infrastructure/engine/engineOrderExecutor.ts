@@ -1,4 +1,5 @@
 import type {
+  EngineOrderRecord,
   OrderExecutor,
   OrderResult,
   PlaceOrderInput,
@@ -20,6 +21,11 @@ export function createEngineOrderExecutor(engineUrl: string): OrderExecutor {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       })
+    },
+    list(userId: string) {
+      return engineFetch<EngineOrderRecord[]>(
+        `${engineUrl}/orders?user_id=${encodeURIComponent(userId)}`,
+      )
     },
   }
 }

@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe('engineOrderExecutor', () => {
   it('POST /orders com o corpo repassado como JSON', async () => {
-    const result = { filled_quantity: 10, remaining_quantity: 0, fills: [] }
+    const result = { order_id: 'order-1', filled_quantity: 10, remaining_quantity: 0, fills: [] }
     fetchMock.mockResolvedValue({ ok: true, status: 201, json: async () => result })
     const executor = createEngineOrderExecutor('http://engine:8080')
 
@@ -91,5 +91,28 @@ describe('engineOrderExecutor', () => {
     const executor = createEngineOrderExecutor('http://engine:8080')
 
     await expect(executor.cancel('order-1', 'user-1')).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('GET /orders?user_id= (tarefa O.3)', async () => {
+    const records = [
+      {
+        order_id: 'order-1',
+        asset_id: 'asset-1',
+        side: 'buy',
+        type: 'market',
+        quantity: 10,
+        filled_quantity: 10,
+        price: 25,
+        status: 'filled',
+        created_at: '2026-01-01T00:00:00Z',
+      },
+    ]
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => records })
+    const executor = createEngineOrderExecutor('http://engine:8080')
+
+    const response = await executor.list('user-1')
+
+    expect(fetchMock).toHaveBeenCalledWith('http://engine:8080/orders?user_id=user-1')
+    expect(response).toEqual(records)
   })
 })
