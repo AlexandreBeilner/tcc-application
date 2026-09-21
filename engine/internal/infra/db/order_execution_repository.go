@@ -147,6 +147,51 @@ func (r *OrderExecutionRepository) CancelUserRestingOrders(ctx context.Context, 
 	return err
 }
 
+// CancelOrder marca como cancelled a ordem orderID de userID (tarefa O.1,
+// cancelamento manual pelo próprio usuário) — diferente de
+// ExpireStaleOrders/CancelUserRestingOrders acima (bulk, disparados pelo
+// sistema/bot), esta é uma única ordem por ID, disparada por uma rota HTTP
+// nova. Lê dono e status com FOR UPDATE antes de decidir: um UPDATE ...
+// WHERE sozinho não teria como distinguir "ordem não existe", "ordem é de
+// outro usuário" e "ordem já não está mais pending/partially_filled" a
+// partir de "0 linhas afetadas" — o handler HTTP precisa da causa certa
+// pra mapear pro status certo (404 vs. 409). As duas primeiras causas
+// colapsam no mesmo ErrOrderNotFound de propósito (não vazar que um ID de
+// ordem alheio existe). Cancelar não reverte saldo/posição nem
+// filled_quantity já executado (mesma decisão de escopo de
+// ExpireStaleOrders: nenhuma ordem pendurada reserva nada na submissão,
+// orderexecution.go), então não passa por Event Sourcing.
+func (r *OrderExecutionRepository) CancelOrder(ctx context.Context, orderID, userID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var ownerID, status string
+	err = tx.QueryRowContext(ctx,
+		`SELECT user_id, status FROM order_book WHERE id = $1 FOR UPDATE`, orderID,
+	).Scan(&ownerID, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return orderexecution.ErrOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if ownerID != userID {
+		return orderexecution.ErrOrderNotFound
+	}
+	if status != "pending" && status != "partially_filled" {
+		return orderexecution.ErrOrderNotCancellable
+	}
+
+	if _, err := tx.ExecContext(ctx, `UPDATE order_book SET status = 'cancelled' WHERE id = $1`, orderID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 // floatCeiling lê o teto do float finito do ativo (tarefa A.3,
 // variable_income_assets.outstanding_shares — nulo pra sandbox, ver
 // seedSandboxEquity) e, só quando ele existe, a soma das posições de todos

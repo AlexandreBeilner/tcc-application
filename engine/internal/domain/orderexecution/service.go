@@ -44,6 +44,14 @@ type Repository interface {
 	// fonte da verdade financeira (CLAUDE.md). Nunca chamado se Execute
 	// devolveu erro (nada é persistido de uma ordem rejeitada).
 	Persist(ctx context.Context, req Request, outcome Outcome) error
+	// CancelOrder marca como cancelled a ordem orderID de userID (tarefa
+	// O.1), validando dono e status antes de mudar o estado: devolve
+	// ErrOrderNotFound se a ordem não existe ou pertence a outro usuário,
+	// ErrOrderNotCancellable se já está filled/cancelled. filled_quantity
+	// não é revertido — cancelar não passa por Event Sourcing, mesma
+	// decisão de escopo de ExpireStaleOrders/CancelUserRestingOrders
+	// (nenhuma ordem pendurada reserva saldo/posição na submissão).
+	CancelOrder(ctx context.Context, orderID, userID string) error
 }
 
 // Service orquestra a execução de uma ordem ponta a ponta (tarefa 3.12):
@@ -106,4 +114,12 @@ func (s *Service) SubmitWithContext(ctx context.Context, req Request, execCtx Co
 		return Outcome{}, err
 	}
 	return outcome, nil
+}
+
+// Cancel marca como cancelled uma ordem pendente/parcial de userID (tarefa
+// O.1) — sem regra de domínio própria (nenhum recálculo de book/saldo/
+// posição envolvido, só uma transição de status), repassa direto pro
+// repositório, que decide dono/status.
+func (s *Service) Cancel(ctx context.Context, orderID, userID string) error {
+	return s.repo.CancelOrder(ctx, orderID, userID)
 }

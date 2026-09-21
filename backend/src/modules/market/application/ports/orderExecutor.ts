@@ -28,4 +28,9 @@ export interface OrderResult {
 // motor (matching, liquidez sintética, Event Sourcing).
 export interface OrderExecutor {
   submit(input: PlaceOrderInput): Promise<OrderResult>
+  // cancel marca como cancelled uma ordem pending/partially_filled do
+  // próprio userId (tarefa O.1) — motor devolve 404 tanto pra ordem
+  // inexistente quanto pra ordem de outro usuário (EngineRequestError),
+  // 409 se ela já não está mais pending/partially_filled.
+  cancel(orderId: string, userId: string): Promise<void>
 }

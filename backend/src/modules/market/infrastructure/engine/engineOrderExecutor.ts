@@ -14,5 +14,12 @@ export function createEngineOrderExecutor(engineUrl: string): OrderExecutor {
         body: JSON.stringify(input),
       })
     },
+    cancel(orderId: string, userId: string) {
+      return engineFetch<void>(`${engineUrl}/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      })
+    },
   }
 }

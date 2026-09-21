@@ -14,5 +14,11 @@ export async function engineFetch<T>(url: string, init?: RequestInit): Promise<T
     throw new EngineRequestError(res.status, body.error ?? 'erro do motor de simulação')
   }
 
+  // 204 (ex: POST /orders/:id/cancel, tarefa O.1) não tem corpo — chamar
+  // res.json() nesse caso rejeitaria por "Unexpected end of JSON input".
+  if (res.status === 204) {
+    return undefined as T
+  }
+
   return (await res.json()) as T
 }

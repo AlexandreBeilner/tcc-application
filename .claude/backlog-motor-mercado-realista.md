@@ -2800,7 +2800,7 @@ quem pegar a Fase O deveria decidir explicitamente se isso é aceitável pro MVP
 O.3 novo) devem também cancelar/marcar a ordem pendurada furada assim que ela falhar dessa forma,
 em vez de só no fechamento do dia.
 
-### O.1 · Cancelamento manual de ordem pendente
+### O.1 · Cancelamento manual de ordem pendente ✅
 
 - **Descrição:** rota nova (`POST /orders/{id}/cancel` ou `DELETE /orders/{id}` — a definir na
   sessão que pegar a tarefa, seguindo o estilo REST já usado pelas demais rotas de `server.go`) que
@@ -2822,8 +2822,44 @@ em vez de só no fechamento do dia.
 - **Referências:** `orderexecution.go` (doc do pacote, decisão de escopo de reserva); `orders.go`/
   `server.go` como precedente de rota.
 - **Dependências:** A.2 (já concluída).
+- **Entregável (sessão 2026-09-21):** decisão de rota tomada — `POST /orders/{id}/cancel` (não
+  `DELETE`), consistente com toda mutação existente em `server.go` já ser `POST` (`/admin/tick`,
+  `/orders`, `/fixed-income/purchases|redemptions`, `/macro-events`), nenhuma rota usa `DELETE`
+  hoje. Motor: `orderexecution.ErrOrderNotFound`/`ErrOrderNotCancellable` (novos erros de domínio);
+  `Service.Cancel(ctx, orderID, userID)` repassa direto pro repositório (nenhuma regra de domínio
+  própria — cancelar é só uma transição de status); `OrderExecutionRepository.CancelOrder` lê
+  dono/status com `SELECT ... FOR UPDATE` dentro de uma transação antes de decidir (`UPDATE ...
+  WHERE` sozinho não distingue "não existe" de "é de outro usuário" de "status errado" a partir de
+  "0 linhas afetadas") — ordem inexistente e ordem de outro usuário colapsam no mesmo
+  `ErrOrderNotFound` (404) de propósito, pra não vazar a existência de uma ordem alheia; status já
+  `filled`/`cancelled` vira `ErrOrderNotCancellable` (409). Rota nova registrada em `server.go`
+  (`orderSubmitter` ganhou o método `Cancel`, implementado pelo mesmo `*orderexecution.Service` que
+  já implementa `Submit` — não precisou de parâmetro novo em `New`/`Run`/`main.go`). Backend:
+  `OrderExecutor.cancel`/`CancelOrderUseCase` (sem gate de desbloqueio da 7.0.1 — cancelar não é
+  "comprar produto travado") → `POST /market/orders/:id/cancel`, `user_id` sempre de
+  `req.auth.userId`, nunca de parâmetro/corpo. `engineFetch` (`engineHttp.ts`) ganhou tratamento de
+  `204` (chamar `res.json()` num corpo vazio rejeitava com "Unexpected end of JSON input") — só
+  afeta quem devolve `204`, nenhum adapter existente muda de comportamento. Testes novos em todas
+  as camadas (Go: `service_test.go`/`orders_test.go`; Node: `cancelOrder.test.ts`/
+  `engineOrderExecutor.test.ts`/`marketRouter.test.ts`) cobrindo sucesso, `404`/`409`/`400` e
+  ausência de dependência. `go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker,
+  `v2.12.2`, 0 issues) e `npm run build`/`npm run lint`/`npx vitest run` (594 testes) verdes.
+  `.docs/engine/orders.md`/`.docs/backend/market.md` atualizados. Validado ponta a ponta via
+  `docker compose up -d --build` (2 usuários reais registrados via `POST /auth/register`, ordem
+  limitada sem contraparte deixada pendurada em ativo sandbox `SAND3`): `POST
+  /market/orders/:id/cancel` do dono devolveu `204` e o `order_book.status` virou `cancelled` no
+  Postgres; cancelar de novo a mesma ordem devolveu `409`; ID inexistente devolveu `404`; sem
+  `Authorization` devolveu `401`; e o segundo usuário tentando cancelar a ordem do primeiro também
+  devolveu `404` (não `403`) — confirma ao vivo que "ordem de outro usuário" e "ordem inexistente"
+  colapsam no mesmo erro, exatamente a decisão de não vazar existência tomada no design.
+- **Achado desta sessão, registrado em `.claude/pontos-em-aberto-decisao-produto.md`:** a tarefa
+  **O.2** abaixo já estava de fato implementada antes desta sessão, sob outro nome — o achado 005
+  (Parte A, sessão 2026-09-19, `OrderExecutionRepository.ExpireStaleOrders`) resolve exatamente o
+  que O.2 descreve (expira toda ordem `pending`/`partially_filled` de um dia simulado anterior, no
+  fechamento do dia). Marcada ✅ abaixo por isso, sem nenhuma linha de código nova desta sessão — só
+  a leitura cruzada entre o achado e esta tarefa, que nunca tinha sido feita.
 
-### O.2 · Expiração automática no fechamento do dia simulado (ordem Day)
+### O.2 · Expiração automática no fechamento do dia simulado (ordem Day) ✅
 
 - **Descrição:** ao fechar o dia simulado (mesmo ponto do `tick.Advance`/Temporizador que já
   processa Selic/calendário/proventos 1x por dia — não precisa esperar a Fase D existir, mesmo sem
@@ -2842,6 +2878,16 @@ em vez de só no fechamento do dia.
   Temporizador não mudar de ritmo diário mesmo com rodadas intradiárias.
 - **Dependências:** A.2 (já concluída). Não depende de D — o fechamento de dia já existe
   independente de sub-tick.
+- **Entregável (achado retroativo, sessão 2026-09-21 — implementação real é da sessão 2026-09-19,
+  achado 005 Parte A):** `OrderExecutionRepository.ExpireStaleOrders` (`order_execution_repository.go`),
+  chamada por `tick.Service.Run` antes de `runIntradayRounds` de cada dia novo, cancela toda ordem
+  `pending`/`partially_filled` com `simulated_day` anterior ao dia que está começando — mesmo
+  contrato desta tarefa, escrito sem saber que O.2 existia como tarefa nomeada. `order_book.
+  simulated_day` (migration `000017`) é o carimbo de dia que a tarefa previa; `loadRestingOrders`
+  já só lê `pending`/`partially_filled` (a checagem de regressão que os critérios de aceite pedem).
+  Testes: `rounds_test.go`/`service_test.go` (achado 005). Documentado em `.docs/engine/orders.md`
+  ("Ciclo de vida de ordem — day order"), agora com referência cruzada explícita a esta tarefa.
+  Nenhum código novo desta sessão — só a atualização deste arquivo pra refletir o que já existia.
 
 ---
 

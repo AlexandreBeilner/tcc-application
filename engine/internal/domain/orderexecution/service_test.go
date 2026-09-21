@@ -15,6 +15,9 @@ type fakeRepository struct {
 	persistedReq     Request
 	persistedOutcome Outcome
 	persistCalled    bool
+	cancelErr        error
+	cancelledOrderID string
+	cancelledUserID  string
 }
 
 func (f *fakeRepository) LoadContext(_ context.Context, _, _ string) (Context, error) {
@@ -26,6 +29,12 @@ func (f *fakeRepository) Persist(_ context.Context, req Request, outcome Outcome
 	f.persistedReq = req
 	f.persistedOutcome = outcome
 	return f.persistErr
+}
+
+func (f *fakeRepository) CancelOrder(_ context.Context, orderID, userID string) error {
+	f.cancelledOrderID = orderID
+	f.cancelledUserID = userID
+	return f.cancelErr
 }
 
 func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
@@ -124,6 +133,30 @@ func TestService_SubmitWithContext_CarimbaSimulatedDayDoContexto(t *testing.T) {
 	}
 	if repo.persistedReq.SimulatedDay != 7 {
 		t.Errorf("persistedReq.SimulatedDay = %d, want 7 (do Context, não do valor que o chamador já tinha em req)", repo.persistedReq.SimulatedDay)
+	}
+}
+
+// TestService_Cancel_RepassaProRepositorio cobre a tarefa O.1: Cancel não
+// tem regra de domínio própria (nenhum recálculo de book/saldo/posição),
+// só repassa orderID/userID pro repositório, que decide dono/status.
+func TestService_Cancel_RepassaProRepositorio(t *testing.T) {
+	repo := &fakeRepository{}
+	svc := NewService(repo)
+
+	if err := svc.Cancel(context.Background(), "order-1", "user-1"); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if repo.cancelledOrderID != "order-1" || repo.cancelledUserID != "user-1" {
+		t.Errorf("CancelOrder chamado com (%q, %q), want (%q, %q)", repo.cancelledOrderID, repo.cancelledUserID, "order-1", "user-1")
+	}
+}
+
+func TestService_Cancel_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{cancelErr: ErrOrderNotCancellable}
+	svc := NewService(repo)
+
+	if err := svc.Cancel(context.Background(), "order-1", "user-1"); err != ErrOrderNotCancellable {
+		t.Fatalf("err = %v, want %v", err, ErrOrderNotCancellable)
 	}
 }
 

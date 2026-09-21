@@ -19,6 +19,10 @@ type fakeOrderSubmitter struct {
 	outcome orderexecution.Outcome
 	err     error
 	got     orderexecution.Request
+
+	cancelErr        error
+	cancelledOrderID string
+	cancelledUserID  string
 }
 
 func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
@@ -26,11 +30,27 @@ func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Reques
 	return f.outcome, f.err
 }
 
+func (f *fakeOrderSubmitter) Cancel(_ context.Context, orderID, userID string) error {
+	f.cancelledOrderID = orderID
+	f.cancelledUserID = userID
+	return f.cancelErr
+}
+
 func postOrder(t *testing.T, reader catalogReader, orders orderSubmitter, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
 	New("", nil, reader, nil, orders, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	return rec
+}
+
+const validOrderID = "9c858901-8a57-4791-81fe-4c455b099bc9"
+
+func postCancelOrder(t *testing.T, orders orderSubmitter, orderID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/orders/"+orderID+"/cancel", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	New("", nil, nil, nil, orders, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -160,6 +180,72 @@ func TestHandleSubmitOrder_ErrosDeExecucao(t *testing.T) {
 				t.Errorf("status = %d, want %d, body = %s", rec.Code, tt.want, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestHandleCancelOrder cobre a tarefa O.1: sucesso devolve 204 e repassa
+// orderID (da URL) + userID (do corpo) pro Service.Cancel.
+func TestHandleCancelOrder(t *testing.T) {
+	submitter := &fakeOrderSubmitter{}
+
+	rec := postCancelOrder(t, submitter, validOrderID, `{"user_id":"`+validUserID+`"}`)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if submitter.cancelledOrderID != validOrderID || submitter.cancelledUserID != validUserID {
+		t.Errorf("Cancel chamado com (%q, %q), want (%q, %q)", submitter.cancelledOrderID, submitter.cancelledUserID, validOrderID, validUserID)
+	}
+}
+
+func TestHandleCancelOrder_ValidacaoDeEntrada(t *testing.T) {
+	tests := map[string]struct {
+		orderID string
+		body    string
+	}{
+		"id da URL não é UUID": {orderID: "não-um-uuid", body: `{"user_id":"` + validUserID + `"}`},
+		"json quebrado":        {orderID: validOrderID, body: `{`},
+		"user_id não é UUID":   {orderID: validOrderID, body: `{"user_id":"não-um-uuid"}`},
+		"user_id ausente":      {orderID: validOrderID, body: `{}`},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := postCancelOrder(t, &fakeOrderSubmitter{}, tt.orderID, tt.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d, body = %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+		})
+	}
+}
+
+// TestHandleCancelOrder_ErrosDeExecucao cobre o mapeamento de
+// ErrOrderNotFound (ordem inexistente OU de outro usuário, tarefa O.1) e
+// ErrOrderNotCancellable (ordem já filled/cancelled) pro status HTTP certo.
+func TestHandleCancelOrder_ErrosDeExecucao(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"ordem não encontrada ou de outro usuário", orderexecution.ErrOrderNotFound, http.StatusNotFound},
+		{"ordem já não está mais pending/partially_filled", orderexecution.ErrOrderNotCancellable, http.StatusConflict},
+		{"erro interno inesperado", context.DeadlineExceeded, http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := postCancelOrder(t, &fakeOrderSubmitter{cancelErr: tt.err}, validOrderID, `{"user_id":"`+validUserID+`"}`)
+			if rec.Code != tt.want {
+				t.Errorf("status = %d, want %d, body = %s", rec.Code, tt.want, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandleCancelOrder_SemOrderSubmitter(t *testing.T) {
+	rec := postCancelOrder(t, nil, validOrderID, `{"user_id":"`+validUserID+`"}`)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
 }
 

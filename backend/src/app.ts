@@ -125,6 +125,7 @@ import { createAccountRouter } from './modules/auth/interfaces/http/accountRoute
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
 import { GetAssetUseCase } from './modules/market/application/useCases/getAsset'
+import { CancelOrderUseCase } from './modules/market/application/useCases/cancelOrder'
 import { GetCompanyUseCase } from './modules/market/application/useCases/getCompany'
 import { GetMyAccountUseCase } from './modules/market/application/useCases/getMyAccount'
 import { ListAssetsUseCase } from './modules/market/application/useCases/listAssets'
@@ -216,6 +217,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const getMyAccount = new GetMyAccountUseCase(accountReader)
   const listMyEvents = new ListMyEventsUseCase(accountReader)
   const placeOrder = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
+  const cancelOrder = new CancelOrderUseCase(orderExecutor)
   const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(
     fixedIncomeExecutor,
     catalogReader,
@@ -468,6 +470,7 @@ export function createApp(deps: AppDeps = {}): Express {
       getMyAccount,
       listMyEvents,
       placeOrder,
+      cancelOrder,
       purchaseFixedIncome,
       redeemFixedIncome,
       simulateFixedIncome,

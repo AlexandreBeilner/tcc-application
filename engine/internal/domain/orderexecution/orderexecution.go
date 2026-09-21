@@ -64,6 +64,16 @@ var (
 	// que quem chama Execute (e o handler HTTP) só precisa importar
 	// orderexecution pra checar qualquer erro devolvido.
 	ErrFloatExceeded = position.ErrFloatExceeded
+	// ErrOrderNotFound é devolvido por Repository.CancelOrder (tarefa O.1)
+	// tanto pra ordem inexistente quanto pra ordem que existe mas pertence a
+	// outro usuário — as duas causas colapsam no mesmo erro (404) de
+	// propósito, pra não vazar pro chamador que um ID de ordem alheio
+	// existe.
+	ErrOrderNotFound = errors.New("ordem não encontrada")
+	// ErrOrderNotCancellable é devolvido por Repository.CancelOrder (tarefa
+	// O.1) quando a ordem já está filled/cancelled — só pending/
+	// partially_filled podem ser canceladas.
+	ErrOrderNotCancellable = errors.New("ordem não pode ser cancelada neste status")
 )
 
 // MarketCounterparty é o UserID sentinela usado num Fill contra liquidez

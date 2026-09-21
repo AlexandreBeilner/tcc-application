@@ -9,6 +9,7 @@ import type { GetCompanyUseCase } from '../../application/useCases/getCompany'
 import type { GetMyAccountUseCase } from '../../application/useCases/getMyAccount'
 import type { ListAssetsUseCase } from '../../application/useCases/listAssets'
 import type { ListMyEventsUseCase } from '../../application/useCases/listMyEvents'
+import type { CancelOrderUseCase } from '../../application/useCases/cancelOrder'
 import type { PlaceOrderUseCase } from '../../application/useCases/placeOrder'
 import type { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseFixedIncome'
 import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
@@ -35,6 +36,7 @@ export interface MarketRouterDeps {
   getMyAccount: GetMyAccountUseCase
   listMyEvents: ListMyEventsUseCase
   placeOrder: PlaceOrderUseCase
+  cancelOrder: CancelOrderUseCase
   purchaseFixedIncome: PurchaseFixedIncomeUseCase
   redeemFixedIncome: RedeemFixedIncomeUseCase
   simulateFixedIncome: SimulateFixedIncomeUseCase
@@ -200,6 +202,24 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
       // user_id nunca vem do corpo do cliente — sempre o dono do token.
       const result = await deps.placeOrder.execute({ user_id: req.auth.userId, ...parsed.data })
       res.status(201).json(result)
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  // Cancelamento manual de ordem pendente/parcial (tarefa O.1) —
+  // user_id nunca vem do corpo/params do cliente, mesma convenção acima:
+  // só o dono do token pode cancelar a própria ordem (o motor rejeita com
+  // 404 se order_id pertencer a outro usuário).
+  router.post('/market/orders/:id/cancel', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    try {
+      await deps.cancelOrder.execute({ order_id: req.params.id as string, user_id: req.auth.userId })
+      res.status(204).end()
     } catch (err) {
       sendEngineError(err, res)
     }

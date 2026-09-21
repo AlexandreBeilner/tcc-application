@@ -89,6 +89,16 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `403` — produto travado pela trilha (tarefa 7.0.1, abaixo); `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente (traduzido do motor, nada é persistido).
 - **Regra:** `PlaceOrderUseCase` → resolve o `AssetType` do ativo (`CatalogReader.getAsset`) e, se **não for sandbox**, exige `asset:<type>` no conjunto de chaves desbloqueadas do usuário (`ProductUnlockReader`, port sobre `modules/lessons` — tarefa 7.0.1) antes de repassar pro `OrderExecutor.submit`. Sandbox (`is_sandbox = true`) segue isento (RF12). Validado ponta a ponta via `docker compose up`: uma ordem `market` reflete em `GET /market/me/account`/`GET /market/me/events` imediatamente. Desde a tarefa A.2 (backlog-motor-mercado-realista), ordem `market` de ativo do Mercado Ao Vivo só executa a parte com contraparte real disponível (`remaining_quantity` reporta a sobra não executada, sem erro) — só ativo sandbox mantém a execução garantida via liquidez sintética (`.docs/engine/orders.md`).
 
+### `POST /market/orders/:id/cancel`
+
+*(Tarefa O.1, `backlog-motor-mercado-realista.md` — cancelamento manual de ordem pendente/parcial.)*
+
+- **Autenticação:** Bearer token. `user_id` nunca é aceito de parâmetro/corpo — sempre `req.auth.userId`, mesma convenção das outras rotas de escrita desta seção.
+- **Payload:** nenhum — `id` (UUID da ordem) vem da URL.
+- **Sucesso:** `204`, sem corpo.
+- **Erros:** `401`; `404` (traduzido do motor) — ordem não encontrada **ou** pertence a outro usuário (as duas causas colapsam no mesmo erro no motor, de propósito); `409` (traduzido do motor) — ordem já `filled`/`cancelled`.
+- **Regra:** `CancelOrderUseCase` → `OrderExecutor.cancel` — proxy fino, sem regra de negócio própria (diferente de `PlaceOrderUseCase`, não passa pelo gate de desbloqueio da 7.0.1: cancelar não é "comprar produto travado"). Ver `.docs/engine/orders.md` pro detalhe de por que `filled_quantity` já executado não é revertido.
+
 ### `GET /market/fixed-income/simulate`
 
 *(Tarefa 6.0.5 — proxy de `GET /fixed-income/simulate`, ver `.docs/engine/fixedincome.md`.)*

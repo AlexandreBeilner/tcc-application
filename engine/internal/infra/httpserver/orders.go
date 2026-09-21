@@ -16,6 +16,10 @@ import (
 // em New (tarefa 3.12).
 type orderSubmitter interface {
 	Submit(ctx context.Context, req orderexecution.Request) (orderexecution.Outcome, error)
+	// Cancel marca como cancelled a ordem orderID de userID (tarefa O.1) —
+	// implementado pelo mesmo *orderexecution.Service que já implementa
+	// Submit, então não precisa de uma interface/parâmetro novo em New/Run.
+	Cancel(ctx context.Context, orderID, userID string) error
 }
 
 // tradableAssetTypes são os únicos tipos de ativo que passam por matching
@@ -137,9 +141,53 @@ func writeOrderExecutionError(w http.ResponseWriter, err error) {
 		writeCatalogError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, orderexecution.ErrInvalidQuantity), errors.Is(err, orderexecution.ErrInvalidPrice):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, orderexecution.ErrAccountNotFound):
+	case errors.Is(err, orderexecution.ErrAccountNotFound), errors.Is(err, orderexecution.ErrOrderNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, orderexecution.ErrOrderNotCancellable):
+		writeCatalogError(w, http.StatusConflict, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao executar ordem")
+	}
+}
+
+type cancelOrderRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// handleCancelOrder serve POST /orders/{id}/cancel (tarefa O.1) — user_id
+// vem do corpo, mesmo trust boundary de handleSubmitOrder (o motor não
+// autentica ninguém; confia que o backend já validou o dono do token antes
+// de repassar). filled_quantity já executado não é revertido — só a
+// quantidade ainda não preenchida deixa de estar sujeita a execução
+// futura (doc do pacote orderexecution, decisão de escopo da tarefa A.2).
+func handleCancelOrder(orders orderSubmitter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if orders == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "serviço de execução de ordens indisponível")
+			return
+		}
+
+		orderID := r.PathValue("id")
+		if !uuidPattern.MatchString(orderID) {
+			writeCatalogError(w, http.StatusBadRequest, "id deve ser um UUID válido")
+			return
+		}
+
+		var req cancelOrderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeCatalogError(w, http.StatusBadRequest, "corpo da requisição inválido")
+			return
+		}
+		if !uuidPattern.MatchString(req.UserID) {
+			writeCatalogError(w, http.StatusBadRequest, "user_id é obrigatório e deve ser um UUID válido")
+			return
+		}
+
+		if err := orders.Cancel(r.Context(), orderID, req.UserID); err != nil {
+			writeOrderExecutionError(w, err)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
