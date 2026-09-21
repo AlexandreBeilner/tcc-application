@@ -442,16 +442,44 @@ func applyPositionFill(ctx context.Context, tx *sql.Tx, userID, assetID string, 
 // fillRestingOrder incrementa filled_quantity de uma ordem real que já
 // estava pendurada no book e atualiza seu status — cálculo feito inteiro
 // em SQL (sem round-trip extra pra ler a quantidade original) porque
-// quantity (original) já está na mesma linha.
+// quantity (original) já está na mesma linha. `AND status IN ('pending',
+// 'partially_filled')` (achado ao vivo, sessão da tarefa O.1) fecha uma
+// corrida real contra CancelOrder: Execute decide este match contra
+// Context.Resting, lido por LoadContext **fora** de transação — se o dono
+// da ordem pendurada a cancelar (CancelOrder, que toma FOR UPDATE nessa
+// mesma linha) entre essa leitura e este UPDATE, o UPDATE sem essa
+// cláusula corria pra depois de CancelOrder commitar (mesmo lock de linha
+// do Postgres serializa as duas escritas) e sobrescrevia 'cancelled' de
+// volta pra 'partially_filled'/'filled' — reproduzido manualmente contra
+// Postgres real com duas transações concorrentes (BEGIN; SELECT ... FOR
+// UPDATE; sleep; UPDATE status='cancelled'; COMMIT — correndo contra
+// BEGIN; sleep; este UPDATE; COMMIT). affected == 0 agora sinaliza que a
+// ordem pendurada não está mais disponível (foi cancelada, ou terminou de
+// preencher por outro caminho, no intervalo) — ErrRestingOrderNoLongerAvailable
+// aborta a transação inteira do submissor (defer tx.Rollback() em
+// Persist), mesma consequência de ErrInsufficientPosition contra a mesma
+// ordem "furada" (achado 005): nenhum saldo/posição já debitado nesta
+// mesma transação (applyFillSide, chamado antes deste ponto pros dois
+// lados do Fill) fica de pé.
 func fillRestingOrder(ctx context.Context, tx *sql.Tx, orderID string, quantity int) error {
-	_, err := tx.ExecContext(ctx,
+	result, err := tx.ExecContext(ctx,
 		`UPDATE order_book SET
 		   filled_quantity = filled_quantity + $1,
 		   status = (CASE WHEN filled_quantity + $1 >= quantity THEN 'filled' ELSE 'partially_filled' END)::order_status
-		 WHERE id = $2`,
+		 WHERE id = $2 AND status IN ('pending', 'partially_filled')`,
 		quantity, orderID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return orderexecution.ErrRestingOrderNoLongerAvailable
+	}
+	return nil
 }
 
 // insertIncomingOrder grava a ordem recebida como uma nova linha de

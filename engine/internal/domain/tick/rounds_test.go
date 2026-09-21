@@ -921,6 +921,7 @@ func TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick(t *testing.T)
 		orderexecution.ErrInsufficientBalance,
 		orderexecution.ErrInsufficientPosition,
 		orderexecution.ErrFloatExceeded,
+		orderexecution.ErrRestingOrderNoLongerAvailable,
 	} {
 		t.Run(businessErr.Error(), func(t *testing.T) {
 			svc := newTestService(&fakeRepository{})

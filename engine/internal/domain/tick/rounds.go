@@ -183,7 +183,13 @@ type OrderLifecycleManager interface {
 func businessRejection(err error) bool {
 	return errors.Is(err, orderexecution.ErrInsufficientBalance) ||
 		errors.Is(err, orderexecution.ErrInsufficientPosition) ||
-		errors.Is(err, orderexecution.ErrFloatExceeded)
+		errors.Is(err, orderexecution.ErrFloatExceeded) ||
+		// ErrRestingOrderNoLongerAvailable (achado ao vivo, sessão da tarefa
+		// O.1): um bot pode tentar casar contra a ordem pendurada de um
+		// usuário no meio da janela em que POST /orders/:id/cancel (tarefa
+		// O.1) está cancelando essa mesma ordem — mesma rejeição de negócio
+		// normal das três acima, não uma falha de infraestrutura.
+		errors.Is(err, orderexecution.ErrRestingOrderNoLongerAvailable)
 }
 
 // equityRoundState é o estado mutável (em memória, só durante esta chamada

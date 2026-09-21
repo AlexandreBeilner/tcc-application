@@ -169,6 +169,7 @@ func TestHandleSubmitOrder_ErrosDeExecucao(t *testing.T) {
 	}{
 		{"saldo insuficiente", orderexecution.ErrInsufficientBalance, http.StatusUnprocessableEntity},
 		{"posição insuficiente", orderexecution.ErrInsufficientPosition, http.StatusUnprocessableEntity},
+		{"ordem pendurada cancelada durante o match", orderexecution.ErrRestingOrderNoLongerAvailable, http.StatusUnprocessableEntity},
 		{"conta não encontrada", orderexecution.ErrAccountNotFound, http.StatusNotFound},
 		{"erro interno inesperado", context.DeadlineExceeded, http.StatusInternalServerError},
 	}

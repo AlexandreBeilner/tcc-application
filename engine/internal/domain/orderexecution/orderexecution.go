@@ -74,6 +74,18 @@ var (
 	// O.1) quando a ordem já está filled/cancelled — só pending/
 	// partially_filled podem ser canceladas.
 	ErrOrderNotCancellable = errors.New("ordem não pode ser cancelada neste status")
+	// ErrRestingOrderNoLongerAvailable é devolvido por Repository.Persist
+	// (achado ao vivo, sessão da tarefa O.1: Execute decide o match contra
+	// Context.Resting, lido por LoadContext fora de transação; se a ordem
+	// pendurada escolhida for cancelada — CancelOrder — no intervalo até
+	// Persist gravar o fill, um UPDATE sem checar status em order_book
+	// "ressuscitava" a ordem cancelada de volta pra partially_filled/filled
+	// e ainda movia saldo/posição dos dois lados de uma ordem que o dono já
+	// tinha cancelado com sucesso, reproduzido manualmente contra Postgres
+	// real via duas transações concorrentes). Mesmo tratamento de
+	// ErrInsufficientPosition contra a mesma ordem "furada" (achado 005):
+	// nada é persistido, a transação inteira do submissor aborta.
+	ErrRestingOrderNoLongerAvailable = errors.New("ordem pendurada não está mais disponível para execução")
 )
 
 // MarketCounterparty é o UserID sentinela usado num Fill contra liquidez

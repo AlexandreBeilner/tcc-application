@@ -137,7 +137,8 @@ func handleSubmitOrder(catalogReader assetCatalogReader, orders orderSubmitter) 
 
 func writeOrderExecutionError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, orderexecution.ErrInsufficientBalance), errors.Is(err, orderexecution.ErrInsufficientPosition):
+	case errors.Is(err, orderexecution.ErrInsufficientBalance), errors.Is(err, orderexecution.ErrInsufficientPosition),
+		errors.Is(err, orderexecution.ErrRestingOrderNoLongerAvailable):
 		writeCatalogError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, orderexecution.ErrInvalidQuantity), errors.Is(err, orderexecution.ErrInvalidPrice):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
