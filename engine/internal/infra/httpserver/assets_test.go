@@ -28,6 +28,10 @@ type fakeCatalogReader struct {
 	fixedIncomeOK  bool
 	fixedIncomeErr error
 
+	selicRate    float64
+	selicRateOK  bool
+	selicRateErr error
+
 	equity    catalog.EquitySpecialization
 	equityOK  bool
 	equityErr error
@@ -78,6 +82,10 @@ func (f *fakeCatalogReader) FindAssetByID(_ context.Context, _ string) (catalog.
 
 func (f *fakeCatalogReader) FindFixedIncomeSpecialization(_ context.Context, _ string) (catalog.FixedIncomeSpecialization, bool, error) {
 	return f.fixedIncome, f.fixedIncomeOK, f.fixedIncomeErr
+}
+
+func (f *fakeCatalogReader) CurrentSelicRatePct(_ context.Context) (float64, bool, error) {
+	return f.selicRate, f.selicRateOK, f.selicRateErr
 }
 
 func (f *fakeCatalogReader) FindEquitySpecialization(_ context.Context, _ string) (catalog.EquitySpecialization, bool, error) {

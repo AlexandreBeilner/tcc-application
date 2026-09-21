@@ -7,7 +7,14 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
+	"tcc-investimentos/engine/internal/domain/ipca"
 )
+
+// testIPCAConfig é usada em todo teste de Service que não exercita Tesouro
+// IPCA+ — os valores não importam pra esses casos (fixedincome.IsIPCAMais
+// dá false, Purchase/Redeem nunca usam vnaBase/monthlyIPCA), só precisa
+// ser um ipca.Config válido pra NewService.
+var testIPCAConfig = ipca.DefaultConfig(1)
 
 type fakeRepository struct {
 	purchaseCtx    PurchaseContext
@@ -50,7 +57,7 @@ func validPurchaseContext() PurchaseContext {
 
 func TestService_Purchase_ExecutaEPersisteCompraValida(t *testing.T) {
 	repo := &fakeRepository{purchaseCtx: validPurchaseContext()}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	req := Request{UserID: "u1", AssetID: "a1", Amount: 2000}
 	outcome, err := svc.Purchase(context.Background(), req)
@@ -70,7 +77,7 @@ func TestService_Purchase_ExecutaEPersisteCompraValida(t *testing.T) {
 
 func TestService_Purchase_CompraRejeitadaNaoPersisteNada(t *testing.T) {
 	repo := &fakeRepository{purchaseCtx: validPurchaseContext()}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	_, err := svc.Purchase(context.Background(), Request{UserID: "u1", AssetID: "a1", Amount: 10})
 	if err != ErrBelowMinimumInvestment {
@@ -83,7 +90,7 @@ func TestService_Purchase_CompraRejeitadaNaoPersisteNada(t *testing.T) {
 
 func TestService_Purchase_ErroAoCarregarContexto(t *testing.T) {
 	repo := &fakeRepository{purchaseCtxErr: ErrAccountNotFound}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	_, err := svc.Purchase(context.Background(), Request{Amount: 100})
 	if err != ErrAccountNotFound {
@@ -96,7 +103,7 @@ func TestService_Purchase_ErroAoCarregarContexto(t *testing.T) {
 
 func TestService_Purchase_ErroAoPersistir(t *testing.T) {
 	repo := &fakeRepository{purchaseCtx: validPurchaseContext(), persistPurchaseErr: errors.New("falha de escrita")}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	_, err := svc.Purchase(context.Background(), Request{Amount: 2000})
 	if err == nil {
@@ -110,7 +117,7 @@ func TestService_Redeem_ExecutaEPersisteResgateValido(t *testing.T) {
 		MaturityDate:         time.Now().AddDate(0, 6, 0),
 		CurrentMarketRatePct: 8,
 	}}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	req := RedeemRequest{UserID: "u1", AssetID: "a1"}
 	outcome, err := svc.Redeem(context.Background(), req)
@@ -130,7 +137,7 @@ func TestService_Redeem_ExecutaEPersisteResgateValido(t *testing.T) {
 
 func TestService_Redeem_ErroAoCarregarContextoNaoPersisteNada(t *testing.T) {
 	repo := &fakeRepository{redeemCtxErr: ErrPositionNotFound}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	_, err := svc.Redeem(context.Background(), RedeemRequest{})
 	if err != ErrPositionNotFound {
@@ -150,7 +157,7 @@ func TestService_Redeem_ErroAoPersistir(t *testing.T) {
 		},
 		persistRedeemErr: errors.New("falha de escrita"),
 	}
-	svc := NewService(repo)
+	svc := NewService(repo, testIPCAConfig)
 
 	_, err := svc.Redeem(context.Background(), RedeemRequest{})
 	if err == nil {

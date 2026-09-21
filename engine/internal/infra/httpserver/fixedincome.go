@@ -6,20 +6,23 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 )
 
-// fixedIncomeExecutor é o colaborador que POST /fixed-income/purchases e
-// POST /fixed-income/redemptions precisam pra processar compra/resgate —
+// fixedIncomeExecutor é o colaborador que POST /fixed-income/purchases,
+// POST /fixed-income/redemptions e GET /fixed-income/simulate precisam —
 // implementado por *fixedincomeexecution.Service, injetado em New (tarefa
-// 3.13).
+// 3.13; Simulate desde o teste de ponta a ponta da Fase L, achado do gap
+// de VNA do Tesouro IPCA+: Simulate precisa de ipca.Config, que só o
+// Service tem — GET /fixed-income/simulate deixou de chamar
+// fixedincomeexecution.Simulate direto).
 type fixedIncomeExecutor interface {
 	Purchase(ctx context.Context, req fixedincomeexecution.Request) (fixedincomeexecution.PurchaseOutcome, error)
 	Redeem(ctx context.Context, req fixedincomeexecution.RedeemRequest) (fixedincomeexecution.RedeemOutcome, error)
+	Simulate(req fixedincomeexecution.SimulateRequest, ctx fixedincomeexecution.SimulateContext) (fixedincomeexecution.SimulateOutcome, error)
 }
 
 // fixedIncomeAssetTypes são os únicos tipos de ativo que passam por essas
@@ -201,13 +204,16 @@ func handleFixedIncomeRedemption(catalogReader assetCatalogReader, exec fixedInc
 // handleFixedIncomeSimulate serve GET /fixed-income/simulate (tarefa
 // 6.0.5) — projeção de retorno de um aporte hipotético, sem gravar nada
 // (nenhum market_events, nenhuma escrita em fixed_income_positions/
-// accounts): só lê o catálogo (mesmo assetCatalogReader dos outros
-// handlers deste arquivo) e chama a função pura
-// fixedincomeexecution.Simulate. Diferente de compra/resgate, não recebe
-// user_id — a simulação não depende de conta nem posição do usuário.
-func handleFixedIncomeSimulate(catalogReader assetCatalogReader) http.HandlerFunc {
+// accounts): lê o catálogo (mesmo assetCatalogReader dos outros handlers
+// deste arquivo) e chama fixedIncomeExecutor.Simulate — desde o teste de
+// ponta a ponta da Fase L, não mais a função pura
+// fixedincomeexecution.Simulate direto: Tesouro IPCA+ precisa do VNA
+// (ipca.Config, que só o *fixedincomeexecution.Service tem, mesma fonte
+// de Purchase/Redeem). Diferente de compra/resgate, não recebe user_id —
+// a simulação não depende de conta nem posição do usuário.
+func handleFixedIncomeSimulate(catalogReader assetCatalogReader, exec fixedIncomeExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if catalogReader == nil {
+		if catalogReader == nil || exec == nil {
 			writeCatalogError(w, http.StatusServiceUnavailable, "serviço de simulação de renda fixa indisponível")
 			return
 		}
@@ -256,15 +262,31 @@ func handleFixedIncomeSimulate(catalogReader assetCatalogReader) http.HandlerFun
 			return
 		}
 
-		outcome, err := fixedincomeexecution.Simulate(
-			fixedincomeexecution.SimulateRequest{Amount: amount, DaysHeld: daysHeld},
-			fixedincomeexecution.SimulateContext{
-				AnnualRatePct: *spec.InterestRate,
-				MaturityDate:  *spec.MaturityDate,
-				TaxExempt:     spec.TaxExempt,
-			},
-			time.Now(),
-		)
+		simCtx := fixedincomeexecution.SimulateContext{
+			AnnualRatePct: *spec.InterestRate,
+			MaturityDate:  *spec.MaturityDate,
+			TaxExempt:     spec.TaxExempt,
+			ProductType:   fixedincome.ProductType(asset.Type),
+		}
+		// Produto pós-fixado (achado do teste de ponta a ponta da Fase L,
+		// nota 3.2 do doc do pacote fixedincomeexecution): precisa da Selic
+		// corrente pra projetar fixedincome.PostFixedValue — Prefixado/
+		// IPCA+ não pagam essa query (CurrentMarketRatePct fica zero-value,
+		// sem uso na branch que Simulate escolhe pra eles).
+		if fixedincome.IsPostFixado(simCtx.ProductType) {
+			selic, ok, err := catalogReader.CurrentSelicRatePct(r.Context())
+			if err != nil {
+				writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar Selic simulada corrente")
+				return
+			}
+			if !ok {
+				writeCatalogError(w, http.StatusServiceUnavailable, "temporizador ainda não rodou nenhum tick — sem taxa Selic simulada pra projetar produto pós-fixado")
+				return
+			}
+			simCtx.CurrentMarketRatePct = selic
+		}
+
+		outcome, err := exec.Simulate(fixedincomeexecution.SimulateRequest{Amount: amount, DaysHeld: daysHeld}, simCtx)
 		if err != nil {
 			writeCatalogError(w, http.StatusBadRequest, err.Error())
 			return

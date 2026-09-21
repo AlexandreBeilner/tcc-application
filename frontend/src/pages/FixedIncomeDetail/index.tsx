@@ -10,7 +10,7 @@ import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { useSimulateFixedIncomeQuery } from '../../features/market/useSimulateFixedIncomeQuery'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { daysUntil } from '../../features/market/daysUntil'
-import { formatRatePercent } from '../../features/market/format'
+import { fixedIncomeRateLabel, formatRatePercent } from '../../features/market/format'
 import styles from './index.module.css'
 
 const DEFAULT_DAYS_HELD = 365
@@ -65,7 +65,11 @@ export function FixedIncomeDetail() {
         const unlockingLesson = gate.unlockingLessonFor(asset)
         return (
             <main className={styles.page}>
-                <LockedAssetPanel lessonId={unlockingLesson?.id} lessonTitle={unlockingLesson?.title} reachable={unlockingLesson?.reachable} />
+                <LockedAssetPanel
+                    lessonId={unlockingLesson?.id}
+                    lessonTitle={unlockingLesson?.title}
+                    reachable={unlockingLesson?.reachable}
+                />
             </main>
         )
     }
@@ -98,7 +102,9 @@ export function FixedIncomeDetail() {
                         {fixedIncome.interest_rate !== undefined && (
                             <div className={styles.infoRow}>
                                 <span className={styles.infoLabel}>Taxa</span>
-                                <span className={styles.infoValue}>{formatRatePercent(fixedIncome.interest_rate)} a.a.</span>
+                                <span className={styles.infoValue}>
+                                    {formatRatePercent(fixedIncome.interest_rate)} {fixedIncomeRateLabel(asset.type)}
+                                </span>
                             </div>
                         )}
                         {fixedIncome.maturity_date && (

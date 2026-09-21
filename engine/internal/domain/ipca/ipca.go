@@ -9,23 +9,32 @@ import (
 	"math/rand"
 )
 
-// Valores de referência ilustrativos (tarefa M.1, backlog-motor-mercado-
-// realista) — a spec só diz "pequena variação em torno de uma meta" (3.2),
-// sem número de referência (ao contrário da Selic_neutra=10%,
-// selic.DefaultNeutralRate); mesmo tratamento de "default sujeito a
-// calibração futura" já dado a fii.DefaultNetWorthSelicSensitivity/
-// selic.DefaultInflationWeight (antes do recalibre do achado 007). Meta
-// mensal escolhida pra compor perto de 4,5% a.a. (histórico da meta de
-// inflação do Brasil), coerente com selic.DefaultNeutralRate = 10% (um
-// juro real historicamente alto, mesmo raciocínio que já embasa esse
-// default).
+// Valores de referência calibrados na tarefa L.2 (backlog-motor-mercado-
+// realista) e reaproveitados pela M.1 pro histórico diário exibido ao
+// usuário (M.4/M.5) — um único ipca.DefaultConfig serve os dois
+// consumidores (tick.Advance grava o histórico, fixedincomeexecution usa
+// pro VNA do Tesouro IPCA+), então só pode existir UMA calibração canônica
+// aqui, nunca uma por consumidor. Meta de 3% a.a. reflete a meta contínua
+// de inflação do CMN vigente (substitui o regime de metas anuais
+// escalonadas, cujo valor histórico girava perto de 4,5% a.a.); convertida
+// pra mensal via composição ((1+0,03)^(1/12) - 1), não divisão simples por
+// 12 (mesmo cuidado de juros compostos do resto do pacote `fixedincome`).
+// MaxDeviation/Volatility aproximam a banda de tolerância oficial (meta ±
+// 1,5 p.p. a.a.) sem reproduzi-la exatamente — "ajustável conforme
+// calibração" (semana 8 do roadmap), mesmo tratamento dado a
+// selic.DefaultNeutralRate/DefaultReversionSpeed/DefaultVolatility.
 const (
-	// DefaultMonthlyTarget é a meta de IPCA mensal simulada (decimal).
-	DefaultMonthlyTarget = 0.00367
-	// DefaultMaxDeviation é a banda máxima de variação mensal em torno da
-	// meta (decimal).
-	DefaultMaxDeviation = 0.0025
-	// DefaultVolatility é o desvio-padrão do ruído mensal (decimal).
+	// DefaultMonthlyTarget é a meta de IPCA mensal (decimal) — (1.03)^(1/12)
+	// - 1 ≈ 0,25% a.m., arredondado.
+	DefaultMonthlyTarget = 0.0025
+	// DefaultMaxDeviation é a banda mensal em torno da meta — aproxima o
+	// intervalo de tolerância oficial (1,5 a 4,5% a.a.) sem replicar a
+	// conversão exata mês a mês.
+	DefaultMaxDeviation = 0.0015
+	// DefaultVolatility é o desvio-padrão do ruído mensal — menor que
+	// MaxDeviation de propósito, pra clamp (MonthlySeries) raramente ser o
+	// fator dominante, e a "pequena variação em torno de uma meta" da spec
+	// 3.2 continuar visível na série.
 	DefaultVolatility = 0.0008
 	// DefaultMonthDays é quantos dias simulados compõem um "mês" de IPCA —
 	// o calendário simulado não modela meses de calendário real (dias
@@ -35,9 +44,9 @@ const (
 	DefaultMonthDays = 30
 )
 
-// DefaultConfig monta a configuração de referência ilustrativa desta
-// tarefa, variando só a seed por simulação — mesmo padrão de
-// selic.DefaultConfig.
+// DefaultConfig monta a configuração de referência calibrada na tarefa L.2,
+// variando só a seed (RNF08 — mesma seed sempre reproduz a mesma série,
+// mesmo raciocínio de selic.DefaultConfig).
 func DefaultConfig(seed int64) Config {
 	return Config{
 		MonthlyTarget: DefaultMonthlyTarget,

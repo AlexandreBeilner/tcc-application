@@ -73,6 +73,23 @@ func TestMonthlySeries_SemRuidoFicaExatamenteNaMeta(t *testing.T) {
 	}
 }
 
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig(99)
+
+	if cfg.MonthlyTarget != DefaultMonthlyTarget {
+		t.Errorf("MonthlyTarget = %v, want %v", cfg.MonthlyTarget, DefaultMonthlyTarget)
+	}
+	if cfg.MaxDeviation != DefaultMaxDeviation {
+		t.Errorf("MaxDeviation = %v, want %v", cfg.MaxDeviation, DefaultMaxDeviation)
+	}
+	if cfg.Volatility != DefaultVolatility {
+		t.Errorf("Volatility = %v, want %v", cfg.Volatility, DefaultVolatility)
+	}
+	if cfg.Seed != 99 {
+		t.Errorf("Seed = %v, want 99", cfg.Seed)
+	}
+}
+
 func TestCurrentMonthIndex_TodoDiaJaPertenceAUmMes(t *testing.T) {
 	tests := []struct {
 		dayIndex, monthDays, want int

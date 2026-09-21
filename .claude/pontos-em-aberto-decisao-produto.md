@@ -421,3 +421,48 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   (`seedLessons.test.ts`, fake in-memory do upsert): renumerar `code` mantendo o mesmo `stable_key`
   atualiza a linha existente sem duplicar e preservando `id`.
 - **Status:** resolvido. `npm run lint`/`npm run build`/`npm test` verdes (585 testes).
+
+### 011 · Marcação a mercado de Prefixado/IPCA+ ignorava o spread contratual — duplicação de dinheiro repetível via compra+resgate instantâneo
+
+- **Local:** `engine/internal/domain/fixedincomeexecution/fixedincomeexecution.go` (`Redeem`, branches
+  `default`/`IsIPCAMais`), `engine/internal/infra/db/fixed_income_execution_repository.go`
+  (`LoadRedeemContext`)
+- **Origem:** teste de ponta a ponta da Fase L (branch `fase-l-renda-fixa-correcoes-cirurgicas`),
+  2026-09-20 — achado registrado como aberto, escalado pra correção na mesma sessão a pedido do autor
+  depois de perguntar qual era o impacto.
+- **O que era:** `Purchase` trava a taxa contratada como `spread + benchmark` (`fixedincome.
+  OfferedRate` — tarefa L.4), mas `Redeem` marcava a mercado comparando essa taxa CHEIA contra o
+  benchmark BRUTO (Selic nominal pra Prefixado, Selic real via Fisher pra IPCA+ — sem somar spread
+  nenhum). Como o valor creditado em `accounts.current_balance` vinha exatamente dessa comparação
+  (não só o rótulo `vs_contracted_rate`), compra e resgate imediato de Tesouro Prefixado/IPCA+
+  creditava mais dinheiro do que foi investido, sem nenhum tempo decorrido nem movimento real de
+  Selic, repetível indefinidamente (nenhuma carência entre `POST /fixed-income/purchases` e
+  `POST /fixed-income/redemptions`). Validado ao vivo antes da correção: 4 ciclos seguidos de
+  compra+resgate instantâneo em LTN2027 (spread 1,75, Selic parada em 30%) levaram uma conta de
+  R$ 10.000,00 pra R$ 11.129,06 em segundos, ~2,71% líquido de IR por ciclo, compondo a cada rodada.
+  Os 6 produtos pós-fixados nunca foram afetados (L.1/L.3 já tiravam eles da marcação a mercado).
+- **Decisão (2026-09-20, mesma sessão):** opção (a) das listadas originalmente — corrigir a fórmula
+  em si (somar o mesmo spread ao benchmark de mercado antes de comparar), sem adicionar carência
+  mínima de resgate. Justificativa: a correção de fórmula fecha o exploit por completo (quando o
+  benchmark não mudou, a marcação vira exatamente 0, não só "mais lenta de repetir") — uma carência
+  sozinha só reduziria a frequência sem corrigir o viés em si. `RedeemContext` ganhou `AnnualRatePct`
+  (o spread do catálogo, mesma fonte/convenção de `PurchaseContext.AnnualRatePct`) e `IsSandbox`;
+  `Redeem` agora soma esse spread ao benchmark corrente (`fixedincome.OfferedRate`) antes de marcar a
+  mercado, nos dois branches (Prefixado via Selic nominal, IPCA+ via Fisher) — exceto sandbox
+  (`IsSandbox`), cuja taxa do roteiro (`sandbox.RateOnDay`) já vem pronta, sem separar spread de
+  benchmark (mesmo raciocínio de `PurchaseContext.IsSandbox`, já existente desde a 4.11).
+  `LoadRedeemContext` passou a ler `fixed_income_assets.interest_rate` (mesma query já existente, só
+  mais uma coluna) e propagar `is_sandbox`. Testes novos (`fixedincomeexecution_test.go`):
+  `TestRedeem_Prefixado_SpreadNaoGeraGanhoArtificialQuandoSelicNaoMudou`,
+  `TestRedeem_Prefixado_ComSpread_SelicSubiuAindaGeraPerdaReal` (confirma que a marcação a mercado
+  genuína continua funcionando — só o componente artificial do spread foi removido),
+  `TestRedeem_Prefixado_Sandbox_NaoSomaSpreadSobreATaxaDoRoteiro` (usa `AnnualRatePct: 999` de
+  propósito — se a correção fosse aplicada por engano num resgate sandbox, o resultado se afastaria
+  muito de zero) e `TestRedeem_IPCAMais_SpreadNaoGeraGanhoArtificialQuandoBenchmarkNaoMudou`. Os
+  testes pré-existentes de marcação a mercado continuam passando sem alteração — não setavam
+  `AnnualRatePct` (zero-value), e `OfferedRate(0, x) = x` é uma identidade que preserva o
+  comportamento anterior num cenário de spread zero. Validado ao vivo repetindo exatamente o mesmo
+  cenário de exploração (4 ciclos de compra+resgate instantâneo em LTN2027, Selic parada): saldo ficou
+  em **R$ 10.000,00 nos 4 ciclos** (antes: R$ 11.129,06 no 4º ciclo). `go build`/`go test
+  ./...`/`golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes.
+- **Status:** resolvido.

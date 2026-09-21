@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain"
+	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
 	"tcc-investimentos/engine/internal/domain/sandbox"
@@ -61,13 +62,15 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 
 	var ticker string
 	var isSandbox bool
+	var productType string
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT fia.interest_rate, fia.maturity_date, fia.minimum_investment, a.ticker, a.is_sandbox
+		`SELECT fia.interest_rate, fia.maturity_date, fia.minimum_investment, a.ticker, a.is_sandbox, a.type
 		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
 		 WHERE fia.asset_id = $1`, assetID,
-	).Scan(&pctx.AnnualRatePct, &pctx.MaturityDate, &pctx.MinimumInvestment, &ticker, &isSandbox); err != nil {
+	).Scan(&pctx.AnnualRatePct, &pctx.MaturityDate, &pctx.MinimumInvestment, &ticker, &isSandbox, &productType); err != nil {
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
+	pctx.ProductType = fixedincome.ProductType(productType)
 
 	var pos fixedincomeposition.Position
 	var positionCreatedAt sql.NullTime
@@ -79,6 +82,7 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
 	pctx.CurrentPosition = pos
+	pctx.IsSandbox = isSandbox
 
 	if isSandbox {
 		script, ok := sandbox.RateScriptForTicker(ticker)
@@ -86,6 +90,34 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 			return fixedincomeexecution.PurchaseContext{}, ErrSandboxScriptNotFound
 		}
 		pctx.AnnualRatePct = sandbox.RateOnDay(script, sandboxDayIndex(positionCreatedAt, pos.Quantity))
+		return pctx, nil
+	}
+
+	// Selic/IPCA (tarefa L.4) só são lidas pra Prefixado/IPCA+ — pós-fixado
+	// não soma nenhum benchmark (AnnualRatePct já é "% do CDI", L.1) e não
+	// paga o custo/dependência de market_calendar/market_indicator_history
+	// à toa (mesmo raciocínio de OrderExecutionRepository.floatCeiling só
+	// rodar a segunda query quando a primeira não é nula).
+	if fixedincome.IsPrefixado(pctx.ProductType) || fixedincome.IsIPCAMais(pctx.ProductType) {
+		selic, ok, err := currentSelicRatePct(ctx, r.db)
+		if err != nil {
+			return fixedincomeexecution.PurchaseContext{}, err
+		}
+		if !ok {
+			return fixedincomeexecution.PurchaseContext{}, ErrMarketCalendarNotInitialized
+		}
+		pctx.CurrentMarketRatePct = selic
+
+		if fixedincome.IsIPCAMais(pctx.ProductType) {
+			accumulated, ok, err := currentIPCAAccumulated12m(ctx, r.db)
+			if err != nil {
+				return fixedincomeexecution.PurchaseContext{}, err
+			}
+			if !ok {
+				return fixedincomeexecution.PurchaseContext{}, ErrMarketCalendarNotInitialized
+			}
+			pctx.IPCAAccumulated12m = accumulated
+		}
 	}
 
 	return pctx, nil
@@ -99,7 +131,9 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 // mercado, ver doc do pacote sandbox) no dia decorrido desde a primeira
 // operação do usuário (fixed_income_positions.created_at — sempre existe
 // aqui, a posição já foi encontrada acima), nunca market_calendar.selic_rate
-// — o Temporizador nunca avança nada de sandbox.
+// — o Temporizador nunca avança nada de sandbox. AnnualRatePct/IsSandbox
+// (achado 011, teste de ponta a ponta da Fase L) alimentam a correção do
+// spread em Redeem — ver nota do campo em RedeemContext.
 func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, userID, assetID string) (fixedincomeexecution.RedeemContext, error) {
 	var rctx fixedincomeexecution.RedeemContext
 	var positionCreatedAt time.Time
@@ -118,13 +152,16 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 
 	var ticker string
 	var isSandbox bool
+	var productType string
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox
+		`SELECT fia.interest_rate, fia.maturity_date, fia.tax_exempt, a.ticker, a.is_sandbox, a.type
 		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
 		 WHERE fia.asset_id = $1`, assetID,
-	).Scan(&rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox); err != nil {
+	).Scan(&rctx.AnnualRatePct, &rctx.MaturityDate, &rctx.TaxExempt, &ticker, &isSandbox, &productType); err != nil {
 		return fixedincomeexecution.RedeemContext{}, err
 	}
+	rctx.ProductType = fixedincome.ProductType(productType)
+	rctx.IsSandbox = isSandbox
 
 	if isSandbox {
 		script, ok := sandbox.RateScriptForTicker(ticker)
@@ -143,6 +180,34 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
 		}
 		return fixedincomeexecution.RedeemContext{}, err
+	}
+
+	// SelicRatesSincePurchase (gap remanescente fechado no teste de ponta a
+	// ponta da Fase L, nota 3.1 do doc do pacote fixedincomeexecution) só é
+	// lida pro pós-fixado — a série real de Selic desde a compra é o que
+	// fixedincome.PostFixedValue usa pra valorizar de verdade, em vez de
+	// repetir só a Selic corrente.
+	if fixedincome.IsPostFixado(rctx.ProductType) {
+		rates, err := selicRatesSince(ctx, r.db, positionCreatedAt)
+		if err != nil {
+			return fixedincomeexecution.RedeemContext{}, err
+		}
+		rctx.SelicRatesSincePurchase = rates
+	}
+
+	// IPCAAccumulated12m (tarefa L.4) só é lida pro Tesouro IPCA+ — é o
+	// único tipo cuja marcação a mercado precisa converter
+	// CurrentMarketRatePct (Selic nominal) numa taxa real via
+	// fixedincome.FisherRealRate antes de comparar com a taxa contratada.
+	if fixedincome.IsIPCAMais(rctx.ProductType) {
+		accumulated, ok, err := currentIPCAAccumulated12m(ctx, r.db)
+		if err != nil {
+			return fixedincomeexecution.RedeemContext{}, err
+		}
+		if !ok {
+			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
+		}
+		rctx.IPCAAccumulated12m = accumulated
 	}
 
 	return rctx, nil

@@ -19,13 +19,36 @@ export function formatDecimal(value: number): string {
     return decimalFormatter.format(value)
 }
 
-// `fixed_income.interest_rate` (`GET /market/assets/:id`) é a taxa anual
-// já em pontos percentuais (ex: `11.75` = 11,75% a.a.) — confirmado em
+// `fixed_income.interest_rate` (`GET /market/assets/:id`) já vem em pontos
+// percentuais (ex: `11.75` = 11,75%) — confirmado em
 // `fixedincomeexecution.Purchase` (`ctx.AnnualRatePct / 100` antes de virar
 // razão pro motor). Escala diferente de `average_rate` (posição, já vem
 // como razão 0–1) e de `roe`/`dividend_yield`/`tax_rate` (`formatPercentage`,
 // `features/portfolio/format`) — motivo de ganhar a própria função, sem
-// multiplicar por 100 de novo.
+// multiplicar por 100 de novo. O que esse número SIGNIFICA depende do tipo
+// de produto desde a tarefa L.1 (backlog-motor-mercado-realista) — ver
+// `fixedIncomeRateLabel` abaixo.
 export function formatRatePercent(alreadyPercentValue: number): string {
     return `${decimalFormatter.format(alreadyPercentValue)}%`
+}
+
+// Tipos de renda fixa pós-fixados (`fixedincome.IsPostFixado`, engine) —
+// tarefa L.1 do backlog-motor-mercado-realista: `interest_rate` deixou de
+// significar "taxa anual" pra esses 6 tipos e passou a significar "% do
+// CDI/Selic contratado" (ex: `110` = "110% do CDI"), mesma convenção da
+// lição 3.3 da spec ("CDB 110% CDI líquido vs LCI 90% CDI isento"). Tesouro
+// Prefixado é o único tipo realmente "a.a." (taxa travada na compra);
+// Tesouro IPCA+ continua mostrado como "a.a." também — a taxa real
+// contratada do IPCA+ (L.2 não mudou essa exibição).
+const POST_FIXADO_ASSET_TYPES = new Set(['tesouro_selic', 'cdb', 'lci', 'lca', 'cri', 'cra'])
+
+export function isPostFixadoAssetType(assetType: string): boolean {
+    return POST_FIXADO_ASSET_TYPES.has(assetType)
+}
+
+// Rótulo pra acompanhar `formatRatePercent(fixed_income.interest_rate)` na
+// tela de detalhe do ativo (tela 4.3) — "do CDI" pros 6 tipos pós-fixados,
+// "a.a." pra Tesouro Prefixado/Tesouro IPCA+.
+export function fixedIncomeRateLabel(assetType: string): string {
+    return isPostFixadoAssetType(assetType) ? 'do CDI' : 'a.a.'
 }

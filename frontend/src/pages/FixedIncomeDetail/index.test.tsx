@@ -72,8 +72,40 @@ describe('FixedIncomeDetail (tela 4.3)', () => {
         renderPage()
 
         await waitFor(() => expect(screen.getByText('CDB2027')).toBeInTheDocument())
-        expect(screen.getByText('12,0% a.a.')).toBeInTheDocument()
+        // CDB é pós-fixado (tarefa L.1, backlog-motor-mercado-realista) —
+        // `interest_rate` significa "% do CDI", não "% a.a.".
+        expect(screen.getByText('12,0% do CDI')).toBeInTheDocument()
         expect(screen.getByText('banco')).toBeInTheDocument()
+    })
+
+    it('mostra a taxa como "a.a." pra um produto prefixado (Tesouro Prefixado)', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'LTN2027',
+                name: 'Tesouro Prefixado 2027',
+                type: 'tesouro_prefixado',
+                is_sandbox: false,
+                fixed_income: {
+                    interest_rate: 11.75,
+                    maturity_date: '2027-01-01T00:00:00Z',
+                    issuer_type: 'tesouro',
+                    tax_exempt: false,
+                    minimum_investment: 30,
+                },
+            },
+        })
+        vi.mocked(useUnlockedKeys).mockReturnValue({
+            unlockedKeys: new Set(['asset:tesouro_prefixado']),
+            lessons: [],
+            isLoading: false,
+            isError: false,
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('LTN2027')).toBeInTheDocument())
+        expect(screen.getByText('11,8% a.a.')).toBeInTheDocument()
     })
 
     it('digitar um valor dispara a simulação e "Investir" abre a confirmação como overlay, sem navegar', async () => {
