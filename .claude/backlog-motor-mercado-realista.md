@@ -2883,11 +2883,23 @@ em vez de só no fechamento do dia.
   chamada por `tick.Service.Run` antes de `runIntradayRounds` de cada dia novo, cancela toda ordem
   `pending`/`partially_filled` com `simulated_day` anterior ao dia que está começando — mesmo
   contrato desta tarefa, escrito sem saber que O.2 existia como tarefa nomeada. `order_book.
-  simulated_day` (migration `000017`) é o carimbo de dia que a tarefa previa; `loadRestingOrders`
-  já só lê `pending`/`partially_filled` (a checagem de regressão que os critérios de aceite pedem).
-  Testes: `rounds_test.go`/`service_test.go` (achado 005). Documentado em `.docs/engine/orders.md`
-  ("Ciclo de vida de ordem — day order"), agora com referência cruzada explícita a esta tarefa.
+  simulated_day` (migration `000017`) é o carimbo de dia que a tarefa previa.
   Nenhum código novo desta sessão — só a atualização deste arquivo pra refletir o que já existia.
+- **Nota sobre os critérios de aceite (sessão 2026-09-21, confirmado com o autor):** os 3 critérios
+  acima pedem teste table-driven/regressão em código — o que existe de fato é orquestração testada
+  (`service_test.go`, pacote `tick`: `Service.Run` chama `ExpireStaleOrders` com o dia certo e
+  propaga erro) mais validação ao vivo via `docker compose` na sessão do achado 005 original
+  (1.891 ordens obsoletas reais expiradas no primeiro tick pós-deploy, `order_book` estável por
+  ~20 ticks sem crescer). **Não existe teste Go contra Postgres real pra `ExpireStaleOrders` em si**
+  (nem regressão explícita de "ordem `filled`/de dia posterior não é afetada", nem de "ordem
+  expirada nunca reaparece em replay" — essa última garantida estruturalmente por
+  `loadRestingOrders` só ler `status IN ('pending','partially_filled')`, verificado por leitura de
+  código, não por teste). Auditado nesta sessão: **nenhum repositório de `internal/infra/db` tem
+  teste Go contra Postgres real** (`quote_cache_test.go` é o único teste do pacote, 100% em
+  memória) — a convenção real e já estabelecida do projeto pra essa camada é validar SQL via
+  `docker compose` ao vivo, nunca por teste automatizado. Decisão do autor: **O.2 segue essa mesma
+  convenção existente, sem gap novo a registrar** — não abrir tarefa nem entrada em
+  `pontos-em-aberto-decisao-produto.md` pra isso.
 
 ---
 
