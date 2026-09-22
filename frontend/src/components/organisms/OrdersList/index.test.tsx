@@ -61,6 +61,25 @@ const cancelledOrder: MyOrderRecord = {
     created_at: '2026-09-18T12:00:00.000Z',
 }
 
+// Cancelada pelo próprio dono (O.1) depois de já ter preenchido parte da
+// quantidade — `status` vira `cancelled` (não fica `partially_filled`), mas
+// `filled_quantity` continua > 0 (achado desta sessão de teste ponta a
+// ponta: o que já executou não é revertido pelo cancelamento).
+const cancelledWithPartialFillOrder: MyOrderRecord = {
+    order_id: 'o4',
+    asset_id: 'a1',
+    ticker: 'VALR3',
+    name: 'Valorização SA',
+    side: 'sell',
+    type: 'limit',
+    quantity: 6,
+    filled_quantity: 2,
+    price: 50,
+    status: 'cancelled',
+    cancel_reason: 'user_cancelled',
+    created_at: '2026-09-21T12:00:00.000Z',
+}
+
 describe('OrdersList (tela Minhas Ordens, O.4)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
@@ -89,6 +108,14 @@ describe('OrdersList (tela Minhas Ordens, O.4)', () => {
 
         fireEvent.click(screen.getByRole('tab', { name: 'Recusadas' }))
         expect(screen.getAllByText('Expirada no fechamento do dia').length).toBeGreaterThan(0)
+    })
+
+    it('aba Recusadas mostra preenchida/total quando a ordem cancelada tinha fill parcial', () => {
+        renderList([cancelledWithPartialFillOrder])
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Recusadas' }))
+        expect(screen.getAllByText('2/6').length).toBeGreaterThan(0)
+        expect(screen.getAllByText('Cancelada por você').length).toBeGreaterThan(0)
     })
 
     it('estado vazio numa aba sem ordens', () => {

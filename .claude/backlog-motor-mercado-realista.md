@@ -3079,6 +3079,33 @@ em vez de só no fechamento do dia.
   420px/834px por sessões anteriores (M.4). Sem regressão esperada, mas não é a mesma barra de
   confirmação ao vivo das demais tarefas — registrar se uma sessão futura tiver acesso a
   redimensionamento de janela real. Stack parada com `docker compose stop` (sem `-v`) ao final.
+- **Teste de ponta a ponta e correção de bug (sessão 2026-09-21, mesmo dia, revisão da Fase O
+  inteira):** achado ao vivo — a coluna Quantidade da aba Recusadas usava `order.status ===
+  'partially_filled'` pra decidir entre mostrar `preenchida/total` ou só `total`
+  (`formatQuantity`, `OrdersList/index.tsx`). Depois de um cancelamento manual (O.1) de uma ordem
+  que já tinha preenchimento parcial, `status` vira `cancelled` (nunca mais `partially_filled`) —
+  então a linha em Recusadas mostrava só a quantidade original (ex: `6`), escondendo que parte dela
+  (ex: `2`) já tinha executado de verdade (saldo/posição já debitados/creditados do usuário, O.1 não
+  reverte `filled_quantity`) antes do cancelamento. Reproduzido ao vivo via `docker compose up`:
+  usuário real vendeu 6 unidades de `SAND3` (limite), outro usuário comprou 2 (fill parcial
+  confirmado em `positions`/`accounts` dos dois lados), dono cancelou o restante — a aba Recusadas
+  mostrava `6`, não `2/6`, pro fill que realmente aconteceu. Corrigido na mesma sessão (bug
+  mecânico de UI, sem decisão de produto envolvida): `formatQuantity` passou a checar
+  `filled_quantity > 0 && filled_quantity < quantity` diretamente, em vez do `status` — mostra
+  `preenchida/total` em qualquer status (`partially_filled` ou `cancelled` com fill parcial), só
+  `total` quando não há fill nenhum ou a ordem preencheu por completo. Teste novo:
+  `'aba Recusadas mostra preenchida/total quando a ordem cancelada tinha fill parcial'`
+  (`OrdersList/index.test.tsx`). Demais fluxos de O.1–O.4 confirmados ao vivo na mesma sessão sem
+  achado novo: `404`/`409`/`400`/`401` de `POST /market/orders/:id/cancel` (id de terceiro, id
+  inexistente, já cancelada, uuid malformado, sem token), `no_liquidity` reproduzido de verdade
+  (`GET /market/orders` mostrando `cancel_reason: no_liquidity`, `price: 0`), expiração Day
+  confirmada em dois ticks consecutivos (ordem criada no dia N sobrevive ao tick que fecha o dia N —
+  correto, ainda participa das rodadas desse dia — e só expira no tick que fecha o dia N+1), saldo/
+  posição íntegros depois do cancelamento parcial (conferido direto no Postgres). `npx tsc -b`/
+  `npm run lint` (oxlint, 0 issues novos)/`npx vitest run` (696 testes)/`npx prettier --check`/
+  `npm run build` verdes; `go build`/`go test ./...` e `npm run build`/`npx vitest run` (599 testes)
+  do backend confirmados verdes antes do teste ao vivo, sem alteração nessas duas camadas nesta
+  sessão. Stack parada com `docker compose stop` (sem `-v`) ao final.
 
 ---
 

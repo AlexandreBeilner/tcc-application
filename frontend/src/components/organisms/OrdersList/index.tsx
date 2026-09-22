@@ -42,8 +42,17 @@ function matchesTab(order: MyOrderRecord, tab: OrdersListTab): boolean {
     return order.status === tab
 }
 
+// Checa `filled_quantity` em vez de `status === 'partially_filled'` (achado
+// desta sessão de teste ponta a ponta): uma ordem parcialmente preenchida e
+// depois cancelada (O.1) vira `status = cancelled`, então checar só o status
+// escondia da aba Recusadas que parte da ordem já tinha sido executada de
+// verdade (saldo/posição já debitados/creditados) antes do cancelamento —
+// o usuário via só a quantidade total, sem nenhum sinal do que realmente
+// aconteceu com o próprio dinheiro.
 function formatQuantity(order: MyOrderRecord): string {
-    if (order.status === 'partially_filled') return `${order.filled_quantity}/${order.quantity}`
+    if (order.filled_quantity > 0 && order.filled_quantity < order.quantity) {
+        return `${order.filled_quantity}/${order.quantity}`
+    }
     return String(order.quantity)
 }
 
