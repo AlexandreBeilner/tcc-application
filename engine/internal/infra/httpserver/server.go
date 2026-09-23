@@ -35,11 +35,12 @@ type userMarketDataReader interface {
 // /accounts responde 503 nesse caso; catalog, temporizador, orders,
 // fixedIncome, macroEvents, macroEventReader, userData e indicatorHistory
 // podem ser nil também — GET /assets, /assets/:id, /assets/:id/quotes,
-// /companies/:id, POST /admin/tick, POST /orders, POST
-// /fixed-income/purchases|redemptions, GET /fixed-income/simulate, POST
-// /macro-events, GET /macro-events, GET /accounts/:user_id[/events], GET
-// /positions, GET /fixed-income/positions e GET
-// /market/indicators/history respondem 503 nesse caso, em vez de panicar.
+// /companies/:id, POST /admin/tick, POST /orders, POST /orders/:id/cancel,
+// GET /orders, POST /fixed-income/purchases|redemptions, GET
+// /fixed-income/simulate, POST /macro-events, GET /macro-events, GET
+// /accounts/:user_id[/events], GET /positions, GET /fixed-income/positions
+// e GET /market/indicators/history respondem 503 nesse caso, em vez de
+// panicar.
 func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
@@ -54,6 +55,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /companies/{id}", handleGetCompany(catalog))
 	mux.HandleFunc("POST /admin/tick", handleAdminTick(temporizador))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
+	mux.HandleFunc("POST /orders/{id}/cancel", handleCancelOrder(orders))
+	mux.HandleFunc("GET /orders", handleListOrders(orders))
 	mux.HandleFunc("POST /fixed-income/purchases", handleFixedIncomePurchase(catalog, fixedIncome))
 	mux.HandleFunc("POST /fixed-income/redemptions", handleFixedIncomeRedemption(catalog, fixedIncome))
 	mux.HandleFunc("GET /fixed-income/simulate", handleFixedIncomeSimulate(catalog, fixedIncome))

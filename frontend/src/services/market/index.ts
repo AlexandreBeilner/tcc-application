@@ -7,6 +7,7 @@ import type {
     IndicatorHistoryEntry,
     MarketEvent,
     MyAccount,
+    MyOrderRecord,
     PlaceOrderInput,
     PlaceOrderResult,
     PurchaseFixedIncomeInput,
@@ -43,8 +44,11 @@ export type {
     MyAccount,
     MyAccountFixedIncomePosition,
     MyAccountPosition,
+    MyOrderRecord,
+    OrderCancelReason,
     OrderFill,
     OrderSide,
+    OrderStatus,
     OrderType,
     PlaceOrderInput,
     PlaceOrderResult,
@@ -99,6 +103,19 @@ export function listMyEvents(token: string, limit?: number, offset?: number): Pr
 
 export function placeOrder(token: string, input: PlaceOrderInput): Promise<PlaceOrderResult> {
     return apiRequest<PlaceOrderResult>('/market/orders', { token, method: 'POST', body: input })
+}
+
+// Tela "Minhas Ordens" (tarefa O.4) — sem paginação nem filtro de status
+// (escopo de protótipo, `.docs/backend/market.md`), o agrupamento em
+// Pendentes/Executadas/Recusadas é responsabilidade do cliente.
+export function listMyOrders(token: string): Promise<{ orders: MyOrderRecord[] }> {
+    return apiRequest<{ orders: MyOrderRecord[] }>('/market/orders', { token })
+}
+
+// `204` sem corpo (tarefa O.1) — `apiRequest` já devolve `undefined` nesse
+// caso.
+export function cancelOrder(token: string, orderId: string): Promise<void> {
+    return apiRequest<void>(`/market/orders/${orderId}/cancel`, { token, method: 'POST' })
 }
 
 export function simulateFixedIncome(token: string, input: SimulateFixedIncomeInput): Promise<SimulateFixedIncomeResult> {

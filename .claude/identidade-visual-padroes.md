@@ -117,6 +117,37 @@ horizontal acima do conteúdo em mobile/tablet, painel lateral fixo/sticky em de
 mesmo padrão de "conteúdo + coluna de apoio" do §7). Referência viva:
 `frontend/src/pages/Classificacao`.
 
+## 4c. Lista com abas — tabela (desktop) / cards (mobile-tablet), nunca linha clicável junto de ação por item (tarefa O.4)
+
+Padrão já em uso desde a 6.5 (`pages/EquityList`/`pages/FixedIncomeList`, abas Ações/ETFs/FIIs e
+Tesouro Direto/CDBs.../CRI e CRA) mas nunca escrito aqui até a tarefa O.4 ("Minhas Ordens")
+precisar dele de novo e o backlog apontar a lacuna de documentação. Fica formalizado como padrão
+reaproveitável, não específico de nenhuma das três telas:
+
+- **Abas sempre visíveis**, nunca um `Select` escondendo as opções (mesmo raciocínio do §4b) —
+  fileira de pills horizontais (`overflow-x: auto` em vez de quebrar linha, cabe qualquer número
+  de abas em mobile), pill ativa reaproveita o token de destaque (`--color-brand-500` borda,
+  `--color-brand-100` fundo, `--color-brand-300` texto) já usado pelo grupo de filtros do §4b —
+  mesma cor, papel diferente: aqui a aba troca o conjunto de itens mostrado (navegação dentro da
+  tela), lá o pill filtra sem trocar o "tipo" de conteúdo.
+- **Duas marcações sempre no DOM, uma escondida por media query** (nunca por JS/`matchMedia`, pra
+  não depender de mock em teste): `<table>` com `display: none` até `1024px`, lista de `.cards`
+  empilhados com `display: none` a partir de `1024px` — a mesma técnica de `AssetTable`
+  (organism-base de 4.2/4.4), cada `.card`/linha reaproveitando as mesmas colunas (`{ key, header,
+  render }`) que alimentam as células da tabela, pra nunca divergir dado entre as duas.
+- **Diferença de "Minhas Ordens" (O.4) vs. `AssetTable`:** `AssetTable` é pensado pra linha/card
+  navegável — a linha inteira é clicável (`<tr onClick>` desktop, `<button>` envolvendo o card no
+  mobile) e leva pra uma tela de detalhe. Uma lista com **ação por item** (aqui, "Cancelar ordem")
+  não pode reaproveitar isso: um `<button>` de ação dentro de outro `<button>` de navegação é
+  elemento interativo aninhado, inválido e ambíguo pro clique. Regra geral daqui pra frente: se a
+  lista precisa de um botão de ação por linha, ela **não é navegável por clique na linha inteira**
+  — o item mostra dado + ação lado a lado (célula/linha de cards dedicada à ação), nunca os dois
+  papéis empilhados no mesmo elemento clicável. `OrdersList` (`components/organisms/OrdersList`) é
+  a referência viva desta variante; `AssetTable` continua a referência da variante navegável.
+- **Confirmação de ação destrutiva por item da lista** (cancelar, desfazer) segue a mesma
+  confirmação leve em duas etapas já usada por "Desfazer amizade" (tarefa 6.9.3,
+  `components/organisms/FriendsList`) — nunca `window.confirm` nativo, sem precedente no app.
+
 ## 5. Cor — reforço da regra de não-sobreposição (tokens, seção 2.3)
 
 Ação de UI (toggle Comprar/Vender, botão genérico) **nunca** reaproveita verde/vermelho de

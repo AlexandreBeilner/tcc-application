@@ -190,6 +190,8 @@ export interface MarketEvent {
 
 export type OrderSide = 'buy' | 'sell'
 export type OrderType = 'market' | 'limit'
+export type OrderStatus = 'pending' | 'partially_filled' | 'filled' | 'cancelled'
+export type OrderCancelReason = 'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted'
 
 export interface PlaceOrderInput {
     asset_id: string
@@ -206,9 +208,31 @@ export interface OrderFill {
 }
 
 export interface PlaceOrderResult {
+    order_id: string
     filled_quantity: number
     remaining_quantity: number
     fills: OrderFill[]
+}
+
+// `GET /market/orders` (tarefa O.3) — proxy 1:1 de `GET /orders` do motor,
+// já enriquecido com `ticker`/`name` pelo backend (`CatalogReader`,
+// `.docs/backend/market.md`). `cancel_reason` só aparece (`omitempty`,
+// backend) quando `status = cancelled`. Sustenta a tela "Minhas Ordens"
+// (O.4) — o agrupamento em Pendentes/Executadas/Recusadas é client-side,
+// não desta rota.
+export interface MyOrderRecord {
+    order_id: string
+    asset_id: string
+    ticker: string
+    name: string
+    side: OrderSide
+    type: OrderType
+    quantity: number
+    filled_quantity: number
+    price: number
+    status: OrderStatus
+    cancel_reason?: OrderCancelReason
+    created_at: string
 }
 
 export interface SimulateFixedIncomeInput {

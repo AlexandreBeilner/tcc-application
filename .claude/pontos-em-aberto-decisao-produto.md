@@ -466,3 +466,39 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   em **R$ 10.000,00 nos 4 ciclos** (antes: R$ 11.129,06 no 4º ciclo). `go build`/`go test
   ./...`/`golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes.
 - **Status:** resolvido.
+
+### 012 · Cancelamento de ordem (O.1) implementado, mas sem nenhum caminho pro cliente descobrir o `order_id`
+
+- **Local:** `backend/src/modules/market/interfaces/http/marketRouter.ts` (`POST /market/orders`,
+  `POST /market/orders/:id/cancel`), `backend/src/modules/market/application/ports/orderExecutor.ts`
+  (`OrderResult`)
+- **Origem:** teste de ponta a ponta da Fase O (branch `fase-o-cancelamento-ordem`), 2026-09-21
+- **O que era:** testado ao vivo via `docker compose up`: `POST /market/orders` devolve só
+  `{ filled_quantity, remaining_quantity, fills }` — nunca o `id` da linha que acabou de nascer em
+  `order_book` (o `INSERT` em `insertIncomingOrder`, `order_execution_repository.go`, nem usa
+  `RETURNING id`). Não existe nenhuma rota `GET` que liste as ordens do usuário (pendentes ou não).
+  Resultado: `POST /market/orders/:id/cancel` (O.1, implementado e correto em todas as camadas nesta
+  mesma sessão) não tem nenhum caminho real pelo qual um cliente descubra qual `id` passar — nem no
+  momento da submissão (resposta não carrega o id), nem depois (sem endpoint de listagem). A
+  funcionalidade só foi exercitada nesta sessão consultando `order_book` direto no Postgres.
+- **Opções levantadas:** (a) `POST /market/orders`/`POST /orders` passam a devolver `order_id` na
+  resposta (mudança pequena, `RETURNING id` + campo novo em `OrderResult`/`submitOrderResponse`) —
+  resolve só o caso "cancelar a ordem que acabei de colocar, na mesma sessão de UI", não sobrevive a
+  reload; (b) rota nova `GET /market/orders` (ou `/market/me/orders`), com filtro de status — único
+  jeito de cancelar depois de um reload, mas implica desenhar uma tela nova (ou seção nova de tela
+  existente) pra listar/cancelar, fora do escopo descrito em O.1; (c) as duas, já que (a) sozinha não
+  fecha o ciclo completo do produto.
+- **Decisão (2026-09-21, mesma sessão, confirmada com o autor):** opção (c) — as duas juntas, agora
+  com dono real: **O.3** (`order_id` na resposta + `GET /orders`/`GET /market/orders` + coluna nova
+  `order_book.cancel_reason`) e **O.4** (tela nova "Minhas Ordens" no frontend), ambas em
+  `.claude/backlog-motor-mercado-realista.md`. Decisões de design fechadas na mesma conversa: a tela
+  tem **3 abas** — Pendentes, Executadas, Recusadas (ideia original do autor, inspirada em apps de
+  corretora) — sem uma 4ª aba pra "rejeitada na submissão" (ordem rejeitada por saldo/posição
+  insuficiente nunca é persistida hoje, decisão deliberada de Event Sourcing; criar esse log seria
+  feature nova, fora de escopo aqui). "Recusadas" agrega as 4 causas hoje indistinguíveis sob
+  `status = cancelled` (cancelamento manual, expiração automática — a intenção original do autor pra
+  essa aba —, ordem a mercado sem liquidez, recotação de bot Market Maker) — o autor confirmou manter
+  só 3 abas no nível da UI mesmo depois de decidir adicionar `cancel_reason`; a coluna nova enriquece
+  cada linha da aba Recusadas com o motivo humanizado, sem virar sub-aba própria.
+- **Status:** resolvido — O.1 continua ✅ como rota isolada (comportamento correto, testado). O.3/O.4
+  ainda não implementadas (escopo de múltiplas sessões: engine + backend + tela nova de frontend).

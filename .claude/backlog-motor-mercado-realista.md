@@ -2800,7 +2800,7 @@ quem pegar a Fase O deveria decidir explicitamente se isso é aceitável pro MVP
 O.3 novo) devem também cancelar/marcar a ordem pendurada furada assim que ela falhar dessa forma,
 em vez de só no fechamento do dia.
 
-### O.1 · Cancelamento manual de ordem pendente
+### O.1 · Cancelamento manual de ordem pendente ✅
 
 - **Descrição:** rota nova (`POST /orders/{id}/cancel` ou `DELETE /orders/{id}` — a definir na
   sessão que pegar a tarefa, seguindo o estilo REST já usado pelas demais rotas de `server.go`) que
@@ -2822,8 +2822,72 @@ em vez de só no fechamento do dia.
 - **Referências:** `orderexecution.go` (doc do pacote, decisão de escopo de reserva); `orders.go`/
   `server.go` como precedente de rota.
 - **Dependências:** A.2 (já concluída).
+- **Entregável (sessão 2026-09-21):** decisão de rota tomada — `POST /orders/{id}/cancel` (não
+  `DELETE`), consistente com toda mutação existente em `server.go` já ser `POST` (`/admin/tick`,
+  `/orders`, `/fixed-income/purchases|redemptions`, `/macro-events`), nenhuma rota usa `DELETE`
+  hoje. Motor: `orderexecution.ErrOrderNotFound`/`ErrOrderNotCancellable` (novos erros de domínio);
+  `Service.Cancel(ctx, orderID, userID)` repassa direto pro repositório (nenhuma regra de domínio
+  própria — cancelar é só uma transição de status); `OrderExecutionRepository.CancelOrder` lê
+  dono/status com `SELECT ... FOR UPDATE` dentro de uma transação antes de decidir (`UPDATE ...
+  WHERE` sozinho não distingue "não existe" de "é de outro usuário" de "status errado" a partir de
+  "0 linhas afetadas") — ordem inexistente e ordem de outro usuário colapsam no mesmo
+  `ErrOrderNotFound` (404) de propósito, pra não vazar a existência de uma ordem alheia; status já
+  `filled`/`cancelled` vira `ErrOrderNotCancellable` (409). Rota nova registrada em `server.go`
+  (`orderSubmitter` ganhou o método `Cancel`, implementado pelo mesmo `*orderexecution.Service` que
+  já implementa `Submit` — não precisou de parâmetro novo em `New`/`Run`/`main.go`). Backend:
+  `OrderExecutor.cancel`/`CancelOrderUseCase` (sem gate de desbloqueio da 7.0.1 — cancelar não é
+  "comprar produto travado") → `POST /market/orders/:id/cancel`, `user_id` sempre de
+  `req.auth.userId`, nunca de parâmetro/corpo. `engineFetch` (`engineHttp.ts`) ganhou tratamento de
+  `204` (chamar `res.json()` num corpo vazio rejeitava com "Unexpected end of JSON input") — só
+  afeta quem devolve `204`, nenhum adapter existente muda de comportamento. Testes novos em todas
+  as camadas (Go: `service_test.go`/`orders_test.go`; Node: `cancelOrder.test.ts`/
+  `engineOrderExecutor.test.ts`/`marketRouter.test.ts`) cobrindo sucesso, `404`/`409`/`400` e
+  ausência de dependência. `go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker,
+  `v2.12.2`, 0 issues) e `npm run build`/`npm run lint`/`npx vitest run` (594 testes) verdes.
+  `.docs/engine/orders.md`/`.docs/backend/market.md` atualizados. Validado ponta a ponta via
+  `docker compose up -d --build` (2 usuários reais registrados via `POST /auth/register`, ordem
+  limitada sem contraparte deixada pendurada em ativo sandbox `SAND3`): `POST
+  /market/orders/:id/cancel` do dono devolveu `204` e o `order_book.status` virou `cancelled` no
+  Postgres; cancelar de novo a mesma ordem devolveu `409`; ID inexistente devolveu `404`; sem
+  `Authorization` devolveu `401`; e o segundo usuário tentando cancelar a ordem do primeiro também
+  devolveu `404` (não `403`) — confirma ao vivo que "ordem de outro usuário" e "ordem inexistente"
+  colapsam no mesmo erro, exatamente a decisão de não vazar existência tomada no design.
+- **Teste de ponta a ponta e correção de bug (sessão 2026-09-21, branch `fase-o-cancelamento-ordem`):**
+  achado ao vivo — `fillRestingOrder` (`order_execution_repository.go`) sobrescrevia `status =
+  cancelled` de volta pra `partially_filled`/`filled` quando uma ordem pendurada era cancelada
+  (`CancelOrder`) no meio de uma corrida contra um match concorrente decidido antes do cancelamento
+  (`Execute` decide contra `Context.Resting`, lido fora de transação por `LoadContext`; a escrita só
+  acontece depois, em `Persist`). Reproduzido manualmente contra Postgres real com duas transações
+  concorrentes (uma imitando `CancelOrder`, outra imitando o `UPDATE` de `fillRestingOrder`) — sem a
+  correção, a ordem "ressuscitava" com `filled_quantity` movido e saldo/posição reais debitados/
+  creditados dos dois lados mesmo depois do dono já ter recebido `204` do cancelamento. Corrigido na
+  mesma sessão (bug mecânico, sem decisão de produto envolvida): `fillRestingOrder` ganhou `AND
+  status IN ('pending', 'partially_filled')` no `WHERE` + checagem de `RowsAffected()`; `0` linhas
+  afetadas devolve `orderexecution.ErrRestingOrderNoLongerAvailable` (erro novo, mapeado pra `422`,
+  mesma consequência de `ErrInsufficientPosition` contra a ordem "furada" do achado 005 — aborta a
+  transação inteira do submissor, nada fica persistido); `tick.businessRejection` (`rounds.go`)
+  também passou a reconhecer esse erro como rejeição de negócio normal, não falha de infraestrutura
+  que abortaria o tick inteiro. Testes novos: `TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick`
+  (`rounds_test.go`, tabela ganhou o erro novo) e `TestHandleSubmitOrder_ErrosDeExecucao` (`orders_test.go`,
+  idem). `go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes
+  depois da correção. Reproduzido de novo depois do fix, mesmas duas transações concorrentes: o
+  `UPDATE` do fill afeta `0` linhas e a ordem permanece `cancelled`. Detalhe completo em
+  `.docs/engine/orders.md`.
+- **Achado desta sessão, gap de produto (não corrigido — registrado como 012 em
+  `.claude/pontos-em-aberto-decisao-produto.md`):** `POST /market/orders`/`POST /orders` nunca
+  devolvem o `order_id` da ordem recém-criada, e não existe nenhuma rota `GET` que liste as ordens do
+  usuário. Resultado: `POST /market/orders/:id/cancel` está correto em todas as camadas, mas nenhum
+  cliente real tem como descobrir qual `id` passar pra ele — a funcionalidade só foi exercitada nesta
+  sessão consultando `order_book` direto no Postgres. Exige decisão de design de API/tela fora do
+  escopo descrito em O.1 (ver opções no achado 012).
+- **Achado desta sessão, registrado em `.claude/pontos-em-aberto-decisao-produto.md`:** a tarefa
+  **O.2** abaixo já estava de fato implementada antes desta sessão, sob outro nome — o achado 005
+  (Parte A, sessão 2026-09-19, `OrderExecutionRepository.ExpireStaleOrders`) resolve exatamente o
+  que O.2 descreve (expira toda ordem `pending`/`partially_filled` de um dia simulado anterior, no
+  fechamento do dia). Marcada ✅ abaixo por isso, sem nenhuma linha de código nova desta sessão — só
+  a leitura cruzada entre o achado e esta tarefa, que nunca tinha sido feita.
 
-### O.2 · Expiração automática no fechamento do dia simulado (ordem Day)
+### O.2 · Expiração automática no fechamento do dia simulado (ordem Day) ✅
 
 - **Descrição:** ao fechar o dia simulado (mesmo ponto do `tick.Advance`/Temporizador que já
   processa Selic/calendário/proventos 1x por dia — não precisa esperar a Fase D existir, mesmo sem
@@ -2842,6 +2906,206 @@ em vez de só no fechamento do dia.
   Temporizador não mudar de ritmo diário mesmo com rodadas intradiárias.
 - **Dependências:** A.2 (já concluída). Não depende de D — o fechamento de dia já existe
   independente de sub-tick.
+- **Entregável (achado retroativo, sessão 2026-09-21 — implementação real é da sessão 2026-09-19,
+  achado 005 Parte A):** `OrderExecutionRepository.ExpireStaleOrders` (`order_execution_repository.go`),
+  chamada por `tick.Service.Run` antes de `runIntradayRounds` de cada dia novo, cancela toda ordem
+  `pending`/`partially_filled` com `simulated_day` anterior ao dia que está começando — mesmo
+  contrato desta tarefa, escrito sem saber que O.2 existia como tarefa nomeada. `order_book.
+  simulated_day` (migration `000017`) é o carimbo de dia que a tarefa previa.
+  Nenhum código novo desta sessão — só a atualização deste arquivo pra refletir o que já existia.
+- **Nota sobre os critérios de aceite (sessão 2026-09-21, confirmado com o autor):** os 3 critérios
+  acima pedem teste table-driven/regressão em código — o que existe de fato é orquestração testada
+  (`service_test.go`, pacote `tick`: `Service.Run` chama `ExpireStaleOrders` com o dia certo e
+  propaga erro) mais validação ao vivo via `docker compose` na sessão do achado 005 original
+  (1.891 ordens obsoletas reais expiradas no primeiro tick pós-deploy, `order_book` estável por
+  ~20 ticks sem crescer). **Não existe teste Go contra Postgres real pra `ExpireStaleOrders` em si**
+  (nem regressão explícita de "ordem `filled`/de dia posterior não é afetada", nem de "ordem
+  expirada nunca reaparece em replay" — essa última garantida estruturalmente por
+  `loadRestingOrders` só ler `status IN ('pending','partially_filled')`, verificado por leitura de
+  código, não por teste). Auditado nesta sessão: **nenhum repositório de `internal/infra/db` tem
+  teste Go contra Postgres real** (`quote_cache_test.go` é o único teste do pacote, 100% em
+  memória) — a convenção real e já estabelecida do projeto pra essa camada é validar SQL via
+  `docker compose` ao vivo, nunca por teste automatizado. Decisão do autor: **O.2 segue essa mesma
+  convenção existente, sem gap novo a registrar** — não abrir tarefa nem entrada em
+  `pontos-em-aberto-decisao-produto.md` pra isso.
+
+### O.3 · `order_id` na resposta, listagem de ordens e motivo do cancelamento ✅
+
+- **Descrição:** fecha o achado 012 (`pontos-em-aberto-decisao-produto.md`, decisão do autor
+  2026-09-21) — hoje `POST /orders`/`POST /market/orders` não devolvem o `id` da ordem recém-criada
+  e não existe nenhuma rota `GET` que liste as ordens do usuário, então `POST /orders/{id}/cancel`
+  (O.1) não tem nenhum caminho real pelo qual um cliente descubra qual `id` passar.
+  1. **`order_id` na resposta de sucesso:** `insertIncomingOrder` (`order_execution_repository.go`)
+     ganha `RETURNING id`; `Repository.Persist` muda de assinatura pra devolver o id junto do erro
+     (`Persist(ctx, req, outcome) (orderID string, err error)`); `orderexecution.Outcome` ganha
+     `OrderID string`, preenchido por `Service.SubmitWithContext` antes de devolver. `POST /orders`
+     (`submitOrderResponse`) e `POST /market/orders` (`OrderResult`/`PlaceOrderUseCase`) passam a
+     ecoar `order_id`.
+  2. **`order_book.cancel_reason` (coluna nova, migration):** enum/texto com 4 valores —
+     `user_cancelled` (`CancelOrder`, O.1), `expired` (`ExpireStaleOrders`, O.2), `no_liquidity`
+     (branch de `insertIncomingOrder` que já marca ordem `market` sem nenhum fill como `cancelled`
+     direto, ver `.docs/engine/orders.md`) e `requoted` (`CancelUserRestingOrders`, achado 005 A.4 —
+     só bot `market_maker`, nunca aparece pro usuário real, mas mantém a coluna sempre preenchida
+     pra todo `status = cancelled`, sem `NULL` órfão). `NULL` pra qualquer outro status.
+  3. **`GET /orders`/`GET /market/orders`:** lista todas as ordens do `user_id` (motor: query param;
+     backend: `req.auth.userId`), mais recente primeiro, sem paginação (escopo de protótipo) — `id`,
+     `order_id` (mesmo campo, nome consistente com o item 1), `asset_id` (+ ticker/nome via
+     `CatalogReader` no backend, mesmo padrão de outras respostas de mercado), `side`, `type`,
+     `quantity`, `filled_quantity`, `price`, `status`, `cancel_reason`, `created_at`. Sem filtro de
+     status na query — o agrupamento em 3 grupos (Pendentes/Executadas/Recusadas, decisão de produto
+     da sessão 2026-09-21) é responsabilidade do frontend (O.4): Pendentes =
+     `pending`/`partially_filled`; Executadas = `filled`; Recusadas = `cancelled` (qualquer
+     `cancel_reason`, a aba mostra o motivo humanizado por linha, não separa em sub-abas).
+- **Critérios de aceite:** teste confirmando que `POST /orders` devolve `order_id` batendo com a
+  linha correspondente em `order_book`; teste table-driven cobrindo os 4 caminhos de cancelamento
+  gravando o `cancel_reason` esperado; teste de `GET /orders` com lista vazia (usuário sem ordens) e
+  lista populada em ordem decrescente de `created_at`; teste de `GET /market/orders` confirmando
+  `401` sem token e enriquecimento por `CatalogReader`.
+- **Referências:** `order_execution_repository.go` (`Persist`/`insertIncomingOrder`/`CancelOrder`/
+  `ExpireStaleOrders`/`CancelUserRestingOrders`); `orders.go`/`server.go` como precedente de rota;
+  achado 012 em `pontos-em-aberto-decisao-produto.md` (decisão completa registrada lá, seção
+  Resolvidos).
+- **Dependências:** O.1, O.2 (ambas concluídas).
+- **Entregável (sessão 2026-09-21):** os 3 itens da descrição implementados como desenhado. Motor:
+  `orderexecution.Outcome.OrderID`/`OrderRecord`/`CancelReason` (4 constantes) novos;
+  `Repository.Persist` muda de assinatura pra `(orderID string, err error)`
+  (`insertIncomingOrder` ganha `RETURNING id`); `Repository.ListOrders(ctx, userID)` novo, exposto
+  em `Service.ListOrders` e na interface `orderSubmitter` do `httpserver` (mesmo
+  `*orderexecution.Service` que já implementa `Submit`/`Cancel`, sem parâmetro novo em `New`/`Run`).
+  `cancel_reason` gravado nos 4 pontos do achado 012: `CancelOrder` → `user_cancelled`,
+  `ExpireStaleOrders` → `expired`, `insertIncomingOrder` (branch de ordem `market` sem fill) →
+  `no_liquidity`, `CancelUserRestingOrders` → `requoted`. Migration `000022`
+  (`order_cancel_reason` enum + coluna nullable em `order_book`). Rota nova `GET /orders?user_id=`
+  (`handleListOrders`), `POST /orders` (`submitOrderResponse`) ganhou `order_id`. Backend:
+  `EngineOrderRecord`/`OrderExecutor.list` no port; `ListMyOrdersUseCase` (novo) enriquece
+  `asset_id` cru do motor com `ticker`/`name` via `CatalogReader.getAsset`, deduplicado por
+  `asset_id` (evita 1 chamada ao motor por ordem repetida do mesmo ativo) — mesmo padrão de
+  `assertProductUnlocked` já usar `getAsset` por id. Rota nova `GET /market/orders`
+  (`user_id` sempre `req.auth.userId`, nunca aceito de query/corpo do cliente); `OrderResult`
+  (`PlaceOrderUseCase`) ganhou `order_id`. Testes novos em todas as camadas (Go:
+  `service_test.go` — `OrderID`/`ListOrders`; `orders_test.go` — `handleListOrders`, `order_id` na
+  resposta de `POST /orders`; Node: `listMyOrders.test.ts`, `engineOrderExecutor.test.ts` —
+  `list()`, `marketRouter.test.ts` — `GET /market/orders`, mais os call-sites existentes de
+  `OrderResult` ajustados pro campo novo obrigatório). `go build`/`go vet`/`go test ./...`/
+  `golangci-lint run` (Docker, `v2.12.2`, 0 issues) e `npm run build`/`npm run lint`/`npx vitest run`
+  (599 testes) verdes. `.docs/engine/orders.md`/`.docs/backend/market.md` atualizados.
+  **Nota sobre os critérios de aceite (mesma decisão da O.2, mesma sessão):** o critério "teste
+  table-driven cobrindo os 4 caminhos de cancelamento gravando o `cancel_reason` esperado" pede
+  teste automatizado contra Postgres real pra lógica que vive inteira em `order_execution_repository.go`
+  (`internal/infra/db`) — camada que, por decisão já confirmada com o autor na O.2 desta mesma
+  sessão, segue a convenção existente do projeto (validação via `docker compose` ao vivo, nunca
+  teste automatizado contra Postgres real). Aplicada a mesma convenção aqui, sem gap novo a
+  registrar. Validado ao vivo via `docker compose up -d --build`: usuário real registrado, ordem
+  `market` sandbox (`SAND3`) executada (`order_id` no `201`, sem `cancel_reason` no `GET
+  /market/orders`, `status = filled`), ordem `limit` sem contraparte deixada pendurada e cancelada
+  via `POST /market/orders/:id/cancel` (`cancel_reason = user_cancelled` confirmado tanto no
+  Postgres quanto no `GET /market/orders`, mais recente primeiro), `GET /market/orders` sem token
+  devolveu `401`, `GET /orders` do motor sem `user_id` devolveu `400`. Caminhos `no_liquidity`/
+  `expired`/`requoted` não reproduzidos ao vivo nesta sessão (`no_liquidity` exigiria um ativo real
+  sem nenhuma liquidez de bot no momento do teste, não garantido com os bots já ativos no ambiente;
+  `expired`/`requoted` exigiriam avançar dia simulado/rodar Market Maker) — cobertos por leitura de
+  código (mesmo `switch`/`UPDATE` já testado indiretamente pelas Fases D/O.1/O.2) e pelos testes de
+  unidade acima. Containers parados ao final (`docker compose stop`, sem `-v`).
+
+### O.4 · Tela "Minhas Ordens" no frontend ✅
+
+- **Descrição:** tela nova (candidato natural de entrada: ícone/link a partir do hub de Mercado,
+  mesmo padrão de ponto de entrada da M.4) com 3 abas — **Pendentes**, **Executadas**, **Recusadas**
+  — consumindo `GET /market/orders` (O.3) e agrupando client-side pelo critério decidido na sessão
+  2026-09-21 (ver O.3, item 3). Cada linha mostra ativo (ticker/nome), lado (compra/venda), tipo,
+  quantidade (preenchida/total quando parcial) e preço; só na aba Recusadas, o motivo humanizado a
+  partir de `cancel_reason` (`user_cancelled` → "Cancelada por você"; `expired` → "Expirada no
+  fechamento do dia"; `no_liquidity` → "Sem liquidez disponível"; `requoted` nunca aparece pra
+  usuário real). Aba Pendentes ganha um botão "Cancelar" por linha, chamando
+  `POST /market/orders/:id/cancel` (O.1) com confirmação antes de disparar (ação irreversível) e
+  refetch da lista após sucesso. Responsiva nos três breakpoints (regra obrigatória do `CLAUDE.md`);
+  desktop ganha composição própria, não coluna única esticada. Envolve um padrão de lista com abas
+  ainda não estabelecido em `identidade-visual-padroes.md` — vale um rascunho de layout antes da
+  implementação, mesmo critério das telas âncora do backlog principal. Atualizar
+  `.claude/inventario-telas-plataforma-investimentos.md` com a tela nova (objetivo, conteúdo, ações,
+  navegação, dados envolvidos).
+- **Critérios de aceite:** tela renderiza dado real de `GET /market/orders` (não mockado); as 3
+  abas agrupam corretamente por `status`; botão "Cancelar" da aba Pendentes chama O.1 de verdade e
+  reflete o resultado (linha sai de Pendentes, entra em Recusadas com motivo "Cancelada por você");
+  motivo humanizado correto nas 3 outras causas de `cancel_reason`; validada nos três breakpoints.
+- **Referências:** `.claude/identidade-visual-padroes.md`, `.claude/identidade-visual-tokens.md`;
+  `.claude/inventario-telas-plataforma-investimentos.md`.
+- **Dependências:** O.3.
+- **Entregável (sessão 2026-09-21):** ponto de entrada decidido — 4º card "Minhas Ordens" no hub de
+  Mercado (`pages/Market`, mesmo padrão de entrada da M.4), grid do hub passou de 3 pra 4 colunas no
+  desktop (`Market/index.module.css`, `repeat(4, 1fr)` em `min-width: 1024px` — nenhum card órfão
+  sobrando numa linha final). Tela nova `pages/MinhasOrdens` (4.10 no inventário, rota
+  `/mercado/ordens`, irmã de `/mercado/*`, sem `RequiresUnlock` — mesmo tratamento de 4.9, histórico
+  da própria conta não é produto travado pela trilha). Serviço: `listMyOrders`/`cancelOrder`
+  (`services/market`, `GET`/`POST /market/orders...`), `PlaceOrderResult` ganhou `order_id` (campo
+  que já existia no motor/backend desde a O.3 mas nunca tinha chegado ao tipo do frontend) e
+  `MyOrderRecord` novo espelhando a resposta de `GET /market/orders`. `features/market/
+  useMyOrdersQuery`/`useCancelOrderMutation` (o segundo só invalida a própria lista de ordens, não
+  conta/extrato — cancelar não mexe em `accounts`/`positions`, `.docs/engine/orders.md`). Organism
+  novo `OrdersList` — mesma tela-tipo "lista com abas" de `pages/EquityList`/`pages/FixedIncomeList`
+  (nunca documentada até agora, fechada nesta sessão em `identidade-visual-padroes.md` §4c), com a
+  mesma dupla tabela (≥1024px)/cards empilhados de `AssetTable`, mas **sem reaproveitar
+  `AssetTable`**: a linha aqui não navega (sem `onSelect`) e a aba Pendentes precisa de um botão de
+  ação por linha ("Cancelar ordem"), que o card-como-`<button>` de `AssetTable` não comporta (elemento
+  interativo aninhado) — decisão registrada em §4c como regra geral pra qualquer lista futura com
+  ação por item. Agrupamento client-side (decisão da O.3): Pendentes = `pending`/`partially_filled`
+  (quantidade mostra `filled_quantity/quantity` só quando parcial), Executadas = `filled`, Recusadas
+  = `cancelled` (motivo humanizado por `cancel_reason`, `requoted` mapeado mas nunca alcançável por
+  usuário real). Cancelamento segue a mesma confirmação leve em duas etapas de "Desfazer amizade"
+  (`FriendsList`, tarefa 6.9.3) — sem `window.confirm` nativo. `npx tsc -b`/`npm run lint`
+  (oxlint, 0 issues novos)/`npx vitest run` (695 testes)/`npx prettier --check`/`npm run build`
+  verdes. `.claude/inventario-telas-plataforma-investimentos.md` (4.10 nova + 4.1 atualizada pro 4º
+  card) e `.claude/identidade-visual-padroes.md` (§4c nova) atualizados — sem alteração em `.docs/`,
+  nenhuma rota HTTP nova ou mudou nesta tarefa (O.3 já documentou `GET`/`POST /market/orders...`).
+  Validado ponta a ponta via `docker compose up -d --build postgres redis engine backend gateway`
+  (worktree própria) + `vite` local apontando pro gateway containerizado: usuário real registrado
+  (`POST /auth/register`), ordem `limit` em ativo sandbox (`SAND3`) deixada pendurada de propósito
+  (sem contraparte de bot em sandbox) + ordem `market` no mesmo ativo (preenchimento sintético
+  imediato) via chamada direta ao gateway — tela acessada via Chrome (login por `localStorage`
+  direto, mesmo mecanismo de `AuthContext`, mesmo precedente da M.4) mostrou a ordem `limit` em
+  Pendentes (`Limitada`, `5`, `R$ 10,00`) e a ordem `market` em Executadas (`Mercado`, `3`,
+  `R$ 100,00`); clique em "Cancelar ordem" → confirmação em duas etapas (`Voltar`/`Confirmar
+  cancelamento`) → `POST /market/orders/:id/cancel` real → aba Pendentes esvaziou, aba Recusadas
+  passou a mostrar a ordem com motivo "Cancelada por você", confirmando o refetch automático.
+  Breakpoint desktop (1920px) confirmado interativamente (grid 4 colunas no hub, tabela na tela de
+  ordens). **Breakpoints mobile/tablet não confirmados visualmente nesta sessão** — o ambiente de
+  automação de browser disponível não conseguiu redimensionar a janela real (`resize_window`
+  reportou sucesso mas `window.innerWidth` seguiu preso à resolução do display virtual, 1920px, em
+  duas tentativas incluindo aba nova) — verificado por alternativa: a dupla marcação tabela/cards
+  (técnica idêntica, já validada ao vivo em telas anteriores como 4.2/4.4/4.9) está de fato no DOM
+  com o conteúdo correto (`getComputedStyle` confirmou `display: table` ativo e `display: none` no
+  container de cards na largura atual — exatamente a regra do `@media (min-width: 1024px)`), e a
+  mesma regra de mídia (`1024px`) é copiada literalmente de `AssetTable`, já confirmada ao vivo em
+  420px/834px por sessões anteriores (M.4). Sem regressão esperada, mas não é a mesma barra de
+  confirmação ao vivo das demais tarefas — registrar se uma sessão futura tiver acesso a
+  redimensionamento de janela real. Stack parada com `docker compose stop` (sem `-v`) ao final.
+- **Teste de ponta a ponta e correção de bug (sessão 2026-09-21, mesmo dia, revisão da Fase O
+  inteira):** achado ao vivo — a coluna Quantidade da aba Recusadas usava `order.status ===
+  'partially_filled'` pra decidir entre mostrar `preenchida/total` ou só `total`
+  (`formatQuantity`, `OrdersList/index.tsx`). Depois de um cancelamento manual (O.1) de uma ordem
+  que já tinha preenchimento parcial, `status` vira `cancelled` (nunca mais `partially_filled`) —
+  então a linha em Recusadas mostrava só a quantidade original (ex: `6`), escondendo que parte dela
+  (ex: `2`) já tinha executado de verdade (saldo/posição já debitados/creditados do usuário, O.1 não
+  reverte `filled_quantity`) antes do cancelamento. Reproduzido ao vivo via `docker compose up`:
+  usuário real vendeu 6 unidades de `SAND3` (limite), outro usuário comprou 2 (fill parcial
+  confirmado em `positions`/`accounts` dos dois lados), dono cancelou o restante — a aba Recusadas
+  mostrava `6`, não `2/6`, pro fill que realmente aconteceu. Corrigido na mesma sessão (bug
+  mecânico de UI, sem decisão de produto envolvida): `formatQuantity` passou a checar
+  `filled_quantity > 0 && filled_quantity < quantity` diretamente, em vez do `status` — mostra
+  `preenchida/total` em qualquer status (`partially_filled` ou `cancelled` com fill parcial), só
+  `total` quando não há fill nenhum ou a ordem preencheu por completo. Teste novo:
+  `'aba Recusadas mostra preenchida/total quando a ordem cancelada tinha fill parcial'`
+  (`OrdersList/index.test.tsx`). Demais fluxos de O.1–O.4 confirmados ao vivo na mesma sessão sem
+  achado novo: `404`/`409`/`400`/`401` de `POST /market/orders/:id/cancel` (id de terceiro, id
+  inexistente, já cancelada, uuid malformado, sem token), `no_liquidity` reproduzido de verdade
+  (`GET /market/orders` mostrando `cancel_reason: no_liquidity`, `price: 0`), expiração Day
+  confirmada em dois ticks consecutivos (ordem criada no dia N sobrevive ao tick que fecha o dia N —
+  correto, ainda participa das rodadas desse dia — e só expira no tick que fecha o dia N+1), saldo/
+  posição íntegros depois do cancelamento parcial (conferido direto no Postgres). `npx tsc -b`/
+  `npm run lint` (oxlint, 0 issues novos)/`npx vitest run` (696 testes)/`npx prettier --check`/
+  `npm run build` verdes; `go build`/`go test ./...` e `npm run build`/`npx vitest run` (599 testes)
+  do backend confirmados verdes antes do teste ao vivo, sem alteração nessas duas camadas nesta
+  sessão. Stack parada com `docker compose stop` (sem `-v`) ao final.
 
 ---
 
@@ -2871,5 +3135,7 @@ em vez de só no fechamento do dia.
     fechados, ver nota da M.5).
 14. **N.1 → N.2** (painel admin de bots — última prioridade da sequência, só depois de A.4 e do
     núcleo de bots, C.1 → C.6, existirem).
-15. **O.1 → O.2** (cancelamento e validade Day de ordem — independente como I/K/L, só depende de
-    A.2, já concluída; pode ser feita a qualquer momento, inclusive antes de tudo acima).
+15. **O.1 → O.2 → O.3 → O.4** (cancelamento e validade Day de ordem — independente como I/K/L, só
+    depende de A.2, já concluída; pode ser feita a qualquer momento, inclusive antes de tudo acima.
+    O.3/O.4 fecham o achado 012 — sem elas, o cancelamento fica correto no motor mas inutilizável
+    ponta a ponta, ver `pontos-em-aberto-decisao-produto.md`).

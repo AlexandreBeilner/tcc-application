@@ -30,6 +30,7 @@ package orderexecution
 
 import (
 	"errors"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/position"
@@ -64,6 +65,28 @@ var (
 	// que quem chama Execute (e o handler HTTP) só precisa importar
 	// orderexecution pra checar qualquer erro devolvido.
 	ErrFloatExceeded = position.ErrFloatExceeded
+	// ErrOrderNotFound é devolvido por Repository.CancelOrder (tarefa O.1)
+	// tanto pra ordem inexistente quanto pra ordem que existe mas pertence a
+	// outro usuário — as duas causas colapsam no mesmo erro (404) de
+	// propósito, pra não vazar pro chamador que um ID de ordem alheio
+	// existe.
+	ErrOrderNotFound = errors.New("ordem não encontrada")
+	// ErrOrderNotCancellable é devolvido por Repository.CancelOrder (tarefa
+	// O.1) quando a ordem já está filled/cancelled — só pending/
+	// partially_filled podem ser canceladas.
+	ErrOrderNotCancellable = errors.New("ordem não pode ser cancelada neste status")
+	// ErrRestingOrderNoLongerAvailable é devolvido por Repository.Persist
+	// (achado ao vivo, sessão da tarefa O.1: Execute decide o match contra
+	// Context.Resting, lido por LoadContext fora de transação; se a ordem
+	// pendurada escolhida for cancelada — CancelOrder — no intervalo até
+	// Persist gravar o fill, um UPDATE sem checar status em order_book
+	// "ressuscitava" a ordem cancelada de volta pra partially_filled/filled
+	// e ainda movia saldo/posição dos dois lados de uma ordem que o dono já
+	// tinha cancelado com sucesso, reproduzido manualmente contra Postgres
+	// real via duas transações concorrentes). Mesmo tratamento de
+	// ErrInsufficientPosition contra a mesma ordem "furada" (achado 005):
+	// nada é persistido, a transação inteira do submissor aborta.
+	ErrRestingOrderNoLongerAvailable = errors.New("ordem pendurada não está mais disponível para execução")
 )
 
 // MarketCounterparty é o UserID sentinela usado num Fill contra liquidez
@@ -71,6 +94,29 @@ var (
 // nunca colide com um UserID real porque contas são identificadas por UUID
 // (nunca string vazia).
 const MarketCounterparty = ""
+
+// CancelReason identifica por que uma ordem chegou a status = cancelled
+// (tarefa O.3, espelha o enum Postgres order_cancel_reason, migration
+// 000022) — antes desta tarefa as 4 causas eram indistinguíveis pra quem lia
+// order_book depois. Nunca preenchido pra nenhum outro status.
+type CancelReason string
+
+const (
+	// CancelReasonUserCancelled é gravado por Repository.CancelOrder (O.1,
+	// cancelamento manual pelo próprio dono).
+	CancelReasonUserCancelled CancelReason = "user_cancelled"
+	// CancelReasonExpired é gravado por Repository.ExpireStaleOrders (O.2,
+	// fechamento do dia simulado — modalidade Day).
+	CancelReasonExpired CancelReason = "expired"
+	// CancelReasonNoLiquidity é gravado por insertIncomingOrder quando uma
+	// ordem a mercado não acha nenhuma contraparte real (RF04, tarefa A.2) —
+	// nunca fica pendurada, nasce já cancelada.
+	CancelReasonNoLiquidity CancelReason = "no_liquidity"
+	// CancelReasonRequoted é gravado por Repository.CancelUserRestingOrders
+	// (achado 005 parte A.4) — só o bot market_maker recotando a própria
+	// oferta anterior, nunca aparece pra um usuário real.
+	CancelReasonRequoted CancelReason = "requoted"
+)
 
 // RestingOrder é uma ordem já persistida em order_book aguardando
 // pareamento — carrega o que orderbook.Order não tem (dono e quanto já foi
@@ -162,9 +208,33 @@ func (f Fill) IsSynthetic() bool {
 // limitada residual sempre fica pendurada no book em vez de aparecer
 // aqui).
 type Outcome struct {
+	// OrderID é preenchido por Service.SubmitWithContext a partir do id que
+	// Repository.Persist devolve (tarefa O.3, achado 012 — antes desta
+	// tarefa POST /orders nunca ecoava o id da linha recém-criada em
+	// order_book, então POST /orders/{id}/cancel não tinha nenhum caminho
+	// real pelo qual um cliente descobrisse qual id passar). Vazio se
+	// Execute rejeitou a ordem (nada foi persistido).
+	OrderID           string
 	Fills             []Fill
 	FilledQuantity    int
 	RemainingQuantity int
+}
+
+// OrderRecord é uma linha de order_book do usuário, devolvida por
+// Repository.ListOrders (tarefa O.3, GET /orders) — mais recente primeiro,
+// sem paginação (escopo de protótipo). CancelReason é nil pra qualquer
+// status diferente de cancelled.
+type OrderRecord struct {
+	ID             string
+	AssetID        string
+	Side           orderbook.Side
+	Type           orderbook.Type
+	Quantity       int
+	FilledQuantity int
+	Price          float64
+	Status         string
+	CancelReason   *CancelReason
+	CreatedAt      time.Time
 }
 
 // Execute reconstrói o book do ativo a partir de Context.Resting (replay,

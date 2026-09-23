@@ -118,7 +118,7 @@ func (r *OrderExecutionRepository) currentSimulatedDay(ctx context.Context) (int
 // dividends_paid_count na resposta de POST /admin/tick).
 func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error) {
 	result, err := r.db.ExecContext(ctx,
-		`UPDATE order_book SET status = 'cancelled'
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'expired'
 		 WHERE status IN ('pending', 'partially_filled') AND simulated_day < $1`,
 		currentSimulatedDay,
 	)
@@ -140,11 +140,96 @@ func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, curren
 // correto pra eles (ver doc de A.4 no plano da correção).
 func (r *OrderExecutionRepository) CancelUserRestingOrders(ctx context.Context, userID, assetID string) error {
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE order_book SET status = 'cancelled'
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'requoted'
 		 WHERE user_id = $1 AND asset_id = $2 AND status IN ('pending', 'partially_filled')`,
 		userID, assetID,
 	)
 	return err
+}
+
+// CancelOrder marca como cancelled a ordem orderID de userID (tarefa O.1,
+// cancelamento manual pelo próprio usuário) — diferente de
+// ExpireStaleOrders/CancelUserRestingOrders acima (bulk, disparados pelo
+// sistema/bot), esta é uma única ordem por ID, disparada por uma rota HTTP
+// nova. Lê dono e status com FOR UPDATE antes de decidir: um UPDATE ...
+// WHERE sozinho não teria como distinguir "ordem não existe", "ordem é de
+// outro usuário" e "ordem já não está mais pending/partially_filled" a
+// partir de "0 linhas afetadas" — o handler HTTP precisa da causa certa
+// pra mapear pro status certo (404 vs. 409). As duas primeiras causas
+// colapsam no mesmo ErrOrderNotFound de propósito (não vazar que um ID de
+// ordem alheio existe). Cancelar não reverte saldo/posição nem
+// filled_quantity já executado (mesma decisão de escopo de
+// ExpireStaleOrders: nenhuma ordem pendurada reserva nada na submissão,
+// orderexecution.go), então não passa por Event Sourcing.
+func (r *OrderExecutionRepository) CancelOrder(ctx context.Context, orderID, userID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var ownerID, status string
+	err = tx.QueryRowContext(ctx,
+		`SELECT user_id, status FROM order_book WHERE id = $1 FOR UPDATE`, orderID,
+	).Scan(&ownerID, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return orderexecution.ErrOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if ownerID != userID {
+		return orderexecution.ErrOrderNotFound
+	}
+	if status != "pending" && status != "partially_filled" {
+		return orderexecution.ErrOrderNotCancellable
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'user_cancelled' WHERE id = $1`, orderID,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// ListOrders devolve todas as ordens de userID (tarefa O.3, GET /orders),
+// mais recente primeiro, sem paginação (escopo de protótipo) — fecha o
+// achado 012 (pontos-em-aberto-decisao-produto.md): sem esta rota,
+// CancelOrder não tinha nenhum caminho real pelo qual um cliente
+// descobrisse qual id de ordem passar depois de um reload de página.
+func (r *OrderExecutionRepository) ListOrders(ctx context.Context, userID string) ([]orderexecution.OrderRecord, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, asset_id, side, type, quantity, filled_quantity, price, status, cancel_reason, created_at
+		 FROM order_book
+		 WHERE user_id = $1
+		 ORDER BY created_at DESC`, userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	records := make([]orderexecution.OrderRecord, 0)
+	for rows.Next() {
+		var rec orderexecution.OrderRecord
+		var side, orderType, status string
+		var cancelReason sql.NullString
+		if err := rows.Scan(
+			&rec.ID, &rec.AssetID, &side, &orderType, &rec.Quantity, &rec.FilledQuantity,
+			&rec.Price, &status, &cancelReason, &rec.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		rec.Side, rec.Type, rec.Status = orderbook.Side(side), orderbook.Type(orderType), status
+		if cancelReason.Valid {
+			reason := orderexecution.CancelReason(cancelReason.String)
+			rec.CancelReason = &reason
+		}
+		records = append(records, rec)
+	}
+	return records, rows.Err()
 }
 
 // floatCeiling lê o teto do float finito do ativo (tarefa A.3,
@@ -290,16 +375,19 @@ func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetI
 // na demonstração); uma correção completa exigiria mover a leitura de
 // saldo/posição pra dentro desta mesma transação, com FOR UPDATE, antes de
 // chamar Execute.
-func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecution.Request, outcome orderexecution.Outcome) error {
+//
+// Devolve o id da linha de order_book recém-criada pra ordem recebida
+// (tarefa O.3, achado 012) — insertIncomingOrder usa RETURNING id.
+func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecution.Request, outcome orderexecution.Outcome) (string, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	for _, fill := range outcome.Fills {
 		if err := applyFillSide(ctx, tx, req.AssetID, req.UserID, req.Side, fill.Quantity, fill.Price); err != nil {
-			return err
+			return "", err
 		}
 		if !fill.IsSynthetic() {
 			counterpartySide := orderbook.SideSell
@@ -307,19 +395,23 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 				counterpartySide = orderbook.SideBuy
 			}
 			if err := applyFillSide(ctx, tx, req.AssetID, fill.CounterpartyUserID, counterpartySide, fill.Quantity, fill.Price); err != nil {
-				return err
+				return "", err
 			}
 			if err := fillRestingOrder(ctx, tx, fill.CounterpartyOrderID, fill.Quantity); err != nil {
-				return err
+				return "", err
 			}
 		}
 	}
 
-	if err := insertIncomingOrder(ctx, tx, req, outcome); err != nil {
-		return err
+	orderID, err := insertIncomingOrder(ctx, tx, req, outcome)
+	if err != nil {
+		return "", err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return orderID, nil
 }
 
 // applyFillSide grava o evento e projeta saldo/posição de um dos lados de
@@ -397,29 +489,61 @@ func applyPositionFill(ctx context.Context, tx *sql.Tx, userID, assetID string, 
 // fillRestingOrder incrementa filled_quantity de uma ordem real que já
 // estava pendurada no book e atualiza seu status — cálculo feito inteiro
 // em SQL (sem round-trip extra pra ler a quantidade original) porque
-// quantity (original) já está na mesma linha.
+// quantity (original) já está na mesma linha. `AND status IN ('pending',
+// 'partially_filled')` (achado ao vivo, sessão da tarefa O.1) fecha uma
+// corrida real contra CancelOrder: Execute decide este match contra
+// Context.Resting, lido por LoadContext **fora** de transação — se o dono
+// da ordem pendurada a cancelar (CancelOrder, que toma FOR UPDATE nessa
+// mesma linha) entre essa leitura e este UPDATE, o UPDATE sem essa
+// cláusula corria pra depois de CancelOrder commitar (mesmo lock de linha
+// do Postgres serializa as duas escritas) e sobrescrevia 'cancelled' de
+// volta pra 'partially_filled'/'filled' — reproduzido manualmente contra
+// Postgres real com duas transações concorrentes (BEGIN; SELECT ... FOR
+// UPDATE; sleep; UPDATE status='cancelled'; COMMIT — correndo contra
+// BEGIN; sleep; este UPDATE; COMMIT). affected == 0 agora sinaliza que a
+// ordem pendurada não está mais disponível (foi cancelada, ou terminou de
+// preencher por outro caminho, no intervalo) — ErrRestingOrderNoLongerAvailable
+// aborta a transação inteira do submissor (defer tx.Rollback() em
+// Persist), mesma consequência de ErrInsufficientPosition contra a mesma
+// ordem "furada" (achado 005): nenhum saldo/posição já debitado nesta
+// mesma transação (applyFillSide, chamado antes deste ponto pros dois
+// lados do Fill) fica de pé.
 func fillRestingOrder(ctx context.Context, tx *sql.Tx, orderID string, quantity int) error {
-	_, err := tx.ExecContext(ctx,
+	result, err := tx.ExecContext(ctx,
 		`UPDATE order_book SET
 		   filled_quantity = filled_quantity + $1,
 		   status = (CASE WHEN filled_quantity + $1 >= quantity THEN 'filled' ELSE 'partially_filled' END)::order_status
-		 WHERE id = $2`,
+		 WHERE id = $2 AND status IN ('pending', 'partially_filled')`,
 		quantity, orderID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return orderexecution.ErrRestingOrderNoLongerAvailable
+	}
+	return nil
 }
 
 // insertIncomingOrder grava a ordem recebida como uma nova linha de
-// order_book. Price é o limite informado pelo usuário pra ordem limitada;
-// pra ordem a mercado (sem preço próprio — Type == market ignora Price,
-// orderbook.go) é o preço médio ponderado de execução, porque a coluna é
-// NOT NULL e não existe "o preço" de uma ordem a mercado antes de executar.
-// simulated_day (achado 005 parte A) vem de req.SimulatedDay, carimbado por
-// Service.SubmitWithContext a partir do Context recém-carregado — todo
-// order_book novo já nasce sabendo em que dia simulado nasceu, insumo que
-// ExpireStaleOrders precisa pra nunca deixar ordem acumular indefinidamente.
-func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) error {
+// order_book e devolve o id gerado (tarefa O.3, RETURNING id — antes desta
+// tarefa o id nunca era lido de volta, então POST /orders não tinha como
+// ecoá-lo pro cliente). Price é o limite informado pelo usuário pra ordem
+// limitada; pra ordem a mercado (sem preço próprio — Type == market ignora
+// Price, orderbook.go) é o preço médio ponderado de execução, porque a
+// coluna é NOT NULL e não existe "o preço" de uma ordem a mercado antes de
+// executar. simulated_day (achado 005 parte A) vem de req.SimulatedDay,
+// carimbado por Service.SubmitWithContext a partir do Context recém-
+// carregado — todo order_book novo já nasce sabendo em que dia simulado
+// nasceu, insumo que ExpireStaleOrders precisa pra nunca deixar ordem
+// acumular indefinidamente.
+func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) (string, error) {
 	status := "pending"
+	var cancelReason *orderexecution.CancelReason
 	switch {
 	case outcome.FilledQuantity >= req.Quantity:
 		status = "filled"
@@ -430,8 +554,11 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 		// tarefa A.2) — sem nenhum fill real, a sobra não vai executar
 		// depois (loadRestingOrders só lê type = 'limit'), então "pending"
 		// seria enganoso pra sempre; 'cancelled' reflete que já está
-		// definitivamente resolvida.
+		// definitivamente resolvida, com cancel_reason = no_liquidity
+		// (tarefa O.3) marcando a causa pra tela "Minhas Ordens" (O.4).
 		status = "cancelled"
+		reason := orderexecution.CancelReasonNoLiquidity
+		cancelReason = &reason
 	}
 
 	price := req.Price
@@ -439,12 +566,20 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 		price = weightedAveragePrice(outcome.Fills)
 	}
 
-	_, err := tx.ExecContext(ctx,
-		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status, simulated_day)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status, req.SimulatedDay,
-	)
-	return err
+	var cancelReasonParam *string
+	if cancelReason != nil {
+		r := string(*cancelReason)
+		cancelReasonParam = &r
+	}
+
+	var orderID string
+	err := tx.QueryRowContext(ctx,
+		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status, simulated_day, cancel_reason)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 RETURNING id`,
+		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status, req.SimulatedDay, cancelReasonParam,
+	).Scan(&orderID)
+	return orderID, err
 }
 
 func weightedAveragePrice(fills []orderexecution.Fill) float64 {
