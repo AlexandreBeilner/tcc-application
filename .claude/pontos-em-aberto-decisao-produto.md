@@ -147,29 +147,24 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
 - **Status:** aberto
 
-### 009 · Capital/alocação inicial do bot não é calibrado com dados reais (mitigação de realismo do achado 005)
+### 013 · Book sem ordens de compra no instante em que o usuário tenta vender (venda a mercado logo após a compra não preenche)
 
-- **Local:** `engine/internal/domain/bot/allocation.go` (`InitialAllocation`, distribui o float
-  entre os 20 bots) e `engine/cmd/seed/main.go` (`botMinimumOrderShares`/multiplicadores de
-  `bot.InitialCash`, achado 005 Parte B)
-- **Origem:** achado 005 Parte C (`.claude/pontos-em-aberto-decisao-produto.md`), separado nesta
-  sessão (2026-09-20) da correção mecânica que virou `J.6` — teste de ponta a ponta da Fase J
-  (`.claude/backlog-motor-mercado-realista.md`), 2026-09-19/20
-- **O que é:** o capital/posição inicial de cada bot vem de constantes ilustrativas
-  (`cmd/seed/main.go`), nunca calibradas contra dados reais de participação de liquidez/free float
-  da B3 — mesma natureza do achado 003 (coeficientes de fundamentos), mas aplicada a um insumo
-  diferente. Capital insuficiente pra sustentar negociação contínua aumenta a *frequência* com que
-  a média de volume real de um ativo (`RecentTradedVolume`, achado 005 Parte B) chega a zero, que é
-  a condição que `J.6` corrige na raiz mecânica — mais capital reduziria a chance desse cenário
-  acontecer, mas não o eliminaria sozinho (é estatístico, não determinístico).
-- **Por que não foi corrigido:** o valor certo de capital/alocação por bot é um número de negócio
-  sem fonte real confirmada em nenhum documento — exigiria uma pesquisa dedicada tipo K.1 (dados
-  B3/CVM de participação de market maker/free float), não só uma decisão de comportamento.
-- **Opções:** (a) pesquisa dedicada (mesmo formato de K.1) seguida de aplicação em
-  `cmd/seed/main.go`/`bot.InitialCash` (mesmo formato de K.2); (b) manter os valores ilustrativos
-  atuais indefinidamente, já que `J.6` remove a consequência mais grave (travamento permanente) e
-  o resto é só realismo de "quão ativo o mercado parece", não corretude.
-- **Status:** aberto — sem tarefa de backlog aberta, não bloqueia `J.6` (achado 005 Parte C).
+- **Local:** `engine/internal/domain/tick/rounds.go` (`runIntradayRounds`), `engine/internal/domain/bot/marketmaker.go`
+- **Origem:** teste de ponta a ponta da correção do achado 009, 2026-09-23
+- **O que é:** com o motor parado depois de 60 ticks, comprar 100 ações a mercado de VALR3 ou BNDD4 preenche (há ordens
+  de venda em repouso), mas vender as mesmas 100 a mercado logo em seguida retorna `filled_quantity: 0` (ordem fica
+  pendente): o book de VALR3 só tinha ordens de venda em repouso no fim do dia 60 (5 pendentes + 2 parciais),
+  nenhuma de compra, porque as compras dos bots foram consumidas nas rodadas do dia e as ordens só são recotadas nas
+  rodadas do próximo tick. Reproduzido idêntico no código anterior à correção do 009 (não é regressão dela).
+- **Por que não foi corrigido:** exige decidir como o mercado deve se comportar entre ticks: manter cotação
+  bilateral contínua do Market Maker entre rodadas, recotar depois de cada fill, ou aceitar que o usuário só
+  executa venda quando há contraparte na rodada. Impacta usabilidade direta (usuário não consegue "desfazer" uma
+  compra na hora), mas a forma de resolver é escolha de comportamento.
+- **Opções:** (a) o Market Maker recota imediatamente após um fill (mantém sempre os dois lados no book); (b)
+  reservar uma fatia da profundidade de compra que não é consumida pelas rodadas de bots; (c) manter como está e
+  deixar a ordem a mercado virar limitada e esperar a próxima rodada (UX: mostrar "aguardando contraparte", já
+  coberto pela tela "Minhas Ordens").
+- **Status:** aberto
 
 ## Resolvidos
 
@@ -502,3 +497,39 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   cada linha da aba Recusadas com o motivo humanizado, sem virar sub-aba própria.
 - **Status:** resolvido — O.1 continua ✅ como rota isolada (comportamento correto, testado). O.3/O.4
   ainda não implementadas (escopo de múltiplas sessões: engine + backend + tela nova de frontend).
+
+### 009 · Capital/alocação inicial do bot não é calibrado com dados reais (mitigação de realismo do achado 005)
+
+- **Local:** `engine/internal/domain/bot/allocation.go` (`InitialAllocation`, distribui o float
+  entre os 20 bots) e `engine/cmd/seed/main.go` (`botMinimumOrderShares`/multiplicadores de
+  `bot.InitialCash`, achado 005 Parte B)
+- **Origem:** achado 005 Parte C (`.claude/pontos-em-aberto-decisao-produto.md`), separado nesta
+  sessão (2026-09-20) da correção mecânica que virou `J.6` — teste de ponta a ponta da Fase J
+  (`.claude/backlog-motor-mercado-realista.md`), 2026-09-19/20
+- **O que é:** o capital/posição inicial de cada bot vem de constantes ilustrativas
+  (`cmd/seed/main.go`), nunca calibradas contra dados reais de participação de liquidez/free float
+  da B3 — mesma natureza do achado 003 (coeficientes de fundamentos), mas aplicada a um insumo
+  diferente. Capital insuficiente pra sustentar negociação contínua aumenta a *frequência* com que
+  a média de volume real de um ativo (`RecentTradedVolume`, achado 005 Parte B) chega a zero, que é
+  a condição que `J.6` corrige na raiz mecânica — mais capital reduziria a chance desse cenário
+  acontecer, mas não o eliminaria sozinho (é estatístico, não determinístico).
+- **Por que não foi corrigido:** o valor certo de capital/alocação por bot é um número de negócio
+  sem fonte real confirmada em nenhum documento — exigiria uma pesquisa dedicada tipo K.1 (dados
+  B3/CVM de participação de market maker/free float), não só uma decisão de comportamento.
+- **Opções:** (a) pesquisa dedicada (mesmo formato de K.1) seguida de aplicação em
+  `cmd/seed/main.go`/`bot.InitialCash` (mesmo formato de K.2); (b) manter os valores ilustrativos
+  atuais indefinidamente, já que `J.6` remove a consequência mais grave (travamento permanente) e
+  o resto é só realismo de "quão ativo o mercado parece", não corretude.
+- **Pesquisa (2026-09-23):** `.claude/calibracao-liquidez-bots.md`. A premissa deste achado (capital
+  insuficiente) **não se sustenta**: o caixa agregado dos bots é ~130% do valor do float. O que mata a
+  liquidez é o laço de realimentação de `MaxOrderPctOfAverageVolumePct` (teto = 20% do volume recente),
+  que decai geometricamente até o piso de 1 unidade do J.6: VALR3 foi de 23,8M unidades/dia no dia 1 pra
+  10 no dia 40, contra ~0,5% do float/dia de referência real (giro B3 ~135% ao ano). Correção recomendada
+  no doc (opção A, piso do teto proporcional ao float) aguarda decisão do autor.
+- **Decisão (2026-09-23, confirmada com o autor):** opção A do doc — piso do teto de volume proporcional ao
+  float (`tick.MinOrderPctOfFloat` = 0,4%, calibrado por simulação de 60 dias), uniforme entre ativos.
+  Opção C (perfil de liquidez fixo por ativo) descartada por ora: liquidez real depende de vários
+  fatores, fixar um número seria arbitrário, mas pode ser revisitada. `bot.InitialCash`/`InitialAllocation`
+  ficam como estão (caixa agregado já é ~130% do float, não é o limitante). Teste novo em
+  `TestEffectiveOrderSizeCeiling`, `.docs/engine/tick.md` atualizado.
+- **Status:** resolvido.
