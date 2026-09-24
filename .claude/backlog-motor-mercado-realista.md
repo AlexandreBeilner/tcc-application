@@ -3201,7 +3201,7 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   ativa, a reatribuição e o ajuste de `max_covered_assets` pelo painel. Sem código novo.
 - **Critérios de aceite:** as descrições de N.1/N.2 citam o modelo de cobertura.
 
-### P.10 · Deadline do disparo manual do tick
+### P.10 · Deadline do disparo manual do tick ✅
 - **Descrição:** `POST /admin/tick` herda o `WriteTimeout` de 5 s do servidor do motor
   (`httpserver/server.go`) e roda o tick de forma síncrona; com ~2 ms por comando de banco o disparo manual
   estoura os 5 s com pouco mais de 20 ativos cotados. Levantar o deadline só nessa rota
@@ -3209,6 +3209,16 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** com o catálogo sintético de 50 ativos, o disparo manual retorna `200` com o
   resultado completo, sem timeout do servidor; documentado em `.docs/engine/tick.md`.
 - **Referências:** proposta seção 6.1. **Independente**, pode abrir a fase.
+- **Entregável (sessão 2026-09-23):** `handleAdminTick` (`httpserver/admin.go`) chama
+  `extendWriteDeadline(w, adminTickWriteTimeout)` antes de rodar o tick: prazo de escrita de 2 minutos só
+  nessa requisição (`http.ResponseController.SetWriteDeadline`); `http.ErrNotSupported` é ignorado (o
+  `httptest.Recorder` não tem prazo). Teste `TestHandleAdminTick_SobreviveAoWriteTimeoutDoServidor` sobe um
+  servidor real com `WriteTimeout` de 100 ms e um ticker de 300 ms; confirmado que falha com `EOF` sem a
+  correção. `golangci-lint` (0 issues), `go build` e `go test ./...` passam; `POST /admin/tick` validado
+  em `docker compose` (200). Documentado em `.docs/engine/tick.md`. **Pendente:** o critério "catálogo
+  sintético de 50 ativos" só pode ser medido quando a P.7 existir; o mecanismo já está coberto pelo teste
+  com timeout reduzido, então recheque esse ponto na P.8. Se o tick passar de 2 minutos, a saída
+  documentada na proposta é o disparo assíncrono (`202`).
 
 ## Sequência sugerida
 
