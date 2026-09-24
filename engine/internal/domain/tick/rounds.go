@@ -59,6 +59,21 @@ const MaxOrderPctOfAverageVolumePct = 0.20
 // de volume colapsar a zero quando o float disponível é positivo.
 const MinOrderSizeCeiling = 1
 
+// MinOrderPctOfFloat (achado 009, calibracao-liquidez-bots.md) é o piso do
+// teto de volume proporcional ao float do ativo, em fração (0.004 = 0,4%).
+// O piso absoluto de 1 unidade (MinOrderSizeCeiling) evitava o zero, mas não
+// o colapso: o teto é MaxOrderPctOfAverageVolumePct do volume recente, e o
+// volume de hoje é feito de ordens limitadas por esse teto, então cada
+// janela de ChartistPriceHistoryDays negociava uma fração da anterior até
+// sobrar ~1 unidade por dia (VALR3: 23,8M/dia no dia 1, 10/dia no dia 40).
+// Com o piso proporcional ao float o mercado converge pra um regime estável
+// em vez de morrer. Valor calibrado por simulação de 60 dias mirando ~0,3-0,7%
+// do float por dia (giro da B3 ~135% ao ano sobre valor de mercado, ~0,54% ao
+// dia) — ilustrativo, uniforme entre ativos: liquidez por ativo (opção C do
+// doc) ficou deliberadamente de fora, decisão do autor de não fixar um valor
+// por ativo já que liquidez real depende de vários fatores.
+const MinOrderPctOfFloat = 0.004
+
 // ChartistPriceHistoryDays é o tamanho da janela de fechamentos diários
 // (asset_quotes) que o arquétipo Chartista usa pra avaliar tendência
 // (bot.DecideChartistOrder) — a proposta 2.4/C.4 não fixa "quantos dias",
@@ -313,14 +328,27 @@ func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	}
 	avgVolume := float64(sum) / float64(len(recentVolume))
 	volumeCeiling := int64(avgVolume * MaxOrderPctOfAverageVolumePct)
-	if volumeCeiling < MinOrderSizeCeiling {
-		volumeCeiling = MinOrderSizeCeiling
+	if floor := minOrderSizeCeiling(floatCeiling); volumeCeiling < floor {
+		volumeCeiling = floor
 	}
 
 	if floatCeiling == nil || volumeCeiling < *floatCeiling {
 		return &volumeCeiling
 	}
 	return floatCeiling
+}
+
+// minOrderSizeCeiling é o piso do teto de volume: MinOrderPctOfFloat do float
+// (achado 009), nunca abaixo de MinOrderSizeCeiling. Sem float conhecido (nil,
+// ex: sandbox) só o piso absoluto se aplica.
+func minOrderSizeCeiling(floatCeiling *int64) int64 {
+	if floatCeiling == nil {
+		return MinOrderSizeCeiling
+	}
+	if floor := int64(float64(*floatCeiling) * MinOrderPctOfFloat); floor > MinOrderSizeCeiling {
+		return floor
+	}
+	return MinOrderSizeCeiling
 }
 
 // decisionInputFor monta o bot.DecisionInput de um bot pro ativo escolhido

@@ -206,7 +206,11 @@ func TestRunIntradayRounds_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
 // casos de ausência de dado tratados sem panicar nem bloquear a negociação
 // por falta de histórico.
 func TestEffectiveOrderSizeCeiling(t *testing.T) {
-	floatCeiling := int64(1_000_000)
+	// float pequeno o bastante pro piso proporcional (MinOrderPctOfFloat,
+	// achado 009) ficar em MinOrderSizeCeiling, senão ele mascararia os
+	// casos que testam o teto de volume sozinho.
+	floatCeiling := int64(100)
+	bigFloat := int64(1_000_000)
 	smallFloat := int64(1)
 
 	ptr := func(v int64) *int64 { return &v }
@@ -254,6 +258,19 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 			recentVolume: []int{0, 0, 0}, want: ptr(MinOrderSizeCeiling),
 		},
 		{
+			// achado 009: sem o piso proporcional, um volume recente que
+			// decai (aqui 10/dia num float de 1M) puxava o teto pra 2 e o
+			// mercado morria; o piso de 0,4% do float (4000) segura o teto.
+			name: "volume recente baixo não derruba o teto abaixo do piso proporcional ao float", floatCeiling: &bigFloat,
+			recentVolume: []int{10, 10, 10, 10, 10}, want: ptr(int64(float64(bigFloat) * MinOrderPctOfFloat)),
+		},
+		{
+			// volume alto o bastante pra teto de volume (20% de 100M = 20M)
+			// passar do piso (4000) — o piso nunca reduz um teto maior.
+			name: "teto de volume acima do piso proporcional continua valendo", floatCeiling: &bigFloat,
+			recentVolume: []int{500_000, 500_000}, want: ptr(int64(100_000)),
+		},
+		{
 			// floatCeiling também zerado (sem float disponível pra comprar
 			// de jeito nenhum) continua devolvendo 0 mesmo com o piso — o
 			// piso nunca infla o teto além do que o float realmente permite.
@@ -281,7 +298,7 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 func TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}}
-	floatCeiling := int64(1_000_000)
+	floatCeiling := int64(100)
 	svc.orderContext = &fakeOrderContextLoader{balance: 104_866_356_108.88, outstandingShares: &floatCeiling}
 	svc.tradedVolume = &fakeTradedVolumeReader{volumes: map[string][]int{"fii1": {10, 10, 10, 10, 10}}}
 	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
@@ -322,7 +339,7 @@ func TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat(t *testin
 func TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}}
-	floatCeiling := int64(1_000_000)
+	floatCeiling := int64(100)
 	svc.orderContext = &fakeOrderContextLoader{balance: 104_866_356_108.88, outstandingShares: &floatCeiling}
 	svc.tradedVolume = &fakeTradedVolumeReader{volumes: map[string][]int{"fii1": {0, 0, 0, 0, 0}}}
 	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
