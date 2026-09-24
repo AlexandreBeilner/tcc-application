@@ -610,11 +610,10 @@ func eventTargetsCompany(targets []MacroEventTargetForApplication, companyID, se
 	return matched
 }
 
-// macroPriceEffectsByCompany soma (sem teto — mesmo comportamento
-// "empilha sem limite" que macroPriceMultiplier já tinha antes de ser
-// removida nesta tarefa, só que agora um deslocamento aditivo da
-// estimativa de preço justo em vez de um multiplicador direto sobre o
-// GBM) o efeito de preço de todo evento macro pendente cujo efeito de
+// macroPriceEffectsByCompany soma (macroevent.CombinePendingEffects, com o
+// teto ±macroevent.DefaultPriceEffectCapPct — sem ele, eventos severos
+// empilhados passariam de -100% e inverteriam o sinal do preço justo, achado
+// 004; o multiplicador antigo empilhava por produto e nunca invertia) o efeito de preço de todo evento macro pendente cujo efeito de
 // preço está ativo em newDay (macroevent.IsPriceEffectActive) e cujo alvo
 // alcança a empresa. A magnitude usada é a do próprio Target quando ele
 // declarou direção própria (t.PriceEffectPct != nil — evento "misto" com
@@ -625,7 +624,7 @@ func eventTargetsCompany(targets []MacroEventTargetForApplication, companyID, se
 // arquétipo Fundamentalista (tarefa E.2, via CompanyRoundContext.
 // MacroEffectPct) — nunca mais um multiplicador direto sobre o preço.
 func macroPriceEffectsByCompany(macroEvents []MacroEventForApplication, companies []CompanyForFundamentals, equityRiskClasses map[string]equity.RiskClass, assetToCompany map[string]string, newDay int) map[string]float64 {
-	effects := make(map[string]float64)
+	pending := make(map[string][]float64)
 	for _, ev := range macroEvents {
 		if !ev.AffectsPrice || ev.PriceEffectPct == nil {
 			continue
@@ -642,10 +641,15 @@ func macroPriceEffectsByCompany(macroEvents []MacroEventForApplication, companie
 			if t.PriceEffectPct != nil {
 				pct = *t.PriceEffectPct
 			}
-			effects[c.CompanyID] += pct
+			pending[c.CompanyID] = append(pending[c.CompanyID], pct)
 		}
 	}
-	return effects
+
+	combined := make(map[string]float64, len(pending))
+	for companyID, effects := range pending {
+		combined[companyID] = macroevent.CombinePendingEffects(effects, macroevent.DefaultPriceEffectCapPct)
+	}
+	return combined
 }
 
 // macroFundamentalsEffectsByCompany soma (macroevent.CombinePendingEffects,

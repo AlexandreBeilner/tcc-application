@@ -18,6 +18,16 @@ const ReportCutoffDays = 2
 // própria spec, sujeito à calibração da tarefa 8.1.
 const DefaultFundamentalsCapPct = 40.0
 
+// DefaultPriceEffectCapPct é o teto de magnitude total (escala percentual)
+// da soma dos efeitos de preço ativos de uma empresa no mesmo dia. Precisa
+// ser estritamente menor que 100: o consumidor aplica (1 + soma/100) sobre
+// o preço justo do Fundamentalista, e uma soma <= -100 inverteria o sinal
+// dele (achado 004 de pontos-em-aberto-decisao-produto.md). Valor
+// ilustrativo, mesmo número de DefaultFundamentalsCapPct por consistência,
+// mas constante própria: os dois tetos protegem fórmulas diferentes e podem
+// ser calibrados separadamente.
+const DefaultPriceEffectCapPct = 40.0
+
 // AssignReportDay decide a que dia simulado de relatório o efeito de
 // fundamentos de um evento disparado em triggeredOnDay é atribuído: se
 // faltam pelo menos ReportCutoffDays pro fechamento de nextReportDay (o

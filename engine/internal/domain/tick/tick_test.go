@@ -1,6 +1,7 @@
 package tick
 
 import (
+	"fmt"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
@@ -8,6 +9,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/ipca"
+	"tcc-investimentos/engine/internal/domain/macroevent"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
 
@@ -383,6 +385,43 @@ func TestAdvance_MacroEffectPctAtivoDuranteADuracao(t *testing.T) {
 	}
 	if withEvent.Quotes[0].Price != withoutEvent.Quotes[0].Price {
 		t.Errorf("cotação GBM divergiu (%v != %v) — evento macro não deveria mais saltar o preço instantaneamente", withEvent.Quotes[0].Price, withoutEvent.Quotes[0].Price)
+	}
+}
+
+// TestAdvance_MacroEffectPctEmpilhadoTemTeto cobre o achado 004: vários
+// eventos severos concorrentes sobre a mesma empresa nunca passam do teto
+// (±DefaultPriceEffectCapPct), então (1 + soma/100) no preço justo do
+// Fundamentalista nunca inverte de sinal.
+func TestAdvance_MacroEffectPctEmpilhadoTemTeto(t *testing.T) {
+	riskClass := "Conservador"
+	companyID := "c1"
+	assetID := "a1"
+	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
+	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+	targets := []MacroEventTargetForApplication{{AssetID: &assetID}}
+
+	tests := []struct {
+		name string
+		pct  float64
+		n    int
+		want float64
+	}{
+		{"negativos passam do teto", -25, 5, -macroevent.DefaultPriceEffectCapPct},
+		{"positivos passam do teto", 25, 5, macroevent.DefaultPriceEffectCapPct},
+		{"abaixo do teto soma normal", -10, 2, -20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var events []MacroEventForApplication
+			for i := 0; i < tt.n; i++ {
+				events = append(events, macroPriceEventTest(fmt.Sprintf("event-%d", i), 1, 2, tt.pct, targets))
+			}
+			res := Advance(State{Day: 0, SelicRate: 10}, assets, companies, events, nil, nil, cfg, testIPCAConfig(), 1)
+			if got := res.CompanyContext[companyID].MacroEffectPct; got != tt.want {
+				t.Errorf("MacroEffectPct = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
