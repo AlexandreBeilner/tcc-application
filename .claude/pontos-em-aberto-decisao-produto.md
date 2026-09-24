@@ -69,7 +69,10 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `MarketMakerShareMin/Max`, ou (b) mover a validação de `spread >= 2` pra dentro de `NewRiskProfile`
   (fecha o buraco de "RiskProfile inválido só detectado no consumo", sem resolver o valor extremo
   perto do teto).
-- **Status:** aberto
+- **Decisão parcial (2026-09-23):** teto de spread de 0,10 (ilustrativo) adotado na tarefa **P.6** da Fase P
+  (`backlog-motor-mercado-realista.md`), valor confirmado pelo autor ao seguir a recomendação da proposta de
+  cobertura de Market Maker. Move pra Resolvidos quando a P.6 fechar.
+- **Status:** aberto, com dono real (P.6)
 
 ### 008 · Duas fontes de sensibilidade à Selic para a mesma empresa (setor vs. `risk_class`)
 
@@ -124,7 +127,13 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   reservar uma fatia da profundidade de compra que não é consumida pelas rodadas de bots; (c) manter como está e
   deixar a ordem a mercado virar limitada e esperar a próxima rodada (UX: mostrar "aguardando contraparte", já
   coberto pela tela "Minhas Ordens").
-- **Status:** aberto
+- **Análise (2026-09-23):** causa raiz medida e proposta de solução escalável em
+  `.claude/proposta-cobertura-market-maker.md` (o Market Maker sorteia um ativo por rodada e a expiração
+  diária apaga a cotação; nenhuma das opções (a)/(b)/(c) acima resolvia isso sozinha).
+- **Decisão (2026-09-23, confirmada com o autor):** seguir a proposta; virou a **Fase P**
+  (`backlog-motor-mercado-realista.md`, tarefas P.1 a P.10). Fecha quando a P.8 confirmar que a compra e a
+  venda de 100 ações preenchem nos ativos cobertos.
+- **Status:** aberto, com dono real (Fase P)
 
 ## Resolvidos
 

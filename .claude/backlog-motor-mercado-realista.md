@@ -3109,6 +3109,107 @@ em vez de só no fechamento do dia.
 
 ---
 
+## Fase P — Cobertura contínua de Market Maker escalável
+
+Lacuna achada no teste de ponta a ponta da correção do achado 009 (2026-09-23), registrada como achado
+013 de `pontos-em-aberto-decisao-produto.md`: a venda a mercado logo após uma compra não preenche, porque
+o book de um ativo termina o dia sem ordens de compra. Causa raiz medida: um único Market Maker sorteia
+**um** ativo por rodada e a expiração diária (O.2) apaga a cotação, então cada ativo só fica cotado em
+parte dos dias. Desenho completo, medições, orçamento e decisões fechadas em
+`.claude/proposta-cobertura-market-maker.md` (**leia antes de pegar qualquer tarefa desta fase**, as
+seções citadas abaixo são dele). Diretriz do autor que rege a fase: a solução precisa escalar com o
+catálogo e com o número de bots, nunca ser dimensionada só pelos 5 ativos do seed de hoje.
+
+Independente das outras fases. Depende de A.4 (`is_active`), C.6 (Market Maker), D.2 (rodadas), O.2
+(expiração) e do PR do achado 009 (`tick.MinOrderPctOfFloat`). Cada tarefa é escopo de uma sessão, com
+teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/engine/` e validação por
+`docker compose up`, como manda o checklist do CLAUDE.md para o `engine/`.
+
+### P.1 · Modelo de dados e domínio da cobertura
+- **Descrição:** migration `000023` com a tabela `market_maker_coverage (asset_id, mm_account_id,
+  created_at)` (chave primária composta) e a coluna `bot_personalities.max_covered_assets` (padrão 10,
+  nulo para arquétipos que não são Market Maker); pacote de domínio novo sem I/O com o tipo de cobertura
+  e a função pura `Assign` (Market Maker ativo com menos ativos cobertos entre os que têm folga, desempate
+  por ID); repositório em `internal/infra/db/`, interface pequena declarada no ponto de consumo.
+- **Critérios de aceite:** `Assign` em teste de tabela (folga, empate, nenhum com folga, Market Maker
+  inativo ignorado); migration aplica e reverte.
+- **Referências:** proposta seções 3.1 a 3.3.
+
+### P.2 · Provisionamento reutilizável (`EnsureCoverage`) e migração do seed
+- **Descrição:** caso de uso `EnsureCoverage` (atribui, cria Market Maker novo quando nenhum tem folga,
+  provisiona caixa e posição proporcionais ao float por Event Sourcing); o seed passa a chamá-lo no lugar
+  do laço atual e de `marketMakerBotUserID`; backfill de banco existente com o Market Maker único, sem
+  criar conta nem mexer em saldo.
+- **Critérios de aceite:** seed idempotente (duas execuções não duplicam nada); catálogo com mais ativos
+  que o teto cria Market Makers adicionais e cada ativo fica com exatamente um.
+- **Referências:** proposta seção 3.4. **Dependências:** P.1.
+
+### P.3 · Rodada: Market Maker cota todos os ativos que cobre
+- **Descrição:** `runIntradayRounds` deixa de passar o Market Maker por `SelectAssetForRound` e o faz
+  cotar toda a sua cobertura em cada rodada, em ordem por ID; os outros três arquétipos ficam
+  intocados; `BotRoster` devolve os ativos cobertos; contagem de ativos sem cobertura ativa no log e em
+  `POST /admin/tick`.
+- **Critérios de aceite:** teste de rodada com N ativos cobertos cota os N em toda rodada; ativo fora do
+  universo negociável é ignorado; determinismo preservado.
+- **Referências:** proposta seções 3.5 e 3.9. **Dependências:** P.1, P.2.
+
+### P.4 · Manutenção de cotação
+- **Descrição:** função pura `NeedsRequote` (cotação boa = compra e venda em repouso dentro da tolerância
+  do preço de referência, com quantidade restante acima do mínimo); leitura em lote das ordens em repouso
+  por Market Maker; recotar só o lado consumido, vencido ou fora da tolerância, no lugar do "cancelar tudo".
+- **Critérios de aceite:** cotação boa não gera cancelamento nem submissão; lado consumido é recotado;
+  regime estável dentro do orçamento (média de até 12 comandos SQL por ativo-rodada, seção 6.1).
+- **Referências:** proposta seção 3.6. **Dependências:** P.3.
+
+### P.5 · Cotação de Market Maker não expira por dia
+- **Descrição:** `ExpireStaleOrders` deixa de cancelar ordens do arquétipo Market Maker; a recotação as
+  substitui com o `cancel_reason` já existente. Exceção documentada à regra de ordem Day (O.2).
+- **Critérios de aceite:** a cotação atravessa a virada de dia; ordem de qualquer outro bot continua
+  expirando; exceção documentada em `.docs/engine/orders.md`, `.docs/engine/tick.md` e na O.2.
+- **Referências:** proposta seção 3.7. **Dependências:** P.4 (a manutenção é o que impede acúmulo de
+  cotação velha).
+
+### P.6 · Obrigações do formador (fecha o achado 002)
+- **Descrição:** teto de spread de 0,10 validado em `NewRiskProfile` (valor ilustrativo, seção 3.8) e
+  quantidade mínima por lado ligada a `MinOrderPctOfFloat`, para uma cotação simbólica não contar como
+  cobertura.
+- **Critérios de aceite:** `NewRiskProfile` rejeita spread acima do teto; cotação abaixo do mínimo não
+  conta como cobertura.
+- **Referências:** proposta seção 3.8. **Dependências:** P.1.
+
+### P.7 · Catálogo sintético e benchmark
+- **Descrição:** opção `--synthetic-assets N` no seed, restrita ao stack de teste; script de medição
+  (comandos SQL por tick e por ativo-rodada do Market Maker via log do Postgres, tempo do tick, cobertura,
+  caixa e posição por Market Maker, volume por ativo).
+- **Critérios de aceite:** execução de 60 dias com 30 e 50 ativos, resultados registrados na proposta e
+  comparados ao orçamento da seção 6.1.
+- **Referências:** proposta seções 6 e 6.1. **Dependências:** P.2.
+
+### P.8 · Validação ponta a ponta e ajuste de calibração
+- **Descrição:** repetir os cenários da proposta (compra e venda de 100 ações a mercado em vários ativos
+  no fim do dia 60, cinco eventos severos no mesmo setor, desativação de um Market Maker no meio da
+  execução) contra o catálogo sintético e contra o seed real; reconferir o volume contra
+  `calibracao-liquidez-bots.md` e ajustar `MinOrderPctOfFloat` se sair da faixa de 0,3% a 0,7% do float
+  por dia; confirmar que contas `is_bot` ficam fora do ranking e do perfil público (RNF09).
+- **Critérios de aceite:** compra e venda de 100 ações preenchem nos ativos cobertos (fecha o achado 013);
+  o teste de eventos macro ainda reage; nenhum Market Maker esgotado no fim dos 60 dias; tick dentro do
+  orçamento da seção 6.1.
+- **Dependências:** P.3, P.4, P.5, P.6, P.7.
+
+### P.9 · Integração com a Fase N (só documentação)
+- **Descrição:** atualizar N.1 e N.2 para listar a cobertura por Market Maker, os ativos sem cobertura
+  ativa, a reatribuição e o ajuste de `max_covered_assets` pelo painel. Sem código novo.
+- **Critérios de aceite:** as descrições de N.1/N.2 citam o modelo de cobertura.
+
+### P.10 · Deadline do disparo manual do tick
+- **Descrição:** `POST /admin/tick` herda o `WriteTimeout` de 5 s do servidor do motor
+  (`httpserver/server.go`) e roda o tick de forma síncrona; com ~2 ms por comando de banco o disparo manual
+  estoura os 5 s com pouco mais de 20 ativos cotados. Levantar o deadline só nessa rota
+  (`http.ResponseController.SetWriteDeadline`); o tick automático diário não tem o limite.
+- **Critérios de aceite:** com o catálogo sintético de 50 ativos, o disparo manual retorna `200` com o
+  resultado completo, sem timeout do servidor; documentado em `.docs/engine/tick.md`.
+- **Referências:** proposta seção 6.1. **Independente**, pode abrir a fase.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -3139,3 +3240,7 @@ em vez de só no fechamento do dia.
     depende de A.2, já concluída; pode ser feita a qualquer momento, inclusive antes de tudo acima.
     O.3/O.4 fecham o achado 012 — sem elas, o cancelamento fica correto no motor mas inutilizável
     ponta a ponta, ver `pontos-em-aberto-decisao-produto.md`).
+16. **P.10 → P.1 → P.2 → P.3** (cobertura contínua de Market Maker — PR 1; P.10 é independente e pode
+    abrir a fase), depois **P.4 → P.5** (PR 2, otimização de custo e cotação de pé), depois **P.6, P.7,
+    P.8** (PR 3; P.6 só depende de P.1 e P.7 de P.2, então podem entrar antes). **P.9** a qualquer momento
+    antes da Fase N. Fecha os achados 013 e 002 de `pontos-em-aberto-decisao-produto.md`.
