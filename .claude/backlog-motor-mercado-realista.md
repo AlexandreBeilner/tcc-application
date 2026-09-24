@@ -2730,9 +2730,10 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
 - **Descrição:** motor ganha rotas administrativas (mesmo trust boundary de `POST /admin/tick` —
   sem checagem de role aqui, backend valida `role = admin` antes de repassar, `admin.go:14-23`):
   `GET /admin/bots` (lista com personalidade/arquétipo, escopo de especialização, `is_active`
-  (A.4), posição/caixa atual por ativo), `POST /admin/bots` (cria bot novo — personalidade (C.1),
+  (A.4), posição/caixa atual por ativo e, para Market Maker, os ativos que cobre, o teto `max_covered_assets` e quantos
+  ativos negociáveis estão sem Market Maker ativo cobrindo, P.9), `POST /admin/bots` (cria bot novo — personalidade (C.1),
   escopo de especialização, caixa/posição inicial, reaproveitando validação de domínio já existente
-  em vez de duplicar), `PATCH /admin/bots/:id` (alterna `is_active`, A.4). Backend expõe as 3 rotas
+  em vez de duplicar), `PATCH /admin/bots/:id` (alterna `is_active`, A.4; para Market Maker também ajusta `max_covered_assets`, validado como positivo por `bot.Personality.WithMaxCoveredAssets`, e reatribui cobertura: ao tirar um ativo de um Market Maker, cancelar as ordens em repouso dele nesse ativo, porque a cotação de Market Maker ativo não expira por dia, P.5; e ao criar Market Maker novo, usar `coverage.Ensurer`/`Assign`, não caminho paralelo, P.9). Backend expõe as 3 rotas
   atrás de `authMiddleware`/`role = admin` (mesmo padrão do Painel Admin de Eventos Macro, 4.5),
   documentadas em `.docs/engine/<pacote>.md` e `.docs/backend/admin.md`.
 - **Critérios de aceite:** teste table-driven de criação cobrindo personalidade/escopo válidos e
@@ -2752,7 +2753,7 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
 
 - **Descrição:** tela nova dentro da área admin (mesmo padrão visual/navegação do Painel Admin de
   Eventos Macro, 10.1/10.2) — lista de bots (ticker/setor de cobertura, arquétipo, `is_active`,
-  posição/caixa atual), alternância ativo/inativo por linha, formulário de criação de bot novo
+  posição/caixa atual; para Market Maker, ativos cobertos e teto, com aviso dos ativos sem cobertura ativa, P.9), alternância ativo/inativo por linha, formulário de criação de bot novo
   (arquétipo, escopo de especialização, ativo(s)-alvo, caixa/posição inicial). Atualizar
   `.claude/inventario-telas-plataforma-investimentos.md` com a tela nova.
 - **Critérios de aceite:** lista renderiza dado real da N.1; alternar `is_active` reflete na
@@ -3296,7 +3297,7 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   direcionais é fixo (19) e cada um negocia 1 ativo por rodada. O custo por ativo-rodada é estimativa (linha de base
   de 800 comandos), e o tempo usa o banco local (~0,2 ms por comando).
 
-### P.8 · Validação ponta a ponta e ajuste de calibração
+### P.8 · Validação ponta a ponta e ajuste de calibração ✅
 - **Descrição:** repetir os cenários da proposta (compra e venda de 100 ações a mercado em vários ativos
   no fim do dia 60, cinco eventos severos no mesmo setor, desativação de um Market Maker no meio da
   execução) contra o catálogo sintético e contra o seed real; reconferir o volume contra
@@ -3306,11 +3307,28 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   o teste de eventos macro ainda reage; nenhum Market Maker esgotado no fim dos 60 dias; tick dentro do
   orçamento da seção 6.1.
 - **Dependências:** P.3, P.4, P.5, P.6, P.7.
+- **Entregável (sessão 2026-09-23):** validação contra o seed real (5 ativos) e catálogos sintéticos de 15, 35 e 55 ativos,
+  60 dias cada (`engine/scripts/benchmark-cobertura.sh`). **Achado 013 fechado:** compra e venda a mercado preenchem em
+  todos os ativos testados (6 de 6 no seed real, 20 de 20 nos demais). **Eventos macro ainda reagem:** cinco eventos
+  severos negativos no setor de Mineração fizeram `VALR3` cair de 104,06 para 96,02 (-7,7%) em 4 dias, com recuperação
+  quando os eventos expiram, e o setor Bancário (`BNDD3`) não foi afetado. **Desativação do Market Maker:** com o
+  Market Maker de 10 ativos inativo, o tick não falha, `uncovered_assets_count` = 10 e a cobertura volta a 15 de 15 no
+  tick seguinte à reativação. **Nenhum Market Maker esgotado** (menor posição 321.443, contra 500.000 iniciais no ativo
+  mais raso). **Tick dentro do orçamento da 6.1** (máximo de 3.350 comandos com 55 ativos). **RNF09:** contas `is_bot`
+  ficam fora de ranking, busca de amigos e perfil público por construção (o ranking e o diretório leem só `users`, e os
+  Market Makers criados pela P.2 também não têm linha lá). **Calibração de volume:** com o seed real o volume médio é
+  0,45% do float por dia (faixa 0,3 a 0,7), então `MinOrderPctOfFloat` **não foi alterado**. **Achado novo (achado 014
+  em `pontos-em-aberto-decisao-produto.md`):** o volume por ativo cai com o tamanho do catálogo (0,20% com 15 ativos,
+  0,08% com 35) porque o pool de bots é fixo; a constante não é a alavanca certa, e escalar o pool custa comandos SQL de
+  forma linear, então depende de uma decisão do autor sobre o volume-alvo por ativo. Não bloqueia a Fase P.
 
-### P.9 · Integração com a Fase N (só documentação)
+### P.9 · Integração com a Fase N (só documentação) ✅
 - **Descrição:** atualizar N.1 e N.2 para listar a cobertura por Market Maker, os ativos sem cobertura
   ativa, a reatribuição e o ajuste de `max_covered_assets` pelo painel. Sem código novo.
 - **Critérios de aceite:** as descrições de N.1/N.2 citam o modelo de cobertura.
+- **Entregável (sessão 2026-09-23):** N.1 e N.2 agora citam a cobertura por Market Maker, o teto `max_covered_assets`,
+  os ativos sem cobertura ativa e a reatribuição (com o cancelamento das ordens do Market Maker no ativo que ele deixa e
+  o uso de `coverage.Ensurer`/`Assign`).
 
 ### P.10 · Deadline do disparo manual do tick ✅
 - **Descrição:** `POST /admin/tick` herda o `WriteTimeout` de 5 s do servidor do motor

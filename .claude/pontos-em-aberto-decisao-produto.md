@@ -87,30 +87,30 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
 - **Status:** aberto
 
-### 013 · Book sem ordens de compra no instante em que o usuário tenta vender (venda a mercado logo após a compra não preenche)
+### 014 · O volume por ativo cai com o tamanho do catálogo porque o pool de bots direcionais é fixo
 
-- **Local:** `engine/internal/domain/tick/rounds.go` (`runIntradayRounds`), `engine/internal/domain/bot/marketmaker.go`
-- **Origem:** teste de ponta a ponta da correção do achado 009, 2026-09-23
-- **O que é:** com o motor parado depois de 60 ticks, comprar 100 ações a mercado de VALR3 ou BNDD4 preenche (há ordens
-  de venda em repouso), mas vender as mesmas 100 a mercado logo em seguida retorna `filled_quantity: 0` (ordem fica
-  pendente): o book de VALR3 só tinha ordens de venda em repouso no fim do dia 60 (5 pendentes + 2 parciais),
-  nenhuma de compra, porque as compras dos bots foram consumidas nas rodadas do dia e as ordens só são recotadas nas
-  rodadas do próximo tick. Reproduzido idêntico no código anterior à correção do 009 (não é regressão dela).
-- **Por que não foi corrigido:** exige decidir como o mercado deve se comportar entre ticks: manter cotação
-  bilateral contínua do Market Maker entre rodadas, recotar depois de cada fill, ou aceitar que o usuário só
-  executa venda quando há contraparte na rodada. Impacta usabilidade direta (usuário não consegue "desfazer" uma
-  compra na hora), mas a forma de resolver é escolha de comportamento.
-- **Opções:** (a) o Market Maker recota imediatamente após um fill (mantém sempre os dois lados no book); (b)
-  reservar uma fatia da profundidade de compra que não é consumida pelas rodadas de bots; (c) manter como está e
-  deixar a ordem a mercado virar limitada e esperar a próxima rodada (UX: mostrar "aguardando contraparte", já
-  coberto pela tela "Minhas Ordens").
-- **Análise (2026-09-23):** causa raiz medida e proposta de solução escalável em
-  `.claude/proposta-cobertura-market-maker.md` (o Market Maker sorteia um ativo por rodada e a expiração
-  diária apaga a cotação; nenhuma das opções (a)/(b)/(c) acima resolvia isso sozinha).
-- **Decisão (2026-09-23, confirmada com o autor):** seguir a proposta; virou a **Fase P**
-  (`backlog-motor-mercado-realista.md`, tarefas P.1 a P.10). Fecha quando a P.8 confirmar que a compra e a
-  venda de 100 ações preenchem nos ativos cobertos.
-- **Status:** aberto, com dono real (Fase P)
+- **Local:** `engine/cmd/seed/main.go` (`botOtherBotCount = 19`, mais `bot.SelectAssetForRound`: cada bot negocia 1 ativo
+  por rodada), `engine/internal/domain/tick/rounds.go` (`MinOrderPctOfFloat`)
+- **Origem:** medição da tarefa P.8 (benchmark da P.7), 2026-09-23
+- **O que é:** o volume diário médio por ativo, como % do float, cai aproximadamente com `1/N` quando o catálogo cresce, com
+  o pool de 19 bots direcionais e 1 a 4 rodadas por dia fixos. Medido em 60 dias simulados, mesma seed: **5 ativos (seed
+  real) 0,45%** (dentro da faixa de 0,3% a 0,7% de `calibracao-liquidez-bots.md`), **15 ativos 0,20%**, 35 ativos 0,08%,
+  55 ativos 0,06%. Como a tarefa 7.2 do backlog principal planeja de 12 a 15 ativos negociáveis, o volume do catálogo real
+  previsto já sai da faixa. Efeito colateral medido: o efeito de eventos macro também enfraquece nos ativos menos
+  negociados (cinco eventos severos no setor de Mineração: `VALR3` caiu 7,7%, um ativo sintético do mesmo setor 3%).
+- **Por que não foi corrigido:** `MinOrderPctOfFloat` não resolve: o volume depende de quantas ordens acontecem por ativo,
+  não só do tamanho delas, e subir a constante para atender 15 ativos empurraria o seed de hoje para o topo da faixa.
+  Escalar o pool custa comandos SQL de forma linear (cerca de 17 por turno de bot, ~800 por tick com 19 bots), então
+  manter o volume de 5 ativos com 55 ativos exigiria ~200 bots e ~9.000 comandos por tick, acima do orçamento de 3.500 da
+  seção 6.1 da proposta de cobertura. É preciso o autor definir **qual volume por ativo é o alvo** e quanto custo de
+  tick aceita pagar por isso.
+- **Opções:** (a) o pool de bots direcionais escala com o catálogo (regra de bots por ativo, definida no seed e
+  reaproveitada pelo painel de bots da Fase N), com um teto de custo de tick; (b) cada bot negocia mais de um ativo por
+  rodada (custo por bot sobe, número de bots fica fixo); (c) aceitar a cauda longa, coerente com a B3 (as 10 ações mais
+  negociadas concentram ~46% do volume), e definir a faixa-alvo só para os ativos líderes, deixando os demais mais
+  parados; (d) combinação: escalar o pool até um teto e aceitar cauda longa acima dele. **Recomendação:** (d), com o
+  número de bots por ativo e o teto escolhidos pelo autor. Não bloqueia a Fase P.
+- **Status:** aberto
 
 ## Resolvidos
 
@@ -548,4 +548,33 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   (`ErrSpreadWidthAboveMax`), então `1.999999` e qualquer valor acima de 0,10 são rejeitados na construção; a
   checagem `spread >= 2` de `MarketMakerQuotePrices` ficou só como defesa para uma `Personality` montada sem o
   construtor. Testes cobrem o teto exato, `0.1001` e `1.999999`.
+- **Status:** Resolvido
+
+### 013 · Book sem ordens de compra no instante em que o usuário tenta vender (venda a mercado logo após a compra não preenche)
+
+- **Local:** `engine/internal/domain/tick/rounds.go` (`runIntradayRounds`), `engine/internal/domain/bot/marketmaker.go`
+- **Origem:** teste de ponta a ponta da correção do achado 009, 2026-09-23
+- **O que é:** com o motor parado depois de 60 ticks, comprar 100 ações a mercado de VALR3 ou BNDD4 preenche (há ordens
+  de venda em repouso), mas vender as mesmas 100 a mercado logo em seguida retorna `filled_quantity: 0` (ordem fica
+  pendente): o book de VALR3 só tinha ordens de venda em repouso no fim do dia 60 (5 pendentes + 2 parciais),
+  nenhuma de compra, porque as compras dos bots foram consumidas nas rodadas do dia e as ordens só são recotadas nas
+  rodadas do próximo tick. Reproduzido idêntico no código anterior à correção do 009 (não é regressão dela).
+- **Por que não foi corrigido:** exige decidir como o mercado deve se comportar entre ticks: manter cotação
+  bilateral contínua do Market Maker entre rodadas, recotar depois de cada fill, ou aceitar que o usuário só
+  executa venda quando há contraparte na rodada. Impacta usabilidade direta (usuário não consegue "desfazer" uma
+  compra na hora), mas a forma de resolver é escolha de comportamento.
+- **Opções:** (a) o Market Maker recota imediatamente após um fill (mantém sempre os dois lados no book); (b)
+  reservar uma fatia da profundidade de compra que não é consumida pelas rodadas de bots; (c) manter como está e
+  deixar a ordem a mercado virar limitada e esperar a próxima rodada (UX: mostrar "aguardando contraparte", já
+  coberto pela tela "Minhas Ordens").
+- **Análise (2026-09-23):** causa raiz medida e proposta de solução escalável em
+  `.claude/proposta-cobertura-market-maker.md` (o Market Maker sorteia um ativo por rodada e a expiração
+  diária apaga a cotação; nenhuma das opções (a)/(b)/(c) acima resolvia isso sozinha).
+- **Decisão (2026-09-23, confirmada com o autor):** seguir a proposta; virou a **Fase P**
+  (`backlog-motor-mercado-realista.md`, tarefas P.1 a P.10). Fecha quando a P.8 confirmar que a compra e a
+  venda de 100 ações preenchem nos ativos cobertos.
+- **Resolução (Fase P, 2026-09-23):** cobertura contínua de Market Maker (`market_maker_coverage`, P.1 a P.3), manutenção de
+  cotação com passada final (P.4), cotação que não expira por dia (P.5) e piso de tamanho (P.6). Validado na P.8: compra e
+  venda a mercado preenchem nos 5 ativos do seed real e em 10 de 10 ativos de catálogos de 35 e 55 ativos (20 de 20 ordens
+  cada), depois de 60 dias simulados. Detalhes em `proposta-cobertura-market-maker.md` seção 6.2.
 - **Status:** Resolvido

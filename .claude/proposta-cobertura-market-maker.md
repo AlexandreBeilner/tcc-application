@@ -285,6 +285,18 @@ Como ler:
   cada bot negocia 1 ativo por rodada, então o volume por ativo cai quando o catálogo cresce. É um efeito do tamanho do
   pool de bots, não da cobertura; fica para a P.8 (reconferir a calibração e decidir como o pool escala).
 
+### 6.3 Validação ponta a ponta (tarefa P.8, 2026-09-23)
+
+| Cenário | Resultado |
+|---|---|
+| Compra e venda a mercado (achado 013) | seed real 6 de 6; 15, 35 e 55 ativos 20 de 20 cada |
+| Cinco eventos severos no mesmo setor (Mineração) | `VALR3` 104,06 para 96,02 (-7,7%) em 4 dias, recupera ao expirar; `BNDD3` intocado; ativo sintético do setor -3% (menos negociado) |
+| Market Maker de 10 ativos desativado no meio da execução | tick sem falha, `uncovered_assets_count` = 10, 6 de 15 ativos cotados no dia da desativação, 15 de 15 depois de reativar |
+| Contas `is_bot` no ranking / perfil público (RNF09) | fora por construção: ranking e diretório leem só `users` |
+| Volume diário médio, % do float | seed real 0,45 (0,29 a 0,75); 15 ativos 0,20; 35 ativos 0,08; 55 ativos 0,06 |
+
+O volume fora da faixa com catálogo maior virou o achado 014 (pool de bots fixo); `MinOrderPctOfFloat` ficou em 0,4%.
+
 ## 7. Escopo: tarefas (candidatas à Fase P de `backlog-motor-mercado-realista.md`)
 
 Cada tarefa é escopo de uma sessão, com teste no mesmo commit, `golangci-lint` e `go test ./...`
