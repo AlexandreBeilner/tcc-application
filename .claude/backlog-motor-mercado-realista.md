@@ -3150,7 +3150,7 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   teste temporário (não commitado, convenção da camada). Sem rota HTTP alterada, então sem `.docs/`.
   `golangci-lint`, `go build` e `go test ./...` passam.
 
-### P.2 · Provisionamento reutilizável (`EnsureCoverage`) e migração do seed
+### P.2 · Provisionamento reutilizável (`EnsureCoverage`) e migração do seed ✅
 - **Descrição:** caso de uso `EnsureCoverage` (atribui, cria Market Maker novo quando nenhum tem folga,
   provisiona caixa e posição proporcionais ao float por Event Sourcing); o seed passa a chamá-lo no lugar
   do laço atual e de `marketMakerBotUserID`; backfill de banco existente com o Market Maker único, sem
@@ -3158,6 +3158,27 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** seed idempotente (duas execuções não duplicam nada); catálogo com mais ativos
   que o teto cria Market Makers adicionais e cada ativo fica com exatamente um.
 - **Referências:** proposta seção 3.4. **Dependências:** P.1.
+- **Entregável (sessão 2026-09-23):** `coverage.Ensurer.EnsureCoverage` (`internal/domain/coverage/ensure.go`):
+  se algum Market Maker já cobre o ativo, não faz nada; senão `Assign`, e sem folga cria um Market Maker
+  novo (`NewMarketMakerID`: o primeiro mantém o ID `...0001` do seed antigo, os seguintes são
+  `00000000-0000-0000-0001-<n>`, determinísticos porque o ID entra na semente das rodadas, RNF08) com
+  `bot.DefaultMarketMakerPersonality()` (perfil que estava no seed). Caixa provisionado é `bot.InitialCash`
+  (2x o valor da posição). Colaboradores pequenos no ponto de consumo (`MarketMakerLister`, `Provisioner`).
+  Adapter `CoverageRepository`: `CreateMarketMaker` (conta com saldo zero mais personalidade, cada passo
+  idempotente) e `ProvisionCoverage` (uma transação: cobertura, posição, teto de float, evento
+  `bot_initial_allocation`, evento `bot_initial_cash` com `asset_id` preenchido e soma ao saldo; se o
+  Market Maker já tinha posição no ativo, grava só a cobertura). O seed deixou de ter
+  `marketMakerBotUserID` e o bloco do Market Maker em `seedBotPersonalities`; `seedBotLiquidity` chama
+  `EnsureCoverage` por ativo com `allocation.MarketMaker`. Migration `000024` faz o backfill (cobertura de
+  todo ativo Ação/FII não sandbox em que um Market Maker já tem posição). Decisões de sessão: (1) ativo
+  coberto só por Market Maker **inativo** não é reprovisionado, porque reatribuir é do painel (Fase N,
+  proposta 3.9) e um segundo float estouraria o teto; (2) o `Writer`/`AddCoverage` da P.1 foi trocado por
+  `Provisioner`/`ProvisionCoverage`, que carrega a guarda `ErrNotMarketMaker`. Validado ao vivo: banco de
+  dev legado (migration 24 criou 5 coberturas, seed reexecutado deixou contas, posições, eventos e saldos
+  idênticos); banco novo (seed do zero, caixa do Market Maker = 2x posição, R$ 110,2 bi, 5 coberturas);
+  12 ativos sintéticos com `EnsureCoverage` duas vezes cada (17 ativos em 2 Market Makers, 10 e 7, cada
+  ativo exatamente 1 vez, reexecução sem efeito). Testes temporários não commitados (convenção da camada).
+  `golangci-lint`, `go build`, `go test ./...` passam. Sem rota HTTP alterada.
 
 ### P.3 · Rodada: Market Maker cota todos os ativos que cobre
 - **Descrição:** `runIntradayRounds` deixa de passar o Market Maker por `SelectAssetForRound` e o faz
