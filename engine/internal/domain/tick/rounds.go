@@ -113,6 +113,11 @@ type CompanyRoundContext struct {
 type BotForRound struct {
 	UserID      string
 	Personality bot.Personality
+	// CoveredAssetIDs (tarefa P.3) são os ativos que um Market Maker cobre
+	// (market_maker_coverage, P.1), em ordem por ID. Vazio pros outros 3
+	// arquétipos, que negociam um ativo sorteado por rodada
+	// (bot.SelectAssetForRound).
+	CoveredAssetIDs []string
 }
 
 // BotRoster lista os bots elegíveis pra participar de uma rodada de
@@ -478,8 +483,14 @@ func (s *Service) decisionInputFor(
 // nenhuma se nada negociou) e o total negociado (achado 005 parte B) de
 // cada Ação/FII negociável — vazios se não há nenhum dos dois no catálogo
 // ainda (Fase H, quando ETF entrar aqui, vai alimentar o mesmo mecanismo) —
-// e quantos fills reais aconteceram no total, só pra observabilidade (ver
-// tickResponse, httpserver/admin.go).
+// quantos fills reais aconteceram no total e quantos ativos negociáveis
+// estão sem Market Maker ativo cobrindo (P.3, proposta seção 3.9), só pra
+// observabilidade (ver tickResponse, httpserver/admin.go).
+//
+// Tarefa P.3: o Market Maker não sorteia mais um ativo por rodada. Em cada
+// rodada ele cota TODOS os ativos que cobre (BotForRound.CoveredAssetIDs), em
+// ordem por ID; um ativo coberto que não está no universo negociável é
+// ignorado sem erro. Os outros 3 arquétipos seguem com um ativo sorteado.
 func (s *Service) runIntradayRounds(
 	ctx context.Context,
 	dayIndex int,
@@ -487,103 +498,35 @@ func (s *Service) runIntradayRounds(
 	assets []AssetForPricing,
 	companyContext map[string]CompanyRoundContext,
 	selicRate, selicNeutral float64,
-) (map[string]float64, map[string]int, int, error) {
+) (map[string]float64, map[string]int, int, int, error) {
 	equities, universe := buildEquityUniverse(assets)
 	if len(universe) == 0 || len(rounds) == 0 {
-		return nil, nil, 0, nil
+		return nil, nil, 0, 0, nil
 	}
 
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, 0, 0, err
 	}
 	sort.Slice(roster, func(i, j int) bool { return roster[i].UserID < roster[j].UserID })
 
-	priceHistoryCache := make(map[string][]float64)
-	volumeCache := make(map[string][]int)
-	volumeByAssetID := make(map[string]int)
-	fillsExecuted := 0
+	run := &roundRun{
+		dayIndex:          dayIndex,
+		equities:          equities,
+		companyContext:    companyContext,
+		selicRate:         selicRate,
+		selicNeutral:      selicNeutral,
+		priceHistoryCache: make(map[string][]float64),
+		volumeCache:       make(map[string][]int),
+		volumeByAssetID:   make(map[string]int),
+	}
+	uncovered := countUncoveredAssets(roster, equities)
 
 	for _, round := range rounds {
 		for _, b := range roster {
-			assetRng := rand.New(rand.NewSource(roundSeed(s.seed, dayIndex, round.SequenceIndex, b.UserID, "asset")))
-			chosen, err := bot.SelectAssetForRound(b.Personality.Scope, universe, assetRng)
-			if err != nil {
-				continue
-			}
-			state := equities[chosen.AssetID]
-
-			if !fundamentalistHasCompanyContext(b.Personality, state, companyContext) {
-				continue
-			}
-
-			// Achado 005 parte A.4: um Market Maker nunca deixa a própria
-			// cotação da rodada anterior pendurada — cancela antes de
-			// recotar o mesmo (bot, ativo), incondicionalmente (mesmo que
-			// bot.Decide abaixo não gere nenhuma ordem nova nesta rodada,
-			// ex: sem caixa nem posição). Os outros 3 arquétipos colocam
-			// uma ordem oportunista por sinal, não uma cotação contínua —
-			// não cancelar a deles entre rodadas é comportamento correto,
-			// não um gap.
-			if b.Personality.Archetype == bot.ArchetypeMarketMaker {
-				if err := s.orderLifecycle.CancelUserRestingOrders(ctx, b.UserID, chosen.AssetID); err != nil {
-					return nil, nil, fillsExecuted, err
-				}
-			}
-
-			execCtx, err := s.orderContext.LoadContext(ctx, chosen.AssetID, b.UserID)
-			if err != nil {
-				return nil, nil, fillsExecuted, err
-			}
-
-			decisionSeed := roundSeed(s.seed, dayIndex, round.SequenceIndex, b.UserID, "decision")
-			input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, companyContext, selicRate, selicNeutral, decisionSeed, priceHistoryCache, volumeCache, chosen.AssetID)
-			if err != nil {
-				return nil, nil, fillsExecuted, err
-			}
-			if !ok {
-				continue
-			}
-
-			decisions, err := bot.Decide(b.Personality, input)
-			if err != nil {
-				continue
-			}
-
-			for i, d := range decisions {
-				req := orderexecution.Request{
-					UserID:   b.UserID,
-					AssetID:  chosen.AssetID,
-					Side:     d.Side,
-					Type:     d.Type,
-					Price:    d.Price,
-					Quantity: d.Quantity,
-				}
-
-				var outcome orderexecution.Outcome
-				var err error
-				if i == 0 {
-					// execCtx já foi lido acima (decisionInputFor) e nada
-					// mudou desde então (bots são processados
-					// sequencialmente, doc de runIntradayRounds) —
-					// reaproveita em vez de recarregar o mesmo contexto.
-					outcome, err = s.orderSubmitter.SubmitWithContext(ctx, req, execCtx)
-				} else {
-					// Da segunda ordem em diante (só ArchetypeMarketMaker
-					// decide mais de uma por rodada), o fill da anterior
-					// pode ter mudado saldo/posição — precisa recarregar.
-					outcome, err = s.orderSubmitter.Submit(ctx, req)
-				}
-				if err != nil {
-					if businessRejection(err) {
-						continue
-					}
-					return nil, nil, fillsExecuted, err
-				}
-				fillsExecuted += len(outcome.Fills)
-				volumeByAssetID[chosen.AssetID] += outcome.FilledQuantity
-				if len(outcome.Fills) > 0 {
-					state.Price = outcome.Fills[len(outcome.Fills)-1].Price
+			for _, assetID := range s.assetsForBot(b, universe, equities, dayIndex, round) {
+				if err := s.runBotOnAsset(ctx, run, round, b, assetID); err != nil {
+					return nil, nil, run.fillsExecuted, uncovered, err
 				}
 			}
 		}
@@ -593,5 +536,149 @@ func (s *Service) runIntradayRounds(
 	for assetID, state := range equities {
 		closingPrices[assetID] = state.Price
 	}
-	return closingPrices, volumeByAssetID, fillsExecuted, nil
+	return closingPrices, run.volumeByAssetID, run.fillsExecuted, uncovered, nil
+}
+
+// roundRun agrupa o estado mutável que as rodadas de um tick compartilham
+// entre bots e ativos: preço de referência por ativo (dentro de equities),
+// caches de leitura e os contadores devolvidos por runIntradayRounds.
+type roundRun struct {
+	dayIndex          int
+	equities          map[string]*equityRoundState
+	companyContext    map[string]CompanyRoundContext
+	selicRate         float64
+	selicNeutral      float64
+	priceHistoryCache map[string][]float64
+	volumeCache       map[string][]int
+	volumeByAssetID   map[string]int
+	fillsExecuted     int
+}
+
+// assetsForBot devolve os ativos em que o bot atua nesta rodada: o Market
+// Maker cota toda a sua cobertura que existe no universo negociável (ordem
+// por ID, P.3); os demais arquétipos, o ativo sorteado por
+// bot.SelectAssetForRound (nenhum se o sorteio falha).
+func (s *Service) assetsForBot(b BotForRound, universe []bot.EquityForRound, equities map[string]*equityRoundState, dayIndex int, round IntradayRound) []string {
+	if b.Personality.Archetype == bot.ArchetypeMarketMaker {
+		covered := make([]string, 0, len(b.CoveredAssetIDs))
+		for _, assetID := range b.CoveredAssetIDs {
+			if _, tradable := equities[assetID]; tradable {
+				covered = append(covered, assetID)
+			}
+		}
+		sort.Strings(covered)
+		return covered
+	}
+
+	assetRng := rand.New(rand.NewSource(roundSeed(s.seed, dayIndex, round.SequenceIndex, b.UserID, "asset")))
+	chosen, err := bot.SelectAssetForRound(b.Personality.Scope, universe, assetRng)
+	if err != nil {
+		return nil
+	}
+	return []string{chosen.AssetID}
+}
+
+// countUncoveredAssets conta os ativos negociáveis que nenhum Market Maker
+// elegível (ativo) cobre (proposta seção 3.9): sem cobertura o ativo fica sem
+// formador de mercado, o que o motor só reporta. Reatribuir é do painel de
+// bots (Fase N).
+func countUncoveredAssets(roster []BotForRound, equities map[string]*equityRoundState) int {
+	covered := make(map[string]bool)
+	for _, b := range roster {
+		if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+			continue
+		}
+		for _, assetID := range b.CoveredAssetIDs {
+			covered[assetID] = true
+		}
+	}
+	uncovered := 0
+	for assetID := range equities {
+		if !covered[assetID] {
+			uncovered++
+		}
+	}
+	return uncovered
+}
+
+// runBotOnAsset é a participação de um bot em um ativo numa rodada: decide e
+// submete as ordens, atualizando o preço de referência do ativo a cada fill.
+// Erro de decisão ou rejeição de negócio só pulam o bot neste ativo (ver doc
+// de runIntradayRounds); qualquer outro erro propaga.
+func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round IntradayRound, b BotForRound, assetID string) error {
+	state := run.equities[assetID]
+
+	if !fundamentalistHasCompanyContext(b.Personality, state, run.companyContext) {
+		return nil
+	}
+
+	// Achado 005 parte A.4: um Market Maker nunca deixa a própria cotação da
+	// rodada anterior pendurada — cancela antes de recotar o mesmo (bot,
+	// ativo), incondicionalmente (mesmo que bot.Decide abaixo não gere
+	// nenhuma ordem nova nesta rodada, ex: sem caixa nem posição). Os outros
+	// 3 arquétipos colocam uma ordem oportunista por sinal, não uma cotação
+	// contínua — não cancelar a deles entre rodadas é comportamento correto,
+	// não um gap.
+	if b.Personality.Archetype == bot.ArchetypeMarketMaker {
+		if err := s.orderLifecycle.CancelUserRestingOrders(ctx, b.UserID, assetID); err != nil {
+			return err
+		}
+	}
+
+	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
+	if err != nil {
+		return err
+	}
+
+	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision")
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	decisions, err := bot.Decide(b.Personality, input)
+	if err != nil {
+		return nil
+	}
+
+	for i, d := range decisions {
+		req := orderexecution.Request{
+			UserID:   b.UserID,
+			AssetID:  assetID,
+			Side:     d.Side,
+			Type:     d.Type,
+			Price:    d.Price,
+			Quantity: d.Quantity,
+		}
+
+		var outcome orderexecution.Outcome
+		var err error
+		if i == 0 {
+			// execCtx já foi lido acima (decisionInputFor) e nada mudou desde
+			// então (bots são processados sequencialmente, doc de
+			// runIntradayRounds) — reaproveita em vez de recarregar o mesmo
+			// contexto.
+			outcome, err = s.orderSubmitter.SubmitWithContext(ctx, req, execCtx)
+		} else {
+			// Da segunda ordem em diante (só ArchetypeMarketMaker decide mais
+			// de uma por rodada), o fill da anterior pode ter mudado
+			// saldo/posição — precisa recarregar.
+			outcome, err = s.orderSubmitter.Submit(ctx, req)
+		}
+		if err != nil {
+			if businessRejection(err) {
+				continue
+			}
+			return err
+		}
+		run.fillsExecuted += len(outcome.Fills)
+		run.volumeByAssetID[assetID] += outcome.FilledQuantity
+		if len(outcome.Fills) > 0 {
+			state.Price = outcome.Fills[len(outcome.Fills)-1].Price
+		}
+	}
+	return nil
 }

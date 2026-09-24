@@ -30,10 +30,11 @@ func postTick(t *testing.T, ticker ticker) *httptest.ResponseRecorder {
 
 func TestHandleAdminTick(t *testing.T) {
 	fake := &fakeTicker{result: tick.Result{
-		State:       tick.State{Day: 1, SelicRate: 10.5},
-		Quotes:      []tick.Quote{{AssetID: "a1", Price: 100}, {AssetID: "a2", Price: 200}},
-		IsCopomDay:  false,
-		IsReportDay: false,
+		State:                tick.State{Day: 1, SelicRate: 10.5},
+		UncoveredAssetsCount: 2,
+		Quotes:               []tick.Quote{{AssetID: "a1", Price: 100}, {AssetID: "a2", Price: 200}},
+		IsCopomDay:           false,
+		IsReportDay:          false,
 	}}
 
 	rec := postTick(t, fake)
@@ -50,6 +51,9 @@ func TestHandleAdminTick(t *testing.T) {
 	}
 	if body.QuotesCount != 2 {
 		t.Errorf("QuotesCount = %d, want 2", body.QuotesCount)
+	}
+	if body.UncoveredAssetsCount != 2 {
+		t.Errorf("UncoveredAssetsCount = %d, want 2", body.UncoveredAssetsCount)
 	}
 }
 

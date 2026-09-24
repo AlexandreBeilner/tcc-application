@@ -256,6 +256,11 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 		return nil, err
 	}
 
+	coveredByAccount, err := r.listCoveredAssetIDs(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	roster := make([]tick.BotForRound, 0, len(eligible))
 	for _, raw := range eligible {
 		acc := scopesByAccount[raw.userID]
@@ -282,7 +287,32 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 		if err != nil {
 			return nil, err
 		}
-		roster = append(roster, tick.BotForRound{UserID: raw.userID, Personality: personality})
+		roster = append(roster, tick.BotForRound{UserID: raw.userID, Personality: personality, CoveredAssetIDs: coveredByAccount[raw.userID]})
 	}
 	return roster, nil
+}
+
+// listCoveredAssetIDs devolve, por conta de Market Maker, os ativos que ela
+// cobre (market_maker_coverage, P.1), ordenados por ID, numa consulta só
+// pra todo o roster. Conta sem cobertura (ou que não é Market Maker) não
+// aparece no mapa.
+func (r *BotRepository) listCoveredAssetIDs(ctx context.Context, accountIDs []string) (map[string][]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT mm_account_id, asset_id FROM market_maker_coverage WHERE mm_account_id = ANY($1) ORDER BY mm_account_id, asset_id`,
+		pq.Array(accountIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	covered := make(map[string][]string)
+	for rows.Next() {
+		var accountID, assetID string
+		if err := rows.Scan(&accountID, &assetID); err != nil {
+			return nil, err
+		}
+		covered[accountID] = append(covered[accountID], assetID)
+	}
+	return covered, rows.Err()
 }

@@ -2,6 +2,7 @@ package tick
 
 import (
 	"context"
+	"log"
 	"sort"
 	"sync"
 
@@ -126,7 +127,7 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	closingPrices, volumeByAssetID, fillsExecuted, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
+	closingPrices, volumeByAssetID, fillsExecuted, uncoveredAssets, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
 	if err != nil {
 		return Result{}, err
 	}
@@ -143,6 +144,10 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 	result.IntradayFillsCount = fillsExecuted
 	result.ExpiredOrdersCount = expiredOrdersCount
+	result.UncoveredAssetsCount = uncoveredAssets
+	if uncoveredAssets > 0 {
+		log.Printf("tick dia %d: %d ativo(s) negociável(is) sem Market Maker ativo cobrindo", result.State.Day, uncoveredAssets)
+	}
 
 	if err := s.repo.SaveTick(ctx, result); err != nil {
 		return Result{}, err

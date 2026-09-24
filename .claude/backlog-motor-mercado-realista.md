@@ -3180,7 +3180,7 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   ativo exatamente 1 vez, reexecução sem efeito). Testes temporários não commitados (convenção da camada).
   `golangci-lint`, `go build`, `go test ./...` passam. Sem rota HTTP alterada.
 
-### P.3 · Rodada: Market Maker cota todos os ativos que cobre
+### P.3 · Rodada: Market Maker cota todos os ativos que cobre ✅
 - **Descrição:** `runIntradayRounds` deixa de passar o Market Maker por `SelectAssetForRound` e o faz
   cotar toda a sua cobertura em cada rodada, em ordem por ID; os outros três arquétipos ficam
   intocados; `BotRoster` devolve os ativos cobertos; contagem de ativos sem cobertura ativa no log e em
@@ -3188,6 +3188,23 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** teste de rodada com N ativos cobertos cota os N em toda rodada; ativo fora do
   universo negociável é ignorado; determinismo preservado.
 - **Referências:** proposta seções 3.5 e 3.9. **Dependências:** P.1, P.2.
+- **Entregável (sessão 2026-09-23):** `runIntradayRounds` foi decomposto em `assetsForBot` (Market Maker: cobertura
+  ordenada por ID e filtrada pelo universo negociável; demais: sorteio como antes), `runBotOnAsset` (o corpo por
+  bot e ativo, sem mudança de comportamento) e `countUncoveredAssets`, com o estado compartilhado em `roundRun`.
+  `runIntradayRounds` devolve um 5º valor (ativos sem cobertura), propagado para `Result.UncoveredAssetsCount`,
+  log do tick e `uncovered_assets_count` em `POST /admin/tick`. `BotForRound.CoveredAssetIDs` é preenchido por
+  `BotRepository.ListEligibleForTradingRound` com uma consulta para todo o roster (sem N+1). Testes novos:
+  cotar todos os N cobertos em toda rodada (cobertura fora de ordem), ativo fora do universo ignorado, contagem
+  de descobertos (Market Maker inativo não conta, bot não Market Maker ignora `CoveredAssetIDs`), determinismo;
+  os testes de Market Maker existentes ganharam cobertura na fixture. `golangci-lint`, `go build`,
+  `go test ./...` passam; documentado em `.docs/engine/tick.md`. Validado ao vivo em `docker compose` (3 ticks,
+  `uncovered_assets_count: 0`, Market Maker com ordens nos 5 ativos ao fim do tick). **Achado para a P.4/P.8:**
+  compra e venda a mercado de 100 unidades logo após um tick preencheram em 4 dos 5 ativos; o `PAPL11` falhou
+  na venda porque a compra do Market Maker (2.000) foi consumida por bots direcionais **depois** da última
+  cotação do dia, já que o Market Maker é o primeiro do roster (`UserID` `...0001`) em toda rodada. A cobertura
+  por rodada não elimina esse caso. Duas saídas a avaliar na P.4: uma passada final de recotação do Market
+  Maker depois da última rodada (custo `ativos x ~26` statements, cabe no orçamento se a P.4 recotar só o lado
+  consumido) ou processar o Market Maker por último na rodada.
 
 ### P.4 · Manutenção de cotação
 - **Descrição:** função pura `NeedsRequote` (cotação boa = compra e venda em repouso dentro da tolerância

@@ -50,6 +50,9 @@ type tickResponse struct {
 	// das rodadas deste tick rodarem — só observabilidade, mesma natureza
 	// de BotFillsCount.
 	ExpiredOrdersCount int `json:"expired_orders_count"`
+	// UncoveredAssetsCount (tarefa P.3) é quantos ativos negociáveis ficaram
+	// sem Market Maker ativo cobrindo neste tick, só observabilidade.
+	UncoveredAssetsCount int `json:"uncovered_assets_count"`
 }
 
 // adminTickWriteTimeout é o prazo de escrita da resposta de POST /admin/tick
@@ -97,6 +100,7 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 			DividendsPaidCount:      len(result.DuePayments),
 			BotFillsCount:           result.IntradayFillsCount,
 			ExpiredOrdersCount:      result.ExpiredOrdersCount,
+			UncoveredAssetsCount:    result.UncoveredAssetsCount,
 		})
 	}
 }

@@ -121,7 +121,7 @@ func TestRunIntradayRounds_SemAcaoNoUniversoNaoFazNada(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), nil, nil, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), nil, nil, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -144,7 +144,7 @@ func TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal(t *testing.T) {
 
 	assets := []AssetForPricing{fiiAsset("fii1", 100)}
 
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -183,7 +183,7 @@ func TestRunIntradayRounds_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
 
 	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
 
-	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -308,7 +308,7 @@ func TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat(t *testin
 
 	const wantCeiling = 2 // avg(10) * MaxOrderPctOfAverageVolumePct (0.20) = 2, << floatCeiling
 
-	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -347,7 +347,7 @@ func TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra(t 
 
 	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
 
-	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -379,7 +379,7 @@ func TestRunIntradayRounds_PropagaErroDeRecentTradedVolume(t *testing.T) {
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	svc.tradedVolume = &fakeTradedVolumeReader{readErr: errors.New("falha de conexão")}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de RecentTradedVolume")
 	}
@@ -393,7 +393,7 @@ func TestRunIntradayRounds_VolumeNegociadoAcumuladoPorAtivo(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{
 		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
-		{UserID: "22222222-2222-2222-2222-222222222222", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+		{UserID: "22222222-2222-2222-2222-222222222222", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}},
 	}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	submitter := &fakeOrderSubmitter{fillPrice: 105}
@@ -401,7 +401,7 @@ func TestRunIntradayRounds_VolumeNegociadoAcumuladoPorAtivo(t *testing.T) {
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	_, volumes, fills, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, volumes, fills, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -429,7 +429,7 @@ func TestRunIntradayRounds_VolumeNegociadoAcumuladoPorAtivo(t *testing.T) {
 func TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{
-		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"on1", "pn1"}},
 	}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"on1": 10_000, "pn1": 10_000}}
 	submitter := &fakeOrderSubmitter{fillAtRequestedPrice: true}
@@ -449,7 +449,7 @@ func TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes(t
 		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
 	}
 
-	closing, volumes, fills, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, volumes, fills, _, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -563,7 +563,7 @@ func TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremi
 		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
 	}
 
-	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, companyContext, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, companyContext, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -609,7 +609,7 @@ func TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremi
 func TestRunIntradayRounds_MarketMakerCancelaCotacaoAnteriorAntesDeRecotar(t *testing.T) {
 	const userID = "22222222-2222-2222-2222-222222222222"
 	svc := newTestService(&fakeRepository{})
-	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: userID, Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)}}}
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: userID, Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
 	lifecycle := &fakeOrderLifecycleManager{}
@@ -617,7 +617,7 @@ func TestRunIntradayRounds_MarketMakerCancelaCotacaoAnteriorAntesDeRecotar(t *te
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -648,7 +648,7 @@ func TestRunIntradayRounds_NaoMarketMakerNuncaCancelaOrdemPropria(t *testing.T) 
 	lifecycle := &fakeOrderLifecycleManager{}
 	svc.orderLifecycle = lifecycle
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -662,11 +662,11 @@ func TestRunIntradayRounds_NaoMarketMakerNuncaCancelaOrdemPropria(t *testing.T) 
 // TestRunIntradayRounds_PropagaErroDeLoadContext.
 func TestRunIntradayRounds_PropagaErroDeCancelUserRestingOrders(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
-	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)}}}
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	svc.orderLifecycle = &fakeOrderLifecycleManager{cancelErr: errors.New("falha de conexão")}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de CancelUserRestingOrders")
 	}
@@ -687,7 +687,7 @@ func TestRunIntradayRounds_FundamentalistaNuncaNegociaFII(t *testing.T) {
 
 	assets := []AssetForPricing{fiiAsset("fii1", 100)}
 
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -703,7 +703,7 @@ func TestRunIntradayRounds_SemRodadaSorteadaNaoFazNada(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 0, nil, []AssetForPricing{acaoAsset("a1", 100)}, nil, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, nil, []AssetForPricing{acaoAsset("a1", 100)}, nil, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -716,7 +716,7 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{
 		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
-		{UserID: "22222222-2222-2222-2222-222222222222", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+		{UserID: "22222222-2222-2222-2222-222222222222", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}},
 	}}
 	svc.priceHistory = &fakePriceHistoryReader{}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
@@ -725,7 +725,7 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -758,7 +758,7 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{
-		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker)},
+		{UserID: "11111111-1111-1111-1111-111111111111", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}},
 	}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	submitter := &fakeOrderSubmitter{fillPrice: 105}
@@ -766,7 +766,7 @@ func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testin
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -790,7 +790,7 @@ func TestRunIntradayRounds_SemFillMantemPrecoAnterior(t *testing.T) {
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -814,7 +814,7 @@ func TestRunIntradayRounds_BotInelegivelNuncaESubmetido(t *testing.T) {
 	svc.orderSubmitter = submitter
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
-	closing, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -842,12 +842,12 @@ func TestRunIntradayRounds_Deterministico(t *testing.T) {
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
 	svc1, sub1 := buildService()
-	_, _, _, err := svc1.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc1.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	svc2, sub2 := buildService()
-	_, _, _, err = svc2.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err = svc2.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -866,7 +866,7 @@ func TestRunIntradayRounds_PropagaErroDeListEligibleForTradingRound(t *testing.T
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{listErr: errors.New("falha de conexão")}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de ListEligibleForTradingRound")
 	}
@@ -890,7 +890,7 @@ func TestRunIntradayRounds_FundamentalistaSemCompanyIDNuncaChamaLoadContext(t *t
 	lastPrice := 100.0
 	assets := []AssetForPricing{{AssetID: "a1", Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector, LastPrice: &lastPrice}} // CompanyID nil
 
-	_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -907,7 +907,7 @@ func TestRunIntradayRounds_PropagaErroDeLoadContext(t *testing.T) {
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 	svc.orderContext = &fakeOrderContextLoader{loadErr: errors.New("falha de conexão")}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de LoadContext")
 	}
@@ -919,7 +919,7 @@ func TestRunIntradayRounds_PropagaErroDeSubmit(t *testing.T) {
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	svc.orderSubmitter = &fakeOrderSubmitter{submitErr: errors.New("falha de conexão")}
 
-	_, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Submit")
 	}
@@ -946,7 +946,7 @@ func TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick(t *testing.T)
 			svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 			svc.orderSubmitter = &fakeOrderSubmitter{submitErr: businessErr}
 
-			_, _, fills, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+			_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 			if err != nil {
 				t.Fatalf("err = %v, want nil — rejeição de negócio só deve descartar a ordem, não abortar o tick", err)
 			}
@@ -1314,5 +1314,105 @@ func TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento(t *testing
 	}
 	if diff := closing - startPrice; diff > 1 || diff < -1 {
 		t.Errorf("closing = %.4f, want perto de %.4f (desvio <= 1%%) — sem surpresa clara não deveria mover o preço de forma perceptível", closing, startPrice)
+	}
+}
+
+// P.3: o Market Maker cota TODOS os ativos que cobre em toda rodada, em ordem
+// por ID, sem sorteio.
+func TestRunIntradayRounds_MarketMakerCotaTodaACoberturaEmTodaRodada(t *testing.T) {
+	const userID = "22222222-2222-2222-2222-222222222222"
+	svc := newTestService(&fakeRepository{})
+	// Cobertura fora de ordem de propósito: a iteração precisa ordenar por ID.
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: userID, Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a3", "a1", "a2"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
+	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
+	lifecycle := &fakeOrderLifecycleManager{}
+	svc.orderLifecycle = lifecycle
+
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
+	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	var got []string
+	for _, c := range lifecycle.cancelCalls {
+		got = append(got, c.assetID)
+	}
+	want := []string{"a1", "a2", "a3", "a1", "a2", "a3"}
+	if len(got) != len(want) {
+		t.Fatalf("ativos cotados = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ativos cotados = %v, want %v", got, want)
+		}
+	}
+	if uncovered != 0 {
+		t.Errorf("uncovered = %d, want 0", uncovered)
+	}
+}
+
+// Ativo coberto que não está no universo negociável é ignorado sem erro.
+func TestRunIntradayRounds_MarketMakerIgnoraAtivoCobertoForaDoUniverso(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1", "etf-fora"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
+	lifecycle := &fakeOrderLifecycleManager{}
+	svc.orderLifecycle = lifecycle
+
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	for _, c := range lifecycle.cancelCalls {
+		if c.assetID != "a1" {
+			t.Errorf("cotou %q, fora do universo", c.assetID)
+		}
+	}
+}
+
+// Ativo sem Market Maker cobrindo não é cotado por ninguém e entra na contagem
+// de descobertos (proposta seção 3.9).
+func TestRunIntradayRounds_ContaAtivosSemCobertura(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}},
+		// Não Market Maker: CoveredAssetIDs é ignorado na contagem.
+		{UserID: "bot2", Personality: mustRoundPersonality(t, bot.ArchetypeRuido), CoveredAssetIDs: []string{"a2"}},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
+	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
+	svc.orderLifecycle = &fakeOrderLifecycleManager{}
+
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
+	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if uncovered != 2 {
+		t.Errorf("uncovered = %d, want 2 (a2 e a3)", uncovered)
+	}
+}
+
+// Determinismo: mesma seed e mesma cobertura produzem o mesmo resultado.
+func TestRunIntradayRounds_MarketMakerComCoberturaEDeterministico(t *testing.T) {
+	run := func() (map[string]float64, int) {
+		svc := newTestService(&fakeRepository{})
+		svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1", "a2"}}}}
+		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000}}
+		svc.orderSubmitter = &fakeOrderSubmitter{fillAtRequestedPrice: true}
+		svc.orderLifecycle = &fakeOrderLifecycleManager{}
+		closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 4, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		return closing, fills
+	}
+	c1, f1 := run()
+	c2, f2 := run()
+	if f1 != f2 || c1["a1"] != c2["a1"] || c1["a2"] != c2["a2"] {
+		t.Errorf("execuções divergem: %v/%d vs %v/%d", c1, f1, c2, f2)
 	}
 }
