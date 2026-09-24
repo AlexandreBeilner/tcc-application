@@ -2928,6 +2928,8 @@ em vez de só no fechamento do dia.
   `docker compose` ao vivo, nunca por teste automatizado. Decisão do autor: **O.2 segue essa mesma
   convenção existente, sem gap novo a registrar** — não abrir tarefa nem entrada em
   `pontos-em-aberto-decisao-produto.md` pra isso.
+- **Atualização (tarefa P.5):** a expiração por dia deixou de valer para ordem de Market Maker ativo, cuja cotação
+  é "de pé" (ver P.5 e `.docs/engine/orders.md`). Day order continua valendo para todo o resto.
 
 ### O.3 · `order_id` na resposta, listagem de ordens e motivo do cancelamento ✅
 
@@ -3233,13 +3235,25 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   da P.6 conflita com a cotação de metade do teto, então a P.6 precisa decidir qual dos dois muda.
   `golangci-lint`, `go build`, `go test ./...` passam; documentado em `.docs/engine/orders.md` e `tick.md`.
 
-### P.5 · Cotação de Market Maker não expira por dia
+### P.5 · Cotação de Market Maker não expira por dia ✅
 - **Descrição:** `ExpireStaleOrders` deixa de cancelar ordens do arquétipo Market Maker; a recotação as
   substitui com o `cancel_reason` já existente. Exceção documentada à regra de ordem Day (O.2).
 - **Critérios de aceite:** a cotação atravessa a virada de dia; ordem de qualquer outro bot continua
   expirando; exceção documentada em `.docs/engine/orders.md`, `.docs/engine/tick.md` e na O.2.
 - **Referências:** proposta seção 3.7. **Dependências:** P.4 (a manutenção é o que impede acúmulo de
   cotação velha).
+- **Entregável (sessão 2026-09-23):** `OrderExecutionRepository.ExpireStaleOrders` ganhou
+  `AND NOT EXISTS (Market Maker ativo dono da ordem)`. Decisão de sessão: só Market Maker **ativo** tem a
+  exceção, então desativar um bot tira a cotação dele do book no tick seguinte sem ninguém cancelar à mão
+  (a proposta dizia "quando o bot é desativado" sem dizer quem cancela, e não existe caminho de desativação
+  no repositório ainda). Validado ao vivo: cotações de Market Maker com 1 a 3 dias de idade em repouso, no
+  máximo 1 ordem por (ativo, lado), todos os cancelamentos do Market Maker em 8 dias com motivo `requoted`
+  (nenhum `expired`); Market Maker desativado: cotações expiram no tick seguinte e `uncovered_assets_count`
+  sobe para 5; **cenário do achado 013 (compra e venda de 100 a mercado logo após o tick) preenche nos 5
+  ativos**, incluindo o `PAPL11` que falhava depois da P.3. Documentado em `.docs/engine/orders.md`,
+  `tick.md` e na O.2 (abaixo). **Ponto em aberto para a Fase N:** ordem de Market Maker de um ativo que ele
+  deixou de cobrir (reatribuição) fica no book até o painel cancelá-la; a reatribuição precisa incluir
+  esse cancelamento.
 
 ### P.6 · Obrigações do formador (fecha o achado 002)
 - **Descrição:** teto de spread de 0,10 validado em `NewRiskProfile` (valor ilustrativo, seção 3.8) e

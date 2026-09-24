@@ -119,10 +119,24 @@ func (r *OrderExecutionRepository) currentSimulatedDay(ctx context.Context) (int
 // pra escrita de saldo/posição, CLAUDE.md). Devolve quantas ordens
 // expiraram, só pra observabilidade (mesmo padrão de bot_fills_count/
 // dividends_paid_count na resposta de POST /admin/tick).
+//
+// Exceção (tarefa P.5, proposta-cobertura-market-maker.md seção 3.7): ordem de
+// Market Maker ATIVO não expira por dia. A cotação dele é "de pé", como a de um
+// formador real, e a manutenção de cotação (P.4) a substitui por
+// cancel_reason = 'requoted' quando o preço sai da tolerância ou o lado é
+// consumido; expirá-la todo dia fazia o primeiro turno de cada dia recotar o
+// catálogo inteiro. Market Maker inativo (is_active = false) perde a exceção e
+// suas ordens expiram normalmente, então desativar um bot tira a cotação dele
+// do book no tick seguinte, sem ninguém precisar cancelar à mão.
 func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error) {
 	result, err := r.db.ExecContext(ctx,
-		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'expired'
-		 WHERE status IN ('pending', 'partially_filled') AND simulated_day < $1`,
+		`UPDATE order_book ob SET status = 'cancelled', cancel_reason = 'expired'
+		 WHERE ob.status IN ('pending', 'partially_filled') AND ob.simulated_day < $1
+		   AND NOT EXISTS (
+		     SELECT 1 FROM bot_personalities bp
+		     JOIN accounts a ON a.user_id = bp.account_id
+		     WHERE bp.account_id = ob.user_id AND bp.archetype = 'market_maker' AND a.is_active
+		   )`,
 		currentSimulatedDay,
 	)
 	if err != nil {
