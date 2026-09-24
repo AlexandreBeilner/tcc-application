@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/lib/pq"
+
 	"tcc-investimentos/engine/internal/domain"
+	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -129,20 +132,52 @@ func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, curren
 	return int(affected), err
 }
 
-// CancelUserRestingOrders cancela toda ordem ainda pendente/parcial de
-// userID em assetID (achado 005 parte A.4) — chamado por runIntradayRounds
-// logo antes de um bot ArchetypeMarketMaker recotar um ativo: sem isso, o
-// Market Maker nunca cancelava a própria cotação da rodada anterior, só
-// empilhava mais uma a cada rodada, mesmo problema de acúmulo indefinido
-// que ExpireStaleOrders resolve entre dias, mas dentro do mesmo dia. Só os
-// outros 3 arquétipos (que colocam uma ordem oportunista por sinal, não uma
-// cotação contínua) não precisam disso — não é um gap, é o comportamento
-// correto pra eles (ver doc de A.4 no plano da correção).
-func (r *OrderExecutionRepository) CancelUserRestingOrders(ctx context.Context, userID, assetID string) error {
+// ListRestingOrders devolve, numa consulta só, as ordens ainda
+// pendentes/parciais de userID em cada um de assetIDs (tarefa P.4), com a
+// quantidade que ainda falta executar, ordenadas por chegada. Ativo sem
+// ordem em repouso não aparece no mapa. É a leitura em lote da manutenção de
+// cotação do Market Maker: uma consulta por Market Maker e rodada, não uma por
+// ativo coberto.
+func (r *OrderExecutionRepository) ListRestingOrders(ctx context.Context, userID string, assetIDs []string) (map[string][]bot.RestingQuote, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, asset_id, side, price, quantity - filled_quantity
+		 FROM order_book
+		 WHERE user_id = $1 AND asset_id = ANY($2) AND type = 'limit' AND status IN ('pending', 'partially_filled')
+		 ORDER BY created_at ASC`,
+		userID, pq.Array(assetIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	resting := make(map[string][]bot.RestingQuote)
+	for rows.Next() {
+		var assetID, side string
+		var quote bot.RestingQuote
+		if err := rows.Scan(&quote.ID, &assetID, &side, &quote.Price, &quote.RemainingQuantity); err != nil {
+			return nil, err
+		}
+		quote.Side = orderbook.Side(side)
+		resting[assetID] = append(resting[assetID], quote)
+	}
+	return resting, rows.Err()
+}
+
+// CancelRestingOrders marca como cancelled, com o motivo 'requoted', as ordens
+// orderIDs que ainda estão pendentes/parciais (tarefa P.4, substitui o antigo
+// CancelUserRestingOrders, que cancelava toda a cotação do ativo). Cancelar
+// não reverte saldo/posição (nada é reservado na submissão, orderexecution.go),
+// então um UPDATE simples basta, sem evento em market_events. Ordem que já não
+// está em repouso (executada por completo no meio-tempo) é ignorada.
+func (r *OrderExecutionRepository) CancelRestingOrders(ctx context.Context, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'requoted'
-		 WHERE user_id = $1 AND asset_id = $2 AND status IN ('pending', 'partially_filled')`,
-		userID, assetID,
+		 WHERE id = ANY($1) AND status IN ('pending', 'partially_filled')`,
+		pq.Array(orderIDs),
 	)
 	return err
 }

@@ -59,17 +59,10 @@ func DecideMarketMakerOrders(personality Personality, referencePrice, availableC
 	if personality.Archetype != ArchetypeMarketMaker {
 		return nil, ErrWrongArchetype
 	}
-	if referencePrice <= 0 {
-		return nil, ErrInvalidReferencePrice
+	bidPrice, askPrice, err := MarketMakerQuotePrices(personality, referencePrice)
+	if err != nil {
+		return nil, err
 	}
-
-	spread := personality.RiskProfile.SpreadWidthPct
-	if spread >= 2 {
-		return nil, ErrInvalidSpreadForQuote
-	}
-	half := spread / 2
-	bidPrice := referencePrice * (1 - half)
-	askPrice := referencePrice * (1 + half)
 
 	pct := personality.RiskProfile.MaxPositionSizePct
 

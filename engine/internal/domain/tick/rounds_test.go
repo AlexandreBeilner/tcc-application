@@ -601,46 +601,149 @@ func TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremi
 	}
 }
 
-// TestRunIntradayRounds_MarketMakerCancelaCotacaoAnteriorAntesDeRecotar
-// cobre o achado 005 parte A.4: um Market Maker nunca deixa a cotação da
-// rodada anterior pendurada — CancelUserRestingOrders é chamado pro mesmo
-// (bot, ativo) antes de cada rodada em que ele participa, uma vez por
-// rodada (2 rodadas sorteadas, 2 chamadas).
-func TestRunIntradayRounds_MarketMakerCancelaCotacaoAnteriorAntesDeRecotar(t *testing.T) {
-	const userID = "22222222-2222-2222-2222-222222222222"
+// Cotação de Market Maker em repouso e boa (ideal 99 e 101 com o ativo a 100,
+// spread 2%): a manutenção de cotação não cancela nem submete nada (P.4).
+func TestRunIntradayRounds_CotacaoBoaNaoGeraCancelamentoNemSubmissao(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
-	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: userID, Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
-	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
-	lifecycle := &fakeOrderLifecycleManager{}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	lifecycle := &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": goodQuote("a1")}}
 	svc.orderLifecycle = lifecycle
 
-	assets := []AssetForPricing{acaoAsset("a1", 100)}
-
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
+	if len(submitter.submitted) != 0 || len(lifecycle.cancelCalls) != 0 {
+		t.Errorf("submitted = %d, cancelCalls = %v; want nenhum", len(submitter.submitted), lifecycle.cancelCalls)
+	}
+}
 
-	want := []cancelUserRestingOrdersCall{
-		{userID: userID, assetID: "a1"},
-		{userID: userID, assetID: "a1"},
+func goodQuote(assetID string) []bot.RestingQuote {
+	return []bot.RestingQuote{
+		{ID: assetID + "-buy", Side: orderbook.SideBuy, Price: 99, RemainingQuantity: 500},
+		{ID: assetID + "-sell", Side: orderbook.SideSell, Price: 101, RemainingQuantity: 500},
 	}
-	if len(lifecycle.cancelCalls) != len(want) {
-		t.Fatalf("cancelCalls = %+v, want %d chamadas (uma por rodada)", lifecycle.cancelCalls, len(want))
+}
+
+func submittedSides(o *fakeOrderSubmitter) []orderbook.Side {
+	sides := make([]orderbook.Side, len(o.submitted))
+	for i, s := range o.submitted {
+		sides[i] = s.req.Side
 	}
-	for i := range want {
-		if lifecycle.cancelCalls[i] != want[i] {
-			t.Errorf("cancelCalls[%d] = %+v, want %+v", i, lifecycle.cancelCalls[i], want[i])
+	return sides
+}
+
+// Lado consumido (sem compra em repouso): só a compra é recotada, a venda boa
+// fica intocada e nada precisa ser cancelado.
+func TestRunIntradayRounds_LadoConsumidoERecotadoSozinho(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	lifecycle := &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": {goodQuote("a1")[1]}}}
+	svc.orderLifecycle = lifecycle
+
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(lifecycle.cancelCalls) != 0 {
+		t.Errorf("cancelCalls = %v, want nenhuma (a venda restante é boa)", lifecycle.cancelCalls)
+	}
+	// 2 rodadas e a passada final, sempre só a compra.
+	for _, side := range submittedSides(submitter) {
+		if side != orderbook.SideBuy {
+			t.Errorf("lado submetido = %s, want só buy", side)
+		}
+	}
+	if len(submitter.submitted) != 3 {
+		t.Errorf("submetidas = %d, want 3 (rodada 1, rodada 2 e passada final)", len(submitter.submitted))
+	}
+}
+
+// Lado fora da tolerância: só as ordens desse lado são canceladas, por ID, e
+// só esse lado é recotado.
+func TestRunIntradayRounds_LadoForaDaToleranciaCancelaSoEsseLado(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	stale := goodQuote("a1")
+	stale[1].Price = 110
+	svc.orderLifecycle = &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": stale}}
+	lifecycle := svc.orderLifecycle.(*fakeOrderLifecycleManager)
+
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nenhum erro", err)
+	}
+	for i, ids := range lifecycle.cancelCalls {
+		if len(ids) != 1 || ids[0] != "a1-sell" {
+			t.Errorf("cancelCalls[%d] = %v, want [a1-sell]", i, ids)
+		}
+	}
+	if len(lifecycle.cancelCalls) != 3 {
+		t.Errorf("cancelCalls = %d, want 3", len(lifecycle.cancelCalls))
+	}
+	for _, side := range submittedSides(submitter) {
+		if side != orderbook.SideSell {
+			t.Errorf("lado submetido = %s, want só sell", side)
 		}
 	}
 }
 
-// TestRunIntradayRounds_NaoMarketMakerNuncaCancelaOrdemPropria confirma que
-// os outros 3 arquétipos (ordem oportunista por sinal, não cotação
-// contínua) nunca disparam CancelUserRestingOrders — não cancelar a deles
-// entre rodadas é o comportamento correto, não um gap (doc de A.4).
-func TestRunIntradayRounds_NaoMarketMakerNuncaCancelaOrdemPropria(t *testing.T) {
+// Leitura em lote: uma consulta por Market Maker e rodada com todos os ativos
+// cobertos (não uma por ativo), mais uma na passada final.
+func TestRunIntradayRounds_LeituraDeOrdensEmLotePorMarketMaker(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a2", "a1", "a3"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
+	svc.orderSubmitter = &fakeOrderSubmitter{}
+	lifecycle := &fakeOrderLifecycleManager{}
+	svc.orderLifecycle = lifecycle
+
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(lifecycle.listCalls) != 3 {
+		t.Fatalf("listCalls = %d, want 3 (2 rodadas + passada final)", len(lifecycle.listCalls))
+	}
+	for _, call := range lifecycle.listCalls {
+		if len(call) != 3 || call[0] != "a1" || call[1] != "a2" || call[2] != "a3" {
+			t.Errorf("chamada em lote = %v, want [a1 a2 a3]", call)
+		}
+	}
+}
+
+// Passada final: mesmo com a cotação consumida depois da última rodada, o
+// Market Maker recota antes do fechamento (caso do achado 013).
+func TestRunIntradayRounds_PassadaFinalRecotaOQueFoiConsumido(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	svc.orderLifecycle = &fakeOrderLifecycleManager{}
+
+	rounds := twoIntradayRounds()
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, rounds[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	// 1 rodada + passada final = 2 vezes os 2 lados.
+	if len(submitter.submitted) != 4 {
+		t.Errorf("submetidas = %d, want 4", len(submitter.submitted))
+	}
+}
+
+// Os outros 3 arquétipos nunca leem nem cancelam ordem em repouso: a ordem
+// oportunista deles não é uma cotação contínua (achado 005 A.4).
+func TestRunIntradayRounds_NaoMarketMakerNuncaMexeEmOrdemPropria(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
@@ -652,23 +755,31 @@ func TestRunIntradayRounds_NaoMarketMakerNuncaCancelaOrdemPropria(t *testing.T) 
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	if len(lifecycle.cancelCalls) != 0 {
-		t.Errorf("cancelCalls = %+v, want nenhuma chamada", lifecycle.cancelCalls)
+	if len(lifecycle.cancelCalls) != 0 || len(lifecycle.listCalls) != 0 {
+		t.Errorf("cancelCalls = %v, listCalls = %v; want nenhuma", lifecycle.cancelCalls, lifecycle.listCalls)
 	}
 }
 
-// TestRunIntradayRounds_PropagaErroDeCancelUserRestingOrders cobre falha de
-// IO em CancelUserRestingOrders abortando o tick, mesmo padrão de
-// TestRunIntradayRounds_PropagaErroDeLoadContext.
-func TestRunIntradayRounds_PropagaErroDeCancelUserRestingOrders(t *testing.T) {
-	svc := newTestService(&fakeRepository{})
-	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
-	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
-	svc.orderLifecycle = &fakeOrderLifecycleManager{cancelErr: errors.New("falha de conexão")}
+// Falha de IO na leitura em lote ou no cancelamento aborta o tick, mesmo
+// padrão de TestRunIntradayRounds_PropagaErroDeLoadContext.
+func TestRunIntradayRounds_PropagaErroDaManutencaoDeCotacao(t *testing.T) {
+	stale := goodQuote("a1")
+	stale[0].Price = 90
+	for name, lifecycle := range map[string]*fakeOrderLifecycleManager{
+		"listagem":     {listErr: errors.New("falha de conexão")},
+		"cancelamento": {resting: map[string][]bot.RestingQuote{"a1": stale}, cancelErr: errors.New("falha de conexão")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc := newTestService(&fakeRepository{})
+			svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+			svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+			svc.orderLifecycle = lifecycle
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
-	if err == nil {
-		t.Fatal("err = nil, want erro propagado de CancelUserRestingOrders")
+			_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+			if err == nil {
+				t.Fatal("err = nil, want erro propagado")
+			}
+		})
 	}
 }
 
@@ -732,13 +843,14 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 	if closing["a1"] != 105 {
 		t.Errorf("closing[a1] = %v, want 105 (preço do último fill)", closing["a1"])
 	}
-	// Ruído (1 decisão) + Market Maker (2 decisões: compra e venda) por
-	// rodada, 2 rodadas — 6 submissões, todas preenchidas (fillPrice > 0).
-	if fills != 6 {
-		t.Errorf("fills = %d, want 6", fills)
+	// Ruído (1 decisão por rodada, 2 rodadas) + Market Maker (2 decisões:
+	// compra e venda) em cada rodada e na passada final (P.4) — 2 + 6 = 8
+	// submissões, todas preenchidas (fillPrice > 0).
+	if fills != 8 {
+		t.Errorf("fills = %d, want 8", fills)
 	}
-	if len(submitter.submitted) != 6 {
-		t.Fatalf("len(submitted) = %d, want 6", len(submitter.submitted))
+	if len(submitter.submitted) != 8 {
+		t.Fatalf("len(submitted) = %d, want 8", len(submitter.submitted))
 	}
 	for _, s := range submitter.submitted {
 		if s.req.AssetID != "a1" {
@@ -771,14 +883,14 @@ func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testin
 		t.Fatalf("err = %v, want nil", err)
 	}
 
-	// Market Maker decide 2 ordens por rodada, 2 rodadas: a primeira ordem
-	// de cada rodada reaproveita o contexto (SubmitWithContext), a segunda
-	// recarrega (Submit).
-	if submitter.submitWithContextCalls != 2 {
-		t.Errorf("submitWithContextCalls = %d, want 2 (uma por rodada, só a primeira ordem de cada bot)", submitter.submitWithContextCalls)
+	// Market Maker decide 2 ordens por vez, em 2 rodadas mais a passada final
+	// (P.4): a primeira ordem de cada vez reaproveita o contexto
+	// (SubmitWithContext), a segunda recarrega (Submit).
+	if submitter.submitWithContextCalls != 3 {
+		t.Errorf("submitWithContextCalls = %d, want 3 (uma por vez, só a primeira ordem)", submitter.submitWithContextCalls)
 	}
-	if len(submitter.submitted) != 4 {
-		t.Fatalf("len(submitted) = %d, want 4 (2 ordens x 2 rodadas)", len(submitter.submitted))
+	if len(submitter.submitted) != 6 {
+		t.Fatalf("len(submitted) = %d, want 6 (2 ordens x 3 vezes)", len(submitter.submitted))
 	}
 }
 
@@ -1325,9 +1437,9 @@ func TestRunIntradayRounds_MarketMakerCotaTodaACoberturaEmTodaRodada(t *testing.
 	// Cobertura fora de ordem de propósito: a iteração precisa ordenar por ID.
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: userID, Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a3", "a1", "a2"}}}}
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
-	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
-	lifecycle := &fakeOrderLifecycleManager{}
-	svc.orderLifecycle = lifecycle
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	svc.orderLifecycle = &fakeOrderLifecycleManager{}
 
 	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
 	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
@@ -1336,10 +1448,13 @@ func TestRunIntradayRounds_MarketMakerCotaTodaACoberturaEmTodaRodada(t *testing.
 	}
 
 	var got []string
-	for _, c := range lifecycle.cancelCalls {
-		got = append(got, c.assetID)
+	for _, s := range submitter.submitted {
+		if s.req.Side == orderbook.SideBuy {
+			got = append(got, s.req.AssetID)
+		}
 	}
-	want := []string{"a1", "a2", "a3", "a1", "a2", "a3"}
+	// 2 rodadas e a passada final, cada uma cotando os 3 em ordem por ID.
+	want := []string{"a1", "a2", "a3", "a1", "a2", "a3", "a1", "a2", "a3"}
 	if len(got) != len(want) {
 		t.Fatalf("ativos cotados = %v, want %v", got, want)
 	}
@@ -1366,9 +1481,9 @@ func TestRunIntradayRounds_MarketMakerIgnoraAtivoCobertoForaDoUniverso(t *testin
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	for _, c := range lifecycle.cancelCalls {
-		if c.assetID != "a1" {
-			t.Errorf("cotou %q, fora do universo", c.assetID)
+	for _, c := range lifecycle.listCalls {
+		if len(c) != 1 || c[0] != "a1" {
+			t.Errorf("leitura em lote = %v, want só [a1] (etf-fora fica de fora)", c)
 		}
 	}
 }

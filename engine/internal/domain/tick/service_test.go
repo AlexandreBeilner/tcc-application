@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -129,24 +130,25 @@ func (f *fakeTradedVolumeReader) RecentTradedVolume(_ context.Context, assetID s
 	return f.volumes[assetID], nil
 }
 
-// fakeOrderLifecycleManager (achado 005 partes A.3/A.4) — conta chamadas de
-// ExpireStaleOrders (com o currentSimulatedDay recebido, pra confirmar que
-// Service.Run passa dayIndex) e de CancelUserRestingOrders por (userID,
-// assetID), sem nenhum estado real de order_book (esse mecanismo só é
-// validado ponta a ponta via docker compose — mesma convenção já usada por
-// todo outro método de infra deste pacote, nenhum tem teste de adapter
-// contra Postgres real).
+// fakeOrderLifecycleManager — conta chamadas de ExpireStaleOrders (com o
+// currentSimulatedDay recebido, pra confirmar que Service.Run passa dayIndex)
+// e simula a leitura em lote e o cancelamento por ID da manutenção de cotação
+// do Market Maker (tarefa P.4), sem nenhum estado real de order_book (esse
+// mecanismo só é validado ponta a ponta via docker compose — mesma convenção
+// já usada por todo outro método de infra deste pacote).
 type fakeOrderLifecycleManager struct {
 	expireCount int
 	expireErr   error
 	expireCalls []int
-	cancelErr   error
-	cancelCalls []cancelUserRestingOrdersCall
-}
-
-type cancelUserRestingOrdersCall struct {
-	userID  string
-	assetID string
+	// resting é o que ListRestingOrders devolve por ativo (o mesmo em toda
+	// chamada, sem simular fills); listCalls guarda os ativos pedidos em cada
+	// chamada em lote.
+	resting   map[string][]bot.RestingQuote
+	listErr   error
+	listCalls [][]string
+	cancelErr error
+	// cancelCalls guarda os IDs de cada chamada de CancelRestingOrders.
+	cancelCalls [][]string
 }
 
 func (f *fakeOrderLifecycleManager) ExpireStaleOrders(_ context.Context, currentSimulatedDay int) (int, error) {
@@ -157,8 +159,16 @@ func (f *fakeOrderLifecycleManager) ExpireStaleOrders(_ context.Context, current
 	return f.expireCount, nil
 }
 
-func (f *fakeOrderLifecycleManager) CancelUserRestingOrders(_ context.Context, userID, assetID string) error {
-	f.cancelCalls = append(f.cancelCalls, cancelUserRestingOrdersCall{userID: userID, assetID: assetID})
+func (f *fakeOrderLifecycleManager) ListRestingOrders(_ context.Context, _ string, assetIDs []string) (map[string][]bot.RestingQuote, error) {
+	f.listCalls = append(f.listCalls, append([]string(nil), assetIDs...))
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.resting, nil
+}
+
+func (f *fakeOrderLifecycleManager) CancelRestingOrders(_ context.Context, orderIDs []string) error {
+	f.cancelCalls = append(f.cancelCalls, append([]string(nil), orderIDs...))
 	return f.cancelErr
 }
 
