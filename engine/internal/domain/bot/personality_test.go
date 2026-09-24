@@ -132,6 +132,9 @@ func TestNewRiskProfile(t *testing.T) {
 		{name: "marketOrderPreference negativo", maxPositionSizePct: 0.2, marketOrderPreference: -0.01, spreadWidthPct: 0, wantErr: ErrInvalidMarketOrderPreferencePct},
 		{name: "marketOrderPreference acima de 1", maxPositionSizePct: 0.2, marketOrderPreference: 1.01, spreadWidthPct: 0, wantErr: ErrInvalidMarketOrderPreferencePct},
 		{name: "spreadWidthPct negativo", maxPositionSizePct: 0.2, marketOrderPreference: 0.5, spreadWidthPct: -0.001, wantErr: ErrInvalidSpreadWidthPct},
+		{name: "spreadWidthPct no teto é válido", maxPositionSizePct: 0.2, marketOrderPreference: 0.5, spreadWidthPct: MaxSpreadWidthPct},
+		{name: "spreadWidthPct acima do teto", maxPositionSizePct: 0.2, marketOrderPreference: 0.5, spreadWidthPct: 0.1001, wantErr: ErrSpreadWidthAboveMax},
+		{name: "spreadWidthPct absurdo perto de 2 (achado 002)", maxPositionSizePct: 0.2, marketOrderPreference: 0.5, spreadWidthPct: 1.999999, wantErr: ErrSpreadWidthAboveMax},
 	}
 
 	for _, tt := range tests {

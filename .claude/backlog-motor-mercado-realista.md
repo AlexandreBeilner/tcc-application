@@ -3255,13 +3255,25 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   deixou de cobrir (reatribuição) fica no book até o painel cancelá-la; a reatribuição precisa incluir
   esse cancelamento.
 
-### P.6 · Obrigações do formador (fecha o achado 002)
+### P.6 · Obrigações do formador (fecha o achado 002) ✅
 - **Descrição:** teto de spread de 0,10 validado em `NewRiskProfile` (valor ilustrativo, seção 3.8) e
   quantidade mínima por lado ligada a `MinOrderPctOfFloat`, para uma cotação simbólica não contar como
   cobertura.
 - **Critérios de aceite:** `NewRiskProfile` rejeita spread acima do teto; cotação abaixo do mínimo não
   conta como cobertura.
 - **Referências:** proposta seção 3.8. **Dependências:** P.1.
+- **Entregável (sessão 2026-09-23):** `bot.MaxSpreadWidthPct = 0.10` validado em `NewRiskProfile`
+  (`ErrSpreadWidthAboveMax`); achado 002 movido para Resolvidos. `DecideMarketMakerOrders` ganhou o parâmetro
+  `minQuantity` (`DecisionInput.MinQuoteQuantity`, preenchido pelo motor com `minOrderSizeCeiling`, o piso de
+  `MinOrderPctOfFloat` = 0,4% do float): a cotação de cada lado é `max(fração do que cabe, piso)` e o lado
+  que não chega ao piso **não é cotado**, em vez de uma cotação simbólica que pareceria cobrir o ativo.
+  **Resolve o conflito anotado na P.4:** o mínimo da manutenção de cotação passou a ser o próprio piso
+  (`bot.MinQuoteQuantity` removida), e uma cotação recém-criada nunca nasce abaixo dele (teste de regressão
+  do erro da P.4). Validado ao vivo: as cotações do Market Maker nos 5 ativos ficam no piso (compras) ou acima
+  (vendas). Efeito colateral aceito: um Market Maker que não consegue comprar o piso fica sem o lado da
+  compra (custo de um turno de leitura por rodada, igual ao comportamento antigo), o que aparece como esgotamento
+  na P.8. Testes de spread nos 3 pontos (`0.1`, `0.1001`, `1.999999`) e do piso por lado.
+  `golangci-lint`, `go build`, `go test ./...` passam.
 
 ### P.7 · Catálogo sintético e benchmark
 - **Descrição:** opção `--synthetic-assets N` no seed, restrita ao stack de teste; script de medição

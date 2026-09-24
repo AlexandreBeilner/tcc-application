@@ -425,6 +425,9 @@ func (s *Service) decisionInputFor(
 		// dois travavam o preço de fechamento no mesmo valor por dias/
 		// semanas simulados.
 		OrderSizeCeiling: effectiveOrderSizeCeiling(execCtx.OutstandingShares, recentVolume),
+		// Piso de tamanho da cotação do Market Maker (P.6): uma cotação
+		// menor não conta como cobertura. Só o Market Maker lê.
+		MinQuoteQuantity: int(minOrderSizeCeiling(execCtx.OutstandingShares)),
 	}
 
 	switch personality.Archetype {
@@ -738,7 +741,7 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 		return nil
 	}
 	tolerance := bot.EffectiveQuoteTolerance(b.Personality.RiskProfile.SpreadWidthPct)
-	requoteBuy, requoteSell := bot.NeedsRequote(resting, idealBid, idealAsk, tolerance, bot.MinQuoteQuantity(b.Personality, minOrderSizeCeiling(state.OutstandingShares)))
+	requoteBuy, requoteSell := bot.NeedsRequote(resting, idealBid, idealAsk, tolerance, int(minOrderSizeCeiling(state.OutstandingShares)))
 	if !requoteBuy && !requoteSell {
 		return nil
 	}

@@ -47,15 +47,6 @@ func EffectiveQuoteTolerance(spreadWidthPct float64) float64 {
 	return math.Min(QuoteTolerancePct, spreadWidthPct/4)
 }
 
-// MinQuoteQuantity é a quantidade restante abaixo da qual uma cotação em
-// repouso deixa de valer: o menor tamanho que a própria regra de cotação do
-// Market Maker produz quando o teto de ordem está no piso (ceilingFloor). O
-// mínimo não pode ser maior que isso, senão uma cotação recém-criada já nasceria
-// "vencida" e seria refeita a cada rodada. Sempre pelo menos 1.
-func MinQuoteQuantity(personality Personality, ceilingFloor int64) int {
-	return quantityFraction(int(ceilingFloor), personality.RiskProfile.MaxPositionSizePct)
-}
-
 // NeedsRequote diz, lado a lado, se a cotação em repouso precisa ser refeita.
 // Um lado precisa de recotação quando não tem nenhuma ordem em repouso, quando
 // alguma ordem dele está a mais de tolerancePct do preço ideal (idealBid para

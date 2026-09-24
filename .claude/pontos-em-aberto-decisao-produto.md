@@ -51,29 +51,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `MarketOrderPreference` antes de montar a `Decision`).
 - **Status:** aberto
 
-### 002 · Teto de `SpreadWidthPct` do Market Maker perto de 2.0
-
-- **Local:** `engine/internal/domain/bot/marketmaker.go:61` (`DecideMarketMakerOrders`), validação em
-  `engine/internal/domain/bot/personality.go:172` (`NewRiskProfile`, só rejeita `< 0`)
-- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
-- **O que é:** `NewRiskProfile` não tem teto pra `SpreadWidthPct`; `DecideMarketMakerOrders` só rejeita
-  `spread >= 2` exatamente. Um valor válido tipo `1.999999` passa nos dois, faz `bidPrice` colapsar
-  perto de zero e `int(availableCash/bidPrice)` produzir uma quantidade gigante/instável (conversão
-  float→int fora da faixa é comportamento não determinístico em Go). Hoje inofensivo — o seed
-  (`cmd/seed/main.go`) fixa `0.02` — mas nada no domínio impede um valor extremo vindo de um consumidor
-  futuro (ex: o painel admin da Fase N, `POST /admin/bots`).
-- **Por que não foi corrigido:** qualquer teto mais apertado que `< 2` é um número de negócio (ex:
-  "spread máximo de 10%") sem valor confirmado na proposta motor-mercado-realista — inventar um valor
-  seria decisão de produto, não técnica.
-- **Opções:** (a) autor define um teto máximo razoável de spread e ele vira constante confirmada tipo
-  `MarketMakerShareMin/Max`, ou (b) mover a validação de `spread >= 2` pra dentro de `NewRiskProfile`
-  (fecha o buraco de "RiskProfile inválido só detectado no consumo", sem resolver o valor extremo
-  perto do teto).
-- **Decisão parcial (2026-09-23):** teto de spread de 0,10 (ilustrativo) adotado na tarefa **P.6** da Fase P
-  (`backlog-motor-mercado-realista.md`), valor confirmado pelo autor ao seguir a recomendação da proposta de
-  cobertura de Market Maker. Move pra Resolvidos quando a P.6 fechar.
-- **Status:** aberto, com dono real (P.6)
-
 ### 008 · Duas fontes de sensibilidade à Selic para a mesma empresa (setor vs. `risk_class`)
 
 - **Local:** `engine/internal/domain/fundamentals/fundamentals.go` (`CoefficientsBySector[...].
@@ -546,3 +523,29 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `CombinePendingEffects` em `macroPriceEffectsByCompany`. Como 40 < 100, `(1 + soma/100)` nunca inverte o sinal.
   Teste: `TestAdvance_MacroEffectPctEmpilhadoTemTeto` (`tick_test.go`). `.docs/engine/macroevent.md` atualizado.
 - **Status:** resolvido
+
+### 002 · Teto de `SpreadWidthPct` do Market Maker perto de 2.0
+
+- **Local:** `engine/internal/domain/bot/marketmaker.go:61` (`DecideMarketMakerOrders`), validação em
+  `engine/internal/domain/bot/personality.go:172` (`NewRiskProfile`, só rejeita `< 0`)
+- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
+- **O que é:** `NewRiskProfile` não tem teto pra `SpreadWidthPct`; `DecideMarketMakerOrders` só rejeita
+  `spread >= 2` exatamente. Um valor válido tipo `1.999999` passa nos dois, faz `bidPrice` colapsar
+  perto de zero e `int(availableCash/bidPrice)` produzir uma quantidade gigante/instável (conversão
+  float→int fora da faixa é comportamento não determinístico em Go). Hoje inofensivo — o seed
+  (`cmd/seed/main.go`) fixa `0.02` — mas nada no domínio impede um valor extremo vindo de um consumidor
+  futuro (ex: o painel admin da Fase N, `POST /admin/bots`).
+- **Por que não foi corrigido:** qualquer teto mais apertado que `< 2` é um número de negócio (ex:
+  "spread máximo de 10%") sem valor confirmado na proposta motor-mercado-realista — inventar um valor
+  seria decisão de produto, não técnica.
+- **Opções:** (a) autor define um teto máximo razoável de spread e ele vira constante confirmada tipo
+  `MarketMakerShareMin/Max`, ou (b) mover a validação de `spread >= 2` pra dentro de `NewRiskProfile`
+  (fecha o buraco de "RiskProfile inválido só detectado no consumo", sem resolver o valor extremo
+  perto do teto).
+- **Decisão (2026-09-23):** teto de spread de 0,10 (ilustrativo), confirmado pelo autor ao seguir a recomendação
+  da proposta de cobertura de Market Maker.
+- **Resolução (tarefa P.6, 2026-09-23):** `bot.MaxSpreadWidthPct = 0.10` validado em `NewRiskProfile`
+  (`ErrSpreadWidthAboveMax`), então `1.999999` e qualquer valor acima de 0,10 são rejeitados na construção; a
+  checagem `spread >= 2` de `MarketMakerQuotePrices` ficou só como defesa para uma `Personality` montada sem o
+  construtor. Testes cobrem o teto exato, `0.1001` e `1.999999`.
+- **Status:** Resolvido

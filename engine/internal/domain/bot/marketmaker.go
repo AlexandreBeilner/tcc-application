@@ -55,7 +55,7 @@ var (
 // OrderSizeCeiling — o menor entre o float finito do ativo e o volume médio
 // negociado recente, achado 005 partes A/B) — nil quando nenhum teto se
 // aplica (ex: sandbox).
-func DecideMarketMakerOrders(personality Personality, referencePrice, availableCash float64, currentPosition int, orderSizeCeiling *int64) ([]Decision, error) {
+func DecideMarketMakerOrders(personality Personality, referencePrice, availableCash float64, currentPosition int, orderSizeCeiling *int64, minQuantity int) ([]Decision, error) {
 	if personality.Archetype != ArchetypeMarketMaker {
 		return nil, ErrWrongArchetype
 	}
@@ -67,27 +67,38 @@ func DecideMarketMakerOrders(personality Personality, referencePrice, availableC
 	pct := personality.RiskProfile.MaxPositionSizePct
 
 	var decisions []Decision
-	if maxBid := capToFloat(int(availableCash/bidPrice), orderSizeCeiling); maxBid >= 1 {
-		decisions = append(decisions, Decision{
-			Side:     orderbook.SideBuy,
-			Type:     orderbook.TypeLimit,
-			Price:    bidPrice,
-			Quantity: quantityFraction(maxBid, pct),
-		})
+	maxBid := capToFloat(int(availableCash/bidPrice), orderSizeCeiling)
+	if qty := quoteQuantity(maxBid, pct, minQuantity); qty >= 1 {
+		decisions = append(decisions, Decision{Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: bidPrice, Quantity: qty})
 	}
-	if currentPosition >= 1 {
-		decisions = append(decisions, Decision{
-			Side:     orderbook.SideSell,
-			Type:     orderbook.TypeLimit,
-			Price:    askPrice,
-			Quantity: quantityFraction(currentPosition, pct),
-		})
+	if qty := quoteQuantity(currentPosition, pct, minQuantity); qty >= 1 {
+		decisions = append(decisions, Decision{Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: askPrice, Quantity: qty})
 	}
 
 	if len(decisions) == 0 {
 		return nil, ErrNoViableOrder
 	}
 	return decisions, nil
+}
+
+// quoteQuantity é o tamanho da cotação de um lado (tarefa P.6, proposta seção
+// 3.8): a fração pct do que o caixa/posição (max) permite, nunca abaixo de
+// minQuantity, o piso de uma cotação que conta como cobertura (proporcional ao
+// float do ativo, tick.MinOrderPctOfFloat). Devolve 0 (lado sem cotação) quando
+// o lado não consegue chegar ao piso, em vez de uma cotação simbólica que só
+// pareceria cobrir o ativo. minQuantity 0 desliga o piso.
+func quoteQuantity(max int, pct float64, minQuantity int) int {
+	if max < 1 {
+		return 0
+	}
+	qty := quantityFraction(max, pct)
+	if qty < minQuantity {
+		qty = minQuantity
+	}
+	if qty > max {
+		return 0
+	}
+	return qty
 }
 
 // quantityFraction aplica pct (0,1] sobre max (sempre >= 1 no ponto em que

@@ -57,6 +57,15 @@ var validAssetClasses = map[catalog.AssetType]bool{
 	catalog.AssetFII:  true,
 }
 
+// MaxSpreadWidthPct é o teto da largura de spread de um bot (fração do preço de
+// referência, tarefa P.6, proposta-cobertura-market-maker.md seção 3.8). Valor
+// ilustrativo, sem fonte real (mesma regra dos demais coeficientes do motor,
+// sujeito à calibração futura): só barra valores absurdos vindos de um
+// consumidor futuro (painel de bots, Fase N), já que o seed usa 0,02. Na B3 o
+// formador de mercado também tem um spread máximo contratado. Fecha o achado
+// 002, em que só se rejeitava spread >= 2 e passava, por exemplo, 1,999999.
+const MaxSpreadWidthPct = 0.10
+
 // SpecializationWithinScopeMin/Max é a faixa confirmada na proposta 2.3.2
 // (item 2) pro percentual da atividade de um bot que fica dentro do seu
 // próprio escopo (setores/risk_classes/classes de ativo que ele "entende")
@@ -98,6 +107,7 @@ var (
 	ErrInvalidMaxPositionSizePct       = errors.New("tamanho de posição tolerado precisa estar entre 0 (exclusivo) e 1")
 	ErrInvalidMarketOrderPreferencePct = errors.New("preferência por ordem a mercado precisa estar entre 0 e 1")
 	ErrInvalidSpreadWidthPct           = errors.New("largura de spread não pode ser negativa")
+	ErrSpreadWidthAboveMax             = errors.New("largura de spread acima do teto do formador de mercado")
 	ErrInvalidMaxCoveredAssets         = errors.New("teto de ativos cobertos deve ser positivo")
 	ErrMaxCoveredAssetsWrongArchetype  = errors.New("teto de ativos cobertos só existe no arquétipo Market Maker")
 )
@@ -164,7 +174,7 @@ type RiskProfile struct {
 	// a mercado).
 	MarketOrderPreference float64
 	// SpreadWidthPct é a largura do spread (fração do preço de
-	// referência) que o bot pratica ao ofertar dos dois lados — >= 0 (0 é
+	// referência) que o bot pratica ao ofertar dos dois lados — [0, MaxSpreadWidthPct] (0 é
 	// válido pra arquétipo sem oferta de spread, ex: Ruído/Chartista/
 	// Fundamentalista negociando a mercado).
 	SpreadWidthPct float64
@@ -180,6 +190,9 @@ func NewRiskProfile(maxPositionSizePct, marketOrderPreference, spreadWidthPct fl
 	}
 	if spreadWidthPct < 0 {
 		return RiskProfile{}, ErrInvalidSpreadWidthPct
+	}
+	if spreadWidthPct > MaxSpreadWidthPct {
+		return RiskProfile{}, ErrSpreadWidthAboveMax
 	}
 
 	return RiskProfile{

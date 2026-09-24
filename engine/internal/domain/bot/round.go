@@ -110,6 +110,9 @@ func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, r
 // valor só, igual pros 4 arquétipos, sem precisar saber qual campo cada um
 // usa.
 type DecisionInput struct {
+	// MinQuoteQuantity (tarefa P.6) é o piso de tamanho de uma cotação de
+	// Market Maker; só esse arquétipo lê. 0 desliga o piso.
+	MinQuoteQuantity  int
 	ReferencePrice    float64
 	PriceHistory      []float64
 	AvailableCash     float64
@@ -169,7 +172,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		}
 		return []Decision{d}, nil
 	case ArchetypeMarketMaker:
-		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
+		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling, input.MinQuoteQuantity)
 	case ArchetypeChartista:
 		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
 		if err != nil {

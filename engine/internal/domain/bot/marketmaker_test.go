@@ -17,14 +17,14 @@ func TestDecideMarketMakerOrders_SempreOfertaDoisLadosComRecursoSuficiente(t *te
 		currentPosition    int
 	}{
 		{name: "spread estreito, recursos generosos", referencePrice: 50, spreadWidthPct: 0.02, maxPositionSizePct: 0.5, availableCash: 100_000, currentPosition: 10_000},
-		{name: "spread largo, recursos generosos", referencePrice: 10, spreadWidthPct: 0.20, maxPositionSizePct: 0.1, availableCash: 5_000, currentPosition: 500},
+		{name: "spread largo, recursos generosos", referencePrice: 10, spreadWidthPct: MaxSpreadWidthPct, maxPositionSizePct: 0.1, availableCash: 5_000, currentPosition: 500},
 		{name: "fração pequena, recursos generosos (piso de 1 não deveria disparar)", referencePrice: 100, spreadWidthPct: 0.05, maxPositionSizePct: 0.9, availableCash: 1_000_000, currentPosition: 50_000},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			personality := mustMarketMakerPersonality(t, tt.spreadWidthPct, tt.maxPositionSizePct)
-			decisions, err := DecideMarketMakerOrders(personality, tt.referencePrice, tt.availableCash, tt.currentPosition, nil)
+			decisions, err := DecideMarketMakerOrders(personality, tt.referencePrice, tt.availableCash, tt.currentPosition, nil, 0)
 			if err != nil {
 				t.Fatalf("err = %v, want nil", err)
 			}
@@ -60,7 +60,7 @@ func TestDecideMarketMakerOrders_SpreadSimetricoAoRedorDoPrecoDeReferencia(t *te
 	spreadWidthPct := 0.10
 	personality := mustMarketMakerPersonality(t, spreadWidthPct, 0.5)
 
-	decisions, err := DecideMarketMakerOrders(personality, referencePrice, 1_000_000, 1_000_000, nil)
+	decisions, err := DecideMarketMakerOrders(personality, referencePrice, 1_000_000, 1_000_000, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -77,11 +77,11 @@ func TestDecideMarketMakerOrders_SpreadSimetricoAoRedorDoPrecoDeReferencia(t *te
 
 func TestDecideMarketMakerOrders_Deterministico(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.04, 0.3)
-	first, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300, nil)
+	first, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	second, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300, nil)
+	second, err := DecideMarketMakerOrders(personality, 33.33, 10_000, 300, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -97,7 +97,7 @@ func TestDecideMarketMakerOrders_Deterministico(t *testing.T) {
 
 func TestDecideMarketMakerOrders_ApenasLadoDeVendaSemCaixa(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
-	decisions, err := DecideMarketMakerOrders(personality, 20, 0, 100, nil)
+	decisions, err := DecideMarketMakerOrders(personality, 20, 0, 100, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -114,7 +114,7 @@ func TestDecideMarketMakerOrders_ApenasLadoDeVendaSemCaixa(t *testing.T) {
 
 func TestDecideMarketMakerOrders_ApenasLadoDeCompraSemPosicao(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
-	decisions, err := DecideMarketMakerOrders(personality, 20, 100_000, 0, nil)
+	decisions, err := DecideMarketMakerOrders(personality, 20, 100_000, 0, nil, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -132,7 +132,7 @@ func TestDecideMarketMakerOrders_SustentaOfertaAoLongoDeVariasRodadas(t *testing
 
 	cash, position := 1_000.0, 40
 	for round := 0; round < 5; round++ {
-		decisions, err := DecideMarketMakerOrders(personality, referencePrice, cash, position, nil)
+		decisions, err := DecideMarketMakerOrders(personality, referencePrice, cash, position, nil, 0)
 		if err != nil {
 			t.Fatalf("rodada %d: err = %v, want nil", round, err)
 		}
@@ -151,7 +151,7 @@ func TestDecideMarketMakerOrders_SustentaOfertaAoLongoDeVariasRodadas(t *testing
 
 func TestDecideMarketMakerOrders_ErroSemCaixaNemPosicao(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
-	_, err := DecideMarketMakerOrders(personality, 20, 0, 0, nil)
+	_, err := DecideMarketMakerOrders(personality, 20, 0, 0, nil, 0)
 	if !errors.Is(err, ErrNoViableOrder) {
 		t.Fatalf("err = %v, want %v", err, ErrNoViableOrder)
 	}
@@ -168,7 +168,7 @@ func TestDecideMarketMakerOrders_ErroArquetipoErrado(t *testing.T) {
 		t.Fatalf("personality de setup inválida: %v", err)
 	}
 
-	_, err = DecideMarketMakerOrders(personality, 20, 1_000, 100, nil)
+	_, err = DecideMarketMakerOrders(personality, 20, 1_000, 100, nil, 0)
 	if !errors.Is(err, ErrWrongArchetype) {
 		t.Fatalf("err = %v, want %v", err, ErrWrongArchetype)
 	}
@@ -177,7 +177,7 @@ func TestDecideMarketMakerOrders_ErroArquetipoErrado(t *testing.T) {
 func TestDecideMarketMakerOrders_ErroPrecoDeReferenciaInvalido(t *testing.T) {
 	personality := mustMarketMakerPersonality(t, 0.05, 0.5)
 	for _, price := range []float64{0, -1} {
-		_, err := DecideMarketMakerOrders(personality, price, 1_000, 100, nil)
+		_, err := DecideMarketMakerOrders(personality, price, 1_000, 100, nil, 0)
 		if !errors.Is(err, ErrInvalidReferencePrice) {
 			t.Fatalf("referencePrice %v: err = %v, want %v", price, err, ErrInvalidReferencePrice)
 		}
@@ -185,8 +185,11 @@ func TestDecideMarketMakerOrders_ErroPrecoDeReferenciaInvalido(t *testing.T) {
 }
 
 func TestDecideMarketMakerOrders_ErroSpreadInvalido(t *testing.T) {
-	personality := mustMarketMakerPersonality(t, 2.0, 0.5)
-	_, err := DecideMarketMakerOrders(personality, 20, 1_000, 100, nil)
+	// NewRiskProfile já barra spread acima de MaxSpreadWidthPct (P.6); a defesa
+	// de Decide vale para uma Personality montada sem passar pelo construtor.
+	personality := mustMarketMakerPersonality(t, 0.02, 0.5)
+	personality.RiskProfile.SpreadWidthPct = 2.0
+	_, err := DecideMarketMakerOrders(personality, 20, 1_000, 100, nil, 0)
 	if !errors.Is(err, ErrInvalidSpreadForQuote) {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidSpreadForQuote)
 	}
@@ -229,7 +232,7 @@ func TestDecideMarketMakerOrders_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.
 	personality := mustMarketMakerPersonality(t, 0.02, 0.9) // fração alta, pra não mascarar o teto
 	orderSizeCeiling := int64(1_000_000)
 
-	decisions, err := DecideMarketMakerOrders(personality, 134.65, 104_866_356_108.88, 0, &orderSizeCeiling)
+	decisions, err := DecideMarketMakerOrders(personality, 134.65, 104_866_356_108.88, 0, &orderSizeCeiling, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -256,4 +259,51 @@ func mustMarketMakerPersonality(t *testing.T, spreadWidthPct, maxPositionSizePct
 		t.Fatalf("personality de setup inválida: %v", err)
 	}
 	return personality
+}
+
+// P.6: a cotação nunca fica abaixo do piso; lado que não chega ao piso não é
+// cotado (uma cotação simbólica não conta como cobertura).
+func TestDecideMarketMakerOrders_PisoDeQuantidadePorLado(t *testing.T) {
+	personality := mustMarketMakerPersonality(t, 0.02, 0.5)
+	ceiling := int64(1_000)
+
+	tests := []struct {
+		name        string
+		cash        float64
+		position    int
+		minQuantity int
+		wantBuyQty  int // 0 = sem compra
+		wantSellQty int // 0 = sem venda
+	}{
+		{"sem piso: metade do que cabe", 1_000_000, 10_000, 0, 500, 5_000},
+		{"piso sobe a fração pequena", 1_000_000, 10_000, 800, 800, 5_000},
+		{"piso acima do que cabe em cada lado", 1_000_000, 700, 800, 800, 0},
+		{"compra abaixo do piso não é cotada", 5_000, 10_000, 800, 0, 5_000},
+		{"nenhum lado chega ao piso", 5_000, 700, 800, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decisions, err := DecideMarketMakerOrders(personality, 100, tt.cash, tt.position, &ceiling, tt.minQuantity)
+			if tt.wantBuyQty == 0 && tt.wantSellQty == 0 {
+				if !errors.Is(err, ErrNoViableOrder) {
+					t.Fatalf("err = %v, want ErrNoViableOrder", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			var buy, sell int
+			for _, d := range decisions {
+				if d.Side == orderbook.SideBuy {
+					buy = d.Quantity
+				} else {
+					sell = d.Quantity
+				}
+			}
+			if buy != tt.wantBuyQty || sell != tt.wantSellQty {
+				t.Errorf("compra = %d, venda = %d; want %d e %d", buy, sell, tt.wantBuyQty, tt.wantSellQty)
+			}
+		})
+	}
 }
