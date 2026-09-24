@@ -3275,13 +3275,26 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   na P.8. Testes de spread nos 3 pontos (`0.1`, `0.1001`, `1.999999`) e do piso por lado.
   `golangci-lint`, `go build`, `go test ./...` passam.
 
-### P.7 · Catálogo sintético e benchmark
+### P.7 · Catálogo sintético e benchmark ✅
 - **Descrição:** opção `--synthetic-assets N` no seed, restrita ao stack de teste; script de medição
   (comandos SQL por tick e por ativo-rodada do Market Maker via log do Postgres, tempo do tick, cobertura,
   caixa e posição por Market Maker, volume por ativo).
 - **Critérios de aceite:** execução de 60 dias com 30 e 50 ativos, resultados registrados na proposta e
   comparados ao orçamento da seção 6.1.
 - **Referências:** proposta seções 6 e 6.1. **Dependências:** P.2.
+- **Entregável (sessão 2026-09-23):** `seed --synthetic-assets N` (`cmd/seed/synthetic.go`): N ações sintéticas
+  determinísticas (empresa própria, 6 setores em rodízio, perfil de risco alternado, float de 50 milhões a 1,5
+  bilhão), com fundamentos iniciais e liquidez de bot pelo mesmo `seedBotLiquidity`/`EnsureCoverage`; exige
+  `SEED_ALLOW_SYNTHETIC=true` (nunca entra no seed de desenvolvimento). `engine/scripts/benchmark-cobertura.sh`
+  cria um banco isolado, roda os ticks e mede comandos SQL por tick (log do Postgres), tempo, cobertura, caixa e
+  posição dos Market Makers, volume por ativo e o cenário do achado 013. `POST /admin/tick` ganhou
+  `intraday_rounds_count` (só observabilidade, para o custo por ativo-rodada). **Resultado (60 dias, 30 e 50
+  sintéticos): dentro do orçamento da 6.1 em tudo** (máximo de 3.350 comandos por tick com 55 ativos contra 3.500;
+  custo por ativo-rodada 2,4 de média e 18 no pior caso contra 12 e 30; 55 de 55 ativos cotados nos dois lados; nenhum
+  Market Maker esgotado); tabela completa em `proposta-cobertura-market-maker.md` seção 6.2. **Achado para a P.8:** o
+  volume diário médio ficou em 0,06 a 0,08% do float, abaixo da faixa de 0,3 a 0,7%, porque o pool de bots
+  direcionais é fixo (19) e cada um negocia 1 ativo por rodada. O custo por ativo-rodada é estimativa (linha de base
+  de 800 comandos), e o tempo usa o banco local (~0,2 ms por comando).
 
 ### P.8 · Validação ponta a ponta e ajuste de calibração
 - **Descrição:** repetir os cenários da proposta (compra e venda de 100 ações a mercado em vários ativos

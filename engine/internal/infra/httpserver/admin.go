@@ -53,6 +53,11 @@ type tickResponse struct {
 	// UncoveredAssetsCount (tarefa P.3) é quantos ativos negociáveis ficaram
 	// sem Market Maker ativo cobrindo neste tick, só observabilidade.
 	UncoveredAssetsCount int `json:"uncovered_assets_count"`
+	// IntradayRoundsCount (tarefa P.7) é quantas rodadas de negociação
+	// (1 a 4, tick.IntradayRounds) o tick sorteou, só observabilidade: o
+	// benchmark de cobertura precisa dela pra calcular o custo por
+	// ativo-rodada do Market Maker.
+	IntradayRoundsCount int `json:"intraday_rounds_count"`
 }
 
 // adminTickWriteTimeout é o prazo de escrita da resposta de POST /admin/tick
@@ -101,6 +106,7 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 			BotFillsCount:           result.IntradayFillsCount,
 			ExpiredOrdersCount:      result.ExpiredOrdersCount,
 			UncoveredAssetsCount:    result.UncoveredAssetsCount,
+			IntradayRoundsCount:     len(result.IntradayRounds),
 		})
 	}
 }

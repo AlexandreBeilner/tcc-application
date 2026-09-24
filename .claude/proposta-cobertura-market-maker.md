@@ -252,6 +252,39 @@ for pior que 2 ms, ela vira o gargalo antes das contas acima, e a saída é a de
 (seção 7): ou levanta o deadline só dessa rota (`http.ResponseController.SetWriteDeadline`), ou torna o
 disparo assíncrono (`202` com consulta de estado). O tick automático não precisa de nada.
 
+### 6.2 Resultados medidos (tarefa P.7, 2026-09-23)
+
+Script `engine/scripts/benchmark-cobertura.sh [N_ATIVOS_SINTETICOS] [DIAS]` (banco isolado `market_bench`,
+`log_statement=all` só durante a execução, seed `--synthetic-assets N` com `SEED_ALLOW_SYNTHETIC=true`), 60 dias
+simulados, código do PR 2 mais P.6. O total inclui os 5 ativos reais do seed.
+
+| Métrica | 30 sintéticos (35 ativos, 4 Market Makers) | 50 sintéticos (55 ativos, 6 Market Makers) | Orçamento (6.1) |
+|---|---|---|---|
+| Comandos SQL por tick, média | 1.180 | 1.319 | |
+| Comandos SQL por tick, máximo | 2.493 | **3.350** | ≤ 3.500 com 50 ativos |
+| Tempo do tick, média / máximo (Postgres local, ~0,2 ms por comando) | 0,26 s / 0,65 s | 0,27 s / 0,52 s | ≤ 10 s com 2 ms por comando |
+| Tempo equivalente a 2 ms por comando, pior tick | 5,0 s | 6,7 s | ≤ 10 s |
+| Custo estimado por ativo-rodada do Market Maker, média | 2,6 | 2,4 | ≤ 12 |
+| Custo estimado por ativo-rodada do Market Maker, pior caso | 17 | 18 | ≤ 30 |
+| Ativos com compra e venda em repouso ao fim do dia 60 | 35 de 35 | 55 de 55 | todos |
+| Ativos sem Market Maker ativo cobrindo, por tick | 0 | 0 | 0 |
+| Ordens a mercado do cenário do achado 013 preenchidas (compra e venda de 50 em 10 ativos) | 20 de 20 | 20 de 20 | todas |
+| Menor posição de um Market Maker ao fim (esgotamento) | 547.896 | 524.876 | > 0 |
+| Volume diário médio por ativo, % do float (mín. / máx.) | 0,079 (0,018 / 0,168) | 0,056 (0,004 / 0,188) | 0,3 a 0,7 (`calibracao-liquidez-bots.md`) |
+
+Como ler:
+
+- O custo por ativo-rodada é uma **estimativa**: `(comandos do tick - 800) / (ativos x (rodadas + 1 passada final))`, com
+  800 comandos como linha de base dos demais bots (medida na seção 6.1, 540 a 900). Não é medido por bot, porque o
+  Postgres não separa comando por conta.
+- Os limites de tempo da 6.1 valem para uma latência de 2 ms por comando, suposição a revisar com ambiente real; o
+  banco local do benchmark tem ~0,2 ms. A linha "equivalente a 2 ms" é `máximo de comandos x 2 ms`.
+- Um Market Maker por 10 ativos (teto): 35 ativos viraram 10 + 10 + 10 + 5 e 55 viraram 10 x 5 + 5, cada ativo exatamente
+  uma vez, sem nenhum Market Maker criado a mais nem esgotado.
+- **Volume abaixo da faixa de calibração** (0,06% a 0,08% contra 0,3% a 0,7%): com o pool de 19 bots direcionais fixo,
+  cada bot negocia 1 ativo por rodada, então o volume por ativo cai quando o catálogo cresce. É um efeito do tamanho do
+  pool de bots, não da cobertura; fica para a P.8 (reconferir a calibração e decidir como o pool escala).
+
 ## 7. Escopo: tarefas (candidatas à Fase P de `backlog-motor-mercado-realista.md`)
 
 Cada tarefa é escopo de uma sessão, com teste no mesmo commit, `golangci-lint` e `go test ./...`

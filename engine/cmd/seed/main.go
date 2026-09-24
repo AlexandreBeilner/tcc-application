@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -32,6 +33,12 @@ import (
 )
 
 func main() {
+	syntheticAssets := flag.Int("synthetic-assets", 0, "gera N ações sintéticas extras (só stack de teste, exige "+allowSyntheticEnv+"=true)")
+	flag.Parse()
+	if *syntheticAssets < 0 {
+		log.Fatal("--synthetic-assets não pode ser negativo")
+	}
+
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("defina DATABASE_URL antes de rodar o seed")
@@ -79,13 +86,17 @@ func main() {
 	tjlo11ID := seedFIITijolo(ctx, repo)
 	papl11ID := seedFIIPapel(ctx, repo)
 
-	seedBotLiquidity(ctx, accountRepo, coverage.NewEnsurer(coverageRepo, coverageRepo), []botAssetSeed{
+	botAssets := []botAssetSeed{
 		{AssetID: valr3ID, OutstandingShares: valr3OutstandingShares},
 		{AssetID: bndd3ID, OutstandingShares: bancoOutstandingShares},
 		{AssetID: bndd4ID, OutstandingShares: bancoOutstandingShares},
 		{AssetID: tjlo11ID, OutstandingShares: fiiOutstandingShares},
 		{AssetID: papl11ID, OutstandingShares: fiiOutstandingShares},
-	})
+	}
+	if *syntheticAssets > 0 {
+		botAssets = append(botAssets, seedSyntheticEquities(ctx, repo, *syntheticAssets)...)
+	}
+	seedBotLiquidity(ctx, accountRepo, coverage.NewEnsurer(coverageRepo, coverageRepo), botAssets)
 	seedBotPersonalities(ctx, botRepo)
 
 	// Produtos pós-fixados (fixedincome.IndexPosFixado, tarefa L.1 do
