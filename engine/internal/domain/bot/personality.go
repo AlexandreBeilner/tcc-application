@@ -70,6 +70,13 @@ const (
 	SpecializationWithinScopeMax = 0.90
 )
 
+// DefaultMaxCoveredAssets é o teto padrão de ativos que um Market Maker cobre
+// (proposta-cobertura-market-maker.md, seção 3.2; decisão de 2026-09-23). Não
+// há dado externo que fixe 10: é um padrão ajustável por bot, não um limite
+// do sistema. Não reduz o tempo do tick, só limita o estrago de um Market
+// Maker desativado ou com estoque esgotado.
+const DefaultMaxCoveredAssets = 10
+
 // KnowledgeLevelMin/Max é a faixa fixa do nível de conhecimento do
 // arquétipo Fundamentalista (proposta 2.3.2, item 3) — escalar 0-1, sem
 // unidade própria.
@@ -91,6 +98,8 @@ var (
 	ErrInvalidMaxPositionSizePct       = errors.New("tamanho de posição tolerado precisa estar entre 0 (exclusivo) e 1")
 	ErrInvalidMarketOrderPreferencePct = errors.New("preferência por ordem a mercado precisa estar entre 0 e 1")
 	ErrInvalidSpreadWidthPct           = errors.New("largura de spread não pode ser negativa")
+	ErrInvalidMaxCoveredAssets         = errors.New("teto de ativos cobertos deve ser positivo")
+	ErrMaxCoveredAssetsWrongArchetype  = errors.New("teto de ativos cobertos só existe no arquétipo Market Maker")
 )
 
 // SpecializationScope é "o que o bot entende" (proposta 2.3.2, item 2) —
@@ -191,6 +200,25 @@ type Personality struct {
 	// 2.3.2, item 3: "sem dimensão de aprendizado").
 	KnowledgeLevel *float64
 	RiskProfile    RiskProfile
+	// MaxCoveredAssets é o teto de ativos que o bot cobre como formador de
+	// mercado (tarefa P.1). nil pros 3 arquétipos que não cotam cobertura;
+	// o Market Maker sempre carrega um valor positivo (DefaultMaxCoveredAssets
+	// até WithMaxCoveredAssets ajustar).
+	MaxCoveredAssets *int
+}
+
+// WithMaxCoveredAssets devolve uma cópia da personalidade com o teto de
+// ativos cobertos ajustado. Só o Market Maker aceita, e o valor precisa ser
+// positivo.
+func (p Personality) WithMaxCoveredAssets(max int) (Personality, error) {
+	if p.Archetype != ArchetypeMarketMaker {
+		return Personality{}, ErrMaxCoveredAssetsWrongArchetype
+	}
+	if max <= 0 {
+		return Personality{}, ErrInvalidMaxCoveredAssets
+	}
+	p.MaxCoveredAssets = &max
+	return p, nil
 }
 
 // NewPersonality valida a combinação das 4 dimensões: arquétipo dentre os
@@ -218,10 +246,15 @@ func NewPersonality(archetype Archetype, scope SpecializationScope, knowledgeLev
 		return Personality{}, ErrKnowledgeLevelWrongArchetype
 	}
 
-	return Personality{
+	personality := Personality{
 		Archetype:      archetype,
 		Scope:          scope,
 		KnowledgeLevel: knowledgeLevel,
 		RiskProfile:    riskProfile,
-	}, nil
+	}
+	if archetype == ArchetypeMarketMaker {
+		max := DefaultMaxCoveredAssets
+		personality.MaxCoveredAssets = &max
+	}
+	return personality, nil
 }

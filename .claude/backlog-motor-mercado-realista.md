@@ -3125,7 +3125,7 @@ Independente das outras fases. Depende de A.4 (`is_active`), C.6 (Market Maker),
 teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/engine/` e validação por
 `docker compose up`, como manda o checklist do CLAUDE.md para o `engine/`.
 
-### P.1 · Modelo de dados e domínio da cobertura
+### P.1 · Modelo de dados e domínio da cobertura ✅
 - **Descrição:** migration `000023` com a tabela `market_maker_coverage (asset_id, mm_account_id,
   created_at)` (chave primária composta) e a coluna `bot_personalities.max_covered_assets` (padrão 10,
   nulo para arquétipos que não são Market Maker); pacote de domínio novo sem I/O com o tipo de cobertura
@@ -3134,6 +3134,21 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** `Assign` em teste de tabela (folga, empate, nenhum com folga, Market Maker
   inativo ignorado); migration aplica e reverte.
 - **Referências:** proposta seções 3.1 a 3.3.
+- **Entregável (sessão 2026-09-23):** migration `000023` (tabela `market_maker_coverage` com PK composta e
+  índice por Market Maker; `bot_personalities.max_covered_assets` com backfill 10 no Market Maker existente
+  e CHECK que espelha o domínio: obrigatório e positivo só no `market_maker`). Pacote novo
+  `internal/domain/coverage`: `MarketMaker`, `Assign(assetID, mms)` (menos carregado com folga, desempate
+  por `AccountID`, ignora inativo e quem já cobre o ativo; `ok=false` = precisa criar Market Maker) e as
+  interfaces `MarketMakerLister`/`Writer`, declaradas no ponto de consumo. `bot.Personality` ganhou
+  `MaxCoveredAssets *int` (`DefaultMaxCoveredAssets = 10` no Market Maker, `WithMaxCoveredAssets` valida
+  positivo e arquétipo), lido/gravado por `BotRepository`. `CoverageRepository` (`ListMarketMakers` em uma
+  consulta, `AddCoverage` idempotente). Decisões de sessão: `Assign` recebe o `assetID` para não reatribuir
+  quem já cobre o ativo (a redundância do modelo continua possível); `AddCoverage` devolve
+  `ErrNotMarketMaker` para conta que não é Market Maker, porque o teste ao vivo mostrou que só o FK deixava
+  um bot `ruido` entrar na tabela. Validado no Postgres do compose: migration aplicada, `down`+`up` em
+  transação, CHECKs rejeitando teto em bot não-Market Maker e teto 0, e o repositório real exercitado por
+  teste temporário (não commitado, convenção da camada). Sem rota HTTP alterada, então sem `.docs/`.
+  `golangci-lint`, `go build` e `go test ./...` passam.
 
 ### P.2 · Provisionamento reutilizável (`EnsureCoverage`) e migração do seed
 - **Descrição:** caso de uso `EnsureCoverage` (atribui, cria Market Maker novo quando nenhum tem folga,
