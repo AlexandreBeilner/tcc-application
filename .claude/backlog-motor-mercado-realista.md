@@ -3349,6 +3349,69 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   com timeout reduzido, então recheque esse ponto na P.8. Se o tick passar de 2 minutos, a saída
   documentada na proposta é o disparo assíncrono (`202`).
 
+## Fase Q — Liquidez dos bots que escala com o catálogo
+
+**Origem:** achado 014 de `pontos-em-aberto-decisao-produto.md` (medição da P.8): o volume diário por ativo cai com o
+tamanho do catálogo porque o pool de 19 bots direcionais é fixo (5 ativos 0,45%, 15 ativos 0,20%, 35 ativos 0,08%,
+55 ativos 0,06% do float, contra a faixa de 0,3% a 0,7%). O autor pediu para desenhar para **pelo menos 30 ativos e
+crescendo**, não para os 12 a 15 da tarefa 7.2.
+
+**Princípio:** o custo do tick é limitado por um orçamento e o que se ajusta é a distribuição dos turnos de bot entre os
+ativos. O volume de um ativo é proporcional aos turnos que ele recebe por dia (cerca de 0,05% a 0,07% do float por
+turno, estimativa de 4 pontos de medição) e cada turno custa hoje cerca de 17 comandos SQL. Pool que cresce sem limite
+estoura o orçamento; pool fixo esvazia os ativos. Estimativa de partida para 30 ativos com o orçamento atual: sobram
+cerca de 165 turnos por dia (um pool de uns 65 bots), suficiente para os líderes na faixa e a cauda perto de 0,2%.
+Todos esses números são estimativas a validar na Q.4.
+
+**Decisões do autor (2026-09-25):**
+1. **Alvo de volume:** ativos líderes na faixa de 0,3% a 0,7% do float por dia; ativo mediano de pelo menos 0,15%;
+   nenhum ativo sem negociação (piso de 1 turno por dia).
+2. **Orçamento de tick:** teto de **5.000 comandos SQL** (o gatilho de revisão obrigatória da seção 6.1 da proposta de
+   cobertura), com **meta de 3.500 com 30 ativos**.
+3. **Horizonte:** desenhar para **100 ativos**. As partes 1 a 3 (Q.1 a Q.3) primeiro, benchmark (Q.4), e só então
+   decidir a parte 4 (Q.5).
+
+### Q.1 · Baratear o turno de bot
+- **Descrição:** medir a decomposição atual dos ~17 comandos por turno de um bot direcional e reduzi-la para no máximo
+  8: cachear no tick as leituras estáticas (ticker e `is_sandbox`, `outstanding_shares`, dia simulado) e carregar em
+  lote os saldos e posições dos bots. Sem mudança de comportamento: mesma seed produz o mesmo mercado.
+- **Critérios de aceite:** comandos por turno medidos antes e depois (log do Postgres, script da P.7); determinismo
+  preservado (mesma seed, mesmo `Result`); teste de que um cache de tick não vaza entre ticks; nenhuma escrita de saldo
+  ou posição sem evento (Event Sourcing).
+- **Dependências:** nenhuma (independente das decisões acima).
+
+### Q.2 · Pool de bots dimensionado pelo orçamento
+- **Descrição:** `EnsureBotPool` (mesmo padrão de `coverage.EnsureCoverage`): dado o catálogo e o orçamento de turnos
+  do tick, garante o número de bots direcionais, com personalidade e escopo por `bot.AssignSpecializations` (todo setor
+  e classe seguem cobertos por cada arquétipo), caixa por Event Sourcing e ID determinístico (o ID entra na semente,
+  RNF08). Bot novo não redistribui o float já alocado: entra com caixa e compra. Idempotente, chamado pelo seed e
+  reaproveitável pelo painel da Fase N.
+- **Critérios de aceite:** seed idempotente; catálogo maior gera mais bots até o teto do orçamento; teste table-driven
+  da regra de tamanho do pool; nenhum arquétipo perde cobertura de setor.
+- **Dependências:** Q.1 (o custo por turno define quantos turnos cabem no orçamento).
+
+### Q.3 · Escolha de ativo ponderada por valor de mercado, com piso
+- **Descrição:** `bot.SelectAssetForRound` deixa de sortear uniforme e pondera pelo valor de mercado do ativo (float
+  vezes preço) dentro do escopo do bot, com garantia de pelo menos 1 turno por dia por ativo. Líderes emergem sem impor
+  perfil fixo por ativo (opção C do achado 009, descartada). Determinístico.
+- **Critérios de aceite:** teste de distribuição (ativo maior recebe proporcionalmente mais turnos; nenhum ativo abaixo
+  do piso); determinismo preservado; custo por tick inalterado.
+- **Dependências:** Q.1.
+
+### Q.4 · Benchmark em 30, 50 e 100 ativos e gatilho da parte 4
+- **Descrição:** repetir `engine/scripts/benchmark-cobertura.sh` (P.7) com 30, 50 e 100 ativos sintéticos, medindo
+  volume dos líderes e do ativo mediano, comandos por tick e o efeito de cinco eventos severos num ativo da cauda.
+- **Critérios de aceite:** líderes na faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, tick de no máximo 5.000 comandos
+  (meta de 3.500 com 30 ativos); resultados registrados na proposta de cobertura e neste backlog. **Gatilho:** se com 100
+  ativos o tick passar de 5.000 comandos depois de Q.1 a Q.3, abrir a Q.5.
+- **Dependências:** Q.1, Q.2, Q.3.
+
+### Q.5 · (Reserva) Sessão de tick em memória
+- **Descrição:** carregar o estado uma vez (saldos, posições e books), simular os turnos em memória e gravar em lote,
+  de modo que o custo dependa dos fills e não dos turnos. Refatoração grande do caminho de execução, com Event
+  Sourcing preservado. **Só se abre se o gatilho da Q.4 disparar.**
+- **Dependências:** Q.4.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -3383,3 +3446,5 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
     abrir a fase), depois **P.4 → P.5** (PR 2, otimização de custo e cotação de pé), depois **P.6, P.7,
     P.8** (PR 3; P.6 só depende de P.1 e P.7 de P.2, então podem entrar antes). **P.9** a qualquer momento
     antes da Fase N. Fecha os achados 013 e 002 de `pontos-em-aberto-decisao-produto.md`.
+17. **Q.1** (sem decisão, pode abrir a fase), depois **Q.2** e **Q.3** (dependem de Q.1), depois **Q.4**
+    (benchmark e gatilho). **Q.5** só se o gatilho da Q.4 disparar. Fecha o achado 014.

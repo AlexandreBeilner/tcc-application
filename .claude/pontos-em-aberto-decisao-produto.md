@@ -110,7 +110,12 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   negociadas concentram ~46% do volume), e definir a faixa-alvo só para os ativos líderes, deixando os demais mais
   parados; (d) combinação: escalar o pool até um teto e aceitar cauda longa acima dele. **Recomendação:** (d), com o
   número de bots por ativo e o teto escolhidos pelo autor. Não bloqueia a Fase P.
-- **Status:** aberto
+- **Decisão (2026-09-25, autor):** desenhar para pelo menos 30 ativos e crescendo (horizonte de 100). Alvo: líderes na
+  faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, nenhum ativo sem negociação. Orçamento: teto de 5.000 comandos por
+  tick, meta de 3.500 com 30 ativos. Virou a **Fase Q** de `backlog-motor-mercado-realista.md` (turno mais barato, pool
+  dimensionado pelo orçamento, escolha de ativo ponderada por valor de mercado com piso, benchmark, e sessão de tick em
+  memória só se o benchmark exigir).
+- **Status:** aberto, com dono real (Fase Q); fecha quando a Q.4 validar os alvos
 
 ## Resolvidos
 
