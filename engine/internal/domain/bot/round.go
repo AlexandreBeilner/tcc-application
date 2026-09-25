@@ -35,7 +35,19 @@ type EquityForRound struct {
 	Sector    catalog.Sector
 	RiskClass equity.RiskClass
 	Type      catalog.AssetType
+	// MarketValue (tarefa Q.3) é o valor de mercado do ativo (float vezes preço),
+	// peso do sorteio de SelectAssetForRound. 0 quando o float é desconhecido:
+	// o ativo entra só com a parte uniforme do peso.
+	MarketValue float64
 }
+
+// MarketValueWeight (tarefa Q.3) é a fração do peso de sorteio de um ativo que
+// vem do valor de mercado; o resto (1 - MarketValueWeight) é uniforme. Ativos
+// maiores recebem mais turnos de bot (líderes de liquidez emergem sem impor um
+// perfil fixo por ativo, opção C do achado 009, descartada) e o menor ativo
+// nunca recebe menos que (1 - MarketValueWeight) da taxa uniforme, então
+// nenhum ativo é esquecido. Valor ilustrativo, a validar no benchmark da Q.4.
+const MarketValueWeight = 0.5
 
 // MatchesEquity confere se o escopo de especialização do bot alcança um
 // ativo de Renda Variável com o setor/risk_class/classe de ativo dados —
@@ -75,7 +87,8 @@ func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equi
 // todo mundo. Cai pro outro grupo quando o sorteado está vazio (bot cujo
 // escopo não bate com nenhum ativo do universo atual, ou cujo escopo cobre
 // universe inteiro — ex: Market Maker, C.6 — não tem "fora do escopo" pra
-// cair). Devolve ErrNoEquityAvailable só quando universe está vazio (nada
+// cair). Dentro do grupo sorteado, o ativo é escolhido com peso proporcional ao
+// valor de mercado misturado a um piso uniforme (tarefa Q.3, pickWeighted). Devolve ErrNoEquityAvailable só quando universe está vazio (nada
 // pra negociar, nenhum sorteio possível).
 func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, rng *rand.Rand) (EquityForRound, error) {
 	if len(universe) == 0 {
@@ -99,7 +112,32 @@ func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, r
 		pool = outOfScope
 	}
 
-	return pool[rng.Intn(len(pool))], nil
+	return pickWeighted(pool, rng), nil
+}
+
+// pickWeighted sorteia um ativo de pool com peso (1 - MarketValueWeight)/n mais
+// MarketValueWeight vezes a fração do valor de mercado do ativo no pool. Sem
+// nenhum valor de mercado conhecido no pool, o sorteio é uniforme. Determinístico
+// para uma seed: percorre o pool na ordem recebida e usa um único sorteio.
+func pickWeighted(pool []EquityForRound, rng *rand.Rand) EquityForRound {
+	var total float64
+	for _, e := range pool {
+		total += e.MarketValue
+	}
+	n := float64(len(pool))
+	target := rng.Float64()
+	var cumulative float64
+	for _, e := range pool {
+		weight := 1 / n
+		if total > 0 {
+			weight = (1-MarketValueWeight)/n + MarketValueWeight*e.MarketValue/total
+		}
+		cumulative += weight
+		if target < cumulative {
+			return e
+		}
+	}
+	return pool[len(pool)-1] // resíduo de arredondamento do último acumulado
 }
 
 // DecisionInput agrupa todo insumo que algum arquétipo pode precisar pra

@@ -296,7 +296,11 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 		}
 
 		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price, ShareClass: a.ShareClass, OutstandingShares: a.OutstandingShares}
-		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type)})
+		var marketValue float64
+		if a.OutstandingShares != nil {
+			marketValue = float64(*a.OutstandingShares) * price
+		}
+		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type), MarketValue: marketValue})
 	}
 	return equities, universe
 }

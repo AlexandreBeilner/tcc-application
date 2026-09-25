@@ -1554,3 +1554,23 @@ func TestRunIntradayRounds_AbreUmEscopoDeLeituraPorTick(t *testing.T) {
 		t.Errorf("LoadContext chamado %d vezes, esperava várias no mesmo escopo", loader.calls)
 	}
 }
+
+// Q.3: o peso de sorteio de cada ativo do universo é o float vezes o preço; sem
+// float conhecido o valor de mercado fica 0 (só a parte uniforme do peso).
+func TestBuildEquityUniverse_ValorDeMercadoComoPeso(t *testing.T) {
+	big, small := int64(1_000_000), int64(1_000)
+	withFloat := acaoAsset("a1", 50)
+	withFloat.OutstandingShares = &big
+	smaller := acaoAsset("a2", 20)
+	smaller.OutstandingShares = &small
+	noFloat := acaoAsset("a3", 30)
+
+	_, universe := buildEquityUniverse([]AssetForPricing{withFloat, smaller, noFloat})
+	got := map[string]float64{}
+	for _, e := range universe {
+		got[e.AssetID] = e.MarketValue
+	}
+	if got["a1"] != 50_000_000 || got["a2"] != 20_000 || got["a3"] != 0 {
+		t.Errorf("MarketValue = %v, want a1=5e7, a2=2e4, a3=0", got)
+	}
+}

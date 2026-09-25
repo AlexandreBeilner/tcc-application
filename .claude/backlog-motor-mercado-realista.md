@@ -3421,13 +3421,28 @@ Todos esses números são estimativas a validar na Q.4.
   provisionamento continua no seed, e não num caso de uso `EnsureBotPool` separado, porque o painel da Fase N (N.1) cria
   bots individualmente pela mesma validação de domínio. `golangci-lint`, `go build`, `go test ./...` passam.
 
-### Q.3 · Escolha de ativo ponderada por valor de mercado, com piso
+### Q.3 · Escolha de ativo ponderada por valor de mercado, com piso ✅
 - **Descrição:** `bot.SelectAssetForRound` deixa de sortear uniforme e pondera pelo valor de mercado do ativo (float
   vezes preço) dentro do escopo do bot, com garantia de pelo menos 1 turno por dia por ativo. Líderes emergem sem impor
   perfil fixo por ativo (opção C do achado 009, descartada). Determinístico.
 - **Critérios de aceite:** teste de distribuição (ativo maior recebe proporcionalmente mais turnos; nenhum ativo abaixo
   do piso); determinismo preservado; custo por tick inalterado.
 - **Dependências:** Q.1.
+- **Entregável (sessão 2026-09-25):** `bot.EquityForRound.MarketValue` (float vezes preço, preenchido por
+  `buildEquityUniverse`; 0 sem float conhecido) e `pickWeighted` em `SelectAssetForRound`: dentro do grupo sorteado (escopo
+  ou fora dele, a divisão `WithinScopePct` não muda), peso `(1 - MarketValueWeight)/n + MarketValueWeight x fração do valor
+  de mercado`, com `MarketValueWeight = 0,5`. O líder recebe mais turnos e o menor ativo nunca recebe menos que metade da
+  taxa uniforme. Custo por tick inalterado (mesma quantidade de turnos). Testes: frequência proporcional ao peso misto
+  (valores 30, 10 e 1), piso do menor ativo (valor 3e-7 do total ainda recebe >= metade do uniforme), uniforme sem valor
+  de mercado, determinismo por seed e divisão escopo/fora do escopo mantida. **Desvio do texto da tarefa, declarado:** o
+  piso é **estatístico**, não uma garantia rígida de 1 turno por dia por ativo (um sorteio ponderado não garante isso);
+  o piso de metade da taxa uniforme faz um dia sem turno ser raro com o pool da Q.2, e a Q.4 passa a medir dias sem
+  negociação por ativo. Limitação conhecida: o peso atua dentro do escopo do bot, então o volume entre setores depende de
+  quantos bots se especializam em cada um. **Teste de fumaça** (30 ativos, pool de 60, 60 dias): volume médio **0,29%** do
+  float (mín. 0,12%, máx. 0,78%), contra 0,08% antes da Fase Q; 30 de 30 ativos cotados, 20 de 20 ordens do cenário do 013;
+  **alerta para a Q.4:** média de 2.440 comandos por tick (meta 3.500), mas pico de 5.654, acima do teto de 5.000
+  (dias de 4 rodadas com muitos fills), então `BotsPerAsset` e `MaxPoolSize` precisam de calibração.
+  `golangci-lint`, `go build`, `go test ./...` passam.
 
 ### Q.4 · Benchmark em 30, 50 e 100 ativos e gatilho da parte 4
 - **Descrição:** repetir `engine/scripts/benchmark-cobertura.sh` (P.7) com 30, 50 e 100 ativos sintéticos, medindo

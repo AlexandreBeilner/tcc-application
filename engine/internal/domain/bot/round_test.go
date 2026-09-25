@@ -2,6 +2,7 @@ package bot
 
 import (
 	"errors"
+	"math"
 	"math/rand"
 	"testing"
 
@@ -252,5 +253,110 @@ func TestDecide_ArquetipoDesconhecido(t *testing.T) {
 	_, err := Decide(personality, DecisionInput{})
 	if !errors.Is(err, ErrUnknownArchetype) {
 		t.Fatalf("err = %v, want ErrUnknownArchetype", err)
+	}
+}
+
+func weightedUniverse(values ...float64) []EquityForRound {
+	universe := make([]EquityForRound, len(values))
+	for i, v := range values {
+		universe[i] = EquityForRound{AssetID: string(rune('a' + i)), Sector: catalog.SectorMineracao, RiskClass: equity.RiskClassConservador, Type: catalog.AssetAcao, MarketValue: v}
+	}
+	return universe
+}
+
+func frequencies(t *testing.T, universe []EquityForRound, draws int, seed int64) map[string]float64 {
+	t.Helper()
+	scope, err := NewSpecializationScope([]catalog.Sector{catalog.SectorMineracao}, nil, nil, 0.85)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rng := rand.New(rand.NewSource(seed))
+	counts := map[string]int{}
+	for i := 0; i < draws; i++ {
+		e, err := SelectAssetForRound(scope, universe, rng)
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts[e.AssetID]++
+	}
+	freq := map[string]float64{}
+	for id, c := range counts {
+		freq[id] = float64(c) / float64(draws)
+	}
+	return freq
+}
+
+// Q.3: ativo de maior valor de mercado recebe proporcionalmente mais turnos, na
+// proporção do peso misto (metade uniforme, metade valor de mercado).
+func TestSelectAssetForRound_PonderaPorValorDeMercado(t *testing.T) {
+	// Valores 30x, 10x e 1x: participações de 73%, 24% e 2,4%.
+	universe := weightedUniverse(30, 10, 1)
+	freq := frequencies(t, universe, 200_000, 1)
+
+	total := 41.0
+	for i, v := range []float64{30, 10, 1} {
+		want := (1-MarketValueWeight)/3 + MarketValueWeight*v/total
+		got := freq[universe[i].AssetID]
+		if math.Abs(got-want) > 0.01 {
+			t.Errorf("ativo %s (valor %v): frequência %.4f, want %.4f", universe[i].AssetID, v, got, want)
+		}
+	}
+	if freq["a"] <= freq["b"] || freq["b"] <= freq["c"] {
+		t.Errorf("ordem de frequência não segue o valor de mercado: %v", freq)
+	}
+}
+
+// O menor ativo nunca cai abaixo de (1 - MarketValueWeight) da taxa uniforme,
+// por maior que seja a diferença de tamanho: nenhum ativo é esquecido.
+func TestSelectAssetForRound_PisoUniformeParaOMenorAtivo(t *testing.T) {
+	universe := weightedUniverse(1_000_000, 1_000_000, 1_000_000, 1) // o menor vale 3e-7 do total
+	uniform := 1.0 / float64(len(universe))
+	freq := frequencies(t, universe, 200_000, 2)
+
+	floor := (1 - MarketValueWeight) * uniform
+	if got := freq["d"]; got < floor*0.9 {
+		t.Errorf("menor ativo com frequência %.4f, want pelo menos %.4f (piso)", got, floor)
+	}
+}
+
+// Sem nenhum valor de mercado conhecido (float desconhecido), o sorteio é
+// uniforme.
+func TestSelectAssetForRound_SemValorDeMercadoEUniforme(t *testing.T) {
+	freq := frequencies(t, weightedUniverse(0, 0, 0, 0), 200_000, 3)
+	for id, f := range freq {
+		if math.Abs(f-0.25) > 0.01 {
+			t.Errorf("ativo %s: frequência %.4f, want 0.25", id, f)
+		}
+	}
+}
+
+// Mesma seed, mesma sequência de ativos (RNF08).
+func TestSelectAssetForRound_PonderadoDeterministico(t *testing.T) {
+	universe := weightedUniverse(5, 3, 9, 1)
+	scope, _ := NewSpecializationScope([]catalog.Sector{catalog.SectorMineracao}, nil, nil, 0.85)
+	a, b := rand.New(rand.NewSource(7)), rand.New(rand.NewSource(7))
+	for i := 0; i < 500; i++ {
+		x, _ := SelectAssetForRound(scope, universe, a)
+		y, _ := SelectAssetForRound(scope, universe, b)
+		if x.AssetID != y.AssetID {
+			t.Fatalf("sorteio %d diverge: %s vs %s", i, x.AssetID, y.AssetID)
+		}
+	}
+}
+
+// A ponderação atua dentro do grupo (escopo ou fora dele): a divisão entre os
+// dois grupos continua sendo WithinScopePct.
+func TestSelectAssetForRound_MantemDivisaoEscopoForaDoEscopo(t *testing.T) {
+	universe := []EquityForRound{
+		{AssetID: "in1", Sector: catalog.SectorMineracao, Type: catalog.AssetAcao, MarketValue: 100},
+		{AssetID: "in2", Sector: catalog.SectorMineracao, Type: catalog.AssetAcao, MarketValue: 1},
+		{AssetID: "out", Sector: catalog.SectorBancario, Type: catalog.AssetAcao, MarketValue: 1_000_000},
+	}
+	freq := frequencies(t, universe, 200_000, 4)
+	if got := freq["in1"] + freq["in2"]; math.Abs(got-0.85) > 0.01 {
+		t.Errorf("fração dentro do escopo = %.4f, want 0.85 (WithinScopePct)", got)
+	}
+	if freq["in1"] <= freq["in2"] {
+		t.Errorf("dentro do escopo, o maior ativo deveria receber mais: %v", freq)
 	}
 }
