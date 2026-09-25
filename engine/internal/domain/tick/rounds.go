@@ -156,6 +156,11 @@ type TradedVolumeReader interface {
 // runIntradayRounds).
 type OrderContextLoader interface {
 	LoadContext(ctx context.Context, assetID, userID string) (orderexecution.Context, error)
+	// WithReadScope (tarefa Q.1) devolve um contexto cujas leituras que não mudam
+	// durante o tick (dados estáticos do ativo e o dia simulado) ficam em cache
+	// até ele ser descartado. runIntradayRounds abre um por tick: são centenas
+	// de LoadContext nas rodadas, e sem isso cada um relia as mesmas coisas.
+	WithReadScope(ctx context.Context) context.Context
 }
 
 // OrderSubmitter executa e persiste a ordem decidida por um bot — mesmo
@@ -513,6 +518,7 @@ func (s *Service) runIntradayRounds(
 	if len(universe) == 0 || len(rounds) == 0 {
 		return nil, nil, 0, 0, nil
 	}
+	ctx = s.orderContext.WithReadScope(ctx)
 
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {

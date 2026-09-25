@@ -3371,7 +3371,7 @@ Todos esses números são estimativas a validar na Q.4.
 3. **Horizonte:** desenhar para **100 ativos**. As partes 1 a 3 (Q.1 a Q.3) primeiro, benchmark (Q.4), e só então
    decidir a parte 4 (Q.5).
 
-### Q.1 · Baratear o turno de bot
+### Q.1 · Baratear o turno de bot ✅
 - **Descrição:** medir a decomposição atual dos ~17 comandos por turno de um bot direcional e reduzi-la para no máximo
   8: cachear no tick as leituras estáticas (ticker e `is_sandbox`, `outstanding_shares`, dia simulado) e carregar em
   lote os saldos e posições dos bots. Sem mudança de comportamento: mesma seed produz o mesmo mercado.
@@ -3379,6 +3379,19 @@ Todos esses números são estimativas a validar na Q.4.
   preservado (mesma seed, mesmo `Result`); teste de que um cache de tick não vaza entre ticks; nenhuma escrita de saldo
   ou posição sem evento (Event Sourcing).
 - **Dependências:** nenhuma (independente das decisões acima).
+- **Entregável (sessão 2026-09-25):** decomposição medida de um turno de bot direcional: `LoadContext` fazia **8 leituras**
+  (saldo, posição, ticker e `is_sandbox`, cotação em cache, ordens em repouso, `outstanding_shares`, soma das posições, dia
+  simulado) mais 3 comandos de escrita (BEGIN, INSERT, COMMIT), **11 por turno sem fill**. Agora **6**: (1) saldo e posição
+  viraram uma consulta só (`LEFT JOIN`); (2) ticker, `is_sandbox` e `outstanding_shares` viraram uma consulta só
+  (`assetStatic`); (3) `assetStatic` e o dia simulado ficam em cache **dentro de um escopo de leitura por tick**
+  (`OrderExecutionRepository.WithReadScope`, `tick.OrderContextLoader`, aberto uma vez em `runIntradayRounds`), então cada
+  ativo é lido uma vez por tick e o dia uma vez. O cache mora no `context.Context` do tick: requisição HTTP de usuário não
+  passa por ele e nunca lê dado velho; erro nunca é cacheado; dois ticks nunca compartilham cache (testes). Ficam as 3
+  leituras dinâmicas (saldo/posição, ordens em repouso, soma das posições). **Validação A/B** (bancos clonados do mesmo
+  estado, 8 ticks, código do PR #42 contra o novo): **mercado idêntico** (hash de preços, volumes e saldos igual, mesmos
+  fills por tick) com **-27% de comandos SQL** (6.644 para 4.868) no seed real. Meta de no máximo 8 por turno atendida
+  (6 sem fill; fill acrescenta o custo próprio de posição, evento e saldo, fora do escopo desta tarefa).
+  `golangci-lint`, `go build`, `go test ./...` passam. Sem rota HTTP alterada.
 
 ### Q.2 · Pool de bots dimensionado pelo orçamento
 - **Descrição:** `EnsureBotPool` (mesmo padrão de `coverage.EnsureCoverage`): dado o catálogo e o orçamento de turnos

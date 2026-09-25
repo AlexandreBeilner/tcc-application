@@ -1531,3 +1531,26 @@ func TestRunIntradayRounds_MarketMakerComCoberturaEDeterministico(t *testing.T) 
 		t.Errorf("execuções divergem: %v/%d vs %v/%d", c1, f1, c2, f2)
 	}
 }
+
+// Q.1: runIntradayRounds abre um único escopo de leitura por tick, para os
+// LoadContext das rodadas não relerem dado estático do ativo e o dia simulado.
+func TestRunIntradayRounds_AbreUmEscopoDeLeituraPorTick(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
+		{UserID: "bot2", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}},
+	}}
+	loader := &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	svc.orderContext = loader
+	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if loader.scopes != 1 {
+		t.Errorf("escopos = %d, want 1 (um por tick, não por rodada nem por bot)", loader.scopes)
+	}
+	if loader.calls < 2 {
+		t.Errorf("LoadContext chamado %d vezes, esperava várias no mesmo escopo", loader.calls)
+	}
+}

@@ -100,6 +100,13 @@ type fakeOrderContextLoader struct {
 	loadErr           error
 	calls             int
 	outstandingShares *int64
+	// scopes conta quantos escopos de leitura de tick foram abertos (Q.1).
+	scopes int
+}
+
+func (f *fakeOrderContextLoader) WithReadScope(ctx context.Context) context.Context {
+	f.scopes++
+	return ctx
 }
 
 func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ string) (orderexecution.Context, error) {
