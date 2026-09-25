@@ -3458,6 +3458,25 @@ Todos esses números são estimativas a validar na Q.4.
   Sourcing preservado. **Só se abre se o gatilho da Q.4 disparar.**
 - **Dependências:** Q.4.
 
+### Q.6 · Dividendos em lote (custo que escala com bots x ativos)
+- **Origem:** achado no teste de fumaça da Q.3 (30 ativos, pool de 60): os picos de 5.654 comandos por tick caíam nos dias
+  de pagamento de dividendo (5 dias depois de cada dia de relatório), com apenas 2 rodadas. Gerar o dividendo custava 1
+  comando por detentor e pagá-lo 2 por detentor (evento e saldo), ou seja, **bots x ativos** comandos por pagamento: 63
+  detentores x 30 ativos, e 150 x 100 seria da ordem de 30.000. Nenhum ajuste de pool corrige isso, então precisava
+  ser resolvido antes do benchmark da Q.4.
+- **Descrição:** `saveNewDividends` insere os detentores de cada dividendo com um `INSERT ... unnest` só; `payDueDividends`
+  grava os eventos `dividend_payment` com `eventstore.AppendBatchTx` (um `INSERT` em lote, ANTES da projeção, Event
+  Sourcing preservado) e projeta os saldos com um `UPDATE ... FROM unnest` só. Os valores numéricos usam a mesma
+  representação que o driver dá a um `float64` avulso, então o que é gravado é idêntico.
+- **Critérios de aceite:** estado final idêntico ao do código anterior (contas, eventos e tabelas de dividendos); comandos
+  por dia de pagamento independentes do número de detentores.
+- **Entregável (sessão 2026-09-25):** `eventstore.AppendBatchTx` (rejeita lote com tipos diferentes ou campos ausentes
+  antes de gravar, `ErrInvalidBatch`, testado) e as duas reescritas em `tick_repository.go`. **Validação A/B** (banco
+  clonado do benchmark de 30 ativos, dia 61 com 30 dividendos pagos e dia 70 com 30 gerados): **estado final idêntico**
+  (hash de contas, dos 7.320 eventos e das tabelas de dividendos) com **dia de pagamento 5.675 para 2.075 comandos
+  (-63%)** e dia de geração 3.569 para 1.769 (-50%). `golangci-lint`, `go build`, `go test ./...` passam.
+- **Dependências:** nenhuma; feita antes da Q.4 porque muda o que ela mede.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -3492,5 +3511,5 @@ Todos esses números são estimativas a validar na Q.4.
     abrir a fase), depois **P.4 → P.5** (PR 2, otimização de custo e cotação de pé), depois **P.6, P.7,
     P.8** (PR 3; P.6 só depende de P.1 e P.7 de P.2, então podem entrar antes). **P.9** a qualquer momento
     antes da Fase N. Fecha os achados 013 e 002 de `pontos-em-aberto-decisao-produto.md`.
-17. **Q.1** (sem decisão, pode abrir a fase), depois **Q.2** e **Q.3** (dependem de Q.1), depois **Q.4**
-    (benchmark e gatilho). **Q.5** só se o gatilho da Q.4 disparar. Fecha o achado 014.
+17. **Q.1** (sem decisão, pode abrir a fase), depois **Q.2** e **Q.3** (dependem de Q.1) e **Q.6** (dividendos em lote,
+    achada na Q.3, independente), depois **Q.4** (benchmark e gatilho). **Q.5** só se o gatilho da Q.4 disparar. Fecha o achado 014.

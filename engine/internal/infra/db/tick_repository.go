@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/lib/pq"
@@ -573,10 +574,17 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, records []tick.DividendRe
 			return err
 		}
 
-		for _, recipient := range rec.Recipients {
+		if len(rec.Recipients) > 0 {
+			// Um INSERT por evento de dividendo (tarefa Q.6), não um por detentor.
+			userIDs := make([]string, len(rec.Recipients))
+			quantities := make([]int64, len(rec.Recipients))
+			for i, recipient := range rec.Recipients {
+				userIDs[i], quantities[i] = recipient.UserID, int64(recipient.Quantity)
+			}
 			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO dividend_event_recipients (dividend_event_id, user_id, quantity) VALUES ($1, $2, $3)`,
-				eventID, recipient.UserID, recipient.Quantity,
+				`INSERT INTO dividend_event_recipients (dividend_event_id, user_id, quantity)
+				 SELECT $1, t.u::uuid, t.q FROM unnest($2::text[], $3::int[]) AS t(u, q)`,
+				eventID, pq.Array(userIDs), pq.Array(quantities),
 			); err != nil {
 				return err
 			}
@@ -593,22 +601,37 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, records []tick.DividendRe
 // defensivo de macro_events.status = 'aplicado').
 func payDueDividends(ctx context.Context, tx *sql.Tx, payments []tick.PendingDividendPayment) error {
 	for _, p := range payments {
-		for _, recipient := range p.Recipients {
-			amount := p.ValuePerShare * float64(recipient.Quantity)
-
-			if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
-				UserID:    recipient.UserID,
-				AssetID:   &p.AssetID,
-				EventType: domain.EventDividendPayment,
-				Quantity:  &recipient.Quantity,
-				UnitValue: &p.ValuePerShare,
-			}); err != nil {
+		if len(p.Recipients) > 0 {
+			// Tarefa Q.6: dois comandos por dividendo pago (os eventos em lote e a
+			// projeção dos saldos em lote), não dois por detentor. Os eventos
+			// continuam sendo gravados ANTES de projetar o saldo (Event Sourcing).
+			events := make([]domain.MarketEvent, len(p.Recipients))
+			userIDs := make([]string, len(p.Recipients))
+			amounts := make([]string, len(p.Recipients))
+			for i := range p.Recipients {
+				recipient := &p.Recipients[i]
+				events[i] = domain.MarketEvent{
+					UserID:    recipient.UserID,
+					AssetID:   &p.AssetID,
+					EventType: domain.EventDividendPayment,
+					Quantity:  &recipient.Quantity,
+					UnitValue: &p.ValuePerShare,
+				}
+				userIDs[i] = recipient.UserID
+				amounts[i] = strconv.FormatFloat(p.ValuePerShare*float64(recipient.Quantity), 'f', -1, 64)
+			}
+			if err := eventstore.AppendBatchTx(ctx, tx, events); err != nil {
 				return err
 			}
-
 			if _, err := tx.ExecContext(ctx,
-				`UPDATE accounts SET current_balance = current_balance + $1, total_dividends_received = total_dividends_received + $1, updated_at = now() WHERE user_id = $2`,
-				amount, recipient.UserID,
+				`UPDATE accounts a
+				 SET current_balance = a.current_balance + t.amount,
+				     total_dividends_received = a.total_dividends_received + t.amount,
+				     updated_at = now()
+				 FROM (SELECT u::uuid AS user_id, amt::numeric AS amount
+				       FROM unnest($1::text[], $2::text[]) AS x(u, amt)) t
+				 WHERE a.user_id = t.user_id`,
+				pq.Array(userIDs), pq.Array(amounts),
 			); err != nil {
 				return err
 			}
