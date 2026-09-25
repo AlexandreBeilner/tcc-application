@@ -3393,7 +3393,7 @@ Todos esses números são estimativas a validar na Q.4.
   (6 sem fill; fill acrescenta o custo próprio de posição, evento e saldo, fora do escopo desta tarefa).
   `golangci-lint`, `go build`, `go test ./...` passam. Sem rota HTTP alterada.
 
-### Q.2 · Pool de bots dimensionado pelo orçamento
+### Q.2 · Pool de bots dimensionado pelo orçamento ✅
 - **Descrição:** `EnsureBotPool` (mesmo padrão de `coverage.EnsureCoverage`): dado o catálogo e o orçamento de turnos
   do tick, garante o número de bots direcionais, com personalidade e escopo por `bot.AssignSpecializations` (todo setor
   e classe seguem cobertos por cada arquétipo), caixa por Event Sourcing e ID determinístico (o ID entra na semente,
@@ -3402,6 +3402,24 @@ Todos esses números são estimativas a validar na Q.4.
 - **Critérios de aceite:** seed idempotente; catálogo maior gera mais bots até o teto do orçamento; teste table-driven
   da regra de tamanho do pool; nenhum arquétipo perde cobertura de setor.
 - **Dependências:** Q.1 (o custo por turno define quantos turnos cabem no orçamento).
+- **Entregável (sessão 2026-09-25):** `bot.PoolSize(assetCount)` (`internal/domain/bot/pool.go`, pura e monotônica): 2 bots
+  direcionais por ativo (`BotsPerAsset`), entre 19 (`MinPoolSize`, o pool de sempre) e 150 (`MaxPoolSize`, ~3.400 comandos
+  por tick com ~9 por turno depois da Q.1 e ~2,5 rodadas, dentro do teto de 5.000); todos ilustrativos, a validar na Q.4.
+  Exemplos: 5 ativos, 19 bots; 15, 30; 30, 60; 50, 100; 75 ou mais, 150. O seed calcula o pool pelo catálogo e
+  passa a **não redistribuir float de ativo já coberto** (senão um pool maior estouraria o teto do float): bot novo de um
+  banco já semeado entra só com caixa (referência: valor médio de posição de um bot sobre o catálogo) e compra; ativo
+  novo é distribuído entre o pool inteiro. Bots antes da cobertura no seed (se cair no meio, o ativo continua sem
+  cobertura e a próxima execução refaz, em vez de ficar coberto e sem bots). Personalidade: os 19 primeiros mantêm
+  exatamente a de sempre; os extras repetem ciclicamente a especialização dos originais (preserva a proporção de
+  arquétipos, 24 Ruído, 18 Chartista e 18 Fundamentalista com 60 bots, e a cobertura de todo setor) com sorteio de
+  conhecimento próprio por bot. **Validação** (bancos de teste isolados): seed real (N=19) **idêntico ao anterior**
+  (hash de contas, posições, personalidades e cobertura, apagando os bots e semeando de novo no mesmo banco) e
+  reexecução sem efeito; crescer um banco já semeado de 5 para 30 ativos (pool 19 para 60) deixa as posições dos 5 ativos
+  antigos **inalteradas**, cria 41 bots com caixa que só negociam os ativos novos, float máximo 1,0000 do
+  `outstanding_shares`, 30 ativos cobertos por 3 Market Makers; seed do zero com 30 ativos, todo bot com posição.
+  **Desvio do texto da tarefa, declarado:** a regra de tamanho é o que ficou reaproveitável no domínio (`PoolSize`); o
+  provisionamento continua no seed, e não num caso de uso `EnsureBotPool` separado, porque o painel da Fase N (N.1) cria
+  bots individualmente pela mesma validação de domínio. `golangci-lint`, `go build`, `go test ./...` passam.
 
 ### Q.3 · Escolha de ativo ponderada por valor de mercado, com piso
 - **Descrição:** `bot.SelectAssetForRound` deixa de sortear uniforme e pondera pelo valor de mercado do ativo (float

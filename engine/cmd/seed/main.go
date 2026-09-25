@@ -96,8 +96,10 @@ func main() {
 	if *syntheticAssets > 0 {
 		botAssets = append(botAssets, seedSyntheticEquities(ctx, repo, *syntheticAssets)...)
 	}
-	seedBotLiquidity(ctx, accountRepo, coverage.NewEnsurer(coverageRepo, coverageRepo), botAssets)
-	seedBotPersonalities(ctx, botRepo)
+	poolSize := bot.PoolSize(len(botAssets))
+	log.Printf("pool de bots direcionais: %d (catálogo de %d ativos)", poolSize, len(botAssets))
+	seedBotLiquidity(ctx, accountRepo, coverageRepo, coverage.NewEnsurer(coverageRepo, coverageRepo), botAssets, poolSize)
+	seedBotPersonalities(ctx, botRepo, poolSize)
 
 	// Produtos pós-fixados (fixedincome.IndexPosFixado, tarefa L.1 do
 	// backlog-motor-mercado-realista) — o número abaixo não é mais "taxa
@@ -441,8 +443,11 @@ const (
 	// qualquer outro valor fixo deste script.
 	botSeed                = int64(20260913)
 	botMarketMakerSharePct = 0.50 // meio da faixa confirmada (bot.MarketMakerShareMin/Max, proposta 2.2)
-	botOtherBotCount       = 19   // + Market Maker(s) da cobertura (P.2), dentro da faixa 15-25 da proposta 2.3.2
-	botMinimumOrderShares  = 100  // "ordem de tamanho médio" ilustrativa usada só pra calibrar o piso de caixa do seed
+	// legacyPoolSize é o pool de bots direcionais de antes da Fase Q (o mesmo que
+	// bot.MinPoolSize): os bots de índice abaixo dele mantêm exatamente a
+	// personalidade que sempre tiveram, então o seed real (5 ativos) não muda.
+	legacyPoolSize        = bot.MinPoolSize
+	botMinimumOrderShares = 100 // "ordem de tamanho médio" ilustrativa usada só pra calibrar o piso de caixa do seed
 )
 
 // otherBotUserID gera um uuid fixo e determinístico pro bot direcional de
@@ -486,10 +491,25 @@ type botHolding struct {
 // cotação anterior, então o bot nasce com average_price coerente com a
 // primeira cotação que o ativo vai ter. Idempotente: ensureBotAccount/
 // ensureBotPosition pulam o que já existe, mesma convenção de ensureAsset.
-func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, ensurer *coverage.Ensurer, assets []botAssetSeed) {
+func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, coverageLister coverage.MarketMakerLister, ensurer *coverage.Ensurer, assets []botAssetSeed, poolSize int) {
 	bots := map[string]*botHolding{}
-	for i := 0; i < botOtherBotCount; i++ {
+	for i := 0; i < poolSize; i++ {
 		bots[otherBotUserID(i)] = &botHolding{positions: map[string]int64{}}
+	}
+
+	// Ativo já coberto por um Market Maker já teve o float distribuído entre os
+	// bots do pool daquela época (tarefa Q.2): não se redistribui, senão um pool
+	// maior estouraria position.ValidateFloatCeiling. Bot novo de um banco já
+	// semeado entra só com caixa e compra.
+	alreadyDistributed := map[string]bool{}
+	marketMakers, err := coverageLister.ListMarketMakers(ctx)
+	if err != nil {
+		log.Fatalf("erro ao listar Market Makers: %v", err)
+	}
+	for _, mm := range marketMakers {
+		for _, assetID := range mm.CoveredAssetIDs {
+			alreadyDistributed[assetID] = true
+		}
 	}
 
 	// outstandingSharesByAsset alimenta a validação de teto
@@ -500,6 +520,13 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, en
 	for _, asset := range assets {
 		outstandingSharesByAsset[asset.AssetID] = asset.OutstandingShares
 	}
+
+	// meanBotValue é o valor médio de posição de um bot do pool sobre todo o
+	// catálogo (coberto ou não), referência de caixa para um bot que nasce sem
+	// posição num banco já semeado.
+	var meanBotValue float64
+	var newlyDistributed []botAssetSeed
+	allocations := map[string]bot.Allocation{}
 
 	for _, asset := range assets {
 		// O float que os bots podem receber é outstanding_shares menos o
@@ -519,15 +546,53 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, en
 			log.Printf("ativo %s: humanos já detêm %d/%d do float — nada sobrou pros bots, pulando", asset.AssetID, humanHoldings, asset.OutstandingShares)
 			continue
 		}
+		meanBotValue += float64(botAvailableFloat) * (1 - botMarketMakerSharePct) / float64(poolSize) * tick.DefaultInitialPrice
 
-		allocation, err := bot.InitialAllocation(asset.AssetID, botAvailableFloat, botMarketMakerSharePct, botOtherBotCount, botSeed)
+		if alreadyDistributed[asset.AssetID] {
+			log.Printf("ativo %s já distribuído entre os bots — pulando", asset.AssetID)
+			continue
+		}
+
+		allocation, err := bot.InitialAllocation(asset.AssetID, botAvailableFloat, botMarketMakerSharePct, poolSize, botSeed)
 		if err != nil {
 			log.Fatalf("erro ao calcular alocação inicial de bots pro ativo %s: %v", asset.AssetID, err)
 		}
+		allocations[asset.AssetID] = allocation
+		newlyDistributed = append(newlyDistributed, asset)
 
-		// A fatia do grupo Market Maker não vai mais pra uma conta fixa: quem
-		// cobre o ativo é decidido pela cobertura (P.2), que também cria um
-		// Market Maker novo quando os existentes estão no teto.
+		for i, shares := range allocation.Others {
+			holder := bots[otherBotUserID(i)]
+			holder.positions[asset.AssetID] = shares
+			holder.positionValue += float64(shares) * tick.DefaultInitialPrice
+		}
+	}
+
+	// Bots primeiro, cobertura depois: se o seed cair no meio, o ativo continua
+	// sem cobertura e a próxima execução redistribui (idempotente, as posições
+	// que já existem são puladas) em vez de deixar o ativo coberto e sem bots.
+	minimumCash := tick.DefaultInitialPrice * botMinimumOrderShares
+	for i := 0; i < poolSize; i++ {
+		userID := otherBotUserID(i)
+		holding := bots[userID]
+		value := holding.positionValue
+		if value == 0 {
+			value = meanBotValue
+		}
+		ensureBotAccount(ctx, accountRepo, userID, bot.InitialCash(value, minimumCash, false))
+
+		for assetID, quantity := range holding.positions {
+			if quantity == 0 {
+				continue
+			}
+			ensureBotPosition(ctx, accountRepo, userID, assetID, int(quantity), tick.DefaultInitialPrice, outstandingSharesByAsset[assetID])
+		}
+	}
+
+	// Cobertura de Market Maker (P.2): quem cobre o ativo é decidido pela
+	// cobertura, que também cria um Market Maker novo quando os existentes
+	// estão no teto.
+	for _, asset := range newlyDistributed {
+		allocation := allocations[asset.AssetID]
 		result, err := ensurer.EnsureCoverage(ctx, coverage.Input{
 			AssetID:           asset.AssetID,
 			OutstandingShares: asset.OutstandingShares,
@@ -537,30 +602,7 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, en
 		if err != nil {
 			log.Fatalf("erro ao garantir cobertura de Market Maker do ativo %s: %v", asset.AssetID, err)
 		}
-		if result.Provisioned {
-			log.Printf("ativo %s coberto pelo Market Maker %s (%d unidades)", asset.AssetID, result.MarketMakerID, allocation.MarketMaker)
-		} else {
-			log.Printf("ativo %s já coberto pelo Market Maker %s — pulando", asset.AssetID, result.MarketMakerID)
-		}
-
-		for i, shares := range allocation.Others {
-			holder := bots[otherBotUserID(i)]
-			holder.positions[asset.AssetID] = shares
-			holder.positionValue += float64(shares) * tick.DefaultInitialPrice
-		}
-	}
-
-	minimumCash := tick.DefaultInitialPrice * botMinimumOrderShares
-	for userID, holding := range bots {
-		cash := bot.InitialCash(holding.positionValue, minimumCash, false)
-		ensureBotAccount(ctx, accountRepo, userID, cash)
-
-		for assetID, quantity := range holding.positions {
-			if quantity == 0 {
-				continue
-			}
-			ensureBotPosition(ctx, accountRepo, userID, assetID, int(quantity), tick.DefaultInitialPrice, outstandingSharesByAsset[assetID])
-		}
+		log.Printf("ativo %s coberto pelo Market Maker %s (%d unidades)", asset.AssetID, result.MarketMakerID, allocation.MarketMaker)
 	}
 }
 
@@ -648,10 +690,20 @@ var botDirectionalArchetypes = []bot.Archetype{bot.ArchetypeRuido, bot.Archetype
 // sabem mais que outros" sem hardcodar um valor igual pra todos.
 // Idempotente: ensureBotPersonality pula bots que já têm personalidade
 // persistida, mesma convenção de ensureBotAccount/ensureBotPosition.
-func seedBotPersonalities(ctx context.Context, repo *db.BotRepository) {
-	assignments, err := bot.AssignSpecializations(botDirectionalArchetypes, sixFixedSectors, nonEquityAssetClasses, botOtherBotCount)
+func seedBotPersonalities(ctx context.Context, repo *db.BotRepository, poolSize int) {
+	// Os legacyPoolSize primeiros bots mantêm a distribuição e o sorteio de
+	// conhecimento de sempre (o seed real não muda). Os bots acima dele (tarefa
+	// Q.2, catálogo maior) repetem ciclicamente a especialização dos originais,
+	// então a proporção entre arquétipos e a cobertura de todo setor e classe de
+	// ativo se mantêm por construção, e crescer o pool nunca altera um bot que já
+	// existe. O sorteio de conhecimento deles é próprio por bot.
+	legacy, err := bot.AssignSpecializations(botDirectionalArchetypes, sixFixedSectors, nonEquityAssetClasses, legacyPoolSize)
 	if err != nil {
-		log.Fatalf("erro ao distribuir especialização entre os %d bots direcionais: %v", botOtherBotCount, err)
+		log.Fatalf("erro ao distribuir especialização entre os %d bots direcionais: %v", legacyPoolSize, err)
+	}
+	assignments := append([]bot.SpecializationAssignment{}, legacy...)
+	for i := legacyPoolSize; i < poolSize; i++ {
+		assignments = append(assignments, legacy[i%legacyPoolSize])
 	}
 
 	knowledgeRNG := rand.New(rand.NewSource(botSeed))
@@ -668,7 +720,12 @@ func seedBotPersonalities(ctx context.Context, repo *db.BotRepository) {
 
 		var knowledgeLevel *float64
 		if assignment.Archetype == bot.ArchetypeFundamentalista {
-			level := knowledgeRNG.Float64()
+			var level float64
+			if i < legacyPoolSize {
+				level = knowledgeRNG.Float64()
+			} else {
+				level = rand.New(rand.NewSource(botSeed + int64(i))).Float64()
+			}
 			knowledgeLevel = &level
 		}
 
