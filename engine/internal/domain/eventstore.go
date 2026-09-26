@@ -38,6 +38,10 @@ const (
 	// projetar posições e outstanding_shares.
 	EventETFCreation   MarketEventType = "etf_creation"
 	EventETFRedemption MarketEventType = "etf_redemption"
+	// EventETFDividendPayout é o débito do caixa do fundo quando ele paga o provento
+	// aos cotistas (tarefa R.8, migration 000030): quantidade = cotas que recebem,
+	// unit_value = valor por cota.
+	EventETFDividendPayout MarketEventType = "etf_dividend_payout"
 	// EventETFShareTransfer (R.4, migration 000028) é a cota de ETF passando do
 	// Participante Autorizado ao Market Maker, em espécie e com quantidade com
 	// sinal (delta da posição da conta).

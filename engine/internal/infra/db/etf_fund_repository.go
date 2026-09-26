@@ -286,3 +286,25 @@ func (r *ETFFundRepository) ProvisionCash(ctx context.Context, accountID string,
 	}
 	return tx.Commit()
 }
+
+// ListShareHolders devolve, por ETF, as cotas de cada conta (positions), numa
+// consulta em lote: o snapshot de elegibilidade de um provento na data-ex (R.8).
+func (r *ETFFundRepository) ListShareHolders(ctx context.Context, etfAssetIDs []string) (map[string][]tick.PositionHolder, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT asset_id, user_id, quantity FROM positions
+		 WHERE asset_id = ANY($1) AND quantity > 0 ORDER BY asset_id, user_id`, pq.Array(etfAssetIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	holders := map[string][]tick.PositionHolder{}
+	for rows.Next() {
+		var assetID string
+		var h tick.PositionHolder
+		if err := rows.Scan(&assetID, &h.UserID, &h.Quantity); err != nil {
+			return nil, err
+		}
+		holders[assetID] = append(holders[assetID], h)
+	}
+	return holders, rows.Err()
+}

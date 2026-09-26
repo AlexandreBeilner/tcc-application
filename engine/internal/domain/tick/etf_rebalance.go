@@ -31,6 +31,7 @@ func (s *Service) rebalanceETFs(ctx context.Context, run *roundRun) (bool, error
 	traded := false
 	for _, id := range ids {
 		fund := run.etfFunds[id]
+		fund.Cash, fund.Liabilities = 0, 0
 		prices, ok := rebalancePrices(fund, run)
 		if !ok {
 			continue
@@ -47,7 +48,10 @@ func (s *Service) rebalanceETFs(ctx context.Context, run *roundRun) (bool, error
 			log.Printf("rebalanceamento do ETF %s adiado: %v", id, err)
 			continue
 		}
-		cash := fund.Cash
+		// O caixa do fundo é dividendo dos constituintes esperando distribuição aos
+		// cotistas (R.8), então o rebalanceamento não o toca: os pesos saem só das
+		// posições e a compra usa apenas o que as vendas do próprio rebalanceamento geram.
+		cash := 0.0
 		for _, o := range orders {
 			quantity := o.Quantity
 			if o.Side == orderbook.SideBuy {

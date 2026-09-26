@@ -18,7 +18,12 @@ type fakeETFFunds struct {
 	candidates []etf.MarketMakingCandidate
 	indexes    map[string]float64
 	rebalanced map[string]int
+	holders    map[string][]PositionHolder
 	err        error
+}
+
+func (f *fakeETFFunds) ListShareHolders(context.Context, []string) (map[string][]PositionHolder, error) {
+	return f.holders, f.err
 }
 
 func (f *fakeETFFunds) MarkRebalanced(_ context.Context, etfAssetID string, day int) error {
@@ -214,10 +219,10 @@ func TestClosingETFNAVs(t *testing.T) {
 		{ETFAssetID: "etf3", Shares: 1000, Holdings: []etf.FundHolding{{AssetID: "a", Quantity: 1}}},
 	}}})
 
-	got, err := svc.closingETFNAVs(context.Background(),
+	got, _, err := svc.closingETFNAVs(context.Background(),
 		map[string]float64{"a": 10, "b": 15},
 		map[string]float64{"etf1": 13.2, "etf2": 1},
-		map[string]float64{"a": 10, "b": 15})
+		map[string]float64{"a": 10, "b": 15}, false, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -236,7 +241,7 @@ func TestClosingETFNAVs(t *testing.T) {
 
 func TestClosingETFNAVs_SemWithETF(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
-	got, err := svc.closingETFNAVs(context.Background(), nil, nil, nil)
+	got, _, err := svc.closingETFNAVs(context.Background(), nil, nil, nil, false, 0)
 	if err != nil || got != nil {
 		t.Errorf("got = %v, err = %v, want nil, nil", got, err)
 	}

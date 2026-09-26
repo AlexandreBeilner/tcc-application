@@ -258,6 +258,9 @@ type DividendRecord struct {
 	ValuePerShare float64
 	PaymentDay    int
 	Recipients    []PositionHolder
+	// FundLiability (R.8) é, num provento de ETF, o total que o fundo passa a dever
+	// na data-ex (valor por cota x cotas dos cotistas); zero nos demais ativos.
+	FundLiability float64
 }
 
 // NetWorthUpdate é o novo `fii_details.net_worth` de um FII tijolo pronto
@@ -290,6 +293,9 @@ type PendingDividendPayment struct {
 	ValuePerShare float64
 	PaymentDay    int
 	Recipients    []PositionHolder
+	// FundAccountID (R.8) é a conta do fundo quando o pagador é um ETF: o
+	// pagamento debita o caixa dela e quita o passivo; vazio nos demais ativos.
+	FundAccountID string
 }
 
 // Result é o resultado de um tick — o novo estado do calendário, as

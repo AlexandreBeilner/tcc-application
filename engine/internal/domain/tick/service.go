@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 
+	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -154,11 +155,12 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 			previousPrices[a.AssetID] = *a.LastPrice
 		}
 	}
-	etfNAVs, err := s.closingETFNAVs(ctx, closingPrices, etfPrices, previousPrices)
+	etfNAVs, etfDividends, err := s.closingETFNAVs(ctx, closingPrices, etfPrices, previousPrices, result.IsReportDay, result.State.Day+dividend.DefaultPaymentLagDays)
 	if err != nil {
 		return Result{}, err
 	}
 	result.ETFNAVs = etfNAVs
+	result.NewDividends = append(result.NewDividends, etfDividends...)
 	result.IntradayFillsCount = fillsExecuted
 	result.ExpiredOrdersCount = expiredOrdersCount
 	result.UncoveredAssetsCount = uncoveredAssets

@@ -24,6 +24,9 @@ type ETFFunds interface {
 	MarkRebalanced(ctx context.Context, etfAssetID string, day int) error
 	// LatestIndexValues devolve o último índice teórico gravado de cada ETF (R.7).
 	LatestIndexValues(ctx context.Context) (map[string]float64, error)
+	// ListShareHolders devolve, por ETF, as cotas que cada conta detém (R.8): o
+	// snapshot de elegibilidade de um provento de ETF na data-ex.
+	ListShareHolders(ctx context.Context, etfAssetIDs []string) (map[string][]PositionHolder, error)
 }
 
 // ETFCoverage garante a cobertura de Market Maker de um ativo (R.4);
@@ -162,22 +165,36 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 // dos constituintes; o ágio/deságio compara com o preço de fechamento do
 // próprio ETF (etfPrices); previousPrices (fechamento do dia anterior) faz o índice
 // teórico avançar um dia (R.7). ETF sem preço de fechamento ou com constituinte sem
-// preço fica de fora do dia.
-func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices, previousPrices map[string]float64) ([]ETFNAVEntry, error) {
+// preço fica de fora do dia. No dia de relatório (reportDay), cada fundo com caixa
+// livre também gera o provento aos cotistas (R.8, etfDividends), pago em
+// paymentDay; o passivo dele já entra no NAV do dia, então o NAV cai na data-ex.
+func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices, previousPrices map[string]float64, reportDay bool, paymentDay int) ([]ETFNAVEntry, []DividendRecord, error) {
 	if s.etf.Funds == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	funds, err := s.etf.Funds.ListFunds(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	indexes, err := s.etf.Funds.LatestIndexValues(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	var dividends []DividendRecord
+	if reportDay {
+		if dividends, err = s.etfDividends(ctx, funds, paymentDay); err != nil {
+			return nil, nil, err
+		}
+	}
+	newLiability := make(map[string]float64, len(dividends))
+	for _, d := range dividends {
+		newLiability[d.AssetID] = d.FundLiability
 	}
 	entries := make([]ETFNAVEntry, 0, len(funds))
 	for _, f := range funds {
-		nav, err := etf.NAVFromSnapshot(f, constituentPrices)
+		withDividend := f
+		withDividend.Liabilities += newLiability[f.ETFAssetID]
+		nav, err := etf.NAVFromSnapshot(withDividend, constituentPrices)
 		if err != nil {
 			log.Printf("NAV do ETF %s fora do dia: %v", f.ETFAssetID, err)
 			continue
@@ -192,7 +209,52 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 			IndexValue: index, TrackingErrorPct: etf.TrackingErrorPct(nav, index),
 		})
 	}
-	return entries, nil
+	return entries, dividends, nil
+}
+
+// etfDividends gera o provento de cada ETF com caixa livre (R.8): o fundo é
+// detentor dos constituintes e recebe os proventos deles no próprio caixa; no dia de
+// relatório distribui esse caixa (menos o que já deve de proventos anteriores) aos
+// cotistas na data-ex, em lote, como qualquer provento (mesmo snapshot de
+// elegibilidade e pagamento defasado). O total vira passivo do fundo (FundLiability)
+// e só sai do caixa no pagamento, então o dinheiro nunca é criado nem destruído.
+func (s *Service) etfDividends(ctx context.Context, funds []etf.FundSnapshot, paymentDay int) ([]DividendRecord, error) {
+	type candidate struct {
+		fund     etf.FundSnapshot
+		perShare float64
+	}
+	var candidates []candidate
+	var ids []string
+	for _, f := range funds {
+		if perShare := etf.DistributionPerShare(f.Cash, f.Liabilities, f.Shares); perShare > 0 {
+			candidates = append(candidates, candidate{f, perShare})
+			ids = append(ids, f.ETFAssetID)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	holders, err := s.etf.Funds.ListShareHolders(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]DividendRecord, 0, len(candidates))
+	for _, c := range candidates {
+		recipients := holders[c.fund.ETFAssetID]
+		var held int64
+		for _, h := range recipients {
+			held += int64(h.Quantity)
+		}
+		total := etf.DistributionTotal(c.perShare, held)
+		if held <= 0 || total > c.fund.Cash-c.fund.Liabilities {
+			continue
+		}
+		records = append(records, DividendRecord{
+			AssetID: c.fund.ETFAssetID, ValuePerShare: c.perShare, PaymentDay: paymentDay,
+			Recipients: recipients, FundLiability: total,
+		})
+	}
+	return records, nil
 }
 
 // coverETFs dá liquidez aos ETFs com cotas emitidas (tarefa R.4), antes das

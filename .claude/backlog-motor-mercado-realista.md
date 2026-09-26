@@ -3936,12 +3936,11 @@ negociação dos constituintes.
   (nenhum comando), deriva forte fora do calendário, compra limitada ao caixa da venda, constituinte fora do universo, sem `WithETF` e índice/tracking no NAV de fechamento.
   `golangci-lint` (0 issues), `go build`, `go test ./...` passam. **Validado ao vivo** (40 ticks no `SINT11`): rebalanceou nos dias 580, 594 e 608 (14 em 14), nenhuma ordem fora
   deles, 0 saldos negativos, cotas em posições iguais a `outstanding_shares`; tracking error entre -0,01% e +0,09% nos dias comuns (atrito e arredondamento, diferente de zero).
-- **Limites conhecidos:** (1) **o tracking error sobe em degrau (+7,5%, +16%, +25%) a cada ciclo de relatório** porque o dividendo dos constituintes cai no caixa do fundo
-  (pago em `SaveTick`, então o NAV o vê no dia seguinte) e o índice é só de preço; a R.8 distribui esse caixa e fecha o degrau, então até lá a métrica mistura dividendo retido
-  com atrito. (2) O rebalanceamento reinveste o caixa de dividendo do fundo (é o `cash` de `RebalanceOrders`), não só o giro da carteira. (3) Não medi o custo em comandos por
+- **Limites conhecidos:** (1) **(Na R.7 original) o tracking error subia em degrau (+7,5%, +16%, +25%) a cada ciclo de relatório** porque o dividendo dos constituintes cai no caixa do fundo
+  (pago em `SaveTick`, então o NAV o vê no dia seguinte) e o índice é só de preço; a R.8 distribui esse caixa (feita), então o degrau virou oscilação. (2) (Corrigido na R.8) o rebalanceamento chegou a reinvestir o caixa de dividendo do fundo; agora usa só as posições e o que as vendas geram. (3) Não medi o custo em comandos por
   tick com 1, 5 e 10 ETFs (R.12); sem gatilho o custo é 0 comando. (4) A exposição de `index_value`/`tracking_error_pct` na API e na tela fica para a R.11.
 
-### R.8 · Dividendos distribuídos aos cotistas
+### R.8 · Dividendos distribuídos aos cotistas ✅
 - **Descrição:** o fundo é detentor dos constituintes, então já recebe os dividendos deles pelo pagamento em lote existente
   (`dividend_payment` no caixa do fundo). O ETF passa a ser **pagador de provento**: no dia de relatório ele gera um
   `dividend_event` do ETF cujo valor por cota é o caixa de dividendos acumulado dividido pelas cotas, com os cotistas
@@ -3952,6 +3951,20 @@ negociação dos constituintes.
   `.docs/engine/tick.md` ajustados (`tick_repository.go:267` hoje diz que ETF nunca é pagador); custo do pagamento
   independente do número de cotistas.
 - **Dependências:** R.3.
+- **Entregável (2026-09-26):** `etf/dividend.go` (`DistributionPerShare`, `DistributionTotal`), migration `000030` (evento `etf_dividend_payout`), `tick.etfDividends`
+  (chamado por `closingETFNAVs` no dia de relatório, que agora devolve também os `DividendRecord`s do ETF, somados a `Result.NewDividends`), `DividendRecord.FundLiability` e
+  `PendingDividendPayment.FundAccountID`. `saveNewDividends` soma o total a `etf_details.dividends_payable` na data-ex (só quando há passivo) e `payDueDividends` chama
+  `debitFundForPayout` (evento antes, depois débito do caixa do fundo e quitação do passivo). O NAV do dia da data-ex já inclui o passivo. `ETFFunds.ListShareHolders` (1 consulta em
+  lote). **Decisão de sessão:** o rebalanceamento da R.7 passou a ignorar o caixa do fundo (pesos só das posições, compra só com o que a venda gera), porque senão ele reinvestia o
+  dividendo dos constituintes no mesmo dia em que o fundo o distribuiria (visto ao vivo: o primeiro ciclo distribuiu R$ 0,13 por cota).
+- **Testes:** `DistributionPerShare` table-driven e o total nunca acima do caixa; no tick, distribuição do caixa livre com NAV caindo na data-ex, fora do dia de relatório (nada), sem
+  caixa livre (passivo anterior já cobre o caixa), arredondamento para baixo e o rebalanceamento sem tocar o caixa do fundo. `golangci-lint` (0 issues), `go build`, `go test ./...`
+  passam. **Validado ao vivo** (45 ticks): 5 proventos do `SINT11`; passivo zera no pagamento; **soma dos `etf_dividend_payout` (R$ 640.889,38) igual à soma dos `dividend_payment` pagos
+  aos cotistas do ETF (R$ 640.889,38)**; 0 saldos negativos; cotas em posições iguais a `outstanding_shares`; NAV cai na data-ex (por exemplo 479 para 447).
+- **Limites conhecidos:** (1) o NAV faz **dente de serra de ~14 dias**: sobe quando o dividendo dos constituintes chega ao caixa (data de pagamento deles) e cai na data-ex do ETF,
+  no ciclo seguinte; um ETF real distribui em janelas semelhantes, mas aqui o degrau é grande porque o dividendo sintético dos constituintes é alto. (2) O índice teórico da R.7 é só
+  de preço, então o tracking error passa a oscilar (cerca de 43% a 54% no teste) em vez de crescer sem limite; torná-lo retorno total é da R.11/R.12. (3) O dividendo de ETF não tem
+  IR (fora de escopo, decisão do autor em 2026-09-26). (4) Não medi o custo por tick com 1, 5 e 10 ETFs (R.12).
 
 ### R.9 · Taxa de administração
 - **Descrição:** o fundo acumula diariamente `expense_ratio_pct` (ao ano, sobre o patrimônio) como passivo, o que reduz o NAV;

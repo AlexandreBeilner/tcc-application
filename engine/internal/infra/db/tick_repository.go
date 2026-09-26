@@ -12,6 +12,7 @@ import (
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
+	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/eventstore"
@@ -264,8 +265,9 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // preenchido pro perfil papel (G.3). ShareClass (tarefa J.2) só vem
 // preenchido pra "acao" (via.share_class, "ON"/"PN") — usado por
 // dividendRecordsForCycle pra separar o valor por ação de cada classe.
-// ETF nunca aparece aqui — não é pagador de provento nesta fase (só ação e
-// FII, RF21/lição 2.7).
+// ETF não aparece aqui: o provento dele nasce do caixa do fundo, não de um
+// indicador do ativo, e é gerado por tick.Service (etfDividends, tarefa R.8), com
+// o snapshot de cotistas de ETFFundRepository.ListShareHolders.
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
@@ -333,7 +335,10 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 // == newDay) e creditar cada Recipient.
 func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tick.PendingDividendPayment, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, asset_id, value_per_share, payment_day FROM dividend_events WHERE paid = false ORDER BY payment_day`,
+		`SELECT de.id, de.asset_id, de.value_per_share, de.payment_day, ed.fund_account_id
+		 FROM dividend_events de
+		 LEFT JOIN etf_details ed ON ed.asset_id = de.asset_id
+		 WHERE de.paid = false ORDER BY de.payment_day`,
 	)
 	if err != nil {
 		return nil, err
@@ -344,9 +349,11 @@ func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tic
 	byID := make(map[string]*tick.PendingDividendPayment)
 	for rows.Next() {
 		var p tick.PendingDividendPayment
-		if err := rows.Scan(&p.ID, &p.AssetID, &p.ValuePerShare, &p.PaymentDay); err != nil {
+		var fundAccountID sql.NullString
+		if err := rows.Scan(&p.ID, &p.AssetID, &p.ValuePerShare, &p.PaymentDay, &fundAccountID); err != nil {
 			return nil, err
 		}
+		p.FundAccountID = fundAccountID.String
 		byID[p.ID] = &p
 		ids = append(ids, p.ID)
 	}
@@ -584,6 +591,17 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, records []tick.DividendRe
 			return err
 		}
 
+		if rec.FundLiability > 0 {
+			// Provento de ETF (R.8): o total vira passivo do fundo na data-ex, então o NAV
+			// cai agora; o caixa só sai no pagamento.
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE etf_details SET dividends_payable = dividends_payable + $1 WHERE asset_id = $2`,
+				rec.FundLiability, rec.AssetID,
+			); err != nil {
+				return err
+			}
+		}
+
 		if len(rec.Recipients) > 0 {
 			// Um INSERT por evento de dividendo (tarefa Q.6), não um por detentor.
 			userIDs := make([]string, len(rec.Recipients))
@@ -611,6 +629,11 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, records []tick.DividendRe
 // defensivo de macro_events.status = 'aplicado').
 func payDueDividends(ctx context.Context, tx *sql.Tx, payments []tick.PendingDividendPayment) error {
 	for _, p := range payments {
+		if p.FundAccountID != "" {
+			if err := debitFundForPayout(ctx, tx, p); err != nil {
+				return err
+			}
+		}
 		if len(p.Recipients) > 0 {
 			// Tarefa Q.6: dois comandos por dividendo pago (os eventos em lote e a
 			// projeção dos saldos em lote), não dois por detentor. Os eventos
@@ -652,4 +675,40 @@ func payDueDividends(ctx context.Context, tx *sql.Tx, payments []tick.PendingDiv
 		}
 	}
 	return nil
+}
+
+// debitFundForPayout tira do caixa do fundo o que um provento de ETF paga aos
+// cotistas e quita o passivo criado na data-ex (tarefa R.8). O evento
+// etf_dividend_payout é gravado antes de projetar o saldo (Event Sourcing); o total
+// é o mesmo (em centavos exatos) que os cotistas recebem, então o dinheiro sai do
+// fundo e entra nas contas sem ser criado nem destruído. Se o caixa não cobrir o
+// total, o CHECK de saldo não negativo aborta o tick inteiro, sinalizando estado
+// corrompido, nunca um pagamento a descoberto.
+func debitFundForPayout(ctx context.Context, tx *sql.Tx, p tick.PendingDividendPayment) error {
+	var held int64
+	for _, r := range p.Recipients {
+		held += int64(r.Quantity)
+	}
+	total := etf.DistributionTotal(p.ValuePerShare, held)
+	shares := int(held)
+	if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
+		UserID:    p.FundAccountID,
+		AssetID:   &p.AssetID,
+		EventType: domain.EventETFDividendPayout,
+		Quantity:  &shares,
+		UnitValue: &p.ValuePerShare,
+	}); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE accounts SET current_balance = current_balance - $1, updated_at = now() WHERE user_id = $2`,
+		total, p.FundAccountID,
+	); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx,
+		`UPDATE etf_details SET dividends_payable = GREATEST(dividends_payable - $1, 0) WHERE asset_id = $2`,
+		total, p.AssetID,
+	)
+	return err
 }

@@ -122,9 +122,9 @@ func TestClosingETFNAVs_IndiceAvancaEMedeTracking(t *testing.T) {
 		indexes: map[string]float64{"etf1": 10},
 	}})
 
-	got, err := svc.closingETFNAVs(context.Background(),
+	got, _, err := svc.closingETFNAVs(context.Background(),
 		map[string]float64{"a": 11, "b": 10}, map[string]float64{"etf1": 10},
-		map[string]float64{"a": 10, "b": 10})
+		map[string]float64{"a": 10, "b": 10}, false, 0)
 	if err != nil || len(got) != 1 {
 		t.Fatalf("got = %+v, err = %v", got, err)
 	}
