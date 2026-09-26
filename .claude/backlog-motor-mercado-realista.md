@@ -2928,6 +2928,8 @@ em vez de só no fechamento do dia.
   `docker compose` ao vivo, nunca por teste automatizado. Decisão do autor: **O.2 segue essa mesma
   convenção existente, sem gap novo a registrar** — não abrir tarefa nem entrada em
   `pontos-em-aberto-decisao-produto.md` pra isso.
+- **Atualização (tarefa P.5):** a expiração por dia deixou de valer para ordem de Market Maker ativo, cuja cotação
+  é "de pé" (ver P.5 e `.docs/engine/orders.md`). Day order continua valendo para todo o resto.
 
 ### O.3 · `order_id` na resposta, listagem de ordens e motivo do cancelamento ✅
 
@@ -3206,21 +3208,52 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   Maker depois da última rodada (custo `ativos x ~26` statements, cabe no orçamento se a P.4 recotar só o lado
   consumido) ou processar o Market Maker por último na rodada.
 
-### P.4 · Manutenção de cotação
+### P.4 · Manutenção de cotação ✅
 - **Descrição:** função pura `NeedsRequote` (cotação boa = compra e venda em repouso dentro da tolerância
   do preço de referência, com quantidade restante acima do mínimo); leitura em lote das ordens em repouso
   por Market Maker; recotar só o lado consumido, vencido ou fora da tolerância, no lugar do "cancelar tudo".
 - **Critérios de aceite:** cotação boa não gera cancelamento nem submissão; lado consumido é recotado;
   regime estável dentro do orçamento (média de até 12 comandos SQL por ativo-rodada, seção 6.1).
 - **Referências:** proposta seção 3.6. **Dependências:** P.3.
+- **Entregável (sessão 2026-09-23):** `bot.NeedsRequote` (pura, lado a lado: sem ordem, fora da tolerância ou
+  quantidade restante abaixo do mínimo), `bot.MarketMakerQuotePrices` (os preços ideais, reaproveitados por
+  `DecideMarketMakerOrders`), `bot.EffectiveQuoteTolerance` (0,5%, limitada a 1/4 do spread para o lado
+  mantido nunca cruzar o ideal do outro e o Market Maker não negociar contra si mesmo) e `bot.MinQuoteQuantity`.
+  `OrderLifecycleManager` trocou `CancelUserRestingOrders` por `ListRestingOrders` (uma consulta por
+  Market Maker e rodada, `= ANY`) e `CancelRestingOrders` (por ID, `cancel_reason = 'requoted'`).
+  `runIntradayRounds` chama `maintainMarketMakerQuotes` por Market Maker e rodada e faz uma **passada final**
+  depois da última rodada (fecha o caso do `PAPL11` do achado da P.3). `AssetForPricing.OutstandingShares`
+  alimenta o mínimo sem leitura extra por ativo. **Medição (A/B em bancos clonados do mesmo estado, 25 ativos,
+  código do PR 1 contra o novo, 7 ticks com mais de uma rodada):** 13.558 contra 9.092 comandos SQL, **-33%**.
+  Com só os 5 ativos reais quase todo ativo é negociado em toda rodada e a redução some (o +5% do A/B de 5
+  ativos vem da passada final), o que confirma a diretriz de validar em catálogo maior. **Erro achado só
+  por essa medição:** o mínimo inicial era o piso inteiro do teto de ordem (0,4% do float), mas a cotação usa
+  metade dele, então uma cotação recém-criada já nascia "vencida" e era refeita toda rodada; corrigido com
+  `MinQuoteQuantity` (teste de regressão incluso). **Pendente para a P.5/P.6:** o regime estável de 12
+  comandos por ativo-rodada só é alcançável com a P.5, porque enquanto a cotação expira por dia o primeiro
+  turno do dia recota tudo (dia de 1 rodada custou +82 no A/B); e a "quantidade mínima por lado = piso do float"
+  da P.6 conflita com a cotação de metade do teto, então a P.6 precisa decidir qual dos dois muda.
+  `golangci-lint`, `go build`, `go test ./...` passam; documentado em `.docs/engine/orders.md` e `tick.md`.
 
-### P.5 · Cotação de Market Maker não expira por dia
+### P.5 · Cotação de Market Maker não expira por dia ✅
 - **Descrição:** `ExpireStaleOrders` deixa de cancelar ordens do arquétipo Market Maker; a recotação as
   substitui com o `cancel_reason` já existente. Exceção documentada à regra de ordem Day (O.2).
 - **Critérios de aceite:** a cotação atravessa a virada de dia; ordem de qualquer outro bot continua
   expirando; exceção documentada em `.docs/engine/orders.md`, `.docs/engine/tick.md` e na O.2.
 - **Referências:** proposta seção 3.7. **Dependências:** P.4 (a manutenção é o que impede acúmulo de
   cotação velha).
+- **Entregável (sessão 2026-09-23):** `OrderExecutionRepository.ExpireStaleOrders` ganhou
+  `AND NOT EXISTS (Market Maker ativo dono da ordem)`. Decisão de sessão: só Market Maker **ativo** tem a
+  exceção, então desativar um bot tira a cotação dele do book no tick seguinte sem ninguém cancelar à mão
+  (a proposta dizia "quando o bot é desativado" sem dizer quem cancela, e não existe caminho de desativação
+  no repositório ainda). Validado ao vivo: cotações de Market Maker com 1 a 3 dias de idade em repouso, no
+  máximo 1 ordem por (ativo, lado), todos os cancelamentos do Market Maker em 8 dias com motivo `requoted`
+  (nenhum `expired`); Market Maker desativado: cotações expiram no tick seguinte e `uncovered_assets_count`
+  sobe para 5; **cenário do achado 013 (compra e venda de 100 a mercado logo após o tick) preenche nos 5
+  ativos**, incluindo o `PAPL11` que falhava depois da P.3. Documentado em `.docs/engine/orders.md`,
+  `tick.md` e na O.2 (abaixo). **Ponto em aberto para a Fase N:** ordem de Market Maker de um ativo que ele
+  deixou de cobrir (reatribuição) fica no book até o painel cancelá-la; a reatribuição precisa incluir
+  esse cancelamento.
 
 ### P.6 · Obrigações do formador (fecha o achado 002)
 - **Descrição:** teto de spread de 0,10 validado em `NewRiskProfile` (valor ilustrativo, seção 3.8) e

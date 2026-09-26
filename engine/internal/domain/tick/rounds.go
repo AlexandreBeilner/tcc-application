@@ -22,6 +22,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 )
 
@@ -171,13 +172,12 @@ type OrderSubmitter interface {
 	SubmitWithContext(ctx context.Context, req orderexecution.Request, execCtx orderexecution.Context) (orderexecution.Outcome, error)
 }
 
-// OrderLifecycleManager agrupa as duas operações de ciclo de vida de ordem
-// do achado 005 parte A (pontos-em-aberto-decisao-produto.md) que tocam
-// order_book fora do caminho normal de matching (orderexecution.Execute):
-// expirar ordens obsoletas entre dias simulados e cancelar a cotação
-// anterior de um Market Maker antes de recotar dentro do mesmo dia.
-// Implementado por *db.OrderExecutionRepository (mesma tabela order_book
-// que OrderContextLoader/OrderSubmitter já tocam).
+// OrderLifecycleManager agrupa as operações de ciclo de vida de ordem que
+// tocam order_book fora do caminho normal de matching
+// (orderexecution.Execute): expirar ordens obsoletas entre dias simulados
+// (achado 005 parte A.3) e manter a cotação do Market Maker (achado 005 A.4,
+// refeito na tarefa P.4). Implementado por *db.OrderExecutionRepository
+// (mesma tabela order_book que OrderContextLoader/OrderSubmitter já tocam).
 type OrderLifecycleManager interface {
 	// ExpireStaleOrders cancela toda ordem pending/partially_filled de um
 	// dia simulado anterior a currentSimulatedDay — chamado por
@@ -185,11 +185,14 @@ type OrderLifecycleManager interface {
 	// por runIntradayRounds em si. Devolve quantas ordens expiraram, só
 	// pra observabilidade (Result.ExpiredOrdersCount).
 	ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error)
-	// CancelUserRestingOrders cancela toda ordem pending/partially_filled
-	// de userID em assetID — chamado por runIntradayRounds logo antes de
-	// um bot ArchetypeMarketMaker recotar, pra nunca acumular mais de 1
-	// ordem de compra + 1 de venda pendente por ativo (achado 005 A.4).
-	CancelUserRestingOrders(ctx context.Context, userID, assetID string) error
+	// ListRestingOrders devolve, numa consulta só, as ordens
+	// pending/partially_filled de userID em cada um de assetIDs, indexadas por
+	// ativo (P.4: leitura em lote por Market Maker, não uma por ativo).
+	ListRestingOrders(ctx context.Context, userID string, assetIDs []string) (map[string][]bot.RestingQuote, error)
+	// CancelRestingOrders cancela as ordens orderIDs com o motivo "requoted"
+	// (P.4): só o lado da cotação que o Market Maker vai substituir, não
+	// mais toda a cotação do ativo.
+	CancelRestingOrders(ctx context.Context, orderIDs []string) error
 }
 
 // businessRejection reporta se err é uma rejeição de negócio normal de
@@ -234,6 +237,10 @@ type equityRoundState struct {
 	// (case ArchetypeFundamentalista) pra decidir se o premium de dividendo
 	// da PN entra na estimativa de preço justo deste ativo.
 	ShareClass *string
+	// OutstandingShares é o float do ativo (nil se desconhecido), usado para o
+	// mínimo de quantidade restante de uma cotação de Market Maker (P.4)
+	// sem precisar de uma leitura por ativo.
+	OutstandingShares *int64
 }
 
 // roundSeed deriva uma seed determinística e independente por (dia, rodada,
@@ -283,7 +290,7 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 			price = *a.LastPrice
 		}
 
-		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price, ShareClass: a.ShareClass}
+		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price, ShareClass: a.ShareClass, OutstandingShares: a.OutstandingShares}
 		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type)})
 	}
 	return equities, universe
@@ -524,11 +531,31 @@ func (s *Service) runIntradayRounds(
 
 	for _, round := range rounds {
 		for _, b := range roster {
+			if b.Personality.Archetype == bot.ArchetypeMarketMaker {
+				if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
+					return nil, nil, run.fillsExecuted, uncovered, err
+				}
+				continue
+			}
 			for _, assetID := range s.assetsForBot(b, universe, equities, dayIndex, round) {
 				if err := s.runBotOnAsset(ctx, run, round, b, assetID); err != nil {
 					return nil, nil, run.fillsExecuted, uncovered, err
 				}
 			}
+		}
+	}
+
+	// Passada final (P.4): o Market Maker é o primeiro do roster em cada
+	// rodada, então os bots direcionais podem consumir a cotação dele depois
+	// da última recotação do dia. Sem esta passada, o mercado fecharia sem
+	// contraparte no lado consumido (caso do achado 013). Com a manutenção de
+	// cotação, ela só custa escrita onde algo foi consumido.
+	for _, b := range roster {
+		if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+			continue
+		}
+		if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
 		}
 	}
 
@@ -612,19 +639,6 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 		return nil
 	}
 
-	// Achado 005 parte A.4: um Market Maker nunca deixa a própria cotação da
-	// rodada anterior pendurada — cancela antes de recotar o mesmo (bot,
-	// ativo), incondicionalmente (mesmo que bot.Decide abaixo não gere
-	// nenhuma ordem nova nesta rodada, ex: sem caixa nem posição). Os outros
-	// 3 arquétipos colocam uma ordem oportunista por sinal, não uma cotação
-	// contínua — não cancelar a deles entre rodadas é comportamento correto,
-	// não um gap.
-	if b.Personality.Archetype == bot.ArchetypeMarketMaker {
-		if err := s.orderLifecycle.CancelUserRestingOrders(ctx, b.UserID, assetID); err != nil {
-			return err
-		}
-	}
-
 	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
 	if err != nil {
 		return err
@@ -644,6 +658,12 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 		return nil
 	}
 
+	return s.submitDecisions(ctx, run, b, assetID, state, execCtx, decisions)
+}
+
+// submitDecisions envia as ordens decididas de um bot num ativo e atualiza o
+// preço de referência a cada fill. Rejeição de negócio só descarta a ordem.
+func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRound, assetID string, state *equityRoundState, execCtx orderexecution.Context, decisions []bot.Decision) error {
 	for i, d := range decisions {
 		req := orderexecution.Request{
 			UserID:   b.UserID,
@@ -681,4 +701,83 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 		}
 	}
 	return nil
+}
+
+// maintainMarketMakerQuotes é a vez de um Market Maker numa rodada (P.3/P.4):
+// lê numa consulta só as ordens em repouso de todos os ativos que cobre e
+// mantém a cotação de cada um, em ordem por ID.
+func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, b BotForRound) error {
+	assetIDs := s.assetsForBot(b, nil, run.equities, run.dayIndex, IntradayRound{})
+	if len(assetIDs) == 0 {
+		return nil
+	}
+
+	resting, err := s.orderLifecycle.ListRestingOrders(ctx, b.UserID, assetIDs)
+	if err != nil {
+		return err
+	}
+	for _, assetID := range assetIDs {
+		if err := s.maintainQuote(ctx, run, b, assetID, resting[assetID]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// maintainQuote mantém a cotação de um Market Maker em um ativo (tarefa P.4,
+// proposta-cobertura-market-maker.md seção 3.6). Cotação que ainda vale não
+// gera nenhum comando de banco: só o lado consumido, abaixo do mínimo ou fora
+// da tolerância do preço ideal é cancelado e recotado. Substitui o "cancelar
+// tudo e recotar tudo" do achado 005 A.4, que custava escrita proporcional ao
+// tamanho do catálogo em vez da atividade do mercado.
+func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) error {
+	state := run.equities[assetID]
+
+	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, state.Price)
+	if err != nil {
+		return nil
+	}
+	tolerance := bot.EffectiveQuoteTolerance(b.Personality.RiskProfile.SpreadWidthPct)
+	requoteBuy, requoteSell := bot.NeedsRequote(resting, idealBid, idealAsk, tolerance, bot.MinQuoteQuantity(b.Personality, minOrderSizeCeiling(state.OutstandingShares)))
+	if !requoteBuy && !requoteSell {
+		return nil
+	}
+
+	var staleIDs []string
+	for _, q := range resting {
+		if (q.Side == orderbook.SideBuy && requoteBuy) || (q.Side == orderbook.SideSell && requoteSell) {
+			staleIDs = append(staleIDs, q.ID)
+		}
+	}
+	if len(staleIDs) > 0 {
+		if err := s.orderLifecycle.CancelRestingOrders(ctx, staleIDs); err != nil {
+			return err
+		}
+	}
+
+	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
+	if err != nil {
+		return err
+	}
+	// O Market Maker é determinístico (sem seed) e não usa insumos além do
+	// preço, do caixa, da posição e do teto de ordem.
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	decisions, err := bot.Decide(b.Personality, input)
+	if err != nil {
+		return nil
+	}
+
+	toSubmit := make([]bot.Decision, 0, len(decisions))
+	for _, d := range decisions {
+		if (d.Side == orderbook.SideBuy && requoteBuy) || (d.Side == orderbook.SideSell && requoteSell) {
+			toSubmit = append(toSubmit, d)
+		}
+	}
+	return s.submitDecisions(ctx, run, b, assetID, state, execCtx, toSubmit)
 }

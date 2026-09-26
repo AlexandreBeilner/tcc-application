@@ -93,6 +93,10 @@ type AssetForPricing struct {
 	// preço justo desse ativo. nil (ou qualquer valor != "PN") conta como
 	// ON, mesma convenção de equityShareClassesByCompany.
 	ShareClass *string
+	// OutstandingShares é o float do ativo (variable_income_assets.
+	// outstanding_shares), nil se desconhecido — insumo do mínimo de
+	// quantidade restante da cotação de Market Maker (tarefa P.4).
+	OutstandingShares *int64
 }
 
 // CompanyForFundamentals é o insumo mínimo do catálogo que Advance precisa
