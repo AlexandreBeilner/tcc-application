@@ -10,7 +10,9 @@ correções cirúrgicas de Renda Fixa que não dependem do redesenho de bots (Fa
 IPCA visíveis pro usuário — histórico persistido, API, tela e lições novas (Fase M) — e um painel
 admin pra operar os bots de liquidez (Fase N). Fases M e N nasceram de um pedido do autor numa
 sessão posterior (2026-09-13) que revisou este backlog antes de começar a execução — não fazem
-parte da proposta original.
+parte da proposta original. As Fases O a Q vieram de achados de teste ponta a ponta (cancelamento de ordem, cobertura
+contínua de Market Maker, liquidez que escala com o catálogo) e a **Fase R** (2026-09-26) liga o ETF ao motor de negociação real,
+que as tarefas H.1 a H.4 deixaram só como funções puras.
 
 **Como usar este arquivo** — mesma disciplina dos outros dois backlogs do projeto:
 
@@ -3696,6 +3698,161 @@ Todos esses números são estimativas a validar na Q.4.
   `TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista` (falha no código anterior, passa no novo) e 4 testes de `Execute` da revalidação (fantasma, compra sem saldo, saldo consumido entre ordens do mesmo dono, dono que pode honrar); `golangci-lint`,
   `go build`, `go test ./...` passam.
 
+## Fase R — ETF no motor de negociação real (NAV, Participante Autorizado, rebalanceamento, dividendos)
+
+**Origem:** achado do teste ponta a ponta da Fase Q (2026-09-26): as tarefas H.1 a H.4 entregaram as funções puras de ETF
+(`internal/domain/etf/`: `NAV`, `RebalanceOrders`, `DecideAuthorizedParticipantAction`, cesta com `asset_id` real), mas **nada
+disso está ligado ao tick**. Hoje o preço do ETF ainda nasce do GBM (`equity.NextPrice`, `tick.go`), ele não tem book, bots nem
+Market Maker, não tem número de cotas (`outstanding_shares` é `NULL`), não reage a evento macro nem a balanço e não distribui
+nada. Isso é o oposto do que a Fase Q fez para ações e FIIs. A proposta (`proposta-motor-mercado-realista.md`, seção 5) já
+define o modelo (NAV + Participante Autorizado + rebalanceamento mecânico); esta fase é a **integração**, não um desenho novo.
+
+**Decisões do autor (2026-09-26):**
+1. **Dividendos dos constituintes são distribuídos aos cotistas** (não acumulados no NAV), pelo mesmo mecanismo de dividendo em
+   lote da Q.6. Não haverá opção de acumulação nesta fase.
+2. **Primeira versão da cesta: só Ação e FII, sem renda fixa.** O schema (`etf_holdings.asset_id`, H.4) e o seed atual **já
+   permitem** renda fixa na cesta: o `SINT11` tem 15% em `LFT2029`, hoje só decorativo (não entra em NAV nenhum). A R.1 muda o seed
+   para uma cesta só de Ação e FII e passa a **rejeitar** constituinte de renda fixa num ETF negociável; a capacidade do schema
+   fica intacta, e o ETF com renda fixa fica como tarefa de reserva (R.13) e não faz parte desta fase.
+3. **Fora de escopo:** IR sobre a venda de cotas (o motor só tem IR de renda fixa; ação e FII também não têm, então o ETF não
+   teria por que ter), acumulação de dividendo no NAV e ETF de renda fixa.
+
+**Princípios (herdados da Fase Q):** desenhar para catálogo que cresce (vários ETFs, cestas maiores), nunca dimensionar pelo
+único `SINT11`; custo de tick em comandos SQL proporcional à atividade (o Participante Autorizado só age fora de uma faixa
+morta, com teto diário), dentro do orçamento de 5.000 comandos por tick; nenhuma escrita de saldo, posição ou cota sem evento
+imutável antes (Event Sourcing); determinismo pela seed (RNF08); ETF nunca ganha multiplicador direto de preço, só reage pela
+negociação dos constituintes.
+
+### R.1 · Fundo como conta, modelo de dados e cesta v1 (Ação e FII)
+- **Descrição:** cada ETF ganha uma **conta de fundo** (`accounts`, mecânica, fora de ranking/social como todo bot) que detém a
+  cesta como posições reais nos constituintes e o caixa do fundo; o número de cotas passa a viver em
+  `variable_income_assets.outstanding_shares` do ETF e deixa de ser `NULL`. Migration: `etf_details` ganha `fund_account_id`,
+  `expense_ratio_pct`, `rebalance_frequency_days` e `last_rebalance_day`; tipos novos em `market_event_type`
+  (`etf_creation`, `etf_redemption`, uma linha por constituinte e uma pelas cotas) e o passivo de dividendo a pagar do fundo.
+  `etf.NewDetails` passa a validar cesta negociável só com Ação/FII (renda fixa rejeitada com erro próprio), e o seed do
+  `SINT11` vira uma cesta de ações e FII.
+- **Critérios de aceite:** seed idempotente; ETF sem constituinte de renda fixa; NAV calculável a partir das posições do fundo;
+  fundo nunca aparece em ranking, busca de amigos ou perfil; teste de validação da cesta (renda fixa rejeitada, duplicata
+  rejeitada, peso somando ~100%).
+- **Dependências:** nenhuma.
+
+### R.2 · Criação e resgate de cotas como operação atômica e sourced
+- **Descrição:** a primitiva que o Participante Autorizado e a emissão inicial usam. Criação: o AP entrega a cesta ao fundo
+  (posições do AP nos constituintes passam ao fundo) e recebe cotas novas (`outstanding_shares` sobe); resgate faz o inverso.
+  Tudo numa transação, com os eventos `etf_creation`/`etf_redemption` gravados **antes** de projetar posições e cotas, e a
+  checagem de float (A.3) valendo nos constituintes e no ETF: o total de cotas em posições é sempre igual a
+  `outstanding_shares`. Falha de saldo ou posição do AP aborta tudo (mesma revalidação da Q.11, rede de `CHECK` incluída).
+- **Critérios de aceite:** conservação (constituintes do AP mais os do fundo antes e depois; cotas emitidas = cotas em posições);
+  reconciliação de saldo e posição contra `market_events` continua com 0 divergências; teste de criação e de resgate com cesta
+  mista Ação+FII; rejeição atômica se o AP não tem a cesta.
+- **Dependências:** R.1.
+
+### R.3 · Emissão inicial por criação e NAV/iNAV ligado ao tick
+- **Descrição:** o ETF nasce (e todo ETF novo de um catálogo que cresce nasce) por uma **criação inicial** do AP, comprando a
+  cesta nos books dos constituintes com o caixa do AP (provisionado por Event Sourcing, como `bot_initial_cash`), sem
+  redistribuir o float de ações já alocado. NAV/iNAV calculado por `etf.NAV` a partir das posições do fundo e dos preços
+  correntes dos constituintes (preço de rodada em `equityRoundState`), a cada rodada e no fechamento. Persistência diária
+  (`etf_nav_history`: dia, NAV, preço de fechamento, ágio/deságio) e exposição no bloco de ETF de `GET /assets/{id}`
+  (documentar em `.docs/engine/catalog.md`).
+- **Critérios de aceite:** ETF novo com N cotas e NAV coerente com a cesta comprada; seed com ETF adicionado a um banco que já
+  roda deixa os bots e as posições antigas intactas; NAV recalculado a cada rodada sem comando SQL por constituinte além da
+  leitura em lote das posições do fundo (medir); determinismo.
+- **Dependências:** R.2.
+
+### R.4 · ETF entra no book real (fim do GBM)
+- **Descrição:** ETF entra no universo de negociação (`buildEquityUniverse`, hoje só Ação e FII), sai do GBM (`tick.go`) e passa
+  a formar preço pela última negociação. Cobertura de Market Maker (`market_maker_coverage`, teto de 10 ativos por MM) e
+  provisionamento das cotas do MM pela mesma criação da R.3. Escopo de bot por classe de ativo (`AssetClasses`, como o FII);
+  Fundamentalista não concorre (sem empresa, mesma regra do FII); peso do ETF no orçamento de turnos por valor de mercado
+  (cotas x preço); giro-alvo, piso de 1 turno por dia e teto de ordem sem histórico (Q.8, Q.9, Q.11) valendo para ele.
+- **Critérios de aceite:** ETF cotado dos dois lados todos os dias; nenhum dia sem negócio (piso rígido); volume dentro da faixa
+  do giro-alvo; compra e venda a mercado de um usuário preenchem (cenário do achado 013); custo por tick medido com 1, 5 e 10
+  ETFs.
+- **Dependências:** R.3.
+
+### R.5 · Market Maker do ETF ancorado no iNAV
+- **Descrição:** o formador de mercado de um ETF real cota em torno do iNAV, não do último preço. `MarketMakerQuotePrices`
+  recebe um preço de referência opcional (o iNAV do ETF); ações e FIIs seguem cotando pelo último preço. Manutenção de cotação
+  (P.4) passa a recotar quando o iNAV se move além da tolerância, não só quando o preço muda; spread e obrigações do formador
+  (P.6) valem também para o ETF.
+- **Critérios de aceite:** com os bots sem ordem, o preço do ETF fica dentro do spread do MM em torno do iNAV; ágio/deságio
+  médio medido pequeno num mercado calmo; teste da referência opcional sem mudar o preço das ações (mesma seed, mesmo mercado).
+- **Dependências:** R.4.
+
+### R.6 · Participante Autorizado ligado ao tick (arbitragem NAV x preço)
+- **Descrição:** ator mecânico (mesma conta/pipeline de ordens dos bots, `is_bot`) que roda depois das rodadas e usa
+  `DecideAuthorizedParticipantAction` (H.3): ágio além da faixa morta gera criação (compra a cesta, cria cotas e as vende),
+  deságio gera resgate. Executa a cesta pelo `orderexecution` nos books dos constituintes com a primitiva da R.2, escalando o
+  tamanho ao que os books absorvem (fill parcial reduz a arbitragem, nunca deixa criação pela metade). Teto diário de cotas
+  criadas ou resgatadas (fração do float do ETF) e só age fora da faixa morta, para o custo acompanhar a atividade e não o
+  tamanho do catálogo.
+- **Critérios de aceite:** com ágio induzido (ordem grande de compra de cotas), a arbitragem cria cotas e o preço volta ao NAV
+  dentro de N dias; com deságio, resgata; conservação e reconciliação da R.2 mantidas; comandos por tick medidos com 1, 5 e 10
+  ETFs dentro do orçamento; sem ágio, nenhum comando extra.
+- **Dependências:** R.2, R.4 (R.5 melhora o resultado, mas não é pré-requisito).
+
+### R.7 · Rebalanceamento periódico e tracking error
+- **Descrição:** a cada `rebalance_frequency_days` (padrão 14, o ciclo de relatório) e quando o peso de um constituinte deriva
+  além de um limite (variação forte de preço), o fundo calcula com `RebalanceOrders` (H.2) as ordens necessárias e as executa a
+  mercado na última rodada do dia (análogo ao leilão de fechamento), pela conta do fundo. Grava o **tracking error** contra o
+  índice teórico (pesos-alvo sem atrito) em `etf_nav_history`.
+- **Critérios de aceite:** teste table-driven "composição de partida, preços, pesos-alvo, ordens esperadas"; tracking error
+  medido e diferente de zero (atrito do spread e do timing); nenhuma ordem fora do dia de rebalanceamento ou de deriva; fundo
+  sem caixa negativo (venda antes de compra quando faltar caixa).
+- **Dependências:** R.3.
+
+### R.8 · Dividendos distribuídos aos cotistas
+- **Descrição:** o fundo é detentor dos constituintes, então já recebe os dividendos deles pelo pagamento em lote existente
+  (`dividend_payment` no caixa do fundo). O ETF passa a ser **pagador de provento**: no dia de relatório ele gera um
+  `dividend_event` do ETF cujo valor por cota é o caixa de dividendos acumulado dividido pelas cotas, com os cotistas
+  (usuários e bots) na data-ex e pagamento dias depois, em lote (`AppendBatchTx`, Q.6). O valor a pagar entra em passivos do
+  fundo (parâmetro `liabilities` do `NAV`), então o NAV cai na data-ex, como o preço de uma ação; o pagamento quita o passivo.
+- **Critérios de aceite:** soma dos pagamentos aos cotistas igual ao caixa de dividendos que o fundo recebeu (sem criar nem
+  destruir dinheiro); reconciliação de saldo com 0 divergências; NAV cai na data-ex e o passivo zera no pagamento; `tick` e
+  `.docs/engine/tick.md` ajustados (`tick_repository.go:267` hoje diz que ETF nunca é pagador); custo do pagamento
+  independente do número de cotistas.
+- **Dependências:** R.3.
+
+### R.9 · Taxa de administração
+- **Descrição:** o fundo acumula diariamente `expense_ratio_pct` (ao ano, sobre o patrimônio) como passivo, o que reduz o NAV;
+  a quitação sai do caixa do fundo e, quando faltar caixa, o rebalanceamento vende constituintes (R.7 já trata caixa
+  negativo). Gancho pedagógico do "cash drag" da proposta 5.4.
+- **Critérios de aceite:** NAV do fundo sem negociação cai a taxa esperada por dia (teste numérico); tracking error acompanha a
+  taxa; nenhum saldo negativo.
+- **Dependências:** R.3, R.7.
+
+### R.10 · Reação do ETF a evento macro e balanço (atenção derivada da cesta)
+- **Descrição:** o ETF nunca recebe efeito direto (proposta 2.3.2). Ele reage porque os constituintes se movem, o iNAV muda e o
+  arbitrador e o MM transmitem (R.5, R.6). Além disso, `applyEventAttention` (Q.10) passa a derivar a atenção do ETF da média
+  ponderada da atenção dos seus constituintes, para o volume do ETF subir quando a cesta está em evento.
+- **Critérios de aceite:** cinco eventos severos num setor presente na cesta movem o NAV e o preço do ETF em proporção ao peso
+  do setor; ETF sem constituinte afetado não muda; orçamento total de turnos inalterado (a atenção redistribui).
+- **Dependências:** R.4, R.6.
+
+### R.11 · Frontend, lições e documentação
+- **Descrição:** bloco de ETF do detalhe do ativo passa a mostrar NAV, ágio/deságio, tracking error e dividendos distribuídos,
+  além da composição; extrato e "Minhas Ordens" já cobrem o restante. Revisar o conteúdo da lição 2.9 (ETFs) para citar NAV,
+  ágio/deságio e o Participante Autorizado (só texto, sem mudar a estrutura da trilha). `.docs/engine/catalog.md`,
+  `.docs/engine/tick.md`, `.docs/backend/market.md`. Responsivo nos três breakpoints e sem travessão em texto de interface.
+- **Critérios de aceite:** tela conferida no navegador nos três breakpoints; sem valor absoluto de patrimônio de outro usuário
+  (RNF09); documentação de todo contrato novo no mesmo commit.
+- **Dependências:** R.3 (NAV e catálogo), R.7, R.8 (tracking error e dividendos).
+
+### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos
+- **Descrição:** o seed sintético (`--synthetic-assets`) ganha ETFs sintéticos; o `benchmark-cobertura.sh` mede, com 30, 50 e 100
+  ativos mais 1, 5 e 10 ETFs: comandos por tick, ágio/deságio médio e máximo, tracking error, cotas criadas e resgatadas por
+  dia, reação a cinco eventos severos na cesta e o cenário do achado 013. Teste ponta a ponta fora do caminho feliz: catálogo
+  crescendo com o mercado no ar, ETF adicionado depois, AP sem caixa, constituinte sem liquidez, ETF com um só constituinte,
+  ordens de usuário concorrentes com a arbitragem, determinismo (banco clonado), conciliação de saldo, posição e cotas.
+- **Critérios de aceite:** tick médio e p95 dentro de 5.000 comandos com 100 ativos e 10 ETFs; ágio médio abaixo de 1%;
+  conservação de constituintes e cotas; 0 saldos negativos; 0 divergências de conciliação; resultados registrados aqui.
+- **Dependências:** R.1 a R.10.
+
+### R.13 · (Reserva, não agendada) ETF com renda fixa na cesta
+- **Descrição:** cesta com Tesouro, CDB etc. exige marcação a mercado da renda fixa a cada rodada para o NAV e criação e resgate
+  em instrumentos que não têm book. Só se abre com decisão do autor; a Fase L (correções de renda fixa) é pré-requisito.
+- **Dependências:** R.12 e a Fase L.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -3735,3 +3892,7 @@ Todos esses números são estimativas a validar na Q.4.
     **Q.7** (medir a divisão do custo), **Q.8** (orçamento de turnos com piso rígido), **Q.9** (giro-alvo via tamanho de ordem)
     e **Q.10** (atenção por evento), e depois uma nova execução da Q.4. **Q.5** só se, depois disso, 100 ativos ainda passarem
     de 5.000 comandos por tick. Fecha o achado 014.
+18. **R.1 → R.2 → R.3** (fundo, criação/resgate e NAV), depois **R.4 → R.5** (ETF no book e Market Maker ancorado no iNAV),
+    **R.6** (Participante Autorizado), **R.7** (rebalanceamento), **R.8** (dividendos, só depende da R.3, pode entrar antes da R.6),
+    **R.9** (taxa de administração), **R.10** (atenção derivada da cesta), **R.11** (frontend, lições e docs) e **R.12** (validação
+    ponta a ponta e benchmark, fecha a fase). **R.13** só se o autor pedir. Sem dependência das Fases M e N.
