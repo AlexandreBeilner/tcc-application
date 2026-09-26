@@ -3490,7 +3490,7 @@ Todos esses números são estimativas a validar na Q.4.
   volume dependem do mesmo botão (o tamanho do pool) e cada ativo novo dilui os turnos dos outros. A Q.4 só fecha depois
   de Q.7 a Q.10, que corrigem isso, e de uma nova execução do benchmark (feita na Q.9, resultados no Entregável dela).
 
-### Q.5 · (Reserva) Sessão de tick em memória
+### Q.5 · (Reserva) Sessão de tick em memória ✅ (dispensada, não implementada)
 - **Descrição:** carregar o estado uma vez (saldos, posições e books), simular os turnos em memória e gravar em lote,
   de modo que o custo dependa dos fills e não dos turnos. Refatoração grande do caminho de execução, com Event
   Sourcing preservado. **O gatilho da Q.4 disparou (100 ativos, média de 5.335 comandos por tick), mas a tarefa fica em
@@ -3499,7 +3499,7 @@ Todos esses números são estimativas a validar na Q.4.
   com 100 ativos, então a Q.5 não é necessária no horizonte de 100 ativos** (reabrir se o catálogo passar muito disso).
 - **Dependências:** Q.7, Q.8, Q.9, Q.10 e nova execução da Q.4.
 
-### Q.6 · Dividendos em lote (custo que escala com bots x ativos)
+### Q.6 · Dividendos em lote (custo que escala com bots x ativos) ✅
 - **Origem:** achado no teste de fumaça da Q.3 (30 ativos, pool de 60): os picos de 5.654 comandos por tick caíam nos dias
   de pagamento de dividendo (5 dias depois de cada dia de relatório), com apenas 2 rodadas. Gerar o dividendo custava 1
   comando por detentor e pagá-lo 2 por detentor (evento e saldo), ou seja, **bots x ativos** comandos por pagamento: 63
