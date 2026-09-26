@@ -3756,7 +3756,7 @@ negociação dos constituintes.
   criou o fundo (evento `bot_initial_cash` de valor 0) e a segunda execução não mudou nada.
 - **Sem rota HTTP alterada** (o bloco de ETF de `GET /assets/{id}` só ganha NAV na R.3), então sem mudança em `.docs/engine/`.
 
-### R.2 · Criação e resgate de cotas como operação atômica e sourced
+### R.2 · Criação e resgate de cotas como operação atômica e sourced ✅
 - **Descrição:** a primitiva que o Participante Autorizado e a emissão inicial usam. Criação: o AP entrega a cesta ao fundo
   (posições do AP nos constituintes passam ao fundo) e recebe cotas novas (`outstanding_shares` sobe); resgate faz o inverso.
   Tudo numa transação, com os eventos `etf_creation`/`etf_redemption` gravados **antes** de projetar posições e cotas, e a
@@ -3766,6 +3766,22 @@ negociação dos constituintes.
   reconciliação de saldo e posição contra `market_events` continua com 0 divergências; teste de criação e de resgate com cesta
   mista Ação+FII; rejeição atômica se o AP não tem a cesta.
 - **Dependências:** R.1.
+- **Entregável (2026-09-26):** `etf.ShareExchange` (ETF, conta do fundo, participante, cotas, preço da cota, cesta de `BasketLeg`)
+  com `Validate` (cotas e cesta positivas e dentro de 32 bits, sem duplicata, sem o ETF na própria cesta, participante diferente do
+  fundo), `etf.ProRataBasket` (cesta proporcional às cotas: arredonda para cima na criação, para baixo no resgate, para nunca diluir
+  cotistas) e a interface `etf.ShareExchanger`. Implementação `db.ETFShareRepository` (`Create`/`Redeem`), numa transação: trava a
+  linha do ETF (serializa trocas do mesmo fundo), confere que a conta de fundo é a do ETF, **grava os eventos antes de projetar** e
+  então move as posições (`applyPositionFill`, com a rede de `CHECK` da migration 000025 mapeada para `ErrInsufficientPosition`),
+  valida o teto de float de cada constituinte (A.3), atualiza `outstanding_shares` e exige que o total de cotas em posições seja
+  igual a ele (`ErrShareConservation`). **Convenção dos eventos:** `etf_creation`/`etf_redemption` levam quantidade **com sinal**,
+  igual ao delta da posição daquela conta naquele ativo (participante e fundo em cada constituinte, participante nas cotas), então a
+  posição de qualquer conta continua reconstruível somando os eventos. Nenhum caixa se move (troca em espécie); a compra da cesta nos
+  books é da R.3/R.6. Nenhuma rota HTTP.
+- **Testes:** validação e cesta pro-rata table-driven (`shares_test.go`). O repositório segue a convenção do pacote `db` (sem teste
+  contra Postgres): validado ao vivo no Postgres do compose com um bot real como participante e cesta mista `VALR3`+`TJLO11`:
+  criação de 1.000 cotas, resgate de 400, rejeição atômica sem a cesta, resgate acima das cotas e fundo errado (nenhum evento nem
+  posição gravados nas falhas), soma dos eventos igual às posições do fundo e das cotas, constituintes conservados, e resgate total
+  final devolvendo o fundo a 0 cotas e 0 posições; `golangci-lint` (0 issues), `go build`, `go test ./...` passam.
 
 ### R.3 · Emissão inicial por criação e NAV/iNAV ligado ao tick
 - **Descrição:** o ETF nasce (e todo ETF novo de um catálogo que cresce nasce) por uma **criação inicial** do AP, comprando a
