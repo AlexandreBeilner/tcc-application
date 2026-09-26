@@ -15,7 +15,7 @@ import (
 // (mesma regra documentada em Constituent, nav.go).
 func TestConstituentsFromHoldings_CestaMistaAcaoFiiRendaFixaPrecificadaCorretamente(t *testing.T) {
 	holdings := []Holding{
-		{ConstituentName: "Mineradora Vale do Rio ON", AssetID: assetID("valr3"), WeightPct: 50},
+		{ConstituentName: "Mineradora Vale do Rio ON", AssetID: assetID("valr3"), Class: HoldingClassEquity, WeightPct: 50},
 		{ConstituentName: "FII Tijolo Corporativo", AssetID: assetID("tjlo11"), WeightPct: 30},
 		{ConstituentName: "Tesouro Selic 2029", AssetID: assetID("lft2029"), WeightPct: 15},
 		// Constituinte cosmético (sem asset_id real) — precisa ser ignorado
@@ -103,8 +103,8 @@ func TestConstituentsFromHoldings_PrecoAusente(t *testing.T) {
 // pra descobrir.
 func TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConstituinteCosmetico(t *testing.T) {
 	details, err := NewDetails("Índice Misto", "", []Holding{
-		{ConstituentName: "VALR3", AssetID: assetID("valr3"), WeightPct: 50},
-		{ConstituentName: "TJLO11", AssetID: assetID("tjlo11"), WeightPct: 45},
+		{ConstituentName: "VALR3", AssetID: assetID("valr3"), Class: HoldingClassEquity, WeightPct: 50},
+		{ConstituentName: "TJLO11", AssetID: assetID("tjlo11"), Class: HoldingClassFII, WeightPct: 45},
 		// Constituinte cosmético: participa da soma de 100% em NewDetails,
 		// mas não tem AssetID — não é utilizável pelo bot mecânico.
 		{ConstituentName: "Outros (fora do catálogo)", WeightPct: 5},
@@ -129,5 +129,31 @@ func TestPesoDeHoldingRealNaoServeDiretoParaRebalanceOrders_QuandoCestaTemConsti
 	_, err = RebalanceOrders(reconciliation, 0, 0)
 	if !errors.Is(err, ErrWeightsDoNotSumTo100) {
 		t.Errorf("err = %v, want ErrWeightsDoNotSumTo100 (soma real = 95%%, peso cosmético de 5%% não renormalizado — ver achado 006)", err)
+	}
+}
+
+// Critério de aceite da R.1: o NAV é calculável a partir das posições do
+// fundo — quantidades detidas pela conta do fundo, preços correntes e caixa —
+// compondo ConstituentsFromHoldings e NAV, sem nenhum dado fora do fundo.
+func TestNAVAPartirDasPosicoesDoFundo(t *testing.T) {
+	holdings := []Holding{
+		{ConstituentName: "VALR3", AssetID: assetID("valr3"), Class: HoldingClassEquity, WeightPct: 60},
+		{ConstituentName: "TJLO11", AssetID: assetID("tjlo11"), Class: HoldingClassFII, WeightPct: 40},
+	}
+	fundPositions := map[string]int64{"valr3": 600, "tjlo11": 400}
+	prices := map[string]float64{"valr3": 10, "tjlo11": 15}
+
+	constituents, err := ConstituentsFromHoldings(holdings, fundPositions, prices)
+	if err != nil {
+		t.Fatalf("ConstituentsFromHoldings err = %v, want nil", err)
+	}
+
+	// (600*10 + 400*15 + 500 de caixa) / 1000 cotas = 12,50.
+	got, err := NAV(constituents, 500, 0, 1000)
+	if err != nil {
+		t.Fatalf("NAV err = %v, want nil", err)
+	}
+	if got != 12.5 {
+		t.Errorf("NAV = %v, want 12.5", got)
 	}
 }

@@ -32,6 +32,12 @@ const (
 	// raciocínio que já motivou EventBotInitialAllocation pro lado da
 	// posição.
 	EventBotInitialCash MarketEventType = "bot_initial_cash"
+	// EventETFCreation/EventETFRedemption são a criação e o resgate de cotas de
+	// ETF (tarefa R.1, migration 000026; usados a partir da R.2): uma linha por
+	// constituinte que troca de mãos e uma pelas cotas, gravadas antes de
+	// projetar posições e outstanding_shares.
+	EventETFCreation   MarketEventType = "etf_creation"
+	EventETFRedemption MarketEventType = "etf_redemption"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

@@ -117,9 +117,9 @@ func main() {
 	// spec/proposta.
 	seedFixedIncome(ctx, repo, "LFT2029", "Tesouro Selic 2029", fixedincome.ProductTesouroSelic, "", 100.00, 30.00, false)
 	// seedETF só pode rodar daqui em diante: sua cesta (achado 006,
-	// pontos-em-aberto-decisao-produto.md) referencia VALR3/TJLO11/LFT2029
-	// reais, então os 3 precisam já existir no catálogo.
-	seedETF(ctx, repo)
+	// pontos-em-aberto-decisao-produto.md; só Ação e FII desde a R.1)
+	// referencia VALR3/BNDD3/TJLO11/PAPL11 reais, então já precisam existir.
+	seedETF(ctx, repo, accountRepo)
 	// LTN2027/NTNB2035 (tarefa L.4): interest_rate deixou de ser a taxa
 	// ofertada em si e virou o SPREAD sobre o benchmark de mercado corrente
 	// (Selic nominal pro Prefixado, taxa real via Fisher pro IPCA+) — mesmo
@@ -249,16 +249,21 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 // abaixo é só rótulo de exibição pra familiaridade pedagógica, nunca uma
 // promessa de bater com a composição real do Ibovespa), então não há razão
 // de produto pra manter constituinte cosmético (`Holding.AssetID = nil`)
-// no único ETF do seed: ele é o candidato natural a ganhar o robô mecânico
-// (rebalanceamento H.2/Participante Autorizado H.3) quando essa integração
-// for escrita, e `RebalanceOrders`/`DecideAuthorizedParticipantAction` só
-// enxergam holding com AssetID preenchido. Precisa rodar depois de
-// VALR3/TJLO11/LFT2029 já seedados (ver ordem em main()) — mesma
-// combinação Ação/FII/renda fixa validada ao vivo na sessão de H.4.
-func seedETF(ctx context.Context, repo *db.CatalogRepository) {
+// no único ETF do seed. Desde a tarefa R.1 (decisão do autor de
+// 2026-09-26) a cesta é só de Ação e FII — renda fixa exige marcação a
+// mercado por rodada e criação/resgate em instrumento sem book (R.13) — e
+// o ETF ganha uma conta de fundo (ensureETFFund). Precisa rodar depois de
+// VALR3/BNDD3/TJLO11/PAPL11 já seedados (ver ordem em main()).
+//
+// Idempotente e retrocompatível: num banco que já tinha o SINT11 com a
+// cesta antiga (15% em LFT2029), a composição é substituída e o fundo é
+// criado, sem tocar o resto do ETF.
+func seedETF(ctx context.Context, repo *db.CatalogRepository, accountRepo *db.AccountRepository) {
 	const ticker = "SINT11"
 	id, existed := ensureAsset(ctx, repo, ticker, "ETF Índice Sintético", catalog.AssetETF, nil, false)
 	if existed {
+		migrateETFBasketIfNeeded(ctx, repo, id)
+		ensureETFFund(ctx, repo, accountRepo, id)
 		return
 	}
 
@@ -270,25 +275,104 @@ func seedETF(ctx context.Context, repo *db.CatalogRepository) {
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
 
+	details := buildETFDetails(ctx, repo, ticker)
+	if err := repo.CreateETFDetails(ctx, id, details); err != nil {
+		log.Fatalf("erro ao criar etf_details pra %s: %v", ticker, err)
+	}
+	ensureETFFund(ctx, repo, accountRepo, id)
+}
+
+// buildETFDetails monta e valida a cesta v1 do SINT11 (Ação e FII).
+func buildETFDetails(ctx context.Context, repo *db.CatalogRepository, ticker string) etf.Details {
 	details, err := etf.NewDetails("Ibovespa", "Replicação sintética por amostragem representativa do índice.", []etf.Holding{
-		{ConstituentName: "Mineradora Vale do Rio ON (VALR3)", AssetID: mustFindAssetID(ctx, repo, "VALR3"), WeightPct: 50},
-		{ConstituentName: "FII Tijolo Corporativo (TJLO11)", AssetID: mustFindAssetID(ctx, repo, "TJLO11"), WeightPct: 35},
-		{ConstituentName: "Tesouro Selic 2029 (LFT2029)", AssetID: mustFindAssetID(ctx, repo, "LFT2029"), WeightPct: 15},
+		mustHolding(ctx, repo, "Mineradora Vale do Rio ON (VALR3)", "VALR3", 40),
+		mustHolding(ctx, repo, "Banco Nordeste Digital ON (BNDD3)", "BNDD3", 20),
+		mustHolding(ctx, repo, "FII Tijolo Corporativo (TJLO11)", "TJLO11", 25),
+		mustHolding(ctx, repo, "FII Papel Recebíveis (PAPL11)", "PAPL11", 15),
 	})
 	if err != nil {
 		log.Fatalf("etf_details inválido pra %s: %v", ticker, err)
 	}
-	if err := repo.CreateETFDetails(ctx, id, details); err != nil {
-		log.Fatalf("erro ao criar etf_details pra %s: %v", ticker, err)
+	return details
+}
+
+// migrateETFBasketIfNeeded troca a cesta de um ETF que ainda tem constituinte
+// de renda fixa (SINT11 do seed anterior à R.1) pela cesta v1.
+func migrateETFBasketIfNeeded(ctx context.Context, repo *db.CatalogRepository, etfID string) {
+	current, found, err := repo.FindETFDetails(ctx, etfID)
+	if err != nil {
+		log.Fatalf("erro ao ler a cesta do ETF %s: %v", etfID, err)
+	}
+	if !found {
+		return
+	}
+	for _, h := range current.Holdings {
+		if h.AssetID == nil {
+			continue
+		}
+		record, ok, err := repo.FindAssetByID(ctx, *h.AssetID)
+		if err != nil {
+			log.Fatalf("erro ao ler o constituinte %s do ETF: %v", *h.AssetID, err)
+		}
+		if ok && holdingClassOf(record.Type) == etf.HoldingClassFixedIncome {
+			if err := repo.ReplaceETFHoldings(ctx, etfID, buildETFDetails(ctx, repo, "SINT11")); err != nil {
+				log.Fatalf("erro ao migrar a cesta do ETF %s: %v", etfID, err)
+			}
+			log.Printf("cesta do ETF %s migrada: constituinte de renda fixa removido (tarefa R.1)", etfID)
+			return
+		}
 	}
 }
 
-// mustFindAssetID resolve o asset_id de um ticker já seedado — usado por
-// seedETF pra montar a cesta 100% real do achado 006. Falha alto
-// (log.Fatalf) se o ticker ainda não existir, porque isso só pode
+// ensureETFFund cria a conta de fundo do ETF (bot sem personalidade, então
+// nunca entra numa rodada de negociação, saldo zero) e a liga a etf_details —
+// idempotente, tarefa R.1. O caixa e as cotas nascem depois, na criação
+// inicial (R.3).
+func ensureETFFund(ctx context.Context, repo *db.CatalogRepository, accountRepo *db.AccountRepository, etfID string) {
+	if _, linked, err := repo.FindETFFundAccountID(ctx, etfID); err != nil {
+		log.Fatalf("erro ao buscar o fundo do ETF %s: %v", etfID, err)
+	} else if linked {
+		return
+	}
+
+	fundID := etf.FundAccountID(etfID)
+	if _, exists, err := accountRepo.FindByUserID(ctx, fundID); err != nil {
+		log.Fatalf("erro ao buscar a conta de fundo %s: %v", fundID, err)
+	} else if !exists {
+		fund, err := account.NewBot(fundID, 0)
+		if err != nil {
+			log.Fatalf("conta de fundo inválida pro ETF %s: %v", etfID, err)
+		}
+		if err := accountRepo.Create(ctx, fund); err != nil {
+			log.Fatalf("erro ao criar a conta de fundo do ETF %s: %v", etfID, err)
+		}
+	}
+	if err := repo.AttachETFFundAccount(ctx, etfID, fundID); err != nil {
+		log.Fatalf("erro ao ligar o fundo %s ao ETF %s: %v", fundID, etfID, err)
+	}
+	log.Printf("conta de fundo %s ligada ao ETF %s", fundID, etfID)
+}
+
+// holdingClassOf traduz o tipo do ativo no catálogo pra classe de constituinte
+// que etf.NewDetails valida.
+func holdingClassOf(t catalog.AssetType) etf.HoldingClass {
+	switch t {
+	case catalog.AssetAcao:
+		return etf.HoldingClassEquity
+	case catalog.AssetFII:
+		return etf.HoldingClassFII
+	case catalog.AssetETF:
+		return etf.HoldingClassETF
+	default:
+		return etf.HoldingClassFixedIncome
+	}
+}
+
+// mustHolding resolve um ticker já seedado num constituinte da cesta. Falha
+// alto (log.Fatalf) se o ticker ainda não existir, porque isso só pode
 // significar que seedETF foi movida pra antes do constituinte que ela
 // referencia (ver comentário de ordem em main()).
-func mustFindAssetID(ctx context.Context, repo *db.CatalogRepository, ticker string) *string {
+func mustHolding(ctx context.Context, repo *db.CatalogRepository, name, ticker string, weightPct float64) etf.Holding {
 	id, found, err := repo.FindAssetByTicker(ctx, ticker)
 	if err != nil {
 		log.Fatalf("erro ao buscar ativo %s pra cesta do ETF: %v", ticker, err)
@@ -296,7 +380,11 @@ func mustFindAssetID(ctx context.Context, repo *db.CatalogRepository, ticker str
 	if !found {
 		log.Fatalf("ativo %s não encontrado — seedETF precisa rodar depois dele ser seedado", ticker)
 	}
-	return &id
+	record, _, err := repo.FindAssetByID(ctx, id)
+	if err != nil {
+		log.Fatalf("erro ao ler o ativo %s pra cesta do ETF: %v", ticker, err)
+	}
+	return etf.Holding{ConstituentName: name, AssetID: &id, Class: holdingClassOf(record.Type), WeightPct: weightPct}
 }
 
 // fiiOutstandingShares (cotas em circulação) — sem fórmula de geração ainda

@@ -11,7 +11,9 @@
 package etf
 
 import (
+	"crypto/sha1"
 	"errors"
+	"fmt"
 	"math"
 )
 
@@ -21,6 +23,39 @@ var (
 	ErrWeightsDoNotSumTo100    = errors.New("peso dos constituintes não soma ~100%")
 	ErrEmptyHoldingAssetID     = errors.New("asset_id de um constituinte, quando informado, não pode ser vazio")
 	ErrDuplicateHoldingAssetID = errors.New("mesmo asset_id referenciado por mais de um constituinte da cesta")
+	// ErrNonTradableConstituent é devolvido por NewDetails quando um
+	// constituinte real (com AssetID) é de uma classe que o ETF negociável
+	// não aceita: renda fixa (decisão do autor de 2026-09-26, tarefa R.1 —
+	// precisa de marcação a mercado a cada rodada e de criação/resgate em
+	// instrumento sem book, ver R.13) ou outro ETF (cesta de ETFs não tem
+	// significado na primeira versão).
+	ErrNonTradableConstituent = errors.New("constituinte de ETF negociável precisa ser Ação ou FII")
+	// ErrMissingHoldingClass é devolvido por NewDetails quando um
+	// constituinte real chega sem a classe do ativo: sem ela a regra de
+	// ErrNonTradableConstituent não tem como ser aplicada.
+	ErrMissingHoldingClass = errors.New("classe do constituinte é obrigatória quando asset_id é informado")
+)
+
+// Defaults dos termos do fundo (tarefa R.1, migration 000026): valores
+// ilustrativos, mesma calibração fina da tarefa 8.1 que se aplica a todo
+// coeficiente sem tabela numérica fechada. A frequência de rebalanceamento
+// acompanha o ciclo de relatório de 14 dias simulados (R.7).
+const (
+	DefaultExpenseRatioPct        = 0.50
+	DefaultRebalanceFrequencyDays = 14
+)
+
+// HoldingClass é a classe do ativo que um Holding com AssetID referencia,
+// resolvida por quem monta a cesta (o seed lê de `assets.type`) — o
+// pacote etf não importa catalog (mesma convenção de "domínios irmãos não
+// se importam"). Só Ação e FII formam uma cesta negociável (tarefa R.1).
+type HoldingClass string
+
+const (
+	HoldingClassEquity      HoldingClass = "acao"
+	HoldingClassFII         HoldingClass = "fii"
+	HoldingClassFixedIncome HoldingClass = "renda_fixa"
+	HoldingClassETF         HoldingClass = "etf"
 )
 
 // WeightTolerance é a margem aceita em torno de 100% pra soma dos pesos da
@@ -44,7 +79,11 @@ const WeightTolerance = 0.5
 type Holding struct {
 	ConstituentName string
 	AssetID         *string
-	WeightPct       float64
+	// Class só é lida por NewDetails (validação de escrita) e só quando
+	// AssetID está preenchido; uma composição relida do banco
+	// (FindETFDetails) não a preenche.
+	Class     HoldingClass
+	WeightPct float64
 }
 
 // Details é a especialização de um ETF (spec 3.6, RF21): o índice de
@@ -64,7 +103,9 @@ type Details struct {
 // AssetID: quando informado não pode ser string vazia
 // (ErrEmptyHoldingAssetID), e o mesmo asset_id não pode aparecer em mais
 // de um constituinte (ErrDuplicateHoldingAssetID — um fundo não detém o
-// mesmo ativo em duas linhas separadas). MethodologySummary não é validado
+// mesmo ativo em duas linhas separadas). Desde a tarefa R.1, um constituinte
+// real também precisa declarar a Class do ativo e ela só pode ser Ação ou
+// FII (ErrMissingHoldingClass, ErrNonTradableConstituent). MethodologySummary não é validado
 // — é opcional, o mesmo NULL permitido por `etf_details.methodology_summary`
 // no schema.
 func NewDetails(benchmarkIndex, methodologySummary string, holdings []Holding) (Details, error) {
@@ -88,6 +129,12 @@ func NewDetails(benchmarkIndex, methodologySummary string, holdings []Holding) (
 		if seenAssetIDs[*h.AssetID] {
 			return Details{}, ErrDuplicateHoldingAssetID
 		}
+		if h.Class == "" {
+			return Details{}, ErrMissingHoldingClass
+		}
+		if h.Class != HoldingClassEquity && h.Class != HoldingClassFII {
+			return Details{}, ErrNonTradableConstituent
+		}
 		seenAssetIDs[*h.AssetID] = true
 	}
 	if math.Abs(totalWeight-100) > WeightTolerance {
@@ -99,4 +146,18 @@ func NewDetails(benchmarkIndex, methodologySummary string, holdings []Holding) (
 		MethodologySummary: methodologySummary,
 		Holdings:           holdings,
 	}, nil
+}
+
+// FundAccountID deriva o user_id (uuid) da conta de fundo de um ETF a partir
+// do asset_id dele (tarefa R.1): determinístico, então reexecutar o seed
+// reencontra a mesma conta em vez de criar uma segunda, e sem colisão com os
+// uuids de bot (`00000000-...`) nem com uuids de usuário real. O prefixo
+// funciona como namespace (mesma ideia de um uuid v5, sem depender de
+// biblioteca externa); a versão/variante são fixadas só pra o resultado ser um
+// uuid bem formado.
+func FundAccountID(etfAssetID string) string {
+	sum := sha1.Sum([]byte("etf-fund-account:" + etfAssetID))
+	sum[6] = (sum[6] & 0x0f) | 0x50
+	sum[8] = (sum[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", sum[0:4], sum[4:6], sum[6:8], sum[8:10], sum[10:16])
 }

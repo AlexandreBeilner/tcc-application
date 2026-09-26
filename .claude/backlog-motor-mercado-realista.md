@@ -3723,7 +3723,7 @@ morta, com teto diário), dentro do orçamento de 5.000 comandos por tick; nenhu
 imutável antes (Event Sourcing); determinismo pela seed (RNF08); ETF nunca ganha multiplicador direto de preço, só reage pela
 negociação dos constituintes.
 
-### R.1 · Fundo como conta, modelo de dados e cesta v1 (Ação e FII)
+### R.1 · Fundo como conta, modelo de dados e cesta v1 (Ação e FII) ✅
 - **Descrição:** cada ETF ganha uma **conta de fundo** (`accounts`, mecânica, fora de ranking/social como todo bot) que detém a
   cesta como posições reais nos constituintes e o caixa do fundo; o número de cotas passa a viver em
   `variable_income_assets.outstanding_shares` do ETF e deixa de ser `NULL`. Migration: `etf_details` ganha `fund_account_id`,
@@ -3735,6 +3735,26 @@ negociação dos constituintes.
   fundo nunca aparece em ranking, busca de amigos ou perfil; teste de validação da cesta (renda fixa rejeitada, duplicata
   rejeitada, peso somando ~100%).
 - **Dependências:** nenhuma.
+- **Entregável (2026-09-26):** migration `000026_etf_fund_account`: `etf_details` ganha `fund_account_id` (uuid único, FK para
+  `accounts`, nulo só para o banco anterior ao seed), `expense_ratio_pct` (padrão 0,50 ao ano), `rebalance_frequency_days`
+  (padrão 14), `last_rebalance_day` e `dividends_payable` (passivo de dividendo a pagar, insumo do `liabilities` do NAV na R.8);
+  enum `market_event_type` ganha `etf_creation` e `etf_redemption` (`domain.EventETFCreation`/`EventETFRedemption`, usados a partir
+  da R.2). `etf.Holding` ganha `Class` (`HoldingClass`: acao, fii, renda_fixa, etf) e `etf.NewDetails` passa a rejeitar constituinte
+  real de renda fixa, de outro ETF ou de classe desconhecida (`ErrNonTradableConstituent`) e sem classe (`ErrMissingHoldingClass`),
+  além da duplicata e do peso que já rejeitava; constituinte cosmético (sem `asset_id`) segue livre. `etf.FundAccountID` deriva o
+  uuid da conta de fundo do `asset_id` do ETF (determinístico, sem colisão com os uuids de bot), então o seed é idempotente sem
+  lookup. Seed: `SINT11` vira `VALR3` 40%, `BNDD3` 20%, `TJLO11` 25%, `PAPL11` 15%; cria a conta de fundo (`is_bot`, saldo 0, sem
+  linha em `users` e sem `bot_personalities`, então fora de ranking, busca de amigos e de qualquer rodada de negociação) e liga ao
+  ETF; `outstanding_shares` deixa de ser `NULL` e vira a soma das posições existentes (0 num ETF sem ninguém posicionado, até a
+  criação inicial da R.3), o que faz o teto de float da A.3 valer para o ETF. Num banco que já tinha o `SINT11` com a cesta antiga
+  (15% em `LFT2029`), o seed troca a composição (`ReplaceETFHoldings`) e cria o fundo, sem tocar o resto. Repositório:
+  `ReplaceETFHoldings`, `FindETFFundAccountID`, `AttachETFFundAccount`.
+- **Testes:** validação da cesta (renda fixa, outro ETF, classe desconhecida, classe ausente, cosmético, duplicata, peso),
+  `FundAccountID` (uuid bem formado, determinístico, distinto por ETF) e NAV calculado só a partir das posições do fundo
+  (`ConstituentsFromHoldings` + `NAV`); `golangci-lint` (0 issues), `go build` e `go test ./...` passam. Validado ao vivo contra o
+  Postgres do `docker compose` (banco na migration 24 com a cesta antiga): migrations 25 e 26 aplicadas, seed migrou a cesta,
+  criou o fundo (evento `bot_initial_cash` de valor 0) e a segunda execução não mudou nada.
+- **Sem rota HTTP alterada** (o bloco de ETF de `GET /assets/{id}` só ganha NAV na R.3), então sem mudança em `.docs/engine/`.
 
 ### R.2 · Criação e resgate de cotas como operação atômica e sourced
 - **Descrição:** a primitiva que o Participante Autorizado e a emissão inicial usam. Criação: o AP entrega a cesta ao fundo

@@ -2,6 +2,7 @@ package etf
 
 import (
 	"errors"
+	"regexp"
 	"testing"
 )
 
@@ -104,8 +105,8 @@ func assetID(id string) *string { return &id }
 
 func TestNewDetails_CestaMistaComEHoldingsSemAssetID(t *testing.T) {
 	holdings := []Holding{
-		{ConstituentName: "VALR3", AssetID: assetID("ativo-acao"), WeightPct: 40},
-		{ConstituentName: "TJLO11", AssetID: assetID("ativo-fii"), WeightPct: 35},
+		{ConstituentName: "VALR3", AssetID: assetID("ativo-acao"), Class: HoldingClassEquity, WeightPct: 40},
+		{ConstituentName: "TJLO11", AssetID: assetID("ativo-fii"), Class: HoldingClassFII, WeightPct: 35},
 		// Constituinte cosmético (H.4): sem asset_id, continua válido —
 		// entra na tela de detalhe, nunca no NAV/rebalanceamento real.
 		{ConstituentName: "Outros", WeightPct: 25},
@@ -123,7 +124,7 @@ func TestNewDetails_CestaMistaComEHoldingsSemAssetID(t *testing.T) {
 func TestNewDetails_AssetIDVazioRejeitado(t *testing.T) {
 	empty := ""
 	holdings := []Holding{
-		{ConstituentName: "X", AssetID: &empty, WeightPct: 100},
+		{ConstituentName: "X", AssetID: &empty, Class: HoldingClassEquity, WeightPct: 100},
 	}
 
 	_, err := NewDetails("IBOVESPA", "", holdings)
@@ -134,8 +135,8 @@ func TestNewDetails_AssetIDVazioRejeitado(t *testing.T) {
 
 func TestNewDetails_AssetIDDuplicadoRejeitado(t *testing.T) {
 	holdings := []Holding{
-		{ConstituentName: "VALR3 (linha 1)", AssetID: assetID("ativo-acao"), WeightPct: 50},
-		{ConstituentName: "VALR3 (linha 2)", AssetID: assetID("ativo-acao"), WeightPct: 50},
+		{ConstituentName: "VALR3 (linha 1)", AssetID: assetID("ativo-acao"), Class: HoldingClassEquity, WeightPct: 50},
+		{ConstituentName: "VALR3 (linha 2)", AssetID: assetID("ativo-acao"), Class: HoldingClassEquity, WeightPct: 50},
 	}
 
 	_, err := NewDetails("IBOVESPA", "", holdings)
@@ -152,5 +153,58 @@ func TestNewDetails_VariosHoldingsSemAssetIDNaoContamComoDuplicata(t *testing.T)
 
 	if _, err := NewDetails("IBOVESPA", "", holdings); err != nil {
 		t.Errorf("err = %v, want nil (dois holdings sem asset_id não são duplicata entre si)", err)
+	}
+}
+
+func TestNewDetails_ConstituenteDeClasseNaoNegociavelRejeitado(t *testing.T) {
+	tests := []struct {
+		name    string
+		class   HoldingClass
+		wantErr error
+	}{
+		{name: "renda fixa", class: HoldingClassFixedIncome, wantErr: ErrNonTradableConstituent},
+		{name: "outro ETF", class: HoldingClassETF, wantErr: ErrNonTradableConstituent},
+		{name: "classe desconhecida", class: HoldingClass("cripto"), wantErr: ErrNonTradableConstituent},
+		{name: "classe ausente", class: "", wantErr: ErrMissingHoldingClass},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			holdings := []Holding{
+				{ConstituentName: "VALR3", AssetID: assetID("ativo-acao"), Class: HoldingClassEquity, WeightPct: 85},
+				{ConstituentName: "Outro", AssetID: assetID("ativo-x"), Class: tt.class, WeightPct: 15},
+			}
+
+			_, err := NewDetails("Índice Misto", "", holdings)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestNewDetails_ConstituenteCosmeticoNaoPrecisaDeClasse(t *testing.T) {
+	holdings := []Holding{
+		{ConstituentName: "VALR3", AssetID: assetID("ativo-acao"), Class: HoldingClassEquity, WeightPct: 90},
+		{ConstituentName: "Outros", WeightPct: 10},
+	}
+
+	if _, err := NewDetails("Índice Misto", "", holdings); err != nil {
+		t.Errorf("err = %v, want nil", err)
+	}
+}
+
+func TestFundAccountID(t *testing.T) {
+	uuidPattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+
+	a := FundAccountID("11111111-1111-1111-1111-111111111111")
+	if !uuidPattern.MatchString(a) {
+		t.Errorf("FundAccountID = %q, want uuid bem formado", a)
+	}
+	if again := FundAccountID("11111111-1111-1111-1111-111111111111"); again != a {
+		t.Errorf("FundAccountID não é determinístico: %q != %q", again, a)
+	}
+	if other := FundAccountID("22222222-2222-2222-2222-222222222222"); other == a {
+		t.Errorf("ETFs diferentes geraram a mesma conta de fundo: %q", a)
 	}
 }
