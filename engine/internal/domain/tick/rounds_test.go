@@ -9,6 +9,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -85,6 +86,11 @@ func acaoAssetWithShareClass(assetID string, lastPrice float64, shareClass strin
 // uma company).
 func fiiAsset(assetID string, lastPrice float64) AssetForPricing {
 	return AssetForPricing{AssetID: assetID, Type: assetTypeFII, LastPrice: &lastPrice}
+}
+
+func etfAsset(assetID string, lastPrice float64) AssetForPricing {
+	shares := int64(10000)
+	return AssetForPricing{AssetID: assetID, Type: assetTypeETF, LastPrice: &lastPrice, OutstandingShares: &shares}
 }
 
 // mustFIIScopedRoundPersonality monta uma personalidade de bot cujo escopo
@@ -1773,7 +1779,7 @@ func TestApplyEventAttention(t *testing.T) {
 	applyEventAttention(universe, equities, map[string]CompanyRoundContext{
 		"c1": {MacroEffectPct: -25},
 		"c2": {MacroEffectPct: 0},
-	})
+	}, nil)
 
 	got := map[string]float64{}
 	for _, e := range universe {
@@ -1838,5 +1844,35 @@ func TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista(t *testing.T) {
 		if !market[a.AssetID] {
 			t.Errorf("FII %s sem ordem a mercado de piso", a.AssetID)
 		}
+	}
+}
+
+// R.10: a atenção do ETF é a média ponderada da dos constituintes; ETF sem
+// constituinte em evento fica sem atenção, e os constituintes não mudam.
+func TestApplyEventAttention_ETFDerivaDaCesta(t *testing.T) {
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), etfAsset("e1", 100), etfAsset("e2", 100)}
+	other := "c2"
+	assets[1].CompanyID = &other
+	equities, universe := buildEquityUniverse(assets)
+	funds := map[string]etf.FundSnapshot{
+		"e1": {Targets: []etf.TargetWeight{{AssetID: "a1", WeightPct: 50}, {AssetID: "a2", WeightPct: 50}}},
+		"e2": {Targets: []etf.TargetWeight{{AssetID: "a2", WeightPct: 100}}},
+	}
+
+	applyEventAttention(universe, equities, map[string]CompanyRoundContext{"c1": {MacroEffectPct: -25}}, funds)
+
+	got := map[string]float64{}
+	for _, e := range universe {
+		got[e.AssetID] = e.Attention
+	}
+	hot := bot.AttentionMultiplier(-25)
+	if want := 0.5*hot + 0.5; math.Abs(got["e1"]-want) > 1e-9 {
+		t.Errorf("e1 = %v, want %v (metade da cesta em evento)", got["e1"], want)
+	}
+	if got["e2"] != 0 {
+		t.Errorf("e2 = %v, want 0 (nenhum constituinte afetado)", got["e2"])
+	}
+	if got["a1"] != hot || got["a2"] != 0 {
+		t.Errorf("a1 = %v, a2 = %v, want %v e 0 (constituintes intactos)", got["a1"], got["a2"], hot)
 	}
 }

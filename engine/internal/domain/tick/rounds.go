@@ -591,7 +591,7 @@ func (s *Service) runIntradayRounds(
 	for i, b := range directional {
 		candidates[i] = bot.TurnCandidate{Scope: b.Personality.Scope, Archetype: b.Personality.Archetype}
 	}
-	applyEventAttention(universe, equities, companyContext)
+	applyEventAttention(universe, equities, companyContext, etfFunds)
 	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
 	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
 	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
@@ -792,8 +792,8 @@ func (r *roundRun) directionalCeilingPct(assetID string) float64 {
 // ativos cuja empresa sofre hoje o efeito de preço de um evento macro
 // (CompanyRoundContext.MacroEffectPct, que só é diferente de zero enquanto o
 // evento dura): eles ganham turnos e volume, e os turnos preferem
-// Fundamentalistas.
-func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext) {
+// Fundamentalistas. ETF deriva a atenção da cesta (R.10).
+func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext, etfFunds map[string]etf.FundSnapshot) {
 	for i := range universe {
 		state := equities[universe[i].AssetID]
 		if state == nil || state.CompanyID == nil {
@@ -801,6 +801,26 @@ func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equ
 		}
 		if cc, ok := companyContext[*state.CompanyID]; ok && cc.MacroEffectPct != 0 {
 			universe[i].Attention = bot.AttentionMultiplier(cc.MacroEffectPct)
+		}
+	}
+
+	// ETF (R.10): a atenção vem da média ponderada da atenção dos constituintes, então
+	// o volume do ETF sobe quando a cesta está em evento. Depois do loop acima, que
+	// preenche a atenção dos constituintes.
+	if len(etfFunds) == 0 {
+		return
+	}
+	attention := make(map[string]float64, len(universe))
+	for _, e := range universe {
+		attention[e.AssetID] = e.Attention
+	}
+	for i := range universe {
+		fund, ok := etfFunds[universe[i].AssetID]
+		if !ok {
+			continue
+		}
+		if derived := etf.DerivedAttention(fund.Targets, attention); derived > 1 {
+			universe[i].Attention = derived
 		}
 	}
 }

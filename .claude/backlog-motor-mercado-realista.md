@@ -3987,13 +3987,23 @@ negociação dos constituintes.
   levantamento de caixa não foi exercido ao vivo sem a manipulação por SQL, porque nos dados reais o dividendo dos constituintes sempre cobre a taxa. (4) Sem custo medido por tick com 1, 5
   e 10 ETFs (R.12); o custo é 1 UPDATE e (no dia de relatório) 1 evento e 1 UPDATE por ETF.
 
-### R.10 · Reação do ETF a evento macro e balanço (atenção derivada da cesta)
+### R.10 · Reação do ETF a evento macro e balanço (atenção derivada da cesta) ✅
 - **Descrição:** o ETF nunca recebe efeito direto (proposta 2.3.2). Ele reage porque os constituintes se movem, o iNAV muda e o
   arbitrador e o MM transmitem (R.5, R.6). Além disso, `applyEventAttention` (Q.10) passa a derivar a atenção do ETF da média
   ponderada da atenção dos seus constituintes, para o volume do ETF subir quando a cesta está em evento.
 - **Critérios de aceite:** cinco eventos severos num setor presente na cesta movem o NAV e o preço do ETF em proporção ao peso
   do setor; ETF sem constituinte afetado não muda; orçamento total de turnos inalterado (a atenção redistribui).
 - **Dependências:** R.4, R.6.
+- **Entregável (2026-09-26):** `etf/attention.go` (`DerivedAttention`: média dos multiplicadores de atenção dos constituintes ponderada pelos pesos-alvo; constituinte fora do universo
+  fora da média; 0 conta como 1) e `applyEventAttention` recebe os fundos carregados (`roundRun.etfFunds`) e, depois de marcar a atenção dos constituintes, marca a do ETF quando maior que 1.
+  Nada muda no preço: a reação do ETF em preço e NAV continua vindo só da negociação dos constituintes (R.5, R.6). O evento por balanço também entra, porque a atenção da Q.10 já vem
+  de `MacroEffectPct` por empresa, o mesmo campo que os eventos macro preenchem.
+- **Testes:** `DerivedAttention` table-driven; no tick, ETF com metade da cesta em evento ganha a média ponderada, ETF sem constituinte afetado fica em 0 e os constituintes não mudam.
+  `golangci-lint` (0 issues), `go build`, `go test ./...` passam. **Validado ao vivo** (5 eventos severos `negativo` no setor Mineração, `VALR3` com 40% da cesta): o volume diário do `SINT11`
+  foi de ~33 cotas (média de 12 dias) para 250 no dia do evento e 65 e 62 nos dois seguintes; NAV e preço do ETF caíram junto com os constituintes.
+- **Limites conhecidos:** (1) a queda de NAV do dia do evento (-11%) está misturada com a data-ex do provento (R.8, ~8%), então a proporção "peso do setor x movimento do NAV" não foi
+  isolada ao vivo; o teste unitário cobre só a atenção, não a magnitude da reação. (2) Um único ETF no seed, sem grupo de controle no mesmo dia. (3) Orçamento total de turnos inalterado é
+  propriedade de `AllocateTurns` (a atenção só muda os pesos do sorteio), não recoberta por teste novo. Validação de magnitude com vários ETFs fica para a R.12.
 
 ### R.11 · Frontend, lições e documentação
 - **Descrição:** bloco de ETF do detalhe do ativo passa a mostrar NAV, ágio/deságio, tracking error e dividendos distribuídos,
