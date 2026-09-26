@@ -42,6 +42,9 @@ const (
 	// aos cotistas (tarefa R.8, migration 000030): quantidade = cotas que recebem,
 	// unit_value = valor por cota.
 	EventETFDividendPayout MarketEventType = "etf_dividend_payout"
+	// EventETFExpensePayout é o pagamento da taxa de administração acumulada pelo
+	// caixa do fundo (tarefa R.9, migration 000031): quantidade 1, unit_value = valor pago.
+	EventETFExpensePayout MarketEventType = "etf_expense_payout"
 	// EventETFShareTransfer (R.4, migration 000028) é a cota de ETF passando do
 	// Participante Autorizado ao Market Maker, em espécie e com quantidade com
 	// sinal (delta da posição da conta).

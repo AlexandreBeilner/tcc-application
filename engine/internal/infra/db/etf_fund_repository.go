@@ -89,7 +89,7 @@ func (r *ETFFundRepository) ListPendingIssuances(ctx context.Context) ([]etf.Pen
 // pelos fundos e uma, em lote, pelas posições de todos eles.
 func (r *ETFFundRepository) ListFunds(ctx context.Context) ([]etf.FundSnapshot, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT ed.asset_id, ed.fund_account_id, via.outstanding_shares, a.current_balance, ed.dividends_payable,
+		`SELECT ed.asset_id, ed.fund_account_id, via.outstanding_shares, a.current_balance, ed.dividends_payable + ed.fees_payable, ed.fees_payable, ed.expense_ratio_pct,
 		        ed.rebalance_frequency_days, ed.last_rebalance_day
 		 FROM etf_details ed
 		 JOIN variable_income_assets via ON via.asset_id = ed.asset_id
@@ -108,7 +108,7 @@ func (r *ETFFundRepository) ListFunds(ctx context.Context) ([]etf.FundSnapshot, 
 		var f etf.FundSnapshot
 		var accountID string
 		var lastRebalance sql.NullInt64
-		if err := rows.Scan(&f.ETFAssetID, &accountID, &f.Shares, &f.Cash, &f.Liabilities, &f.RebalanceEveryDays, &lastRebalance); err != nil {
+		if err := rows.Scan(&f.ETFAssetID, &accountID, &f.Shares, &f.Cash, &f.Liabilities, &f.FeesPayable, &f.ExpenseRatioPct, &f.RebalanceEveryDays, &lastRebalance); err != nil {
 			return nil, err
 		}
 		if lastRebalance.Valid {

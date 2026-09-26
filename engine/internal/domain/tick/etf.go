@@ -180,9 +180,43 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Taxa de administração (R.9): no dia de relatório o fundo quita do caixa livre o
+	// que acumulou; todo dia acumula a taxa do dia (passivo, reduz o NAV). Os dois
+	// entram no estado do fundo antes do provento e do NAV do dia.
+	type dayFund struct {
+		fund    etf.FundSnapshot
+		paid    float64
+		accrued float64
+	}
+	var eligible []dayFund
+	adjusted := make([]etf.FundSnapshot, 0, len(funds))
+	for _, f := range funds {
+		if _, ok := etfPrices[f.ETFAssetID]; !ok {
+			continue
+		}
+		navBefore, err := etf.NAVFromSnapshot(f, constituentPrices)
+		if err != nil {
+			log.Printf("NAV do ETF %s fora do dia: %v", f.ETFAssetID, err)
+			continue
+		}
+		day := dayFund{fund: f}
+		if reportDay {
+			day.paid = etf.ExpensePayment(f.Cash, f.DividendsPayable(), f.FeesPayable)
+			day.fund.Cash -= day.paid
+			day.fund.FeesPayable -= day.paid
+			day.fund.Liabilities -= day.paid
+		}
+		day.accrued = etf.DailyExpense(navBefore*float64(f.Shares), f.ExpenseRatioPct)
+		day.fund.FeesPayable += day.accrued
+		day.fund.Liabilities += day.accrued
+		eligible = append(eligible, day)
+		adjusted = append(adjusted, day.fund)
+	}
+
 	var dividends []DividendRecord
 	if reportDay {
-		if dividends, err = s.etfDividends(ctx, funds, paymentDay); err != nil {
+		if dividends, err = s.etfDividends(ctx, adjusted, paymentDay); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -190,23 +224,21 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 	for _, d := range dividends {
 		newLiability[d.AssetID] = d.FundLiability
 	}
-	entries := make([]ETFNAVEntry, 0, len(funds))
-	for _, f := range funds {
+	entries := make([]ETFNAVEntry, 0, len(eligible))
+	for _, day := range eligible {
+		f := day.fund
 		withDividend := f
 		withDividend.Liabilities += newLiability[f.ETFAssetID]
 		nav, err := etf.NAVFromSnapshot(withDividend, constituentPrices)
 		if err != nil {
-			log.Printf("NAV do ETF %s fora do dia: %v", f.ETFAssetID, err)
 			continue
 		}
-		closePrice, ok := etfPrices[f.ETFAssetID]
-		if !ok {
-			continue
-		}
+		closePrice := etfPrices[f.ETFAssetID]
 		index := etf.TheoreticalIndex(indexes[f.ETFAssetID], nav, f.Targets, previousPrices, constituentPrices)
 		entries = append(entries, ETFNAVEntry{
 			ETFAssetID: f.ETFAssetID, NAV: nav, ClosePrice: closePrice, PremiumPct: etf.PremiumPct(closePrice, nav),
 			IndexValue: index, TrackingErrorPct: etf.TrackingErrorPct(nav, index),
+			ExpenseAccrued: day.accrued, ExpensePaid: day.paid,
 		})
 	}
 	return entries, dividends, nil

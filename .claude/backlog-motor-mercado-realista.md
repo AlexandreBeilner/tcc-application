@@ -3966,13 +3966,26 @@ negociação dos constituintes.
   de preço, então o tracking error passa a oscilar (cerca de 43% a 54% no teste) em vez de crescer sem limite; torná-lo retorno total é da R.11/R.12. (3) O dividendo de ETF não tem
   IR (fora de escopo, decisão do autor em 2026-09-26). (4) Não medi o custo por tick com 1, 5 e 10 ETFs (R.12).
 
-### R.9 · Taxa de administração
+### R.9 · Taxa de administração ✅
 - **Descrição:** o fundo acumula diariamente `expense_ratio_pct` (ao ano, sobre o patrimônio) como passivo, o que reduz o NAV;
   a quitação sai do caixa do fundo e, quando faltar caixa, o rebalanceamento vende constituintes (R.7 já trata caixa
   negativo). Gancho pedagógico do "cash drag" da proposta 5.4.
 - **Critérios de aceite:** NAV do fundo sem negociação cai a taxa esperada por dia (teste numérico); tracking error acompanha a
   taxa; nenhum saldo negativo.
 - **Dependências:** R.3, R.7.
+- **Entregável (2026-09-26):** `etf/expense.go` (`DailyExpense`, `ExpensePayment`, `CashShortfall`, `RaiseCashOrders`, `FundSnapshot.DividendsPayable`), migration `000031`
+  (`etf_details.fees_payable` e evento `etf_expense_payout`). `closingETFNAVs` acumula a taxa do dia e, no dia de relatório, quita a acumulada do caixa livre antes de calcular o provento e o NAV
+  (`ETFNAVEntry.ExpenseAccrued`/`ExpensePaid`); `saveETFExpenses` (`SaveTick`) grava o evento antes de debitar o caixa e ajusta o passivo. `raiseFundCash` (tick/etf_rebalance.go)
+  vende constituintes pro-rata quando o caixa livre não cobre a taxa, antes do rebalanceamento. `ListFunds` soma a taxa a pagar em `Liabilities` e lê `expense_ratio_pct`.
+- **Testes:** funções puras table-driven (taxa diária, 365 dias acumulados perto da taxa anual, pagamento limitado ao caixa livre, falta de caixa, ordens de levantar caixa proporcionais e
+  limitadas ao que o fundo detém); no tick, NAV sem negociação cai exatamente a taxa do dia, dia de relatório quita do caixa sem mudar o NAV, taxa fora do caixa livre do provento,
+  levantar caixa vende só pela conta do fundo e nada quando o caixa cobre ou fora do dia de relatório. `golangci-lint` (0 issues), `go build`, `go test ./...` passam. **Validado ao vivo**
+  (45 ticks, `SINT11`): a taxa acumulou ~R$ 61 por dia (patrimônio ~R$ 4,5 milhões x 0,5% / 365), foi quitada a cada 14 dias (3 eventos, R$ 2.728,13), 0 saldos negativos; e, forçando via SQL uma
+  taxa acumulada de R$ 500.000 acima do caixa, o fundo vendeu constituintes para levantar os R$ 140.198 que faltavam e pagou tudo no dia de relatório.
+- **Limites conhecidos:** (1) a taxa anual de 0,5% é pequena diante da variação do NAV por dividendo e preço (dente de serra da R.8), então o "tracking error acompanha a taxa" fica
+  visível só numa série longa sem dividendo; a comparação numérica está no teste unitário (NAV cai a taxa do dia). (2) O dinheiro da taxa sai da economia (não há conta de administrador). (3) O
+  levantamento de caixa não foi exercido ao vivo sem a manipulação por SQL, porque nos dados reais o dividendo dos constituintes sempre cobre a taxa. (4) Sem custo medido por tick com 1, 5
+  e 10 ETFs (R.12); o custo é 1 UPDATE e (no dia de relatório) 1 evento e 1 UPDATE por ETF.
 
 ### R.10 · Reação do ETF a evento macro e balanço (atenção derivada da cesta)
 - **Descrição:** o ETF nunca recebe efeito direto (proposta 2.3.2). Ele reage porque os constituintes se movem, o iNAV muda e o

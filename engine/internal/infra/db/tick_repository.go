@@ -537,6 +537,9 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		); err != nil {
 			return err
 		}
+		if err := saveETFExpenses(ctx, tx, n); err != nil {
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -711,4 +714,43 @@ func debitFundForPayout(ctx context.Context, tx *sql.Tx, p tick.PendingDividendP
 		total, p.AssetID,
 	)
 	return err
+}
+
+// saveETFExpenses grava a taxa de administração de um ETF no dia (tarefa R.9): soma a
+// taxa do dia ao passivo e, quando o fundo quita a acumulada, grava o evento
+// etf_expense_payout ANTES de debitar o caixa (Event Sourcing) e abate o passivo pelo
+// mesmo valor. O dinheiro pago sai da economia simulada (é receita do administrador,
+// fora do modelo), como qualquer débito de custo do fundo.
+func saveETFExpenses(ctx context.Context, tx *sql.Tx, n tick.ETFNAVEntry) error {
+	if n.ExpensePaid > 0 {
+		var fundAccountID string
+		if err := tx.QueryRowContext(ctx, `SELECT fund_account_id FROM etf_details WHERE asset_id = $1`, n.ETFAssetID).Scan(&fundAccountID); err != nil {
+			return err
+		}
+		quantity := 1
+		if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
+			UserID:    fundAccountID,
+			AssetID:   &n.ETFAssetID,
+			EventType: domain.EventETFExpensePayout,
+			Quantity:  &quantity,
+			UnitValue: &n.ExpensePaid,
+		}); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE accounts SET current_balance = current_balance - $1, updated_at = now() WHERE user_id = $2`,
+			n.ExpensePaid, fundAccountID,
+		); err != nil {
+			return err
+		}
+	}
+	if n.ExpenseAccrued != 0 || n.ExpensePaid != 0 {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE etf_details SET fees_payable = GREATEST(fees_payable + $1 - $2, 0) WHERE asset_id = $3`,
+			n.ExpenseAccrued, n.ExpensePaid, n.ETFAssetID,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }

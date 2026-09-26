@@ -121,7 +121,11 @@ type FundSnapshot struct {
 	Shares        int64
 	Cash          float64
 	Liabilities   float64
-	Holdings      []FundHolding
+	// FeesPayable (R.9) é a taxa de administração acumulada e ainda não paga; já
+	// está somada em Liabilities. ExpenseRatioPct é a taxa anual (% do patrimônio).
+	FeesPayable     float64
+	ExpenseRatioPct float64
+	Holdings        []FundHolding
 	// Rebalanceamento (R.7): periodicidade em dias, último dia rebalanceado (nil
 	// = nunca) e a composição-alvo real da cesta.
 	RebalanceEveryDays int

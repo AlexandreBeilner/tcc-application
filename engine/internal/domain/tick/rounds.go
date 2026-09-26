@@ -631,6 +631,16 @@ func (s *Service) runIntradayRounds(
 	fillsBefore := run.fillsExecuted
 	// Rebalanceamento dos fundos (R.7) antes da arbitragem: a arbitragem usa a
 	// composição do fundo já rebalanceada.
+	// Taxa de administração (R.9): antes do rebalanceamento, levanta o caixa que falta
+	// vendendo constituintes; o estado dos fundos é relido pra o rebalanceamento partir
+	// das posições já reduzidas.
+	if raised, err := s.raiseFundCash(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	} else if raised {
+		if run.etfFunds, err = s.loadETFFunds(ctx); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
+		}
+	}
 	if rebalanced, err := s.rebalanceETFs(ctx, run); err != nil {
 		return nil, nil, run.fillsExecuted, uncovered, err
 	} else if rebalanced {

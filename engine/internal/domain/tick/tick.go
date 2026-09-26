@@ -410,6 +410,10 @@ type ETFNAVEntry struct {
 	// sem atrito) e o desvio acumulado do NAV contra ele, em pontos percentuais.
 	IndexValue       float64
 	TrackingErrorPct float64
+	// ExpenseAccrued e ExpensePaid (R.9): taxa de administração acumulada hoje (passivo
+	// do fundo) e a acumulada que o fundo quitou do caixa hoje.
+	ExpenseAccrued float64
+	ExpensePaid    float64
 }
 
 // IndicatorHistoryEntry é uma linha de market_indicator_history (tarefa
