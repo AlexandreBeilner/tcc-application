@@ -335,8 +335,9 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 // (MaxOrderPctOfAverageVolumePct × média de recentVolume, achado 005 parte
 // B) — devolve o menor dos dois quando ambos existem. Sem histórico de
 // volume ainda (recentVolume vazio — ativo novo, RecentTradedVolume nunca
-// achou nenhuma linha) cai pro float sozinho, nunca bloqueia a negociação
-// por falta de dado, só fica mais permissivo até o histórico se formar;
+// achou nenhuma linha) o teto é o piso proporcional (floorPct do float, o
+// giro-alvo do ativo na Q.9), nunca zero: não bloqueia a negociação por falta
+// de dado, mas também não deixa o primeiro dia negociar o float inteiro;
 // float nil (ex: sandbox) com histórico de volume disponível usa o teto de
 // volume sozinho; os dois nil/vazios devolve nil (nenhum teto se aplica).
 // Histórico real todo zerado (achado 005 parte C, MinOrderSizeCeiling) nunca
@@ -346,6 +347,17 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 // liquidez do ativo indefinidamente.
 func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int, floorPct float64) *int64 {
 	if len(recentVolume) == 0 {
+		// Sem histórico (ativo novo, primeiro dia do mercado): o teto é o giro-alvo
+		// do ativo (floorPct do float), não o float inteiro. Com o float como teto
+		// o primeiro dia negociava até 99% do float numa ordem só e inflava o
+		// volume médio que dimensiona o teto dos dias seguintes (achado do teste
+		// ponta a ponta da Fase Q).
+		if floatCeiling == nil {
+			return nil
+		}
+		if floor := minOrderSizeCeilingPct(floatCeiling, floorPct); floor < *floatCeiling {
+			return &floor
+		}
 		return floatCeiling
 	}
 
@@ -739,12 +751,30 @@ func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRoun
 	if turn.Floor {
 		attempts = floorTurnAttempts
 	}
+	// Fundamentalista não negocia ativo sem empresa/fundamentos (FII, ou uma empresa
+	// ainda sem relatório): sorteá-lo desperdiçaria o turno, e o turno de piso
+	// esgotava as tentativas mais vezes em FII (3,8% dos dias sem negócio contra
+	// 0,2% nas ações no teste ponta a ponta da Fase Q).
+	eligible, indexes := candidates, []int(nil)
+	if !assetHasCompanyContext(run.equities[turn.AssetID], run.companyContext) {
+		eligible = make([]bot.TurnCandidate, 0, len(candidates))
+		indexes = make([]int, 0, len(candidates))
+		for i, c := range candidates {
+			if c.Archetype != bot.ArchetypeFundamentalista {
+				eligible = append(eligible, c)
+				indexes = append(indexes, i)
+			}
+		}
+	}
 	for attempt := 0; attempt < attempts; attempt++ {
 		purpose := fmt.Sprintf("turn:%d:%d", index, attempt)
 		botRng := rand.New(rand.NewSource(roundSeed(s.seed, run.dayIndex, round.SequenceIndex, turn.AssetID, purpose)))
-		pick := bot.SelectBotForTurn(asset, candidates, turn.Attention, botRng)
+		pick := bot.SelectBotForTurn(asset, eligible, turn.Attention, botRng)
 		if pick < 0 {
 			return nil
+		}
+		if indexes != nil {
+			pick = indexes[pick]
 		}
 		filled, err := s.runBotOnAsset(ctx, run, round, directional[pick], turn.AssetID, purpose, turn.Floor)
 		if err != nil {
@@ -755,6 +785,16 @@ func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRoun
 		}
 	}
 	return nil
+}
+
+// assetHasCompanyContext reporta se o ativo tem empresa com fundamentos no dia, o
+// que um Fundamentalista precisa para decidir (ver fundamentalistHasCompanyContext).
+func assetHasCompanyContext(state *equityRoundState, companyContext map[string]CompanyRoundContext) bool {
+	if state == nil || state.CompanyID == nil {
+		return false
+	}
+	_, ok := companyContext[*state.CompanyID]
+	return ok
 }
 
 // marketMakerCoveredAssets devolve os ativos que o Market Maker cota: toda a

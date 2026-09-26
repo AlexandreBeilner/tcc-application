@@ -223,8 +223,19 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 		want         *int64
 	}{
 		{
-			name: "sem histórico de volume cai pro float sozinho", floatCeiling: &floatCeiling,
-			recentVolume: nil, want: &floatCeiling,
+			// Sem histórico o teto é o piso proporcional (giro-alvo), não o float
+			// inteiro: com o float como teto o primeiro dia de um ativo novo
+			// negociava até 99% do float numa ordem só (teste ponta a ponta da Q).
+			name: "sem histórico de volume usa o piso proporcional ao float, não o float inteiro", floatCeiling: &bigFloat,
+			recentVolume: nil, want: ptr(int64(float64(bigFloat) * MinOrderPctOfFloat)),
+		},
+		{
+			name: "sem histórico e float minúsculo fica no piso mínimo", floatCeiling: &floatCeiling,
+			recentVolume: nil, want: ptr(MinOrderSizeCeiling),
+		},
+		{
+			name: "sem histórico e float menor que o piso mínimo não passa do float", floatCeiling: &smallFloat,
+			recentVolume: nil, want: &smallFloat,
 		},
 		{
 			// avg([10,10,10,10,10]) = 10, 10 * MaxOrderPctOfAverageVolumePct
@@ -1785,5 +1796,47 @@ func TestOrderCeilingPcts_AtencaoSobeOGiroAlvo(t *testing.T) {
 
 	if calmPct, hotPct := orderCeilingPcts(calm, turns)["a"], orderCeilingPcts(hot, turns)["a"]; hotPct <= calmPct {
 		t.Errorf("teto com atenção %v, sem %v: want maior com atenção", hotPct, calmPct)
+	}
+}
+
+// Teste ponta a ponta da Fase Q: Fundamentalista não negocia ativo sem empresa
+// (FII), então o sorteio do turno de um FII não pode gastar tentativa nele. Com 5
+// Fundamentalistas para 1 Ruído, o piso de todo FII ainda precisa imprimir uma
+// ordem a mercado (antes, cerca de metade dos FIIs ficava sem ordem no dia).
+func TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista(t *testing.T) {
+	assets := make([]AssetForPricing, 0, 30)
+	positions := map[string]int{}
+	for i := 0; i < 30; i++ {
+		id := fmt.Sprintf("fii%02d", i)
+		assets = append(assets, fiiAsset(id, 100))
+		positions[id] = 10_000
+	}
+	roster := []BotForRound{{UserID: "ruido", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}
+	for i := 0; i < 5; i++ {
+		roster = append(roster, BotForRound{UserID: fmt.Sprintf("fund%d", i), Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeFundamentalista)})
+	}
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: roster}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: positions}
+	submitter := &fakeOrderSubmitter{fillPrice: 100}
+	svc.orderSubmitter = submitter
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatal(err)
+	}
+
+	market := map[string]bool{}
+	for _, s := range submitter.submitted {
+		if s.req.UserID != "ruido" {
+			t.Errorf("ordem de %s num FII, want só o Ruído (Fundamentalista não tem empresa para avaliar)", s.req.UserID)
+		}
+		if s.req.Type == orderbook.TypeMarket {
+			market[s.req.AssetID] = true
+		}
+	}
+	for _, a := range assets {
+		if !market[a.AssetID] {
+			t.Errorf("FII %s sem ordem a mercado de piso", a.AssetID)
+		}
 	}
 }

@@ -590,3 +590,40 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   por ativo por dia (Q.8).
 - **Status:** resolvido (2026-09-26). A Q.4 validou os alvos em 30, 50 e 100 ativos depois de Q.7 a Q.10; resultados na seção 6.4 de
   `proposta-cobertura-market-maker.md` e no Entregável da Q.4 de `backlog-motor-mercado-realista.md`.
+
+### 015 · Ordem limitada em repouso não reserva nem revalida saldo/posição: saldo negativo e ordem "fantasma" travando o book
+
+- **Local:** `engine/internal/domain/orderexecution/` (`Execute`/`Persist`, `applyFillSide`),
+  `engine/internal/infra/db/order_execution_repository.go` (`LoadContext`, `fillRestingOrder`)
+- **Origem:** teste ponta a ponta da Fase Q, 2026-09-26 (o `.docs/engine/orders.md` já listava o comportamento em "Escopo não
+  coberto", mas nunca como achado com consequência medida)
+- **O que é:** a validação de saldo/posição de uma ordem limitada acontece só na submissão, contra o que ela preencheria na
+  hora, e nada é reservado. Duas consequências reproduzidas ao vivo:
+  1. **Saldo negativo (alavancagem grátis).** Usuário com R$ 10.000 põe uma compra limitada de R$ 9.000 dentro do spread de
+     um ativo, gasta R$ 7.400 a mercado em outro, e outro usuário vende a mercado no primeiro: a ordem em repouso preenche e o
+     saldo vai a **-R$ 6.402,37** (RNF06 e o capital de partida deixam de valer, e o ranking premia o risco sem custo). Nos
+     bots o mesmo aconteceu sozinho: 1 de 137 bots (Ruído) terminou com **-R$ 17,8 milhões** de saldo depois de 195 dias
+     simulados, porque várias compras limitadas em repouso preencheram depois de o caixa ser gasto em outros turnos.
+  2. **Ordem fantasma que bloqueia um lado do book.** Venda limitada sem posição (ou compra sem caixa) que **não cruza** o
+     book é aceita (`201`) e, se estiver dentro do spread, vira a melhor oferta: toda ordem a mercado do outro lado casa com
+     ela primeiro e é rejeitada inteira (`422 quantidade em posição insuficiente`) até a ordem expirar no fim do dia. Um
+     usuário sem posição nenhuma travou todas as compras de um ativo (as dele e as dos bots, inclusive o turno de piso da Q.8) com uma
+     ordem de 1 ação.
+- **Por que não foi corrigido:** a decisão de escopo ("aceitável para o protótipo", `.docs/engine/orders.md`) é do autor. Corrigir
+  exige escolher entre reservar (mexe em Event Sourcing e no extrato) ou revalidar no preenchimento (mexe no replay do book).
+- **Opções:** (a) revalidar no `Persist`: se a contraparte em repouso não tem saldo/posição, cancelar aquela ordem
+  (`cancel_reason` novo, ex: `insufficient_funds`) e continuar o match com a próxima (resolve os dois sintomas sem reserva);
+  (b) reservar saldo/posição na submissão (ordem limitada compromete caixa/posição e o cancelamento/expiração libera);
+  (c) manter como está e documentar a exposição na tela de ordens.
+- **Recomendação:** (a): é a mudança menor, preserva o modelo de "nada é reservado" já documentado e fecha o saldo negativo e a
+  ordem fantasma no mesmo ponto.
+- **Decisão (2026-09-26, autor aprovou a recomendação (a)):** revalidar o dono da ordem em repouso no match.
+- **Resolução (2026-09-26):** `Execute` pula e cancela (`cancel_reason = insufficient_funds`) a ordem em repouso cujo dono não
+  honra o trade, com saldo e posição lidos na mesma consulta do book (nenhum comando SQL a mais), mais `CHECK` de saldo e
+  posição não negativos como rede de proteção (migration `000025`). Validado ao vivo: a venda fantasma dentro do spread não
+  bloqueia mais a compra da vítima e é cancelada; a compra em repouso sem caixa não preenche (saldo do dono intacto); ordem
+  com fundos continua preenchendo; 12 compras concorrentes de ~R$ 8.000 com R$ 10.000 deram 1 execução e 11 rejeições;
+  180 ticks com o catálogo crescendo de 30 para 60 ativos terminaram com **0 saldos negativos** (antes, 1 bot com -R$ 17,8 mi),
+  0 divergências de saldo contra `market_events` e determinismo preservado (dois motores, mesmo hash). Detalhes em
+  `.docs/engine/orders.md`.
+- **Status:** Resolvido

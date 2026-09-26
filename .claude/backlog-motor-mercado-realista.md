@@ -3655,6 +3655,47 @@ Todos esses números são estimativas a validar na Q.4.
   mudar o orçamento, preferência por Fundamentalista, marcação no universo e giro-alvo com atenção; `golangci-lint`, `go build`,
   `go test ./...` passam.
 
+### Q.11 · Teste ponta a ponta da Fase Q: achados e correções ✅
+- **Origem:** teste de ponta a ponta pedido pelo autor depois da Q.10 (2026-09-26), fora do caminho feliz: banco isolado com o
+  catálogo real mais 30 sintéticos, 200 dias simulados, usuários reais pelo motor e pelo backend, evento macro, catálogo crescendo
+  com o mercado rodando, bots desativados, ticks concorrentes e ordens de usuário durante o tick.
+- **O que passou (sem achado):** conciliação de saldo e de posição contra `market_events` (0 divergências em 165 contas, 200 dias,
+  dividendos em lote incluídos: 19.879 pagamentos, soma idêntica ao gerado); float nunca ultrapassado; compra igual a venda por ativo;
+  **determinismo** (banco clonado, dois motores, 12 ticks, hash idêntico de cotações, saldos, posições e ordens: o cache de leitura
+  do tick da Q.1 não vaza nem altera nada); ticks concorrentes se serializam (dias 148 e 149, sem cotação duplicada); 20 ordens de
+  usuário em paralelo com um tick; seed idempotente (reexecutar com 60 sintéticos não muda nenhuma contagem) e guarda
+  `SEED_ALLOW_SYNTHETIC`; catálogo crescendo de 30 para 60 ativos com o mercado no ar (pool 60 para 137, posições antigas
+  intactas, 65 ativos cobertos); todos os bots direcionais desativados, só 1 ativo, todos os Market Makers desativados, nada ativo, e
+  reativação (nenhum erro, `uncovered_assets_count` correto); float `NULL` em um ativo; evento macro severo no setor Varejo (volume
+  do setor 0,98% do float contra 0,36% na linha de base, queda de 4% a 15%, decaimento ao fim do evento, orçamento de turnos igual);
+  preços da API iguais ao banco; backend (cadastro, gate de lição, ordem, cancelamento, extrato, ranking sem bots e sem valor
+  absoluto) sobre o motor novo.
+- **Achado 1 (corrigido): primeiro dia de um ativo negociava até 99% do float.** Sem histórico de volume, `effectiveOrderSizeCeiling`
+  devolvia o float inteiro como teto de ordem, então a Q.9 (giro-alvo) só valia a partir do segundo dia. No seed do zero, o volume do
+  dia 1 chegou a 25% do float (média de 1,73% nos dias 1 a 5, contra a faixa de 0,3% a 0,7%; `VALR3` 2,44% e 2,90% nos dois
+  primeiros dias) e o mesmo aconteceu com cada ativo novo de um catálogo que cresce (média de 9,45%, máximo de 38,3%), inflando
+  ainda o volume médio que dimensiona os dias seguintes. Agora o teto sem histórico é o piso proporcional (giro-alvo) do ativo.
+  **Depois:** dia 1 com média de 0,33% (máx. 1,0%) e ativos novos com média de 0,26% (máx. 0,8%).
+- **Achado 2 (corrigido): turno de FII gastava tentativa com Fundamentalista.** Fundamentalista não decide sem empresa, então o
+  sorteio de bot de um FII perdia cerca de metade dos turnos (e o turno de piso esgotava as 4 tentativas): 3,77% dos dias de FII
+  sem negócio contra 0,17% nas ações. `runTurn` não sorteia mais Fundamentalista para ativo sem empresa com fundamentos.
+  **Depois:** 0 de 78 dias de FII sem negócio.
+- **Achado 3 (corrigido, decisão do autor): achado 015** de `pontos-em-aberto-decisao-produto.md` (ordem em repouso não reservava
+  nem revalidava saldo/posição): saldo negativo de usuário (-R$ 6.402) e de bot (-R$ 17,8 mi), e ordem fantasma dentro do spread que
+  travava todas as compras de um ativo. `Execute` agora revalida o dono da ordem em repouso no match (saldo e posição vêm na
+  consulta do book, sem comando extra), pula e cancela a ordem sem fundos (`cancel_reason = insufficient_funds`, enum novo em
+  backend e frontend) e a migration `000025` acrescenta `CHECK` de saldo e posição não negativos, mapeados para `422`.
+  **Validação ao vivo:** fantasma pulada e cancelada, compra em repouso sem caixa não preenche, ordem válida preenche, 12 compras
+  concorrentes (1 executada, 11 rejeitadas), 180 ticks com catálogo crescendo com 0 saldos negativos e 0 divergências, mesmo
+  hash em dois motores.
+- **Observações sem correção:** o preço de fechamento anda em degraus de cerca de 1% porque o turno de piso executa contra a
+  cotação do Market Maker (efeito do desenho da Q.8); FII e ETF não ganham atenção por evento (só ação tem empresa alvo,
+  já dito na Q.10); dia de relatório com ativo novo ainda sem fundamentos faz o Fundamentalista pular o turno até o primeiro
+  relatório (turno perdido, sem erro).
+- **Testes:** `TestEffectiveOrderSizeCeiling` (sem histórico usa o piso proporcional) e
+  `TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista` (falha no código anterior, passa no novo) e 4 testes de `Execute` da revalidação (fantasma, compra sem saldo, saldo consumido entre ordens do mesmo dono, dono que pode honrar); `golangci-lint`,
+  `go build`, `go test ./...` passam.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
