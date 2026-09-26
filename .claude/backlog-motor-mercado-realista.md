@@ -3451,12 +3451,32 @@ Todos esses números são estimativas a validar na Q.4.
   (meta de 3.500 com 30 ativos); resultados registrados na proposta de cobertura e neste backlog. **Gatilho:** se com 100
   ativos o tick passar de 5.000 comandos depois de Q.1 a Q.3, abrir a Q.5.
 - **Dependências:** Q.1, Q.2, Q.3.
+- **Resultado do benchmark (2026-09-26, 60 dias, seed 42, script corrigido para ler o log do Postgres uma vez no fim):**
+
+  | | 30 ativos (pool 60) | 50 ativos (pool 100) | 100 ativos (pool 150) |
+  |---|---|---|---|
+  | Comandos por tick, média / máx. | 2.160 / 3.713 | 3.482 / 5.701 | 5.335 / 9.014 |
+  | Ticks acima de 5.000 | 0 | 9 | 28 de 60 |
+  | p50 / p95 / p99 | 1.965 / 3.534 / 3.713 | 3.117 / 5.569 / 5.701 | 4.696 / 8.550 / 9.014 |
+  | Volume dos líderes (% do float/dia) | 0,50 | 0,44 | 0,32 (0,13 a 0,52) |
+  | Volume mediano | 0,24 | 0,21 | 0,14 |
+  | Ativos abaixo de 0,15% | 7 de 30 | 12 de 50 | 52 de 100 |
+  | Dias sem negociação | 22% | 26% | 36% |
+  | Reação a 5 eventos severos na cauda | -1,0% | 0,0% | -1,0% |
+  | Cotados dos dois lados / cenário 013 | 30 de 30 / 20 de 20 | 50 de 50 / 20 de 20 | 100 de 100 / 20 de 20 |
+
+  **Leitura:** 30 ativos dentro do alvo; 50 estoura o teto de custo; 100 estoura o custo (o gatilho da Q.5 disparou), deixa o
+  mediano abaixo de 0,15% e 36% dos ativo-dias sem negócio. Causa comum: cada bot sorteia um ativo por rodada, então custo e
+  volume dependem do mesmo botão (o tamanho do pool) e cada ativo novo dilui os turnos dos outros. A Q.4 só fecha depois
+  de Q.7 a Q.10, que corrigem isso, e de uma nova execução do benchmark.
 
 ### Q.5 · (Reserva) Sessão de tick em memória
 - **Descrição:** carregar o estado uma vez (saldos, posições e books), simular os turnos em memória e gravar em lote,
   de modo que o custo dependa dos fills e não dos turnos. Refatoração grande do caminho de execução, com Event
-  Sourcing preservado. **Só se abre se o gatilho da Q.4 disparar.**
-- **Dependências:** Q.4.
+  Sourcing preservado. **O gatilho da Q.4 disparou (100 ativos, média de 5.335 comandos por tick), mas a tarefa fica em
+  reserva:** o orçamento de turnos (Q.8) torna o custo controlável e a Q.7 mede onde ele está. Só se abre se, depois de
+  Q.7 a Q.10, 100 ativos ainda passarem de 5.000 comandos por tick.
+- **Dependências:** Q.7, Q.8, Q.9, Q.10 e nova execução da Q.4.
 
 ### Q.6 · Dividendos em lote (custo que escala com bots x ativos)
 - **Origem:** achado no teste de fumaça da Q.3 (30 ativos, pool de 60): os picos de 5.654 comandos por tick caíam nos dias
@@ -3476,6 +3496,61 @@ Todos esses números são estimativas a validar na Q.4.
   (hash de contas, dos 7.320 eventos e das tabelas de dividendos) com **dia de pagamento 5.675 para 2.075 comandos
   (-63%)** e dia de geração 3.569 para 1.769 (-50%). `golangci-lint`, `go build`, `go test ./...` passam.
 - **Dependências:** nenhuma; feita antes da Q.4 porque muda o que ela mede.
+
+### Q.7 · Medir a divisão do custo do tick (Market Maker x bots direcionais x fixo)
+- **Origem:** benchmark da Q.4 com 100 ativos (média de 5.335 comandos por tick, 28 de 60 ticks acima de 5.000). Não se
+  sabe quanto vem dos 10 Market Makers (10 ativos cada, recotados a cada rodada), quanto dos 150 bots direcionais e quanto
+  do custo fixo (dividendos, cotações do dia, eventos). Sem isso, não dá para dizer se a Q.5 mira o alvo certo.
+- **Descrição:** o script de benchmark atribui os comandos do log do Postgres a categorias (por usuário da sessão ou por
+  padrão da consulta: Market Maker, bot direcional, fixo do tick) e imprime a divisão média e a de p95 por categoria.
+- **Critérios de aceite:** divisão medida com 30, 50 e 100 ativos e registrada aqui e na seção 6 da proposta de cobertura;
+  dizer explicitamente qual categoria domina o estouro de 100 ativos.
+- **Dependências:** nenhuma (usa o script já corrigido na Q.4).
+
+### Q.8 · Orçamento de turnos por ativo com piso rígido
+- **Origem:** dias sem negociação de 22% a 36% e volume mediano abaixo de 0,15% com 100 ativos. Hoje cada bot sorteia um
+  ativo por rodada, o custo e o volume dependem do tamanho do pool, e o piso da Q.3 é só estatístico.
+- **Descrição:** o tick passa a definir um **orçamento de turnos** (parâmetro de custo, independente do tamanho do
+  catálogo) e o distribui entre os ativos: `piso + parte proporcional` ao peso do ativo (valor de mercado misturado a um
+  piso uniforme, como na Q.3), com fechamento pelo método do maior resto, determinístico pela seed. Cada turno de ativo
+  escolhe depois um bot elegível de escopo compatível. O piso é **1 turno por ativo por dia**, garantido por construção,
+  e esse turno é marketable (a mercado, ou limite que cruza a cotação do Market Maker), para imprimir um negócio real e
+  o preço de fechamento do dia refletir atividade. `BotsPerAsset` e `MaxPoolSize` deixam de ser o botão de custo: o pool
+  só garante diversidade de arquétipos e escopos.
+- **Critérios de aceite:** nenhum ativo do catálogo sem turno em nenhum dia (teste com catálogo sintético de 100);
+  soma dos turnos por tick igual ao orçamento; ativo maior recebe proporcionalmente mais turnos acima do piso;
+  determinismo preservado; custo por tick com 100 ativos depende do orçamento, não do número de ativos (benchmark).
+- **Dependências:** Q.7 (define o orçamento viável), Q.3.
+- **Decisão (2026-09-26, autor delegou a escolha):** o piso passa de estatístico (desvio declarado na Q.3) para **rígido, 1
+  turno marketable por ativo por dia**. Motivo: é o que a decisão 1 já pedia ("nenhum ativo sem negociação"); custa só 1 turno
+  por ativo (100 dos ~350 do orçamento com 100 ativos); e o Market Maker já cota todo ativo, então o turno de piso sempre
+  encontra contraparte e o preço de fechamento vira dado do dia. Descartada a alternativa de 1 turno a cada 2 dias no
+  último quintil: imitaria melhor o papel ilíquido real, mas reabriria o buraco que o autor quer fechar.
+
+### Q.9 · Giro-alvo por ativo via tamanho de ordem
+- **Origem:** volume dos líderes e do mediano abaixo da faixa com 100 ativos, e custo que não pode subir para corrigi-lo.
+- **Descrição:** o volume deixa de depender só do número de turnos: cada ativo tem um **giro-alvo** diário (fração do float
+  escalada por valor de mercado, dentro de 0,15% a 0,6%) e a quantidade típica de uma ordem de bot é o giro-alvo dividido
+  pelos turnos esperados do ativo, sempre sujeita ao teto de 20% do volume médio recente já existente
+  (`effectiveOrderSizeCeiling`). Fundamentalista e Chartista fazem ordens maiores que o Ruído (lote institucional contra
+  varejo). Não adiciona nenhum comando SQL por tick.
+- **Critérios de aceite:** líderes na faixa de 0,3% a 0,7% e mediano de pelo menos 0,15% com 30, 50 e 100 ativos; sem
+  aumento de comandos SQL por tick; volatilidade diária dos ativos e esgotamento de caixa/posição dos Market Makers
+  medidos e dentro do aceitável (risco: ordens maiores movem mais o preço e consomem a cotação do Market Maker).
+- **Dependências:** Q.8.
+
+### Q.10 · Atenção por evento: turnos extras e reação do Fundamentalista
+- **Origem:** reação a cinco eventos severos num ativo da cauda de apenas -1,0% (0,0% com 50 ativos), contra -7,7% em 4
+  dias do `VALR3` no seed real (P.8): ativo pouco negociado quase não reage.
+- **Descrição:** evento macro ou balanço aplica um **multiplicador de atenção** (por exemplo x3 no dia, decaindo em 3 a 5
+  dias) sobre a alocação de turnos dos ativos-alvo. Os turnos extras vão preferencialmente a bots Fundamentalistas de
+  escopo compatível, pelo caminho de reação por negociação (nunca multiplicador direto de preço, proposta 2.3.2). O
+  orçamento total continua fixo: a atenção redistribui turnos, não soma.
+- **Critérios de aceite:** ativo da cauda alvo de eventos severos reage de forma comparável à do seed real (ordem de
+  grandeza da queda do `VALR3` na P.8); orçamento total de turnos inalterado; sem evento, a alocação é a da Q.8; teste
+  de decaimento da atenção.
+- **Dependências:** Q.8. Se a Q.8 já resolver a reação (piso rígido), medir antes de implementar e fechar como
+  "desnecessária" com a medição registrada.
 
 ## Sequência sugerida
 
@@ -3512,4 +3587,7 @@ Todos esses números são estimativas a validar na Q.4.
     P.8** (PR 3; P.6 só depende de P.1 e P.7 de P.2, então podem entrar antes). **P.9** a qualquer momento
     antes da Fase N. Fecha os achados 013 e 002 de `pontos-em-aberto-decisao-produto.md`.
 17. **Q.1** (sem decisão, pode abrir a fase), depois **Q.2** e **Q.3** (dependem de Q.1) e **Q.6** (dividendos em lote,
-    achada na Q.3, independente), depois **Q.4** (benchmark e gatilho). **Q.5** só se o gatilho da Q.4 disparar. Fecha o achado 014.
+    achada na Q.3, independente), depois **Q.4** (benchmark e gatilho). O primeiro benchmark da Q.4 (2026-09-26) estourou o custo e o volume com 100 ativos, então seguem
+    **Q.7** (medir a divisão do custo), **Q.8** (orçamento de turnos com piso rígido), **Q.9** (giro-alvo via tamanho de ordem)
+    e **Q.10** (atenção por evento), e depois uma nova execução da Q.4. **Q.5** só se, depois disso, 100 ativos ainda passarem
+    de 5.000 comandos por tick. Fecha o achado 014.

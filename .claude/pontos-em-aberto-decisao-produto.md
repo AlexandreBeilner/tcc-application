@@ -115,7 +115,13 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   tick, meta de 3.500 com 30 ativos. Virou a **Fase Q** de `backlog-motor-mercado-realista.md` (turno mais barato, pool
   dimensionado pelo orçamento, escolha de ativo ponderada por valor de mercado com piso, benchmark, e sessão de tick em
   memória só se o benchmark exigir).
-- **Status:** aberto, com dono real (Fase Q); fecha quando a Q.4 validar os alvos
+- **Benchmark da Q.4 (2026-09-26):** 30 ativos dentro do alvo; 50 estoura o custo (máx. 5.701 comandos); 100 estoura custo
+  (média 5.335, 28 de 60 ticks acima de 5.000) e alvo (mediano 0,14%, 36% dos ativo-dias sem negócio, cauda reage -1,0% a
+  cinco eventos severos). Causa: custo e volume dependem do mesmo botão (tamanho do pool). Virou as tarefas **Q.7 a Q.10**
+  (medir custo, orçamento de turnos com piso rígido, giro-alvo via tamanho de ordem, atenção por evento). **Decidido
+  (2026-09-26, autor delegou):** o piso de "nenhum ativo sem negociação" passa de estatístico para rígido, 1 turno marketable
+  por ativo por dia (Q.8).
+- **Status:** aberto, com dono real (Fase Q); fecha quando a Q.4 validar os alvos depois de Q.7 a Q.10
 
 ## Resolvidos
 

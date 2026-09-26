@@ -49,20 +49,33 @@ MMS=$("${PSQL[@]}" -c "SELECT count(*) FROM bot_personalities WHERE archetype='m
 echo "== seed pronto: ${ASSETS} ativos cobertos por ${MMS} Market Maker(s)"
 
 "${PSQL_ADMIN[@]}" -c "ALTER SYSTEM SET log_statement='all'" -c "SELECT pg_reload_conf()" >/dev/null
-echo "dia,segundos,comandos_sql,rodadas,fills,descobertos,ordens_mm,recotacoes_mm" > "$OUT"
-for _ in $(seq 1 "$DAYS"); do
+# Cada tick grava uma linha em RAW na hora (janela de tempo + métricas do tick), então uma queda
+# de sessão não perde o progresso. Os comandos SQL são contados uma vez só no fim, lendo o log do
+# Postgres uma única vez e atribuindo cada linha à janela do tick por timestamp (ler o log a cada
+# tick custava mais que o próprio tick, porque ele cresce com log_statement=all).
+RAW="tmp/benchmark-cobertura-${N}.raw.csv"
+: > "$RAW"
+for I in $(seq 1 "$DAYS"); do
   T0=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ); S0=$(date +%s.%N)
   RESP=$(docker exec bench-engine wget -qO- --post-data="" http://localhost:8080/admin/tick)
   S1=$(date +%s.%N); sleep 0.5; T1=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)
-  STMTS=$(docker logs --since "$T0" --until "$T1" tcc-postgres 2>&1 | grep -c "LOG:  statement\|LOG:  execute" || true)
   field() { echo "$RESP" | grep -o "\"$1\":[0-9]*" | cut -d: -f2; }
   DAY=$(field day)
   MMORD=$("${PSQL[@]}" -c "SELECT count(*) FROM order_book WHERE user_id='${MM_PREFIX}' AND simulated_day=$((DAY-1))")
   MMREQ=$("${PSQL[@]}" -c "SELECT count(*) FROM order_book WHERE cancel_reason='requoted' AND simulated_day>=$((DAY-1))")
-  printf "%s,%.2f,%s,%s,%s,%s,%s,%s\n" "$DAY" "$(echo "$S1 - $S0" | bc)" "$STMTS" "$(field intraday_rounds_count)" \
-    "$(field bot_fills_count)" "$(field uncovered_assets_count)" "$MMORD" "$MMREQ" >> "$OUT"
+  printf "%s,%.2f,%s,%s,%s,%s,%s,%s,%s\n" "$DAY" "$(echo "$S1 - $S0" | bc)" "$T0" "$T1" "$(field intraday_rounds_count)" \
+    "$(field bot_fills_count)" "$(field uncovered_assets_count)" "$MMORD" "$MMREQ" >> "$RAW"
+  echo "   tick ${I}/${DAYS} (dia ${DAY})" >&2
 done
 "${PSQL_ADMIN[@]}" -c "ALTER SYSTEM RESET log_statement" -c "SELECT pg_reload_conf()" >/dev/null
+
+echo "dia,segundos,comandos_sql,rodadas,fills,descobertos,ordens_mm,recotacoes_mm" > "$OUT"
+docker logs --timestamps tcc-postgres 2>&1 | grep "LOG:  statement\|LOG:  execute" > tmp/benchmark-cobertura-${N}.pglog || true
+awk -F, 'NR==FNR { n++; d[n]=$1; sec[n]=$2; t0[n]=substr($3,1,26); t1[n]=substr($4,1,26); r[n]=$5; f[n]=$6; u[n]=$7; mo[n]=$8; mr[n]=$9; next }
+  { ts=substr($0,1,26); for (k=(i>0?i:1); k<=n; k++) { if (ts<t0[k]) break; if (ts<t1[k]) { c[k]++; i=k; break } } }
+  END { for (k=1;k<=n;k++) printf "%s,%s,%d,%s,%s,%s,%s,%s\n", d[k], sec[k], c[k], r[k], f[k], u[k], mo[k], mr[k] }' \
+  "$RAW" "tmp/benchmark-cobertura-${N}.pglog" >> "$OUT"
+rm -f "tmp/benchmark-cobertura-${N}.pglog"
 
 echo "== resultados (CSV completo em ${OUT})"
 awk -F, 'NR>1 { n++; s+=$3; t+=$2; if ($2>tmax) tmax=$2; if ($3>smax) smax=$3; r+=$4; f+=$5; d+=$6; if ($3>5000) over++ }
