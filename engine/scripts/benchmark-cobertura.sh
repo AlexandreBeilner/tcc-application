@@ -115,6 +115,12 @@ echo "-- cobertura ao fim do dia ${DAYS}: ativos com compra e venda em repouso"
   SELECT a.id, bool_or(ob.side='buy') AS has_buy, bool_or(ob.side='sell') AS has_sell
   FROM assets a LEFT JOIN order_book ob ON ob.asset_id=a.id AND ob.status IN ('pending','partially_filled')
   WHERE a.type IN ('acao','fii') AND NOT a.is_sandbox GROUP BY a.id) t"
+echo "-- ativos sem um dos lados da cotação ao fim do dia (ticker, lados em repouso, preço, float, menor cotação em repouso)"
+"${PSQL[@]}" -c "SELECT a.ticker, coalesce(string_agg(DISTINCT ob.side::text, '+'), 'nenhum'), (SELECT price FROM asset_quotes q WHERE q.asset_id=a.id ORDER BY simulated_day DESC LIMIT 1),
+  via.outstanding_shares, min(ob.quantity - ob.filled_quantity)
+  FROM assets a JOIN variable_income_assets via ON via.asset_id=a.id LEFT JOIN order_book ob ON ob.asset_id=a.id AND ob.status IN ('pending','partially_filled')
+  WHERE a.type IN ('acao','fii') AND NOT a.is_sandbox GROUP BY a.id, a.ticker, via.outstanding_shares
+  HAVING NOT (bool_or(ob.side='buy') AND bool_or(ob.side='sell'))"
 echo "-- Market Makers: caixa e posição mínimos (esgotamento)"
 "${PSQL[@]}" -c "SELECT a.user_id, round(a.current_balance) AS caixa, (SELECT min(quantity) FROM positions p WHERE p.user_id=a.user_id) AS menor_posicao,
   (SELECT count(*) FROM market_maker_coverage c WHERE c.mm_account_id=a.user_id) AS ativos

@@ -3451,6 +3451,9 @@ Todos esses números são estimativas a validar na Q.4.
   (meta de 3.500 com 30 ativos); resultados registrados na proposta de cobertura e neste backlog. **Gatilho:** se com 100
   ativos o tick passar de 5.000 comandos depois de Q.1 a Q.3, abrir a Q.5.
 - **Dependências:** Q.1, Q.2, Q.3.
+- **Decisão (2026-09-26, autor aprovou a recomendação):** o teto de 5.000 comandos por tick vale como **média e p95** (a
+  média de 4.620 e o p95 de 5.024 com 100 ativos o cumprem). Os poucos ticks acima (3 de 60, máx. 6.393) são dias de 4 rodadas
+  com muitos fills; um teto rígido no pico exigiria um limite de fills por tick, que não se justifica pelo custo de realismo.
 - **Resultado do benchmark (2026-09-26, 60 dias, seed 42, script corrigido para ler o log do Postgres uma vez no fim):**
 
   | | 30 ativos (pool 60) | 50 ativos (pool 100) | 100 ativos (pool 150) |
@@ -3468,14 +3471,15 @@ Todos esses números são estimativas a validar na Q.4.
   **Leitura:** 30 ativos dentro do alvo; 50 estoura o teto de custo; 100 estoura o custo (o gatilho da Q.5 disparou), deixa o
   mediano abaixo de 0,15% e 36% dos ativo-dias sem negócio. Causa comum: cada bot sorteia um ativo por rodada, então custo e
   volume dependem do mesmo botão (o tamanho do pool) e cada ativo novo dilui os turnos dos outros. A Q.4 só fecha depois
-  de Q.7 a Q.10, que corrigem isso, e de uma nova execução do benchmark.
+  de Q.7 a Q.10, que corrigem isso, e de uma nova execução do benchmark (feita na Q.9, resultados no Entregável dela).
 
 ### Q.5 · (Reserva) Sessão de tick em memória
 - **Descrição:** carregar o estado uma vez (saldos, posições e books), simular os turnos em memória e gravar em lote,
   de modo que o custo dependa dos fills e não dos turnos. Refatoração grande do caminho de execução, com Event
   Sourcing preservado. **O gatilho da Q.4 disparou (100 ativos, média de 5.335 comandos por tick), mas a tarefa fica em
   reserva:** o orçamento de turnos (Q.8) torna o custo controlável e a Q.7 mede onde ele está. Só se abre se, depois de
-  Q.7 a Q.10, 100 ativos ainda passarem de 5.000 comandos por tick.
+  Q.7 a Q.10, 100 ativos ainda passarem de 5.000 comandos por tick. **Resultado (Q.9): média de 4.620 e p95 de 5.024
+  com 100 ativos, então a Q.5 não é necessária no horizonte de 100 ativos** (reabrir se o catálogo passar muito disso).
 - **Dependências:** Q.7, Q.8, Q.9, Q.10 e nova execução da Q.4.
 
 ### Q.6 · Dividendos em lote (custo que escala com bots x ativos)
@@ -3596,9 +3600,12 @@ Todos esses números são estimativas a validar na Q.4.
   | Cenário do achado 013 | 20 de 20 | 20 de 20 | 20 de 20 |
 
   Market Makers sem esgotamento (menor posição de um Market Maker com 100 ativos: 174 mil ações, caixa acima de R$ 4 bi).
-  **Observação aberta:** em 1 de 5 execuções com 50 ativos, 3 ativos terminaram o dia sem um dos lados da cotação (47 de 50
-  cotados dos dois lados; as outras 4 execuções, 50 de 50); não reproduzida em 3 execuções seguidas, a investigar antes de
-  fechar a Q.4. `golangci-lint`, `go build`, `go test ./...` passam.
+  **Achado e correção (mesma sessão):** em 2 de 4 execuções com 50 ativos, 1 a 2 ativos terminavam o dia sem a **compra**
+  (48 e 49 de 50 cotados dos dois lados). Causa provável: a recotação do Market Maker na passada final casa de cara com uma ordem
+  de bot que ficou do outro lado do preço e é consumida inteira, sem deixar o lado em repouso. A passada final agora repete até
+  nada mudar (`finalPassMaxIterations = 3`, uma consulta por Market Maker por repetição). Depois da correção, 4 de 4 execuções
+  com 50 ativos e 1 com 100 deram todos os ativos cotados dos dois lados, sem custo perceptível (média de 3.600 e 4.644
+  comandos por tick). O script de benchmark lista os ativos sem um dos lados quando isso ocorre. `golangci-lint`, `go build`, `go test ./...` passam.
 
 ### Q.10 · Atenção por evento: turnos extras e reação do Fundamentalista
 - **Origem:** reação a cinco eventos severos num ativo da cauda de apenas -1,0% (0,0% com 50 ativos), contra -7,7% em 4
@@ -3612,6 +3619,12 @@ Todos esses números são estimativas a validar na Q.4.
   de decaimento da atenção.
 - **Dependências:** Q.8. Se a Q.8 já resolver a reação (piso rígido), medir antes de implementar e fechar como
   "desnecessária" com a medição registrada.
+- **Reaberta (2026-09-26):** a primeira medição pós-Q.9 (-8,2%, -5,8% e -3,9% com 30, 50 e 100 ativos) sugeria que a reação
+  da cauda já estava boa e a tarefa foi fechada como desnecessária, mas a reação varia muito entre execuções (o banco recebe UUIDs
+  novos, o ativo da cauda e o sorteio mudam). Quatro execuções com 100 ativos deram **-3,9%, -1,0%, -0,0% e -3,0%**
+  (mediana perto de -2%), a metade ou menos da queda do `VALR3` no seed real (-7,7% em 4 dias, P.8). Uma amostra só não sustenta o
+  fechamento, então a Q.10 volta a ser implementada como descrito acima. Critério de aceite reforçado: reação medida em pelo
+  menos 4 execuções, com mediana da mesma ordem de grandeza da do `VALR3`.
 
 ## Sequência sugerida
 

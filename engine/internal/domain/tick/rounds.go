@@ -577,7 +577,7 @@ func (s *Service) runIntradayRounds(
 			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
 				continue
 			}
-			if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
+			if _, err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
 				return nil, nil, run.fillsExecuted, uncovered, err
 			}
 		}
@@ -592,13 +592,24 @@ func (s *Service) runIntradayRounds(
 	// rodada, então os bots direcionais podem consumir a cotação dele depois
 	// da última recotação do dia. Sem esta passada, o mercado fecharia sem
 	// contraparte no lado consumido (caso do achado 013). Com a manutenção de
-	// cotação, ela só custa escrita onde algo foi consumido.
-	for _, b := range roster {
-		if b.Personality.Archetype != bot.ArchetypeMarketMaker {
-			continue
+	// cotação, ela só custa escrita onde algo foi consumido. Repete até nada
+	// mudar (no máximo finalPassMaxIterations vezes): uma recotação pode casar de
+	// cara com uma ordem de bot que ficou do outro lado do preço e ser consumida
+	// inteira, deixando o ativo sem aquele lado (achado da Q.9).
+	for i := 0; i < finalPassMaxIterations; i++ {
+		changed := false
+		for _, b := range roster {
+			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+				continue
+			}
+			requoted, err := s.maintainMarketMakerQuotes(ctx, run, b)
+			if err != nil {
+				return nil, nil, run.fillsExecuted, uncovered, err
+			}
+			changed = changed || requoted
 		}
-		if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
-			return nil, nil, run.fillsExecuted, uncovered, err
+		if !changed {
+			break
 		}
 	}
 
@@ -687,6 +698,10 @@ func splitTurns(turns []bot.Turn, rounds int) [][]bot.Turn {
 	}
 	return out
 }
+
+// finalPassMaxIterations limita as repetições da passada final de manutenção de
+// cotação do Market Maker (ver runIntradayRounds).
+const finalPassMaxIterations = 3
 
 // floorTurnAttempts é quantos bots o turno de piso de um ativo tenta até um
 // deles conseguir negociar (um bot pode não ter sinal, caixa ou posição).
@@ -844,22 +859,25 @@ func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRo
 // maintainMarketMakerQuotes é a vez de um Market Maker numa rodada (P.3/P.4):
 // lê numa consulta só as ordens em repouso de todos os ativos que cobre e
 // mantém a cotação de cada um, em ordem por ID.
-func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, b BotForRound) error {
+func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, b BotForRound) (bool, error) {
 	assetIDs := marketMakerCoveredAssets(b, run.equities)
 	if len(assetIDs) == 0 {
-		return nil
+		return false, nil
 	}
 
 	resting, err := s.orderLifecycle.ListRestingOrders(ctx, b.UserID, assetIDs)
 	if err != nil {
-		return err
+		return false, err
 	}
+	changed := false
 	for _, assetID := range assetIDs {
-		if err := s.maintainQuote(ctx, run, b, assetID, resting[assetID]); err != nil {
-			return err
+		requoted, err := s.maintainQuote(ctx, run, b, assetID, resting[assetID])
+		if err != nil {
+			return changed, err
 		}
+		changed = changed || requoted
 	}
-	return nil
+	return changed, nil
 }
 
 // maintainQuote mantém a cotação de um Market Maker em um ativo (tarefa P.4,
@@ -868,17 +886,17 @@ func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, 
 // da tolerância do preço ideal é cancelado e recotado. Substitui o "cancelar
 // tudo e recotar tudo" do achado 005 A.4, que custava escrita proporcional ao
 // tamanho do catálogo em vez da atividade do mercado.
-func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) error {
+func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) (bool, error) {
 	state := run.equities[assetID]
 
 	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, state.Price)
 	if err != nil {
-		return nil
+		return false, nil
 	}
 	tolerance := bot.EffectiveQuoteTolerance(b.Personality.RiskProfile.SpreadWidthPct)
 	requoteBuy, requoteSell := bot.NeedsRequote(resting, idealBid, idealAsk, tolerance, int(minOrderSizeCeiling(state.OutstandingShares)))
 	if !requoteBuy && !requoteSell {
-		return nil
+		return false, nil
 	}
 
 	var staleIDs []string
@@ -889,26 +907,26 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 	}
 	if len(staleIDs) > 0 {
 		if err := s.orderLifecycle.CancelRestingOrders(ctx, staleIDs); err != nil {
-			return err
+			return true, err
 		}
 	}
 
 	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
 	if err != nil {
-		return err
+		return true, err
 	}
 	// O Market Maker é determinístico (sem seed) e não usa insumos além do
 	// preço, do caixa, da posição e do teto de ordem.
 	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
 	if err != nil {
-		return err
+		return true, err
 	}
 	if !ok {
-		return nil
+		return true, nil
 	}
 	decisions, err := bot.Decide(b.Personality, input)
 	if err != nil {
-		return nil
+		return true, nil
 	}
 
 	toSubmit := make([]bot.Decision, 0, len(decisions))
@@ -918,5 +936,5 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 		}
 	}
 	_, err = s.submitDecisions(ctx, run, b, assetID, state, execCtx, toSubmit)
-	return err
+	return true, err
 }

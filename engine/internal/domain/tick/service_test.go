@@ -151,10 +151,13 @@ type fakeOrderLifecycleManager struct {
 	// resting é o que ListRestingOrders devolve por ativo (o mesmo em toda
 	// chamada, sem simular fills); listCalls guarda os ativos pedidos em cada
 	// chamada em lote.
-	resting   map[string][]bot.RestingQuote
-	listErr   error
-	listCalls [][]string
-	cancelErr error
+	resting map[string][]bot.RestingQuote
+	// restingByCall, quando preenchido, sobrepõe resting nas primeiras chamadas de
+	// ListRestingOrders (índice = número da chamada), para simular o book mudando.
+	restingByCall []map[string][]bot.RestingQuote
+	listErr       error
+	listCalls     [][]string
+	cancelErr     error
 	// cancelCalls guarda os IDs de cada chamada de CancelRestingOrders.
 	cancelCalls [][]string
 }
@@ -168,9 +171,13 @@ func (f *fakeOrderLifecycleManager) ExpireStaleOrders(_ context.Context, current
 }
 
 func (f *fakeOrderLifecycleManager) ListRestingOrders(_ context.Context, _ string, assetIDs []string) (map[string][]bot.RestingQuote, error) {
+	call := len(f.listCalls)
 	f.listCalls = append(f.listCalls, append([]string(nil), assetIDs...))
 	if f.listErr != nil {
 		return nil, f.listErr
+	}
+	if call < len(f.restingByCall) {
+		return f.restingByCall[call], nil
 	}
 	return f.resting, nil
 }

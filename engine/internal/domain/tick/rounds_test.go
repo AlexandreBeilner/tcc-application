@@ -661,8 +661,10 @@ func TestRunIntradayRounds_LadoConsumidoERecotadoSozinho(t *testing.T) {
 			t.Errorf("lado submetido = %s, want só buy", side)
 		}
 	}
-	if len(submitter.submitted) != 3 {
-		t.Errorf("submetidas = %d, want 3 (rodada 1, rodada 2 e passada final)", len(submitter.submitted))
+	// O fake não simula o book: a compra nunca aparece em repouso, então a
+	// passada final repete finalPassMaxIterations vezes.
+	if want := 2 + finalPassMaxIterations; len(submitter.submitted) != want {
+		t.Errorf("submetidas = %d, want %d (2 rodadas e a passada final repetida)", len(submitter.submitted), want)
 	}
 }
 
@@ -688,8 +690,8 @@ func TestRunIntradayRounds_LadoForaDaToleranciaCancelaSoEsseLado(t *testing.T) {
 			t.Errorf("cancelCalls[%d] = %v, want [a1-sell]", i, ids)
 		}
 	}
-	if len(lifecycle.cancelCalls) != 3 {
-		t.Errorf("cancelCalls = %d, want 3", len(lifecycle.cancelCalls))
+	if want := 2 + finalPassMaxIterations; len(lifecycle.cancelCalls) != want {
+		t.Errorf("cancelCalls = %d, want %d (2 rodadas e a passada final repetida)", len(lifecycle.cancelCalls), want)
 	}
 	for _, side := range submittedSides(submitter) {
 		if side != orderbook.SideSell {
@@ -699,7 +701,8 @@ func TestRunIntradayRounds_LadoForaDaToleranciaCancelaSoEsseLado(t *testing.T) {
 }
 
 // Leitura em lote: uma consulta por Market Maker e rodada com todos os ativos
-// cobertos (não uma por ativo), mais uma na passada final.
+// cobertos (não uma por ativo), mais uma por repetição da passada final (o fake não
+// simula o book, então a passada final repete finalPassMaxIterations vezes).
 func TestRunIntradayRounds_LeituraDeOrdensEmLotePorMarketMaker(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a2", "a1", "a3"}}}}
@@ -712,8 +715,8 @@ func TestRunIntradayRounds_LeituraDeOrdensEmLotePorMarketMaker(t *testing.T) {
 	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	if len(lifecycle.listCalls) != 3 {
-		t.Fatalf("listCalls = %d, want 3 (2 rodadas + passada final)", len(lifecycle.listCalls))
+	if want := 2 + finalPassMaxIterations; len(lifecycle.listCalls) != want {
+		t.Fatalf("listCalls = %d, want %d (2 rodadas + passada final repetida)", len(lifecycle.listCalls), want)
 	}
 	for _, call := range lifecycle.listCalls {
 		if len(call) != 3 || call[0] != "a1" || call[1] != "a2" || call[2] != "a3" {
@@ -736,9 +739,10 @@ func TestRunIntradayRounds_PassadaFinalRecotaOQueFoiConsumido(t *testing.T) {
 	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, rounds[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	// 1 rodada + passada final = 2 vezes os 2 lados.
-	if len(submitter.submitted) != 4 {
-		t.Errorf("submetidas = %d, want 4", len(submitter.submitted))
+	// 1 rodada + passada final repetida (o fake não simula o book), os 2 lados
+	// de cada uma.
+	if want := 2 * (1 + finalPassMaxIterations); len(submitter.submitted) != want {
+		t.Errorf("submetidas = %d, want %d", len(submitter.submitted), want)
 	}
 }
 
@@ -845,13 +849,15 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 		t.Errorf("closing[a1] = %v, want 105 (preço do último fill)", closing["a1"])
 	}
 	// Ruído (bot.TurnBudget(1) = 4 turnos no dia, divididos entre as 2
-	// rodadas) + Market Maker (2 decisões: compra e venda) em cada rodada e na
-	// passada final (P.4) — 4 + 6 = 10 submissões, todas preenchidas (fillPrice > 0).
-	if fills != 10 {
-		t.Errorf("fills = %d, want 10", fills)
+	// rodadas) + Market Maker (2 decisões: compra e venda) em cada rodada e em
+	// cada repetição da passada final (P.4; o fake não simula o book) — todas
+	// preenchidas (fillPrice > 0).
+	want := 4 + 2*2 + 2*finalPassMaxIterations
+	if fills != want {
+		t.Errorf("fills = %d, want %d", fills, want)
 	}
-	if len(submitter.submitted) != 10 {
-		t.Fatalf("len(submitted) = %d, want 10", len(submitter.submitted))
+	if len(submitter.submitted) != want {
+		t.Fatalf("len(submitted) = %d, want %d", len(submitter.submitted), want)
 	}
 	for _, s := range submitter.submitted {
 		if s.req.AssetID != "a1" {
@@ -885,13 +891,15 @@ func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testin
 	}
 
 	// Market Maker decide 2 ordens por vez, em 2 rodadas mais a passada final
-	// (P.4): a primeira ordem de cada vez reaproveita o contexto
+	// (P.4, repetida finalPassMaxIterations vezes porque o fake não simula o
+	// book): a primeira ordem de cada vez reaproveita o contexto
 	// (SubmitWithContext), a segunda recarrega (Submit).
-	if submitter.submitWithContextCalls != 3 {
-		t.Errorf("submitWithContextCalls = %d, want 3 (uma por vez, só a primeira ordem)", submitter.submitWithContextCalls)
+	times := 2 + finalPassMaxIterations
+	if submitter.submitWithContextCalls != times {
+		t.Errorf("submitWithContextCalls = %d, want %d (uma por vez, só a primeira ordem)", submitter.submitWithContextCalls, times)
 	}
-	if len(submitter.submitted) != 6 {
-		t.Fatalf("len(submitted) = %d, want 6 (2 ordens x 3 vezes)", len(submitter.submitted))
+	if len(submitter.submitted) != 2*times {
+		t.Fatalf("len(submitted) = %d, want %d (2 ordens x %d vezes)", len(submitter.submitted), 2*times, times)
 	}
 }
 
@@ -1460,8 +1468,12 @@ func TestRunIntradayRounds_MarketMakerCotaTodaACoberturaEmTodaRodada(t *testing.
 			got = append(got, s.req.AssetID)
 		}
 	}
-	// 2 rodadas e a passada final, cada uma cotando os 3 em ordem por ID.
-	want := []string{"a1", "a2", "a3", "a1", "a2", "a3", "a1", "a2", "a3"}
+	// 2 rodadas e a passada final (repetida, o fake não simula o book), cada uma
+	// cotando os 3 em ordem por ID.
+	var want []string
+	for i := 0; i < 2+finalPassMaxIterations; i++ {
+		want = append(want, "a1", "a2", "a3")
+	}
 	if len(got) != len(want) {
 		t.Fatalf("ativos cotados = %v, want %v", got, want)
 	}
@@ -1707,5 +1719,32 @@ func TestBuildEquityUniverse_OrdemEstavelPorID(t *testing.T) {
 		if forward[i].AssetID != backward[i].AssetID {
 			t.Fatalf("posição %d: %s vs %s, want a mesma ordem", i, forward[i].AssetID, backward[i].AssetID)
 		}
+	}
+}
+
+// Achado da Q.9: uma recotação pode ser consumida de cara (casa com uma ordem de
+// bot do outro lado do preço) e deixar o ativo sem aquele lado. A passada final
+// repete enquanto algo foi recotado e para na primeira passada em que a cotação
+// está boa.
+func TestRunIntradayRounds_PassadaFinalRepeteAteACotacaoEstabilizar(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	good := map[string][]bot.RestingQuote{"a1": goodQuote("a1")}
+	// Rodada: sem cotação. Passada final 1: ainda sem cotação (a recotação da
+	// rodada foi consumida). Passada final 2: cotação boa, nada a fazer.
+	lifecycle := &fakeOrderLifecycleManager{restingByCall: []map[string][]bot.RestingQuote{nil, nil, good}}
+	svc.orderLifecycle = lifecycle
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds()[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(lifecycle.listCalls) != 3 {
+		t.Errorf("listCalls = %d, want 3 (rodada + 2 passadas finais)", len(lifecycle.listCalls))
+	}
+	if len(submitter.submitted) != 4 {
+		t.Errorf("submetidas = %d, want 4 (compra e venda na rodada e na 1ª passada final)", len(submitter.submitted))
 	}
 }
