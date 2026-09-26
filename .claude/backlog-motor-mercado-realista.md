@@ -4088,6 +4088,137 @@ negociação dos constituintes.
   que mede desequilíbrio de verdade. (2) A taxa acumulada do dia não entra no anúncio (~0,001% do patrimônio). (3) Se `raiseFundCash` vender constituintes por falta de caixa, o anúncio pode ter sido calculado antes disso;
   nesse caso o caixa livre é zero e o fechamento não distribui nada, então o iNAV das rodadas ficou com um passivo que não se confirma, por um dia, sem efeito nos saldos.
 
+## Fase S — Correções da validação ponta a ponta do mercado simulado (achados 018 a 023)
+
+**Origem:** validação ponta a ponta de 2026-09-26 (`tmp/relatorio-e2e-mercado-simulado.md`, scripts em
+`engine/scripts/e2e-mercado-simulado/`), que passou nas invariantes financeiras mas expôs 6 pontos de decisão, todos decididos
+pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto.md`, achados 018 a 023).
+
+**Decisões do autor (2026-09-26):**
+1. **Escala de tempo (019 + 022):** calendário real acelerado: **1 dia real = 5 dias simulados** (fator 5 ajustável), 5 ticks por
+   dia real espaçados (~4h48). **Dia simulado = dia de calendário** (7 por semana, data-base fixa numa segunda-feira, feriados
+   ignorados por ora). Tempos do mundo real: trimestre/ciclo de relatório = 91 dias (crescimento de 3% e DY reais por trimestre),
+   Copom = 45 dias, rebalanceamento de ETF trimestral (91), FII paga proventos a cada 30 dias, mês de IPCA = 30 dias. Selic/CDI
+   rendem só em dia útil (base 252); IR da renda fixa conta dias corridos direto. Tudo que usa relógio de parede (prazo/IR/VNA da
+   renda fixa, datas de dividendo e DY de 12 meses, dia do roteiro sandbox) passa a derivar do dia simulado.
+   **Fim de semana simulado (~9h30 reais) com mercado fechado:** negociação de renda variável e renda fixa bloqueada com aviso
+   claro; sandbox, lições e cancelamento de ordem seguem abertos; bots não negociam nesses dias.
+   **Calendário da simulação no frontend:** relógio do mercado no TopBar mais tela Calendário (mobile first, gamificada), com
+   eventos macro, Copom, balanços, dividendos e os eventos do próprio usuário.
+2. **Agenda do tick (018):** horário fixo (00:00 America/Sao_Paulo) com recuperação limitada de dias perdidos (teto de K dias,
+   ex.: 3) e trava contra tick duplicado.
+3. **Gate de lições (020):** passos sequenciais (`step` só `currentStep` ou `currentStep + 1`) mais tempo mínimo entre avanços
+   (ex.: 5 s, ajustável).
+4. **Preço e book (021):** bid/ask e profundidade visíveis, custo estimado e preço médio executado no diálogo, mensagem clara
+   para all-in; carteira, patrimônio e ranking marcados a **ponto médio do book** (fallback: último negócio).
+5. **Sandbox (023):** escondido do mercado real; só pelo Modo Aprendizado e pelas lições.
+
+### S.1 · Dia simulado como única fonte de tempo (renda fixa, dividendos, sandbox)
+- **Descrição:** substituir `time.Now()` por dia simulado em `fixedincomeexecution` (DU restante até o vencimento, `days_held` do
+  IR regressivo, janela do VNA), nas datas de dividendo (`period_date`/`ex_date` e `sumDividendsLast12Months`) e no índice de dia do
+  roteiro sandbox. `maturity_date` e `created_at` de posição passam a ter equivalente em dia simulado (migration + backfill dos
+  dados existentes). Introduz o calendário simulado (`internal/domain/simcalendar`: data-base fixa numa segunda-feira, dia simulado
+  para data, dia da semana, dia útil sem fins de semana). IR regressivo conta dias simulados direto (= dias corridos). Selic/CDI
+  rendem só em dia útil (base 252) e o DU restante do Prefixado/IPCA+ conta dias úteis do calendário simulado.
+- **Critérios de aceite:** 21 ticks seguidos rendem Prefixado e IR coerentes com 21 dias simulados (o Prefixado deixa de resgatar
+  ao preço da compra); nenhum `time.Now()` de regra de negócio restante em `internal/domain`; fecha o achado 022.
+- **Dependências:** nenhuma.
+
+### S.2 · Trimestre real e recalibração de fundamentos e dividendos
+- **Descrição:** alinhar as constantes de tempo ao mundo real em dias de calendário: `DefaultReportFrequencyDays` de 14 para 91;
+  Copom de 21 para 45 (`selic.CopomMeetingIntervalDays`); rebalanceamento de ETF de 14 para 91; FII passa a pagar proventos a cada
+  30 dias (hoje junto do balanço); mês de IPCA fica em 30; conferir a janela de `fundamentals_report_day` e a duração das bandas de
+  evento macro (1 a 3 dias, mantidas). Refazer os benchmarks (Q.4/R.12).
+- **Critérios de aceite:** retorno esperado de renda variável próximo de Selic mais prêmio de risco (não +40%/ano) num run de
+  ~250 dias simulados com 20 ativos; DY anual plausível; benchmarks de custo por tick dentro do critério aceito.
+- **Dependências:** S.1.
+
+### S.3 · Agenda do tick: 5 ticks por dia real, horário fixo e recuperação limitada
+- **Descrição:** (fim de semana simulado: o tick avança o calendário mas não roda rodada de bot nem cotação de Market Maker.) `scheduler.RunDaily` vira agenda ancorada (00:00 America/Sao_Paulo, 5 ticks espaçados por ~4h48), lê o último
+  tick de `market_calendar` na subida, recupera dias perdidos até o teto K e usa trava (advisory lock) contra tick duplicado entre
+  instâncias e contra o `POST /admin/tick`. Fator 5 e teto K configuráveis por env. Ordem "day order" passa a valer por dia simulado
+  (~5h reais): conferir a mensagem de expiração no frontend.
+- **Critérios de aceite:** deploy repetido no mesmo dia não impede nem duplica tick; motor fora N dias recupera até K; teste com
+  relógio injetado; fecha os achados 018 e 019.
+- **Dependências:** S.1, S.2.
+
+### S.4 · Gate de lições: passos sequenciais e tempo mínimo
+- **Descrição:** `POST /lessons/:id/progress` só aceita `step` igual a `currentStep` ou `currentStep + 1`; avanço exige tempo mínimo
+  desde o último passo (constante configurável, ex.: 5 s), com coluna/timestamp em `user_lesson_progress`. Caso de uso, erro de
+  domínio (`422`), teste, `.docs/backend/lessons.md`. Reabrir lição concluída e o passo 0 não são afetados.
+- **Critérios de aceite:** pular direto para o passo 3 e avançar sem esperar retornam `422`; fluxo normal do frontend inalterado; o
+  script de `gating.py` passa a levar o tempo mínimo por passo; fecha o achado 020.
+- **Dependências:** nenhuma.
+
+### S.5 · Rota de book: melhor bid/ask e profundidade resumida
+- **Descrição:** `GET /assets/{id}/book` no motor (melhor bid, melhor ask, ponto médio, profundidade agregada nos N primeiros níveis,
+  sem expor ordens nem donos) e proxy `GET /market/assets/:id/book` no backend, com Zod, teste e docs (`.docs/engine/`,
+  `.docs/backend/market.md`). Ativo sandbox devolve o preço do roteiro sem book.
+- **Critérios de aceite:** nunca vaza identidade nem tamanho de ordem individual; lado vazio devolvido como nulo; fecha a parte (a).
+- **Dependências:** nenhuma.
+
+### S.6 · Marcação a ponto médio (carteira, patrimônio e ranking)
+- **Descrição:** patrimônio de posição de renda variável marcado ao ponto médio do book, com fallback para o último negócio quando
+  falta um dos lados; aplicar em `GET /market/me/account`, no cálculo de patrimônio do ranking e no perfil. Gráfico e variação do
+  dia seguem no último negócio.
+- **Critérios de aceite:** um negócio de 1 cota não altera o patrimônio marcado de outra carteira além do ponto médio; teste de
+  não manipulação por wash trade; fecha a parte (b).
+- **Dependências:** S.5.
+
+### S.7 · Frontend: bid/ask, custo estimado e preço executado no diálogo de ordem
+- **Descrição:** painel "Nova ordem" mostra melhor bid/ask e "custo estimado" contra o book; resultado informa preço médio
+  executado; "comprar o máximo" calcula pela profundidade real e o `422` de saldo/quantidade ganha mensagem clara com a quantidade
+  máxima. Responsivo nos três breakpoints e tokens de identidade visual; sem em dash no texto de UI.
+- **Critérios de aceite:** all-in por último preço deixa de cair em `422` genérico; teste de componente e navegação real.
+- **Dependências:** S.5.
+
+### S.8 · Sandbox fora da lista do mercado real
+- **Descrição:** `GET /market/assets` (e o proxy do motor) exclui ativos `is_sandbox` por padrão, com parâmetro explícito para
+  incluí-los; a tabela de Renda Variável não os mostra; Modo Aprendizado e lições continuam achando o ativo pelo ticker.
+- **Critérios de aceite:** `SAND3`/`SANDPRE` somem da tabela real e continuam operáveis pelas lições; fecha o achado 023.
+- **Dependências:** nenhuma.
+
+### S.9 · Revalidação ponta a ponta e fechamento dos achados (por último, depois de S.10 a S.12)
+- **Descrição:** rodar de novo `engine/scripts/e2e-mercado-simulado/` (sim, neg, gating, liq) com o relógio novo, conferir o retorno
+  médio de renda variável, a renda fixa em 21 ticks, o all-in e o gate; marcar 018 a 023 como Resolvido em
+  `pontos-em-aberto-decisao-produto.md`.
+- **Critérios de aceite:** zero violação de invariante; os 6 achados fechados com evidência.
+- **Dependências:** S.1 a S.8, S.10 a S.12.
+
+### S.10 · Calendário da simulação: endpoint de relógio e linha do tempo
+- **Descrição:** rota do motor + proxy no backend (`GET /market/clock` e `GET /market/calendar?from=&to=`): dia simulado, data, dia
+  da semana, `market_open` (falso em sábado/domingo simulado), fator de aceleração, instante do próximo tick, dias até a abertura e
+  trimestre corrente (dia N de 91). O calendário devolve, por dia, os fatos globais (eventos macro disparados, reunião do Copom com a
+  Selic resultante, dia de relatório, data-ex e pagamento de proventos, com os futuros previsíveis marcados como próximos) e, por
+  usuário autenticado, os fatos dele (ordens executadas, proventos recebidos, vencimentos e resgates de renda fixa). Nunca expõe
+  patrimônio absoluto de terceiros. Zod, testes, `.docs/engine/` e `.docs/backend/`.
+- **Critérios de aceite:** relógio consistente com `market_calendar`; eventos futuros só os determinísticos (Copom, relatório,
+  proventos já anunciados, vencimentos do usuário), nunca evento macro ainda não disparado; paginação por janela de datas.
+- **Dependências:** S.1, S.3.
+
+### S.11 · Mercado fechado no fim de semana simulado
+- **Descrição:** `orderexecution` (ordens novas, a mercado e limitadas) e `fixedincomeexecution` (compra e resgate) recusam com erro de
+  domínio próprio quando o dia simulado é sábado ou domingo (`422`, código `market_closed`, com `opens_at`/dias restantes); backend
+  repassa e documenta. Cancelar ordem, sandbox e lições seguem abertos; bots não negociam. Frontend: botão de ordem e de aporte
+  desabilitados com o motivo em texto ("Mercado fechado: fim de semana simulado. Abre em 4h12, segunda 12/01"), sem depender só de cor.
+- **Critérios de aceite:** ordem no sábado simulado devolve `market_closed` sem gravar nada; sandbox continua operável; teste de
+  fronteira (sexta para sábado, domingo para segunda); script de e2e ganha dia de semana no relógio.
+- **Dependências:** S.1, S.10.
+
+### S.12 · Frontend: relógio do mercado e tela Calendário (mobile first, gamificado)
+- **Descrição:** (1) chip fixo no TopBar com "Dia 132 · qua 08/07 · próximo dia em 2h14", ponteiro que avança e selo "mercado
+  fechado" no fim de semana; (2) tela Calendário (bottom sheet no mobile, painel lateral fixo no desktop, composição própria por
+  breakpoint): faixa horizontal de dias com marcadores (macro, Copom, balanço, dividendo, meus eventos), trimestre como barra de
+  progresso "dia N de 91", listas "aconteceu" e "vem aí", legenda de convenção sólido/tracejado (passado/futuro) e linha fixa "cada
+  dia real = 5 dias de mercado"; (3) teatro de recompensa leve na virada de dia (animação e toast "Novo dia: Selic X%"), respeitando
+  `prefers-reduced-motion`; (4) passo novo no onboarding explicando o tempo acelerado e o fim de semana fechado; (5) responsividade nos
+  três breakpoints, tokens de `identidade-visual-tokens.md`, padrões de `identidade-visual-padroes.md`, acessibilidade (alvos de
+  toque ≥ 44px, texto além de cor, foco visível), sem em dash em texto de UI. Nova tela registrada em
+  `inventario-telas-plataforma-investimentos.md` e mockup vivo antes da implementação (tela âncora).
+- **Critérios de aceite:** usuário novo entende em uma olhada em que dia estamos, que o tempo é acelerado e por que o mercado está
+  fechado; testes de componente e navegação real em 375px, 768px e 1280px.
+- **Dependências:** S.10, S.11.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -4131,3 +4262,6 @@ negociação dos constituintes.
     **R.6** (Participante Autorizado), **R.7** (rebalanceamento), **R.8** (dividendos, só depende da R.3, pode entrar antes da R.6),
     **R.9** (taxa de administração), **R.10** (atenção derivada da cesta), **R.11** (frontend, lições e docs) e **R.12** (validação
     ponta a ponta e benchmark, fecha a fase). **R.13** só se o autor pedir. Sem dependência das Fases M e N.
+19. **S.4** e **S.8** são independentes (podem abrir a fase). **S.1 → S.2 → S.3** (escala de tempo e agenda do tick), **S.10 → S.11 → S.12** (calendário, mercado fechado no fim de semana e frontend, depois de S.1 e S.3), **S.5 → S.6
+    e S.7** (book, marcação a ponto médio e diálogo), e **S.9** fecha a fase. Fecha os achados 018 a 023 de
+    `pontos-em-aberto-decisao-produto.md`.

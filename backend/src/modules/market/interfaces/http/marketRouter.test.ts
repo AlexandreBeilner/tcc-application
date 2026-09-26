@@ -190,7 +190,7 @@ describe('GET /market/assets/:id', () => {
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
-      .get('/market/assets/inexistente')
+      .get('/market/assets/a74dfc5a-12f3-45aa-a146-313f3605c497')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
@@ -204,7 +204,7 @@ describe('GET /market/assets/:id/quotes', () => {
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
-      .get('/market/assets/asset-1/quotes?days=7')
+      .get('/market/assets/a74dfc5a-12f3-45aa-a146-313f3605c497/quotes?days=7')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
@@ -218,7 +218,7 @@ describe('GET /market/companies/:id', () => {
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
-      .get('/market/companies/company-1')
+      .get('/market/companies/a74dfc5a-12f3-45aa-a146-313f3605c497')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
@@ -438,7 +438,9 @@ describe('POST /market/orders', () => {
 describe('POST /market/orders/:id/cancel', () => {
   it('retorna 401 sem token', async () => {
     const { app } = buildApp()
-    const res = await request(app).post('/market/orders/order-1/cancel')
+    const res = await request(app).post(
+      '/market/orders/a74dfc5a-12f3-45aa-a146-313f3605c497/cancel',
+    )
     expect(res.status).toBe(401)
   })
 
@@ -447,11 +449,13 @@ describe('POST /market/orders/:id/cancel', () => {
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
-      .post('/market/orders/order-1/cancel')
+      .post('/market/orders/a74dfc5a-12f3-45aa-a146-313f3605c497/cancel')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(204)
-    expect(orderExecutor.cancelCalls).toEqual([{ orderId: 'order-1', userId: 'user-1' }])
+    expect(orderExecutor.cancelCalls).toEqual([
+      { orderId: 'a74dfc5a-12f3-45aa-a146-313f3605c497', userId: 'user-1' },
+    ])
   })
 
   it('traduz 404 (ordem não encontrada ou de outro usuário) do motor 1:1 pro cliente', async () => {
@@ -460,7 +464,7 @@ describe('POST /market/orders/:id/cancel', () => {
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
-      .post('/market/orders/order-1/cancel')
+      .post('/market/orders/a74dfc5a-12f3-45aa-a146-313f3605c497/cancel')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
@@ -476,7 +480,7 @@ describe('POST /market/orders/:id/cancel', () => {
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
 
     const res = await request(app)
-      .post('/market/orders/order-1/cancel')
+      .post('/market/orders/a74dfc5a-12f3-45aa-a146-313f3605c497/cancel')
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(409)
@@ -639,6 +643,40 @@ describe('GET /market/fixed-income/tax-rate', () => {
     const res = await request(app)
       .get('/market/fixed-income/tax-rate?days_held=0')
       .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('validação de borda (achados da validação ponta a ponta)', () => {
+  it('recusa :id que não é UUID com 400 em vez de repassar ao motor', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    for (const path of [
+      '/market/assets/abc',
+      '/market/assets/abc/quotes',
+      '/market/companies/abc',
+    ]) {
+      const res = await request(app).get(path).set('Authorization', `Bearer ${token}`)
+      expect(res.status, path).toBe(400)
+    }
+  })
+
+  it('recusa preço de ordem limit acima do teto (1e308 estourava o numeric do banco em 500)', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .post('/market/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        asset_id: 'a74dfc5a-12f3-45aa-a146-313f3605c497',
+        side: 'buy',
+        type: 'limit',
+        price: 1e308,
+        quantity: 1,
+      })
 
     expect(res.status).toBe(400)
   })

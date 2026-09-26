@@ -37,6 +37,11 @@ export const listMyEventsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 })
 
+// Tetos só de sanidade da borda: acima disso o valor nem cabe no `numeric`
+// do banco e virava 500 (ex: preço 1e308) em vez de 400.
+const MAX_ORDER_PRICE = 1_000_000
+const MAX_FIXED_INCOME_AMOUNT = 1_000_000_000
+
 // `user_id` nunca faz parte do schema do corpo — é sempre injetado pelo
 // router a partir de `req.auth.userId` (tarefa 6.0.3), nunca aceito do
 // cliente.
@@ -45,7 +50,7 @@ export const placeOrderBodySchema = z
     asset_id: z.uuid(),
     side: z.enum(['buy', 'sell']),
     type: z.enum(['market', 'limit']),
-    price: z.number().positive().optional(),
+    price: z.number().positive().max(MAX_ORDER_PRICE).optional(),
     quantity: z.number().int().positive(),
   })
   .refine((body) => body.type !== 'limit' || body.price !== undefined, {
@@ -55,7 +60,7 @@ export const placeOrderBodySchema = z
 
 export const purchaseFixedIncomeBodySchema = z.object({
   asset_id: z.uuid(),
-  amount: z.number().positive(),
+  amount: z.number().positive().max(MAX_FIXED_INCOME_AMOUNT),
 })
 
 export const redeemFixedIncomeBodySchema = z.object({

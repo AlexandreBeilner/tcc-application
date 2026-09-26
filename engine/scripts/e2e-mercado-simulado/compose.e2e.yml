@@ -1,0 +1,37 @@
+name: tccsim
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: {POSTGRES_USER: tcc, POSTGRES_PASSWORD: tcc}
+    volumes:
+      - ../../../infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports: ["5544:5432"]
+    healthcheck: {test: ["CMD-SHELL","pg_isready -U tcc"], interval: 3s, timeout: 3s, retries: 20}
+  redis:
+    image: redis:7-alpine
+    healthcheck: {test: ["CMD","redis-cli","ping"], interval: 3s, timeout: 3s, retries: 20}
+  engine:
+    build: {context: ../../../engine}
+    environment:
+      ENGINE_ADDR: ":8080"
+      DATABASE_URL: postgres://tcc:tcc@postgres:5432/market?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      SIMULATION_SEED: "42"
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}}
+    expose: ["8080"]
+  backend:
+    build: {context: ../../../backend}
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://tcc:tcc@postgres:5432/gamification?sslmode=disable
+      REDIS_URL: redis://redis:6379/1
+      ENGINE_URL: http://engine:8080
+      JWT_SECRET: e2e-secret
+      FRONTEND_URL: http://localhost:5173
+      AVATAR_STORAGE_DIR: /data/avatars
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}, engine: {condition: service_started}}
+    expose: ["3000"]
+  gateway:
+    build: {context: ../../../gateway}
+    depends_on: [backend]
+    ports: ["8100:80"]

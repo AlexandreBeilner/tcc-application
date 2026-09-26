@@ -2,6 +2,7 @@ import type { Response } from 'express'
 import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
+import { requireUuidParam } from '../../../../shared/http/uuidParam'
 import { EngineRequestError, ProductLockedError } from '../../domain/errors'
 import type { GetAssetQuotesUseCase } from '../../application/useCases/getAssetQuotes'
 import type { GetAssetUseCase } from '../../application/useCases/getAsset'
@@ -69,6 +70,7 @@ function sendEngineError(err: unknown, res: Response): void {
 
 export function createMarketRouter(deps: MarketRouterDeps): Router {
   const router = Router()
+  router.param('id', requireUuidParam)
 
   // --- Catálogo (leitura, qualquer usuário autenticado) ---
 

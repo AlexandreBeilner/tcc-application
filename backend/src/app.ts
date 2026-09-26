@@ -3,6 +3,7 @@ import express, { Express } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
 import { healthRouter } from './routes/health'
+import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
 import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
 import { createEngineMacroEventReader } from './modules/admin/infrastructure/engine/engineMacroEventReader'
@@ -493,5 +494,6 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  app.use(jsonErrorHandler)
   return app
 }
