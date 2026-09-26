@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 
@@ -303,6 +304,10 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 		}
 		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type), MarketValue: marketValue})
 	}
+	// Ordem estável por ID: a alocação de turnos (Q.8) sorteia percorrendo o
+	// universo, e a ordem em que o banco devolve os ativos muda quando as linhas
+	// são atualizadas (RNF08, mesma seed, mesmo mercado).
+	sort.Slice(universe, func(i, j int) bool { return universe[i].AssetID < universe[j].AssetID })
 	return equities, universe
 }
 
@@ -339,7 +344,7 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 // volumeCeiling zerava pra sempre e nenhuma ordem de compra nova conseguia
 // tamanho >= 1 (capToFloat/quantityForSide, marketmaker.go), travando a
 // liquidez do ativo indefinidamente.
-func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
+func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int, floorPct float64) *int64 {
 	if len(recentVolume) == 0 {
 		return floatCeiling
 	}
@@ -350,7 +355,7 @@ func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	}
 	avgVolume := float64(sum) / float64(len(recentVolume))
 	volumeCeiling := int64(avgVolume * MaxOrderPctOfAverageVolumePct)
-	if floor := minOrderSizeCeiling(floatCeiling); volumeCeiling < floor {
+	if floor := minOrderSizeCeilingPct(floatCeiling, floorPct); volumeCeiling < floor {
 		volumeCeiling = floor
 	}
 
@@ -360,14 +365,21 @@ func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	return floatCeiling
 }
 
-// minOrderSizeCeiling é o piso do teto de volume: MinOrderPctOfFloat do float
-// (achado 009), nunca abaixo de MinOrderSizeCeiling. Sem float conhecido (nil,
-// ex: sandbox) só o piso absoluto se aplica.
+// minOrderSizeCeiling é o piso do teto de volume com o percentual fixo
+// MinOrderPctOfFloat (a cotação do Market Maker usa este).
 func minOrderSizeCeiling(floatCeiling *int64) int64 {
+	return minOrderSizeCeilingPct(floatCeiling, MinOrderPctOfFloat)
+}
+
+// minOrderSizeCeilingPct é o piso do teto de volume: pct do float (achado 009 e,
+// para os bots direcionais, o percentual do giro-alvo do ativo, Q.9), nunca
+// abaixo de MinOrderSizeCeiling. Sem float conhecido (nil, ex: sandbox) só o
+// piso absoluto se aplica.
+func minOrderSizeCeilingPct(floatCeiling *int64, pct float64) int64 {
 	if floatCeiling == nil {
 		return MinOrderSizeCeiling
 	}
-	if floor := int64(float64(*floatCeiling) * MinOrderPctOfFloat); floor > MinOrderSizeCeiling {
+	if floor := int64(float64(*floatCeiling) * pct); floor > MinOrderSizeCeiling {
 		return floor
 	}
 	return MinOrderSizeCeiling
@@ -394,6 +406,7 @@ func (s *Service) decisionInputFor(
 	priceHistoryCache map[string][]float64,
 	volumeCache map[string][]int,
 	assetID string,
+	orderCeilingPct float64,
 ) (bot.DecisionInput, bool, error) {
 	recentVolume, cached := volumeCache[assetID]
 	if !cached {
@@ -434,7 +447,7 @@ func (s *Service) decisionInputFor(
 		// gigante demais pro que o mercado de fato absorve num dia — os
 		// dois travavam o preço de fechamento no mesmo valor por dias/
 		// semanas simulados.
-		OrderSizeCeiling: effectiveOrderSizeCeiling(execCtx.OutstandingShares, recentVolume),
+		OrderSizeCeiling: effectiveOrderSizeCeiling(execCtx.OutstandingShares, recentVolume, orderCeilingPct),
 		// Piso de tamanho da cotação do Market Maker (P.6): uma cotação
 		// menor não conta como cobertura. Só o Market Maker lê.
 		MinQuoteQuantity: int(minOrderSizeCeiling(execCtx.OutstandingShares)),
@@ -549,7 +562,9 @@ func (s *Service) runIntradayRounds(
 		scopes[i] = b.Personality.Scope
 	}
 	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
-	turnsByRound := splitTurns(bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng), len(rounds))
+	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
+	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
+	turnsByRound := splitTurns(dayTurns, len(rounds))
 	universeByID := make(map[string]bot.EquityForRound, len(universe))
 	for _, e := range universe {
 		universeByID[e.AssetID] = e
@@ -607,6 +622,10 @@ type roundRun struct {
 	volumeCache       map[string][]int
 	volumeByAssetID   map[string]int
 	fillsExecuted     int
+	// orderCeilingPct (Q.9) é, por ativo, o piso do teto de tamanho de ordem dos
+	// bots direcionais (fração do float): dimensiona a ordem para o giro-alvo do
+	// ativo dado quantos turnos ele recebe hoje.
+	orderCeilingPct map[string]float64
 }
 
 // directionalBots filtra o roster pelos bots que negociam por turno (Ruído,
@@ -619,6 +638,33 @@ func directionalBots(roster []BotForRound) []BotForRound {
 		}
 	}
 	return directional
+}
+
+// orderCeilingPcts (Q.9) calcula, por ativo, o piso do teto de tamanho de ordem
+// dos bots direcionais: o suficiente para o ativo render o giro-alvo dado quantos
+// turnos recebeu hoje (bot.OrderCeilingPct), nunca abaixo de MinOrderPctOfFloat
+// (que evita o colapso do volume, achado 009).
+func orderCeilingPcts(universe []bot.EquityForRound, turns []bot.Turn) map[string]float64 {
+	perAsset := make(map[string]int, len(universe))
+	for _, t := range turns {
+		perAsset[t.AssetID]++
+	}
+	median := bot.MedianMarketValue(universe)
+	pcts := make(map[string]float64, len(universe))
+	for _, e := range universe {
+		pct := bot.OrderCeilingPct(bot.TargetTurnoverPct(e.MarketValue, median), perAsset[e.AssetID])
+		pcts[e.AssetID] = math.Max(pct, MinOrderPctOfFloat)
+	}
+	return pcts
+}
+
+// directionalCeilingPct devolve o piso do teto de ordem de um ativo para os bots
+// direcionais, ou MinOrderPctOfFloat se o ativo não tem giro-alvo calculado.
+func (r *roundRun) directionalCeilingPct(assetID string) float64 {
+	if pct, ok := r.orderCeilingPct[assetID]; ok {
+		return pct
+	}
+	return MinOrderPctOfFloat
 }
 
 // splitTurns reparte os turnos do dia entre as rodadas em fatias contíguas de
@@ -729,7 +775,7 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 	}
 
 	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision:"+purpose)
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID)
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID, run.directionalCeilingPct(assetID))
 	if err != nil {
 		return 0, err
 	}
@@ -853,7 +899,7 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 	}
 	// O Market Maker é determinístico (sem seed) e não usa insumos além do
 	// preço, do caixa, da posição e do teto de ordem.
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID)
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
 	if err != nil {
 		return err
 	}

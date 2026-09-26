@@ -21,9 +21,9 @@ func TestTurnBudget(t *testing.T) {
 	tests := []struct {
 		assets, want int
 	}{
-		{5, 25},
-		{30, 150},
-		{66, 330},
+		{5, 20},
+		{30, 120},
+		{60, 200},
 		{100, MaxTurnsPerTick},
 		{400, 400}, // o piso de 1 turno por ativo vem antes do teto
 		{0, 0},

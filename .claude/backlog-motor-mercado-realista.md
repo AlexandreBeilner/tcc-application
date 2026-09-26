@@ -3531,7 +3531,7 @@ Todos esses números são estimativas a validar na Q.4.
   frequente é uma alavanca secundária (~1.400 comandos com 100 ativos). Nota: o custo total medido aqui (5.360 de média
   com 100 ativos) difere ~0,5% do benchmark anterior (5.335) porque o método de contagem mudou.
 
-### Q.8 · Orçamento de turnos por ativo com piso rígido
+### Q.8 · Orçamento de turnos por ativo com piso rígido ✅
 - **Origem:** dias sem negociação de 22% a 36% e volume mediano abaixo de 0,15% com 100 ativos. Hoje cada bot sorteia um
   ativo por rodada, o custo e o volume dependem do tamanho do pool, e o piso da Q.3 é só estatístico.
 - **Descrição:** o tick passa a definir um **orçamento de turnos** (parâmetro de custo, independente do tamanho do
@@ -3545,13 +3545,25 @@ Todos esses números são estimativas a validar na Q.4.
   soma dos turnos por tick igual ao orçamento; ativo maior recebe proporcionalmente mais turnos acima do piso;
   determinismo preservado; custo por tick com 100 ativos depende do orçamento, não do número de ativos (benchmark).
 - **Dependências:** Q.7 (define o orçamento viável: ~335 turnos por tick com 100 ativos, orçamento por tick e não por rodada), Q.3.
+- **Entregável (sessão 2026-09-26):** `bot.TurnBudget` (turnos por ativo até um teto, nunca menos de 1 por ativo),
+  `bot.AllocateTurns` (piso de 1 turno por ativo mais o resto pelo peso da Q.3, com fechamento exato por amostragem
+  sistemática, determinístico pela seed) e `bot.SelectBotForTurn` (bot escolhido pelo escopo, 87,5% dentro dele);
+  `runIntradayRounds` divide os turnos do **dia** entre as rodadas (1 ou 4 rodadas gastam o mesmo), o Market Maker cota
+  primeiro em toda rodada e o turno de piso é a mercado, tentando até 4 bots até haver um fill. O universo de sorteio tem ordem
+  estável por ID. Removidos `SelectAssetForRound`, `pickWeighted` e `ErrNoEquityAvailable` (código morto). **Medição só com a
+  Q.8** (`TurnsPerAsset = 5`, teto de 330 turnos): 30 ativos 2.571 comandos por tick, líderes 0,71%, mediano 0,40%, 1 dia sem
+  negócio em 600; 50 ativos 4.236 (máx. 4.934), 0 abaixo de 0,15%; 100 ativos 6.283 (todos os ticks acima de 5.000), líderes
+  0,39%, mediano 0,24%, 3 dias sem negócio em 2.000. O piso e o volume foram atendidos; o custo com 100 ativos não, e cortar
+  o teto para 250 turnos deu 5.267 com 15 ativos abaixo de 0,15% (sem folga de volume), o que motivou a Q.9. Testes de
+  distribuição, piso rígido, orçamento independente do número de rodadas e nova tentativa do turno de piso;
+  `golangci-lint`, `go build`, `go test ./...` passam.
 - **Decisão (2026-09-26, autor delegou a escolha):** o piso passa de estatístico (desvio declarado na Q.3) para **rígido, 1
   turno marketable por ativo por dia**. Motivo: é o que a decisão 1 já pedia ("nenhum ativo sem negociação"); custa só 1 turno
   por ativo (100 dos ~350 do orçamento com 100 ativos); e o Market Maker já cota todo ativo, então o turno de piso sempre
   encontra contraparte e o preço de fechamento vira dado do dia. Descartada a alternativa de 1 turno a cada 2 dias no
   último quintil: imitaria melhor o papel ilíquido real, mas reabriria o buraco que o autor quer fechar.
 
-### Q.9 · Giro-alvo por ativo via tamanho de ordem
+### Q.9 · Giro-alvo por ativo via tamanho de ordem ✅
 - **Origem:** volume dos líderes e do mediano abaixo da faixa com 100 ativos, e custo que não pode subir para corrigi-lo.
 - **Descrição:** o volume deixa de depender só do número de turnos: cada ativo tem um **giro-alvo** diário (fração do float
   escalada por valor de mercado, dentro de 0,15% a 0,6%) e a quantidade típica de uma ordem de bot é o giro-alvo dividido
@@ -3562,6 +3574,31 @@ Todos esses números são estimativas a validar na Q.4.
   aumento de comandos SQL por tick; volatilidade diária dos ativos e esgotamento de caixa/posição dos Market Makers
   medidos e dentro do aceitável (risco: ordens maiores movem mais o preço e consomem a cotação do Market Maker).
 - **Dependências:** Q.8.
+- **Entregável (sessão 2026-09-26):** `bot.TargetTurnoverPct` (giro-alvo de 0,25% do float por dia no ativo mediano,
+  crescendo com (valor de mercado / mediana)^0,3, entre 0,2% e 0,6%), `bot.MedianMarketValue` e `bot.OrderCeilingPct` (teto de
+  tamanho de ordem que faz o ativo render o giro-alvo com os turnos que recebeu no dia: giro = turnos x 0,21 x teto, com
+  0,21 medido como o volume por turno em fração do teto; no máximo 1,2% do float). O piso do teto de ordem dos bots
+  direcionais deixa de ser um percentual fixo do float e passa a ser esse valor por ativo (nunca abaixo de 0,4%, o piso
+  do achado 009); o Market Maker segue com o piso antigo. Orçamento recalibrado: `TurnsPerAsset = 4` e `MaxTurnsPerTick = 200`.
+  Nenhum comando SQL novo. **Medição** (60 dias, seed 42, a cada execução o banco recebe UUIDs novos, então há variação
+  pequena entre execuções):
+
+  | | 30 ativos | 50 ativos | 100 ativos |
+  |---|---|---|---|
+  | Comandos por tick, média / máx. | 2.163 / 2.600 | 3.599 / 4.306 | 4.620 / 6.393 |
+  | Ticks acima de 5.000 | 0 | 0 | 3 de 60 (p95 = 5.024) |
+  | Líderes (% do float/dia) | 0,54 (0,39 a 0,65) | 0,53 (0,37 a 0,63) | 0,31 (0,19 a 0,47) |
+  | Volume mediano | 0,33 | 0,30 | 0,25 |
+  | Ativos abaixo de 0,15% | 1 de 30 | 0 de 50 | 1 de 100 |
+  | Dias sem negociação | 0 de 600 | 4 de 1.000 | 6 de 2.000 |
+  | Reação a 5 eventos severos na cauda | -8,2% | -5,8% | -3,9% |
+  | Volatilidade diária (100 ativos) | | | mediana 1,10%, p95 1,51%, máx. 2,21% |
+  | Cenário do achado 013 | 20 de 20 | 20 de 20 | 20 de 20 |
+
+  Market Makers sem esgotamento (menor posição de um Market Maker com 100 ativos: 174 mil ações, caixa acima de R$ 4 bi).
+  **Observação aberta:** em 1 de 5 execuções com 50 ativos, 3 ativos terminaram o dia sem um dos lados da cotação (47 de 50
+  cotados dos dois lados; as outras 4 execuções, 50 de 50); não reproduzida em 3 execuções seguidas, a investigar antes de
+  fechar a Q.4. `golangci-lint`, `go build`, `go test ./...` passam.
 
 ### Q.10 · Atenção por evento: turnos extras e reação do Fundamentalista
 - **Origem:** reação a cinco eventos severos num ativo da cauda de apenas -1,0% (0,0% com 50 ativos), contra -7,7% em 4

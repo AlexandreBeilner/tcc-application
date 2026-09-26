@@ -12,12 +12,13 @@ import (
 // pool só garante diversidade de perfis. Valores ilustrativos, a validar na Q.4.
 const (
 	// TurnsPerAsset é a média de turnos por ativo por dia enquanto o catálogo é
-	// pequeno (30 ativos rendem os cerca de 150 turnos por tick de antes da Q.8).
-	TurnsPerAsset = 5
-	// MaxTurnsPerTick é o teto de custo: com ~10 comandos SQL por turno de bot
-	// (Q.7) e o Market Maker de 100 ativos, cerca de 330 turnos ficam dentro do
-	// teto de 5.000 comandos por tick (seção 6.1 da proposta de cobertura).
-	MaxTurnsPerTick = 330
+	// pequeno. O volume que os turnos não dão vem do tamanho da ordem (Q.9).
+	TurnsPerAsset = 4
+	// MaxTurnsPerTick é o teto de custo: com ~10 a 13 comandos SQL por turno de
+	// bot (Q.7, fills e turno de piso incluídos) mais o Market Maker, cerca de 200
+	// turnos ficam dentro do teto de 5.000 comandos por tick com 100 ativos (seção
+	// 6.1 da proposta de cobertura); acima disso o giro vem do tamanho da ordem.
+	MaxTurnsPerTick = 200
 	// TurnWithinScopePct é a chance de um turno ser servido por um bot cujo
 	// escopo cobre o ativo: o ponto médio da faixa de especialização de um bot
 	// (proposta 2.3.2, 85% a 90% da atividade dentro do escopo).

@@ -281,7 +281,7 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := effectiveOrderSizeCeiling(tt.floatCeiling, tt.recentVolume)
+			got := effectiveOrderSizeCeiling(tt.floatCeiling, tt.recentVolume, MinOrderPctOfFloat)
 			if (got == nil) != (tt.want == nil) {
 				t.Fatalf("got = %v, want %v", got, tt.want)
 			}
@@ -844,14 +844,14 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 	if closing["a1"] != 105 {
 		t.Errorf("closing[a1] = %v, want 105 (preço do último fill)", closing["a1"])
 	}
-	// Ruído (bot.TurnBudget(1) = 5 turnos no dia, divididos entre as 2
+	// Ruído (bot.TurnBudget(1) = 4 turnos no dia, divididos entre as 2
 	// rodadas) + Market Maker (2 decisões: compra e venda) em cada rodada e na
-	// passada final (P.4) — 5 + 6 = 11 submissões, todas preenchidas (fillPrice > 0).
-	if fills != 11 {
-		t.Errorf("fills = %d, want 11", fills)
+	// passada final (P.4) — 4 + 6 = 10 submissões, todas preenchidas (fillPrice > 0).
+	if fills != 10 {
+		t.Errorf("fills = %d, want 10", fills)
 	}
-	if len(submitter.submitted) != 11 {
-		t.Fatalf("len(submitted) = %d, want 11", len(submitter.submitted))
+	if len(submitter.submitted) != 10 {
+		t.Fatalf("len(submitted) = %d, want 10", len(submitter.submitted))
 	}
 	for _, s := range submitter.submitted {
 		if s.req.AssetID != "a1" {
@@ -1670,5 +1670,42 @@ func TestRunIntradayRounds_TurnoDePisoTentaOutroBotSeOPrimeiroNaoNegocia(t *test
 		t.Fatal(err)
 	} else if fills == 0 {
 		t.Error("fills = 0, want > 0: o piso tenta outro bot depois da rejeição")
+	}
+}
+
+// Q.9: o teto de tamanho de ordem dos bots direcionais dimensiona o giro-alvo do
+// ativo pelos turnos que ele recebe; nunca fica abaixo do piso fixo do achado 009.
+func TestOrderCeilingPcts(t *testing.T) {
+	universe := []bot.EquityForRound{
+		{AssetID: "a", MarketValue: 100},
+		{AssetID: "b", MarketValue: 100},
+		{AssetID: "c", MarketValue: 100},
+	}
+	turns := []bot.Turn{{AssetID: "a"}, {AssetID: "a"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "c"}}
+	pcts := orderCeilingPcts(universe, turns)
+
+	if !(pcts["c"] > pcts["a"] && pcts["a"] >= pcts["b"]) {
+		t.Errorf("pcts = %v: want menos turnos, ordem maior (c > a >= b)", pcts)
+	}
+	for id, pct := range pcts {
+		if pct < MinOrderPctOfFloat {
+			t.Errorf("ativo %s: pct = %v abaixo do piso %v", id, pct, MinOrderPctOfFloat)
+		}
+	}
+	run := &roundRun{orderCeilingPct: pcts}
+	if got := run.directionalCeilingPct("desconhecido"); got != MinOrderPctOfFloat {
+		t.Errorf("ativo sem giro-alvo = %v, want %v", got, MinOrderPctOfFloat)
+	}
+}
+
+// Q.8/RNF08: o universo de sorteio tem ordem estável por ID, qualquer que seja a
+// ordem em que o banco devolve os ativos.
+func TestBuildEquityUniverse_OrdemEstavelPorID(t *testing.T) {
+	_, forward := buildEquityUniverse([]AssetForPricing{acaoAsset("a1", 10), acaoAsset("a2", 10), acaoAsset("a3", 10)})
+	_, backward := buildEquityUniverse([]AssetForPricing{acaoAsset("a3", 10), acaoAsset("a1", 10), acaoAsset("a2", 10)})
+	for i := range forward {
+		if forward[i].AssetID != backward[i].AssetID {
+			t.Fatalf("posição %d: %s vs %s, want a mesma ordem", i, forward[i].AssetID, backward[i].AssetID)
+		}
 	}
 }
