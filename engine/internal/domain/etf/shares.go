@@ -130,3 +130,44 @@ type ShareExchanger interface {
 	Create(ctx context.Context, exchange ShareExchange) error
 	Redeem(ctx context.Context, exchange ShareExchange) error
 }
+
+// ShareTransfer move cotas já emitidas de uma conta para outra em espécie,
+// sem caixa (tarefa R.4): é como as cotas criadas pelo Participante Autorizado
+// chegam ao Market Maker que passa a cotar o ETF. Não altera outstanding_shares.
+type ShareTransfer struct {
+	ETFAssetID    string
+	FromAccountID string
+	ToAccountID   string
+	Quantity      int64
+	// Price é o valor de referência da cota (NAV), usado como preço médio da
+	// posição de quem recebe.
+	Price float64
+}
+
+// Validate confere a forma da transferência.
+func (t ShareTransfer) Validate() error {
+	if t.Quantity <= 0 || t.Quantity > math.MaxInt32 {
+		return ErrInvalidShareAmount
+	}
+	if t.ETFAssetID == "" || t.FromAccountID == "" || t.ToAccountID == "" || t.Price <= 0 {
+		return ErrInvalidBasketLeg
+	}
+	if t.FromAccountID == t.ToAccountID {
+		return ErrSameAccount
+	}
+	return nil
+}
+
+// ShareTransferer executa uma ShareTransfer de forma atômica e sourced;
+// implementado por *db.ETFShareRepository.
+type ShareTransferer interface {
+	Transfer(ctx context.Context, transfer ShareTransfer) error
+}
+
+// MarketMakingCandidate é um ETF com cotas emitidas que ainda precisa de
+// liquidez: nenhum Market Maker o cobre, ou o Participante Autorizado ainda
+// detém cotas dele (inventário a entregar ao Market Maker).
+type MarketMakingCandidate struct {
+	ETFAssetID string
+	Shares     int64
+}

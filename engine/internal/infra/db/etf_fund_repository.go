@@ -162,10 +162,39 @@ func (r *ETFFundRepository) ParticipantHoldings(ctx context.Context, assetIDs []
 	return held, rows.Err()
 }
 
-// ProvisionParticipantCash credita amount ao caixa do Participante Autorizado
-// gravando antes o evento imutável bot_initial_cash (Event Sourcing, mesmo
-// mecanismo do caixa de qualquer bot de liquidez).
-func (r *ETFFundRepository) ProvisionParticipantCash(ctx context.Context, amount float64) error {
+// ListMarketMakingCandidates devolve os ETFs com cotas emitidas que ainda
+// precisam de liquidez: sem Market Maker cobrindo (market_maker_coverage) ou com
+// cotas em posse do Participante Autorizado, em ordem por ID.
+func (r *ETFFundRepository) ListMarketMakingCandidates(ctx context.Context) ([]etf.MarketMakingCandidate, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT ed.asset_id, via.outstanding_shares
+		 FROM etf_details ed
+		 JOIN variable_income_assets via ON via.asset_id = ed.asset_id
+		 WHERE ed.fund_account_id IS NOT NULL AND via.outstanding_shares > 0
+		   AND (NOT EXISTS (SELECT 1 FROM market_maker_coverage c WHERE c.asset_id = ed.asset_id)
+		        OR EXISTS (SELECT 1 FROM positions p WHERE p.user_id = $1 AND p.asset_id = ed.asset_id AND p.quantity > 0))
+		 ORDER BY ed.asset_id`, etf.AuthorizedParticipantAccountID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var uncovered []etf.MarketMakingCandidate
+	for rows.Next() {
+		var u etf.MarketMakingCandidate
+		if err := rows.Scan(&u.ETFAssetID, &u.Shares); err != nil {
+			return nil, err
+		}
+		uncovered = append(uncovered, u)
+	}
+	return uncovered, rows.Err()
+}
+
+// ProvisionCash credita amount ao caixa de uma conta de bot (o Participante
+// Autorizado ou um Market Maker) gravando antes o evento imutável
+// bot_initial_cash (Event Sourcing, mesmo mecanismo do caixa de qualquer bot de
+// liquidez).
+func (r *ETFFundRepository) ProvisionCash(ctx context.Context, accountID string, amount float64) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -173,7 +202,7 @@ func (r *ETFFundRepository) ProvisionParticipantCash(ctx context.Context, amount
 	defer func() { _ = tx.Rollback() }()
 
 	if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
-		UserID:    etf.AuthorizedParticipantAccountID,
+		UserID:    accountID,
 		EventType: domain.EventBotInitialCash,
 		UnitValue: &amount,
 	}); err != nil {
@@ -181,7 +210,7 @@ func (r *ETFFundRepository) ProvisionParticipantCash(ctx context.Context, amount
 	}
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE accounts SET current_balance = current_balance + $1, updated_at = now() WHERE user_id = $2`,
-		amount, etf.AuthorizedParticipantAccountID,
+		amount, accountID,
 	); err != nil {
 		return err
 	}

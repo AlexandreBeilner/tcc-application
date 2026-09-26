@@ -3821,7 +3821,7 @@ negociação dos constituintes.
   medição fica para a R.12. (3) O preço do próprio ETF ainda vem do GBM, então o ágio/deságio (-9%, depois -4,6%) diverge até a R.4.
   (4) Os 9.938 cotas emitidas ficam com o Participante Autorizado; quem as vende ao mercado é a R.4/R.6.
 
-### R.4 · ETF entra no book real (fim do GBM)
+### R.4 · ETF entra no book real (fim do GBM) ✅
 - **Descrição:** ETF entra no universo de negociação (`buildEquityUniverse`, hoje só Ação e FII), sai do GBM (`tick.go`) e passa
   a formar preço pela última negociação. Cobertura de Market Maker (`market_maker_coverage`, teto de 10 ativos por MM) e
   provisionamento das cotas do MM pela mesma criação da R.3. Escopo de bot por classe de ativo (`AssetClasses`, como o FII);
@@ -3831,6 +3831,29 @@ negociação dos constituintes.
   do giro-alvo; compra e venda a mercado de um usuário preenchem (cenário do achado 013); custo por tick medido com 1, 5 e 10
   ETFs.
 - **Dependências:** R.3.
+- **Entregável (2026-09-26):** `Advance` deixou de gerar cotação por GBM para ETF (`assetTypeETF`); `buildEquityUniverse` inclui ETF com
+  cotas emitidas (ETF com `outstanding_shares` 0 ou nulo fica fora até a emissão), o que faz valerem para ele, sem código novo, o peso
+  de turnos por valor de mercado, o piso de 1 turno a mercado por dia, o giro-alvo (Q.9) e o teto de ordem sem histórico (Q.11); o
+  Fundamentalista não concorre (sem empresa, mesma regra do FII) e o escopo por classe (`AssetClasses`) já cobria ETF (Market Maker
+  padrão e bots do seed). **Liquidez:** `coverETFs` (tick/etf.go, antes de ler o roster) garante a cobertura pelo `coverage.Ensurer`
+  (teto de 10 ativos por Market Maker) e entrega ao Market Maker as cotas que o Participante Autorizado detém, por
+  `ETFShareRepository.Transfer` (migration `000028`, evento `etf_share_transfer` com quantidade com sinal, sem caixa e sem alterar
+  `outstanding_shares`, conservação conferida), mais o caixa de Market Maker (`bot.InitialCash`). O critério é "candidato = ETF com
+  cotas e (sem cobertura ou participante com inventário)", então um banco que já tinha o ETF emitido (R.3) é coberto no primeiro tick
+  e uma falha no meio é retomada no seguinte. `ETFFundRepository` ganhou `ProvisionCash(conta, valor)` e
+  `ListMarketMakingCandidates`; `Service.WithETF` agora recebe um `ETFDeps`.
+- **Testes:** cobertura e entrega das cotas (caixa de 2x), participante sem cotas (só cobertura), ETF fora do universo, erro de infra,
+  universo com ETF emitido/novo/sem float, `Advance` sem quote de ETF e validação de `ShareTransfer`. `golangci-lint` (0 issues),
+  `go build`, `go test ./...` passam. **Validado ao vivo** (banco já com o `SINT11` emitido na R.3): o primeiro tick cobriu o ETF com o
+  Market Maker 1 e transferiu as 9.897 cotas do participante; o ETF passou a formar preço por negociação (cotações 95,63, 96,59 e
+  97,56 nos 3 dias, volume diário de 28, 3 e 10 cotas, ágio de -3,7% a -3,4%, contra -9% com o GBM), o book teve os dois lados
+  cotados, cotas em posições iguais a `outstanding_shares` (9.938) e, no cenário do achado 013, compra e venda a mercado de um usuário
+  novo preencheram (5 cotas a 98,54 e 5 a 96,58).
+- **Limites conhecidos:** (1) **não medi o custo por tick com 1, 5 e 10 ETFs nem o giro-alvo em várias semanas**, que ficam para a
+  R.12 (só há 1 ETF no seed); o volume diário observado é baixo (3 a 28 cotas, 0,03% a 0,3% do float) porque o ETF, com valor de
+  mercado de ~R$ 1 milhão, recebe só o turno de piso e ordens dimensionadas pelo giro-alvo, mas isso ainda não foi confrontado com a
+  faixa alvo. (2) Um ETF emitido num tick só negocia a partir do tick seguinte. (3) A cotação do Market Maker ainda gira em torno do
+  último preço, não do iNAV (R.5).
 
 ### R.5 · Market Maker do ETF ancorado no iNAV
 - **Descrição:** o formador de mercado de um ETF real cota em torno do iNAV, não do último preço. `MarketMakerQuotePrices`

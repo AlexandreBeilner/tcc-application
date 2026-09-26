@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 
+	"tcc-investimentos/engine/internal/domain/bot"
+	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -15,22 +17,40 @@ import (
 type ETFFunds interface {
 	ListPendingIssuances(ctx context.Context) ([]etf.PendingIssuance, error)
 	ListFunds(ctx context.Context) ([]etf.FundSnapshot, error)
+	// ListMarketMakingCandidates (R.4) devolve os ETFs com cotas que ainda
+	// precisam de Market Maker ou de entrega do inventário do participante.
+	ListMarketMakingCandidates(ctx context.Context) ([]etf.MarketMakingCandidate, error)
 }
 
-// ETFParticipant é a parte do Participante Autorizado que o tick precisa fora
-// do caminho de ordens: provisionar caixa (evento imutável) e ler o que ele
-// detém dos constituintes depois de comprar.
+// ETFCoverage garante a cobertura de Market Maker de um ativo (R.4);
+// implementado por *coverage.Ensurer.
+type ETFCoverage interface {
+	EnsureCoverage(ctx context.Context, in coverage.Input) (coverage.Result, error)
+}
+
+// ETFParticipant é o que o tick precisa fora do caminho de ordens: provisionar
+// caixa de uma conta de bot (evento imutável) e ler o que o Participante
+// Autorizado detém depois de comprar.
 type ETFParticipant interface {
-	ProvisionParticipantCash(ctx context.Context, amount float64) error
+	ProvisionCash(ctx context.Context, accountID string, amount float64) error
 	ParticipantHoldings(ctx context.Context, assetIDs []string) (map[string]int64, error)
 }
 
-// WithETF liga o Service ao motor de ETF (tarefa R.3): emissão inicial pelo
-// Participante Autorizado e NAV diário. Sem esta chamada o tick não emite nem
-// calcula NAV, comportamento anterior à Fase R (e o dos testes que não a
-// exercitam).
-func (s *Service) WithETF(funds ETFFunds, participant ETFParticipant, exchanger etf.ShareExchanger) *Service {
-	s.etfFunds, s.etfParticipant, s.etfExchanger = funds, participant, exchanger
+// ETFDeps agrupa os colaboradores do motor de ETF (tarefa R.3/R.4).
+type ETFDeps struct {
+	Funds       ETFFunds
+	Participant ETFParticipant
+	Exchanger   etf.ShareExchanger
+	Transferer  etf.ShareTransferer
+	Coverage    ETFCoverage
+}
+
+// WithETF liga o Service ao motor de ETF: emissão inicial pelo Participante
+// Autorizado, NAV diário (R.3) e cobertura de Market Maker (R.4). Sem esta
+// chamada o tick não emite, não calcula NAV nem cobre ETF, comportamento anterior
+// à Fase R (e o dos testes que não a exercitam).
+func (s *Service) WithETF(deps ETFDeps) *Service {
+	s.etf = deps
 	return s
 }
 
@@ -42,10 +62,10 @@ func (s *Service) WithETF(funds ETFFunds, participant ETFParticipant, exchanger 
 // negócio num ETF (constituinte sem liquidez, sem preço) só o adia pro próximo
 // tick, nunca aborta o tick; o que o participante comprou a mais fica com ele.
 func (s *Service) issueETFs(ctx context.Context, run *roundRun) error {
-	if s.etfFunds == nil {
+	if s.etf.Funds == nil {
 		return nil
 	}
-	pending, err := s.etfFunds.ListPendingIssuances(ctx)
+	pending, err := s.etf.Funds.ListPendingIssuances(ctx)
 	if err != nil {
 		return err
 	}
@@ -73,7 +93,7 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 		return nil
 	}
 
-	if err := s.etfParticipant.ProvisionParticipantCash(ctx, etf.InitialFundValue*etf.ParticipantCashMargin); err != nil {
+	if err := s.etf.Participant.ProvisionCash(ctx, etf.AuthorizedParticipantAccountID, etf.InitialFundValue*etf.ParticipantCashMargin); err != nil {
 		return err
 	}
 	for _, leg := range target {
@@ -101,7 +121,7 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 	for _, c := range constituents {
 		ids = append(ids, c.AssetID)
 	}
-	held, err := s.etfParticipant.ParticipantHoldings(ctx, ids)
+	held, err := s.etf.Participant.ParticipantHoldings(ctx, ids)
 	if err != nil {
 		return err
 	}
@@ -115,7 +135,7 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 		log.Printf("emissão do ETF %s adiada: %v", p.ETFAssetID, err)
 		return nil
 	}
-	if err := s.etfExchanger.Create(ctx, etf.ShareExchange{
+	if err := s.etf.Exchanger.Create(ctx, etf.ShareExchange{
 		ETFAssetID:           p.ETFAssetID,
 		FundAccountID:        p.FundAccountID,
 		ParticipantAccountID: etf.AuthorizedParticipantAccountID,
@@ -136,10 +156,10 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 // próprio ETF (etfPrices). ETF sem preço de fechamento ou com constituinte sem
 // preço fica de fora do dia.
 func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices map[string]float64) ([]ETFNAVEntry, error) {
-	if s.etfFunds == nil {
+	if s.etf.Funds == nil {
 		return nil, nil
 	}
-	funds, err := s.etfFunds.ListFunds(ctx)
+	funds, err := s.etf.Funds.ListFunds(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -157,4 +177,57 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 		entries = append(entries, ETFNAVEntry{ETFAssetID: f.ETFAssetID, NAV: nav, ClosePrice: closePrice, PremiumPct: etf.PremiumPct(closePrice, nav)})
 	}
 	return entries, nil
+}
+
+// coverETFs dá liquidez aos ETFs com cotas emitidas (tarefa R.4), antes das
+// rodadas do dia (o Market Maker precisa estar no roster com a cobertura já
+// gravada): garante um Market Maker cobrindo (mesma regra de atribuição de Ação e
+// FII, teto de ativos por Market Maker) e entrega a ele as cotas que o
+// Participante Autorizado ainda detém, com o caixa que um Market Maker recebe
+// (bot.InitialCash). É assim que "a cota nasce da criação" e chega ao book. ETF
+// fora do universo negociável do dia (acabou de ser emitido) fica pro próximo
+// tick. Idempotente: sem candidato, só a leitura de ListMarketMakingCandidates.
+func (s *Service) coverETFs(ctx context.Context, equities map[string]*equityRoundState) error {
+	if s.etf.Funds == nil || s.etf.Coverage == nil {
+		return nil
+	}
+	candidates, err := s.etf.Funds.ListMarketMakingCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	for _, c := range candidates {
+		state, ok := equities[c.ETFAssetID]
+		if !ok {
+			continue
+		}
+		result, err := s.etf.Coverage.EnsureCoverage(ctx, coverage.Input{
+			AssetID:           c.ETFAssetID,
+			OutstandingShares: c.Shares,
+			Price:             state.Price,
+		})
+		if err != nil {
+			return err
+		}
+		held, err := s.etf.Participant.ParticipantHoldings(ctx, []string{c.ETFAssetID})
+		if err != nil {
+			return err
+		}
+		quantity := held[c.ETFAssetID]
+		if quantity <= 0 {
+			continue
+		}
+		if err := s.etf.Transferer.Transfer(ctx, etf.ShareTransfer{
+			ETFAssetID:    c.ETFAssetID,
+			FromAccountID: etf.AuthorizedParticipantAccountID,
+			ToAccountID:   result.MarketMakerID,
+			Quantity:      quantity,
+			Price:         state.Price,
+		}); err != nil {
+			return err
+		}
+		if err := s.etf.Participant.ProvisionCash(ctx, result.MarketMakerID, bot.InitialCash(float64(quantity)*state.Price, 0, true)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

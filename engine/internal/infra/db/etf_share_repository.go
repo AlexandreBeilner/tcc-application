@@ -23,7 +23,10 @@ func NewETFShareRepository(db *sql.DB) *ETFShareRepository {
 	return &ETFShareRepository{db: db}
 }
 
-var _ etf.ShareExchanger = (*ETFShareRepository)(nil)
+var (
+	_ etf.ShareExchanger  = (*ETFShareRepository)(nil)
+	_ etf.ShareTransferer = (*ETFShareRepository)(nil)
+)
 
 // Create: o participante entrega a cesta ao fundo e recebe cotas novas
 // (outstanding_shares sobe).
@@ -185,4 +188,52 @@ func validateConstituentFloat(ctx context.Context, tx *sql.Tx, assetID string) e
 		return err
 	}
 	return position.ValidateFloatCeiling(held.Int64, outstanding.Int64)
+}
+
+// Transfer move cotas de uma conta para outra (tarefa R.4), numa transação:
+// trava o ETF, grava os eventos etf_share_transfer (quantidade com sinal) antes
+// de projetar as posições e confere que o total de cotas em posições continua
+// igual a outstanding_shares. Quem entrega sem as cotas aborta tudo.
+func (r *ETFShareRepository) Transfer(ctx context.Context, transfer etf.ShareTransfer) error {
+	if err := transfer.Validate(); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var outstanding sql.NullInt64
+	err = tx.QueryRowContext(ctx,
+		`SELECT outstanding_shares FROM variable_income_assets WHERE asset_id = $1 FOR UPDATE`, transfer.ETFAssetID,
+	).Scan(&outstanding)
+	if errors.Is(err, sql.ErrNoRows) {
+		return etf.ErrETFNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	if err := appendExchangeEvents(ctx, tx, domain.EventETFShareTransfer, transfer.ETFAssetID, transfer.Price, []signedQuantity{
+		{transfer.FromAccountID, -transfer.Quantity},
+		{transfer.ToAccountID, transfer.Quantity},
+	}); err != nil {
+		return err
+	}
+	if err := applyPositionFill(ctx, tx, transfer.FromAccountID, transfer.ETFAssetID, orderbook.SideSell, int(transfer.Quantity), transfer.Price); err != nil {
+		return mapFundsViolation(err)
+	}
+	if err := applyPositionFill(ctx, tx, transfer.ToAccountID, transfer.ETFAssetID, orderbook.SideBuy, int(transfer.Quantity), transfer.Price); err != nil {
+		return mapFundsViolation(err)
+	}
+
+	var total sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT SUM(quantity) FROM positions WHERE asset_id = $1`, transfer.ETFAssetID).Scan(&total); err != nil {
+		return err
+	}
+	if total.Int64 != outstanding.Int64 {
+		return etf.ErrShareConservation
+	}
+	return tx.Commit()
 }

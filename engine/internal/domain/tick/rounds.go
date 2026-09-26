@@ -279,7 +279,12 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 	equities := make(map[string]*equityRoundState)
 	universe := make([]bot.EquityForRound, 0, len(assets))
 	for _, a := range assets {
-		if a.Type != assetTypeAcao && a.Type != assetTypeFII {
+		if a.Type != assetTypeAcao && a.Type != assetTypeFII && a.Type != assetTypeETF {
+			continue
+		}
+		// ETF sem cota emitida (antes da emissão inicial, R.3/R.4) não tem float
+		// nem book: fica fora do universo até ter cotas.
+		if a.Type == assetTypeETF && (a.OutstandingShares == nil || *a.OutstandingShares <= 0) {
 			continue
 		}
 
@@ -549,6 +554,12 @@ func (s *Service) runIntradayRounds(
 		return nil, nil, 0, 0, nil
 	}
 	ctx = s.orderContext.WithReadScope(ctx)
+
+	// Liquidez dos ETFs (R.4): antes de ler o roster, pra Market Maker recém
+	// atribuído e a cobertura nova já entrarem nas rodadas de hoje.
+	if err := s.coverETFs(ctx, equities); err != nil {
+		return nil, nil, 0, 0, err
+	}
 
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {

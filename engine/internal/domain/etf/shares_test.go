@@ -112,3 +112,28 @@ func TestProRataBasket_Erros(t *testing.T) {
 		t.Errorf("tudo arredonda a zero: err = %v, want ErrEmptyBasket", err)
 	}
 }
+
+func TestShareTransferValidate(t *testing.T) {
+	valid := ShareTransfer{ETFAssetID: "etf", FromAccountID: "ap", ToAccountID: "mm", Quantity: 100, Price: 99.5}
+	tests := []struct {
+		name    string
+		mutate  func(*ShareTransfer)
+		wantErr error
+	}{
+		{name: "válida", mutate: func(*ShareTransfer) {}},
+		{name: "quantidade zero", mutate: func(x *ShareTransfer) { x.Quantity = 0 }, wantErr: ErrInvalidShareAmount},
+		{name: "quantidade além de 32 bits", mutate: func(x *ShareTransfer) { x.Quantity = 1 << 32 }, wantErr: ErrInvalidShareAmount},
+		{name: "preço zero", mutate: func(x *ShareTransfer) { x.Price = 0 }, wantErr: ErrInvalidBasketLeg},
+		{name: "origem vazia", mutate: func(x *ShareTransfer) { x.FromAccountID = "" }, wantErr: ErrInvalidBasketLeg},
+		{name: "mesma conta", mutate: func(x *ShareTransfer) { x.ToAccountID = "ap" }, wantErr: ErrSameAccount},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transfer := valid
+			tt.mutate(&transfer)
+			if err := transfer.Validate(); !errors.Is(err, tt.wantErr) {
+				t.Errorf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}

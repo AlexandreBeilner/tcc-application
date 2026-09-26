@@ -38,6 +38,10 @@ const (
 	// projetar posições e outstanding_shares.
 	EventETFCreation   MarketEventType = "etf_creation"
 	EventETFRedemption MarketEventType = "etf_redemption"
+	// EventETFShareTransfer (R.4, migration 000028) é a cota de ETF passando do
+	// Participante Autorizado ao Market Maker, em espécie e com quantidade com
+	// sinal (delta da posição da conta).
+	EventETFShareTransfer MarketEventType = "etf_share_transfer"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

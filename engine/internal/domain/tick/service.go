@@ -6,7 +6,6 @@ import (
 	"sort"
 	"sync"
 
-	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -36,11 +35,9 @@ type Service struct {
 	selicCfg       selic.Config
 	ipcaCfg        ipca.Config
 	seed           int64
-	// etfFunds/etfParticipant/etfExchanger (R.3) ficam nil até WithETF.
-	etfFunds       ETFFunds
-	etfParticipant ETFParticipant
-	etfExchanger   etf.ShareExchanger
-	mu             sync.Mutex
+	// etf (R.3/R.4) fica zerado até WithETF.
+	etf ETFDeps
+	mu  sync.Mutex
 }
 
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é

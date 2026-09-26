@@ -31,15 +31,16 @@ import (
 // tarefa 3.9).
 const DefaultInitialPrice = 100.00
 
-// assetTypeAcao/assetTypeFII são os valores crus de AssetForPricing.Type
-// pra ações/FIIs — usados só pra decidir quando Advance pula o GBM (Fase
-// D.2 pra Ação, tarefa G.1 pra FII — preço passa a vir da rodada de
-// negociação real, rounds.go). Não é o mesmo conceito de catalog.AssetAcao/
+// assetTypeAcao/assetTypeFII/assetTypeETF são os valores crus de
+// AssetForPricing.Type — usados só pra decidir quando Advance pula o GBM (Fase
+// D.2 pra Ação, tarefa G.1 pra FII, tarefa R.4 pra ETF — preço passa a vir da
+// rodada de negociação real, rounds.go). Não é o mesmo conceito de catalog.AssetAcao/
 // AssetFII (tick não importa catalog só pra isso, mesma nota de
-// Sector/RiskClass). ETF continua fora dos dois até a Fase H.
+// Sector/RiskClass).
 const (
 	assetTypeAcao = "acao"
 	assetTypeFII  = "fii"
+	assetTypeETF  = "etf"
 )
 
 // State é o estado do calendário simulado do Mercado Ao Vivo — Day é o dia
@@ -1016,12 +1017,13 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
-		if a.Type == assetTypeAcao || a.Type == assetTypeFII {
-			// Fase D.2 (Ação) / tarefa G.1 (FII): nenhum dos dois nasce mais
-			// de GBM — o preço de fechamento vem da rodada de negociação real
-			// (runIntradayRounds, rounds.go, chamada por Service.Run depois de
-			// Advance), que anexa sua própria Quote a Result.Quotes antes de
-			// SaveTick. ETF continua aqui até a Fase H.
+		if a.Type == assetTypeAcao || a.Type == assetTypeFII || a.Type == assetTypeETF {
+			// Fase D.2 (Ação) / tarefa G.1 (FII) / tarefa R.4 (ETF): nenhum dos
+			// três nasce mais de GBM — o preço de fechamento vem da rodada de
+			// negociação real (runIntradayRounds, rounds.go, chamada por
+			// Service.Run depois de Advance), que anexa sua própria Quote a
+			// Result.Quotes antes de SaveTick. ETF ainda sem cotas emitidas fica
+			// sem quote nova (preço parado no último conhecido) até a emissão.
 			continue
 		}
 
