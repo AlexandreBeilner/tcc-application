@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 
+	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -35,7 +36,9 @@ type Service struct {
 	selicCfg       selic.Config
 	ipcaCfg        ipca.Config
 	seed           int64
-	mu             sync.Mutex
+	// etf (R.3/R.4) fica zerado até WithETF.
+	etf ETFDeps
+	mu  sync.Mutex
 }
 
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é
@@ -142,6 +145,22 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	for _, assetID := range closingAssetIDs {
 		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: closingPrices[assetID], Quantity: volumeByAssetID[assetID]})
 	}
+	etfPrices := make(map[string]float64)
+	for _, q := range result.Quotes {
+		etfPrices[q.AssetID] = q.Price
+	}
+	previousPrices := make(map[string]float64, len(assets))
+	for _, a := range assets {
+		if a.LastPrice != nil {
+			previousPrices[a.AssetID] = *a.LastPrice
+		}
+	}
+	etfNAVs, etfDividends, err := s.closingETFNAVs(ctx, closingPrices, etfPrices, previousPrices, result.IsReportDay, result.State.Day, result.State.Day+dividend.DefaultPaymentLagDays)
+	if err != nil {
+		return Result{}, err
+	}
+	result.ETFNAVs = etfNAVs
+	result.NewDividends = append(result.NewDividends, etfDividends...)
 	result.IntradayFillsCount = fillsExecuted
 	result.ExpiredOrdersCount = expiredOrdersCount
 	result.UncoveredAssetsCount = uncoveredAssets

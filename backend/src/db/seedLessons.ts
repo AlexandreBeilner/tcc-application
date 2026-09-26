@@ -1207,8 +1207,16 @@ const LESSON_SEEDS: LessonSeed[] = [
       'amortece o efeito.' +
       '\n\n' +
       'É essa diversificação automática, numa única compra, que torna o ETF diferente de comprar uma ação ' +
-      'isolada: você nunca fica 100% exposto ao resultado de uma empresa só. Completar esta lição libera a ' +
-      'compra real do SINT11 no Mercado.',
+      'isolada: você nunca fica 100% exposto ao resultado de uma empresa só.' +
+      '\n\n' +
+      'Dois números ajudam a ler um ETF. O NAV é o valor real da cesta dividido pelo número de cotas. O preço ' +
+      'no mercado oscila em torno dele: acima do NAV é ágio, abaixo é deságio. Quando a diferença fica grande, ' +
+      'um participante autorizado entra em ação, criando cotas novas (compra a cesta e recebe cotas) ou ' +
+      'resgatando cotas (devolve cotas e recebe a cesta), o que empurra o preço de volta pro NAV.' +
+      '\n\n' +
+      'O fundo também recebe os dividendos das empresas da cesta e os distribui aos cotistas, e cobra uma ' +
+      'taxa de administração pequena, que reduz um pouco o valor da cota com o tempo. Completar esta lição ' +
+      'libera a compra real do SINT11 no Mercado.',
     unlocksDescription: 'Compra real de ETF (SINT11) no Mercado',
     unlocksKeys: ['asset:etf'],
     unlocksAssetTicker: 'SINT11',

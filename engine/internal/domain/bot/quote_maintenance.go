@@ -72,3 +72,16 @@ func sideNeedsRequote(resting []RestingQuote, side orderbook.Side, idealPrice, t
 	}
 	return !found || remaining < minRemaining
 }
+
+// QuoteReferencePrice escolhe o preço em torno do qual o Market Maker cota um
+// ativo (tarefa R.5, proposta 5.2): o formador de mercado de um ETF cota em
+// torno do iNAV, não do último preço negociado, então uma cotação que ficou
+// defasada em relação à cesta é corrigida pelo próprio Market Maker. Ação e FII
+// passam inav nil e seguem cotando pelo último preço. iNAV não positivo é
+// ignorado (cai no último preço).
+func QuoteReferencePrice(lastPrice float64, inav *float64) float64 {
+	if inav != nil && *inav > 0 {
+		return *inav
+	}
+	return lastPrice
+}

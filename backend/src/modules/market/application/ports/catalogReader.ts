@@ -52,6 +52,12 @@ export interface EtfDetails {
   benchmark_index: string
   methodology_summary?: string
   holdings: Array<{ constituent_name: string; weight_pct: number }>
+  nav?: number
+  premium_pct?: number
+  nav_day?: number
+  shares_outstanding?: number
+  tracking_error_pct?: number
+  dividend_history: DividendEvent[]
 }
 
 export interface FiiDetails {

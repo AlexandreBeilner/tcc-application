@@ -71,7 +71,11 @@ export function AssetDetail() {
     if (locked) {
         return (
             <main className={styles.page}>
-                <LockedAssetPanel lessonId={unlockingLesson?.id} lessonTitle={unlockingLesson?.title} reachable={unlockingLesson?.reachable} />
+                <LockedAssetPanel
+                    lessonId={unlockingLesson?.id}
+                    lessonTitle={unlockingLesson?.title}
+                    reachable={unlockingLesson?.reachable}
+                />
             </main>
         )
     }
@@ -136,7 +140,15 @@ export function AssetDetail() {
                         </>
                     )}
 
-                    {asset.etf && <EtfCompositionPanel etf={asset.etf} />}
+                    {asset.etf && (
+                        <>
+                            <EtfCompositionPanel etf={asset.etf} />
+                            <section className={styles.dividends}>
+                                <span className={styles.dividendsTitle}>Proventos distribuídos</span>
+                                <DividendHistoryList history={asset.etf.dividend_history} />
+                            </section>
+                        </>
+                    )}
 
                     {asset.fii && (
                         <>

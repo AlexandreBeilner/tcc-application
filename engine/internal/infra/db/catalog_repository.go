@@ -151,6 +151,76 @@ func (r *CatalogRepository) CreateETFDetails(ctx context.Context, assetID string
 	return tx.Commit()
 }
 
+// ReplaceETFHoldings troca a composição de um ETF já existente pela de
+// details, na mesma transação — usado pelo seed (tarefa R.1) pra migrar a
+// cesta antiga do SINT11, que tinha renda fixa, para uma cesta só de Ação e
+// FII num banco que já rodava antes da Fase R. Quem chama já validou details
+// por etf.NewDetails.
+func (r *CatalogRepository) ReplaceETFHoldings(ctx context.Context, assetID string, details etf.Details) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM etf_holdings WHERE etf_asset_id = $1`, assetID); err != nil {
+		return err
+	}
+	for _, h := range details.Holdings {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO etf_holdings (etf_asset_id, constituent_name, asset_id, weight_pct) VALUES ($1, $2, $3, $4)`,
+			assetID, h.ConstituentName, h.AssetID, h.WeightPct,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// FindETFFundAccountID devolve a conta de fundo do ETF (etf_details.
+// fund_account_id, tarefa R.1). found = false quando o ETF não existe ou ainda
+// não tem fundo ligado (banco anterior à migration 000026, antes do seed).
+func (r *CatalogRepository) FindETFFundAccountID(ctx context.Context, assetID string) (string, bool, error) {
+	var fundAccountID sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT fund_account_id FROM etf_details WHERE asset_id = $1`, assetID,
+	).Scan(&fundAccountID)
+	if err == sql.ErrNoRows || (err == nil && !fundAccountID.Valid) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return fundAccountID.String, true, nil
+}
+
+// AttachETFFundAccount liga a conta de fundo (já criada em accounts) ao ETF e,
+// se outstanding_shares ainda é NULL, fixa o número de cotas na soma das
+// posições existentes (zero num ETF sem ninguém posicionado) — o total de cotas
+// em posições passa a ser sempre igual a outstanding_shares (R.2). Idempotente:
+// não mexe em cotas já definidas.
+func (r *CatalogRepository) AttachETFFundAccount(ctx context.Context, assetID, fundAccountID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE etf_details SET fund_account_id = $2 WHERE asset_id = $1`, assetID, fundAccountID,
+	); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE variable_income_assets
+		 SET outstanding_shares = (SELECT COALESCE(SUM(quantity), 0) FROM positions WHERE asset_id = $1)
+		 WHERE asset_id = $1 AND outstanding_shares IS NULL`, assetID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string, details fii.Details) error {
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value)
@@ -368,6 +438,25 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 		MethodologySummary: methodologySummary.String,
 		Holdings:           holdings,
 	}, true, nil
+}
+
+// FindLatestETFNAV devolve o NAV mais recente do ETF e as cotas emitidas
+// (tarefa R.3). found = false enquanto o ETF não tem NAV (sem emissão ou antes
+// do primeiro tick depois dela).
+func (r *CatalogRepository) FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error) {
+	var n catalog.ETFNAV
+	err := r.db.QueryRowContext(ctx,
+		`SELECT h.simulated_day, h.nav, h.premium_pct, h.tracking_error_pct, via.outstanding_shares
+		 FROM etf_nav_history h JOIN variable_income_assets via ON via.asset_id = h.etf_asset_id
+		 WHERE h.etf_asset_id = $1 ORDER BY h.simulated_day DESC LIMIT 1`, assetID,
+	).Scan(&n.SimulatedDay, &n.NAV, &n.PremiumPct, &n.TrackingErrorPct, &n.OutstandingShares)
+	if err == sql.ErrNoRows {
+		return catalog.ETFNAV{}, false, nil
+	}
+	if err != nil {
+		return catalog.ETFNAV{}, false, err
+	}
+	return n, true, nil
 }
 
 // FindFIIDetails devolve fii_details de assetID, se existir — usado por GET

@@ -10,6 +10,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
@@ -133,6 +134,18 @@ func main() {
 	// OrderContextLoader+OrderLifecycleManager, respectivamente) — a mesma
 	// instância concreta já implementa os dois papéis.
 	tickService := tick.NewService(tickRepository, botRepository, tickRepository, tickRepository, orderExecutionRepository, orderExecutionService, orderExecutionRepository, selicConfig, ipcaConfig, seed)
+	// ETF (Fase R, tarefa R.3): emissão inicial pelo Participante Autorizado e
+	// NAV diário; o mesmo repositório de fundos cobre a leitura e o caixa.
+	etfFundRepository := db.NewETFFundRepository(pool)
+	etfShareRepository := db.NewETFShareRepository(pool)
+	coverageRepository := db.NewCoverageRepository(pool)
+	tickService.WithETF(tick.ETFDeps{
+		Funds:       etfFundRepository,
+		Participant: etfFundRepository,
+		Exchanger:   etfShareRepository,
+		Transferer:  etfShareRepository,
+		Coverage:    coverage.NewEnsurer(coverageRepository, coverageRepository),
+	})
 
 	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick

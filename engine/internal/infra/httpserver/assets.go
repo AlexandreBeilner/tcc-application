@@ -28,6 +28,9 @@ type assetCatalogReader interface {
 	CurrentSelicRatePct(ctx context.Context) (float64, bool, error)
 	FindEquitySpecialization(ctx context.Context, assetID string) (catalog.EquitySpecialization, bool, error)
 	FindETFDetails(ctx context.Context, assetID string) (etf.Details, bool, error)
+	// FindLatestETFNAV devolve o NAV mais recente e as cotas emitidas do ETF
+	// (tarefa R.3); found = false antes da emissão inicial.
+	FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error)
 	FindFIIDetails(ctx context.Context, assetID string) (fii.Details, bool, error)
 	// FindCurrentQuote/ListCurrentQuotes devolvem a cotação corrente
 	// (asset_quotes, tarefa 3.11) — só existe pra acao/etf/fii, e só depois
@@ -233,6 +236,16 @@ type etfDetailResponse struct {
 	BenchmarkIndex     string               `json:"benchmark_index"`
 	MethodologySummary string               `json:"methodology_summary,omitempty"`
 	Holdings           []etfHoldingResponse `json:"holdings"`
+	// NAV, PremiumPct e SharesOutstanding (tarefa R.3) só vêm depois da
+	// emissão inicial e do primeiro tick seguinte.
+	NAV               *float64 `json:"nav,omitempty"`
+	PremiumPct        *float64 `json:"premium_pct,omitempty"`
+	NAVDay            *int     `json:"nav_day,omitempty"`
+	SharesOutstanding *int64   `json:"shares_outstanding,omitempty"`
+	// TrackingErrorPct e DividendHistory (tarefa R.11): desvio do NAV contra o
+	// índice teórico e proventos que o fundo distribuiu aos cotistas (R.8).
+	TrackingErrorPct *float64                       `json:"tracking_error_pct,omitempty"`
+	DividendHistory  []dividendHistoryEntryResponse `json:"dividend_history"`
 }
 
 // fiiDetailResponse traz os campos próprios por perfil (tijolo/papel,
@@ -406,10 +419,25 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				for _, h := range details.Holdings {
 					holdings = append(holdings, etfHoldingResponse{ConstituentName: h.ConstituentName, WeightPct: h.WeightPct})
 				}
+				dividendHistory, err := catalogReader.ListDividendHistory(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar histórico de proventos")
+					return
+				}
 				resp.ETF = &etfDetailResponse{
 					BenchmarkIndex:     details.BenchmarkIndex,
 					MethodologySummary: details.MethodologySummary,
 					Holdings:           holdings,
+					DividendHistory:    toDividendHistoryResponse(dividendHistory),
+				}
+				nav, navFound, err := catalogReader.FindLatestETFNAV(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar NAV do ETF")
+					return
+				}
+				if navFound {
+					resp.ETF.NAV, resp.ETF.PremiumPct, resp.ETF.NAVDay, resp.ETF.SharesOutstanding = &nav.NAV, &nav.PremiumPct, &nav.SimulatedDay, &nav.OutstandingShares
+					resp.ETF.TrackingErrorPct = nav.TrackingErrorPct
 				}
 			}
 		case catalog.AssetFII:

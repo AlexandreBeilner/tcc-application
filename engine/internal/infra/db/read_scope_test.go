@@ -90,3 +90,21 @@ func TestReadScope_EscoposIndependentes(t *testing.T) {
 		t.Errorf("segundo escopo leu %d, want 2 (cache não pode vazar entre ticks)", day)
 	}
 }
+
+func TestReadScope_ForgetForcaNovaLeitura(t *testing.T) {
+	s := scopeFrom((&OrderExecutionRepository{}).WithReadScope(context.Background()))
+	loads := 0
+	load := func() (assetStatic, error) {
+		loads++
+		return assetStatic{ticker: "X"}, nil
+	}
+	_, _ = s.asset("a", load)
+	_, _ = s.asset("a", load)
+	s.forget("a")
+	_, _ = s.asset("a", load)
+	if loads != 2 {
+		t.Errorf("cargas = %d, want 2 (a segunda leitura veio do cache, a terceira depois do forget)", loads)
+	}
+	var none *readScope
+	none.forget("a") // sem escopo não faz nada nem entra em pânico
+}

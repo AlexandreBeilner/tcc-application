@@ -23,6 +23,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
+	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -279,7 +280,12 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 	equities := make(map[string]*equityRoundState)
 	universe := make([]bot.EquityForRound, 0, len(assets))
 	for _, a := range assets {
-		if a.Type != assetTypeAcao && a.Type != assetTypeFII {
+		if a.Type != assetTypeAcao && a.Type != assetTypeFII && a.Type != assetTypeETF {
+			continue
+		}
+		// ETF sem cota emitida (antes da emissão inicial, R.3/R.4) não tem float
+		// nem book: fica fora do universo até ter cotas.
+		if a.Type == assetTypeETF && (a.OutstandingShares == nil || *a.OutstandingShares <= 0) {
 			continue
 		}
 
@@ -550,6 +556,17 @@ func (s *Service) runIntradayRounds(
 	}
 	ctx = s.orderContext.WithReadScope(ctx)
 
+	// Liquidez dos ETFs (R.4): antes de ler o roster, pra Market Maker recém
+	// atribuído e a cobertura nova já entrarem nas rodadas de hoje.
+	if err := s.coverETFs(ctx, equities); err != nil {
+		return nil, nil, 0, 0, err
+	}
+
+	etfFunds, err := s.loadETFFunds(ctx)
+	if err != nil {
+		return nil, nil, 0, 0, err
+	}
+
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {
 		return nil, nil, 0, 0, err
@@ -565,6 +582,8 @@ func (s *Service) runIntradayRounds(
 		priceHistoryCache: make(map[string][]float64),
 		volumeCache:       make(map[string][]int),
 		volumeByAssetID:   make(map[string]int),
+		etfFunds:          etfFunds,
+		etfAnnounced:      announcedDistributions(etfFunds, dayIndex),
 	}
 	uncovered := countUncoveredAssets(roster, equities)
 
@@ -573,7 +592,7 @@ func (s *Service) runIntradayRounds(
 	for i, b := range directional {
 		candidates[i] = bot.TurnCandidate{Scope: b.Personality.Scope, Archetype: b.Personality.Archetype}
 	}
-	applyEventAttention(universe, equities, companyContext)
+	applyEventAttention(universe, equities, companyContext, etfFunds)
 	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
 	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
 	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
@@ -601,14 +620,65 @@ func (s *Service) runIntradayRounds(
 		}
 	}
 
-	// Passada final (P.4): o Market Maker é o primeiro do roster em cada
-	// rodada, então os bots direcionais podem consumir a cotação dele depois
-	// da última recotação do dia. Sem esta passada, o mercado fecharia sem
-	// contraparte no lado consumido (caso do achado 013). Com a manutenção de
-	// cotação, ela só custa escrita onde algo foi consumido. Repete até nada
-	// mudar (no máximo finalPassMaxIterations vezes): uma recotação pode casar de
-	// cara com uma ordem de bot que ficou do outro lado do preço e ser consumida
-	// inteira, deixando o ativo sem aquele lado (achado da Q.9).
+	// Passada final (P.4), ver finalQuotePass.
+	if err := s.finalQuotePass(ctx, run, roster); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	}
+
+	// Arbitragem do Participante Autorizado (R.6): depois da passada final, pra
+	// vender as cotas criadas (ou comprar as do resgate) contra uma cotação de
+	// Market Maker que existe; se ela negociou, uma segunda passada recota o que
+	// a arbitragem consumiu, e o mercado ainda fecha com os dois lados cotados.
+	fillsBefore := run.fillsExecuted
+	// Rebalanceamento dos fundos (R.7) antes da arbitragem: a arbitragem usa a
+	// composição do fundo já rebalanceada.
+	// Taxa de administração (R.9): antes do rebalanceamento, levanta o caixa que falta
+	// vendendo constituintes; o estado dos fundos é relido pra o rebalanceamento partir
+	// das posições já reduzidas.
+	if raised, err := s.raiseFundCash(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	} else if raised {
+		if run.etfFunds, err = s.loadETFFunds(ctx); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
+		}
+	}
+	if rebalanced, err := s.rebalanceETFs(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	} else if rebalanced {
+		if run.etfFunds, err = s.loadETFFunds(ctx); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
+		}
+	}
+	if err := s.arbitrageETFs(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	}
+	if run.fillsExecuted != fillsBefore {
+		if err := s.finalQuotePass(ctx, run, roster); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
+		}
+	}
+
+	// Emissão inicial de ETF (R.3): depois das rodadas, com o mercado cotado.
+	if err := s.issueETFs(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	}
+
+	closingPrices := make(map[string]float64, len(equities))
+	for assetID, state := range equities {
+		closingPrices[assetID] = state.Price
+	}
+	return closingPrices, run.volumeByAssetID, run.fillsExecuted, uncovered, nil
+}
+
+// finalQuotePass é a passada final de cotação (P.4): o Market Maker é o primeiro do roster em cada
+// rodada, então os bots direcionais podem consumir a cotação dele depois
+// da última recotação do dia. Sem esta passada, o mercado fecharia sem
+// contraparte no lado consumido (caso do achado 013). Com a manutenção de
+// cotação, ela só custa escrita onde algo foi consumido. Repete até nada
+// mudar (no máximo finalPassMaxIterations vezes): uma recotação pode casar de
+// cara com uma ordem de bot que ficou do outro lado do preço e ser consumida
+// inteira, deixando o ativo sem aquele lado (achado da Q.9).
+func (s *Service) finalQuotePass(ctx context.Context, run *roundRun, roster []BotForRound) error {
 	for i := 0; i < finalPassMaxIterations; i++ {
 		changed := false
 		for _, b := range roster {
@@ -617,7 +687,7 @@ func (s *Service) runIntradayRounds(
 			}
 			requoted, err := s.maintainMarketMakerQuotes(ctx, run, b)
 			if err != nil {
-				return nil, nil, run.fillsExecuted, uncovered, err
+				return err
 			}
 			changed = changed || requoted
 		}
@@ -625,12 +695,7 @@ func (s *Service) runIntradayRounds(
 			break
 		}
 	}
-
-	closingPrices := make(map[string]float64, len(equities))
-	for assetID, state := range equities {
-		closingPrices[assetID] = state.Price
-	}
-	return closingPrices, run.volumeByAssetID, run.fillsExecuted, uncovered, nil
+	return nil
 }
 
 // roundRun agrupa o estado mutável que as rodadas de um tick compartilham
@@ -650,6 +715,40 @@ type roundRun struct {
 	// bots direcionais (fração do float): dimensiona a ordem para o giro-alvo do
 	// ativo dado quantos turnos ele recebe hoje.
 	orderCeilingPct map[string]float64
+	// etfFunds (R.5) é o estado dos fundos de ETF lido uma vez no início do
+	// tick, por ETF: dele sai o iNAV em memória (inav), a cada recotação, a
+	// partir dos preços correntes dos constituintes.
+	etfFunds map[string]etf.FundSnapshot
+	// etfAnnounced (R.12b) é o provento que cada ETF vai declarar hoje, quando é dia
+	// de relatório (announcedDistributions): entra como passivo no iNAV das rodadas,
+	// então o preço já cai na data-ex, e não só no dia seguinte.
+	etfAnnounced map[string]float64
+}
+
+// inav devolve o valor patrimonial intradiário de um ETF (R.5): posições do
+// fundo lidas no início do tick, preços correntes dos constituintes (os fills
+// já feitos nas rodadas). nil para ativo que não é ETF com fundo carregado ou
+// quando falta preço de algum constituinte (o Market Maker cai no último
+// preço). Em memória, sem comando de banco.
+func (r *roundRun) inav(assetID string) *float64 {
+	fund, ok := r.etfFunds[assetID]
+	if !ok {
+		return nil
+	}
+	prices := make(map[string]float64, len(fund.Holdings))
+	for _, h := range fund.Holdings {
+		state, ok := r.equities[h.AssetID]
+		if !ok {
+			return nil
+		}
+		prices[h.AssetID] = state.Price
+	}
+	fund.Liabilities += r.etfAnnounced[assetID]
+	nav, err := etf.NAVFromSnapshot(fund, prices)
+	if err != nil {
+		return nil
+	}
+	return &nav
 }
 
 // directionalBots filtra o roster pelos bots que negociam por turno (Ruído,
@@ -699,8 +798,8 @@ func (r *roundRun) directionalCeilingPct(assetID string) float64 {
 // ativos cuja empresa sofre hoje o efeito de preço de um evento macro
 // (CompanyRoundContext.MacroEffectPct, que só é diferente de zero enquanto o
 // evento dura): eles ganham turnos e volume, e os turnos preferem
-// Fundamentalistas.
-func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext) {
+// Fundamentalistas. ETF deriva a atenção da cesta (R.10).
+func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext, etfFunds map[string]etf.FundSnapshot) {
 	for i := range universe {
 		state := equities[universe[i].AssetID]
 		if state == nil || state.CompanyID == nil {
@@ -708,6 +807,26 @@ func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equ
 		}
 		if cc, ok := companyContext[*state.CompanyID]; ok && cc.MacroEffectPct != 0 {
 			universe[i].Attention = bot.AttentionMultiplier(cc.MacroEffectPct)
+		}
+	}
+
+	// ETF (R.10): a atenção vem da média ponderada da atenção dos constituintes, então
+	// o volume do ETF sobe quando a cesta está em evento. Depois do loop acima, que
+	// preenche a atenção dos constituintes.
+	if len(etfFunds) == 0 {
+		return
+	}
+	attention := make(map[string]float64, len(universe))
+	for _, e := range universe {
+		attention[e.AssetID] = e.Attention
+	}
+	for i := range universe {
+		fund, ok := etfFunds[universe[i].AssetID]
+		if !ok {
+			continue
+		}
+		if derived := etf.DerivedAttention(fund.Targets, attention); derived > 1 {
+			universe[i].Attention = derived
 		}
 	}
 }
@@ -951,7 +1070,9 @@ func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, 
 func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) (bool, error) {
 	state := run.equities[assetID]
 
-	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, state.Price)
+	// ETF cota em torno do iNAV (R.5); Ação e FII, do último preço.
+	reference := bot.QuoteReferencePrice(state.Price, run.inav(assetID))
+	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, reference)
 	if err != nil {
 		return false, nil
 	}
@@ -979,7 +1100,11 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 	}
 	// O Market Maker é determinístico (sem seed) e não usa insumos além do
 	// preço, do caixa, da posição e do teto de ordem.
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
+	// A cotação sai do preço de referência (iNAV, no ETF); o estado real, com o
+	// último preço, segue sendo o que os fills atualizam.
+	quoteState := *state
+	quoteState.Price = reference
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, &quoteState, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
 	if err != nil {
 		return true, err
 	}

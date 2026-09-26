@@ -32,6 +32,23 @@ const (
 	// raciocínio que já motivou EventBotInitialAllocation pro lado da
 	// posição.
 	EventBotInitialCash MarketEventType = "bot_initial_cash"
+	// EventETFCreation/EventETFRedemption são a criação e o resgate de cotas de
+	// ETF (tarefa R.1, migration 000026; usados a partir da R.2): uma linha por
+	// constituinte que troca de mãos e uma pelas cotas, gravadas antes de
+	// projetar posições e outstanding_shares.
+	EventETFCreation   MarketEventType = "etf_creation"
+	EventETFRedemption MarketEventType = "etf_redemption"
+	// EventETFDividendPayout é o débito do caixa do fundo quando ele paga o provento
+	// aos cotistas (tarefa R.8, migration 000030): quantidade = cotas que recebem,
+	// unit_value = valor por cota.
+	EventETFDividendPayout MarketEventType = "etf_dividend_payout"
+	// EventETFExpensePayout é o pagamento da taxa de administração acumulada pelo
+	// caixa do fundo (tarefa R.9, migration 000031): quantidade 1, unit_value = valor pago.
+	EventETFExpensePayout MarketEventType = "etf_expense_payout"
+	// EventETFShareTransfer (R.4, migration 000028) é a cota de ETF passando do
+	// Participante Autorizado ao Market Maker, em espécie e com quantidade com
+	// sinal (delta da posição da conta).
+	EventETFShareTransfer MarketEventType = "etf_share_transfer"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

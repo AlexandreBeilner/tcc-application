@@ -98,7 +98,7 @@ describe('AssetDetail (tela 4.5)', () => {
                 type: 'etf',
                 is_sandbox: false,
                 current_price: 200,
-                etf: { benchmark_index: 'S&P 500', holdings: [] },
+                etf: { benchmark_index: 'S&P 500', holdings: [], dividend_history: [] },
             },
         })
 

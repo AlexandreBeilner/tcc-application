@@ -31,15 +31,16 @@ import (
 // tarefa 3.9).
 const DefaultInitialPrice = 100.00
 
-// assetTypeAcao/assetTypeFII são os valores crus de AssetForPricing.Type
-// pra ações/FIIs — usados só pra decidir quando Advance pula o GBM (Fase
-// D.2 pra Ação, tarefa G.1 pra FII — preço passa a vir da rodada de
-// negociação real, rounds.go). Não é o mesmo conceito de catalog.AssetAcao/
+// assetTypeAcao/assetTypeFII/assetTypeETF são os valores crus de
+// AssetForPricing.Type — usados só pra decidir quando Advance pula o GBM (Fase
+// D.2 pra Ação, tarefa G.1 pra FII, tarefa R.4 pra ETF — preço passa a vir da
+// rodada de negociação real, rounds.go). Não é o mesmo conceito de catalog.AssetAcao/
 // AssetFII (tick não importa catalog só pra isso, mesma nota de
-// Sector/RiskClass). ETF continua fora dos dois até a Fase H.
+// Sector/RiskClass).
 const (
 	assetTypeAcao = "acao"
 	assetTypeFII  = "fii"
+	assetTypeETF  = "etf"
 )
 
 // State é o estado do calendário simulado do Mercado Ao Vivo — Day é o dia
@@ -257,6 +258,9 @@ type DividendRecord struct {
 	ValuePerShare float64
 	PaymentDay    int
 	Recipients    []PositionHolder
+	// FundLiability (R.8) é, num provento de ETF, o total que o fundo passa a dever
+	// na data-ex (valor por cota x cotas dos cotistas); zero nos demais ativos.
+	FundLiability float64
 }
 
 // NetWorthUpdate é o novo `fii_details.net_worth` de um FII tijolo pronto
@@ -289,6 +293,9 @@ type PendingDividendPayment struct {
 	ValuePerShare float64
 	PaymentDay    int
 	Recipients    []PositionHolder
+	// FundAccountID (R.8) é a conta do fundo quando o pagador é um ETF: o
+	// pagamento debita o caixa dela e quita o passivo; vazio nos demais ativos.
+	FundAccountID string
 }
 
 // Result é o resultado de um tick — o novo estado do calendário, as
@@ -387,6 +394,26 @@ type Result struct {
 	// IPCAMonthlyRate/State.SelicRate em market_indicator_history
 	// (SaveTick), uma linha por dia simulado.
 	IPCAAccumulated12m float64
+	// ETFNAVs (tarefa R.3) é o NAV de fechamento de cada ETF com cotas emitidas
+	// neste tick, com o preço de fechamento e o ágio/deságio — SaveTick grava
+	// uma linha de etf_nav_history por item, atomicamente com o resto do tick.
+	ETFNAVs []ETFNAVEntry
+}
+
+// ETFNAVEntry é o NAV de fechamento de um ETF num dia simulado (R.3).
+type ETFNAVEntry struct {
+	ETFAssetID string
+	NAV        float64
+	ClosePrice float64
+	PremiumPct float64
+	// IndexValue e TrackingErrorPct (R.7): índice teórico do fundo (pesos-alvo,
+	// sem atrito) e o desvio acumulado do NAV contra ele, em pontos percentuais.
+	IndexValue       float64
+	TrackingErrorPct float64
+	// ExpenseAccrued e ExpensePaid (R.9): taxa de administração acumulada hoje (passivo
+	// do fundo) e a acumulada que o fundo quitou do caixa hoje.
+	ExpenseAccrued float64
+	ExpensePaid    float64
 }
 
 // IndicatorHistoryEntry é uma linha de market_indicator_history (tarefa
@@ -1004,12 +1031,13 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {
-		if a.Type == assetTypeAcao || a.Type == assetTypeFII {
-			// Fase D.2 (Ação) / tarefa G.1 (FII): nenhum dos dois nasce mais
-			// de GBM — o preço de fechamento vem da rodada de negociação real
-			// (runIntradayRounds, rounds.go, chamada por Service.Run depois de
-			// Advance), que anexa sua própria Quote a Result.Quotes antes de
-			// SaveTick. ETF continua aqui até a Fase H.
+		if a.Type == assetTypeAcao || a.Type == assetTypeFII || a.Type == assetTypeETF {
+			// Fase D.2 (Ação) / tarefa G.1 (FII) / tarefa R.4 (ETF): nenhum dos
+			// três nasce mais de GBM — o preço de fechamento vem da rodada de
+			// negociação real (runIntradayRounds, rounds.go, chamada por
+			// Service.Run depois de Advance), que anexa sua própria Quote a
+			// Result.Quotes antes de SaveTick. ETF ainda sem cotas emitidas fica
+			// sem quote nova (preço parado no último conhecido) até a emissão.
 			continue
 		}
 
