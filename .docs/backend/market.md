@@ -27,7 +27,7 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 ### `GET /market/assets/:id`
 
 - **Autenticação:** Bearer token.
-- **Sucesso:** `200` → `{ asset: {...} }`, proxy 1:1 de `GET /assets/:id` (inclui o bloco por classe — `fixed_income`/`equity`/`etf`/`fii`, RF21).
+- **Sucesso:** `200` → `{ asset: {...} }`, proxy 1:1 de `GET /assets/:id` (inclui o bloco por classe — `fixed_income`/`equity`/`etf`/`fii`, RF21). O bloco `etf` inclui `nav`, `premium_pct`, `nav_day`, `shares_outstanding`, `tracking_error_pct` (opcionais) e `dividend_history` (R.11, detalhe em `.docs/engine/catalog.md`).
 - **Erros:** `401`; `404` (traduzido do motor) — ativo não encontrado.
 - **Regra:** `GetAssetUseCase` → `CatalogReader.getAsset`.
 

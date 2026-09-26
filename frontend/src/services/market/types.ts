@@ -119,6 +119,16 @@ export interface EtfDetail {
     benchmark_index: string
     methodology_summary?: string
     holdings: EtfHolding[]
+    // Tarefa R.3/R.7/R.11: ausentes até a emissão inicial e o primeiro tick
+    // seguinte (`nav`, `premium_pct`, `nav_day`, `shares_outstanding`) e
+    // enquanto o fundo não tem índice teórico gravado (`tracking_error_pct`).
+    // `premium_pct` e `tracking_error_pct` já vêm em pontos percentuais.
+    nav?: number
+    premium_pct?: number
+    nav_day?: number
+    shares_outstanding?: number
+    tracking_error_pct?: number
+    dividend_history: DividendHistoryEntry[]
 }
 
 export interface FiiDetail {

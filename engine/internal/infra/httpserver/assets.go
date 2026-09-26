@@ -242,6 +242,10 @@ type etfDetailResponse struct {
 	PremiumPct        *float64 `json:"premium_pct,omitempty"`
 	NAVDay            *int     `json:"nav_day,omitempty"`
 	SharesOutstanding *int64   `json:"shares_outstanding,omitempty"`
+	// TrackingErrorPct e DividendHistory (tarefa R.11): desvio do NAV contra o
+	// índice teórico e proventos que o fundo distribuiu aos cotistas (R.8).
+	TrackingErrorPct *float64                       `json:"tracking_error_pct,omitempty"`
+	DividendHistory  []dividendHistoryEntryResponse `json:"dividend_history"`
 }
 
 // fiiDetailResponse traz os campos próprios por perfil (tijolo/papel,
@@ -415,10 +419,16 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				for _, h := range details.Holdings {
 					holdings = append(holdings, etfHoldingResponse{ConstituentName: h.ConstituentName, WeightPct: h.WeightPct})
 				}
+				dividendHistory, err := catalogReader.ListDividendHistory(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar histórico de proventos")
+					return
+				}
 				resp.ETF = &etfDetailResponse{
 					BenchmarkIndex:     details.BenchmarkIndex,
 					MethodologySummary: details.MethodologySummary,
 					Holdings:           holdings,
+					DividendHistory:    toDividendHistoryResponse(dividendHistory),
 				}
 				nav, navFound, err := catalogReader.FindLatestETFNAV(r.Context(), rec.ID)
 				if err != nil {
@@ -427,6 +437,7 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				}
 				if navFound {
 					resp.ETF.NAV, resp.ETF.PremiumPct, resp.ETF.NAVDay, resp.ETF.SharesOutstanding = &nav.NAV, &nav.PremiumPct, &nav.SimulatedDay, &nav.OutstandingShares
+					resp.ETF.TrackingErrorPct = nav.TrackingErrorPct
 				}
 			}
 		case catalog.AssetFII:

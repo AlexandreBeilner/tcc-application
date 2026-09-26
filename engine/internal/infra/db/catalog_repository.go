@@ -446,10 +446,10 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 func (r *CatalogRepository) FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error) {
 	var n catalog.ETFNAV
 	err := r.db.QueryRowContext(ctx,
-		`SELECT h.simulated_day, h.nav, h.premium_pct, via.outstanding_shares
+		`SELECT h.simulated_day, h.nav, h.premium_pct, h.tracking_error_pct, via.outstanding_shares
 		 FROM etf_nav_history h JOIN variable_income_assets via ON via.asset_id = h.etf_asset_id
 		 WHERE h.etf_asset_id = $1 ORDER BY h.simulated_day DESC LIMIT 1`, assetID,
-	).Scan(&n.SimulatedDay, &n.NAV, &n.PremiumPct, &n.OutstandingShares)
+	).Scan(&n.SimulatedDay, &n.NAV, &n.PremiumPct, &n.TrackingErrorPct, &n.OutstandingShares)
 	if err == sql.ErrNoRows {
 		return catalog.ETFNAV{}, false, nil
 	}

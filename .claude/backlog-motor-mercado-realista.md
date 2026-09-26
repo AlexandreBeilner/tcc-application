@@ -4005,7 +4005,7 @@ negociação dos constituintes.
   isolada ao vivo; o teste unitário cobre só a atenção, não a magnitude da reação. (2) Um único ETF no seed, sem grupo de controle no mesmo dia. (3) Orçamento total de turnos inalterado é
   propriedade de `AllocateTurns` (a atenção só muda os pesos do sorteio), não recoberta por teste novo. Validação de magnitude com vários ETFs fica para a R.12.
 
-### R.11 · Frontend, lições e documentação
+### R.11 · Frontend, lições e documentação ✅
 - **Descrição:** bloco de ETF do detalhe do ativo passa a mostrar NAV, ágio/deságio, tracking error e dividendos distribuídos,
   além da composição; extrato e "Minhas Ordens" já cobrem o restante. Revisar o conteúdo da lição 2.9 (ETFs) para citar NAV,
   ágio/deságio e o Participante Autorizado (só texto, sem mudar a estrutura da trilha). `.docs/engine/catalog.md`,
@@ -4013,6 +4013,16 @@ negociação dos constituintes.
 - **Critérios de aceite:** tela conferida no navegador nos três breakpoints; sem valor absoluto de patrimônio de outro usuário
   (RNF09); documentação de todo contrato novo no mesmo commit.
 - **Dependências:** R.3 (NAV e catálogo), R.7, R.8 (tracking error e dividendos).
+- **Entregável (2026-09-26):** `GET /assets/{id}` (bloco `etf`) ganha `tracking_error_pct` (`ETFNAV.TrackingErrorPct`, ponteiro porque a coluna é anulável) e `dividend_history` (reusa
+  `ListDividendHistory` e `toDividendHistoryResponse`). Backend Node segue proxy 1:1, só tipos (`EtfDetails`). Frontend: `EtfCompositionPanel` mostra NAV por cota, ágio ou deságio (o rótulo
+  muda pelo sinal), tracking error, cotas emitidas e uma frase de explicação (bloco omitido até o NAV existir); a página de detalhe ganha a seção "Proventos distribuídos" com o
+  `DividendHistoryList` já usado por ação e FII. Lição 2.9 (`seedLessons.ts`, só texto): a revelação cita NAV, ágio/deságio, Participante Autorizado, dividendos distribuídos e a taxa de
+  administração. `.docs/engine/catalog.md` e `.docs/backend/market.md` atualizados.
+- **Testes:** motor (`assets_test.go`: tracking error e proventos no bloco, erro ao buscar proventos), frontend (painel com NAV, deságio, ágio e sem NAV; página do ETF), backend 599 testes, `tsc`,
+  oxlint, prettier, eslint e `golangci`/`go test` do pacote passam. **Validado ao vivo** no motor rebuildado: `SINT11` devolveu NAV 431,27, deságio -0,66%, tracking error 52,6%, 9.949 cotas e
+  proventos distribuídos.
+- **Limites conhecidos:** (1) Tela conferida no navegador (SINT11, usuário de teste local com lições liberadas por SQL): desktop, tablet (iframe de 820px) e smartphone (iframe de 390px, tab bar embaixo, rótulo do tracking error quebra em duas linhas sem estourar). (2) O tracking error de ~52% é o efeito conhecido da R.8 (índice teórico só de preço, dente de serra do
+  dividendo); um número desses na tela precisa da correção para retorno total (R.12) para não confundir quem aprende. (3) A lição 2.9 só é atualizada num banco depois de `db:seed:lessons` (rodado e conferido no banco local).
 
 ### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos
 - **Descrição:** o seed sintético (`--synthetic-assets`) ganha ETFs sintéticos; o `benchmark-cobertura.sh` mede, com 30, 50 e 100

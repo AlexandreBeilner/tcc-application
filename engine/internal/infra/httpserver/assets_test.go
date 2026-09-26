@@ -499,6 +499,7 @@ func TestHandleGetAsset_ETF(t *testing.T) {
 }
 
 func TestHandleGetAsset_ETFComNAV(t *testing.T) {
+	trackingError := 2.75
 	reader := &fakeCatalogReader{
 		asset: catalog.AssetRecord{
 			ID:    "1",
@@ -507,8 +508,11 @@ func TestHandleGetAsset_ETFComNAV(t *testing.T) {
 		assetFound:  true,
 		etfDetails:  etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
 		etfOK:       true,
-		etfNAV:      catalog.ETFNAV{SimulatedDay: 7, NAV: 101.25, PremiumPct: -1.5, OutstandingShares: 10000},
+		etfNAV:      catalog.ETFNAV{SimulatedDay: 7, NAV: 101.25, PremiumPct: -1.5, TrackingErrorPct: &trackingError, OutstandingShares: 10000},
 		etfNAVFound: true,
+		dividendHistory: []catalog.DividendHistoryEntry{
+			{ValuePerShare: 0.42, ExDate: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), PaymentDate: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)},
+		},
 	}
 
 	rec := getCatalog(t, reader, "/assets/1")
@@ -522,6 +526,27 @@ func TestHandleGetAsset_ETFComNAV(t *testing.T) {
 	if body.ETF == nil || body.ETF.NAV == nil || *body.ETF.NAV != 101.25 || *body.ETF.PremiumPct != -1.5 ||
 		*body.ETF.NAVDay != 7 || *body.ETF.SharesOutstanding != 10000 {
 		t.Errorf("ETF = %+v, want NAV 101.25, ágio -1.5, dia 7, 10000 cotas", body.ETF)
+	}
+	if body.ETF.TrackingErrorPct == nil || *body.ETF.TrackingErrorPct != 2.75 {
+		t.Errorf("TrackingErrorPct = %v, want 2.75", body.ETF.TrackingErrorPct)
+	}
+	if len(body.ETF.DividendHistory) != 1 || body.ETF.DividendHistory[0].ValuePerShare != 0.42 {
+		t.Errorf("DividendHistory = %+v, want 1 provento de 0.42 por cota", body.ETF.DividendHistory)
+	}
+}
+
+func TestHandleGetAsset_ETFErroAoBuscarProventos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:              catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "SINT11", Name: "ETF", Type: catalog.AssetETF}},
+		assetFound:         true,
+		etfDetails:         etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
+		etfOK:              true,
+		dividendHistoryErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
 
