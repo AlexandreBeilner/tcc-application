@@ -9,21 +9,13 @@
 package bot
 
 import (
-	"errors"
-	"math/rand"
-
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 )
 
-// ErrNoEquityAvailable é devolvido por SelectAssetForRound quando universe
-// está vazio — não há nenhum ativo pra negociar nesta rodada (ainda sem
-// nenhuma Ação no catálogo, por exemplo).
-var ErrNoEquityAvailable = errors.New("nenhum ativo disponível pra sortear nesta rodada")
-
 // EquityForRound é o insumo mínimo de um ativo de Renda Variável que
-// SelectAssetForRound precisa pra checar se ele cai dentro do escopo de um
+// AllocateTurns/SelectBotForTurn precisa pra checar se ele cai dentro do escopo de um
 // bot — CompanyID/preço/histórico/fundamentos ficam a cargo de quem orquestra
 // a rodada (tick.Service, Fase D.2), este pacote só decide "cai no escopo ou
 // não". Type (tarefa G.1) é a classe de ativo crua (catalog.AssetAcao/
@@ -35,7 +27,23 @@ type EquityForRound struct {
 	Sector    catalog.Sector
 	RiskClass equity.RiskClass
 	Type      catalog.AssetType
+	// MarketValue (tarefa Q.3) é o valor de mercado do ativo (float vezes preço),
+	// peso do sorteio de AllocateTurns/SelectBotForTurn. 0 quando o float é desconhecido:
+	// o ativo entra só com a parte uniforme do peso.
+	MarketValue float64
+	// Attention (tarefa Q.10) é o multiplicador de atenção do ativo hoje
+	// (AttentionMultiplier): um evento macro ativo sobre a empresa atrai turnos
+	// e volume. 0 ou 1 quando não há evento.
+	Attention float64
 }
+
+// MarketValueWeight (tarefa Q.3) é a fração do peso de sorteio de um ativo que
+// vem do valor de mercado; o resto (1 - MarketValueWeight) é uniforme. Ativos
+// maiores recebem mais turnos de bot (líderes de liquidez emergem sem impor um
+// perfil fixo por ativo, opção C do achado 009, descartada) e o menor ativo
+// nunca recebe menos que (1 - MarketValueWeight) da taxa uniforme, então
+// nenhum ativo é esquecido. Valor ilustrativo, a validar no benchmark da Q.4.
+const MarketValueWeight = 0.5
 
 // MatchesEquity confere se o escopo de especialização do bot alcança um
 // ativo de Renda Variável com o setor/risk_class/classe de ativo dados —
@@ -67,41 +75,6 @@ func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equi
 	return false
 }
 
-// SelectAssetForRound sorteia, pra um bot nesta rodada, qual ativo de
-// universe ele vai negociar: WithinScopePct das vezes um ativo uniformemente
-// sorteado dentre os que MatchesEquity aprova (proposta 2.3.2: "85-90% da
-// atividade dentro do escopo"), o restante um ativo fora dele — garantindo
-// que nenhum ativo fique sem liquidez nenhuma só por estar fora do escopo de
-// todo mundo. Cai pro outro grupo quando o sorteado está vazio (bot cujo
-// escopo não bate com nenhum ativo do universo atual, ou cujo escopo cobre
-// universe inteiro — ex: Market Maker, C.6 — não tem "fora do escopo" pra
-// cair). Devolve ErrNoEquityAvailable só quando universe está vazio (nada
-// pra negociar, nenhum sorteio possível).
-func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, rng *rand.Rand) (EquityForRound, error) {
-	if len(universe) == 0 {
-		return EquityForRound{}, ErrNoEquityAvailable
-	}
-
-	var inScope, outOfScope []EquityForRound
-	for _, e := range universe {
-		if scope.MatchesEquity(e.Sector, e.RiskClass, e.Type) {
-			inScope = append(inScope, e)
-		} else {
-			outOfScope = append(outOfScope, e)
-		}
-	}
-
-	pool := inScope
-	switch {
-	case len(inScope) == 0:
-		pool = outOfScope
-	case len(outOfScope) > 0 && rng.Float64() >= scope.WithinScopePct:
-		pool = outOfScope
-	}
-
-	return pool[rng.Intn(len(pool))], nil
-}
-
 // DecisionInput agrupa todo insumo que algum arquétipo pode precisar pra
 // decidir uma ordem — Decide só repassa os campos que o arquétipo de
 // personality de fato consome pra sua função Decide* específica (C.2-C.5),
@@ -110,6 +83,9 @@ func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, r
 // valor só, igual pros 4 arquétipos, sem precisar saber qual campo cada um
 // usa.
 type DecisionInput struct {
+	// MinQuoteQuantity (tarefa P.6) é o piso de tamanho de uma cotação de
+	// Market Maker; só esse arquétipo lê. 0 desliga o piso.
+	MinQuoteQuantity  int
 	ReferencePrice    float64
 	PriceHistory      []float64
 	AvailableCash     float64
@@ -169,7 +145,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		}
 		return []Decision{d}, nil
 	case ArchetypeMarketMaker:
-		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
+		return DecideMarketMakerOrders(personality, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling, input.MinQuoteQuantity)
 	case ArchetypeChartista:
 		d, err := DecideChartistOrder(personality, input.PriceHistory, input.AvailableCash, input.CurrentPosition, input.OrderSizeCeiling)
 		if err != nil {

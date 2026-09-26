@@ -15,6 +15,8 @@ package tick
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"math/rand"
 	"sort"
 
@@ -117,7 +119,7 @@ type BotForRound struct {
 	// CoveredAssetIDs (tarefa P.3) são os ativos que um Market Maker cobre
 	// (market_maker_coverage, P.1), em ordem por ID. Vazio pros outros 3
 	// arquétipos, que negociam um ativo sorteado por rodada
-	// (bot.SelectAssetForRound).
+	// (bot.AllocateTurns).
 	CoveredAssetIDs []string
 }
 
@@ -156,6 +158,11 @@ type TradedVolumeReader interface {
 // runIntradayRounds).
 type OrderContextLoader interface {
 	LoadContext(ctx context.Context, assetID, userID string) (orderexecution.Context, error)
+	// WithReadScope (tarefa Q.1) devolve um contexto cujas leituras que não mudam
+	// durante o tick (dados estáticos do ativo e o dia simulado) ficam em cache
+	// até ele ser descartado. runIntradayRounds abre um por tick: são centenas
+	// de LoadContext nas rodadas, e sem isso cada um relia as mesmas coisas.
+	WithReadScope(ctx context.Context) context.Context
 }
 
 // OrderSubmitter executa e persiste a ordem decidida por um bot — mesmo
@@ -248,7 +255,7 @@ type equityRoundState struct {
 // usada em deterministicSeed (tick.go)/bot.InitialAllocation, aqui composta
 // com dois inteiros a mais (dayIndex, roundIndex) pra nenhum bot repetir a
 // mesma sequência aleatória em dois (dia, rodada) diferentes. purpose separa
-// o sorteio de "qual ativo negociar" (SelectAssetForRound) do sorteio
+// o sorteio de "qual ativo negociar" (bot.AllocateTurns) do sorteio
 // "qual ordem gerar" (bot.Decide, só Ruído/Fundamentalista usam seed) —
 // duas decisões independentes do mesmo bot na mesma rodada não podem
 // compartilhar o mesmo stream de números aleatórios. roundIndex nunca passa
@@ -261,7 +268,7 @@ func roundSeed(baseSeed int64, dayIndex, roundIndex int, botUserID, purpose stri
 // buildEquityUniverse filtra assets pras Ações e FIIs (Fase D.2 / tarefa
 // G.1 — ETF ainda fora, ver assetTypeAcao/assetTypeFII) e monta tanto o
 // estado mutável por ativo (equities, indexado por AssetID) quanto o
-// universo pequeno que bot.SelectAssetForRound precisa (sem preço/CompanyID,
+// universo pequeno que bot.AllocateTurns e bot.SelectBotForTurn precisam (sem preço/CompanyID,
 // só o que importa pra checar escopo). Sector/RiskClass só são resolvidos
 // pra Ação — FII (tarefa G.1) fica com os dois em zero value de propósito
 // (remove o tratamento "Conservador" que riskClassForPricing dava a ele
@@ -291,8 +298,16 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 		}
 
 		equities[a.AssetID] = &equityRoundState{Sector: sector, RiskClass: riskClass, CompanyID: a.CompanyID, Price: price, ShareClass: a.ShareClass, OutstandingShares: a.OutstandingShares}
-		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type)})
+		var marketValue float64
+		if a.OutstandingShares != nil {
+			marketValue = float64(*a.OutstandingShares) * price
+		}
+		universe = append(universe, bot.EquityForRound{AssetID: a.AssetID, Sector: sector, RiskClass: riskClass, Type: catalog.AssetType(a.Type), MarketValue: marketValue})
 	}
+	// Ordem estável por ID: a alocação de turnos (Q.8) sorteia percorrendo o
+	// universo, e a ordem em que o banco devolve os ativos muda quando as linhas
+	// são atualizadas (RNF08, mesma seed, mesmo mercado).
+	sort.Slice(universe, func(i, j int) bool { return universe[i].AssetID < universe[j].AssetID })
 	return equities, universe
 }
 
@@ -320,8 +335,9 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 // (MaxOrderPctOfAverageVolumePct × média de recentVolume, achado 005 parte
 // B) — devolve o menor dos dois quando ambos existem. Sem histórico de
 // volume ainda (recentVolume vazio — ativo novo, RecentTradedVolume nunca
-// achou nenhuma linha) cai pro float sozinho, nunca bloqueia a negociação
-// por falta de dado, só fica mais permissivo até o histórico se formar;
+// achou nenhuma linha) o teto é o piso proporcional (floorPct do float, o
+// giro-alvo do ativo na Q.9), nunca zero: não bloqueia a negociação por falta
+// de dado, mas também não deixa o primeiro dia negociar o float inteiro;
 // float nil (ex: sandbox) com histórico de volume disponível usa o teto de
 // volume sozinho; os dois nil/vazios devolve nil (nenhum teto se aplica).
 // Histórico real todo zerado (achado 005 parte C, MinOrderSizeCeiling) nunca
@@ -329,8 +345,19 @@ func fundamentalistHasCompanyContext(personality bot.Personality, state *equityR
 // volumeCeiling zerava pra sempre e nenhuma ordem de compra nova conseguia
 // tamanho >= 1 (capToFloat/quantityForSide, marketmaker.go), travando a
 // liquidez do ativo indefinidamente.
-func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
+func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int, floorPct float64) *int64 {
 	if len(recentVolume) == 0 {
+		// Sem histórico (ativo novo, primeiro dia do mercado): o teto é o giro-alvo
+		// do ativo (floorPct do float), não o float inteiro. Com o float como teto
+		// o primeiro dia negociava até 99% do float numa ordem só e inflava o
+		// volume médio que dimensiona o teto dos dias seguintes (achado do teste
+		// ponta a ponta da Fase Q).
+		if floatCeiling == nil {
+			return nil
+		}
+		if floor := minOrderSizeCeilingPct(floatCeiling, floorPct); floor < *floatCeiling {
+			return &floor
+		}
 		return floatCeiling
 	}
 
@@ -340,7 +367,7 @@ func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	}
 	avgVolume := float64(sum) / float64(len(recentVolume))
 	volumeCeiling := int64(avgVolume * MaxOrderPctOfAverageVolumePct)
-	if floor := minOrderSizeCeiling(floatCeiling); volumeCeiling < floor {
+	if floor := minOrderSizeCeilingPct(floatCeiling, floorPct); volumeCeiling < floor {
 		volumeCeiling = floor
 	}
 
@@ -350,14 +377,21 @@ func effectiveOrderSizeCeiling(floatCeiling *int64, recentVolume []int) *int64 {
 	return floatCeiling
 }
 
-// minOrderSizeCeiling é o piso do teto de volume: MinOrderPctOfFloat do float
-// (achado 009), nunca abaixo de MinOrderSizeCeiling. Sem float conhecido (nil,
-// ex: sandbox) só o piso absoluto se aplica.
+// minOrderSizeCeiling é o piso do teto de volume com o percentual fixo
+// MinOrderPctOfFloat (a cotação do Market Maker usa este).
 func minOrderSizeCeiling(floatCeiling *int64) int64 {
+	return minOrderSizeCeilingPct(floatCeiling, MinOrderPctOfFloat)
+}
+
+// minOrderSizeCeilingPct é o piso do teto de volume: pct do float (achado 009 e,
+// para os bots direcionais, o percentual do giro-alvo do ativo, Q.9), nunca
+// abaixo de MinOrderSizeCeiling. Sem float conhecido (nil, ex: sandbox) só o
+// piso absoluto se aplica.
+func minOrderSizeCeilingPct(floatCeiling *int64, pct float64) int64 {
 	if floatCeiling == nil {
 		return MinOrderSizeCeiling
 	}
-	if floor := int64(float64(*floatCeiling) * MinOrderPctOfFloat); floor > MinOrderSizeCeiling {
+	if floor := int64(float64(*floatCeiling) * pct); floor > MinOrderSizeCeiling {
 		return floor
 	}
 	return MinOrderSizeCeiling
@@ -384,6 +418,7 @@ func (s *Service) decisionInputFor(
 	priceHistoryCache map[string][]float64,
 	volumeCache map[string][]int,
 	assetID string,
+	orderCeilingPct float64,
 ) (bot.DecisionInput, bool, error) {
 	recentVolume, cached := volumeCache[assetID]
 	if !cached {
@@ -424,7 +459,10 @@ func (s *Service) decisionInputFor(
 		// gigante demais pro que o mercado de fato absorve num dia — os
 		// dois travavam o preço de fechamento no mesmo valor por dias/
 		// semanas simulados.
-		OrderSizeCeiling: effectiveOrderSizeCeiling(execCtx.OutstandingShares, recentVolume),
+		OrderSizeCeiling: effectiveOrderSizeCeiling(execCtx.OutstandingShares, recentVolume, orderCeilingPct),
+		// Piso de tamanho da cotação do Market Maker (P.6): uma cotação
+		// menor não conta como cobertura. Só o Market Maker lê.
+		MinQuoteQuantity: int(minOrderSizeCeiling(execCtx.OutstandingShares)),
 	}
 
 	switch personality.Archetype {
@@ -510,6 +548,7 @@ func (s *Service) runIntradayRounds(
 	if len(universe) == 0 || len(rounds) == 0 {
 		return nil, nil, 0, 0, nil
 	}
+	ctx = s.orderContext.WithReadScope(ctx)
 
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {
@@ -529,18 +568,35 @@ func (s *Service) runIntradayRounds(
 	}
 	uncovered := countUncoveredAssets(roster, equities)
 
-	for _, round := range rounds {
+	directional := directionalBots(roster)
+	candidates := make([]bot.TurnCandidate, len(directional))
+	for i, b := range directional {
+		candidates[i] = bot.TurnCandidate{Scope: b.Personality.Scope, Archetype: b.Personality.Archetype}
+	}
+	applyEventAttention(universe, equities, companyContext)
+	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
+	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
+	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
+	turnsByRound := splitTurns(dayTurns, len(rounds))
+	universeByID := make(map[string]bot.EquityForRound, len(universe))
+	for _, e := range universe {
+		universeByID[e.AssetID] = e
+	}
+
+	for i, round := range rounds {
+		// O Market Maker cota primeiro em toda rodada, para os bots direcionais
+		// encontrarem a cotação dele (ver a passada final abaixo).
 		for _, b := range roster {
-			if b.Personality.Archetype == bot.ArchetypeMarketMaker {
-				if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
-					return nil, nil, run.fillsExecuted, uncovered, err
-				}
+			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
 				continue
 			}
-			for _, assetID := range s.assetsForBot(b, universe, equities, dayIndex, round) {
-				if err := s.runBotOnAsset(ctx, run, round, b, assetID); err != nil {
-					return nil, nil, run.fillsExecuted, uncovered, err
-				}
+			if _, err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
+				return nil, nil, run.fillsExecuted, uncovered, err
+			}
+		}
+		for k, turn := range turnsByRound[i] {
+			if err := s.runTurn(ctx, run, round, k, turn, universeByID, directional, candidates); err != nil {
+				return nil, nil, run.fillsExecuted, uncovered, err
 			}
 		}
 	}
@@ -549,13 +605,24 @@ func (s *Service) runIntradayRounds(
 	// rodada, então os bots direcionais podem consumir a cotação dele depois
 	// da última recotação do dia. Sem esta passada, o mercado fecharia sem
 	// contraparte no lado consumido (caso do achado 013). Com a manutenção de
-	// cotação, ela só custa escrita onde algo foi consumido.
-	for _, b := range roster {
-		if b.Personality.Archetype != bot.ArchetypeMarketMaker {
-			continue
+	// cotação, ela só custa escrita onde algo foi consumido. Repete até nada
+	// mudar (no máximo finalPassMaxIterations vezes): uma recotação pode casar de
+	// cara com uma ordem de bot que ficou do outro lado do preço e ser consumida
+	// inteira, deixando o ativo sem aquele lado (achado da Q.9).
+	for i := 0; i < finalPassMaxIterations; i++ {
+		changed := false
+		for _, b := range roster {
+			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+				continue
+			}
+			requoted, err := s.maintainMarketMakerQuotes(ctx, run, b)
+			if err != nil {
+				return nil, nil, run.fillsExecuted, uncovered, err
+			}
+			changed = changed || requoted
 		}
-		if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
-			return nil, nil, run.fillsExecuted, uncovered, err
+		if !changed {
+			break
 		}
 	}
 
@@ -579,30 +646,168 @@ type roundRun struct {
 	volumeCache       map[string][]int
 	volumeByAssetID   map[string]int
 	fillsExecuted     int
+	// orderCeilingPct (Q.9) é, por ativo, o piso do teto de tamanho de ordem dos
+	// bots direcionais (fração do float): dimensiona a ordem para o giro-alvo do
+	// ativo dado quantos turnos ele recebe hoje.
+	orderCeilingPct map[string]float64
 }
 
-// assetsForBot devolve os ativos em que o bot atua nesta rodada: o Market
-// Maker cota toda a sua cobertura que existe no universo negociável (ordem
-// por ID, P.3); os demais arquétipos, o ativo sorteado por
-// bot.SelectAssetForRound (nenhum se o sorteio falha).
-func (s *Service) assetsForBot(b BotForRound, universe []bot.EquityForRound, equities map[string]*equityRoundState, dayIndex int, round IntradayRound) []string {
-	if b.Personality.Archetype == bot.ArchetypeMarketMaker {
-		covered := make([]string, 0, len(b.CoveredAssetIDs))
-		for _, assetID := range b.CoveredAssetIDs {
-			if _, tradable := equities[assetID]; tradable {
-				covered = append(covered, assetID)
-			}
+// directionalBots filtra o roster pelos bots que negociam por turno (Ruído,
+// Chartista e Fundamentalista), na ordem recebida.
+func directionalBots(roster []BotForRound) []BotForRound {
+	directional := make([]BotForRound, 0, len(roster))
+	for _, b := range roster {
+		if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+			directional = append(directional, b)
 		}
-		sort.Strings(covered)
-		return covered
 	}
+	return directional
+}
 
-	assetRng := rand.New(rand.NewSource(roundSeed(s.seed, dayIndex, round.SequenceIndex, b.UserID, "asset")))
-	chosen, err := bot.SelectAssetForRound(b.Personality.Scope, universe, assetRng)
-	if err != nil {
+// orderCeilingPcts (Q.9) calcula, por ativo, o piso do teto de tamanho de ordem
+// dos bots direcionais: o suficiente para o ativo render o giro-alvo dado quantos
+// turnos recebeu hoje (bot.OrderCeilingPct), nunca abaixo de MinOrderPctOfFloat
+// (que evita o colapso do volume, achado 009).
+func orderCeilingPcts(universe []bot.EquityForRound, turns []bot.Turn) map[string]float64 {
+	perAsset := make(map[string]int, len(universe))
+	for _, t := range turns {
+		perAsset[t.AssetID]++
+	}
+	median := bot.MedianMarketValue(universe)
+	pcts := make(map[string]float64, len(universe))
+	for _, e := range universe {
+		target := bot.TargetTurnoverPct(e.MarketValue, median)
+		if e.Attention > 1 {
+			target *= e.Attention // pico de volume enquanto o evento dura (Q.10)
+		}
+		pct := bot.OrderCeilingPct(target, perAsset[e.AssetID])
+		pcts[e.AssetID] = math.Max(pct, MinOrderPctOfFloat)
+	}
+	return pcts
+}
+
+// directionalCeilingPct devolve o piso do teto de ordem de um ativo para os bots
+// direcionais, ou MinOrderPctOfFloat se o ativo não tem giro-alvo calculado.
+func (r *roundRun) directionalCeilingPct(assetID string) float64 {
+	if pct, ok := r.orderCeilingPct[assetID]; ok {
+		return pct
+	}
+	return MinOrderPctOfFloat
+}
+
+// applyEventAttention (Q.10) marca no universo o multiplicador de atenção dos
+// ativos cuja empresa sofre hoje o efeito de preço de um evento macro
+// (CompanyRoundContext.MacroEffectPct, que só é diferente de zero enquanto o
+// evento dura): eles ganham turnos e volume, e os turnos preferem
+// Fundamentalistas.
+func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext) {
+	for i := range universe {
+		state := equities[universe[i].AssetID]
+		if state == nil || state.CompanyID == nil {
+			continue
+		}
+		if cc, ok := companyContext[*state.CompanyID]; ok && cc.MacroEffectPct != 0 {
+			universe[i].Attention = bot.AttentionMultiplier(cc.MacroEffectPct)
+		}
+	}
+}
+
+// splitTurns reparte os turnos do dia entre as rodadas em fatias contíguas de
+// tamanho quase igual (as primeiras rodadas ficam com o resto). O orçamento é do
+// tick, não da rodada: um dia de 4 rodadas não custa mais turnos que um de 1.
+func splitTurns(turns []bot.Turn, rounds int) [][]bot.Turn {
+	if rounds <= 0 {
 		return nil
 	}
-	return []string{chosen.AssetID}
+	out := make([][]bot.Turn, rounds)
+	base, extra := len(turns)/rounds, len(turns)%rounds
+	start := 0
+	for i := range out {
+		size := base
+		if i < extra {
+			size++
+		}
+		out[i] = turns[start : start+size]
+		start += size
+	}
+	return out
+}
+
+// finalPassMaxIterations limita as repetições da passada final de manutenção de
+// cotação do Market Maker (ver runIntradayRounds).
+const finalPassMaxIterations = 3
+
+// floorTurnAttempts é quantos bots o turno de piso de um ativo tenta até um
+// deles conseguir negociar (um bot pode não ter sinal, caixa ou posição).
+const floorTurnAttempts = 4
+
+// runTurn executa um turno de bot num ativo (Q.8): escolhe o bot pelo escopo e
+// roda a participação dele. O turno de piso do ativo é executado a mercado e
+// repete com outro bot até haver um fill, para o ativo imprimir um negócio real
+// todo dia.
+func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRound, index int, turn bot.Turn, universeByID map[string]bot.EquityForRound, directional []BotForRound, candidates []bot.TurnCandidate) error {
+	asset := universeByID[turn.AssetID]
+	attempts := 1
+	if turn.Floor {
+		attempts = floorTurnAttempts
+	}
+	// Fundamentalista não negocia ativo sem empresa/fundamentos (FII, ou uma empresa
+	// ainda sem relatório): sorteá-lo desperdiçaria o turno, e o turno de piso
+	// esgotava as tentativas mais vezes em FII (3,8% dos dias sem negócio contra
+	// 0,2% nas ações no teste ponta a ponta da Fase Q).
+	eligible, indexes := candidates, []int(nil)
+	if !assetHasCompanyContext(run.equities[turn.AssetID], run.companyContext) {
+		eligible = make([]bot.TurnCandidate, 0, len(candidates))
+		indexes = make([]int, 0, len(candidates))
+		for i, c := range candidates {
+			if c.Archetype != bot.ArchetypeFundamentalista {
+				eligible = append(eligible, c)
+				indexes = append(indexes, i)
+			}
+		}
+	}
+	for attempt := 0; attempt < attempts; attempt++ {
+		purpose := fmt.Sprintf("turn:%d:%d", index, attempt)
+		botRng := rand.New(rand.NewSource(roundSeed(s.seed, run.dayIndex, round.SequenceIndex, turn.AssetID, purpose)))
+		pick := bot.SelectBotForTurn(asset, eligible, turn.Attention, botRng)
+		if pick < 0 {
+			return nil
+		}
+		if indexes != nil {
+			pick = indexes[pick]
+		}
+		filled, err := s.runBotOnAsset(ctx, run, round, directional[pick], turn.AssetID, purpose, turn.Floor)
+		if err != nil {
+			return err
+		}
+		if filled > 0 {
+			return nil
+		}
+	}
+	return nil
+}
+
+// assetHasCompanyContext reporta se o ativo tem empresa com fundamentos no dia, o
+// que um Fundamentalista precisa para decidir (ver fundamentalistHasCompanyContext).
+func assetHasCompanyContext(state *equityRoundState, companyContext map[string]CompanyRoundContext) bool {
+	if state == nil || state.CompanyID == nil {
+		return false
+	}
+	_, ok := companyContext[*state.CompanyID]
+	return ok
+}
+
+// marketMakerCoveredAssets devolve os ativos que o Market Maker cota: toda a
+// sua cobertura que existe no universo negociável, em ordem por ID (P.3).
+func marketMakerCoveredAssets(b BotForRound, equities map[string]*equityRoundState) []string {
+	covered := make([]string, 0, len(b.CoveredAssetIDs))
+	for _, assetID := range b.CoveredAssetIDs {
+		if _, tradable := equities[assetID]; tradable {
+			covered = append(covered, assetID)
+		}
+	}
+	sort.Strings(covered)
+	return covered
 }
 
 // countUncoveredAssets conta os ativos negociáveis que nenhum Market Maker
@@ -628,34 +833,42 @@ func countUncoveredAssets(roster []BotForRound, equities map[string]*equityRound
 	return uncovered
 }
 
-// runBotOnAsset é a participação de um bot em um ativo numa rodada: decide e
-// submete as ordens, atualizando o preço de referência do ativo a cada fill.
-// Erro de decisão ou rejeição de negócio só pulam o bot neste ativo (ver doc
-// de runIntradayRounds); qualquer outro erro propaga.
-func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round IntradayRound, b BotForRound, assetID string) error {
+// runBotOnAsset é a participação de um bot em um ativo num turno: decide e
+// submete as ordens, atualizando o preço de referência do ativo a cada fill, e
+// devolve quantos fills aconteceram. purpose separa o sorteio de decisão dos
+// outros turnos do mesmo bot; floor converte as ordens em ordens a mercado (turno
+// de piso, Q.8). Erro de decisão ou rejeição de negócio só pulam o bot neste
+// ativo (ver doc de runIntradayRounds); qualquer outro erro propaga.
+func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round IntradayRound, b BotForRound, assetID, purpose string, floor bool) (int, error) {
 	state := run.equities[assetID]
 
 	if !fundamentalistHasCompanyContext(b.Personality, state, run.companyContext) {
-		return nil
+		return 0, nil
 	}
 
 	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision")
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID)
+	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision:"+purpose)
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID, run.directionalCeilingPct(assetID))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !ok {
-		return nil
+		return 0, nil
 	}
 
 	decisions, err := bot.Decide(b.Personality, input)
 	if err != nil {
-		return nil
+		return 0, nil
+	}
+	if floor {
+		for i := range decisions {
+			decisions[i].Type = orderbook.TypeMarket
+			decisions[i].Price = 0
+		}
 	}
 
 	return s.submitDecisions(ctx, run, b, assetID, state, execCtx, decisions)
@@ -663,7 +876,8 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 
 // submitDecisions envia as ordens decididas de um bot num ativo e atualiza o
 // preço de referência a cada fill. Rejeição de negócio só descarta a ordem.
-func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRound, assetID string, state *equityRoundState, execCtx orderexecution.Context, decisions []bot.Decision) error {
+func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRound, assetID string, state *equityRoundState, execCtx orderexecution.Context, decisions []bot.Decision) (int, error) {
+	fills := 0
 	for i, d := range decisions {
 		req := orderexecution.Request{
 			UserID:   b.UserID,
@@ -692,36 +906,40 @@ func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRo
 			if businessRejection(err) {
 				continue
 			}
-			return err
+			return fills, err
 		}
+		fills += len(outcome.Fills)
 		run.fillsExecuted += len(outcome.Fills)
 		run.volumeByAssetID[assetID] += outcome.FilledQuantity
 		if len(outcome.Fills) > 0 {
 			state.Price = outcome.Fills[len(outcome.Fills)-1].Price
 		}
 	}
-	return nil
+	return fills, nil
 }
 
 // maintainMarketMakerQuotes é a vez de um Market Maker numa rodada (P.3/P.4):
 // lê numa consulta só as ordens em repouso de todos os ativos que cobre e
 // mantém a cotação de cada um, em ordem por ID.
-func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, b BotForRound) error {
-	assetIDs := s.assetsForBot(b, nil, run.equities, run.dayIndex, IntradayRound{})
+func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, b BotForRound) (bool, error) {
+	assetIDs := marketMakerCoveredAssets(b, run.equities)
 	if len(assetIDs) == 0 {
-		return nil
+		return false, nil
 	}
 
 	resting, err := s.orderLifecycle.ListRestingOrders(ctx, b.UserID, assetIDs)
 	if err != nil {
-		return err
+		return false, err
 	}
+	changed := false
 	for _, assetID := range assetIDs {
-		if err := s.maintainQuote(ctx, run, b, assetID, resting[assetID]); err != nil {
-			return err
+		requoted, err := s.maintainQuote(ctx, run, b, assetID, resting[assetID])
+		if err != nil {
+			return changed, err
 		}
+		changed = changed || requoted
 	}
-	return nil
+	return changed, nil
 }
 
 // maintainQuote mantém a cotação de um Market Maker em um ativo (tarefa P.4,
@@ -730,17 +948,17 @@ func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, 
 // da tolerância do preço ideal é cancelado e recotado. Substitui o "cancelar
 // tudo e recotar tudo" do achado 005 A.4, que custava escrita proporcional ao
 // tamanho do catálogo em vez da atividade do mercado.
-func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) error {
+func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) (bool, error) {
 	state := run.equities[assetID]
 
 	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, state.Price)
 	if err != nil {
-		return nil
+		return false, nil
 	}
 	tolerance := bot.EffectiveQuoteTolerance(b.Personality.RiskProfile.SpreadWidthPct)
-	requoteBuy, requoteSell := bot.NeedsRequote(resting, idealBid, idealAsk, tolerance, bot.MinQuoteQuantity(b.Personality, minOrderSizeCeiling(state.OutstandingShares)))
+	requoteBuy, requoteSell := bot.NeedsRequote(resting, idealBid, idealAsk, tolerance, int(minOrderSizeCeiling(state.OutstandingShares)))
 	if !requoteBuy && !requoteSell {
-		return nil
+		return false, nil
 	}
 
 	var staleIDs []string
@@ -751,26 +969,26 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 	}
 	if len(staleIDs) > 0 {
 		if err := s.orderLifecycle.CancelRestingOrders(ctx, staleIDs); err != nil {
-			return err
+			return true, err
 		}
 	}
 
 	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
 	if err != nil {
-		return err
+		return true, err
 	}
 	// O Market Maker é determinístico (sem seed) e não usa insumos além do
 	// preço, do caixa, da posição e do teto de ordem.
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID)
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
 	if err != nil {
-		return err
+		return true, err
 	}
 	if !ok {
-		return nil
+		return true, nil
 	}
 	decisions, err := bot.Decide(b.Personality, input)
 	if err != nil {
-		return nil
+		return true, nil
 	}
 
 	toSubmit := make([]bot.Decision, 0, len(decisions))
@@ -779,5 +997,6 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 			toSubmit = append(toSubmit, d)
 		}
 	}
-	return s.submitDecisions(ctx, run, b, assetID, state, execCtx, toSubmit)
+	_, err = s.submitDecisions(ctx, run, b, assetID, state, execCtx, toSubmit)
+	return true, err
 }

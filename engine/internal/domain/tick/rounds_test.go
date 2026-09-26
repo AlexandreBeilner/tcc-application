@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -222,8 +223,19 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 		want         *int64
 	}{
 		{
-			name: "sem histórico de volume cai pro float sozinho", floatCeiling: &floatCeiling,
-			recentVolume: nil, want: &floatCeiling,
+			// Sem histórico o teto é o piso proporcional (giro-alvo), não o float
+			// inteiro: com o float como teto o primeiro dia de um ativo novo
+			// negociava até 99% do float numa ordem só (teste ponta a ponta da Q).
+			name: "sem histórico de volume usa o piso proporcional ao float, não o float inteiro", floatCeiling: &bigFloat,
+			recentVolume: nil, want: ptr(int64(float64(bigFloat) * MinOrderPctOfFloat)),
+		},
+		{
+			name: "sem histórico e float minúsculo fica no piso mínimo", floatCeiling: &floatCeiling,
+			recentVolume: nil, want: ptr(MinOrderSizeCeiling),
+		},
+		{
+			name: "sem histórico e float menor que o piso mínimo não passa do float", floatCeiling: &smallFloat,
+			recentVolume: nil, want: &smallFloat,
 		},
 		{
 			// avg([10,10,10,10,10]) = 10, 10 * MaxOrderPctOfAverageVolumePct
@@ -280,7 +292,7 @@ func TestEffectiveOrderSizeCeiling(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := effectiveOrderSizeCeiling(tt.floatCeiling, tt.recentVolume)
+			got := effectiveOrderSizeCeiling(tt.floatCeiling, tt.recentVolume, MinOrderPctOfFloat)
 			if (got == nil) != (tt.want == nil) {
 				t.Fatalf("got = %v, want %v", got, tt.want)
 			}
@@ -660,8 +672,10 @@ func TestRunIntradayRounds_LadoConsumidoERecotadoSozinho(t *testing.T) {
 			t.Errorf("lado submetido = %s, want só buy", side)
 		}
 	}
-	if len(submitter.submitted) != 3 {
-		t.Errorf("submetidas = %d, want 3 (rodada 1, rodada 2 e passada final)", len(submitter.submitted))
+	// O fake não simula o book: a compra nunca aparece em repouso, então a
+	// passada final repete finalPassMaxIterations vezes.
+	if want := 2 + finalPassMaxIterations; len(submitter.submitted) != want {
+		t.Errorf("submetidas = %d, want %d (2 rodadas e a passada final repetida)", len(submitter.submitted), want)
 	}
 }
 
@@ -687,8 +701,8 @@ func TestRunIntradayRounds_LadoForaDaToleranciaCancelaSoEsseLado(t *testing.T) {
 			t.Errorf("cancelCalls[%d] = %v, want [a1-sell]", i, ids)
 		}
 	}
-	if len(lifecycle.cancelCalls) != 3 {
-		t.Errorf("cancelCalls = %d, want 3", len(lifecycle.cancelCalls))
+	if want := 2 + finalPassMaxIterations; len(lifecycle.cancelCalls) != want {
+		t.Errorf("cancelCalls = %d, want %d (2 rodadas e a passada final repetida)", len(lifecycle.cancelCalls), want)
 	}
 	for _, side := range submittedSides(submitter) {
 		if side != orderbook.SideSell {
@@ -698,7 +712,8 @@ func TestRunIntradayRounds_LadoForaDaToleranciaCancelaSoEsseLado(t *testing.T) {
 }
 
 // Leitura em lote: uma consulta por Market Maker e rodada com todos os ativos
-// cobertos (não uma por ativo), mais uma na passada final.
+// cobertos (não uma por ativo), mais uma por repetição da passada final (o fake não
+// simula o book, então a passada final repete finalPassMaxIterations vezes).
 func TestRunIntradayRounds_LeituraDeOrdensEmLotePorMarketMaker(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a2", "a1", "a3"}}}}
@@ -711,8 +726,8 @@ func TestRunIntradayRounds_LeituraDeOrdensEmLotePorMarketMaker(t *testing.T) {
 	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	if len(lifecycle.listCalls) != 3 {
-		t.Fatalf("listCalls = %d, want 3 (2 rodadas + passada final)", len(lifecycle.listCalls))
+	if want := 2 + finalPassMaxIterations; len(lifecycle.listCalls) != want {
+		t.Fatalf("listCalls = %d, want %d (2 rodadas + passada final repetida)", len(lifecycle.listCalls), want)
 	}
 	for _, call := range lifecycle.listCalls {
 		if len(call) != 3 || call[0] != "a1" || call[1] != "a2" || call[2] != "a3" {
@@ -735,9 +750,10 @@ func TestRunIntradayRounds_PassadaFinalRecotaOQueFoiConsumido(t *testing.T) {
 	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, rounds[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	// 1 rodada + passada final = 2 vezes os 2 lados.
-	if len(submitter.submitted) != 4 {
-		t.Errorf("submetidas = %d, want 4", len(submitter.submitted))
+	// 1 rodada + passada final repetida (o fake não simula o book), os 2 lados
+	// de cada uma.
+	if want := 2 * (1 + finalPassMaxIterations); len(submitter.submitted) != want {
+		t.Errorf("submetidas = %d, want %d", len(submitter.submitted), want)
 	}
 }
 
@@ -843,14 +859,16 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 	if closing["a1"] != 105 {
 		t.Errorf("closing[a1] = %v, want 105 (preço do último fill)", closing["a1"])
 	}
-	// Ruído (1 decisão por rodada, 2 rodadas) + Market Maker (2 decisões:
-	// compra e venda) em cada rodada e na passada final (P.4) — 2 + 6 = 8
-	// submissões, todas preenchidas (fillPrice > 0).
-	if fills != 8 {
-		t.Errorf("fills = %d, want 8", fills)
+	// Ruído (bot.TurnBudget(1) = 4 turnos no dia, divididos entre as 2
+	// rodadas) + Market Maker (2 decisões: compra e venda) em cada rodada e em
+	// cada repetição da passada final (P.4; o fake não simula o book) — todas
+	// preenchidas (fillPrice > 0).
+	want := 4 + 2*2 + 2*finalPassMaxIterations
+	if fills != want {
+		t.Errorf("fills = %d, want %d", fills, want)
 	}
-	if len(submitter.submitted) != 8 {
-		t.Fatalf("len(submitted) = %d, want 8", len(submitter.submitted))
+	if len(submitter.submitted) != want {
+		t.Fatalf("len(submitted) = %d, want %d", len(submitter.submitted), want)
 	}
 	for _, s := range submitter.submitted {
 		if s.req.AssetID != "a1" {
@@ -884,13 +902,15 @@ func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testin
 	}
 
 	// Market Maker decide 2 ordens por vez, em 2 rodadas mais a passada final
-	// (P.4): a primeira ordem de cada vez reaproveita o contexto
+	// (P.4, repetida finalPassMaxIterations vezes porque o fake não simula o
+	// book): a primeira ordem de cada vez reaproveita o contexto
 	// (SubmitWithContext), a segunda recarrega (Submit).
-	if submitter.submitWithContextCalls != 3 {
-		t.Errorf("submitWithContextCalls = %d, want 3 (uma por vez, só a primeira ordem)", submitter.submitWithContextCalls)
+	times := 2 + finalPassMaxIterations
+	if submitter.submitWithContextCalls != times {
+		t.Errorf("submitWithContextCalls = %d, want %d (uma por vez, só a primeira ordem)", submitter.submitWithContextCalls, times)
 	}
-	if len(submitter.submitted) != 6 {
-		t.Fatalf("len(submitted) = %d, want 6 (2 ordens x 3 vezes)", len(submitter.submitted))
+	if len(submitter.submitted) != 2*times {
+		t.Fatalf("len(submitted) = %d, want %d (2 ordens x %d vezes)", len(submitter.submitted), 2*times, times)
 	}
 }
 
@@ -1185,6 +1205,9 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 
 	distinctPrices := make(map[float64]bool)
 	for _, s := range submitter.submitted {
+		if s.req.Type == orderbook.TypeMarket {
+			continue // turno de piso (Q.8): a mercado, sem preço-limite
+		}
 		distinctPrices[s.req.Price] = true
 	}
 	if len(distinctPrices) < 2 {
@@ -1197,6 +1220,9 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	// do evento direto (nenhum dos três bots tem conhecimento 1.0).
 	fullEffectPrice := startPrice * 0.75
 	for _, s := range submitter.submitted {
+		if s.req.Type == orderbook.TypeMarket {
+			continue
+		}
 		if s.req.Price <= fullEffectPrice+1e-6 {
 			t.Errorf("ordem submetida a %.4f, <= efeito bruto máximo (%.4f) — deveria estar sempre acima, ponderado pelo conhecimento de cada bot", s.req.Price, fullEffectPrice)
 		}
@@ -1453,8 +1479,12 @@ func TestRunIntradayRounds_MarketMakerCotaTodaACoberturaEmTodaRodada(t *testing.
 			got = append(got, s.req.AssetID)
 		}
 	}
-	// 2 rodadas e a passada final, cada uma cotando os 3 em ordem por ID.
-	want := []string{"a1", "a2", "a3", "a1", "a2", "a3", "a1", "a2", "a3"}
+	// 2 rodadas e a passada final (repetida, o fake não simula o book), cada uma
+	// cotando os 3 em ordem por ID.
+	var want []string
+	for i := 0; i < 2+finalPassMaxIterations; i++ {
+		want = append(want, "a1", "a2", "a3")
+	}
 	if len(got) != len(want) {
 		t.Fatalf("ativos cotados = %v, want %v", got, want)
 	}
@@ -1529,5 +1559,284 @@ func TestRunIntradayRounds_MarketMakerComCoberturaEDeterministico(t *testing.T) 
 	c2, f2 := run()
 	if f1 != f2 || c1["a1"] != c2["a1"] || c1["a2"] != c2["a2"] {
 		t.Errorf("execuções divergem: %v/%d vs %v/%d", c1, f1, c2, f2)
+	}
+}
+
+// Q.1: runIntradayRounds abre um único escopo de leitura por tick, para os
+// LoadContext das rodadas não relerem dado estático do ativo e o dia simulado.
+func TestRunIntradayRounds_AbreUmEscopoDeLeituraPorTick(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
+		{UserID: "bot2", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}},
+	}}
+	loader := &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	svc.orderContext = loader
+	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if loader.scopes != 1 {
+		t.Errorf("escopos = %d, want 1 (um por tick, não por rodada nem por bot)", loader.scopes)
+	}
+	if loader.calls < 2 {
+		t.Errorf("LoadContext chamado %d vezes, esperava várias no mesmo escopo", loader.calls)
+	}
+}
+
+// Q.3: o peso de sorteio de cada ativo do universo é o float vezes o preço; sem
+// float conhecido o valor de mercado fica 0 (só a parte uniforme do peso).
+func TestBuildEquityUniverse_ValorDeMercadoComoPeso(t *testing.T) {
+	big, small := int64(1_000_000), int64(1_000)
+	withFloat := acaoAsset("a1", 50)
+	withFloat.OutstandingShares = &big
+	smaller := acaoAsset("a2", 20)
+	smaller.OutstandingShares = &small
+	noFloat := acaoAsset("a3", 30)
+
+	_, universe := buildEquityUniverse([]AssetForPricing{withFloat, smaller, noFloat})
+	got := map[string]float64{}
+	for _, e := range universe {
+		got[e.AssetID] = e.MarketValue
+	}
+	if got["a1"] != 50_000_000 || got["a2"] != 20_000 || got["a3"] != 0 {
+		t.Errorf("MarketValue = %v, want a1=5e7, a2=2e4, a3=0", got)
+	}
+}
+
+// Q.8: o piso é rígido. Todo ativo do catálogo recebe um turno por dia, com
+// qualquer número de rodadas, e esse turno é a mercado.
+func TestRunIntradayRounds_TodoAtivoRecebeUmTurnoDePisoPorDiaAMercado(t *testing.T) {
+	assets := make([]AssetForPricing, 0, 40)
+	for i := 0; i < 40; i++ {
+		assets = append(assets, acaoAsset(fmt.Sprintf("a%02d", i), 100))
+	}
+	roster := make([]BotForRound, 0, 6)
+	for i := 0; i < 6; i++ {
+		roster = append(roster, BotForRound{UserID: fmt.Sprintf("bot%d", i), Personality: mustRoundPersonality(t, bot.ArchetypeRuido)})
+	}
+
+	for _, rounds := range [][]IntradayRound{{{SequenceIndex: 0, TimeOfDay: 0.5}}, twoIntradayRounds(), {{SequenceIndex: 0}, {SequenceIndex: 1}, {SequenceIndex: 2}, {SequenceIndex: 3}}} {
+		svc := newTestService(&fakeRepository{})
+		svc.bots = &fakeBotRoster{bots: roster}
+		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{}}
+		submitter := &fakeOrderSubmitter{fillPrice: 100}
+		svc.orderSubmitter = submitter
+		for _, a := range assets {
+			svc.orderContext.(*fakeOrderContextLoader).positions[a.AssetID] = 10_000
+		}
+
+		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 5, rounds, assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+			t.Fatalf("%d rodadas: err = %v", len(rounds), err)
+		}
+
+		market := map[string]bool{}
+		for _, s := range submitter.submitted {
+			if s.req.Type == orderbook.TypeMarket {
+				market[s.req.AssetID] = true
+			}
+		}
+		for _, a := range assets {
+			if !market[a.AssetID] {
+				t.Errorf("%d rodadas: ativo %s sem ordem a mercado de piso", len(rounds), a.AssetID)
+			}
+		}
+	}
+}
+
+// O orçamento é do tick: 1 ou 4 rodadas gastam o mesmo número de turnos.
+func TestRunIntradayRounds_OrcamentoDeTurnosIndependeDoNumeroDeRodadas(t *testing.T) {
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
+	count := func(rounds []IntradayRound) int {
+		svc := newTestService(&fakeRepository{})
+		svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
+		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
+		submitter := &fakeOrderSubmitter{fillPrice: 100}
+		svc.orderSubmitter = submitter
+		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 2, rounds, assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+			t.Fatal(err)
+		}
+		return len(submitter.submitted)
+	}
+
+	one := count([]IntradayRound{{SequenceIndex: 0}})
+	four := count([]IntradayRound{{SequenceIndex: 0}, {SequenceIndex: 1}, {SequenceIndex: 2}, {SequenceIndex: 3}})
+	if want := bot.TurnBudget(len(assets)); one != want || four != want {
+		t.Errorf("submissões com 1 rodada = %d, com 4 = %d, want %d nas duas (orçamento do tick)", one, four, want)
+	}
+}
+
+// Turno de piso sem fill tenta outro bot: só o segundo bot tem posição pra vender.
+func TestRunIntradayRounds_TurnoDePisoTentaOutroBotSeOPrimeiroNaoNegocia(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
+		{UserID: "bot2", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillPrice: 100}
+	svc.orderSubmitter = submitter
+
+	// A rejeição de negócio de um bot só descarta a ordem dele; o turno de piso
+	// segue para o próximo candidato até haver um fill.
+	first := true
+	submitter.submitErrFn = func(orderexecution.Request) error {
+		if first {
+			first = false
+			return orderexecution.ErrInsufficientBalance
+		}
+		return nil
+	}
+
+	if _, _, fills, _, err := svc.runIntradayRounds(context.Background(), 1, []IntradayRound{{SequenceIndex: 0}}, []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatal(err)
+	} else if fills == 0 {
+		t.Error("fills = 0, want > 0: o piso tenta outro bot depois da rejeição")
+	}
+}
+
+// Q.9: o teto de tamanho de ordem dos bots direcionais dimensiona o giro-alvo do
+// ativo pelos turnos que ele recebe; nunca fica abaixo do piso fixo do achado 009.
+func TestOrderCeilingPcts(t *testing.T) {
+	universe := []bot.EquityForRound{
+		{AssetID: "a", MarketValue: 100},
+		{AssetID: "b", MarketValue: 100},
+		{AssetID: "c", MarketValue: 100},
+	}
+	turns := []bot.Turn{{AssetID: "a"}, {AssetID: "a"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "c"}}
+	pcts := orderCeilingPcts(universe, turns)
+
+	if !(pcts["c"] > pcts["a"] && pcts["a"] >= pcts["b"]) {
+		t.Errorf("pcts = %v: want menos turnos, ordem maior (c > a >= b)", pcts)
+	}
+	for id, pct := range pcts {
+		if pct < MinOrderPctOfFloat {
+			t.Errorf("ativo %s: pct = %v abaixo do piso %v", id, pct, MinOrderPctOfFloat)
+		}
+	}
+	run := &roundRun{orderCeilingPct: pcts}
+	if got := run.directionalCeilingPct("desconhecido"); got != MinOrderPctOfFloat {
+		t.Errorf("ativo sem giro-alvo = %v, want %v", got, MinOrderPctOfFloat)
+	}
+}
+
+// Q.8/RNF08: o universo de sorteio tem ordem estável por ID, qualquer que seja a
+// ordem em que o banco devolve os ativos.
+func TestBuildEquityUniverse_OrdemEstavelPorID(t *testing.T) {
+	_, forward := buildEquityUniverse([]AssetForPricing{acaoAsset("a1", 10), acaoAsset("a2", 10), acaoAsset("a3", 10)})
+	_, backward := buildEquityUniverse([]AssetForPricing{acaoAsset("a3", 10), acaoAsset("a1", 10), acaoAsset("a2", 10)})
+	for i := range forward {
+		if forward[i].AssetID != backward[i].AssetID {
+			t.Fatalf("posição %d: %s vs %s, want a mesma ordem", i, forward[i].AssetID, backward[i].AssetID)
+		}
+	}
+}
+
+// Achado da Q.9: uma recotação pode ser consumida de cara (casa com uma ordem de
+// bot do outro lado do preço) e deixar o ativo sem aquele lado. A passada final
+// repete enquanto algo foi recotado e para na primeira passada em que a cotação
+// está boa.
+func TestRunIntradayRounds_PassadaFinalRepeteAteACotacaoEstabilizar(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	good := map[string][]bot.RestingQuote{"a1": goodQuote("a1")}
+	// Rodada: sem cotação. Passada final 1: ainda sem cotação (a recotação da
+	// rodada foi consumida). Passada final 2: cotação boa, nada a fazer.
+	lifecycle := &fakeOrderLifecycleManager{restingByCall: []map[string][]bot.RestingQuote{nil, nil, good}}
+	svc.orderLifecycle = lifecycle
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds()[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(lifecycle.listCalls) != 3 {
+		t.Errorf("listCalls = %d, want 3 (rodada + 2 passadas finais)", len(lifecycle.listCalls))
+	}
+	if len(submitter.submitted) != 4 {
+		t.Errorf("submetidas = %d, want 4 (compra e venda na rodada e na 1ª passada final)", len(submitter.submitted))
+	}
+}
+
+// Q.10: só ativo de empresa com efeito de evento macro ativo ganha atenção; FII
+// (sem empresa) e empresa sem efeito ficam em 1.
+func TestApplyEventAttention(t *testing.T) {
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), fiiAsset("f1", 100)}
+	a2 := assets[1]
+	other := "c2"
+	a2.CompanyID = &other
+	assets[1] = a2
+	equities, universe := buildEquityUniverse(assets)
+
+	applyEventAttention(universe, equities, map[string]CompanyRoundContext{
+		"c1": {MacroEffectPct: -25},
+		"c2": {MacroEffectPct: 0},
+	})
+
+	got := map[string]float64{}
+	for _, e := range universe {
+		got[e.AssetID] = e.Attention
+	}
+	if got["a1"] != bot.AttentionMultiplier(-25) {
+		t.Errorf("a1 (evento severo) = %v, want %v", got["a1"], bot.AttentionMultiplier(-25))
+	}
+	if got["a2"] != 0 || got["f1"] != 0 {
+		t.Errorf("a2 = %v, f1 = %v, want 0 (sem atenção)", got["a2"], got["f1"])
+	}
+}
+
+// Q.10: enquanto o evento dura, o ativo afetado recebe mais turnos e o giro-alvo
+// dele sobe (teto de ordem maior).
+func TestOrderCeilingPcts_AtencaoSobeOGiroAlvo(t *testing.T) {
+	calm := []bot.EquityForRound{{AssetID: "a", MarketValue: 100}, {AssetID: "b", MarketValue: 100}}
+	hot := []bot.EquityForRound{{AssetID: "a", MarketValue: 100, Attention: 3}, {AssetID: "b", MarketValue: 100}}
+	turns := []bot.Turn{{AssetID: "a"}, {AssetID: "a"}, {AssetID: "a"}, {AssetID: "a"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}}
+
+	if calmPct, hotPct := orderCeilingPcts(calm, turns)["a"], orderCeilingPcts(hot, turns)["a"]; hotPct <= calmPct {
+		t.Errorf("teto com atenção %v, sem %v: want maior com atenção", hotPct, calmPct)
+	}
+}
+
+// Teste ponta a ponta da Fase Q: Fundamentalista não negocia ativo sem empresa
+// (FII), então o sorteio do turno de um FII não pode gastar tentativa nele. Com 5
+// Fundamentalistas para 1 Ruído, o piso de todo FII ainda precisa imprimir uma
+// ordem a mercado (antes, cerca de metade dos FIIs ficava sem ordem no dia).
+func TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista(t *testing.T) {
+	assets := make([]AssetForPricing, 0, 30)
+	positions := map[string]int{}
+	for i := 0; i < 30; i++ {
+		id := fmt.Sprintf("fii%02d", i)
+		assets = append(assets, fiiAsset(id, 100))
+		positions[id] = 10_000
+	}
+	roster := []BotForRound{{UserID: "ruido", Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeRuido)}}
+	for i := 0; i < 5; i++ {
+		roster = append(roster, BotForRound{UserID: fmt.Sprintf("fund%d", i), Personality: mustFIIScopedRoundPersonality(t, bot.ArchetypeFundamentalista)})
+	}
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: roster}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: positions}
+	submitter := &fakeOrderSubmitter{fillPrice: 100}
+	svc.orderSubmitter = submitter
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatal(err)
+	}
+
+	market := map[string]bool{}
+	for _, s := range submitter.submitted {
+		if s.req.UserID != "ruido" {
+			t.Errorf("ordem de %s num FII, want só o Ruído (Fundamentalista não tem empresa para avaliar)", s.req.UserID)
+		}
+		if s.req.Type == orderbook.TypeMarket {
+			market[s.req.AssetID] = true
+		}
+	}
+	for _, a := range assets {
+		if !market[a.AssetID] {
+			t.Errorf("FII %s sem ordem a mercado de piso", a.AssetID)
+		}
 	}
 }

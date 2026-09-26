@@ -51,29 +51,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `MarketOrderPreference` antes de montar a `Decision`).
 - **Status:** aberto
 
-### 002 · Teto de `SpreadWidthPct` do Market Maker perto de 2.0
-
-- **Local:** `engine/internal/domain/bot/marketmaker.go:61` (`DecideMarketMakerOrders`), validação em
-  `engine/internal/domain/bot/personality.go:172` (`NewRiskProfile`, só rejeita `< 0`)
-- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
-- **O que é:** `NewRiskProfile` não tem teto pra `SpreadWidthPct`; `DecideMarketMakerOrders` só rejeita
-  `spread >= 2` exatamente. Um valor válido tipo `1.999999` passa nos dois, faz `bidPrice` colapsar
-  perto de zero e `int(availableCash/bidPrice)` produzir uma quantidade gigante/instável (conversão
-  float→int fora da faixa é comportamento não determinístico em Go). Hoje inofensivo — o seed
-  (`cmd/seed/main.go`) fixa `0.02` — mas nada no domínio impede um valor extremo vindo de um consumidor
-  futuro (ex: o painel admin da Fase N, `POST /admin/bots`).
-- **Por que não foi corrigido:** qualquer teto mais apertado que `< 2` é um número de negócio (ex:
-  "spread máximo de 10%") sem valor confirmado na proposta motor-mercado-realista — inventar um valor
-  seria decisão de produto, não técnica.
-- **Opções:** (a) autor define um teto máximo razoável de spread e ele vira constante confirmada tipo
-  `MarketMakerShareMin/Max`, ou (b) mover a validação de `spread >= 2` pra dentro de `NewRiskProfile`
-  (fecha o buraco de "RiskProfile inválido só detectado no consumo", sem resolver o valor extremo
-  perto do teto).
-- **Decisão parcial (2026-09-23):** teto de spread de 0,10 (ilustrativo) adotado na tarefa **P.6** da Fase P
-  (`backlog-motor-mercado-realista.md`), valor confirmado pelo autor ao seguir a recomendação da proposta de
-  cobertura de Market Maker. Move pra Resolvidos quando a P.6 fechar.
-- **Status:** aberto, com dono real (P.6)
-
 ### 008 · Duas fontes de sensibilidade à Selic para a mesma empresa (setor vs. `risk_class`)
 
 - **Local:** `engine/internal/domain/fundamentals/fundamentals.go` (`CoefficientsBySector[...].
@@ -109,31 +86,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   reflete margem/alavancagem setorial real, retorno exigido reflete um conceito de risco por classe
   de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
 - **Status:** aberto
-
-### 013 · Book sem ordens de compra no instante em que o usuário tenta vender (venda a mercado logo após a compra não preenche)
-
-- **Local:** `engine/internal/domain/tick/rounds.go` (`runIntradayRounds`), `engine/internal/domain/bot/marketmaker.go`
-- **Origem:** teste de ponta a ponta da correção do achado 009, 2026-09-23
-- **O que é:** com o motor parado depois de 60 ticks, comprar 100 ações a mercado de VALR3 ou BNDD4 preenche (há ordens
-  de venda em repouso), mas vender as mesmas 100 a mercado logo em seguida retorna `filled_quantity: 0` (ordem fica
-  pendente): o book de VALR3 só tinha ordens de venda em repouso no fim do dia 60 (5 pendentes + 2 parciais),
-  nenhuma de compra, porque as compras dos bots foram consumidas nas rodadas do dia e as ordens só são recotadas nas
-  rodadas do próximo tick. Reproduzido idêntico no código anterior à correção do 009 (não é regressão dela).
-- **Por que não foi corrigido:** exige decidir como o mercado deve se comportar entre ticks: manter cotação
-  bilateral contínua do Market Maker entre rodadas, recotar depois de cada fill, ou aceitar que o usuário só
-  executa venda quando há contraparte na rodada. Impacta usabilidade direta (usuário não consegue "desfazer" uma
-  compra na hora), mas a forma de resolver é escolha de comportamento.
-- **Opções:** (a) o Market Maker recota imediatamente após um fill (mantém sempre os dois lados no book); (b)
-  reservar uma fatia da profundidade de compra que não é consumida pelas rodadas de bots; (c) manter como está e
-  deixar a ordem a mercado virar limitada e esperar a próxima rodada (UX: mostrar "aguardando contraparte", já
-  coberto pela tela "Minhas Ordens").
-- **Análise (2026-09-23):** causa raiz medida e proposta de solução escalável em
-  `.claude/proposta-cobertura-market-maker.md` (o Market Maker sorteia um ativo por rodada e a expiração
-  diária apaga a cotação; nenhuma das opções (a)/(b)/(c) acima resolvia isso sozinha).
-- **Decisão (2026-09-23, confirmada com o autor):** seguir a proposta; virou a **Fase P**
-  (`backlog-motor-mercado-realista.md`, tarefas P.1 a P.10). Fecha quando a P.8 confirmar que a compra e a
-  venda de 100 ações preenchem nos ativos cobertos.
-- **Status:** aberto, com dono real (Fase P)
 
 ## Resolvidos
 
@@ -546,3 +498,132 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `CombinePendingEffects` em `macroPriceEffectsByCompany`. Como 40 < 100, `(1 + soma/100)` nunca inverte o sinal.
   Teste: `TestAdvance_MacroEffectPctEmpilhadoTemTeto` (`tick_test.go`). `.docs/engine/macroevent.md` atualizado.
 - **Status:** resolvido
+
+### 002 · Teto de `SpreadWidthPct` do Market Maker perto de 2.0
+
+- **Local:** `engine/internal/domain/bot/marketmaker.go:61` (`DecideMarketMakerOrders`), validação em
+  `engine/internal/domain/bot/personality.go:172` (`NewRiskProfile`, só rejeita `< 0`)
+- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
+- **O que é:** `NewRiskProfile` não tem teto pra `SpreadWidthPct`; `DecideMarketMakerOrders` só rejeita
+  `spread >= 2` exatamente. Um valor válido tipo `1.999999` passa nos dois, faz `bidPrice` colapsar
+  perto de zero e `int(availableCash/bidPrice)` produzir uma quantidade gigante/instável (conversão
+  float→int fora da faixa é comportamento não determinístico em Go). Hoje inofensivo — o seed
+  (`cmd/seed/main.go`) fixa `0.02` — mas nada no domínio impede um valor extremo vindo de um consumidor
+  futuro (ex: o painel admin da Fase N, `POST /admin/bots`).
+- **Por que não foi corrigido:** qualquer teto mais apertado que `< 2` é um número de negócio (ex:
+  "spread máximo de 10%") sem valor confirmado na proposta motor-mercado-realista — inventar um valor
+  seria decisão de produto, não técnica.
+- **Opções:** (a) autor define um teto máximo razoável de spread e ele vira constante confirmada tipo
+  `MarketMakerShareMin/Max`, ou (b) mover a validação de `spread >= 2` pra dentro de `NewRiskProfile`
+  (fecha o buraco de "RiskProfile inválido só detectado no consumo", sem resolver o valor extremo
+  perto do teto).
+- **Decisão (2026-09-23):** teto de spread de 0,10 (ilustrativo), confirmado pelo autor ao seguir a recomendação
+  da proposta de cobertura de Market Maker.
+- **Resolução (tarefa P.6, 2026-09-23):** `bot.MaxSpreadWidthPct = 0.10` validado em `NewRiskProfile`
+  (`ErrSpreadWidthAboveMax`), então `1.999999` e qualquer valor acima de 0,10 são rejeitados na construção; a
+  checagem `spread >= 2` de `MarketMakerQuotePrices` ficou só como defesa para uma `Personality` montada sem o
+  construtor. Testes cobrem o teto exato, `0.1001` e `1.999999`.
+- **Status:** Resolvido
+
+### 013 · Book sem ordens de compra no instante em que o usuário tenta vender (venda a mercado logo após a compra não preenche)
+
+- **Local:** `engine/internal/domain/tick/rounds.go` (`runIntradayRounds`), `engine/internal/domain/bot/marketmaker.go`
+- **Origem:** teste de ponta a ponta da correção do achado 009, 2026-09-23
+- **O que é:** com o motor parado depois de 60 ticks, comprar 100 ações a mercado de VALR3 ou BNDD4 preenche (há ordens
+  de venda em repouso), mas vender as mesmas 100 a mercado logo em seguida retorna `filled_quantity: 0` (ordem fica
+  pendente): o book de VALR3 só tinha ordens de venda em repouso no fim do dia 60 (5 pendentes + 2 parciais),
+  nenhuma de compra, porque as compras dos bots foram consumidas nas rodadas do dia e as ordens só são recotadas nas
+  rodadas do próximo tick. Reproduzido idêntico no código anterior à correção do 009 (não é regressão dela).
+- **Por que não foi corrigido:** exige decidir como o mercado deve se comportar entre ticks: manter cotação
+  bilateral contínua do Market Maker entre rodadas, recotar depois de cada fill, ou aceitar que o usuário só
+  executa venda quando há contraparte na rodada. Impacta usabilidade direta (usuário não consegue "desfazer" uma
+  compra na hora), mas a forma de resolver é escolha de comportamento.
+- **Opções:** (a) o Market Maker recota imediatamente após um fill (mantém sempre os dois lados no book); (b)
+  reservar uma fatia da profundidade de compra que não é consumida pelas rodadas de bots; (c) manter como está e
+  deixar a ordem a mercado virar limitada e esperar a próxima rodada (UX: mostrar "aguardando contraparte", já
+  coberto pela tela "Minhas Ordens").
+- **Análise (2026-09-23):** causa raiz medida e proposta de solução escalável em
+  `.claude/proposta-cobertura-market-maker.md` (o Market Maker sorteia um ativo por rodada e a expiração
+  diária apaga a cotação; nenhuma das opções (a)/(b)/(c) acima resolvia isso sozinha).
+- **Decisão (2026-09-23, confirmada com o autor):** seguir a proposta; virou a **Fase P**
+  (`backlog-motor-mercado-realista.md`, tarefas P.1 a P.10). Fecha quando a P.8 confirmar que a compra e a
+  venda de 100 ações preenchem nos ativos cobertos.
+- **Resolução (Fase P, 2026-09-23):** cobertura contínua de Market Maker (`market_maker_coverage`, P.1 a P.3), manutenção de
+  cotação com passada final (P.4), cotação que não expira por dia (P.5) e piso de tamanho (P.6). Validado na P.8: compra e
+  venda a mercado preenchem nos 5 ativos do seed real e em 10 de 10 ativos de catálogos de 35 e 55 ativos (20 de 20 ordens
+  cada), depois de 60 dias simulados. Detalhes em `proposta-cobertura-market-maker.md` seção 6.2.
+- **Status:** Resolvido
+
+### 014 · O volume por ativo cai com o tamanho do catálogo porque o pool de bots direcionais é fixo
+
+- **Local:** `engine/cmd/seed/main.go` (`botOtherBotCount = 19`, mais `bot.SelectAssetForRound`: cada bot negocia 1 ativo
+  por rodada), `engine/internal/domain/tick/rounds.go` (`MinOrderPctOfFloat`)
+- **Origem:** medição da tarefa P.8 (benchmark da P.7), 2026-09-23
+- **O que é:** o volume diário médio por ativo, como % do float, cai aproximadamente com `1/N` quando o catálogo cresce, com
+  o pool de 19 bots direcionais e 1 a 4 rodadas por dia fixos. Medido em 60 dias simulados, mesma seed: **5 ativos (seed
+  real) 0,45%** (dentro da faixa de 0,3% a 0,7% de `calibracao-liquidez-bots.md`), **15 ativos 0,20%**, 35 ativos 0,08%,
+  55 ativos 0,06%. Como a tarefa 7.2 do backlog principal planeja de 12 a 15 ativos negociáveis, o volume do catálogo real
+  previsto já sai da faixa. Efeito colateral medido: o efeito de eventos macro também enfraquece nos ativos menos
+  negociados (cinco eventos severos no setor de Mineração: `VALR3` caiu 7,7%, um ativo sintético do mesmo setor 3%).
+- **Por que não foi corrigido:** `MinOrderPctOfFloat` não resolve: o volume depende de quantas ordens acontecem por ativo,
+  não só do tamanho delas, e subir a constante para atender 15 ativos empurraria o seed de hoje para o topo da faixa.
+  Escalar o pool custa comandos SQL de forma linear (cerca de 17 por turno de bot, ~800 por tick com 19 bots), então
+  manter o volume de 5 ativos com 55 ativos exigiria ~200 bots e ~9.000 comandos por tick, acima do orçamento de 3.500 da
+  seção 6.1 da proposta de cobertura. É preciso o autor definir **qual volume por ativo é o alvo** e quanto custo de
+  tick aceita pagar por isso.
+- **Opções:** (a) o pool de bots direcionais escala com o catálogo (regra de bots por ativo, definida no seed e
+  reaproveitada pelo painel de bots da Fase N), com um teto de custo de tick; (b) cada bot negocia mais de um ativo por
+  rodada (custo por bot sobe, número de bots fica fixo); (c) aceitar a cauda longa, coerente com a B3 (as 10 ações mais
+  negociadas concentram ~46% do volume), e definir a faixa-alvo só para os ativos líderes, deixando os demais mais
+  parados; (d) combinação: escalar o pool até um teto e aceitar cauda longa acima dele. **Recomendação:** (d), com o
+  número de bots por ativo e o teto escolhidos pelo autor. Não bloqueia a Fase P.
+- **Decisão (2026-09-25, autor):** desenhar para pelo menos 30 ativos e crescendo (horizonte de 100). Alvo: líderes na
+  faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, nenhum ativo sem negociação. Orçamento: teto de 5.000 comandos por
+  tick, meta de 3.500 com 30 ativos. Virou a **Fase Q** de `backlog-motor-mercado-realista.md` (turno mais barato, pool
+  dimensionado pelo orçamento, escolha de ativo ponderada por valor de mercado com piso, benchmark, e sessão de tick em
+  memória só se o benchmark exigir).
+- **Benchmark da Q.4 (2026-09-26):** 30 ativos dentro do alvo; 50 estoura o custo (máx. 5.701 comandos); 100 estoura custo
+  (média 5.335, 28 de 60 ticks acima de 5.000) e alvo (mediano 0,14%, 36% dos ativo-dias sem negócio, cauda reage -1,0% a
+  cinco eventos severos). Causa: custo e volume dependem do mesmo botão (tamanho do pool). Virou as tarefas **Q.7 a Q.10**
+  (medir custo, orçamento de turnos com piso rígido, giro-alvo via tamanho de ordem, atenção por evento). **Decidido
+  (2026-09-26, autor delegou):** o piso de "nenhum ativo sem negociação" passa de estatístico para rígido, 1 turno marketable
+  por ativo por dia (Q.8).
+- **Status:** resolvido (2026-09-26). A Q.4 validou os alvos em 30, 50 e 100 ativos depois de Q.7 a Q.10; resultados na seção 6.4 de
+  `proposta-cobertura-market-maker.md` e no Entregável da Q.4 de `backlog-motor-mercado-realista.md`.
+
+### 015 · Ordem limitada em repouso não reserva nem revalida saldo/posição: saldo negativo e ordem "fantasma" travando o book
+
+- **Local:** `engine/internal/domain/orderexecution/` (`Execute`/`Persist`, `applyFillSide`),
+  `engine/internal/infra/db/order_execution_repository.go` (`LoadContext`, `fillRestingOrder`)
+- **Origem:** teste ponta a ponta da Fase Q, 2026-09-26 (o `.docs/engine/orders.md` já listava o comportamento em "Escopo não
+  coberto", mas nunca como achado com consequência medida)
+- **O que é:** a validação de saldo/posição de uma ordem limitada acontece só na submissão, contra o que ela preencheria na
+  hora, e nada é reservado. Duas consequências reproduzidas ao vivo:
+  1. **Saldo negativo (alavancagem grátis).** Usuário com R$ 10.000 põe uma compra limitada de R$ 9.000 dentro do spread de
+     um ativo, gasta R$ 7.400 a mercado em outro, e outro usuário vende a mercado no primeiro: a ordem em repouso preenche e o
+     saldo vai a **-R$ 6.402,37** (RNF06 e o capital de partida deixam de valer, e o ranking premia o risco sem custo). Nos
+     bots o mesmo aconteceu sozinho: 1 de 137 bots (Ruído) terminou com **-R$ 17,8 milhões** de saldo depois de 195 dias
+     simulados, porque várias compras limitadas em repouso preencheram depois de o caixa ser gasto em outros turnos.
+  2. **Ordem fantasma que bloqueia um lado do book.** Venda limitada sem posição (ou compra sem caixa) que **não cruza** o
+     book é aceita (`201`) e, se estiver dentro do spread, vira a melhor oferta: toda ordem a mercado do outro lado casa com
+     ela primeiro e é rejeitada inteira (`422 quantidade em posição insuficiente`) até a ordem expirar no fim do dia. Um
+     usuário sem posição nenhuma travou todas as compras de um ativo (as dele e as dos bots, inclusive o turno de piso da Q.8) com uma
+     ordem de 1 ação.
+- **Por que não foi corrigido:** a decisão de escopo ("aceitável para o protótipo", `.docs/engine/orders.md`) é do autor. Corrigir
+  exige escolher entre reservar (mexe em Event Sourcing e no extrato) ou revalidar no preenchimento (mexe no replay do book).
+- **Opções:** (a) revalidar no `Persist`: se a contraparte em repouso não tem saldo/posição, cancelar aquela ordem
+  (`cancel_reason` novo, ex: `insufficient_funds`) e continuar o match com a próxima (resolve os dois sintomas sem reserva);
+  (b) reservar saldo/posição na submissão (ordem limitada compromete caixa/posição e o cancelamento/expiração libera);
+  (c) manter como está e documentar a exposição na tela de ordens.
+- **Recomendação:** (a): é a mudança menor, preserva o modelo de "nada é reservado" já documentado e fecha o saldo negativo e a
+  ordem fantasma no mesmo ponto.
+- **Decisão (2026-09-26, autor aprovou a recomendação (a)):** revalidar o dono da ordem em repouso no match.
+- **Resolução (2026-09-26):** `Execute` pula e cancela (`cancel_reason = insufficient_funds`) a ordem em repouso cujo dono não
+  honra o trade, com saldo e posição lidos na mesma consulta do book (nenhum comando SQL a mais), mais `CHECK` de saldo e
+  posição não negativos como rede de proteção (migration `000025`). Validado ao vivo: a venda fantasma dentro do spread não
+  bloqueia mais a compra da vítima e é cancelada; a compra em repouso sem caixa não preenche (saldo do dono intacto); ordem
+  com fundos continua preenchendo; 12 compras concorrentes de ~R$ 8.000 com R$ 10.000 deram 1 execução e 11 rejeições;
+  180 ticks com o catálogo crescendo de 30 para 60 ativos terminaram com **0 saldos negativos** (antes, 1 bot com -R$ 17,8 mi),
+  0 divergências de saldo contra `market_events` e determinismo preservado (dois motores, mesmo hash). Detalhes em
+  `.docs/engine/orders.md`.
+- **Status:** Resolvido

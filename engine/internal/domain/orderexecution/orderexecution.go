@@ -116,6 +116,11 @@ const (
 	// (achado 005 parte A.4) — só o bot market_maker recotando a própria
 	// oferta anterior, nunca aparece pra um usuário real.
 	CancelReasonRequoted CancelReason = "requoted"
+	// CancelReasonInsufficientFunds é gravado quando o match encontra uma ordem em
+	// repouso cujo dono já não tem saldo (compra) ou posição (venda) para
+	// honrá-la (achado 015): a ordem é pulada e cancelada em vez de travar o book
+	// ou levar o dono a saldo negativo.
+	CancelReasonInsufficientFunds CancelReason = "insufficient_funds"
 )
 
 // RestingOrder é uma ordem já persistida em order_book aguardando
@@ -130,6 +135,16 @@ type RestingOrder struct {
 	Type              orderbook.Type
 	Price             float64
 	RemainingQuantity int
+	// Owner é o saldo e a posição (neste ativo) do dono, lidos junto do book.
+	// nil = não conhecido, e Execute não revalida esta ordem.
+	Owner *OwnerHoldings
+}
+
+// OwnerHoldings é o que o dono de uma ordem em repouso pode honrar agora. Como
+// nada é reservado na submissão (achado 015), Execute confere isso no match.
+type OwnerHoldings struct {
+	Balance  float64
+	Position int
 }
 
 // Context é o insumo que Execute precisa pra processar uma ordem recebida
@@ -218,6 +233,10 @@ type Outcome struct {
 	Fills             []Fill
 	FilledQuantity    int
 	RemainingQuantity int
+	// InvalidRestingOrderIDs são as ordens em repouso puladas no match porque o
+	// dono não tem saldo/posição para honrá-las (achado 015); Persist as cancela
+	// com CancelReasonInsufficientFunds.
+	InvalidRestingOrderIDs []string
 }
 
 // OrderRecord é uma linha de order_book do usuário, devolvida por
@@ -253,14 +272,7 @@ func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 		return Outcome{}, ErrInvalidPrice
 	}
 
-	var book orderbook.Book
-	restingUserByOrderID := make(map[string]string, len(ctx.Resting))
-	for _, r := range ctx.Resting {
-		restingUserByOrderID[r.ID] = r.UserID
-		book.Submit(orderbook.Order{ID: r.ID, UserID: r.UserID, Side: r.Side, Type: r.Type, Price: r.Price, Quantity: r.RemainingQuantity})
-	}
-
-	trades := book.Submit(incoming)
+	trades, invalidIDs, restingUserByOrderID := matchAgainstResting(incoming, ctx.Resting)
 
 	fills := make([]Fill, 0, len(trades)+1)
 	filled := 0
@@ -292,7 +304,7 @@ func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
 		return Outcome{}, err
 	}
 
-	return Outcome{Fills: fills, FilledQuantity: filled, RemainingQuantity: remaining}, nil
+	return Outcome{Fills: fills, FilledQuantity: filled, RemainingQuantity: remaining, InvalidRestingOrderIDs: invalidIDs}, nil
 }
 
 // validateFloat garante o float finito do ativo (tarefa A.3): a soma das
@@ -336,4 +348,74 @@ func validateFunds(incoming orderbook.Order, fills []Fill, ctx Context) error {
 		}
 	}
 	return nil
+}
+
+// fundsEpsilon absorve o erro de ponto flutuante ao comparar custo acumulado com saldo.
+const fundsEpsilon = 1e-6
+
+// matchAgainstResting reconstrói o book (replay) e submete a ordem recebida. Como
+// ordem em repouso não reserva saldo nem posição, revalida o dono de cada
+// contraparte pelo que ele já teria de pagar/entregar nesta mesma execução: se não
+// pode honrar, a ordem é excluída do book e o match roda de novo (achado 015).
+// Devolve os trades, os IDs excluídos e o dono de cada ordem em repouso.
+func matchAgainstResting(incoming orderbook.Order, resting []RestingOrder) ([]orderbook.Trade, []string, map[string]string) {
+	ownerByOrderID := make(map[string]string, len(resting))
+	holdingsByOrderID := make(map[string]*OwnerHoldings, len(resting))
+	for _, r := range resting {
+		ownerByOrderID[r.ID] = r.UserID
+		holdingsByOrderID[r.ID] = r.Owner
+	}
+
+	excluded := map[string]bool{}
+	var invalid []string
+	for {
+		var book orderbook.Book
+		for _, r := range resting {
+			if excluded[r.ID] {
+				continue
+			}
+			book.Submit(orderbook.Order{ID: r.ID, UserID: r.UserID, Side: r.Side, Type: r.Type, Price: r.Price, Quantity: r.RemainingQuantity})
+		}
+		trades := book.Submit(incoming)
+
+		bad := firstUnaffordableTrade(incoming.Side, trades, ownerByOrderID, holdingsByOrderID)
+		if bad == "" {
+			return trades, invalid, ownerByOrderID
+		}
+		excluded[bad] = true
+		invalid = append(invalid, bad)
+	}
+}
+
+// firstUnaffordableTrade devolve a ordem em repouso do primeiro trade que o dono
+// não consegue honrar, somando o que ele já deve nos trades anteriores (um dono
+// pode ter várias ordens em repouso no mesmo book). "" se todos podem.
+func firstUnaffordableTrade(incomingSide orderbook.Side, trades []orderbook.Trade, ownerByOrderID map[string]string, holdings map[string]*OwnerHoldings) string {
+	spent := map[string]float64{}
+	delivered := map[string]int{}
+	for _, trade := range trades {
+		orderID := trade.SellOrderID
+		if incomingSide == orderbook.SideSell {
+			orderID = trade.BuyOrderID
+		}
+		h := holdings[orderID]
+		if h == nil {
+			continue
+		}
+		owner := ownerByOrderID[orderID]
+		if incomingSide == orderbook.SideSell {
+			// A contraparte compra: paga com o saldo.
+			spent[owner] += trade.Price * float64(trade.Quantity)
+			if spent[owner] > h.Balance+fundsEpsilon {
+				return orderID
+			}
+		} else {
+			// A contraparte vende: entrega da posição.
+			delivered[owner] += trade.Quantity
+			if delivered[owner] > h.Position {
+				return orderID
+			}
+		}
+	}
+	return ""
 }

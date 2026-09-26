@@ -2730,9 +2730,10 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
 - **Descrição:** motor ganha rotas administrativas (mesmo trust boundary de `POST /admin/tick` —
   sem checagem de role aqui, backend valida `role = admin` antes de repassar, `admin.go:14-23`):
   `GET /admin/bots` (lista com personalidade/arquétipo, escopo de especialização, `is_active`
-  (A.4), posição/caixa atual por ativo), `POST /admin/bots` (cria bot novo — personalidade (C.1),
+  (A.4), posição/caixa atual por ativo e, para Market Maker, os ativos que cobre, o teto `max_covered_assets` e quantos
+  ativos negociáveis estão sem Market Maker ativo cobrindo, P.9), `POST /admin/bots` (cria bot novo — personalidade (C.1),
   escopo de especialização, caixa/posição inicial, reaproveitando validação de domínio já existente
-  em vez de duplicar), `PATCH /admin/bots/:id` (alterna `is_active`, A.4). Backend expõe as 3 rotas
+  em vez de duplicar), `PATCH /admin/bots/:id` (alterna `is_active`, A.4; para Market Maker também ajusta `max_covered_assets`, validado como positivo por `bot.Personality.WithMaxCoveredAssets`, e reatribui cobertura: ao tirar um ativo de um Market Maker, cancelar as ordens em repouso dele nesse ativo, porque a cotação de Market Maker ativo não expira por dia, P.5; e ao criar Market Maker novo, usar `coverage.Ensurer`/`Assign`, não caminho paralelo, P.9). Backend expõe as 3 rotas
   atrás de `authMiddleware`/`role = admin` (mesmo padrão do Painel Admin de Eventos Macro, 4.5),
   documentadas em `.docs/engine/<pacote>.md` e `.docs/backend/admin.md`.
 - **Critérios de aceite:** teste table-driven de criação cobrindo personalidade/escopo válidos e
@@ -2752,7 +2753,7 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
 
 - **Descrição:** tela nova dentro da área admin (mesmo padrão visual/navegação do Painel Admin de
   Eventos Macro, 10.1/10.2) — lista de bots (ticker/setor de cobertura, arquétipo, `is_active`,
-  posição/caixa atual), alternância ativo/inativo por linha, formulário de criação de bot novo
+  posição/caixa atual; para Market Maker, ativos cobertos e teto, com aviso dos ativos sem cobertura ativa, P.9), alternância ativo/inativo por linha, formulário de criação de bot novo
   (arquétipo, escopo de especialização, ativo(s)-alvo, caixa/posição inicial). Atualizar
   `.claude/inventario-telas-plataforma-investimentos.md` com a tela nova.
 - **Critérios de aceite:** lista renderiza dado real da N.1; alternar `is_active` reflete na
@@ -3255,23 +3256,48 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   deixou de cobrir (reatribuição) fica no book até o painel cancelá-la; a reatribuição precisa incluir
   esse cancelamento.
 
-### P.6 · Obrigações do formador (fecha o achado 002)
+### P.6 · Obrigações do formador (fecha o achado 002) ✅
 - **Descrição:** teto de spread de 0,10 validado em `NewRiskProfile` (valor ilustrativo, seção 3.8) e
   quantidade mínima por lado ligada a `MinOrderPctOfFloat`, para uma cotação simbólica não contar como
   cobertura.
 - **Critérios de aceite:** `NewRiskProfile` rejeita spread acima do teto; cotação abaixo do mínimo não
   conta como cobertura.
 - **Referências:** proposta seção 3.8. **Dependências:** P.1.
+- **Entregável (sessão 2026-09-23):** `bot.MaxSpreadWidthPct = 0.10` validado em `NewRiskProfile`
+  (`ErrSpreadWidthAboveMax`); achado 002 movido para Resolvidos. `DecideMarketMakerOrders` ganhou o parâmetro
+  `minQuantity` (`DecisionInput.MinQuoteQuantity`, preenchido pelo motor com `minOrderSizeCeiling`, o piso de
+  `MinOrderPctOfFloat` = 0,4% do float): a cotação de cada lado é `max(fração do que cabe, piso)` e o lado
+  que não chega ao piso **não é cotado**, em vez de uma cotação simbólica que pareceria cobrir o ativo.
+  **Resolve o conflito anotado na P.4:** o mínimo da manutenção de cotação passou a ser o próprio piso
+  (`bot.MinQuoteQuantity` removida), e uma cotação recém-criada nunca nasce abaixo dele (teste de regressão
+  do erro da P.4). Validado ao vivo: as cotações do Market Maker nos 5 ativos ficam no piso (compras) ou acima
+  (vendas). Efeito colateral aceito: um Market Maker que não consegue comprar o piso fica sem o lado da
+  compra (custo de um turno de leitura por rodada, igual ao comportamento antigo), o que aparece como esgotamento
+  na P.8. Testes de spread nos 3 pontos (`0.1`, `0.1001`, `1.999999`) e do piso por lado.
+  `golangci-lint`, `go build`, `go test ./...` passam.
 
-### P.7 · Catálogo sintético e benchmark
+### P.7 · Catálogo sintético e benchmark ✅
 - **Descrição:** opção `--synthetic-assets N` no seed, restrita ao stack de teste; script de medição
   (comandos SQL por tick e por ativo-rodada do Market Maker via log do Postgres, tempo do tick, cobertura,
   caixa e posição por Market Maker, volume por ativo).
 - **Critérios de aceite:** execução de 60 dias com 30 e 50 ativos, resultados registrados na proposta e
   comparados ao orçamento da seção 6.1.
 - **Referências:** proposta seções 6 e 6.1. **Dependências:** P.2.
+- **Entregável (sessão 2026-09-23):** `seed --synthetic-assets N` (`cmd/seed/synthetic.go`): N ações sintéticas
+  determinísticas (empresa própria, 6 setores em rodízio, perfil de risco alternado, float de 50 milhões a 1,5
+  bilhão), com fundamentos iniciais e liquidez de bot pelo mesmo `seedBotLiquidity`/`EnsureCoverage`; exige
+  `SEED_ALLOW_SYNTHETIC=true` (nunca entra no seed de desenvolvimento). `engine/scripts/benchmark-cobertura.sh`
+  cria um banco isolado, roda os ticks e mede comandos SQL por tick (log do Postgres), tempo, cobertura, caixa e
+  posição dos Market Makers, volume por ativo e o cenário do achado 013. `POST /admin/tick` ganhou
+  `intraday_rounds_count` (só observabilidade, para o custo por ativo-rodada). **Resultado (60 dias, 30 e 50
+  sintéticos): dentro do orçamento da 6.1 em tudo** (máximo de 3.350 comandos por tick com 55 ativos contra 3.500;
+  custo por ativo-rodada 2,4 de média e 18 no pior caso contra 12 e 30; 55 de 55 ativos cotados nos dois lados; nenhum
+  Market Maker esgotado); tabela completa em `proposta-cobertura-market-maker.md` seção 6.2. **Achado para a P.8:** o
+  volume diário médio ficou em 0,06 a 0,08% do float, abaixo da faixa de 0,3 a 0,7%, porque o pool de bots
+  direcionais é fixo (19) e cada um negocia 1 ativo por rodada. O custo por ativo-rodada é estimativa (linha de base
+  de 800 comandos), e o tempo usa o banco local (~0,2 ms por comando).
 
-### P.8 · Validação ponta a ponta e ajuste de calibração
+### P.8 · Validação ponta a ponta e ajuste de calibração ✅
 - **Descrição:** repetir os cenários da proposta (compra e venda de 100 ações a mercado em vários ativos
   no fim do dia 60, cinco eventos severos no mesmo setor, desativação de um Market Maker no meio da
   execução) contra o catálogo sintético e contra o seed real; reconferir o volume contra
@@ -3281,11 +3307,28 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   o teste de eventos macro ainda reage; nenhum Market Maker esgotado no fim dos 60 dias; tick dentro do
   orçamento da seção 6.1.
 - **Dependências:** P.3, P.4, P.5, P.6, P.7.
+- **Entregável (sessão 2026-09-23):** validação contra o seed real (5 ativos) e catálogos sintéticos de 15, 35 e 55 ativos,
+  60 dias cada (`engine/scripts/benchmark-cobertura.sh`). **Achado 013 fechado:** compra e venda a mercado preenchem em
+  todos os ativos testados (6 de 6 no seed real, 20 de 20 nos demais). **Eventos macro ainda reagem:** cinco eventos
+  severos negativos no setor de Mineração fizeram `VALR3` cair de 104,06 para 96,02 (-7,7%) em 4 dias, com recuperação
+  quando os eventos expiram, e o setor Bancário (`BNDD3`) não foi afetado. **Desativação do Market Maker:** com o
+  Market Maker de 10 ativos inativo, o tick não falha, `uncovered_assets_count` = 10 e a cobertura volta a 15 de 15 no
+  tick seguinte à reativação. **Nenhum Market Maker esgotado** (menor posição 321.443, contra 500.000 iniciais no ativo
+  mais raso). **Tick dentro do orçamento da 6.1** (máximo de 3.350 comandos com 55 ativos). **RNF09:** contas `is_bot`
+  ficam fora de ranking, busca de amigos e perfil público por construção (o ranking e o diretório leem só `users`, e os
+  Market Makers criados pela P.2 também não têm linha lá). **Calibração de volume:** com o seed real o volume médio é
+  0,45% do float por dia (faixa 0,3 a 0,7), então `MinOrderPctOfFloat` **não foi alterado**. **Achado novo (achado 014
+  em `pontos-em-aberto-decisao-produto.md`):** o volume por ativo cai com o tamanho do catálogo (0,20% com 15 ativos,
+  0,08% com 35) porque o pool de bots é fixo; a constante não é a alavanca certa, e escalar o pool custa comandos SQL de
+  forma linear, então depende de uma decisão do autor sobre o volume-alvo por ativo. Não bloqueia a Fase P.
 
-### P.9 · Integração com a Fase N (só documentação)
+### P.9 · Integração com a Fase N (só documentação) ✅
 - **Descrição:** atualizar N.1 e N.2 para listar a cobertura por Market Maker, os ativos sem cobertura
   ativa, a reatribuição e o ajuste de `max_covered_assets` pelo painel. Sem código novo.
 - **Critérios de aceite:** as descrições de N.1/N.2 citam o modelo de cobertura.
+- **Entregável (sessão 2026-09-23):** N.1 e N.2 agora citam a cobertura por Market Maker, o teto `max_covered_assets`,
+  os ativos sem cobertura ativa e a reatribuição (com o cancelamento das ordens do Market Maker no ativo que ele deixa e
+  o uso de `coverage.Ensurer`/`Assign`).
 
 ### P.10 · Deadline do disparo manual do tick ✅
 - **Descrição:** `POST /admin/tick` herda o `WriteTimeout` de 5 s do servidor do motor
@@ -3305,6 +3348,353 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   sintético de 50 ativos" só pode ser medido quando a P.7 existir; o mecanismo já está coberto pelo teste
   com timeout reduzido, então recheque esse ponto na P.8. Se o tick passar de 2 minutos, a saída
   documentada na proposta é o disparo assíncrono (`202`).
+
+## Fase Q — Liquidez dos bots que escala com o catálogo
+
+**Origem:** achado 014 de `pontos-em-aberto-decisao-produto.md` (medição da P.8): o volume diário por ativo cai com o
+tamanho do catálogo porque o pool de 19 bots direcionais é fixo (5 ativos 0,45%, 15 ativos 0,20%, 35 ativos 0,08%,
+55 ativos 0,06% do float, contra a faixa de 0,3% a 0,7%). O autor pediu para desenhar para **pelo menos 30 ativos e
+crescendo**, não para os 12 a 15 da tarefa 7.2.
+
+**Princípio:** o custo do tick é limitado por um orçamento e o que se ajusta é a distribuição dos turnos de bot entre os
+ativos. O volume de um ativo é proporcional aos turnos que ele recebe por dia (cerca de 0,05% a 0,07% do float por
+turno, estimativa de 4 pontos de medição) e cada turno custa hoje cerca de 17 comandos SQL. Pool que cresce sem limite
+estoura o orçamento; pool fixo esvazia os ativos. Estimativa de partida para 30 ativos com o orçamento atual: sobram
+cerca de 165 turnos por dia (um pool de uns 65 bots), suficiente para os líderes na faixa e a cauda perto de 0,2%.
+Todos esses números são estimativas a validar na Q.4.
+
+**Decisões do autor (2026-09-25):**
+1. **Alvo de volume:** ativos líderes na faixa de 0,3% a 0,7% do float por dia; ativo mediano de pelo menos 0,15%;
+   nenhum ativo sem negociação (piso de 1 turno por dia).
+2. **Orçamento de tick:** teto de **5.000 comandos SQL** (o gatilho de revisão obrigatória da seção 6.1 da proposta de
+   cobertura), com **meta de 3.500 com 30 ativos**.
+3. **Horizonte:** desenhar para **100 ativos**. As partes 1 a 3 (Q.1 a Q.3) primeiro, benchmark (Q.4), e só então
+   decidir a parte 4 (Q.5).
+
+### Q.1 · Baratear o turno de bot ✅
+- **Descrição:** medir a decomposição atual dos ~17 comandos por turno de um bot direcional e reduzi-la para no máximo
+  8: cachear no tick as leituras estáticas (ticker e `is_sandbox`, `outstanding_shares`, dia simulado) e carregar em
+  lote os saldos e posições dos bots. Sem mudança de comportamento: mesma seed produz o mesmo mercado.
+- **Critérios de aceite:** comandos por turno medidos antes e depois (log do Postgres, script da P.7); determinismo
+  preservado (mesma seed, mesmo `Result`); teste de que um cache de tick não vaza entre ticks; nenhuma escrita de saldo
+  ou posição sem evento (Event Sourcing).
+- **Dependências:** nenhuma (independente das decisões acima).
+- **Entregável (sessão 2026-09-25):** decomposição medida de um turno de bot direcional: `LoadContext` fazia **8 leituras**
+  (saldo, posição, ticker e `is_sandbox`, cotação em cache, ordens em repouso, `outstanding_shares`, soma das posições, dia
+  simulado) mais 3 comandos de escrita (BEGIN, INSERT, COMMIT), **11 por turno sem fill**. Agora **6**: (1) saldo e posição
+  viraram uma consulta só (`LEFT JOIN`); (2) ticker, `is_sandbox` e `outstanding_shares` viraram uma consulta só
+  (`assetStatic`); (3) `assetStatic` e o dia simulado ficam em cache **dentro de um escopo de leitura por tick**
+  (`OrderExecutionRepository.WithReadScope`, `tick.OrderContextLoader`, aberto uma vez em `runIntradayRounds`), então cada
+  ativo é lido uma vez por tick e o dia uma vez. O cache mora no `context.Context` do tick: requisição HTTP de usuário não
+  passa por ele e nunca lê dado velho; erro nunca é cacheado; dois ticks nunca compartilham cache (testes). Ficam as 3
+  leituras dinâmicas (saldo/posição, ordens em repouso, soma das posições). **Validação A/B** (bancos clonados do mesmo
+  estado, 8 ticks, código do PR #42 contra o novo): **mercado idêntico** (hash de preços, volumes e saldos igual, mesmos
+  fills por tick) com **-27% de comandos SQL** (6.644 para 4.868) no seed real. Meta de no máximo 8 por turno atendida
+  (6 sem fill; fill acrescenta o custo próprio de posição, evento e saldo, fora do escopo desta tarefa).
+  `golangci-lint`, `go build`, `go test ./...` passam. Sem rota HTTP alterada.
+
+### Q.2 · Pool de bots dimensionado pelo orçamento ✅
+- **Descrição:** `EnsureBotPool` (mesmo padrão de `coverage.EnsureCoverage`): dado o catálogo e o orçamento de turnos
+  do tick, garante o número de bots direcionais, com personalidade e escopo por `bot.AssignSpecializations` (todo setor
+  e classe seguem cobertos por cada arquétipo), caixa por Event Sourcing e ID determinístico (o ID entra na semente,
+  RNF08). Bot novo não redistribui o float já alocado: entra com caixa e compra. Idempotente, chamado pelo seed e
+  reaproveitável pelo painel da Fase N.
+- **Critérios de aceite:** seed idempotente; catálogo maior gera mais bots até o teto do orçamento; teste table-driven
+  da regra de tamanho do pool; nenhum arquétipo perde cobertura de setor.
+- **Dependências:** Q.1 (o custo por turno define quantos turnos cabem no orçamento).
+- **Entregável (sessão 2026-09-25):** `bot.PoolSize(assetCount)` (`internal/domain/bot/pool.go`, pura e monotônica): 2 bots
+  direcionais por ativo (`BotsPerAsset`), entre 19 (`MinPoolSize`, o pool de sempre) e 150 (`MaxPoolSize`, ~3.400 comandos
+  por tick com ~9 por turno depois da Q.1 e ~2,5 rodadas, dentro do teto de 5.000); todos ilustrativos, a validar na Q.4.
+  Exemplos: 5 ativos, 19 bots; 15, 30; 30, 60; 50, 100; 75 ou mais, 150. O seed calcula o pool pelo catálogo e
+  passa a **não redistribuir float de ativo já coberto** (senão um pool maior estouraria o teto do float): bot novo de um
+  banco já semeado entra só com caixa (referência: valor médio de posição de um bot sobre o catálogo) e compra; ativo
+  novo é distribuído entre o pool inteiro. Bots antes da cobertura no seed (se cair no meio, o ativo continua sem
+  cobertura e a próxima execução refaz, em vez de ficar coberto e sem bots). Personalidade: os 19 primeiros mantêm
+  exatamente a de sempre; os extras repetem ciclicamente a especialização dos originais (preserva a proporção de
+  arquétipos, 24 Ruído, 18 Chartista e 18 Fundamentalista com 60 bots, e a cobertura de todo setor) com sorteio de
+  conhecimento próprio por bot. **Validação** (bancos de teste isolados): seed real (N=19) **idêntico ao anterior**
+  (hash de contas, posições, personalidades e cobertura, apagando os bots e semeando de novo no mesmo banco) e
+  reexecução sem efeito; crescer um banco já semeado de 5 para 30 ativos (pool 19 para 60) deixa as posições dos 5 ativos
+  antigos **inalteradas**, cria 41 bots com caixa que só negociam os ativos novos, float máximo 1,0000 do
+  `outstanding_shares`, 30 ativos cobertos por 3 Market Makers; seed do zero com 30 ativos, todo bot com posição.
+  **Desvio do texto da tarefa, declarado:** a regra de tamanho é o que ficou reaproveitável no domínio (`PoolSize`); o
+  provisionamento continua no seed, e não num caso de uso `EnsureBotPool` separado, porque o painel da Fase N (N.1) cria
+  bots individualmente pela mesma validação de domínio. `golangci-lint`, `go build`, `go test ./...` passam.
+
+### Q.3 · Escolha de ativo ponderada por valor de mercado, com piso ✅
+- **Descrição:** `bot.SelectAssetForRound` deixa de sortear uniforme e pondera pelo valor de mercado do ativo (float
+  vezes preço) dentro do escopo do bot, com garantia de pelo menos 1 turno por dia por ativo. Líderes emergem sem impor
+  perfil fixo por ativo (opção C do achado 009, descartada). Determinístico.
+- **Critérios de aceite:** teste de distribuição (ativo maior recebe proporcionalmente mais turnos; nenhum ativo abaixo
+  do piso); determinismo preservado; custo por tick inalterado.
+- **Dependências:** Q.1.
+- **Entregável (sessão 2026-09-25):** `bot.EquityForRound.MarketValue` (float vezes preço, preenchido por
+  `buildEquityUniverse`; 0 sem float conhecido) e `pickWeighted` em `SelectAssetForRound`: dentro do grupo sorteado (escopo
+  ou fora dele, a divisão `WithinScopePct` não muda), peso `(1 - MarketValueWeight)/n + MarketValueWeight x fração do valor
+  de mercado`, com `MarketValueWeight = 0,5`. O líder recebe mais turnos e o menor ativo nunca recebe menos que metade da
+  taxa uniforme. Custo por tick inalterado (mesma quantidade de turnos). Testes: frequência proporcional ao peso misto
+  (valores 30, 10 e 1), piso do menor ativo (valor 3e-7 do total ainda recebe >= metade do uniforme), uniforme sem valor
+  de mercado, determinismo por seed e divisão escopo/fora do escopo mantida. **Desvio do texto da tarefa, declarado:** o
+  piso é **estatístico**, não uma garantia rígida de 1 turno por dia por ativo (um sorteio ponderado não garante isso);
+  o piso de metade da taxa uniforme faz um dia sem turno ser raro com o pool da Q.2, e a Q.4 passa a medir dias sem
+  negociação por ativo. Limitação conhecida: o peso atua dentro do escopo do bot, então o volume entre setores depende de
+  quantos bots se especializam em cada um. **Teste de fumaça** (30 ativos, pool de 60, 60 dias): volume médio **0,29%** do
+  float (mín. 0,12%, máx. 0,78%), contra 0,08% antes da Fase Q; 30 de 30 ativos cotados, 20 de 20 ordens do cenário do 013;
+  **alerta para a Q.4:** média de 2.440 comandos por tick (meta 3.500), mas pico de 5.654, acima do teto de 5.000
+  (dias de 4 rodadas com muitos fills), então `BotsPerAsset` e `MaxPoolSize` precisam de calibração.
+  `golangci-lint`, `go build`, `go test ./...` passam.
+
+### Q.4 · Benchmark em 30, 50 e 100 ativos e gatilho da parte 4 ✅
+- **Descrição:** repetir `engine/scripts/benchmark-cobertura.sh` (P.7) com 30, 50 e 100 ativos sintéticos, medindo
+  volume dos líderes e do ativo mediano, comandos por tick e o efeito de cinco eventos severos num ativo da cauda.
+- **Critérios de aceite:** líderes na faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, tick de no máximo 5.000 comandos
+  (meta de 3.500 com 30 ativos); resultados registrados na proposta de cobertura e neste backlog. **Gatilho:** se com 100
+  ativos o tick passar de 5.000 comandos depois de Q.1 a Q.3, abrir a Q.5.
+- **Dependências:** Q.1, Q.2, Q.3.
+- **Resultado final (2026-09-26, depois de Q.7 a Q.10, 60 dias, seed 42):**
+
+  | | 30 ativos | 50 ativos | 100 ativos |
+  |---|---|---|---|
+  | Comandos por tick, média / máx. | 2.163 / 2.600 | 3.600 / 4.700 | 4.644 / 6.442 |
+  | Ticks acima de 5.000 | 0 | 0 | 3 de 60 (p95 = 5.051) |
+  | Líderes (% do float/dia) | 0,54 | 0,53 | 0,34 (0,26 a 0,42) |
+  | Volume mediano | 0,33 | 0,30 | 0,24 |
+  | Ativos abaixo de 0,15% | 1 de 30 | 0 de 50 | 0 de 100 |
+  | Dias sem negociação | 0 de 600 | 4 de 1.000 | 11 de 2.000 |
+  | Reação da cauda a 5 eventos severos | -8,2% | -5,8% | mediana -4,9% (6 execuções) |
+  | Cotados dos dois lados / cenário 013 | 30 de 30 / 20 de 20 | 50 de 50 (8 de 8 execuções) / 20 de 20 | 100 de 100 / 20 de 20 |
+
+  Todos os alvos das decisões do autor atendidos: líderes na faixa de 0,3% a 0,7% (com 100 ativos, na parte baixa), mediano
+  acima de 0,15%, nenhum ativo sem negociação estruturalmente (piso rígido, os poucos dias sem negócio são o turno de piso sem
+  fill), custo médio e p95 dentro de 5.000 e a meta de 3.500 com 30 ativos (2.163). A Q.5 não foi necessária no horizonte de 100
+  ativos. Ver a seção 6.4 da `proposta-cobertura-market-maker.md`.
+- **Decisão (2026-09-26, autor aprovou a recomendação):** o teto de 5.000 comandos por tick vale como **média e p95** (a
+  média de 4.620 e o p95 de 5.024 com 100 ativos o cumprem). Os poucos ticks acima (3 de 60, máx. 6.393) são dias de 4 rodadas
+  com muitos fills; um teto rígido no pico exigiria um limite de fills por tick, que não se justifica pelo custo de realismo.
+- **Resultado do benchmark (2026-09-26, 60 dias, seed 42, script corrigido para ler o log do Postgres uma vez no fim):**
+
+  | | 30 ativos (pool 60) | 50 ativos (pool 100) | 100 ativos (pool 150) |
+  |---|---|---|---|
+  | Comandos por tick, média / máx. | 2.160 / 3.713 | 3.482 / 5.701 | 5.335 / 9.014 |
+  | Ticks acima de 5.000 | 0 | 9 | 28 de 60 |
+  | p50 / p95 / p99 | 1.965 / 3.534 / 3.713 | 3.117 / 5.569 / 5.701 | 4.696 / 8.550 / 9.014 |
+  | Volume dos líderes (% do float/dia) | 0,50 | 0,44 | 0,32 (0,13 a 0,52) |
+  | Volume mediano | 0,24 | 0,21 | 0,14 |
+  | Ativos abaixo de 0,15% | 7 de 30 | 12 de 50 | 52 de 100 |
+  | Dias sem negociação | 22% | 26% | 36% |
+  | Reação a 5 eventos severos na cauda | -1,0% | 0,0% | -1,0% |
+  | Cotados dos dois lados / cenário 013 | 30 de 30 / 20 de 20 | 50 de 50 / 20 de 20 | 100 de 100 / 20 de 20 |
+
+  **Leitura:** 30 ativos dentro do alvo; 50 estoura o teto de custo; 100 estoura o custo (o gatilho da Q.5 disparou), deixa o
+  mediano abaixo de 0,15% e 36% dos ativo-dias sem negócio. Causa comum: cada bot sorteia um ativo por rodada, então custo e
+  volume dependem do mesmo botão (o tamanho do pool) e cada ativo novo dilui os turnos dos outros. A Q.4 só fecha depois
+  de Q.7 a Q.10, que corrigem isso, e de uma nova execução do benchmark (feita na Q.9, resultados no Entregável dela).
+
+### Q.5 · (Reserva) Sessão de tick em memória ✅ (dispensada, não implementada)
+- **Descrição:** carregar o estado uma vez (saldos, posições e books), simular os turnos em memória e gravar em lote,
+  de modo que o custo dependa dos fills e não dos turnos. Refatoração grande do caminho de execução, com Event
+  Sourcing preservado. **O gatilho da Q.4 disparou (100 ativos, média de 5.335 comandos por tick), mas a tarefa fica em
+  reserva:** o orçamento de turnos (Q.8) torna o custo controlável e a Q.7 mede onde ele está. Só se abre se, depois de
+  Q.7 a Q.10, 100 ativos ainda passarem de 5.000 comandos por tick. **Resultado (Q.9): média de 4.620 e p95 de 5.024
+  com 100 ativos, então a Q.5 não é necessária no horizonte de 100 ativos** (reabrir se o catálogo passar muito disso).
+- **Dependências:** Q.7, Q.8, Q.9, Q.10 e nova execução da Q.4.
+
+### Q.6 · Dividendos em lote (custo que escala com bots x ativos) ✅
+- **Origem:** achado no teste de fumaça da Q.3 (30 ativos, pool de 60): os picos de 5.654 comandos por tick caíam nos dias
+  de pagamento de dividendo (5 dias depois de cada dia de relatório), com apenas 2 rodadas. Gerar o dividendo custava 1
+  comando por detentor e pagá-lo 2 por detentor (evento e saldo), ou seja, **bots x ativos** comandos por pagamento: 63
+  detentores x 30 ativos, e 150 x 100 seria da ordem de 30.000. Nenhum ajuste de pool corrige isso, então precisava
+  ser resolvido antes do benchmark da Q.4.
+- **Descrição:** `saveNewDividends` insere os detentores de cada dividendo com um `INSERT ... unnest` só; `payDueDividends`
+  grava os eventos `dividend_payment` com `eventstore.AppendBatchTx` (um `INSERT` em lote, ANTES da projeção, Event
+  Sourcing preservado) e projeta os saldos com um `UPDATE ... FROM unnest` só. Os valores numéricos usam a mesma
+  representação que o driver dá a um `float64` avulso, então o que é gravado é idêntico.
+- **Critérios de aceite:** estado final idêntico ao do código anterior (contas, eventos e tabelas de dividendos); comandos
+  por dia de pagamento independentes do número de detentores.
+- **Entregável (sessão 2026-09-25):** `eventstore.AppendBatchTx` (rejeita lote com tipos diferentes ou campos ausentes
+  antes de gravar, `ErrInvalidBatch`, testado) e as duas reescritas em `tick_repository.go`. **Validação A/B** (banco
+  clonado do benchmark de 30 ativos, dia 61 com 30 dividendos pagos e dia 70 com 30 gerados): **estado final idêntico**
+  (hash de contas, dos 7.320 eventos e das tabelas de dividendos) com **dia de pagamento 5.675 para 2.075 comandos
+  (-63%)** e dia de geração 3.569 para 1.769 (-50%). `golangci-lint`, `go build`, `go test ./...` passam.
+- **Dependências:** nenhuma; feita antes da Q.4 porque muda o que ela mede.
+
+### Q.7 · Medir a divisão do custo do tick (Market Maker x bots direcionais x fixo) ✅
+- **Origem:** benchmark da Q.4 com 100 ativos (média de 5.335 comandos por tick, 28 de 60 ticks acima de 5.000). Não se
+  sabe quanto vem dos 10 Market Makers (10 ativos cada, recotados a cada rodada), quanto dos 150 bots direcionais e quanto
+  do custo fixo (dividendos, cotações do dia, eventos). Sem isso, não dá para dizer se a Q.5 mira o alvo certo.
+- **Descrição:** o script de benchmark atribui os comandos do log do Postgres a categorias (por usuário da sessão ou por
+  padrão da consulta: Market Maker, bot direcional, fixo do tick) e imprime a divisão média e a de p95 por categoria.
+- **Critérios de aceite:** divisão medida com 30, 50 e 100 ativos e registrada aqui e na seção 6 da proposta de cobertura;
+  dizer explicitamente qual categoria domina o estouro de 100 ativos.
+- **Dependências:** nenhuma (usa o script já corrigido na Q.4).
+- **Entregável (sessão 2026-09-26):** `benchmark-cobertura.sh` grava `cmd_mm`, `cmd_bots` e `cmd_fixo` por tick e imprime a
+  média por categoria e a média dos ticks acima de 5.000. Como o log do Postgres só traz o usuário nos parâmetros da
+  primeira consulta de um turno (leitura de saldo/posição do bot ou de ordens em repouso do Market Maker), cada turno herda
+  esse ator até o próximo; calendário, gravação de cotações do dia, expiração, dividendos e cargas de roster voltam ao custo
+  fixo; o custo de um fill é cobrado a quem iniciou a ordem. Validado contra a contagem total de comandos de um tick
+  capturado (6.342 nos dois métodos). Medição (60 dias, seed 42, média por tick):
+
+  | | 30 ativos (pool 60) | 50 ativos (pool 100) | 100 ativos (pool 150) |
+  |---|---|---|---|
+  | Market Makers | 533 (25%) | 838 (24%) | 1.380 (26%) |
+  | Bots direcionais | 1.542 (72%) | 2.570 (73%) | 3.823 (71%) |
+  | Fixo do tick | 64 (3%) | 91 (3%) | 158 (3%) |
+  | Total, ticks acima de 5.000 | nenhum | 9 ticks: 1.245 + 4.177 + 88 | 28 ticks: 1.835 + 5.102 + 143 |
+
+  **Conclusão:** o estouro é dos **bots direcionais** (cerca de 72% em todos os tamanhos), não do Market Maker (cerca de 25%,
+  crescendo linear: ~14 comandos por ativo por tick) nem do fixo (3%). Um turno de bot custa ~10 comandos com os fills
+  incluídos (3.823 para ~370 turnos e 184 fills por tick com 100 ativos): ~6 são o turno em si (3 leituras, BEGIN, INSERT,
+  COMMIT) e cada fill acrescenta cerca de 9 (posições, eventos, saldos, ordem). Implicações: (1) o orçamento de turnos da Q.8
+  é a alavanca certa; (2) o teto de 5.000 com 100 ativos deixa ~3.460 para os bots, ou seja, **~335 turnos por tick em média**;
+  (3) o custo varia muito (p95 = 8.498 contra p50 = 4.731 com 100 ativos, dias de 4 rodadas e muitos fills), então o
+  orçamento precisa ser **por tick** (não por rodada) e ter teto de fills, senão o pico continua acima de 5.000; (4) se
+  depois da Q.8 ainda faltar, a Q.5 mira as leituras dos turnos (~40% do custo do bot); (5) recotação do Market Maker menos
+  frequente é uma alavanca secundária (~1.400 comandos com 100 ativos). Nota: o custo total medido aqui (5.360 de média
+  com 100 ativos) difere ~0,5% do benchmark anterior (5.335) porque o método de contagem mudou.
+
+### Q.8 · Orçamento de turnos por ativo com piso rígido ✅
+- **Origem:** dias sem negociação de 22% a 36% e volume mediano abaixo de 0,15% com 100 ativos. Hoje cada bot sorteia um
+  ativo por rodada, o custo e o volume dependem do tamanho do pool, e o piso da Q.3 é só estatístico.
+- **Descrição:** o tick passa a definir um **orçamento de turnos** (parâmetro de custo, independente do tamanho do
+  catálogo) e o distribui entre os ativos: `piso + parte proporcional` ao peso do ativo (valor de mercado misturado a um
+  piso uniforme, como na Q.3), com fechamento pelo método do maior resto, determinístico pela seed. Cada turno de ativo
+  escolhe depois um bot elegível de escopo compatível. O piso é **1 turno por ativo por dia**, garantido por construção,
+  e esse turno é marketable (a mercado, ou limite que cruza a cotação do Market Maker), para imprimir um negócio real e
+  o preço de fechamento do dia refletir atividade. `BotsPerAsset` e `MaxPoolSize` deixam de ser o botão de custo: o pool
+  só garante diversidade de arquétipos e escopos.
+- **Critérios de aceite:** nenhum ativo do catálogo sem turno em nenhum dia (teste com catálogo sintético de 100);
+  soma dos turnos por tick igual ao orçamento; ativo maior recebe proporcionalmente mais turnos acima do piso;
+  determinismo preservado; custo por tick com 100 ativos depende do orçamento, não do número de ativos (benchmark).
+- **Dependências:** Q.7 (define o orçamento viável: ~335 turnos por tick com 100 ativos, orçamento por tick e não por rodada), Q.3.
+- **Entregável (sessão 2026-09-26):** `bot.TurnBudget` (turnos por ativo até um teto, nunca menos de 1 por ativo),
+  `bot.AllocateTurns` (piso de 1 turno por ativo mais o resto pelo peso da Q.3, com fechamento exato por amostragem
+  sistemática, determinístico pela seed) e `bot.SelectBotForTurn` (bot escolhido pelo escopo, 87,5% dentro dele);
+  `runIntradayRounds` divide os turnos do **dia** entre as rodadas (1 ou 4 rodadas gastam o mesmo), o Market Maker cota
+  primeiro em toda rodada e o turno de piso é a mercado, tentando até 4 bots até haver um fill. O universo de sorteio tem ordem
+  estável por ID. Removidos `SelectAssetForRound`, `pickWeighted` e `ErrNoEquityAvailable` (código morto). **Medição só com a
+  Q.8** (`TurnsPerAsset = 5`, teto de 330 turnos): 30 ativos 2.571 comandos por tick, líderes 0,71%, mediano 0,40%, 1 dia sem
+  negócio em 600; 50 ativos 4.236 (máx. 4.934), 0 abaixo de 0,15%; 100 ativos 6.283 (todos os ticks acima de 5.000), líderes
+  0,39%, mediano 0,24%, 3 dias sem negócio em 2.000. O piso e o volume foram atendidos; o custo com 100 ativos não, e cortar
+  o teto para 250 turnos deu 5.267 com 15 ativos abaixo de 0,15% (sem folga de volume), o que motivou a Q.9. Testes de
+  distribuição, piso rígido, orçamento independente do número de rodadas e nova tentativa do turno de piso;
+  `golangci-lint`, `go build`, `go test ./...` passam.
+- **Decisão (2026-09-26, autor delegou a escolha):** o piso passa de estatístico (desvio declarado na Q.3) para **rígido, 1
+  turno marketable por ativo por dia**. Motivo: é o que a decisão 1 já pedia ("nenhum ativo sem negociação"); custa só 1 turno
+  por ativo (100 dos ~350 do orçamento com 100 ativos); e o Market Maker já cota todo ativo, então o turno de piso sempre
+  encontra contraparte e o preço de fechamento vira dado do dia. Descartada a alternativa de 1 turno a cada 2 dias no
+  último quintil: imitaria melhor o papel ilíquido real, mas reabriria o buraco que o autor quer fechar.
+
+### Q.9 · Giro-alvo por ativo via tamanho de ordem ✅
+- **Origem:** volume dos líderes e do mediano abaixo da faixa com 100 ativos, e custo que não pode subir para corrigi-lo.
+- **Descrição:** o volume deixa de depender só do número de turnos: cada ativo tem um **giro-alvo** diário (fração do float
+  escalada por valor de mercado, dentro de 0,15% a 0,6%) e a quantidade típica de uma ordem de bot é o giro-alvo dividido
+  pelos turnos esperados do ativo, sempre sujeita ao teto de 20% do volume médio recente já existente
+  (`effectiveOrderSizeCeiling`). Fundamentalista e Chartista fazem ordens maiores que o Ruído (lote institucional contra
+  varejo). Não adiciona nenhum comando SQL por tick.
+- **Critérios de aceite:** líderes na faixa de 0,3% a 0,7% e mediano de pelo menos 0,15% com 30, 50 e 100 ativos; sem
+  aumento de comandos SQL por tick; volatilidade diária dos ativos e esgotamento de caixa/posição dos Market Makers
+  medidos e dentro do aceitável (risco: ordens maiores movem mais o preço e consomem a cotação do Market Maker).
+- **Dependências:** Q.8.
+- **Entregável (sessão 2026-09-26):** `bot.TargetTurnoverPct` (giro-alvo de 0,25% do float por dia no ativo mediano,
+  crescendo com (valor de mercado / mediana)^0,3, entre 0,2% e 0,6%), `bot.MedianMarketValue` e `bot.OrderCeilingPct` (teto de
+  tamanho de ordem que faz o ativo render o giro-alvo com os turnos que recebeu no dia: giro = turnos x 0,21 x teto, com
+  0,21 medido como o volume por turno em fração do teto; no máximo 1,2% do float). O piso do teto de ordem dos bots
+  direcionais deixa de ser um percentual fixo do float e passa a ser esse valor por ativo (nunca abaixo de 0,4%, o piso
+  do achado 009); o Market Maker segue com o piso antigo. Orçamento recalibrado: `TurnsPerAsset = 4` e `MaxTurnsPerTick = 200`.
+  Nenhum comando SQL novo. **Medição** (60 dias, seed 42, a cada execução o banco recebe UUIDs novos, então há variação
+  pequena entre execuções):
+
+  | | 30 ativos | 50 ativos | 100 ativos |
+  |---|---|---|---|
+  | Comandos por tick, média / máx. | 2.163 / 2.600 | 3.599 / 4.306 | 4.620 / 6.393 |
+  | Ticks acima de 5.000 | 0 | 0 | 3 de 60 (p95 = 5.024) |
+  | Líderes (% do float/dia) | 0,54 (0,39 a 0,65) | 0,53 (0,37 a 0,63) | 0,31 (0,19 a 0,47) |
+  | Volume mediano | 0,33 | 0,30 | 0,25 |
+  | Ativos abaixo de 0,15% | 1 de 30 | 0 de 50 | 1 de 100 |
+  | Dias sem negociação | 0 de 600 | 4 de 1.000 | 6 de 2.000 |
+  | Reação a 5 eventos severos na cauda | -8,2% | -5,8% | -3,9% |
+  | Volatilidade diária (100 ativos) | | | mediana 1,10%, p95 1,51%, máx. 2,21% |
+  | Cenário do achado 013 | 20 de 20 | 20 de 20 | 20 de 20 |
+
+  Market Makers sem esgotamento (menor posição de um Market Maker com 100 ativos: 174 mil ações, caixa acima de R$ 4 bi).
+  **Achado e correção (mesma sessão):** em 2 de 4 execuções com 50 ativos, 1 a 2 ativos terminavam o dia sem a **compra**
+  (48 e 49 de 50 cotados dos dois lados). Causa provável: a recotação do Market Maker na passada final casa de cara com uma ordem
+  de bot que ficou do outro lado do preço e é consumida inteira, sem deixar o lado em repouso. A passada final agora repete até
+  nada mudar (`finalPassMaxIterations = 3`, uma consulta por Market Maker por repetição). Depois da correção, 4 de 4 execuções
+  com 50 ativos e 1 com 100 deram todos os ativos cotados dos dois lados, sem custo perceptível (média de 3.600 e 4.644
+  comandos por tick). O script de benchmark lista os ativos sem um dos lados quando isso ocorre. `golangci-lint`, `go build`, `go test ./...` passam.
+
+### Q.10 · Atenção por evento: turnos extras e reação do Fundamentalista ✅
+- **Origem:** reação a cinco eventos severos num ativo da cauda de apenas -1,0% (0,0% com 50 ativos), contra -7,7% em 4
+  dias do `VALR3` no seed real (P.8): ativo pouco negociado quase não reage.
+- **Descrição:** evento macro ou balanço aplica um **multiplicador de atenção** (por exemplo x3 no dia, decaindo em 3 a 5
+  dias) sobre a alocação de turnos dos ativos-alvo. Os turnos extras vão preferencialmente a bots Fundamentalistas de
+  escopo compatível, pelo caminho de reação por negociação (nunca multiplicador direto de preço, proposta 2.3.2). O
+  orçamento total continua fixo: a atenção redistribui turnos, não soma.
+- **Critérios de aceite:** ativo da cauda alvo de eventos severos reage de forma comparável à do seed real (ordem de
+  grandeza da queda do `VALR3` na P.8); orçamento total de turnos inalterado; sem evento, a alocação é a da Q.8; teste
+  de decaimento da atenção.
+- **Dependências:** Q.8. Se a Q.8 já resolver a reação (piso rígido), medir antes de implementar e fechar como
+  "desnecessária" com a medição registrada.
+- **Reaberta (2026-09-26):** a primeira medição pós-Q.9 (-8,2%, -5,8% e -3,9% com 30, 50 e 100 ativos) sugeria que a reação
+  da cauda já estava boa e a tarefa foi fechada como desnecessária, mas a reação varia muito entre execuções (o banco recebe UUIDs
+  novos, o ativo da cauda e o sorteio mudam). Quatro execuções com 100 ativos deram **-3,9%, -1,0%, -0,0% e -3,0%**
+  (mediana perto de -2%), a metade ou menos da queda do `VALR3` no seed real (-7,7% em 4 dias, P.8). Uma amostra só não sustenta o
+  fechamento, então a Q.10 volta a ser implementada como descrito acima. Critério de aceite reforçado: reação medida em pelo
+  menos 4 execuções, com mediana da mesma ordem de grandeza da do `VALR3`.
+- **Entregável (sessão 2026-09-26):** `bot.AttentionMultiplier` (1 sem evento, até 1 + 4 = 5 vezes com efeito de preço combinado de
+  15% ou mais, só pela magnitude), `EquityForRound.Attention` e `Turn.Attention`. O multiplicador entra no peso de
+  `AllocateTurns` (o orçamento total e o piso de 1 turno por ativo não mudam) e `SelectBotForTurn` passou a receber
+  `TurnCandidate` (escopo e arquétipo): num turno de ativo sob atenção, 75% das vezes só Fundamentalistas concorrem (sem nenhum,
+  todos concorrem). O giro-alvo do ativo também sobe com a atenção (pico de volume, dentro do teto de 1,2% do float por ordem).
+  O tick lê a atenção do `MacroEffectPct` por empresa que já existia (só é diferente de zero enquanto o evento dura, então o
+  decaimento é o fim do evento, sem estado novo): `applyEventAttention`. Balanços (dia de relatório) ficaram fora, só evento macro
+  gera atenção. **Medição** (100 ativos, 6 execuções, cinco eventos severos no setor do ativo de menor float): **-4,0%, -3,9%,
+  -5,8%, -2,0%, -5,9% e -12,0%, mediana -4,9%**, contra -3,9%, -1,0%, -0,0% e -3,0% (mediana perto de -2%, com dois casos sem
+  reação) antes da Q.10, e -7,7% do `VALR3` no seed real. Nenhuma execução sem reação. Testes de multiplicador, redistribuição sem
+  mudar o orçamento, preferência por Fundamentalista, marcação no universo e giro-alvo com atenção; `golangci-lint`, `go build`,
+  `go test ./...` passam.
+
+### Q.11 · Teste ponta a ponta da Fase Q: achados e correções ✅
+- **Origem:** teste de ponta a ponta pedido pelo autor depois da Q.10 (2026-09-26), fora do caminho feliz: banco isolado com o
+  catálogo real mais 30 sintéticos, 200 dias simulados, usuários reais pelo motor e pelo backend, evento macro, catálogo crescendo
+  com o mercado rodando, bots desativados, ticks concorrentes e ordens de usuário durante o tick.
+- **O que passou (sem achado):** conciliação de saldo e de posição contra `market_events` (0 divergências em 165 contas, 200 dias,
+  dividendos em lote incluídos: 19.879 pagamentos, soma idêntica ao gerado); float nunca ultrapassado; compra igual a venda por ativo;
+  **determinismo** (banco clonado, dois motores, 12 ticks, hash idêntico de cotações, saldos, posições e ordens: o cache de leitura
+  do tick da Q.1 não vaza nem altera nada); ticks concorrentes se serializam (dias 148 e 149, sem cotação duplicada); 20 ordens de
+  usuário em paralelo com um tick; seed idempotente (reexecutar com 60 sintéticos não muda nenhuma contagem) e guarda
+  `SEED_ALLOW_SYNTHETIC`; catálogo crescendo de 30 para 60 ativos com o mercado no ar (pool 60 para 137, posições antigas
+  intactas, 65 ativos cobertos); todos os bots direcionais desativados, só 1 ativo, todos os Market Makers desativados, nada ativo, e
+  reativação (nenhum erro, `uncovered_assets_count` correto); float `NULL` em um ativo; evento macro severo no setor Varejo (volume
+  do setor 0,98% do float contra 0,36% na linha de base, queda de 4% a 15%, decaimento ao fim do evento, orçamento de turnos igual);
+  preços da API iguais ao banco; backend (cadastro, gate de lição, ordem, cancelamento, extrato, ranking sem bots e sem valor
+  absoluto) sobre o motor novo.
+- **Achado 1 (corrigido): primeiro dia de um ativo negociava até 99% do float.** Sem histórico de volume, `effectiveOrderSizeCeiling`
+  devolvia o float inteiro como teto de ordem, então a Q.9 (giro-alvo) só valia a partir do segundo dia. No seed do zero, o volume do
+  dia 1 chegou a 25% do float (média de 1,73% nos dias 1 a 5, contra a faixa de 0,3% a 0,7%; `VALR3` 2,44% e 2,90% nos dois
+  primeiros dias) e o mesmo aconteceu com cada ativo novo de um catálogo que cresce (média de 9,45%, máximo de 38,3%), inflando
+  ainda o volume médio que dimensiona os dias seguintes. Agora o teto sem histórico é o piso proporcional (giro-alvo) do ativo.
+  **Depois:** dia 1 com média de 0,33% (máx. 1,0%) e ativos novos com média de 0,26% (máx. 0,8%).
+- **Achado 2 (corrigido): turno de FII gastava tentativa com Fundamentalista.** Fundamentalista não decide sem empresa, então o
+  sorteio de bot de um FII perdia cerca de metade dos turnos (e o turno de piso esgotava as 4 tentativas): 3,77% dos dias de FII
+  sem negócio contra 0,17% nas ações. `runTurn` não sorteia mais Fundamentalista para ativo sem empresa com fundamentos.
+  **Depois:** 0 de 78 dias de FII sem negócio.
+- **Achado 3 (corrigido, decisão do autor): achado 015** de `pontos-em-aberto-decisao-produto.md` (ordem em repouso não reservava
+  nem revalidava saldo/posição): saldo negativo de usuário (-R$ 6.402) e de bot (-R$ 17,8 mi), e ordem fantasma dentro do spread que
+  travava todas as compras de um ativo. `Execute` agora revalida o dono da ordem em repouso no match (saldo e posição vêm na
+  consulta do book, sem comando extra), pula e cancela a ordem sem fundos (`cancel_reason = insufficient_funds`, enum novo em
+  backend e frontend) e a migration `000025` acrescenta `CHECK` de saldo e posição não negativos, mapeados para `422`.
+  **Validação ao vivo:** fantasma pulada e cancelada, compra em repouso sem caixa não preenche, ordem válida preenche, 12 compras
+  concorrentes (1 executada, 11 rejeitadas), 180 ticks com catálogo crescendo com 0 saldos negativos e 0 divergências, mesmo
+  hash em dois motores.
+- **Observações sem correção:** o preço de fechamento anda em degraus de cerca de 1% porque o turno de piso executa contra a
+  cotação do Market Maker (efeito do desenho da Q.8); FII e ETF não ganham atenção por evento (só ação tem empresa alvo,
+  já dito na Q.10); dia de relatório com ativo novo ainda sem fundamentos faz o Fundamentalista pular o turno até o primeiro
+  relatório (turno perdido, sem erro).
+- **Testes:** `TestEffectiveOrderSizeCeiling` (sem histórico usa o piso proporcional) e
+  `TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista` (falha no código anterior, passa no novo) e 4 testes de `Execute` da revalidação (fantasma, compra sem saldo, saldo consumido entre ordens do mesmo dono, dono que pode honrar); `golangci-lint`,
+  `go build`, `go test ./...` passam.
 
 ## Sequência sugerida
 
@@ -3340,3 +3730,8 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
     abrir a fase), depois **P.4 → P.5** (PR 2, otimização de custo e cotação de pé), depois **P.6, P.7,
     P.8** (PR 3; P.6 só depende de P.1 e P.7 de P.2, então podem entrar antes). **P.9** a qualquer momento
     antes da Fase N. Fecha os achados 013 e 002 de `pontos-em-aberto-decisao-produto.md`.
+17. **Q.1** (sem decisão, pode abrir a fase), depois **Q.2** e **Q.3** (dependem de Q.1) e **Q.6** (dividendos em lote,
+    achada na Q.3, independente), depois **Q.4** (benchmark e gatilho). O primeiro benchmark da Q.4 (2026-09-26) estourou o custo e o volume com 100 ativos, então seguem
+    **Q.7** (medir a divisão do custo), **Q.8** (orçamento de turnos com piso rígido), **Q.9** (giro-alvo via tamanho de ordem)
+    e **Q.10** (atenção por evento), e depois uma nova execução da Q.4. **Q.5** só se, depois disso, 100 ativos ainda passarem
+    de 5.000 comandos por tick. Fecha o achado 014.

@@ -40,25 +40,30 @@ func NewOrderExecutionRepository(db *sql.DB, cache quoteCache) *OrderExecutionRe
 // e posição atuais do usuário da ordem recebida, o preço de referência
 // corrente e as ordens reais pendentes desse ativo, em ordem de chegada.
 func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, userID string) (orderexecution.Context, error) {
+	// Saldo e posição numa consulta só (tarefa Q.1): LEFT JOIN, porque o usuário
+	// pode não ter posição no ativo (quantity e created_at ficam NULL).
 	var balance float64
+	var positionQty sql.NullInt64
+	var positionCreatedAt sql.NullTime
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT current_balance FROM accounts WHERE user_id = $1`, userID,
-	).Scan(&balance); err != nil {
+		`SELECT a.current_balance, p.quantity, p.created_at
+		 FROM accounts a
+		 LEFT JOIN positions p ON p.user_id = a.user_id AND p.asset_id = $2
+		 WHERE a.user_id = $1`, userID, assetID,
+	).Scan(&balance, &positionQty, &positionCreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return orderexecution.Context{}, orderexecution.ErrAccountNotFound
 		}
 		return orderexecution.Context{}, err
 	}
+	heldQty := int(positionQty.Int64)
 
-	var positionQty int
-	var positionCreatedAt sql.NullTime
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT quantity, created_at FROM positions WHERE user_id = $1 AND asset_id = $2`, userID, assetID,
-	).Scan(&positionQty, &positionCreatedAt); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	static, err := r.assetStatic(ctx, assetID)
+	if err != nil {
 		return orderexecution.Context{}, err
 	}
 
-	referencePrice, isSandbox, err := r.referencePrice(ctx, assetID, positionQty, positionCreatedAt)
+	referencePrice, err := r.referencePrice(ctx, assetID, static, heldQty, positionCreatedAt)
 	if err != nil {
 		return orderexecution.Context{}, err
 	}
@@ -68,12 +73,18 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
-	outstandingShares, totalHeldExcludingIncoming, err := r.floatCeiling(ctx, assetID, userID)
-	if err != nil {
-		return orderexecution.Context{}, err
+	var outstandingShares *int64
+	var totalHeldExcludingIncoming int64
+	if static.outstandingShares.Valid {
+		shares := static.outstandingShares.Int64
+		outstandingShares = &shares
+		totalHeldExcludingIncoming, err = r.totalHeldExcluding(ctx, assetID, userID)
+		if err != nil {
+			return orderexecution.Context{}, err
+		}
 	}
 
-	simulatedDay, err := r.currentSimulatedDay(ctx)
+	simulatedDay, err := r.currentSimulatedDayScoped(ctx)
 	if err != nil {
 		return orderexecution.Context{}, err
 	}
@@ -82,12 +93,42 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		ReferencePrice:             referencePrice,
 		Resting:                    resting,
 		IncomingUserBalance:        balance,
-		IncomingUserPosition:       positionQty,
-		Sandbox:                    isSandbox,
+		IncomingUserPosition:       heldQty,
+		Sandbox:                    static.isSandbox,
 		OutstandingShares:          outstandingShares,
 		TotalHeldExcludingIncoming: totalHeldExcludingIncoming,
 		SimulatedDay:               simulatedDay,
 	}, nil
+}
+
+// assetStatic são os dados de um ativo que não mudam durante um tick: ticker,
+// se é sandbox e o float (outstanding_shares, NULL para ativo sem float, como
+// ETF e renda fixa).
+type assetStatic struct {
+	ticker            string
+	isSandbox         bool
+	outstandingShares sql.NullInt64
+}
+
+// assetStatic lê ticker, is_sandbox e outstanding_shares numa consulta só (eram
+// duas) e, dentro de um WithReadScope, uma vez por ativo por tick.
+func (r *OrderExecutionRepository) assetStatic(ctx context.Context, assetID string) (assetStatic, error) {
+	return scopeFrom(ctx).asset(assetID, func() (assetStatic, error) {
+		var st assetStatic
+		err := r.db.QueryRowContext(ctx,
+			`SELECT a.ticker, a.is_sandbox, via.outstanding_shares
+			 FROM assets a
+			 LEFT JOIN variable_income_assets via ON via.asset_id = a.id
+			 WHERE a.id = $1`, assetID,
+		).Scan(&st.ticker, &st.isSandbox, &st.outstandingShares)
+		return st, err
+	})
+}
+
+// currentSimulatedDayScoped é currentSimulatedDay com o cache de leitura do
+// tick: o dia simulado só muda em SaveTick, no fim do tick.
+func (r *OrderExecutionRepository) currentSimulatedDayScoped(ctx context.Context) (int, error) {
+	return scopeFrom(ctx).day(func() (int, error) { return r.currentSimulatedDay(ctx) })
 }
 
 // currentSimulatedDay lê market_calendar.current_day (achado 005 parte A,
@@ -281,34 +322,15 @@ func (r *OrderExecutionRepository) ListOrders(ctx context.Context, userID string
 	return records, rows.Err()
 }
 
-// floatCeiling lê o teto do float finito do ativo (tarefa A.3,
-// variable_income_assets.outstanding_shares — nulo pra sandbox, ver
-// seedSandboxEquity) e, só quando ele existe, a soma das posições de todos
-// os outros detentores reais (usuários + bots) desse ativo — insumo que
-// orderexecution.Execute precisa pra nunca deixar o total ultrapassar o
-// float. Ativo sem linha em variable_income_assets (nenhum tipo tradable
-// hoje cai nesse caso, mas a leitura é defensiva) também pula a checagem.
-func (r *OrderExecutionRepository) floatCeiling(ctx context.Context, assetID, userID string) (*int64, int64, error) {
-	var outstandingShares sql.NullInt64
+// totalHeldExcluding soma as posições de todos os detentores do ativo menos as
+// do próprio usuário da ordem (insumo de position.ValidateFloatCeiling). O
+// float em si (outstanding_shares) vem de assetStatic.
+func (r *OrderExecutionRepository) totalHeldExcluding(ctx context.Context, assetID, userID string) (int64, error) {
+	var total int64
 	err := r.db.QueryRowContext(ctx,
-		`SELECT outstanding_shares FROM variable_income_assets WHERE asset_id = $1`, assetID,
-	).Scan(&outstandingShares)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, 0, err
-	}
-	if !outstandingShares.Valid {
-		return nil, 0, nil
-	}
-
-	var totalHeldExcludingIncoming int64
-	if err := r.db.QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(quantity), 0) FROM positions WHERE asset_id = $1 AND user_id != $2`, assetID, userID,
-	).Scan(&totalHeldExcludingIncoming); err != nil {
-		return nil, 0, err
-	}
-
-	shares := outstandingShares.Int64
-	return &shares, totalHeldExcludingIncoming, nil
+	).Scan(&total)
+	return total, err
 }
 
 // referencePrice resolve o preço de referência e se o ativo é sandbox —
@@ -328,21 +350,14 @@ func (r *OrderExecutionRepository) floatCeiling(ctx context.Context, assetID, us
 // nenhuma — mas ali o preço de referência agora só serve pra exibição
 // (ex: weightedAveragePrice de uma ordem sem nenhum fill real), nunca mais
 // pra preencher a ordem sinteticamente.
-func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionQty int, positionCreatedAt sql.NullTime) (float64, bool, error) {
-	var ticker string
-	var isSandbox bool
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT ticker, is_sandbox FROM assets WHERE id = $1`, assetID,
-	).Scan(&ticker, &isSandbox); err != nil {
-		return 0, false, err
-	}
-
+func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, static assetStatic, positionQty int, positionCreatedAt sql.NullTime) (float64, error) {
+	ticker, isSandbox := static.ticker, static.isSandbox
 	if isSandbox {
 		script, ok := sandbox.PriceScriptForTicker(ticker)
 		if !ok {
-			return 0, false, ErrSandboxScriptNotFound
+			return 0, ErrSandboxScriptNotFound
 		}
-		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), true, nil
+		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
 	}
 
 	// Cache de leitura (tarefa 5.7) — mesma última cotação que
@@ -350,12 +365,12 @@ func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID s
 	// quente; aqui só o Price importa, DailyChangePct é ignorado.
 	quote, found, err := cachedQuote(ctx, r.cache, assetID, r.loadLatestQuoteFromPostgres)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
 	if !found {
-		return tick.DefaultInitialPrice, false, nil
+		return tick.DefaultInitialPrice, nil
 	}
-	return quote.Price, false, nil
+	return quote.Price, nil
 }
 
 func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
@@ -380,11 +395,17 @@ func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Conte
 // filtro por `type`, essa linha voltaria a ser lida aqui como se fosse
 // liquidez real pendurada, corrompendo o replay de orderbook.Book.Submit.
 func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetID string) ([]orderexecution.RestingOrder, error) {
+	// O saldo e a posição do dono vêm na mesma consulta (sem comando extra por
+	// contraparte): ordem em repouso não reserva nada, então Execute revalida o
+	// dono no match (achado 015).
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, side, type, price, quantity - filled_quantity AS remaining
-		 FROM order_book
-		 WHERE asset_id = $1 AND type = 'limit' AND status IN ('pending', 'partially_filled')
-		 ORDER BY created_at ASC`, assetID,
+		`SELECT o.id, o.user_id, o.side, o.type, o.price, o.quantity - o.filled_quantity AS remaining,
+		        a.current_balance, COALESCE(p.quantity, 0)
+		 FROM order_book o
+		 JOIN accounts a ON a.user_id = o.user_id
+		 LEFT JOIN positions p ON p.user_id = o.user_id AND p.asset_id = o.asset_id
+		 WHERE o.asset_id = $1 AND o.type = 'limit' AND o.status IN ('pending', 'partially_filled')
+		 ORDER BY o.created_at ASC`, assetID,
 	)
 	if err != nil {
 		return nil, err
@@ -395,10 +416,12 @@ func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetI
 	for rows.Next() {
 		var ro orderexecution.RestingOrder
 		var side, orderType string
-		if err := rows.Scan(&ro.ID, &ro.UserID, &side, &orderType, &ro.Price, &ro.RemainingQuantity); err != nil {
+		var owner orderexecution.OwnerHoldings
+		if err := rows.Scan(&ro.ID, &ro.UserID, &side, &orderType, &ro.Price, &ro.RemainingQuantity, &owner.Balance, &owner.Position); err != nil {
 			return nil, err
 		}
 		ro.Side, ro.Type = orderbook.Side(side), orderbook.Type(orderType)
+		ro.Owner = &owner
 		resting = append(resting, ro)
 	}
 	return resting, rows.Err()
@@ -434,9 +457,13 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := cancelInvalidResting(ctx, tx, outcome.InvalidRestingOrderIDs); err != nil {
+		return "", err
+	}
+
 	for _, fill := range outcome.Fills {
 		if err := applyFillSide(ctx, tx, req.AssetID, req.UserID, req.Side, fill.Quantity, fill.Price); err != nil {
-			return "", err
+			return "", mapFundsViolation(err)
 		}
 		if !fill.IsSynthetic() {
 			counterpartySide := orderbook.SideSell
@@ -444,7 +471,7 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 				counterpartySide = orderbook.SideBuy
 			}
 			if err := applyFillSide(ctx, tx, req.AssetID, fill.CounterpartyUserID, counterpartySide, fill.Quantity, fill.Price); err != nil {
-				return "", err
+				return "", mapFundsViolation(err)
 			}
 			if err := fillRestingOrder(ctx, tx, fill.CounterpartyOrderID, fill.Quantity); err != nil {
 				return "", err
@@ -461,6 +488,37 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 		return "", err
 	}
 	return orderID, nil
+}
+
+// mapFundsViolation traduz a violação dos CHECKs de saldo e posição não negativos
+// (migration 000025, rede de proteção contra a janela de concorrência entre a
+// leitura do contexto e a gravação) na rejeição de negócio equivalente.
+func mapFundsViolation(err error) error {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) || pqErr.Code != "23514" {
+		return err
+	}
+	switch pqErr.Constraint {
+	case "accounts_balance_non_negative_chk":
+		return orderexecution.ErrInsufficientBalance
+	case "positions_quantity_non_negative_chk":
+		return orderexecution.ErrInsufficientPosition
+	}
+	return err
+}
+
+// cancelInvalidResting cancela, na transação do submissor, as ordens em repouso
+// que o match pulou porque o dono não podia honrá-las (achado 015).
+func cancelInvalidResting(ctx context.Context, tx *sql.Tx, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'insufficient_funds'
+		 WHERE id = ANY($1) AND status IN ('pending', 'partially_filled')`,
+		pq.Array(orderIDs),
+	)
+	return err
 }
 
 // applyFillSide grava o evento e projeta saldo/posição de um dos lados de

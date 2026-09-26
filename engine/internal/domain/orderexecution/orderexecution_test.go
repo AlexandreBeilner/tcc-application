@@ -498,3 +498,96 @@ func TestExecute_OrdemAMercadoDeVendaSandboxCreditaPrecoDeReferencia(t *testing.
 		t.Errorf("Fills = %+v, want um fill sintético a 25", out.Fills)
 	}
 }
+
+// Achado 015: ordem em repouso não reserva saldo nem posição, então o match
+// revalida o dono e pula (e cancela) a ordem que ele não pode honrar.
+
+func ownerOf(balance float64, position int) *OwnerHoldings {
+	return &OwnerHoldings{Balance: balance, Position: position}
+}
+
+// Venda "fantasma" (dono sem posição) dentro do spread não bloqueia a compra a
+// mercado de outro usuário: o match a pula e casa com a próxima oferta.
+func TestExecute_VendaFantasmaEmRepousoEPuladaECancelada(t *testing.T) {
+	ctx := Context{
+		IncomingUserBalance: 10_000,
+		Resting: []RestingOrder{
+			{ID: "ghost", UserID: "atacante", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 134, RemainingQuantity: 1, Owner: ownerOf(10_000, 0)},
+			{ID: "mm-ask", UserID: "mm", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 136, RemainingQuantity: 100, Owner: ownerOf(0, 100)},
+		},
+	}
+
+	out, err := Execute(orderbook.Order{ID: "in", UserID: "u", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 5}, ctx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if out.FilledQuantity != 5 || len(out.Fills) != 1 || out.Fills[0].CounterpartyOrderID != "mm-ask" || out.Fills[0].Price != 136 {
+		t.Errorf("Outcome = %+v, want 5 unidades contra mm-ask a 136", out)
+	}
+	if len(out.InvalidRestingOrderIDs) != 1 || out.InvalidRestingOrderIDs[0] != "ghost" {
+		t.Errorf("InvalidRestingOrderIDs = %v, want [ghost]", out.InvalidRestingOrderIDs)
+	}
+}
+
+// Compra em repouso cujo dono gastou o caixa não preenche (nada de saldo negativo).
+func TestExecute_CompraEmRepousoSemSaldoEPulada(t *testing.T) {
+	ctx := Context{
+		IncomingUserPosition: 100,
+		Resting: []RestingOrder{
+			{ID: "broke", UserID: "quebrado", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 157.81, RemainingQuantity: 57, Owner: ownerOf(2_592.8, 0)},
+			{ID: "ok", UserID: "rico", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 150, RemainingQuantity: 100, Owner: ownerOf(1_000_000, 0)},
+		},
+	}
+
+	out, err := Execute(orderbook.Order{ID: "in", UserID: "u", Side: orderbook.SideSell, Type: orderbook.TypeMarket, Quantity: 57}, ctx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(out.Fills) != 1 || out.Fills[0].CounterpartyOrderID != "ok" || out.Fills[0].Price != 150 {
+		t.Errorf("Fills = %+v, want um fill contra ok a 150", out.Fills)
+	}
+	if len(out.InvalidRestingOrderIDs) != 1 || out.InvalidRestingOrderIDs[0] != "broke" {
+		t.Errorf("InvalidRestingOrderIDs = %v, want [broke]", out.InvalidRestingOrderIDs)
+	}
+}
+
+// Dono com duas ordens em repouso: o saldo cobre a primeira, não a segunda.
+func TestExecute_SaldoDoDonoEConsumidoEntreSuasOrdensEmRepouso(t *testing.T) {
+	ctx := Context{
+		IncomingUserPosition: 100,
+		Resting: []RestingOrder{
+			{ID: "b1", UserID: "dono", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 100, RemainingQuantity: 60, Owner: ownerOf(7_000, 0)},
+			{ID: "b2", UserID: "dono", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 99, RemainingQuantity: 60, Owner: ownerOf(7_000, 0)},
+		},
+	}
+
+	out, err := Execute(orderbook.Order{ID: "in", UserID: "u", Side: orderbook.SideSell, Type: orderbook.TypeMarket, Quantity: 100}, ctx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if out.FilledQuantity != 60 || len(out.Fills) != 1 || out.Fills[0].CounterpartyOrderID != "b1" {
+		t.Errorf("Outcome = %+v, want só b1 (60 a 100 = 6.000 de 7.000)", out)
+	}
+	if len(out.InvalidRestingOrderIDs) != 1 || out.InvalidRestingOrderIDs[0] != "b2" {
+		t.Errorf("InvalidRestingOrderIDs = %v, want [b2]", out.InvalidRestingOrderIDs)
+	}
+}
+
+// Dono que pode honrar (ou sem dado do dono) não é tocado.
+func TestExecute_DonoQuePodeHonrarNaoGeraCancelamento(t *testing.T) {
+	for name, owner := range map[string]*OwnerHoldings{"com fundos": ownerOf(0, 10), "dono desconhecido": nil} {
+		t.Run(name, func(t *testing.T) {
+			ctx := Context{
+				IncomingUserBalance: 1_000,
+				Resting:             []RestingOrder{{ID: "ask", UserID: "v", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 10, RemainingQuantity: 10, Owner: owner}},
+			}
+			out, err := Execute(orderbook.Order{ID: "in", UserID: "u", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}, ctx)
+			if err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if out.FilledQuantity != 10 || len(out.InvalidRestingOrderIDs) != 0 {
+				t.Errorf("Outcome = %+v, want 10 preenchidas e nenhuma ordem inválida", out)
+			}
+		})
+	}
+}

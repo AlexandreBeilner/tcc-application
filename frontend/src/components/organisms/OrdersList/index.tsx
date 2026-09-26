@@ -32,6 +32,7 @@ const CANCEL_REASON_LABEL: Record<OrderCancelReason, string> = {
     expired: 'Expirada no fechamento do dia',
     no_liquidity: 'Sem liquidez disponível',
     requoted: 'Recotada pelo motor',
+    insufficient_funds: 'Cancelada: saldo ou posição insuficiente no momento da execução',
 }
 
 // Agrupamento decidido na sessão O.3 (2026-09-21): Pendentes = pending +

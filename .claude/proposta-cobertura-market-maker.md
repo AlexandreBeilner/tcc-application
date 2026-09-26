@@ -252,6 +252,74 @@ for pior que 2 ms, ela vira o gargalo antes das contas acima, e a saída é a de
 (seção 7): ou levanta o deadline só dessa rota (`http.ResponseController.SetWriteDeadline`), ou torna o
 disparo assíncrono (`202` com consulta de estado). O tick automático não precisa de nada.
 
+### 6.2 Resultados medidos (tarefa P.7, 2026-09-23)
+
+Script `engine/scripts/benchmark-cobertura.sh [N_ATIVOS_SINTETICOS] [DIAS]` (banco isolado `market_bench`,
+`log_statement=all` só durante a execução, seed `--synthetic-assets N` com `SEED_ALLOW_SYNTHETIC=true`), 60 dias
+simulados, código do PR 2 mais P.6. O total inclui os 5 ativos reais do seed.
+
+| Métrica | 30 sintéticos (35 ativos, 4 Market Makers) | 50 sintéticos (55 ativos, 6 Market Makers) | Orçamento (6.1) |
+|---|---|---|---|
+| Comandos SQL por tick, média | 1.180 | 1.319 | |
+| Comandos SQL por tick, máximo | 2.493 | **3.350** | ≤ 3.500 com 50 ativos |
+| Tempo do tick, média / máximo (Postgres local, ~0,2 ms por comando) | 0,26 s / 0,65 s | 0,27 s / 0,52 s | ≤ 10 s com 2 ms por comando |
+| Tempo equivalente a 2 ms por comando, pior tick | 5,0 s | 6,7 s | ≤ 10 s |
+| Custo estimado por ativo-rodada do Market Maker, média | 2,6 | 2,4 | ≤ 12 |
+| Custo estimado por ativo-rodada do Market Maker, pior caso | 17 | 18 | ≤ 30 |
+| Ativos com compra e venda em repouso ao fim do dia 60 | 35 de 35 | 55 de 55 | todos |
+| Ativos sem Market Maker ativo cobrindo, por tick | 0 | 0 | 0 |
+| Ordens a mercado do cenário do achado 013 preenchidas (compra e venda de 50 em 10 ativos) | 20 de 20 | 20 de 20 | todas |
+| Menor posição de um Market Maker ao fim (esgotamento) | 547.896 | 524.876 | > 0 |
+| Volume diário médio por ativo, % do float (mín. / máx.) | 0,079 (0,018 / 0,168) | 0,056 (0,004 / 0,188) | 0,3 a 0,7 (`calibracao-liquidez-bots.md`) |
+
+Como ler:
+
+- O custo por ativo-rodada é uma **estimativa**: `(comandos do tick - 800) / (ativos x (rodadas + 1 passada final))`, com
+  800 comandos como linha de base dos demais bots (medida na seção 6.1, 540 a 900). Não é medido por bot, porque o
+  Postgres não separa comando por conta.
+- Os limites de tempo da 6.1 valem para uma latência de 2 ms por comando, suposição a revisar com ambiente real; o
+  banco local do benchmark tem ~0,2 ms. A linha "equivalente a 2 ms" é `máximo de comandos x 2 ms`.
+- Um Market Maker por 10 ativos (teto): 35 ativos viraram 10 + 10 + 10 + 5 e 55 viraram 10 x 5 + 5, cada ativo exatamente
+  uma vez, sem nenhum Market Maker criado a mais nem esgotado.
+- **Volume abaixo da faixa de calibração** (0,06% a 0,08% contra 0,3% a 0,7%): com o pool de 19 bots direcionais fixo,
+  cada bot negocia 1 ativo por rodada, então o volume por ativo cai quando o catálogo cresce. É um efeito do tamanho do
+  pool de bots, não da cobertura; fica para a P.8 (reconferir a calibração e decidir como o pool escala).
+
+### 6.3 Validação ponta a ponta (tarefa P.8, 2026-09-23)
+
+| Cenário | Resultado |
+|---|---|
+| Compra e venda a mercado (achado 013) | seed real 6 de 6; 15, 35 e 55 ativos 20 de 20 cada |
+| Cinco eventos severos no mesmo setor (Mineração) | `VALR3` 104,06 para 96,02 (-7,7%) em 4 dias, recupera ao expirar; `BNDD3` intocado; ativo sintético do setor -3% (menos negociado) |
+| Market Maker de 10 ativos desativado no meio da execução | tick sem falha, `uncovered_assets_count` = 10, 6 de 15 ativos cotados no dia da desativação, 15 de 15 depois de reativar |
+| Contas `is_bot` no ranking / perfil público (RNF09) | fora por construção: ranking e diretório leem só `users` |
+| Volume diário médio, % do float | seed real 0,45 (0,29 a 0,75); 15 ativos 0,20; 35 ativos 0,08; 55 ativos 0,06 |
+
+O volume fora da faixa com catálogo maior virou o achado 014 (pool de bots fixo); `MinOrderPctOfFloat` ficou em 0,4%.
+
+### 6.4 Liquidez que escala com o catálogo (Fase Q, 2026-09-26)
+
+Medição em 30, 50 e 100 ativos (5 reais mais sintéticos, 60 dias simulados, seed 42), antes e depois da Fase Q:
+
+| | 100 ativos, antes (Q.1 a Q.3) | 30 ativos | 50 ativos | 100 ativos, depois (Q.7 a Q.10) |
+|---|---|---|---|---|
+| Comandos por tick, média | 5.335 (28 de 60 ticks acima de 5.000) | 2.163 | 3.600 | 4.644 (3 de 60 acima, p95 5.051) |
+| Volume dos líderes (% do float/dia) | 0,32 | 0,54 | 0,53 | 0,34 |
+| Volume mediano | 0,14 | 0,33 | 0,30 | 0,24 |
+| Ativos abaixo de 0,15% | 52 de 100 | 1 de 30 | 0 de 50 | 0 de 100 |
+| Dias sem negociação | 36% | 0% | 0,4% | 0,6% |
+| Reação da cauda a 5 eventos severos | -1,0% | -8,2% | -5,8% | mediana -4,9% |
+
+Diagnóstico (Q.7): os bots direcionais respondem por cerca de 72% dos comandos do tick, o Market Maker por 25% e o custo fixo
+por 3%, em qualquer tamanho de catálogo. A causa do estouro era cada bot sortear um ativo por rodada: custo e volume dependiam do
+mesmo botão (o pool) e cada ativo novo diluía os outros. A correção (Q.8 a Q.10) inverte o modelo: o tick fixa um orçamento de
+turnos (até 200, com piso rígido de 1 turno a mercado por ativo por dia), o volume vem do tamanho da ordem dimensionado ao
+giro-alvo do ativo (0,2% a 0,6% do float, sublinear no valor de mercado) e um evento macro ativo atrai turnos e Fundamentalistas
+ao ativo afetado. Achado colateral (Q.9): a recotação do Market Maker podia ser consumida de cara por uma ordem de bot do outro
+lado do preço, então a passada final agora repete até a cotação estabilizar.
+
+Volatilidade diária com 100 ativos: mediana 1,10%, p95 1,51%. Nenhum Market Maker esgotou caixa nem posição.
+
 ## 7. Escopo: tarefas (candidatas à Fase P de `backlog-motor-mercado-realista.md`)
 
 Cada tarefa é escopo de uma sessão, com teste no mesmo commit, `golangci-lint` e `go test ./...`

@@ -32,6 +32,7 @@ func TestHandleAdminTick(t *testing.T) {
 	fake := &fakeTicker{result: tick.Result{
 		State:                tick.State{Day: 1, SelicRate: 10.5},
 		UncoveredAssetsCount: 2,
+		IntradayRounds:       []tick.IntradayRound{{SequenceIndex: 0}, {SequenceIndex: 1}, {SequenceIndex: 2}},
 		Quotes:               []tick.Quote{{AssetID: "a1", Price: 100}, {AssetID: "a2", Price: 200}},
 		IsCopomDay:           false,
 		IsReportDay:          false,
@@ -51,6 +52,9 @@ func TestHandleAdminTick(t *testing.T) {
 	}
 	if body.QuotesCount != 2 {
 		t.Errorf("QuotesCount = %d, want 2", body.QuotesCount)
+	}
+	if body.IntradayRoundsCount != 3 {
+		t.Errorf("IntradayRoundsCount = %d, want 3", body.IntradayRoundsCount)
 	}
 	if body.UncoveredAssetsCount != 2 {
 		t.Errorf("UncoveredAssetsCount = %d, want 2", body.UncoveredAssetsCount)

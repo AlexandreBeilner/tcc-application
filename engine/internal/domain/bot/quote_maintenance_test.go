@@ -54,7 +54,9 @@ func TestMarketMakerQuotePrices(t *testing.T) {
 	if _, _, err := MarketMakerQuotePrices(mm, 0); !errors.Is(err, ErrInvalidReferencePrice) {
 		t.Errorf("preço 0: err = %v", err)
 	}
-	if _, _, err := MarketMakerQuotePrices(mustMarketMakerPersonality(t, 2, 0.5), 100); !errors.Is(err, ErrInvalidSpreadForQuote) {
+	wide := mustMarketMakerPersonality(t, 0.02, 0.5)
+	wide.RiskProfile.SpreadWidthPct = 2
+	if _, _, err := MarketMakerQuotePrices(wide, 100); !errors.Is(err, ErrInvalidSpreadForQuote) {
 		t.Errorf("spread 2: err = %v", err)
 	}
 }
@@ -63,7 +65,7 @@ func TestMarketMakerQuotePrices(t *testing.T) {
 func TestMarketMakerQuotePrices_CoincideComDecide(t *testing.T) {
 	mm := mustMarketMakerPersonality(t, 0.04, 0.5)
 	bid, ask, _ := MarketMakerQuotePrices(mm, 50)
-	decisions, err := DecideMarketMakerOrders(mm, 50, 100_000, 1_000, nil)
+	decisions, err := DecideMarketMakerOrders(mm, 50, 100_000, 1_000, nil, 0)
 	if err != nil || len(decisions) != 2 {
 		t.Fatalf("decisions = %v, %v", decisions, err)
 	}
@@ -96,40 +98,26 @@ func TestEffectiveQuoteTolerance_LadoMantidoNaoCruzaOOutro(t *testing.T) {
 	}
 }
 
-func TestMinQuoteQuantity(t *testing.T) {
+// Uma cotação recém-criada com o piso de quantidade nunca é considerada vencida:
+// a manutenção não a refaz na rodada seguinte (regressão do erro achado na
+// medição da P.4, em que o mínimo era maior que o tamanho da própria cotação).
+func TestNeedsRequote_CotacaoRecemCriadaComPisoNaoVenceImediatamente(t *testing.T) {
 	mm := mustMarketMakerPersonality(t, 0.02, 0.5)
-	tests := []struct {
-		floor int64
-		want  int
-	}{
-		{400_000, 200_000}, // metade do piso do teto: o menor tamanho que a regra de cotação gera
-		{1, 1},             // nunca abaixo de 1
-		{3, 1},
-	}
-	for _, tt := range tests {
-		if got := MinQuoteQuantity(mm, tt.floor); got != tt.want {
-			t.Errorf("MinQuoteQuantity(piso %d) = %d, want %d", tt.floor, got, tt.want)
-		}
-	}
-}
-
-// Uma cotação recém-criada com o teto de ordem no piso nunca é considerada
-// vencida pelo mínimo: a manutenção não a refaz na rodada seguinte.
-func TestMinQuoteQuantity_CotacaoRecemCriadaNaoVenceImediatamente(t *testing.T) {
-	mm := mustMarketMakerPersonality(t, 0.02, 0.5)
-	const ceilingFloor = 400_000
-	ceiling := int64(ceilingFloor)
-	decisions, err := DecideMarketMakerOrders(mm, 100, 1e12, 10_000_000, &ceiling)
+	const floor = 400_000
+	ceiling := int64(floor) // teto de ordem no piso: o pior caso
+	decisions, err := DecideMarketMakerOrders(mm, 100, 1e12, 10_000_000, &ceiling, floor)
 	if err != nil || len(decisions) != 2 {
 		t.Fatalf("decisions = %v, %v", decisions, err)
 	}
 	var resting []RestingQuote
 	for _, d := range decisions {
+		if d.Quantity < floor {
+			t.Errorf("cotação de %d abaixo do piso %d", d.Quantity, floor)
+		}
 		resting = append(resting, RestingQuote{Side: d.Side, Price: d.Price, RemainingQuantity: d.Quantity})
 	}
 	bid, ask, _ := MarketMakerQuotePrices(mm, 100)
-	buy, sell := NeedsRequote(resting, bid, ask, EffectiveQuoteTolerance(0.02), MinQuoteQuantity(mm, ceilingFloor))
-	if buy || sell {
+	if buy, sell := NeedsRequote(resting, bid, ask, EffectiveQuoteTolerance(0.02), floor); buy || sell {
 		t.Errorf("cotação recém-criada julgada vencida: requoteBuy=%v requoteSell=%v", buy, sell)
 	}
 }
