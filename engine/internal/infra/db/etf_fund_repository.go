@@ -308,3 +308,25 @@ func (r *ETFFundRepository) ListShareHolders(ctx context.Context, etfAssetIDs []
 	}
 	return holders, rows.Err()
 }
+
+// ConstituentDividendsPaid soma o provento por ação já pago (paid = true) com dia de
+// pagamento day, por ativo, numa consulta em lote (índice teórico de retorno total, R.11b).
+func (r *ETFFundRepository) ConstituentDividendsPaid(ctx context.Context, day int, assetIDs []string) (map[string]float64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT asset_id, SUM(value_per_share) FROM dividend_events
+		 WHERE paid = true AND payment_day = $1 AND asset_id = ANY($2) GROUP BY asset_id`, day, pq.Array(assetIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	paid := map[string]float64{}
+	for rows.Next() {
+		var assetID string
+		var v float64
+		if err := rows.Scan(&assetID, &v); err != nil {
+			return nil, err
+		}
+		paid[assetID] = v
+	}
+	return paid, rows.Err()
+}

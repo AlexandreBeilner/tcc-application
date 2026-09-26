@@ -180,10 +180,13 @@ func AffordableBuyQuantity(wanted int64, price, cash float64) int64 {
 }
 
 // TheoreticalIndex avança o índice teórico do fundo um dia: pesos-alvo constantes,
-// sem atrito nem caixa (retorno diário = média dos retornos dos constituintes
-// ponderada pelos pesos-alvo). Constituinte sem preço anterior ou atual válido
-// entra com retorno zero. previous não positivo (primeiro dia) devolve base.
-func TheoreticalIndex(previous, base float64, targets []TargetWeight, previousPrices, prices map[string]float64) float64 {
+// sem atrito nem caixa. É de retorno total (R.11b): o retorno diário de cada
+// constituinte é (preço + provento pago hoje) / preço anterior - 1, e o índice é a
+// média deles ponderada pelos pesos-alvo. paid é o provento por ação que cada
+// constituinte pagou (o caixa que o fundo recebeu), por ativo; nil vale zero.
+// Constituinte sem preço anterior ou atual válido entra com retorno zero. previous
+// não positivo (primeiro dia) devolve base.
+func TheoreticalIndex(previous, base float64, targets []TargetWeight, previousPrices, prices, paid map[string]float64) float64 {
 	if previous <= 0 {
 		return base
 	}
@@ -195,10 +198,21 @@ func TheoreticalIndex(previous, base float64, targets []TargetWeight, previousPr
 	for _, t := range normalized {
 		p0, p1 := previousPrices[t.AssetID], prices[t.AssetID]
 		if p0 > 0 && p1 > 0 {
-			ret += t.WeightPct / 100 * (p1/p0 - 1)
+			ret += t.WeightPct / 100 * ((p1+paid[t.AssetID])/p0 - 1)
 		}
 	}
 	return previous * (1 + ret)
+}
+
+// IndexAfterPayout desconta do índice a distribuição do próprio fundo aos cotistas
+// (R.11b): na data-ex o NAV cai pelo provento por cota, e o índice cai na mesma
+// proporção, para o tracking error medir só o que o fundo perdeu contra a cesta e
+// não o dinheiro que ele devolveu aos cotistas. nav é o NAV já sem o provento.
+func IndexAfterPayout(index, nav, perShare float64) float64 {
+	if perShare <= 0 || nav+perShare <= 0 {
+		return index
+	}
+	return index * nav / (nav + perShare)
 }
 
 // TrackingErrorPct é o desvio acumulado do NAV do fundo contra o índice teórico,

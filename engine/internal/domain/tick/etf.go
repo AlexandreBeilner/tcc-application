@@ -24,6 +24,10 @@ type ETFFunds interface {
 	MarkRebalanced(ctx context.Context, etfAssetID string, day int) error
 	// LatestIndexValues devolve o último índice teórico gravado de cada ETF (R.7).
 	LatestIndexValues(ctx context.Context) (map[string]float64, error)
+	// ConstituentDividendsPaid (R.11b) devolve, por ativo, o provento por ação pago
+	// (caixa já no fundo) no dia de pagamento day: o retorno de dividendo do índice
+	// teórico de retorno total.
+	ConstituentDividendsPaid(ctx context.Context, day int, assetIDs []string) (map[string]float64, error)
 	// ListShareHolders devolve, por ETF, as cotas que cada conta detém (R.8): o
 	// snapshot de elegibilidade de um provento de ETF na data-ex.
 	ListShareHolders(ctx context.Context, etfAssetIDs []string) (map[string][]PositionHolder, error)
@@ -168,7 +172,7 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 // preço fica de fora do dia. No dia de relatório (reportDay), cada fundo com caixa
 // livre também gera o provento aos cotistas (R.8, etfDividends), pago em
 // paymentDay; o passivo dele já entra no NAV do dia, então o NAV cai na data-ex.
-func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices, previousPrices map[string]float64, reportDay bool, paymentDay int) ([]ETFNAVEntry, []DividendRecord, error) {
+func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices, previousPrices map[string]float64, reportDay bool, day, paymentDay int) ([]ETFNAVEntry, []DividendRecord, error) {
 	if s.etf.Funds == nil {
 		return nil, nil, nil
 	}
@@ -179,6 +183,26 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 	indexes, err := s.etf.Funds.LatestIndexValues(ctx)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Dividendos que os constituintes pagaram no dia anterior: é o caixa que o fundo já
+	// tem no NAV de hoje (o pagamento de hoje só entra no SaveTick), então é o que o
+	// índice de retorno total precisa somar (R.11b).
+	seen := map[string]bool{}
+	var constituents []string
+	for _, f := range funds {
+		for _, t := range f.Targets {
+			if !seen[t.AssetID] {
+				seen[t.AssetID] = true
+				constituents = append(constituents, t.AssetID)
+			}
+		}
+	}
+	var paidDividends map[string]float64
+	if len(constituents) > 0 {
+		if paidDividends, err = s.etf.Funds.ConstituentDividendsPaid(ctx, day-1, constituents); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Taxa de administração (R.9): no dia de relatório o fundo quita do caixa livre o
@@ -234,7 +258,10 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 			continue
 		}
 		closePrice := etfPrices[f.ETFAssetID]
-		index := etf.TheoreticalIndex(indexes[f.ETFAssetID], nav, f.Targets, previousPrices, constituentPrices)
+		index := etf.TheoreticalIndex(indexes[f.ETFAssetID], nav, f.Targets, previousPrices, constituentPrices, paidDividends)
+		if f.Shares > 0 && indexes[f.ETFAssetID] > 0 { // no primeiro dia o índice nasce igual ao NAV, já sem a distribuição
+			index = etf.IndexAfterPayout(index, nav, newLiability[f.ETFAssetID]/float64(f.Shares))
+		}
 		entries = append(entries, ETFNAVEntry{
 			ETFAssetID: f.ETFAssetID, NAV: nav, ClosePrice: closePrice, PremiumPct: etf.PremiumPct(closePrice, nav),
 			IndexValue: index, TrackingErrorPct: etf.TrackingErrorPct(nav, index),

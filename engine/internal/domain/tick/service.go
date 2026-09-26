@@ -155,7 +155,7 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 			previousPrices[a.AssetID] = *a.LastPrice
 		}
 	}
-	etfNAVs, etfDividends, err := s.closingETFNAVs(ctx, closingPrices, etfPrices, previousPrices, result.IsReportDay, result.State.Day+dividend.DefaultPaymentLagDays)
+	etfNAVs, etfDividends, err := s.closingETFNAVs(ctx, closingPrices, etfPrices, previousPrices, result.IsReportDay, result.State.Day, result.State.Day+dividend.DefaultPaymentLagDays)
 	if err != nil {
 		return Result{}, err
 	}

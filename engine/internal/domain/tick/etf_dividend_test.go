@@ -24,7 +24,7 @@ func TestClosingETFNAVs_DiaDeRelatorioDistribuiOCaixaLivre(t *testing.T) {
 	svc, _ := dividendFixture(5000, 0)
 
 	navs, dividends, err := svc.closingETFNAVs(context.Background(),
-		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, true, 20)
+		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, true, 15, 20)
 	if err != nil || len(dividends) != 1 || len(navs) != 1 {
 		t.Fatalf("navs = %+v, dividendos = %+v, err = %v", navs, dividends, err)
 	}
@@ -38,11 +38,34 @@ func TestClosingETFNAVs_DiaDeRelatorioDistribuiOCaixaLivre(t *testing.T) {
 	}
 }
 
+func TestClosingETFNAVs_DistribuicaoDescontadaDoIndice(t *testing.T) {
+	svc, funds := dividendFixture(5000, 0)
+	funds.funds[0].Targets = []etf.TargetWeight{{AssetID: "a", WeightPct: 100}}
+	prices := map[string]float64{"a": 10}
+
+	// Sem histórico de índice, ele nasce igual ao NAV (já sem a distribuição): tracking 0.
+	navs, _, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 15}, prices, true, 15, 20)
+	if err != nil || len(navs) != 1 || navs[0].IndexValue != navs[0].NAV || navs[0].TrackingErrorPct != 0 {
+		t.Fatalf("primeiro dia: navs = %+v, err = %v, want índice igual ao NAV", navs, err)
+	}
+
+	// Com índice anterior 15 (NAV sem provento), a distribuição de 5 por cota leva o
+	// NAV a 10 e o índice a 10: o fundo não "perdeu" o que devolveu aos cotistas.
+	funds.indexes = map[string]float64{"etf1": 15}
+	navs, _, err = svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 15}, prices, true, 15, 20)
+	if err != nil || len(navs) != 1 {
+		t.Fatalf("navs = %+v, err = %v", navs, err)
+	}
+	if navs[0].NAV != 10 || navs[0].IndexValue < 9.999 || navs[0].IndexValue > 10.001 || navs[0].TrackingErrorPct > 0.01 || navs[0].TrackingErrorPct < -0.01 {
+		t.Errorf("NAV = %v, índice = %v, tracking = %v, want NAV 10, índice 10 e tracking 0", navs[0].NAV, navs[0].IndexValue, navs[0].TrackingErrorPct)
+	}
+}
+
 func TestClosingETFNAVs_ForaDoDiaDeRelatorioNaoGeraProvento(t *testing.T) {
 	svc, _ := dividendFixture(5000, 0)
 
 	navs, dividends, err := svc.closingETFNAVs(context.Background(),
-		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, false, 20)
+		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, false, 15, 20)
 	if err != nil || len(dividends) != 0 {
 		t.Fatalf("dividendos = %+v, err = %v, want nenhum", dividends, err)
 	}
@@ -56,7 +79,7 @@ func TestClosingETFNAVs_SemCaixaLivreNaoGeraProvento(t *testing.T) {
 	svc, _ := dividendFixture(5000, 5000)
 
 	_, dividends, err := svc.closingETFNAVs(context.Background(),
-		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, true, 20)
+		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, true, 15, 20)
 	if err != nil || len(dividends) != 0 {
 		t.Errorf("dividendos = %+v, err = %v, want nenhum", dividends, err)
 	}
@@ -67,7 +90,7 @@ func TestClosingETFNAVs_ProventoNuncaExcedeOCaixa(t *testing.T) {
 	svc, _ := dividendFixture(1000.5, 0)
 
 	_, dividends, _ := svc.closingETFNAVs(context.Background(),
-		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, true, 20)
+		map[string]float64{"a": 10}, map[string]float64{"etf1": 15}, map[string]float64{"a": 10}, true, 15, 20)
 	if len(dividends) != 1 || dividends[0].ValuePerShare != 1 || dividends[0].FundLiability != 1000 {
 		t.Errorf("dividendos = %+v, want 1,00 por cota e total 1.000", dividends)
 	}

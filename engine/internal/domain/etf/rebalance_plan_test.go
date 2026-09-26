@@ -150,15 +150,26 @@ func TestAffordableBuyQuantity(t *testing.T) {
 func TestTheoreticalIndexETrackingError(t *testing.T) {
 	prev := map[string]float64{"a": 10, "b": 10}
 	now := map[string]float64{"a": 11, "b": 9} // +10% e -10%, pesos iguais: retorno 0
-	if got := TheoreticalIndex(100, 100, halfHalf, prev, now); math.Abs(got-100) > 1e-9 {
+	if got := TheoreticalIndex(100, 100, halfHalf, prev, now, nil); math.Abs(got-100) > 1e-9 {
 		t.Errorf("índice = %v, want 100", got)
 	}
 	up := map[string]float64{"a": 12, "b": 10} // +20% e 0%: retorno 10%
-	if got := TheoreticalIndex(100, 50, halfHalf, prev, up); math.Abs(got-110) > 1e-9 {
+	if got := TheoreticalIndex(100, 50, halfHalf, prev, up, nil); math.Abs(got-110) > 1e-9 {
 		t.Errorf("índice = %v, want 110", got)
 	}
-	if got := TheoreticalIndex(0, 50, halfHalf, prev, up); got != 50 {
+	if got := TheoreticalIndex(0, 50, halfHalf, prev, up, nil); got != 50 {
 		t.Errorf("primeiro dia = %v, want a base 50", got)
+	}
+	// retorno total: preços parados e a com provento de 1 (10% de 10), b sem: retorno 5%
+	if got := TheoreticalIndex(100, 50, halfHalf, prev, prev, map[string]float64{"a": 1}); math.Abs(got-105) > 1e-9 {
+		t.Errorf("índice com provento = %v, want 105", got)
+	}
+	// distribuição do fundo de 1 sobre NAV 9 (10 antes): índice cai 10%
+	if got := IndexAfterPayout(100, 9, 1); math.Abs(got-90) > 1e-9 {
+		t.Errorf("índice depois da distribuição = %v, want 90", got)
+	}
+	if got := IndexAfterPayout(100, 9, 0); got != 100 {
+		t.Errorf("sem distribuição = %v, want 100", got)
 	}
 	if got := TrackingErrorPct(99, 100); math.Abs(got+1) > 1e-9 {
 		t.Errorf("tracking = %v, want -1", got)

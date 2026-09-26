@@ -17,9 +17,11 @@ type fakeETFFunds struct {
 	funds      []etf.FundSnapshot
 	candidates []etf.MarketMakingCandidate
 	indexes    map[string]float64
-	rebalanced map[string]int
-	holders    map[string][]PositionHolder
-	err        error
+	// paidDividends (R.11b): provento por ação que os constituintes pagaram no dia anterior.
+	paidDividends map[string]float64
+	rebalanced    map[string]int
+	holders       map[string][]PositionHolder
+	err           error
 }
 
 func (f *fakeETFFunds) ListShareHolders(context.Context, []string) (map[string][]PositionHolder, error) {
@@ -36,6 +38,10 @@ func (f *fakeETFFunds) MarkRebalanced(_ context.Context, etfAssetID string, day 
 
 func (f *fakeETFFunds) LatestIndexValues(context.Context) (map[string]float64, error) {
 	return f.indexes, f.err
+}
+
+func (f *fakeETFFunds) ConstituentDividendsPaid(context.Context, int, []string) (map[string]float64, error) {
+	return f.paidDividends, f.err
 }
 
 func (f *fakeETFFunds) ListMarketMakingCandidates(context.Context) ([]etf.MarketMakingCandidate, error) {
@@ -222,7 +228,7 @@ func TestClosingETFNAVs(t *testing.T) {
 	got, _, err := svc.closingETFNAVs(context.Background(),
 		map[string]float64{"a": 10, "b": 15},
 		map[string]float64{"etf1": 13.2, "etf2": 1},
-		map[string]float64{"a": 10, "b": 15}, false, 0)
+		map[string]float64{"a": 10, "b": 15}, false, 15, 0)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -239,9 +245,36 @@ func TestClosingETFNAVs(t *testing.T) {
 	}
 }
 
+func TestClosingETFNAVs_IndiceDeRetornoTotal(t *testing.T) {
+	// Os constituintes pagaram provento no dia anterior, então o índice sobe o
+	// retorno de dividendo; sem ele o tracking error trataria o caixa do fundo como
+	// ganho sobre o índice (R.11b). Preços parados, pesos 60/40 pelo valor.
+	funds := &fakeETFFunds{
+		funds: []etf.FundSnapshot{{
+			ETFAssetID: "etf1", Shares: 1000, Cash: 1000,
+			Holdings: []etf.FundHolding{{AssetID: "a", Quantity: 600}, {AssetID: "b", Quantity: 400}},
+			Targets:  []etf.TargetWeight{{AssetID: "a", WeightPct: 50}, {AssetID: "b", WeightPct: 50}},
+		}},
+		indexes:       map[string]float64{"etf1": 100},
+		paidDividends: map[string]float64{"a": 1},
+	}
+	svc := newTestService(&fakeRepository{})
+	svc.WithETF(ETFDeps{Funds: funds})
+
+	prices := map[string]float64{"a": 10, "b": 10}
+	got, _, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 10}, prices, false, 15, 0)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("entradas = %+v, err = %v", got, err)
+	}
+	// a rende 10% de dividendo, b 0%, pesos iguais: índice 100 -> 105
+	if math.Abs(got[0].IndexValue-105) > 1e-9 {
+		t.Errorf("índice = %v, want 105", got[0].IndexValue)
+	}
+}
+
 func TestClosingETFNAVs_SemWithETF(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
-	got, _, err := svc.closingETFNAVs(context.Background(), nil, nil, nil, false, 0)
+	got, _, err := svc.closingETFNAVs(context.Background(), nil, nil, nil, false, 15, 0)
 	if err != nil || got != nil {
 		t.Errorf("got = %v, err = %v, want nil, nil", got, err)
 	}

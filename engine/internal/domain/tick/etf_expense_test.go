@@ -24,7 +24,7 @@ func TestClosingETFNAVs_TaxaDiariaReduzONAV(t *testing.T) {
 	svc := expenseFixture(0, 0)
 	prices := map[string]float64{"a": 100}
 
-	navs, _, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 100}, prices, false, 0)
+	navs, _, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 100}, prices, false, 15, 0)
 	if err != nil || len(navs) != 1 {
 		t.Fatalf("navs = %+v, err = %v", navs, err)
 	}
@@ -45,7 +45,7 @@ func TestClosingETFNAVs_DiaDeRelatorioQuitaATaxaDoCaixa(t *testing.T) {
 	svc := expenseFixture(500, 30)
 	prices := map[string]float64{"a": 100}
 
-	navs, _, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 100}, prices, true, 20)
+	navs, _, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 100}, prices, true, 15, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestClosingETFNAVs_TaxaNaoEntraNoCaixaLivreDoProvento(t *testing.T) {
 	svc.etf.Funds.(*fakeETFFunds).holders = map[string][]PositionHolder{"etf1": {{UserID: "u1", Quantity: 1000}}}
 	prices := map[string]float64{"a": 100}
 
-	_, dividends, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 100}, prices, true, 20)
+	_, dividends, err := svc.closingETFNAVs(context.Background(), prices, map[string]float64{"etf1": 100}, prices, true, 15, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
