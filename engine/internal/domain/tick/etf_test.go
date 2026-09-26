@@ -16,7 +16,21 @@ type fakeETFFunds struct {
 	pending    []etf.PendingIssuance
 	funds      []etf.FundSnapshot
 	candidates []etf.MarketMakingCandidate
+	indexes    map[string]float64
+	rebalanced map[string]int
 	err        error
+}
+
+func (f *fakeETFFunds) MarkRebalanced(_ context.Context, etfAssetID string, day int) error {
+	if f.rebalanced == nil {
+		f.rebalanced = map[string]int{}
+	}
+	f.rebalanced[etfAssetID] = day
+	return f.err
+}
+
+func (f *fakeETFFunds) LatestIndexValues(context.Context) (map[string]float64, error) {
+	return f.indexes, f.err
 }
 
 func (f *fakeETFFunds) ListMarketMakingCandidates(context.Context) ([]etf.MarketMakingCandidate, error) {
@@ -49,6 +63,8 @@ func (f *fakeETFParticipant) ProvisionCash(_ context.Context, accountID string, 
 	f.provisionTo = append(f.provisionTo, accountID)
 	return nil
 }
+
+func (f *fakeETFParticipant) ParticipantCash(context.Context) (float64, error) { return 0, nil }
 
 func (f *fakeETFParticipant) ParticipantHoldings(_ context.Context, assetIDs []string) (map[string]int64, error) {
 	held := map[string]int64{}
@@ -200,7 +216,8 @@ func TestClosingETFNAVs(t *testing.T) {
 
 	got, err := svc.closingETFNAVs(context.Background(),
 		map[string]float64{"a": 10, "b": 15},
-		map[string]float64{"etf1": 13.2, "etf2": 1})
+		map[string]float64{"etf1": 13.2, "etf2": 1},
+		map[string]float64{"a": 10, "b": 15})
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -211,11 +228,15 @@ func TestClosingETFNAVs(t *testing.T) {
 	if got[0].NAV != 12 || got[0].ClosePrice != 13.2 || got[0].PremiumPct < 9.99 || got[0].PremiumPct > 10.01 {
 		t.Errorf("entrada = %+v, want NAV 12, preço 13,2, ágio ~10%%", got[0])
 	}
+	// primeiro dia do fundo: o índice teórico nasce igual ao NAV, sem desvio
+	if got[0].IndexValue != 12 || got[0].TrackingErrorPct != 0 {
+		t.Errorf("índice = %v, tracking = %v, want 12 e 0 no primeiro dia", got[0].IndexValue, got[0].TrackingErrorPct)
+	}
 }
 
 func TestClosingETFNAVs_SemWithETF(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
-	got, err := svc.closingETFNAVs(context.Background(), nil, nil)
+	got, err := svc.closingETFNAVs(context.Background(), nil, nil, nil)
 	if err != nil || got != nil {
 		t.Errorf("got = %v, err = %v, want nil, nil", got, err)
 	}

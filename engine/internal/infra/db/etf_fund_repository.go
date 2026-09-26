@@ -89,7 +89,8 @@ func (r *ETFFundRepository) ListPendingIssuances(ctx context.Context) ([]etf.Pen
 // pelos fundos e uma, em lote, pelas posições de todos eles.
 func (r *ETFFundRepository) ListFunds(ctx context.Context) ([]etf.FundSnapshot, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT ed.asset_id, ed.fund_account_id, via.outstanding_shares, a.current_balance, ed.dividends_payable
+		`SELECT ed.asset_id, ed.fund_account_id, via.outstanding_shares, a.current_balance, ed.dividends_payable,
+		        ed.rebalance_frequency_days, ed.last_rebalance_day
 		 FROM etf_details ed
 		 JOIN variable_income_assets via ON via.asset_id = ed.asset_id
 		 JOIN accounts a ON a.user_id = ed.fund_account_id
@@ -106,9 +107,15 @@ func (r *ETFFundRepository) ListFunds(ctx context.Context) ([]etf.FundSnapshot, 
 	for rows.Next() {
 		var f etf.FundSnapshot
 		var accountID string
-		if err := rows.Scan(&f.ETFAssetID, &accountID, &f.Shares, &f.Cash, &f.Liabilities); err != nil {
+		var lastRebalance sql.NullInt64
+		if err := rows.Scan(&f.ETFAssetID, &accountID, &f.Shares, &f.Cash, &f.Liabilities, &f.RebalanceEveryDays, &lastRebalance); err != nil {
 			return nil, err
 		}
+		if lastRebalance.Valid {
+			day := int(lastRebalance.Int64)
+			f.LastRebalanceDay = &day
+		}
+		f.FundAccountID = accountID
 		indexByAccount[accountID] = len(funds)
 		accountIDs = append(accountIDs, accountID)
 		funds = append(funds, f)
@@ -136,7 +143,62 @@ func (r *ETFFundRepository) ListFunds(ctx context.Context) ([]etf.FundSnapshot, 
 		i := indexByAccount[accountID]
 		funds[i].Holdings = append(funds[i].Holdings, h)
 	}
-	return funds, posRows.Err()
+	if err := posRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Composição-alvo real (R.7), numa consulta em lote pelos ETFs.
+	etfIDs := make([]string, len(funds))
+	indexByETF := make(map[string]int, len(funds))
+	for i, f := range funds {
+		etfIDs[i] = f.ETFAssetID
+		indexByETF[f.ETFAssetID] = i
+	}
+	targetRows, err := r.db.QueryContext(ctx,
+		`SELECT etf_asset_id, asset_id, weight_pct FROM etf_holdings
+		 WHERE etf_asset_id = ANY($1) AND asset_id IS NOT NULL ORDER BY etf_asset_id, asset_id`, pq.Array(etfIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = targetRows.Close() }()
+	for targetRows.Next() {
+		var etfID string
+		var t etf.TargetWeight
+		if err := targetRows.Scan(&etfID, &t.AssetID, &t.WeightPct); err != nil {
+			return nil, err
+		}
+		i := indexByETF[etfID]
+		funds[i].Targets = append(funds[i].Targets, t)
+	}
+	return funds, targetRows.Err()
+}
+
+// MarkRebalanced grava o dia do último rebalanceamento do fundo (R.7).
+func (r *ETFFundRepository) MarkRebalanced(ctx context.Context, etfAssetID string, day int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE etf_details SET last_rebalance_day = $1 WHERE asset_id = $2`, day, etfAssetID)
+	return err
+}
+
+// LatestIndexValues devolve o último índice teórico gravado de cada ETF
+// (etf_nav_history.index_value); ETF sem histórico com índice fica de fora.
+func (r *ETFFundRepository) LatestIndexValues(ctx context.Context) (map[string]float64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT DISTINCT ON (etf_asset_id) etf_asset_id, index_value FROM etf_nav_history
+		 WHERE index_value IS NOT NULL ORDER BY etf_asset_id, simulated_day DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	values := map[string]float64{}
+	for rows.Next() {
+		var id string
+		var v float64
+		if err := rows.Scan(&id, &v); err != nil {
+			return nil, err
+		}
+		values[id] = v
+	}
+	return values, rows.Err()
 }
 
 // ParticipantHoldings devolve o que o Participante Autorizado detém de cada um
@@ -160,6 +222,14 @@ func (r *ETFFundRepository) ParticipantHoldings(ctx context.Context, assetIDs []
 		held[assetID] = quantity
 	}
 	return held, rows.Err()
+}
+
+// ParticipantCash devolve o caixa corrente do Participante Autorizado.
+func (r *ETFFundRepository) ParticipantCash(ctx context.Context) (float64, error) {
+	var balance float64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT current_balance FROM accounts WHERE user_id = $1`, etf.AuthorizedParticipantAccountID).Scan(&balance)
+	return balance, err
 }
 
 // ListMarketMakingCandidates devolve os ETFs com cotas emitidas que ainda

@@ -20,6 +20,10 @@ type ETFFunds interface {
 	// ListMarketMakingCandidates (R.4) devolve os ETFs com cotas que ainda
 	// precisam de Market Maker ou de entrega do inventário do participante.
 	ListMarketMakingCandidates(ctx context.Context) ([]etf.MarketMakingCandidate, error)
+	// MarkRebalanced grava o dia do último rebalanceamento do fundo (R.7).
+	MarkRebalanced(ctx context.Context, etfAssetID string, day int) error
+	// LatestIndexValues devolve o último índice teórico gravado de cada ETF (R.7).
+	LatestIndexValues(ctx context.Context) (map[string]float64, error)
 }
 
 // ETFCoverage garante a cobertura de Market Maker de um ativo (R.4);
@@ -34,6 +38,9 @@ type ETFCoverage interface {
 type ETFParticipant interface {
 	ProvisionCash(ctx context.Context, accountID string, amount float64) error
 	ParticipantHoldings(ctx context.Context, assetIDs []string) (map[string]int64, error)
+	// ParticipantCash (R.6) devolve o caixa do Participante Autorizado, pra
+	// provisionar só o que falta antes de comprar a cesta ou as cotas.
+	ParticipantCash(ctx context.Context) (float64, error)
 }
 
 // ETFDeps agrupa os colaboradores do motor de ETF (tarefa R.3/R.4).
@@ -153,13 +160,18 @@ func (s *Service) issueETF(ctx context.Context, run *roundRun, p etf.PendingIssu
 // closingETFNAVs calcula o NAV de fechamento de cada ETF com cotas emitidas a
 // partir das posições do fundo (uma leitura em lote) e dos preços de fechamento
 // dos constituintes; o ágio/deságio compara com o preço de fechamento do
-// próprio ETF (etfPrices). ETF sem preço de fechamento ou com constituinte sem
+// próprio ETF (etfPrices); previousPrices (fechamento do dia anterior) faz o índice
+// teórico avançar um dia (R.7). ETF sem preço de fechamento ou com constituinte sem
 // preço fica de fora do dia.
-func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices map[string]float64) ([]ETFNAVEntry, error) {
+func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPrices, previousPrices map[string]float64) ([]ETFNAVEntry, error) {
 	if s.etf.Funds == nil {
 		return nil, nil
 	}
 	funds, err := s.etf.Funds.ListFunds(ctx)
+	if err != nil {
+		return nil, err
+	}
+	indexes, err := s.etf.Funds.LatestIndexValues(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +186,11 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 		if !ok {
 			continue
 		}
-		entries = append(entries, ETFNAVEntry{ETFAssetID: f.ETFAssetID, NAV: nav, ClosePrice: closePrice, PremiumPct: etf.PremiumPct(closePrice, nav)})
+		index := etf.TheoreticalIndex(indexes[f.ETFAssetID], nav, f.Targets, previousPrices, constituentPrices)
+		entries = append(entries, ETFNAVEntry{
+			ETFAssetID: f.ETFAssetID, NAV: nav, ClosePrice: closePrice, PremiumPct: etf.PremiumPct(closePrice, nav),
+			IndexValue: index, TrackingErrorPct: etf.TrackingErrorPct(nav, index),
+		})
 	}
 	return entries, nil
 }

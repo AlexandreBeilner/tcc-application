@@ -115,11 +115,18 @@ func InitialIssuance(cs []WeightedConstituent, held map[string]int64) (int64, []
 // FundSnapshot é o estado de um fundo lido do banco: cotas emitidas, caixa,
 // passivo de dividendo a pagar e o que ele detém de cada constituinte.
 type FundSnapshot struct {
-	ETFAssetID  string
-	Shares      int64
-	Cash        float64
-	Liabilities float64
-	Holdings    []FundHolding
+	ETFAssetID string
+	// FundAccountID é a conta do fundo (troca de cotas por cesta da R.6).
+	FundAccountID string
+	Shares        int64
+	Cash          float64
+	Liabilities   float64
+	Holdings      []FundHolding
+	// Rebalanceamento (R.7): periodicidade em dias, último dia rebalanceado (nil
+	// = nunca) e a composição-alvo real da cesta.
+	RebalanceEveryDays int
+	LastRebalanceDay   *int
+	Targets            []TargetWeight
 }
 
 // FundHolding é a quantidade que o fundo detém de um constituinte.

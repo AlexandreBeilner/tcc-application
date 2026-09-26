@@ -67,3 +67,16 @@ func (s *readScope) day(load func() (int, error)) (int, error) {
 	s.dayVal = &day
 	return day, nil
 }
+
+// forget descarta os dados em cache de assetID, para a próxima leitura ir ao banco.
+// Usado quando algo que o cache guarda muda no meio do tick: o float (outstanding_shares)
+// de um ETF muda a cada criação ou resgate de cotas (tarefa R.6). Sem escopo (receiver
+// nil), não faz nada.
+func (s *readScope) forget(assetID string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.assets, assetID)
+}

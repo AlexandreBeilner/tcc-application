@@ -524,8 +524,9 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 
 	for _, n := range result.ETFNAVs {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO etf_nav_history (etf_asset_id, simulated_day, nav, close_price, premium_pct) VALUES ($1, $2, $3, $4, $5)`,
-			n.ETFAssetID, result.State.Day, n.NAV, n.ClosePrice, n.PremiumPct,
+			`INSERT INTO etf_nav_history (etf_asset_id, simulated_day, nav, close_price, premium_pct, index_value, tracking_error_pct)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			n.ETFAssetID, result.State.Day, n.NAV, n.ClosePrice, n.PremiumPct, n.IndexValue, n.TrackingErrorPct,
 		); err != nil {
 			return err
 		}

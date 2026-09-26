@@ -619,28 +619,31 @@ func (s *Service) runIntradayRounds(
 		}
 	}
 
-	// Passada final (P.4): o Market Maker é o primeiro do roster em cada
-	// rodada, então os bots direcionais podem consumir a cotação dele depois
-	// da última recotação do dia. Sem esta passada, o mercado fecharia sem
-	// contraparte no lado consumido (caso do achado 013). Com a manutenção de
-	// cotação, ela só custa escrita onde algo foi consumido. Repete até nada
-	// mudar (no máximo finalPassMaxIterations vezes): uma recotação pode casar de
-	// cara com uma ordem de bot que ficou do outro lado do preço e ser consumida
-	// inteira, deixando o ativo sem aquele lado (achado da Q.9).
-	for i := 0; i < finalPassMaxIterations; i++ {
-		changed := false
-		for _, b := range roster {
-			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
-				continue
-			}
-			requoted, err := s.maintainMarketMakerQuotes(ctx, run, b)
-			if err != nil {
-				return nil, nil, run.fillsExecuted, uncovered, err
-			}
-			changed = changed || requoted
+	// Passada final (P.4), ver finalQuotePass.
+	if err := s.finalQuotePass(ctx, run, roster); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	}
+
+	// Arbitragem do Participante Autorizado (R.6): depois da passada final, pra
+	// vender as cotas criadas (ou comprar as do resgate) contra uma cotação de
+	// Market Maker que existe; se ela negociou, uma segunda passada recota o que
+	// a arbitragem consumiu, e o mercado ainda fecha com os dois lados cotados.
+	fillsBefore := run.fillsExecuted
+	// Rebalanceamento dos fundos (R.7) antes da arbitragem: a arbitragem usa a
+	// composição do fundo já rebalanceada.
+	if rebalanced, err := s.rebalanceETFs(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	} else if rebalanced {
+		if run.etfFunds, err = s.loadETFFunds(ctx); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
 		}
-		if !changed {
-			break
+	}
+	if err := s.arbitrageETFs(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	}
+	if run.fillsExecuted != fillsBefore {
+		if err := s.finalQuotePass(ctx, run, roster); err != nil {
+			return nil, nil, run.fillsExecuted, uncovered, err
 		}
 	}
 
@@ -654,6 +657,34 @@ func (s *Service) runIntradayRounds(
 		closingPrices[assetID] = state.Price
 	}
 	return closingPrices, run.volumeByAssetID, run.fillsExecuted, uncovered, nil
+}
+
+// finalQuotePass é a passada final de cotação (P.4): o Market Maker é o primeiro do roster em cada
+// rodada, então os bots direcionais podem consumir a cotação dele depois
+// da última recotação do dia. Sem esta passada, o mercado fecharia sem
+// contraparte no lado consumido (caso do achado 013). Com a manutenção de
+// cotação, ela só custa escrita onde algo foi consumido. Repete até nada
+// mudar (no máximo finalPassMaxIterations vezes): uma recotação pode casar de
+// cara com uma ordem de bot que ficou do outro lado do preço e ser consumida
+// inteira, deixando o ativo sem aquele lado (achado da Q.9).
+func (s *Service) finalQuotePass(ctx context.Context, run *roundRun, roster []BotForRound) error {
+	for i := 0; i < finalPassMaxIterations; i++ {
+		changed := false
+		for _, b := range roster {
+			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+				continue
+			}
+			requoted, err := s.maintainMarketMakerQuotes(ctx, run, b)
+			if err != nil {
+				return err
+			}
+			changed = changed || requoted
+		}
+		if !changed {
+			break
+		}
+	}
+	return nil
 }
 
 // roundRun agrupa o estado mutável que as rodadas de um tick compartilham

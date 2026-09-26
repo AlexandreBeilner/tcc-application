@@ -400,6 +400,10 @@ type ETFNAVEntry struct {
 	NAV        float64
 	ClosePrice float64
 	PremiumPct float64
+	// IndexValue e TrackingErrorPct (R.7): índice teórico do fundo (pesos-alvo,
+	// sem atrito) e o desvio acumulado do NAV contra ele, em pontos percentuais.
+	IndexValue       float64
+	TrackingErrorPct float64
 }
 
 // IndicatorHistoryEntry é uma linha de market_indicator_history (tarefa

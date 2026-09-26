@@ -139,7 +139,13 @@ func (r *ETFShareRepository) run(ctx context.Context, exchange etf.ShareExchange
 		return etf.ErrShareConservation
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	// outstanding_shares mudou: o cache de leitura do tick (Q.1) guarda o float do
+	// ativo e não pode mais servir o valor antigo às ordens seguintes do ETF.
+	scopeFrom(ctx).forget(exchange.ETFAssetID)
+	return nil
 }
 
 type signedQuantity struct {

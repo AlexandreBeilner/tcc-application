@@ -148,7 +148,13 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	for _, q := range result.Quotes {
 		etfPrices[q.AssetID] = q.Price
 	}
-	etfNAVs, err := s.closingETFNAVs(ctx, closingPrices, etfPrices)
+	previousPrices := make(map[string]float64, len(assets))
+	for _, a := range assets {
+		if a.LastPrice != nil {
+			previousPrices[a.AssetID] = *a.LastPrice
+		}
+	}
+	etfNAVs, err := s.closingETFNAVs(ctx, closingPrices, etfPrices, previousPrices)
 	if err != nil {
 		return Result{}, err
 	}
