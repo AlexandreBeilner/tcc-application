@@ -4030,7 +4030,7 @@ negociação dos constituintes.
 - **Testes:** índice com provento e desconto de distribuição table-driven; no tick, índice de retorno total com provento pago e distribuição descontada do índice (com e sem histórico). `golangci-lint` (0 issues), `go test ./...` passam. **Validado ao vivo** (série de índice zerada no banco local e 47 ticks): tracking error passou de +52% para entre 0 e -1,9%, com NAV e índice andando juntos.
 - **Limites conhecidos:** (1) a série anterior de `index_value` no banco de quem já rodou a R.7 a R.11 é de preço e continua dali; para recomeçar é preciso zerar `index_value` e `tracking_error_pct` (feito só no banco local). (2) A deriva negativa (~-1,9% em 47 dias) mistura taxa de administração, caixa parado até o dia de distribuição e atrito do rebalanceamento; a decomposição por causa fica para a R.12. (3) O índice assume que o dividendo é reinvestido na hora, enquanto o fundo o segura em caixa até a distribuição, de propósito: esse é o cash drag da proposta 5.4.
 
-### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos ✅ (dois critérios de aceite não atendidos, ver achados 016 e 017)
+### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos ✅ (dois critérios de aceite não atendidos: o achado 017 foi aceito sem correção, o 016 teve as causas medidas, ver o achado)
 - **Descrição:** o seed sintético (`--synthetic-assets`) ganha ETFs sintéticos; o `benchmark-cobertura.sh` mede, com 30, 50 e 100
   ativos mais 1, 5 e 10 ETFs: comandos por tick, ágio/deságio médio e máximo, tracking error, cotas criadas e resgatadas por
   dia, reação a cinco eventos severos na cesta e o cenário do achado 013. Teste ponta a ponta fora do caminho feliz: catálogo
@@ -4061,8 +4061,8 @@ negociação dos constituintes.
   concorrentes com o tick, sem posição negativa; (5) determinismo: banco clonado, dois motores, mesmo hash de cotações, posições, saldos e NAV. Testes unitários novos: ETF de um só constituinte (emissão, NAV e
   rebalanceamento) e `syntheticETFs`. `golangci-lint` (0 issues), `go test ./...` passam.
 - **Critérios de aceite não atendidos, com registro:** (1) **tick com 100 ativos e 10 ETFs acima de 5.000 comandos** (média 5.384, p95 6.844), mas o catálogo de 100 ativos sem ETF já passa (média 4.818): os ETFs
-  custam ~570 comandos por tick, o resto é o catálogo de ações; achado 017. (2) **Ágio médio de ~1,3% contra o critério de 1%**: dispersão simétrica, e baixar a faixa da arbitragem de 1,5% para 0,75% não melhorou
-  (1,58%) e quadruplicou a arbitragem; hipótese de causa é o spread do Market Maker no último negócio do dia, não verificada; achado 016.
+  custam ~570 comandos por tick, o resto é o catálogo de ações; achado 017, aceito sem correção pelo autor em 2026-09-26 (o catálogo real vai demorar a chegar a 100 ativos). (2) **Ágio médio de ~1,3% contra o critério de 1%**: dispersão simétrica, e baixar a faixa da arbitragem de 1,5% para 0,75% não melhorou
+  (1,58%) e quadruplicou a arbitragem; causas medidas depois (achado 016): o último negócio cai no bid ou no ask em 72% dos fechamentos (contra o ponto médio do book o ágio médio é 0,34%) e nos dias de relatório os ETFs abrem 3% a 6% de ágio por um degrau de 1 dia na data-ex do provento do ETF (sem esses dias, 0,96%).
 - **Limites conhecidos:** (1) O cenário "AP sem caixa" não tem teste ao vivo: o participante recebe caixa por evento a cada operação, então falta de caixa só existe como falha do caminho de provisão, coberta no teste
   unitário (`TestArbitrageETFs_RespeitaCaixaJaExistente`); zerar o saldo por SQL quebraria a conciliação. (2) Os eventos macro do benchmark caíram num setor cujo constituinte não caiu no período (contribuição do setor
   +0,52 pp no experimento, -0,99 pp na matriz), então a magnitude de reação por peso do setor não foi validada com uma queda isolada, só a consistência entre cesta e constituintes. (3) A matriz de 40 dias por

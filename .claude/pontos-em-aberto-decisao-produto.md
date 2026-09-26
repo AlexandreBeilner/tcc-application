@@ -645,7 +645,17 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) manter a faixa e trocar o critério da R.12 para a realidade medida (média abaixo de 1,5%), documentando que ETF
   sintético tem spread de Market Maker embutido; (b) medir o ágio contra o ponto médio do book de fechamento e só então recalibrar;
   (c) estreitar o spread do Market Maker que cobre ETF (escopo do painel de bots, Fase N).
-- **Status:** aberto
+- **Medição (2026-09-26, 50 ativos, 5 ETFs, 40 dias, faixa original de 1,5%, amostra do book de cada ETF no fechamento de cada dia, 234 amostras com bid e ask):**
+  o ágio contra o **último negócio** foi 1,05% de média (máx 6,48%) e contra o **ponto médio do book** foi **0,34%** (máx 5,21%). O meio spread médio é 0,88% e o
+  último negócio do dia cai **no bid ou no ask em 168 de 234 fechamentos (72%)**. Hipótese do spread **confirmada**. Segunda causa, achada na mesma medição: nos dias de
+  relatório (14, 28, 42...) **todos os ETFs** abrem 3% a 6% de ágio ao mesmo tempo (média de 3,22% nesses dias contra 0,96% nos demais). É o provento do próprio ETF: o NAV cai
+  na data-ex porque o passivo do provento é criado no fechamento (`closingETFNAVs`), depois das rodadas, então o preço do ETF negociado durante o dia ainda está ancorado no iNAV
+  sem o passivo; o mercado só ajusta no dia seguinte (o ágio volta a ~0,5%). Uma ação real cai no dia da data-ex, não no seguinte. Sem esses dias, a média contra o último
+  negócio já é **0,96%**, dentro do critério de 1%.
+- **Resolução parcial pendente de decisão:** (1) o spread do último negócio é propriedade do modelo (Market Maker cota com spread), então a métrica de critério devia ser o ponto médio
+  do book (0,34%, atende); (2) o degrau de 1 dia na data-ex do ETF é inconsistência de modelagem: o certo é o preço cair na própria data-ex. Dá para corrigir calculando o
+  provento do ETF antes das rodadas do dia de relatório (o valor por cota é caixa livre dividido pelas cotas, não depende de preço) e incluindo o passivo no iNAV das rodadas.
+- **Status:** aberto (causas identificadas, aguardando decisão sobre (1) e (2))
 
 ### 017 · Custo por tick passa de 5.000 comandos com 100 ativos, com ou sem ETF
 
@@ -660,5 +670,8 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) subir o orçamento para o tamanho de catálogo pretendido (ex.: 8.000 para 100 ativos) e medir o prazo do tick
   (2 s de média, 6 s de máximo hoje); (b) limitar o custo por ativo-rodada (a Fase Q já mede); (c) manter o catálogo real em ~30 a 50
   ativos, onde cabe.
-- **Status:** aberto
+- **Decisão (2026-09-26, autor):** sem correção agora. O catálogo real vai demorar a chegar perto de 100 ativos, e o único problema
+  medido é o custo passar de 5.000 comandos (o tempo de tick, 2 s de média e 6 s no pior caso, segue folgado). Reabrir se o
+  catálogo real passar de ~50 ativos ou se o tempo de tick se aproximar do prazo de 2 minutos da rota.
+- **Status:** Resolvido (aceito sem correção)
 

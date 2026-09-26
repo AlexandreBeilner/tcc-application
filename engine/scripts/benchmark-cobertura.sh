@@ -60,6 +60,7 @@ echo "== seed pronto: ${ASSETS} ativos cobertos por ${MMS} Market Maker(s)"
 # tick custava mais que o próprio tick, porque ele cresce com log_statement=all).
 RAW="tmp/benchmark-cobertura-${TAG}.raw.csv"
 : > "$RAW"
+BOOKSAMPLE="tmp/benchmark-cobertura-${TAG}.agio.csv"; echo "dia,ticker,nav,fechamento,melhor_bid,melhor_ask" > "$BOOKSAMPLE"
 for I in $(seq 1 "$DAYS"); do
   T0=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ); S0=$(date +%s.%N)
   RESP=$(docker exec bench-engine wget -qO- --post-data="" http://localhost:8080/admin/tick)
@@ -70,6 +71,12 @@ for I in $(seq 1 "$DAYS"); do
   MMREQ=$("${PSQL[@]}" -c "SELECT count(*) FROM order_book WHERE cancel_reason='requoted' AND simulated_day>=$((DAY-1))")
   printf "%s,%.2f,%s,%s,%s,%s,%s,%s,%s\n" "$DAY" "$(echo "$S1 - $S0" | bc)" "$T0" "$T1" "$(field intraday_rounds_count)" \
     "$(field bot_fills_count)" "$(field uncovered_assets_count)" "$MMORD" "$MMREQ" >> "$RAW"
+  if [ "$ETFS" -gt 0 ]; then # amostra do book de cada ETF no fechamento (achado 016): NAV, último negócio, melhor bid e ask
+    "${PSQL[@]}" -F , -c "SELECT ${DAY}, a.ticker, h.nav, h.close_price,
+      (SELECT max(price) FROM order_book ob WHERE ob.asset_id=a.id AND ob.side='buy' AND ob.status IN ('pending','partially_filled')),
+      (SELECT min(price) FROM order_book ob WHERE ob.asset_id=a.id AND ob.side='sell' AND ob.status IN ('pending','partially_filled'))
+      FROM etf_nav_history h JOIN assets a ON a.id=h.etf_asset_id WHERE h.simulated_day=${DAY}" >> "$BOOKSAMPLE" || true
+  fi
   echo "   tick ${I}/${DAYS} (dia ${DAY})" >&2
 done
 "${PSQL_ADMIN[@]}" -c "ALTER SYSTEM RESET log_statement" -c "SELECT pg_reload_conf()" >/dev/null
@@ -184,6 +191,13 @@ if [ "$ETFS" -gt 0 ]; then
     WHERE h.simulated_day > (SELECT max(simulated_day) - 20 FROM etf_nav_history) GROUP BY a.ticker ORDER BY 1"
   "${PSQL[@]}" -F ' | ' -c "SELECT 'todos os ETFs: agio medio=' || round(avg(abs(premium_pct))::numeric, 2) || ' max=' || round(max(abs(premium_pct))::numeric, 2) || ' | tracking medio=' || round(avg(abs(tracking_error_pct))::numeric, 2) || ' max=' || round(max(abs(tracking_error_pct))::numeric, 2)
     FROM etf_nav_history WHERE simulated_day > (SELECT max(simulated_day) - 20 FROM etf_nav_history)"
+  echo "-- ágio contra o ponto médio do book (achado 016): dias com bid e ask em repouso; médias em módulo, em %"
+  awk -F, 'NR>1 && $5 != "" && $6 != "" && $3 > 0 { mid=($5+$6)/2; n++; pc=($4/$3-1)*100; pm=(mid/$3-1)*100; hs=($6-$5)/2/mid*100
+      a=(pc<0?-pc:pc); b=(pm<0?-pm:pm); sc+=a; sm+=b; sh+=hs; if (a>maxc) maxc=a; if (b>maxm) maxm=b
+      dist=($4-mid)/mid*100; d=(dist<0?-dist:dist); sd+=d; if ($4>=$6*0.9999 || $4<=$5*1.0001) borda++ }
+    END { if (n==0) { print "   sem amostras com os dois lados do book"; exit }
+      printf "   amostras=%d | ágio contra o último negócio: média=%.2f máx=%.2f | contra o ponto médio do book: média=%.2f máx=%.2f | meio spread médio=%.2f | último negócio a %.2f%% do ponto médio em média; %d de %d fechamentos no bid ou no ask\n", n, sc/n, maxc, sm/n, maxm, sh/n, sd/n, borda, n }' "$BOOKSAMPLE"
+  echo "   (amostras completas em ${BOOKSAMPLE})"
   echo "-- criações e resgates por dia (eventos de cada operação, todos os ETFs)"
   "${PSQL[@]}" -c "SELECT 'criacao: ' || round(count(*) FILTER (WHERE event_type='etf_creation')::numeric / ${DAYS}, 1) || ' eventos/dia; resgate: ' || round(count(*) FILTER (WHERE event_type='etf_redemption')::numeric / ${DAYS}, 1) || ' eventos/dia' FROM market_events"
   echo "-- reação a cinco eventos severos negativos no setor do primeiro constituinte do primeiro ETF sintético"
