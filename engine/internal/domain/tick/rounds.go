@@ -15,6 +15,7 @@ package tick
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sort"
 
@@ -117,7 +118,7 @@ type BotForRound struct {
 	// CoveredAssetIDs (tarefa P.3) são os ativos que um Market Maker cobre
 	// (market_maker_coverage, P.1), em ordem por ID. Vazio pros outros 3
 	// arquétipos, que negociam um ativo sorteado por rodada
-	// (bot.SelectAssetForRound).
+	// (bot.AllocateTurns).
 	CoveredAssetIDs []string
 }
 
@@ -253,7 +254,7 @@ type equityRoundState struct {
 // usada em deterministicSeed (tick.go)/bot.InitialAllocation, aqui composta
 // com dois inteiros a mais (dayIndex, roundIndex) pra nenhum bot repetir a
 // mesma sequência aleatória em dois (dia, rodada) diferentes. purpose separa
-// o sorteio de "qual ativo negociar" (SelectAssetForRound) do sorteio
+// o sorteio de "qual ativo negociar" (bot.AllocateTurns) do sorteio
 // "qual ordem gerar" (bot.Decide, só Ruído/Fundamentalista usam seed) —
 // duas decisões independentes do mesmo bot na mesma rodada não podem
 // compartilhar o mesmo stream de números aleatórios. roundIndex nunca passa
@@ -266,7 +267,7 @@ func roundSeed(baseSeed int64, dayIndex, roundIndex int, botUserID, purpose stri
 // buildEquityUniverse filtra assets pras Ações e FIIs (Fase D.2 / tarefa
 // G.1 — ETF ainda fora, ver assetTypeAcao/assetTypeFII) e monta tanto o
 // estado mutável por ativo (equities, indexado por AssetID) quanto o
-// universo pequeno que bot.SelectAssetForRound precisa (sem preço/CompanyID,
+// universo pequeno que bot.AllocateTurns e bot.SelectBotForTurn precisam (sem preço/CompanyID,
 // só o que importa pra checar escopo). Sector/RiskClass só são resolvidos
 // pra Ação — FII (tarefa G.1) fica com os dois em zero value de propósito
 // (remove o tratamento "Conservador" que riskClassForPricing dava a ele
@@ -542,18 +543,32 @@ func (s *Service) runIntradayRounds(
 	}
 	uncovered := countUncoveredAssets(roster, equities)
 
-	for _, round := range rounds {
+	directional := directionalBots(roster)
+	scopes := make([]bot.SpecializationScope, len(directional))
+	for i, b := range directional {
+		scopes[i] = b.Personality.Scope
+	}
+	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
+	turnsByRound := splitTurns(bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng), len(rounds))
+	universeByID := make(map[string]bot.EquityForRound, len(universe))
+	for _, e := range universe {
+		universeByID[e.AssetID] = e
+	}
+
+	for i, round := range rounds {
+		// O Market Maker cota primeiro em toda rodada, para os bots direcionais
+		// encontrarem a cotação dele (ver a passada final abaixo).
 		for _, b := range roster {
-			if b.Personality.Archetype == bot.ArchetypeMarketMaker {
-				if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
-					return nil, nil, run.fillsExecuted, uncovered, err
-				}
+			if b.Personality.Archetype != bot.ArchetypeMarketMaker {
 				continue
 			}
-			for _, assetID := range s.assetsForBot(b, universe, equities, dayIndex, round) {
-				if err := s.runBotOnAsset(ctx, run, round, b, assetID); err != nil {
-					return nil, nil, run.fillsExecuted, uncovered, err
-				}
+			if err := s.maintainMarketMakerQuotes(ctx, run, b); err != nil {
+				return nil, nil, run.fillsExecuted, uncovered, err
+			}
+		}
+		for k, turn := range turnsByRound[i] {
+			if err := s.runTurn(ctx, run, round, k, turn, universeByID, directional, scopes); err != nil {
+				return nil, nil, run.fillsExecuted, uncovered, err
 			}
 		}
 	}
@@ -594,28 +609,82 @@ type roundRun struct {
 	fillsExecuted     int
 }
 
-// assetsForBot devolve os ativos em que o bot atua nesta rodada: o Market
-// Maker cota toda a sua cobertura que existe no universo negociável (ordem
-// por ID, P.3); os demais arquétipos, o ativo sorteado por
-// bot.SelectAssetForRound (nenhum se o sorteio falha).
-func (s *Service) assetsForBot(b BotForRound, universe []bot.EquityForRound, equities map[string]*equityRoundState, dayIndex int, round IntradayRound) []string {
-	if b.Personality.Archetype == bot.ArchetypeMarketMaker {
-		covered := make([]string, 0, len(b.CoveredAssetIDs))
-		for _, assetID := range b.CoveredAssetIDs {
-			if _, tradable := equities[assetID]; tradable {
-				covered = append(covered, assetID)
-			}
+// directionalBots filtra o roster pelos bots que negociam por turno (Ruído,
+// Chartista e Fundamentalista), na ordem recebida.
+func directionalBots(roster []BotForRound) []BotForRound {
+	directional := make([]BotForRound, 0, len(roster))
+	for _, b := range roster {
+		if b.Personality.Archetype != bot.ArchetypeMarketMaker {
+			directional = append(directional, b)
 		}
-		sort.Strings(covered)
-		return covered
 	}
+	return directional
+}
 
-	assetRng := rand.New(rand.NewSource(roundSeed(s.seed, dayIndex, round.SequenceIndex, b.UserID, "asset")))
-	chosen, err := bot.SelectAssetForRound(b.Personality.Scope, universe, assetRng)
-	if err != nil {
+// splitTurns reparte os turnos do dia entre as rodadas em fatias contíguas de
+// tamanho quase igual (as primeiras rodadas ficam com o resto). O orçamento é do
+// tick, não da rodada: um dia de 4 rodadas não custa mais turnos que um de 1.
+func splitTurns(turns []bot.Turn, rounds int) [][]bot.Turn {
+	if rounds <= 0 {
 		return nil
 	}
-	return []string{chosen.AssetID}
+	out := make([][]bot.Turn, rounds)
+	base, extra := len(turns)/rounds, len(turns)%rounds
+	start := 0
+	for i := range out {
+		size := base
+		if i < extra {
+			size++
+		}
+		out[i] = turns[start : start+size]
+		start += size
+	}
+	return out
+}
+
+// floorTurnAttempts é quantos bots o turno de piso de um ativo tenta até um
+// deles conseguir negociar (um bot pode não ter sinal, caixa ou posição).
+const floorTurnAttempts = 4
+
+// runTurn executa um turno de bot num ativo (Q.8): escolhe o bot pelo escopo e
+// roda a participação dele. O turno de piso do ativo é executado a mercado e
+// repete com outro bot até haver um fill, para o ativo imprimir um negócio real
+// todo dia.
+func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRound, index int, turn bot.Turn, universeByID map[string]bot.EquityForRound, directional []BotForRound, scopes []bot.SpecializationScope) error {
+	asset := universeByID[turn.AssetID]
+	attempts := 1
+	if turn.Floor {
+		attempts = floorTurnAttempts
+	}
+	for attempt := 0; attempt < attempts; attempt++ {
+		purpose := fmt.Sprintf("turn:%d:%d", index, attempt)
+		botRng := rand.New(rand.NewSource(roundSeed(s.seed, run.dayIndex, round.SequenceIndex, turn.AssetID, purpose)))
+		pick := bot.SelectBotForTurn(asset, scopes, botRng)
+		if pick < 0 {
+			return nil
+		}
+		filled, err := s.runBotOnAsset(ctx, run, round, directional[pick], turn.AssetID, purpose, turn.Floor)
+		if err != nil {
+			return err
+		}
+		if filled > 0 {
+			return nil
+		}
+	}
+	return nil
+}
+
+// marketMakerCoveredAssets devolve os ativos que o Market Maker cota: toda a
+// sua cobertura que existe no universo negociável, em ordem por ID (P.3).
+func marketMakerCoveredAssets(b BotForRound, equities map[string]*equityRoundState) []string {
+	covered := make([]string, 0, len(b.CoveredAssetIDs))
+	for _, assetID := range b.CoveredAssetIDs {
+		if _, tradable := equities[assetID]; tradable {
+			covered = append(covered, assetID)
+		}
+	}
+	sort.Strings(covered)
+	return covered
 }
 
 // countUncoveredAssets conta os ativos negociáveis que nenhum Market Maker
@@ -641,34 +710,42 @@ func countUncoveredAssets(roster []BotForRound, equities map[string]*equityRound
 	return uncovered
 }
 
-// runBotOnAsset é a participação de um bot em um ativo numa rodada: decide e
-// submete as ordens, atualizando o preço de referência do ativo a cada fill.
-// Erro de decisão ou rejeição de negócio só pulam o bot neste ativo (ver doc
-// de runIntradayRounds); qualquer outro erro propaga.
-func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round IntradayRound, b BotForRound, assetID string) error {
+// runBotOnAsset é a participação de um bot em um ativo num turno: decide e
+// submete as ordens, atualizando o preço de referência do ativo a cada fill, e
+// devolve quantos fills aconteceram. purpose separa o sorteio de decisão dos
+// outros turnos do mesmo bot; floor converte as ordens em ordens a mercado (turno
+// de piso, Q.8). Erro de decisão ou rejeição de negócio só pulam o bot neste
+// ativo (ver doc de runIntradayRounds); qualquer outro erro propaga.
+func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round IntradayRound, b BotForRound, assetID, purpose string, floor bool) (int, error) {
 	state := run.equities[assetID]
 
 	if !fundamentalistHasCompanyContext(b.Personality, state, run.companyContext) {
-		return nil
+		return 0, nil
 	}
 
 	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision")
+	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision:"+purpose)
 	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !ok {
-		return nil
+		return 0, nil
 	}
 
 	decisions, err := bot.Decide(b.Personality, input)
 	if err != nil {
-		return nil
+		return 0, nil
+	}
+	if floor {
+		for i := range decisions {
+			decisions[i].Type = orderbook.TypeMarket
+			decisions[i].Price = 0
+		}
 	}
 
 	return s.submitDecisions(ctx, run, b, assetID, state, execCtx, decisions)
@@ -676,7 +753,8 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 
 // submitDecisions envia as ordens decididas de um bot num ativo e atualiza o
 // preço de referência a cada fill. Rejeição de negócio só descarta a ordem.
-func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRound, assetID string, state *equityRoundState, execCtx orderexecution.Context, decisions []bot.Decision) error {
+func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRound, assetID string, state *equityRoundState, execCtx orderexecution.Context, decisions []bot.Decision) (int, error) {
+	fills := 0
 	for i, d := range decisions {
 		req := orderexecution.Request{
 			UserID:   b.UserID,
@@ -705,22 +783,23 @@ func (s *Service) submitDecisions(ctx context.Context, run *roundRun, b BotForRo
 			if businessRejection(err) {
 				continue
 			}
-			return err
+			return fills, err
 		}
+		fills += len(outcome.Fills)
 		run.fillsExecuted += len(outcome.Fills)
 		run.volumeByAssetID[assetID] += outcome.FilledQuantity
 		if len(outcome.Fills) > 0 {
 			state.Price = outcome.Fills[len(outcome.Fills)-1].Price
 		}
 	}
-	return nil
+	return fills, nil
 }
 
 // maintainMarketMakerQuotes é a vez de um Market Maker numa rodada (P.3/P.4):
 // lê numa consulta só as ordens em repouso de todos os ativos que cobre e
 // mantém a cotação de cada um, em ordem por ID.
 func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, b BotForRound) error {
-	assetIDs := s.assetsForBot(b, nil, run.equities, run.dayIndex, IntradayRound{})
+	assetIDs := marketMakerCoveredAssets(b, run.equities)
 	if len(assetIDs) == 0 {
 		return nil
 	}
@@ -792,5 +871,6 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 			toSubmit = append(toSubmit, d)
 		}
 	}
-	return s.submitDecisions(ctx, run, b, assetID, state, execCtx, toSubmit)
+	_, err = s.submitDecisions(ctx, run, b, assetID, state, execCtx, toSubmit)
+	return err
 }

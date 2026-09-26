@@ -9,21 +9,13 @@
 package bot
 
 import (
-	"errors"
-	"math/rand"
-
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 )
 
-// ErrNoEquityAvailable é devolvido por SelectAssetForRound quando universe
-// está vazio — não há nenhum ativo pra negociar nesta rodada (ainda sem
-// nenhuma Ação no catálogo, por exemplo).
-var ErrNoEquityAvailable = errors.New("nenhum ativo disponível pra sortear nesta rodada")
-
 // EquityForRound é o insumo mínimo de um ativo de Renda Variável que
-// SelectAssetForRound precisa pra checar se ele cai dentro do escopo de um
+// AllocateTurns/SelectBotForTurn precisa pra checar se ele cai dentro do escopo de um
 // bot — CompanyID/preço/histórico/fundamentos ficam a cargo de quem orquestra
 // a rodada (tick.Service, Fase D.2), este pacote só decide "cai no escopo ou
 // não". Type (tarefa G.1) é a classe de ativo crua (catalog.AssetAcao/
@@ -36,7 +28,7 @@ type EquityForRound struct {
 	RiskClass equity.RiskClass
 	Type      catalog.AssetType
 	// MarketValue (tarefa Q.3) é o valor de mercado do ativo (float vezes preço),
-	// peso do sorteio de SelectAssetForRound. 0 quando o float é desconhecido:
+	// peso do sorteio de AllocateTurns/SelectBotForTurn. 0 quando o float é desconhecido:
 	// o ativo entra só com a parte uniforme do peso.
 	MarketValue float64
 }
@@ -77,67 +69,6 @@ func (s SpecializationScope) MatchesEquity(sector catalog.Sector, riskClass equi
 		}
 	}
 	return false
-}
-
-// SelectAssetForRound sorteia, pra um bot nesta rodada, qual ativo de
-// universe ele vai negociar: WithinScopePct das vezes um ativo uniformemente
-// sorteado dentre os que MatchesEquity aprova (proposta 2.3.2: "85-90% da
-// atividade dentro do escopo"), o restante um ativo fora dele — garantindo
-// que nenhum ativo fique sem liquidez nenhuma só por estar fora do escopo de
-// todo mundo. Cai pro outro grupo quando o sorteado está vazio (bot cujo
-// escopo não bate com nenhum ativo do universo atual, ou cujo escopo cobre
-// universe inteiro — ex: Market Maker, C.6 — não tem "fora do escopo" pra
-// cair). Dentro do grupo sorteado, o ativo é escolhido com peso proporcional ao
-// valor de mercado misturado a um piso uniforme (tarefa Q.3, pickWeighted). Devolve ErrNoEquityAvailable só quando universe está vazio (nada
-// pra negociar, nenhum sorteio possível).
-func SelectAssetForRound(scope SpecializationScope, universe []EquityForRound, rng *rand.Rand) (EquityForRound, error) {
-	if len(universe) == 0 {
-		return EquityForRound{}, ErrNoEquityAvailable
-	}
-
-	var inScope, outOfScope []EquityForRound
-	for _, e := range universe {
-		if scope.MatchesEquity(e.Sector, e.RiskClass, e.Type) {
-			inScope = append(inScope, e)
-		} else {
-			outOfScope = append(outOfScope, e)
-		}
-	}
-
-	pool := inScope
-	switch {
-	case len(inScope) == 0:
-		pool = outOfScope
-	case len(outOfScope) > 0 && rng.Float64() >= scope.WithinScopePct:
-		pool = outOfScope
-	}
-
-	return pickWeighted(pool, rng), nil
-}
-
-// pickWeighted sorteia um ativo de pool com peso (1 - MarketValueWeight)/n mais
-// MarketValueWeight vezes a fração do valor de mercado do ativo no pool. Sem
-// nenhum valor de mercado conhecido no pool, o sorteio é uniforme. Determinístico
-// para uma seed: percorre o pool na ordem recebida e usa um único sorteio.
-func pickWeighted(pool []EquityForRound, rng *rand.Rand) EquityForRound {
-	var total float64
-	for _, e := range pool {
-		total += e.MarketValue
-	}
-	n := float64(len(pool))
-	target := rng.Float64()
-	var cumulative float64
-	for _, e := range pool {
-		weight := 1 / n
-		if total > 0 {
-			weight = (1-MarketValueWeight)/n + MarketValueWeight*e.MarketValue/total
-		}
-		cumulative += weight
-		if target < cumulative {
-			return e
-		}
-	}
-	return pool[len(pool)-1] // resíduo de arredondamento do último acumulado
 }
 
 // DecisionInput agrupa todo insumo que algum arquétipo pode precisar pra

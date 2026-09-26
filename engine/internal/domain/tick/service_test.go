@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/bot"
+	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -199,7 +200,9 @@ type fakeOrderSubmitter struct {
 	// justo deslocado pelo evento macro.
 	fillAtRequestedPrice bool
 	submitErr            error
-	submitted            []submittedOrder
+	// submitErrFn, quando não nil, decide o erro de cada submissão (nil = sem erro).
+	submitErrFn func(orderexecution.Request) error
+	submitted   []submittedOrder
 	// submitWithContextCalls conta chamadas de SubmitWithContext em vez de
 	// Submit — TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado
 	// usa pra confirmar que a primeira ordem de cada bot/rodada reaproveita o
@@ -220,8 +223,18 @@ func (f *fakeOrderSubmitter) submit(req orderexecution.Request) (orderexecution.
 	if f.submitErr != nil {
 		return orderexecution.Outcome{}, f.submitErr
 	}
+	if f.submitErrFn != nil {
+		if err := f.submitErrFn(req); err != nil {
+			return orderexecution.Outcome{}, err
+		}
+	}
 	f.submitted = append(f.submitted, submittedOrder{req: req})
 	if f.fillAtRequestedPrice {
+		if req.Type == orderbook.TypeMarket {
+			// Ordem a mercado (turno de piso, Q.8) não tem preço próprio: este
+			// fake não simula o book, então ela só fica sem contraparte.
+			return orderexecution.Outcome{RemainingQuantity: req.Quantity}, nil
+		}
 		return orderexecution.Outcome{
 			Fills:          []orderexecution.Fill{{Price: req.Price, Quantity: req.Quantity}},
 			FilledQuantity: req.Quantity,

@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -843,14 +844,14 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 	if closing["a1"] != 105 {
 		t.Errorf("closing[a1] = %v, want 105 (preço do último fill)", closing["a1"])
 	}
-	// Ruído (1 decisão por rodada, 2 rodadas) + Market Maker (2 decisões:
-	// compra e venda) em cada rodada e na passada final (P.4) — 2 + 6 = 8
-	// submissões, todas preenchidas (fillPrice > 0).
-	if fills != 8 {
-		t.Errorf("fills = %d, want 8", fills)
+	// Ruído (bot.TurnBudget(1) = 5 turnos no dia, divididos entre as 2
+	// rodadas) + Market Maker (2 decisões: compra e venda) em cada rodada e na
+	// passada final (P.4) — 5 + 6 = 11 submissões, todas preenchidas (fillPrice > 0).
+	if fills != 11 {
+		t.Errorf("fills = %d, want 11", fills)
 	}
-	if len(submitter.submitted) != 8 {
-		t.Fatalf("len(submitted) = %d, want 8", len(submitter.submitted))
+	if len(submitter.submitted) != 11 {
+		t.Fatalf("len(submitted) = %d, want 11", len(submitter.submitted))
 	}
 	for _, s := range submitter.submitted {
 		if s.req.AssetID != "a1" {
@@ -1185,6 +1186,9 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 
 	distinctPrices := make(map[float64]bool)
 	for _, s := range submitter.submitted {
+		if s.req.Type == orderbook.TypeMarket {
+			continue // turno de piso (Q.8): a mercado, sem preço-limite
+		}
 		distinctPrices[s.req.Price] = true
 	}
 	if len(distinctPrices) < 2 {
@@ -1197,6 +1201,9 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	// do evento direto (nenhum dos três bots tem conhecimento 1.0).
 	fullEffectPrice := startPrice * 0.75
 	for _, s := range submitter.submitted {
+		if s.req.Type == orderbook.TypeMarket {
+			continue
+		}
 		if s.req.Price <= fullEffectPrice+1e-6 {
 			t.Errorf("ordem submetida a %.4f, <= efeito bruto máximo (%.4f) — deveria estar sempre acima, ponderado pelo conhecimento de cada bot", s.req.Price, fullEffectPrice)
 		}
@@ -1572,5 +1579,96 @@ func TestBuildEquityUniverse_ValorDeMercadoComoPeso(t *testing.T) {
 	}
 	if got["a1"] != 50_000_000 || got["a2"] != 20_000 || got["a3"] != 0 {
 		t.Errorf("MarketValue = %v, want a1=5e7, a2=2e4, a3=0", got)
+	}
+}
+
+// Q.8: o piso é rígido. Todo ativo do catálogo recebe um turno por dia, com
+// qualquer número de rodadas, e esse turno é a mercado.
+func TestRunIntradayRounds_TodoAtivoRecebeUmTurnoDePisoPorDiaAMercado(t *testing.T) {
+	assets := make([]AssetForPricing, 0, 40)
+	for i := 0; i < 40; i++ {
+		assets = append(assets, acaoAsset(fmt.Sprintf("a%02d", i), 100))
+	}
+	roster := make([]BotForRound, 0, 6)
+	for i := 0; i < 6; i++ {
+		roster = append(roster, BotForRound{UserID: fmt.Sprintf("bot%d", i), Personality: mustRoundPersonality(t, bot.ArchetypeRuido)})
+	}
+
+	for _, rounds := range [][]IntradayRound{{{SequenceIndex: 0, TimeOfDay: 0.5}}, twoIntradayRounds(), {{SequenceIndex: 0}, {SequenceIndex: 1}, {SequenceIndex: 2}, {SequenceIndex: 3}}} {
+		svc := newTestService(&fakeRepository{})
+		svc.bots = &fakeBotRoster{bots: roster}
+		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{}}
+		submitter := &fakeOrderSubmitter{fillPrice: 100}
+		svc.orderSubmitter = submitter
+		for _, a := range assets {
+			svc.orderContext.(*fakeOrderContextLoader).positions[a.AssetID] = 10_000
+		}
+
+		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 5, rounds, assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+			t.Fatalf("%d rodadas: err = %v", len(rounds), err)
+		}
+
+		market := map[string]bool{}
+		for _, s := range submitter.submitted {
+			if s.req.Type == orderbook.TypeMarket {
+				market[s.req.AssetID] = true
+			}
+		}
+		for _, a := range assets {
+			if !market[a.AssetID] {
+				t.Errorf("%d rodadas: ativo %s sem ordem a mercado de piso", len(rounds), a.AssetID)
+			}
+		}
+	}
+}
+
+// O orçamento é do tick: 1 ou 4 rodadas gastam o mesmo número de turnos.
+func TestRunIntradayRounds_OrcamentoDeTurnosIndependeDoNumeroDeRodadas(t *testing.T) {
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
+	count := func(rounds []IntradayRound) int {
+		svc := newTestService(&fakeRepository{})
+		svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
+		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
+		submitter := &fakeOrderSubmitter{fillPrice: 100}
+		svc.orderSubmitter = submitter
+		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 2, rounds, assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+			t.Fatal(err)
+		}
+		return len(submitter.submitted)
+	}
+
+	one := count([]IntradayRound{{SequenceIndex: 0}})
+	four := count([]IntradayRound{{SequenceIndex: 0}, {SequenceIndex: 1}, {SequenceIndex: 2}, {SequenceIndex: 3}})
+	if want := bot.TurnBudget(len(assets)); one != want || four != want {
+		t.Errorf("submissões com 1 rodada = %d, com 4 = %d, want %d nas duas (orçamento do tick)", one, four, want)
+	}
+}
+
+// Turno de piso sem fill tenta outro bot: só o segundo bot tem posição pra vender.
+func TestRunIntradayRounds_TurnoDePisoTentaOutroBotSeOPrimeiroNaoNegocia(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{
+		{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
+		{UserID: "bot2", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)},
+	}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
+	submitter := &fakeOrderSubmitter{fillPrice: 100}
+	svc.orderSubmitter = submitter
+
+	// A rejeição de negócio de um bot só descarta a ordem dele; o turno de piso
+	// segue para o próximo candidato até haver um fill.
+	first := true
+	submitter.submitErrFn = func(orderexecution.Request) error {
+		if first {
+			first = false
+			return orderexecution.ErrInsufficientBalance
+		}
+		return nil
+	}
+
+	if _, _, fills, _, err := svc.runIntradayRounds(context.Background(), 1, []IntradayRound{{SequenceIndex: 0}}, []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatal(err)
+	} else if fills == 0 {
+		t.Error("fills = 0, want > 0: o piso tenta outro bot depois da rejeição")
 	}
 }
