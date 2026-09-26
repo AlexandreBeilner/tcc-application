@@ -3497,7 +3497,7 @@ Todos esses números são estimativas a validar na Q.4.
   (-63%)** e dia de geração 3.569 para 1.769 (-50%). `golangci-lint`, `go build`, `go test ./...` passam.
 - **Dependências:** nenhuma; feita antes da Q.4 porque muda o que ela mede.
 
-### Q.7 · Medir a divisão do custo do tick (Market Maker x bots direcionais x fixo)
+### Q.7 · Medir a divisão do custo do tick (Market Maker x bots direcionais x fixo) ✅
 - **Origem:** benchmark da Q.4 com 100 ativos (média de 5.335 comandos por tick, 28 de 60 ticks acima de 5.000). Não se
   sabe quanto vem dos 10 Market Makers (10 ativos cada, recotados a cada rodada), quanto dos 150 bots direcionais e quanto
   do custo fixo (dividendos, cotações do dia, eventos). Sem isso, não dá para dizer se a Q.5 mira o alvo certo.
@@ -3506,6 +3506,30 @@ Todos esses números são estimativas a validar na Q.4.
 - **Critérios de aceite:** divisão medida com 30, 50 e 100 ativos e registrada aqui e na seção 6 da proposta de cobertura;
   dizer explicitamente qual categoria domina o estouro de 100 ativos.
 - **Dependências:** nenhuma (usa o script já corrigido na Q.4).
+- **Entregável (sessão 2026-09-26):** `benchmark-cobertura.sh` grava `cmd_mm`, `cmd_bots` e `cmd_fixo` por tick e imprime a
+  média por categoria e a média dos ticks acima de 5.000. Como o log do Postgres só traz o usuário nos parâmetros da
+  primeira consulta de um turno (leitura de saldo/posição do bot ou de ordens em repouso do Market Maker), cada turno herda
+  esse ator até o próximo; calendário, gravação de cotações do dia, expiração, dividendos e cargas de roster voltam ao custo
+  fixo; o custo de um fill é cobrado a quem iniciou a ordem. Validado contra a contagem total de comandos de um tick
+  capturado (6.342 nos dois métodos). Medição (60 dias, seed 42, média por tick):
+
+  | | 30 ativos (pool 60) | 50 ativos (pool 100) | 100 ativos (pool 150) |
+  |---|---|---|---|
+  | Market Makers | 533 (25%) | 838 (24%) | 1.380 (26%) |
+  | Bots direcionais | 1.542 (72%) | 2.570 (73%) | 3.823 (71%) |
+  | Fixo do tick | 64 (3%) | 91 (3%) | 158 (3%) |
+  | Total, ticks acima de 5.000 | nenhum | 9 ticks: 1.245 + 4.177 + 88 | 28 ticks: 1.835 + 5.102 + 143 |
+
+  **Conclusão:** o estouro é dos **bots direcionais** (cerca de 72% em todos os tamanhos), não do Market Maker (cerca de 25%,
+  crescendo linear: ~14 comandos por ativo por tick) nem do fixo (3%). Um turno de bot custa ~10 comandos com os fills
+  incluídos (3.823 para ~370 turnos e 184 fills por tick com 100 ativos): ~6 são o turno em si (3 leituras, BEGIN, INSERT,
+  COMMIT) e cada fill acrescenta cerca de 9 (posições, eventos, saldos, ordem). Implicações: (1) o orçamento de turnos da Q.8
+  é a alavanca certa; (2) o teto de 5.000 com 100 ativos deixa ~3.460 para os bots, ou seja, **~335 turnos por tick em média**;
+  (3) o custo varia muito (p95 = 8.498 contra p50 = 4.731 com 100 ativos, dias de 4 rodadas e muitos fills), então o
+  orçamento precisa ser **por tick** (não por rodada) e ter teto de fills, senão o pico continua acima de 5.000; (4) se
+  depois da Q.8 ainda faltar, a Q.5 mira as leituras dos turnos (~40% do custo do bot); (5) recotação do Market Maker menos
+  frequente é uma alavanca secundária (~1.400 comandos com 100 ativos). Nota: o custo total medido aqui (5.360 de média
+  com 100 ativos) difere ~0,5% do benchmark anterior (5.335) porque o método de contagem mudou.
 
 ### Q.8 · Orçamento de turnos por ativo com piso rígido
 - **Origem:** dias sem negociação de 22% a 36% e volume mediano abaixo de 0,15% com 100 ativos. Hoje cada bot sorteia um
@@ -3520,7 +3544,7 @@ Todos esses números são estimativas a validar na Q.4.
 - **Critérios de aceite:** nenhum ativo do catálogo sem turno em nenhum dia (teste com catálogo sintético de 100);
   soma dos turnos por tick igual ao orçamento; ativo maior recebe proporcionalmente mais turnos acima do piso;
   determinismo preservado; custo por tick com 100 ativos depende do orçamento, não do número de ativos (benchmark).
-- **Dependências:** Q.7 (define o orçamento viável), Q.3.
+- **Dependências:** Q.7 (define o orçamento viável: ~335 turnos por tick com 100 ativos, orçamento por tick e não por rodada), Q.3.
 - **Decisão (2026-09-26, autor delegou a escolha):** o piso passa de estatístico (desvio declarado na Q.3) para **rígido, 1
   turno marketable por ativo por dia**. Motivo: é o que a decisão 1 já pedia ("nenhum ativo sem negociação"); custa só 1 turno
   por ativo (100 dos ~350 do orçamento com 100 ativos); e o Market Maker já cota todo ativo, então o turno de piso sempre

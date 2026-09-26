@@ -69,19 +69,45 @@ for I in $(seq 1 "$DAYS"); do
 done
 "${PSQL_ADMIN[@]}" -c "ALTER SYSTEM RESET log_statement" -c "SELECT pg_reload_conf()" >/dev/null
 
-echo "dia,segundos,comandos_sql,rodadas,fills,descobertos,ordens_mm,recotacoes_mm" > "$OUT"
-docker logs --timestamps tcc-postgres 2>&1 | grep "LOG:  statement\|LOG:  execute" > tmp/benchmark-cobertura-${N}.pglog || true
-awk -F, 'NR==FNR { n++; d[n]=$1; sec[n]=$2; t0[n]=substr($3,1,26); t1[n]=substr($4,1,26); r[n]=$5; f[n]=$6; u[n]=$7; mo[n]=$8; mr[n]=$9; next }
-  { ts=substr($0,1,26); for (k=(i>0?i:1); k<=n; k++) { if (ts<t0[k]) break; if (ts<t1[k]) { c[k]++; i=k; break } } }
-  END { for (k=1;k<=n;k++) printf "%s,%s,%d,%s,%s,%s,%s,%s\n", d[k], sec[k], c[k], r[k], f[k], u[k], mo[k], mr[k] }' \
-  "$RAW" "tmp/benchmark-cobertura-${N}.pglog" >> "$OUT"
-rm -f "tmp/benchmark-cobertura-${N}.pglog"
+echo "dia,segundos,comandos_sql,rodadas,fills,descobertos,ordens_mm,recotacoes_mm,cmd_mm,cmd_bots,cmd_fixo" > "$OUT"
+PGLOG="tmp/benchmark-cobertura-${N}.pglog"; MMIDS="tmp/benchmark-cobertura-${N}.mmids"
+docker logs --timestamps tcc-postgres > "$PGLOG" 2>&1 || true
+"${PSQL[@]}" -c "SELECT account_id FROM bot_personalities WHERE archetype='market_maker'" > "$MMIDS"
+# Divisão do custo (tarefa Q.7): o log só traz o usuário nos parâmetros da primeira consulta de um turno
+# (leitura de saldo/posição do bot, ou leitura das ordens em repouso do Market Maker). Cada turno herda esse
+# ator até o próximo; a leitura de calendário, a gravação de cotações do dia, a expiração, os dividendos e
+# as cargas de roster voltam para o custo fixo do tick. Fill de um bot é cobrado a quem iniciou a ordem.
+awk -F, 'FILENAME==ARGV[1] { n++; d[n]=$1; sec[n]=$2; t0[n]=substr($3,1,26); t1[n]=substr($4,1,26); r[n]=$5; f[n]=$6; u[n]=$7; mo[n]=$8; mr[n]=$9; next }
+  FILENAME==ARGV[2] { mm[$1]=1; next }
+  { sub(/\r$/, "") }
+  { split($0, w, " "); ts=substr(w[1],1,26); kind=w[6] }
+  kind=="LOG:" && (w[7]=="statement:" || w[7]=="execute") {
+    head=$0; fixed=0; actorq=0
+    if (head ~ /market_calendar|INSERT INTO asset_quotes|dividend_events|market_maker_coverage|FROM bot_personalities|SELECT a.user_id, a.is_bot|SELECT e.id, e.triggered|SELECT c.id, c.report|SELECT a.id, a.type|SELECT asset_id, user_id, quantity FROM positions WHERE asset_id = ANY|UPDATE order_book ob SET status/) fixed=1
+    if (head ~ /SELECT a.current_balance, p.quantity|SELECT id, asset_id, side, price, quantity - filled_quantity/) actorq=1
+    if (fixed) actor="fixo"
+    pending=actorq
+    if (!actorq) tally(ts)
+    else pts=ts
+    next }
+  kind=="DETAIL:" && pending { pending=0
+    if (match($0, /\$1 = \x27[0-9a-f-]+\x27/)) { id=substr($0, RSTART+6, RLENGTH-7); actor=(id in mm) ? "mm" : "bots" }
+    tally(pts); next }
+  function tally(t,   k) {
+    for (k=(i>0?i:1); k<=n; k++) { if (t<t0[k]) break; if (t<t1[k]) { c[k]++; cat[k,actor]++; i=k; break } } }
+  BEGIN { actor="fixo" }
+  END { for (k=1;k<=n;k++) printf "%s,%s,%d,%s,%s,%s,%s,%s,%d,%d,%d\n", d[k], sec[k], c[k], r[k], f[k], u[k], mo[k], mr[k], cat[k,"mm"], cat[k,"bots"], cat[k,"fixo"] }' \
+  "$RAW" "$MMIDS" "$PGLOG" >> "$OUT"
+rm -f "$PGLOG" "$MMIDS"
 
 echo "== resultados (CSV completo em ${OUT})"
 awk -F, 'NR>1 { n++; s+=$3; t+=$2; if ($2>tmax) tmax=$2; if ($3>smax) smax=$3; r+=$4; f+=$5; d+=$6; if ($3>5000) over++ }
   END { printf "ticks=%d  comandos_sql: media=%.0f max=%d  ticks_acima_de_5000=%d  tempo_s: media=%.2f max=%.2f  rodadas/tick=%.2f  fills/tick=%.1f  descobertos/tick=%.1f\n", n, s/n, smax, over, t/n, tmax, r/n, f/n, d/n }' "$OUT"
 awk -F, 'NR>1 { print $3 }' "$OUT" | sort -n | awk '{ v[NR]=$1 } END { printf "comandos_sql por tick: p50=%d p95=%d p99=%d\n", v[int(NR*0.5)+1], v[int(NR*0.95)+1], v[int(NR*0.99)+1] }'
 BOTS=$("${PSQL[@]}" -c "SELECT count(*) FROM bot_personalities WHERE archetype != 'market_maker'")
+awk -F, 'NR>1 { n++; m+=$9; b+=$10; x+=$11; if ($3>5000) { on++; om+=$9; ob+=$10; ox+=$11 } }
+  END { printf "custo medio por tick: market_maker=%.0f bots_direcionais=%.0f fixo=%.0f\n", m/n, b/n, x/n
+        if (on > 0) printf "nos %d ticks acima de 5000: market_maker=%.0f bots_direcionais=%.0f fixo=%.0f\n", on, om/on, ob/on, ox/on }' "$OUT"
 echo "pool de bots direcionais: ${BOTS}; ativos negociáveis: ${ASSETS}"
 
 echo "-- cobertura ao fim do dia ${DAYS}: ativos com compra e venda em repouso"
