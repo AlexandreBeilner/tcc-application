@@ -4030,7 +4030,7 @@ negociação dos constituintes.
 - **Testes:** índice com provento e desconto de distribuição table-driven; no tick, índice de retorno total com provento pago e distribuição descontada do índice (com e sem histórico). `golangci-lint` (0 issues), `go test ./...` passam. **Validado ao vivo** (série de índice zerada no banco local e 47 ticks): tracking error passou de +52% para entre 0 e -1,9%, com NAV e índice andando juntos.
 - **Limites conhecidos:** (1) a série anterior de `index_value` no banco de quem já rodou a R.7 a R.11 é de preço e continua dali; para recomeçar é preciso zerar `index_value` e `tracking_error_pct` (feito só no banco local). (2) A deriva negativa (~-1,9% em 47 dias) mistura taxa de administração, caixa parado até o dia de distribuição e atrito do rebalanceamento; a decomposição por causa fica para a R.12. (3) O índice assume que o dividendo é reinvestido na hora, enquanto o fundo o segura em caixa até a distribuição, de propósito: esse é o cash drag da proposta 5.4.
 
-### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos ✅ (dois critérios de aceite não atendidos: o achado 017 foi aceito sem correção, o 016 teve as causas medidas, ver o achado)
+### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos ✅ (dois critérios de aceite não atendidos na primeira medição: o achado 017 foi aceito sem correção; o 016 foi corrigido na R.12b)
 - **Descrição:** o seed sintético (`--synthetic-assets`) ganha ETFs sintéticos; o `benchmark-cobertura.sh` mede, com 30, 50 e 100
   ativos mais 1, 5 e 10 ETFs: comandos por tick, ágio/deságio médio e máximo, tracking error, cotas criadas e resgatadas por
   dia, reação a cinco eventos severos na cesta e o cenário do achado 013. Teste ponta a ponta fora do caminho feliz: catálogo
@@ -4074,6 +4074,19 @@ negociação dos constituintes.
 - **Descrição:** cesta com Tesouro, CDB etc. exige marcação a mercado da renda fixa a cada rodada para o NAV e criação e resgate
   em instrumentos que não têm book. Só se abre com decisão do autor; a Fase L (correções de renda fixa) é pré-requisito.
 - **Dependências:** R.12 e a Fase L.
+
+### R.12b · Provento do ETF anunciado no iNAV das rodadas (correção do degrau na data-ex) ✅
+- **Origem:** achado 016 (medição da R.12): nos dias de relatório todos os ETFs abriam 3% a 6% de ágio (média de 3,22% nesses dias contra 0,96% nos demais), porque o passivo do provento do
+  ETF só nascia no fechamento (`closingETFNAVs`), depois das rodadas. O Market Maker cotava o dia inteiro com o iNAV sem o passivo e o mercado só ajustava no dia seguinte; numa ação real o preço cai na data-ex.
+- **Entregável (2026-09-26):** `announcedDistributions` (`tick/etf.go`) calcula, no dia de relatório, o provento de cada ETF (`etf.DistributionPerShare` e `DistributionTotal`, que dependem só de caixa, passivo e cotas)
+  e `roundRun.etfAnnounced` o soma ao passivo em `roundRun.inav`. Só o iNAV usa o valor antecipado: o evento, o passivo do fundo e o NAV de fechamento seguem de `etfDividends`, então a conservação de dinheiro não muda.
+  Não mexeu em `raiseFundCash` nem no rebalanceamento (o anúncio fica num campo à parte, não em `etfFunds`, senão a falta de caixa da taxa seria calculada errado).
+- **Testes:** `announcedDistributions` (caixa livre, passivo anterior, sem caixa, fora do dia de relatório, sem fundos) e iNAV que cai o provento anunciado. `golangci-lint` (0 issues), `go test ./...` passam. **Validado ao vivo**
+  (50 ativos, 5 ETFs, 40 dias, mesma seed): nos dias de relatório o ágio médio caiu de **3,22% para 1,15%** e o máximo de 6,48% para 2,30%; ágio médio geral de 1,32% para **1,04%** (0,92% na série de 40 dias);
+  contra o ponto médio do book, 0,28% (máx 1,47%); invariantes de `validacao-etf.sql` em zero; comandos por tick sem custo novo (média 4.057).
+- **Limites conhecidos:** (1) o ágio contra o último negócio segue perto de 1% porque o último negócio cai no bid ou no ask em 175 de 234 fechamentos (o spread do Market Maker); a métrica contra o ponto médio do book é a
+  que mede desequilíbrio de verdade. (2) A taxa acumulada do dia não entra no anúncio (~0,001% do patrimônio). (3) Se `raiseFundCash` vender constituintes por falta de caixa, o anúncio pode ter sido calculado antes disso;
+  nesse caso o caixa livre é zero e o fechamento não distribui nada, então o iNAV das rodadas ficou com um passivo que não se confirma, por um dia, sem efeito nos saldos.
 
 ## Sequência sugerida
 

@@ -655,7 +655,10 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Resolução parcial pendente de decisão:** (1) o spread do último negócio é propriedade do modelo (Market Maker cota com spread), então a métrica de critério devia ser o ponto médio
   do book (0,34%, atende); (2) o degrau de 1 dia na data-ex do ETF é inconsistência de modelagem: o certo é o preço cair na própria data-ex. Dá para corrigir calculando o
   provento do ETF antes das rodadas do dia de relatório (o valor por cota é caixa livre dividido pelas cotas, não depende de preço) e incluindo o passivo no iNAV das rodadas.
-- **Status:** aberto (causas identificadas, aguardando decisão sobre (1) e (2))
+- **Decisão (2026-09-26, autor):** corrigir o degrau da data-ex (opção 2).
+- **Resolução (2026-09-26, tarefa R.12b):** o provento do ETF é anunciado no iNAV das rodadas do dia de relatório. Ágio médio nos dias de relatório de 3,22% para 1,15% (máx de 6,48% para 2,30%), ágio médio geral de
+  1,32% para 1,04% contra o último negócio e 0,28% contra o ponto médio do book. O critério de 1% passa a ser medido contra o ponto médio do book (o último negócio carrega o spread do Market Maker), onde atende com folga.
+- **Status:** Resolvido
 
 ### 017 · Custo por tick passa de 5.000 comandos com 100 ativos, com ou sem ETF
 

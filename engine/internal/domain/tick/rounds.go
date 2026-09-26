@@ -583,6 +583,7 @@ func (s *Service) runIntradayRounds(
 		volumeCache:       make(map[string][]int),
 		volumeByAssetID:   make(map[string]int),
 		etfFunds:          etfFunds,
+		etfAnnounced:      announcedDistributions(etfFunds, dayIndex),
 	}
 	uncovered := countUncoveredAssets(roster, equities)
 
@@ -718,6 +719,10 @@ type roundRun struct {
 	// tick, por ETF: dele sai o iNAV em memória (inav), a cada recotação, a
 	// partir dos preços correntes dos constituintes.
 	etfFunds map[string]etf.FundSnapshot
+	// etfAnnounced (R.12b) é o provento que cada ETF vai declarar hoje, quando é dia
+	// de relatório (announcedDistributions): entra como passivo no iNAV das rodadas,
+	// então o preço já cai na data-ex, e não só no dia seguinte.
+	etfAnnounced map[string]float64
 }
 
 // inav devolve o valor patrimonial intradiário de um ETF (R.5): posições do
@@ -738,6 +743,7 @@ func (r *roundRun) inav(assetID string) *float64 {
 		}
 		prices[h.AssetID] = state.Price
 	}
+	fund.Liabilities += r.etfAnnounced[assetID]
 	nav, err := etf.NAVFromSnapshot(fund, prices)
 	if err != nil {
 		return nil

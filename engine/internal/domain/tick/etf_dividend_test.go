@@ -118,3 +118,40 @@ func TestRebalanceETFs_NaoInvesteOCaixaDeDividendoDoFundo(t *testing.T) {
 		t.Errorf("comprou %d de b, want 490 (o caixa de dividendo não entra)", bought)
 	}
 }
+
+func TestAnnouncedDistributions(t *testing.T) {
+	funds := map[string]etf.FundSnapshot{
+		"livre":     {Shares: 1000, Cash: 5000, Liabilities: 0},
+		"ja-devido": {Shares: 1000, Cash: 5000, Liabilities: 4000},
+		"sem-caixa": {Shares: 1000, Cash: 100, Liabilities: 400},
+	}
+	// dia 14 (índice 13) é dia de relatório: 14 % 14 == 0
+	got := announcedDistributions(funds, 13)
+	if got["livre"] != 5000 || got["ja-devido"] != 1000 {
+		t.Errorf("anunciado = %v, want livre 5000 e ja-devido 1000", got)
+	}
+	if _, ok := got["sem-caixa"]; ok {
+		t.Errorf("anunciado = %v, sem caixa livre não anuncia provento", got)
+	}
+	if got := announcedDistributions(funds, 12); got != nil {
+		t.Errorf("fora do dia de relatório = %v, want nil", got)
+	}
+	if got := announcedDistributions(nil, 13); got != nil {
+		t.Errorf("sem fundos = %v, want nil", got)
+	}
+}
+
+func TestRoundRunINAV_ProventoAnunciadoDerrubaOINAVNaDataEx(t *testing.T) {
+	fund := etf.FundSnapshot{ETFAssetID: "etf", Shares: 1000, Cash: 5000, Holdings: []etf.FundHolding{{AssetID: "a", Quantity: 1000}}}
+	run := &roundRun{
+		equities: map[string]*equityRoundState{"a": {Price: 10}},
+		etfFunds: map[string]etf.FundSnapshot{"etf": fund},
+	}
+	if got := run.inav("etf"); got == nil || *got != 15 {
+		t.Fatalf("iNAV sem anúncio = %v, want 15 ((10.000 + 5.000) / 1.000)", got)
+	}
+	run.etfAnnounced = announcedDistributions(run.etfFunds, 13)
+	if got := run.inav("etf"); got == nil || *got != 10 {
+		t.Errorf("iNAV com o provento anunciado = %v, want 10 (o passivo de 5.000 sai do valor por cota)", got)
+	}
+}

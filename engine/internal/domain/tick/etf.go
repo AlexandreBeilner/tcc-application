@@ -7,6 +7,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/etf"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 )
@@ -269,6 +270,29 @@ func (s *Service) closingETFNAVs(ctx context.Context, constituentPrices, etfPric
 		})
 	}
 	return entries, dividends, nil
+}
+
+// announcedDistributions (R.12b) antecipa, para o iNAV das rodadas, o provento que cada
+// ETF declara hoje: no dia de relatório, o caixa livre dividido pelas cotas (o mesmo
+// valor que etfDividends calcula no fechamento, que não depende de preço) vira
+// passivo no iNAV, porque na data-ex o preço cai pelo provento, como o de uma ação.
+// Sem isso o Market Maker cotava o dia inteiro sem o passivo e o mercado só ajustava
+// no dia seguinte (ágio de 3% a 6% em todos os ETFs nos dias de relatório, achado
+// 016). O valor gravado continua sendo o de etfDividends; este só alimenta o iNAV. A
+// taxa do dia não entra (é de ~0,001% do patrimônio) e a quitação da taxa acumulada
+// sai do caixa e do passivo na mesma medida, então não muda o caixa livre. Fora do dia
+// de relatório, nil.
+func announcedDistributions(funds map[string]etf.FundSnapshot, dayIndex int) map[string]float64 {
+	if len(funds) == 0 || !fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays) {
+		return nil
+	}
+	announced := make(map[string]float64, len(funds))
+	for id, f := range funds {
+		if perShare := etf.DistributionPerShare(f.Cash, f.Liabilities, f.Shares); perShare > 0 {
+			announced[id] = etf.DistributionTotal(perShare, f.Shares)
+		}
+	}
+	return announced
 }
 
 // etfDividends gera o provento de cada ETF com caixa livre (R.8): o fundo é
