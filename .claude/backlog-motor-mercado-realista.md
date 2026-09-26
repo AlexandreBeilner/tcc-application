@@ -2928,6 +2928,8 @@ em vez de só no fechamento do dia.
   `docker compose` ao vivo, nunca por teste automatizado. Decisão do autor: **O.2 segue essa mesma
   convenção existente, sem gap novo a registrar** — não abrir tarefa nem entrada em
   `pontos-em-aberto-decisao-produto.md` pra isso.
+- **Atualização (tarefa P.5):** a expiração por dia deixou de valer para ordem de Market Maker ativo, cuja cotação
+  é "de pé" (ver P.5 e `.docs/engine/orders.md`). Day order continua valendo para todo o resto.
 
 ### O.3 · `order_id` na resposta, listagem de ordens e motivo do cancelamento ✅
 
@@ -3125,7 +3127,7 @@ Independente das outras fases. Depende de A.4 (`is_active`), C.6 (Market Maker),
 teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/engine/` e validação por
 `docker compose up`, como manda o checklist do CLAUDE.md para o `engine/`.
 
-### P.1 · Modelo de dados e domínio da cobertura
+### P.1 · Modelo de dados e domínio da cobertura ✅
 - **Descrição:** migration `000023` com a tabela `market_maker_coverage (asset_id, mm_account_id,
   created_at)` (chave primária composta) e a coluna `bot_personalities.max_covered_assets` (padrão 10,
   nulo para arquétipos que não são Market Maker); pacote de domínio novo sem I/O com o tipo de cobertura
@@ -3134,8 +3136,23 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** `Assign` em teste de tabela (folga, empate, nenhum com folga, Market Maker
   inativo ignorado); migration aplica e reverte.
 - **Referências:** proposta seções 3.1 a 3.3.
+- **Entregável (sessão 2026-09-23):** migration `000023` (tabela `market_maker_coverage` com PK composta e
+  índice por Market Maker; `bot_personalities.max_covered_assets` com backfill 10 no Market Maker existente
+  e CHECK que espelha o domínio: obrigatório e positivo só no `market_maker`). Pacote novo
+  `internal/domain/coverage`: `MarketMaker`, `Assign(assetID, mms)` (menos carregado com folga, desempate
+  por `AccountID`, ignora inativo e quem já cobre o ativo; `ok=false` = precisa criar Market Maker) e as
+  interfaces `MarketMakerLister`/`Writer`, declaradas no ponto de consumo. `bot.Personality` ganhou
+  `MaxCoveredAssets *int` (`DefaultMaxCoveredAssets = 10` no Market Maker, `WithMaxCoveredAssets` valida
+  positivo e arquétipo), lido/gravado por `BotRepository`. `CoverageRepository` (`ListMarketMakers` em uma
+  consulta, `AddCoverage` idempotente). Decisões de sessão: `Assign` recebe o `assetID` para não reatribuir
+  quem já cobre o ativo (a redundância do modelo continua possível); `AddCoverage` devolve
+  `ErrNotMarketMaker` para conta que não é Market Maker, porque o teste ao vivo mostrou que só o FK deixava
+  um bot `ruido` entrar na tabela. Validado no Postgres do compose: migration aplicada, `down`+`up` em
+  transação, CHECKs rejeitando teto em bot não-Market Maker e teto 0, e o repositório real exercitado por
+  teste temporário (não commitado, convenção da camada). Sem rota HTTP alterada, então sem `.docs/`.
+  `golangci-lint`, `go build` e `go test ./...` passam.
 
-### P.2 · Provisionamento reutilizável (`EnsureCoverage`) e migração do seed
+### P.2 · Provisionamento reutilizável (`EnsureCoverage`) e migração do seed ✅
 - **Descrição:** caso de uso `EnsureCoverage` (atribui, cria Market Maker novo quando nenhum tem folga,
   provisiona caixa e posição proporcionais ao float por Event Sourcing); o seed passa a chamá-lo no lugar
   do laço atual e de `marketMakerBotUserID`; backfill de banco existente com o Market Maker único, sem
@@ -3143,8 +3160,29 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** seed idempotente (duas execuções não duplicam nada); catálogo com mais ativos
   que o teto cria Market Makers adicionais e cada ativo fica com exatamente um.
 - **Referências:** proposta seção 3.4. **Dependências:** P.1.
+- **Entregável (sessão 2026-09-23):** `coverage.Ensurer.EnsureCoverage` (`internal/domain/coverage/ensure.go`):
+  se algum Market Maker já cobre o ativo, não faz nada; senão `Assign`, e sem folga cria um Market Maker
+  novo (`NewMarketMakerID`: o primeiro mantém o ID `...0001` do seed antigo, os seguintes são
+  `00000000-0000-0000-0001-<n>`, determinísticos porque o ID entra na semente das rodadas, RNF08) com
+  `bot.DefaultMarketMakerPersonality()` (perfil que estava no seed). Caixa provisionado é `bot.InitialCash`
+  (2x o valor da posição). Colaboradores pequenos no ponto de consumo (`MarketMakerLister`, `Provisioner`).
+  Adapter `CoverageRepository`: `CreateMarketMaker` (conta com saldo zero mais personalidade, cada passo
+  idempotente) e `ProvisionCoverage` (uma transação: cobertura, posição, teto de float, evento
+  `bot_initial_allocation`, evento `bot_initial_cash` com `asset_id` preenchido e soma ao saldo; se o
+  Market Maker já tinha posição no ativo, grava só a cobertura). O seed deixou de ter
+  `marketMakerBotUserID` e o bloco do Market Maker em `seedBotPersonalities`; `seedBotLiquidity` chama
+  `EnsureCoverage` por ativo com `allocation.MarketMaker`. Migration `000024` faz o backfill (cobertura de
+  todo ativo Ação/FII não sandbox em que um Market Maker já tem posição). Decisões de sessão: (1) ativo
+  coberto só por Market Maker **inativo** não é reprovisionado, porque reatribuir é do painel (Fase N,
+  proposta 3.9) e um segundo float estouraria o teto; (2) o `Writer`/`AddCoverage` da P.1 foi trocado por
+  `Provisioner`/`ProvisionCoverage`, que carrega a guarda `ErrNotMarketMaker`. Validado ao vivo: banco de
+  dev legado (migration 24 criou 5 coberturas, seed reexecutado deixou contas, posições, eventos e saldos
+  idênticos); banco novo (seed do zero, caixa do Market Maker = 2x posição, R$ 110,2 bi, 5 coberturas);
+  12 ativos sintéticos com `EnsureCoverage` duas vezes cada (17 ativos em 2 Market Makers, 10 e 7, cada
+  ativo exatamente 1 vez, reexecução sem efeito). Testes temporários não commitados (convenção da camada).
+  `golangci-lint`, `go build`, `go test ./...` passam. Sem rota HTTP alterada.
 
-### P.3 · Rodada: Market Maker cota todos os ativos que cobre
+### P.3 · Rodada: Market Maker cota todos os ativos que cobre ✅
 - **Descrição:** `runIntradayRounds` deixa de passar o Market Maker por `SelectAssetForRound` e o faz
   cotar toda a sua cobertura em cada rodada, em ordem por ID; os outros três arquétipos ficam
   intocados; `BotRoster` devolve os ativos cobertos; contagem de ativos sem cobertura ativa no log e em
@@ -3152,22 +3190,70 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** teste de rodada com N ativos cobertos cota os N em toda rodada; ativo fora do
   universo negociável é ignorado; determinismo preservado.
 - **Referências:** proposta seções 3.5 e 3.9. **Dependências:** P.1, P.2.
+- **Entregável (sessão 2026-09-23):** `runIntradayRounds` foi decomposto em `assetsForBot` (Market Maker: cobertura
+  ordenada por ID e filtrada pelo universo negociável; demais: sorteio como antes), `runBotOnAsset` (o corpo por
+  bot e ativo, sem mudança de comportamento) e `countUncoveredAssets`, com o estado compartilhado em `roundRun`.
+  `runIntradayRounds` devolve um 5º valor (ativos sem cobertura), propagado para `Result.UncoveredAssetsCount`,
+  log do tick e `uncovered_assets_count` em `POST /admin/tick`. `BotForRound.CoveredAssetIDs` é preenchido por
+  `BotRepository.ListEligibleForTradingRound` com uma consulta para todo o roster (sem N+1). Testes novos:
+  cotar todos os N cobertos em toda rodada (cobertura fora de ordem), ativo fora do universo ignorado, contagem
+  de descobertos (Market Maker inativo não conta, bot não Market Maker ignora `CoveredAssetIDs`), determinismo;
+  os testes de Market Maker existentes ganharam cobertura na fixture. `golangci-lint`, `go build`,
+  `go test ./...` passam; documentado em `.docs/engine/tick.md`. Validado ao vivo em `docker compose` (3 ticks,
+  `uncovered_assets_count: 0`, Market Maker com ordens nos 5 ativos ao fim do tick). **Achado para a P.4/P.8:**
+  compra e venda a mercado de 100 unidades logo após um tick preencheram em 4 dos 5 ativos; o `PAPL11` falhou
+  na venda porque a compra do Market Maker (2.000) foi consumida por bots direcionais **depois** da última
+  cotação do dia, já que o Market Maker é o primeiro do roster (`UserID` `...0001`) em toda rodada. A cobertura
+  por rodada não elimina esse caso. Duas saídas a avaliar na P.4: uma passada final de recotação do Market
+  Maker depois da última rodada (custo `ativos x ~26` statements, cabe no orçamento se a P.4 recotar só o lado
+  consumido) ou processar o Market Maker por último na rodada.
 
-### P.4 · Manutenção de cotação
+### P.4 · Manutenção de cotação ✅
 - **Descrição:** função pura `NeedsRequote` (cotação boa = compra e venda em repouso dentro da tolerância
   do preço de referência, com quantidade restante acima do mínimo); leitura em lote das ordens em repouso
   por Market Maker; recotar só o lado consumido, vencido ou fora da tolerância, no lugar do "cancelar tudo".
 - **Critérios de aceite:** cotação boa não gera cancelamento nem submissão; lado consumido é recotado;
   regime estável dentro do orçamento (média de até 12 comandos SQL por ativo-rodada, seção 6.1).
 - **Referências:** proposta seção 3.6. **Dependências:** P.3.
+- **Entregável (sessão 2026-09-23):** `bot.NeedsRequote` (pura, lado a lado: sem ordem, fora da tolerância ou
+  quantidade restante abaixo do mínimo), `bot.MarketMakerQuotePrices` (os preços ideais, reaproveitados por
+  `DecideMarketMakerOrders`), `bot.EffectiveQuoteTolerance` (0,5%, limitada a 1/4 do spread para o lado
+  mantido nunca cruzar o ideal do outro e o Market Maker não negociar contra si mesmo) e `bot.MinQuoteQuantity`.
+  `OrderLifecycleManager` trocou `CancelUserRestingOrders` por `ListRestingOrders` (uma consulta por
+  Market Maker e rodada, `= ANY`) e `CancelRestingOrders` (por ID, `cancel_reason = 'requoted'`).
+  `runIntradayRounds` chama `maintainMarketMakerQuotes` por Market Maker e rodada e faz uma **passada final**
+  depois da última rodada (fecha o caso do `PAPL11` do achado da P.3). `AssetForPricing.OutstandingShares`
+  alimenta o mínimo sem leitura extra por ativo. **Medição (A/B em bancos clonados do mesmo estado, 25 ativos,
+  código do PR 1 contra o novo, 7 ticks com mais de uma rodada):** 13.558 contra 9.092 comandos SQL, **-33%**.
+  Com só os 5 ativos reais quase todo ativo é negociado em toda rodada e a redução some (o +5% do A/B de 5
+  ativos vem da passada final), o que confirma a diretriz de validar em catálogo maior. **Erro achado só
+  por essa medição:** o mínimo inicial era o piso inteiro do teto de ordem (0,4% do float), mas a cotação usa
+  metade dele, então uma cotação recém-criada já nascia "vencida" e era refeita toda rodada; corrigido com
+  `MinQuoteQuantity` (teste de regressão incluso). **Pendente para a P.5/P.6:** o regime estável de 12
+  comandos por ativo-rodada só é alcançável com a P.5, porque enquanto a cotação expira por dia o primeiro
+  turno do dia recota tudo (dia de 1 rodada custou +82 no A/B); e a "quantidade mínima por lado = piso do float"
+  da P.6 conflita com a cotação de metade do teto, então a P.6 precisa decidir qual dos dois muda.
+  `golangci-lint`, `go build`, `go test ./...` passam; documentado em `.docs/engine/orders.md` e `tick.md`.
 
-### P.5 · Cotação de Market Maker não expira por dia
+### P.5 · Cotação de Market Maker não expira por dia ✅
 - **Descrição:** `ExpireStaleOrders` deixa de cancelar ordens do arquétipo Market Maker; a recotação as
   substitui com o `cancel_reason` já existente. Exceção documentada à regra de ordem Day (O.2).
 - **Critérios de aceite:** a cotação atravessa a virada de dia; ordem de qualquer outro bot continua
   expirando; exceção documentada em `.docs/engine/orders.md`, `.docs/engine/tick.md` e na O.2.
 - **Referências:** proposta seção 3.7. **Dependências:** P.4 (a manutenção é o que impede acúmulo de
   cotação velha).
+- **Entregável (sessão 2026-09-23):** `OrderExecutionRepository.ExpireStaleOrders` ganhou
+  `AND NOT EXISTS (Market Maker ativo dono da ordem)`. Decisão de sessão: só Market Maker **ativo** tem a
+  exceção, então desativar um bot tira a cotação dele do book no tick seguinte sem ninguém cancelar à mão
+  (a proposta dizia "quando o bot é desativado" sem dizer quem cancela, e não existe caminho de desativação
+  no repositório ainda). Validado ao vivo: cotações de Market Maker com 1 a 3 dias de idade em repouso, no
+  máximo 1 ordem por (ativo, lado), todos os cancelamentos do Market Maker em 8 dias com motivo `requoted`
+  (nenhum `expired`); Market Maker desativado: cotações expiram no tick seguinte e `uncovered_assets_count`
+  sobe para 5; **cenário do achado 013 (compra e venda de 100 a mercado logo após o tick) preenche nos 5
+  ativos**, incluindo o `PAPL11` que falhava depois da P.3. Documentado em `.docs/engine/orders.md`,
+  `tick.md` e na O.2 (abaixo). **Ponto em aberto para a Fase N:** ordem de Market Maker de um ativo que ele
+  deixou de cobrir (reatribuição) fica no book até o painel cancelá-la; a reatribuição precisa incluir
+  esse cancelamento.
 
 ### P.6 · Obrigações do formador (fecha o achado 002)
 - **Descrição:** teto de spread de 0,10 validado em `NewRiskProfile` (valor ilustrativo, seção 3.8) e
@@ -3201,7 +3287,7 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
   ativa, a reatribuição e o ajuste de `max_covered_assets` pelo painel. Sem código novo.
 - **Critérios de aceite:** as descrições de N.1/N.2 citam o modelo de cobertura.
 
-### P.10 · Deadline do disparo manual do tick
+### P.10 · Deadline do disparo manual do tick ✅
 - **Descrição:** `POST /admin/tick` herda o `WriteTimeout` de 5 s do servidor do motor
   (`httpserver/server.go`) e roda o tick de forma síncrona; com ~2 ms por comando de banco o disparo manual
   estoura os 5 s com pouco mais de 20 ativos cotados. Levantar o deadline só nessa rota
@@ -3209,6 +3295,16 @@ teste no mesmo commit, `golangci-lint` e `go test ./...` verdes, docs em `.docs/
 - **Critérios de aceite:** com o catálogo sintético de 50 ativos, o disparo manual retorna `200` com o
   resultado completo, sem timeout do servidor; documentado em `.docs/engine/tick.md`.
 - **Referências:** proposta seção 6.1. **Independente**, pode abrir a fase.
+- **Entregável (sessão 2026-09-23):** `handleAdminTick` (`httpserver/admin.go`) chama
+  `extendWriteDeadline(w, adminTickWriteTimeout)` antes de rodar o tick: prazo de escrita de 2 minutos só
+  nessa requisição (`http.ResponseController.SetWriteDeadline`); `http.ErrNotSupported` é ignorado (o
+  `httptest.Recorder` não tem prazo). Teste `TestHandleAdminTick_SobreviveAoWriteTimeoutDoServidor` sobe um
+  servidor real com `WriteTimeout` de 100 ms e um ticker de 300 ms; confirmado que falha com `EOF` sem a
+  correção. `golangci-lint` (0 issues), `go build` e `go test ./...` passam; `POST /admin/tick` validado
+  em `docker compose` (200). Documentado em `.docs/engine/tick.md`. **Pendente:** o critério "catálogo
+  sintético de 50 ativos" só pode ser medido quando a P.7 existir; o mecanismo já está coberto pelo teste
+  com timeout reduzido, então recheque esse ponto na P.8. Se o tick passar de 2 minutos, a saída
+  documentada na proposta é o disparo assíncrono (`202`).
 
 ## Sequência sugerida
 

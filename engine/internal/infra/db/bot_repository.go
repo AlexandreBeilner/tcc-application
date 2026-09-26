@@ -61,10 +61,11 @@ func (r *BotRepository) CreatePersonality(ctx context.Context, accountID string,
 
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO bot_personalities
-			(account_id, archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			(account_id, archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct, max_covered_assets)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		accountID, string(personality.Archetype), personality.Scope.WithinScopePct, personality.KnowledgeLevel,
 		personality.RiskProfile.MaxPositionSizePct, personality.RiskProfile.MarketOrderPreference, personality.RiskProfile.SpreadWidthPct,
+		personality.MaxCoveredAssets,
 	); err != nil {
 		return err
 	}
@@ -94,6 +95,16 @@ func (r *BotRepository) CreatePersonality(ctx context.Context, accountID string,
 	return tx.Commit()
 }
 
+// withStoredMaxCoveredAssets aplica o teto persistido (P.1) sobre a
+// personalidade reconstruída; coluna nula significa "sem teto próprio" e
+// mantém o que NewPersonality definiu.
+func withStoredMaxCoveredAssets(personality bot.Personality, stored sql.NullInt64) (bot.Personality, error) {
+	if !stored.Valid {
+		return personality, nil
+	}
+	return personality.WithMaxCoveredAssets(int(stored.Int64))
+}
+
 // FindPersonalityByAccountID devolve a personalidade de accountID, se já
 // persistida — reconstruída via bot.NewSpecializationScope/NewRiskProfile/
 // NewPersonality (não um struct literal direto) pra nunca devolver uma
@@ -104,11 +115,12 @@ func (r *BotRepository) FindPersonalityByAccountID(ctx context.Context, accountI
 	var withinScopePct float64
 	var knowledgeLevel sql.NullFloat64
 	var maxPositionSizePct, marketOrderPreference, spreadWidthPct float64
+	var maxCoveredAssets sql.NullInt64
 
 	err := r.db.QueryRowContext(ctx,
-		`SELECT archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct
+		`SELECT archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct, max_covered_assets
 		 FROM bot_personalities WHERE account_id = $1`, accountID,
-	).Scan(&archetype, &withinScopePct, &knowledgeLevel, &maxPositionSizePct, &marketOrderPreference, &spreadWidthPct)
+	).Scan(&archetype, &withinScopePct, &knowledgeLevel, &maxPositionSizePct, &marketOrderPreference, &spreadWidthPct, &maxCoveredAssets)
 	if err == sql.ErrNoRows {
 		return bot.Personality{}, false, nil
 	}
@@ -153,6 +165,10 @@ func (r *BotRepository) FindPersonalityByAccountID(ctx context.Context, accountI
 	if err != nil {
 		return bot.Personality{}, false, err
 	}
+	personality, err = withStoredMaxCoveredAssets(personality, maxCoveredAssets)
+	if err != nil {
+		return bot.Personality{}, false, err
+	}
 	return personality, true, nil
 }
 
@@ -169,7 +185,7 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT a.user_id, a.is_bot, a.is_active,
 		        bp.archetype, bp.within_scope_pct, bp.knowledge_level,
-		        bp.max_position_size_pct, bp.market_order_preference, bp.spread_width_pct
+		        bp.max_position_size_pct, bp.market_order_preference, bp.spread_width_pct, bp.max_covered_assets
 		 FROM accounts a
 		 JOIN bot_personalities bp ON bp.account_id = a.user_id`,
 	)
@@ -183,6 +199,7 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 		archetype                                                                 string
 		withinScopePct, maxPositionSizePct, marketOrderPreference, spreadWidthPct float64
 		knowledgeLevel                                                            sql.NullFloat64
+		maxCoveredAssets                                                          sql.NullInt64
 	}
 
 	var eligible []rawBot
@@ -192,7 +209,7 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 		if err := rows.Scan(
 			&raw.userID, &isBot, &isActive,
 			&raw.archetype, &raw.withinScopePct, &raw.knowledgeLevel,
-			&raw.maxPositionSizePct, &raw.marketOrderPreference, &raw.spreadWidthPct,
+			&raw.maxPositionSizePct, &raw.marketOrderPreference, &raw.spreadWidthPct, &raw.maxCoveredAssets,
 		); err != nil {
 			return nil, err
 		}
@@ -239,6 +256,11 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 		return nil, err
 	}
 
+	coveredByAccount, err := r.listCoveredAssetIDs(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	roster := make([]tick.BotForRound, 0, len(eligible))
 	for _, raw := range eligible {
 		acc := scopesByAccount[raw.userID]
@@ -261,7 +283,36 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 		if err != nil {
 			return nil, err
 		}
-		roster = append(roster, tick.BotForRound{UserID: raw.userID, Personality: personality})
+		personality, err = withStoredMaxCoveredAssets(personality, raw.maxCoveredAssets)
+		if err != nil {
+			return nil, err
+		}
+		roster = append(roster, tick.BotForRound{UserID: raw.userID, Personality: personality, CoveredAssetIDs: coveredByAccount[raw.userID]})
 	}
 	return roster, nil
+}
+
+// listCoveredAssetIDs devolve, por conta de Market Maker, os ativos que ela
+// cobre (market_maker_coverage, P.1), ordenados por ID, numa consulta só
+// pra todo o roster. Conta sem cobertura (ou que não é Market Maker) não
+// aparece no mapa.
+func (r *BotRepository) listCoveredAssetIDs(ctx context.Context, accountIDs []string) (map[string][]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT mm_account_id, asset_id FROM market_maker_coverage WHERE mm_account_id = ANY($1) ORDER BY mm_account_id, asset_id`,
+		pq.Array(accountIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	covered := make(map[string][]string)
+	for rows.Next() {
+		var accountID, assetID string
+		if err := rows.Scan(&accountID, &assetID); err != nil {
+			return nil, err
+		}
+		covered[accountID] = append(covered[accountID], assetID)
+	}
+	return covered, rows.Err()
 }

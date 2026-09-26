@@ -206,3 +206,47 @@ func TestIsValidArchetype(t *testing.T) {
 		}
 	}
 }
+
+func TestNewPersonality_MarketMakerTemTetoPadraoDeCobertura(t *testing.T) {
+	scope, _ := NewSpecializationScope(nil, nil, nil, SpecializationWithinScopeMin)
+	risk, _ := NewRiskProfile(0.5, 0.1, 0.02)
+
+	mm, err := NewPersonality(ArchetypeMarketMaker, scope, nil, risk)
+	if err != nil {
+		t.Fatalf("NewPersonality: %v", err)
+	}
+	if mm.MaxCoveredAssets == nil || *mm.MaxCoveredAssets != DefaultMaxCoveredAssets {
+		t.Errorf("MaxCoveredAssets = %v, want %d", mm.MaxCoveredAssets, DefaultMaxCoveredAssets)
+	}
+
+	noise, err := NewPersonality(ArchetypeRuido, scope, nil, risk)
+	if err != nil {
+		t.Fatalf("NewPersonality: %v", err)
+	}
+	if noise.MaxCoveredAssets != nil {
+		t.Errorf("Ruído não deveria ter teto de cobertura, got %d", *noise.MaxCoveredAssets)
+	}
+}
+
+func TestPersonality_WithMaxCoveredAssets(t *testing.T) {
+	scope, _ := NewSpecializationScope(nil, nil, nil, SpecializationWithinScopeMin)
+	risk, _ := NewRiskProfile(0.5, 0.1, 0.02)
+	mm, _ := NewPersonality(ArchetypeMarketMaker, scope, nil, risk)
+	noise, _ := NewPersonality(ArchetypeRuido, scope, nil, risk)
+
+	got, err := mm.WithMaxCoveredAssets(3)
+	if err != nil || got.MaxCoveredAssets == nil || *got.MaxCoveredAssets != 3 {
+		t.Errorf("WithMaxCoveredAssets(3) = %v, %v", got.MaxCoveredAssets, err)
+	}
+	if *mm.MaxCoveredAssets != DefaultMaxCoveredAssets {
+		t.Error("o original não pode ser alterado")
+	}
+	for _, invalid := range []int{0, -1} {
+		if _, err := mm.WithMaxCoveredAssets(invalid); err != ErrInvalidMaxCoveredAssets {
+			t.Errorf("WithMaxCoveredAssets(%d) err = %v, want ErrInvalidMaxCoveredAssets", invalid, err)
+		}
+	}
+	if _, err := noise.WithMaxCoveredAssets(3); err != ErrMaxCoveredAssetsWrongArchetype {
+		t.Errorf("err = %v, want ErrMaxCoveredAssetsWrongArchetype", err)
+	}
+}

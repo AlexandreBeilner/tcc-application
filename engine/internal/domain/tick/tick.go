@@ -93,6 +93,10 @@ type AssetForPricing struct {
 	// preço justo desse ativo. nil (ou qualquer valor != "PN") conta como
 	// ON, mesma convenção de equityShareClassesByCompany.
 	ShareClass *string
+	// OutstandingShares é o float do ativo (variable_income_assets.
+	// outstanding_shares), nil se desconhecido — insumo do mínimo de
+	// quantidade restante da cotação de Market Maker (tarefa P.4).
+	OutstandingShares *int64
 }
 
 // CompanyForFundamentals é o insumo mínimo do catálogo que Advance precisa
@@ -365,6 +369,11 @@ type Result struct {
 	// puro); Service.Run preenche depois, só pra observabilidade (mesmo
 	// padrão de IntradayFillsCount, ver tickResponse, httpserver/admin.go).
 	ExpiredOrdersCount int
+	// UncoveredAssetsCount (tarefa P.3, proposta-cobertura-market-maker.md
+	// seção 3.9) é quantos ativos negociáveis (Ação/FII) ficaram sem Market
+	// Maker ativo cobrindo neste tick — só observabilidade, mesma natureza de
+	// IntradayFillsCount. A correção (reatribuir) é do painel de bots (Fase N).
+	UncoveredAssetsCount int
 	// IPCAMonthlyRate (tarefa M.1) é o IPCA mensal sintético (decimal) do
 	// mês simulado ao qual newDay pertence (ipca.CurrentMonthIndex) —
 	// repete o mesmo valor todo dia dentro do mesmo mês simulado, só muda

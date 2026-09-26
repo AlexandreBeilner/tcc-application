@@ -20,6 +20,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
@@ -47,6 +48,7 @@ func main() {
 	repo := db.NewCatalogRepository(pool, cache.NoopQuoteCache{})
 	accountRepo := db.NewAccountRepository(pool)
 	botRepo := db.NewBotRepository(pool)
+	coverageRepo := db.NewCoverageRepository(pool)
 	ctx := context.Background()
 
 	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao)
@@ -77,7 +79,7 @@ func main() {
 	tjlo11ID := seedFIITijolo(ctx, repo)
 	papl11ID := seedFIIPapel(ctx, repo)
 
-	seedBotLiquidity(ctx, accountRepo, []botAssetSeed{
+	seedBotLiquidity(ctx, accountRepo, coverage.NewEnsurer(coverageRepo, coverageRepo), []botAssetSeed{
 		{AssetID: valr3ID, OutstandingShares: valr3OutstandingShares},
 		{AssetID: bndd3ID, OutstandingShares: bancoOutstandingShares},
 		{AssetID: bndd4ID, OutstandingShares: bancoOutstandingShares},
@@ -428,9 +430,8 @@ const (
 	// qualquer outro valor fixo deste script.
 	botSeed                = int64(20260913)
 	botMarketMakerSharePct = 0.50 // meio da faixa confirmada (bot.MarketMakerShareMin/Max, proposta 2.2)
-	botOtherBotCount       = 19   // + 1 Market Maker = pool de 20, dentro da faixa 15-25 da proposta 2.3.2
+	botOtherBotCount       = 19   // + Market Maker(s) da cobertura (P.2), dentro da faixa 15-25 da proposta 2.3.2
 	botMinimumOrderShares  = 100  // "ordem de tamanho médio" ilustrativa usada só pra calibrar o piso de caixa do seed
-	marketMakerBotUserID   = "00000000-0000-0000-0000-000000000001"
 )
 
 // otherBotUserID gera um uuid fixo e determinístico pro bot direcional de
@@ -457,7 +458,6 @@ type botAssetSeed struct {
 // o caixa inicial (bot.InitialCash) uma única vez por bot, não uma vez por
 // ativo.
 type botHolding struct {
-	isMarketMaker bool
 	positionValue float64
 	positions     map[string]int64 // assetID -> quantidade
 }
@@ -475,10 +475,8 @@ type botHolding struct {
 // cotação anterior, então o bot nasce com average_price coerente com a
 // primeira cotação que o ativo vai ter. Idempotente: ensureBotAccount/
 // ensureBotPosition pulam o que já existe, mesma convenção de ensureAsset.
-func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, assets []botAssetSeed) {
-	bots := map[string]*botHolding{
-		marketMakerBotUserID: {isMarketMaker: true, positions: map[string]int64{}},
-	}
+func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, ensurer *coverage.Ensurer, assets []botAssetSeed) {
+	bots := map[string]*botHolding{}
 	for i := 0; i < botOtherBotCount; i++ {
 		bots[otherBotUserID(i)] = &botHolding{positions: map[string]int64{}}
 	}
@@ -516,9 +514,23 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, as
 			log.Fatalf("erro ao calcular alocação inicial de bots pro ativo %s: %v", asset.AssetID, err)
 		}
 
-		marketMaker := bots[marketMakerBotUserID]
-		marketMaker.positions[asset.AssetID] = allocation.MarketMaker
-		marketMaker.positionValue += float64(allocation.MarketMaker) * tick.DefaultInitialPrice
+		// A fatia do grupo Market Maker não vai mais pra uma conta fixa: quem
+		// cobre o ativo é decidido pela cobertura (P.2), que também cria um
+		// Market Maker novo quando os existentes estão no teto.
+		result, err := ensurer.EnsureCoverage(ctx, coverage.Input{
+			AssetID:           asset.AssetID,
+			OutstandingShares: asset.OutstandingShares,
+			MarketMakerShares: allocation.MarketMaker,
+			Price:             tick.DefaultInitialPrice,
+		})
+		if err != nil {
+			log.Fatalf("erro ao garantir cobertura de Market Maker do ativo %s: %v", asset.AssetID, err)
+		}
+		if result.Provisioned {
+			log.Printf("ativo %s coberto pelo Market Maker %s (%d unidades)", asset.AssetID, result.MarketMakerID, allocation.MarketMaker)
+		} else {
+			log.Printf("ativo %s já coberto pelo Market Maker %s — pulando", asset.AssetID, result.MarketMakerID)
+		}
 
 		for i, shares := range allocation.Others {
 			holder := bots[otherBotUserID(i)]
@@ -529,7 +541,7 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, as
 
 	minimumCash := tick.DefaultInitialPrice * botMinimumOrderShares
 	for userID, holding := range bots {
-		cash := bot.InitialCash(holding.positionValue, minimumCash, holding.isMarketMaker)
+		cash := bot.InitialCash(holding.positionValue, minimumCash, false)
 		ensureBotAccount(ctx, accountRepo, userID, cash)
 
 		for assetID, quantity := range holding.positions {
@@ -579,19 +591,17 @@ func ensureBotPosition(ctx context.Context, repo *db.AccountRepository, userID, 
 // puxar pra uma ponta.
 const botSpecializationWithinScopePct = (bot.SpecializationWithinScopeMin + bot.SpecializationWithinScopeMax) / 2
 
-// botDirectionalMaxPositionSizePct/botMarketOrderPreference/
-// botMarketMakerSpreadWidthPct são o perfil de risco (RiskProfile,
-// tarefa C.1) desta sessão — valores ilustrativos sem calibração fina
+// botDirectionalMaxPositionSizePct/botMarketOrderPreference são o perfil de
+// risco (RiskProfile, tarefa C.1) dos bots direcionais (o do Market Maker é
+// bot.DefaultMarketMakerPersonality, P.2) — valores ilustrativos sem calibração fina
 // (mesmo tratamento de qualquer outro coeficiente deste seed), únicos por
 // enquanto porque nenhuma tarefa até aqui (C.2-C.5) diferencia perfil de
 // risco por bot individual, só por arquétipo. SpreadWidthPct só importa de
-// fato pro Market Maker (DecideMarketMakerOrders, C.3) — os outros 3
-// arquétipos não leem esse campo, por isso ficam com 0.
+// fato pro Market Maker (DecideMarketMakerOrders, C.3) — os direcionais não
+// leem esse campo, por isso ficam com 0.
 const (
 	botDirectionalMaxPositionSizePct = 0.20
 	botMarketOrderPreference         = 0.50
-	botMarketMakerMaxPositionSizePct = 0.50
-	botMarketMakerSpreadWidthPct     = 0.02
 )
 
 // sixFixedSectors são os 6 setores fixos da spec 3.3.2 — mesma lista que
@@ -617,12 +627,10 @@ var nonEquityAssetClasses = []catalog.AssetType{catalog.AssetFII, catalog.AssetE
 var botDirectionalArchetypes = []bot.Archetype{bot.ArchetypeRuido, bot.ArchetypeChartista, bot.ArchetypeFundamentalista}
 
 // seedBotPersonalities atribui personalidade (tarefa C.1) a cada conta do
-// pool de bots já criado por seedBotLiquidity (B.2, tarefa anterior) — o
-// Market Maker (marketMakerBotUserID) recebe escopo amplo (todos os 6
-// setores + FII/ETF, WithinScopePct no teto da faixa — ele já concentra a
-// maior fatia do float/caixa, então faz sentido que também tenha o maior
-// alcance de especialização) e os botOtherBotCount bots direcionais se
-// dividem entre os 3 arquétipos restantes via bot.AssignSpecializations
+// pool de bots direcionais já criado por seedBotLiquidity (B.2, tarefa
+// anterior) — o Market Maker não passa mais por aqui: conta e personalidade
+// dele nascem em coverage.EnsureCoverage (P.2). Os botOtherBotCount bots
+// direcionais se dividem entre os 3 arquétipos restantes via bot.AssignSpecializations
 // (C.6), que garante que todo setor/classe tem pelo menos um bot de cada
 // arquétipo cobrindo-o. Nível de conhecimento dos bots Fundamentalistas é
 // sorteado (determinístico por botSeed) — o único jeito de ter bots "que
@@ -630,20 +638,6 @@ var botDirectionalArchetypes = []bot.Archetype{bot.ArchetypeRuido, bot.Archetype
 // Idempotente: ensureBotPersonality pula bots que já têm personalidade
 // persistida, mesma convenção de ensureBotAccount/ensureBotPosition.
 func seedBotPersonalities(ctx context.Context, repo *db.BotRepository) {
-	marketMakerScope, err := bot.NewSpecializationScope(sixFixedSectors, nil, nonEquityAssetClasses, bot.SpecializationWithinScopeMax)
-	if err != nil {
-		log.Fatalf("escopo de especialização do Market Maker inválido: %v", err)
-	}
-	marketMakerRisk, err := bot.NewRiskProfile(botMarketMakerMaxPositionSizePct, botMarketOrderPreference, botMarketMakerSpreadWidthPct)
-	if err != nil {
-		log.Fatalf("perfil de risco do Market Maker inválido: %v", err)
-	}
-	marketMakerPersonality, err := bot.NewPersonality(bot.ArchetypeMarketMaker, marketMakerScope, nil, marketMakerRisk)
-	if err != nil {
-		log.Fatalf("personalidade do Market Maker inválida: %v", err)
-	}
-	ensureBotPersonality(ctx, repo, marketMakerBotUserID, marketMakerPersonality)
-
 	assignments, err := bot.AssignSpecializations(botDirectionalArchetypes, sixFixedSectors, nonEquityAssetClasses, botOtherBotCount)
 	if err != nil {
 		log.Fatalf("erro ao distribuir especialização entre os %d bots direcionais: %v", botOtherBotCount, err)
