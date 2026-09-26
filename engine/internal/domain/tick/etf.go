@@ -231,3 +231,20 @@ func (s *Service) coverETFs(ctx context.Context, equities map[string]*equityRoun
 	}
 	return nil
 }
+
+// loadETFFunds lê, numa leitura em lote por tick, o estado dos fundos de ETF
+// com cotas (R.5) pra o iNAV em memória; sem WithETF devolve nil.
+func (s *Service) loadETFFunds(ctx context.Context) (map[string]etf.FundSnapshot, error) {
+	if s.etf.Funds == nil {
+		return nil, nil
+	}
+	funds, err := s.etf.Funds.ListFunds(ctx)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]etf.FundSnapshot, len(funds))
+	for _, f := range funds {
+		byID[f.ETFAssetID] = f
+	}
+	return byID, nil
+}

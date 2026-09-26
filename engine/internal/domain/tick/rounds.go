@@ -23,6 +23,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/equity"
+	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -561,6 +562,11 @@ func (s *Service) runIntradayRounds(
 		return nil, nil, 0, 0, err
 	}
 
+	etfFunds, err := s.loadETFFunds(ctx)
+	if err != nil {
+		return nil, nil, 0, 0, err
+	}
+
 	roster, err := s.bots.ListEligibleForTradingRound(ctx)
 	if err != nil {
 		return nil, nil, 0, 0, err
@@ -576,6 +582,7 @@ func (s *Service) runIntradayRounds(
 		priceHistoryCache: make(map[string][]float64),
 		volumeCache:       make(map[string][]int),
 		volumeByAssetID:   make(map[string]int),
+		etfFunds:          etfFunds,
 	}
 	uncovered := countUncoveredAssets(roster, equities)
 
@@ -666,6 +673,35 @@ type roundRun struct {
 	// bots direcionais (fração do float): dimensiona a ordem para o giro-alvo do
 	// ativo dado quantos turnos ele recebe hoje.
 	orderCeilingPct map[string]float64
+	// etfFunds (R.5) é o estado dos fundos de ETF lido uma vez no início do
+	// tick, por ETF: dele sai o iNAV em memória (inav), a cada recotação, a
+	// partir dos preços correntes dos constituintes.
+	etfFunds map[string]etf.FundSnapshot
+}
+
+// inav devolve o valor patrimonial intradiário de um ETF (R.5): posições do
+// fundo lidas no início do tick, preços correntes dos constituintes (os fills
+// já feitos nas rodadas). nil para ativo que não é ETF com fundo carregado ou
+// quando falta preço de algum constituinte (o Market Maker cai no último
+// preço). Em memória, sem comando de banco.
+func (r *roundRun) inav(assetID string) *float64 {
+	fund, ok := r.etfFunds[assetID]
+	if !ok {
+		return nil
+	}
+	prices := make(map[string]float64, len(fund.Holdings))
+	for _, h := range fund.Holdings {
+		state, ok := r.equities[h.AssetID]
+		if !ok {
+			return nil
+		}
+		prices[h.AssetID] = state.Price
+	}
+	nav, err := etf.NAVFromSnapshot(fund, prices)
+	if err != nil {
+		return nil
+	}
+	return &nav
 }
 
 // directionalBots filtra o roster pelos bots que negociam por turno (Ruído,
@@ -967,7 +1003,9 @@ func (s *Service) maintainMarketMakerQuotes(ctx context.Context, run *roundRun, 
 func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRound, assetID string, resting []bot.RestingQuote) (bool, error) {
 	state := run.equities[assetID]
 
-	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, state.Price)
+	// ETF cota em torno do iNAV (R.5); Ação e FII, do último preço.
+	reference := bot.QuoteReferencePrice(state.Price, run.inav(assetID))
+	idealBid, idealAsk, err := bot.MarketMakerQuotePrices(b.Personality, reference)
 	if err != nil {
 		return false, nil
 	}
@@ -995,7 +1033,11 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 	}
 	// O Market Maker é determinístico (sem seed) e não usa insumos além do
 	// preço, do caixa, da posição e do teto de ordem.
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
+	// A cotação sai do preço de referência (iNAV, no ETF); o estado real, com o
+	// último preço, segue sendo o que os fills atualizam.
+	quoteState := *state
+	quoteState.Price = reference
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, &quoteState, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
 	if err != nil {
 		return true, err
 	}

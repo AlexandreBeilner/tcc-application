@@ -3855,7 +3855,7 @@ negociação dos constituintes.
   faixa alvo. (2) Um ETF emitido num tick só negocia a partir do tick seguinte. (3) A cotação do Market Maker ainda gira em torno do
   último preço, não do iNAV (R.5).
 
-### R.5 · Market Maker do ETF ancorado no iNAV
+### R.5 · Market Maker do ETF ancorado no iNAV ✅
 - **Descrição:** o formador de mercado de um ETF real cota em torno do iNAV, não do último preço. `MarketMakerQuotePrices`
   recebe um preço de referência opcional (o iNAV do ETF); ações e FIIs seguem cotando pelo último preço. Manutenção de cotação
   (P.4) passa a recotar quando o iNAV se move além da tolerância, não só quando o preço muda; spread e obrigações do formador
@@ -3863,6 +3863,23 @@ negociação dos constituintes.
 - **Critérios de aceite:** com os bots sem ordem, o preço do ETF fica dentro do spread do MM em torno do iNAV; ágio/deságio
   médio medido pequeno num mercado calmo; teste da referência opcional sem mudar o preço das ações (mesma seed, mesmo mercado).
 - **Dependências:** R.4.
+- **Entregável (2026-09-26):** `bot.QuoteReferencePrice(último preço, iNAV opcional)` (função pura; iNAV nulo ou não positivo cai no último
+  preço) e `MarketMakerQuotePrices` recebe a referência já escolhida, então o cálculo de spread não mudou e Ação e FII seguem
+  exatamente como antes (iNAV nil). No tick, `loadETFFunds` lê uma vez por tick o estado dos fundos (`ListFunds`, 2 consultas) e
+  `roundRun.inav` calcula o iNAV em memória a cada chamada, com os preços correntes dos constituintes (os fills das rodadas já
+  contam), sem comando de banco. `maintainQuote` usa a referência tanto para os preços ideais e a tolerância de recotação quanto
+  para a decisão de cotação (uma cópia do estado com o preço trocado; o estado real, com o último preço, segue sendo o que os fills
+  atualizam), então o Market Maker recota quando o iNAV se move além da tolerância, não só quando o preço muda. Spread e obrigações
+  do formador (P.6) já valiam, por serem do arquétipo.
+- **Testes:** `QuoteReferencePrice` table-driven; no tick, Market Maker cobrindo uma ação e um ETF (iNAV 120 contra último preço 90):
+  ETF cotado a 118,8 e 121,2 e a ação a 99 e 101 (referência opcional sem mudar a ação); `roundRun.inav` acompanhando um fill,
+  constituinte fora do universo e ativo que não é ETF. `golangci-lint` (0 issues), `go build`, `go test ./...` passam.
+  **Validado ao vivo** (12 ticks no `SINT11`): ágio/deságio médio absoluto de **1,04%** (máximo 3,66%), contra -9% a -3,4% com o
+  Market Maker no último preço (R.4).
+- **Limites conhecidos:** o critério "ágio médio pequeno num mercado calmo" foi medido só num ETF e em 12 dias, com bots direcionais
+  ativos; o "mercado calmo" sem ordem de bot e a série longa ficam para a R.12. O ágio máximo de 3,66% ocorreu num dia em que ordens
+  de bot moveram o preço além do spread, e é o que a arbitragem da R.6 deve reduzir. Não investiguei o salto do NAV de 98,3 para
+  107,5 entre os dias 425 e 426: o NAV só acompanha os preços dos constituintes, então a origem está no movimento deles nesse dia.
 
 ### R.6 · Participante Autorizado ligado ao tick (arbitragem NAV x preço)
 - **Descrição:** ator mecânico (mesma conta/pipeline de ordens dos bots, `is_bot`) que roda depois das rodadas e usa

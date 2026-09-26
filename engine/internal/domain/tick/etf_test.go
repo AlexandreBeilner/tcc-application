@@ -3,10 +3,13 @@ package tick
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
+	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/etf"
+	"tcc-investimentos/engine/internal/domain/orderbook"
 )
 
 type fakeETFFunds struct {
@@ -337,5 +340,74 @@ func TestAdvance_ETFNaoGeraCotacaoPorGBM(t *testing.T) {
 	result := Advance(State{Day: 3, SelicRate: 10}, assets, nil, nil, nil, nil, testSelicConfigService(), testIPCAConfig(), 1)
 	if len(result.Quotes) != 0 {
 		t.Errorf("quotes = %+v, want nenhuma (ETF forma preço por negociação, não GBM)", result.Quotes)
+	}
+}
+
+// R.5: o Market Maker cota o ETF em torno do iNAV (posições do fundo x preços
+// correntes dos constituintes), não do último preço; a ação continua cotando
+// em torno do último preço.
+func TestRunIntradayRounds_MarketMakerCotaETFEmTornoDoINAV(t *testing.T) {
+	const userID = "22222222-2222-2222-2222-222222222222"
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: userID, Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1", "etf1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 10_000_000, positions: map[string]int{"a1": 10_000, "etf1": 1_000}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	svc.orderLifecycle = &fakeOrderLifecycleManager{}
+	// iNAV = (800 x 100 + 40.000 de caixa) / 1.000 cotas = 120.
+	svc.WithETF(ETFDeps{Funds: &fakeETFFunds{funds: []etf.FundSnapshot{
+		{ETFAssetID: "etf1", Shares: 1000, Cash: 40000, Holdings: []etf.FundHolding{{AssetID: "a1", Quantity: 800}}},
+	}}})
+
+	shares, etfPrice := int64(1000), 90.0
+	assets := []AssetForPricing{
+		acaoAsset("a1", 100),
+		{AssetID: "etf1", Type: assetTypeETF, LastPrice: &etfPrice, OutstandingShares: &shares},
+	}
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	quotes := map[string]map[orderbook.Side]float64{}
+	for _, s := range submitter.submitted {
+		if s.req.UserID != userID {
+			continue
+		}
+		if quotes[s.req.AssetID] == nil {
+			quotes[s.req.AssetID] = map[orderbook.Side]float64{}
+		}
+		quotes[s.req.AssetID][s.req.Side] = s.req.Price
+	}
+	approx := func(got, want float64) bool { return math.Abs(got-want) < 1e-6 }
+	// Spread do personality de teste: 2% (meia largura de 1%).
+	if !approx(quotes["etf1"][orderbook.SideBuy], 120*0.99) || !approx(quotes["etf1"][orderbook.SideSell], 120*1.01) {
+		t.Errorf("cotação do ETF = %v, want compra 118,8 e venda 121,2 (em torno do iNAV 120, não do último preço 90)", quotes["etf1"])
+	}
+	if !approx(quotes["a1"][orderbook.SideBuy], 100*0.99) || !approx(quotes["a1"][orderbook.SideSell], 100*1.01) {
+		t.Errorf("cotação da ação = %v, want compra 99 e venda 101 (em torno do último preço)", quotes["a1"])
+	}
+}
+
+func TestRoundRunINAV(t *testing.T) {
+	run := &roundRun{
+		equities: map[string]*equityRoundState{"a": {Price: 10}, "b": {Price: 20}},
+		etfFunds: map[string]etf.FundSnapshot{
+			"etf":       {ETFAssetID: "etf", Shares: 100, Cash: 100, Holdings: []etf.FundHolding{{AssetID: "a", Quantity: 100}, {AssetID: "b", Quantity: 50}}},
+			"sem-preco": {ETFAssetID: "sem-preco", Shares: 100, Holdings: []etf.FundHolding{{AssetID: "fora", Quantity: 1}}},
+		},
+	}
+
+	if got := run.inav("etf"); got == nil || math.Abs(*got-21) > 1e-9 {
+		t.Errorf("iNAV = %v, want 21 ((1000 + 1000 + 100) / 100)", got)
+	}
+	run.equities["a"].Price = 12 // um fill mexeu no constituinte: o iNAV acompanha
+	if got := run.inav("etf"); got == nil || math.Abs(*got-23) > 1e-9 {
+		t.Errorf("iNAV depois do fill = %v, want 23", got)
+	}
+	if got := run.inav("sem-preco"); got != nil {
+		t.Errorf("iNAV com constituinte fora do universo = %v, want nil", *got)
+	}
+	if got := run.inav("acao"); got != nil {
+		t.Errorf("iNAV de ativo que não é ETF = %v, want nil", *got)
 	}
 }

@@ -121,3 +121,26 @@ func TestNeedsRequote_CotacaoRecemCriadaComPisoNaoVenceImediatamente(t *testing.
 		t.Errorf("cotação recém-criada julgada vencida: requoteBuy=%v requoteSell=%v", buy, sell)
 	}
 }
+
+func TestQuoteReferencePrice(t *testing.T) {
+	inav := 101.5
+	zero, negative := 0.0, -3.0
+	tests := []struct {
+		name string
+		last float64
+		inav *float64
+		want float64
+	}{
+		{name: "sem iNAV (ação e FII) usa o último preço", last: 98, inav: nil, want: 98},
+		{name: "ETF cota em torno do iNAV", last: 98, inav: &inav, want: 101.5},
+		{name: "iNAV zero é ignorado", last: 98, inav: &zero, want: 98},
+		{name: "iNAV negativo é ignorado", last: 98, inav: &negative, want: 98},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := QuoteReferencePrice(tt.last, tt.inav); got != tt.want {
+				t.Errorf("QuoteReferencePrice = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
