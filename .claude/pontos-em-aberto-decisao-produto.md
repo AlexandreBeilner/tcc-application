@@ -87,42 +87,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
 - **Status:** aberto
 
-### 014 · O volume por ativo cai com o tamanho do catálogo porque o pool de bots direcionais é fixo
-
-- **Local:** `engine/cmd/seed/main.go` (`botOtherBotCount = 19`, mais `bot.SelectAssetForRound`: cada bot negocia 1 ativo
-  por rodada), `engine/internal/domain/tick/rounds.go` (`MinOrderPctOfFloat`)
-- **Origem:** medição da tarefa P.8 (benchmark da P.7), 2026-09-23
-- **O que é:** o volume diário médio por ativo, como % do float, cai aproximadamente com `1/N` quando o catálogo cresce, com
-  o pool de 19 bots direcionais e 1 a 4 rodadas por dia fixos. Medido em 60 dias simulados, mesma seed: **5 ativos (seed
-  real) 0,45%** (dentro da faixa de 0,3% a 0,7% de `calibracao-liquidez-bots.md`), **15 ativos 0,20%**, 35 ativos 0,08%,
-  55 ativos 0,06%. Como a tarefa 7.2 do backlog principal planeja de 12 a 15 ativos negociáveis, o volume do catálogo real
-  previsto já sai da faixa. Efeito colateral medido: o efeito de eventos macro também enfraquece nos ativos menos
-  negociados (cinco eventos severos no setor de Mineração: `VALR3` caiu 7,7%, um ativo sintético do mesmo setor 3%).
-- **Por que não foi corrigido:** `MinOrderPctOfFloat` não resolve: o volume depende de quantas ordens acontecem por ativo,
-  não só do tamanho delas, e subir a constante para atender 15 ativos empurraria o seed de hoje para o topo da faixa.
-  Escalar o pool custa comandos SQL de forma linear (cerca de 17 por turno de bot, ~800 por tick com 19 bots), então
-  manter o volume de 5 ativos com 55 ativos exigiria ~200 bots e ~9.000 comandos por tick, acima do orçamento de 3.500 da
-  seção 6.1 da proposta de cobertura. É preciso o autor definir **qual volume por ativo é o alvo** e quanto custo de
-  tick aceita pagar por isso.
-- **Opções:** (a) o pool de bots direcionais escala com o catálogo (regra de bots por ativo, definida no seed e
-  reaproveitada pelo painel de bots da Fase N), com um teto de custo de tick; (b) cada bot negocia mais de um ativo por
-  rodada (custo por bot sobe, número de bots fica fixo); (c) aceitar a cauda longa, coerente com a B3 (as 10 ações mais
-  negociadas concentram ~46% do volume), e definir a faixa-alvo só para os ativos líderes, deixando os demais mais
-  parados; (d) combinação: escalar o pool até um teto e aceitar cauda longa acima dele. **Recomendação:** (d), com o
-  número de bots por ativo e o teto escolhidos pelo autor. Não bloqueia a Fase P.
-- **Decisão (2026-09-25, autor):** desenhar para pelo menos 30 ativos e crescendo (horizonte de 100). Alvo: líderes na
-  faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, nenhum ativo sem negociação. Orçamento: teto de 5.000 comandos por
-  tick, meta de 3.500 com 30 ativos. Virou a **Fase Q** de `backlog-motor-mercado-realista.md` (turno mais barato, pool
-  dimensionado pelo orçamento, escolha de ativo ponderada por valor de mercado com piso, benchmark, e sessão de tick em
-  memória só se o benchmark exigir).
-- **Benchmark da Q.4 (2026-09-26):** 30 ativos dentro do alvo; 50 estoura o custo (máx. 5.701 comandos); 100 estoura custo
-  (média 5.335, 28 de 60 ticks acima de 5.000) e alvo (mediano 0,14%, 36% dos ativo-dias sem negócio, cauda reage -1,0% a
-  cinco eventos severos). Causa: custo e volume dependem do mesmo botão (tamanho do pool). Virou as tarefas **Q.7 a Q.10**
-  (medir custo, orçamento de turnos com piso rígido, giro-alvo via tamanho de ordem, atenção por evento). **Decidido
-  (2026-09-26, autor delegou):** o piso de "nenhum ativo sem negociação" passa de estatístico para rígido, 1 turno marketable
-  por ativo por dia (Q.8).
-- **Status:** aberto, com dono real (Fase Q); fecha quando a Q.4 validar os alvos depois de Q.7 a Q.10
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -589,3 +553,40 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   venda a mercado preenchem nos 5 ativos do seed real e em 10 de 10 ativos de catálogos de 35 e 55 ativos (20 de 20 ordens
   cada), depois de 60 dias simulados. Detalhes em `proposta-cobertura-market-maker.md` seção 6.2.
 - **Status:** Resolvido
+
+### 014 · O volume por ativo cai com o tamanho do catálogo porque o pool de bots direcionais é fixo
+
+- **Local:** `engine/cmd/seed/main.go` (`botOtherBotCount = 19`, mais `bot.SelectAssetForRound`: cada bot negocia 1 ativo
+  por rodada), `engine/internal/domain/tick/rounds.go` (`MinOrderPctOfFloat`)
+- **Origem:** medição da tarefa P.8 (benchmark da P.7), 2026-09-23
+- **O que é:** o volume diário médio por ativo, como % do float, cai aproximadamente com `1/N` quando o catálogo cresce, com
+  o pool de 19 bots direcionais e 1 a 4 rodadas por dia fixos. Medido em 60 dias simulados, mesma seed: **5 ativos (seed
+  real) 0,45%** (dentro da faixa de 0,3% a 0,7% de `calibracao-liquidez-bots.md`), **15 ativos 0,20%**, 35 ativos 0,08%,
+  55 ativos 0,06%. Como a tarefa 7.2 do backlog principal planeja de 12 a 15 ativos negociáveis, o volume do catálogo real
+  previsto já sai da faixa. Efeito colateral medido: o efeito de eventos macro também enfraquece nos ativos menos
+  negociados (cinco eventos severos no setor de Mineração: `VALR3` caiu 7,7%, um ativo sintético do mesmo setor 3%).
+- **Por que não foi corrigido:** `MinOrderPctOfFloat` não resolve: o volume depende de quantas ordens acontecem por ativo,
+  não só do tamanho delas, e subir a constante para atender 15 ativos empurraria o seed de hoje para o topo da faixa.
+  Escalar o pool custa comandos SQL de forma linear (cerca de 17 por turno de bot, ~800 por tick com 19 bots), então
+  manter o volume de 5 ativos com 55 ativos exigiria ~200 bots e ~9.000 comandos por tick, acima do orçamento de 3.500 da
+  seção 6.1 da proposta de cobertura. É preciso o autor definir **qual volume por ativo é o alvo** e quanto custo de
+  tick aceita pagar por isso.
+- **Opções:** (a) o pool de bots direcionais escala com o catálogo (regra de bots por ativo, definida no seed e
+  reaproveitada pelo painel de bots da Fase N), com um teto de custo de tick; (b) cada bot negocia mais de um ativo por
+  rodada (custo por bot sobe, número de bots fica fixo); (c) aceitar a cauda longa, coerente com a B3 (as 10 ações mais
+  negociadas concentram ~46% do volume), e definir a faixa-alvo só para os ativos líderes, deixando os demais mais
+  parados; (d) combinação: escalar o pool até um teto e aceitar cauda longa acima dele. **Recomendação:** (d), com o
+  número de bots por ativo e o teto escolhidos pelo autor. Não bloqueia a Fase P.
+- **Decisão (2026-09-25, autor):** desenhar para pelo menos 30 ativos e crescendo (horizonte de 100). Alvo: líderes na
+  faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, nenhum ativo sem negociação. Orçamento: teto de 5.000 comandos por
+  tick, meta de 3.500 com 30 ativos. Virou a **Fase Q** de `backlog-motor-mercado-realista.md` (turno mais barato, pool
+  dimensionado pelo orçamento, escolha de ativo ponderada por valor de mercado com piso, benchmark, e sessão de tick em
+  memória só se o benchmark exigir).
+- **Benchmark da Q.4 (2026-09-26):** 30 ativos dentro do alvo; 50 estoura o custo (máx. 5.701 comandos); 100 estoura custo
+  (média 5.335, 28 de 60 ticks acima de 5.000) e alvo (mediano 0,14%, 36% dos ativo-dias sem negócio, cauda reage -1,0% a
+  cinco eventos severos). Causa: custo e volume dependem do mesmo botão (tamanho do pool). Virou as tarefas **Q.7 a Q.10**
+  (medir custo, orçamento de turnos com piso rígido, giro-alvo via tamanho de ordem, atenção por evento). **Decidido
+  (2026-09-26, autor delegou):** o piso de "nenhum ativo sem negociação" passa de estatístico para rígido, 1 turno marketable
+  por ativo por dia (Q.8).
+- **Status:** resolvido (2026-09-26). A Q.4 validou os alvos em 30, 50 e 100 ativos depois de Q.7 a Q.10; resultados na seção 6.4 de
+  `proposta-cobertura-market-maker.md` e no Entregável da Q.4 de `backlog-motor-mercado-realista.md`.

@@ -297,6 +297,29 @@ Como ler:
 
 O volume fora da faixa com catálogo maior virou o achado 014 (pool de bots fixo); `MinOrderPctOfFloat` ficou em 0,4%.
 
+### 6.4 Liquidez que escala com o catálogo (Fase Q, 2026-09-26)
+
+Medição em 30, 50 e 100 ativos (5 reais mais sintéticos, 60 dias simulados, seed 42), antes e depois da Fase Q:
+
+| | 100 ativos, antes (Q.1 a Q.3) | 30 ativos | 50 ativos | 100 ativos, depois (Q.7 a Q.10) |
+|---|---|---|---|---|
+| Comandos por tick, média | 5.335 (28 de 60 ticks acima de 5.000) | 2.163 | 3.600 | 4.644 (3 de 60 acima, p95 5.051) |
+| Volume dos líderes (% do float/dia) | 0,32 | 0,54 | 0,53 | 0,34 |
+| Volume mediano | 0,14 | 0,33 | 0,30 | 0,24 |
+| Ativos abaixo de 0,15% | 52 de 100 | 1 de 30 | 0 de 50 | 0 de 100 |
+| Dias sem negociação | 36% | 0% | 0,4% | 0,6% |
+| Reação da cauda a 5 eventos severos | -1,0% | -8,2% | -5,8% | mediana -4,9% |
+
+Diagnóstico (Q.7): os bots direcionais respondem por cerca de 72% dos comandos do tick, o Market Maker por 25% e o custo fixo
+por 3%, em qualquer tamanho de catálogo. A causa do estouro era cada bot sortear um ativo por rodada: custo e volume dependiam do
+mesmo botão (o pool) e cada ativo novo diluía os outros. A correção (Q.8 a Q.10) inverte o modelo: o tick fixa um orçamento de
+turnos (até 200, com piso rígido de 1 turno a mercado por ativo por dia), o volume vem do tamanho da ordem dimensionado ao
+giro-alvo do ativo (0,2% a 0,6% do float, sublinear no valor de mercado) e um evento macro ativo atrai turnos e Fundamentalistas
+ao ativo afetado. Achado colateral (Q.9): a recotação do Market Maker podia ser consumida de cara por uma ordem de bot do outro
+lado do preço, então a passada final agora repete até a cotação estabilizar.
+
+Volatilidade diária com 100 ativos: mediana 1,10%, p95 1,51%. Nenhum Market Maker esgotou caixa nem posição.
+
 ## 7. Escopo: tarefas (candidatas à Fase P de `backlog-motor-mercado-realista.md`)
 
 Cada tarefa é escopo de uma sessão, com teste no mesmo commit, `golangci-lint` e `go test ./...`

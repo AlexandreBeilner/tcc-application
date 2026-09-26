@@ -3444,13 +3444,30 @@ Todos esses números são estimativas a validar na Q.4.
   (dias de 4 rodadas com muitos fills), então `BotsPerAsset` e `MaxPoolSize` precisam de calibração.
   `golangci-lint`, `go build`, `go test ./...` passam.
 
-### Q.4 · Benchmark em 30, 50 e 100 ativos e gatilho da parte 4
+### Q.4 · Benchmark em 30, 50 e 100 ativos e gatilho da parte 4 ✅
 - **Descrição:** repetir `engine/scripts/benchmark-cobertura.sh` (P.7) com 30, 50 e 100 ativos sintéticos, medindo
   volume dos líderes e do ativo mediano, comandos por tick e o efeito de cinco eventos severos num ativo da cauda.
 - **Critérios de aceite:** líderes na faixa de 0,3% a 0,7%, mediano de pelo menos 0,15%, tick de no máximo 5.000 comandos
   (meta de 3.500 com 30 ativos); resultados registrados na proposta de cobertura e neste backlog. **Gatilho:** se com 100
   ativos o tick passar de 5.000 comandos depois de Q.1 a Q.3, abrir a Q.5.
 - **Dependências:** Q.1, Q.2, Q.3.
+- **Resultado final (2026-09-26, depois de Q.7 a Q.10, 60 dias, seed 42):**
+
+  | | 30 ativos | 50 ativos | 100 ativos |
+  |---|---|---|---|
+  | Comandos por tick, média / máx. | 2.163 / 2.600 | 3.600 / 4.700 | 4.644 / 6.442 |
+  | Ticks acima de 5.000 | 0 | 0 | 3 de 60 (p95 = 5.051) |
+  | Líderes (% do float/dia) | 0,54 | 0,53 | 0,34 (0,26 a 0,42) |
+  | Volume mediano | 0,33 | 0,30 | 0,24 |
+  | Ativos abaixo de 0,15% | 1 de 30 | 0 de 50 | 0 de 100 |
+  | Dias sem negociação | 0 de 600 | 4 de 1.000 | 11 de 2.000 |
+  | Reação da cauda a 5 eventos severos | -8,2% | -5,8% | mediana -4,9% (6 execuções) |
+  | Cotados dos dois lados / cenário 013 | 30 de 30 / 20 de 20 | 50 de 50 (8 de 8 execuções) / 20 de 20 | 100 de 100 / 20 de 20 |
+
+  Todos os alvos das decisões do autor atendidos: líderes na faixa de 0,3% a 0,7% (com 100 ativos, na parte baixa), mediano
+  acima de 0,15%, nenhum ativo sem negociação estruturalmente (piso rígido, os poucos dias sem negócio são o turno de piso sem
+  fill), custo médio e p95 dentro de 5.000 e a meta de 3.500 com 30 ativos (2.163). A Q.5 não foi necessária no horizonte de 100
+  ativos. Ver a seção 6.4 da `proposta-cobertura-market-maker.md`.
 - **Decisão (2026-09-26, autor aprovou a recomendação):** o teto de 5.000 comandos por tick vale como **média e p95** (a
   média de 4.620 e o p95 de 5.024 com 100 ativos o cumprem). Os poucos ticks acima (3 de 60, máx. 6.393) são dias de 4 rodadas
   com muitos fills; um teto rígido no pico exigiria um limite de fills por tick, que não se justifica pelo custo de realismo.
@@ -3607,7 +3624,7 @@ Todos esses números são estimativas a validar na Q.4.
   com 50 ativos e 1 com 100 deram todos os ativos cotados dos dois lados, sem custo perceptível (média de 3.600 e 4.644
   comandos por tick). O script de benchmark lista os ativos sem um dos lados quando isso ocorre. `golangci-lint`, `go build`, `go test ./...` passam.
 
-### Q.10 · Atenção por evento: turnos extras e reação do Fundamentalista
+### Q.10 · Atenção por evento: turnos extras e reação do Fundamentalista ✅
 - **Origem:** reação a cinco eventos severos num ativo da cauda de apenas -1,0% (0,0% com 50 ativos), contra -7,7% em 4
   dias do `VALR3` no seed real (P.8): ativo pouco negociado quase não reage.
 - **Descrição:** evento macro ou balanço aplica um **multiplicador de atenção** (por exemplo x3 no dia, decaindo em 3 a 5
@@ -3625,6 +3642,18 @@ Todos esses números são estimativas a validar na Q.4.
   (mediana perto de -2%), a metade ou menos da queda do `VALR3` no seed real (-7,7% em 4 dias, P.8). Uma amostra só não sustenta o
   fechamento, então a Q.10 volta a ser implementada como descrito acima. Critério de aceite reforçado: reação medida em pelo
   menos 4 execuções, com mediana da mesma ordem de grandeza da do `VALR3`.
+- **Entregável (sessão 2026-09-26):** `bot.AttentionMultiplier` (1 sem evento, até 1 + 4 = 5 vezes com efeito de preço combinado de
+  15% ou mais, só pela magnitude), `EquityForRound.Attention` e `Turn.Attention`. O multiplicador entra no peso de
+  `AllocateTurns` (o orçamento total e o piso de 1 turno por ativo não mudam) e `SelectBotForTurn` passou a receber
+  `TurnCandidate` (escopo e arquétipo): num turno de ativo sob atenção, 75% das vezes só Fundamentalistas concorrem (sem nenhum,
+  todos concorrem). O giro-alvo do ativo também sobe com a atenção (pico de volume, dentro do teto de 1,2% do float por ordem).
+  O tick lê a atenção do `MacroEffectPct` por empresa que já existia (só é diferente de zero enquanto o evento dura, então o
+  decaimento é o fim do evento, sem estado novo): `applyEventAttention`. Balanços (dia de relatório) ficaram fora, só evento macro
+  gera atenção. **Medição** (100 ativos, 6 execuções, cinco eventos severos no setor do ativo de menor float): **-4,0%, -3,9%,
+  -5,8%, -2,0%, -5,9% e -12,0%, mediana -4,9%**, contra -3,9%, -1,0%, -0,0% e -3,0% (mediana perto de -2%, com dois casos sem
+  reação) antes da Q.10, e -7,7% do `VALR3` no seed real. Nenhuma execução sem reação. Testes de multiplicador, redistribuição sem
+  mudar o orçamento, preferência por Fundamentalista, marcação no universo e giro-alvo com atenção; `golangci-lint`, `go build`,
+  `go test ./...` passam.
 
 ## Sequência sugerida
 

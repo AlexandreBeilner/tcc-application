@@ -31,6 +31,10 @@ type EquityForRound struct {
 	// peso do sorteio de AllocateTurns/SelectBotForTurn. 0 quando o float é desconhecido:
 	// o ativo entra só com a parte uniforme do peso.
 	MarketValue float64
+	// Attention (tarefa Q.10) é o multiplicador de atenção do ativo hoje
+	// (AttentionMultiplier): um evento macro ativo sobre a empresa atrai turnos
+	// e volume. 0 ou 1 quando não há evento.
+	Attention float64
 }
 
 // MarketValueWeight (tarefa Q.3) é a fração do peso de sorteio de um ativo que

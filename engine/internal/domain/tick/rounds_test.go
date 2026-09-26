@@ -1748,3 +1748,42 @@ func TestRunIntradayRounds_PassadaFinalRepeteAteACotacaoEstabilizar(t *testing.T
 		t.Errorf("submetidas = %d, want 4 (compra e venda na rodada e na 1ª passada final)", len(submitter.submitted))
 	}
 }
+
+// Q.10: só ativo de empresa com efeito de evento macro ativo ganha atenção; FII
+// (sem empresa) e empresa sem efeito ficam em 1.
+func TestApplyEventAttention(t *testing.T) {
+	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), fiiAsset("f1", 100)}
+	a2 := assets[1]
+	other := "c2"
+	a2.CompanyID = &other
+	assets[1] = a2
+	equities, universe := buildEquityUniverse(assets)
+
+	applyEventAttention(universe, equities, map[string]CompanyRoundContext{
+		"c1": {MacroEffectPct: -25},
+		"c2": {MacroEffectPct: 0},
+	})
+
+	got := map[string]float64{}
+	for _, e := range universe {
+		got[e.AssetID] = e.Attention
+	}
+	if got["a1"] != bot.AttentionMultiplier(-25) {
+		t.Errorf("a1 (evento severo) = %v, want %v", got["a1"], bot.AttentionMultiplier(-25))
+	}
+	if got["a2"] != 0 || got["f1"] != 0 {
+		t.Errorf("a2 = %v, f1 = %v, want 0 (sem atenção)", got["a2"], got["f1"])
+	}
+}
+
+// Q.10: enquanto o evento dura, o ativo afetado recebe mais turnos e o giro-alvo
+// dele sobe (teto de ordem maior).
+func TestOrderCeilingPcts_AtencaoSobeOGiroAlvo(t *testing.T) {
+	calm := []bot.EquityForRound{{AssetID: "a", MarketValue: 100}, {AssetID: "b", MarketValue: 100}}
+	hot := []bot.EquityForRound{{AssetID: "a", MarketValue: 100, Attention: 3}, {AssetID: "b", MarketValue: 100}}
+	turns := []bot.Turn{{AssetID: "a"}, {AssetID: "a"}, {AssetID: "a"}, {AssetID: "a"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}, {AssetID: "b"}}
+
+	if calmPct, hotPct := orderCeilingPcts(calm, turns)["a"], orderCeilingPcts(hot, turns)["a"]; hotPct <= calmPct {
+		t.Errorf("teto com atenção %v, sem %v: want maior com atenção", hotPct, calmPct)
+	}
+}

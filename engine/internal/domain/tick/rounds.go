@@ -557,10 +557,11 @@ func (s *Service) runIntradayRounds(
 	uncovered := countUncoveredAssets(roster, equities)
 
 	directional := directionalBots(roster)
-	scopes := make([]bot.SpecializationScope, len(directional))
+	candidates := make([]bot.TurnCandidate, len(directional))
 	for i, b := range directional {
-		scopes[i] = b.Personality.Scope
+		candidates[i] = bot.TurnCandidate{Scope: b.Personality.Scope, Archetype: b.Personality.Archetype}
 	}
+	applyEventAttention(universe, equities, companyContext)
 	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
 	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
 	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
@@ -582,7 +583,7 @@ func (s *Service) runIntradayRounds(
 			}
 		}
 		for k, turn := range turnsByRound[i] {
-			if err := s.runTurn(ctx, run, round, k, turn, universeByID, directional, scopes); err != nil {
+			if err := s.runTurn(ctx, run, round, k, turn, universeByID, directional, candidates); err != nil {
 				return nil, nil, run.fillsExecuted, uncovered, err
 			}
 		}
@@ -663,7 +664,11 @@ func orderCeilingPcts(universe []bot.EquityForRound, turns []bot.Turn) map[strin
 	median := bot.MedianMarketValue(universe)
 	pcts := make(map[string]float64, len(universe))
 	for _, e := range universe {
-		pct := bot.OrderCeilingPct(bot.TargetTurnoverPct(e.MarketValue, median), perAsset[e.AssetID])
+		target := bot.TargetTurnoverPct(e.MarketValue, median)
+		if e.Attention > 1 {
+			target *= e.Attention // pico de volume enquanto o evento dura (Q.10)
+		}
+		pct := bot.OrderCeilingPct(target, perAsset[e.AssetID])
 		pcts[e.AssetID] = math.Max(pct, MinOrderPctOfFloat)
 	}
 	return pcts
@@ -676,6 +681,23 @@ func (r *roundRun) directionalCeilingPct(assetID string) float64 {
 		return pct
 	}
 	return MinOrderPctOfFloat
+}
+
+// applyEventAttention (Q.10) marca no universo o multiplicador de atenção dos
+// ativos cuja empresa sofre hoje o efeito de preço de um evento macro
+// (CompanyRoundContext.MacroEffectPct, que só é diferente de zero enquanto o
+// evento dura): eles ganham turnos e volume, e os turnos preferem
+// Fundamentalistas.
+func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext) {
+	for i := range universe {
+		state := equities[universe[i].AssetID]
+		if state == nil || state.CompanyID == nil {
+			continue
+		}
+		if cc, ok := companyContext[*state.CompanyID]; ok && cc.MacroEffectPct != 0 {
+			universe[i].Attention = bot.AttentionMultiplier(cc.MacroEffectPct)
+		}
+	}
 }
 
 // splitTurns reparte os turnos do dia entre as rodadas em fatias contíguas de
@@ -711,7 +733,7 @@ const floorTurnAttempts = 4
 // roda a participação dele. O turno de piso do ativo é executado a mercado e
 // repete com outro bot até haver um fill, para o ativo imprimir um negócio real
 // todo dia.
-func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRound, index int, turn bot.Turn, universeByID map[string]bot.EquityForRound, directional []BotForRound, scopes []bot.SpecializationScope) error {
+func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRound, index int, turn bot.Turn, universeByID map[string]bot.EquityForRound, directional []BotForRound, candidates []bot.TurnCandidate) error {
 	asset := universeByID[turn.AssetID]
 	attempts := 1
 	if turn.Floor {
@@ -720,7 +742,7 @@ func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRoun
 	for attempt := 0; attempt < attempts; attempt++ {
 		purpose := fmt.Sprintf("turn:%d:%d", index, attempt)
 		botRng := rand.New(rand.NewSource(roundSeed(s.seed, run.dayIndex, round.SequenceIndex, turn.AssetID, purpose)))
-		pick := bot.SelectBotForTurn(asset, scopes, botRng)
+		pick := bot.SelectBotForTurn(asset, candidates, turn.Attention, botRng)
 		if pick < 0 {
 			return nil
 		}

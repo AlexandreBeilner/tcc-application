@@ -120,6 +120,14 @@ func TestAllocateTurns_Deterministico(t *testing.T) {
 	}
 }
 
+func candidatesOf(archetype Archetype, scopes ...SpecializationScope) []TurnCandidate {
+	out := make([]TurnCandidate, len(scopes))
+	for i, sc := range scopes {
+		out[i] = TurnCandidate{Scope: sc, Archetype: archetype}
+	}
+	return out
+}
+
 func TestSelectBotForTurn(t *testing.T) {
 	mineracao, err := NewSpecializationScope([]catalog.Sector{catalog.SectorMineracao}, nil, nil, 0.85)
 	if err != nil {
@@ -131,17 +139,17 @@ func TestSelectBotForTurn(t *testing.T) {
 	}
 	asset := EquityForRound{AssetID: "a", Sector: catalog.SectorMineracao, RiskClass: equity.RiskClassConservador, Type: catalog.AssetAcao}
 
-	if got := SelectBotForTurn(asset, nil, rand.New(rand.NewSource(1))); got != -1 {
+	if got := SelectBotForTurn(asset, nil, false, rand.New(rand.NewSource(1))); got != -1 {
 		t.Fatalf("sem bots: %d, want -1", got)
 	}
 
-	scopes := []SpecializationScope{fiis, mineracao, fiis}
+	candidates := candidatesOf(ArchetypeRuido, fiis, mineracao, fiis)
 	rng := rand.New(rand.NewSource(1))
 	const draws = 20000
 	inScope := 0
 	for i := 0; i < draws; i++ {
-		idx := SelectBotForTurn(asset, scopes, rng)
-		if idx < 0 || idx >= len(scopes) {
+		idx := SelectBotForTurn(asset, candidates, false, rng)
+		if idx < 0 || idx >= len(candidates) {
 			t.Fatalf("índice fora do intervalo: %d", idx)
 		}
 		if idx == 1 {
@@ -153,11 +161,99 @@ func TestSelectBotForTurn(t *testing.T) {
 	}
 
 	// Nenhum bot cobre o ativo: cai para os de fora, nunca devolve -1.
-	if got := SelectBotForTurn(asset, []SpecializationScope{fiis}, rng); got != 0 {
+	if got := SelectBotForTurn(asset, candidatesOf(ArchetypeRuido, fiis), false, rng); got != 0 {
 		t.Errorf("só bots fora do escopo: %d, want 0", got)
 	}
 	// Todos cobrem o ativo: não há grupo de fora.
-	if got := SelectBotForTurn(asset, []SpecializationScope{mineracao}, rng); got != 0 {
+	if got := SelectBotForTurn(asset, candidatesOf(ArchetypeRuido, mineracao), false, rng); got != 0 {
 		t.Errorf("só bots dentro do escopo: %d, want 0", got)
+	}
+}
+
+// Q.10: num turno sob atenção, AttentionFundamentalistShare das vezes só os
+// Fundamentalistas concorrem; sem atenção o arquétipo não pesa.
+func TestSelectBotForTurn_AtencaoPrefereFundamentalista(t *testing.T) {
+	mineracao, err := NewSpecializationScope([]catalog.Sector{catalog.SectorMineracao}, nil, nil, 0.85)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset := EquityForRound{AssetID: "a", Sector: catalog.SectorMineracao, RiskClass: equity.RiskClassConservador, Type: catalog.AssetAcao}
+	candidates := []TurnCandidate{
+		{Scope: mineracao, Archetype: ArchetypeRuido},
+		{Scope: mineracao, Archetype: ArchetypeChartista},
+		{Scope: mineracao, Archetype: ArchetypeFundamentalista},
+		{Scope: mineracao, Archetype: ArchetypeRuido},
+	}
+	share := func(attention bool) float64 {
+		rng := rand.New(rand.NewSource(5))
+		fund := 0
+		const draws = 20000
+		for i := 0; i < draws; i++ {
+			if candidates[SelectBotForTurn(asset, candidates, attention, rng)].Archetype == ArchetypeFundamentalista {
+				fund++
+			}
+		}
+		return float64(fund) / draws
+	}
+	// Com atenção: 75% só Fundamentalista mais 25% uniforme entre os 4 (1/4 deles).
+	if got, want := share(true), AttentionFundamentalistShare+(1-AttentionFundamentalistShare)/4; math.Abs(got-want) > 0.02 {
+		t.Errorf("com atenção: %.3f, want ~%.3f", got, want)
+	}
+	if got := share(false); math.Abs(got-0.25) > 0.02 {
+		t.Errorf("sem atenção: %.3f, want ~0,25 (uniforme)", got)
+	}
+	// Sem nenhum Fundamentalista, a atenção não bloqueia o turno.
+	noFund := candidates[:2]
+	if got := SelectBotForTurn(asset, noFund, true, rand.New(rand.NewSource(1))); got < 0 {
+		t.Errorf("sem Fundamentalista: %d, want um bot qualquer", got)
+	}
+}
+
+func TestAttentionMultiplier(t *testing.T) {
+	if got := AttentionMultiplier(0); got != 1 {
+		t.Errorf("sem evento: %v, want 1", got)
+	}
+	if got := AttentionMultiplier(-25); got != 1+AttentionBoost {
+		t.Errorf("evento severo negativo: %v, want %v", got, 1+AttentionBoost)
+	}
+	if AttentionMultiplier(25) != AttentionMultiplier(-25) {
+		t.Error("a atenção depende só da magnitude, não do sinal")
+	}
+	if got := AttentionMultiplier(AttentionFullEffectPct / 2); math.Abs(got-(1+AttentionBoost/2)) > 1e-12 {
+		t.Errorf("meio efeito: %v, want %v", got, 1+AttentionBoost/2)
+	}
+}
+
+// Q.10: o ativo em atenção recebe mais turnos, o orçamento total não muda, o
+// piso continua valendo e os turnos dele levam a marca de atenção.
+func TestAllocateTurns_AtencaoRedistribuiSemMudarOOrcamento(t *testing.T) {
+	universe := weightedUniverse(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+	const days, budget = 5000, 40
+	var base, boosted float64
+	for d := 0; d < days; d++ {
+		plain := turnsPerAsset(AllocateTurns(universe, budget, rand.New(rand.NewSource(int64(d)))))
+		base += float64(plain[universe[0].AssetID])
+
+		hot := append([]EquityForRound(nil), universe...)
+		hot[0].Attention = 1 + AttentionBoost
+		turns := AllocateTurns(hot, budget, rand.New(rand.NewSource(int64(d))))
+		if len(turns) != budget {
+			t.Fatalf("dia %d: %d turnos, want %d (orçamento fixo)", d, len(turns), budget)
+		}
+		per := turnsPerAsset(turns)
+		boosted += float64(per[hot[0].AssetID])
+		for _, e := range hot {
+			if per[e.AssetID] < 1 {
+				t.Fatalf("dia %d: ativo %s perdeu o piso", d, e.AssetID)
+			}
+		}
+		for _, tn := range turns {
+			if tn.Attention != (tn.AssetID == hot[0].AssetID) {
+				t.Fatalf("marca de atenção errada no turno %+v", tn)
+			}
+		}
+	}
+	if boosted/days <= 1.5*base/days {
+		t.Errorf("turnos médios com atenção %.2f, sem %.2f: want bem mais com atenção", boosted/days, base/days)
 	}
 }

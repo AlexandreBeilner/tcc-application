@@ -31,6 +31,9 @@ const (
 type Turn struct {
 	AssetID string
 	Floor   bool
+	// Attention (Q.10) marca o turno de um ativo em atenção por evento: o bot
+	// do turno é preferencialmente um Fundamentalista.
+	Attention bool
 }
 
 // TurnBudget devolve quantos turnos de bot um tick tem para assetCount ativos
@@ -50,7 +53,7 @@ func TurnBudget(assetCount int) int {
 // AllocateTurns distribui budget turnos entre os ativos de universe: cada ativo
 // recebe 1 turno de piso e o resto é repartido pelo peso do ativo (parte
 // uniforme mais MarketValueWeight vezes a fração do valor de mercado, o mesmo
-// peso da Q.3). A parte fracionária de cada cota é sorteada por amostragem
+// peso da Q.3, vezes a atenção por evento da Q.10). A parte fracionária de cada cota é sorteada por amostragem
 // sistemática (o ativo recebe floor ou ceil da cota com probabilidade igual à
 // fração), o que fecha a soma exatamente em budget e evita que o mesmo ativo
 // receba sempre o mesmo número de turnos dia após dia. Devolve os turnos em
@@ -70,16 +73,27 @@ func AllocateTurns(universe []EquityForRound, budget int, rng *rand.Rand) []Turn
 	for _, e := range universe {
 		totalValue += e.MarketValue
 	}
-
-	counts := make([]int, n)
-	fractions := make([]float64, n)
-	assigned := 0
+	// Peso de cada ativo: parte uniforme mais valor de mercado (Q.3), vezes a
+	// atenção por evento (Q.10), normalizado para somar 1.
+	weights := make([]float64, n)
+	var totalWeight float64
 	for i, e := range universe {
 		weight := 1 / float64(n)
 		if totalValue > 0 {
 			weight = (1-MarketValueWeight)/float64(n) + MarketValueWeight*e.MarketValue/totalValue
 		}
-		quota := float64(extra) * weight
+		if e.Attention > 1 {
+			weight *= e.Attention
+		}
+		weights[i] = weight
+		totalWeight += weight
+	}
+
+	counts := make([]int, n)
+	fractions := make([]float64, n)
+	assigned := 0
+	for i := range universe {
+		quota := float64(extra) * weights[i] / totalWeight
 		counts[i] = int(math.Floor(quota))
 		fractions[i] = quota - math.Floor(quota)
 		assigned += counts[i]
@@ -114,24 +128,48 @@ func AllocateTurns(universe []EquityForRound, budget int, rng *rand.Rand) []Turn
 
 	turns := make([]Turn, 0, budget)
 	for i, e := range universe {
-		turns = append(turns, Turn{AssetID: e.AssetID, Floor: true})
+		attention := e.Attention > 1
+		turns = append(turns, Turn{AssetID: e.AssetID, Floor: true, Attention: attention})
 		for k := 0; k < counts[i]; k++ {
-			turns = append(turns, Turn{AssetID: e.AssetID})
+			turns = append(turns, Turn{AssetID: e.AssetID, Attention: attention})
 		}
 	}
 	rng.Shuffle(len(turns), func(i, j int) { turns[i], turns[j] = turns[j], turns[i] })
 	return turns
 }
 
+// TurnCandidate é um bot elegível para servir turnos: o escopo de especialização
+// e o arquétipo (Q.10, para preferir Fundamentalistas em ativos sob atenção).
+type TurnCandidate struct {
+	Scope     SpecializationScope
+	Archetype Archetype
+}
+
 // SelectBotForTurn escolhe qual bot serve um turno de asset: TurnWithinScopePct
 // das vezes um bot cujo escopo cobre o ativo, o resto um bot de fora (o mesmo
-// desenho do SelectAssetForRound, agora do ponto de vista do ativo). Cai para o
-// outro grupo quando o sorteado está vazio. Devolve o índice em scopes, ou -1
-// quando não há nenhum bot.
-func SelectBotForTurn(asset EquityForRound, scopes []SpecializationScope, rng *rand.Rand) int {
+// desenho do sorteio de ativo da Q.3, agora do ponto de vista do ativo). Cai para
+// o outro grupo quando o sorteado está vazio. Num turno de ativo sob atenção
+// (attention), AttentionFundamentalistShare das vezes só Fundamentalistas
+// concorrem (Q.10); sem nenhum Fundamentalista, todos concorrem. Devolve o índice
+// em candidates, ou -1 quando não há nenhum bot.
+func SelectBotForTurn(asset EquityForRound, candidates []TurnCandidate, attention bool, rng *rand.Rand) int {
+	eligible := make([]int, 0, len(candidates))
+	if attention && rng.Float64() < AttentionFundamentalistShare {
+		for i, c := range candidates {
+			if c.Archetype == ArchetypeFundamentalista {
+				eligible = append(eligible, i)
+			}
+		}
+	}
+	if len(eligible) == 0 {
+		for i := range candidates {
+			eligible = append(eligible, i)
+		}
+	}
+
 	var inScope, outOfScope []int
-	for i, scope := range scopes {
-		if scope.MatchesEquity(asset.Sector, asset.RiskClass, asset.Type) {
+	for _, i := range eligible {
+		if candidates[i].Scope.MatchesEquity(asset.Sector, asset.RiskClass, asset.Type) {
 			inScope = append(inScope, i)
 		} else {
 			outOfScope = append(outOfScope, i)
