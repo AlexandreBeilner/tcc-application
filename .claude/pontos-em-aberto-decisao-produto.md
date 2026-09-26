@@ -627,3 +627,38 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   0 divergências de saldo contra `market_events` e determinismo preservado (dois motores, mesmo hash). Detalhes em
   `.docs/engine/orders.md`.
 - **Status:** Resolvido
+
+### 016 · Ágio/deságio médio dos ETFs (~1,3%) acima do critério de 1%, e a faixa da arbitragem não é a causa
+
+- **Local:** `engine/internal/domain/etf/arbitrage.go` (`ArbitrageActionBandPct`, `ArbitrageDailyCapPct`), Market Maker do ETF (`internal/domain/bot/`, ancorado no iNAV)
+- **Origem:** benchmark da tarefa R.12, 2026-09-26 (30/50/100 ativos com 1/5/10 ETFs, 40 dias)
+- **O que é:** o ágio/deságio médio em módulo ficou em **1,30%, 1,32% e 1,35%** (máximo de 6% a 7%) nas três configurações; o
+  critério da R.12 pede média abaixo de 1%. A distribuição é **simétrica** (média com sinal de -0,27%: 38 dias de deságio contra
+  18 de ágio acima da faixa), ou seja, é dispersão em torno do NAV, não viés. **Experimento:** baixar a faixa de ação do
+  Participante Autorizado de 1,5% para 0,75% (50 ativos, 5 ETFs) **não melhorou** (média de 1,58%) e quadruplicou a arbitragem
+  (32,7 criações por dia contra 7,9). A hipótese não verificada é que o preço de fechamento do ETF é o último negócio do dia, que
+  cai no bid ou no ask do Market Maker (a largura do spread é parâmetro por Market Maker), então o "ágio" medido é meio spread e
+  não um desequilíbrio que a arbitragem corrija.
+- **Por que não foi corrigido:** o valor-alvo do ágio de um ETF sintético (1%? 0,5%?) e a troca entre realismo e custo de tick são
+  calibração do autor, e a causa ainda não foi isolada (falta medir o ágio contra o ponto médio do book, não contra o último
+  negócio).
+- **Opções:** (a) manter a faixa e trocar o critério da R.12 para a realidade medida (média abaixo de 1,5%), documentando que ETF
+  sintético tem spread de Market Maker embutido; (b) medir o ágio contra o ponto médio do book de fechamento e só então recalibrar;
+  (c) estreitar o spread do Market Maker que cobre ETF (escopo do painel de bots, Fase N).
+- **Status:** aberto
+
+### 017 · Custo por tick passa de 5.000 comandos com 100 ativos, com ou sem ETF
+
+- **Local:** `engine/internal/domain/tick/` (rodadas de bots e Market Makers), orçamento de 5.000 comandos do RNF de tick
+- **Origem:** benchmark da tarefa R.12, 2026-09-26
+- **O que é:** com 100 ativos e 10 ETFs, o tick teve **média de 5.384 e p95 de 6.844 comandos** (32 de 40 ticks acima de 5.000).
+  O **mesmo catálogo de 100 ativos sem ETF** já dava média de 4.818 e p95 de 5.191 (6 de 40 acima de 5.000): os 10 ETFs
+  acrescentam ~570 comandos por tick em média (~57 por ETF, quase tudo arbitragem e cobertura do Market Maker) e o grosso do custo
+  é do catálogo de ações (Market Makers 1.770 e bots direcionais 2.879 por tick). Com 50 ativos e 5 ETFs a média é 4.033 (2 ticks acima).
+- **Por que não foi corrigido:** reduzir custo exige escolher entre menos rodadas por dia, bots mais seletivos por rodada ou um
+  orçamento de tick maior; nenhuma delas é mecânica e o critério de 5.000 vem da P.8, dimensionado para menos ativos.
+- **Opções:** (a) subir o orçamento para o tamanho de catálogo pretendido (ex.: 8.000 para 100 ativos) e medir o prazo do tick
+  (2 s de média, 6 s de máximo hoje); (b) limitar o custo por ativo-rodada (a Fase Q já mede); (c) manter o catálogo real em ~30 a 50
+  ativos, onde cabe.
+- **Status:** aberto
+

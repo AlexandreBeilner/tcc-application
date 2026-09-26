@@ -4030,7 +4030,7 @@ negociação dos constituintes.
 - **Testes:** índice com provento e desconto de distribuição table-driven; no tick, índice de retorno total com provento pago e distribuição descontada do índice (com e sem histórico). `golangci-lint` (0 issues), `go test ./...` passam. **Validado ao vivo** (série de índice zerada no banco local e 47 ticks): tracking error passou de +52% para entre 0 e -1,9%, com NAV e índice andando juntos.
 - **Limites conhecidos:** (1) a série anterior de `index_value` no banco de quem já rodou a R.7 a R.11 é de preço e continua dali; para recomeçar é preciso zerar `index_value` e `tracking_error_pct` (feito só no banco local). (2) A deriva negativa (~-1,9% em 47 dias) mistura taxa de administração, caixa parado até o dia de distribuição e atrito do rebalanceamento; a decomposição por causa fica para a R.12. (3) O índice assume que o dividendo é reinvestido na hora, enquanto o fundo o segura em caixa até a distribuição, de propósito: esse é o cash drag da proposta 5.4.
 
-### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos
+### R.12 · Validação ponta a ponta e benchmark com ETFs sintéticos ✅ (dois critérios de aceite não atendidos, ver achados 016 e 017)
 - **Descrição:** o seed sintético (`--synthetic-assets`) ganha ETFs sintéticos; o `benchmark-cobertura.sh` mede, com 30, 50 e 100
   ativos mais 1, 5 e 10 ETFs: comandos por tick, ágio/deságio médio e máximo, tracking error, cotas criadas e resgatadas por
   dia, reação a cinco eventos severos na cesta e o cenário do achado 013. Teste ponta a ponta fora do caminho feliz: catálogo
@@ -4039,6 +4039,36 @@ negociação dos constituintes.
 - **Critérios de aceite:** tick médio e p95 dentro de 5.000 comandos com 100 ativos e 10 ETFs; ágio médio abaixo de 1%;
   conservação de constituintes e cotas; 0 saldos negativos; 0 divergências de conciliação; resultados registrados aqui.
 - **Dependências:** R.1 a R.10.
+- **Entregável (2026-09-26):** `seed --synthetic-etfs M` (`cmd/seed/synthetic.go`, só stack de teste, exige `--synthetic-assets`): ETFs `SYE0111` em diante com cestas de 5, 3, 8, 1 e 4 ações
+  sintéticas em rodízio (deslocadas, então se sobrepõem) e o FII `TJLO11` nos de índice ímpar, pesos que somam exatamente 100. `engine/scripts/benchmark-cobertura.sh N DIAS M` mede, com ETFs: ágio e
+  tracking error por ETF, criações e resgates por dia, reação a cinco eventos severos, o cenário do achado 013 nos ETFs e as invariantes. `engine/scripts/validacao-etf.sql` (saldos negativos, conciliação de
+  saldo e de posição contra `market_events`, float e cotas iguais às posições, proventos de ETF pagos iguais aos recebidos, passivos não negativos). `engine/scripts/validacao-etf-e2e.sh` roda os cenários
+  fora do caminho feliz num banco isolado.
+- **Resultados do benchmark (40 dias cada, seed 42):**
+
+  | Catálogo | Comandos/tick (média, p95) | Ticks > 5.000 | Ágio médio / máx (em módulo) | Tracking error médio / máx | Ordens do 013 nos ETFs |
+  |---|---|---|---|---|---|
+  | 30 ativos, 1 ETF (+SINT11) | 2.740, 3.128 | 0 de 40 | 1,30% / 5,36% | 0,24% / 0,61% | 4 de 4 |
+  | 50 ativos, 5 ETFs (+SINT11) | 4.033, 5.135 | 2 de 40 | 1,32% / 6,18% | 0,19% / 0,42% | 12 de 12 |
+  | 100 ativos, 10 ETFs (+SINT11) | 5.384, 6.844 | 32 de 40 | 1,35% / 6,83% | 0,11% / 0,50% | 20 de 20 |
+  | 100 ativos, 0 ETF (base) | 4.818, 5.191 | 6 de 40 | n/a | n/a | n/a |
+
+  Todos os ETFs emitidos (11 de 11 na maior), 0 saldos negativos, 0 divergências de conciliação de saldo e de posição, float e cotas iguais às posições, proventos de ETF pagos iguais aos recebidos, em todas as três
+  configurações. Criações por dia: 2,8 (1 ETF), 7,9 (5) e 12,2 (10); resgates 1,8, 3,5 e 7,9. Reação a cinco eventos severos no setor de um constituinte (`SYE0111`, 20% da cesta): o valor da cesta a preço
+  seguiu a soma dos pesos pelos preços dos constituintes (+2,63% contra +2,64 pp esperado); o NAV bruto oscila mais por causa do caixa de dividendos (R.8), por isso o script mede a cesta a preço.
+- **Testes ponta a ponta (`validacao-etf-e2e.sh`, todos verdes, invariantes em zero em cada etapa):** (1) ETF adicionado com o mercado rodando: 3 ETFs novos emitidos em até 3 ticks, bots direcionais intactos (a cobertura
+  criou um Market Maker novo para eles); (2) catálogo crescendo de 30 para 50 ações com o mercado no ar; (3) Market Maker de um constituinte desligado: o tick segue e a arbitragem não aborta; (4) 12 ordens de usuário
+  concorrentes com o tick, sem posição negativa; (5) determinismo: banco clonado, dois motores, mesmo hash de cotações, posições, saldos e NAV. Testes unitários novos: ETF de um só constituinte (emissão, NAV e
+  rebalanceamento) e `syntheticETFs`. `golangci-lint` (0 issues), `go test ./...` passam.
+- **Critérios de aceite não atendidos, com registro:** (1) **tick com 100 ativos e 10 ETFs acima de 5.000 comandos** (média 5.384, p95 6.844), mas o catálogo de 100 ativos sem ETF já passa (média 4.818): os ETFs
+  custam ~570 comandos por tick, o resto é o catálogo de ações; achado 017. (2) **Ágio médio de ~1,3% contra o critério de 1%**: dispersão simétrica, e baixar a faixa da arbitragem de 1,5% para 0,75% não melhorou
+  (1,58%) e quadruplicou a arbitragem; hipótese de causa é o spread do Market Maker no último negócio do dia, não verificada; achado 016.
+- **Limites conhecidos:** (1) O cenário "AP sem caixa" não tem teste ao vivo: o participante recebe caixa por evento a cada operação, então falta de caixa só existe como falha do caminho de provisão, coberta no teste
+  unitário (`TestArbitrageETFs_RespeitaCaixaJaExistente`); zerar o saldo por SQL quebraria a conciliação. (2) Os eventos macro do benchmark caíram num setor cujo constituinte não caiu no período (contribuição do setor
+  +0,52 pp no experimento, -0,99 pp na matriz), então a magnitude de reação por peso do setor não foi validada com uma queda isolada, só a consistência entre cesta e constituintes. (3) A matriz de 40 dias por
+  configuração é curta para o tracking error de longo prazo (a deriva de ~-1,9% em 47 dias da R.11b não foi decomposta em taxa, caixa e atrito). (4) O experimento da faixa de 0,75% foi só uma execução (50 ativos, 5 ETFs) e foi
+  revertido no código.
+
 
 ### R.13 · (Reserva, não agendada) ETF com renda fixa na cesta
 - **Descrição:** cesta com Tesouro, CDB etc. exige marcação a mercado da renda fixa a cada rodada para o NAV e criação e resgate

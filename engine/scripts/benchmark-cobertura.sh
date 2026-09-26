@@ -4,18 +4,23 @@
 # catálogo real mais N ações sintéticas, roda DIAS ticks e mede o que o orçamento da 6.1 pede.
 #
 # Uso (a partir da raiz do repositório, com `docker compose up -d postgres redis` no ar):
-#   engine/scripts/benchmark-cobertura.sh [N_ATIVOS_SINTETICOS=30] [DIAS=60]
+#   engine/scripts/benchmark-cobertura.sh [N_ATIVOS_SINTETICOS=30] [DIAS=60] [M_ETFS_SINTETICOS=0]
 #
 # Só stack de teste: não toca o banco `market` de desenvolvimento. O log de comandos SQL
 # (log_statement=all) é ligado no Postgres do Compose durante a execução e desligado no fim.
-# Saída: resumo no stdout e CSV por tick em tmp/benchmark-cobertura-<N>.csv.
+# Saída: resumo no stdout e CSV por tick em tmp/benchmark-cobertura-<N>.csv (ou -<N>-etf<M>.csv com ETFs).
+# Com M_ETFS > 0 (Fase R, tarefa R.12) também mede o motor de ETF: ágio/deságio, tracking error, criações e resgates,
+# reação a cinco eventos severos no setor de um constituinte, o cenário do achado 013 nos ETFs e as invariantes de
+# engine/scripts/validacao-etf.sql (conservação, saldos e conciliação contra market_events).
 # Mede também (Fase Q): volume dos ativos líderes e do mediano, dias sem negociação por ativo,
 # percentis de comandos SQL por tick e a reação de um ativo da cauda a cinco eventos severos.
 set -euo pipefail
 
 N=${1:-30}
 DAYS=${2:-60}
-OUT="tmp/benchmark-cobertura-${N}.csv"
+ETFS=${3:-0}
+TAG="${N}"; [ "$ETFS" -gt 0 ] && TAG="${N}-etf${ETFS}"
+OUT="tmp/benchmark-cobertura-${TAG}.csv"
 DB=market_bench
 NET=$(docker inspect tcc-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')
 PSQL_ADMIN=(docker compose exec -T postgres psql -U tcc -d postgres -At)
@@ -30,7 +35,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p tmp
-echo "== preparando banco ${DB} (${N} ativos sintéticos, ${DAYS} dias)"
+echo "== preparando banco ${DB} (${N} ativos sintéticos, ${ETFS} ETFs sintéticos, ${DAYS} dias)"
 "${PSQL_ADMIN[@]}" -c "DROP DATABASE IF EXISTS ${DB}" -c "CREATE DATABASE ${DB}" >/dev/null
 docker build -q -t engine-bench ./engine >/dev/null
 docker rm -f bench-engine >/dev/null 2>&1 || true
@@ -43,7 +48,7 @@ done
 
 docker run --rm --network "$NET" -v "$(pwd)/engine":/app -v tcc_gomod_bench:/go/pkg/mod -w /app \
   -e DATABASE_URL="$DBURL" -e SEED_ALLOW_SYNTHETIC=true golang:1.22-alpine \
-  go run ./cmd/seed --synthetic-assets "$N" >/dev/null 2>&1
+  go run ./cmd/seed --synthetic-assets "$N" --synthetic-etfs "$ETFS" >/dev/null 2>&1
 ASSETS=$("${PSQL[@]}" -c "SELECT count(*) FROM market_maker_coverage")
 MMS=$("${PSQL[@]}" -c "SELECT count(*) FROM bot_personalities WHERE archetype='market_maker'")
 echo "== seed pronto: ${ASSETS} ativos cobertos por ${MMS} Market Maker(s)"
@@ -53,7 +58,7 @@ echo "== seed pronto: ${ASSETS} ativos cobertos por ${MMS} Market Maker(s)"
 # de sessão não perde o progresso. Os comandos SQL são contados uma vez só no fim, lendo o log do
 # Postgres uma única vez e atribuindo cada linha à janela do tick por timestamp (ler o log a cada
 # tick custava mais que o próprio tick, porque ele cresce com log_statement=all).
-RAW="tmp/benchmark-cobertura-${N}.raw.csv"
+RAW="tmp/benchmark-cobertura-${TAG}.raw.csv"
 : > "$RAW"
 for I in $(seq 1 "$DAYS"); do
   T0=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ); S0=$(date +%s.%N)
@@ -70,7 +75,7 @@ done
 "${PSQL_ADMIN[@]}" -c "ALTER SYSTEM RESET log_statement" -c "SELECT pg_reload_conf()" >/dev/null
 
 echo "dia,segundos,comandos_sql,rodadas,fills,descobertos,ordens_mm,recotacoes_mm,cmd_mm,cmd_bots,cmd_fixo" > "$OUT"
-PGLOG="tmp/benchmark-cobertura-${N}.pglog"; MMIDS="tmp/benchmark-cobertura-${N}.mmids"
+PGLOG="tmp/benchmark-cobertura-${TAG}.pglog"; MMIDS="tmp/benchmark-cobertura-${TAG}.mmids"
 docker logs --timestamps tcc-postgres > "$PGLOG" 2>&1 || true
 "${PSQL[@]}" -c "SELECT account_id FROM bot_personalities WHERE archetype='market_maker'" > "$MMIDS"
 # Divisão do custo (tarefa Q.7): o log só traz o usuário nos parâmetros da primeira consulta de um turno
@@ -167,3 +172,67 @@ for ASSET in $("${PSQL[@]}" -c "SELECT id FROM assets WHERE type='acao' AND NOT 
   done
 done
 echo "   ${OK} de ${TOTAL} ordens preenchidas por completo"
+
+if [ "$ETFS" -gt 0 ]; then
+  echo "== ETF (Fase R, tarefa R.12): ${ETFS} ETFs sintéticos mais o SINT11"
+  echo "-- ETFs com cotas emitidas / total"
+  "${PSQL[@]}" -c "SELECT count(*) FILTER (WHERE via.outstanding_shares > 0) || ' de ' || count(*) FROM assets a JOIN variable_income_assets via ON via.asset_id=a.id WHERE a.type='etf'"
+  echo "-- ágio/deságio e tracking error, últimos 20 dias (por ETF: média e máximo em módulo, em pontos percentuais)"
+  "${PSQL[@]}" -F ' | ' -c "SELECT a.ticker, round(avg(abs(h.premium_pct))::numeric, 2) AS agio_medio, round(max(abs(h.premium_pct))::numeric, 2) AS agio_max,
+    round(avg(abs(h.tracking_error_pct))::numeric, 2) AS tracking_medio, round(max(abs(h.tracking_error_pct))::numeric, 2) AS tracking_max
+    FROM etf_nav_history h JOIN assets a ON a.id=h.etf_asset_id
+    WHERE h.simulated_day > (SELECT max(simulated_day) - 20 FROM etf_nav_history) GROUP BY a.ticker ORDER BY 1"
+  "${PSQL[@]}" -F ' | ' -c "SELECT 'todos os ETFs: agio medio=' || round(avg(abs(premium_pct))::numeric, 2) || ' max=' || round(max(abs(premium_pct))::numeric, 2) || ' | tracking medio=' || round(avg(abs(tracking_error_pct))::numeric, 2) || ' max=' || round(max(abs(tracking_error_pct))::numeric, 2)
+    FROM etf_nav_history WHERE simulated_day > (SELECT max(simulated_day) - 20 FROM etf_nav_history)"
+  echo "-- criações e resgates por dia (eventos de cada operação, todos os ETFs)"
+  "${PSQL[@]}" -c "SELECT 'criacao: ' || round(count(*) FILTER (WHERE event_type='etf_creation')::numeric / ${DAYS}, 1) || ' eventos/dia; resgate: ' || round(count(*) FILTER (WHERE event_type='etf_redemption')::numeric / ${DAYS}, 1) || ' eventos/dia' FROM market_events"
+  echo "-- reação a cinco eventos severos negativos no setor do primeiro constituinte do primeiro ETF sintético"
+  E=$("${PSQL[@]}" -c "SELECT a.id||'|'||a.ticker||'|'||co.sector||'|'||(SELECT round(sum(t.weight_pct)::numeric, 1) FROM etf_holdings t JOIN variable_income_assets v ON v.asset_id=t.asset_id JOIN companies c2 ON c2.id=v.company_id WHERE t.etf_asset_id=a.id AND c2.sector=co.sector)
+    FROM assets a JOIN etf_holdings h ON h.etf_asset_id=a.id JOIN variable_income_assets v ON v.asset_id=h.asset_id JOIN companies co ON co.id=v.company_id
+    WHERE a.ticker='SYE0111' ORDER BY h.weight_pct DESC, co.sector LIMIT 1")
+  if [ -n "$E" ]; then
+    EID=${E%%|*}; R=${E#*|}; ETICKER=${R%%|*}; R=${R#*|}; ESECTOR=${R%%|*}; EWEIGHT=${R#*|}
+    LASTNAV(){ "${PSQL[@]}" -c "SELECT nav FROM etf_nav_history WHERE etf_asset_id='$EID' ORDER BY simulated_day DESC LIMIT 1"; }
+    LASTETFPRICE(){ "${PSQL[@]}" -c "SELECT price FROM asset_quotes WHERE asset_id='$EID' ORDER BY simulated_day DESC LIMIT 1"; }
+    N0=$(LASTNAV); P0=$(LASTETFPRICE); MINP=$P0
+    D0=$("${PSQL[@]}" -c "SELECT max(simulated_day) FROM asset_quotes WHERE asset_id='$EID'")
+    for i in 1 2 3 4 5; do
+      docker exec bench-engine wget -qO- --header=Content-Type:application/json \
+        --post-data="{\"title\":\"Choque ETF $i\",\"narrative\":\"benchmark\",\"direction\":\"negativo\",\"magnitude_band\":\"severo\",\"affects_price\":true,\"affects_fundamentals\":false,\"targets\":[{\"sector\":\"$ESECTOR\"}]}" \
+        http://localhost:8080/macro-events >/dev/null 2>&1 || true
+    done
+    for _ in $(seq 1 6); do
+      docker exec bench-engine wget -qO- --post-data="" http://localhost:8080/admin/tick >/dev/null
+      P=$(LASTETFPRICE); MINP=$(echo "$P $MINP" | awk '{ print ($1<$2)?$1:$2 }')
+    done
+    D1=$("${PSQL[@]}" -c "SELECT max(simulated_day) FROM asset_quotes WHERE asset_id='$EID'")
+    N1=$(LASTNAV)
+    # contribuição esperada = soma de peso x variação de preço dos constituintes (do setor afetado, e da cesta toda) entre D0 e D1
+    CONTRIB(){ "${PSQL[@]}" -c "SELECT coalesce(round(sum(h.weight_pct/100 * (q1.price/q0.price - 1))*100, 2), 0)
+      FROM etf_holdings h JOIN variable_income_assets v ON v.asset_id=h.asset_id LEFT JOIN companies c ON c.id=v.company_id
+      JOIN asset_quotes q0 ON q0.asset_id=h.asset_id AND q0.simulated_day=$D0 JOIN asset_quotes q1 ON q1.asset_id=h.asset_id AND q1.simulated_day=$D1
+      WHERE h.etf_asset_id='$EID' $1"; }
+    SECTORC=$(CONTRIB "AND c.sector='$ESECTOR'"); BASKETC=$(CONTRIB "")
+    # valor da cesta só a preço (posições atuais do fundo x preço de cada dia, por cota): isola o efeito de preço do NAV
+    # bruto, que também sobe e desce com o caixa de dividendos que chega e sai do fundo (R.8)
+    PRICENAV(){ "${PSQL[@]}" -c "SELECT round(sum(p.quantity * q.price) / (SELECT outstanding_shares FROM variable_income_assets WHERE asset_id='$EID'), 4)
+      FROM positions p JOIN asset_quotes q ON q.asset_id=p.asset_id AND q.simulated_day=$1
+      WHERE p.user_id=(SELECT fund_account_id FROM etf_details WHERE asset_id='$EID') AND p.asset_id<>'$EID'"; }
+    PN0=$(PRICENAV $D0); PN1=$(PRICENAV $D1)
+    echo "   ${ETICKER} (setor ${ESECTOR}, ${EWEIGHT}% da cesta), dia ${D0} ao ${D1}: contribuição do setor ${SECTORC} pp, cesta toda ${BASKETC} pp; valor da cesta a preço $(echo "$PN0 $PN1" | awk '{ printf "%.2f%%", ($2-$1)/$1*100 }') (${PN0} para ${PN1}); NAV bruto $(echo "$N0 $N1" | awk '{ printf "%.2f%%", ($2-$1)/$1*100 }') (inclui dividendos); preço mínimo do ETF $(echo "$P0 $MINP" | awk '{ printf "%.1f%%", ($2-$1)/$1*100 }')"
+  fi
+  echo "-- cenário do achado 013 nos ETFs: compra e venda de 5 a mercado em até 10 ETFs"
+  OK=0; TOTAL=0
+  for ASSET in $("${PSQL[@]}" -c "SELECT a.id FROM assets a JOIN variable_income_assets via ON via.asset_id=a.id WHERE a.type='etf' AND via.outstanding_shares > 0 ORDER BY a.ticker LIMIT 10"); do
+    U=$(cat /proc/sys/kernel/random/uuid)
+    docker exec bench-engine wget -qO- --header=Content-Type:application/json --post-data="{\"user_id\":\"$U\"}" http://localhost:8080/accounts >/dev/null
+    for SIDE in buy sell; do
+      F=$(docker exec bench-engine wget -qO- --header=Content-Type:application/json \
+        --post-data="{\"user_id\":\"$U\",\"asset_id\":\"$ASSET\",\"side\":\"$SIDE\",\"type\":\"market\",\"quantity\":5}" http://localhost:8080/orders 2>/dev/null | grep -o '"filled_quantity":[0-9]*' | cut -d: -f2 || true)
+      TOTAL=$((TOTAL+1)); [ "${F:-0}" = "5" ] && OK=$((OK+1))
+    done
+  done
+  echo "   ${OK} de ${TOTAL} ordens preenchidas por completo"
+  echo "-- invariantes (validacao-etf.sql): tudo deve ser 0"
+  docker compose exec -T postgres psql -U tcc -d "$DB" -At -F ' | ' < engine/scripts/validacao-etf.sql
+fi

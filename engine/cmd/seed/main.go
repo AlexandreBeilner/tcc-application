@@ -34,7 +34,11 @@ import (
 
 func main() {
 	syntheticAssets := flag.Int("synthetic-assets", 0, "gera N ações sintéticas extras (só stack de teste, exige "+allowSyntheticEnv+"=true)")
+	syntheticETFCount := flag.Int("synthetic-etfs", 0, "gera M ETFs sintéticos sobre as ações sintéticas (só stack de teste, exige "+allowSyntheticEnv+"=true e --synthetic-assets)")
 	flag.Parse()
+	if *syntheticETFCount < 0 {
+		log.Fatal("--synthetic-etfs não pode ser negativo")
+	}
 	if *syntheticAssets < 0 {
 		log.Fatal("--synthetic-assets não pode ser negativo")
 	}
@@ -121,6 +125,9 @@ func main() {
 	// referencia VALR3/BNDD3/TJLO11/PAPL11 reais, então já precisam existir.
 	ensureAuthorizedParticipant(ctx, accountRepo)
 	seedETF(ctx, repo, accountRepo)
+	if *syntheticETFCount > 0 {
+		seedSyntheticETFs(ctx, repo, accountRepo, *syntheticETFCount, *syntheticAssets)
+	}
 	// LTN2027/NTNB2035 (tarefa L.4): interest_rate deixou de ser a taxa
 	// ofertada em si e virou o SPREAD sobre o benchmark de mercado corrente
 	// (Selic nominal pro Prefixado, taxa real via Fisher pro IPCA+) — mesmo
