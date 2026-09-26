@@ -119,6 +119,7 @@ func main() {
 	// seedETF só pode rodar daqui em diante: sua cesta (achado 006,
 	// pontos-em-aberto-decisao-produto.md; só Ação e FII desde a R.1)
 	// referencia VALR3/BNDD3/TJLO11/PAPL11 reais, então já precisam existir.
+	ensureAuthorizedParticipant(ctx, accountRepo)
 	seedETF(ctx, repo, accountRepo)
 	// LTN2027/NTNB2035 (tarefa L.4): interest_rate deixou de ser a taxa
 	// ofertada em si e virou o SPREAD sobre o benchmark de mercado corrente
@@ -280,6 +281,26 @@ func seedETF(ctx context.Context, repo *db.CatalogRepository, accountRepo *db.Ac
 		log.Fatalf("erro ao criar etf_details pra %s: %v", ticker, err)
 	}
 	ensureETFFund(ctx, repo, accountRepo, id)
+}
+
+// ensureAuthorizedParticipant cria a conta única do Participante Autorizado
+// (tarefa R.3) com saldo zero: o caixa vem, quando precisa, de um evento
+// bot_initial_cash provisionado pelo tick a cada emissão. Sem personalidade,
+// então nunca entra numa rodada de bots. Idempotente.
+func ensureAuthorizedParticipant(ctx context.Context, accountRepo *db.AccountRepository) {
+	if _, exists, err := accountRepo.FindByUserID(ctx, etf.AuthorizedParticipantAccountID); err != nil {
+		log.Fatalf("erro ao buscar a conta do Participante Autorizado: %v", err)
+	} else if exists {
+		return
+	}
+	ap, err := account.NewBot(etf.AuthorizedParticipantAccountID, 0)
+	if err != nil {
+		log.Fatalf("conta do Participante Autorizado inválida: %v", err)
+	}
+	if err := accountRepo.Create(ctx, ap); err != nil {
+		log.Fatalf("erro ao criar a conta do Participante Autorizado: %v", err)
+	}
+	log.Printf("conta do Participante Autorizado criada (%s)", ap.UserID)
 }
 
 // buildETFDetails monta e valida a cesta v1 do SINT11 (Ação e FII).

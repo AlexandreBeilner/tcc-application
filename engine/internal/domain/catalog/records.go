@@ -122,3 +122,14 @@ type DividendHistoryEntry struct {
 	ExDate        time.Time
 	PaymentDate   time.Time
 }
+
+// ETFNAV é o valor patrimonial mais recente de um ETF (tarefa R.3,
+// etf_nav_history) mais o número de cotas emitidas — exposto no bloco de ETF de
+// GET /assets/:id. PremiumPct é o ágio (positivo) ou deságio (negativo) do
+// preço de fechamento sobre o NAV, em pontos percentuais.
+type ETFNAV struct {
+	SimulatedDay      int
+	NAV               float64
+	PremiumPct        float64
+	OutstandingShares int64
+}

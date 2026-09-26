@@ -133,6 +133,10 @@ func main() {
 	// OrderContextLoader+OrderLifecycleManager, respectivamente) — a mesma
 	// instância concreta já implementa os dois papéis.
 	tickService := tick.NewService(tickRepository, botRepository, tickRepository, tickRepository, orderExecutionRepository, orderExecutionService, orderExecutionRepository, selicConfig, ipcaConfig, seed)
+	// ETF (Fase R, tarefa R.3): emissão inicial pelo Participante Autorizado e
+	// NAV diário; o mesmo repositório de fundos cobre a leitura e o caixa.
+	etfFundRepository := db.NewETFFundRepository(pool)
+	tickService.WithETF(etfFundRepository, etfFundRepository, db.NewETFShareRepository(pool))
 
 	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick

@@ -440,6 +440,25 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 	}, true, nil
 }
 
+// FindLatestETFNAV devolve o NAV mais recente do ETF e as cotas emitidas
+// (tarefa R.3). found = false enquanto o ETF não tem NAV (sem emissão ou antes
+// do primeiro tick depois dela).
+func (r *CatalogRepository) FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error) {
+	var n catalog.ETFNAV
+	err := r.db.QueryRowContext(ctx,
+		`SELECT h.simulated_day, h.nav, h.premium_pct, via.outstanding_shares
+		 FROM etf_nav_history h JOIN variable_income_assets via ON via.asset_id = h.etf_asset_id
+		 WHERE h.etf_asset_id = $1 ORDER BY h.simulated_day DESC LIMIT 1`, assetID,
+	).Scan(&n.SimulatedDay, &n.NAV, &n.PremiumPct, &n.OutstandingShares)
+	if err == sql.ErrNoRows {
+		return catalog.ETFNAV{}, false, nil
+	}
+	if err != nil {
+		return catalog.ETFNAV{}, false, err
+	}
+	return n, true, nil
+}
+
 // FindFIIDetails devolve fii_details de assetID, se existir — usado por GET
 // /assets/:id pra ativos type = 'fii' (tarefa 3.10, RF21).
 func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) (fii.Details, bool, error) {

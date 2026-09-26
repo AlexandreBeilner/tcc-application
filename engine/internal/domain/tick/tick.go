@@ -387,6 +387,18 @@ type Result struct {
 	// IPCAMonthlyRate/State.SelicRate em market_indicator_history
 	// (SaveTick), uma linha por dia simulado.
 	IPCAAccumulated12m float64
+	// ETFNAVs (tarefa R.3) é o NAV de fechamento de cada ETF com cotas emitidas
+	// neste tick, com o preço de fechamento e o ágio/deságio — SaveTick grava
+	// uma linha de etf_nav_history por item, atomicamente com o resto do tick.
+	ETFNAVs []ETFNAVEntry
+}
+
+// ETFNAVEntry é o NAV de fechamento de um ETF num dia simulado (R.3).
+type ETFNAVEntry struct {
+	ETFAssetID string
+	NAV        float64
+	ClosePrice float64
+	PremiumPct float64
 }
 
 // IndicatorHistoryEntry é uma linha de market_indicator_history (tarefa

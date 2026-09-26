@@ -28,6 +28,9 @@ type assetCatalogReader interface {
 	CurrentSelicRatePct(ctx context.Context) (float64, bool, error)
 	FindEquitySpecialization(ctx context.Context, assetID string) (catalog.EquitySpecialization, bool, error)
 	FindETFDetails(ctx context.Context, assetID string) (etf.Details, bool, error)
+	// FindLatestETFNAV devolve o NAV mais recente e as cotas emitidas do ETF
+	// (tarefa R.3); found = false antes da emissão inicial.
+	FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error)
 	FindFIIDetails(ctx context.Context, assetID string) (fii.Details, bool, error)
 	// FindCurrentQuote/ListCurrentQuotes devolvem a cotação corrente
 	// (asset_quotes, tarefa 3.11) — só existe pra acao/etf/fii, e só depois
@@ -233,6 +236,12 @@ type etfDetailResponse struct {
 	BenchmarkIndex     string               `json:"benchmark_index"`
 	MethodologySummary string               `json:"methodology_summary,omitempty"`
 	Holdings           []etfHoldingResponse `json:"holdings"`
+	// NAV, PremiumPct e SharesOutstanding (tarefa R.3) só vêm depois da
+	// emissão inicial e do primeiro tick seguinte.
+	NAV               *float64 `json:"nav,omitempty"`
+	PremiumPct        *float64 `json:"premium_pct,omitempty"`
+	NAVDay            *int     `json:"nav_day,omitempty"`
+	SharesOutstanding *int64   `json:"shares_outstanding,omitempty"`
 }
 
 // fiiDetailResponse traz os campos próprios por perfil (tijolo/papel,
@@ -410,6 +419,14 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 					BenchmarkIndex:     details.BenchmarkIndex,
 					MethodologySummary: details.MethodologySummary,
 					Holdings:           holdings,
+				}
+				nav, navFound, err := catalogReader.FindLatestETFNAV(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar NAV do ETF")
+					return
+				}
+				if navFound {
+					resp.ETF.NAV, resp.ETF.PremiumPct, resp.ETF.NAVDay, resp.ETF.SharesOutstanding = &nav.NAV, &nav.PremiumPct, &nav.SimulatedDay, &nav.OutstandingShares
 				}
 			}
 		case catalog.AssetFII:

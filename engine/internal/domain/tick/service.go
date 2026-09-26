@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 
+	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
@@ -35,6 +36,10 @@ type Service struct {
 	selicCfg       selic.Config
 	ipcaCfg        ipca.Config
 	seed           int64
+	// etfFunds/etfParticipant/etfExchanger (R.3) ficam nil até WithETF.
+	etfFunds       ETFFunds
+	etfParticipant ETFParticipant
+	etfExchanger   etf.ShareExchanger
 	mu             sync.Mutex
 }
 
@@ -142,6 +147,15 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	for _, assetID := range closingAssetIDs {
 		result.Quotes = append(result.Quotes, Quote{AssetID: assetID, Price: closingPrices[assetID], Quantity: volumeByAssetID[assetID]})
 	}
+	etfPrices := make(map[string]float64)
+	for _, q := range result.Quotes {
+		etfPrices[q.AssetID] = q.Price
+	}
+	etfNAVs, err := s.closingETFNAVs(ctx, closingPrices, etfPrices)
+	if err != nil {
+		return Result{}, err
+	}
+	result.ETFNAVs = etfNAVs
 	result.IntradayFillsCount = fillsExecuted
 	result.ExpiredOrdersCount = expiredOrdersCount
 	result.UncoveredAssetsCount = uncoveredAssets

@@ -3783,7 +3783,7 @@ negociação dos constituintes.
   posição gravados nas falhas), soma dos eventos igual às posições do fundo e das cotas, constituintes conservados, e resgate total
   final devolvendo o fundo a 0 cotas e 0 posições; `golangci-lint` (0 issues), `go build`, `go test ./...` passam.
 
-### R.3 · Emissão inicial por criação e NAV/iNAV ligado ao tick
+### R.3 · Emissão inicial por criação e NAV/iNAV ligado ao tick ✅
 - **Descrição:** o ETF nasce (e todo ETF novo de um catálogo que cresce nasce) por uma **criação inicial** do AP, comprando a
   cesta nos books dos constituintes com o caixa do AP (provisionado por Event Sourcing, como `bot_initial_cash`), sem
   redistribuir o float de ações já alocado. NAV/iNAV calculado por `etf.NAV` a partir das posições do fundo e dos preços
@@ -3794,6 +3794,32 @@ negociação dos constituintes.
   roda deixa os bots e as posições antigas intactas; NAV recalculado a cada rodada sem comando SQL por constituinte além da
   leitura em lote das posições do fundo (medir); determinismo.
 - **Dependências:** R.2.
+- **Entregável (2026-09-26):** migration `000027_etf_nav_history` (ETF, dia simulado, NAV, preço de fechamento, ágio/deságio).
+  Domínio (`etf/issuance.go`): `InitialTargetBasket` (quantidades-alvo pelos pesos), `InitialIssuance` (o maior número de cotas que o
+  que foi de fato comprado sustenta, sem nunca criar "pela metade"; sobra fica com o participante), `NAVFromSnapshot`, `PremiumPct`,
+  `FundSnapshot`, `PendingIssuance` e as constantes `InitialSharePrice` (100), `InitialFundValue` (R$ 1.000.000) e
+  `ParticipantCashMargin` (1,5), todas ilustrativas. **Participante Autorizado:** uma conta única `is_bot`, sem personalidade
+  (`etf.AuthorizedParticipantAccountID`, criada pelo seed), para todos os ETFs, de modo que o custo não cresça com o catálogo. Tick
+  (`tick/etf.go`, ligado por `Service.WithETF`, que mantém `NewService` intacto): `issueETFs` roda no fim das rodadas, com os books já
+  cotados; provisiona o caixa por evento `bot_initial_cash`, compra a cesta a mercado pelo `Submit` normal (o volume e o preço de
+  fechamento dos constituintes refletem a compra), lê o que o participante detém e cria as cotas por `ETFShareRepository.Create`;
+  constituinte sem liquidez ou falha de negócio adia a emissão ao próximo tick sem abortar. `closingETFNAVs` faz **uma leitura em
+  lote** das posições de todos os fundos (`ETFFundRepository.ListFunds`) e grava o NAV de fechamento em `etf_nav_history` dentro do
+  `SaveTick`. Um ETF novo entra sozinho na fila (fundo ligado e 0 cotas), então o catálogo pode crescer sem mexer nas posições
+  existentes. `GET /assets/{id}` ganha `nav`, `premium_pct`, `nav_day` e `shares_outstanding` no bloco de ETF (omitidos até a
+  emissão), documentado em `.docs/engine/catalog.md` e `.docs/engine/tick.md`.
+- **Testes:** cesta-alvo, emissão (completa, book que absorveu só parte, sem constituinte), NAV e ágio (table-driven); no tick,
+  emissão completa, parcial, sem liquidez, constituinte fora do universo, falha do exchanger e ausência de `WithETF`, e NAV de
+  fechamento; handler com e sem NAV e com erro. `golangci-lint` (0 issues), `go build`, `go test ./...` passam. **Validado ao vivo**
+  no compose: o primeiro tick emitiu 9.938 cotas com a cesta dos 4 constituintes, NAV 100,01 na emissão, cotas em posições iguais a
+  `outstanding_shares`, float de cada constituinte conservado (soma das posições igual a `outstanding_shares`), 0 saldos negativos, e
+  o segundo tick gravou o NAV do dia seguinte (99,22).
+- **Limites conhecidos, para não parecerem resolvidos:** (1) o **iNAV por rodada não foi calculado**: só o NAV de fechamento, porque
+  nada o consome antes da R.5 (Market Maker ancorado no iNAV), que o calcula em memória a partir de `equityRoundState` e do
+  `ListFunds` já lido. (2) **Não medi a contagem de comandos SQL por tick com 1, 5 e 10 ETFs** (critério de aceite): o custo
+  estrutural é 1 consulta de pendentes, 1 de fundos com cotas, 1 de posições em lote e 1 INSERT por ETF no `SaveTick`, mas a
+  medição fica para a R.12. (3) O preço do próprio ETF ainda vem do GBM, então o ágio/deságio (-9%, depois -4,6%) diverge até a R.4.
+  (4) Os 9.938 cotas emitidas ficam com o Participante Autorizado; quem as vende ao mercado é a R.4/R.6.
 
 ### R.4 · ETF entra no book real (fim do GBM)
 - **Descrição:** ETF entra no universo de negociação (`buildEquityUniverse`, hoje só Ação e FII), sai do GBM (`tick.go`) e passa

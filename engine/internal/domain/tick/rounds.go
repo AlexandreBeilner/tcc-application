@@ -626,6 +626,11 @@ func (s *Service) runIntradayRounds(
 		}
 	}
 
+	// Emissão inicial de ETF (R.3): depois das rodadas, com o mercado cotado.
+	if err := s.issueETFs(ctx, run); err != nil {
+		return nil, nil, run.fillsExecuted, uncovered, err
+	}
+
 	closingPrices := make(map[string]float64, len(equities))
 	for assetID, state := range equities {
 		closingPrices[assetID] = state.Price

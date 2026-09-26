@@ -64,6 +64,10 @@ type fakeCatalogReader struct {
 	quoteHistory    []catalog.QuoteHistoryEntry
 	quoteHistoryErr error
 
+	etfNAV      catalog.ETFNAV
+	etfNAVFound bool
+	etfNAVErr   error
+
 	latestFundamentals    catalog.FundamentalsSnapshot
 	latestFundamentalsOK  bool
 	latestFundamentalsErr error
@@ -90,6 +94,10 @@ func (f *fakeCatalogReader) CurrentSelicRatePct(_ context.Context) (float64, boo
 
 func (f *fakeCatalogReader) FindEquitySpecialization(_ context.Context, _ string) (catalog.EquitySpecialization, bool, error) {
 	return f.equity, f.equityOK, f.equityErr
+}
+
+func (f *fakeCatalogReader) FindLatestETFNAV(_ context.Context, _ string) (catalog.ETFNAV, bool, error) {
+	return f.etfNAV, f.etfNAVFound, f.etfNAVErr
 }
 
 func (f *fakeCatalogReader) FindETFDetails(_ context.Context, _ string) (etf.Details, bool, error) {
@@ -484,6 +492,51 @@ func TestHandleGetAsset_ETF(t *testing.T) {
 	}
 	if body.FixedIncome != nil || body.Equity != nil || body.FII != nil {
 		t.Errorf("classes erradas preenchidas: %+v", body)
+	}
+	if body.ETF.NAV != nil || body.ETF.SharesOutstanding != nil {
+		t.Errorf("NAV = %+v, want ausente antes da emissão inicial", body.ETF)
+	}
+}
+
+func TestHandleGetAsset_ETFComNAV(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "SINT11", Name: "ETF Índice Sintético", Type: catalog.AssetETF},
+		},
+		assetFound:  true,
+		etfDetails:  etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
+		etfOK:       true,
+		etfNAV:      catalog.ETFNAV{SimulatedDay: 7, NAV: 101.25, PremiumPct: -1.5, OutstandingShares: 10000},
+		etfNAVFound: true,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.ETF == nil || body.ETF.NAV == nil || *body.ETF.NAV != 101.25 || *body.ETF.PremiumPct != -1.5 ||
+		*body.ETF.NAVDay != 7 || *body.ETF.SharesOutstanding != 10000 {
+		t.Errorf("ETF = %+v, want NAV 101.25, ágio -1.5, dia 7, 10000 cotas", body.ETF)
+	}
+}
+
+func TestHandleGetAsset_ETFErroAoBuscarNAV(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "SINT11", Name: "ETF", Type: catalog.AssetETF}},
+		assetFound: true,
+		etfDetails: etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
+		etfOK:      true,
+		etfNAVErr:  context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
 

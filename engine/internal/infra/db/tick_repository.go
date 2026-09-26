@@ -522,6 +522,15 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		}
 	}
 
+	for _, n := range result.ETFNAVs {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO etf_nav_history (etf_asset_id, simulated_day, nav, close_price, premium_pct) VALUES ($1, $2, $3, $4, $5)`,
+			n.ETFAssetID, result.State.Day, n.NAV, n.ClosePrice, n.PremiumPct,
+		); err != nil {
+			return err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
