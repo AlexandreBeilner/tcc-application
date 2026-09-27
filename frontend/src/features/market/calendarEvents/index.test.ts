@@ -52,4 +52,17 @@ describe('describeCalendarEvent', () => {
             'Vencimento de LFT2029',
         )
     })
+
+    it('salário pago mostra o valor recebido', () => {
+        const view = describeCalendarEvent(event({ kind: 'salary_payment', scope: 'user', unit_value: 1000 }))
+        expect(view.title).toMatch(/^Salário: R\$\s1\.000,00$/)
+        expect(view.label).toBe('Salário')
+        expect(view.mine).toBe(true)
+    })
+
+    it('salário futuro anuncia o dia sem valor', () => {
+        const view = describeCalendarEvent(event({ kind: 'salary_payment', scope: 'user', future: true }))
+        expect(view.title).toBe('Dia de pagamento')
+        expect(JSON.stringify(view)).not.toMatch(/R\$/)
+    })
 })

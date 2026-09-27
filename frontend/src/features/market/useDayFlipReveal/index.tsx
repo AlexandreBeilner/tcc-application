@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Zap } from 'lucide-react'
+import { HandCoins, Zap } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { useRewardReveal } from '../../shell/RewardRevealProvider'
-import { getIndicatorHistory } from '../../../services/market'
+import { getIndicatorHistory, getMarketCalendar } from '../../../services/market'
 import type { MarketClock } from '../../../services/market'
-import { describeDayFlip } from '../dayFlipReveal'
+import { describeDayFlip, describeSalaryReveal } from '../dayFlipReveal'
 
 const FLIP_ANIMATION_MS = 800
 
@@ -12,7 +12,9 @@ const FLIP_ANIMATION_MS = 800
 // muda entre duas leituras do relógio, o ponteiro gira (`flipping`) e um toast
 // dourado avisa "Novo dia: Selic X%". A primeira leitura nunca conta como virada.
 // A Selic vem do último ponto de `/market/indicators`; se falhar, o toast cai
-// no número do dia em vez de sumir.
+// no número do dia em vez de sumir. Se o novo dia também pagou salário
+// (tarefa T.7), um segundo toast dedicado entra na mesma fila do
+// RewardRevealProvider, sem substituir o de virada de dia.
 export function useDayFlipReveal(clock: MarketClock | undefined): boolean {
     const { token } = useAuth()
     const { show } = useRewardReveal()
@@ -45,6 +47,17 @@ export function useDayFlipReveal(clock: MarketClock | undefined): boolean {
             if (cancelled) return
             const content = describeDayFlip(clock, selic)
             show({ icon: <Zap size={22} strokeWidth={2.2} fill="currentColor" />, ...content })
+
+            let salary: number | null = null
+            try {
+                const { days } = await getMarketCalendar(token as string, clock.date, clock.date)
+                const paid = days[0]?.events.find((e) => e.kind === 'salary_payment' && e.scope === 'user' && !e.future)
+                salary = paid?.unit_value ?? null
+            } catch {
+                salary = null
+            }
+            if (cancelled || salary === null) return
+            show({ icon: <HandCoins size={22} strokeWidth={2.2} />, ...describeSalaryReveal(salary) })
         })()
 
         return () => {

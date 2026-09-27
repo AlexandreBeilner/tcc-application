@@ -1,4 +1,5 @@
 import type { MarketClock } from '../../../services/market'
+import { formatCurrency } from '../../portfolio/format'
 import { formatSelic, formatWeekdayDate } from '../calendarFormat'
 
 export interface DayFlipContent {
@@ -18,4 +19,11 @@ export function describeDayFlip(clock: MarketClock, selicRate: number | null): D
         title: selicRate === null ? `Novo dia: dia ${clock.simulated_day}` : `Novo dia: Selic ${formatSelic(selicRate)}`,
         description: `${when}: mercado aberto`,
     }
+}
+
+// Texto do toast dedicado de salário (T.7): dispara ao lado do de virada de
+// dia (fila do RewardRevealProvider), nunca no lugar dele, só quando o dia
+// novo tem um salary_payment já pago do próprio usuário.
+export function describeSalaryReveal(amount: number): DayFlipContent {
+    return { title: 'Salário do mês', description: `${formatCurrency(amount)} caiu na sua conta` }
 }

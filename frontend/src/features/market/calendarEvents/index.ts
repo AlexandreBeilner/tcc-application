@@ -21,6 +21,7 @@ const KIND_LABEL: Record<CalendarEventKind, string> = {
     fixed_income_purchase: 'Renda fixa',
     fixed_income_redemption: 'Renda fixa',
     fixed_income_maturity: 'Renda fixa',
+    salary_payment: 'Salário',
 }
 
 const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
@@ -72,5 +73,8 @@ export function describeCalendarEvent(event: CalendarEvent): CalendarEventView {
             return { title: `Resgate de ${ticker}`, subtitle: 'Renda fixa', label, mine }
         case 'fixed_income_maturity':
             return { title: `Vencimento de ${ticker}`, subtitle: 'Seu título vence e é resgatado', label, mine }
+        case 'salary_payment':
+            if (event.future) return { title: 'Dia de pagamento', subtitle: 'Salário do mês', label, mine }
+            return { title: `Salário: ${money(event.unit_value)}`, subtitle: 'Caiu na sua conta', label, mine }
     }
 }

@@ -359,6 +359,7 @@ export type CalendarEventKind =
     | 'fixed_income_purchase'
     | 'fixed_income_redemption'
     | 'fixed_income_maturity'
+    | 'salary_payment'
 
 export interface CalendarEvent {
     kind: CalendarEventKind

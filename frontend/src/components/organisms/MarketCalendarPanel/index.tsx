@@ -30,6 +30,7 @@ const LEGEND: { kind: CalendarEventKind; label: string }[] = [
     { kind: 'dividend_payment_date', label: 'Provento' },
     { kind: 'order_executed', label: 'Suas ordens' },
     { kind: 'fixed_income_purchase', label: 'Renda fixa' },
+    { kind: 'salary_payment', label: 'Salário' },
 ]
 
 function daysLabel(days: number): string {

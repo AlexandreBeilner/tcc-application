@@ -3,12 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { RewardRevealProvider } from '../../../features/shell/RewardRevealProvider'
-import { getIndicatorHistory, getMarketClock } from '../../../services/market'
+import { getIndicatorHistory, getMarketCalendar, getMarketClock } from '../../../services/market'
 import { SATURDAY_CLOCK, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
 import { MarketClockChip } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/market', () => ({ getMarketClock: vi.fn(), getIndicatorHistory: vi.fn() }))
+vi.mock('../../../services/market', () => ({ getMarketClock: vi.fn(), getIndicatorHistory: vi.fn(), getMarketCalendar: vi.fn() }))
 
 function renderChip(open = false, onToggle = vi.fn()) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -25,6 +25,7 @@ function renderChip(open = false, onToggle = vi.fn()) {
 describe('MarketClockChip', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
+        vi.mocked(getMarketCalendar).mockResolvedValue({ from_day: 0, to_day: 0, days: [] })
         vi.useFakeTimers({ toFake: ['Date'] })
         vi.setSystemTime(new Date('2026-07-08T12:00:00Z'))
     })
@@ -97,6 +98,38 @@ describe('MarketClockChip', () => {
         expect(await screen.findByText('Novo dia: Selic 10,50%')).toBeInTheDocument()
         expect(screen.getByText('quinta 09/07: mercado aberto')).toBeInTheDocument()
         await waitFor(() => expect(getIndicatorHistory).toHaveBeenCalledWith('token', 1))
+    })
+
+    it('virada de dia com salário pago mostra o toast dedicado ao lado do de virada de dia', async () => {
+        vi.mocked(getMarketClock).mockResolvedValueOnce(WEDNESDAY_CLOCK)
+        vi.mocked(getIndicatorHistory).mockResolvedValue({
+            indicators: [{ simulated_day: 136, selic_rate: 10.5, ipca_monthly_rate: 0.4, ipca_accumulated_12m: 4 }],
+        })
+        vi.mocked(getMarketCalendar).mockResolvedValue({
+            from_day: 136,
+            to_day: 136,
+            days: [
+                {
+                    simulated_day: 136,
+                    date: '2026-07-09',
+                    weekday: 'thu',
+                    market_open: true,
+                    events: [{ kind: 'salary_payment', scope: 'user', future: false, unit_value: 1000 }],
+                },
+            ],
+        })
+        const { queryClient } = renderChip()
+        await screen.findByText('Dia 135 · qua 08/07')
+
+        vi.mocked(getMarketClock).mockResolvedValue({ ...WEDNESDAY_CLOCK, simulated_day: 136, date: '2026-07-09', weekday: 'thu' })
+        await queryClient.invalidateQueries({ queryKey: ['market', 'clock'] })
+
+        expect(await screen.findByText('Novo dia: Selic 10,50%')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Fechar aviso' }))
+
+        expect(await screen.findByText('Salário do mês')).toBeInTheDocument()
+        expect(screen.getByText(/^R\$\s1\.000,00 caiu na sua conta$/)).toBeInTheDocument()
+        expect(getMarketCalendar).toHaveBeenCalledWith('token', '2026-07-09', '2026-07-09')
     })
 
     it('virada pro sábado convida a estudar', async () => {

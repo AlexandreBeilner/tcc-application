@@ -4763,7 +4763,7 @@ diretamente na conversa, registradas abaixo.
   2026-02-06 (5º dia útil de fevereiro, dias vizinhos sem evento); `POST /accounts/{user_id}/salary` seguido da
   mesma consulta na data do crédito mostrou `future: false` com `unit_value` correto.
 
-### T.7 · Frontend: marcador de salário no calendário e teatro de recompensa
+### T.7 · Frontend: marcador de salário no calendário e teatro de recompensa ✅
 - **Descrição:** `CalendarEventItem`/`CalendarKindIcon` ganham o `kind: salary_payment` (ícone e rótulo próprios:
   "Salário: R$ X" no passado, "Dia de pagamento" sem valor no futuro); ao detectar salário recebido na virada de dia,
   reaproveitar `dayFlipReveal`/`RewardRevealProvider` (S.12) com um toast dedicado ("Salário do mês: R$ X caiu na sua
@@ -4771,6 +4771,31 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** marcador visível na faixa de dias e no painel de detalhe; toast só dispara pro próprio
   usuário; responsivo nos três breakpoints; sem em dash em texto de UI.
 - **Dependências:** T.6.
+- **Entregável real (sessão 2026-09-27):** `services/market/types.ts` (`CalendarEventKind` +`'salary_payment'`),
+  `CalendarKindIcon` (ícone `HandCoins`), `calendarEvents/index.ts` (`KIND_LABEL.salary_payment = 'Salário'` +
+  `case 'salary_payment'` em `describeCalendarEvent`, ramificando em `event.future` como `describeCopom` já fazia —
+  passado usa `money(event.unit_value)`, futuro nunca lê `unit_value`, nenhum dos dois usa `ticker`, que vem vazio
+  pro salário). `MarketCalendarPanel` ganhou a entrada na `LEGEND` (marcador visível também na legenda do painel, não
+  só na faixa de dias/`CalendarEventItem`, que já funcionavam de graça assim que o ícone/label existissem — nenhuma
+  mudança de lógica neles). Teatro de recompensa: nova função pura `describeSalaryReveal(amount)`
+  (`features/market/dayFlipReveal/index.ts`, ao lado de `describeDayFlip`, mesmo padrão "texto separado do hook").
+  `useDayFlipReveal` (`features/market/useDayFlipReveal/index.tsx`) ganhou uma segunda chamada assíncrona dentro do
+  mesmo `useEffect` de virada de dia — depois de disparar o toast de "Novo dia" (já existente), busca
+  `getMarketCalendar(token, clock.date, clock.date)` (o backend sempre injeta o usuário do token, RNF09), procura um
+  evento `salary_payment`/`scope: user`/`future: false` nesse dia e, se achar, chama `show()` de novo com o toast
+  dedicado — a fila do `RewardRevealProvider` (já existente, S.12/I.1) resolve a concorrência sozinha (o toast de
+  virada de dia sempre aparece primeiro, o de salário só depois de fechado, nunca sobrepostos). Nenhuma rota nova, só
+  consumo do que T.6 já expõe — sem entrada em `.docs/` (frontend não documenta contrato próprio ali).
+  `getMarketCalendar` mockado nos testes de `MarketClockChip` (que exercitam `useDayFlipReveal` de ponta a ponta),
+  cobrindo o cenário de salário pago no dia da virada (toast dedicado aparece só depois de fechar o de "Novo dia",
+  clicando "Fechar aviso"). Testes novos: `describeCalendarEvent` (passado com valor via regex por causa do espaço
+  não separável do `Intl.NumberFormat('pt-BR')`, futuro sem `R$` no texto), `describeSalaryReveal`,
+  `MarketClockChip` (toast dedicado). `npx vitest run` (802 testes)/`npx tsc -b`/`npm run lint` (oxlint, só warnings
+  pré-existentes de outros arquivos) e `npx prettier --check` verdes. **Sem `docker compose up`** desta vez: outra
+  sessão já tinha a stack rodando com os mesmos nomes fixos de container (`tcc-postgres`/`tcc-redis`/`tcc-engine`,
+  `container_name` fixo no `docker-compose.yml`) — não derrubada, pra não interferir em trabalho alheio; T.6 (mesma
+  sessão anterior) já validou ao vivo o `GET /market/calendar` que esta tarefa só consome, então o contrato de dados
+  já está confirmado, só a renderização/toast ficaram sem checagem visual real neste momento.
 
 ### T.8 · Salário exposto na resposta de progressão (fonte única do valor)
 - **Descrição:** `GET /gamification/progression` (`progressionRouter.ts`) passa a incluir `monthlySalary` no payload,
