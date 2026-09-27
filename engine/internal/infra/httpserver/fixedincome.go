@@ -337,6 +337,9 @@ func handleFixedIncomeTaxRate() http.HandlerFunc {
 }
 
 func writeFixedIncomePurchaseError(w http.ResponseWriter, err error) {
+	if writeMarketClosedIfClosed(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, fixedincomeexecution.ErrInvalidAmount):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
@@ -350,6 +353,9 @@ func writeFixedIncomePurchaseError(w http.ResponseWriter, err error) {
 }
 
 func writeFixedIncomeRedemptionError(w http.ResponseWriter, err error) {
+	if writeMarketClosedIfClosed(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, fixedincomeexecution.ErrPositionNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())

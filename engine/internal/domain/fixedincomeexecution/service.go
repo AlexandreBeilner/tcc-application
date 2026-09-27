@@ -60,6 +60,12 @@ func (s *Service) Purchase(ctx context.Context, req Request) (PurchaseOutcome, e
 		return PurchaseOutcome{}, err
 	}
 
+	if !pctx.IsSandbox {
+		if err := simcalendar.CheckMarketOpen(pctx.SimulatedDay); err != nil {
+			return PurchaseOutcome{}, err
+		}
+	}
+
 	now := simcalendar.DateOf(pctx.SimulatedDay)
 	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now)
 	outcome, err := Purchase(req, pctx, now, vnaBase, monthlyIPCA)
@@ -80,6 +86,12 @@ func (s *Service) Redeem(ctx context.Context, req RedeemRequest) (RedeemOutcome,
 	rctx, err := s.repo.LoadRedeemContext(ctx, req.UserID, req.AssetID)
 	if err != nil {
 		return RedeemOutcome{}, err
+	}
+
+	if !rctx.IsSandbox {
+		if err := simcalendar.CheckMarketOpen(rctx.SimulatedDay); err != nil {
+			return RedeemOutcome{}, err
+		}
 	}
 
 	now := simcalendar.DateOf(rctx.SimulatedDay)

@@ -60,7 +60,7 @@ func postFixedIncome(t *testing.T, path string, reader catalogReader, exec fixed
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -317,7 +317,7 @@ func getFixedIncomeSimulateWithExecutor(t *testing.T, reader catalogReader, exec
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/fixed-income/simulate?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -502,7 +502,7 @@ func getFixedIncomeTaxRate(t *testing.T, query string) *httptest.ResponseRecorde
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/fixed-income/tax-rate?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // incomingOrderID é um ID de placeholder pra ordem recebida durante o
@@ -81,6 +82,25 @@ func (s *Service) Submit(ctx context.Context, req Request) (Outcome, error) {
 	execCtx, err := s.repo.LoadContext(ctx, req.AssetID, req.UserID)
 	if err != nil {
 		return Outcome{}, err
+	}
+	return s.SubmitWithContext(ctx, req, execCtx)
+}
+
+// SubmitByUser é Submit pro usuário humano (POST /orders): recusa com
+// *simcalendar.MarketClosedError quando o mercado está fechado no fim de semana
+// simulado (tarefa S.11), sem gravar nada. Só o usuário é barrado: bots de
+// liquidez e o ETF (rebalanceamento e arbitragem, que rodam em todo tick, fim de
+// semana incluso) são atores do sistema e seguem por Submit. Sandbox (Modo
+// Aprendizado) e Cancel também seguem abertos.
+func (s *Service) SubmitByUser(ctx context.Context, req Request) (Outcome, error) {
+	execCtx, err := s.repo.LoadContext(ctx, req.AssetID, req.UserID)
+	if err != nil {
+		return Outcome{}, err
+	}
+	if !execCtx.Sandbox {
+		if err := simcalendar.CheckMarketOpen(execCtx.SimulatedDay); err != nil {
+			return Outcome{}, err
+		}
 	}
 	return s.SubmitWithContext(ctx, req, execCtx)
 }

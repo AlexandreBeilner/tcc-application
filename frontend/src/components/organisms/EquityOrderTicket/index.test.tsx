@@ -30,4 +30,16 @@ describe('EquityOrderTicket', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Revisar ordem' }))
         expect(onSubmit).toHaveBeenCalledWith('sell', 2)
     })
+
+    it('mercado fechado: desabilita "Revisar ordem" e mostra o motivo em texto', () => {
+        render(
+            <EquityOrderTicket
+                unitPrice={10}
+                closedReason="Mercado fechado: fim de semana simulado. Abre em 4h12, segunda 12/01"
+                onSubmit={vi.fn()}
+            />,
+        )
+        expect(screen.getByRole('button', { name: 'Revisar ordem' })).toBeDisabled()
+        expect(screen.getByRole('status')).toHaveTextContent('Mercado fechado: fim de semana simulado')
+    })
 })

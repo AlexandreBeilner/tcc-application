@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FixedIncomeSimulator } from '../../components/organisms/FixedIncomeSimulator'
 import { Button } from '../../components/atoms/Button'
+import { MarketClosedNotice } from '../../components/molecules/MarketClosedNotice'
 import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftFixedIncomePurchase, OrderDraftFixedIncomeRedemption } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
+import { useMarketClosedReason } from '../../features/market/useMarketClosedReason'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { useSimulateFixedIncomeQuery } from '../../features/market/useSimulateFixedIncomeQuery'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
@@ -37,6 +39,7 @@ export function FixedIncomeDetail() {
     const [draft, setDraft] = useState<OrderDraftFixedIncomePurchase | OrderDraftFixedIncomeRedemption | null>(null)
 
     const asset = assetQuery.data?.asset
+    const closedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
     const fixedIncome = asset?.fixed_income
     const daysHeld = fixedIncome?.maturity_date ? daysUntil(fixedIncome.maturity_date) : DEFAULT_DAYS_HELD
     const simulateQuery = useSimulateFixedIncomeQuery(assetId, amount, daysHeld)
@@ -134,9 +137,10 @@ export function FixedIncomeDetail() {
                     {existingPosition && (
                         <section className={styles.position}>
                             <span className={styles.positionLabel}>Sua posição: {existingPosition.quantity.toFixed(2)} unidades</span>
-                            <Button variant="secondary" onClick={handleRedeem}>
+                            <Button variant="secondary" onClick={handleRedeem} disabled={Boolean(closedReason)}>
                                 Resgatar
                             </Button>
+                            {closedReason && <MarketClosedNotice reason={closedReason} />}
                         </section>
                     )}
                 </div>
@@ -148,6 +152,7 @@ export function FixedIncomeDetail() {
                         onAmountChange={setAmount}
                         simulation={simulateQuery.data}
                         onInvest={handleInvest}
+                        closedReason={closedReason}
                     />
                 </div>
             </div>

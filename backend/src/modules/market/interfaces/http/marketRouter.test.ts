@@ -18,10 +18,13 @@ import { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixed
 import { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
+import { GetMarketCalendarUseCase } from '../../application/useCases/getMarketCalendar'
+import { GetMarketClockUseCase } from '../../application/useCases/getMarketClock'
 import { createFakeAccountReader } from '../../test/fakes/fakeAccountReader'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeFixedIncomeExecutor } from '../../test/fakes/fakeFixedIncomeExecutor'
 import { createFakeIndicatorHistoryReader } from '../../test/fakes/fakeIndicatorHistoryReader'
+import { createFakeMarketCalendarReader } from '../../test/fakes/fakeMarketCalendarReader'
 import { createFakeOrderExecutor } from '../../test/fakes/fakeOrderExecutor'
 import { createFakeProductUnlockReader } from '../../test/fakes/fakeProductUnlockReader'
 import { createMarketRouter } from './marketRouter'
@@ -106,6 +109,7 @@ function buildApp(
       { simulated_day: 1, selic_rate: 10, ipca_monthly_rate: 0.0037, ipca_accumulated_12m: 0.045 },
     ],
   })
+  const marketCalendarReader = createFakeMarketCalendarReader({})
   // Desbloqueado por padrão (`asset:acao`, o único tipo usado pelo
   // catalogReader fake acima) — os testes que não são sobre o gate da
   // 7.0.1 continuam exercitando só o caminho feliz; `productUnlockReader`
@@ -137,6 +141,8 @@ function buildApp(
       simulateFixedIncome: new SimulateFixedIncomeUseCase(fixedIncomeExecutor),
       getFixedIncomeTaxRate: new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor),
       getIndicatorHistory: new GetIndicatorHistoryUseCase(indicatorHistoryReader),
+      getMarketClock: new GetMarketClockUseCase(marketCalendarReader),
+      getMarketCalendar: new GetMarketCalendarUseCase(marketCalendarReader),
       authMiddleware,
     }),
   )
@@ -150,6 +156,7 @@ function buildApp(
     fixedIncomeExecutor,
     productUnlockReader,
     indicatorHistoryReader,
+    marketCalendarReader,
   }
 }
 
@@ -312,6 +319,66 @@ describe('GET /market/indicators', () => {
   })
 })
 
+describe('GET /market/clock', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    expect((await request(app).get('/market/clock')).status).toBe(401)
+  })
+
+  it('retorna o relógio do motor', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app).get('/market/clock').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ simulated_day: 0, market_open: true, quarter_length: 91 })
+  })
+})
+
+describe('GET /market/calendar', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    expect((await request(app).get('/market/calendar')).status).toBe(401)
+  })
+
+  it('repassa a janela e sempre o usuário do token, ignorando user_id da query', async () => {
+    const { app, tokenIssuer, marketCalendarReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/calendar?from=2026-01-05&to=2026-01-11&user_id=outro-usuario')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(marketCalendarReader.getCalendarCalls).toEqual([
+      { userId: 'user-1', query: { from: '2026-01-05', to: '2026-01-11' } },
+    ])
+  })
+
+  it('retorna 400 pra data fora do formato AAAA-MM-DD', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/calendar?from=05/01/2026')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('traduz um EngineRequestError do motor 1:1 pro cliente', async () => {
+    const { app, tokenIssuer, marketCalendarReader } = buildApp()
+    marketCalendarReader.errorToThrow = new EngineRequestError(400, 'janela inválida')
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app).get('/market/calendar').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'janela inválida' })
+  })
+})
+
 describe('GET /market/me/account', () => {
   it('retorna a conta agregada do usuário do token, nunca de outro', async () => {
     const { app, tokenIssuer, accountReader } = buildApp()
@@ -389,6 +456,34 @@ describe('GET /market/orders', () => {
 })
 
 describe('POST /market/orders', () => {
+  it('repassa o código e a reabertura do erro market_closed do motor (tarefa S.11)', async () => {
+    const { app, tokenIssuer, orderExecutor } = buildApp()
+    orderExecutor.errorToThrow = new EngineRequestError(422, 'mercado fechado', {
+      code: 'market_closed',
+      opens_on: '2026-01-12',
+      days_until_open: 2,
+    })
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .post('/market/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        asset_id: '11111111-1111-4111-8111-111111111111',
+        side: 'buy',
+        type: 'market',
+        quantity: 10,
+      })
+
+    expect(res.status).toBe(422)
+    expect(res.body).toEqual({
+      error: 'mercado fechado',
+      code: 'market_closed',
+      opens_on: '2026-01-12',
+      days_until_open: 2,
+    })
+  })
+
   it('injeta user_id do token, ignorando qualquer user_id enviado no corpo', async () => {
     const { app, tokenIssuer, orderExecutor } = buildApp()
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })

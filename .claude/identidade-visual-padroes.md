@@ -25,6 +25,10 @@ verdade na tarefa O.4. A referência viva atual do Mapa da Trilha é o mockup da
 https://claude.ai/code/artifact/19e34a0c-55f0-474f-8ea1-bcec10ae40ab — o mockup original acima
 continua valendo só pra Detalhe de Ativo + Confirmação de Ordem.
 
+**Calendário do Mercado (tarefa S.12, tela 4.11)** tem mockup vivo próprio, com o relógio do TopBar, o
+bottom sheet mobile, o painel do tablet, o painel lateral fixo com a grade do trimestre no desktop, a
+virada de dia e o passo de onboarding: https://claude.ai/artifact/CqcmBmoJfpEKeUBAnks8zn
+
 ## 1. Princípio geral
 
 A identidade nasce de tomar emprestada a linguagem visual real de mercado (home broker) nas

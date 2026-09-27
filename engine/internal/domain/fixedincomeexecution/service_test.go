@@ -231,3 +231,37 @@ func TestRemainingBusinessDays_ContaDiasUteisReaisDoCalendarioSimulado(t *testin
 		})
 	}
 }
+
+func TestService_MercadoFechadoNoFimDeSemanaNaoPersisteNada(t *testing.T) {
+	pctx := validPurchaseContext()
+	pctx.SimulatedDay = 5 // sábado
+	repo := &fakeRepository{
+		purchaseCtx: pctx,
+		redeemCtx: RedeemContext{
+			SimulatedDay: 6, // domingo
+			Position:     fixedincomeposition.Position{Quantity: 1, AveragePrice: 900, AverageRate: 0.10},
+			MaturityDate: simcalendar.BaseDate.AddDate(0, 6, 0), CurrentMarketRatePct: 8,
+		},
+	}
+	svc := NewService(repo, testIPCAConfig)
+
+	var closed *simcalendar.MarketClosedError
+	if _, err := svc.Purchase(context.Background(), Request{UserID: "u1", AssetID: "a1", Amount: 1000}); !errors.As(err, &closed) {
+		t.Fatalf("compra: err = %v, quer *MarketClosedError", err)
+	}
+	if _, err := svc.Redeem(context.Background(), RedeemRequest{UserID: "u1", AssetID: "a1"}); !errors.As(err, &closed) {
+		t.Fatalf("resgate: err = %v, quer *MarketClosedError", err)
+	}
+	if repo.persistPurchaseCalled || repo.persistRedeemCalled {
+		t.Error("nada pode ser gravado com o mercado fechado")
+	}
+}
+
+func TestService_SandboxSegueAbertoNoFimDeSemana(t *testing.T) {
+	pctx := validPurchaseContext()
+	pctx.SimulatedDay, pctx.IsSandbox = 5, true
+	repo := &fakeRepository{purchaseCtx: pctx}
+	if _, err := NewService(repo, testIPCAConfig).Purchase(context.Background(), Request{UserID: "u1", AssetID: "a1", Amount: 1000}); err != nil {
+		t.Fatalf("err = %v, sandbox deve operar no fim de semana", err)
+	}
+}

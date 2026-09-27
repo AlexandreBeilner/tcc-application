@@ -29,7 +29,7 @@ type fakeOrderSubmitter struct {
 	listedUserID  string
 }
 
-func (f *fakeOrderSubmitter) Submit(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
+func (f *fakeOrderSubmitter) SubmitByUser(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
 	f.got = req
 	return f.outcome, f.err
 }
@@ -49,7 +49,7 @@ func postOrder(t *testing.T, reader catalogReader, orders orderSubmitter, body s
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/orders", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, orders, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, orders, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -59,7 +59,7 @@ func postCancelOrder(t *testing.T, orders orderSubmitter, orderID, body string) 
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/orders/"+orderID+"/cancel", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, orders, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, orders, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -67,7 +67,7 @@ func getOrders(t *testing.T, orders orderSubmitter, query string) *httptest.Resp
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/orders?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, orders, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, orders, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../../atoms/Button'
+import { MarketClosedNotice } from '../../molecules/MarketClosedNotice'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { OrderSide } from '../../../services/market'
 import type { EquityOrderTicketProps } from './types'
@@ -11,7 +12,7 @@ export type { EquityOrderTicketProps } from './types'
 // §0/§5) — toggle Comprar/Vender neutro (azul de marca, nunca verde/
 // vermelho de ganho/perda — cor financeira é exclusiva de dado real) +
 // stepper de quantidade com price-flash (~350ms, §2) a cada mudança.
-export function EquityOrderTicket({ unitPrice, onSubmit }: EquityOrderTicketProps) {
+export function EquityOrderTicket({ unitPrice, closedReason, onSubmit }: EquityOrderTicketProps) {
     const [side, setSide] = useState<OrderSide>('buy')
     const [quantity, setQuantity] = useState(1)
     const [flash, setFlash] = useState(false)
@@ -70,9 +71,10 @@ export function EquityOrderTicket({ unitPrice, onSubmit }: EquityOrderTicketProp
                 </span>
             </div>
 
-            <Button fullWidth disabled={unitPrice === undefined} onClick={() => onSubmit(side, quantity)}>
+            <Button fullWidth disabled={unitPrice === undefined || Boolean(closedReason)} onClick={() => onSubmit(side, quantity)}>
                 Revisar ordem
             </Button>
+            {closedReason && <MarketClosedNotice reason={closedReason} />}
         </div>
     )
 }

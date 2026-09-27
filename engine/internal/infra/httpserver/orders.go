@@ -16,7 +16,7 @@ import (
 // uma ordem recebida — implementado por *orderexecution.Service, injetado
 // em New (tarefa 3.12).
 type orderSubmitter interface {
-	Submit(ctx context.Context, req orderexecution.Request) (orderexecution.Outcome, error)
+	SubmitByUser(ctx context.Context, req orderexecution.Request) (orderexecution.Outcome, error)
 	// Cancel marca como cancelled a ordem orderID de userID (tarefa O.1) —
 	// implementado pelo mesmo *orderexecution.Service que já implementa
 	// Submit, então não precisa de uma interface/parâmetro novo em New/Run.
@@ -119,7 +119,7 @@ func handleSubmitOrder(catalogReader assetCatalogReader, orders orderSubmitter) 
 			return
 		}
 
-		outcome, err := orders.Submit(r.Context(), orderexecution.Request{
+		outcome, err := orders.SubmitByUser(r.Context(), orderexecution.Request{
 			UserID:   req.UserID,
 			AssetID:  req.AssetID,
 			Side:     side,
@@ -146,6 +146,9 @@ func handleSubmitOrder(catalogReader assetCatalogReader, orders orderSubmitter) 
 }
 
 func writeOrderExecutionError(w http.ResponseWriter, err error) {
+	if writeMarketClosedIfClosed(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, orderexecution.ErrInsufficientBalance), errors.Is(err, orderexecution.ErrInsufficientPosition),
 		errors.Is(err, orderexecution.ErrRestingOrderNoLongerAvailable):

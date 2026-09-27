@@ -54,6 +54,28 @@ describe('engineOrderExecutor', () => {
     ).rejects.toMatchObject({ status: 422, message: 'saldo insuficiente' })
   })
 
+  it('preserva os campos estruturados do erro do motor em details (market_closed, tarefa S.11)', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        error: 'mercado fechado',
+        code: 'market_closed',
+        opens_on: '2026-01-12',
+        days_until_open: 2,
+      }),
+    })
+    const executor = createEngineOrderExecutor('http://engine:8080')
+
+    await expect(
+      executor.submit({ user_id: 'u', asset_id: 'a', side: 'buy', type: 'market', quantity: 1 }),
+    ).rejects.toMatchObject({
+      status: 422,
+      message: 'mercado fechado',
+      details: { code: 'market_closed', opens_on: '2026-01-12', days_until_open: 2 },
+    })
+  })
+
   it('POST /orders/:id/cancel com user_id no corpo (tarefa O.1)', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 204, json: async () => ({}) })
     const executor = createEngineOrderExecutor('http://engine:8080')

@@ -296,3 +296,18 @@ export interface RedeemFixedIncomeResult {
     tax_rate: number
     mark_to_market: MarkToMarket
 }
+
+// Espelha `GET /market/clock` (`.docs/backend/market.md`, tarefa S.10), proxy 1:1
+// do motor. `weekday` é o código estável (`sun`..`sat`); `next_tick_at` é
+// `null` quando a agenda automática do motor está desligada.
+export interface MarketClock {
+    simulated_day: number
+    date: string
+    weekday: string
+    market_open: boolean
+    days_until_open: number
+    days_per_real_day: number
+    next_tick_at: string | null
+    quarter_day: number
+    quarter_length: number
+}

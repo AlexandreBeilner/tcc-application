@@ -16,6 +16,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
+	"tcc-investimentos/engine/internal/domain/marketcalendar"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
@@ -73,7 +74,7 @@ func main() {
 		// (tarefa M.2) respondem 503 (ver internal/infra/httpserver/account.go,
 		// assets.go, admin.go, fixedincome.go, macroevents.go, positions.go e
 		// indicators.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -154,7 +155,13 @@ func main() {
 	// (handleAdminTick) dispara o mesmo Run fora da agenda. A trava consultiva do
 	// Postgres (Guard) serializa os dois e as instâncias entre si.
 	tickService.WithGuard(tickRepository)
+	calendarRepository := db.NewCalendarRepository(pool)
+	calendarAPI := &httpserver.CalendarAPI{
+		Service:        marketcalendar.NewService(calendarRepository, calendarRepository),
+		DaysPerRealDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
+	}
 	if scheduleCfg, enabled := loadScheduleConfig(); enabled {
+		calendarAPI.NextTick = scheduleCfg.NextSlotStart
 		tickerCtx, stopTicker := context.WithCancel(context.Background())
 		defer stopTicker()
 		go scheduler.Run(tickerCtx, scheduleCfg, time.Now, tickService.RunScheduled)
@@ -162,7 +169,7 @@ func main() {
 		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
 	}
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

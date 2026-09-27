@@ -36,6 +36,14 @@ export const indicatorHistoryQuerySchema = z.object({
   days: z.coerce.number().int().min(1).optional(),
 })
 
+// Janela do calendário em datas AAAA-MM-DD (o motor valida o teto de 92 dias e
+// from <= to). O usuário nunca vem daqui: é sempre o do token.
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'use AAAA-MM-DD')
+export const marketCalendarQuerySchema = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+})
+
 // Mesma convenção de paginação de `listMacroEventsQuerySchema`
 // (`modules/admin`) — limit/offset opcionais, o motor aplica o default.
 export const listMyEventsQuerySchema = z.object({

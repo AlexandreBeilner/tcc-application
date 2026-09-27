@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -286,6 +287,24 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeCatalogError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeMarketClosedIfClosed responde 422 com code market_closed (tarefa S.11)
+// e devolve true quando err é a recusa de negociar em fim de semana simulado.
+// opens_on é a data da próxima abertura e days_until_open quantos dias
+// simulados faltam, pro cliente montar "abre segunda 12/01" sem outra chamada.
+func writeMarketClosedIfClosed(w http.ResponseWriter, err error) bool {
+	var closed *simcalendar.MarketClosedError
+	if !errors.As(err, &closed) {
+		return false
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+		"error":           "Mercado fechado: fim de semana simulado. Abre na segunda-feira, " + closed.OpensOn().Format("02/01") + ".",
+		"code":            "market_closed",
+		"opens_on":        closed.OpensOn().Format(dateLayout),
+		"days_until_open": closed.DaysUntilOpen(),
+	})
+	return true
 }
 
 // handleListAssets serve GET /assets, com filtro opcional por `type` (um

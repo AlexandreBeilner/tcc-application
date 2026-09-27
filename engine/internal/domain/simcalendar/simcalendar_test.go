@@ -1,6 +1,7 @@
 package simcalendar
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -56,6 +57,43 @@ func TestBusinessDaysBetween(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := BusinessDaysBetween(tt.from, tt.to); got != tt.want {
 				t.Errorf("BusinessDaysBetween(%d, %d) = %d, quer %d", tt.from, tt.to, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckMarketOpen(t *testing.T) {
+	tests := []struct {
+		name       string
+		day        int
+		wantClosed bool
+		wantOpens  int
+	}{
+		{"segunda", 0, false, 0},
+		{"sexta (fronteira antes do fim de semana)", 4, false, 0},
+		{"sábado", 5, true, 7},
+		{"domingo (fronteira antes da segunda)", 6, true, 7},
+		{"segunda seguinte", 7, false, 0},
+		{"sábado adiante", 12, true, 14},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := CheckMarketOpen(tt.day)
+			if !tt.wantClosed {
+				if err != nil {
+					t.Fatalf("err = %v, quer nil", err)
+				}
+				return
+			}
+			var closed *MarketClosedError
+			if !errors.As(err, &closed) {
+				t.Fatalf("err = %v, quer *MarketClosedError", err)
+			}
+			if closed.OpensOnDay != tt.wantOpens || closed.DaysUntilOpen() != tt.wantOpens-tt.day {
+				t.Errorf("abre no dia %d (faltam %d), quer %d", closed.OpensOnDay, closed.DaysUntilOpen(), tt.wantOpens)
+			}
+			if closed.OpensOn().Weekday() != time.Monday {
+				t.Errorf("reabre em %s, quer segunda-feira", closed.OpensOn().Weekday())
 			}
 		})
 	}

@@ -5,6 +5,7 @@ import type {
     AssetType,
     Company,
     IndicatorHistoryEntry,
+    MarketClock,
     MarketEvent,
     MyAccount,
     MyOrderRecord,
@@ -21,6 +22,8 @@ import type {
 } from './types'
 
 export type { ProductLockedErrorBody } from './types'
+
+export type { MarketClock } from './types'
 
 export type {
     AssetDetail,
@@ -92,6 +95,12 @@ export function getAssetQuotes(token: string, id: string, days?: number): Promis
 export function getIndicatorHistory(token: string, days?: number): Promise<{ indicators: IndicatorHistoryEntry[] }> {
     const query = days ? `?days=${days}` : ''
     return apiRequest<{ indicators: IndicatorHistoryEntry[] }>(`/market/indicators${query}`, { token })
+}
+
+// Relógio do mercado simulado (tarefa S.10/S.11): dia simulado, mercado aberto
+// ou fechado (fim de semana simulado) e quando vem o próximo tick.
+export function getMarketClock(token: string): Promise<MarketClock> {
+    return apiRequest<MarketClock>('/market/clock', { token })
 }
 
 export function getCompany(token: string, id: string): Promise<{ company: Company }> {

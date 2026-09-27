@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '../../atoms/Button'
+import { MarketClosedNotice } from '../../molecules/MarketClosedNotice'
 import { OrderSummaryList } from '../OrderSummaryList'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
 import type { FixedIncomeSimulatorProps } from './types'
@@ -12,7 +13,14 @@ export type { FixedIncomeSimulatorProps } from './types'
 // simulate` (6.0.5), nunca `POST .../purchases` pra simular (backlog 6.5).
 // Valor abaixo da aplicação mínima bloqueia o botão preventivamente
 // (estado especial documentado no backlog), não só trata o erro 422.
-export function FixedIncomeSimulator({ minimumInvestment, amount, onAmountChange, simulation, onInvest }: FixedIncomeSimulatorProps) {
+export function FixedIncomeSimulator({
+    minimumInvestment,
+    amount,
+    onAmountChange,
+    simulation,
+    onInvest,
+    closedReason,
+}: FixedIncomeSimulatorProps) {
     const isInvalidAmount = Number.isNaN(amount) || amount <= 0
     const isBelowMinimum = !isInvalidAmount && amount < minimumInvestment
 
@@ -66,9 +74,10 @@ export function FixedIncomeSimulator({ minimumInvestment, amount, onAmountChange
                 />
             )}
 
-            <Button fullWidth disabled={isInvalidAmount || isBelowMinimum} onClick={onInvest}>
+            <Button fullWidth disabled={isInvalidAmount || isBelowMinimum || Boolean(closedReason)} onClick={onInvest}>
                 Investir
             </Button>
+            {closedReason && <MarketClosedNotice reason={closedReason} />}
         </div>
     )
 }

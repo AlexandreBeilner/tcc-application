@@ -55,3 +55,37 @@ func BusinessDaysBetween(fromDay, toDay int) int {
 	}
 	return count
 }
+
+// MarketClosedError é a recusa de negociar com o mercado fechado (tarefa S.11,
+// decisão do autor de 2026-09-26): sábado e domingo simulados. Carrega quando
+// o mercado reabre, pra resposta HTTP e o frontend dizerem "abre em ...".
+type MarketClosedError struct {
+	// Day é o dia simulado da tentativa.
+	Day int
+	// OpensOnDay é o dia simulado da próxima abertura (a segunda-feira seguinte).
+	OpensOnDay int
+}
+
+// DaysUntilOpen é quantos dias simulados faltam pra abrir.
+func (e *MarketClosedError) DaysUntilOpen() int { return e.OpensOnDay - e.Day }
+
+// OpensOn é a data de calendário da próxima abertura.
+func (e *MarketClosedError) OpensOn() time.Time { return DateOf(e.OpensOnDay) }
+
+func (e *MarketClosedError) Error() string {
+	return "mercado fechado: fim de semana simulado, abre na segunda-feira"
+}
+
+// CheckMarketOpen devolve *MarketClosedError se o dia simulado é sábado ou
+// domingo; nil em dia útil. Só bloqueia negociação de renda variável e renda
+// fixa: cancelar ordem, sandbox e lições seguem abertos (quem chama decide).
+func CheckMarketOpen(day int) error {
+	if IsBusinessDay(day) {
+		return nil
+	}
+	opens := day
+	for !IsBusinessDay(opens) {
+		opens++
+	}
+	return &MarketClosedError{Day: day, OpensOnDay: opens}
+}

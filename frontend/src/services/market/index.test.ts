@@ -5,6 +5,7 @@ import {
     getAssetQuotes,
     getCompany,
     getIndicatorHistory,
+    getMarketClock,
     getMyAccount,
     listAssets,
     listMyEvents,
@@ -78,6 +79,12 @@ describe('services/market', () => {
         const fetchMock = mockFetchOnce({ indicators: [] })
         await getIndicatorHistory('token', 180)
         expect(fetchMock.mock.calls[0][0]).toBe('/market/indicators?days=180')
+    })
+
+    it('getMarketClock faz GET /market/clock', async () => {
+        const fetchMock = mockFetchOnce({ simulated_day: 5, market_open: false })
+        await getMarketClock('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/clock')
     })
 
     it('getCompany faz GET /market/companies/:id', async () => {

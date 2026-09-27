@@ -21,6 +21,7 @@ Cinco itens — mesmo número da spec original, com "Trilha" adicionada como nov
 
 - Logo/nome do app
 - **Ícone de notícias/eventos** (com badge de novidade) → Feed de Notícias
+- **Relógio do mercado** (tarefa S.12, tela 4.11): chip com o dia simulado, a data e o tempo até o próximo dia ("Dia 135 · qua 20/05 · próximo dia em 2h14"), com ponteiro que avança; no fim de semana simulado vira o selo tracejado "Mercado fechado" com quando reabre. Toque abre o Calendário (4.11). No mobile mostra só a linha de cima.
 - **Avatar do usuário** → menu suspenso:
   - Meu Perfil
   - Amigos
@@ -257,6 +258,21 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ---
 
+### 4.11 Calendário do Mercado
+
+- **Objetivo:** dizer em uma olhada em que dia do mercado simulado estamos, que o tempo é acelerado (1 dia real = 5 dias de mercado), por que o mercado às vezes está fechado (sábado e domingo simulados) e o que aconteceu e vem aí (tarefa S.12, decisão do autor de 2026-09-26). Mockup vivo (mobile, tablet e desktop, virada de dia e passo de onboarding): https://claude.ai/artifact/CqcmBmoJfpEKeUBAnks8zn
+- **Acesso:** chip do relógio no TopBar (0.2), em qualquer tela autenticada. Não é rota do menu: mobile abre como bottom sheet sobre a tela de origem, tablet como painel abaixo da barra, desktop como painel lateral fixo ao lado de uma visão do trimestre inteiro.
+- **Conteúdo:**
+  - Trimestre como barra de progresso "dia N de 91" (sólido até hoje, tracejado depois) e "relatório em X dias".
+  - Faixa horizontal de dias (7 atrás, hoje, 6 à frente) com marcadores por tipo, sempre ícone mais texto: evento de mercado, Copom, balanço, provento, suas ordens, renda fixa. Fim de semana com fundo cinza, borda tracejada e o texto "fechado". Futuro tracejado.
+  - Detalhe do dia escolhido: listas "Aconteceu" e "Vem aí" (fatos do usuário com a etiqueta VOCÊ; futuro só com o que é determinístico: Copom, relatório, proventos anunciados e vencimentos do usuário, nunca evento macro que ainda não aconteceu).
+  - Desktop: grade do trimestre (uma coluna por semana, sólido passado e tracejado futuro, borda dourada no dia de relatório).
+  - Legenda e a linha fixa "cada dia real equivale a 5 dias de mercado".
+- **Teatro de recompensa leve:** na virada de dia, o ponteiro do relógio gira e aparece um toast "Novo dia: Selic X%" (dourado, só aqui); no fim de semana, "Mercado fechado até segunda. Hora de estudar." Respeita `prefers-reduced-motion`.
+- **Onboarding (1.2):** um passo novo explicando o tempo acelerado, o fim de semana fechado e o que segue aberto (lições, Modo Aprendizado, cancelar ordem).
+- **Estados especiais:** motor sem nenhum tick (dia 0, sem histórico); agenda automática desligada (sem "próximo dia em", o relógio mostra só o dia).
+- **Dados envolvidos:** `GET /market/clock` e `GET /market/calendar` (`.docs/backend/market.md`, tarefas S.10 e S.11).
+
 ## 5. Feed de Notícias / Eventos de Mercado
 
 ### 5.1 Feed de Notícias
@@ -425,6 +441,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 4.6 | Perfil da Empresa | Mercado |
 | 4.7 | Confirmação de Ordem | Mercado |
 | 4.8 | Extrato/Histórico | Mercado |
+| 4.11 | Calendário do Mercado | Mercado |
 | 5.1 | Feed de Notícias | Eventos |
 | 6.1 | Calculadora — simples | Calculadora |
 | 6.2 | Calculadora — comparação | Calculadora |
@@ -441,7 +458,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.1 | Painel Admin — hub | Admin |
 | 10.2 | Criar/Disparar Evento | Admin |
 
-**Total: 28 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 29 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

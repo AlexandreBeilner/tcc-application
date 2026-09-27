@@ -12,8 +12,11 @@ import (
 	"tcc-investimentos/engine/internal/domain"
 )
 
-const insertEventSQL = `INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value)
-	VALUES ($1, $2, $3, $4, $5)`
+// simulated_day vem de market_calendar no próprio INSERT (tarefa S.10): o dia
+// simulado em que o evento aconteceu, lido do calendário que o Temporizador
+// avança (0 antes do primeiro tick).
+const insertEventSQL = `INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value, simulated_day)
+	VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0))`
 
 // execer é satisfeito tanto por *sql.DB quanto por *sql.Tx — permite gravar
 // o evento isolado (Append) ou dentro de uma transação já aberta por outro
@@ -55,8 +58,9 @@ func AppendTx(ctx context.Context, tx *sql.Tx, event domain.MarketEvent) error {
 // num único INSERT em lote.
 var ErrInvalidBatch = errors.New("eventos do lote precisam ter o mesmo tipo e todos os campos preenchidos")
 
-const insertEventsBatchSQL = `INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value)
-	SELECT t.u::uuid, t.a::uuid, $1::market_event_type, t.q, t.uv::numeric
+const insertEventsBatchSQL = `INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value, simulated_day)
+	SELECT t.u::uuid, t.a::uuid, $1::market_event_type, t.q, t.uv::numeric,
+	       COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0)
 	FROM unnest($2::text[], $3::text[], $4::int[], $5::text[]) AS t(u, a, q, uv)`
 
 // AppendBatchTx grava vários eventos do mesmo tipo com um único comando SQL

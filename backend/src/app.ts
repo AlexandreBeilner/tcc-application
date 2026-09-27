@@ -139,6 +139,9 @@ import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
+import { GetMarketCalendarUseCase } from './modules/market/application/useCases/getMarketCalendar'
+import { GetMarketClockUseCase } from './modules/market/application/useCases/getMarketClock'
+import { createEngineMarketCalendarReader } from './modules/market/infrastructure/engine/engineMarketCalendarReader'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
 import { createEngineIndicatorHistoryReader } from './modules/market/infrastructure/engine/engineIndicatorHistoryReader'
@@ -239,6 +242,9 @@ export function createApp(deps: AppDeps = {}): Express {
     createRedisIndicatorHistoryCacheStore(redisClient),
   )
   const getIndicatorHistory = new GetIndicatorHistoryUseCase(cachedIndicatorHistoryReader)
+  const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
+  const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
+  const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -489,6 +495,8 @@ export function createApp(deps: AppDeps = {}): Express {
       simulateFixedIncome,
       getFixedIncomeTaxRate,
       getIndicatorHistory,
+      getMarketClock,
+      getMarketCalendar,
       authMiddleware,
     }),
   )

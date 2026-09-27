@@ -10,6 +10,7 @@ import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
+import { useMarketClosedReason } from '../../features/market/useMarketClosedReason'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { formatCurrency } from '../../features/portfolio/format'
@@ -46,6 +47,7 @@ export function AssetDetail() {
     const gate = useLockedAssetGate()
 
     const asset = assetQuery.data?.asset
+    const closedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
 
     if (assetQuery.isError) {
         return (
@@ -162,7 +164,7 @@ export function AssetDetail() {
                 </div>
 
                 <aside className={styles.sidebar}>
-                    <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
+                    <EquityOrderTicket unitPrice={asset.current_price} closedReason={closedReason} onSubmit={handleSubmitOrder} />
                 </aside>
             </div>
 

@@ -26,7 +26,7 @@ func getIndicatorHistory(t *testing.T, reader indicatorHistoryReader, query stri
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/market/indicators/history"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, nil, nil, nil, reader).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, nil, nil, nil, reader, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
