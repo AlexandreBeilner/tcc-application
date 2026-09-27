@@ -45,6 +45,7 @@ type accountResponse struct {
 	UserID                 string  `json:"user_id"`
 	CurrentBalance         float64 `json:"current_balance"`
 	TotalInvested          float64 `json:"total_invested"`
+	TotalDisinvested       float64 `json:"total_disinvested"`
 	TotalDividendsReceived float64 `json:"total_dividends_received"`
 }
 
@@ -59,6 +60,7 @@ func toAccountResponse(acc account.Account) accountResponse {
 		UserID:                 acc.UserID,
 		CurrentBalance:         acc.CurrentBalance,
 		TotalInvested:          acc.TotalInvested,
+		TotalDisinvested:       acc.TotalDisinvested,
 		TotalDividendsReceived: acc.TotalDividendsReceived,
 	}
 }

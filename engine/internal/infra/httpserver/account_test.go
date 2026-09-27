@@ -141,7 +141,7 @@ func getUserMarketData(t *testing.T, userData userMarketDataReader, path string)
 
 func TestHandleGetAccount(t *testing.T) {
 	reader := &fakeUserMarketDataReader{
-		account:      account.Account{UserID: validUserID, CurrentBalance: 9500.50, TotalInvested: 500, TotalDividendsReceived: 12.30},
+		account:      account.Account{UserID: validUserID, CurrentBalance: 9500.50, TotalInvested: 500, TotalDisinvested: 80, TotalDividendsReceived: 12.30},
 		accountFound: true,
 	}
 
@@ -154,7 +154,7 @@ func TestHandleGetAccount(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.CurrentBalance != 9500.50 || body.TotalInvested != 500 || body.TotalDividendsReceived != 12.30 {
+	if body.CurrentBalance != 9500.50 || body.TotalInvested != 500 || body.TotalDisinvested != 80 || body.TotalDividendsReceived != 12.30 {
 		t.Errorf("body = %+v, inesperado", body)
 	}
 }

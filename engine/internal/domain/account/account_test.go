@@ -18,6 +18,9 @@ func TestNew(t *testing.T) {
 	if acc.TotalInvested != 0 {
 		t.Errorf("TotalInvested = %v, want 0", acc.TotalInvested)
 	}
+	if acc.TotalDisinvested != 0 {
+		t.Errorf("TotalDisinvested = %v, want 0", acc.TotalDisinvested)
+	}
 	if acc.TotalDividendsReceived != 0 {
 		t.Errorf("TotalDividendsReceived = %v, want 0", acc.TotalDividendsReceived)
 	}
@@ -94,7 +97,7 @@ func TestAccount_EligibleForTradingRound(t *testing.T) {
 }
 
 func TestDeactivate(t *testing.T) {
-	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDividendsReceived: 30, IsBot: true, IsActive: true}
+	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDisinvested: 300, TotalDividendsReceived: 30, IsBot: true, IsActive: true}
 
 	got := Deactivate(acc)
 
@@ -104,7 +107,7 @@ func TestDeactivate(t *testing.T) {
 	if got.UserID != acc.UserID || got.IsBot != acc.IsBot {
 		t.Errorf("identidade da conta mudou: got = %+v, want mesma identidade de %+v", got, acc)
 	}
-	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
+	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDisinvested != acc.TotalDisinvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
 		t.Errorf("saldo mudou por desativar: got = %+v, want saldo intocado de %+v", got, acc)
 	}
 	if got.EligibleForTradingRound() {
@@ -113,14 +116,14 @@ func TestDeactivate(t *testing.T) {
 }
 
 func TestActivate(t *testing.T) {
-	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDividendsReceived: 30, IsBot: true, IsActive: false}
+	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDisinvested: 300, TotalDividendsReceived: 30, IsBot: true, IsActive: false}
 
 	got := Activate(acc)
 
 	if !got.IsActive {
 		t.Error("IsActive = false, want true depois de Activate")
 	}
-	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
+	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDisinvested != acc.TotalDisinvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
 		t.Errorf("saldo mudou por reativar: got = %+v, want saldo intocado de %+v", got, acc)
 	}
 	if !got.EligibleForTradingRound() {

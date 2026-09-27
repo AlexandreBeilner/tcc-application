@@ -632,7 +632,7 @@ func applyFillSide(ctx context.Context, tx *sql.Tx, assetID, userID string, side
 		}
 	} else {
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE accounts SET current_balance = current_balance + $1, updated_at = now() WHERE user_id = $2`,
+			`UPDATE accounts SET current_balance = current_balance + $1, total_disinvested = total_disinvested + $1, updated_at = now() WHERE user_id = $2`,
 			cost, userID,
 		); err != nil {
 			return err

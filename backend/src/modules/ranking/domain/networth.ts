@@ -21,6 +21,21 @@ export interface Snapshot {
   fixedIncomeValue: number
   tradesExecuted: number
   total: number
+  // investedCost/disinvestedProceeds/dividendsReceived (tarefa T.1) alimentam
+  // a rentabilidade sobre capital de risco (`domain/profitability.ts`) —
+  // somas BRUTAS desde a criação da conta, nunca líquidas entre si (uma
+  // venda com lucro nunca reduz `investedCost`, só soma em
+  // `disinvestedProceeds`). Deliberadamente NÃO filtradas por
+  // `sandboxAssetIds`, mesma convenção de `cash` (não de
+  // `variableIncomeValue`/`fixedIncomeValue`, que filtram): o motor também
+  // não filtra `accounts.total_invested`/`total_disinvested`/
+  // `total_dividends_received` por `is_sandbox` — filtrar só aqui quebraria
+  // a consistência exigida entre este replay e o caminho rápido
+  // (`engineCurrentAccountStateReader`, que lê os acumuladores crus do
+  // motor).
+  investedCost: number
+  disinvestedProceeds: number
+  dividendsReceived: number
 }
 
 // Reconstrói o patrimônio de um usuário num instante passado a partir do
@@ -47,6 +62,9 @@ export function replay(
 ): Snapshot {
   let cash = 0
   let tradesExecuted = 0
+  let investedCost = 0
+  let disinvestedProceeds = 0
+  let dividendsReceived = 0
   const variableIncomeQty = new Map<string, number>()
   const fixedIncomeCost = new Map<string, number>()
 
@@ -59,8 +77,10 @@ export function replay(
         cash += unitValue
         break
 
-      case 'buy_order_executed':
-        cash -= quantity * unitValue
+      case 'buy_order_executed': {
+        const cost = quantity * unitValue
+        cash -= cost
+        investedCost += cost
         tradesExecuted += 1
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           variableIncomeQty.set(
@@ -69,9 +89,12 @@ export function replay(
           )
         }
         break
+      }
 
-      case 'sell_order_executed':
-        cash += quantity * unitValue
+      case 'sell_order_executed': {
+        const proceeds = quantity * unitValue
+        cash += proceeds
+        disinvestedProceeds += proceeds
         tradesExecuted += 1
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           variableIncomeQty.set(
@@ -80,9 +103,11 @@ export function replay(
           )
         }
         break
+      }
 
       case 'fixed_income_purchase':
         cash -= unitValue
+        investedCost += unitValue
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           fixedIncomeCost.set(event.assetId, (fixedIncomeCost.get(event.assetId) ?? 0) + unitValue)
         }
@@ -90,6 +115,7 @@ export function replay(
 
       case 'fixed_income_redemption':
         cash += unitValue
+        disinvestedProceeds += unitValue
         // Resgate é sempre integral (3.13) — zera o custo, mesmo se nunca
         // acumulado (ativo sandbox): idempotente, sem efeito nesse caso.
         if (event.assetId) {
@@ -97,11 +123,14 @@ export function replay(
         }
         break
 
-      case 'dividend_payment':
+      case 'dividend_payment': {
         // unitValue aqui é valor POR COTA (`tick.PendingDividendPayment`,
         // `.docs/engine/tick.md`), não o total — total = quantity * unitValue.
-        cash += quantity * unitValue
+        const total = quantity * unitValue
+        cash += total
+        dividendsReceived += total
         break
+      }
     }
   }
 
@@ -121,5 +150,8 @@ export function replay(
     fixedIncomeValue,
     tradesExecuted,
     total: cash + variableIncomeValue + fixedIncomeValue,
+    investedCost,
+    disinvestedProceeds,
+    dividendsReceived,
   }
 }

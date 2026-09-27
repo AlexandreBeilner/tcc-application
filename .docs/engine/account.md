@@ -10,7 +10,7 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 - **Autenticação:** interno — chamado pelo backend gamificado (`ENGINE_URL`), nunca exposto direto ao navegador via gateway.
 - **Payload (JSON):** `user_id` — string, UUID do usuário (banco `gamification`), obrigatório.
-- **Sucesso:** `201` → `{ user_id, current_balance, total_invested, total_dividends_received }`. `current_balance` sempre `10000.00` (RNF06).
+- **Sucesso:** `201` → `{ user_id, current_balance, total_invested, total_disinvested, total_dividends_received }`. `current_balance` sempre `10000.00` (RNF06).
 - **Erros:**
   - `400` — `user_id` ausente ou não é um UUID válido.
   - `409` — já existe conta para esse `user_id`.
@@ -24,7 +24,7 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.
 - **Payload:** `user_id` no path — UUID do usuário.
-- **Sucesso:** `200` → `{ user_id, current_balance, total_invested, total_dividends_received }` — os 3 campos monetários de `accounts`, sempre o valor corrente (não um snapshot da criação).
+- **Sucesso:** `200` → `{ user_id, current_balance, total_invested, total_disinvested, total_dividends_received }` — os 4 campos monetários de `accounts`, sempre o valor corrente (não um snapshot da criação). `total_disinvested` (tarefa T.1) é o simétrico de `total_invested`: soma bruta de vendas de renda variável + resgates de renda fixa, nunca líquida de compra — nenhum dos dois é filtrado por `is_sandbox` (mesma convenção de `current_balance`, que também reflete efeito real de operação sandbox).
 - **Erros:**
   - `404` — nenhuma conta com esse `user_id`.
   - `503` — motor subiu sem `DATABASE_URL` configurado.

@@ -60,9 +60,9 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO accounts (user_id, current_balance, total_invested, total_dividends_received, is_bot, is_active)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		acc.UserID, acc.CurrentBalance, acc.TotalInvested, acc.TotalDividendsReceived, acc.IsBot, acc.IsActive,
+		`INSERT INTO accounts (user_id, current_balance, total_invested, total_disinvested, total_dividends_received, is_bot, is_active)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		acc.UserID, acc.CurrentBalance, acc.TotalInvested, acc.TotalDisinvested, acc.TotalDividendsReceived, acc.IsBot, acc.IsActive,
 	); err != nil {
 		return mapAccountError(err)
 	}
@@ -75,9 +75,9 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 func (r *AccountRepository) FindByUserID(ctx context.Context, userID string) (account.Account, bool, error) {
 	var acc account.Account
 	err := r.db.QueryRowContext(ctx,
-		`SELECT user_id, current_balance, total_invested, total_dividends_received, is_bot, is_active
+		`SELECT user_id, current_balance, total_invested, total_disinvested, total_dividends_received, is_bot, is_active
 		 FROM accounts WHERE user_id = $1`, userID,
-	).Scan(&acc.UserID, &acc.CurrentBalance, &acc.TotalInvested, &acc.TotalDividendsReceived, &acc.IsBot, &acc.IsActive)
+	).Scan(&acc.UserID, &acc.CurrentBalance, &acc.TotalInvested, &acc.TotalDisinvested, &acc.TotalDividendsReceived, &acc.IsBot, &acc.IsActive)
 	if errors.Is(err, sql.ErrNoRows) {
 		return account.Account{}, false, nil
 	}

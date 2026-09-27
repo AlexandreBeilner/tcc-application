@@ -46,7 +46,7 @@ describe('engineCurrentAccountStateReader', () => {
 
   it('marca posição de renda variável ao ponto médio do book quando os dois lados existem', async () => {
     mockEngine({
-      account: { current_balance: 1000 },
+      account: { current_balance: 1000, total_invested: 300, total_disinvested: 0, total_dividends_received: 0 },
       positions: [{ asset_id: 'asset-1', is_sandbox: false, quantity: 10, average_price: 30 }],
       assets: [{ id: 'asset-1', current_price: 999 }],
       booksByAssetId: { 'asset-1': { mid_price: 32.25 } },
@@ -62,7 +62,7 @@ describe('engineCurrentAccountStateReader', () => {
 
   it('cai pro último preço negociado quando o book não tem os dois lados', async () => {
     mockEngine({
-      account: { current_balance: 1000 },
+      account: { current_balance: 1000, total_invested: 300, total_disinvested: 0, total_dividends_received: 0 },
       positions: [{ asset_id: 'asset-1', is_sandbox: false, quantity: 10, average_price: 30 }],
       assets: [{ id: 'asset-1', current_price: 40 }],
       booksByAssetId: { 'asset-1': { mid_price: null } },
@@ -79,7 +79,7 @@ describe('engineCurrentAccountStateReader', () => {
     // lados do book seguem com oferta real — a marcação das duas carteiras
     // usa o mesmo ponto médio, nunca o último negócio manipulado.
     mockEngine({
-      account: { current_balance: 0 },
+      account: { current_balance: 0, total_invested: 3000, total_disinvested: 0, total_dividends_received: 0 },
       positions: [{ asset_id: 'asset-1', is_sandbox: false, quantity: 100, average_price: 30 }],
       assets: [{ id: 'asset-1', current_price: 5000 }],
       booksByAssetId: { 'asset-1': { mid_price: 32 } },
@@ -98,7 +98,8 @@ describe('engineCurrentAccountStateReader', () => {
           { asset_id: 'sand-1', is_sandbox: true, quantity: 5, average_price: 100 },
         ])
       }
-      if (url.includes('/accounts/')) return jsonResponse({ current_balance: 1000 })
+      if (url.includes('/accounts/'))
+        return jsonResponse({ current_balance: 1000, total_invested: 500, total_disinvested: 0, total_dividends_received: 0 })
       throw new Error(`URL inesperada no teste: ${url}`)
     })
     vi.stubGlobal('fetch', fetchSpy)
@@ -109,6 +110,24 @@ describe('engineCurrentAccountStateReader', () => {
     expect(snapshot.total).toBe(1000)
     expect(fetchSpy.mock.calls.some(([url]) => (url as string).includes('/book'))).toBe(false)
     expect(fetchSpy.mock.calls.some(([url]) => (url as string).endsWith('/assets'))).toBe(false)
+  })
+
+  it('lê investedCost/disinvestedProceeds/dividendsReceived direto dos acumuladores crus da conta (tarefa T.1)', async () => {
+    mockEngine({
+      account: {
+        current_balance: 1000,
+        total_invested: 3000,
+        total_disinvested: 1300,
+        total_dividends_received: 50,
+      },
+      positions: [],
+    })
+
+    const snapshot = await reader.getCurrentSnapshot('user-1')
+
+    expect(snapshot.investedCost).toBe(3000)
+    expect(snapshot.disinvestedProceeds).toBe(1300)
+    expect(snapshot.dividendsReceived).toBe(50)
   })
 
   it('falha quando o motor responde erro', async () => {

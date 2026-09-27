@@ -4567,7 +4567,7 @@ diretamente na conversa, registradas abaixo.
    convenção só daquele cálculo, ver S.2). Igual à vida real.
 6. Precisa virar informação visual no Calendário (S.10-S.12) — pedido explícito do autor.
 
-### T.1 · Rentabilidade calculada só sobre capital de risco (pré-requisito antes do salário)
+### T.1 · Rentabilidade calculada só sobre capital de risco (pré-requisito antes do salário) ✅
 - **Descrição:** hoje `backend/src/modules/ranking/domain/profitability.ts` (`profitabilityPct(baseline, current)`) compara
   o patrimônio total (caixa + posições, `networth.ts` `replay().total`) contra a baseline fixa de R$10.000 — só funciona
   hoje porque a única fonte de caixa é o depósito inicial. Redefinir como retorno sobre capital de risco:
@@ -4591,6 +4591,31 @@ diretamente na conversa, registradas abaixo.
   `networth.ts` (`replay`) ganha os mesmos 3 acumuladores; `profitability.ts` reescrito (nome novo, ex.
   `investmentReturnPct`); todos os consumidores de `profitabilityPct` atualizados (`getRanking.ts`, perfil público);
   `.docs/engine/orders.md`/`fixedincome.md`, `.docs/backend/ranking.md`.
+- **Entregável real (sessão 2026-09-27):** decisão de sessão fechada com o autor antes de implementar — a fórmula do
+  motor é cumulativa desde a criação da conta por natureza (`investedCost`/`disinvestedProceeds`/`dividendsReceived`
+  nunca resetam), mas o ranking (RF17) precisa de janela fixa pra não dar vantagem permanente a quem entrou primeiro.
+  Resolvido com `investmentReturnPct(current, baseline?)` (`domain/profitability.ts`): ganho
+  `riskCapitalGain(s) = s.currentInvestedValue + s.disinvestedProceeds + s.dividendsReceived - s.investedCost`,
+  retorno = `(riskCapitalGain(current) - riskCapitalGain(baseline)) / current.investedCost × 100`, `baseline` default
+  zero (dá o retorno "desde sempre", exatamente os testes table-driven pedidos) — chamado com `baseline` real
+  (`toRiskCapitalSnapshot(baseline)`), dá o retorno da janela: o custo de uma posição comprada antes da janela se
+  cancela na subtração dos dois ganhos, só o movimento real dentro da janela sobra (venda com lucro sem reinvestir
+  conta; nenhuma atividade na janela dá 0% mesmo com histórico grande). Guard em `current.investedCost === 0` (nunca
+  `baseline`) — quem só investiu dentro da janela (baseline zerado) não é penalizado. `RiskCapitalSnapshot`/
+  `toRiskCapitalSnapshot` mapeiam de `Snapshot` (`currentInvestedValue = variableIncomeValue + fixedIncomeValue`).
+  `investedCost`/`disinvestedProceeds`/`dividendsReceived` (motor E replay) **não filtram sandbox** — mesma convenção
+  de `cash` (não de `variableIncomeValue`), pra bater com os acumuladores crus do motor
+  (`accounts.total_invested`/`total_disinvested`/`total_dividends_received`, que também não filtram) — decisão
+  documentada em `networth.ts`/`.docs/backend/ranking.md`, mesmo precedente do comentário de sandbox já existente lá.
+  Critérios `fixedIncome`/`variableIncome` do ranking inalterados (não usam caixa, `profitabilityPct` original
+  preservada só pra eles). Migration `000035` sem sandbox-awareness no motor (incrementa
+  `total_invested`/`total_disinvested` incondicionalmente, simétrico ao que já existia). Validado ao vivo via
+  `docker compose up -d --build` em volumes novos (seed do catálogo mínimo rodado manualmente,
+  `DATABASE_URL=... go run ./cmd/seed`): compra+venda sandbox (SAND3, sem variação de preço) deu 0% correto; compra
+  real de VALR3 a mercado (preço subiu no book entre compra e venda) mostrou `-0,45%` enquanto ainda posicionado e
+  `-0,90%` depois de vender com perda, batendo exatamente com o cálculo manual — confirma "venda com prejuízo sem
+  reinvestir continua contando" ao vivo, não só em teste. `go test ./...`/`golangci-lint run` (Docker v2.5.0, 0
+  issues) e `tsc -b`/`eslint`/`vitest` (675 testes) verdes.
 
 ### T.2 · Evento de salário no motor e endpoint de crédito
 - **Descrição:** novo tipo de evento `salary_payment` no enum Postgres `market_event_type` (`ALTER TYPE ... ADD VALUE`,

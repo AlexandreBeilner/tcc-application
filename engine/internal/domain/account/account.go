@@ -29,6 +29,12 @@ type Account struct {
 	UserID                 string
 	CurrentBalance         float64
 	TotalInvested          float64
+	// TotalDisinvested (tarefa T.1) é o simétrico de TotalInvested: soma bruta
+	// de vendas de renda variável + resgates de renda fixa, nunca líquida de
+	// compra — junto com TotalInvested/TotalDividendsReceived, alimenta a
+	// rentabilidade sobre capital de risco no backend (nunca sobre caixa
+	// nunca investido, ex. salário — Fase T).
+	TotalDisinvested       float64
 	TotalDividendsReceived float64
 	// IsBot identifica contas de liquidez do motor (proposta
 	// motor-mercado-realista 2.3) — mesma tabela/mesmo Event Sourcing de
@@ -88,7 +94,7 @@ func (a Account) EligibleForTradingRound() bool {
 
 // Deactivate/Activate são transformações puras que só alternam IsActive
 // (tarefa A.4) — nunca tocam saldo (CurrentBalance/TotalInvested/
-// TotalDividendsReceived) nem identidade (IsBot/UserID): desativar um bot
+// TotalDisinvested/TotalDividendsReceived) nem identidade (IsBot/UserID): desativar um bot
 // "fora da curva" não deveria zerar nem redistribuir o que ele já carrega,
 // só impedi-lo de participar da rodada seguinte; reativar volta a incluí-lo
 // normalmente, sem perder nada do que aconteceu enquanto esteve inativo.

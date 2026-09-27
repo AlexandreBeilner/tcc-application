@@ -6,14 +6,30 @@ import { createFakeSandboxAssetReader } from '../../test/fakes/fakeSandboxAssetR
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { GetRankingUseCase } from './getRanking'
 
-function snapshot(overrides: Partial<Snapshot> & { total: number }): Snapshot {
+function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
   return {
-    cash: overrides.total,
+    cash: 0,
     variableIncomeValue: 0,
     fixedIncomeValue: 0,
     tradesExecuted: 0,
+    total: 0,
+    investedCost: 0,
+    disinvestedProceeds: 0,
+    dividendsReceived: 0,
     ...overrides,
   }
+}
+
+// overallSnapshot (tarefa T.1) modela um estado de capital de risco pro
+// critério "geral": `investedCost` fixo em R$10.000 (mesmo comportamento de
+// antes, quando o baseline do critério "geral" era sempre o depósito
+// inicial de RNF06, nunca alterado por nenhum destes testes) e
+// `variableIncomeValue` fazendo o papel do antigo `total` — como
+// `investedCost` não varia entre baseline e agora nestes testes, o retorno
+// da janela (`investmentReturnPct`) dá numericamente o mesmo resultado que
+// `profitabilityPct(10000, total)` dava antes desta tarefa.
+function overallSnapshot(currentInvestedValue: number): Snapshot {
+  return snapshot({ investedCost: 10000, variableIncomeValue: currentInvestedValue })
 }
 
 function build(
@@ -53,7 +69,7 @@ describe('GetRankingUseCase', () => {
     const getNetWorth = {
       async execute(input: { userId: string; asOf?: Date }) {
         const key = `${input.userId}|${input.asOf ? 'baseline' : 'now'}`
-        return snapshot({ total: netWorthByUserAndAsOf.get(key) ?? 0 })
+        return overallSnapshot(netWorthByUserAndAsOf.get(key) ?? 0)
       },
     }
     const { levelReader, friendGraphReader } = build()
@@ -89,7 +105,7 @@ describe('GetRankingUseCase', () => {
     const getNetWorth = {
       async execute(input: { userId: string; asOf?: Date }) {
         calls.push(input)
-        return snapshot({ total: 10000 })
+        return overallSnapshot(10000)
       },
     }
     const { levelReader, friendGraphReader } = build()
@@ -127,7 +143,7 @@ describe('GetRankingUseCase', () => {
     ])
     const getNetWorth = {
       async execute() {
-        return snapshot({ total: 12345 })
+        return overallSnapshot(12345)
       },
     }
     const { levelReader, friendGraphReader } = build()
@@ -161,7 +177,7 @@ describe('GetRankingUseCase', () => {
     ])
     const getNetWorth = {
       async execute() {
-        return snapshot({ total: 10000 })
+        return overallSnapshot(10000)
       },
     }
     const { levelReader, friendGraphReader } = build()
@@ -190,7 +206,7 @@ describe('GetRankingUseCase', () => {
     ])
     const getNetWorth = {
       async execute() {
-        return snapshot({ total: 10000 })
+        return overallSnapshot(10000)
       },
     }
     const { levelReader, friendGraphReader } = build()
@@ -228,7 +244,7 @@ describe('GetRankingUseCase', () => {
           throw new Error('falha ao ler estado do usuário no motor de simulação (status 404)')
         }
         const key = `${input.userId}|${input.asOf ? 'baseline' : 'now'}`
-        return snapshot({ total: netWorthByUserAndAsOf.get(key) ?? 0 })
+        return overallSnapshot(netWorthByUserAndAsOf.get(key) ?? 0)
       },
     }
     const { levelReader, friendGraphReader } = build()
@@ -276,7 +292,7 @@ describe('GetRankingUseCase', () => {
     const getNetWorth = {
       async execute(input: { userId: string; asOf?: Date }) {
         const key = `${input.userId}|${input.asOf ? 'baseline' : 'now'}`
-        return snapshot({ total: netWorthByUserAndAsOf.get(key) ?? 0 })
+        return overallSnapshot(netWorthByUserAndAsOf.get(key) ?? 0)
       },
     }
     // Simula um grafo de amizade "corrompido" que referencia o bot — mesmo
@@ -341,7 +357,7 @@ describe('GetRankingUseCase', () => {
       ])
       const getNetWorth = {
         async execute() {
-          return snapshot({ total: 10000 })
+          return overallSnapshot(10000)
         },
       }
       const { levelReader, friendGraphReader } = build({
@@ -376,7 +392,7 @@ describe('GetRankingUseCase', () => {
       ])
       const getNetWorth = {
         async execute() {
-          return snapshot({ total: 10000 })
+          return overallSnapshot(10000)
         },
       }
       // requestingUserId 'fantasma' não está em `userDirectory` — simula um
@@ -414,7 +430,7 @@ describe('GetRankingUseCase', () => {
       const getNetWorth = {
         async execute(input: { asOf?: Date }) {
           calls.push(input)
-          return snapshot({ total: 10000 })
+          return overallSnapshot(10000)
         },
       }
       const { levelReader, friendGraphReader } = build()
@@ -462,7 +478,7 @@ describe('GetRankingUseCase', () => {
         async execute(input: { userId: string; asOf?: Date }) {
           const rank = Number(input.userId.slice(1))
           const gainPct = count - rank
-          return snapshot({ total: input.asOf ? 10000 : 10000 * (1 + gainPct / 100) })
+          return overallSnapshot(input.asOf ? 10000 : 10000 * (1 + gainPct / 100))
         },
       }
       return { userDirectory, getNetWorth }
@@ -661,7 +677,7 @@ describe('GetRankingUseCase', () => {
       const getNetWorth = {
         async execute() {
           netWorthCalls++
-          return snapshot({ total: 10000 })
+          return overallSnapshot(10000)
         },
       }
       const { levelReader, friendGraphReader } = build({
@@ -702,7 +718,7 @@ describe('GetRankingUseCase', () => {
       ])
       const getNetWorth = {
         async execute() {
-          return snapshot({ total: 10000 })
+          return overallSnapshot(10000)
         },
       }
       const levelReader = {
@@ -730,6 +746,123 @@ describe('GetRankingUseCase', () => {
       })
 
       expect(result.entries.map((e) => e.userId)).toEqual(['ok1'])
+    })
+  })
+
+  describe('critério geral sobre capital de risco (tarefa T.1)', () => {
+    it('vender com lucro uma posição comprada antes da janela, sem reinvestir, ainda conta na rentabilidade geral', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+      const userDirectory = createFakeUserDirectory([
+        { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
+      ])
+      const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
+        // Comprou por R$1.000 antes da janela; no início da janela valia
+        // R$1.100 (ganho não realizado, ainda posicionado).
+        'u1|baseline': snapshot({ investedCost: 1000, variableIncomeValue: 1100 }),
+        // Vendeu por R$1.300 durante a janela, sem reinvestir — nada mais
+        // posicionado, investedCost não muda (nenhuma compra nova).
+        'u1|now': snapshot({ investedCost: 1000, disinvestedProceeds: 1300, variableIncomeValue: 0 }),
+      }
+      const getNetWorth = {
+        async execute(input: { userId: string; asOf?: Date }) {
+          return snapshotsByUserAndAsOf[`${input.userId}|${input.asOf ? 'baseline' : 'now'}`]
+        },
+      }
+      const { levelReader, friendGraphReader } = build()
+      const useCase = new GetRankingUseCase(
+        userDirectory,
+        createFakeSandboxAssetReader(),
+        getNetWorth,
+        levelReader,
+        friendGraphReader,
+      )
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      // (1300 - 1000) - (1100 - 1000) = 200, sobre investedCost atual (1000) = 20%.
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(20)
+    })
+
+    it('usuário que nunca investiu nada dá 0% no critério geral, nunca excluído (diferente de renda fixa/variável)', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+      const userDirectory = createFakeUserDirectory([
+        { id: 'nunca-investiu', username: 'nunca-investiu', createdAt: new Date('2026-01-01T00:00:00Z') },
+      ])
+      const getNetWorth = {
+        async execute() {
+          return snapshot({ investedCost: 0, variableIncomeValue: 0 })
+        },
+      }
+      const { levelReader, friendGraphReader } = build()
+      const useCase = new GetRankingUseCase(
+        userDirectory,
+        createFakeSandboxAssetReader(),
+        getNetWorth,
+        levelReader,
+        friendGraphReader,
+      )
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'nunca-investiu',
+      })
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.entries[0].profitabilityPct).toBe(0)
+    })
+
+    it('salário creditado como caixa livre nunca entra na rentabilidade geral', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+      const userDirectory = createFakeUserDirectory([
+        { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
+      ])
+      // Mesma posição (sem variação) entre baseline e agora, mas o caixa
+      // cresceu bastante (ex: salário) — se `cash`/`total` ainda
+      // alimentassem o critério geral, isso apareceria como um ganho
+      // enorme; a fórmula sobre capital de risco não usa `cash` nenhuma
+      // vez, então o resultado tem que ser 0%.
+      const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
+        'u1|baseline': snapshot({ cash: 500, investedCost: 1000, variableIncomeValue: 1000 }),
+        'u1|now': snapshot({ cash: 5500, investedCost: 1000, variableIncomeValue: 1000 }),
+      }
+      const getNetWorth = {
+        async execute(input: { userId: string; asOf?: Date }) {
+          return snapshotsByUserAndAsOf[`${input.userId}|${input.asOf ? 'baseline' : 'now'}`]
+        },
+      }
+      const { levelReader, friendGraphReader } = build()
+      const useCase = new GetRankingUseCase(
+        userDirectory,
+        createFakeSandboxAssetReader(),
+        getNetWorth,
+        levelReader,
+        friendGraphReader,
+      )
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries[0].profitabilityPct).toBe(0)
     })
   })
 })

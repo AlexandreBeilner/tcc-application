@@ -23,6 +23,9 @@ describe('replay', () => {
       fixedIncomeValue: 0,
       tradesExecuted: 0,
       total: 10000,
+      investedCost: 0,
+      disinvestedProceeds: 0,
+      dividendsReceived: 0,
     })
   })
 
@@ -39,6 +42,9 @@ describe('replay', () => {
     expect(snapshot.variableIncomeValue).toBe(10 * 60)
     expect(snapshot.tradesExecuted).toBe(1)
     expect(snapshot.total).toBe(snapshot.cash + snapshot.variableIncomeValue)
+    // investedCost (tarefa T.1) é bruto — soma o custo da compra, nunca
+    // reduzido por venda (simétrico de accounts.total_invested no motor).
+    expect(snapshot.investedCost).toBe(10 * 50)
   })
 
   it('venda credita caixa e reduz a quantidade acumulada', () => {
@@ -54,6 +60,10 @@ describe('replay', () => {
     expect(snapshot.cash).toBe(10000 - 10 * 50 + 4 * 55)
     expect(snapshot.variableIncomeValue).toBe(6 * 60)
     expect(snapshot.tradesExecuted).toBe(2)
+    // investedCost não é reduzido pela venda (bruto histórico); a venda só
+    // soma em disinvestedProceeds — nunca líquidos entre si (tarefa T.1).
+    expect(snapshot.investedCost).toBe(10 * 50)
+    expect(snapshot.disinvestedProceeds).toBe(4 * 55)
   })
 
   it('compra de renda fixa debita caixa e acumula valor a custo (sem marcação a mercado)', () => {
@@ -68,6 +78,7 @@ describe('replay', () => {
     expect(snapshot.fixedIncomeValue).toBe(1000)
     // Renda fixa não conta pra tradesExecuted (só buy/sell_order_executed).
     expect(snapshot.tradesExecuted).toBe(0)
+    expect(snapshot.investedCost).toBe(1000)
   })
 
   it('resgate de renda fixa credita caixa e zera o custo acumulado do título (resgate integral)', () => {
@@ -81,6 +92,10 @@ describe('replay', () => {
 
     expect(snapshot.cash).toBe(10000 - 1000 + 1080)
     expect(snapshot.fixedIncomeValue).toBe(0)
+    // Resgate soma em disinvestedProceeds pelo valor bruto (nunca decrementa
+    // investedCost — mesmo precedente do lado de venda de renda variável).
+    expect(snapshot.investedCost).toBe(1000)
+    expect(snapshot.disinvestedProceeds).toBe(1080)
   })
 
   it('dividend_payment credita caixa por quantidade × valor por cota', () => {
@@ -92,6 +107,7 @@ describe('replay', () => {
     const snapshot = replay(events, new Map(), new Set())
 
     expect(snapshot.cash).toBe(10000 + 100 * 1.5)
+    expect(snapshot.dividendsReceived).toBe(100 * 1.5)
   })
 
   it('exclui posição de ativo sandbox da valorização, mas mantém o efeito real no caixa', () => {
@@ -129,6 +145,19 @@ describe('replay', () => {
     expect(snapshot.fixedIncomeValue).toBe(0)
   })
 
+  it('investedCost/disinvestedProceeds/dividendsReceived NÃO filtram sandbox (diferente de variableIncomeValue/fixedIncomeValue) — mesma convenção de `cash`, pra bater com os acumuladores crus do motor (accounts.total_invested/total_disinvested/total_dividends_received, que também não filtram)', () => {
+    const events = [
+      event({ eventType: 'initial_deposit', unitValue: 10000 }),
+      event({ eventType: 'buy_order_executed', assetId: 'sand1', quantity: 10, unitValue: 100 }),
+    ]
+    const sandboxAssetIds = new Set(['sand1'])
+
+    const snapshot = replay(events, new Map([['sand1', 100]]), sandboxAssetIds)
+
+    expect(snapshot.variableIncomeValue).toBe(0)
+    expect(snapshot.investedCost).toBe(10 * 100)
+  })
+
   it('cenário combinado: compra, venda e resgate de renda fixa entre início da janela e agora', () => {
     const events = [
       event({ eventType: 'initial_deposit', unitValue: 10000 }),
@@ -147,5 +176,7 @@ describe('replay', () => {
     expect(snapshot.fixedIncomeValue).toBe(0)
     expect(snapshot.tradesExecuted).toBe(2)
     expect(snapshot.total).toBe(expectedCash + 15 * 42)
+    expect(snapshot.investedCost).toBe(20 * 40 + 2000)
+    expect(snapshot.disinvestedProceeds).toBe(5 * 45 + 2100)
   })
 })

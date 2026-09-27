@@ -4,6 +4,9 @@ import type { Snapshot } from '../../domain/networth'
 
 interface AccountResponse {
   current_balance: number
+  total_invested: number
+  total_disinvested: number
+  total_dividends_received: number
 }
 
 interface PositionResponse {
@@ -99,6 +102,13 @@ export function createEngineCurrentAccountStateReader(
         // Não computado no caminho rápido — ver getNetWorth.ts.
         tradesExecuted: 0,
         total: cash + variableIncomeValue + fixedIncomeValue,
+        // investedCost/disinvestedProceeds/dividendsReceived (tarefa T.1) são
+        // lidos direto dos acumuladores crus do motor (`accounts`), sem
+        // filtro de sandbox — mesma convenção do replay (`domain/networth.ts`,
+        // ver comentário em `Snapshot`), pra bater com o mesmo instante.
+        investedCost: account.total_invested,
+        disinvestedProceeds: account.total_disinvested,
+        dividendsReceived: account.total_dividends_received,
       }
     },
   }
