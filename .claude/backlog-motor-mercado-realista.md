@@ -4732,7 +4732,7 @@ diretamente na conversa, registradas abaixo.
   retroativo; `docker compose restart backend` (simulando reinício) rodou o ciclo de novo sem gerar nenhum evento
   novo nem mudar `payroll_state.updated_at` — idempotência confirmada fora dos fakes, não só em teste.
 
-### T.6 · Salário no calendário do usuário
+### T.6 · Salário no calendário do usuário ✅
 - **Descrição:** o evento `salary_payment` (T.2) precisa aparecer em `GET /market/calendar` como fato do usuário (novo
   `kind: salary_payment` em `marketcalendar.UserFacts`, ao lado de `dividend_received` etc. — S.10). Diferente de
   dividendo/vencimento (determinísticos), o valor de um pagamento futuro depende do nível no momento do pagamento, que
@@ -4741,6 +4741,27 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** salário pago aparece na linha do tempo do usuário no dia certo, nunca pra outro usuário; item
   futuro nunca mostra valor.
 - **Dependências:** T.2, T.5.
+- **Entregável real (sessão 2026-09-27):** `KindSalaryPayment` novo em `marketcalendar.calendar.go`, dois caminhos
+  distintos, nunca duplicados no mesmo dia: (1) **passado** — `eventSalaryPayment = "salary_payment"` novo `case` em
+  `userEvent()`, lido do fato real gravado pelo endpoint da T.2; a query `UserFactsBetween`
+  (`calendar_repository.go`) trocou `JOIN assets` por `LEFT JOIN assets` (+ `a.is_sandbox = false OR a.id IS NULL`)
+  porque `salary_payment` grava `asset_id NULL` (achado durante a implementação — o `INNER JOIN` descartava a linha
+  silenciosamente) e passou a incluir `'salary_payment'` no `IN (...)`; `ticker` virou `sql.NullString` (fica vazio
+  pra salário, sem asset). (2) **futuro** — nova função pura `simcalendar.IsFifthBusinessDayOfMonth(day)` (conta dias
+  úteis do dia 1 do mês-calendário real da data até `day`, mesma convenção do `payroll/domain/businessDay.ts` do
+  backend, sem duplicar a lógica lá — lá só conta `weekday`, aqui é a fonte); `Calendar()` sintetiza
+  `Event{Kind: KindSalaryPayment, Scope: scopeUser}` (sem `UnitValue`) pra todo dia estritamente futuro
+  (`day > today`) que bate nessa função, só quando `userID != ""` — nunca colide com o fato real porque só entra no
+  futuro (o passado já pago vem exclusivamente do fato real, mesmo que o dia real do crédito não seja exatamente o 5º
+  dia útil por causa de catch-up do backend). Testes novos: `simcalendar_test.go`
+  (`TestIsFifthBusinessDayOfMonth`, 4 meses começando em dias da semana diferentes) e `calendar_test.go`
+  (`TestCalendar_SalarioPagoVemDoFatoReal`, `TestCalendar_SalarioFuturoAnunciaDiaSemValor`,
+  `TestCalendar_SalarioFuturoNaoAparecemSemUsuario`). `go build`/`go vet`/`go test ./...` e `golangci-lint run`
+  (Docker v2.5.0, 0 issues) verdes. `.docs/engine/calendar.md` documentado (novo `kind` na lista de `scope: "user"` +
+  frase na regra do futuro). Validado ao vivo via `docker compose up -d --build` (sem reset de volume): consulta de
+  `GET /market/calendar` numa janela futura mostrou `salary_payment`/`future: true` sem `unit_value` exatamente em
+  2026-02-06 (5º dia útil de fevereiro, dias vizinhos sem evento); `POST /accounts/{user_id}/salary` seguido da
+  mesma consulta na data do crédito mostrou `future: false` com `unit_value` correto.
 
 ### T.7 · Frontend: marcador de salário no calendário e teatro de recompensa
 - **Descrição:** `CalendarEventItem`/`CalendarKindIcon` ganham o `kind: salary_payment` (ícone e rótulo próprios:

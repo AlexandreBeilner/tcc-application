@@ -34,6 +34,7 @@ const (
 	KindFixedIncomePurchase Kind = "fixed_income_purchase"
 	KindFixedIncomeRedeem   Kind = "fixed_income_redemption"
 	KindFixedIncomeMaturity Kind = "fixed_income_maturity"
+	KindSalaryPayment       Kind = "salary_payment"
 )
 
 const (
@@ -49,6 +50,7 @@ const (
 	eventDividendPayment       = "dividend_payment"
 	eventFixedIncomePurchase   = "fixed_income_purchase"
 	eventFixedIncomeRedemption = "fixed_income_redemption"
+	eventSalaryPayment         = "salary_payment"
 )
 
 // Event é um fato de um dia. Só os campos do tipo dele vêm preenchidos.
@@ -219,14 +221,25 @@ func (s *Service) Calendar(ctx context.Context, userID string, fromDay, toDay in
 		add(dv.PaymentDay, Event{Kind: KindDividendPayDate, Scope: scopeGlobal, Ticker: dv.Ticker, UnitValue: &value})
 	}
 
-	if userID != "" && s.user != nil {
-		facts, err := s.user.UserFactsBetween(ctx, userID, fromDay, toDay)
-		if err != nil {
-			return nil, err
+	if userID != "" {
+		if s.user != nil {
+			facts, err := s.user.UserFactsBetween(ctx, userID, fromDay, toDay)
+			if err != nil {
+				return nil, err
+			}
+			for _, f := range facts {
+				if e, ok := userEvent(f); ok {
+					add(f.Day, e)
+				}
+			}
 		}
-		for _, f := range facts {
-			if e, ok := userEvent(f); ok {
-				add(f.Day, e)
+		// O dia de pagamento futuro é determinístico (5º dia útil do mês), mas o
+		// valor depende do nível no momento do pagamento (backend, T.3/T.5) — só
+		// anuncia o dia, sem UnitValue. O salário já pago vem do fato real acima
+		// (market_events), nunca duplicado aqui: essa sintética só entra no futuro.
+		for d := max(fromDay, today+1); d <= toDay; d++ {
+			if simcalendar.IsFifthBusinessDayOfMonth(d) {
+				add(d, Event{Kind: KindSalaryPayment, Scope: scopeUser})
 			}
 		}
 	}
@@ -256,6 +269,8 @@ func userEvent(f UserFact) (Event, bool) {
 		e.Kind = KindFixedIncomePurchase
 	case eventFixedIncomeRedemption:
 		e.Kind = KindFixedIncomeRedeem
+	case eventSalaryPayment:
+		e.Kind = KindSalaryPayment
 	default:
 		return Event{}, false
 	}
