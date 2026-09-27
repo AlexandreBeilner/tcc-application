@@ -4664,7 +4664,7 @@ diretamente na conversa, registradas abaixo.
   pagamento precisar delas). Teste table-driven (`salary.test.ts`) cobrindo os 7 níveis de referência do critério de
   aceite (1, 10, 11, 20, 21, 30, 100). `npx vitest run`/`npm run lint`/`npx tsc -b` verdes (682 testes, 0 erros).
 
-### T.4 · Detecção do 5º dia útil do mês-calendário real
+### T.4 · Detecção do 5º dia útil do mês-calendário real ✅
 - **Descrição:** função pura que recebe os dias do mês corrente (reaproveitando
   `GET /market/calendar?from=<1º dia do mês>&to=<hoje>`, que já devolve `weekday` por dia — S.10) e determina se o dia
   simulado de hoje é o 5º dia útil desse mês-calendário real (mês/ano da data mapeada pelo dia simulado, nunca o bloco de
@@ -4673,6 +4673,15 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** teste table-driven com meses que abrem em dia de semana diferente (deslocando o 5º dia útil,
   ex. mês que começa numa sexta/sábado/domingo); nunca conta sábado/domingo.
 - **Dependências:** nenhuma.
+- **Entregável real (sessão 2026-09-27):** `isFifthBusinessDayOfMonth(days: CalendarDaySummary[])`,
+  `backend/src/modules/payroll/domain/businessDay.ts` — `CalendarDaySummary { date, weekday }` é um tipo local mínimo
+  (não importa `CalendarDay` de `market/application/ports`, mesma convenção de domínio-não-importa-domínio-de-outro-módulo
+  já seguida pelo resto do backend); `days` é a sequência do 1º dia do mês até hoje, na mesma ordem que
+  `GET /market/calendar` devolve — a função só filtra `weekday` fora de `{sat, sun}` e confere se são exatamente 5 até
+  o último elemento (hoje). Teste table-driven (`businessDay.test.ts`) cobrindo mês começando em segunda (sem fim de
+  semana no meio, 5º dia útil = dia 5), sexta e sábado (5º dia útil = dia 7, fim de semana no meio), domingo (5º dia
+  útil = dia 6), "hoje" caindo num fim de semana (nunca é o 5º dia útil) e lista vazia. `npx vitest run` (688
+  testes)/`npm run lint`/`npx tsc -b` verdes.
 
 ### T.5 · Job de folha de pagamento com catch-up e idempotência
 - **Descrição:** novo caso de uso em `payroll` (T.3) que, por conta: lê o nível (`gamification`), verifica se hoje é o 5º
