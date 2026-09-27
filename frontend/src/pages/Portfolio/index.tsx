@@ -6,12 +6,14 @@ import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useMissionsQuery } from '../../features/missions/useMissionsQuery'
+import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment'
 import { groupPositionsByCategory } from '../../features/portfolio/distribution'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { DistributionChart } from '../../components/organisms/DistributionChart'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { DailyMissionsList } from '../../components/organisms/DailyMissionsList'
+import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
 import { Button } from '../../components/atoms/Button'
 import styles from './index.module.css'
 
@@ -31,6 +33,7 @@ export function Portfolio() {
     const streakQuery = useStreakQuery()
     const lessonsQuery = useLessonsQuery()
     const missionsQuery = useMissionsQuery()
+    const daysUntilNextSalary = useNextSalaryPayment()
 
     const account = accountQuery.data
     const hasNoPositions = account && account.positions.length === 0 && account.fixedIncomePositions.length === 0
@@ -41,7 +44,10 @@ export function Portfolio() {
             <header className={styles.header}>
                 <h1 className={styles.title}>Portfólio</h1>
                 {progressionQuery.data && streakQuery.data ? (
-                    <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} nextUnlock={nextUnlock} />
+                    <div className={styles.headerRight}>
+                        <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} nextUnlock={nextUnlock} />
+                        <SalaryIndicator monthlySalary={progressionQuery.data.monthlySalary} daysUntilNextPayment={daysUntilNextSalary} />
+                    </div>
                 ) : (
                     !progressionQuery.isError && !streakQuery.isError && <span className={styles.loading}>Carregando…</span>
                 )}

@@ -4826,7 +4826,7 @@ diretamente na conversa, registradas abaixo.
   atualizado (payload das duas rotas + nova seção "Port `monthlySalaryReader`"). **Sem `docker compose up`** — mesma
   razão da T.7 (outra sessão já com a stack rodando nos mesmos nomes fixos de container).
 
-### T.9 · Indicador persistente de salário no Dashboard
+### T.9 · Indicador persistente de salário no Dashboard ✅
 - **Descrição:** pequeno card/linha perto de `components/organisms/ProgressionSummary` (dentro dele ou ao lado, a
   decidir na sessão de implementação — não é tela âncora, mas segue `identidade-visual-tokens.md`/`padroes.md`) com
   "Salário: R$X/mês" e o próximo pagamento (reaproveita `useMarketCalendarQuery`, achando o próximo `salary_payment`
@@ -4834,6 +4834,22 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** mostra o valor certo pro nível atual (T.8); "próximo pagamento em N dias" consistente com
   T.4/T.5; não quebra layout em nenhum breakpoint.
 - **Dependências:** T.6, T.8.
+- **Entregável real (sessão 2026-09-27):** ao lado, não dentro — `ProgressionSummary` continua puramente
+  apresentacional (props in, sem hook de query), então o indicador de salário nasceu como molécula própria
+  `components/molecules/SalaryIndicator` (mesmo padrão: presentacional, recebe `monthlySalary`/`daysUntilNextPayment`
+  como props), renderizada logo depois de `ProgressionSummary` nos dois consumidores atuais (`pages/TrilhasHub`,
+  sidebar; `pages/Portfolio`, header — este ganhou um wrapper `.headerRight` porque o header usa
+  `justify-content: space-between` com 2 filhos, não 3). Contagem de dias segue a convenção já fixada pelo
+  `MarketCalendarPanel` (S.12): dias **simulados** (`simulated_day`), não diferença de data real — função pura
+  `features/market/nextSalaryPayment` (testada, table-driven) + hook de wiring `useNextSalaryPayment` (não testado,
+  mesmo padrão de `useClockProgress`/`clockProgress`: par hook+função pura, só a função pura ganha teste) que combina
+  `useMarketClockQuery` (hoje) e uma janela de `useMarketCalendarQuery` de 40 dias (folga sobre o pior caso de ~35
+  dias entre o 5º dia útil de um mês e o do próximo). Visual neutro (borda + `--color-bg-surface`, sem as cores de
+  XP/streak nem as de ganho/perda) por decisão de sessão lida em `identidade-visual-padroes.md` — salário não é XP
+  nem P&L, e o teatro de recompensa é reservado pro level-up (T.10), não pra um indicador steady-state; ícone
+  `HandCoins`, o mesmo já usado por `CalendarKindIcon` pra `salary_payment`. `npx vitest run` (812 testes, +10 sobre
+  a baseline da T.8)/`npx tsc -b`/`npx oxlint` verdes, sem warning novo. Sem mudança de contrato HTTP, então sem
+  entrada nova em `.docs/`. **Sem `docker compose up`** — mudança é só de frontend (não containerizado).
 
 ### T.10 · Salário no teatro de recompensa do level-up
 - **Descrição:** `XpRewardSource` (`features/shell/xpRewardReveal/types.ts`, usado por `xpRevealContent`) ganha
