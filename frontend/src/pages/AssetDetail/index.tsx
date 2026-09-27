@@ -135,7 +135,13 @@ export function AssetDetail() {
                         onRangeChange={setRangeDays}
                     />
 
-                    {position && !position.isSandbox && (
+                    {/* `positions` nunca é deletada numa venda total (UPSERT no motor,
+                        `order_execution_repository.go`) — a linha fica com `quantity: 0` e
+                        `average_price` do último preço médio, então `position.quantity > 0`
+                        é obrigatório aqui: sem essa checagem o card apareceria pra um ativo
+                        que o usuário não tem mais, dividindo por `averagePrice * 0` no
+                        retorno total (tarefa S.16, achado revisado nesta sessão). */}
+                    {position && !position.isSandbox && position.quantity > 0 && (
                         <PositionSummaryCard
                             quantity={position.quantity}
                             averagePrice={position.averagePrice}

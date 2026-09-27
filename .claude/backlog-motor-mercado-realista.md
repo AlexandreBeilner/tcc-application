@@ -4516,14 +4516,21 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
   (`flex-wrap`, sem media query dedicada — mesmo padrão de `.priceRow`), coloridos com as mesmas classes `.gain`/`.loss` (tokens
   `--color-gain-*`/`--color-loss-*`) já usadas por `AssetDetail` pra `daily_change_pct`. `AssetDetail` (`pages/AssetDetail/`)
   passou a capturar a posição inteira (não só `.quantity`) do `find()` que já existia em `accountQuery.data.positions`, e
-  renderiza o card entre o preço/gráfico e o bloco de indicadores por tipo, condicionado a `position && !position.isSandbox`
-  (posição de renda variável, nunca sandbox). `services/market/types.ts` (frontend) ganhou o mesmo ajuste de tipo que o backend
-  já tinha feito na S.15 — `MyAccountPosition`/`MyAccountFixedIncomePosition` passaram a compartilhar uma base sem
-  `dividendsReceived`/`markPrice`/`averageRate`, pra não sugerir um campo que `fixedIncomePositions` nunca tem. Testes: 3 casos
-  novos em `PositionSummaryCard/index.test.tsx` (com provento, sem provento, sem `markPrice`) e 2 casos novos em
-  `AssetDetail/index.test.tsx` (retorno total maior com provento, retornos iguais sem provento) mais uma asserção nova no teste
-  já existente confirmando que o card não aparece sem posição. `tsc --noEmit`, `oxlint` (sem warning novo) e `prettier --check`
-  limpos; suíte completa (797 testes) verde.
+  renderiza o card entre o preço/gráfico e o bloco de indicadores por tipo, condicionado a
+  `position && !position.isSandbox && position.quantity > 0` (posição de renda variável, nunca sandbox, com quantidade real).
+  `services/market/types.ts` (frontend) ganhou o mesmo ajuste de tipo que o backend já tinha feito na S.15 —
+  `MyAccountPosition`/`MyAccountFixedIncomePosition` passaram a compartilhar uma base sem `dividendsReceived`/`markPrice`/
+  `averageRate`, pra não sugerir um campo que `fixedIncomePositions` nunca tem. Testes: 3 casos novos em
+  `PositionSummaryCard/index.test.tsx` (com provento, sem provento, sem `markPrice`) e 3 casos novos em `AssetDetail/index.test.tsx`
+  (retorno total maior com provento, retornos iguais sem provento, posição zerada sem card) mais uma asserção nova no teste já
+  existente confirmando que o card não aparece sem posição. `tsc --noEmit`, `oxlint` (sem warning novo) e `prettier --check`
+  limpos; suíte completa (798 testes) verde.
+  **Achado revisado a pedido do autor logo depois do primeiro fechamento desta tarefa:** a condição inicial só checava
+  `position && !position.isSandbox`, sem `quantity > 0` — `positions` nunca é deletada numa venda total (UPSERT em
+  `order_execution_repository.go`, `ON CONFLICT ... DO UPDATE`), a linha fica com `quantity: 0` e `average_price` do último preço
+  médio. Sem a checagem, o card apareceria pra um ativo que o usuário não tem mais e a divisão do retorno total por
+  `averagePrice × quantity` (= 0) quebraria (`NaN`/`Infinity`). Corrigido antes do commit; teste novo cobre exatamente esse
+  cenário (posição com `quantity: 0` e `average_price`/`dividendsReceived` > 0, card ausente).
   **Critério de aceite não fechado nesta sessão, registrado aqui em vez de reivindicado:** "navegação real em
   375px/768px/1280px, tema claro e escuro" não foi feita — gerar uma posição real (não sandbox) pra ver o card ao vivo exige
   passar pelo gate de lição da S.4 (passos sequenciais **com tempo mínimo entre eles**), o mesmo obstáculo já documentado na

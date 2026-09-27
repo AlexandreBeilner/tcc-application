@@ -168,6 +168,40 @@ describe('AssetDetail (tela 4.5)', () => {
         expect(screen.getAllByText('+10,0%')).toHaveLength(2)
     })
 
+    it('posição zerada por venda total (tarefa S.16, achado revisado): o motor nunca deleta a linha, mas o card não aparece', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getMyAccount).mockResolvedValue({
+            ...emptyAccount,
+            positions: [
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 0,
+                    averagePrice: 100,
+                    dividendsReceived: 20,
+                },
+            ],
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
+        expect(screen.queryByText('Sua posição')).not.toBeInTheDocument()
+    })
+
     it('etf: mostra composição, sem indicadores de empresa', async () => {
         vi.mocked(getAsset).mockResolvedValue({
             asset: {
