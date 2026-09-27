@@ -37,9 +37,26 @@ describe('GetMyAccountUseCase', () => {
       ],
     })
     const catalogReader = createFakeCatalogReader({
-      assets: [{ id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 31 }],
+      assets: [
+        {
+          id: 'asset-1',
+          ticker: 'PETR4',
+          name: 'Petrobras',
+          type: 'acao',
+          is_sandbox: false,
+          current_price: 31,
+        },
+      ],
       booksByAssetId: {
-        'asset-1': { is_sandbox: false, price: null, best_bid: 32, best_ask: 32.5, mid_price: 32.25, bids: null, asks: null },
+        'asset-1': {
+          is_sandbox: false,
+          price: null,
+          best_bid: 32,
+          best_ask: 32.5,
+          mid_price: 32.25,
+          bids: null,
+          asks: null,
+        },
       },
     })
     const useCase = new GetMyAccountUseCase(accountReader, catalogReader)
@@ -161,9 +178,26 @@ describe('GetMyAccountUseCase', () => {
       ],
     })
     const catalogReader = createFakeCatalogReader({
-      assets: [{ id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false, current_price: 99 }],
+      assets: [
+        {
+          id: 'asset-1',
+          ticker: 'PETR4',
+          name: 'Petrobras',
+          type: 'acao',
+          is_sandbox: false,
+          current_price: 99,
+        },
+      ],
       booksByAssetId: {
-        'asset-1': { is_sandbox: false, price: null, best_bid: 40, best_ask: null, mid_price: null, bids: null, asks: null },
+        'asset-1': {
+          is_sandbox: false,
+          price: null,
+          best_bid: 40,
+          best_ask: null,
+          mid_price: null,
+          bids: null,
+          asks: null,
+        },
       },
     })
     const useCase = new GetMyAccountUseCase(accountReader, catalogReader)

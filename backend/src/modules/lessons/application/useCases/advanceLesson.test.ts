@@ -142,7 +142,12 @@ describe('AdvanceLessonUseCase', () => {
       { clock: clock.now },
     )
 
-    const result = await walk({ useCase: useCaseWithRewards, clock }, 'u1', 'l1', LESSON_UNLOCK_STEP)
+    const result = await walk(
+      { useCase: useCaseWithRewards, clock },
+      'u1',
+      'l1',
+      LESSON_UNLOCK_STEP,
+    )
 
     expect(result).toEqual({
       currentStep: LESSON_UNLOCK_STEP,
@@ -289,9 +294,9 @@ describe('AdvanceLessonUseCase', () => {
     await walk({ useCase, clock }, 'u1', 'l1', 2)
     clock.tick(STEP_INTERVAL_MS)
 
-    await expect(
-      useCase.execute({ userId: 'u1', lessonId: 'l1', step: 0 }),
-    ).rejects.toBeInstanceOf(LessonStepOutOfOrderError)
+    await expect(useCase.execute({ userId: 'u1', lessonId: 'l1', step: 0 })).rejects.toBeInstanceOf(
+      LessonStepOutOfOrderError,
+    )
   })
 
   it('o intervalo mínimo é configurável', async () => {

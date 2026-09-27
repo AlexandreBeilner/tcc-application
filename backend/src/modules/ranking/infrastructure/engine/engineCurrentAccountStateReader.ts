@@ -51,7 +51,9 @@ export function createEngineCurrentAccountStateReader(
       // mover a marcação de outra carteira além do ponto médio. Usuário
       // sem posição de renda variável real não faz nenhuma chamada extra.
       const liveAssetIds = [
-        ...new Set(positions.filter((position) => !position.is_sandbox).map((position) => position.asset_id)),
+        ...new Set(
+          positions.filter((position) => !position.is_sandbox).map((position) => position.asset_id),
+        ),
       ]
       const markPriceByAssetId = new Map<string, number>()
       if (liveAssetIds.length > 0) {
@@ -76,7 +78,8 @@ export function createEngineCurrentAccountStateReader(
       const variableIncomeValue = positions
         .filter((position) => !position.is_sandbox)
         .reduce(
-          (sum, position) => sum + position.quantity * (markPriceByAssetId.get(position.asset_id) ?? 0),
+          (sum, position) =>
+            sum + position.quantity * (markPriceByAssetId.get(position.asset_id) ?? 0),
           0,
         )
 

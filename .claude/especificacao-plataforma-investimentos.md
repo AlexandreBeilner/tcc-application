@@ -178,6 +178,18 @@ O RF07 do TCC original (indicadores fundamentalistas) foi desenhado pensando em 
   - **Papel** (recebíveis, tipo CRI/CRA): indexador da carteira (CDI, IPCA+, prefixado); taxa de vacância não se aplica.
   - Ambos os perfis exibem Dividend Yield e a relação cota/valor patrimonial (análoga ao P/VP das ações).
 
+### 3.7 Salário Mensal Simulado
+
+Único mecanismo de injeção externa de capital além do depósito inicial (3.5) — sem ele, todo crescimento de patrimônio dependeria exclusivamente da rentabilidade de investimento, o que não reflete a vida real (a maior parte da capacidade de investir de uma pessoa vem de renda de trabalho, não de retorno sobre capital já investido).
+
+- **Valor:** cresce com o nível de gamificação (seção 6), em degraus sem teto — nível 1-10 soma R$100 por nível, nível 10-20 soma R$200 por nível, nível 20-30 soma R$300 por nível, e assim por diante (tier k = ⌈nível/10⌉, incremento por nível dentro do tier = R$100×k). Referência: nível 10 → R$1.000/mês, nível 20 → R$3.000/mês, nível 30 → R$6.000/mês. Decisão explícita do autor: aceitável que, para um usuário muito engajado por muito tempo, o salário eventualmente supere qualquer retorno de investimento razoável.
+- **Cadência:** 5º dia útil de cada mês-calendário simulado (o dia simulado mapeia 1:1 para uma data real de calendário, seção 3.2.1 — não reaproveita o bloco de 30 dias fixos usado internamente pelo cálculo do IPCA).
+- **Efeito no caixa, não na rentabilidade:** creditado como caixa livre (evento próprio de Event Sourcing, análogo ao depósito inicial de 3.5), nunca contabilizado como capital de risco. Isso exige que a rentabilidade percentual (RF17) passe a ser calculada apenas sobre capital que já foi de risco em algum momento — compras históricas, líquidas de vendas/resgates realizados e dividendos — nunca sobre caixa nunca investido (nem o salário, nem a parcela do depósito inicial que permaneça sem investir). Lucro já realizado numa venda e mantido em caixa continua contando: só o caixa que nunca foi de risco é excluído.
+- **Sem novo ranking:** o salário não cria ranking por patrimônio absoluto — permanece intocada a garantia de RNF09 de que o valor absoluto nunca é exposto a outro usuário.
+- **Visibilidade:** aparece na tela Calendário (seção 3.2.1) como fato do próprio usuário, com teatro de recompensa no momento em que o nível sobe (seção 6) e indicador do próximo pagamento na tela inicial.
+
+Quebra completa em tarefas executáveis na Fase T de `backlog-motor-mercado-realista.md` (decisões fechadas com o autor em 2026-09-27).
+
 ---
 
 ## 4. Modelo de Dados — extensões ao DER do TCC
@@ -205,6 +217,8 @@ Além das entidades já modeladas (`users`, `accounts`, `positions`, `assets`, `
 | `fii_details` (nova tabela, estende `variable_income_assets`) | `fii_type` (tijolo/papel), `segment`, `net_worth`, `vacancy_rate` (nulo se papel), `indexador` (nulo se tijolo) | Diferencia FII de tijolo e de papel, cada um com métricas próprias (seção 3.6) |
 | `daily_missions` (nova tabela) | Catálogo de missões (título, critério de conclusão, recompensa em XP) | Base do sistema de missões diárias (seção 6) |
 | `user_mission_progress` (nova tabela) | Liga `users` e `daily_missions`, com data e status de conclusão | Registra o progresso diário individual nas missões |
+| `salary_payment` (novo tipo de evento) | `market_events` | Crédito mensal de caixa proporcional ao nível — nunca soma a capital de risco (3.7) |
+| `total_disinvested` (novo campo) | `accounts` | Soma bruta de vendas/resgates realizados — junto com `total_invested`/`total_dividends_received` já existentes, sustenta o cálculo de rentabilidade sobre capital de risco (3.7, RF17) |
 
 ---
 
@@ -319,12 +333,13 @@ Os requisitos funcionais e não funcionais do capítulo 6.2 do TCC (RF01–RF10,
 | RF14 | Painel Administrativo de Eventos | O sistema deve prover interface restrita a usuários com papel administrativo para criação, disparo manual e histórico de eventos macro. |
 | RF15 | Relatórios Trimestrais Simulados | O sistema deve gerar periodicamente novos dados fundamentalistas para cada empresa cadastrada, combinando crescimento sintético, o fator sistêmico da Selic e efeitos pendentes de eventos macro. |
 | RF16 | Feed de Notícias de Mercado | O sistema deve exibir ao usuário um registro dos eventos de mercado relevantes (macro, Copom, relatórios), explicando o contexto e o possível impacto. |
-| RF17 | Ranking por Janela Fixa | O sistema deve calcular e exibir a classificação de usuários por rentabilidade percentual em uma janela de tempo fixa (ex: semanal/mensal), não cumulativa desde a criação da conta. |
+| RF17 | Ranking por Janela Fixa | O sistema deve calcular e exibir a classificação de usuários por rentabilidade percentual em uma janela de tempo fixa (ex: semanal/mensal), não cumulativa desde a criação da conta. A partir da introdução do salário mensal simulado (3.7), a rentabilidade considera apenas capital que já foi de risco em algum momento, nunca caixa nunca investido (RF23). |
 | RF18 | Amizade entre Usuários | O sistema deve permitir buscar usuários por `username`, enviar solicitação de amizade e aceitar ou recusar solicitações recebidas. |
 | RF19 | Ranking por Escopo Social | O sistema deve permitir alternar a exibição do ranking entre escopo Global e escopo Amigos, mantendo a mesma janela fixa (RF17) em ambos. |
 | RF20 | Perfil Público de Usuário | O sistema deve exibir o perfil público de outro usuário mostrando rentabilidade percentual, nível e conquistas, nunca o valor absoluto de patrimônio. |
 | RF21 | Indicadores por Classe de Ativo | O sistema deve exibir, na tela de detalhe de ativo, indicadores diferentes conforme a classe: fundamentalistas tradicionais para Ações, índice de referência e composição sintética para ETFs, e segmento/patrimônio/vacância (tijolo) ou indexador (papel) para FIIs, além de Dividend Yield para ambos os perfis de FII (seção 3.6). |
 | RF22 | Missões Diárias | O sistema deve apresentar um conjunto de missões diárias renovadas a cada dia, registrar seu progresso e conclusão por usuário, e recompensar XP ao completá-las. |
+| RF23 | Salário Mensal Simulado | O sistema deve creditar automaticamente, no 5º dia útil de cada mês-calendário simulado, um valor de caixa proporcional ao nível de gamificação do usuário — renda independente do desempenho de investimento, nunca contabilizada como capital de risco na rentabilidade percentual (RF17, seção 3.7). |
 
 **Requisitos não funcionais adicionais**
 
@@ -429,3 +444,4 @@ Dado o prazo de ~2 meses com Claude Code e a preferência por não reduzir o esc
 - **v0.3** — Adição do sistema social (seção 8): amizade bilateral com aceite, visibilidade de perfil, ranking com escopo Global/Amigos, requisitos formais RF18–RF20/RNF09. Incluído no MVP (seção 9) e distribuído nas semanas 5–6 do roadmap (seção 10). Bloqueio de usuários deferido para Fase 2.
 - **v0.4** — Simplificação da visibilidade de perfil (8.2): removida a opção de perfil privado/somente-amigos nesta fase — todo perfil é público por decisão explícita, sem campo `profile_visibility` no modelo de dados. Mantida a garantia de que o valor absoluto de patrimônio nunca é exposto (RNF09 revisado). Controle de privacidade configurável passa a candidato de Fase 2.
 - **v0.5** — Formalização de dois pontos que estavam pendentes: (1) missões diárias como extensão completa no MVP, com `daily_missions`/`user_mission_progress` e RF22 (seção 6.1); (2) indicadores por classe de ativo (seção 3.6, RF21) — Ações mantêm os indicadores fundamentalistas tradicionais; ETFs passam a exibir índice de referência, metodologia e composição sintética (`etf_details`/`etf_holdings`) em vez de indicadores de empresa; FIIs se dividem em tijolo (segmento, patrimônio, vacância) e papel (indexador), ambos com Dividend Yield e relação cota/valor patrimonial (`fii_details`). Ambos os pontos refletidos no corte de MVP e no roadmap (semanas 3, 5 e 6).
+- **v0.6** — Adição do salário mensal simulado (3.7, RF23): renda recorrente independente de investimento, crescendo em degraus sem teto com o nível de gamificação, paga no 5º dia útil do mês-calendário simulado — único mecanismo de injeção externa de capital além do depósito inicial (3.5). Exige recalcular a rentabilidade percentual (RF17, revisado) sobre capital de risco apenas (compras históricas líquidas de vendas/resgates/dividendos), excluindo caixa nunca investido, mas preservando lucro já realizado e guardado em caixa. Sem ranking por patrimônio absoluto — RNF09 mantido intocado. Novo tipo de evento `salary_payment` e campo `accounts.total_disinvested` (seção 4). Decisões fechadas com o autor em 2026-09-27, quebradas em 11 tarefas executáveis na Fase T de `backlog-motor-mercado-realista.md`.

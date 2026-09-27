@@ -94,7 +94,9 @@ describe('engineCurrentAccountStateReader', () => {
     const fetchSpy = vi.fn(async (url: string) => {
       if (url.includes('/fixed-income/positions')) return jsonResponse([])
       if (url.includes('/positions')) {
-        return jsonResponse([{ asset_id: 'sand-1', is_sandbox: true, quantity: 5, average_price: 100 }])
+        return jsonResponse([
+          { asset_id: 'sand-1', is_sandbox: true, quantity: 5, average_price: 100 },
+        ])
       }
       if (url.includes('/accounts/')) return jsonResponse({ current_balance: 1000 })
       throw new Error(`URL inesperada no teste: ${url}`)

@@ -67,7 +67,15 @@ describe('engineCatalogReader', () => {
   })
 
   it('GET /assets/:id/book?user_id=', async () => {
-    const book = { is_sandbox: false, price: null, best_bid: 10, best_ask: 10.5, mid_price: 10.25, bids: [], asks: [] }
+    const book = {
+      is_sandbox: false,
+      price: null,
+      best_bid: 10,
+      best_ask: 10.5,
+      mid_price: 10.25,
+      bids: [],
+      asks: [],
+    }
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => book })
     const reader = createEngineCatalogReader('http://engine:8080')
 

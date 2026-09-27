@@ -146,7 +146,10 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
 
     try {
-      const book = await deps.getAssetBook.execute({ id: req.params.id as string, userId: req.auth.userId })
+      const book = await deps.getAssetBook.execute({
+        id: req.params.id as string,
+        userId: req.auth.userId,
+      })
       res.status(200).json({ book })
     } catch (err) {
       sendEngineError(err, res)
