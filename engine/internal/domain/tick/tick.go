@@ -520,6 +520,49 @@ func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector) fun
 	}
 }
 
+// dividendPriceEffectBandDays é quantos dias simulados, contados a partir
+// do dia de relatório inclusive (o mesmo dia em que dividendRecordsForCycle
+// gera o provento do ciclo), o provento de ação recém-pago fica ativo na
+// estimativa de preço justo do Fundamentalista (tarefa S.13, achado
+// 018-023) — janela curta e ilustrativa (mesmo espírito de
+// macroevent.EffectRange/DurationDays, sujeita a calibração como os demais
+// coeficientes do motor), sempre bem menor que o ciclo trimestral inteiro
+// (fundamentals.DefaultReportFrequencyDays): decai a zero sozinha quando a
+// janela termina, antes do próximo ciclo recalcular net_equity do zero.
+const dividendPriceEffectBandDays = 10
+
+// dividendPriceEffectPct devolve o efeito de preço do provento de ação
+// pago no último dia de relatório da empresa (dividend.EquityPriceEffectPct,
+// S.13) se dayIndex ainda está dentro de dividendPriceEffectBandDays desde
+// esse relatório, 0 fora da janela. "Dias desde o último relatório" não
+// precisa de nenhum estado persistido novo — fundamentals.IsReportDay já é
+// puramente periódica ((dayIndex+1) % reportFrequencyDays == 0), então a
+// distância até o relatório anterior mais recente é sempre
+// (dayIndex+1) % reportFrequencyDays, 0 no próprio dia de relatório
+// (mesma convenção "ativo do dia do disparo até duration-1 dias depois,
+// inclusive" de macroevent.IsPriceEffectActive). financials já é o mesmo
+// valor usado pra montar CompanyRoundContext.Financials (baseRevenue =
+// reportedRevenue no dia de relatório, c.LastRevenue depois — o net_income
+// que gerou o último dividendRecordsForCycle continua sendo o mesmo em
+// qualquer dia dentro do ciclo, já que LastRevenue só muda no próximo
+// relatório), então não recalcula nada, só decide se o efeito já
+// calculado está dentro da janela.
+func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex, reportFrequencyDays int) float64 {
+	if dayIndex < reportFrequencyDays-1 {
+		// Nenhum relatório (e portanto nenhum dividendo) aconteceu ainda —
+		// sem essa guarda, (dayIndex+1) % reportFrequencyDays sozinho não
+		// distingue "N dias antes do primeiro relatório" de "N dias depois
+		// de um relatório", e ativaria o efeito com um net_income que nunca
+		// foi de fato distribuído.
+		return 0
+	}
+	daysSinceReport := (dayIndex + 1) % reportFrequencyDays
+	if daysSinceReport >= dividendPriceEffectBandDays {
+		return 0
+	}
+	return dividend.EquityPriceEffectPct(financials.NetIncome, financials.NetEquity)
+}
+
 // companyRoundContexts monta, pra CADA empresa (não só as que bateram dia de
 // relatório neste tick — diferente do loop que produz reportedRevenue/
 // fundamentalsRecords acima), o que a Fase D.2 (runIntradayRounds, rounds.go)
@@ -541,8 +584,9 @@ func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector) fun
 // ReportDayPriceEffect, removidas na tarefa F.1 do
 // backlog-motor-mercado-realista): o Fundamentalista reage à divergência
 // entre o VPA que acabou de mudar e a expectativa de crescimento que já
-// estava precificada, negociando de acordo.
-func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64) map[string]CompanyRoundContext {
+// estava precificada, negociando de acordo. dayIndex (tarefa S.13) alimenta
+// dividendPriceEffectPct — ver doc daquela função.
+func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue map[string]float64, seed int64, newSelicRate, selicNeutral float64, macroPriceEffects map[string]float64, dayIndex int) map[string]CompanyRoundContext {
 	contexts := make(map[string]CompanyRoundContext, len(companies))
 	for _, c := range companies {
 		sector := catalog.Sector(c.Sector)
@@ -555,12 +599,14 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 		if reported, ok := reportedRevenue[c.CompanyID]; ok {
 			baseRevenue = reported
 		}
+		financials := fundamentals.DeriveFinancials(sector, baseRevenue)
 
 		contexts[c.CompanyID] = CompanyRoundContext{
-			Financials:           fundamentals.DeriveFinancials(sector, baseRevenue),
+			Financials:           financials,
 			GrowthRate:           fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
 			MacroEffectPct:       macroPriceEffects[c.CompanyID],
 			PnDividendPremiumPct: c.PnDividendPremiumPct,
+			DividendEffectPct:    dividendPriceEffectPct(financials, dayIndex, c.ReportFrequencyDays),
 		}
 	}
 	return contexts
@@ -1025,7 +1071,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		})
 	}
 
-	companyContext := companyRoundContexts(companies, reportedRevenue, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects)
+	companyContext := companyRoundContexts(companies, reportedRevenue, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects, dayIndex)
 
 	quotes := make([]Quote, 0, len(assets))
 	for _, a := range assets {

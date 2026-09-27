@@ -4399,7 +4399,7 @@ registrado como reserva (S.14) por depender de um bot de preço justo que FII n�
 independente da S.13 rodar** — mostram o retorno real da posição (preço + provento) mesmo que o preço ainda não reaja
 mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, mas S.13 não bloqueia S.15/S.16 nem o contrário.
 
-### S.13 · Provento de ação reduz o preço justo do Fundamentalista (conservação de valor, sem degrau direto de preço)
+### S.13 · Provento de ação reduz o preço justo do Fundamentalista (conservação de valor, sem degrau direto de preço) ✅
 - **Descrição:** pagar dividendo de ação credita o caixa do usuário corretamente (Event Sourcing, `payDueDividends`), mas nada do
   lado da empresa reflete essa saída — `dividendRecordsForCycle` (tick.go) gera o provento a partir de `net_income`, e
   `fundamentals.DeriveFinancials` recalcula `net_equity` do zero a cada ciclo trimestral a partir da receita, sem nunca subtrair o
@@ -4427,6 +4427,25 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
   coberta pelo script; zero mudança em `orderbook`/`orderexecution`/Market Maker (só `bot`/`tick`/`fundamentals`, domínio puro).
 - **Dependências:** nenhuma (reaproveita `dividendRecordsForCycle`, `companyRoundContexts` e o padrão de `macroEffectPct` já
   existentes).
+- **Entregável:** `dividend.EquityPriceEffectPct(netIncome, netEquity)` (novo, `dividend.go`) — conservação de valor pura: o pool
+  distribuído (`netIncome × DefaultEquityPayoutRatio`) reduz o preço justo na mesma proporção que reduziria o patrimônio líquido,
+  válido pra ON e PN sem precisar da base de ações de cada classe; clampado em `MinEquityPriceEffectPct` (-100%). `tick.go` ganhou
+  `dividendPriceEffectPct`/`dividendPriceEffectBandDays` (10 dias simulados, ilustrativo) — deriva "dias desde o último relatório"
+  de `(dayIndex+1) % reportFrequencyDays` sem nenhum estado persistido novo, com guarda pro primeiro ciclo (nenhum relatório
+  aconteceu ainda). `CompanyRoundContext.DividendEffectPct` (novo campo) alimenta `FundamentalistFairPrice` como um multiplicador
+  a mais (`× (1 + dividendEffectPct/100)`, mesmo padrão de `macroEffectPct`/`pnPremiumPct` — não passa pelo filtro de
+  `personality.KnowledgeLevel`, mesmo tratamento de "fato estrutural conhecido" já dado a `pnPremiumPct`) e é somado a
+  `MacroEffectPct` no gatilho de atenção extra de turno (`applyEventAttention`, Q.10). Testes: tabela nova em
+  `dividend_test.go` (zero/normal/clampado/patrimônio inválido); os dois testes de regressão ponta a ponta da F.1
+  (`TestService_Run_Relatorio...`) precisaram ser ajustados — o cenário de teste sempre paga um provento no dia de relatório, então
+  passaram a comparar contra um piso `noSurpriseClosing` (startPrice já com o efeito do provento) em vez de `startPrice` puro,
+  já que "sem surpresa" deixou de significar "sem movimento" (o provento move o preço mesmo sem surpresa de balanço). Validação
+  ponta a ponta real (não o script `e2e-mercado-simulado` — troca por verificação direta contra o catálogo seedado já existente no
+  volume de dev via `docker compose up` + `POST /admin/tick`, mais direta que orquestrar o script python pra um efeito de poucos
+  dias): avançando o tick do dia 900 ao 910 (dia de relatório real de BNDD3/BNDD4/VALR3 no catálogo seedado), BNDD3 caiu **-5,11%**
+  exatamente no dia do provento (`day:910`) e o preço se estabilizou no novo patamar nos dias seguintes (911-914), sem voltar a
+  cair — confirma o "degrau único, não continuado" pretendido pela tarefa. `go test ./...` e `golangci-lint run` (via Docker,
+  0 issues) limpos.
 
 ### S.14 · (Reserva, não agendada) Provento de FII sem efeito no preço — falta bot de preço justo pro FII
 - **Descrição:** o mesmo problema da S.13 existe pro provento de FII — `fii_details.net_worth`/`portfolio_value` também são

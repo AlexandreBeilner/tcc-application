@@ -99,3 +99,43 @@ func Yield(sumLast12Months, currentPrice float64) (float64, bool) {
 	}
 	return sumLast12Months / currentPrice, true
 }
+
+// MinEquityPriceEffectPct é o piso de EquityPriceEffectPct — o pool
+// distribuído nunca reduz o patrimônio líquido em mais de 100% dele mesmo
+// (payout > patrimônio não deveria acontecer com DefaultEquityPayoutRatio
+// ilustrativo, mas a função não confia nisso). Não inventa um piso de
+// preço novo: bot.FundamentalistFairPrice já clampa o resultado final
+// não-positivo em bot.FundamentalistMinFairPrice, então -100% aqui só
+// evita que o multiplicador (1 + efeito/100) vire negativo e inverta o
+// sinal do preço justo por causa só deste termo.
+const MinEquityPriceEffectPct = -100.0
+
+// EquityPriceEffectPct estima quanto o provento de ação recém-pago (tarefa
+// S.13, achado 018-023) reduz o preço justo do Fundamentalista
+// (bot.FundamentalistFairPrice) — conservação de valor, não um degrau
+// direto de preço (a mesma arquitetura que já veta multiplicador direto
+// pra evento macro/balanço, ver doc do pacote tick): o pool distribuído
+// (netIncome × DefaultEquityPayoutRatio) sai do caixa da empresa,
+// reduzindo seu patrimônio líquido na mesma proporção — e como VPA =
+// netEquity / ações em circulação, o preço justo cai por essa mesma fração
+// percentual pra QUALQUER classe (ON ou PN), sem precisar saber a base de
+// ações de cada uma (diferente de EquityValuePerShare acima, que precisa
+// da base pra dividir o pool entre as duas classes). Escala percentual
+// negativa (mesma convenção de macroevent.EffectRange/
+// CompanyRoundContext.MacroEffectPct), clampada em MinEquityPriceEffectPct.
+// netEquity <= 0 devolve 0 — sem patrimônio, sem razão calculável (mesmo
+// tratamento de "sem dado, não divisão por zero" de fundamentals.VPA/ROE).
+// Quem chama decide a janela de dias em que este efeito fica ativo
+// (tick.companyRoundContexts) — esta função não sabe de calendário, só da
+// proporção do valor distribuído.
+func EquityPriceEffectPct(netIncome, netEquity float64) float64 {
+	if netEquity <= 0 {
+		return 0
+	}
+	pool := netIncome * DefaultEquityPayoutRatio
+	effect := -(pool / netEquity) * 100
+	if effect < MinEquityPriceEffectPct {
+		return MinEquityPriceEffectPct
+	}
+	return effect
+}

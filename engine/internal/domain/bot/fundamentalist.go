@@ -109,7 +109,18 @@ var (
 // filtro de personality.KnowledgeLevel em DecideFundamentalistOrder — é um
 // fato estrutural conhecido da empresa (mesma categoria de growthRate/
 // Selic), não uma leitura ruidosa de um evento ao vivo.
-func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares int64, growthRate, macroEffectPct, pnPremiumPct, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64, error) {
+//
+// dividendEffectPct (tarefa S.13, achado 018-023) é o efeito de preço do
+// provento de ação recém-pago (dividend.EquityPriceEffectPct — conservação
+// de valor, nunca um degrau direto de preço), 0 fora da banda curta de
+// dias em que o efeito fica ativo (resolvido por tick.
+// companyRoundContexts, mesmo caminho de macroEffectPct). Diferente de
+// macroEffectPct, não passa pelo filtro de personality.KnowledgeLevel em
+// DecideFundamentalistOrder — mesmo tratamento de "fato estrutural
+// conhecido" já dado a pnPremiumPct acima: o provento pago por uma empresa
+// é informação pública (data-ex e valor por ação são divulgados), não uma
+// leitura ruidosa de magnitude incerta como um evento macro em andamento.
+func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShares int64, growthRate, macroEffectPct, pnPremiumPct, dividendEffectPct, selicAnnualRate, selicNeutral float64, riskClass equity.RiskClass) (float64, error) {
 	if !validRiskClasses[riskClass] {
 		return 0, ErrUnknownRiskClass
 	}
@@ -126,7 +137,7 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 		return 0, ErrInvalidRequiredReturn
 	}
 
-	fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100) * (1 + pnPremiumPct/100)
+	fairPrice := vpa * (roe / requiredReturn) * (1 + growthRate) * (1 + macroEffectPct/100) * (1 + pnPremiumPct/100) * (1 + dividendEffectPct/100)
 	if fairPrice < FundamentalistMinFairPrice {
 		fairPrice = FundamentalistMinFairPrice
 	}
@@ -166,6 +177,10 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 // sem passar pelo filtro de personality.KnowledgeLevel — ver nota no doc
 // daquela função sobre por que este insumo não recebe o mesmo tratamento de
 // "leitura ruidosa" que macroEffectPct recebe aqui.
+//
+// dividendEffectPct (tarefa S.13) é repassado direto a
+// FundamentalistFairPrice, mesmo tratamento de pnPremiumPct acima — ver
+// nota no doc daquela função.
 func DecideFundamentalistOrder(
 	personality Personality,
 	financials fundamentals.Financials,
@@ -173,6 +188,7 @@ func DecideFundamentalistOrder(
 	growthRate float64,
 	macroEffectPct float64,
 	pnPremiumPct float64,
+	dividendEffectPct float64,
 	currentMarketPrice float64,
 	selicAnnualRate float64,
 	selicNeutral float64,
@@ -193,7 +209,7 @@ func DecideFundamentalistOrder(
 	}
 
 	perceivedMacroEffectPct := macroEffectPct * *personality.KnowledgeLevel
-	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, perceivedMacroEffectPct, pnPremiumPct, selicAnnualRate, selicNeutral, riskClass)
+	fairPrice, err := FundamentalistFairPrice(financials, outstandingShares, growthRate, perceivedMacroEffectPct, pnPremiumPct, dividendEffectPct, selicAnnualRate, selicNeutral, riskClass)
 	if err != nil {
 		return Decision{}, err
 	}

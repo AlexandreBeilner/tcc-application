@@ -107,10 +107,17 @@ type DecisionInput struct {
 	// sobre por que, diferente de MacroEffectPct, não é ponderado por
 	// personality.KnowledgeLevel.
 	PnDividendPremiumPct float64
-	SelicAnnualRate      float64
-	SelicNeutral         float64
-	RiskClass            equity.RiskClass
-	Seed                 int64
+	// DividendEffectPct (tarefa S.13) só é consumido pelo arquétipo
+	// Fundamentalista, mesmo tratamento de MacroEffectPct/
+	// PnDividendPremiumPct acima — o efeito de preço (conservação de
+	// valor, dividend.EquityPriceEffectPct) do provento de ação recém-pago
+	// pela empresa deste ativo, 0 fora da banda curta de dias em que o
+	// efeito fica ativo (tick.companyRoundContexts).
+	DividendEffectPct float64
+	SelicAnnualRate   float64
+	SelicNeutral      float64
+	RiskClass         equity.RiskClass
+	Seed              int64
 	// OrderSizeCeiling (achado 005, pontos-em-aberto-decisao-produto.md) é
 	// o teto de tamanho de ordem de compra repassado aos 4 arquétipos
 	// (capToFloat, marketmaker.go) — nil quando nenhum teto se aplica (ex:
@@ -154,7 +161,7 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		return []Decision{d}, nil
 	case ArchetypeFundamentalista:
 		d, err := DecideFundamentalistOrder(
-			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct, input.PnDividendPremiumPct,
+			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct, input.PnDividendPremiumPct, input.DividendEffectPct,
 			input.ReferencePrice, input.SelicAnnualRate, input.SelicNeutral, input.RiskClass,
 			input.AvailableCash, input.CurrentPosition, input.Seed, input.OrderSizeCeiling,
 		)
