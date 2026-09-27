@@ -28,7 +28,7 @@ func TestSyntheticEquities(t *testing.T) {
 		tickers[s.Ticker], cnpjs[s.CNPJ] = true, true
 		sectors[s.Sector]++
 		floats[s.OutstandingShares] = true
-		if _, err := catalog.NewCompany(s.Name, s.CNPJ, s.Sector); err != nil {
+		if _, err := catalog.NewCompany(s.Name, s.CNPJ, s.Sector, catalog.DefaultBaseGrowthPct); err != nil {
 			t.Errorf("empresa %s inválida: %v", s.Name, err)
 		}
 		if _, err := catalog.NewAsset(s.Ticker, s.Name, catalog.AssetAcao, &s.RiskClass, false); err != nil {

@@ -226,7 +226,7 @@ func TestAdvance_Deterministica(t *testing.T) {
 }
 
 func TestAdvance_ForaDoDiaDeRelatorioNaoGeraFundamentals(t *testing.T) {
-	companies := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
 	result := Advance(State{Day: 0, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
@@ -236,7 +236,7 @@ func TestAdvance_ForaDoDiaDeRelatorioNaoGeraFundamentals(t *testing.T) {
 }
 
 func TestAdvance_DiaDeRelatorioGeraFundamentals(t *testing.T) {
-	companies := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
 	// Day: 90 -> newDay = 91 -> dayIndex = 90 (0-based) = dia de relatório
 	// (91º dia, fundamentals.DefaultReportFrequencyDays).
@@ -259,7 +259,7 @@ func TestAdvance_DiaDeRelatorioGeraFundamentals(t *testing.T) {
 // persistidos). fundamentals.DeriveFinancials é determinística a partir de
 // NetRevenue, então o valor exato pode ser conferido contra ela.
 func TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals(t *testing.T) {
-	companies := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
 	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
@@ -290,7 +290,7 @@ func TestAdvance_EmpresaSemAtivoVinculadoAindaGeraFundamentals(t *testing.T) {
 	// Nenhum AssetForPricing aponta pra "sem-ativo" — Sensitivity cai pro
 	// zero value de SensitivityByRiskClass, mas o ciclo de relatório não
 	// deveria travar por isso.
-	companies := []CompanyForFundamentals{{CompanyID: "sem-ativo", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "sem-ativo", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
 	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
@@ -301,8 +301,8 @@ func TestAdvance_EmpresaSemAtivoVinculadoAindaGeraFundamentals(t *testing.T) {
 
 func TestAdvance_UsaLastRevenueQuandoExiste(t *testing.T) {
 	lastRevenue := 5_000_000.0
-	companiesWithHistory := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, LastRevenue: &lastRevenue}}
-	companiesNoHistory := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, LastRevenue: nil}}
+	companiesWithHistory := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, LastRevenue: &lastRevenue}}
+	companiesNoHistory := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, LastRevenue: nil}}
 
 	withHistory := Advance(State{Day: 90, SelicRate: 10}, nil, companiesWithHistory, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 	withoutHistory := Advance(State{Day: 90, SelicRate: 10}, nil, companiesNoHistory, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
@@ -332,7 +332,7 @@ func TestAdvance_QuotesDeCompanhiaNuncaSofremEfeitoDePrecoDireto(t *testing.T) {
 	riskClass := "Sofisticado"
 	companyID := "c1"
 	assets := []AssetForPricing{{AssetID: "a1", RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	for _, day := range []int{0, 90} { // newDay = 1 (fora do ciclo) e 91 (dia de relatório)
@@ -368,7 +368,7 @@ func TestAdvance_MacroEffectPctAtivoDuranteADuracao(t *testing.T) {
 	companyID := "c1"
 	assetID := "a1"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &assetID}})
@@ -397,7 +397,7 @@ func TestAdvance_MacroEffectPctEmpilhadoTemTeto(t *testing.T) {
 	companyID := "c1"
 	assetID := "a1"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 	targets := []MacroEventTargetForApplication{{AssetID: &assetID}}
 
@@ -430,7 +430,7 @@ func TestAdvance_MacroEffectPctParaAposADuracao(t *testing.T) {
 	assetID := "a1"
 	riskClass := "Conservador"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &assetID}})
@@ -453,8 +453,8 @@ func TestAdvance_EventoDePrecoSoAtingeAEmpresaAlvo(t *testing.T) {
 		{AssetID: otherAssetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &otherCompanyID},
 	}
 	companies := []CompanyForFundamentals{
-		{CompanyID: targetCompanyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays},
-		{CompanyID: otherCompanyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays},
+		{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: targetCompanyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays},
+		{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: otherCompanyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays},
 	}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 	event := macroPriceEventTest("event-1", 1, 2, 10, []MacroEventTargetForApplication{{AssetID: &targetAssetID}})
@@ -480,8 +480,8 @@ func TestAdvance_EventoDePrecoPorSetorAtingeTodasAsEmpresasDoSetor(t *testing.T)
 		{AssetID: assetOutSector, RiskClass: &riskClass, LastPrice: nil, CompanyID: &outSectorID, Sector: &otherSector},
 	}
 	companies := []CompanyForFundamentals{
-		{CompanyID: inSectorID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: sector},
-		{CompanyID: outSectorID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: otherSector},
+		{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: inSectorID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: sector},
+		{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: outSectorID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: otherSector},
 	}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 	event := macroPriceEventTest("event-1", 1, 2, -10, []MacroEventTargetForApplication{{Sector: &sector}})
@@ -504,7 +504,7 @@ func TestAdvance_TargetComDirecaoPropriaSobrepoeAoValorDoEvento(t *testing.T) {
 	companyID := "c1"
 	assetID := "a1"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	ownPct := -18.0
@@ -531,7 +531,7 @@ func TestAdvance_TargetPorAtivoSobrepoeTargetPorSetorIndependenteDaOrdem(t *test
 	companyID := "c1"
 	assetID := "a1"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID, Sector: &sector}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: sector}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: sector}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	ownPct := -18.0
@@ -557,7 +557,7 @@ func TestAdvance_EfeitoDeFundamentosMacroNoDiaDoRelatorio(t *testing.T) {
 	riskClass := "Sofisticado"
 	assetID := "a1"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	fundamentalsPct := 20.0
@@ -584,7 +584,7 @@ func TestAdvance_EfeitoDeFundamentosMacroNaoAntecipaOCiclo(t *testing.T) {
 	riskClass := "Sofisticado"
 	assetID := "a1"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	fundamentalsPct := 20.0
@@ -632,7 +632,7 @@ func TestAdvance_AppliedMacroEventIDs_EventoDeFundamentosSoDepoisDoRelatorio(t *
 	assetID := "a1"
 	riskClass := "Sofisticado"
 	assets := []AssetForPricing{{AssetID: assetID, RiskClass: &riskClass, LastPrice: nil, CompanyID: &companyID}}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	fundamentalsPct := 20.0
@@ -665,7 +665,7 @@ func TestAdvance_Dividendos_GeraProventoDeAcaoNoDiaDeRelatorio(t *testing.T) {
 	shares := int64(1000)
 	holders := []PositionHolder{{UserID: "u1", Quantity: 10}}
 	payer := DividendPayerAsset{AssetID: "a1", Type: "acao", CompanyID: &companyID, OutstandingShares: &shares, Holders: holders}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	// Day: 90 -> newDay = 91 = dia de relatório da empresa.
@@ -693,7 +693,7 @@ func TestAdvance_Dividendos_NaoGeraForaDoDiaDeRelatorioDaEmpresa(t *testing.T) {
 	companyID := "c1"
 	shares := int64(1000)
 	payer := DividendPayerAsset{AssetID: "a1", Type: "acao", CompanyID: &companyID, OutstandingShares: &shares}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	// Day: 5 -> newDay = 6, não é dia de relatório (ciclo de 91 dias).
@@ -707,7 +707,7 @@ func TestAdvance_Dividendos_NaoGeraForaDoDiaDeRelatorioDaEmpresa(t *testing.T) {
 func TestAdvance_Dividendos_AcaoSemOutstandingSharesNaoGeraProvento(t *testing.T) {
 	companyID := "c1"
 	payer := DividendPayerAsset{AssetID: "a1", Type: "acao", CompanyID: &companyID, OutstandingShares: nil}
-	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
+	companies := []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
@@ -731,7 +731,7 @@ func TestAdvance_Dividendos_EmpresaOnPnAplicaPrioridadeLegalDaPn(t *testing.T) {
 	pnPayer := DividendPayerAsset{AssetID: "pn1", Type: "acao", CompanyID: &companyID, ShareClass: &pnClass, OutstandingShares: &pnShares, Holders: pnHolders}
 	companies := []CompanyForFundamentals{{
 		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
-		Sector: "Mineração", PnDividendPremiumPct: 25,
+		Sector: "Mineração", PnDividendPremiumPct: 25, BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100,
 	}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 

@@ -1,0 +1,14 @@
+-- Tarefa 7.2 (seed de catálogo completo): fundamentals.DeriveFinancials
+-- deriva ROE/margens só do setor (CoefficientsBySector), então toda
+-- empresa do mesmo setor tinha exatamente o mesmo ROE/P-L/P-VP pra sempre
+-- — sem jeito de expressar "empresa boa/média/ruim" dentro de um setor
+-- (gap já registrado no comentário de CoefficientsBySector, K.1/K.2).
+-- base_growth_pct dá esse grau de liberdade por empresa: substitui
+-- fundamentals.DefaultBaseGrowth fixo (3% ao ciclo) usado até aqui por
+-- toda empresa (fundamentalsConfig, tick.go) por um valor próprio —
+-- crescimento mais alto sustenta um preço justo (Justified P/B) mais alto
+-- pro mesmo ROE setorial, e vice-versa, mesma leitura de "prêmio de
+-- crescimento" de um P/L real. Default 3.00 preserva o comportamento de
+-- toda empresa já seedada antes desta tarefa (Mineradora Vale do Rio,
+-- Banco Nordeste Digital).
+ALTER TABLE companies ADD COLUMN base_growth_pct numeric(5, 2) NOT NULL DEFAULT 3.00;

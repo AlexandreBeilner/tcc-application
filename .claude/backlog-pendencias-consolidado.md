@@ -23,18 +23,16 @@ escopo já identificadas, não bugs.
 Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, a Semana 8 inteira
 (calibração, UX, demo pra banca, alinhamento com a monografia) não pode começar.
 
-### P1.1 · Seed de catálogo completo (empresas/ativos/setores)
+### P1.1 · Seed de catálogo completo (empresas/ativos/setores) ✅ concluída (2026-09-27)
 
-- **Local:** `.claude/backlog-plataforma-investimentos.md`, tarefa **7.2** (linha ~1025)
-- **O que falta:** catálogo real hoje (`engine/cmd/seed/main.go`) só tem 2 empresas (Mineração,
-  Bancário — a segunda já com par ON/PN via J.4), 1 ETF (`SINT11`), 2 FIIs (`TJLO11`
-  tijolo/`PAPL11` papel). Faltam: **4 empresas novas** (uma por setor sem representante —
-  Agronegócio, Varejo, Energia, Tecnologia — sem elas 6 dos 10 templates de evento macro nunca têm
-  alvo setorial real disponível pra disparar), **+1 ETF** (2 no total), **+2 FII** (4 no total,
-  cobrindo um segundo segmento tijolo e um segundo indexador de papel).
-- **Critérios de aceite completos:** ver a tarefa 7.2 no documento original.
-- **Dependências:** nenhuma (motor já suporta múltiplos setores/ativos desde as Fases J/K do
-  `backlog-motor-mercado-realista.md`, já concluídas).
+- **Local:** `.claude/backlog-plataforma-investimentos.md`, tarefa **7.2** (linha ~1025) — Entregável
+  completo lá.
+- **Resumo:** catálogo foi além do mínimo pedido — **35 ativos de renda variável** (25 ações/24
+  empresas cobrindo os 6 setores fixos com distribuição de qualidade Boa/Média/Ruim via nova coluna
+  `companies.base_growth_pct`, 5 ETFs com metodologia própria cada, 5 FIIs em 3 segmentos de tijolo +
+  2 indexadores de papel). Achado registrado (não bloqueante): ROE/margem continuam fixos por setor
+  (só o crescimento diferencia P/L e P/VP) — `pontos-em-aberto-decisao-produto.md`, achado 025.
+- **Status:** ✅ Resolvido. Libera P1.2 (e2e formal).
 
 ### P1.2 · Testes ponta a ponta formais
 
