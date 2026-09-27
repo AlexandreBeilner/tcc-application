@@ -6,7 +6,10 @@ import type {
 } from '../../application/ports/lessonRepository'
 import type { LessonSummary } from '../../domain/lesson'
 
-export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): LessonRepository {
+export function createFakeLessonRepository(
+  seedLessons: LessonSummary[] = [],
+  clock: () => Date = () => new Date(),
+): LessonRepository {
   const lessons = [...seedLessons]
   const progressByUser = new Map<string, Map<string, LessonProgressRecord>>()
 
@@ -29,6 +32,7 @@ export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): L
         lessonId,
         currentStep: input.currentStep,
         completedAt: input.completedAt,
+        updatedAt: clock(),
         lastReviewedAt: existing?.lastReviewedAt ?? null,
         microDecisionSelectedOption:
           input.microDecisionSelectedOption !== undefined
@@ -61,6 +65,7 @@ export function createFakeLessonRepository(seedLessons: LessonSummary[] = []): L
         lessonId,
         currentStep,
         completedAt,
+        updatedAt: clock(),
         lastReviewedAt: existing?.lastReviewedAt ?? null,
         microDecisionSelectedOption:
           microDecisionSelectedOption !== undefined

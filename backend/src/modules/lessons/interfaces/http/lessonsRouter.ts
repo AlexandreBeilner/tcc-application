@@ -6,6 +6,8 @@ import {
   LessonLockedError,
   LessonNotCompletedError,
   LessonNotFoundError,
+  LessonStepOutOfOrderError,
+  LessonStepTooFastError,
 } from '../../domain/errors'
 import type { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import type { GetLessonUseCase } from '../../application/useCases/getLesson'
@@ -86,6 +88,18 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
       }
       if (err instanceof InvalidMicroDecisionOptionError) {
         res.status(400).json({ error: err.message })
+        return
+      }
+      if (err instanceof LessonStepOutOfOrderError) {
+        res.status(422).json({ error: err.message, code: 'step_out_of_order' })
+        return
+      }
+      if (err instanceof LessonStepTooFastError) {
+        res.status(422).json({
+          error: err.message,
+          code: 'step_too_fast',
+          retryAfterMs: err.retryAfterMs,
+        })
         return
       }
       throw err

@@ -30,6 +30,7 @@ import { createInProcessAchievementChecker as createInProcessAchievementCheckerF
 import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
 import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
+import { LESSON_MIN_STEP_INTERVAL_MS } from './modules/lessons/domain/lesson'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/application/useCases/getCurrentMicroDecisionStreak'
@@ -324,6 +325,13 @@ export function createApp(deps: AppDeps = {}): Express {
     createDrizzleSocialFeedUserDirectory(db),
   )
 
+  // Tempo mínimo entre avanços de passo de lição (S.4); env inválida ou
+  // negativa cai no padrão em vez de desligar o gate sem querer.
+  const configuredStepInterval = Number(process.env.LESSON_MIN_STEP_INTERVAL_MS || Number.NaN)
+  const lessonMinStepIntervalMs =
+    Number.isFinite(configuredStepInterval) && configuredStepInterval >= 0
+      ? configuredStepInterval
+      : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(
@@ -331,6 +339,7 @@ export function createApp(deps: AppDeps = {}): Express {
     xpAwarder,
     streakTracker,
     createInProcessSocialFeedRecorder(recordTrackCompleted),
+    { minStepIntervalMs: lessonMinStepIntervalMs },
   )
   const reviewLesson = new ReviewLessonUseCase(
     lessonRepository,

@@ -40,6 +40,7 @@ function buildApp(
   const catalogReader = createFakeCatalogReader({
     assets: [
       { id: 'asset-1', ticker: 'PETR4', name: 'Petrobras', type: assetType, is_sandbox: false },
+      { id: 'asset-2', ticker: 'SAND3', name: 'Sandbox', type: assetType, is_sandbox: true },
     ],
     asset: {
       id: 'asset-1',
@@ -169,6 +170,37 @@ describe('GET /market/assets', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.assets).toHaveLength(1)
+  })
+
+  it('esconde ativos sandbox por padrão e os inclui com include_sandbox=true (achado 023)', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const padrao = await request(app).get('/market/assets').set('Authorization', `Bearer ${token}`)
+    const comSandbox = await request(app)
+      .get('/market/assets?include_sandbox=true')
+      .set('Authorization', `Bearer ${token}`)
+    const explicitoFalse = await request(app)
+      .get('/market/assets?include_sandbox=false')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(padrao.body.assets.map((a: { ticker: string }) => a.ticker)).toEqual(['PETR4'])
+    expect(explicitoFalse.body.assets).toHaveLength(1)
+    expect(comSandbox.body.assets.map((a: { ticker: string }) => a.ticker)).toEqual([
+      'PETR4',
+      'SAND3',
+    ])
+  })
+
+  it('retorna 400 pra include_sandbox que não seja true/false', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/assets?include_sandbox=talvez')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(400)
   })
 
   it('retorna 400 pra type fora do enum', async () => {

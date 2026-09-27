@@ -6,6 +6,12 @@ export { utcDateString } from '../../../shared/utcDate'
 
 export const LESSON_UNLOCK_STEP = 3
 
+// Tempo mínimo entre dois avanços de passo da mesma lição (S.4/achado 020) —
+// sem isto, a trilha inteira (35 lições, 1.750 XP, todos os produtos
+// liberados) era concluível por script em ~1 s. Ajustável em produção via
+// `LESSON_MIN_STEP_INTERVAL_MS` (composição em `app.ts`).
+export const LESSON_MIN_STEP_INTERVAL_MS = 5000
+
 // Ilustrativo, sujeito à calibração da tarefa 8.1 — mesmo tratamento dado às
 // demais constantes de gamificação (curva de xp da 5.1, recompensa de
 // missão da 5.4). Lições concedem uma recompensa flat, ao contrário de
@@ -78,6 +84,9 @@ export interface LessonSummary {
 export interface LessonProgressSnapshot {
   currentStep: number
   completedAt: Date | null
+  // Instante da última gravação de passo (`user_lesson_progress.updated_at`) —
+  // base do tempo mínimo entre avanços (S.4).
+  updatedAt: Date
   // Índice escolhido pelo usuário na Micro-decisão (B.1) — `null` até a
   // escolha ser gravada (B.2) ou pra lição sem aposta real.
   microDecisionSelectedOption: number | null

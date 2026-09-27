@@ -19,10 +19,10 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 ### `GET /market/assets`
 
 - **Autenticação:** Bearer token (qualquer usuário logado — o motor não tem conceito de usuário nessas rotas).
-- **Payload:** query `type` (opcional) — um dos 11 valores do enum `asset_type` (ver `.docs/engine/catalog.md`); qualquer outro valor é `400`.
-- **Sucesso:** `200` → `{ assets: [...] }`, proxy 1:1 de `GET /assets` do motor.
+- **Payload:** query `type` (opcional) — um dos 11 valores do enum `asset_type` (ver `.docs/engine/catalog.md`); qualquer outro valor é `400`. Query `include_sandbox` (opcional, `true`/`false`, padrão `false`; qualquer outro valor é `400`).
+- **Sucesso:** `200` → `{ assets: [...] }`, proxy de `GET /assets` do motor **sem os ativos `is_sandbox`** (S.8/achado 023: `SAND3`/`SANDPRE` não aparecem no mercado real). `include_sandbox=true` devolve o catálogo completo, pra quem precisa achar o ativo do Modo Aprendizado (lições por ticker) ou rotular ativos no extrato. `GET /market/assets/:id` segue achando qualquer ativo, sandbox inclusive.
 - **Erros:** `400` — `type` inválido. `401` — token ausente/inválido. Qualquer erro do motor (`503`/`500`) é repassado com o mesmo status.
-- **Regra:** `ListAssetsUseCase` → `CatalogReader.listAssets`.
+- **Regra:** `ListAssetsUseCase` → `CatalogReader.listAssets`, filtrando `is_sandbox` no backend (o motor continua devolvendo tudo).
 
 ### `GET /market/assets/:id`
 

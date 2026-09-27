@@ -2,8 +2,11 @@ import {
   InvalidMicroDecisionOptionError,
   LessonLockedError,
   LessonNotFoundError,
+  LessonStepOutOfOrderError,
+  LessonStepTooFastError,
 } from '../../domain/errors'
 import {
+  LESSON_MIN_STEP_INTERVAL_MS,
   LESSON_UNLOCK_STEP,
   LESSON_XP_REWARD,
   completedTrackNumbers,
@@ -45,13 +48,25 @@ export interface AdvanceLessonResult {
   unlockedAchievements?: UnlockedAchievement[]
 }
 
+export interface AdvanceLessonOptions {
+  minStepIntervalMs?: number
+  clock?: () => Date
+}
+
 export class AdvanceLessonUseCase {
+  private readonly minStepIntervalMs: number
+  private readonly clock: () => Date
+
   constructor(
     private readonly lessonRepository: LessonRepository,
     private readonly xpAwarder: XpAwarder,
     private readonly streakTracker: StreakTracker,
     private readonly socialFeedRecorder: SocialFeedRecorder,
-  ) {}
+    options: AdvanceLessonOptions = {},
+  ) {
+    this.minStepIntervalMs = options.minStepIntervalMs ?? LESSON_MIN_STEP_INTERVAL_MS
+    this.clock = options.clock ?? (() => new Date())
+  }
 
   async execute(input: AdvanceLessonInput): Promise<AdvanceLessonResult> {
     const lesson = await this.lessonRepository.findById(input.lessonId)
@@ -98,6 +113,10 @@ export class AdvanceLessonUseCase {
       throw new LessonLockedError('lição bloqueada')
     }
 
+    if (!alreadyCompleted) {
+      this.assertStepAllowed(input.step, own)
+    }
+
     const attemptingCompletion = !alreadyCompleted && input.step >= LESSON_UNLOCK_STEP
 
     if (!attemptingCompletion) {
@@ -128,7 +147,7 @@ export class AdvanceLessonUseCase {
       input.userId,
       input.lessonId,
       input.step,
-      new Date(),
+      this.clock(),
       // Mesma condição de `upsertProgress` acima — a escolha só entra quando
       // a lição de fato tem aposta real, pra não persistir um índice de
       // lição que não tem `microDecisionOptions`.
@@ -183,6 +202,26 @@ export class AdvanceLessonUseCase {
         ...xpResult.unlockedAchievements,
         ...streakResult.unlockedAchievements,
       ],
+    }
+  }
+
+  // Gate de passos (S.4/achado 020) — só pra lição ainda não concluída
+  // (reabrir uma concluída, modo revisão, nunca passa por aqui). `step` só
+  // pode ser o passo gravado (reenvio, ex: trocar a aposta) ou o próximo, e
+  // o avanço pro próximo exige `minStepIntervalMs` desde a última gravação.
+  // Sem linha ainda, o passo gravado é 0 e não há instante de referência: o
+  // primeiro avanço nunca espera (o frontend só chama `progress` ao sair do
+  // passo 0, então não existe "início da lição" no servidor).
+  private assertStepAllowed(step: number, own: LessonProgressRecord | undefined): void {
+    const currentStep = own?.currentStep ?? 0
+    if (step !== currentStep && step !== currentStep + 1) {
+      throw new LessonStepOutOfOrderError('passo fora de ordem')
+    }
+    if (step === currentStep + 1 && own) {
+      const elapsedMs = this.clock().getTime() - own.updatedAt.getTime()
+      if (elapsedMs < this.minStepIntervalMs) {
+        throw new LessonStepTooFastError('avanço rápido demais', this.minStepIntervalMs - elapsedMs)
+      }
     }
   }
 

@@ -46,6 +46,16 @@ describe('services/market', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets?type=cdb')
     })
 
+    it('listAssets pede sandbox só quando includeSandbox, combinável com type', async () => {
+        const fetchMock = mockFetchOnce({ assets: [] })
+        await listAssets('token', undefined, true)
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/assets?include_sandbox=true')
+
+        const combined = mockFetchOnce({ assets: [] })
+        await listAssets('token', 'acao', true)
+        expect(combined.mock.calls[0][0]).toBe('/market/assets?type=acao&include_sandbox=true')
+    })
+
     it('getAsset faz GET /market/assets/:id', async () => {
         const fetchMock = mockFetchOnce({ asset: { id: 'a1' } })
         await getAsset('token', 'a1')

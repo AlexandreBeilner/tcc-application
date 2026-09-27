@@ -29,6 +29,8 @@ services:
       JWT_SECRET: e2e-secret
       FRONTEND_URL: http://localhost:5173
       AVATAR_STORAGE_DIR: /data/avatars
+      # Gate de tempo entre passos de lição (S.4): curto o bastante pros scripts completarem a trilha inteira.
+      LESSON_MIN_STEP_INTERVAL_MS: "300"
     depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}, engine: {condition: service_started}}
     expose: ["3000"]
   gateway:

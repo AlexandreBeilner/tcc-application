@@ -708,7 +708,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** exige decidir a regra (passos sequenciais? tempo mínimo por passo? só avançar 1 passo por chamada?).
 - **Opções:** (a) `step` só pode ser `currentStep` ou `currentStep + 1`; (b) idem + tempo mínimo por passo; (c) aceitar (protótipo) e documentar.
 - **Decisão (2026-09-26, autor, Fase S):** passos sequenciais (`step` só pode ser `currentStep` ou `currentStep + 1`) mais tempo mínimo entre avanços (ex.: 5 s, ajustável).
-- **Status:** Decidido, aguardando implementação (Fase S)
+- **Status:** Resolvido (2026-09-26, tarefa S.4): gate de passos sequenciais e tempo mínimo de 5 s entre avanços (`LESSON_MIN_STEP_INTERVAL_MS`), `422` `step_out_of_order`/`step_too_fast`; validado ponta a ponta. Fechamento formal na S.9.
 
 ### 021 · Tela de ordem mostra o último negócio como preço unitário; execução é contra o book (spread ~2%) e o preço oficial oscila com um único negócio
 
@@ -737,4 +737,4 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** `SAND3` (sandbox) aparece misturado às ações reais, sem risco nem cotação, na lista do Mercado Ao Vivo. Confunde o usuário sobre o que conta no ranking.
 - **Opções:** (a) esconder sandbox da lista do mercado real e listá-lo só no modo aprendizado; (b) rotular claramente.
 - **Decisão (2026-09-26, autor, Fase S):** esconder ativos sandbox do mercado real (`GET /market/assets` exclui `is_sandbox` por padrão, com parâmetro para incluir); sandbox fica acessível só pelo card Modo Aprendizado do Portfólio e pelas lições, que continuam achando o ativo pelo ticker.
-- **Status:** Decidido, aguardando implementação (Fase S)
+- **Status:** Resolvido (2026-09-26, tarefa S.8): `GET /market/assets` esconde sandbox por padrão (`include_sandbox=true` p/ lições e extrato); validado ponta a ponta. Fechamento formal na S.9.

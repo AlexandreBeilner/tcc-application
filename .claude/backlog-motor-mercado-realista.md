@@ -4142,13 +4142,23 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
   relógio injetado; fecha os achados 018 e 019.
 - **Dependências:** S.1, S.2.
 
-### S.4 · Gate de lições: passos sequenciais e tempo mínimo
+### S.4 · Gate de lições: passos sequenciais e tempo mínimo ✅
 - **Descrição:** `POST /lessons/:id/progress` só aceita `step` igual a `currentStep` ou `currentStep + 1`; avanço exige tempo mínimo
   desde o último passo (constante configurável, ex.: 5 s), com coluna/timestamp em `user_lesson_progress`. Caso de uso, erro de
   domínio (`422`), teste, `.docs/backend/lessons.md`. Reabrir lição concluída e o passo 0 não são afetados.
 - **Critérios de aceite:** pular direto para o passo 3 e avançar sem esperar retornam `422`; fluxo normal do frontend inalterado; o
   script de `gating.py` passa a levar o tempo mínimo por passo; fecha o achado 020.
 - **Dependências:** nenhuma.
+- **Entregável:** `AdvanceLessonUseCase.assertStepAllowed` (só lição não concluída): `step` precisa ser o `currentStep` gravado
+  (0 se sem linha) ou o seguinte, senão `LessonStepOutOfOrderError`; avançar pro seguinte antes de `LESSON_MIN_STEP_INTERVAL_MS`
+  (padrão 5000, env de mesmo nome lida em `app.ts`, valor inválido cai no padrão) desde `user_lesson_progress.updated_at` dá
+  `LessonStepTooFastError` com `retryAfterMs`. Router responde `422` com `code` `step_out_of_order`/`step_too_fast`. Sem migration:
+  reaproveita `updated_at` (exposto como `LessonProgressRecord.updatedAt`); relógio injetável no caso de uso e no fake do repositório
+  pros testes. Decisões: reenviar o passo atual não espera (idempotente, ex: trocar aposta); sem linha ainda o primeiro avanço nunca
+  espera (o frontend só chama a rota ao sair do passo 0, então não há "início" no servidor); voltar de passo numa lição não concluída
+  é recusado. Frontend inalterado (só avança `step + 1`, lê o passo do servidor; um clique antes de 5 s cai no erro genérico "Tente de
+  novo"). Docs em `.docs/backend/lessons.md`. E2E: `compose.e2e.yml` ganha `LESSON_MIN_STEP_INTERVAL_MS=300`, `lib.complete_lessons`
+  espera 0,35 s por passo, `gating.py` afirma os dois `422`; trilha de 35 lições pelo fluxo normal em 38 s, pulo direto retorna `422`.
 
 ### S.5 · Rota de book: melhor bid/ask e profundidade resumida
 - **Descrição:** `GET /assets/{id}/book` no motor (melhor bid, melhor ask, ponto médio, profundidade agregada nos N primeiros níveis,
@@ -4172,11 +4182,17 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
 - **Critérios de aceite:** all-in por último preço deixa de cair em `422` genérico; teste de componente e navegação real.
 - **Dependências:** S.5.
 
-### S.8 · Sandbox fora da lista do mercado real
+### S.8 · Sandbox fora da lista do mercado real ✅
 - **Descrição:** `GET /market/assets` (e o proxy do motor) exclui ativos `is_sandbox` por padrão, com parâmetro explícito para
   incluí-los; a tabela de Renda Variável não os mostra; Modo Aprendizado e lições continuam achando o ativo pelo ticker.
 - **Critérios de aceite:** `SAND3`/`SANDPRE` somem da tabela real e continuam operáveis pelas lições; fecha o achado 023.
 - **Dependências:** nenhuma.
+- **Entregável:** o filtro vive no backend, não no motor (que segue devolvendo o catálogo completo, `is_sandbox` incluso):
+  `ListAssetsUseCase` exclui `is_sandbox` salvo `includeSandbox`; `GET /market/assets` ganha `include_sandbox=true|false` (Zod,
+  outro valor é `400`; padrão `false`). `GET /market/assets/:id` segue achando sandbox. Frontend: `listAssets`/`useAssetsQuery`
+  ganham `includeSandbox` (entra na query key); só `useAssetByTicker` (lições) e `Statement` (rótulo de ativo do extrato) o pedem,
+  então tabelas de Ações/Renda Fixa, Notícias, Painel Admin e o formulário de evento macro nunca veem sandbox. Docs em
+  `.docs/backend/market.md`. E2E: `SAND3`/`SANDPRE` ausentes da lista padrão, presentes com `include_sandbox=true`, detalhe `200`.
 
 ### S.9 · Revalidação ponta a ponta e fechamento dos achados (por último, depois de S.10 a S.12)
 - **Descrição:** rodar de novo `engine/scripts/e2e-mercado-simulado/` (sim, neg, gating, liq) com o relógio novo, conferir o retorno

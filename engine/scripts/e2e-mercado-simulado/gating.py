@@ -9,6 +9,13 @@ def can(t):
     return st,d
 probe={"tesouro_selic":"LFT2029","cdb":"CDB2027","lci":"LCI2026","lca":"LCA2026","tesouro_prefixado":"LTN2027","tesouro_ipca":"NTNB2035","cri":"CRI2028","cra":"CRA2028","acao":"VALR3","etf":"SINT11","fii":"TJLO11"}
 L=u.g("/lessons")[1]["lessons"]
+# gate de passos (S.4/achado 020): pular direto pro desbloqueio e avançar sem esperar devem dar 422
+first=L[0]["id"]
+u2=User("gate2_%d"%int(time.time()),"g2")  # usuário à parte: não polui o progresso do teste de gating
+st,d=u2.p(f"/lessons/{first}/progress",{"step":3}); assert st==422 and d.get("code")=="step_out_of_order",(st,d)
+assert u2.p(f"/lessons/{first}/progress",{"step":1})[0]==200
+st,d=u2.p(f"/lessons/{first}/progress",{"step":2}); assert st==422 and d.get("code")=="step_too_fast",(st,d)
+print("gate de passos ok")
 unlock={k.split(":")[1]:l["code"] for l in L for k in l["unlocksKeys"] if k.startswith("asset:")}
 print(unlock)
 bad=0

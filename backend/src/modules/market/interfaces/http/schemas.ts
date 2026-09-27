@@ -17,6 +17,12 @@ const ASSET_TYPES = [
 
 export const listAssetsQuerySchema = z.object({
   type: z.enum(ASSET_TYPES).optional(),
+  // Query string só carrega texto; `z.coerce.boolean()` trataria "false"
+  // como true.
+  include_sandbox: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
 })
 
 export const getAssetQuotesQuerySchema = z.object({

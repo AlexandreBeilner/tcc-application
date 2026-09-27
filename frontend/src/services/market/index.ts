@@ -67,8 +67,13 @@ export function getMyAccount(token: string): Promise<MyAccount> {
     return apiRequest<MyAccount>('/market/me/account', { token })
 }
 
-export function listAssets(token: string, type?: AssetType): Promise<{ assets: AssetSummary[] }> {
-    const query = type ? `?type=${type}` : ''
+// Sandbox (Modo Aprendizado) fica fora do mercado real por padrão (S.8);
+// só lição e extrato passam `includeSandbox`.
+export function listAssets(token: string, type?: AssetType, includeSandbox?: boolean): Promise<{ assets: AssetSummary[] }> {
+    const params = new URLSearchParams()
+    if (type) params.set('type', type)
+    if (includeSandbox) params.set('include_sandbox', 'true')
+    const query = params.size > 0 ? `?${params.toString()}` : ''
     return apiRequest<{ assets: AssetSummary[] }>(`/market/assets${query}`, { token })
 }
 

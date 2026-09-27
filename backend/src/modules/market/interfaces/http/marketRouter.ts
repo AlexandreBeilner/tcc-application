@@ -82,7 +82,10 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
 
     try {
-      const assets = await deps.listAssets.execute(parsed.data)
+      const assets = await deps.listAssets.execute({
+        type: parsed.data.type,
+        includeSandbox: parsed.data.include_sandbox,
+      })
       res.status(200).json({ assets })
     } catch (err) {
       sendEngineError(err, res)

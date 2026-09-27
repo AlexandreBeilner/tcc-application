@@ -4,16 +4,21 @@ import { useAuth } from '../../auth/AuthContext'
 import { listAssets } from '../../../services/market'
 import type { AssetSummary, AssetType } from '../../../services/market'
 
-export function assetsQueryKey(type?: AssetType) {
-    return ['market', 'assets', type ?? 'all'] as const
+export function assetsQueryKey(type?: AssetType, includeSandbox = false) {
+    return ['market', 'assets', type ?? 'all', includeSandbox ? 'with-sandbox' : 'real'] as const
 }
 
-export function useAssetsQuery(type?: AssetType, options?: { enabled?: boolean }): UseQueryResult<{ assets: AssetSummary[] }> {
+// `includeSandbox` só pra quem precisa achar/rotular o ativo do Modo
+// Aprendizado (lição por ticker, extrato) — o resto do app nunca o vê (S.8).
+export function useAssetsQuery(
+    type?: AssetType,
+    options?: { enabled?: boolean; includeSandbox?: boolean },
+): UseQueryResult<{ assets: AssetSummary[] }> {
     const { token } = useAuth()
 
     return useQuery({
-        queryKey: assetsQueryKey(type),
-        queryFn: () => listAssets(token as string, type),
+        queryKey: assetsQueryKey(type, options?.includeSandbox),
+        queryFn: () => listAssets(token as string, type, options?.includeSandbox),
         enabled: token !== null && (options?.enabled ?? true),
     })
 }

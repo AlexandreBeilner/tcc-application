@@ -10,6 +10,7 @@ def req(m,p,b=None,t=None,raw=False):
         try: d=json.loads(d)
         except: pass
         return e.code,d
+LESSON_STEP_WAIT=0.35  # um pouco acima de LESSON_MIN_STEP_INTERVAL_MS do compose.e2e.yml
 COMPOSE=["docker","compose","-p","tccsim","-f","engine/scripts/e2e-mercado-simulado/compose.e2e.yml"]
 def sql(db,q):
     r=subprocess.run(COMPOSE+["exec","-T","postgres","psql","-U","tcc","-d",db,"-At","-F","|","-c",q],capture_output=True,text=True)
@@ -44,6 +45,7 @@ def complete_lessons(u, upto=None):
         for step in range(4):
             b={"step":step}
             if step==2 and l.get("microDecisionOptions"): b["selectedOption"]=0
+            if step>0: time.sleep(LESSON_STEP_WAIT)  # gate de tempo mínimo entre passos (S.4)
             st,d=u.p(f"/lessons/{l['id']}/progress",b)
             assert st==200,(l["code"],step,st,d)
             if "microDecisionCorrect" in d and not d["microDecisionCorrect"]:
