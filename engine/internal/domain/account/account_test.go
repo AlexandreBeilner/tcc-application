@@ -134,6 +134,10 @@ func TestActivate(t *testing.T) {
 type fakeRepository struct {
 	created []Account
 	err     error
+
+	creditedUserID string
+	creditedAmount float64
+	creditErr      error
 }
 
 func (f *fakeRepository) Create(_ context.Context, acc Account) error {
@@ -141,6 +145,14 @@ func (f *fakeRepository) Create(_ context.Context, acc Account) error {
 		return f.err
 	}
 	f.created = append(f.created, acc)
+	return nil
+}
+
+func (f *fakeRepository) CreditSalary(_ context.Context, userID string, amount float64) error {
+	if f.creditErr != nil {
+		return f.creditErr
+	}
+	f.creditedUserID, f.creditedAmount = userID, amount
 	return nil
 }
 
@@ -167,5 +179,44 @@ func TestService_Open_PropagaErroDoRepositorio(t *testing.T) {
 	_, err := svc.Open(context.Background(), "user-1")
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Errorf("err = %v, want ErrAlreadyExists", err)
+	}
+}
+
+func TestService_CreditSalary(t *testing.T) {
+	repo := &fakeRepository{}
+	svc := NewService(repo)
+
+	if err := svc.CreditSalary(context.Background(), "user-1", 1000); err != nil {
+		t.Fatalf("CreditSalary() erro inesperado: %v", err)
+	}
+	if repo.creditedUserID != "user-1" || repo.creditedAmount != 1000 {
+		t.Errorf("repo creditado = (%q, %v), want (\"user-1\", 1000)", repo.creditedUserID, repo.creditedAmount)
+	}
+}
+
+func TestService_CreditSalary_RejeitaAmountNaoPositivo(t *testing.T) {
+	tests := []float64{0, -1, -0.01}
+
+	for _, amount := range tests {
+		repo := &fakeRepository{}
+		svc := NewService(repo)
+
+		err := svc.CreditSalary(context.Background(), "user-1", amount)
+		if !errors.Is(err, ErrInvalidSalaryAmount) {
+			t.Errorf("amount = %v: err = %v, want ErrInvalidSalaryAmount", amount, err)
+		}
+		if repo.creditedUserID != "" {
+			t.Errorf("amount = %v: repo.CreditSalary não deveria ser chamado", amount)
+		}
+	}
+}
+
+func TestService_CreditSalary_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{creditErr: ErrNotFound}
+	svc := NewService(repo)
+
+	err := svc.CreditSalary(context.Background(), "user-1", 1000)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }

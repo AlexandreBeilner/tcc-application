@@ -35,10 +35,23 @@ type userEventLister interface {
 	ListMarketEventsByUser(ctx context.Context, userID string, limit, offset int) ([]domain.MarketEventRecord, error)
 }
 
+// accountSalaryCrediter é o colaborador que POST /accounts/{user_id}/salary
+// precisa pra creditar salário (tarefa T.2) — implementado por
+// *account.Service, injetado em New junto com accountOpener (mesma conta
+// concreta serve as duas portas, mesma convenção de userMarketDataReader
+// agregando leituras pequenas pro mesmo *db.AccountRepository).
+type accountSalaryCrediter interface {
+	CreditSalary(ctx context.Context, userID string, amount float64) error
+}
+
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type createAccountRequest struct {
 	UserID string `json:"user_id"`
+}
+
+type creditSalaryRequest struct {
+	Amount float64 `json:"amount"`
 }
 
 type accountResponse struct {
@@ -121,6 +134,41 @@ func handleGetAccount(accounts accountReader) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(toAccountResponse(acc))
+	}
+}
+
+// handleCreditSalary serve POST /accounts/{user_id}/salary — crédito de
+// salário mensal (tarefa T.2), caixa livre que nunca passa por
+// total_invested/total_disinvested/total_dividends_received (T.1). Quem
+// decide quando/quanto pagar é externo ao motor (T.5, backend); aqui só se
+// valida amount > 0 e se grava o evento imutável correspondente antes de
+// creditar current_balance, na mesma transação (Event Sourcing, CLAUDE.md).
+// 204 sem corpo no sucesso — mesmo padrão de handleCancelOrder, não há
+// recurso novo pra devolver.
+func handleCreditSalary(accounts accountSalaryCrediter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if accounts == nil {
+			writeAccountError(w, http.StatusServiceUnavailable, "serviço de contas indisponível")
+			return
+		}
+
+		var req creditSalaryRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Amount <= 0 {
+			writeAccountError(w, http.StatusBadRequest, "amount é obrigatório e deve ser positivo")
+			return
+		}
+
+		userID := r.PathValue("user_id")
+		if err := accounts.CreditSalary(r.Context(), userID, req.Amount); err != nil {
+			if errors.Is(err, account.ErrNotFound) {
+				writeAccountError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			writeAccountError(w, http.StatusInternalServerError, "erro ao creditar salário")
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

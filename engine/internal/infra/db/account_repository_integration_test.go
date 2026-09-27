@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+
+	"tcc-investimentos/engine/internal/domain/account"
 )
 
 // openAccountRepositoryOnScratchDB abre um AccountRepository contra um banco
@@ -90,6 +93,69 @@ func seedAssetAndAccount(t *testing.T, conn *sql.DB) (assetID, userID string) {
 	}
 
 	return assetID, userID
+}
+
+// TestCreditSalary_CreditaSaldoEGravaEvento cobre a tarefa T.2: crédito
+// atômico de salário mensal (caixa livre, nunca capital de risco) — soma em
+// current_balance sem tocar total_invested/total_disinvested/
+// total_dividends_received (T.1), e grava o evento imutável salary_payment
+// em market_events. Precisa do banco descartável porque market_events é
+// append-only.
+func TestCreditSalary_CreditaSaldoEGravaEvento(t *testing.T) {
+	repo, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	_, userID := seedAssetAndAccount(t, conn)
+
+	if err := repo.CreditSalary(ctx, userID, 1000.00); err != nil {
+		t.Fatalf("CreditSalary: %v", err)
+	}
+
+	acc, found, err := repo.FindByUserID(ctx, userID)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	if !found {
+		t.Fatal("conta não encontrada depois do crédito")
+	}
+	if acc.CurrentBalance != 11000.00 {
+		t.Errorf("CurrentBalance = %v, want 11000.00 (10000 default + 1000 salário)", acc.CurrentBalance)
+	}
+	if acc.TotalInvested != 0 || acc.TotalDisinvested != 0 || acc.TotalDividendsReceived != 0 {
+		t.Errorf("acc = %+v, salário não deveria tocar total_invested/total_disinvested/total_dividends_received", acc)
+	}
+
+	var eventType string
+	var unitValue float64
+	if err := conn.QueryRowContext(ctx,
+		`SELECT event_type, unit_value FROM market_events WHERE user_id = $1 AND event_type = 'salary_payment'`, userID,
+	).Scan(&eventType, &unitValue); err != nil {
+		t.Fatalf("evento salary_payment não gravado: %v", err)
+	}
+	if unitValue != 1000.00 {
+		t.Errorf("unit_value do evento = %v, want 1000.00", unitValue)
+	}
+}
+
+// TestCreditSalary_ContaNaoEncontrada cobre o critério de aceite de não
+// creditar (nem gravar evento) numa conta inexistente — a transação inteira
+// desfaz porque a FK de market_events só é checada no commit (DEFERRABLE
+// INITIALLY DEFERRED), que nunca acontece nesse caminho.
+func TestCreditSalary_ContaNaoEncontrada(t *testing.T) {
+	repo, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+
+	err := repo.CreditSalary(ctx, "00000000-0000-4000-8000-000000000000", 1000.00)
+	if !errors.Is(err, account.ErrNotFound) {
+		t.Fatalf("err = %v, want account.ErrNotFound", err)
+	}
+
+	var count int
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM market_events WHERE event_type = 'salary_payment'`).Scan(&count); err != nil {
+		t.Fatalf("count market_events: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("count market_events salary_payment = %d, want 0 (transação deveria desfazer o evento)", count)
+	}
 }
 
 // TestListPositionsByUser_DividendsReceived cobre a tarefa S.15: o motor

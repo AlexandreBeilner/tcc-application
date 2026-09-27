@@ -49,6 +49,14 @@ const (
 	// Participante Autorizado ao Market Maker, em espécie e com quantidade com
 	// sinal (delta da posição da conta).
 	EventETFShareTransfer MarketEventType = "etf_share_transfer"
+	// EventSalaryPayment (Fase T, tarefa T.2, migration 000036) é o crédito de
+	// salário mensal na conta do usuário — caixa livre, nunca capital de
+	// risco: ao contrário de EventInitialDeposit/EventDividendPayment, esse
+	// crédito nunca incrementa TotalInvested/TotalDisinvested/
+	// TotalDividendsReceived (account.Account), decisão da Fase T de manter
+	// a rentabilidade (T.1) calculada só sobre capital que já foi de risco em
+	// algum momento.
+	EventSalaryPayment MarketEventType = "salary_payment"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

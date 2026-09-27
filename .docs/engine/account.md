@@ -20,6 +20,20 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 ---
 
+### `POST /accounts/{user_id}/salary`
+
+- **Autenticação:** interno, mesma observação de `POST /accounts`.
+- **Payload:** `user_id` no path. Corpo (JSON): `amount` — número, obrigatório, deve ser positivo.
+- **Sucesso:** `204`, sem corpo.
+- **Erros:**
+  - `400` — `amount` ausente, zero ou negativo, ou JSON inválido.
+  - `404` — nenhuma conta com esse `user_id` (diferente de `POST /accounts`, essa rota nunca cria conta).
+  - `503` — motor subiu sem `DATABASE_URL` configurado.
+  - `500` — falha inesperada de persistência.
+- **Regra:** `account.Service.CreditSalary` (tarefa T.2, Fase T — salário mensal simulado). Grava o evento imutável `salary_payment` em `market_events` e só então soma `amount` em `accounts.current_balance`, na mesma transação (Event Sourcing, CLAUDE.md) — mesma FK deferrable de `POST /accounts`. **Nunca** incrementa `total_invested`/`total_disinvested`/`total_dividends_received`: salário é caixa livre, nunca capital de risco (T.1), e por isso não entra no cálculo de rentabilidade (RF17). O motor só executa o crédito — decidir quando (5º dia útil do mês-calendário real) e quanto pagar (fórmula por nível de gamificação) é responsabilidade do backend (tarefas T.3/T.4/T.5, ainda não implementadas).
+
+---
+
 ### `GET /accounts/{user_id}`
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.

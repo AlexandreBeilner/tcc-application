@@ -4617,7 +4617,7 @@ diretamente na conversa, registradas abaixo.
   reinvestir continua contando" ao vivo, não só em teste. `go test ./...`/`golangci-lint run` (Docker v2.5.0, 0
   issues) e `tsc -b`/`eslint`/`vitest` (675 testes) verdes.
 
-### T.2 · Evento de salário no motor e endpoint de crédito
+### T.2 · Evento de salário no motor e endpoint de crédito ✅
 - **Descrição:** novo tipo de evento `salary_payment` no enum Postgres `market_event_type` (`ALTER TYPE ... ADD VALUE`,
   migration `000036`) + constante `EventSalaryPayment` em `eventstore.go`, travada no teste que confere o enum do banco
   (mesmo padrão de `bot_initial_cash`). Novo endpoint `POST /accounts/{user_id}/salary` (`{ amount }`, `amount > 0`) que
@@ -4629,6 +4629,27 @@ diretamente na conversa, registradas abaixo.
   (`400`); não altera `total_invested`/`total_disinvested`; teste de domínio, de repositório (Postgres real) e de
   `httpserver`.
 - **Dependências:** nenhuma (pode rodar em paralelo a T.1).
+- **Entregável real (sessão 2026-09-27):** `domain.EventSalaryPayment` (`eventstore.go`) + caso do teste de enum
+  (`eventstore_test.go`); migration `000036_salary_payment_event` (up/down, mesmo padrão do down de
+  `000014_bot_initial_cash_event` — recria o enum sem o valor novo, falha de propósito se algum salário já foi pago).
+  `account.Repository` ganhou `CreditSalary(ctx, userID, amount) error` ao lado de `Create`; `account.Service.CreditSalary`
+  valida `amount > 0` (`ErrInvalidSalaryAmount`) antes de delegar — validação no domínio, não no handler HTTP.
+  `AccountRepository.CreditSalary` (infra) grava o evento e faz `UPDATE accounts SET current_balance = current_balance + $1`
+  na mesma transação; `UPDATE` com 0 linhas afetadas (conta inexistente) devolve `account.ErrNotFound` e desfaz a
+  transação inteira via `defer tx.Rollback()` — a FK deferrable de `market_events.user_id` nunca chega a ser checada
+  nesse caminho, então o evento gravado antes também some. Endpoint `POST /accounts/{user_id}/salary` novo em
+  `httpserver/account.go`, 204 sem corpo no sucesso (mesmo padrão de `handleCancelOrder`). `accountOpener`
+  (`New`/`Run` em `server.go`) virou `accountWriter` (`accountOpener` + `accountSalaryCrediter` embutidas) — mesma
+  convenção de `userMarketDataReader` já agregar leituras pequenas pro mesmo `*db.AccountRepository`, aqui do lado da
+  escrita; nenhum parâmetro novo em `New`/`Run` (só o tipo do parâmetro `accounts` mudou), então só um teste
+  (`account_test.go`, tipo do parâmetro dos helpers `postAccount`/`getUserMarketData`) precisou de ajuste mecânico.
+  Teste de domínio (`account_test.go`: `TestService_CreditSalary`/`_RejeitaAmountNaoPositivo`/
+  `_PropagaErroDoRepositorio`), de repositório contra Postgres real em banco descartável
+  (`account_repository_integration_test.go`: `TestCreditSalary_CreditaSaldoEGravaEvento`/`_ContaNaoEncontrada`, rodados
+  de fato via `TEST_DATABASE_URL` com `docker compose up -d postgres`, não só compilados) e de `httpserver`
+  (`account_test.go`: sucesso, `amount` inválido/JSON quebrado, conta não encontrada, erro interno, sem colaborador).
+  `go build`/`go vet`/`go test ./...` e `golangci-lint run` (Docker v2.5.0, 0 issues) verdes. `.docs/engine/account.md`
+  documentado.
 
 ### T.3 · Fórmula de salário por nível (função pura no backend)
 - **Descrição:** `monthlySalaryForLevel(level: number): number`, novo módulo `backend/src/modules/payroll/domain/` (módulo

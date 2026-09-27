@@ -70,6 +70,50 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	return tx.Commit()
 }
 
+// CreditSalary credita amount em accounts.current_balance de userID,
+// gravando o evento imutável EventSalaryPayment na mesma transação (tarefa
+// T.2) — mesmo padrão de Event Sourcing de Create, mas sem tocar
+// total_invested/total_disinvested/total_dividends_received (T.1): salário
+// é caixa livre, nunca capital de risco. A conta precisa já existir (ao
+// contrário de Create, que sempre insere uma linha nova) — devolve
+// account.ErrNotFound se o UPDATE não afeta nenhuma linha, desfazendo a
+// transação inteira (incluindo o evento já gravado, já que a FK
+// market_events.user_id → accounts.user_id é DEFERRABLE INITIALLY DEFERRED
+// e só é checada no commit, que nunca acontece nesse caminho).
+func (r *AccountRepository) CreditSalary(ctx context.Context, userID string, amount float64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	event := domain.MarketEvent{
+		UserID:    userID,
+		EventType: domain.EventSalaryPayment,
+		UnitValue: &amount,
+	}
+	if err := eventstore.AppendTx(ctx, tx, event); err != nil {
+		return mapAccountError(err)
+	}
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE accounts SET current_balance = current_balance + $1 WHERE user_id = $2`,
+		amount, userID,
+	)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return account.ErrNotFound
+	}
+
+	return tx.Commit()
+}
+
 // FindByUserID devolve a conta de userID, se existir — usado por GET
 // /accounts/:user_id (tarefa 4.7).
 func (r *AccountRepository) FindByUserID(ctx context.Context, userID string) (account.Account, bool, error) {

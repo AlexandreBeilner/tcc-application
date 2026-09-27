@@ -18,6 +18,16 @@ type catalogReader interface {
 	companyCatalogReader
 }
 
+// accountWriter é o colaborador que os handlers de escrita de conta
+// precisam (POST /accounts, POST /accounts/:user_id/salary, tarefa T.2) —
+// implementado por *account.Service, mesma junção de interfaces pequenas
+// que catalogReader/userMarketDataReader já fazem pro mesmo colaborador
+// concreto.
+type accountWriter interface {
+	accountOpener
+	accountSalaryCrediter
+}
+
 // userMarketDataReader é o colaborador que os handlers de leitura de estado
 // de usuário precisam (GET /accounts/:user_id, /accounts/:user_id/events,
 // /positions, /fixed-income/positions) — implementado por
@@ -32,7 +42,8 @@ type userMarketDataReader interface {
 
 // New monta o *http.Server com as rotas do motor de simulação registradas.
 // accounts pode ser nil (ex: sem DATABASE_URL configurado) — POST
-// /accounts responde 503 nesse caso; catalog, temporizador, orders,
+// /accounts e POST /accounts/:user_id/salary (tarefa T.2) respondem 503
+// nesse caso; catalog, temporizador, orders,
 // fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory e calendar
 // podem ser nil também — GET /assets, /assets/:id, /assets/:id/quotes,
 // /assets/:id/book, /companies/:id, POST /admin/tick, POST /orders, POST
@@ -41,10 +52,11 @@ type userMarketDataReader interface {
 // /accounts/:user_id[/events], GET /positions, GET /fixed-income/positions,
 // GET /market/indicators/history, GET /market/clock e GET /market/calendar respondem 503 nesse caso, em vez de
 // panicar.
-func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) *http.Server {
+func New(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
+	mux.HandleFunc("POST /accounts/{user_id}/salary", handleCreditSalary(accounts))
 	mux.HandleFunc("GET /accounts/{user_id}", handleGetAccount(userData))
 	mux.HandleFunc("GET /accounts/{user_id}/events", handleListAccountEvents(userData))
 	mux.HandleFunc("GET /positions", handleListPositions(userData))
@@ -78,7 +90,7 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) error {
+func Run(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) error {
 	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory, calendar)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
