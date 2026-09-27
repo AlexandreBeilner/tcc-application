@@ -4651,7 +4651,7 @@ diretamente na conversa, registradas abaixo.
   `go build`/`go vet`/`go test ./...` e `golangci-lint run` (Docker v2.5.0, 0 issues) verdes. `.docs/engine/account.md`
   documentado.
 
-### T.3 · Fórmula de salário por nível (função pura no backend)
+### T.3 · Fórmula de salário por nível (função pura no backend) ✅
 - **Descrição:** `monthlySalaryForLevel(level: number): number`, novo módulo `backend/src/modules/payroll/domain/` (módulo
   próprio — cruza `gamification`, dono do nível, com `market`, que credita caixa; não pertence a nenhum dos dois). Fórmula
   em degraus confirmada com o autor: tier `k = Math.ceil(level / 10)`,
@@ -4659,6 +4659,10 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** teste table-driven cobrindo nível 1 (R$100), 10 (R$1.000), 11, 20 (R$3.000), 21, 30 (R$6.000) e
   um nível alto (ex. 100); função pura, sem I/O.
 - **Dependências:** nenhuma.
+- **Entregável real (sessão 2026-09-27):** `backend/src/modules/payroll/domain/salary.ts` — só a pasta `domain/` por
+  enquanto (função pura, sem I/O; `application/infrastructure/interfaces` chegam na T.5 quando o job de folha de
+  pagamento precisar delas). Teste table-driven (`salary.test.ts`) cobrindo os 7 níveis de referência do critério de
+  aceite (1, 10, 11, 20, 21, 30, 100). `npx vitest run`/`npm run lint`/`npx tsc -b` verdes (682 testes, 0 erros).
 
 ### T.4 · Detecção do 5º dia útil do mês-calendário real
 - **Descrição:** função pura que recebe os dias do mês corrente (reaproveitando
