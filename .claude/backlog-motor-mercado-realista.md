@@ -4497,7 +4497,7 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
   reincide. As 3 linhas de teste que já vazaram continuam no `market` de dev (`is_sandbox: false`, então aparecem em
   `GET /assets?type=acao`) — o autor decide se quer limpá-las manualmente (exige desabilitar o trigger append-only) ou deixá-las.
 
-### S.16 · Frontend: retorno de preço vs. retorno total (com proventos) na posição do ativo
+### S.16 · Frontend: retorno de preço vs. retorno total (com proventos) na posição do ativo ✅
 - **Descrição:** hoje nenhuma tela mostra ganho/perda de uma posição (nem preço médio vs. preço atual) — `AssetDetail` (4.5,
   âncora) só usa `ownedQuantity` pro ticket de ordem, sem card de "sua posição"; `Portfolio` (2.1) só agrega patrimônio total, sem
   itemizar por ativo. Adicionar um card "Sua posição" em `AssetDetail`, só quando o usuário tem posição real (renda variável, não
@@ -4510,6 +4510,28 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
   provento recebido; ativo sem provento nenhum mostra os dois retornos iguais; teste de componente cobrindo posição com e sem
   provento e sem posição (card ausente); navegação real em 375px/768px/1280px, tema claro e escuro.
 - **Dependências:** S.6 (`markPrice`, já ✅), S.15 (`dividendsReceived` por posição).
+- **Entregável:** `components/organisms/PositionSummaryCard/` (novo) — recebe `quantity`/`averagePrice`/`markPrice?`/
+  `dividendsReceived` como props (não busca dado sozinho), reaproveita `OrderSummaryList` (já existente) pras linhas
+  quantidade/preço médio/preço atual/proventos recebidos e ganha um bloco novo com os dois retornos lado a lado
+  (`flex-wrap`, sem media query dedicada — mesmo padrão de `.priceRow`), coloridos com as mesmas classes `.gain`/`.loss` (tokens
+  `--color-gain-*`/`--color-loss-*`) já usadas por `AssetDetail` pra `daily_change_pct`. `AssetDetail` (`pages/AssetDetail/`)
+  passou a capturar a posição inteira (não só `.quantity`) do `find()` que já existia em `accountQuery.data.positions`, e
+  renderiza o card entre o preço/gráfico e o bloco de indicadores por tipo, condicionado a `position && !position.isSandbox`
+  (posição de renda variável, nunca sandbox). `services/market/types.ts` (frontend) ganhou o mesmo ajuste de tipo que o backend
+  já tinha feito na S.15 — `MyAccountPosition`/`MyAccountFixedIncomePosition` passaram a compartilhar uma base sem
+  `dividendsReceived`/`markPrice`/`averageRate`, pra não sugerir um campo que `fixedIncomePositions` nunca tem. Testes: 3 casos
+  novos em `PositionSummaryCard/index.test.tsx` (com provento, sem provento, sem `markPrice`) e 2 casos novos em
+  `AssetDetail/index.test.tsx` (retorno total maior com provento, retornos iguais sem provento) mais uma asserção nova no teste
+  já existente confirmando que o card não aparece sem posição. `tsc --noEmit`, `oxlint` (sem warning novo) e `prettier --check`
+  limpos; suíte completa (797 testes) verde.
+  **Critério de aceite não fechado nesta sessão, registrado aqui em vez de reivindicado:** "navegação real em
+  375px/768px/1280px, tema claro e escuro" não foi feita — gerar uma posição real (não sandbox) pra ver o card ao vivo exige
+  passar pelo gate de lição da S.4 (passos sequenciais **com tempo mínimo entre eles**), o mesmo obstáculo já documentado na
+  sessão da S.15 pra comprar um ativo real com um usuário novo; não é algo que dá pra contornar rápido numa sessão (é o próprio
+  RF de gating funcionando como projetado, não um bug). Decisão desta sessão: substituir pela cobertura automatizada acima
+  (que já verifica o texto/percentual renderizado nos dois cenários e a ausência do card), em vez de inventar um atalho pelo
+  gate. Se o autor quiser a validação visual real nos 3 breakpoints/2 temas, precisa ser feita à parte (usuário com lições já
+  completas, ou avançando o tempo mínimo entre os passos manualmente).
 
 ## Fase T — Salário mensal simulado (renda recorrente independente de investimento)
 

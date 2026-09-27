@@ -5,6 +5,7 @@ import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicato
 import { EtfCompositionPanel } from '../../components/organisms/EtfCompositionPanel'
 import { FiiIndicatorsPanel } from '../../components/organisms/FiiIndicatorsPanel'
 import { DividendHistoryList } from '../../components/organisms/DividendHistoryList'
+import { PositionSummaryCard } from '../../components/organisms/PositionSummaryCard'
 import { EquityOrderTicket } from '../../components/organisms/EquityOrderTicket'
 import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
@@ -55,7 +56,8 @@ export function AssetDetail() {
     // Book real (tarefa S.5/S.7) — insumo do custo estimado e de "Usar o
     // máximo" do `EquityOrderTicket`; ausente/sandbox cai no fallback de
     // sempre (último negócio), já tratado no próprio componente.
-    const ownedQuantity = accountQuery.data?.positions.find((position) => position.assetId === assetId)?.quantity
+    const position = accountQuery.data?.positions.find((position) => position.assetId === assetId)
+    const ownedQuantity = position?.quantity
 
     if (assetQuery.isError) {
         return (
@@ -132,6 +134,15 @@ export function AssetDetail() {
                         activeDays={rangeDays}
                         onRangeChange={setRangeDays}
                     />
+
+                    {position && !position.isSandbox && (
+                        <PositionSummaryCard
+                            quantity={position.quantity}
+                            averagePrice={position.averagePrice}
+                            markPrice={position.markPrice}
+                            dividendsReceived={position.dividendsReceived}
+                        />
+                    )}
 
                     {asset.equity && (
                         <>

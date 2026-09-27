@@ -88,9 +88,84 @@ describe('AssetDetail (tela 4.5)', () => {
         await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
         expect(screen.getByText('P/L')).toBeInTheDocument()
         expect(screen.getByText('Este ativo ainda não pagou nenhum provento.')).toBeInTheDocument()
+        // Tarefa S.16: sem posição nenhuma nesse ativo (emptyAccount), o card
+        // "Sua posição" não aparece.
+        expect(screen.queryByText('Sua posição')).not.toBeInTheDocument()
 
         fireEvent.click(screen.getByText('Ver empresa: Petrobras S.A.'))
         await waitFor(() => expect(screen.getByText('tela de empresa')).toBeInTheDocument())
+    })
+
+    it('com posição real e provento recebido (tarefa S.16), o card "Sua posição" mostra retorno total maior que o de preço', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getMyAccount).mockResolvedValue({
+            ...emptyAccount,
+            positions: [
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 10,
+                    averagePrice: 100,
+                    markPrice: 110,
+                    dividendsReceived: 50,
+                },
+            ],
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('Sua posição')).toBeInTheDocument())
+        // (110-100)/100 = +10,0%; ((110-100)*10 + 50)/(100*10) = +15,0%.
+        expect(screen.getByText('+10,0%')).toBeInTheDocument()
+        expect(screen.getByText('+15,0%')).toBeInTheDocument()
+    })
+
+    it('com posição real sem provento nenhum (tarefa S.16), os dois retornos do card são iguais', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getMyAccount).mockResolvedValue({
+            ...emptyAccount,
+            positions: [
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 10,
+                    averagePrice: 100,
+                    markPrice: 110,
+                    dividendsReceived: 0,
+                },
+            ],
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('Sua posição')).toBeInTheDocument())
+        expect(screen.getAllByText('+10,0%')).toHaveLength(2)
     })
 
     it('etf: mostra composição, sem indicadores de empresa', async () => {
