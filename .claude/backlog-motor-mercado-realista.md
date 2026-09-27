@@ -4797,12 +4797,34 @@ diretamente na conversa, registradas abaixo.
   sessão anterior) já validou ao vivo o `GET /market/calendar` que esta tarefa só consome, então o contrato de dados
   já está confirmado, só a renderização/toast ficaram sem checagem visual real neste momento.
 
-### T.8 · Salário exposto na resposta de progressão (fonte única do valor)
+### T.8 · Salário exposto na resposta de progressão (fonte única do valor) ✅
 - **Descrição:** `GET /gamification/progression` (`progressionRouter.ts`) passa a incluir `monthlySalary` no payload,
   calculado via `monthlySalaryForLevel` (T.3) — única fonte do valor pro frontend, a fórmula em degraus nunca é
   duplicada lá. `useProgressionQuery` ganha o campo no tipo de retorno.
 - **Critérios de aceite:** valor bate com T.3 pro nível atual do usuário; teste de router/serviço.
 - **Dependências:** T.3.
+- **Entregável real (sessão 2026-09-27):** `monthlySalary` composto **na borda HTTP** (`progressionRouter.ts`), não
+  na entidade `Progression`/`GetProgressionUseCase` — decisão de sessão: `GetProgressionUseCase` é consumido por
+  vários outros módulos (`profile`, `achievements`, `ranking`, `auth`, `payroll`), então o campo derivado do salário
+  não deveria vazar pra dentro do caso de uso persistido, só pro payload das duas rotas (`/me/progression` e
+  `/users/:id/progression`, ambas ganham o campo — é função pura do nível, já público, RNF09 intocado). Nova port
+  `gamification/application/ports/monthlySalaryReader.ts` (`{ getMonthlySalaryForLevel(level): number }`, síncrona —
+  fórmula pura, sem I/O) + adapter `gamification/infrastructure/payroll/inProcessMonthlySalaryReader.ts` sobre
+  `monthlySalaryForLevel` (T.3). **Primeira porta cruzada do backend na direção inversa dos 4 precedentes já
+  existentes** (`ranking`/`auth`/`payroll` importam `gamification` via `GetProgressionUseCase`) — aqui é
+  `gamification` quem consome `payroll`, e o módulo provedor só tinha uma função pura de domínio (T.3 nunca ganhou
+  `application/ports` própria), não um caso de uso pronto pra importar como nos outros 4 casos. Teste do router
+  usa um fake fixo (`test/fakes/fakeMonthlySalaryReader.ts`, `level * 100`, não a fórmula real) — **achado de
+  lint durante a implementação:** `interfaces/http` não pode importar `infrastructure/` nem do próprio módulo nem
+  de outro (regra já existia, nunca tinha sido testada por um teste de router que quisesse usar um adapter real
+  em vez de fake) — usar o adapter de verdade no teste do router violava essa regra; resolvido usando o fake, com
+  a fórmula real coberta à parte por `inProcessMonthlySalaryReader.test.ts` (níveis 1/10/20/30, mesmos valores de
+  referência de T.3) e por `payroll/domain/salary.test.ts` (já existente). Frontend: `services/gamification/types.ts`
+  (`Progression.monthlySalary: number`) — 3 fixtures de teste existentes (`Portfolio`/`TrilhasHub`/
+  `ProgressionSummary`) precisaram do campo novo pra `tsc -b` não quebrar. `npx vitest run` (backend 721 testes,
+  frontend 802 testes)/`npx tsc -b`/`npm run lint`/`eslint .` verdes nos dois lados. `.docs/backend/gamification.md`
+  atualizado (payload das duas rotas + nova seção "Port `monthlySalaryReader`"). **Sem `docker compose up`** — mesma
+  razão da T.7 (outra sessão já com a stack rodando nos mesmos nomes fixos de container).
 
 ### T.9 · Indicador persistente de salário no Dashboard
 - **Descrição:** pequeno card/linha perto de `components/organisms/ProgressionSummary` (dentro dele ou ao lado, a

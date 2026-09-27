@@ -53,6 +53,7 @@ const progression = {
     currentStreak: 3,
     longestStreak: 5,
     lastQualifyingActivityDate: null,
+    monthlySalary: 200,
 }
 
 const streak = { currentStreak: 3, longestStreak: 5 }

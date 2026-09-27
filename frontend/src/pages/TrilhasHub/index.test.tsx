@@ -69,6 +69,7 @@ describe('TrilhasHub (tela 3.1, backlog engajamento O.1)', () => {
             currentStreak: 1,
             longestStreak: 1,
             lastQualifyingActivityDate: null,
+            monthlySalary: 200,
         })
         vi.mocked(getStreak).mockResolvedValue({ currentStreak: 1, longestStreak: 1 })
     })
