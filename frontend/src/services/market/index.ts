@@ -1,5 +1,6 @@
 import { apiRequest } from '../client'
 import type {
+    AssetBook,
     AssetDetail,
     AssetSummary,
     AssetType,
@@ -27,9 +28,11 @@ export type { ProductLockedErrorBody } from './types'
 export type { CalendarDay, CalendarEvent, CalendarEventKind, MarketCalendar, MarketClock } from './types'
 
 export type {
+    AssetBook,
     AssetDetail,
     AssetSummary,
     AssetType,
+    BookLevel,
     Company,
     CompanyAssetSummary,
     CompanyFundamentalEntry,
@@ -88,6 +91,14 @@ export function getAsset(token: string, id: string): Promise<{ asset: AssetDetai
 export function getAssetQuotes(token: string, id: string, days?: number): Promise<{ quotes: QuoteHistoryEntry[] }> {
     const query = days ? `?days=${days}` : ''
     return apiRequest<{ quotes: QuoteHistoryEntry[] }>(`/market/assets/${id}/quotes${query}`, { token })
+}
+
+// Melhor bid/ask e profundidade resumida (tarefa S.5) — insumo do diálogo
+// de ordem (S.7, custo estimado e "comprar o máximo") e da marcação a
+// ponto médio (S.6, `getMyAccount`). O backend sempre injeta o `userId` do
+// token, nunca aceita um `user_id` da requisição.
+export function getAssetBook(token: string, id: string): Promise<{ book: AssetBook }> {
+    return apiRequest<{ book: AssetBook }>(`/market/assets/${id}/book`, { token })
 }
 
 // Tela "Indicadores Econômicos" (tarefa M.4). Sem default próprio aqui —

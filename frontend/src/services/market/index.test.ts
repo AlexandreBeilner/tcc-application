@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     cancelOrder,
     getAsset,
+    getAssetBook,
     getAssetQuotes,
     getCompany,
     getIndicatorHistory,
@@ -62,6 +63,14 @@ describe('services/market', () => {
         const fetchMock = mockFetchOnce({ asset: { id: 'a1' } })
         await getAsset('token', 'a1')
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1')
+    })
+
+    it('getAssetBook faz GET /market/assets/:id/book', async () => {
+        const fetchMock = mockFetchOnce({
+            book: { is_sandbox: false, price: null, best_bid: 29.9, best_ask: 30.1, mid_price: 30, bids: null, asks: null },
+        })
+        await getAssetBook('token', 'a1')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1/book')
     })
 
     it('getAssetQuotes repassa days quando informado', async () => {

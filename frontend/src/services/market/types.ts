@@ -158,6 +158,29 @@ export interface QuoteHistoryEntry {
     price: number
 }
 
+// `GET /market/assets/:id/book` (tarefa S.5) — proxy 1:1 do motor. Cada
+// nível é a soma agregada de ordens `limit` pendentes naquele preço, do
+// melhor preço pro pior (bids do maior pro menor, asks do menor pro
+// maior), recortado aos 5 melhores de cada lado. Ativo do Mercado Ao Vivo:
+// `bids`/`asks` vêm `null` (nunca `[]`) quando o lado está vazio;
+// `mid_price` também é `null` com só um lado disponível. Ativo sandbox:
+// só `price` vem preenchido (preço do roteiro), os 5 campos de book vêm
+// `null` — sandbox nunca teve, nem vai ter, contraparte real (RF12/RNF08).
+export interface BookLevel {
+    price: number
+    quantity: number
+}
+
+export interface AssetBook {
+    is_sandbox: boolean
+    price: number | null
+    best_bid: number | null
+    best_ask: number | null
+    mid_price: number | null
+    bids: BookLevel[] | null
+    asks: BookLevel[] | null
+}
+
 // `GET /market/indicators` (tarefa M.3) — proxy 1:1 do motor
 // (`GET /market/indicators/history`, `.docs/engine/tick.md`), snake_case
 // sem tradução como o resto desta seção. `selic_rate` já vem em pontos

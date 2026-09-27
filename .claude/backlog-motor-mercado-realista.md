@@ -4270,12 +4270,44 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
   book (preço executado da ordem foi 98,41, nunca usado como marcação); `GET /ranking` do mesmo usuário bateu com o cálculo manual
   usando 97,44; posição sandbox (SAND3) confirmada sem `markPrice`.
 
-### S.7 · Frontend: bid/ask, custo estimado e preço executado no diálogo de ordem
+### S.7 · Frontend: bid/ask, custo estimado e preço executado no diálogo de ordem ✅
 - **Descrição:** painel "Nova ordem" mostra melhor bid/ask e "custo estimado" contra o book; resultado informa preço médio
   executado; "comprar o máximo" calcula pela profundidade real e o `422` de saldo/quantidade ganha mensagem clara com a quantidade
   máxima. Responsivo nos três breakpoints e tokens de identidade visual; sem em dash no texto de UI.
 - **Critérios de aceite:** all-in por último preço deixa de cair em `422` genérico; teste de componente e navegação real.
 - **Dependências:** S.5.
+- **Entregável:** frontend só (`frontend/`, sem mudança de rota — reaproveita `GET /market/assets/:id/book` da S.5 e
+  `GET /market/me/account` já existentes). Serviço `getAssetBook` + tipos `AssetBook`/`BookLevel` (`services/market`) e
+  `useAssetBookQuery` (relê a cada 15s, mesmo padrão do relógio). Lógica pura nova em `features/market/orderBook`
+  (`estimateExecution`/`estimateOrderCost` — caminha os níveis do book pro lado certo da ordem e extrapola o resto pelo preço
+  médio já encontrado quando a profundidade visível de 5 níveis não cobre a quantidade pedida, em vez de cair pro último negócio
+  como o achado 021 descrevia; `maxAffordableQuantity` — mesma conta pra "comprar o máximo"; `averageFillPrice` — preço médio
+  ponderado dos `fills` da ordem) e `features/market/orderRejection` (`classifyOrderRejection` distingue as duas causas de `422`
+  que não são `market_closed` nem ordem pendurada furada pelo texto de `err.message`, já que o motor não devolve `code` pra
+  elas; `describeOrderRejection` monta a mensagem clara — compra usa `maxAffordableQuantity` contra o book, venda usa a posição
+  em carteira direto, sem depender do book). `EquityOrderTicket` ganhou `book`/`cashBalance`/`ownedQuantity`: com book real (não
+  sandbox) mostra a linha "Compra · Venda (book)" e troca "Preço unitário"/"Total" por "Preço médio estimado"/"Custo estimado"
+  calculado pela profundidade do lado certo (asks pra compra, bids pra venda); sem book (sandbox ou ainda carregando) mantém o
+  fallback de sempre (último negócio × quantidade), sem regressão. Botão "Usar o máximo" (só aparece com saldo/posição
+  disponíveis) usa `maxAffordableQuantity` na compra e a posição possuída na venda. `OrderConfirmationDialog` passou a consultar
+  o book (mesmo padrão de `assetQuery`) e a posição da carteira; no catch de `handleConfirm`, `classifyOrderRejection` decide
+  entre o banner de trava (já existia), a mensagem clara nova (saldo/posição) e o erro genérico de sempre; `successMessage`
+  ganhou o preço médio executado via `averageFillPrice(fills)` em toda mensagem de compra/venda (inclusive nas duas variações
+  de execução parcial já existentes, que continuam idênticas quando `fills` vem vazio — nenhuma quebra nos testes anteriores).
+  `AssetDetail` injeta `book`/`cashBalance`/`ownedQuantity` via `useAssetBookQuery`/`useMyAccountQuery`. Testes: 792 frontend
+  passando no total (novos: `orderBook`/`orderRejection` table-driven, `EquityOrderTicket` com book real/sem book/profundidade
+  insuficiente/"Usar o máximo" nos dois lados, `OrderConfirmationDialog` com preço médio no resultado e as duas mensagens de 422
+  claras); `npx tsc --noEmit`, `npm run build` e `npx oxlint` verdes (só os avisos antigos de
+  `only-export-components`/`set-state-in-effect` alheios a esta tarefa). Validado ao vivo via `docker compose up -d --build` (stack `tccsim`) + `npm run dev`: usuário novo
+  registrado via API, lições 0.1–2.3 marcadas concluídas direto no Postgres do stack de desenvolvimento só pra alcançar o gate
+  da trilha (RF/7.0.1) sem repetir 19 lições na mão — dado descartável, não é seed do produto. Compra real de VALR3 (book com
+  bid 786,74/ask 792,22): ticket mostrou a linha de book, "Preço médio estimado"/"Custo estimado" no ask; "Usar o máximo" com
+  R$ 10.000 calculou 12 cotas (limitado pela profundidade do book, não só pelo saldo) e o price-flash disparou; confirmação e
+  resultado bateram no preço do ask (792,22), mensagem final "Você comprou 12 VALR3 a preço médio de R$ 792,22."; do lado da
+  venda, "Usar o máximo" ofereceu as 12 cotas possuídas (não a profundidade do book) e uma tentativa de vender 15 (3 a mais do
+  que a posição) devolveu ao vivo "Você só tem 12 VALR3 disponíveis pra vender." em vez do `422` genérico do motor. Não coberto:
+  navegação real em 375px/768px (a tela não ganhou layout novo, só linhas/botão dentro do card já responsivo do ticket — sem
+  achado na revisão do CSS existente, mas sem screenshot dedicado nesta sessão).
 
 ### S.8 · Sandbox fora da lista do mercado real ✅
 - **Descrição:** `GET /market/assets` (e o proxy do motor) exclui ativos `is_sandbox` por padrão, com parâmetro explícito para

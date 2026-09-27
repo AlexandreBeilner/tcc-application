@@ -10,9 +10,11 @@ import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
+import { useAssetBookQuery } from '../../features/market/useAssetBookQuery'
 import { useMarketClosedReason } from '../../features/market/useMarketClosedReason'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
+import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { formatCurrency } from '../../features/portfolio/format'
 import { formatSignedPercent } from '../../features/market/format'
 import type { OrderSide } from '../../services/market'
@@ -41,6 +43,8 @@ export function AssetDetail() {
     const assetId = id as string
 
     const assetQuery = useAssetQuery(assetId)
+    const bookQuery = useAssetBookQuery(assetId)
+    const accountQuery = useMyAccountQuery()
     const [rangeDays, setRangeDays] = useState(RANGES[0].days)
     const quotesQuery = useAssetQuotesQuery(assetId, rangeDays)
     const [draft, setDraft] = useState<OrderDraftOrder | null>(null)
@@ -48,6 +52,10 @@ export function AssetDetail() {
 
     const asset = assetQuery.data?.asset
     const closedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
+    // Book real (tarefa S.5/S.7) — insumo do custo estimado e de "Usar o
+    // máximo" do `EquityOrderTicket`; ausente/sandbox cai no fallback de
+    // sempre (último negócio), já tratado no próprio componente.
+    const ownedQuantity = accountQuery.data?.positions.find((position) => position.assetId === assetId)?.quantity
 
     if (assetQuery.isError) {
         return (
@@ -164,7 +172,14 @@ export function AssetDetail() {
                 </div>
 
                 <aside className={styles.sidebar}>
-                    <EquityOrderTicket unitPrice={asset.current_price} closedReason={closedReason} onSubmit={handleSubmitOrder} />
+                    <EquityOrderTicket
+                        unitPrice={asset.current_price}
+                        book={bookQuery.data?.book}
+                        cashBalance={accountQuery.data?.cashBalance}
+                        ownedQuantity={ownedQuantity}
+                        closedReason={closedReason}
+                        onSubmit={handleSubmitOrder}
+                    />
                 </aside>
             </div>
 

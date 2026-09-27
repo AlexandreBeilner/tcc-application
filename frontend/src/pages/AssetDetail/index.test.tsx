@@ -4,19 +4,22 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
-import { getAsset, getAssetQuotes, getMyAccount } from '../../services/market'
+import { getAsset, getAssetBook, getAssetQuotes, getMyAccount } from '../../services/market'
 import { AssetDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/market', () => ({
     getAsset: vi.fn(),
+    getAssetBook: vi.fn(),
     getAssetQuotes: vi.fn(),
     getMyAccount: vi.fn(),
     placeOrder: vi.fn(),
     purchaseFixedIncome: vi.fn(),
     redeemFixedIncome: vi.fn(),
 }))
+
+const emptyBook = { book: { is_sandbox: false, price: null, best_bid: null, best_ask: null, mid_price: null, bids: null, asks: null } }
 
 const emptyAccount = { cashBalance: 10000, totalInvested: 0, totalDividendsReceived: 0, positions: [], fixedIncomePositions: [] }
 
@@ -48,6 +51,7 @@ describe('AssetDetail (tela 4.5)', () => {
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getAssetBook).mockResolvedValue(emptyBook)
         // Ação/ETF/FII já desbloqueados por padrão — os testes deste arquivo
         // não são sobre o gate da tarefa 7.0.1, ver describe dedicado da J.3
         // abaixo pro estado travado.
@@ -168,6 +172,7 @@ describe('AssetDetail — ativo travado pela trilha (Fase Q)', () => {
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getAssetBook).mockResolvedValue(emptyBook)
         vi.mocked(getAsset).mockResolvedValue({
             asset: {
                 id: 'a1',
