@@ -242,7 +242,16 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         vi.mocked(getMyAccount).mockResolvedValue({
             ...account,
             positions: [
-                { assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', isSandbox: false, quantity: 4, averagePrice: 28 },
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 4,
+                    averagePrice: 28,
+                    dividendsReceived: 0,
+                },
             ],
         })
         vi.mocked(placeOrder).mockRejectedValue(

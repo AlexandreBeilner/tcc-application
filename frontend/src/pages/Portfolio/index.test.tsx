@@ -120,6 +120,7 @@ describe('Portfolio (tela 2.1)', () => {
                     isSandbox: false,
                     quantity: 10,
                     averagePrice: 30,
+                    dividendsReceived: 0,
                 },
             ],
             fixedIncomePositions: [],

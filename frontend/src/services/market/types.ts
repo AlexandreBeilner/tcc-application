@@ -4,7 +4,7 @@
 // donut de distribuição e da separação visual "Mercado Ao Vivo vs.
 // Sandbox" da tela 2.1 (tarefa 6.3) — o agrupamento acontece aqui no
 // frontend, a resposta não separa em dois blocos.
-export interface MyAccountPosition {
+interface BaseMyAccountPosition {
     assetId: string
     ticker: string
     name: string
@@ -12,13 +12,20 @@ export interface MyAccountPosition {
     isSandbox: boolean
     quantity: number
     averagePrice: number
+}
+
+// dividendsReceived (tarefa S.15) só existe em renda variável — renda fixa
+// não gera provento (`dividend_payment`), por isso não fica na base
+// compartilhada com MyAccountFixedIncomePosition.
+export interface MyAccountPosition extends BaseMyAccountPosition {
+    dividendsReceived: number
     // Preço de marcação a mercado (tarefa S.6) — ponto médio do book do
     // ativo, com fallback pro último negócio quando falta um dos lados.
     // Ausente pra posição sandbox (nunca teve book real).
     markPrice?: number
 }
 
-export interface MyAccountFixedIncomePosition extends MyAccountPosition {
+export interface MyAccountFixedIncomePosition extends BaseMyAccountPosition {
     averageRate: number
 }
 
