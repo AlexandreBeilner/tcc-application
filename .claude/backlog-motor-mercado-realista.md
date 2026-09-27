@@ -4460,7 +4460,7 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
 - **Dependências:** um arquétipo de bot com "preço justo" de FII (não existe hoje) — provável pré-requisito de uma fase futura, não
   desta.
 
-### S.15 · Provento recebido por posição, exposto por ativo (motor + backend)
+### S.15 · Provento recebido por posição, exposto por ativo (motor + backend) ✅
 - **Descrição:** `accounts.total_dividends_received` só existe agregado por conta (`GET /market/me/account`), sem quebra por
   ativo — hoje é impossível responder "quanto este ativo específico já me pagou de provento". A fonte já existe em
   `market_events` (`event_type = 'dividend_payment'`, `user_id` + `asset_id` + `quantity` + `unit_value`, gravado por
@@ -4474,6 +4474,28 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
   HTTP; teste do caso de uso e do router (backend, com fake); `.docs/engine/` (onde `GET /positions` já está documentado) e
   `.docs/backend/market.md` atualizados com o campo novo.
 - **Dependências:** nenhuma.
+- **Entregável:** `position.Record` ganhou `DividendsReceived float64` (`domain/position/position.go`).
+  `AccountRepository.ListPositionsByUser` (`infra/db/account_repository.go`) agrega via `LEFT JOIN` numa subquery
+  `SUM(quantity * unit_value)` de `market_events` (`event_type = 'dividend_payment'`) por `asset_id`, `COALESCE`ado pra `0` — sem
+  migration nova, exatamente como previsto. `GET /positions` (`infra/httpserver/positions.go`) expõe `dividends_received` sem
+  `omitempty`, mesmo tratamento de `quantity`/`average_price`. Backend: `PositionRecord`/`MyAccountPosition`
+  (`accountReader.ts`/`getMyAccount.ts`) ganharam `dividends_received`/`dividendsReceived` — como `FixedIncomePositionRecord`/
+  `MyAccountFixedIncomePosition` não têm esse campo (renda fixa não gera `dividend_payment`), os dois pares deixaram de usar
+  `extends` direto um do outro e passaram a compartilhar uma interface base sem o campo nem `averageRate`/`markPrice`, pra não
+  forçar um campo inexistente na resposta real de `GET /fixed-income/positions`. Testes: tabela nova em `positions_test.go`
+  (handler), teste de repositório novo contra Postgres real (`account_repository_integration_test.go`, dois cenários — 2 ciclos de
+  provento somados e posição sem provento devolvendo `0`) e `getMyAccount.test.ts` (backend) atualizados. `.docs/engine/account.md`
+  e `.docs/backend/market.md` atualizados.
+  **Achado da validação (registrado aqui, não é pendência de produto):** o teste de repositório inicial rodou contra o banco
+  `market` de desenvolvimento compartilhado (mesmo `TEST_DATABASE_URL` de `tick_lock_integration_test.go`) e tentou limpar suas
+  próprias linhas de `market_events` no `t.Cleanup` — só que `market_events` é append-only (trigger
+  `prevent_market_events_mutation`, CLAUDE.md: Event Sourcing é a fonte da verdade, nunca mutável), então o `DELETE` falhou
+  silenciosamente e deixou 3 ativos/contas de teste (`VALS15`, `S157dc650e`, `S15829f424`) e 6 eventos `dividend_payment` presos no
+  `market` de dev — não puderam ser removidos depois porque removê-los exigiria desabilitar o trigger append-only numa base com
+  dados reais, ação que a sessão corretamente recusou. Corrigido criando um banco descartável por execução do teste
+  (`CREATE DATABASE`/`Migrate`/`DROP DATABASE`, mesmo espírito de `market_e2e`/`market_e2e_b` dos scripts de validação), que não
+  reincide. As 3 linhas de teste que já vazaram continuam no `market` de dev (`is_sandbox: false`, então aparecem em
+  `GET /assets?type=acao`) — o autor decide se quer limpá-las manualmente (exige desabilitar o trigger append-only) ou deixá-las.
 
 ### S.16 · Frontend: retorno de preço vs. retorno total (com proventos) na posição do ativo
 - **Descrição:** hoje nenhuma tela mostra ganho/perda de uma posição (nem preço médio vs. preço atual) — `AssetDetail` (4.5,

@@ -2,7 +2,7 @@ import { markPrice } from '../../domain/markPrice'
 import type { AccountReader, PositionRecord } from '../ports/accountReader'
 import type { CatalogReader } from '../ports/catalogReader'
 
-export interface MyAccountPosition {
+interface BaseMyAccountPosition {
   assetId: string
   ticker: string
   name: string
@@ -10,13 +10,20 @@ export interface MyAccountPosition {
   isSandbox: boolean
   quantity: number
   averagePrice: number
+}
+
+export interface MyAccountPosition extends BaseMyAccountPosition {
+  // Proventos recebidos nesse ativo, em R$ (tarefa S.15) — soma dos eventos
+  // dividend_payment do usuário nesse ativo, já agregada pelo motor
+  // (GET /positions). Sempre presente, 0 sem provento nenhum.
+  dividendsReceived: number
   // Preço de marcação a mercado (tarefa S.6) — ponto médio do book com
   // fallback pro último negócio (`markPrice`, `domain/markPrice.ts`).
   // Ausente pra posição sandbox (nunca teve book real, RF12/RNF08).
   markPrice?: number
 }
 
-export interface MyAccountFixedIncomePosition extends MyAccountPosition {
+export interface MyAccountFixedIncomePosition extends BaseMyAccountPosition {
   averageRate: number
 }
 
@@ -78,6 +85,7 @@ export class GetMyAccountUseCase {
         isSandbox: position.is_sandbox,
         quantity: position.quantity,
         averagePrice: position.average_price,
+        dividendsReceived: position.dividends_received,
         markPrice: markPriceByAssetId.get(position.asset_id),
       })),
       fixedIncomePositions: fixedIncomePositions.map((position) => ({

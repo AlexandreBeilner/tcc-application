@@ -21,6 +21,7 @@ describe('GetMyAccountUseCase', () => {
           is_sandbox: false,
           quantity: 10,
           average_price: 30,
+          dividends_received: 8.5,
         },
       ],
       fixedIncomePositions: [
@@ -76,6 +77,7 @@ describe('GetMyAccountUseCase', () => {
           isSandbox: false,
           quantity: 10,
           averagePrice: 30,
+          dividendsReceived: 8.5,
           markPrice: 32.25,
         },
       ],
@@ -134,6 +136,7 @@ describe('GetMyAccountUseCase', () => {
           is_sandbox: true,
           quantity: 5,
           average_price: 100,
+          dividends_received: 0,
         },
       ],
     })
@@ -151,6 +154,7 @@ describe('GetMyAccountUseCase', () => {
         isSandbox: true,
         quantity: 5,
         averagePrice: 100,
+        dividendsReceived: 0,
         markPrice: undefined,
       },
     ])
@@ -174,6 +178,7 @@ describe('GetMyAccountUseCase', () => {
           is_sandbox: false,
           quantity: 10,
           average_price: 30,
+          dividends_received: 0,
         },
       ],
     })

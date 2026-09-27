@@ -8,7 +8,7 @@ export interface AccountBalance {
   total_dividends_received: number
 }
 
-export interface PositionRecord {
+interface BasePositionRecord {
   asset_id: string
   ticker: string
   name: string
@@ -18,7 +18,14 @@ export interface PositionRecord {
   average_price: number
 }
 
-export interface FixedIncomePositionRecord extends PositionRecord {
+// dividends_received (tarefa S.15) só existe em GET /positions (renda
+// variável) — GET /fixed-income/positions não paga dividend_payment, por
+// isso FixedIncomePositionRecord não herda de PositionRecord.
+export interface PositionRecord extends BasePositionRecord {
+  dividends_received: number
+}
+
+export interface FixedIncomePositionRecord extends BasePositionRecord {
   average_rate: number
 }
 
