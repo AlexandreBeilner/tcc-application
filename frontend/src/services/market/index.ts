@@ -5,6 +5,7 @@ import type {
     AssetType,
     Company,
     IndicatorHistoryEntry,
+    MarketCalendar,
     MarketClock,
     MarketEvent,
     MyAccount,
@@ -23,7 +24,7 @@ import type {
 
 export type { ProductLockedErrorBody } from './types'
 
-export type { MarketClock } from './types'
+export type { CalendarDay, CalendarEvent, CalendarEventKind, MarketCalendar, MarketClock } from './types'
 
 export type {
     AssetDetail,
@@ -101,6 +102,16 @@ export function getIndicatorHistory(token: string, days?: number): Promise<{ ind
 // ou fechado (fim de semana simulado) e quando vem o próximo tick.
 export function getMarketClock(token: string): Promise<MarketClock> {
     return apiRequest<MarketClock>('/market/clock', { token })
+}
+
+// Linha do tempo do calendário (tarefa S.10/S.12). `from`/`to` em `AAAA-MM-DD`,
+// janela máxima de 92 dias; o backend sempre injeta o usuário do token.
+export function getMarketCalendar(token: string, from?: string, to?: string): Promise<MarketCalendar> {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const query = params.size > 0 ? `?${params.toString()}` : ''
+    return apiRequest<MarketCalendar>(`/market/calendar${query}`, { token })
 }
 
 export function getCompany(token: string, id: string): Promise<{ company: Company }> {

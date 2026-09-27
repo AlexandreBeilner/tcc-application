@@ -311,3 +311,45 @@ export interface MarketClock {
     quarter_day: number
     quarter_length: number
 }
+
+// Linha do tempo do mercado (tarefa S.10/S.12): um item por dia da janela, dias
+// sem fato vêm com `events: []`. Só os campos do tipo vêm preenchidos.
+export type CalendarEventKind =
+    | 'macro_event'
+    | 'copom'
+    | 'report'
+    | 'dividend_ex_date'
+    | 'dividend_payment_date'
+    | 'order_executed'
+    | 'dividend_received'
+    | 'fixed_income_purchase'
+    | 'fixed_income_redemption'
+    | 'fixed_income_maturity'
+
+export interface CalendarEvent {
+    kind: CalendarEventKind
+    scope: 'global' | 'user'
+    future: boolean
+    title?: string
+    direction?: string
+    ticker?: string
+    side?: 'buy' | 'sell'
+    quantity?: number
+    unit_value?: number
+    selic_rate?: number
+    previous_selic_rate?: number
+}
+
+export interface CalendarDay {
+    simulated_day: number
+    date: string
+    weekday: string
+    market_open: boolean
+    events: CalendarEvent[]
+}
+
+export interface MarketCalendar {
+    from_day: number
+    to_day: number
+    days: CalendarDay[]
+}

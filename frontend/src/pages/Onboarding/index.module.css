@@ -86,3 +86,68 @@
 .dotActive {
     background: var(--color-brand-500);
 }
+
+/* Slide do tempo acelerado (S.12): comparação 1 dia x 5 dias e a semana com o
+   fim de semana tracejado (fechado é tracejado + texto, nunca só cor). */
+.timeVisual {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.compare {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: var(--space-3);
+    align-items: center;
+    color: var(--color-text-secondary);
+}
+
+.compareBox {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-3) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.compareBox b {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    color: var(--color-brand-300);
+}
+
+.compareBox span {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.weekbar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-1);
+}
+
+.weekDay {
+    display: grid;
+    place-items: center;
+    height: 30px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    font-size: 11px;
+}
+
+.weekDayClosed {
+    border-style: dashed;
+    background: var(--color-bg-surface-elevated);
+}
+
+.timeHint {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}

@@ -58,10 +58,24 @@ describe('Onboarding (tela 1.2)', () => {
         expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
     })
 
+    it('o terceiro slide explica o tempo acelerado e o fim de semana fechado (S.12)', () => {
+        mockAuth(false)
+
+        renderOnboarding()
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+
+        expect(screen.getByText('Aqui o tempo passa mais rápido')).toBeInTheDocument()
+        expect(screen.getByText(/5 dias a cada dia real/)).toBeInTheDocument()
+        expect(screen.getByRole('img', { name: /fechado no sábado e no domingo/ })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
+    })
+
     it('avançar até o último slide troca o botão pra "Começar"', () => {
         mockAuth(false)
 
         renderOnboarding()
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
 
@@ -85,6 +99,7 @@ describe('Onboarding (tela 1.2)', () => {
         })
 
         renderOnboarding()
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Começar' }))

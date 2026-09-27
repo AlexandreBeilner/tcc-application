@@ -1,0 +1,121 @@
+.chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 22px;
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.chip:hover,
+.open {
+    border-color: var(--color-brand-500);
+}
+
+.chip:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+}
+
+/* Fechado: tracejado e cinza, além do cadeado e do texto. */
+.closed {
+    border-style: dashed;
+    background: var(--color-bg-surface-elevated);
+}
+
+.dial {
+    flex: none;
+}
+
+.dialFlip {
+    animation: dialSpin 0.7s ease-out;
+}
+
+@keyframes dialSpin {
+    from {
+        transform: rotate(-200deg);
+    }
+    to {
+        transform: rotate(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dialFlip {
+        animation: none;
+    }
+}
+
+.text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.line1 {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-family: var(--font-family-heading);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.line2 {
+    font-size: 10.5px;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mobile: texto curto em duas linhas (dia / data). Tablet e desktop: texto completo. */
+.full {
+    display: none;
+}
+
+.short {
+    display: inline;
+}
+
+@media (min-width: 768px) {
+    .full {
+        display: inline;
+    }
+
+    .short {
+        display: none;
+    }
+
+    .line1 {
+        font-size: var(--font-size-xs);
+    }
+
+    .line2 {
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* Mobile: chip encolhe pra caber com logo, dois sinos e avatar em 375px. */
+@media (max-width: 767px) {
+    .chip {
+        gap: 5px;
+        padding: 3px 8px 3px 3px;
+        flex: 0 1 auto;
+    }
+
+    .dial {
+        width: 26px;
+        height: 26px;
+    }
+}

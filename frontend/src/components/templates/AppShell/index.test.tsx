@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthUser } from '../../../services/auth'
+import { getMarketCalendar, getMarketClock } from '../../../services/market'
 import { listNews } from '../../../services/news'
+import { calendarFixture, DEFAULT_EVENTS, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
+import { RewardRevealProvider } from '../../../features/shell/RewardRevealProvider'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import { AppShell } from '.'
@@ -14,6 +17,12 @@ vi.mock('../../../features/auth/AuthContext', () => ({
 
 vi.mock('../../../features/lessons/useUnlockedKeys', () => ({
     useUnlockedKeys: vi.fn(),
+}))
+
+vi.mock('../../../services/market', () => ({
+    getMarketClock: vi.fn(),
+    getMarketCalendar: vi.fn(),
+    getIndicatorHistory: vi.fn(),
 }))
 
 vi.mock('../../../services/news', () => ({
@@ -47,7 +56,9 @@ function renderShell() {
 
     return render(
         <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
+            <RewardRevealProvider>
+                <RouterProvider router={router} />
+            </RewardRevealProvider>
         </QueryClientProvider>,
     )
 }
@@ -72,6 +83,8 @@ describe('AppShell', () => {
             isLoading: false,
             isError: false,
         })
+        vi.mocked(getMarketClock).mockResolvedValue(WEDNESDAY_CLOCK)
+        vi.mocked(getMarketCalendar).mockResolvedValue(calendarFixture(DEFAULT_EVENTS))
     })
 
     afterEach(() => {
@@ -89,6 +102,31 @@ describe('AppShell', () => {
             expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
         }
         expect(screen.getByText('conteúdo da rota')).toBeInTheDocument()
+    })
+
+    it('o chip do relógio abre e fecha o Calendário (S.12), sem mudar de rota', async () => {
+        mockAuth(user)
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
+
+        renderShell()
+        fireEvent.click(await screen.findByRole('button', { name: /Abrir calendário do mercado/ }))
+
+        expect(await screen.findByRole('dialog', { name: 'Calendário do mercado' })).toBeInTheDocument()
+        expect(screen.getByText('conteúdo da rota')).toBeInTheDocument()
+
+        fireEvent.keyDown(document, { key: 'Escape' })
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Calendário do mercado' })).not.toBeInTheDocument())
+        expect(screen.getByRole('button', { name: /Abrir calendário do mercado/ })).toHaveFocus()
+    })
+
+    it('o Calendário só consulta o motor depois de aberto', async () => {
+        mockAuth(user)
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
+
+        renderShell()
+        await screen.findByRole('button', { name: /Abrir calendário do mercado/ })
+
+        expect(getMarketCalendar).not.toHaveBeenCalled()
     })
 
     it('onboarding pendente redireciona pra /onboarding (tarefa 6.2) em vez de renderizar o shell', async () => {
