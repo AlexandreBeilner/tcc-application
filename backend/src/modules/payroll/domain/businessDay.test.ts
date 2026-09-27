@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isFifthBusinessDayOfMonth, type CalendarDaySummary } from './businessDay'
+import { businessDaysElapsed, isFifthBusinessDayOfMonth, type CalendarDaySummary } from './businessDay'
 
 const WEEK_CYCLE = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
@@ -47,5 +47,19 @@ describe('isFifthBusinessDayOfMonth', () => {
 
   it('lista vazia não é o 5º dia útil', () => {
     expect(isFifthBusinessDayOfMonth([])).toBe(false)
+  })
+})
+
+describe('businessDaysElapsed', () => {
+  it('conta dias úteis mesmo além do 5º (mês corrente já venceu o pagamento)', () => {
+    expect(businessDaysElapsed(monthDays('mon', 10))).toBe(8)
+  })
+
+  it('ignora sábado/domingo na contagem', () => {
+    expect(businessDaysElapsed(monthDays('fri', 3))).toBe(1)
+  })
+
+  it('lista vazia dá zero', () => {
+    expect(businessDaysElapsed([])).toBe(0)
   })
 })

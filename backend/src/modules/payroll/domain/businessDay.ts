@@ -9,6 +9,14 @@ export interface CalendarDaySummary {
   weekday: string
 }
 
+// Quantos dias úteis já se passaram (incluindo hoje, se hoje for útil) desde
+// o 1º dia do mês até o último elemento de `days` — usada pela T.5 pra saber
+// se o mês corrente já "venceu" o pagamento (>= 5), não só se hoje é
+// exatamente o 5º.
+export function businessDaysElapsed(days: CalendarDaySummary[]): number {
+  return days.filter((day) => !WEEKEND_CODES.has(day.weekday)).length
+}
+
 // `days` é a sequência do 1º dia do mês-calendário real até hoje (nessa
 // ordem — `GET /market/calendar?from=<1º dia do mês>&to=<hoje>`), cada
 // elemento com o `weekday` que a API já devolve. Devolve se o último dia da
@@ -18,6 +26,5 @@ export function isFifthBusinessDayOfMonth(days: CalendarDaySummary[]): boolean {
   if (!today || WEEKEND_CODES.has(today.weekday)) {
     return false
   }
-  const businessDaysCount = days.filter((day) => !WEEKEND_CODES.has(day.weekday)).length
-  return businessDaysCount === 5
+  return businessDaysElapsed(days) === 5
 }

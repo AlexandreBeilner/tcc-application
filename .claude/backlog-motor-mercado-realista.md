@@ -4683,7 +4683,7 @@ diretamente na conversa, registradas abaixo.
   útil = dia 6), "hoje" caindo num fim de semana (nunca é o 5º dia útil) e lista vazia. `npx vitest run` (688
   testes)/`npm run lint`/`npx tsc -b` verdes.
 
-### T.5 · Job de folha de pagamento com catch-up e idempotência
+### T.5 · Job de folha de pagamento com catch-up e idempotência ✅
 - **Descrição:** novo caso de uso em `payroll` (T.3) que, por conta: lê o nível (`gamification`), verifica se hoje é o 5º
   dia útil do mês (T.4) e se esse mês-calendário já foi pago (nova coluna/tabela, ex.
   `user_progression.last_salary_paid_month` ou tabela própria `salary_payments`), calcula o valor (T.3) e credita via o
@@ -4694,6 +4694,43 @@ diretamente na conversa, registradas abaixo.
   pagamento ainda paga esse mês (uma vez, não retroativo pra sempre); teste do caso de uso com fakes (relógio do motor,
   leitor de nível, port de crédito) cobrindo pago/já pago/fora do dia/catch-up.
 - **Dependências:** T.2, T.3, T.4.
+- **Entregável real (sessão 2026-09-27):** domínio novo puro — `payroll/domain/payrollDecision.ts` (`monthsToPay`,
+  decide quais meses-calendário `'YYYY-MM'` estão devidos: todo mês estritamente anterior ao corrente é presumido
+  vencido, sem reconsultar calendário; o corrente só entra se `businessDaysElapsed >= 5`; teto aplicado descartando os
+  mais antigos) + `payroll/domain/monthKey.ts` (`monthKeyOf`/`addMonths`/`monthsBetween`, aritmética de índice de mês,
+  sem `Date` do JS) + `businessDay.ts` ganhou `businessDaysElapsed` (T.4 generalizada: "quantos dias úteis já passaram",
+  não só "hoje é exatamente o 5º"). Decisão de sessão importante: **`lastPaidMonthKey === null` nunca paga retroativo
+  além do mês corrente** — sem isso, a primeira execução depois do módulo existir pagaria "desde a criação da conta"
+  pra todo usuário existente (validado ao vivo: só pagou o mês corrente, não os ~9 meses anteriores).
+  Aplicação: `CreditMonthlyPayrollForUserUseCase` (por usuário — lê `lastPaidMonth`, decide, credita 1x por mês devido,
+  grava `lastPaidMonth` **depois de cada crédito** dentro do laço, não só no fim, pra um catch-up de vários meses
+  resumir do ponto certo se o processo cair no meio) e `RunPayrollCheckUseCase` (lê o progresso do mês corrente **uma
+  única vez por ciclo** — dado global, não por usuário — e itera todo usuário via `UserDirectory`; falha isolada num
+  usuário é logada e não impede os demais, mesmo espírito do Temporizador do motor). Portas próprias do módulo
+  (`LevelReader`, `PayrollCalendarReader`, `PayrollStateRepository`, `SalaryCrediter`, `UserDirectory`) — nenhuma
+  importa tipo de outro módulo, mesma convenção de `ranking`/`achievements` (domínio de um módulo nunca depende de
+  domínio/porta de outro). Infra: `engineSalaryCrediter` (`POST /accounts/{user_id}/salary`, mesmo padrão de
+  `engineAccountProvisioner`), `inProcessLevelReader`/`inProcessPayrollCalendarReader` (compõem
+  `GetProgressionUseCase`/`GetMarketClockUseCase`/`GetMarketCalendarUseCase` já existentes, mesmo padrão de
+  `inProcessProgressSnapshotReader` do `achievements`) — `inProcessPayrollCalendarReader` chama
+  `getMarketCalendar.execute({ userId: '' })` de propósito: o motor trata `user_id` vazio/ausente como "sem filtro de
+  usuário" (`handleGetMarketCalendar`), e o job só precisa do `weekday` global, nunca de fato de um usuário
+  específico — evita N chamadas HTTP ao motor por ciclo (1 leitura de calendário serve todo usuário do mesmo ciclo).
+  `drizzlePayrollStateRepository`/`drizzleUserDirectory` (tabela nova `payroll_state`, migration `0017`, gerada via
+  `drizzle-kit generate` sem TTY — mudança só aditiva, sem ambiguidade de rename). Scheduler
+  (`payroll/infrastructure/scheduler/payrollScheduler.ts`, mesmo espírito de `scheduler.Run` do motor S.3: roda uma
+  vez já na subida, depois a cada intervalo, falha isolada só loga) ligado em `server.ts` (não em `app.ts` — processo
+  de fundo, não rota HTTP; `payroll/composition.ts` isola a montagem pra não replumbar `createApp`), configurável via
+  `PAYROLL_CHECK_INTERVAL_MS` (default 1h) e `PAYROLL_MAX_CATCHUP_MONTHS` (default 3). Sem rota HTTP nova (sem entrada
+  em `.docs/`, por escopo — T.5 é só o job; T.8/T.9 expõem o valor por HTTP depois). Testes com fakes cobrindo
+  literalmente os 4 cenários do critério de aceite (pago/já pago/fora do dia/catch-up, incluindo teto e virada de
+  ano) + `RunPayrollCheckUseCase` (ciclo único de calendário, falha isolada não trava os demais) + adapter de motor
+  (`engineSalaryCrediter`, fetch mockado, mesmo padrão de `engineAccountProvisioner.test.ts`). `npx vitest run` (717
+  testes)/`npm run lint`/`npx tsc -b` verdes. Validado ao vivo via `docker compose up -d --build` (sem reset de
+  volume): migration `0017` aplicou limpo; subida do backend já correu o primeiro ciclo e creditou os 2 usuários
+  reais existentes (R$100, nível 1) exatamente 1 mês cada — confirma que `lastPaidMonthKey === null` não pagou
+  retroativo; `docker compose restart backend` (simulando reinício) rodou o ciclo de novo sem gerar nenhum evento
+  novo nem mudar `payroll_state.updated_at` — idempotência confirmada fora dos fakes, não só em teste.
 
 ### T.6 · Salário no calendário do usuário
 - **Descrição:** o evento `salary_payment` (T.2) precisa aparecer em `GET /market/calendar` como fato do usuário (novo
