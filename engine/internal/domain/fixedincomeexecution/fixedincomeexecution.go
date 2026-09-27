@@ -179,6 +179,18 @@ var (
 	// ErrInvalidDaysHeld é devolvido por Simulate quando days_held não é
 	// maior que zero — não há projeção de retorno sem um prazo simulado.
 	ErrInvalidDaysHeld = errors.New("dias de permanência simulados devem ser maior que zero")
+	// ErrMarketNotInitialized é devolvido por Repository.LoadPurchaseContext
+	// (Prefixado/IPCA+, que precisam da Selic/IPCA simulada) e por
+	// Repository.LoadRedeemContext (todo resgate lê a Selic corrente,
+	// independente do produto) quando o Temporizador ainda não rodou nenhum
+	// tick — sem uma linha em market_calendar não existe taxa simulada pra
+	// marcar a mercado. Achado da validação e2e da S.9: sem este sentinel
+	// de domínio, o erro cru do repositório (db.ErrMarketCalendarNotInitialized)
+	// caía no default de writeFixedIncomePurchaseError/
+	// writeFixedIncomeRedemptionError e virava um 500 opaco, mascarando uma
+	// precondição legítima (estoque novo, antes do primeiro tick) que já
+	// tinha um 503 claro no caminho de simulação (handleSimulateFixedIncome).
+	ErrMarketNotInitialized = errors.New("temporizador ainda não rodou nenhum tick — sem taxa de mercado simulada pra este produto")
 )
 
 // Request é a compra recebida via HTTP, antes de qualquer persistência —

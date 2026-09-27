@@ -14,7 +14,10 @@ admin=User("admin_x","admin") if False else None
 st,d=req("POST","/auth/login",{"email":"admin@sim.test","password":"Admin1234!"}); AT=d["token"]
 
 def catalog(u):
-    a=u.g("/market/assets")[1]["assets"]
+    # include_sandbox=true (achado da S.9: desde a S.8 o default esconde SAND3/
+    # SANDPRE do mercado real; sim.py precisa dos dois pra persona "sand" e pro
+    # ticker CAT["SAND3"] usado em day_actions).
+    a=u.g("/market/assets?include_sandbox=true")[1]["assets"]
     return {x["ticker"]:x for x in a}
 boot=User("probe","x"); CAT=catalog(boot)
 RV=[t for t,x in CAT.items() if x["type"] in("acao","etf","fii") and not x["is_sandbox"]]
@@ -86,14 +89,29 @@ def day_actions(day):
                 t=random.choice(live); q=int(cash/prices[t]) # all-in
                 if q>0: rec(u,"degen_allin",u.order(CAT[t]["id"],"buy","market",q))
         elif p=="novice":
+            # novice0 completa lições só até "2.3" (sortOrder), mas
+            # complete_lessons(upto) completa TUDO até lá, inclusive as
+            # lições 1.x (anteriores a 2.x na trilha) — então na prática o
+            # gate de renda fixa inteiro (unlock em 1.2-1.11) e ação (2.3)
+            # já estão liberados; só etf (2.9) e fii (2.10) continuam
+            # travados. O gate (`assertProductUnlocked`) roda ANTES do
+            # motor (`PlaceOrderUseCase.execute`), então pra ação/renda
+            # fixa (unlocked) a checagem certa é "o gate não bloqueou"
+            # (st != 403) — 201 ou um 422 legítimo (mercado fechado no fim
+            # de semana simulado, saldo insuficiente, valor abaixo do
+            # mínimo) são desfechos válidos do motor, não falha de gating.
+            # Achado da S.9: a versão anterior exigia 201/403 fixo e gerava
+            # falso positivo em todo fim de semana simulado e sempre que o
+            # caixa de novice0 esvaziava pelas compras repetidas.
             for t in RV:
                 if prices[t]:
                     st,d=u.order(CAT[t]["id"],"buy","market",1); stats[("novice_"+CAT[t]["type"],st)]+=1
-                    exp=201 if CAT[t]["type"]=="acao" else 403
-                    if st!=exp: finding("ALTO",f"gating: novice {t} ({CAT[t]['type']}) esperado {exp} obtido {st} {str(d)[:120]}")
-            for t in FI[:3]:
+                    gated=CAT[t]["type"] not in("acao",)
+                    if gated and st!=403: finding("ALTO",f"gating: novice {t} ({CAT[t]['type']}) deveria estar travado, obtido {st} {str(d)[:120]}")
+                    if not gated and st==403: finding("ALTO",f"gating: novice {t} ({CAT[t]['type']}) deveria estar liberado, obtido 403 {str(d)[:120]}")
+            for t in FI:
                 st,d=u.p("/market/fixed-income/purchases",{"asset_id":CAT[t]["id"],"amount":100}); stats[("novice_fi",st)]+=1
-                if st!=403: finding("ALTO",f"gating: novice FI {t} obtido {st} {str(d)[:120]}")
+                if st==403: finding("ALTO",f"gating: novice FI {t} deveria estar liberado (unlock <= 2.3), obtido 403 {str(d)[:120]}")
         elif p=="sand":
             if day in(1,10): rec(u,"sand_buy",u.order(CAT["SAND3"]["id"],"buy","market",50)); 
             if day==20: rec(u,"sand_sell",u.order(CAT["SAND3"]["id"],"sell","market",50))

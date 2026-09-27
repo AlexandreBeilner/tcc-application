@@ -39,14 +39,32 @@ chk("limit preço NaN-string",o(a,type="limit",price="NaN")[0],400); chk("limit 
 chk("limit preço 0.001",o(a,type="limit",price=0.001)[0],[201,400]) 
 chk("limit preço 3 casas",o(a,type="limit",price=90.123)[0],[201,400])
 chk("side inválido",o(a,side="hold")[0],400); chk("type inválido",o(a,type="stop")[0],400)
-chk("asset_id não UUID",o(a,asset_id="1 OR 1=1")[0],400); chk("asset_id inexistente",o(a,asset_id="00000000-0000-0000-0000-00000000dead")[0],404)
+chk("asset_id não UUID",o(a,asset_id="1 OR 1=1")[0],400)
+# "...-00000000dead" tem nibble de versão 0 (RFC4122 exige 1-5): o Zod do
+# corpo da ordem (`z.string().uuid()`, estrito) rejeita com 400 antes de
+# chegar no motor, enquanto o `:id` de path (regex solta) deixaria passar
+# pro 404 do motor — inconsistência de validação já mapeada nesta sessão
+# (S.9), não um bug: nenhuma das duas respostas vaza dado nem quebra
+# invariante. Usar aqui um UUID v4 sintaticamente válido (mas inexistente)
+# pra exercitar de fato o 404 do motor, não a rejeição de formato do Zod.
+chk("asset_id inexistente",o(a,asset_id="00000000-0000-4000-8000-000000000000")[0],404)
 chk("corpo vazio",a.p("/market/orders",{})[0],400)
 chk("user_id injetado no corpo (IDOR)",o(a,user_id=b.id)[0],[201,400,422,403])
 b_before=b.acct()["cashBalance"]
 chk("compra a mercado de renda fixa via /orders",o(a,asset_id=CDB)[0],400)
-# saldo insuficiente
-st,d=o(a,quantity=10_000_000); chk("compra > saldo",st,422,d)
-chk("venda sem posição",o(a,side="sell",quantity=1)[0],422)
+# saldo insuficiente: pós-A.2 o Mercado Ao Vivo não tem contraparte sintética —
+# uma ordem a mercado maior que o book simplesmente preenche parcial (ou
+# zero) e devolve 201, nunca 422 só por "não teria como pagar tudo". O
+# 422 (ErrInsufficientBalance) só dispara se o CUSTO DO QUE REALMENTE
+# preencheu excede o saldo (orderexecution.validateFunds) — condição que
+# não dá pra forçar de fora sem controlar a profundidade do book. Garantia
+# que dá pra checar de fora: nunca preenche além do que o saldo paga.
+cash_a=a.acct()["cashBalance"]
+st,d=o(a,quantity=10_000_000)
+chk("compra > saldo (aceita e preenche só a parte que cabe no book, nunca estoura saldo)",st,201,d)
+if st==201: chk("compra > saldo: nunca preenche custo maior que o saldo",sum(f["price"]*f["quantity"] for f in d["fills"])<=cash_a,True,d)
+d_user=User("neg_d","x"); complete_lessons(d_user)  # usuário isolado: `a` já tem posição de VALR3 desde o IDOR acima
+chk("venda sem posição",o(d_user,side="sell",quantity=1)[0],422)
 # cancelamento alheio
 st,d=o(a,type="limit",price=50.0,quantity=10); chk("limit longe do mercado (50)",st,201,d)
 oid=d.get("order_id") if st==201 else None
@@ -84,10 +102,10 @@ chk("busca usuário q vazio",b.g("/users/search?q=")[0],[200,400])
 chk("busca com curinga %",b.g("/users/search?q=%25")[0],[200,400])
 rk=b.g("/ranking")[1]; s=json.dumps(rk).lower()
 chk("ranking não vaza patrimônio absoluto",any(k in s for k in("networth","net_worth","patrimonio","cashbalance")),False,list(rk)[:5] if isinstance(rk,dict) else "")
-# amizade
-chk("amizade consigo mesmo",a.p("/friendships",{"addresseeId":a.id})[0],[400,422,409])
-st,d=a.p("/friendships",{"addresseeId":b.id}); chk("pedido de amizade",st,201,d)
-st2,d2=a.p("/friendships",{"addresseeId":b.id}); chk("pedido duplicado",st2,[409,400,422])
+# amizade: payload real é addresseeUsername (schemas.ts), não addresseeId
+chk("amizade consigo mesmo",a.p("/friendships",{"addresseeUsername":a.name})[0],[400,422,409])
+st,d=a.p("/friendships",{"addresseeUsername":b.name}); chk("pedido de amizade",st,201,d)
+st2,d2=a.p("/friendships",{"addresseeUsername":b.name}); chk("pedido duplicado",st2,[409,400,422])
 # concorrência: double spend
 c=User("neg_c","x"); complete_lessons(c)
 res=[]

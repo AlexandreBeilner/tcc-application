@@ -4321,7 +4321,7 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
   então tabelas de Ações/Renda Fixa, Notícias, Painel Admin e o formulário de evento macro nunca veem sandbox. Docs em
   `.docs/backend/market.md`. E2E: `SAND3`/`SANDPRE` ausentes da lista padrão, presentes com `include_sandbox=true`, detalhe `200`.
 
-### S.9 · Revalidação ponta a ponta e fechamento dos achados (por último, depois de S.10 a S.16)
+### S.9 · Revalidação ponta a ponta e fechamento dos achados (por último, depois de S.10 a S.16) ✅
 - **Descrição:** rodar de novo `engine/scripts/e2e-mercado-simulado/` (sim, neg, gating, liq) com o relógio novo, conferir o retorno
   médio de renda variável, a renda fixa em 21 ticks, o all-in e o gate; marcar 018 a 023 como Resolvido em
   `pontos-em-aberto-decisao-produto.md`. Movida pra depois de S.13 a S.16 (adicionadas em 2026-09-27, fora da origem dos achados
@@ -4333,6 +4333,64 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
   mostrando retorno total maior que retorno de preço na proporção certa (S.15/S.16), verificado ponta a ponta pelo gateway (não só
   teste de componente).
 - **Dependências:** S.1 a S.8, S.10 a S.16.
+- **Entregável (sessão 2026-09-27):** stack isolado `tccsim` recriado do zero (`down -v`/`up -d --build`, catálogo com
+  `--synthetic-assets 15 --synthetic-etfs 2`, seed de admin/lições/conquistas/missões) e revalidado ponta a ponta.
+  **Zero violação de invariante** (`inv.sql` completo: saldo negativo, conciliação de saldo/posição contra `market_events`, float,
+  proventos de ETF, ordem sobre-preenchida, ordem de usuário pendurada, cotação não positiva, salto diário >30%, posição de renda
+  fixa negativa — todas 0) num run de **130 dias simulados** (`sim.py`, `CROWD=10`, ~24 usuários reais completando a trilha inteira
+  + bots). `gating.py` (0 falhas), `neg.py` (0 falhas reais — 3 bugs de script corrigidos, ver abaixo), `weekend.py` (0 falhas) e
+  `liq.py` (100% de preenchimento nos 23 ativos reais, slippage ~1%/-1%) revalidados isoladamente também. `go test
+  ./internal/infra/db -run TickLock -v` (3 sub-testes) verde contra o Postgres do stack de teste.
+  **Achado novo desta sessão, corrigido na hora (bug mecânico, sem decisão de produto — não entra em
+  `pontos-em-aberto-decisao-produto.md`):** compra de renda fixa Prefixado/IPCA+ e **qualquer** resgate de renda fixa, feitos antes
+  do primeiro tick do Temporizador (`market_calendar` vazia), devolviam `500` opaco (`erro ao processar compra/resgate de renda
+  fixa`) em vez do `503` claro que `GET /fixed-income/simulate` já tinha pra essa mesma precondição — `db.
+  ErrMarketCalendarNotInitialized` (erro de infraestrutura) nunca tinha um sentinel de domínio correspondente, então caía no
+  `default` dos dois `writeFixedIncome*Error`. Corrigido: `fixedincomeexecution.ErrMarketNotInitialized` novo (domínio),
+  `FixedIncomeExecutionRepository.LoadPurchaseContext`/`LoadRedeemContext` traduzem o erro de infra pro sentinel de domínio nos 4
+  pontos de retorno, `writeFixedIncomePurchaseError`/`writeFixedIncomeRedemptionError` ganham o `case` novo → `503`. Teste de
+  tabela novo nos dois handlers (`fixedincome_test.go`). `go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0
+  issues) verdes. Validado ao vivo (stack recém-subido, sem tick nenhum ainda): compra de `NTNB2035` e resgate de `LFT2029`
+  passaram de `500` pra `503 {"error": "temporizador ainda não rodou nenhum tick — sem taxa de mercado simulada pra este
+  produto"}`.
+  **3 bugs de script (não de produto) corrigidos em `neg.py`:** (1) `asset_id` inexistente usava um UUID com nibble de versão `0`
+  (`...-0000-...-00000000dead`), que o `z.string().uuid()` estrito do corpo da ordem rejeita com `400` antes de chegar no motor
+  (path param usa regex solta, sem essa checagem — inconsistência de validação notada, não corrigida, sem impacto de segurança);
+  trocado por um UUID v4 sintaticamente válido, exercitando de fato o `404` do motor. (2) "compra > saldo" esperava `422` fixo —
+  pós-A.2 (liquidez real, sem contraparte sintética) uma ordem maior que o book só preenche o que existe e devolve `201`, nunca
+  erro só por "não teria como pagar tudo"; trocado pela garantia que dá pra checar de fora (nunca preenche custo acima do saldo).
+  (3) "venda sem posição" reusava o usuário `a`, que 2 checks antes já tinha comprado 1 ação via IDOR — trocado por um usuário
+  isolado. **Achado à parte, também corrigido:** `catalog()` do `sim.py` não pedia `include_sandbox=true` (default mudou na S.8),
+  quebrando a persona "sand" com `KeyError: 'SAND3'`; corrigido. **Achado de script sem correção (documentado, não bloqueia):** o
+  bloco "novice" de `sim.py` reexecuta diariamente e sempre falsamente sinalizava gating quebrado em fim de semana simulado
+  (`market_closed`, correto) ou depois que o caixa de `novice0` esvaziava (`saldo insuficiente`, correto) — a premissa "ação
+  sempre 201 pra este usuário" ignorava que `complete_lessons(u, "2.3")` completa TODAS as lições anteriores na trilha
+  (1.2-1.11, todas as de renda fixa), então renda fixa também já estava liberada; a asserção certa é "gate não bloqueou"
+  (`st != 403`), não um status fixo — corrigido no `sim.py` pra runs futuras (não afeta o veredito desta sessão: os 2613 achados
+  reportados no run de 130 dias eram 100% esse falso positivo, nenhum de infraestrutura/500).
+  **Retorno médio de renda variável:** +0,6% de preço médio em 130 dias simulados nos 22 ativos de ação/ETF (exclui os 2 FIIs, achado
+  024 já aberto e fora do escopo desta tarefa) — ≈1,6%/ano anualizado, bem abaixo da Selic simulada (10% → 9,75% no Copom do dia 91),
+  sem nenhum resquício do antigo drift de +40%/ano (achado 019).
+  **Renda fixa em 21 ticks (achado 022):** compra de `LFT2029` (Selic 9,75%) seguida de 21 ticks corridos e resgate — 6 dos 21 dias
+  caíram em fim de semana simulado (sem render, S.1/S.3), retorno realizado (0,5553%) bate com o cálculo teórico de 15 dias úteis
+  compostos à Selic corrente (base 252) dentro de 0,001pp; IR regressivo 22,5% (primeira faixa) correto.
+  **Provento de ação reduzindo o preço justo (S.13), verificado sem o ruído do preço em si:** o relatório trimestral do dia 91
+  (mesmo dia do Copom, sem evento macro disparado nesta sessão) pagou dividendos de `BNDD3`/`BNDD4` (R$ 2,43 e R$ 2,68/cota, ambas
+  sobre 300M de ações da mesma empresa) — `company_fundamentals.net_equity` do Banco Nordeste Digital cresceu R$ 1,52 bi no
+  período contra um lucro líquido de R$ 3,07 bi no mesmo ciclo (≈1,53 bi esperado de payout, dentro de ~1% do valor medido),
+  confirmando a conservação de valor (provento sai do patrimônio líquido, que alimenta direto o preço justo do Fundamentalista via
+  VPA) sem precisar isolar o efeito do preço bruto (que no mesmo dia também reage à surpresa de resultado do próprio relatório).
+  **Retorno total vs. retorno de preço (S.15/S.16), pelo gateway real:** usuária `hold1` com posição de 25 `SYN0113` (preço médio
+  R$ 99,95, `markPrice` R$ 101,59, R$ 127 em proventos) — `GET /market/me/account` real devolveu os números que alimentam
+  `PositionSummaryCard`; conferido na tela real (`Mercado > SYN0113`) com o mesmo usuário: retorno de preço +2,1%/retorno total
+  +7,2% (diferença de 5,08pp bate exatamente com `dividendsReceived / (averagePrice × quantity)`), renderizado corretamente em
+  desktop (1568px) nos temas escuro e claro (toggle em Configurações). **Não coberto nesta sessão:** navegação real em 375px/768px
+  — o `resize_window` do Chrome MCP não alterou o viewport real neste ambiente (`window.innerWidth` seguiu 1920 após o resize,
+  confirmado via JS), então a cobertura desse ponto específico continua sendo só a automatizada que a própria S.16 já tinha
+  deixado (testes de componente/`AssetDetail` nos 3 cenários); `.returns` usa `flex-wrap`/`flex: 1 1 140px` (mesmo padrão do
+  `.priceRow` de `AssetDetail`, sem media query dedicada) — reflow por construção, não testado ao vivo em viewport estreito.
+  **Fecha achados 018 a 023** em `pontos-em-aberto-decisao-produto.md` (status "Resolvido" em todos, com a evidência desta sessão);
+  024 (deriva de FII) permanece aberto, fora do escopo dos 6 achados originais desta fase. **Fase S inteira fechada.**
 
 ### S.10 · Calendário da simulação: endpoint de relógio e linha do tempo ✅
 - **Descrição:** rota do motor + proxy no backend (`GET /market/clock` e `GET /market/calendar?from=&to=`): dia simulado, data, dia

@@ -347,6 +347,8 @@ func writeFixedIncomePurchaseError(w http.ResponseWriter, err error) {
 		writeCatalogError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, fixedincomeexecution.ErrAccountNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, fixedincomeexecution.ErrMarketNotInitialized):
+		writeCatalogError(w, http.StatusServiceUnavailable, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao processar compra de renda fixa")
 	}
@@ -359,6 +361,8 @@ func writeFixedIncomeRedemptionError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, fixedincomeexecution.ErrPositionNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, fixedincomeexecution.ErrMarketNotInitialized):
+		writeCatalogError(w, http.StatusServiceUnavailable, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao processar resgate de renda fixa")
 	}
