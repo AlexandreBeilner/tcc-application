@@ -24,7 +24,7 @@ func postTick(t *testing.T, ticker ticker) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/admin/tick", nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, ticker, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, ticker, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -72,6 +72,13 @@ func TestHandleAdminTick_ErroInterno(t *testing.T) {
 	rec := postTick(t, &fakeTicker{err: context.DeadlineExceeded})
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleAdminTick_TickEmAndamentoDa409(t *testing.T) {
+	rec := postTick(t, &fakeTicker{err: tick.ErrTickInProgress})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusConflict)
 	}
 }
 

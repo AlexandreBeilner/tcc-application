@@ -16,7 +16,6 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"time"
 
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/bot"
@@ -27,6 +26,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/selic"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
@@ -441,7 +441,10 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) string {
 	}
 
 	segment := "Lajes Corporativas"
-	netWorth := 500_000_000.00
+	// Valor patrimonial por cota = preço inicial (tick.DefaultInitialPrice = R$ 100, P/VP = 1),
+	// como nos FIIs reais; com 500M o patrimônio por cota era 5x o preço e o provento mensal
+	// (1,1% do patrimônio) virava um Dividend Yield absurdo (tarefa S.2).
+	netWorth := float64(fiiOutstandingShares) * tick.DefaultInitialPrice
 	vacancyRate := 5.2
 	details, err := fii.NewDetails(fii.TypeTijolo, &segment, &netWorth, &vacancyRate, nil, nil)
 	if err != nil {
@@ -475,7 +478,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) string {
 	// (seedFIITijolo) — é o denominador ausente que fazia PAPL11 nunca gerar
 	// provento/Dividend Yield antes desta tarefa.
 	indexador := "CDI"
-	portfolioValue := 300_000_000.00
+	portfolioValue := float64(fiiOutstandingShares) * tick.DefaultInitialPrice
 	details, err := fii.NewDetails(fii.TypePapel, nil, nil, nil, &indexador, &portfolioValue)
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
@@ -498,7 +501,8 @@ func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, na
 		log.Fatalf("produto de renda fixa %s inválido: %v", ticker, err)
 	}
 
-	maturityDate := time.Now().AddDate(2, 0, 0)
+	// Vencimento é data SIMULADA (tarefa S.1): dia 0 mais 2 anos de calendário.
+	maturityDate := simcalendar.DateOf(0).AddDate(2, 0, 0)
 	if err := repo.CreateFixedIncomeAsset(ctx, id, product, interestRate, maturityDate, minimumInvestment); err != nil {
 		log.Fatalf("erro ao criar fixed_income_assets pra %s: %v", ticker, err)
 	}

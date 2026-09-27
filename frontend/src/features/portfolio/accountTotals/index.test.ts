@@ -17,4 +17,16 @@ describe('calculateAccountTotals', () => {
     it('sem posições devolve zero nos dois totais', () => {
         expect(calculateAccountTotals([], [])).toEqual({ liveInvested: 0, sandboxInvested: 0 })
     })
+
+    it('usa markPrice (marcação a mercado, tarefa S.6) em vez do preço médio quando presente', () => {
+        const totals = calculateAccountTotals(
+            [
+                { isSandbox: false, quantity: 10, averagePrice: 10, markPrice: 12 }, // 120, não 100
+                { isSandbox: true, quantity: 5, averagePrice: 20 }, // 100, sandbox nunca tem markPrice
+            ],
+            [],
+        )
+
+        expect(totals).toEqual({ liveInvested: 120, sandboxInvested: 100 })
+    })
 })

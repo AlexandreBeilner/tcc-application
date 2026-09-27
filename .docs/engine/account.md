@@ -49,11 +49,11 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.
 - **Payload:** query `user_id` (obrigatório) — UUID do usuário.
-- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, is_sandbox, quantity, average_price }, ...]` — posições de renda variável (`positions`) do usuário, cada uma já enriquecida com a identificação do ativo via join com `assets` (não só o `asset_id` cru). `is_sandbox` (tarefa 4.11, RF12) distingue posição de sandbox da de Mercado Ao Vivo — insumo pra tela 2.1 (inventário) separar as duas visualmente. Lista vazia (não erro) pra usuário sem posição nenhuma.
+- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, is_sandbox, quantity, average_price, dividends_received }, ...]` — posições de renda variável (`positions`) do usuário, cada uma já enriquecida com a identificação do ativo via join com `assets` (não só o `asset_id` cru). `is_sandbox` (tarefa 4.11, RF12) distingue posição de sandbox da de Mercado Ao Vivo — insumo pra tela 2.1 (inventário) separar as duas visualmente. `dividends_received` (tarefa S.15) é a soma de `quantity * unit_value` dos eventos `dividend_payment` (`market_events`) desse usuário nesse ativo — sempre presente, `0` (não `null`) sem provento nenhum. Lista vazia (não erro) pra usuário sem posição nenhuma.
 - **Erros:**
   - `400` — `user_id` ausente ou não é um UUID válido.
   - `503` / `500` — mesmos casos de `GET /accounts/:user_id`.
-- **Regra:** nenhuma fórmula — `positions JOIN assets` (`AccountRepository.ListPositionsByUser`), ordenado por `ticker`.
+- **Regra:** nenhuma fórmula na leitura em si — `positions JOIN assets` (`AccountRepository.ListPositionsByUser`), ordenado por `ticker`, com um `LEFT JOIN` numa subquery que agrega `SUM(quantity * unit_value)` de `market_events` (`event_type = 'dividend_payment'`) por `asset_id`, `COALESCE`ado pra `0`. Não existe o mesmo campo em `GET /fixed-income/positions` — renda fixa não gera evento `dividend_payment`.
 
 ---
 

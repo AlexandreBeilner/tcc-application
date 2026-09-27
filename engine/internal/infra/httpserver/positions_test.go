@@ -12,7 +12,7 @@ import (
 
 func TestHandleListPositions(t *testing.T) {
 	reader := &fakeUserMarketDataReader{positions: []position.Record{
-		{AssetID: "a1", AssetTicker: "VALR3", AssetName: "Vale ON", AssetType: "acao", IsSandbox: false, Position: position.Position{Quantity: 10, AveragePrice: 100.5}},
+		{AssetID: "a1", AssetTicker: "VALR3", AssetName: "Vale ON", AssetType: "acao", IsSandbox: false, DividendsReceived: 42.5, Position: position.Position{Quantity: 10, AveragePrice: 100.5}},
 		{AssetID: "a2", AssetTicker: "SAND3", AssetName: "Ação Sandbox", AssetType: "acao", IsSandbox: true, Position: position.Position{Quantity: 5, AveragePrice: 101}},
 	}}
 
@@ -25,11 +25,11 @@ func TestHandleListPositions(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if len(body) != 2 || body[0].Ticker != "VALR3" || body[0].Quantity != 10 || body[0].AveragePrice != 100.5 || body[0].IsSandbox {
+	if len(body) != 2 || body[0].Ticker != "VALR3" || body[0].Quantity != 10 || body[0].AveragePrice != 100.5 || body[0].IsSandbox || body[0].DividendsReceived != 42.5 {
 		t.Errorf("body[0] = %+v, inesperado", body[0])
 	}
-	if body[1].Ticker != "SAND3" || !body[1].IsSandbox {
-		t.Errorf("body[1] = %+v, esperava is_sandbox = true", body[1])
+	if body[1].Ticker != "SAND3" || !body[1].IsSandbox || body[1].DividendsReceived != 0 {
+		t.Errorf("body[1] = %+v, esperava is_sandbox = true e dividends_received = 0", body[1])
 	}
 }
 

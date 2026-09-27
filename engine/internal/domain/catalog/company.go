@@ -29,9 +29,10 @@ func IsValidSector(sector Sector) bool {
 }
 
 // DefaultReportFrequencyDays é o default do schema (company_fundamentals
-// migration 000001) e o valor fixado pela spec 3.3.1 (ciclo quinzenal
-// global, tarefa 3.6) — não configurável por empresa nesta fase.
-const DefaultReportFrequencyDays = 14
+// migration 000033) e o valor fixado pela spec 3.3.1 (ciclo global, tarefa
+// 3.6) — um trimestre real de 91 dias simulados desde a tarefa S.2; não
+// configurável por empresa nesta fase.
+const DefaultReportFrequencyDays = 91
 
 const cnpjDigits = 14
 

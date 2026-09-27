@@ -3,6 +3,7 @@ import express, { Express } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
 import { healthRouter } from './routes/health'
+import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
 import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
 import { createEngineMacroEventReader } from './modules/admin/infrastructure/engine/engineMacroEventReader'
@@ -29,6 +30,7 @@ import { createInProcessAchievementChecker as createInProcessAchievementCheckerF
 import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
 import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
+import { LESSON_MIN_STEP_INTERVAL_MS } from './modules/lessons/domain/lesson'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/application/useCases/getCurrentMicroDecisionStreak'
@@ -124,6 +126,7 @@ import { createDiskAvatarStorage } from './modules/auth/infrastructure/storage/d
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
+import { GetAssetBookUseCase } from './modules/market/application/useCases/getAssetBook'
 import { GetAssetUseCase } from './modules/market/application/useCases/getAsset'
 import { CancelOrderUseCase } from './modules/market/application/useCases/cancelOrder'
 import { GetCompanyUseCase } from './modules/market/application/useCases/getCompany'
@@ -137,6 +140,9 @@ import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
+import { GetMarketCalendarUseCase } from './modules/market/application/useCases/getMarketCalendar'
+import { GetMarketClockUseCase } from './modules/market/application/useCases/getMarketClock'
+import { createEngineMarketCalendarReader } from './modules/market/infrastructure/engine/engineMarketCalendarReader'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
 import { createEngineIndicatorHistoryReader } from './modules/market/infrastructure/engine/engineIndicatorHistoryReader'
@@ -214,8 +220,9 @@ export function createApp(deps: AppDeps = {}): Express {
   const listAssets = new ListAssetsUseCase(catalogReader)
   const getAsset = new GetAssetUseCase(catalogReader)
   const getAssetQuotes = new GetAssetQuotesUseCase(catalogReader)
+  const getAssetBook = new GetAssetBookUseCase(catalogReader)
   const getCompany = new GetCompanyUseCase(catalogReader)
-  const getMyAccount = new GetMyAccountUseCase(accountReader)
+  const getMyAccount = new GetMyAccountUseCase(accountReader, catalogReader)
   const listMyEvents = new ListMyEventsUseCase(accountReader)
   const placeOrder = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
   const cancelOrder = new CancelOrderUseCase(orderExecutor)
@@ -237,6 +244,9 @@ export function createApp(deps: AppDeps = {}): Express {
     createRedisIndicatorHistoryCacheStore(redisClient),
   )
   const getIndicatorHistory = new GetIndicatorHistoryUseCase(cachedIndicatorHistoryReader)
+  const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
+  const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
+  const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -323,6 +333,13 @@ export function createApp(deps: AppDeps = {}): Express {
     createDrizzleSocialFeedUserDirectory(db),
   )
 
+  // Tempo mínimo entre avanços de passo de lição (S.4); env inválida ou
+  // negativa cai no padrão em vez de desligar o gate sem querer.
+  const configuredStepInterval = Number(process.env.LESSON_MIN_STEP_INTERVAL_MS || Number.NaN)
+  const lessonMinStepIntervalMs =
+    Number.isFinite(configuredStepInterval) && configuredStepInterval >= 0
+      ? configuredStepInterval
+      : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(
@@ -330,6 +347,7 @@ export function createApp(deps: AppDeps = {}): Express {
     xpAwarder,
     streakTracker,
     createInProcessSocialFeedRecorder(recordTrackCompleted),
+    { minStepIntervalMs: lessonMinStepIntervalMs },
   )
   const reviewLesson = new ReviewLessonUseCase(
     lessonRepository,
@@ -468,6 +486,7 @@ export function createApp(deps: AppDeps = {}): Express {
       listAssets,
       getAsset,
       getAssetQuotes,
+      getAssetBook,
       getCompany,
       getMyAccount,
       listMyEvents,
@@ -479,6 +498,8 @@ export function createApp(deps: AppDeps = {}): Express {
       simulateFixedIncome,
       getFixedIncomeTaxRate,
       getIndicatorHistory,
+      getMarketClock,
+      getMarketCalendar,
       authMiddleware,
     }),
   )
@@ -493,5 +514,6 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  app.use(jsonErrorHandler)
   return app
 }

@@ -78,12 +78,16 @@ func ValidateFloatCeiling(totalHeld, outstandingShares int64) error {
 // tick.AssetForPricing.Sector. IsSandbox (tarefa 4.11, RF12) distingue
 // posição de sandbox de posição do Mercado Ao Vivo — insumo pra tela 2.1
 // (inventário) separar visualmente as duas, e pro futuro replay de ranking
-// (backlog 5.x) filtrar sandbox fora do cálculo.
+// (backlog 5.x) filtrar sandbox fora do cálculo. DividendsReceived (tarefa
+// S.15) é a soma de quantity*unit_value dos eventos dividend_payment desse
+// usuário nesse ativo — fica em Record, não em Position, porque não entra
+// na álgebra de ApplyBuy/ApplySell, é só agregação de leitura.
 type Record struct {
-	AssetID     string
-	AssetTicker string
-	AssetName   string
-	AssetType   string
-	IsSandbox   bool
+	AssetID           string
+	AssetTicker       string
+	AssetName         string
+	AssetType         string
+	IsSandbox         bool
+	DividendsReceived float64
 	Position
 }

@@ -16,6 +16,20 @@ describe('ListAssetsUseCase', () => {
     expect(catalogReader.listAssetsCalls).toEqual(['acao'])
   })
 
+  it('exclui ativos sandbox por padrão e só os inclui quando pedido (achado 023)', async () => {
+    const assets = [
+      { id: 'a1', ticker: 'PETR4', name: 'Petrobras', type: 'acao', is_sandbox: false },
+      { id: 'a2', ticker: 'SAND3', name: 'Sandbox', type: 'acao', is_sandbox: true },
+    ]
+    const useCase = new ListAssetsUseCase(createFakeCatalogReader({ assets }))
+
+    expect((await useCase.execute({})).map((a) => a.ticker)).toEqual(['PETR4'])
+    expect((await useCase.execute({ includeSandbox: true })).map((a) => a.ticker)).toEqual([
+      'PETR4',
+      'SAND3',
+    ])
+  })
+
   it('propaga erro do CatalogReader', async () => {
     const catalogReader = createFakeCatalogReader({})
     catalogReader.errorToThrow = new Error('falha no motor')

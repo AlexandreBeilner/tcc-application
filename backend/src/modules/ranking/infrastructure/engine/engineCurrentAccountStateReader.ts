@@ -1,3 +1,4 @@
+import { markPrice } from '../../domain/markPrice'
 import type { CurrentAccountStateReader } from '../../application/ports/currentAccountStateReader'
 import type { Snapshot } from '../../domain/networth'
 
@@ -17,6 +18,13 @@ interface AssetResponse {
   current_price?: number
 }
 
+// BookResponse é o subconjunto de `GET /assets/:id/book` (motor, tarefa
+// S.5) que a marcação a mercado precisa — só `mid_price` (`null` quando
+// falta um dos lados do book).
+interface BookResponse {
+  mid_price: number | null
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) {
@@ -30,19 +38,48 @@ export function createEngineCurrentAccountStateReader(
 ): CurrentAccountStateReader {
   return {
     async getCurrentSnapshot(userId: string): Promise<Snapshot> {
-      const [account, positions, fixedIncomePositions, assets] = await Promise.all([
+      const [account, positions, fixedIncomePositions] = await Promise.all([
         fetchJson<AccountResponse>(`${engineUrl}/accounts/${userId}`),
         fetchJson<PositionResponse[]>(`${engineUrl}/positions?user_id=${userId}`),
         fetchJson<PositionResponse[]>(`${engineUrl}/fixed-income/positions?user_id=${userId}`),
-        fetchJson<AssetResponse[]>(`${engineUrl}/assets`),
       ])
 
-      const priceByAssetId = new Map(assets.map((asset) => [asset.id, asset.current_price ?? 0]))
+      // Marcação a mercado (tarefa S.6): ponto médio do book de cada ativo
+      // distinto que o usuário tem em posição real (`!is_sandbox`), com
+      // fallback pro último negócio (`GET /assets`) quando falta um dos
+      // lados — nunca o inverso, pra um negócio de 1 cota não conseguir
+      // mover a marcação de outra carteira além do ponto médio. Usuário
+      // sem posição de renda variável real não faz nenhuma chamada extra.
+      const liveAssetIds = [
+        ...new Set(
+          positions.filter((position) => !position.is_sandbox).map((position) => position.asset_id),
+        ),
+      ]
+      const markPriceByAssetId = new Map<string, number>()
+      if (liveAssetIds.length > 0) {
+        const [assets, books] = await Promise.all([
+          fetchJson<AssetResponse[]>(`${engineUrl}/assets`),
+          Promise.all(
+            liveAssetIds.map((assetId) =>
+              fetchJson<BookResponse>(`${engineUrl}/assets/${assetId}/book?user_id=${userId}`),
+            ),
+          ),
+        ])
+        const lastTradeByAssetId = new Map(assets.map((asset) => [asset.id, asset.current_price]))
+        liveAssetIds.forEach((assetId, index) => {
+          const lastTradePrice = lastTradeByAssetId.get(assetId)
+          if (lastTradePrice === undefined) {
+            return
+          }
+          markPriceByAssetId.set(assetId, markPrice(books[index].mid_price, lastTradePrice))
+        })
+      }
 
       const variableIncomeValue = positions
         .filter((position) => !position.is_sandbox)
         .reduce(
-          (sum, position) => sum + position.quantity * (priceByAssetId.get(position.asset_id) ?? 0),
+          (sum, position) =>
+            sum + position.quantity * (markPriceByAssetId.get(position.asset_id) ?? 0),
           0,
         )
 

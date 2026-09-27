@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // assetCatalogReader é o colaborador que os handlers de /assets precisam
@@ -26,6 +28,9 @@ type assetCatalogReader interface {
 	// (fixedincome.IsPostFixado). ok = false antes do primeiro tick do
 	// Temporizador.
 	CurrentSelicRatePct(ctx context.Context) (float64, bool, error)
+	// CurrentSimulatedDay devolve market_calendar.current_day — o "agora" do
+	// Dividend Yield de 12 meses e da simulação de renda fixa (tarefa S.1).
+	CurrentSimulatedDay(ctx context.Context) (int, error)
 	FindEquitySpecialization(ctx context.Context, assetID string) (catalog.EquitySpecialization, bool, error)
 	FindETFDetails(ctx context.Context, assetID string) (etf.Details, bool, error)
 	// FindLatestETFNAV devolve o NAV mais recente e as cotas emitidas do ETF
@@ -210,8 +215,8 @@ func toDividendHistoryResponse(history []catalog.DividendHistoryEntry) []dividen
 }
 
 // sumDividendsLast12Months soma value_per_share de todo DividendHistoryEntry
-// pago (PaymentDate, relógio real — mesma convenção de company_fundamentals.
-// period_date) nos últimos 12 meses a partir de now — insumo de
+// pago (PaymentDate, data simulada) nos últimos 12 meses simulados a partir
+// de now (a data do dia simulado corrente, simcalendar.DateOf) — insumo de
 // dividend.Yield.
 func sumDividendsLast12Months(history []catalog.DividendHistoryEntry, now time.Time) float64 {
 	cutoff := now.AddDate(-1, 0, 0)
@@ -282,6 +287,24 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeCatalogError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeMarketClosedIfClosed responde 422 com code market_closed (tarefa S.11)
+// e devolve true quando err é a recusa de negociar em fim de semana simulado.
+// opens_on é a data da próxima abertura e days_until_open quantos dias
+// simulados faltam, pro cliente montar "abre segunda 12/01" sem outra chamada.
+func writeMarketClosedIfClosed(w http.ResponseWriter, err error) bool {
+	var closed *simcalendar.MarketClosedError
+	if !errors.As(err, &closed) {
+		return false
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+		"error":           "Mercado fechado: fim de semana simulado. Abre na segunda-feira, " + closed.OpensOn().Format("02/01") + ".",
+		"code":            "market_closed",
+		"opens_on":        closed.OpensOn().Format(dateLayout),
+		"days_until_open": closed.DaysUntilOpen(),
+	})
+	return true
 }
 
 // handleListAssets serve GET /assets, com filtro opcional por `type` (um
@@ -356,6 +379,12 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 		}
 		resp := assetDetailResponse{assetSummaryResponse: toAssetSummaryResponse(rec, quotePtr)}
 
+		today, err := catalogReader.CurrentSimulatedDay(r.Context())
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar dia simulado corrente")
+			return
+		}
+
 		switch rec.Type {
 		case catalog.AssetAcao:
 			spec, found, err := catalogReader.FindEquitySpecialization(r.Context(), rec.ID)
@@ -395,7 +424,7 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				}
 				equityDetail.DividendHistory = toDividendHistoryResponse(dividendHistory)
 				if quotePtr != nil {
-					sum := sumDividendsLast12Months(dividendHistory, time.Now())
+					sum := sumDividendsLast12Months(dividendHistory, simcalendar.DateOf(today))
 					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
 						indicators.DividendYield = &v
 						hasIndicators = true
@@ -463,7 +492,7 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 					DividendHistory: toDividendHistoryResponse(dividendHistory),
 				}
 				if quotePtr != nil {
-					sum := sumDividendsLast12Months(dividendHistory, time.Now())
+					sum := sumDividendsLast12Months(dividendHistory, simcalendar.DateOf(today))
 					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
 						fiiDetail.DividendYield = &v
 					}

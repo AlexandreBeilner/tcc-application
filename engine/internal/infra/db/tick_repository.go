@@ -11,9 +11,9 @@ import (
 
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/catalog"
-	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 	"tcc-investimentos/engine/internal/domain/tick"
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
@@ -435,9 +435,8 @@ func (r *TickRepository) ListIndicatorHistory(ctx context.Context, days int) ([]
 // calendário, histórico de indicador, cotações nem fundamentos são escrita
 // de saldo/posição de usuário, por isso não passam por Event Sourcing
 // (mesma distinção de catalog_repository.go pra dado cadastral). period_date
-// usa o relógio real (time.Now()), não o dia simulado — mesma decisão já
-// tomada pra DU restante de renda fixa na tarefa 3.13 (coerente com "1 tick
-// = 1 dia real"). result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates
+// é a data do dia simulado (simcalendar.DateOf, tarefa S.1), não o relógio
+// de parede. result.NetWorthUpdates (tarefa G.2)/PortfolioValueUpdates
 // (tarefa G.3) são um UPDATE por item em fii_details.net_worth/
 // portfolio_value, não um INSERT — diferente de company_fundamentals, não
 // existe tabela de histórico pra essas reavaliações.
@@ -478,7 +477,7 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 	}
 
 	if len(result.Fundamentals) > 0 {
-		periodDate := time.Now()
+		periodDate := simcalendar.DateOf(result.State.Day)
 		for _, f := range result.Fundamentals {
 			financials := fundamentals.Financials{
 				NetRevenue:      f.NetRevenue,
@@ -503,7 +502,7 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		}
 	}
 
-	if err := saveNewDividends(ctx, tx, result.NewDividends); err != nil {
+	if err := saveNewDividends(ctx, tx, result.State.Day, result.NewDividends); err != nil {
 		return err
 	}
 
@@ -577,13 +576,13 @@ func (r *TickRepository) refreshQuoteCache(ctx context.Context, quotes []tick.Qu
 // posição de cada usuário na data ex, já resolvida por Advance a partir de
 // ListDividendPayerAssets. Não passa por Event Sourcing: gerar o provento
 // ainda não é crédito nenhum a ninguém, só o pagamento é (payDueDividends).
-// ex_date/payment_date usam o relógio real (mesma decisão de period_date
-// em company_fundamentals) — só informativas, quem de fato governa quando
-// o pagamento acontece é payment_day (dia simulado, ver migration 000008).
-func saveNewDividends(ctx context.Context, tx *sql.Tx, records []tick.DividendRecord) error {
+// ex_date/payment_date são datas simuladas (tarefa S.1): a data ex é o dia
+// simulado corrente e o pagamento cai em payment_day (o dia que de fato
+// governa quando o pagamento acontece, ver migration 000008).
+func saveNewDividends(ctx context.Context, tx *sql.Tx, day int, records []tick.DividendRecord) error {
 	for _, rec := range records {
-		exDate := time.Now()
-		paymentDate := exDate.AddDate(0, 0, dividend.DefaultPaymentLagDays)
+		exDate := simcalendar.DateOf(day)
+		paymentDate := simcalendar.DateOf(rec.PaymentDay)
 
 		var eventID string
 		if err := tx.QueryRowContext(ctx,
@@ -753,4 +752,46 @@ func saveETFExpenses(ctx context.Context, tx *sql.Tx, n tick.ETFNAVEntry) error 
 		}
 	}
 	return nil
+}
+
+// tickAdvisoryLockKey identifica a trava consultiva do Postgres que serializa o
+// tick entre processos (tarefa S.3): o job agendado de cada instância e o POST
+// /admin/tick disputam a mesma chave.
+const tickAdvisoryLockKey int64 = 7_301_001
+
+// TryLockTick tenta pegar a trava consultiva do tick sem bloquear. A trava vive
+// numa conexão dedicada até release, porque trava consultiva de sessão pertence
+// à conexão que a pegou.
+func (r *TickRepository) TryLockTick(ctx context.Context) (func(), bool, error) {
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	var locked bool
+	if err := conn.QueryRowContext(ctx, `SELECT pg_try_advisory_lock($1)`, tickAdvisoryLockKey).Scan(&locked); err != nil {
+		_ = conn.Close()
+		return nil, false, err
+	}
+	if !locked {
+		_ = conn.Close()
+		return nil, false, nil
+	}
+	release := func() {
+		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, tickAdvisoryLockKey)
+		_ = conn.Close()
+	}
+	return release, true, nil
+}
+
+// LastTickAt devolve o instante do último SaveTick (market_calendar.updated_at).
+func (r *TickRepository) LastTickAt(ctx context.Context) (time.Time, bool, error) {
+	var at time.Time
+	err := r.db.QueryRowContext(ctx, `SELECT updated_at FROM market_calendar WHERE id = 1`).Scan(&at)
+	if err == sql.ErrNoRows {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return at, true, nil
 }

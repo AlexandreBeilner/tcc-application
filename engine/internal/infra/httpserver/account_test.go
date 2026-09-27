@@ -31,7 +31,7 @@ func postAccount(t *testing.T, opener accountOpener, body string) *httptest.Resp
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/accounts", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", opener, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", opener, nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -135,7 +135,7 @@ func getUserMarketData(t *testing.T, userData userMarketDataReader, path string)
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, nil, nil, userData, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, nil, nil, userData, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

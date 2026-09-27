@@ -1,6 +1,9 @@
 package dividend
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestEquityValuePerShare(t *testing.T) {
 	tests := map[string]struct {
@@ -69,7 +72,7 @@ func TestFIIValuePerShare(t *testing.T) {
 		want              float64
 		wantOK            bool
 	}{
-		"caso normal":                  {netWorth: 100_000_000, outstandingShares: 1_000_000, want: 0.5, wantOK: true},
+		"caso normal":                  {netWorth: 100_000_000, outstandingShares: 1_000_000, want: 1.1, wantOK: true},
 		"cotas em circulação zero":     {netWorth: 100_000_000, outstandingShares: 0, want: 0, wantOK: false},
 		"cotas em circulação negativa": {netWorth: 100_000_000, outstandingShares: -1, want: 0, wantOK: false},
 	}
@@ -79,7 +82,41 @@ func TestFIIValuePerShare(t *testing.T) {
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}
-			if ok && got != tt.want {
+			if ok && math.Abs(got-tt.want) > 1e-9 {
+				t.Errorf("got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestEquityPriceEffectPct cobre a tarefa S.13 (achado 018-023): provento
+// zero não desloca o preço justo, um provento normal desloca proporcional
+// ao pool distribuído sobre o patrimônio líquido, e um provento maior que
+// o próprio patrimônio líquido fica clampado em MinEquityPriceEffectPct
+// (nunca inverte o sinal do multiplicador (1 + efeito/100) só por causa
+// deste termo).
+func TestEquityPriceEffectPct(t *testing.T) {
+	tests := map[string]struct {
+		netIncome, netEquity float64
+		want                 float64
+	}{
+		"provento zero (net income zero)": {netIncome: 0, netEquity: 1_000_000, want: 0},
+		"provento normal": {
+			// pool = 100_000 × 0.5 = 50_000; efeito = -(50_000/1_000_000)×100 = -5%.
+			netIncome: 100_000, netEquity: 1_000_000, want: -5,
+		},
+		"provento maior que o patrimônio líquido, clampado": {
+			// pool = 3_000_000 × 0.5 = 1_500_000 > netEquity (1_000_000) —
+			// efeito bruto seria -150%, clampado em -100%.
+			netIncome: 3_000_000, netEquity: 1_000_000, want: MinEquityPriceEffectPct,
+		},
+		"patrimônio líquido zero, sem razão calculável":     {netIncome: 100_000, netEquity: 0, want: 0},
+		"patrimônio líquido negativo, sem razão calculável": {netIncome: 100_000, netEquity: -1_000, want: 0},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := EquityPriceEffectPct(tt.netIncome, tt.netEquity)
+			if math.Abs(got-tt.want) > 1e-9 {
 				t.Errorf("got = %v, want %v", got, tt.want)
 			}
 		})
@@ -103,7 +140,7 @@ func TestYield(t *testing.T) {
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}
-			if ok && got != tt.want {
+			if ok && math.Abs(got-tt.want) > 1e-9 {
 				t.Errorf("got = %v, want %v", got, tt.want)
 			}
 		})

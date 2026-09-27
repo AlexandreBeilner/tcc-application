@@ -9,12 +9,13 @@ import styles from './index.module.css'
 export type { NetWorthCardsProps } from './types'
 
 // Tela 2.1 (inventário) pede "variação percentual" no card de mercado ao
-// vivo — fora de escopo aqui: `GET /market/me/account` devolve preço médio
-// de aquisição por posição, não o preço atual (marcação a mercado exigiria
-// uma chamada a `GET /market/assets/:id` por posição, escopo da 6.5, não
-// desta tarefa). Os cards mostram patrimônio a custo em vez de variação —
-// o selo "ao vivo" abaixo é sobre o mercado estar aberto (fato real, RF/
-// spec 3.1), nunca uma variação de preço inventada.
+// vivo — ainda fora de escopo aqui: `livePatrimony` já é marcado a mercado
+// (tarefa S.6, `calculateAccountTotals` usa `markPrice` quando presente),
+// mas não há variação percentual do patrimônio em si, só do preço de cada
+// ativo (`daily_change_pct`, tela de detalhe) — agregar isso pediria
+// guardar um patrimônio de referência (ex: abertura do dia), não coberto
+// ainda. O selo "ao vivo" abaixo é sobre o mercado estar aberto (fato real,
+// RF/spec 3.1), nunca uma variação de preço inventada.
 export function NetWorthCards({ account }: NetWorthCardsProps) {
     const navigate = useNavigate()
     const { liveInvested, sandboxInvested } = calculateAccountTotals(account.positions, account.fixedIncomePositions)

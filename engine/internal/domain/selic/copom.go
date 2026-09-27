@@ -3,13 +3,15 @@ package selic
 import (
 	"math"
 	"math/rand"
+
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // CopomMeetingIntervalDays é a cadência das reuniões simuladas do "Copom"
-// que ajustam a curva de juros (spec 3.2, 3.2.1) — 21 dias reais,
-// disparadas pelo ator Temporizador (ainda não implementado; aqui o
-// calendário é só a regra "a cada N dias", sem agendamento real).
-const CopomMeetingIntervalDays = 21
+// que ajustam a curva de juros (spec 3.2, 3.2.1) — 45 dias de calendário
+// simulado (o Copom real se reúne 8 vezes por ano, tarefa S.2), disparadas
+// pelo Temporizador; aqui o calendário é só a regra "a cada N dias".
+const CopomMeetingIntervalDays = 45
 
 // CopomStepIncrement é o incremento mínimo de uma decisão do Copom
 // simulado (tarefa I.2, proposta seção 6) — toda mudança de Selic simulada
@@ -89,14 +91,26 @@ func deviationAt(ipcaAccumulatedDeviations []float64, i int) float64 {
 }
 
 // IsCopomMeetingDay confere se o dia de índice i (0-based) é uma reunião do
-// Copom — o 21º, 42º, 63º... dia real da simulação, contagem 1-based (o
-// dia 1 nunca é reunião; a primeira decisão só sai depois de 21 dias
-// correndo, consistente com "a cada 21 dias reais" da spec 3.2.1, não uma
-// decisão já no primeiro dia). Exportada (era isCopomMeetingDay até a
-// tarefa 3.11) porque o Temporizador (pacote tick) precisa sinalizar
-// "hoje é dia de reunião" sem duplicar essa regra.
+// Copom. A reunião nominal cai no CopomMeetingIntervalDays-ésimo dia da
+// simulação (contagem 1-based: o dia 1 nunca é reunião, a primeira decisão só
+// sai depois de um intervalo inteiro), 2×, 3×... Como o dia simulado é dia de
+// calendário (simcalendar, tarefa S.3), a reunião nominal que cai num sábado ou
+// domingo é empurrada pro PRÓXIMO DIA ÚTIL (decisão do autor de 2026-09-27) —
+// o Copom real só decide em dia útil. Exportada (era isCopomMeetingDay até a
+// tarefa 3.11) porque o Temporizador (pacote tick) precisa sinalizar "hoje é
+// dia de reunião" sem duplicar essa regra.
 func IsCopomMeetingDay(i int) bool {
-	return (i+1)%CopomMeetingIntervalDays == 0
+	day := i + 1 // dia simulado (1-based) que o tick está gerando
+	nominal := (day / CopomMeetingIntervalDays) * CopomMeetingIntervalDays
+	if nominal == 0 {
+		return false
+	}
+	for d := nominal; d < day; d++ {
+		if simcalendar.IsBusinessDay(d) {
+			return false // a reunião já aconteceu num dia útil anterior
+		}
+	}
+	return simcalendar.IsBusinessDay(day)
 }
 
 // NextCalendarRate avança a curva de juros por um único dia, a partir da

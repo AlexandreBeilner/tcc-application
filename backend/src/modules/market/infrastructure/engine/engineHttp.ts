@@ -10,8 +10,11 @@ export async function engineFetch<T>(url: string, init?: RequestInit): Promise<T
   const res = init ? await fetch(url, init) : await fetch(url)
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new EngineRequestError(res.status, body.error ?? 'erro do motor de simulação')
+    const { error, ...details } = (await res.json().catch(() => ({}))) as {
+      error?: string
+      [key: string]: unknown
+    }
+    throw new EngineRequestError(res.status, error ?? 'erro do motor de simulação', details)
   }
 
   // 204 (ex: POST /orders/:id/cancel, tarefa O.1) não tem corpo — chamar

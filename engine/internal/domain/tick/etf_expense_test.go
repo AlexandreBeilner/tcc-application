@@ -76,7 +76,7 @@ func TestClosingETFNAVs_TaxaNaoEntraNoCaixaLivreDoProvento(t *testing.T) {
 }
 
 func TestRaiseFundCash_VendeConstituintesQuandoFaltaCaixaParaATaxa(t *testing.T) {
-	svc, run, submitter, _ := rebalanceFixture(600, 400, nil, 13) // dayIndex 13 é dia de relatório (ciclo de 14)
+	svc, run, submitter, _ := rebalanceFixture(600, 400, nil, 90) // dayIndex 90 é dia de relatório (ciclo de 91)
 	fund := run.etfFunds["etf1"]
 	fund.Cash, fund.Liabilities, fund.FeesPayable = 0, 100, 100
 	run.etfFunds["etf1"] = fund
@@ -98,7 +98,7 @@ func TestRaiseFundCash_VendeConstituintesQuandoFaltaCaixaParaATaxa(t *testing.T)
 }
 
 func TestRaiseFundCash_CaixaCobreOuForaDoDiaDeRelatorioNaoFazNada(t *testing.T) {
-	svc, run, submitter, _ := rebalanceFixture(600, 400, nil, 13)
+	svc, run, submitter, _ := rebalanceFixture(600, 400, nil, 90)
 	fund := run.etfFunds["etf1"]
 	fund.Cash, fund.Liabilities, fund.FeesPayable = 500, 100, 100
 	run.etfFunds["etf1"] = fund

@@ -4,19 +4,22 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
-import { getAsset, getAssetQuotes, getMyAccount } from '../../services/market'
+import { getAsset, getAssetBook, getAssetQuotes, getMyAccount } from '../../services/market'
 import { AssetDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/market', () => ({
     getAsset: vi.fn(),
+    getAssetBook: vi.fn(),
     getAssetQuotes: vi.fn(),
     getMyAccount: vi.fn(),
     placeOrder: vi.fn(),
     purchaseFixedIncome: vi.fn(),
     redeemFixedIncome: vi.fn(),
 }))
+
+const emptyBook = { book: { is_sandbox: false, price: null, best_bid: null, best_ask: null, mid_price: null, bids: null, asks: null } }
 
 const emptyAccount = { cashBalance: 10000, totalInvested: 0, totalDividendsReceived: 0, positions: [], fixedIncomePositions: [] }
 
@@ -48,6 +51,7 @@ describe('AssetDetail (tela 4.5)', () => {
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getAssetBook).mockResolvedValue(emptyBook)
         // Ação/ETF/FII já desbloqueados por padrão — os testes deste arquivo
         // não são sobre o gate da tarefa 7.0.1, ver describe dedicado da J.3
         // abaixo pro estado travado.
@@ -84,9 +88,118 @@ describe('AssetDetail (tela 4.5)', () => {
         await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
         expect(screen.getByText('P/L')).toBeInTheDocument()
         expect(screen.getByText('Este ativo ainda não pagou nenhum provento.')).toBeInTheDocument()
+        // Tarefa S.16: sem posição nenhuma nesse ativo (emptyAccount), o card
+        // "Sua posição" não aparece.
+        expect(screen.queryByText('Sua posição')).not.toBeInTheDocument()
 
         fireEvent.click(screen.getByText('Ver empresa: Petrobras S.A.'))
         await waitFor(() => expect(screen.getByText('tela de empresa')).toBeInTheDocument())
+    })
+
+    it('com posição real e provento recebido (tarefa S.16), o card "Sua posição" mostra retorno total maior que o de preço', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getMyAccount).mockResolvedValue({
+            ...emptyAccount,
+            positions: [
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 10,
+                    averagePrice: 100,
+                    markPrice: 110,
+                    dividendsReceived: 50,
+                },
+            ],
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('Sua posição')).toBeInTheDocument())
+        // (110-100)/100 = +10,0%; ((110-100)*10 + 50)/(100*10) = +15,0%.
+        expect(screen.getByText('+10,0%')).toBeInTheDocument()
+        expect(screen.getByText('+15,0%')).toBeInTheDocument()
+    })
+
+    it('com posição real sem provento nenhum (tarefa S.16), os dois retornos do card são iguais', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getMyAccount).mockResolvedValue({
+            ...emptyAccount,
+            positions: [
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 10,
+                    averagePrice: 100,
+                    markPrice: 110,
+                    dividendsReceived: 0,
+                },
+            ],
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('Sua posição')).toBeInTheDocument())
+        expect(screen.getAllByText('+10,0%')).toHaveLength(2)
+    })
+
+    it('posição zerada por venda total (tarefa S.16, achado revisado): o motor nunca deleta a linha, mas o card não aparece', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getMyAccount).mockResolvedValue({
+            ...emptyAccount,
+            positions: [
+                {
+                    assetId: 'a1',
+                    ticker: 'PETR4',
+                    name: 'Petrobras',
+                    type: 'acao',
+                    isSandbox: false,
+                    quantity: 0,
+                    averagePrice: 100,
+                    dividendsReceived: 20,
+                },
+            ],
+        })
+
+        renderPage()
+
+        await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
+        expect(screen.queryByText('Sua posição')).not.toBeInTheDocument()
     })
 
     it('etf: mostra composição, sem indicadores de empresa', async () => {
@@ -168,6 +281,7 @@ describe('AssetDetail — ativo travado pela trilha (Fase Q)', () => {
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getAssetBook).mockResolvedValue(emptyBook)
         vi.mocked(getAsset).mockResolvedValue({
             asset: {
                 id: 'a1',

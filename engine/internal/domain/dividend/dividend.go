@@ -23,15 +23,19 @@ const (
 	// ciclo distribuída como provento por ação — mesmo tratamento "sujeito
 	// à calibração da tarefa 8.1" de fundamentals.DefaultNetMarginPct.
 	DefaultEquityPayoutRatio = 0.5
+	// FIIPayoutIntervalDays é a cadência de pagamento de proventos do FII:
+	// mensal, como no mercado real (tarefa S.2) — independente do ciclo
+	// trimestral de relatório (fundamentals.DefaultReportFrequencyDays).
+	FIIPayoutIntervalDays = 30
 	// DefaultFIIYieldPerCyclePct é a fração ilustrativa (%) de net_worth
-	// distribuída por ciclo de 14 dias (fundamentals.DefaultReportFrequencyDays)
-	// pra FII — ver nota de implementação no doc do pacote. 0.5% a cada 14
-	// dias equivale a um Dividend Yield ilustrativo de ~13% a.a., ordem de
-	// grandeza plausível pra FII no mercado real.
-	DefaultFIIYieldPerCyclePct = 0.5
+	// distribuída a cada pagamento mensal (FIIPayoutIntervalDays) pra FII —
+	// ver nota de implementação no doc do pacote. 1.1% ao mês equivale a um
+	// Dividend Yield ilustrativo de ~13% a.a., ordem de grandeza plausível
+	// pra FII no mercado real.
+	DefaultFIIYieldPerCyclePct = 1.1
 	// DefaultPaymentLagDays é a defasagem, em dias simulados, entre a data
-	// ex e o dia de pagamento de um provento — menor que o ciclo de
-	// relatório (14 dias) pra sempre liquidar antes do próximo ciclo gerar
+	// ex e o dia de pagamento de um provento — menor que o menor
+	// intervalo entre proventos do mesmo ativo (30 dias, FII) pra sempre liquidar antes do próximo ciclo gerar
 	// um novo provento sobre o mesmo ativo.
 	DefaultPaymentLagDays = 5
 	// DefaultPnDividendPremiumPct é o piso legal da vantagem mínima de
@@ -94,4 +98,44 @@ func Yield(sumLast12Months, currentPrice float64) (float64, bool) {
 		return 0, false
 	}
 	return sumLast12Months / currentPrice, true
+}
+
+// MinEquityPriceEffectPct é o piso de EquityPriceEffectPct — o pool
+// distribuído nunca reduz o patrimônio líquido em mais de 100% dele mesmo
+// (payout > patrimônio não deveria acontecer com DefaultEquityPayoutRatio
+// ilustrativo, mas a função não confia nisso). Não inventa um piso de
+// preço novo: bot.FundamentalistFairPrice já clampa o resultado final
+// não-positivo em bot.FundamentalistMinFairPrice, então -100% aqui só
+// evita que o multiplicador (1 + efeito/100) vire negativo e inverta o
+// sinal do preço justo por causa só deste termo.
+const MinEquityPriceEffectPct = -100.0
+
+// EquityPriceEffectPct estima quanto o provento de ação recém-pago (tarefa
+// S.13, achado 018-023) reduz o preço justo do Fundamentalista
+// (bot.FundamentalistFairPrice) — conservação de valor, não um degrau
+// direto de preço (a mesma arquitetura que já veta multiplicador direto
+// pra evento macro/balanço, ver doc do pacote tick): o pool distribuído
+// (netIncome × DefaultEquityPayoutRatio) sai do caixa da empresa,
+// reduzindo seu patrimônio líquido na mesma proporção — e como VPA =
+// netEquity / ações em circulação, o preço justo cai por essa mesma fração
+// percentual pra QUALQUER classe (ON ou PN), sem precisar saber a base de
+// ações de cada uma (diferente de EquityValuePerShare acima, que precisa
+// da base pra dividir o pool entre as duas classes). Escala percentual
+// negativa (mesma convenção de macroevent.EffectRange/
+// CompanyRoundContext.MacroEffectPct), clampada em MinEquityPriceEffectPct.
+// netEquity <= 0 devolve 0 — sem patrimônio, sem razão calculável (mesmo
+// tratamento de "sem dado, não divisão por zero" de fundamentals.VPA/ROE).
+// Quem chama decide a janela de dias em que este efeito fica ativo
+// (tick.companyRoundContexts) — esta função não sabe de calendário, só da
+// proporção do valor distribuído.
+func EquityPriceEffectPct(netIncome, netEquity float64) float64 {
+	if netEquity <= 0 {
+		return 0
+	}
+	pool := netIncome * DefaultEquityPayoutRatio
+	effect := -(pool / netEquity) * 100
+	if effect < MinEquityPriceEffectPct {
+		return MinEquityPriceEffectPct
+	}
+	return effect
 }

@@ -7,8 +7,11 @@ import { OrderSummaryList } from '../OrderSummaryList'
 import type { OrderSummaryRow } from '../OrderSummaryList'
 import { OrderSuccessOverlay } from '../OrderSuccessOverlay'
 import { useAssetQuery } from '../../../features/market/useAssetQuery'
+import { useAssetBookQuery } from '../../../features/market/useAssetBookQuery'
 import { usePlaceOrderMutation } from '../../../features/market/usePlaceOrderMutation'
 import { asProductLockedError } from '../../../features/market/productLockedError'
+import { classifyOrderRejection, describeOrderRejection } from '../../../features/market/orderRejection'
+import { averageFillPrice } from '../../../features/market/orderBook'
 import type { ProductLockedErrorBody } from '../../../services/market'
 import { usePurchaseFixedIncomeMutation } from '../../../features/market/usePurchaseFixedIncomeMutation'
 import { useRedeemFixedIncomeMutation } from '../../../features/market/useRedeemFixedIncomeMutation'
@@ -53,6 +56,11 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
     // `refetch` explícito porque a tela de origem (4.5) já populou o cache
     // desse mesmo `queryKey` com um preço potencialmente desatualizado.
     const assetQuery = useAssetQuery(draft.assetId, { enabled: draft.kind === 'order' })
+    // Book do ativo (tarefa S.5/S.7) — insumo da mensagem clara de 422 de
+    // saldo insuficiente (achado 021: "comprar o máximo" pelo último preço
+    // caía em erro genérico), calculada pela mesma profundidade real do
+    // painel "Nova ordem".
+    const bookQuery = useAssetBookQuery(draft.assetId, { enabled: draft.kind === 'order' })
     const placeOrder = usePlaceOrderMutation()
     const purchaseFixedIncome = usePurchaseFixedIncomeMutation()
     const redeemFixedIncome = useRedeemFixedIncomeMutation()
@@ -73,6 +81,8 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
     }, [isSubmitting, onClose])
 
     const cashBalance = accountQuery.data?.cashBalance
+    const ownedQuantity =
+        draft.kind === 'order' ? accountQuery.data?.positions.find((position) => position.assetId === draft.assetId)?.quantity : undefined
 
     const handleConfirm = async () => {
         setError(null)
@@ -96,9 +106,19 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
             const locked = asProductLockedError(err)
             if (locked) {
                 setLockedError(locked)
-            } else {
-                setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
+                return
             }
+            // Achado 021 (`pontos-em-aberto-decisao-produto.md`)/tarefa S.7:
+            // "saldo insuficiente"/"posição insuficiente" genérico do motor
+            // ganha a quantidade máxima real (calculada pela mesma
+            // profundidade do book do painel "Nova ordem", ou pela posição
+            // em carteira do lado da venda) em vez do texto cru do motor.
+            const rejection = draft.kind === 'order' ? classifyOrderRejection(err) : null
+            if (rejection) {
+                setError(describeOrderRejection(rejection, draft.ticker, bookQuery.data?.book, cashBalance, ownedQuantity))
+                return
+            }
+            setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
         }
     }
 
@@ -223,7 +243,7 @@ function successMessage(
     redemptionResult: ReturnType<typeof useRedeemFixedIncomeMutation>['data'],
 ): string {
     if (draft.kind === 'order' && orderResult) {
-        const { filled_quantity: filled, remaining_quantity: remaining } = orderResult
+        const { filled_quantity: filled, remaining_quantity: remaining, fills } = orderResult
         // Tarefa A.2 (backlog-motor-mercado-realista): ordem a mercado do
         // Mercado Ao Vivo pode não achar contraparte real suficiente — sem
         // preenchimento sintético, `remaining_quantity` reporta a sobra não
@@ -233,10 +253,15 @@ function successMessage(
         if (remaining > 0 && filled === 0) {
             return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora — nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
         }
+        // Tarefa S.7 (achado 021): preço médio executado, não o preço
+        // unitário estático de antes da confirmação — a ordem a mercado
+        // executa contra o book (spread), nunca exatamente no último negócio.
+        const avgPrice = averageFillPrice(fills)
+        const priceSuffix = avgPrice !== null ? ` a preço médio de ${formatCurrency(avgPrice)}` : ''
         if (remaining > 0) {
-            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker} — o restante não achou liquidez suficiente e não foi executado.`
+            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker}${priceSuffix} — o restante não achou liquidez suficiente e não foi executado.`
         }
-        return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}.`
+        return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}${priceSuffix}.`
     }
     if (draft.kind === 'fixed_income_purchase' && purchaseResult) {
         return `Você investiu ${formatCurrency(draft.amount)} em ${draft.ticker}.`

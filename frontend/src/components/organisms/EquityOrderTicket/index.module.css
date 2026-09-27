@@ -100,3 +100,26 @@
 .flash {
     background: rgba(240, 162, 2, 0.2);
 }
+
+.maxRow {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: calc(var(--space-2) * -1);
+}
+
+.maxButton {
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    background: transparent;
+    color: var(--color-brand-300);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.depthNote {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}

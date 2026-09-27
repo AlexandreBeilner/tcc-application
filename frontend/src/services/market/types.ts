@@ -4,7 +4,7 @@
 // donut de distribuição e da separação visual "Mercado Ao Vivo vs.
 // Sandbox" da tela 2.1 (tarefa 6.3) — o agrupamento acontece aqui no
 // frontend, a resposta não separa em dois blocos.
-export interface MyAccountPosition {
+interface BaseMyAccountPosition {
     assetId: string
     ticker: string
     name: string
@@ -14,7 +14,18 @@ export interface MyAccountPosition {
     averagePrice: number
 }
 
-export interface MyAccountFixedIncomePosition extends MyAccountPosition {
+// dividendsReceived (tarefa S.15) só existe em renda variável — renda fixa
+// não gera provento (`dividend_payment`), por isso não fica na base
+// compartilhada com MyAccountFixedIncomePosition.
+export interface MyAccountPosition extends BaseMyAccountPosition {
+    dividendsReceived: number
+    // Preço de marcação a mercado (tarefa S.6) — ponto médio do book do
+    // ativo, com fallback pro último negócio quando falta um dos lados.
+    // Ausente pra posição sandbox (nunca teve book real).
+    markPrice?: number
+}
+
+export interface MyAccountFixedIncomePosition extends BaseMyAccountPosition {
     averageRate: number
 }
 
@@ -152,6 +163,29 @@ export interface AssetDetail extends AssetSummary {
 export interface QuoteHistoryEntry {
     simulated_day: number
     price: number
+}
+
+// `GET /market/assets/:id/book` (tarefa S.5) — proxy 1:1 do motor. Cada
+// nível é a soma agregada de ordens `limit` pendentes naquele preço, do
+// melhor preço pro pior (bids do maior pro menor, asks do menor pro
+// maior), recortado aos 5 melhores de cada lado. Ativo do Mercado Ao Vivo:
+// `bids`/`asks` vêm `null` (nunca `[]`) quando o lado está vazio;
+// `mid_price` também é `null` com só um lado disponível. Ativo sandbox:
+// só `price` vem preenchido (preço do roteiro), os 5 campos de book vêm
+// `null` — sandbox nunca teve, nem vai ter, contraparte real (RF12/RNF08).
+export interface BookLevel {
+    price: number
+    quantity: number
+}
+
+export interface AssetBook {
+    is_sandbox: boolean
+    price: number | null
+    best_bid: number | null
+    best_ask: number | null
+    mid_price: number | null
+    bids: BookLevel[] | null
+    asks: BookLevel[] | null
 }
 
 // `GET /market/indicators` (tarefa M.3) — proxy 1:1 do motor
@@ -295,4 +329,61 @@ export interface RedeemFixedIncomeResult {
     net_value: number
     tax_rate: number
     mark_to_market: MarkToMarket
+}
+
+// Espelha `GET /market/clock` (`.docs/backend/market.md`, tarefa S.10), proxy 1:1
+// do motor. `weekday` é o código estável (`sun`..`sat`); `next_tick_at` é
+// `null` quando a agenda automática do motor está desligada.
+export interface MarketClock {
+    simulated_day: number
+    date: string
+    weekday: string
+    market_open: boolean
+    days_until_open: number
+    days_per_real_day: number
+    next_tick_at: string | null
+    quarter_day: number
+    quarter_length: number
+}
+
+// Linha do tempo do mercado (tarefa S.10/S.12): um item por dia da janela, dias
+// sem fato vêm com `events: []`. Só os campos do tipo vêm preenchidos.
+export type CalendarEventKind =
+    | 'macro_event'
+    | 'copom'
+    | 'report'
+    | 'dividend_ex_date'
+    | 'dividend_payment_date'
+    | 'order_executed'
+    | 'dividend_received'
+    | 'fixed_income_purchase'
+    | 'fixed_income_redemption'
+    | 'fixed_income_maturity'
+
+export interface CalendarEvent {
+    kind: CalendarEventKind
+    scope: 'global' | 'user'
+    future: boolean
+    title?: string
+    direction?: string
+    ticker?: string
+    side?: 'buy' | 'sell'
+    quantity?: number
+    unit_value?: number
+    selic_rate?: number
+    previous_selic_rate?: number
+}
+
+export interface CalendarDay {
+    simulated_day: number
+    date: string
+    weekday: string
+    market_open: boolean
+    events: CalendarEvent[]
+}
+
+export interface MarketCalendar {
+    from_day: number
+    to_day: number
+    days: CalendarDay[]
 }

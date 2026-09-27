@@ -262,7 +262,14 @@ func handleFixedIncomeSimulate(catalogReader assetCatalogReader, exec fixedIncom
 			return
 		}
 
+		today, err := catalogReader.CurrentSimulatedDay(r.Context())
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar dia simulado corrente")
+			return
+		}
+
 		simCtx := fixedincomeexecution.SimulateContext{
+			SimulatedDay:  today,
 			AnnualRatePct: *spec.InterestRate,
 			MaturityDate:  *spec.MaturityDate,
 			TaxExempt:     spec.TaxExempt,
@@ -330,6 +337,9 @@ func handleFixedIncomeTaxRate() http.HandlerFunc {
 }
 
 func writeFixedIncomePurchaseError(w http.ResponseWriter, err error) {
+	if writeMarketClosedIfClosed(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, fixedincomeexecution.ErrInvalidAmount):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
@@ -337,15 +347,22 @@ func writeFixedIncomePurchaseError(w http.ResponseWriter, err error) {
 		writeCatalogError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, fixedincomeexecution.ErrAccountNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, fixedincomeexecution.ErrMarketNotInitialized):
+		writeCatalogError(w, http.StatusServiceUnavailable, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao processar compra de renda fixa")
 	}
 }
 
 func writeFixedIncomeRedemptionError(w http.ResponseWriter, err error) {
+	if writeMarketClosedIfClosed(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, fixedincomeexecution.ErrPositionNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, fixedincomeexecution.ErrMarketNotInitialized):
+		writeCatalogError(w, http.StatusServiceUnavailable, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao processar resgate de renda fixa")
 	}

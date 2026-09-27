@@ -239,6 +239,20 @@ type Outcome struct {
 	InvalidRestingOrderIDs []string
 }
 
+// BookResult é o resultado de Repository.AssetBook/Service.AssetBook
+// (tarefa S.5) — a leitura pública do book de um ativo, sem nunca expor
+// id nem dono de ordem individual (orderbook.Snapshot já garante isso).
+// Ativo sandbox nunca tem book real (RF12/RNF08, doc do pacote): Sandbox
+// = true e SandboxPrice traz o preço do roteiro nesse caso, Book fica no
+// valor zero (nenhuma oferta). Ativo do Mercado Ao Vivo é o oposto:
+// Sandbox = false, SandboxPrice é ignorado pelo chamador e Book traz o
+// snapshot de verdade.
+type BookResult struct {
+	Sandbox      bool
+	SandboxPrice float64
+	Book         orderbook.Snapshot
+}
+
 // OrderRecord é uma linha de order_book do usuário, devolvida por
 // Repository.ListOrders (tarefa O.3, GET /orders) — mais recente primeiro,
 // sem paginação (escopo de protótipo). CancelReason é nil pra qualquer

@@ -60,7 +60,7 @@ func postFixedIncome(t *testing.T, path string, reader catalogReader, exec fixed
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -166,6 +166,7 @@ func TestHandleFixedIncomePurchase_ErrosDeExecucao(t *testing.T) {
 		{"saldo insuficiente", fixedincomeexecution.ErrInsufficientBalance, http.StatusUnprocessableEntity},
 		{"valor inválido", fixedincomeexecution.ErrInvalidAmount, http.StatusBadRequest},
 		{"conta não encontrada", fixedincomeexecution.ErrAccountNotFound, http.StatusNotFound},
+		{"temporizador nunca rodou (S.9, achado do e2e: não pode virar 500 opaco)", fixedincomeexecution.ErrMarketNotInitialized, http.StatusServiceUnavailable},
 		{"erro interno inesperado", context.DeadlineExceeded, http.StatusInternalServerError},
 	}
 
@@ -276,6 +277,7 @@ func TestHandleFixedIncomeRedemption_ErrosDeExecucao(t *testing.T) {
 		want int
 	}{
 		{"posição não encontrada", fixedincomeexecution.ErrPositionNotFound, http.StatusNotFound},
+		{"temporizador nunca rodou (S.9, achado do e2e: não pode virar 500 opaco)", fixedincomeexecution.ErrMarketNotInitialized, http.StatusServiceUnavailable},
 		{"erro interno inesperado", context.DeadlineExceeded, http.StatusInternalServerError},
 	}
 
@@ -317,7 +319,7 @@ func getFixedIncomeSimulateWithExecutor(t *testing.T, reader catalogReader, exec
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/fixed-income/simulate?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -502,7 +504,7 @@ func getFixedIncomeTaxRate(t *testing.T, query string) *httptest.ResponseRecorde
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/fixed-income/tax-rate?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

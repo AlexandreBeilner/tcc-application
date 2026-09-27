@@ -38,7 +38,9 @@ const lessons = [1, 2].map((n) => ({
   microDecisionCorrectOption: n === 1 ? 0 : null,
 }))
 
-function buildApp() {
+// `minStepIntervalMs` 0 por padrão: os testes de rota não são sobre o tempo
+// mínimo entre passos (S.4, coberto no caso de uso e no teste dedicado abaixo).
+function buildApp(minStepIntervalMs = 0) {
   const lessonRepository = createFakeLessonRepository(lessons)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -49,6 +51,7 @@ function buildApp() {
     createFakeXpAwarder(),
     createFakeStreakTracker(),
     createFakeSocialFeedRecorder(),
+    { minStepIntervalMs },
   )
   const reviewLesson = new ReviewLessonUseCase(lessonRepository, createFakeAchievementChecker())
 
@@ -157,6 +160,10 @@ describe('lessons routes', () => {
 
   it('POST /lessons/:id/progress persiste selectedOption válido, lido de volta em GET /lessons/:id', async () => {
     const { app, tokenIssuer, lessonRepository } = buildApp()
+    await request(app)
+      .post('/lessons/l1/progress')
+      .set('Authorization', authHeader(tokenIssuer))
+      .send({ step: 1 })
 
     const res = await request(app)
       .post('/lessons/l1/progress')
@@ -171,6 +178,12 @@ describe('lessons routes', () => {
 
   it('POST /lessons/:id/progress avança e conclui a lição no step de desbloqueio', async () => {
     const { app, tokenIssuer } = buildApp()
+    for (const step of [1, 2]) {
+      await request(app)
+        .post('/lessons/l1/progress')
+        .set('Authorization', authHeader(tokenIssuer))
+        .send({ step })
+    }
 
     const res = await request(app)
       .post('/lessons/l1/progress')
@@ -186,6 +199,35 @@ describe('lessons routes', () => {
       streakMilestone: null,
       unlockedAchievements: [],
     })
+  })
+
+  it('POST /lessons/:id/progress retorna 422 step_out_of_order ao pular direto pro desbloqueio', async () => {
+    const { app, tokenIssuer } = buildApp()
+
+    const res = await request(app)
+      .post('/lessons/l1/progress')
+      .set('Authorization', authHeader(tokenIssuer))
+      .send({ step: LESSON_UNLOCK_STEP })
+
+    expect(res.status).toBe(422)
+    expect(res.body).toMatchObject({ code: 'step_out_of_order' })
+  })
+
+  it('POST /lessons/:id/progress retorna 422 step_too_fast com retryAfterMs ao avançar sem esperar', async () => {
+    const { app, tokenIssuer } = buildApp(60_000)
+    await request(app)
+      .post('/lessons/l1/progress')
+      .set('Authorization', authHeader(tokenIssuer))
+      .send({ step: 1 })
+
+    const res = await request(app)
+      .post('/lessons/l1/progress')
+      .set('Authorization', authHeader(tokenIssuer))
+      .send({ step: 2 })
+
+    expect(res.status).toBe(422)
+    expect(res.body).toMatchObject({ code: 'step_too_fast' })
+    expect(res.body.retryAfterMs).toBeGreaterThan(0)
   })
 
   it('POST /lessons/:id/progress retorna 404 pra lição bloqueada', async () => {

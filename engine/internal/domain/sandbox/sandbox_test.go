@@ -2,7 +2,6 @@ package sandbox
 
 import (
 	"testing"
-	"time"
 )
 
 func TestPriceOnDay(t *testing.T) {
@@ -77,24 +76,21 @@ func TestIPCAOnDay(t *testing.T) {
 }
 
 func TestDaysSince(t *testing.T) {
-	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-
 	tests := []struct {
-		name             string
-		firstOperationAt time.Time
-		now              time.Time
-		want             int
+		name              string
+		firstOperationDay int
+		currentDay        int
+		want              int
 	}{
-		{"mesmo instante da primeira operação", base, base, 0},
-		{"algumas horas depois, ainda dia 0", base, base.Add(20 * time.Hour), 0},
-		{"exatamente 1 dia depois", base, base.Add(24 * time.Hour), 1},
-		{"3 dias e meio depois", base, base.Add(84 * time.Hour), 3},
-		{"relógio andou pra trás nunca fica negativo", base, base.Add(-1 * time.Hour), 0},
+		{"mesmo dia da primeira operação", 10, 10, 0},
+		{"1 dia simulado depois", 10, 11, 1},
+		{"3 dias simulados depois", 10, 13, 3},
+		{"dia corrente anterior nunca fica negativo", 10, 8, 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := DaysSince(tt.firstOperationAt, tt.now); got != tt.want {
+			if got := DaysSince(tt.firstOperationDay, tt.currentDay); got != tt.want {
 				t.Errorf("DaysSince() = %d, want %d", got, tt.want)
 			}
 		})

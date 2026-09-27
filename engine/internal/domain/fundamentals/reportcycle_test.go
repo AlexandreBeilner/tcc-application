@@ -9,7 +9,7 @@ func TestIsReportDay_RespeitaFrequencia(t *testing.T) {
 		reportDayIndexes    []int // índices (0-based) esperados como dia de relatório, dentro de days
 		days                int
 	}{
-		{name: "quinzenal (default de companies.report_frequency_days)", reportFrequencyDays: DefaultReportFrequencyDays, reportDayIndexes: []int{13, 27, 41}, days: 42},
+		{name: "trimestral (default de companies.report_frequency_days)", reportFrequencyDays: DefaultReportFrequencyDays, reportDayIndexes: []int{90, 181, 272}, days: 273},
 		{name: "semanal", reportFrequencyDays: 7, reportDayIndexes: []int{6, 13, 20}, days: 21},
 	}
 

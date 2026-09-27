@@ -33,15 +33,15 @@ type userMarketDataReader interface {
 // New monta o *http.Server com as rotas do motor de simulação registradas.
 // accounts pode ser nil (ex: sem DATABASE_URL configurado) — POST
 // /accounts responde 503 nesse caso; catalog, temporizador, orders,
-// fixedIncome, macroEvents, macroEventReader, userData e indicatorHistory
+// fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory e calendar
 // podem ser nil também — GET /assets, /assets/:id, /assets/:id/quotes,
-// /companies/:id, POST /admin/tick, POST /orders, POST /orders/:id/cancel,
-// GET /orders, POST /fixed-income/purchases|redemptions, GET
-// /fixed-income/simulate, POST /macro-events, GET /macro-events, GET
-// /accounts/:user_id[/events], GET /positions, GET /fixed-income/positions
-// e GET /market/indicators/history respondem 503 nesse caso, em vez de
+// /assets/:id/book, /companies/:id, POST /admin/tick, POST /orders, POST
+// /orders/:id/cancel, GET /orders, POST /fixed-income/purchases|redemptions,
+// GET /fixed-income/simulate, POST /macro-events, GET /macro-events, GET
+// /accounts/:user_id[/events], GET /positions, GET /fixed-income/positions,
+// GET /market/indicators/history, GET /market/clock e GET /market/calendar respondem 503 nesse caso, em vez de
 // panicar.
-func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader) *http.Server {
+func New(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
@@ -52,6 +52,7 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /assets", handleListAssets(catalog))
 	mux.HandleFunc("GET /assets/{id}", handleGetAsset(catalog))
 	mux.HandleFunc("GET /assets/{id}/quotes", handleGetAssetQuoteHistory(catalog))
+	mux.HandleFunc("GET /assets/{id}/book", handleGetAssetBook(catalog, orders))
 	mux.HandleFunc("GET /companies/{id}", handleGetCompany(catalog))
 	mux.HandleFunc("POST /admin/tick", handleAdminTick(temporizador))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
@@ -64,6 +65,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 	mux.HandleFunc("POST /macro-events", handleTriggerMacroEvent(macroEvents))
 	mux.HandleFunc("GET /macro-events", handleListMacroEvents(macroEventReader))
 	mux.HandleFunc("GET /market/indicators/history", handleGetIndicatorHistory(indicatorHistory))
+	mux.HandleFunc("GET /market/clock", handleGetMarketClock(calendar))
+	mux.HandleFunc("GET /market/calendar", handleGetMarketCalendar(calendar))
 
 	return &http.Server{
 		Addr:         addr,
@@ -75,8 +78,8 @@ func New(addr string, accounts accountOpener, catalog catalogReader, temporizado
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader) error {
-	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory)
+func Run(addr string, accounts accountOpener, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) error {
+	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory, calendar)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
 }

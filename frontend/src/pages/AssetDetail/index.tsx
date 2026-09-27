@@ -5,13 +5,17 @@ import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicato
 import { EtfCompositionPanel } from '../../components/organisms/EtfCompositionPanel'
 import { FiiIndicatorsPanel } from '../../components/organisms/FiiIndicatorsPanel'
 import { DividendHistoryList } from '../../components/organisms/DividendHistoryList'
+import { PositionSummaryCard } from '../../components/organisms/PositionSummaryCard'
 import { EquityOrderTicket } from '../../components/organisms/EquityOrderTicket'
 import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
+import { useAssetBookQuery } from '../../features/market/useAssetBookQuery'
+import { useMarketClosedReason } from '../../features/market/useMarketClosedReason'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
+import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { formatCurrency } from '../../features/portfolio/format'
 import { formatSignedPercent } from '../../features/market/format'
 import type { OrderSide } from '../../services/market'
@@ -40,12 +44,20 @@ export function AssetDetail() {
     const assetId = id as string
 
     const assetQuery = useAssetQuery(assetId)
+    const bookQuery = useAssetBookQuery(assetId)
+    const accountQuery = useMyAccountQuery()
     const [rangeDays, setRangeDays] = useState(RANGES[0].days)
     const quotesQuery = useAssetQuotesQuery(assetId, rangeDays)
     const [draft, setDraft] = useState<OrderDraftOrder | null>(null)
     const gate = useLockedAssetGate()
 
     const asset = assetQuery.data?.asset
+    const closedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
+    // Book real (tarefa S.5/S.7) — insumo do custo estimado e de "Usar o
+    // máximo" do `EquityOrderTicket`; ausente/sandbox cai no fallback de
+    // sempre (último negócio), já tratado no próprio componente.
+    const position = accountQuery.data?.positions.find((position) => position.assetId === assetId)
+    const ownedQuantity = position?.quantity
 
     if (assetQuery.isError) {
         return (
@@ -123,6 +135,21 @@ export function AssetDetail() {
                         onRangeChange={setRangeDays}
                     />
 
+                    {/* `positions` nunca é deletada numa venda total (UPSERT no motor,
+                        `order_execution_repository.go`) — a linha fica com `quantity: 0` e
+                        `average_price` do último preço médio, então `position.quantity > 0`
+                        é obrigatório aqui: sem essa checagem o card apareceria pra um ativo
+                        que o usuário não tem mais, dividindo por `averagePrice * 0` no
+                        retorno total (tarefa S.16, achado revisado nesta sessão). */}
+                    {position && !position.isSandbox && position.quantity > 0 && (
+                        <PositionSummaryCard
+                            quantity={position.quantity}
+                            averagePrice={position.averagePrice}
+                            markPrice={position.markPrice}
+                            dividendsReceived={position.dividendsReceived}
+                        />
+                    )}
+
                     {asset.equity && (
                         <>
                             <EquityIndicatorsPanel indicators={asset.equity.indicators} />
@@ -162,7 +189,14 @@ export function AssetDetail() {
                 </div>
 
                 <aside className={styles.sidebar}>
-                    <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
+                    <EquityOrderTicket
+                        unitPrice={asset.current_price}
+                        book={bookQuery.data?.book}
+                        cashBalance={accountQuery.data?.cashBalance}
+                        ownedQuantity={ownedQuantity}
+                        closedReason={closedReason}
+                        onSubmit={handleSubmitOrder}
+                    />
                 </aside>
             </div>
 

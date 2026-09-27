@@ -25,7 +25,7 @@ export function Statement() {
     // `market_events` só traz `asset_id` (UUID) — busca todos os ativos
     // (sem filtro de `type`) só pra resolver UUID → "TICKER · Nome" na
     // exibição, sem tocar o motor (que não devolve esse dado no extrato).
-    const assetsQuery = useAssetsQuery()
+    const assetsQuery = useAssetsQuery(undefined, { includeSandbox: true })
     const [typeFilter, setTypeFilter] = useState('all')
     const [periodDays, setPeriodDays] = useState(0)
     // Lazy initializer: lido uma vez (montagem), não a cada render — evita

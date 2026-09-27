@@ -109,6 +109,19 @@ type CompanyRoundContext struct {
 	// empresa igual a Financials/GrowthRate acima — é a empresa que declara
 	// o percentual, não o ativo.
 	PnDividendPremiumPct float64
+	// DividendEffectPct (tarefa S.13, achado 018-023) é o efeito de preço
+	// (dividend.EquityPriceEffectPct, conservação de valor) do provento de
+	// ação pago no último dia de relatório desta empresa — 0 fora da banda
+	// curta de dias simulados em que o efeito fica ativo (tick.go, mesmo
+	// tratamento de janela que macroPriceEffectsByCompany dá a
+	// MacroEffectPct, só que derivado do calendário de relatório em vez de
+	// um evento macro). Repassado ao Fundamentalista via decisionInputFor/
+	// bot.DecisionInput.DividendEffectPct — mesmo único consumidor de
+	// MacroEffectPct acima — e somado a ele no gatilho de atenção extra de
+	// turno (applyEventAttention, Q.10): um provento recém-pago também
+	// merece a mesma corrida de turnos que um evento macro/balanço, senão o
+	// Fundamentalista pode não reagir a tempo perto da data-ex.
+	DividendEffectPct float64
 }
 
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
@@ -495,6 +508,7 @@ func (s *Service) decisionInputFor(
 		input.Financials = cc.Financials
 		input.GrowthRate = cc.GrowthRate
 		input.MacroEffectPct = cc.MacroEffectPct
+		input.DividendEffectPct = cc.DividendEffectPct
 		input.OutstandingShares = *execCtx.OutstandingShares
 		// PnDividendPremiumPct (tarefa J.3) só se aplica a um ativo PN —
 		// state.ShareClass nil ou qualquer valor != "PN" conta como ON
@@ -797,16 +811,24 @@ func (r *roundRun) directionalCeilingPct(assetID string) float64 {
 // applyEventAttention (Q.10) marca no universo o multiplicador de atenção dos
 // ativos cuja empresa sofre hoje o efeito de preço de um evento macro
 // (CompanyRoundContext.MacroEffectPct, que só é diferente de zero enquanto o
-// evento dura): eles ganham turnos e volume, e os turnos preferem
-// Fundamentalistas. ETF deriva a atenção da cesta (R.10).
+// evento dura) ou de um provento de ação recém-pago (CompanyRoundContext.
+// DividendEffectPct, tarefa S.13, mesma janela curta de dias): eles ganham
+// turnos e volume, e os turnos preferem Fundamentalistas — os dois efeitos
+// somados no mesmo gatilho, generalizando o que antes só checava
+// MacroEffectPct. ETF deriva a atenção da cesta (R.10).
 func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext, etfFunds map[string]etf.FundSnapshot) {
 	for i := range universe {
 		state := equities[universe[i].AssetID]
 		if state == nil || state.CompanyID == nil {
 			continue
 		}
-		if cc, ok := companyContext[*state.CompanyID]; ok && cc.MacroEffectPct != 0 {
-			universe[i].Attention = bot.AttentionMultiplier(cc.MacroEffectPct)
+		cc, ok := companyContext[*state.CompanyID]
+		if !ok {
+			continue
+		}
+		combinedEffectPct := cc.MacroEffectPct + cc.DividendEffectPct
+		if combinedEffectPct != 0 {
+			universe[i].Attention = bot.AttentionMultiplier(combinedEffectPct)
 		}
 	}
 

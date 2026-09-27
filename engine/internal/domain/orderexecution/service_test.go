@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 type fakeRepository struct {
@@ -22,6 +23,11 @@ type fakeRepository struct {
 	listOrders       []OrderRecord
 	listOrdersErr    error
 	listedUserID     string
+	assetBookResult  BookResult
+	assetBookErr     error
+	bookAssetID      string
+	bookUserID       string
+	bookDepth        int
 }
 
 func (f *fakeRepository) LoadContext(_ context.Context, _, _ string) (Context, error) {
@@ -44,6 +50,11 @@ func (f *fakeRepository) CancelOrder(_ context.Context, orderID, userID string) 
 func (f *fakeRepository) ListOrders(_ context.Context, userID string) ([]OrderRecord, error) {
 	f.listedUserID = userID
 	return f.listOrders, f.listOrdersErr
+}
+
+func (f *fakeRepository) AssetBook(_ context.Context, assetID, userID string, depth int) (BookResult, error) {
+	f.bookAssetID, f.bookUserID, f.bookDepth = assetID, userID, depth
+	return f.assetBookResult, f.assetBookErr
 }
 
 func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
@@ -216,6 +227,35 @@ func TestService_ListOrders_PropagaErroDoRepositorio(t *testing.T) {
 	}
 }
 
+// TestService_AssetBook_RepassaProRepositorio cobre a tarefa S.5: sem regra
+// de domínio própria, AssetBook só repassa assetID/userID/depth pro
+// repositório.
+func TestService_AssetBook_RepassaProRepositorio(t *testing.T) {
+	want := BookResult{Sandbox: true, SandboxPrice: 42}
+	repo := &fakeRepository{assetBookResult: want}
+	svc := NewService(repo)
+
+	got, err := svc.AssetBook(context.Background(), "asset-1", "user-1", 5)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if got.Sandbox != want.Sandbox || got.SandboxPrice != want.SandboxPrice {
+		t.Errorf("AssetBook = %+v, want %+v", got, want)
+	}
+	if repo.bookAssetID != "asset-1" || repo.bookUserID != "user-1" || repo.bookDepth != 5 {
+		t.Errorf("repo recebeu (%q, %q, %d), want (%q, %q, %d)", repo.bookAssetID, repo.bookUserID, repo.bookDepth, "asset-1", "user-1", 5)
+	}
+}
+
+func TestService_AssetBook_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{assetBookErr: errors.New("falha de leitura")}
+	svc := NewService(repo)
+
+	if _, err := svc.AssetBook(context.Background(), "asset-1", "user-1", 5); err == nil {
+		t.Fatal("err = nil, want erro propagado de AssetBook")
+	}
+}
+
 func TestService_Submit_ErroAoPersistir(t *testing.T) {
 	repo := &fakeRepository{
 		loadCtx:    Context{ReferencePrice: 25, IncomingUserBalance: 1000},
@@ -226,5 +266,54 @@ func TestService_Submit_ErroAoPersistir(t *testing.T) {
 	_, err := svc.Submit(context.Background(), Request{Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1})
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Persist")
+	}
+}
+
+func TestService_Submit_MercadoFechadoNoFimDeSemanaNaoPersisteNada(t *testing.T) {
+	for _, day := range []int{5, 6} { // sábado e domingo simulados
+		repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, SimulatedDay: day}}
+		svc := NewService(repo)
+
+		_, err := svc.SubmitByUser(context.Background(), Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1})
+		var closed *simcalendar.MarketClosedError
+		if !errors.As(err, &closed) {
+			t.Fatalf("dia %d: err = %v, quer *MarketClosedError", day, err)
+		}
+		if repo.persistCalled {
+			t.Errorf("dia %d: nada pode ser gravado com o mercado fechado", day)
+		}
+	}
+}
+
+func TestService_Submit_SandboxSegueAbertoNoFimDeSemana(t *testing.T) {
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true, SimulatedDay: 5}}
+	svc := NewService(repo)
+
+	if _, err := svc.SubmitByUser(context.Background(), Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1}); err != nil {
+		t.Fatalf("err = %v, sandbox deve operar no fim de semana", err)
+	}
+	if !repo.persistCalled {
+		t.Error("ordem sandbox deveria ser gravada")
+	}
+}
+
+func TestService_Cancel_SegueAbertoNoFimDeSemana(t *testing.T) {
+	repo := &fakeRepository{loadCtx: Context{SimulatedDay: 5}}
+	if err := NewService(repo).Cancel(context.Background(), "o1", "u1"); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if repo.cancelledOrderID != "o1" {
+		t.Error("cancelamento deveria chegar ao repositório")
+	}
+}
+
+// Bots de liquidez e o ETF (rebalanceamento e arbitragem) são atores do sistema
+// e rodam em todo tick, fim de semana incluso: Submit nunca fecha o mercado.
+func TestService_Submit_AtoresDoSistemaNaoSaoBarradosNoFimDeSemana(t *testing.T) {
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, SimulatedDay: 6}}
+	_, err := NewService(repo).Submit(context.Background(), Request{UserID: "bot", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 20, Quantity: 1})
+	var closed *simcalendar.MarketClosedError
+	if errors.As(err, &closed) {
+		t.Fatalf("Submit não pode fechar o mercado, err = %v", err)
 	}
 }

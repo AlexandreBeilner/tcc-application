@@ -18,6 +18,23 @@
     overflow: hidden;
 }
 
+/* Área abaixo das barras: o conteúdo da rota e, quando aberto, o painel do
+   Calendário (S.12). Tablet empilha (painel em fluxo acima do conteúdo),
+   desktop põe o painel numa coluna lateral fixa à direita (`order: 2` no painel);
+   em mobile o painel é `position: fixed` (bottom sheet) e não entra no fluxo. */
+.body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+@media (min-width: 1024px) {
+    .body {
+        flex-direction: row;
+    }
+}
+
 /* `min-height: 0` é o que permite um item flex encolher abaixo da altura do
    próprio conteúdo — sem isso `.content` cresceria pra caber tudo e nunca
    ativaria o próprio scroll. `overflow-x: hidden` é a rede de segurança
@@ -26,6 +43,7 @@
    documento inteiro não ganha scroll horizontal por causa disso. */
 .content {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;

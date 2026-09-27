@@ -9,6 +9,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
@@ -514,7 +515,7 @@ func TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto
 	}
 	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
 
-	contexts := companyRoundContexts([]CompanyForFundamentals{company}, map[string]float64{}, 1, 10, 10, map[string]float64{})
+	contexts := companyRoundContexts([]CompanyForFundamentals{company}, map[string]float64{}, 1, 10, 10, map[string]float64{}, 50)
 	if len(contexts) != 1 {
 		t.Fatalf("len(contexts) = %d, want 1 — duas ações da mesma empresa compartilham um ciclo de fundamentos só, não um por ativo", len(contexts))
 	}
@@ -1314,7 +1315,21 @@ func findReportGrowthSeed(t *testing.T, companyID string, sector catalog.Sector,
 // zerado nesse nível) garante que a única fonte de ruído restante no teste é
 // a surpresa do relatório em si. state.Day é o dia imediatamente anterior ao
 // de relatório (ReportFrequencyDays-1) — newDay cai exatamente no ciclo.
-func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID string, startPrice float64) {
+//
+// noSurpriseClosing (tarefa S.13) é o preço de fechamento esperado sem
+// nenhuma surpresa de relatório — diferente de startPrice desde a S.13:
+// esta empresa SEMPRE paga um provento no dia de relatório
+// (dividendRecordsForCycle/EquityValuePerShare não têm uma condição "sem
+// dividendo neste ciclo"), e o efeito de preço do provento
+// (dividend.EquityPriceEffectPct) é uma fração fixa da razão
+// NetIncome/NetEquity do setor — constante mesmo quando a receita
+// reportada varia com a surpresa, porque fundamentals.DeriveFinancials
+// deriva as duas grandezas do mesmo net_revenue por coeficientes fixos
+// (CoefficientsForSector). Os três testes abaixo comparam contra este
+// piso, não contra startPrice puro — senão "sem surpresa" pareceria uma
+// queda de preço inesperada, quando na verdade é só o provento sendo
+// pago (comportamento esperado da S.13, não um bug).
+func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID string, startPrice, noSurpriseClosing float64) {
 	t.Helper()
 	const (
 		outstandingShares = 1_000_000
@@ -1340,6 +1355,9 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	// DefaultBaseGrowth (sem surpresa), a receita reportada bata exatamente
 	// com o net_revenue que Bootstrap calibrou pra fairPrice == startPrice.
 	lastRevenue := financials.NetRevenue / (1 + fundamentals.DefaultBaseGrowth)
+
+	dividendEffectPct := dividend.EquityPriceEffectPct(financials.NetIncome, financials.NetEquity)
+	noSurpriseClosing = startPrice * (1 + dividendEffectPct/100)
 
 	asset := AssetForPricing{
 		AssetID: assetID, Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector,
@@ -1375,7 +1393,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 		testIPCAConfig(),
 		seed,
 	)
-	return svc, assetID, startPrice
+	return svc, assetID, startPrice, noSurpriseClosing
 }
 
 func closingPriceFor(result Result, assetID string) (float64, bool) {
@@ -1392,12 +1410,15 @@ func closingPriceFor(result Result, assetID string) (float64, bool) {
 // relatório com resultado MELHOR que o esperado (actualGrowth bem acima de
 // fundamentals.DefaultBaseGrowth) move o preço pra cima através de
 // negociação real do Fundamentalista — nunca por
-// fundamentals.ReportDayPriceEffect (removida nesta tarefa).
+// fundamentals.ReportDayPriceEffect (removida nesta tarefa). Compara contra
+// noSurpriseClosing (S.13), não startPrice — este ciclo também paga um
+// provento (ver doc de newReportCycleService), então o piso já embute essa
+// queda fixa; o que resta acima do piso só pode vir da surpresa.
 func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t *testing.T) {
 	const selicNeutralFrac = 0.10
 	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > 0.02 })
 
-	svc, assetID, startPrice := newReportCycleService(t, seed)
+	svc, assetID, _, noSurpriseClosing := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
 	if err != nil {
 		t.Fatalf("Run() erro inesperado: %v", err)
@@ -1407,20 +1428,21 @@ func TestService_Run_RelatorioMelhorQueEsperadoMovePrecoParaCimaViaNegociacao(t 
 	if !found {
 		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
 	}
-	if closing <= startPrice*1.01 {
-		t.Errorf("closing = %.4f, want bem acima de %.4f — resultado melhor que o esperado deveria subir o preço via negociação", closing, startPrice)
+	if closing <= noSurpriseClosing*1.01 {
+		t.Errorf("closing = %.4f, want bem acima de %.4f (piso sem surpresa, já com o provento do ciclo) — resultado melhor que o esperado deveria subir o preço via negociação", closing, noSurpriseClosing)
 	}
 }
 
 // TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao é
 // o segundo teste do critério de aceite principal da F.1: um ciclo de
 // relatório com resultado PIOR que o esperado move o preço pra baixo,
-// espelhando o teste acima.
+// espelhando o teste acima — mesma comparação contra noSurpriseClosing
+// (S.13, ver doc do teste acima e de newReportCycleService).
 func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *testing.T) {
 	const selicNeutralFrac = 0.10
 	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise < -0.02 })
 
-	svc, assetID, startPrice := newReportCycleService(t, seed)
+	svc, assetID, _, noSurpriseClosing := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
 	if err != nil {
 		t.Fatalf("Run() erro inesperado: %v", err)
@@ -1430,23 +1452,26 @@ func TestService_Run_RelatorioPiorQueEsperadoMovePrecoParaBaixoViaNegociacao(t *
 	if !found {
 		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
 	}
-	if closing >= startPrice*0.99 {
-		t.Errorf("closing = %.4f, want bem abaixo de %.4f — resultado pior que o esperado deveria derrubar o preço via negociação", closing, startPrice)
+	if closing >= noSurpriseClosing*0.99 {
+		t.Errorf("closing = %.4f, want bem abaixo de %.4f (piso sem surpresa, já com o provento do ciclo) — resultado pior que o esperado deveria derrubar o preço via negociação", closing, noSurpriseClosing)
 	}
 }
 
 // TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento fecha o
 // critério de aceite da F.1: um ciclo de relatório cujo resultado bate quase
 // exatamente com o esperado (actualGrowth ≈ DefaultBaseGrowth) não dá ao
-// Fundamentalista nenhuma mispricing clara pra negociar
-// (bot.ErrNoMispricingDetected, limiar FundamentalistMispricingThresholdPct)
-// — nenhuma ordem é submetida e o preço de fechamento permanece exatamente o
-// de abertura, ao contrário dos dois testes acima.
+// Fundamentalista nenhuma mispricing ALÉM da já esperada pelo provento do
+// ciclo (S.13, ver doc de newReportCycleService) pra negociar — o preço de
+// fechamento converge pra noSurpriseClosing (a queda fixa do provento, via
+// negociação real do Fundamentalista, exatamente como qualquer outro
+// mispricing), não fica parado em startPrice; o que este teste garante é
+// que não sobra nenhum movimento A MAIS que isso, ao contrário dos dois
+// testes acima.
 func TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento(t *testing.T) {
 	const selicNeutralFrac = 0.10
 	seed := findReportGrowthSeed(t, "c1", catalog.SectorMineracao, 0, selicNeutralFrac, func(surprise float64) bool { return surprise > -0.002 && surprise < 0.002 })
 
-	svc, assetID, startPrice := newReportCycleService(t, seed)
+	svc, assetID, _, noSurpriseClosing := newReportCycleService(t, seed)
 	result, err := svc.Run(context.Background())
 	if err != nil {
 		t.Fatalf("Run() erro inesperado: %v", err)
@@ -1456,8 +1481,8 @@ func TestService_Run_RelatorioSemSurpresaProduzPoucoOuNenhumMovimento(t *testing
 	if !found {
 		t.Fatal("cotação de a1 não encontrada em Result.Quotes")
 	}
-	if diff := closing - startPrice; diff > 1 || diff < -1 {
-		t.Errorf("closing = %.4f, want perto de %.4f (desvio <= 1%%) — sem surpresa clara não deveria mover o preço de forma perceptível", closing, startPrice)
+	if diff := closing - noSurpriseClosing; diff > 1 || diff < -1 {
+		t.Errorf("closing = %.4f, want perto de %.4f (desvio <= 1%%, piso sem surpresa já com o provento do ciclo) — sem surpresa clara não deveria mover o preço de forma perceptível além disso", closing, noSurpriseClosing)
 	}
 }
 

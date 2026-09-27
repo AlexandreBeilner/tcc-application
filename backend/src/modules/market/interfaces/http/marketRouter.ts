@@ -2,7 +2,9 @@ import type { Response } from 'express'
 import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
+import { requireUuidParam } from '../../../../shared/http/uuidParam'
 import { EngineRequestError, ProductLockedError } from '../../domain/errors'
+import type { GetAssetBookUseCase } from '../../application/useCases/getAssetBook'
 import type { GetAssetQuotesUseCase } from '../../application/useCases/getAssetQuotes'
 import type { GetAssetUseCase } from '../../application/useCases/getAsset'
 import type { GetCompanyUseCase } from '../../application/useCases/getCompany'
@@ -17,12 +19,15 @@ import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeem
 import type { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import type { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
 import type { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
+import type { GetMarketCalendarUseCase } from '../../application/useCases/getMarketCalendar'
+import type { GetMarketClockUseCase } from '../../application/useCases/getMarketClock'
 import {
   fixedIncomeTaxRateQuerySchema,
   getAssetQuotesQuerySchema,
   indicatorHistoryQuerySchema,
   listAssetsQuerySchema,
   listMyEventsQuerySchema,
+  marketCalendarQuerySchema,
   placeOrderBodySchema,
   purchaseFixedIncomeBodySchema,
   redeemFixedIncomeBodySchema,
@@ -33,6 +38,7 @@ export interface MarketRouterDeps {
   listAssets: ListAssetsUseCase
   getAsset: GetAssetUseCase
   getAssetQuotes: GetAssetQuotesUseCase
+  getAssetBook: GetAssetBookUseCase
   getCompany: GetCompanyUseCase
   getMyAccount: GetMyAccountUseCase
   listMyEvents: ListMyEventsUseCase
@@ -44,6 +50,8 @@ export interface MarketRouterDeps {
   simulateFixedIncome: SimulateFixedIncomeUseCase
   getFixedIncomeTaxRate: GetFixedIncomeTaxRateUseCase
   getIndicatorHistory: GetIndicatorHistoryUseCase
+  getMarketClock: GetMarketClockUseCase
+  getMarketCalendar: GetMarketCalendarUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -61,7 +69,7 @@ function sendEngineError(err: unknown, res: Response): void {
     return
   }
   if (err instanceof EngineRequestError) {
-    res.status(err.status).json({ error: err.message })
+    res.status(err.status).json({ ...err.details, error: err.message })
     return
   }
   throw err
@@ -69,6 +77,7 @@ function sendEngineError(err: unknown, res: Response): void {
 
 export function createMarketRouter(deps: MarketRouterDeps): Router {
   const router = Router()
+  router.param('id', requireUuidParam)
 
   // --- Catálogo (leitura, qualquer usuário autenticado) ---
 
@@ -80,7 +89,10 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
 
     try {
-      const assets = await deps.listAssets.execute(parsed.data)
+      const assets = await deps.listAssets.execute({
+        type: parsed.data.type,
+        includeSandbox: parsed.data.include_sandbox,
+      })
       res.status(200).json({ assets })
     } catch (err) {
       sendEngineError(err, res)
@@ -123,6 +135,27 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     }
   })
 
+  // Melhor bid/ask e profundidade resumida do book (tarefa S.5) — o
+  // backend sempre injeta o userId do token (nunca um id vindo da
+  // requisição, mesmo padrão de GET /market/calendar): sandbox usa isso
+  // pra resolver o dia do roteiro específico do usuário.
+  router.get('/market/assets/:id/book', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    try {
+      const book = await deps.getAssetBook.execute({
+        id: req.params.id as string,
+        userId: req.auth.userId,
+      })
+      res.status(200).json({ book })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
   // Proxy com cache Redis (tarefa M.3, composição em app.ts) pra
   // GET /market/indicators/history do motor (tarefa M.2) — série de
   // Selic/IPCA, qualquer usuário autenticado (sem regra de negócio própria
@@ -137,6 +170,42 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     try {
       const indicators = await deps.getIndicatorHistory.execute({ days: parsed.data.days })
       res.status(200).json({ indicators })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  // Relógio e calendário do mercado simulado (tarefa S.10): proxy de
+  // GET /market/clock e GET /market/calendar do motor. O calendário junta os
+  // fatos do próprio usuário do token (nunca de outro) aos globais.
+  router.get('/market/clock', deps.authMiddleware.authenticate, async (_req, res) => {
+    try {
+      const clock = await deps.getMarketClock.execute()
+      res.status(200).json(clock)
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  router.get('/market/calendar', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    const parsed = marketCalendarQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      const calendar = await deps.getMarketCalendar.execute({
+        userId: req.auth.userId,
+        from: parsed.data.from,
+        to: parsed.data.to,
+      })
+      res.status(200).json(calendar)
     } catch (err) {
       sendEngineError(err, res)
     }

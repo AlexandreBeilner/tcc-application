@@ -36,6 +36,7 @@ function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonPr
     lessonId: row.lessonId,
     currentStep: row.currentStep,
     completedAt: row.completedAt,
+    updatedAt: row.updatedAt,
     lastReviewedAt: row.lastReviewedAt,
     microDecisionSelectedOption: row.microDecisionSelectedOption,
   }

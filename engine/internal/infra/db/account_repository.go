@@ -90,12 +90,23 @@ func (r *AccountRepository) FindByUserID(ctx context.Context, userID string) (ac
 // ListPositionsByUser devolve as posições de renda variável de userID, já
 // enriquecidas com ticker/nome/tipo do ativo via join com assets — usado
 // por GET /positions (tarefa 4.7). Lista vazia (não erro) se o usuário não
-// tem posição nenhuma.
+// tem posição nenhuma. dividends_received (tarefa S.15) vem de um LEFT JOIN
+// contra a soma de quantity*unit_value dos eventos dividend_payment desse
+// usuário por ativo — COALESCE pra 0 em vez de NULL num ativo sem provento
+// nenhum, mesma convenção de campo numérico sempre presente de
+// quantity/average_price.
 func (r *AccountRepository) ListPositionsByUser(ctx context.Context, userID string) ([]position.Record, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT p.asset_id, a.ticker, a.name, a.type, a.is_sandbox, p.quantity, p.average_price
+		`SELECT p.asset_id, a.ticker, a.name, a.type, a.is_sandbox, p.quantity, p.average_price,
+		        COALESCE(d.dividends_received, 0)
 		 FROM positions p
 		 JOIN assets a ON a.id = p.asset_id
+		 LEFT JOIN (
+		     SELECT asset_id, SUM(quantity * unit_value) AS dividends_received
+		     FROM market_events
+		     WHERE user_id = $1 AND event_type = 'dividend_payment'
+		     GROUP BY asset_id
+		 ) d ON d.asset_id = p.asset_id
 		 WHERE p.user_id = $1
 		 ORDER BY a.ticker`, userID,
 	)
@@ -107,7 +118,10 @@ func (r *AccountRepository) ListPositionsByUser(ctx context.Context, userID stri
 	records := make([]position.Record, 0)
 	for rows.Next() {
 		var rec position.Record
-		if err := rows.Scan(&rec.AssetID, &rec.AssetTicker, &rec.AssetName, &rec.AssetType, &rec.IsSandbox, &rec.Quantity, &rec.AveragePrice); err != nil {
+		if err := rows.Scan(
+			&rec.AssetID, &rec.AssetTicker, &rec.AssetName, &rec.AssetType, &rec.IsSandbox,
+			&rec.Quantity, &rec.AveragePrice, &rec.DividendsReceived,
+		); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)

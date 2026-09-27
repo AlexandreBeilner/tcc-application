@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+	_ "time/tzdata" // fuso da agenda (America/Sao_Paulo) sem depender do tzdata da imagem
 
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/catalog"
@@ -14,6 +16,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
+	"tcc-investimentos/engine/internal/domain/marketcalendar"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
@@ -71,7 +74,7 @@ func main() {
 		// (tarefa M.2) respondem 503 (ver internal/infra/httpserver/account.go,
 		// assets.go, admin.go, fixedincome.go, macroevents.go, positions.go e
 		// indicators.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -147,17 +150,61 @@ func main() {
 		Coverage:    coverage.NewEnsurer(coverageRepository, coverageRepository),
 	})
 
-	// Job diário automático do Temporizador (tarefa 3.11) — roda em segundo
+	// Agenda automática do Temporizador (tarefas 3.11 e S.3) — roda em segundo
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick
-	// (handleAdminTick) dispara o mesmo Run fora do agendamento.
-	tickerCtx, stopTicker := context.WithCancel(context.Background())
-	defer stopTicker()
-	go scheduler.RunDaily(tickerCtx, 24*time.Hour, func(ctx context.Context) error {
-		_, err := tickService.Run(ctx)
-		return err
-	})
+	// (handleAdminTick) dispara o mesmo Run fora da agenda. A trava consultiva do
+	// Postgres (Guard) serializa os dois e as instâncias entre si.
+	tickService.WithGuard(tickRepository)
+	calendarRepository := db.NewCalendarRepository(pool)
+	calendarAPI := &httpserver.CalendarAPI{
+		Service:        marketcalendar.NewService(calendarRepository, calendarRepository),
+		DaysPerRealDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
+	}
+	if scheduleCfg, enabled := loadScheduleConfig(); enabled {
+		calendarAPI.NextTick = scheduleCfg.NextSlotStart
+		tickerCtx, stopTicker := context.WithCancel(context.Background())
+		defer stopTicker()
+		go scheduler.Run(tickerCtx, scheduleCfg, time.Now, tickService.RunScheduled)
+	} else {
+		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
+	}
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
+}
+
+// loadScheduleConfig lê a agenda do tick do ambiente (tarefa S.3):
+// SIMULATION_DAYS_PER_REAL_DAY (padrão 5: 1 dia real = 5 dias simulados, um tick
+// por dia simulado), TICK_MAX_CATCHUP (padrão 3, teto de dias recuperados
+// depois de uma parada), SCHEDULER_TIMEZONE (padrão America/Sao_Paulo) e
+// TICK_SCHEDULER_ENABLED (padrão true; false nos ambientes de teste que
+// disparam o tick à mão).
+func loadScheduleConfig() (scheduler.Config, bool) {
+	if strings.EqualFold(os.Getenv("TICK_SCHEDULER_ENABLED"), "false") {
+		return scheduler.Config{}, false
+	}
+	cfg := scheduler.Config{TicksPerDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5), MaxCatchUp: envInt("TICK_MAX_CATCHUP", 3)}
+	zone := os.Getenv("SCHEDULER_TIMEZONE")
+	if zone == "" {
+		zone = "America/Sao_Paulo"
+	}
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		log.Fatalf("SCHEDULER_TIMEZONE inválida: %v", err)
+	}
+	cfg.Location = loc
+	return cfg, true
+}
+
+func envInt(name string, fallback int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 1 {
+		log.Fatalf("%s inválida: precisa ser um inteiro >= 1", name)
+	}
+	return v
 }

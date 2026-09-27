@@ -88,6 +88,10 @@ func (f *fakeCatalogReader) FindFixedIncomeSpecialization(_ context.Context, _ s
 	return f.fixedIncome, f.fixedIncomeOK, f.fixedIncomeErr
 }
 
+func (f *fakeCatalogReader) CurrentSimulatedDay(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 func (f *fakeCatalogReader) CurrentSelicRatePct(_ context.Context) (float64, bool, error) {
 	return f.selicRate, f.selicRateOK, f.selicRateErr
 }
@@ -144,7 +148,7 @@ func getCatalog(t *testing.T, reader catalogReader, path string) *httptest.Respo
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

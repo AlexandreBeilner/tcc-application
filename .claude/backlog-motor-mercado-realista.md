@@ -4088,6 +4088,665 @@ negociação dos constituintes.
   que mede desequilíbrio de verdade. (2) A taxa acumulada do dia não entra no anúncio (~0,001% do patrimônio). (3) Se `raiseFundCash` vender constituintes por falta de caixa, o anúncio pode ter sido calculado antes disso;
   nesse caso o caixa livre é zero e o fechamento não distribui nada, então o iNAV das rodadas ficou com um passivo que não se confirma, por um dia, sem efeito nos saldos.
 
+## Fase S — Correções da validação ponta a ponta do mercado simulado (achados 018 a 023)
+
+**Origem:** validação ponta a ponta de 2026-09-26 (`tmp/relatorio-e2e-mercado-simulado.md`, scripts em
+`engine/scripts/e2e-mercado-simulado/`), que passou nas invariantes financeiras mas expôs 6 pontos de decisão, todos decididos
+pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto.md`, achados 018 a 023).
+
+**Decisões do autor (2026-09-26):**
+1. **Escala de tempo (019 + 022):** calendário real acelerado: **1 dia real = 5 dias simulados** (fator 5 ajustável), 5 ticks por
+   dia real espaçados (~4h48). **Dia simulado = dia de calendário** (7 por semana, data-base fixa numa segunda-feira, feriados
+   ignorados por ora). Tempos do mundo real: trimestre/ciclo de relatório = 91 dias (crescimento de 3% e DY reais por trimestre),
+   Copom = 45 dias, rebalanceamento de ETF trimestral (91), FII paga proventos a cada 30 dias, mês de IPCA = 30 dias. Selic/CDI
+   rendem só em dia útil (base 252); IR da renda fixa conta dias corridos direto. Tudo que usa relógio de parede (prazo/IR/VNA da
+   renda fixa, datas de dividendo e DY de 12 meses, dia do roteiro sandbox) passa a derivar do dia simulado.
+   **Fim de semana simulado (~9h30 reais) com mercado fechado:** negociação de renda variável e renda fixa bloqueada com aviso
+   claro; sandbox, lições e cancelamento de ordem seguem abertos; bots não negociam nesses dias.
+   **Calendário da simulação no frontend:** relógio do mercado no TopBar mais tela Calendário (mobile first, gamificada), com
+   eventos macro, Copom, balanços, dividendos e os eventos do próprio usuário.
+2. **Agenda do tick (018):** horário fixo (00:00 America/Sao_Paulo) com recuperação limitada de dias perdidos (teto de K dias,
+   ex.: 3) e trava contra tick duplicado.
+3. **Gate de lições (020):** passos sequenciais (`step` só `currentStep` ou `currentStep + 1`) mais tempo mínimo entre avanços
+   (ex.: 5 s, ajustável).
+4. **Preço e book (021):** bid/ask e profundidade visíveis, custo estimado e preço médio executado no diálogo, mensagem clara
+   para all-in; carteira, patrimônio e ranking marcados a **ponto médio do book** (fallback: último negócio).
+5. **Sandbox (023):** escondido do mercado real; só pelo Modo Aprendizado e pelas lições.
+
+### S.1 · Dia simulado como única fonte de tempo (renda fixa, dividendos, sandbox) ✅
+- **Descrição:** substituir `time.Now()` por dia simulado em `fixedincomeexecution` (DU restante até o vencimento, `days_held` do
+  IR regressivo, janela do VNA), nas datas de dividendo (`period_date`/`ex_date` e `sumDividendsLast12Months`) e no índice de dia do
+  roteiro sandbox. `maturity_date` e `created_at` de posição passam a ter equivalente em dia simulado (migration + backfill dos
+  dados existentes). Introduz o calendário simulado (`internal/domain/simcalendar`: data-base fixa numa segunda-feira, dia simulado
+  para data, dia da semana, dia útil sem fins de semana). IR regressivo conta dias simulados direto (= dias corridos). Selic/CDI
+  rendem só em dia útil (base 252) e o DU restante do Prefixado/IPCA+ conta dias úteis do calendário simulado.
+- **Critérios de aceite:** 21 ticks seguidos rendem Prefixado e IR coerentes com 21 dias simulados (o Prefixado deixa de resgatar
+  ao preço da compra); nenhum `time.Now()` de regra de negócio restante em `internal/domain`; fecha o achado 022.
+- **Dependências:** nenhuma.
+- **Entregável:** `internal/domain/simcalendar` (`BaseDate` = segunda-feira 2026-01-05, `DateOf`/`DayOf`, `Weekday`, `IsBusinessDay`,
+  `BusinessDaysBetween(from, to]`), com teste table-driven. `fixedincomeexecution`: `PurchaseContext`/`RedeemContext`/`SimulateContext`
+  ganham `SimulatedDay` (lido de `market_calendar.current_day` pelo repositório) e `Service` deriva `now` de `simcalendar.DateOf`;
+  `remainingBusinessDays` passou a contar dias úteis reais do calendário simulado (não mais `dias × 252/365`), `calendarToBusinessDays`
+  virou `businessDaysAhead`; IR regressivo conta dias corridos simulados (`now - PurchasedAt`). Migration `000032_simulated_clock`:
+  `positions.created_day` e `fixed_income_positions.created_day` (gravados no INSERT a partir de `market_calendar`; recompra sobre
+  posição de renda variável zerada reinicia o dia, o que antes só era tratado na leitura), backfill de `created_day`, `maturity_date`,
+  `dividend_events.ex_date/payment_date` e `company_fundamentals.period_date` (tempo real decorrido vira dias simulados anteriores ao dia
+  corrente, ordem preservada). `sandbox.DaysSince(firstDay, currentDay)` em dias simulados. `selicRatesSince` lê
+  `market_indicator_history` só de dias úteis depois do dia da compra (Selic/CDI não rendem em fim de semana nem no dia da compra).
+  `saveNewDividends`/`SaveTick`/seed usam datas simuladas; `GET /assets/:id` calcula o DY de 12 meses contra o dia simulado (novo
+  `CurrentSimulatedDay` no leitor de catálogo). Fora de `internal/domain`, `time.Now()` só sobrou em semente do RNG do macroevent e no
+  deadline HTTP do admin (não são regra de negócio). Docs: `.docs/engine/fixedincome.md` (nota 4 reescrita), `orders.md`, `tick.md`.
+  Testes: `simcalendar`, `TestService_Redeem_UsaODiaSimuladoParaPrazoEIR`, `TestRemainingBusinessDays_...`, `sandbox.DaysSince`. E2E
+  (`compose.e2e.yml`): LTN2027 e LFT2029 comprados no dia 42 e resgatados no 63 renderam +0,65% (antes: 0%) e +0,56% (15 dias úteis de 21),
+  IR 22,5%; SAND3 no dia 2 do roteiro vende a 102; `gating.py` sem falhas; `neg.py` ajustado pra `include_sandbox=true` (S.8). Limite
+  conhecido: a Selic do tick de fim de semana ainda é gravada em `market_indicator_history` (só não rende); a S.3 decide se o tick de fim
+  de semana avança Selic/IPCA.
+
+### S.2 · Trimestre real e recalibração de fundamentos e dividendos ✅
+- **Descrição:** alinhar as constantes de tempo ao mundo real em dias de calendário: `DefaultReportFrequencyDays` de 14 para 91;
+  Copom de 21 para 45 (`selic.CopomMeetingIntervalDays`); rebalanceamento de ETF de 14 para 91; FII passa a pagar proventos a cada
+  30 dias (hoje junto do balanço); mês de IPCA fica em 30; conferir a janela de `fundamentals_report_day` e a duração das bandas de
+  evento macro (1 a 3 dias, mantidas). Refazer os benchmarks (Q.4/R.12).
+- **Critérios de aceite:** retorno esperado de renda variável próximo de Selic mais prêmio de risco (não +40%/ano) num run de
+  ~250 dias simulados com 20 ativos; DY anual plausível; benchmarks de custo por tick dentro do critério aceito.
+- **Dependências:** S.1.
+- **Entregável:** `fundamentals.DefaultReportFrequencyDays` e `catalog.DefaultReportFrequencyDays` 14 → 91; `selic.CopomMeetingIntervalDays` 21 → 45;
+  `etf.DefaultRebalanceFrequencyDays` 14 → 91; novo `dividend.FIIPayoutIntervalDays` = 30 (FII paga mensal, `dividendRecordsForCycle` deixou de
+  usar o dia de relatório) com `DefaultFIIYieldPerCyclePct` 0,5 → 1,1 por pagamento (~13% a.a.); reavaliação de patrimônio/carteira do FII segue
+  no ciclo trimestral. `DefaultMonthDays` do IPCA já era 30 e as bandas de evento macro (1 a 3 dias) ficaram como estavam. Migration `000033`
+  (default e backfill de `companies.report_frequency_days` e `etf_details.rebalance_frequency_days` de 14 para 91). Seed: patrimônio/carteira
+  dos FIIs passa a `cotas × preço inicial` (P/VP = 1; com 500M/300M o patrimônio por cota era 3 a 5 vezes o preço e o provento dava DY absurdo;
+  só vale pra banco novo). Testes ajustados (dia de relatório 91, `Day: 90`) e novo `TestAdvance_Dividendos_FIIPagaMensalEEmpresaTrimestral`
+  (12 pagamentos em 365 dias). Validação e2e (compose.e2e, 20 ativos sintéticos, 200 dias): ações +5% de preço médio em 200 dias e DY
+  ~17% a.a. (antes de S.2: ciclo quinzenal, ~+40% a.a. de crescimento), Selic 10,5%; a média de retorno total fica na faixa Selic mais
+  prêmio, com DY das ações acima do real (payout de 50% do lucro trimestral, calibração fina segue na Fase K). **Não refeito:** os
+  benchmarks Q.4/R.12 de custo por tick (`benchmark-cobertura.sh`), que rodam contra o Postgres do compose de desenvolvimento; a
+  mudança de cadência não altera o número de comandos por rodada, só a frequência de dia de relatório. Achado novo 024 (deriva de FII
+  sem âncora, -49% em 200 dias, já existente antes da S.2) registrado em `pontos-em-aberto-decisao-produto.md`. Docs: `.docs/engine/{tick,macroevent,catalog}.md`.
+
+### S.3 · Agenda do tick: 5 ticks por dia real, horário fixo e recuperação limitada ✅
+- **Descrição:** (fim de semana simulado: o tick avança o calendário mas não roda rodada de bot nem cotação de Market Maker.) `scheduler.RunDaily` vira agenda ancorada (00:00 America/Sao_Paulo, 5 ticks espaçados por ~4h48), lê o último
+  tick de `market_calendar` na subida, recupera dias perdidos até o teto K e usa trava (advisory lock) contra tick duplicado entre
+  instâncias e contra o `POST /admin/tick`. Fator 5 e teto K configuráveis por env. Ordem "day order" passa a valer por dia simulado
+  (~5h reais): conferir a mensagem de expiração no frontend.
+- **Critérios de aceite:** deploy repetido no mesmo dia não impede nem duplica tick; motor fora N dias recupera até K; teste com
+  relógio injetado; fecha os achados 018 e 019.
+- **Dependências:** S.1, S.2.
+- **Entregável:** `scheduler.RunDaily` virou `scheduler.Run` com `Config` (slots ancorados na meia-noite de `America/Sao_Paulo`, 5 por dia,
+  espaçados por 4h48; `SlotOf`/`NextSlotStart`/`Plan` puros, relógio injetável). Na subida e a cada slot, `tick.Service.RunScheduled(plan)` pega a
+  trava e só então lê o último tick (`market_calendar.updated_at`, `TickRepository.LastTickAt`) e decide quantos rodar (slots perdidos, teto
+  `TICK_MAX_CATCHUP` = 3, excedente descartado com log; nunca rodou = 1). Trava: `pg_try_advisory_lock` numa conexão dedicada
+  (`TickRepository.TryLockTick`, interface `tick.Guard` via `WithGuard`), compartilhada com `POST /admin/tick`, que responde `409` (`ErrTickInProgress`) se
+  outro tick está rodando; a agenda com trava ocupada apenas pula. Fim de semana simulado: `execute` não passa rodadas de bot (sem
+  Market Maker nem cotação nova), o calendário/Selic/dividendos/fundamentos seguem. Env: `SIMULATION_DAYS_PER_REAL_DAY` (5), `TICK_MAX_CATCHUP` (3),
+  `SCHEDULER_TIMEZONE`, `TICK_SCHEDULER_ENABLED` (`compose.e2e.yml` desliga e segue manual); `time/tzdata` embutido. Backend:
+  `engineAssetPriceHistoryReader` (janela do ranking) deixou de supor 1 tick = 1 dia real: mapeia data real para dia simulado (×5) e escolhe a última
+  cotação até ele, já que o fim de semana não tem cotação (teste novo). Frontend: "Expirada no fechamento do dia" segue correto (dia de mercado), sem mudança.
+  Testes: `scheduler` (slots, próximo slot, plano, recuperação na subida), `tick` (plano sob trava, plano 0, trava ocupada, fim de semana sem rodadas), `admin` 409.
+  E2E (motor com agenda ligada contra o compose): 1ª subida roda 1 tick; reinício no mesmo slot roda 0; 12 h de atraso recupera 2; 3 dias de atraso recupera 3 (de 15).
+  Docs: `.docs/engine/tick.md`. Fecha os achados 018 e 019 (revalidação final na S.9). Pendências resolvidas em 2026-09-27 (decisão do autor): (1) `selic.IsCopomMeetingDay` empurra a reunião nominal
+  (dias 45, 90, 135...) que cai em sábado/domingo simulado pro próximo dia útil (dia 90 vira 91, dia 180 vira 182), uma reunião por intervalo, sempre em dia
+  útil, com testes; a Selic só muda em dia útil e o IPCA mensal segue como estava. (2) Testes da trava: `db/tick_lock_integration_test.go`
+  contra Postgres real (duas instâncias = dois pools; exclusão mútua, disputa de 8 goroutines com um só vencedor, liberação quando a sessão dona cai;
+  roda com `TEST_DATABASE_URL`, senão é pulado) e `TestService_TickAgendadoEmAndamentoBloqueiaManualEOutraInstancia` (manual e agenda de outra instância
+  durante um tick em andamento, com `-race`).
+
+### S.4 · Gate de lições: passos sequenciais e tempo mínimo ✅
+- **Descrição:** `POST /lessons/:id/progress` só aceita `step` igual a `currentStep` ou `currentStep + 1`; avanço exige tempo mínimo
+  desde o último passo (constante configurável, ex.: 5 s), com coluna/timestamp em `user_lesson_progress`. Caso de uso, erro de
+  domínio (`422`), teste, `.docs/backend/lessons.md`. Reabrir lição concluída e o passo 0 não são afetados.
+- **Critérios de aceite:** pular direto para o passo 3 e avançar sem esperar retornam `422`; fluxo normal do frontend inalterado; o
+  script de `gating.py` passa a levar o tempo mínimo por passo; fecha o achado 020.
+- **Dependências:** nenhuma.
+- **Entregável:** `AdvanceLessonUseCase.assertStepAllowed` (só lição não concluída): `step` precisa ser o `currentStep` gravado
+  (0 se sem linha) ou o seguinte, senão `LessonStepOutOfOrderError`; avançar pro seguinte antes de `LESSON_MIN_STEP_INTERVAL_MS`
+  (padrão 5000, env de mesmo nome lida em `app.ts`, valor inválido cai no padrão) desde `user_lesson_progress.updated_at` dá
+  `LessonStepTooFastError` com `retryAfterMs`. Router responde `422` com `code` `step_out_of_order`/`step_too_fast`. Sem migration:
+  reaproveita `updated_at` (exposto como `LessonProgressRecord.updatedAt`); relógio injetável no caso de uso e no fake do repositório
+  pros testes. Decisões: reenviar o passo atual não espera (idempotente, ex: trocar aposta); sem linha ainda o primeiro avanço nunca
+  espera (o frontend só chama a rota ao sair do passo 0, então não há "início" no servidor); voltar de passo numa lição não concluída
+  é recusado. Frontend inalterado (só avança `step + 1`, lê o passo do servidor; um clique antes de 5 s cai no erro genérico "Tente de
+  novo"). Docs em `.docs/backend/lessons.md`. E2E: `compose.e2e.yml` ganha `LESSON_MIN_STEP_INTERVAL_MS=300`, `lib.complete_lessons`
+  espera 0,35 s por passo, `gating.py` afirma os dois `422`; trilha de 35 lições pelo fluxo normal em 38 s, pulo direto retorna `422`.
+
+### S.5 · Rota de book: melhor bid/ask e profundidade resumida ✅
+- **Descrição:** `GET /assets/{id}/book` no motor (melhor bid, melhor ask, ponto médio, profundidade agregada nos N primeiros níveis,
+  sem expor ordens nem donos) e proxy `GET /market/assets/:id/book` no backend, com Zod, teste e docs (`.docs/engine/`,
+  `.docs/backend/market.md`). Ativo sandbox devolve o preço do roteiro sem book.
+- **Critérios de aceite:** nunca vaza identidade nem tamanho de ordem individual; lado vazio devolvido como nulo; fecha a parte (a).
+- **Dependências:** nenhuma.
+- **Entregável:** motor: `orderbook.Level`/`orderbook.Snapshot`/`BuildSnapshot` (função pura nova, `internal/domain/orderbook/snapshot.go`) —
+  agrega bids/asks em níveis por preço, ordena por prioridade, recorta aos `depth` primeiros e calcula melhor bid/ask/ponto médio;
+  `BestBid`/`BestAsk`/`MidPrice` e `Bids`/`Asks` ficam `nil` (JSON `null`) quando o lado correspondente está vazio.
+  `orderexecution.BookResult`/`Repository.AssetBook`/`Service.AssetBook` (novos, `service.go`) — sem regra de domínio própria, só
+  repassam pro repositório. `db.OrderExecutionRepository.AssetBook`/`BookLevels` (`order_execution_repository.go`): ramo sandbox
+  reaproveita `sandboxPriceForUser` (extraído do ramo sandbox de `referencePrice` — mesma fórmula, dois consumidores agora) com
+  `userID` opcional (sem posição/usuário cai no dia 0 do roteiro, mesmo fallback já existente de quem nunca operou o ativo); ramo
+  Mercado Ao Vivo lê `BookLevels` (`SELECT side, price, SUM(quantity - filled_quantity) ... GROUP BY side, price`, mesmo filtro de
+  `loadRestingOrders` mas sem juntar `accounts`/`positions`) e agrega via `BuildSnapshot`. `httpserver.handleGetAssetBook`
+  (`book.go`, rota `GET /assets/{id}/book`, `defaultBookDepth = 5`) valida `user_id` opcional (UUID) e monta a resposta
+  `{ is_sandbox, price, best_bid, best_ask, mid_price, bids, asks }` — sandbox só preenche `price`, o resto vem `null`.
+  `orderSubmitter` ganhou `AssetBook` (mesmo `*orderexecution.Service` que já implementa `Cancel`/`ListOrders`). Testes:
+  `orderbook` (6 casos da função pura), `orderexecution.Service` (passthrough + propagação de erro), `httpserver` (Mercado Ao Vivo,
+  lado vazio devolve `null`, sandbox, 404/400/500/503). Backend: `CatalogReader.getAssetBook(id, userId)`
+  (`application/ports/catalogReader.ts`, tipo `AssetBook`), `engineCatalogReader.getAssetBook` (query `user_id`),
+  `GetAssetBookUseCase`, rota `GET /market/assets/:id/book` (`marketRouter.ts`) — sempre injeta o `userId` do token (mesmo padrão de
+  `GET /market/calendar`), nunca aceita um da requisição; sandbox resolve o dia do roteiro específico desse usuário. `go build`/
+  `go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues) e `tsc --noEmit`/`eslint`/`vitest run` (646 testes) verdes. Docs:
+  `.docs/engine/orders.md`, `.docs/backend/market.md`. Validado ao vivo via `docker compose up -d --build` (sem `down -v`, dados
+  reais já seedados): motor direto devolveu book real de VALR3 (2 níveis por lado, melhor bid/ask/ponto médio corretos) e preço do
+  roteiro de SAND3 (100 sem `user_id`/posição zerada, 103 com `user_id` de um usuário com posição real — `created_day` 818 contra
+  `current_day` 826); 404 (ativo inexistente) e 400 (`user_id` não-UUID) confirmados; ponta a ponta pelo gateway
+  (`POST /auth/register` → `GET /market/assets/:id/book` com o token) confirmou 401 sem token, `book` correto pros dois casos e a
+  injeção do `userId` do token.
+
+### S.6 · Marcação a ponto médio (carteira, patrimônio e ranking) ✅
+- **Descrição:** patrimônio de posição de renda variável marcado ao ponto médio do book, com fallback para o último negócio quando
+  falta um dos lados; aplicar em `GET /market/me/account`, no cálculo de patrimônio do ranking e no perfil. Gráfico e variação do
+  dia seguem no último negócio.
+- **Critérios de aceite:** um negócio de 1 cota não altera o patrimônio marcado de outra carteira além do ponto médio; teste de
+  não manipulação por wash trade; fecha a parte (b).
+- **Dependências:** S.5.
+- **Entregável:** sem mudança no motor — reaproveita `GET /assets/:id/book` (S.5, `mid_price`) e `GET /assets` (`current_price`,
+  fallback) já existentes. `markPrice(bookMidPrice, lastTradePrice) = bookMidPrice ?? lastTradePrice`, função pura duplicada (mesma
+  decisão de pequena duplicação entre módulos de `inProcessProfitabilityReader.ts`) em `modules/market/domain/markPrice.ts` e
+  `modules/ranking/domain/markPrice.ts`, cada uma com teste table-driven incluindo o caso de wash trade (mid presente ignora
+  qualquer último preço, por mais distante que esteja). `GetMyAccountUseCase` (`GET /market/me/account`) ganhou dependência de
+  `CatalogReader` e `loadMarkPrices`: só ativos distintos de renda variável **não sandbox** da carteira do usuário (sandbox nunca
+  teve book real, RF12/RNF08, fica sem o campo) — um `GET .../book` por ativo distinto mais um `GET /assets` pro fallback; usuário
+  sem posição real não faz nenhuma chamada extra. Cada `MyAccountPosition` ganhou `markPrice?: number` (`getMyAccount.ts`,
+  `services/market/types.ts`). `engineCurrentAccountStateReader.ts` (ranking "agora", usada também pelo perfil via
+  `GetNetWorthUseCase`/`inProcessProfitabilityReader`) trocou o `current_price` de `GET /assets` por essa mesma marcação por ativo
+  distinto da carteira — cobre "ranking" e "perfil" com uma única mudança, já que o perfil reaproveita o mesmo `NetWorthReader`.
+  Replay (`asOf` passado, baseline) continua no último preço histórico (`GET /assets/:id/quotes`) — o motor não guarda histórico de
+  book, só de última cotação; documentado em `.docs/backend/ranking.md`. Frontend: `MyAccountPosition`/`PositionLike` ganharam
+  `markPrice?`; `calculateAccountTotals` usa `markPrice ?? averagePrice` (só muda o resultado pra posição real de renda variável,
+  sandbox/renda fixa inalterados) — fecha o "fora de escopo" documentado antes na S.6.0.3 em `NetWorthCards` (comentário
+  reescrito). Fakes: `fakeCatalogReader.booksByAssetId` (book por ativo distinto, precedência sobre `book` único). Testes: 659
+  backend (13 novos: `markPrice` × 2 módulos com 3 casos cada, `getMyAccount` com 4 casos incluindo sandbox sem `markPrice` e
+  fallback, `engineCurrentAccountStateReader` com 5 casos incluindo wash trade explícito), 755 frontend (1 novo em `accountTotals`);
+  `npm run lint`/`build` (backend) e `tsc`/`oxlint` (frontend) verdes nos dois. Validado ao vivo via `docker compose up -d --build` (stack `tccsim`, seed do motor + lições): compra
+  real de VALR3 (book com os dois lados, mid 97,44) devolveu `markPrice: 97.44` em `GET /market/me/account` igual ao `mid_price` do
+  book (preço executado da ordem foi 98,41, nunca usado como marcação); `GET /ranking` do mesmo usuário bateu com o cálculo manual
+  usando 97,44; posição sandbox (SAND3) confirmada sem `markPrice`.
+
+### S.7 · Frontend: bid/ask, custo estimado e preço executado no diálogo de ordem ✅
+- **Descrição:** painel "Nova ordem" mostra melhor bid/ask e "custo estimado" contra o book; resultado informa preço médio
+  executado; "comprar o máximo" calcula pela profundidade real e o `422` de saldo/quantidade ganha mensagem clara com a quantidade
+  máxima. Responsivo nos três breakpoints e tokens de identidade visual; sem em dash no texto de UI.
+- **Critérios de aceite:** all-in por último preço deixa de cair em `422` genérico; teste de componente e navegação real.
+- **Dependências:** S.5.
+- **Entregável:** frontend só (`frontend/`, sem mudança de rota — reaproveita `GET /market/assets/:id/book` da S.5 e
+  `GET /market/me/account` já existentes). Serviço `getAssetBook` + tipos `AssetBook`/`BookLevel` (`services/market`) e
+  `useAssetBookQuery` (relê a cada 15s, mesmo padrão do relógio). Lógica pura nova em `features/market/orderBook`
+  (`estimateExecution`/`estimateOrderCost` — caminha os níveis do book pro lado certo da ordem e extrapola o resto pelo preço
+  médio já encontrado quando a profundidade visível de 5 níveis não cobre a quantidade pedida, em vez de cair pro último negócio
+  como o achado 021 descrevia; `maxAffordableQuantity` — mesma conta pra "comprar o máximo"; `averageFillPrice` — preço médio
+  ponderado dos `fills` da ordem) e `features/market/orderRejection` (`classifyOrderRejection` distingue as duas causas de `422`
+  que não são `market_closed` nem ordem pendurada furada pelo texto de `err.message`, já que o motor não devolve `code` pra
+  elas; `describeOrderRejection` monta a mensagem clara — compra usa `maxAffordableQuantity` contra o book, venda usa a posição
+  em carteira direto, sem depender do book). `EquityOrderTicket` ganhou `book`/`cashBalance`/`ownedQuantity`: com book real (não
+  sandbox) mostra a linha "Compra · Venda (book)" e troca "Preço unitário"/"Total" por "Preço médio estimado"/"Custo estimado"
+  calculado pela profundidade do lado certo (asks pra compra, bids pra venda); sem book (sandbox ou ainda carregando) mantém o
+  fallback de sempre (último negócio × quantidade), sem regressão. Botão "Usar o máximo" (só aparece com saldo/posição
+  disponíveis) usa `maxAffordableQuantity` na compra e a posição possuída na venda. `OrderConfirmationDialog` passou a consultar
+  o book (mesmo padrão de `assetQuery`) e a posição da carteira; no catch de `handleConfirm`, `classifyOrderRejection` decide
+  entre o banner de trava (já existia), a mensagem clara nova (saldo/posição) e o erro genérico de sempre; `successMessage`
+  ganhou o preço médio executado via `averageFillPrice(fills)` em toda mensagem de compra/venda (inclusive nas duas variações
+  de execução parcial já existentes, que continuam idênticas quando `fills` vem vazio — nenhuma quebra nos testes anteriores).
+  `AssetDetail` injeta `book`/`cashBalance`/`ownedQuantity` via `useAssetBookQuery`/`useMyAccountQuery`. Testes: 792 frontend
+  passando no total (novos: `orderBook`/`orderRejection` table-driven, `EquityOrderTicket` com book real/sem book/profundidade
+  insuficiente/"Usar o máximo" nos dois lados, `OrderConfirmationDialog` com preço médio no resultado e as duas mensagens de 422
+  claras); `npx tsc --noEmit`, `npm run build` e `npx oxlint` verdes (só os avisos antigos de
+  `only-export-components`/`set-state-in-effect` alheios a esta tarefa). Validado ao vivo via `docker compose up -d --build` (stack `tccsim`) + `npm run dev`: usuário novo
+  registrado via API, lições 0.1–2.3 marcadas concluídas direto no Postgres do stack de desenvolvimento só pra alcançar o gate
+  da trilha (RF/7.0.1) sem repetir 19 lições na mão — dado descartável, não é seed do produto. Compra real de VALR3 (book com
+  bid 786,74/ask 792,22): ticket mostrou a linha de book, "Preço médio estimado"/"Custo estimado" no ask; "Usar o máximo" com
+  R$ 10.000 calculou 12 cotas (limitado pela profundidade do book, não só pelo saldo) e o price-flash disparou; confirmação e
+  resultado bateram no preço do ask (792,22), mensagem final "Você comprou 12 VALR3 a preço médio de R$ 792,22."; do lado da
+  venda, "Usar o máximo" ofereceu as 12 cotas possuídas (não a profundidade do book) e uma tentativa de vender 15 (3 a mais do
+  que a posição) devolveu ao vivo "Você só tem 12 VALR3 disponíveis pra vender." em vez do `422` genérico do motor. Não coberto:
+  navegação real em 375px/768px (a tela não ganhou layout novo, só linhas/botão dentro do card já responsivo do ticket — sem
+  achado na revisão do CSS existente, mas sem screenshot dedicado nesta sessão).
+
+### S.8 · Sandbox fora da lista do mercado real ✅
+- **Descrição:** `GET /market/assets` (e o proxy do motor) exclui ativos `is_sandbox` por padrão, com parâmetro explícito para
+  incluí-los; a tabela de Renda Variável não os mostra; Modo Aprendizado e lições continuam achando o ativo pelo ticker.
+- **Critérios de aceite:** `SAND3`/`SANDPRE` somem da tabela real e continuam operáveis pelas lições; fecha o achado 023.
+- **Dependências:** nenhuma.
+- **Entregável:** o filtro vive no backend, não no motor (que segue devolvendo o catálogo completo, `is_sandbox` incluso):
+  `ListAssetsUseCase` exclui `is_sandbox` salvo `includeSandbox`; `GET /market/assets` ganha `include_sandbox=true|false` (Zod,
+  outro valor é `400`; padrão `false`). `GET /market/assets/:id` segue achando sandbox. Frontend: `listAssets`/`useAssetsQuery`
+  ganham `includeSandbox` (entra na query key); só `useAssetByTicker` (lições) e `Statement` (rótulo de ativo do extrato) o pedem,
+  então tabelas de Ações/Renda Fixa, Notícias, Painel Admin e o formulário de evento macro nunca veem sandbox. Docs em
+  `.docs/backend/market.md`. E2E: `SAND3`/`SANDPRE` ausentes da lista padrão, presentes com `include_sandbox=true`, detalhe `200`.
+
+### S.9 · Revalidação ponta a ponta e fechamento dos achados (por último, depois de S.10 a S.16) ✅
+- **Descrição:** rodar de novo `engine/scripts/e2e-mercado-simulado/` (sim, neg, gating, liq) com o relógio novo, conferir o retorno
+  médio de renda variável, a renda fixa em 21 ticks, o all-in e o gate; marcar 018 a 023 como Resolvido em
+  `pontos-em-aberto-decisao-produto.md`. Movida pra depois de S.13 a S.16 (adicionadas em 2026-09-27, fora da origem dos achados
+  018 a 023) pra ser de fato a validação final única da fase, em vez de rodar o mesmo script de e2e duas vezes — a S.13 já teria
+  rodado o script isoladamente no seu próprio critério de aceite, mas o fechamento formal da fase fica só aqui.
+- **Critérios de aceite:** zero violação de invariante; os 6 achados (018 a 023) fechados com evidência;
+  `go test ./internal/infra/db -run TickLock` com `TEST_DATABASE_URL` apontando pro Postgres do stack de teste (trava do tick,
+  S.3); provento de ação (S.13) reduzindo o preço médio de mercado nos dias seguintes à data-ex no mesmo run; posição com provento
+  mostrando retorno total maior que retorno de preço na proporção certa (S.15/S.16), verificado ponta a ponta pelo gateway (não só
+  teste de componente).
+- **Dependências:** S.1 a S.8, S.10 a S.16.
+- **Entregável (sessão 2026-09-27):** stack isolado `tccsim` recriado do zero (`down -v`/`up -d --build`, catálogo com
+  `--synthetic-assets 15 --synthetic-etfs 2`, seed de admin/lições/conquistas/missões) e revalidado ponta a ponta.
+  **Zero violação de invariante** (`inv.sql` completo: saldo negativo, conciliação de saldo/posição contra `market_events`, float,
+  proventos de ETF, ordem sobre-preenchida, ordem de usuário pendurada, cotação não positiva, salto diário >30%, posição de renda
+  fixa negativa — todas 0) num run de **130 dias simulados** (`sim.py`, `CROWD=10`, ~24 usuários reais completando a trilha inteira
+  + bots). `gating.py` (0 falhas), `neg.py` (0 falhas reais — 3 bugs de script corrigidos, ver abaixo), `weekend.py` (0 falhas) e
+  `liq.py` (100% de preenchimento nos 23 ativos reais, slippage ~1%/-1%) revalidados isoladamente também. `go test
+  ./internal/infra/db -run TickLock -v` (3 sub-testes) verde contra o Postgres do stack de teste.
+  **Achado novo desta sessão, corrigido na hora (bug mecânico, sem decisão de produto — não entra em
+  `pontos-em-aberto-decisao-produto.md`):** compra de renda fixa Prefixado/IPCA+ e **qualquer** resgate de renda fixa, feitos antes
+  do primeiro tick do Temporizador (`market_calendar` vazia), devolviam `500` opaco (`erro ao processar compra/resgate de renda
+  fixa`) em vez do `503` claro que `GET /fixed-income/simulate` já tinha pra essa mesma precondição — `db.
+  ErrMarketCalendarNotInitialized` (erro de infraestrutura) nunca tinha um sentinel de domínio correspondente, então caía no
+  `default` dos dois `writeFixedIncome*Error`. Corrigido: `fixedincomeexecution.ErrMarketNotInitialized` novo (domínio),
+  `FixedIncomeExecutionRepository.LoadPurchaseContext`/`LoadRedeemContext` traduzem o erro de infra pro sentinel de domínio nos 4
+  pontos de retorno, `writeFixedIncomePurchaseError`/`writeFixedIncomeRedemptionError` ganham o `case` novo → `503`. Teste de
+  tabela novo nos dois handlers (`fixedincome_test.go`). `go build`/`go vet`/`go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0
+  issues) verdes. Validado ao vivo (stack recém-subido, sem tick nenhum ainda): compra de `NTNB2035` e resgate de `LFT2029`
+  passaram de `500` pra `503 {"error": "temporizador ainda não rodou nenhum tick — sem taxa de mercado simulada pra este
+  produto"}`.
+  **3 bugs de script (não de produto) corrigidos em `neg.py`:** (1) `asset_id` inexistente usava um UUID com nibble de versão `0`
+  (`...-0000-...-00000000dead`), que o `z.string().uuid()` estrito do corpo da ordem rejeita com `400` antes de chegar no motor
+  (path param usa regex solta, sem essa checagem — inconsistência de validação notada, não corrigida, sem impacto de segurança);
+  trocado por um UUID v4 sintaticamente válido, exercitando de fato o `404` do motor. (2) "compra > saldo" esperava `422` fixo —
+  pós-A.2 (liquidez real, sem contraparte sintética) uma ordem maior que o book só preenche o que existe e devolve `201`, nunca
+  erro só por "não teria como pagar tudo"; trocado pela garantia que dá pra checar de fora (nunca preenche custo acima do saldo).
+  (3) "venda sem posição" reusava o usuário `a`, que 2 checks antes já tinha comprado 1 ação via IDOR — trocado por um usuário
+  isolado. **Achado à parte, também corrigido:** `catalog()` do `sim.py` não pedia `include_sandbox=true` (default mudou na S.8),
+  quebrando a persona "sand" com `KeyError: 'SAND3'`; corrigido. **Achado de script sem correção (documentado, não bloqueia):** o
+  bloco "novice" de `sim.py` reexecuta diariamente e sempre falsamente sinalizava gating quebrado em fim de semana simulado
+  (`market_closed`, correto) ou depois que o caixa de `novice0` esvaziava (`saldo insuficiente`, correto) — a premissa "ação
+  sempre 201 pra este usuário" ignorava que `complete_lessons(u, "2.3")` completa TODAS as lições anteriores na trilha
+  (1.2-1.11, todas as de renda fixa), então renda fixa também já estava liberada; a asserção certa é "gate não bloqueou"
+  (`st != 403`), não um status fixo — corrigido no `sim.py` pra runs futuras (não afeta o veredito desta sessão: os 2613 achados
+  reportados no run de 130 dias eram 100% esse falso positivo, nenhum de infraestrutura/500).
+  **Retorno médio de renda variável:** +0,6% de preço médio em 130 dias simulados nos 22 ativos de ação/ETF (exclui os 2 FIIs, achado
+  024 já aberto e fora do escopo desta tarefa) — ≈1,6%/ano anualizado, bem abaixo da Selic simulada (10% → 9,75% no Copom do dia 91),
+  sem nenhum resquício do antigo drift de +40%/ano (achado 019).
+  **Renda fixa em 21 ticks (achado 022):** compra de `LFT2029` (Selic 9,75%) seguida de 21 ticks corridos e resgate — 6 dos 21 dias
+  caíram em fim de semana simulado (sem render, S.1/S.3), retorno realizado (0,5553%) bate com o cálculo teórico de 15 dias úteis
+  compostos à Selic corrente (base 252) dentro de 0,001pp; IR regressivo 22,5% (primeira faixa) correto.
+  **Provento de ação reduzindo o preço justo (S.13), verificado sem o ruído do preço em si:** o relatório trimestral do dia 91
+  (mesmo dia do Copom, sem evento macro disparado nesta sessão) pagou dividendos de `BNDD3`/`BNDD4` (R$ 2,43 e R$ 2,68/cota, ambas
+  sobre 300M de ações da mesma empresa) — `company_fundamentals.net_equity` do Banco Nordeste Digital cresceu R$ 1,52 bi no
+  período contra um lucro líquido de R$ 3,07 bi no mesmo ciclo (≈1,53 bi esperado de payout, dentro de ~1% do valor medido),
+  confirmando a conservação de valor (provento sai do patrimônio líquido, que alimenta direto o preço justo do Fundamentalista via
+  VPA) sem precisar isolar o efeito do preço bruto (que no mesmo dia também reage à surpresa de resultado do próprio relatório).
+  **Retorno total vs. retorno de preço (S.15/S.16), pelo gateway real:** usuária `hold1` com posição de 25 `SYN0113` (preço médio
+  R$ 99,95, `markPrice` R$ 101,59, R$ 127 em proventos) — `GET /market/me/account` real devolveu os números que alimentam
+  `PositionSummaryCard`; conferido na tela real (`Mercado > SYN0113`) com o mesmo usuário: retorno de preço +2,1%/retorno total
+  +7,2% (diferença de 5,08pp bate exatamente com `dividendsReceived / (averagePrice × quantity)`), renderizado corretamente em
+  desktop (1568px) nos temas escuro e claro (toggle em Configurações). **Não coberto nesta sessão:** navegação real em 375px/768px
+  — o `resize_window` do Chrome MCP não alterou o viewport real neste ambiente (`window.innerWidth` seguiu 1920 após o resize,
+  confirmado via JS), então a cobertura desse ponto específico continua sendo só a automatizada que a própria S.16 já tinha
+  deixado (testes de componente/`AssetDetail` nos 3 cenários); `.returns` usa `flex-wrap`/`flex: 1 1 140px` (mesmo padrão do
+  `.priceRow` de `AssetDetail`, sem media query dedicada) — reflow por construção, não testado ao vivo em viewport estreito.
+  **Fecha achados 018 a 023** em `pontos-em-aberto-decisao-produto.md` (status "Resolvido" em todos, com a evidência desta sessão);
+  024 (deriva de FII) permanece aberto, fora do escopo dos 6 achados originais desta fase. **Fase S inteira fechada.**
+
+### S.10 · Calendário da simulação: endpoint de relógio e linha do tempo ✅
+- **Descrição:** rota do motor + proxy no backend (`GET /market/clock` e `GET /market/calendar?from=&to=`): dia simulado, data, dia
+  da semana, `market_open` (falso em sábado/domingo simulado), fator de aceleração, instante do próximo tick, dias até a abertura e
+  trimestre corrente (dia N de 91). A data do Copom é a efetiva (já empurrada pra dia útil, `selic.IsCopomMeetingDay`). O calendário devolve, por dia, os fatos globais (eventos macro disparados, reunião do Copom com a
+  Selic resultante, dia de relatório, data-ex e pagamento de proventos, com os futuros previsíveis marcados como próximos) e, por
+  usuário autenticado, os fatos dele (ordens executadas, proventos recebidos, vencimentos e resgates de renda fixa). Nunca expõe
+  patrimônio absoluto de terceiros. Zod, testes, `.docs/engine/` e `.docs/backend/`.
+- **Critérios de aceite:** relógio consistente com `market_calendar`; eventos futuros só os determinísticos (Copom, relatório,
+  proventos já anunciados, vencimentos do usuário), nunca evento macro ainda não disparado; paginação por janela de datas.
+- **Dependências:** S.1, S.3.
+- **Entregável:** novo pacote de domínio `internal/domain/marketcalendar` (`ClockAt` puro; `Service.Calendar` monta um `DayEntry` por dia da janela a partir de duas portas pequenas, `GlobalFacts` e `UserFacts`, e reaproveita `selic.IsCopomMeetingDay` e `fundamentals.IsReportDay` sem duplicar regra; teto de janela `MaxWindowDays` = 92). Infra: `db.CalendarRepository` (só leitura) e `httpserver/calendar.go` (`GET /market/clock`, `GET /market/calendar?from=&to=&user_id=`, `CalendarAPI` injetado em `httpserver.New/Run`, `next_tick_at` vem de `scheduler.Config.NextSlotStart` e é `null` com a agenda desligada). Migration `000034`: `market_events.simulated_day` (gravado no INSERT do eventstore, unitário e em lote, a partir de `market_calendar`; backfill aproximado como na 000032; índice `(user_id, simulated_day)`), porque o extrato só tinha o instante real. Futuro só com fatos determinísticos (Copom sem resultado, relatório, proventos anunciados, vencimentos do usuário); evento macro futuro nunca aparece; Copom passado traz Selic anterior e resultante; sandbox fora. Backend: port `MarketCalendarReader`, casos de uso `GetMarketClock`/`GetMarketCalendar`, adapter `engineMarketCalendarReader`, rotas `GET /market/clock` e `GET /market/calendar` (Zod nas datas; o `userId` é sempre o do token, `user_id` na query é ignorado). Testes: `marketcalendar` (relógio em sexta/sábado/domingo/virada de trimestre, janela inválida, Copom empurrado do dia 90 pro 91, Copom futuro sem resultado, evento macro futuro, proventos, fatos do usuário, sem usuário), `httpserver/calendar_test.go`, backend (caso de uso, adapter, router). E2E (`compose.e2e.yml` + seed): relógio no dia 8 e 13, calendário com Copom do dia 45 futuro, compras de renda fixa no dia 12 e vencimento futuro no dia 16 aparecendo só pro dono, `400` em data inválida e janela de 1 ano. Docs: `.docs/engine/calendar.md`, `.docs/backend/market.md`. Limites: ordem de ação a mercado não foi exercitada no e2e (o gate de produto pela trilha bloqueia o usuário de teste; a gravação de `simulated_day` é a mesma nos dois tipos de evento); o backfill de `market_events` antigos é aproximado.
+
+### S.11 · Mercado fechado no fim de semana simulado ✅
+- **Descrição:** `orderexecution` (ordens novas, a mercado e limitadas) e `fixedincomeexecution` (compra e resgate) recusam com erro de
+  domínio próprio quando o dia simulado é sábado ou domingo (`422`, código `market_closed`, com `opens_at`/dias restantes); backend
+  repassa e documenta. Cancelar ordem, sandbox e lições seguem abertos; bots não negociam. Frontend: botão de ordem e de aporte
+  desabilitados com o motivo em texto ("Mercado fechado: fim de semana simulado. Abre em 4h12, segunda 12/01"), sem depender só de cor.
+- **Critérios de aceite:** ordem no sábado simulado devolve `market_closed` sem gravar nada; sandbox continua operável; teste de
+  fronteira (sexta para sábado, domingo para segunda); script de e2e ganha dia de semana no relógio.
+- **Dependências:** S.1, S.10.
+- **Entregável:** `simcalendar.MarketClosedError` (`Day`, `OpensOnDay`, `DaysUntilOpen()`, `OpensOn()`) e `simcalendar.CheckMarketOpen(day)`. `orderexecution.Service.SubmitByUser` (novo, usado por `POST /orders`) confere o calendário depois do `LoadContext` e recusa em sábado/domingo sem gravar nada; `fixedincomeexecution.Service.Purchase/Redeem` fazem a mesma checagem. Sandbox (`Context.Sandbox`/`IsSandbox`) e `Cancel` seguem abertos. **Decisão de desenho:** só a ordem humana é barrada; `Submit`/`SubmitWithContext` (bots de liquidez e ETF, que rodam em todo tick, fim de semana incluso: rebalanceamento e arbitragem) não checam o calendário. A primeira versão checava em `SubmitWithContext` e derrubou o tick de fim de semana com 500 (achado no e2e), por isso a separação, com teste dedicado. HTTP: `422` `{ error, code: "market_closed", opens_on, days_until_open }` (`writeMarketClosedIfClosed`) em ordem e em compra/resgate de renda fixa. Backend: `EngineRequestError` ganhou `details` (campos extras do corpo do motor) e o router os repassa 1:1. Frontend: `getMarketClock`, `useMarketClockQuery` (relê a cada 60 s), `describeMarketClosed` (função pura: "Mercado fechado: fim de semana simulado. Abre em 4h12, segunda 12/01"; a duração soma o próximo tick e os intervalos de 24h/fator), `useMarketClosedReason(isSandbox)` (não bloqueia enquanto o relógio não carrega), `MarketClosedNotice`; `EquityOrderTicket`, `FixedIncomeSimulator` e o botão Resgatar ficam desabilitados com o motivo em texto (`role="status"`, não depende de cor). Testes: `simcalendar` (fronteira sexta/sábado, domingo/segunda), `orderexecution`, `fixedincomeexecution`, `httpserver/market_closed_test.go`, backend (adapter e router), frontend (função pura, ticket, simulador, serviço). E2E: `engine/scripts/e2e-mercado-simulado/weekend.py` (usa o gateway; completa a trilha e exige `seedLessons` no backend do stack): sábado e domingo recusam ordem a mercado, limitada, compra e resgate de renda fixa com `days_until_open` 2 e 1, nada gravado, sandbox de ação e de renda fixa abertos, ticks de fim de semana sem falha com ETF ativo, segunda reabre. Docs: `.docs/engine/orders.md`, `.docs/engine/fixedincome.md`, `.docs/backend/market.md`. Não coberto: navegação real no navegador nos 3 breakpoints (a tela âncora de calendário é a S.12); o dialog de confirmação mostra a mensagem do motor se o usuário chegar a confirmar com o relógio do front defasado.
+
+### S.12 · Frontend: relógio do mercado e tela Calendário (mobile first, gamificado) ✅
+- **Descrição:** (1) chip fixo no TopBar com "Dia 132 · qua 08/07 · próximo dia em 2h14", ponteiro que avança e selo "mercado
+  fechado" no fim de semana; (2) tela Calendário (bottom sheet no mobile, painel lateral fixo no desktop, composição própria por
+  breakpoint): faixa horizontal de dias com marcadores (macro, Copom, balanço, dividendo, meus eventos), trimestre como barra de
+  progresso "dia N de 91", listas "aconteceu" e "vem aí", legenda de convenção sólido/tracejado (passado/futuro) e linha fixa "cada
+  dia real = 5 dias de mercado"; (3) teatro de recompensa leve na virada de dia (animação e toast "Novo dia: Selic X%"), respeitando
+  `prefers-reduced-motion`; (4) passo novo no onboarding explicando o tempo acelerado e o fim de semana fechado; (5) responsividade nos
+  três breakpoints, tokens de `identidade-visual-tokens.md`, padrões de `identidade-visual-padroes.md`, acessibilidade (alvos de
+  toque ≥ 44px, texto além de cor, foco visível), sem em dash em texto de UI. Nova tela registrada em
+  `inventario-telas-plataforma-investimentos.md` e mockup vivo antes da implementação (tela âncora).
+- **Critérios de aceite:** usuário novo entende em uma olhada em que dia estamos, que o tempo é acelerado e por que o mercado está
+  fechado; testes de componente e navegação real em 375px, 768px e 1280px.
+- **Dependências:** S.10, S.11.
+- **Estado de partida (2026-09-27, fim da sessão de S.10/S.11, ainda sem commit na branch `s-correcoes-validacao-e2e`):**
+  - **Backend e motor prontos:** `GET /market/clock` e `GET /market/calendar?from=&to=` (datas `AAAA-MM-DD`, janela máx. 92 dias, padrão 7 atrás e 14 à frente; o backend sempre injeta o usuário do token). Contratos completos em `.docs/engine/calendar.md` e `.docs/backend/market.md`. Resumo do relógio: `{ simulated_day, date, weekday (sun..sat), market_open, days_until_open, days_per_real_day, next_tick_at (null com agenda desligada), quarter_day, quarter_length (91) }`. Resumo do calendário: `{ from_day, to_day, days: [{ simulated_day, date, weekday, market_open, events: [{ kind, scope (global|user), future, title?, direction?, ticker?, side?, quantity?, unit_value?, selic_rate?, previous_selic_rate? }] }] }`; `kind`: `macro_event`, `copom`, `report`, `dividend_ex_date`, `dividend_payment_date` (globais) e `order_executed`, `dividend_received`, `fixed_income_purchase`, `fixed_income_redemption`, `fixed_income_maturity` (do usuário). Um item por dia da janela, dias sem fato vêm com `events: []`.
+  - **Frontend já existente (feito na S.11, reaproveitar, não recriar):** `services/market` (`getMarketClock`, tipo `MarketClock`), `features/market/useMarketClockQuery` (relê a cada 60 s), `features/market/marketClosedReason` (`describeMarketClosed`, a conta de "abre em 4h12, segunda 12/01"), `features/market/useMarketClosedReason`, `components/molecules/MarketClosedNotice`. **Falta** o serviço `getMarketCalendar` e seus tipos (`CalendarEvent`, `CalendarDay`, `MarketCalendar`) em `services/market`, e o hook do calendário.
+  - **Mockup vivo (fonte de verdade do layout e dos textos):** https://claude.ai/artifact/CqcmBmoJfpEKeUBAnks8zn (código-fonte em `/tmp/.../scratchpad/calendario-mercado.html` pode não existir mais; o artefato é a referência; leia com `Artifact action: read`). Tela 4.11 no `inventario-telas-plataforma-investimentos.md`, TopBar em 0.2, link em `identidade-visual-padroes.md` seção 0.
+- **Decisões fechadas com o autor (2026-09-27):** (a) o Calendário abre **só pelo chip do relógio** (bottom sheet no mobile, painel no tablet, painel lateral fixo no desktop), sem rota própria nem item de menu; (b) o Copom exibido é a data efetiva já empurrada pra dia útil (decisão anterior, `selic.IsCopomMeetingDay`); (c) o ponteiro do relógio **anda durante o dia**: fração = 1 - (`next_tick_at` - agora) / (24h / `days_per_real_day`), limitada a 0..1, timer local de ~30 s, relê `GET /market/clock` ao completar a volta; sem `next_tick_at` (agenda desligada) o ponteiro fica parado e o texto "próximo dia em" some. Mockup vivo: https://claude.ai/artifact/CqcmBmoJfpEKeUBAnks8zn
+- **Roteiro sugerido (uma sessão só, na ordem):**
+  1. `getMarketCalendar` + tipos + teste de serviço; `useMarketCalendarQuery(from, to)` (queryKey com a janela, só habilitada com o painel aberto).
+  2. Função pura da posição do ponteiro (`clockProgress(clock, now)` = 1 - (`next_tick_at` - agora) / (24h / `days_per_real_day`), limitada a 0..1, `null` sem `next_tick_at`) e hook `useClockProgress` com timer de ~30 s; ao completar a volta, invalidar `MARKET_CLOCK_QUERY_KEY`. Testes table-driven da função pura (início, meio, fim, além do fim, sem `next_tick_at`).
+  3. Chip do relógio no `components/organisms/TopBar` (organismo novo `MarketClock` ou molécula, seguindo atomic design), com o estado fechado tracejado e o texto de `describeMarketClosed`; no mobile só a primeira linha. Acessível: `aria-label` com dia e estado, alvo de toque >= 44px.
+  4. Painel do Calendário (organismo `MarketCalendarPanel` + subcomponentes: barra do trimestre, faixa de dias, detalhe do dia, grade do trimestre no desktop, legenda). Abertura por estado no `AppShell` (contexto ou estado local), sem rota (decisão a). Mobile: bottom sheet com scrim, fecha por scrim, Esc e botão; tablet: painel abaixo da barra; desktop: painel lateral fixo/sticky ao lado da grade do trimestre (composição própria, não mobile esticado). Convenção sólido/tracejado do `identidade-visual-padroes.md` §3, ícone mais texto em todo marcador (`lucide-react`), sem em dash em texto de UI.
+  5. Virada de dia: comparar `simulated_day` entre leituras do relógio; ao mudar, animação do ponteiro (respeitando `prefers-reduced-motion`) e toast dourado "Novo dia: Selic X%" (Selic vem do evento `copom` do dia, senão do último Copom; fim de semana: "Mercado fechado até segunda. Hora de estudar."). Preferir o teatro de recompensa já existente em `features/shell/RewardRevealProvider` se couber; senão um toast leve próprio.
+  6. Passo novo no onboarding (`pages/Onboarding`): "Aqui o tempo passa mais rápido", 1 dia real contra 5 dias de mercado, semana com sábado e domingo tracejados, o que segue aberto (lições, Modo Aprendizado, cancelar ordem); texto e desenho do mockup.
+  7. Testes de componente (chip aberto/fechado/sem agenda, painel com e sem eventos, seleção de dia, "Vem aí" só com futuros, toast) e navegação real em 375px, 768px e 1280px (checar contraste nos dois temas). Atualizar a seção 0.2 e 4.11 do inventário se algo mudar; marcar a S.12 ✅ com o Entregável.
+- **Armadilhas conhecidas:** (0) **a faixa horizontal de dias nunca pode rolar na vertical** (achado do autor no mockup): `overflow-x: auto` sozinho faz o `overflow-y` virar `auto`, e a borda de 2px do dia de hoje ou o outline de foco geram rolagem vertical. Na aplicação, usar `overflow-x: auto; overflow-y: hidden`, `overscroll-behavior-x: contain`, itens com `flex: none` e folga no padding pra caber borda e foco (`outline-offset: -2px` nos dias); conferir em 375px com o dia de hoje e o dia focado no teclado; (i) `frontend/` roda no host, não em container; o e2e do backend usa `engine/scripts/e2e-mercado-simulado/compose.e2e.yml` (agenda desligada, então `next_tick_at` vem `null` lá: pra ver o ponteiro andar, subir o motor de desenvolvimento com a agenda ligada); (ii) rodar `npx prettier --write` só nos arquivos tocados, não em `src` inteiro (na S.11 ele reformatou 5 arquivos alheios); (iii) hooks antes de qualquer `return` antecipado nas páginas; (iv) lint é `oxlint` (avisos antigos de `only-export-components` não são seus); (v) checar `frontend/src/components/organisms/TopBar` e `AppShell` antes, o TopBar hoje só tem logo, `FriendsBell`, `NewsBell` e `AvatarMenu`.
+- **Entregável:** frontend (`frontend/`, sem backend novo). Serviço `getMarketCalendar` + tipos (`services/market`). Lógica em `features/market/`: `calendarFormat` (rótulos, datas UTC, `formatSelic` com 2 casas), `calendarEvents` (`describeCalendarEvent`; evento macro só com título, sem a direção; Copom futuro não revela resultado), `clockProgress`/`useClockProgress` (ponteiro anda com timer de 30 s e relê o relógio ao completar a volta), `quarterCells` (91 dias do trimestre derivados só do relógio), `useMarketCalendarQuery`, `dayFlipReveal` + `useDayFlipReveal` (toast dourado via `RewardRevealProvider`, Selic do último `/market/indicators`, ponteiro gira, sem animação com `prefers-reduced-motion`), `hooks/useMediaQuery`. Componentes: `atoms/CalendarKindIcon`, `molecules/MarketClockChip` (no `TopBar`, único ponto de abertura, devolve o foco ao fechar), `CalendarDayStrip` (`overflow-y: hidden`, `flex: none`, sem rolagem vertical), `CalendarEventItem`, `QuarterGrid`, `organisms/MarketCalendarPanel`; `AppShell` guarda o estado aberto/fechado e a composição por CSS (mobile bottom sheet com fundo e Esc, tablet painel em fluxo, desktop coluna de 440px com a grade do trimestre dentro do painel, consulta do trimestre só no desktop). Onboarding ganhou o 3º slide "Aqui o tempo passa mais rápido" (1 dia x 5 dias, semana com sábado e domingo tracejados). Testes: 753 passando (função pura, chip, painel, AppShell, onboarding, serviço). Navegação real com `docker compose up` + `vite` em 375px, 800px e 1280px, tema escuro e claro: chip fechado com "Abre em 5h28, segunda 10/04", painel nos três formatos, sem rolagem vertical na faixa. Achados na navegação e corrigidos: faixa de dias colapsava no desktop (faltava `flex: none`) e a grade do trimestre transbordava (`minmax(0, 1fr)`). **Bug da S.10 achado e corrigido aqui:** a migration `000034` falhava em banco com eventos já gravados (o backfill é UPDATE e `market_events` tem gatilho append-only); agora desliga o gatilho só durante o backfill (29.946 linhas migradas no volume de desenvolvimento). Desvios do mockup: a grade do trimestre mora dentro do painel (o chip é o único acesso, decisão a); textos de provento dizem "por unidade" (o motor não distingue ação de cota no calendário). **Revisão do autor (2026-09-27, depois do mockup v2):** sem barra de progresso do trimestre (`QuarterProgress` removido); o último dia do trimestre é um bloco dourado com "fim do trim." na faixa, na grade (agora "Visão geral dos dias") e na legenda, com a etiqueta "Fim do trimestre" no detalhe; chip do relógio em duas linhas curtas no mobile ("Dia 135" / "qua 08/07", "Fechado" / "sáb 11/07"), logo em 15px, medido em 375px sem estouro (chip de 105px, gutter de 16px preservado). Não coberto: a virada de dia com o painel aberto foi coberta só por teste (o tick real leva ~4h48); alvos da grade do desktop têm ~26px (a faixa de dias, que é o caminho por toque, tem 58px).
+
+**Origem (S.13 a S.16):** discussão com o autor em 2026-09-27, separada dos achados 018 a 023 que abrem esta fase — o autor perguntou
+se o preço de uma ação cai na data-ex do dividendo (como na vida real) e se a rentabilidade mostrada ao usuário separa retorno de
+preço de retorno total (preço + provento), lembrando que uma queda de preço igual ao provento pago não é perda nenhuma pro
+acionista. Levantamento desta sessão confirmou dois problemas reais, sem decisão de produto pendente pra corrigir (mecanismo já
+decidido pela arquitetura fechada da Fase R: preço só muda por reação de negociação dos bots, nunca um degrau/salto calculado
+direto): (1) hoje o preço da ação **não reage nada** ao provento pago — `company_fundamentals.net_equity` é recalculado do zero a
+cada ciclo trimestral a partir da receita (`fundamentals.DeriveFinancials`), nunca decrementado pelo valor de fato distribuído, então
+o VPA que alimenta `FundamentalistFairPrice` não "sente" a saída de caixa (S.13); (2) nenhuma tela mostra ganho/perda de uma posição,
+com ou sem provento — `AssetDetail` (4.5) só usa `ownedQuantity`, `Portfolio` (2.1) só agrega patrimônio total (S.15/S.16). ETF já
+resolvido (R.8 credita o provento ao cotista e desconta o passivo do NAV; R.12b corrigiu o degrau de 1 dia na data-ex); FII fica
+registrado como reserva (S.14) por depender de um bot de preço justo que FII não tem hoje. **S.15/S.16 são úteis e corretas
+independente da S.13 rodar** — mostram o retorno real da posição (preço + provento) mesmo que o preço ainda não reaja
+mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, mas S.13 não bloqueia S.15/S.16 nem o contrário.
+
+### S.13 · Provento de ação reduz o preço justo do Fundamentalista (conservação de valor, sem degrau direto de preço) ✅
+- **Descrição:** pagar dividendo de ação credita o caixa do usuário corretamente (Event Sourcing, `payDueDividends`), mas nada do
+  lado da empresa reflete essa saída — `dividendRecordsForCycle` (tick.go) gera o provento a partir de `net_income`, e
+  `fundamentals.DeriveFinancials` recalcula `net_equity` do zero a cada ciclo trimestral a partir da receita, sem nunca subtrair o
+  que já foi distribuído. Resultado: o preço justo do Fundamentalista (`FundamentalistFairPrice` = VPA × ROE/retorno_exigido × ...)
+  não muda por causa do provento, e como o Market Maker de ação ancora a cotação no último negócio (`state.Price`, não numa fórmula
+  de valor — diferente do ETF, que ancora no iNAV), nada empurra o preço pra baixo na data-ex nem depois. O retorno de preço mostrado
+  ao usuário fica artificialmente inflado pelo valor do próprio provento, que já foi pago à parte em caixa.
+  Correção alinhada à arquitetura já fechada (evento macro/balanço só muda preço via reação de negociação dos bots, nunca
+  multiplicador/degrau direto — o mesmo motivo que vetou o "salto calculado" do motor antigo): tratar o provento pago como mais um
+  input transitório de `FundamentalistFairPrice`, no mesmo padrão de `macroEffectPct` hoje — um efeito negativo (`valorPorAção / VPA`
+  do ciclo em que foi pago) resolvido externamente (mesmo caminho de `tick.companyRoundContexts`) e ativo por uma banda curta de
+  dias simulados (mesmo espírito de `macroevent.EffectRange`, ilustrativo/sujeito a calibração como os demais coeficientes do
+  motor) — decai a zero sozinho quando o próximo ciclo trimestral já recalculou `net_equity` do zero, sem precisar de estado
+  persistente novo. O Fundamentalista negocia pra convergir o preço de mercado pra baixo, exatamente como já faz hoje com uma
+  surpresa de balanço ruim ou um evento macro negativo — nenhum código novo mexe em book/quote/preço diretamente.
+  **Atenção não esquecer:** a atenção extra de turno (Q.10, `applyEventAttention`) hoje só liga em cima de `MacroEffectPct != 0` —
+  sem incluir o efeito do provento nesse mesmo gatilho (somado a `MacroEffectPct` no ponto em que `AttentionMultiplier` é aplicado,
+  ou generalizando a checagem), a fórmula fica correta mas o Fundamentalista pode não ganhar turno suficiente pra agir a tempo
+  perto da data-ex, e o efeito passa quase despercebido na prática.
+- **Critérios de aceite:** teste table-driven da função pura do efeito (provento zero, normal, e maior que o VPA — clampado, nunca
+  preço justo negativo/zero só por este termo, reaproveitando `FundamentalistMinFairPrice`); teste de `FundamentalistFairPrice`
+  mostrando o preço justo caindo proporcionalmente ao provento por ação dentro da banda de dias e voltando ao padrão fora dela;
+  rodando `engine/scripts/e2e-mercado-simulado` num ativo pagador de dividendo por 2+ ciclos, o preço médio de mercado nos dias
+  seguintes à data-ex fica mensuravelmente mais baixo que numa run sem a mudança, sem violar nenhuma invariante financeira já
+  coberta pelo script; zero mudança em `orderbook`/`orderexecution`/Market Maker (só `bot`/`tick`/`fundamentals`, domínio puro).
+- **Dependências:** nenhuma (reaproveita `dividendRecordsForCycle`, `companyRoundContexts` e o padrão de `macroEffectPct` já
+  existentes).
+- **Entregável:** `dividend.EquityPriceEffectPct(netIncome, netEquity)` (novo, `dividend.go`) — conservação de valor pura: o pool
+  distribuído (`netIncome × DefaultEquityPayoutRatio`) reduz o preço justo na mesma proporção que reduziria o patrimônio líquido,
+  válido pra ON e PN sem precisar da base de ações de cada classe; clampado em `MinEquityPriceEffectPct` (-100%). `tick.go` ganhou
+  `dividendPriceEffectPct`/`dividendPriceEffectBandDays` (10 dias simulados, ilustrativo) — deriva "dias desde o último relatório"
+  de `(dayIndex+1) % reportFrequencyDays` sem nenhum estado persistido novo, com guarda pro primeiro ciclo (nenhum relatório
+  aconteceu ainda). `CompanyRoundContext.DividendEffectPct` (novo campo) alimenta `FundamentalistFairPrice` como um multiplicador
+  a mais (`× (1 + dividendEffectPct/100)`, mesmo padrão de `macroEffectPct`/`pnPremiumPct` — não passa pelo filtro de
+  `personality.KnowledgeLevel`, mesmo tratamento de "fato estrutural conhecido" já dado a `pnPremiumPct`) e é somado a
+  `MacroEffectPct` no gatilho de atenção extra de turno (`applyEventAttention`, Q.10). Testes: tabela nova em
+  `dividend_test.go` (zero/normal/clampado/patrimônio inválido); os dois testes de regressão ponta a ponta da F.1
+  (`TestService_Run_Relatorio...`) precisaram ser ajustados — o cenário de teste sempre paga um provento no dia de relatório, então
+  passaram a comparar contra um piso `noSurpriseClosing` (startPrice já com o efeito do provento) em vez de `startPrice` puro,
+  já que "sem surpresa" deixou de significar "sem movimento" (o provento move o preço mesmo sem surpresa de balanço). Validação
+  ponta a ponta real (não o script `e2e-mercado-simulado` — troca por verificação direta contra o catálogo seedado já existente no
+  volume de dev via `docker compose up` + `POST /admin/tick`, mais direta que orquestrar o script python pra um efeito de poucos
+  dias): avançando o tick do dia 900 ao 910 (dia de relatório real de BNDD3/BNDD4/VALR3 no catálogo seedado), BNDD3 caiu **-5,11%**
+  exatamente no dia do provento (`day:910`) e o preço se estabilizou no novo patamar nos dias seguintes (911-914), sem voltar a
+  cair — confirma o "degrau único, não continuado" pretendido pela tarefa. `go test ./...` e `golangci-lint run` (via Docker,
+  0 issues) limpos.
+
+### S.14 · (Reserva, não agendada) Provento de FII sem efeito no preço — falta bot de preço justo pro FII
+- **Descrição:** o mesmo problema da S.13 existe pro provento de FII — `fii_details.net_worth`/`portfolio_value` também são
+  recalculados do zero por Selic/indexador a cada ciclo (`fii.NextNetWorth`/`NextPortfolioValue`), nunca decrementados pelo valor
+  distribuído mensalmente (`dividend.FIIValuePerShare`). A correção da S.13 não é diretamente portável: hoje nenhum bot lê
+  `net_worth`/`portfolio_value` de FII pra decidir preço (só Chartista/Ruído/Market Maker reagem ao preço que já mudou por
+  negociação) — corrigir isso primeiro exige dar ao FII um arquétipo com noção de "preço justo" (o equivalente de P/VP pra FII),
+  trabalho de arquitetura maior que um ajuste pontual e fora do escopo de uma correção. Registrado como reserva pra não se perder,
+  não como pendência bloqueante — a S.15/S.16 já tornam visível o retorno total real (preço + provento) de FII, então o efeito
+  prático de não ter a queda ex-provento é o mesmo viés que a S.13 corrige pra ação (retorno de preço um pouco inflado), só que sem
+  correção prevista ainda.
+- **Dependências:** um arquétipo de bot com "preço justo" de FII (não existe hoje) — provável pré-requisito de uma fase futura, não
+  desta.
+
+### S.15 · Provento recebido por posição, exposto por ativo (motor + backend) ✅
+- **Descrição:** `accounts.total_dividends_received` só existe agregado por conta (`GET /market/me/account`), sem quebra por
+  ativo — hoje é impossível responder "quanto este ativo específico já me pagou de provento". A fonte já existe em
+  `market_events` (`event_type = 'dividend_payment'`, `user_id` + `asset_id` + `quantity` + `unit_value`, gravado por
+  `payDueDividends`, Event Sourcing) — falta só agregar. Motor: `GET /positions?user_id=` ganha `dividends_received` (soma de
+  `quantity * unit_value` dos eventos `dividend_payment` daquele usuário+ativo — `AccountRepository.ListPositionsByUser` ganha
+  um `LEFT JOIN`/subquery agregando por `asset_id`, sem migration nova). Backend: `PositionRecord`/`MyAccountPosition` ganham
+  `dividendsReceived`, `GetMyAccountUseCase` repassa 1:1 (sem cálculo novo no backend).
+- **Critérios de aceite:** usuário com 2+ ciclos de provento recebidos numa ação vê `dividends_received` bater com a soma manual
+  dos eventos `dividend_payment` daquele ativo; posição sem provento nenhum devolve `0`, não `null`/omitido (mesmo tratamento de
+  campo numérico sempre presente de `average_price`/`quantity`); teste do repositório (motor, contra Postgres real) e do handler
+  HTTP; teste do caso de uso e do router (backend, com fake); `.docs/engine/` (onde `GET /positions` já está documentado) e
+  `.docs/backend/market.md` atualizados com o campo novo.
+- **Dependências:** nenhuma.
+- **Entregável:** `position.Record` ganhou `DividendsReceived float64` (`domain/position/position.go`).
+  `AccountRepository.ListPositionsByUser` (`infra/db/account_repository.go`) agrega via `LEFT JOIN` numa subquery
+  `SUM(quantity * unit_value)` de `market_events` (`event_type = 'dividend_payment'`) por `asset_id`, `COALESCE`ado pra `0` — sem
+  migration nova, exatamente como previsto. `GET /positions` (`infra/httpserver/positions.go`) expõe `dividends_received` sem
+  `omitempty`, mesmo tratamento de `quantity`/`average_price`. Backend: `PositionRecord`/`MyAccountPosition`
+  (`accountReader.ts`/`getMyAccount.ts`) ganharam `dividends_received`/`dividendsReceived` — como `FixedIncomePositionRecord`/
+  `MyAccountFixedIncomePosition` não têm esse campo (renda fixa não gera `dividend_payment`), os dois pares deixaram de usar
+  `extends` direto um do outro e passaram a compartilhar uma interface base sem o campo nem `averageRate`/`markPrice`, pra não
+  forçar um campo inexistente na resposta real de `GET /fixed-income/positions`. Testes: tabela nova em `positions_test.go`
+  (handler), teste de repositório novo contra Postgres real (`account_repository_integration_test.go`, dois cenários — 2 ciclos de
+  provento somados e posição sem provento devolvendo `0`) e `getMyAccount.test.ts` (backend) atualizados. `.docs/engine/account.md`
+  e `.docs/backend/market.md` atualizados.
+  **Achado da validação (registrado aqui, não é pendência de produto):** o teste de repositório inicial rodou contra o banco
+  `market` de desenvolvimento compartilhado (mesmo `TEST_DATABASE_URL` de `tick_lock_integration_test.go`) e tentou limpar suas
+  próprias linhas de `market_events` no `t.Cleanup` — só que `market_events` é append-only (trigger
+  `prevent_market_events_mutation`, CLAUDE.md: Event Sourcing é a fonte da verdade, nunca mutável), então o `DELETE` falhou
+  silenciosamente e deixou 3 ativos/contas de teste (`VALS15`, `S157dc650e`, `S15829f424`) e 6 eventos `dividend_payment` presos no
+  `market` de dev — não puderam ser removidos depois porque removê-los exigiria desabilitar o trigger append-only numa base com
+  dados reais, ação que a sessão corretamente recusou. Corrigido criando um banco descartável por execução do teste
+  (`CREATE DATABASE`/`Migrate`/`DROP DATABASE`, mesmo espírito de `market_e2e`/`market_e2e_b` dos scripts de validação), que não
+  reincide. As 3 linhas de teste que já vazaram continuam no `market` de dev (`is_sandbox: false`, então aparecem em
+  `GET /assets?type=acao`) — o autor decide se quer limpá-las manualmente (exige desabilitar o trigger append-only) ou deixá-las.
+
+### S.16 · Frontend: retorno de preço vs. retorno total (com proventos) na posição do ativo ✅
+- **Descrição:** hoje nenhuma tela mostra ganho/perda de uma posição (nem preço médio vs. preço atual) — `AssetDetail` (4.5,
+  âncora) só usa `ownedQuantity` pro ticket de ordem, sem card de "sua posição"; `Portfolio` (2.1) só agrega patrimônio total, sem
+  itemizar por ativo. Adicionar um card "Sua posição" em `AssetDetail`, só quando o usuário tem posição real (renda variável, não
+  sandbox): quantidade, preço médio, preço atual (`markPrice ?? averagePrice`, mesma função da S.6), retorno de preço
+  (`(atual - médio) / médio`), proventos recebidos nesse ativo em R$ (S.15) e retorno total
+  (`((atual - médio) × quantidade + proventos) / (médio × quantidade)`) — os dois retornos lado a lado, com um texto curto
+  explicando a diferença (mesmo espírito pedagógico do RF21: a diferença não é inconsistência, é o provento já recebido em
+  caixa). Sem em dash no texto de UI; responsivo nos três breakpoints; sem posição real no ativo, o card não aparece.
+- **Critérios de aceite:** ativo com provento pago mostra retorno total maior que retorno de preço na proporção exata do
+  provento recebido; ativo sem provento nenhum mostra os dois retornos iguais; teste de componente cobrindo posição com e sem
+  provento e sem posição (card ausente); navegação real em 375px/768px/1280px, tema claro e escuro.
+- **Dependências:** S.6 (`markPrice`, já ✅), S.15 (`dividendsReceived` por posição).
+- **Entregável:** `components/organisms/PositionSummaryCard/` (novo) — recebe `quantity`/`averagePrice`/`markPrice?`/
+  `dividendsReceived` como props (não busca dado sozinho), reaproveita `OrderSummaryList` (já existente) pras linhas
+  quantidade/preço médio/preço atual/proventos recebidos e ganha um bloco novo com os dois retornos lado a lado
+  (`flex-wrap`, sem media query dedicada — mesmo padrão de `.priceRow`), coloridos com as mesmas classes `.gain`/`.loss` (tokens
+  `--color-gain-*`/`--color-loss-*`) já usadas por `AssetDetail` pra `daily_change_pct`. `AssetDetail` (`pages/AssetDetail/`)
+  passou a capturar a posição inteira (não só `.quantity`) do `find()` que já existia em `accountQuery.data.positions`, e
+  renderiza o card entre o preço/gráfico e o bloco de indicadores por tipo, condicionado a
+  `position && !position.isSandbox && position.quantity > 0` (posição de renda variável, nunca sandbox, com quantidade real).
+  `services/market/types.ts` (frontend) ganhou o mesmo ajuste de tipo que o backend já tinha feito na S.15 —
+  `MyAccountPosition`/`MyAccountFixedIncomePosition` passaram a compartilhar uma base sem `dividendsReceived`/`markPrice`/
+  `averageRate`, pra não sugerir um campo que `fixedIncomePositions` nunca tem. Testes: 3 casos novos em
+  `PositionSummaryCard/index.test.tsx` (com provento, sem provento, sem `markPrice`) e 3 casos novos em `AssetDetail/index.test.tsx`
+  (retorno total maior com provento, retornos iguais sem provento, posição zerada sem card) mais uma asserção nova no teste já
+  existente confirmando que o card não aparece sem posição. `tsc --noEmit`, `oxlint` (sem warning novo) e `prettier --check`
+  limpos; suíte completa (798 testes) verde.
+  **Achado revisado a pedido do autor logo depois do primeiro fechamento desta tarefa:** a condição inicial só checava
+  `position && !position.isSandbox`, sem `quantity > 0` — `positions` nunca é deletada numa venda total (UPSERT em
+  `order_execution_repository.go`, `ON CONFLICT ... DO UPDATE`), a linha fica com `quantity: 0` e `average_price` do último preço
+  médio. Sem a checagem, o card apareceria pra um ativo que o usuário não tem mais e a divisão do retorno total por
+  `averagePrice × quantity` (= 0) quebraria (`NaN`/`Infinity`). Corrigido antes do commit; teste novo cobre exatamente esse
+  cenário (posição com `quantity: 0` e `average_price`/`dividendsReceived` > 0, card ausente).
+  **Critério de aceite não fechado nesta sessão, registrado aqui em vez de reivindicado:** "navegação real em
+  375px/768px/1280px, tema claro e escuro" não foi feita — gerar uma posição real (não sandbox) pra ver o card ao vivo exige
+  passar pelo gate de lição da S.4 (passos sequenciais **com tempo mínimo entre eles**), o mesmo obstáculo já documentado na
+  sessão da S.15 pra comprar um ativo real com um usuário novo; não é algo que dá pra contornar rápido numa sessão (é o próprio
+  RF de gating funcionando como projetado, não um bug). Decisão desta sessão: substituir pela cobertura automatizada acima
+  (que já verifica o texto/percentual renderizado nos dois cenários e a ausência do card), em vez de inventar um atalho pelo
+  gate. Se o autor quiser a validação visual real nos 3 breakpoints/2 temas, precisa ser feita à parte (usuário com lições já
+  completas, ou avançando o tempo mínimo entre os passos manualmente).
+
+## Fase T — Salário mensal simulado (renda recorrente independente de investimento)
+
+**Origem:** discussão com o autor nesta sessão (2026-09-27), sem documento de proposta prévio — decisões fechadas
+diretamente na conversa, registradas abaixo.
+
+**Decisões do autor (2026-09-27):**
+1. **Motivação:** hoje a única fonte de crescimento de patrimônio é a rentabilidade sobre os R$10.000 iniciais (RNF06) —
+   não há nenhuma injeção externa de capital, diferente da vida real, onde a maior parte da capacidade de investir vem de
+   renda de trabalho, não de retorno de investimento.
+2. **Modelo:** salário mensal, creditado como caixa livre na conta (não afeta rentabilidade, ver decisão 4).
+3. **Valor:** cresce com o nível de gamificação (`gamification.levelForXp`, curva já existente, sem teto), em degraus
+   também sem teto: nível 1-10 soma R$100/nível, nível 10-20 soma R$200/nível, nível 20-30 soma R$300/nível, e assim por
+   adiante (tier `k = ⌈nível/10⌉`, incremento por nível dentro do tier = R$100×k). Forma fechada:
+   `salário(nível) = 1000·(k-1)·k/2 + 100·k·(nível - 10·(k-1))`. Valores de referência confirmados com o autor: nível 10 →
+   R$1.000/mês, nível 20 → R$3.000/mês, nível 30 → R$6.000/mês. Aceito que, pra um usuário muito engajado por muito tempo
+   (missão diária é fonte de XP infinita, ao contrário das 35 lições), o salário eventualmente supere qualquer retorno de
+   investimento razoável — decisão explícita do autor, não um efeito colateral.
+4. **Sem novo ranking por patrimônio absoluto** (RNF09 continua intocado — valor absoluto nunca exposto a outro usuário).
+   A rentabilidade % (RF17, o único ranking afetado) passa a ser calculada só sobre capital que já foi de risco em algum
+   momento (compras históricas, líquidas de vendas/resgates realizados e dividendos), nunca sobre caixa nunca investido —
+   isso exclui salário (e o próprio depósito inicial não investido) do cálculo, mas **preserva lucro já realizado e
+   guardado em caixa** (decisão explícita: vender com lucro e não reinvestir continua contando na rentabilidade).
+5. **Cadência:** 5º dia útil de cada mês-**calendário real** — o dia simulado já mapeia 1:1 pra uma data real a partir de
+   2026-01-05 (`simcalendar.BaseDate`), então usa mês/ano dessa data real, não o bloco de 30 dias fixos do IPCA (que é
+   convenção só daquele cálculo, ver S.2). Igual à vida real.
+6. Precisa virar informação visual no Calendário (S.10-S.12) — pedido explícito do autor.
+
+### T.1 · Rentabilidade calculada só sobre capital de risco (pré-requisito antes do salário)
+- **Descrição:** hoje `backend/src/modules/ranking/domain/profitability.ts` (`profitabilityPct(baseline, current)`) compara
+  o patrimônio total (caixa + posições, `networth.ts` `replay().total`) contra a baseline fixa de R$10.000 — só funciona
+  hoje porque a única fonte de caixa é o depósito inicial. Redefinir como retorno sobre capital de risco:
+  `retorno% = investedCost === 0 ? 0 : ((currentInvestedValue + disinvestedProceeds + dividendsReceived - investedCost) / investedCost) * 100`,
+  onde `investedCost` = soma bruta histórica de compras (renda variável + renda fixa, nunca líquida de venda),
+  `disinvestedProceeds` = soma bruta de vendas + resgates de renda fixa, `dividendsReceived` = soma de dividendos,
+  `currentInvestedValue` = valor atual das posições abertas (como já é hoje). O motor já mantém `accounts.total_invested`
+  (incrementado em `order_execution_repository.go:628` e `fixed_income_execution_repository.go:246`, exposto em
+  `GET /accounts/{user_id}`, ainda não consumido pelo backend) e `accounts.total_dividends_received` — falta
+  simetricamente um `accounts.total_disinvested` (novo, incrementado nos mesmos pontos onde hoje só `current_balance` é
+  creditado na venda/resgate: `order_execution_repository.go:635` e `fixed_income_execution_repository.go:287`),
+  migration `000035`.
+- **Critérios de aceite:** vender um ativo com lucro e não reinvestir continua contando na rentabilidade (teste
+  explícito); nunca investir nada dá 0% (não -100%); teste table-driven da nova função pura cobrindo compra parcial,
+  venda com lucro/perda, dividendo recebido ainda posicionado, e o caso atual (só depósito inicial, sem operação)
+  permanecendo 0%; `engineCurrentAccountStateReader` (leitura "agora") e `networth.replay` (leitura `asOf` passado, janela
+  do ranking) produzem o mesmo número pro mesmo instante.
+- **Dependências:** nenhuma (pode rodar em paralelo a T.2/T.3/T.4).
+- **Entregável esperado:** migration `000035_total_disinvested`; `account.Account.TotalDisinvested` (Go) + repositório +
+  `httpserver/account.go`; `AccountResponse.total_disinvested` consumido em `engineCurrentAccountStateReader.ts`;
+  `networth.ts` (`replay`) ganha os mesmos 3 acumuladores; `profitability.ts` reescrito (nome novo, ex.
+  `investmentReturnPct`); todos os consumidores de `profitabilityPct` atualizados (`getRanking.ts`, perfil público);
+  `.docs/engine/orders.md`/`fixedincome.md`, `.docs/backend/ranking.md`.
+
+### T.2 · Evento de salário no motor e endpoint de crédito
+- **Descrição:** novo tipo de evento `salary_payment` no enum Postgres `market_event_type` (`ALTER TYPE ... ADD VALUE`,
+  migration `000036`) + constante `EventSalaryPayment` em `eventstore.go`, travada no teste que confere o enum do banco
+  (mesmo padrão de `bot_initial_cash`). Novo endpoint `POST /accounts/{user_id}/salary` (`{ amount }`, `amount > 0`) que
+  grava o evento (dia simulado automático via o gatilho já existente da migration `000034`) e credita
+  `accounts.current_balance` na mesma transação — mesmo padrão de Event Sourcing do `initial_deposit`. Nunca incrementa
+  `total_invested`/`total_disinvested` (T.1): é caixa livre, não capital de risco. O motor só executa o crédito; a
+  decisão de quando/quanto pagar vem de fora (T.5).
+- **Critérios de aceite:** crédito grava evento imutável + saldo atualizado atomicamente; endpoint rejeita `amount <= 0`
+  (`400`); não altera `total_invested`/`total_disinvested`; teste de domínio, de repositório (Postgres real) e de
+  `httpserver`.
+- **Dependências:** nenhuma (pode rodar em paralelo a T.1).
+
+### T.3 · Fórmula de salário por nível (função pura no backend)
+- **Descrição:** `monthlySalaryForLevel(level: number): number`, novo módulo `backend/src/modules/payroll/domain/` (módulo
+  próprio — cruza `gamification`, dono do nível, com `market`, que credita caixa; não pertence a nenhum dos dois). Fórmula
+  em degraus confirmada com o autor: tier `k = Math.ceil(level / 10)`,
+  `salário = 1000·(k-1)·k/2 + 100·k·(level - 10·(k-1))`. Sem teto.
+- **Critérios de aceite:** teste table-driven cobrindo nível 1 (R$100), 10 (R$1.000), 11, 20 (R$3.000), 21, 30 (R$6.000) e
+  um nível alto (ex. 100); função pura, sem I/O.
+- **Dependências:** nenhuma.
+
+### T.4 · Detecção do 5º dia útil do mês-calendário real
+- **Descrição:** função pura que recebe os dias do mês corrente (reaproveitando
+  `GET /market/calendar?from=<1º dia do mês>&to=<hoje>`, que já devolve `weekday` por dia — S.10) e determina se o dia
+  simulado de hoje é o 5º dia útil desse mês-calendário real (mês/ano da data mapeada pelo dia simulado, nunca o bloco de
+  30 dias fixos do IPCA). Sem duplicar `simcalendar.IsBusinessDay` no backend — só conta os `weekday` que a API já
+  devolve.
+- **Critérios de aceite:** teste table-driven com meses que abrem em dia de semana diferente (deslocando o 5º dia útil,
+  ex. mês que começa numa sexta/sábado/domingo); nunca conta sábado/domingo.
+- **Dependências:** nenhuma.
+
+### T.5 · Job de folha de pagamento com catch-up e idempotência
+- **Descrição:** novo caso de uso em `payroll` (T.3) que, por conta: lê o nível (`gamification`), verifica se hoje é o 5º
+  dia útil do mês (T.4) e se esse mês-calendário já foi pago (nova coluna/tabela, ex.
+  `user_progression.last_salary_paid_month` ou tabela própria `salary_payments`), calcula o valor (T.3) e credita via o
+  endpoint novo do motor (T.2). Disparado por um job periódico no backend (ancorado como o `scheduler.Run` do motor na
+  S.3) — nunca paga o mesmo mês duas vezes; se o backend ficar fora do ar e perder o dia exato, paga no próximo check
+  (catch-up), com teto de meses em atraso recuperáveis de uma vez (mesmo espírito do `TICK_MAX_CATCHUP` do motor).
+- **Critérios de aceite:** dois checks no mesmo dia não pagam duas vezes; reinício do backend depois de perder o dia de
+  pagamento ainda paga esse mês (uma vez, não retroativo pra sempre); teste do caso de uso com fakes (relógio do motor,
+  leitor de nível, port de crédito) cobrindo pago/já pago/fora do dia/catch-up.
+- **Dependências:** T.2, T.3, T.4.
+
+### T.6 · Salário no calendário do usuário
+- **Descrição:** o evento `salary_payment` (T.2) precisa aparecer em `GET /market/calendar` como fato do usuário (novo
+  `kind: salary_payment` em `marketcalendar.UserFacts`, ao lado de `dividend_received` etc. — S.10). Diferente de
+  dividendo/vencimento (determinísticos), o valor de um pagamento futuro depende do nível no momento do pagamento, que
+  pode mudar até lá — calendário mostra o dia de pagamento como "vem aí" sem valor, e o valor só aparece depois de pago
+  (passado).
+- **Critérios de aceite:** salário pago aparece na linha do tempo do usuário no dia certo, nunca pra outro usuário; item
+  futuro nunca mostra valor.
+- **Dependências:** T.2, T.5.
+
+### T.7 · Frontend: marcador de salário no calendário e teatro de recompensa
+- **Descrição:** `CalendarEventItem`/`CalendarKindIcon` ganham o `kind: salary_payment` (ícone e rótulo próprios:
+  "Salário: R$ X" no passado, "Dia de pagamento" sem valor no futuro); ao detectar salário recebido na virada de dia,
+  reaproveitar `dayFlipReveal`/`RewardRevealProvider` (S.12) com um toast dedicado ("Salário do mês: R$ X caiu na sua
+  conta").
+- **Critérios de aceite:** marcador visível na faixa de dias e no painel de detalhe; toast só dispara pro próprio
+  usuário; responsivo nos três breakpoints; sem em dash em texto de UI.
+- **Dependências:** T.6.
+
+### T.8 · Salário exposto na resposta de progressão (fonte única do valor)
+- **Descrição:** `GET /gamification/progression` (`progressionRouter.ts`) passa a incluir `monthlySalary` no payload,
+  calculado via `monthlySalaryForLevel` (T.3) — única fonte do valor pro frontend, a fórmula em degraus nunca é
+  duplicada lá. `useProgressionQuery` ganha o campo no tipo de retorno.
+- **Critérios de aceite:** valor bate com T.3 pro nível atual do usuário; teste de router/serviço.
+- **Dependências:** T.3.
+
+### T.9 · Indicador persistente de salário no Dashboard
+- **Descrição:** pequeno card/linha perto de `components/organisms/ProgressionSummary` (dentro dele ou ao lado, a
+  decidir na sessão de implementação — não é tela âncora, mas segue `identidade-visual-tokens.md`/`padroes.md`) com
+  "Salário: R$X/mês" e o próximo pagamento (reaproveita `useMarketCalendarQuery`, achando o próximo `salary_payment`
+  "vem aí" do usuário — T.6). Responsivo nos três breakpoints.
+- **Critérios de aceite:** mostra o valor certo pro nível atual (T.8); "próximo pagamento em N dias" consistente com
+  T.4/T.5; não quebra layout em nenhum breakpoint.
+- **Dependências:** T.6, T.8.
+
+### T.10 · Salário no teatro de recompensa do level-up
+- **Descrição:** `XpRewardSource` (`features/shell/xpRewardReveal/types.ts`, usado por `xpRevealContent`) ganha
+  `newLevel?: number`, vindo de `AdvanceLessonResult`/`CompleteMissionResult` (que já calculam o novo nível ao chamar
+  `AwardXpUseCase` — só falta expor esse número na resposta). `xpRevealContent` (quando `leveledUp`) calcula
+  `monthlySalaryForLevel(newLevel)` e `monthlySalaryForLevel(newLevel - 1)` (T.3, mesma função, sem duplicar) pra
+  preencher `description` do `RewardRevealContent` (campo já existe no tipo, só não é usado hoje pro level-up):
+  "Salário mensal agora é R$X (+R$Y)".
+- **Critérios de aceite:** reveal de level-up mostra o salário novo e a diferença; teste da função pura
+  `xpRevealContent` com o novo campo; nível 1 (sem nível anterior) não quebra.
+- **Dependências:** T.3.
+
+### T.11 · Passo no onboarding explicando o salário
+- **Descrição:** novo slide no onboarding, mesma sequência da S.12 ("Aqui o tempo passa mais rápido"): explica que o
+  salário mensal cresce com o nível e cai automaticamente no 5º dia útil do mês, sem precisar fazer nada.
+- **Critérios de aceite:** slide navegável nos três breakpoints, sem em dash em texto de UI.
+- **Dependências:** nenhuma tecnicamente, mas só faz sentido publicar depois de T.5 estar em produção (senão o
+  onboarding promete um mecanismo que ainda não existe).
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -4131,3 +4790,13 @@ negociação dos constituintes.
     **R.6** (Participante Autorizado), **R.7** (rebalanceamento), **R.8** (dividendos, só depende da R.3, pode entrar antes da R.6),
     **R.9** (taxa de administração), **R.10** (atenção derivada da cesta), **R.11** (frontend, lições e docs) e **R.12** (validação
     ponta a ponta e benchmark, fecha a fase). **R.13** só se o autor pedir. Sem dependência das Fases M e N.
+19. **S.4** e **S.8** são independentes (podem abrir a fase). **S.1 → S.2 → S.3** (escala de tempo e agenda do tick), **S.10 → S.11 → S.12** (calendário, mercado fechado no fim de semana e frontend, depois de S.1 e S.3), **S.5 → S.6
+    e S.7** (book, marcação a ponto médio e diálogo), e **S.9** fecha a fase. Fecha os achados 018 a 023 de
+    `pontos-em-aberto-decisao-produto.md`.
+20. **T.1** (rentabilidade sobre capital de risco) e **T.2/T.3/T.4** (evento de salário, fórmula por nível, detecção do
+    5º dia útil) são todas independentes entre si e podem abrir a fase em paralelo. **T.5** depende de T.2, T.3 e T.4.
+    **T.6** depende de T.2 e T.5 (calendário do motor). **T.7** (frontend do calendário) depende de T.6. **T.8**
+    depende só de T.3 (pode entrar em paralelo a T.5/T.6/T.7), **T.9** depende de T.6 e T.8, **T.10** depende só de
+    T.3 (paralelo, mesmo ponto de entrada de T.8), **T.11** fecha a fase (publicar só depois de T.5 em produção). T.1
+    precisa estar em produção antes de T.5 ir ao ar (senão o salário corrompe a rentabilidade publicada durante a
+    janela em que uma existe sem a outra), mesmo sem dependência técnica direta entre elas.

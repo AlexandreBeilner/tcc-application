@@ -23,13 +23,14 @@ type fixedIncomePositionLister interface {
 }
 
 type positionResponse struct {
-	AssetID      string  `json:"asset_id"`
-	Ticker       string  `json:"ticker"`
-	Name         string  `json:"name"`
-	Type         string  `json:"type"`
-	IsSandbox    bool    `json:"is_sandbox"`
-	Quantity     int     `json:"quantity"`
-	AveragePrice float64 `json:"average_price"`
+	AssetID           string  `json:"asset_id"`
+	Ticker            string  `json:"ticker"`
+	Name              string  `json:"name"`
+	Type              string  `json:"type"`
+	IsSandbox         bool    `json:"is_sandbox"`
+	Quantity          int     `json:"quantity"`
+	AveragePrice      float64 `json:"average_price"`
+	DividendsReceived float64 `json:"dividends_received"`
 }
 
 type userFixedIncomePositionResponse struct {
@@ -81,13 +82,14 @@ func handleListPositions(positions positionLister) http.HandlerFunc {
 		resp := make([]positionResponse, 0, len(records))
 		for _, rec := range records {
 			resp = append(resp, positionResponse{
-				AssetID:      rec.AssetID,
-				Ticker:       rec.AssetTicker,
-				Name:         rec.AssetName,
-				Type:         rec.AssetType,
-				IsSandbox:    rec.IsSandbox,
-				Quantity:     rec.Quantity,
-				AveragePrice: rec.AveragePrice,
+				AssetID:           rec.AssetID,
+				Ticker:            rec.AssetTicker,
+				Name:              rec.AssetName,
+				Type:              rec.AssetType,
+				IsSandbox:         rec.IsSandbox,
+				Quantity:          rec.Quantity,
+				AveragePrice:      rec.AveragePrice,
+				DividendsReceived: rec.DividendsReceived,
 			})
 		}
 		writeJSON(w, http.StatusOK, resp)

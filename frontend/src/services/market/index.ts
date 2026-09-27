@@ -1,10 +1,13 @@
 import { apiRequest } from '../client'
 import type {
+    AssetBook,
     AssetDetail,
     AssetSummary,
     AssetType,
     Company,
     IndicatorHistoryEntry,
+    MarketCalendar,
+    MarketClock,
     MarketEvent,
     MyAccount,
     MyOrderRecord,
@@ -22,10 +25,14 @@ import type {
 
 export type { ProductLockedErrorBody } from './types'
 
+export type { CalendarDay, CalendarEvent, CalendarEventKind, MarketCalendar, MarketClock } from './types'
+
 export type {
+    AssetBook,
     AssetDetail,
     AssetSummary,
     AssetType,
+    BookLevel,
     Company,
     CompanyAssetSummary,
     CompanyFundamentalEntry,
@@ -67,8 +74,13 @@ export function getMyAccount(token: string): Promise<MyAccount> {
     return apiRequest<MyAccount>('/market/me/account', { token })
 }
 
-export function listAssets(token: string, type?: AssetType): Promise<{ assets: AssetSummary[] }> {
-    const query = type ? `?type=${type}` : ''
+// Sandbox (Modo Aprendizado) fica fora do mercado real por padrão (S.8);
+// só lição e extrato passam `includeSandbox`.
+export function listAssets(token: string, type?: AssetType, includeSandbox?: boolean): Promise<{ assets: AssetSummary[] }> {
+    const params = new URLSearchParams()
+    if (type) params.set('type', type)
+    if (includeSandbox) params.set('include_sandbox', 'true')
+    const query = params.size > 0 ? `?${params.toString()}` : ''
     return apiRequest<{ assets: AssetSummary[] }>(`/market/assets${query}`, { token })
 }
 
@@ -81,12 +93,36 @@ export function getAssetQuotes(token: string, id: string, days?: number): Promis
     return apiRequest<{ quotes: QuoteHistoryEntry[] }>(`/market/assets/${id}/quotes${query}`, { token })
 }
 
+// Melhor bid/ask e profundidade resumida (tarefa S.5) — insumo do diálogo
+// de ordem (S.7, custo estimado e "comprar o máximo") e da marcação a
+// ponto médio (S.6, `getMyAccount`). O backend sempre injeta o `userId` do
+// token, nunca aceita um `user_id` da requisição.
+export function getAssetBook(token: string, id: string): Promise<{ book: AssetBook }> {
+    return apiRequest<{ book: AssetBook }>(`/market/assets/${id}/book`, { token })
+}
+
 // Tela "Indicadores Econômicos" (tarefa M.4). Sem default próprio aqui —
 // omitido, o backend/motor decide (`defaultIndicatorHistoryDays = 90`,
 // `.docs/backend/market.md`).
 export function getIndicatorHistory(token: string, days?: number): Promise<{ indicators: IndicatorHistoryEntry[] }> {
     const query = days ? `?days=${days}` : ''
     return apiRequest<{ indicators: IndicatorHistoryEntry[] }>(`/market/indicators${query}`, { token })
+}
+
+// Relógio do mercado simulado (tarefa S.10/S.11): dia simulado, mercado aberto
+// ou fechado (fim de semana simulado) e quando vem o próximo tick.
+export function getMarketClock(token: string): Promise<MarketClock> {
+    return apiRequest<MarketClock>('/market/clock', { token })
+}
+
+// Linha do tempo do calendário (tarefa S.10/S.12). `from`/`to` em `AAAA-MM-DD`,
+// janela máxima de 92 dias; o backend sempre injeta o usuário do token.
+export function getMarketCalendar(token: string, from?: string, to?: string): Promise<MarketCalendar> {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const query = params.size > 0 ? `?${params.toString()}` : ''
+    return apiRequest<MarketCalendar>(`/market/calendar${query}`, { token })
 }
 
 export function getCompany(token: string, id: string): Promise<{ company: Company }> {
