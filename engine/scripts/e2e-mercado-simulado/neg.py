@@ -6,7 +6,7 @@ def chk(name,got,ok,extra=""):
     R.append((good,name,got,extra)); print(("ok   " if good else "FALHA"),name,got,str(extra)[:160])
 a=User("neg_a","x"); b=User("neg_b","x")
 complete_lessons(a); complete_lessons(b)
-A={x["ticker"]:x for x in a.g("/market/assets")[1]["assets"]}
+A={x["ticker"]:x for x in a.g("/market/assets?include_sandbox=true")[1]["assets"]}
 V=A["VALR3"]["id"]; S3=A["SAND3"]["id"]; CDB=A["CDB2027"]["id"]
 # auth
 chk("sem token orders",req("POST","/market/orders",{"asset_id":V,"side":"buy","type":"market","quantity":1})[0],401)

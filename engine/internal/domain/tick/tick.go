@@ -771,10 +771,9 @@ func equityShareClassesByCompany(payers []DividendPayerAsset) map[string]equityS
 // pn_dividend_premium_pct) pra decidir o valor por ação de cada classe
 // separadamente — empresa só-ON continua recebendo exatamente o mesmo valor
 // de antes desta tarefa (dividend.EquityValuePerShare reduz à fórmula
-// antiga quando pnShares = 0). FII usa o mesmo calendário global de
-// relatório (fundamentals.DefaultReportFrequencyDays), porque não é
-// vinculado a uma company (spec 3.6) e não tem report_frequency_days
-// próprio, e NetWorth (tijolo) ou PortfolioValue (papel, tarefa 4.10) como
+// antiga quando pnShares = 0). FII paga proventos mensais
+// (dividend.FIIPayoutIntervalDays, tarefa S.2), porque não é vinculado a uma
+// company (spec 3.6) nem tem ciclo de relatório próprio, e usa NetWorth (tijolo) ou PortfolioValue (papel, tarefa 4.10) como
 // grandeza numérica de origem — mutuamente exclusivos por perfil, a mesma
 // dividend.FIIValuePerShare consome qualquer um dos dois sem mudar a
 // fórmula. Ativo sem outstanding_shares no catálogo, ou (só ação) cuja
@@ -783,7 +782,7 @@ func equityShareClassesByCompany(payers []DividendPayerAsset) map[string]equityS
 // "indicador omitido, não erro nem 0" já dado a dado de origem ausente em
 // outros lugares do RF21.
 func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map[string]float64, pnPremiumPctByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
-	fiiReportDay := fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays)
+	fiiPayoutDay := fundamentals.IsReportDay(dayIndex, dividend.FIIPayoutIntervalDays)
 	shareClasses := equityShareClassesByCompany(payers)
 
 	records := make([]DividendRecord, 0)
@@ -811,7 +810,7 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 				value, ok = onValue, valueOK
 			}
 		case "fii":
-			if !fiiReportDay {
+			if !fiiPayoutDay {
 				continue
 			}
 			baseValue := a.NetWorth
@@ -838,9 +837,8 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 }
 
 // fiiNetWorthUpdatesForCycle reavalia o NetWorth de cada FII tijolo (tarefa
-// G.2) no mesmo calendário quinzenal global do relatório de
-// empresas/dividendos (fundamentals.DefaultReportFrequencyDays, mesmo
-// fiiReportDay que dividendRecordsForCycle já usa) — fora desse dia,
+// G.2) no mesmo calendário trimestral global do relatório de
+// empresas (fundamentals.DefaultReportFrequencyDays) — fora desse dia,
 // devolve nil (nenhuma reavaliação nova, mesmo tratamento de "nada gerado
 // hoje" já dado a dividendRecordsForCycle). FII papel (NetWorth nil,
 // PortfolioValue preenchido) fica fora — PortfolioValue tem sua própria
@@ -848,7 +846,7 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 // (0-based, um por ciclo já fechado) usa a mesma contagem que o loop de
 // empresas de Advance já deriva a partir de dayIndex/ReportFrequencyDays —
 // aqui sempre fundamentals.DefaultReportFrequencyDays porque FII não tem
-// report_frequency_days próprio (mesma nota já dada a fiiReportDay).
+// report_frequency_days próprio (FII não tem ciclo de relatório próprio).
 func fiiNetWorthUpdatesForCycle(payers []DividendPayerAsset, dayIndex int, newSelicRate, selicNeutral float64, seed int64) []NetWorthUpdate {
 	if !fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays) {
 		return nil
@@ -873,7 +871,7 @@ func fiiNetWorthUpdatesForCycle(payers []DividendPayerAsset, dayIndex int, newSe
 }
 
 // fiiPortfolioValueUpdatesForCycle reavalia o PortfolioValue de cada FII
-// papel (tarefa G.3) no mesmo calendário quinzenal global de
+// papel (tarefa G.3) no mesmo calendário trimestral global de
 // fiiNetWorthUpdatesForCycle — fora do dia de relatório, devolve nil (mesmo
 // tratamento). FII tijolo (PortfolioValue nil) fica fora — tem sua própria
 // reavaliação (NetWorthUpdates, tarefa G.2). Ativo sem Indexador

@@ -8,6 +8,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
 	"tcc-investimentos/engine/internal/domain/ipca"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 func almostEqual(a, b, tolerance float64) bool {
@@ -15,11 +16,12 @@ func almostEqual(a, b, tolerance float64) bool {
 }
 
 // now/maturityDate escolhidos pra que remainingBusinessDays(now, maturityDate)
-// dê exatamente 252 DU (1 ano útil) — 2026 não é bissexto, então
-// now.AddDate(1,0,0) são exatos 365 dias corridos.
+// dê exatamente 252 DU (1 ano útil): purchaseNow é uma segunda-feira do
+// calendário simulado (simcalendar.BaseDate) e 352 dias corridos depois são
+// 50 semanas cheias (250 DU) mais 2 dias úteis.
 var (
-	purchaseNow      = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	purchaseMaturity = purchaseNow.AddDate(1, 0, 0)
+	purchaseNow      = simcalendar.BaseDate
+	purchaseMaturity = purchaseNow.AddDate(0, 0, 352)
 )
 
 func TestPurchase_ValorInvalido(t *testing.T) {
@@ -865,7 +867,7 @@ func TestSimulate_PosFixadoCompraAoParEProjetaPostFixedValue(t *testing.T) {
 	if outcome.UnitPrice != fixedincome.FaceValue {
 		t.Errorf("UnitPrice = %v, want %v (comprado ao par, sem deságio)", outcome.UnitPrice, fixedincome.FaceValue)
 	}
-	wantGross := fixedincome.PostFixedValue(2000, 110, postFixedDailyRates(10, 360))
+	wantGross := fixedincome.PostFixedValue(2000, 110, postFixedDailyRates(10, purchaseNow, 360))
 	if !almostEqual(outcome.GrossProjectedValue, wantGross, 1e-6) {
 		t.Errorf("GrossProjectedValue = %v, want %v (fixedincome.PostFixedValue, mesma fórmula de Redeem)", outcome.GrossProjectedValue, wantGross)
 	}

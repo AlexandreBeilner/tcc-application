@@ -139,12 +139,14 @@
 //     distorção do achado do pós-fixado acima, só que sem regressão
 //     recente associada (esse gap já existia desde a L.2).
 //
-//  4. DU restante até o vencimento é calculado a partir de time.Now() vs
-//     fixed_income_assets.maturity_date (data de calendário real, seedada
-//     como time.Now().AddDate(2,0,0) — cmd/seed/main.go), não do contador
-//     de dia simulado (market_calendar.current_day) — coerente com "1 tick
-//     = 1 dia real" do Temporizador (3.11): o relógio de parede já é o
-//     proxy do dia simulado.
+//  4. Todo tempo aqui é o dia simulado (tarefa S.1, achado 022): `now` é
+//     simcalendar.DateOf(market_calendar.current_day), maturity_date é uma
+//     data simulada (seed: dia 0 + 2 anos) e PurchasedAt é a data simulada da
+//     primeira compra (fixed_income_positions.created_day). O DU restante
+//     conta dias úteis reais do calendário simulado (segunda a sexta, base
+//     252); o IR regressivo conta dias corridos simulados direto; nenhuma
+//     regra lê o relógio de parede, então tick manual e recuperação de dias
+//     nunca dessincronizam prazo, IR e rendimento.
 //
 //  5. Resgate é sempre integral da posição agregada — não existe resgate
 //     parcial. Evita ter que decidir como fatiar quantity/average_rate
@@ -158,6 +160,7 @@ import (
 
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 var (
@@ -213,6 +216,9 @@ type RedeemRequest struct {
 // pronta (Repository), somar CurrentMarketRatePct em cima duplicaria o
 // efeito da Selic.
 type PurchaseContext struct {
+	// SimulatedDay é market_calendar.current_day (0 sem tick ainda) — o
+	// "agora" de Purchase, via simcalendar.DateOf (tarefa S.1).
+	SimulatedDay      int
 	AccountBalance    float64
 	AnnualRatePct     float64
 	MaturityDate      time.Time
@@ -252,6 +258,9 @@ type PurchaseOutcome struct {
 // nota 3.1 do doc do pacote) em vez de fixedincome.EarlyRedemption
 // (marcação a mercado, só faz sentido pra Prefixado/IPCA+).
 type RedeemContext struct {
+	// SimulatedDay é market_calendar.current_day — o "agora" de Redeem
+	// (tarefa S.1); PurchasedAt é a data simulada da primeira compra.
+	SimulatedDay         int
 	Position             fixedincomeposition.Position
 	MaturityDate         time.Time
 	CurrentMarketRatePct float64
@@ -343,6 +352,8 @@ type SimulateRequest struct {
 // nos dois campos preserva o comportamento anterior (Prefixado/IPCA+, ver
 // nota 3.2).
 type SimulateContext struct {
+	// SimulatedDay é market_calendar.current_day — o "agora" da projeção.
+	SimulatedDay  int
 	AnnualRatePct float64
 	MaturityDate  time.Time
 	TaxExempt     bool
@@ -511,12 +522,9 @@ func Redeem(ctx RedeemContext, now time.Time, vnaBase, monthlyIPCA float64) (Red
 // businessDaysHeld dias (ver nota 3.1 do doc do pacote: aproximação
 // enquanto a tarefa M.1, independente desta, não persiste o histórico
 // diário real de Selic). daysHeld (dias corridos) é convertido pra DU pela
-// mesma proporção 252/365 do resto do pacote (calendarToBusinessDays).
-func postFixedDailyRates(currentMarketRatePct float64, daysHeld int) []float64 {
-	businessDaysHeld := calendarToBusinessDays(daysHeld)
-	if businessDaysHeld < 0 {
-		businessDaysHeld = 0
-	}
+// contagem de dias úteis reais do calendário simulado (businessDaysAhead).
+func postFixedDailyRates(currentMarketRatePct float64, now time.Time, daysHeld int) []float64 {
+	businessDaysHeld := businessDaysAhead(now, daysHeld)
 	rates := make([]float64, businessDaysHeld)
 	for i := range rates {
 		rates[i] = currentMarketRatePct
@@ -554,7 +562,7 @@ func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time, vnaBase, 
 	}
 
 	if fixedincome.IsPostFixado(ctx.ProductType) {
-		return simulatePostFixado(req, ctx), nil
+		return simulatePostFixado(req, ctx, now), nil
 	}
 	if fixedincome.IsIPCAMais(ctx.ProductType) {
 		return simulateIPCAMais(req, ctx, now, vnaBase, monthlyIPCA, projectedVNABase, projectedMonthlyIPCA), nil
@@ -565,7 +573,7 @@ func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time, vnaBase, 
 	unitPrice := fixedincome.PrefixedPrice(annualRate, remainingDaysAtPurchase)
 	quantity := req.Amount / unitPrice
 
-	remainingAtProjection := remainingDaysAtPurchase - calendarToBusinessDays(req.DaysHeld)
+	remainingAtProjection := remainingDaysAtPurchase - businessDaysAhead(now, req.DaysHeld)
 	if remainingAtProjection < 0 {
 		remainingAtProjection = 0
 	}
@@ -598,10 +606,10 @@ func Simulate(req SimulateRequest, ctx SimulateContext, now time.Time, vnaBase, 
 // aqui é o percentual do CDI/Selic contratado (convenção da L.1, ex: 110
 // para "110% do CDI"), nunca "% a.a." — Simulate (chamador) já garantiu
 // req.Amount/req.DaysHeld positivos antes de chamar esta função.
-func simulatePostFixado(req SimulateRequest, ctx SimulateContext) SimulateOutcome {
+func simulatePostFixado(req SimulateRequest, ctx SimulateContext, now time.Time) SimulateOutcome {
 	unitPrice := fixedincome.FaceValue
 	quantity := req.Amount / unitPrice
-	grossValue := fixedincome.PostFixedValue(req.Amount, ctx.AnnualRatePct, postFixedDailyRates(ctx.CurrentMarketRatePct, req.DaysHeld))
+	grossValue := fixedincome.PostFixedValue(req.Amount, ctx.AnnualRatePct, postFixedDailyRates(ctx.CurrentMarketRatePct, now, req.DaysHeld))
 
 	taxRate := 0.0
 	netValue := grossValue
@@ -641,7 +649,7 @@ func simulateIPCAMais(req SimulateRequest, ctx SimulateContext, now time.Time, v
 	unitPrice := fixedincome.IPCAPrice(vna, fixedincome.IPCAQuote(rate, remainingDaysAtPurchase))
 	quantity := req.Amount / unitPrice
 
-	remainingAtProjection := remainingDaysAtPurchase - calendarToBusinessDays(req.DaysHeld)
+	remainingAtProjection := remainingDaysAtPurchase - businessDaysAhead(now, req.DaysHeld)
 	if remainingAtProjection < 0 {
 		remainingAtProjection = 0
 	}
@@ -667,23 +675,20 @@ func simulateIPCAMais(req SimulateRequest, ctx SimulateContext, now time.Time, v
 	}
 }
 
-// calendarToBusinessDays converte dias corridos em DU aproximado, mesma
-// proporção 252/365 usada por remainingBusinessDays — extraída porque
-// Simulate precisa da mesma conversão aplicada a uma contagem de dias
-// simulada (req.DaysHeld), não a uma diferença de calendário entre duas
-// datas.
-func calendarToBusinessDays(calendarDays int) int {
-	return int(float64(calendarDays) * fixedincome.BusinessDaysPerYear / 365.0)
+// businessDaysAhead conta os dias úteis do calendário simulado nos
+// calendarDays dias corridos seguintes a now (S.1: dia simulado é dia de
+// calendário, Selic/CDI só rendem de segunda a sexta).
+func businessDaysAhead(now time.Time, calendarDays int) int {
+	from := simcalendar.DayOf(now)
+	return simcalendar.BusinessDaysBetween(from, from+calendarDays)
 }
 
-// remainingBusinessDays converte a diferença de calendário entre now e
-// maturityDate num DU aproximado (mesma base de 252 dias úteis/ano das
-// fórmulas de fixedincome — ver nota 4 do doc do pacote), nunca menor que 1
-// pra evitar expoente zero/negativo em PrefixedPrice/EarlyRedemption num
-// título muito perto do vencimento.
+// remainingBusinessDays conta os dias úteis reais do calendário simulado
+// entre now e maturityDate (ambos datas simuladas, ver nota 4 do doc do
+// pacote), nunca menor que 1 pra evitar expoente zero/negativo em
+// PrefixedPrice/EarlyRedemption num título muito perto do vencimento.
 func remainingBusinessDays(now, maturityDate time.Time) int {
-	calendarDays := int(maturityDate.Sub(now).Hours() / 24)
-	businessDays := calendarToBusinessDays(calendarDays)
+	businessDays := simcalendar.BusinessDaysBetween(simcalendar.DayOf(now), simcalendar.DayOf(maturityDate))
 	if businessDays < 1 {
 		return 1
 	}

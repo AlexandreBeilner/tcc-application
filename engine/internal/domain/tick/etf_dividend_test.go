@@ -125,8 +125,8 @@ func TestAnnouncedDistributions(t *testing.T) {
 		"ja-devido": {Shares: 1000, Cash: 5000, Liabilities: 4000},
 		"sem-caixa": {Shares: 1000, Cash: 100, Liabilities: 400},
 	}
-	// dia 14 (índice 13) é dia de relatório: 14 % 14 == 0
-	got := announcedDistributions(funds, 13)
+	// dia 91 (índice 90) é dia de relatório: 91 % 91 == 0
+	got := announcedDistributions(funds, 90)
 	if got["livre"] != 5000 || got["ja-devido"] != 1000 {
 		t.Errorf("anunciado = %v, want livre 5000 e ja-devido 1000", got)
 	}
@@ -136,7 +136,7 @@ func TestAnnouncedDistributions(t *testing.T) {
 	if got := announcedDistributions(funds, 12); got != nil {
 		t.Errorf("fora do dia de relatório = %v, want nil", got)
 	}
-	if got := announcedDistributions(nil, 13); got != nil {
+	if got := announcedDistributions(nil, 90); got != nil {
 		t.Errorf("sem fundos = %v, want nil", got)
 	}
 }
@@ -150,7 +150,7 @@ func TestRoundRunINAV_ProventoAnunciadoDerrubaOINAVNaDataEx(t *testing.T) {
 	if got := run.inav("etf"); got == nil || *got != 15 {
 		t.Fatalf("iNAV sem anúncio = %v, want 15 ((10.000 + 5.000) / 1.000)", got)
 	}
-	run.etfAnnounced = announcedDistributions(run.etfFunds, 13)
+	run.etfAnnounced = announcedDistributions(run.etfFunds, 90)
 	if got := run.inav("etf"); got == nil || *got != 10 {
 		t.Errorf("iNAV com o provento anunciado = %v, want 10 (o passivo de 5.000 sai do valor por cota)", got)
 	}

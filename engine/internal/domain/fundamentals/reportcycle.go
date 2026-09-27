@@ -1,12 +1,14 @@
 package fundamentals
 
 // DefaultReportFrequencyDays é o valor-padrão de `companies.report_
-// frequency_days` (spec 3.3.1) — cadência quinzenal, igual pra todas as
+// frequency_days` (spec 3.3.1) — um trimestre real (91 dias de calendário
+// simulado, tarefa S.2, decisão do autor de 2026-09-26; antes era quinzenal,
+// o que com 3% de crescimento por ciclo dava ~+40% a.a.), igual pra todas as
 // empresas nesta fase: a coluna existe por empresa no schema, mas a
 // decisão de produto é um ciclo único e global disparado pelo Temporizador
 // pra todas de uma vez, não escalonado por empresa (spec 3.3.1, "decisão
 // tomada para simplificar o agendamento").
-const DefaultReportFrequencyDays = 14
+const DefaultReportFrequencyDays = 91
 
 // IsReportDay confere se o dia de índice i (0-based) é dia de divulgação
 // de relatório trimestral — o reportFrequencyDays-ésimo, 2×
@@ -16,7 +18,7 @@ const DefaultReportFrequencyDays = 14
 // depois de reportFrequencyDays dias correndo). reportFrequencyDays é
 // recebido como parâmetro, não fixado em DefaultReportFrequencyDays, pra
 // respeitar o critério de aceite "`report_frequency_days` respeitado" —
-// mesmo a decisão de produto sendo um valor global de 14 pra todas as
+// mesmo a decisão de produto sendo um valor global de 91 pra todas as
 // empresas, a função em si não trava esse número.
 func IsReportDay(i, reportFrequencyDays int) bool {
 	return (i+1)%reportFrequencyDays == 0

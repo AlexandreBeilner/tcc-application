@@ -687,7 +687,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** exige decidir horário/fuso do tick e a política de recuperação (rodar N ticks de uma vez? pular?).
 - **Opções:** (a) ancorar em horário fixo (ex.: 00:00 America/Sao_Paulo) lendo o último tick de `market_calendar`; (b) idem + recuperar dias perdidos limitado a K; (c) manter e operar o tick só pelo admin.
 - **Decisão (2026-09-26, autor, Fase S):** horário fixo (00:00 America/Sao_Paulo) com recuperação limitada de dias perdidos (teto de K dias, ex.: 3) e trava contra tick duplicado.
-- **Status:** Decidido, aguardando implementação (Fase S)
+- **Status:** Resolvido pela S.3 (2026-09-27): agenda ancorada às 00:00 America/Sao_Paulo, recuperação limitada (`TICK_MAX_CATCHUP`) e trava consultiva contra tick duplicado; revalidação final na S.9
 
 ### 019 · Escala de tempo: crescimento de fundamentos por ciclo de 14 dias gera drift de ~+40%/ano em renda variável contra Selic de 10%
 
@@ -698,7 +698,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) `DefaultBaseGrowth` proporcional ao ciclo (~0,67%) e DY idem; (b) manter e assumir tempo comprimido também na renda fixa; (c) margem líquida com reversão à média para gerar ciclos de queda.
 - **Decisão (2026-09-26, autor, Fase S):** proposta do autor: manter o trimestre real (ciclo de relatório de ~63 dias simulados, crescimento de 3% e DY reais por trimestre) e acelerar o relógio: 1 dia real = 5 dias simulados (fator 5 como constante ajustável), com 5 ticks por dia real espaçados (~4h48) para o mercado andar ao longo do dia. Ordem limitada 'day order' passa a viver ~5h reais. Interage com o 018 (agenda passa a ser de 5 ticks/dia ancorados) e fecha o 022.
 - **Revisão (2026-09-26, autor, Fase S):** o dia simulado passa a ser **dia de calendário** (7 por semana, data-base fixa numa segunda-feira, feriados ignorados por ora), não dia útil. Fim de semana simulado (~9h30 reais) com mercado fechado para negociação de renda variável e renda fixa (sandbox, lições e cancelamento de ordem seguem abertos). Selic/CDI rendem só em dia útil (base 252); IR da renda fixa conta dias corridos direto. Trimestre = 91 dias, Copom = 45 dias, rebalanceamento de ETF trimestral (91), FII paga proventos a cada 30 dias. Calendário da simulação visível no frontend (tarefas S.10 a S.12).
-- **Status:** Decidido, aguardando implementação (Fase S)
+- **Status:** Parcialmente resolvido (2026-09-27): escala 1 dia real = 5 simulados, trimestre de 91 dias e fim de semana sem negociação de bots feitos (S.1 a S.3); falta o mercado fechado para o usuário e o calendário no frontend (S.10 a S.12)
 
 ### 020 · Lição concluível pulando direto pro passo 3: trilha inteira em ~1 s, 1.750 XP e todos os produtos liberados
 
@@ -728,7 +728,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) derivar tudo de dias simulados; (b) manter e proibir tick manual em produção.
 - **Decisão (2026-09-26, autor, Fase S):** derivar prazo/vencimento e IR da renda fixa, datas de dividendos (DY de 12 meses) e o dia do roteiro sandbox do dia simulado, não do relógio de parede. Implementado junto com a aceleração de 5 dias simulados por dia real (ver 019).
 - **Revisão (2026-09-26, autor, Fase S):** o dia simulado passa a ser **dia de calendário** (7 por semana, data-base fixa numa segunda-feira, feriados ignorados por ora), não dia útil. Fim de semana simulado (~9h30 reais) com mercado fechado para negociação de renda variável e renda fixa (sandbox, lições e cancelamento de ordem seguem abertos). Selic/CDI rendem só em dia útil (base 252); IR da renda fixa conta dias corridos direto. Trimestre = 91 dias, Copom = 45 dias, rebalanceamento de ETF trimestral (91), FII paga proventos a cada 30 dias. Calendário da simulação visível no frontend (tarefas S.10 a S.12).
-- **Status:** Decidido, aguardando implementação (Fase S)
+- **Status:** Resolvido pela S.1 (2026-09-26): prazo/IR/VNA da renda fixa, datas de dividendo/fundamentos e dia do roteiro sandbox derivam do dia simulado (`simcalendar`); revalidação final na S.9
 
 ### 023 · Ativo sandbox aparece na tabela de Ações do mercado real como "aguardando cotação"
 
@@ -738,3 +738,12 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) esconder sandbox da lista do mercado real e listá-lo só no modo aprendizado; (b) rotular claramente.
 - **Decisão (2026-09-26, autor, Fase S):** esconder ativos sandbox do mercado real (`GET /market/assets` exclui `is_sandbox` por padrão, com parâmetro para incluir); sandbox fica acessível só pelo card Modo Aprendizado do Portfólio e pelas lições, que continuam achando o ativo pelo ticker.
 - **Status:** Resolvido (2026-09-26, tarefa S.8): `GET /market/assets` esconde sandbox por padrão (`include_sandbox=true` p/ lições e extrato); validado ponta a ponta. Fechamento formal na S.9.
+
+### 024 · Preço de FII deriva para baixo sem âncora fundamentalista (-49% em 200 dias simulados)
+
+- **Local:** `engine/internal/domain/tick` (rodadas de bots), `bot` (só Fundamentalista tem preço justo, e ele cobre só ação)
+- **Origem:** validação da tarefa S.2 (2026-09-26): 200 dias simulados, seed com FII a P/VP = 1 (patrimônio por cota = preço inicial R$ 100)
+- **O que é:** TJLO11 e PAPL11 caíram em média 49% (TJLO11: 106 no dia 10, 64 no dia 200, patrimônio por cota estável em ~100), enquanto as ações ficaram em média +5%. FII não tem preço justo pra nenhum bot (`FundamentalistFairPrice` é só de ação); o preço se move só por Chartista, Ruído e Market Maker, sem nada puxando de volta ao valor patrimonial. Já existia antes da S.2 (primeira medição, com o patrimônio 5x o preço, deu -45%); a proposta do motor realista diz que ágio/deságio persistente de FII é esperado, mas -50% em ~6 meses não é ágio, é deriva.
+- **Por que não foi corrigido:** decisão de produto/modelo (qual âncora: patrimônio por cota, rendimento exigido vs Selic ou nenhuma).
+- **Opções:** (a) Fundamentalista passa a ter preço justo de FII = patrimônio por cota ajustado por um P/VP-alvo por segmento; (b) preço justo por Dividend Yield exigido (proventos anualizados / (Selic + prêmio)); (c) manter como está e tratar FII como ativo volátil sem âncora.
+- **Status:** Aberto

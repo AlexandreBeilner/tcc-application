@@ -129,11 +129,11 @@ func TestAdvance_NaoSinalizaCopomForaDoDia(t *testing.T) {
 }
 
 func TestAdvance_SinalizaDiaDeRelatorio(t *testing.T) {
-	// fundamentals.DefaultReportFrequencyDays = 14 -> Day: 13 -> newDay = 14.
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+	// fundamentals.DefaultReportFrequencyDays = 14 -> Day: 90 -> newDay = 91.
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
 	if !result.IsReportDay {
-		t.Error("IsReportDay = false, want true no 14º dia simulado")
+		t.Error("IsReportDay = false, want true no 91º dia simulado")
 	}
 }
 
@@ -238,9 +238,9 @@ func TestAdvance_ForaDoDiaDeRelatorioNaoGeraFundamentals(t *testing.T) {
 func TestAdvance_DiaDeRelatorioGeraFundamentals(t *testing.T) {
 	companies := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
-	// Day: 13 -> newDay = 14 -> dayIndex = 13 (0-based) = dia de relatório
-	// (14º dia, fundamentals.DefaultReportFrequencyDays).
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 -> dayIndex = 90 (0-based) = dia de relatório
+	// (91º dia, fundamentals.DefaultReportFrequencyDays).
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
 	if len(result.Fundamentals) != 1 {
 		t.Fatalf("len(Fundamentals) = %d, want 1", len(result.Fundamentals))
@@ -261,7 +261,7 @@ func TestAdvance_DiaDeRelatorioGeraFundamentals(t *testing.T) {
 func TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals(t *testing.T) {
 	companies := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
 	if len(result.Fundamentals) != 1 {
 		t.Fatalf("len(Fundamentals) = %d, want 1", len(result.Fundamentals))
@@ -292,7 +292,7 @@ func TestAdvance_EmpresaSemAtivoVinculadoAindaGeraFundamentals(t *testing.T) {
 	// deveria travar por isso.
 	companies := []CompanyForFundamentals{{CompanyID: "sem-ativo", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
 	if len(result.Fundamentals) != 1 {
 		t.Fatalf("len(Fundamentals) = %d, want 1 mesmo sem ativo de renda variável vinculado", len(result.Fundamentals))
@@ -304,8 +304,8 @@ func TestAdvance_UsaLastRevenueQuandoExiste(t *testing.T) {
 	companiesWithHistory := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, LastRevenue: &lastRevenue}}
 	companiesNoHistory := []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, LastRevenue: nil}}
 
-	withHistory := Advance(State{Day: 13, SelicRate: 10}, nil, companiesWithHistory, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
-	withoutHistory := Advance(State{Day: 13, SelicRate: 10}, nil, companiesNoHistory, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+	withHistory := Advance(State{Day: 90, SelicRate: 10}, nil, companiesWithHistory, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+	withoutHistory := Advance(State{Day: 90, SelicRate: 10}, nil, companiesNoHistory, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
 
 	if withHistory.Fundamentals[0].NetRevenue == withoutHistory.Fundamentals[0].NetRevenue {
 		t.Error("NetRevenue partindo de LastRevenue = 5.000.000 veio igual ao partindo de DefaultBaseRevenue — LastRevenue não foi usado")
@@ -335,7 +335,7 @@ func TestAdvance_QuotesDeCompanhiaNuncaSofremEfeitoDePrecoDireto(t *testing.T) {
 	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	for _, day := range []int{0, 13} { // newDay = 1 (fora do ciclo) e 14 (dia de relatório)
+	for _, day := range []int{0, 90} { // newDay = 1 (fora do ciclo) e 91 (dia de relatório)
 		withCompanies := Advance(State{Day: day, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, testIPCAConfig(), 1)
 		withoutCompanies := Advance(State{Day: day, SelicRate: 10}, assets, nil, nil, nil, nil, cfg, testIPCAConfig(), 1)
 
@@ -561,7 +561,7 @@ func TestAdvance_EfeitoDeFundamentosMacroNoDiaDoRelatorio(t *testing.T) {
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	fundamentalsPct := 20.0
-	reportDay := 14
+	reportDay := 91
 	event := MacroEventForApplication{
 		ID:                    "event-1",
 		AffectsFundamentals:   true,
@@ -570,9 +570,9 @@ func TestAdvance_EfeitoDeFundamentosMacroNoDiaDoRelatorio(t *testing.T) {
 		Targets:               []MacroEventTargetForApplication{{AssetID: &assetID}},
 	}
 
-	// Day: 13 -> newDay = 14 = dia de relatório da empresa e FundamentalsReportDay do evento.
-	withEvent := Advance(State{Day: 13, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, testIPCAConfig(), 1)
-	withoutEvent := Advance(State{Day: 13, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 = dia de relatório da empresa e FundamentalsReportDay do evento.
+	withEvent := Advance(State{Day: 90, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, testIPCAConfig(), 1)
+	withoutEvent := Advance(State{Day: 90, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, testIPCAConfig(), 1)
 
 	if withEvent.Fundamentals[0].NetRevenue == withoutEvent.Fundamentals[0].NetRevenue {
 		t.Error("NetRevenue com evento macro pendente veio igual a sem evento — ActualGrowthWithMacroEffect não foi aplicado")
@@ -588,9 +588,9 @@ func TestAdvance_EfeitoDeFundamentosMacroNaoAntecipaOCiclo(t *testing.T) {
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	fundamentalsPct := 20.0
-	// FundamentalsReportDay = 28 (ciclo seguinte) — no dia 14 (dentro do
+	// FundamentalsReportDay = 182 (ciclo seguinte) — no dia 91 (dentro do
 	// primeiro ciclo) o efeito ainda não deve ser incorporado.
-	reportDay := 28
+	reportDay := 182
 	event := MacroEventForApplication{
 		ID:                    "event-1",
 		AffectsFundamentals:   true,
@@ -599,8 +599,8 @@ func TestAdvance_EfeitoDeFundamentosMacroNaoAntecipaOCiclo(t *testing.T) {
 		Targets:               []MacroEventTargetForApplication{{AssetID: &assetID}},
 	}
 
-	withEvent := Advance(State{Day: 13, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, testIPCAConfig(), 1)
-	withoutEvent := Advance(State{Day: 13, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, testIPCAConfig(), 1)
+	withEvent := Advance(State{Day: 90, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, testIPCAConfig(), 1)
+	withoutEvent := Advance(State{Day: 90, SelicRate: 10}, assets, companies, nil, nil, nil, cfg, testIPCAConfig(), 1)
 
 	if withEvent.Fundamentals[0].NetRevenue != withoutEvent.Fundamentals[0].NetRevenue {
 		t.Error("NetRevenue divergiu no ciclo errado — efeito de fundamentos foi antecipado pro relatório antes do FundamentalsReportDay")
@@ -636,7 +636,7 @@ func TestAdvance_AppliedMacroEventIDs_EventoDeFundamentosSoDepoisDoRelatorio(t *
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	fundamentalsPct := 20.0
-	reportDay := 14
+	reportDay := 91
 	event := MacroEventForApplication{
 		ID:                    "event-1",
 		AffectsFundamentals:   true,
@@ -651,8 +651,8 @@ func TestAdvance_AppliedMacroEventIDs_EventoDeFundamentosSoDepoisDoRelatorio(t *
 		t.Errorf("AppliedMacroEventIDs = %v, want vazio (antes do dia de relatório)", before.AppliedMacroEventIDs)
 	}
 
-	// Day: 13 -> newDay = 14 = FundamentalsReportDay — aplicado.
-	atReport := Advance(State{Day: 13, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 = FundamentalsReportDay — aplicado.
+	atReport := Advance(State{Day: 90, SelicRate: 10}, assets, companies, []MacroEventForApplication{event}, nil, nil, cfg, testIPCAConfig(), 1)
 	if len(atReport.AppliedMacroEventIDs) != 1 || atReport.AppliedMacroEventIDs[0] != "event-1" {
 		t.Errorf("AppliedMacroEventIDs = %v, want [event-1]", atReport.AppliedMacroEventIDs)
 	}
@@ -668,8 +668,8 @@ func TestAdvance_Dividendos_GeraProventoDeAcaoNoDiaDeRelatorio(t *testing.T) {
 	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 13 -> newDay = 14 = dia de relatório da empresa.
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 = dia de relatório da empresa.
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 1 {
 		t.Fatalf("len(NewDividends) = %d, want 1", len(result.NewDividends))
@@ -681,8 +681,8 @@ func TestAdvance_Dividendos_GeraProventoDeAcaoNoDiaDeRelatorio(t *testing.T) {
 	if rec.ValuePerShare <= 0 {
 		t.Errorf("ValuePerShare = %v, want > 0 (net_income sempre positivo com os coeficientes ilustrativos padrão)", rec.ValuePerShare)
 	}
-	if rec.PaymentDay != 14+dividend.DefaultPaymentLagDays {
-		t.Errorf("PaymentDay = %d, want %d", rec.PaymentDay, 14+dividend.DefaultPaymentLagDays)
+	if rec.PaymentDay != 91+dividend.DefaultPaymentLagDays {
+		t.Errorf("PaymentDay = %d, want %d", rec.PaymentDay, 91+dividend.DefaultPaymentLagDays)
 	}
 	if len(rec.Recipients) != 1 || rec.Recipients[0] != holders[0] {
 		t.Errorf("Recipients = %v, want snapshot dos Holders = %v", rec.Recipients, holders)
@@ -696,7 +696,7 @@ func TestAdvance_Dividendos_NaoGeraForaDoDiaDeRelatorioDaEmpresa(t *testing.T) {
 	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 5 -> newDay = 6, não é dia de relatório (ciclo de 14 dias).
+	// Day: 5 -> newDay = 6, não é dia de relatório (ciclo de 91 dias).
 	result := Advance(State{Day: 5, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 0 {
@@ -710,7 +710,7 @@ func TestAdvance_Dividendos_AcaoSemOutstandingSharesNaoGeraProvento(t *testing.T
 	companies := []CompanyForFundamentals{{CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, Sector: "Mineração"}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 0 {
 		t.Errorf("len(NewDividends) = %d, want 0 (sem outstanding_shares)", len(result.NewDividends))
@@ -735,8 +735,8 @@ func TestAdvance_Dividendos_EmpresaOnPnAplicaPrioridadeLegalDaPn(t *testing.T) {
 	}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 13 -> newDay = 14 = dia de relatório da empresa.
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{onPayer, pnPayer}, nil, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 = dia de relatório da empresa.
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, []DividendPayerAsset{onPayer, pnPayer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 2 {
 		t.Fatalf("len(NewDividends) = %d, want 2", len(result.NewDividends))
@@ -768,16 +768,17 @@ func TestAdvance_Dividendos_EmpresaOnPnAplicaPrioridadeLegalDaPn(t *testing.T) {
 	}
 }
 
-func TestAdvance_Dividendos_FIIGeraProventoNoCalendarioGlobalDeRelatorio(t *testing.T) {
+func TestAdvance_Dividendos_FIIGeraProventoNoCalendarioMensal(t *testing.T) {
 	netWorth := 100_000_000.0
 	shares := int64(1_000_000)
 	holders := []PositionHolder{{UserID: "u1", Quantity: 100}}
 	payer := DividendPayerAsset{AssetID: "fii1", Type: "fii", NetWorth: &netWorth, OutstandingShares: &shares, Holders: holders}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 13 -> newDay = 14 = dia de relatório global (fundamentals.
-	// DefaultReportFrequencyDays) — FII não depende de nenhuma company.
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	// Day: 29 -> newDay = 30 = dia de pagamento mensal do FII
+	// (dividend.FIIPayoutIntervalDays) — FII não depende de nenhuma company nem
+	// do ciclo trimestral de relatório.
+	result := Advance(State{Day: 29, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 1 {
 		t.Fatalf("len(NewDividends) = %d, want 1", len(result.NewDividends))
@@ -802,7 +803,7 @@ func TestAdvance_Dividendos_FIIPapelUsaPortfolioValue(t *testing.T) {
 	payer := DividendPayerAsset{AssetID: "fii2", Type: "fii", PortfolioValue: &portfolioValue, OutstandingShares: &shares, Holders: holders}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 29, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 1 {
 		t.Fatalf("len(NewDividends) = %d, want 1", len(result.NewDividends))
@@ -819,12 +820,29 @@ func TestAdvance_Dividendos_FIIPapelUsaPortfolioValue(t *testing.T) {
 // TestAdvance_Dividendos_FIISemNetWorthNemPortfolioValueNaoGera confere que
 // FII sem nenhuma das duas grandezas (nem NetWorth nem PortfolioValue) não
 // gera provento nenhum, mesmo no dia de relatório global.
+func TestAdvance_Dividendos_FIIPagaMensalEEmpresaTrimestral(t *testing.T) {
+	netWorth := 100_000_000.0
+	shares := int64(1_000_000)
+	payer := DividendPayerAsset{AssetID: "fii1", Type: "fii", NetWorth: &netWorth, OutstandingShares: &shares, Holders: []PositionHolder{{UserID: "u1", Quantity: 1}}}
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	// Um ano de calendário simulado: FII paga a cada 30 dias (dias 30, 60, ..., 360).
+	payouts := 0
+	for day := 0; day < 365; day++ {
+		result := Advance(State{Day: day, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+		payouts += len(result.NewDividends)
+	}
+	if payouts != 12 {
+		t.Errorf("proventos de FII em 365 dias = %d, want 12 (mensal)", payouts)
+	}
+}
+
 func TestAdvance_Dividendos_FIISemNetWorthNemPortfolioValueNaoGera(t *testing.T) {
 	shares := int64(1_000_000)
 	payer := DividendPayerAsset{AssetID: "fii3", Type: "fii", OutstandingShares: &shares}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 0 {
 		t.Errorf("len(NewDividends) = %d, want 0 (sem NetWorth nem PortfolioValue)", len(result.NewDividends))
@@ -856,8 +874,8 @@ func TestAdvance_NetWorth_ReavaliaFIITijoloNoCalendarioGlobalDeRelatorio(t *test
 	payer := DividendPayerAsset{AssetID: "fii1", Type: assetTypeFII, NetWorth: &netWorth}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 13 -> newDay = 14 = dia de relatório global.
-	result := Advance(State{Day: 13, SelicRate: 15}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 = dia de relatório global.
+	result := Advance(State{Day: 90, SelicRate: 15}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NetWorthUpdates) != 1 {
 		t.Fatalf("len(NetWorthUpdates) = %d, want 1", len(result.NetWorthUpdates))
@@ -886,7 +904,7 @@ func TestAdvance_NetWorth_FIIPapelNuncaReavaliado(t *testing.T) {
 	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NetWorthUpdates) != 0 {
 		t.Errorf("len(NetWorthUpdates) = %d, want 0 (FII papel não tem NetWorth)", len(result.NetWorthUpdates))
@@ -919,8 +937,8 @@ func TestAdvance_PortfolioValue_ReavaliaFIIPapelNoCalendarioGlobalDeRelatorio(t 
 	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue, Indexador: &indexador}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	// Day: 13 -> newDay = 14 = dia de relatório global.
-	result := Advance(State{Day: 13, SelicRate: 12}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 = dia de relatório global.
+	result := Advance(State{Day: 90, SelicRate: 12}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.PortfolioValueUpdates) != 1 {
 		t.Fatalf("len(PortfolioValueUpdates) = %d, want 1", len(result.PortfolioValueUpdates))
@@ -946,7 +964,7 @@ func TestAdvance_PortfolioValue_FIITijoloNuncaReavaliado(t *testing.T) {
 	payer := DividendPayerAsset{AssetID: "fii1", Type: assetTypeFII, NetWorth: &netWorth}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.PortfolioValueUpdates) != 0 {
 		t.Errorf("len(PortfolioValueUpdates) = %d, want 0 (FII tijolo não tem PortfolioValue)", len(result.PortfolioValueUpdates))
@@ -962,7 +980,7 @@ func TestAdvance_PortfolioValue_IndexadorDesconhecidoNaoReavalia(t *testing.T) {
 	payer := DividendPayerAsset{AssetID: "fii2", Type: assetTypeFII, PortfolioValue: &portfolioValue, Indexador: &indexador}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.PortfolioValueUpdates) != 0 {
 		t.Errorf("len(PortfolioValueUpdates) = %d, want 0 (indexador desconhecido)", len(result.PortfolioValueUpdates))
@@ -988,12 +1006,12 @@ func TestAdvance_PortfolioValue_NaoReavaliaForaDoDiaDeRelatorioGlobal(t *testing
 func TestAdvance_DuePayments_FiltraPorPaymentDayIgualANewDay(t *testing.T) {
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 	pending := []PendingDividendPayment{
-		{ID: "d1", AssetID: "a1", ValuePerShare: 1, PaymentDay: 14},
+		{ID: "d1", AssetID: "a1", ValuePerShare: 1, PaymentDay: 91},
 		{ID: "d2", AssetID: "a2", ValuePerShare: 2, PaymentDay: 15},
 	}
 
-	// Day: 13 -> newDay = 14 — só d1 vence.
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, nil, pending, cfg, testIPCAConfig(), 1)
+	// Day: 90 -> newDay = 91 — só d1 vence.
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, nil, pending, cfg, testIPCAConfig(), 1)
 
 	if len(result.DuePayments) != 1 || result.DuePayments[0].ID != "d1" {
 		t.Errorf("DuePayments = %v, want só [d1] (PaymentDay == newDay)", result.DuePayments)
@@ -1003,7 +1021,7 @@ func TestAdvance_DuePayments_FiltraPorPaymentDayIgualANewDay(t *testing.T) {
 func TestAdvance_SemPagadoresNemPendenciasNaoGeraNemPaga(t *testing.T) {
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
-	result := Advance(State{Day: 13, SelicRate: 10}, nil, nil, nil, nil, nil, cfg, testIPCAConfig(), 1)
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, nil, nil, cfg, testIPCAConfig(), 1)
 
 	if len(result.NewDividends) != 0 {
 		t.Errorf("len(NewDividends) = %d, want 0", len(result.NewDividends))

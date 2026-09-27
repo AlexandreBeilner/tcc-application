@@ -75,6 +75,13 @@ func TestHandleAdminTick_ErroInterno(t *testing.T) {
 	}
 }
 
+func TestHandleAdminTick_TickEmAndamentoDa409(t *testing.T) {
+	rec := postTick(t, &fakeTicker{err: tick.ErrTickInProgress})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusConflict)
+	}
+}
+
 // slowTicker simula um tick mais demorado que o WriteTimeout do servidor.
 type slowTicker struct{ delay time.Duration }
 

@@ -1,6 +1,9 @@
 package dividend
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestEquityValuePerShare(t *testing.T) {
 	tests := map[string]struct {
@@ -69,7 +72,7 @@ func TestFIIValuePerShare(t *testing.T) {
 		want              float64
 		wantOK            bool
 	}{
-		"caso normal":                  {netWorth: 100_000_000, outstandingShares: 1_000_000, want: 0.5, wantOK: true},
+		"caso normal":                  {netWorth: 100_000_000, outstandingShares: 1_000_000, want: 1.1, wantOK: true},
 		"cotas em circulação zero":     {netWorth: 100_000_000, outstandingShares: 0, want: 0, wantOK: false},
 		"cotas em circulação negativa": {netWorth: 100_000_000, outstandingShares: -1, want: 0, wantOK: false},
 	}
@@ -79,7 +82,7 @@ func TestFIIValuePerShare(t *testing.T) {
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}
-			if ok && got != tt.want {
+			if ok && math.Abs(got-tt.want) > 1e-9 {
 				t.Errorf("got = %v, want %v", got, tt.want)
 			}
 		})
@@ -103,7 +106,7 @@ func TestYield(t *testing.T) {
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}
-			if ok && got != tt.want {
+			if ok && math.Abs(got-tt.want) > 1e-9 {
 				t.Errorf("got = %v, want %v", got, tt.want)
 			}
 		})

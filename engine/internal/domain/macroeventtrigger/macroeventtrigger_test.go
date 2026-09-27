@@ -189,7 +189,7 @@ func TestTrigger_TriggeredOnDayFicaAtivoNoProximoTick(t *testing.T) {
 
 // TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte cobre o critério
 // de aceite "fundamentals_report_day calculado respeita a regra de corte
-// de 2 dias" — os dois lados do corte, com o ciclo global de 14 dias
+// de 2 dias" — os dois lados do corte, com o ciclo global de 91 dias
 // (fundamentals.DefaultReportFrequencyDays).
 func TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte(t *testing.T) {
 	tests := []struct {
@@ -197,8 +197,8 @@ func TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte(t *testing.T) {
 		currentDay int
 		want       int
 	}{
-		{"exatamente 2 dias de antecedência vai pro relatório mais próximo (dia 14)", 12, 14},
-		{"1 dia de antecedência empurra pro próximo ciclo (dia 28)", 13, 28},
+		{"exatamente 2 dias de antecedência vai pro relatório mais próximo (dia 91)", 89, 91},
+		{"1 dia de antecedência empurra pro próximo ciclo (dia 182)", 90, 182},
 	}
 
 	for _, tt := range tests {

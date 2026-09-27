@@ -4113,7 +4113,7 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
    para all-in; carteira, patrimônio e ranking marcados a **ponto médio do book** (fallback: último negócio).
 5. **Sandbox (023):** escondido do mercado real; só pelo Modo Aprendizado e pelas lições.
 
-### S.1 · Dia simulado como única fonte de tempo (renda fixa, dividendos, sandbox)
+### S.1 · Dia simulado como única fonte de tempo (renda fixa, dividendos, sandbox) ✅
 - **Descrição:** substituir `time.Now()` por dia simulado em `fixedincomeexecution` (DU restante até o vencimento, `days_held` do
   IR regressivo, janela do VNA), nas datas de dividendo (`period_date`/`ex_date` e `sumDividendsLast12Months`) e no índice de dia do
   roteiro sandbox. `maturity_date` e `created_at` de posição passam a ter equivalente em dia simulado (migration + backfill dos
@@ -4123,8 +4123,26 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
 - **Critérios de aceite:** 21 ticks seguidos rendem Prefixado e IR coerentes com 21 dias simulados (o Prefixado deixa de resgatar
   ao preço da compra); nenhum `time.Now()` de regra de negócio restante em `internal/domain`; fecha o achado 022.
 - **Dependências:** nenhuma.
+- **Entregável:** `internal/domain/simcalendar` (`BaseDate` = segunda-feira 2026-01-05, `DateOf`/`DayOf`, `Weekday`, `IsBusinessDay`,
+  `BusinessDaysBetween(from, to]`), com teste table-driven. `fixedincomeexecution`: `PurchaseContext`/`RedeemContext`/`SimulateContext`
+  ganham `SimulatedDay` (lido de `market_calendar.current_day` pelo repositório) e `Service` deriva `now` de `simcalendar.DateOf`;
+  `remainingBusinessDays` passou a contar dias úteis reais do calendário simulado (não mais `dias × 252/365`), `calendarToBusinessDays`
+  virou `businessDaysAhead`; IR regressivo conta dias corridos simulados (`now - PurchasedAt`). Migration `000032_simulated_clock`:
+  `positions.created_day` e `fixed_income_positions.created_day` (gravados no INSERT a partir de `market_calendar`; recompra sobre
+  posição de renda variável zerada reinicia o dia, o que antes só era tratado na leitura), backfill de `created_day`, `maturity_date`,
+  `dividend_events.ex_date/payment_date` e `company_fundamentals.period_date` (tempo real decorrido vira dias simulados anteriores ao dia
+  corrente, ordem preservada). `sandbox.DaysSince(firstDay, currentDay)` em dias simulados. `selicRatesSince` lê
+  `market_indicator_history` só de dias úteis depois do dia da compra (Selic/CDI não rendem em fim de semana nem no dia da compra).
+  `saveNewDividends`/`SaveTick`/seed usam datas simuladas; `GET /assets/:id` calcula o DY de 12 meses contra o dia simulado (novo
+  `CurrentSimulatedDay` no leitor de catálogo). Fora de `internal/domain`, `time.Now()` só sobrou em semente do RNG do macroevent e no
+  deadline HTTP do admin (não são regra de negócio). Docs: `.docs/engine/fixedincome.md` (nota 4 reescrita), `orders.md`, `tick.md`.
+  Testes: `simcalendar`, `TestService_Redeem_UsaODiaSimuladoParaPrazoEIR`, `TestRemainingBusinessDays_...`, `sandbox.DaysSince`. E2E
+  (`compose.e2e.yml`): LTN2027 e LFT2029 comprados no dia 42 e resgatados no 63 renderam +0,65% (antes: 0%) e +0,56% (15 dias úteis de 21),
+  IR 22,5%; SAND3 no dia 2 do roteiro vende a 102; `gating.py` sem falhas; `neg.py` ajustado pra `include_sandbox=true` (S.8). Limite
+  conhecido: a Selic do tick de fim de semana ainda é gravada em `market_indicator_history` (só não rende); a S.3 decide se o tick de fim
+  de semana avança Selic/IPCA.
 
-### S.2 · Trimestre real e recalibração de fundamentos e dividendos
+### S.2 · Trimestre real e recalibração de fundamentos e dividendos ✅
 - **Descrição:** alinhar as constantes de tempo ao mundo real em dias de calendário: `DefaultReportFrequencyDays` de 14 para 91;
   Copom de 21 para 45 (`selic.CopomMeetingIntervalDays`); rebalanceamento de ETF de 14 para 91; FII passa a pagar proventos a cada
   30 dias (hoje junto do balanço); mês de IPCA fica em 30; conferir a janela de `fundamentals_report_day` e a duração das bandas de
@@ -4132,8 +4150,21 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
 - **Critérios de aceite:** retorno esperado de renda variável próximo de Selic mais prêmio de risco (não +40%/ano) num run de
   ~250 dias simulados com 20 ativos; DY anual plausível; benchmarks de custo por tick dentro do critério aceito.
 - **Dependências:** S.1.
+- **Entregável:** `fundamentals.DefaultReportFrequencyDays` e `catalog.DefaultReportFrequencyDays` 14 → 91; `selic.CopomMeetingIntervalDays` 21 → 45;
+  `etf.DefaultRebalanceFrequencyDays` 14 → 91; novo `dividend.FIIPayoutIntervalDays` = 30 (FII paga mensal, `dividendRecordsForCycle` deixou de
+  usar o dia de relatório) com `DefaultFIIYieldPerCyclePct` 0,5 → 1,1 por pagamento (~13% a.a.); reavaliação de patrimônio/carteira do FII segue
+  no ciclo trimestral. `DefaultMonthDays` do IPCA já era 30 e as bandas de evento macro (1 a 3 dias) ficaram como estavam. Migration `000033`
+  (default e backfill de `companies.report_frequency_days` e `etf_details.rebalance_frequency_days` de 14 para 91). Seed: patrimônio/carteira
+  dos FIIs passa a `cotas × preço inicial` (P/VP = 1; com 500M/300M o patrimônio por cota era 3 a 5 vezes o preço e o provento dava DY absurdo;
+  só vale pra banco novo). Testes ajustados (dia de relatório 91, `Day: 90`) e novo `TestAdvance_Dividendos_FIIPagaMensalEEmpresaTrimestral`
+  (12 pagamentos em 365 dias). Validação e2e (compose.e2e, 20 ativos sintéticos, 200 dias): ações +5% de preço médio em 200 dias e DY
+  ~17% a.a. (antes de S.2: ciclo quinzenal, ~+40% a.a. de crescimento), Selic 10,5%; a média de retorno total fica na faixa Selic mais
+  prêmio, com DY das ações acima do real (payout de 50% do lucro trimestral, calibração fina segue na Fase K). **Não refeito:** os
+  benchmarks Q.4/R.12 de custo por tick (`benchmark-cobertura.sh`), que rodam contra o Postgres do compose de desenvolvimento; a
+  mudança de cadência não altera o número de comandos por rodada, só a frequência de dia de relatório. Achado novo 024 (deriva de FII
+  sem âncora, -49% em 200 dias, já existente antes da S.2) registrado em `pontos-em-aberto-decisao-produto.md`. Docs: `.docs/engine/{tick,macroevent,catalog}.md`.
 
-### S.3 · Agenda do tick: 5 ticks por dia real, horário fixo e recuperação limitada
+### S.3 · Agenda do tick: 5 ticks por dia real, horário fixo e recuperação limitada ✅
 - **Descrição:** (fim de semana simulado: o tick avança o calendário mas não roda rodada de bot nem cotação de Market Maker.) `scheduler.RunDaily` vira agenda ancorada (00:00 America/Sao_Paulo, 5 ticks espaçados por ~4h48), lê o último
   tick de `market_calendar` na subida, recupera dias perdidos até o teto K e usa trava (advisory lock) contra tick duplicado entre
   instâncias e contra o `POST /admin/tick`. Fator 5 e teto K configuráveis por env. Ordem "day order" passa a valer por dia simulado
@@ -4141,6 +4172,24 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
 - **Critérios de aceite:** deploy repetido no mesmo dia não impede nem duplica tick; motor fora N dias recupera até K; teste com
   relógio injetado; fecha os achados 018 e 019.
 - **Dependências:** S.1, S.2.
+- **Entregável:** `scheduler.RunDaily` virou `scheduler.Run` com `Config` (slots ancorados na meia-noite de `America/Sao_Paulo`, 5 por dia,
+  espaçados por 4h48; `SlotOf`/`NextSlotStart`/`Plan` puros, relógio injetável). Na subida e a cada slot, `tick.Service.RunScheduled(plan)` pega a
+  trava e só então lê o último tick (`market_calendar.updated_at`, `TickRepository.LastTickAt`) e decide quantos rodar (slots perdidos, teto
+  `TICK_MAX_CATCHUP` = 3, excedente descartado com log; nunca rodou = 1). Trava: `pg_try_advisory_lock` numa conexão dedicada
+  (`TickRepository.TryLockTick`, interface `tick.Guard` via `WithGuard`), compartilhada com `POST /admin/tick`, que responde `409` (`ErrTickInProgress`) se
+  outro tick está rodando; a agenda com trava ocupada apenas pula. Fim de semana simulado: `execute` não passa rodadas de bot (sem
+  Market Maker nem cotação nova), o calendário/Selic/dividendos/fundamentos seguem. Env: `SIMULATION_DAYS_PER_REAL_DAY` (5), `TICK_MAX_CATCHUP` (3),
+  `SCHEDULER_TIMEZONE`, `TICK_SCHEDULER_ENABLED` (`compose.e2e.yml` desliga e segue manual); `time/tzdata` embutido. Backend:
+  `engineAssetPriceHistoryReader` (janela do ranking) deixou de supor 1 tick = 1 dia real: mapeia data real para dia simulado (×5) e escolhe a última
+  cotação até ele, já que o fim de semana não tem cotação (teste novo). Frontend: "Expirada no fechamento do dia" segue correto (dia de mercado), sem mudança.
+  Testes: `scheduler` (slots, próximo slot, plano, recuperação na subida), `tick` (plano sob trava, plano 0, trava ocupada, fim de semana sem rodadas), `admin` 409.
+  E2E (motor com agenda ligada contra o compose): 1ª subida roda 1 tick; reinício no mesmo slot roda 0; 12 h de atraso recupera 2; 3 dias de atraso recupera 3 (de 15).
+  Docs: `.docs/engine/tick.md`. Fecha os achados 018 e 019 (revalidação final na S.9). Pendências resolvidas em 2026-09-27 (decisão do autor): (1) `selic.IsCopomMeetingDay` empurra a reunião nominal
+  (dias 45, 90, 135...) que cai em sábado/domingo simulado pro próximo dia útil (dia 90 vira 91, dia 180 vira 182), uma reunião por intervalo, sempre em dia
+  útil, com testes; a Selic só muda em dia útil e o IPCA mensal segue como estava. (2) Testes da trava: `db/tick_lock_integration_test.go`
+  contra Postgres real (duas instâncias = dois pools; exclusão mútua, disputa de 8 goroutines com um só vencedor, liberação quando a sessão dona cai;
+  roda com `TEST_DATABASE_URL`, senão é pulado) e `TestService_TickAgendadoEmAndamentoBloqueiaManualEOutraInstancia` (manual e agenda de outra instância
+  durante um tick em andamento, com `-race`).
 
 ### S.4 · Gate de lições: passos sequenciais e tempo mínimo ✅
 - **Descrição:** `POST /lessons/:id/progress` só aceita `step` igual a `currentStep` ou `currentStep + 1`; avanço exige tempo mínimo
@@ -4198,13 +4247,13 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
 - **Descrição:** rodar de novo `engine/scripts/e2e-mercado-simulado/` (sim, neg, gating, liq) com o relógio novo, conferir o retorno
   médio de renda variável, a renda fixa em 21 ticks, o all-in e o gate; marcar 018 a 023 como Resolvido em
   `pontos-em-aberto-decisao-produto.md`.
-- **Critérios de aceite:** zero violação de invariante; os 6 achados fechados com evidência.
+- **Critérios de aceite:** zero violação de invariante; os 6 achados fechados com evidência; `go test ./internal/infra/db -run TickLock` com `TEST_DATABASE_URL` apontando pro Postgres do stack de teste (trava do tick, S.3).
 - **Dependências:** S.1 a S.8, S.10 a S.12.
 
 ### S.10 · Calendário da simulação: endpoint de relógio e linha do tempo
 - **Descrição:** rota do motor + proxy no backend (`GET /market/clock` e `GET /market/calendar?from=&to=`): dia simulado, data, dia
   da semana, `market_open` (falso em sábado/domingo simulado), fator de aceleração, instante do próximo tick, dias até a abertura e
-  trimestre corrente (dia N de 91). O calendário devolve, por dia, os fatos globais (eventos macro disparados, reunião do Copom com a
+  trimestre corrente (dia N de 91). A data do Copom é a efetiva (já empurrada pra dia útil, `selic.IsCopomMeetingDay`). O calendário devolve, por dia, os fatos globais (eventos macro disparados, reunião do Copom com a
   Selic resultante, dia de relatório, data-ex e pagamento de proventos, com os futuros previsíveis marcados como próximos) e, por
   usuário autenticado, os fatos dele (ordens executadas, proventos recebidos, vencimentos e resgates de renda fixa). Nunca expõe
   patrimônio absoluto de terceiros. Zod, testes, `.docs/engine/` e `.docs/backend/`.

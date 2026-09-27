@@ -2,14 +2,36 @@ package tick
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sort"
 	"sync"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
+
+// ErrTickInProgress é devolvido quando outro processo já está rodando um tick
+// (trava consultiva do Postgres, tarefa S.3) — um POST /admin/tick nesse
+// momento vira 409 em vez de duplicar o dia simulado.
+var ErrTickInProgress = errors.New("já existe um tick em andamento")
+
+// Guard é o colaborador que protege o tick entre processos/instâncias (tarefa
+// S.3): uma trava consultiva no Postgres e o instante do último tick gravado
+// (market_calendar.updated_at), que a agenda usa pra saber quantos dias
+// simulados ficaram pra trás. Implementado por *db.TickRepository; opcional
+// (WithGuard) — sem ele só vale o mutex do próprio processo.
+type Guard interface {
+	// TryLockTick tenta pegar a trava do tick sem bloquear; ok = false se outro
+	// processo a detém. release libera a trava.
+	TryLockTick(ctx context.Context) (release func(), ok bool, err error)
+	// LastTickAt devolve quando o último tick foi gravado; found = false se o
+	// Temporizador nunca rodou.
+	LastTickAt(ctx context.Context) (at time.Time, found bool, err error)
+}
 
 // Service executa um tick completo (ler estado → calcular próximo passo →
 // executar as rodadas de negociação de bot (Fase D.2, rounds.go) → persistir),
@@ -37,8 +59,15 @@ type Service struct {
 	ipcaCfg        ipca.Config
 	seed           int64
 	// etf (R.3/R.4) fica zerado até WithETF.
-	etf ETFDeps
-	mu  sync.Mutex
+	etf   ETFDeps
+	guard Guard
+	mu    sync.Mutex
+}
+
+// WithGuard liga a trava entre processos e a leitura do último tick (S.3).
+func (s *Service) WithGuard(g Guard) *Service {
+	s.guard = g
+	return s
 }
 
 // NewService monta o orquestrador do Temporizador. selicCfg.Initial é
@@ -79,6 +108,68 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	release, err := s.lockTick(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	defer release()
+
+	return s.execute(ctx)
+}
+
+// RunScheduled é o caminho do agendador (tarefa S.3): sob a mesma trava do Run,
+// pergunta a plan quantos ticks devem rodar agora dado o instante do último
+// tick gravado (found = false se nunca rodou) e roda essa quantidade em
+// sequência. Decidir dentro da trava é o que impede duas instâncias (ou um
+// deploy repetido) de duplicar o mesmo dia. Devolve quantos ticks rodaram;
+// trava ocupada por outro processo não é erro (0, nil), o outro já está
+// cuidando desse dia.
+func (s *Service) RunScheduled(ctx context.Context, plan func(lastTickAt time.Time, found bool) int) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	release, err := s.lockTick(ctx)
+	if errors.Is(err, ErrTickInProgress) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+
+	count := 1
+	if s.guard != nil {
+		last, found, err := s.guard.LastTickAt(ctx)
+		if err != nil {
+			return 0, err
+		}
+		count = plan(last, found)
+	}
+	for i := 0; i < count; i++ {
+		if _, err := s.execute(ctx); err != nil {
+			return i, err
+		}
+	}
+	return count, nil
+}
+
+// lockTick pega a trava entre processos (no-op sem Guard).
+func (s *Service) lockTick(ctx context.Context) (release func(), err error) {
+	if s.guard == nil {
+		return func() {}, nil
+	}
+	release, ok, err := s.guard.TryLockTick(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrTickInProgress
+	}
+	return release, nil
+}
+
+// execute é o tick em si, sempre sob s.mu e a trava de lockTick.
+func (s *Service) execute(ctx context.Context) (Result, error) {
 	current, found, err := s.repo.LoadState(ctx)
 	if err != nil {
 		return Result{}, err
@@ -130,7 +221,16 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	closingPrices, volumeByAssetID, fillsExecuted, uncoveredAssets, err := s.runIntradayRounds(ctx, dayIndex, result.IntradayRounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
+	// Fim de semana simulado (tarefa S.3): o calendário avança, mas o mercado
+	// está fechado, então os bots não negociam nem cotam (sem rodadas, nenhuma
+	// cotação nova; o preço segue o último fechamento).
+	rounds := result.IntradayRounds
+	if !simcalendar.IsBusinessDay(result.State.Day) {
+		rounds = nil
+		result.IntradayRounds = nil
+	}
+
+	closingPrices, volumeByAssetID, fillsExecuted, uncoveredAssets, err := s.runIntradayRounds(ctx, dayIndex, rounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
 	if err != nil {
 		return Result{}, err
 	}

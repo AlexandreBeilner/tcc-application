@@ -44,13 +44,13 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 	// pode não ter posição no ativo (quantity e created_at ficam NULL).
 	var balance float64
 	var positionQty sql.NullInt64
-	var positionCreatedAt sql.NullTime
+	var positionCreatedDay sql.NullInt64
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT a.current_balance, p.quantity, p.created_at
+		`SELECT a.current_balance, p.quantity, p.created_day
 		 FROM accounts a
 		 LEFT JOIN positions p ON p.user_id = a.user_id AND p.asset_id = $2
 		 WHERE a.user_id = $1`, userID, assetID,
-	).Scan(&balance, &positionQty, &positionCreatedAt); err != nil {
+	).Scan(&balance, &positionQty, &positionCreatedDay); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return orderexecution.Context{}, orderexecution.ErrAccountNotFound
 		}
@@ -63,7 +63,7 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
-	referencePrice, err := r.referencePrice(ctx, assetID, static, heldQty, positionCreatedAt)
+	referencePrice, err := r.referencePrice(ctx, assetID, static, heldQty, positionCreatedDay)
 	if err != nil {
 		return orderexecution.Context{}, err
 	}
@@ -341,7 +341,7 @@ func (r *OrderExecutionRepository) totalHeldExcluding(ctx context.Context, asset
 // real). Preço de ativo sandbox usa sandbox.PriceScript, indexado pelo
 // ticker (não dá pra indexar por assetID em tempo de compilação — gerado
 // pelo Postgres) e pelo dia decorrido desde a primeira operação do usuário
-// da ordem *nesse ativo* (positionCreatedAt/positionQty — sandboxDayIndex
+// da ordem *nesse ativo* (positionCreatedDay/positionQty — sandboxDayIndex
 // reinicia em dia 0 se ele ainda não tinha posição nenhuma OU se a posição
 // existente está zerada, ver doc de sandboxDayIndex), nunca asset_quotes —
 // o Temporizador nunca gera cotação pra ativo sandbox (ver tick.md). Ativo
@@ -350,14 +350,18 @@ func (r *OrderExecutionRepository) totalHeldExcluding(ctx context.Context, asset
 // nenhuma — mas ali o preço de referência agora só serve pra exibição
 // (ex: weightedAveragePrice de uma ordem sem nenhum fill real), nunca mais
 // pra preencher a ordem sinteticamente.
-func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, static assetStatic, positionQty int, positionCreatedAt sql.NullTime) (float64, error) {
+func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, static assetStatic, positionQty int, positionCreatedDay sql.NullInt64) (float64, error) {
 	ticker, isSandbox := static.ticker, static.isSandbox
 	if isSandbox {
 		script, ok := sandbox.PriceScriptForTicker(ticker)
 		if !ok {
 			return 0, ErrSandboxScriptNotFound
 		}
-		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
+		today, err := r.currentSimulatedDayScoped(ctx)
+		if err != nil {
+			return 0, err
+		}
+		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedDay, float64(positionQty), today)), nil
 	}
 
 	// Cache de leitura (tarefa 5.7) — mesma última cotação que
@@ -584,10 +588,11 @@ func applyPositionFill(ctx context.Context, tx *sql.Tx, userID, assetID string, 
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO positions (user_id, asset_id, quantity, average_price)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO positions (user_id, asset_id, quantity, average_price, created_day)
+		 VALUES ($1, $2, $3, $4, COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0))
 		 ON CONFLICT (user_id, asset_id) DO UPDATE SET
-		   quantity = EXCLUDED.quantity, average_price = EXCLUDED.average_price, updated_at = now()`,
+		   quantity = EXCLUDED.quantity, average_price = EXCLUDED.average_price, updated_at = now(),
+		   created_day = CASE WHEN positions.quantity = 0 THEN EXCLUDED.created_day ELSE positions.created_day END`,
 		userID, assetID, next.Quantity, next.AveragePrice,
 	)
 	return err

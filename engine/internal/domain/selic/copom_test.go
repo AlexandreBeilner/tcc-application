@@ -3,6 +3,8 @@ package selic
 import (
 	"math"
 	"testing"
+
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 func TestCalendarSeries_ReversaoAMediaSoNoDiaDeReuniao(t *testing.T) {
@@ -13,32 +15,75 @@ func TestCalendarSeries_ReversaoAMediaSoNoDiaDeReuniao(t *testing.T) {
 	// (tarefa I.2) não muda os valores esperados.
 	cfg := Config{Initial: 20, Neutral: 10, ReversionSpeed: 0.5, Volatility: 0, Seed: 1}
 
-	got := CalendarSeries(cfg, CopomMeetingIntervalDays*2, nil)
+	// Reunião nominal no dia 45 (quinta-feira simulada, índice 44); a do dia 90
+	// cai num domingo e é empurrada pra segunda, dia 91 (índice 90).
+	const firstMeeting, secondMeeting = 44, 90
+	got := CalendarSeries(cfg, secondMeeting+2, nil)
 
-	// Do dia 1 ao 20 (índices 0-19): nenhuma reunião ainda, taxa parada no
-	// Initial.
-	for i := 0; i < CopomMeetingIntervalDays-1; i++ {
+	// Antes da primeira reunião: taxa parada no Initial.
+	for i := 0; i < firstMeeting; i++ {
 		if got[i] != 20 {
 			t.Fatalf("got[%d] = %v, want 20 (sem reunião ainda)", i, got[i])
 		}
 	}
 
-	// Dia 21 (índice 20): primeira reunião — 20 + 0.5*(10-20) = 15.
-	if math.Abs(got[CopomMeetingIntervalDays-1]-15) > 1e-9 {
-		t.Fatalf("got[%d] = %v, want 15 (primeira reunião do Copom)", CopomMeetingIntervalDays-1, got[CopomMeetingIntervalDays-1])
+	// Primeira reunião — 20 + 0.5*(10-20) = 15.
+	if math.Abs(got[firstMeeting]-15) > 1e-9 {
+		t.Fatalf("got[%d] = %v, want 15 (primeira reunião do Copom)", firstMeeting, got[firstMeeting])
 	}
 
-	// Dias 22-41 (índices 21-40): taxa parada em 15, sem nova reunião.
-	for i := CopomMeetingIntervalDays; i < 2*CopomMeetingIntervalDays-1; i++ {
+	// Entre as reuniões (inclusive o domingo nominal, índice 89): parada em 15.
+	for i := firstMeeting + 1; i < secondMeeting; i++ {
 		if math.Abs(got[i]-15) > 1e-9 {
 			t.Fatalf("got[%d] = %v, want 15 (entre reuniões)", i, got[i])
 		}
 	}
 
-	// Dia 42 (índice 41): segunda reunião — 15 + 0.5*(10-15) = 12.5.
-	last := 2*CopomMeetingIntervalDays - 1
-	if math.Abs(got[last]-12.5) > 1e-9 {
-		t.Fatalf("got[%d] = %v, want 12.5 (segunda reunião do Copom)", last, got[last])
+	// Segunda reunião — 15 + 0.5*(10-15) = 12.5.
+	if math.Abs(got[secondMeeting]-12.5) > 1e-9 {
+		t.Fatalf("got[%d] = %v, want 12.5 (segunda reunião do Copom)", secondMeeting, got[secondMeeting])
+	}
+}
+
+// Reunião nominal em fim de semana simulado vai pro próximo dia útil (S.3): o
+// dia 0 é segunda-feira, então os dias 90 (domingo) e 180 (sábado) são
+// nominais de fim de semana.
+func TestIsCopomMeetingDay_FimDeSemanaVaiParaOProximoDiaUtil(t *testing.T) {
+	tests := []struct {
+		day  int // dia simulado (1-based) que o tick gera
+		want bool
+	}{
+		{45, true},   // quinta, dia útil: na data nominal
+		{44, false},  // véspera
+		{90, false},  // domingo nominal: mercado fechado
+		{91, true},   // segunda: reunião empurrada
+		{92, false},  // não repete
+		{135, true},  // quarta
+		{180, false}, // sábado nominal
+		{181, false}, // domingo
+		{182, true},  // segunda: reunião empurrada
+		{183, false},
+		{0, false},
+	}
+	for _, tt := range tests {
+		if got := IsCopomMeetingDay(tt.day - 1); got != tt.want {
+			t.Errorf("IsCopomMeetingDay(dia %d) = %v, want %v", tt.day, got, tt.want)
+		}
+	}
+}
+
+func TestIsCopomMeetingDay_UmaReuniaoPorIntervaloSempreEmDiaUtil(t *testing.T) {
+	meetings := 0
+	for i := 0; i < CopomMeetingIntervalDays*40; i++ {
+		if IsCopomMeetingDay(i) {
+			meetings++
+			if !simcalendar.IsBusinessDay(i + 1) {
+				t.Fatalf("reunião no dia %d, que é fim de semana simulado", i+1)
+			}
+		}
+	}
+	if meetings != 40 {
+		t.Errorf("reuniões em 40 intervalos = %d, want 40", meetings)
 	}
 }
 

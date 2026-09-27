@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/orderbook"
@@ -493,5 +494,175 @@ func TestService_Run_QuotesDeAcaoEmOrdemDeterministica(t *testing.T) {
 		if acaoIDs[i] != want[i] {
 			t.Fatalf("Quotes de Ação fora de ordem: %v, want %v (ordenado por AssetID)", acaoIDs, want)
 		}
+	}
+}
+
+// fakeGuard simula a trava entre processos e o instante do último tick (S.3).
+type fakeGuard struct {
+	locked   bool // outro processo detém a trava
+	lastTick time.Time
+	found    bool
+	released int
+}
+
+func (g *fakeGuard) TryLockTick(_ context.Context) (func(), bool, error) {
+	if g.locked {
+		return nil, false, nil
+	}
+	return func() { g.released++ }, true, nil
+}
+
+func (g *fakeGuard) LastTickAt(_ context.Context) (time.Time, bool, error) {
+	return g.lastTick, g.found, nil
+}
+
+func TestService_RunScheduled_RodaAQuantidadeDoPlanoSobATrava(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	guard := &fakeGuard{lastTick: time.Unix(1000, 0), found: true}
+	svc := newTestService(repo).WithGuard(guard)
+
+	var gotLast time.Time
+	ran, err := svc.RunScheduled(context.Background(), func(last time.Time, found bool) int {
+		gotLast = last
+		return 3
+	})
+	if err != nil || ran != 3 {
+		t.Fatalf("RunScheduled() = %d, %v, want 3, nil", ran, err)
+	}
+	if repo.saveCalls != 3 {
+		t.Errorf("saveCalls = %d, want 3", repo.saveCalls)
+	}
+	if !gotLast.Equal(guard.lastTick) {
+		t.Errorf("plan recebeu último tick %v, want %v", gotLast, guard.lastTick)
+	}
+	if guard.released != 1 {
+		t.Errorf("trava liberada %d vez(es), want 1", guard.released)
+	}
+}
+
+func TestService_RunScheduled_PlanoZeroNaoRodaNada(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	svc := newTestService(repo).WithGuard(&fakeGuard{found: true})
+
+	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) int { return 0 })
+	if err != nil || ran != 0 || repo.saveCalls != 0 {
+		t.Errorf("RunScheduled() = %d, %v (saves %d), want 0, nil, 0", ran, err, repo.saveCalls)
+	}
+}
+
+func TestService_TravaOcupadaPorOutroProcesso(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	svc := newTestService(repo).WithGuard(&fakeGuard{locked: true})
+
+	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) int { return 1 })
+	if err != nil || ran != 0 || repo.saveCalls != 0 {
+		t.Errorf("agenda com trava ocupada = %d, %v (saves %d), want 0, nil, 0", ran, err, repo.saveCalls)
+	}
+
+	if _, err := svc.Run(context.Background()); !errors.Is(err, ErrTickInProgress) {
+		t.Errorf("Run() manual com trava ocupada: err = %v, want ErrTickInProgress", err)
+	}
+	if repo.saveCalls != 0 {
+		t.Errorf("saveCalls = %d, want 0 (nada gravado com a trava ocupada)", repo.saveCalls)
+	}
+}
+
+// Fim de semana simulado (S.3): o calendário avança mas os bots não negociam.
+func TestService_Run_FimDeSemanaSimuladoNaoRodaRodadas(t *testing.T) {
+	tests := []struct {
+		name      string
+		stateDay  int // dia gravado; o tick gera stateDay+1
+		wantTrade bool
+	}{
+		{"terça (dia 1)", 0, true},
+		{"sexta (dia 4)", 3, true},
+		{"sábado (dia 5)", 4, false},
+		{"domingo (dia 6)", 5, false},
+		{"segunda (dia 7)", 6, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{state: State{Day: tt.stateDay, SelicRate: 10}, stateFound: true}
+			result, err := newTestService(repo).Run(context.Background())
+			if err != nil {
+				t.Fatalf("Run() erro: %v", err)
+			}
+			if result.State.Day != tt.stateDay+1 {
+				t.Fatalf("State.Day = %d, want %d (o calendário sempre avança)", result.State.Day, tt.stateDay+1)
+			}
+			if got := len(result.IntradayRounds) > 0; got != tt.wantTrade {
+				t.Errorf("rodadas = %d, negocia = %v, want %v", len(result.IntradayRounds), got, tt.wantTrade)
+			}
+		})
+	}
+}
+
+// exclusiveGuard imita a trava consultiva entre processos: um único dono por vez,
+// compartilhado por dois Service (duas "instâncias").
+type exclusiveGuard struct {
+	mu   sync.Mutex
+	held bool
+}
+
+func (g *exclusiveGuard) TryLockTick(_ context.Context) (func(), bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.held {
+		return nil, false, nil
+	}
+	g.held = true
+	return func() { g.mu.Lock(); g.held = false; g.mu.Unlock() }, true, nil
+}
+
+func (g *exclusiveGuard) LastTickAt(_ context.Context) (time.Time, bool, error) {
+	return time.Time{}, false, nil
+}
+
+// blockingRepo segura SaveTick até liberar, pra manter um tick "em andamento".
+type blockingRepo struct {
+	*fakeRepository
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingRepo) SaveTick(ctx context.Context, r Result) error {
+	close(b.entered)
+	<-b.release
+	return b.fakeRepository.SaveTick(ctx, r)
+}
+
+// Um POST /admin/tick (Run) e a agenda de outra instância durante um tick em
+// andamento nunca rodam junto: o manual recebe ErrTickInProgress, a agenda pula
+// sem erro, e depois da liberação o próximo consegue rodar (tarefa S.3).
+func TestService_TickAgendadoEmAndamentoBloqueiaManualEOutraInstancia(t *testing.T) {
+	guard := &exclusiveGuard{}
+	repoA := &blockingRepo{fakeRepository: &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}, entered: make(chan struct{}), release: make(chan struct{})}
+	repoB := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	instanceA := newTestService(repoA).WithGuard(guard)
+	instanceB := newTestService(repoB).WithGuard(guard)
+
+	scheduledDone := make(chan int, 1)
+	go func() {
+		n, _ := instanceA.RunScheduled(context.Background(), func(time.Time, bool) int { return 1 })
+		scheduledDone <- n
+	}()
+	<-repoA.entered // o tick agendado da instância A está dentro do SaveTick, com a trava
+
+	if _, err := instanceB.Run(context.Background()); !errors.Is(err, ErrTickInProgress) {
+		t.Errorf("POST manual durante o tick agendado: err = %v, want ErrTickInProgress", err)
+	}
+	if n, err := instanceB.RunScheduled(context.Background(), func(time.Time, bool) int { return 1 }); n != 0 || err != nil {
+		t.Errorf("agenda da outra instância = %d, %v, want 0, nil", n, err)
+	}
+	if repoB.saveCalls != 0 {
+		t.Errorf("a instância B gravou %d tick(s) com a trava ocupada, want 0", repoB.saveCalls)
+	}
+
+	close(repoA.release)
+	if n := <-scheduledDone; n != 1 {
+		t.Fatalf("tick agendado rodou %d, want 1", n)
+	}
+	if _, err := instanceB.Run(context.Background()); err != nil {
+		t.Errorf("depois da liberação o manual deveria rodar: %v", err)
 	}
 }

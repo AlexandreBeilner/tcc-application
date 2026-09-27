@@ -23,15 +23,19 @@ const (
 	// ciclo distribuída como provento por ação — mesmo tratamento "sujeito
 	// à calibração da tarefa 8.1" de fundamentals.DefaultNetMarginPct.
 	DefaultEquityPayoutRatio = 0.5
+	// FIIPayoutIntervalDays é a cadência de pagamento de proventos do FII:
+	// mensal, como no mercado real (tarefa S.2) — independente do ciclo
+	// trimestral de relatório (fundamentals.DefaultReportFrequencyDays).
+	FIIPayoutIntervalDays = 30
 	// DefaultFIIYieldPerCyclePct é a fração ilustrativa (%) de net_worth
-	// distribuída por ciclo de 14 dias (fundamentals.DefaultReportFrequencyDays)
-	// pra FII — ver nota de implementação no doc do pacote. 0.5% a cada 14
-	// dias equivale a um Dividend Yield ilustrativo de ~13% a.a., ordem de
-	// grandeza plausível pra FII no mercado real.
-	DefaultFIIYieldPerCyclePct = 0.5
+	// distribuída a cada pagamento mensal (FIIPayoutIntervalDays) pra FII —
+	// ver nota de implementação no doc do pacote. 1.1% ao mês equivale a um
+	// Dividend Yield ilustrativo de ~13% a.a., ordem de grandeza plausível
+	// pra FII no mercado real.
+	DefaultFIIYieldPerCyclePct = 1.1
 	// DefaultPaymentLagDays é a defasagem, em dias simulados, entre a data
-	// ex e o dia de pagamento de um provento — menor que o ciclo de
-	// relatório (14 dias) pra sempre liquidar antes do próximo ciclo gerar
+	// ex e o dia de pagamento de um provento — menor que o menor
+	// intervalo entre proventos do mesmo ativo (30 dias, FII) pra sempre liquidar antes do próximo ciclo gerar
 	// um novo provento sobre o mesmo ativo.
 	DefaultPaymentLagDays = 5
 	// DefaultPnDividendPremiumPct é o piso legal da vantagem mínima de

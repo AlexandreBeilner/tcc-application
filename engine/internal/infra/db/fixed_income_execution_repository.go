@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
 	"tcc-investimentos/engine/internal/domain/sandbox"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
 
@@ -59,6 +59,11 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 
 	var pctx fixedincomeexecution.PurchaseContext
 	pctx.AccountBalance = balance
+	today, err := loadSimulatedDay(ctx, r.db)
+	if err != nil {
+		return fixedincomeexecution.PurchaseContext{}, err
+	}
+	pctx.SimulatedDay = today
 
 	var ticker string
 	var isSandbox bool
@@ -73,11 +78,11 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 	pctx.ProductType = fixedincome.ProductType(productType)
 
 	var pos fixedincomeposition.Position
-	var positionCreatedAt sql.NullTime
-	err := r.db.QueryRowContext(ctx,
-		`SELECT quantity, average_price, average_rate, created_at FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
+	var positionCreatedDay sql.NullInt64
+	err = r.db.QueryRowContext(ctx,
+		`SELECT quantity, average_price, average_rate, created_day FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
 		userID, assetID,
-	).Scan(&pos.Quantity, &pos.AveragePrice, &pos.AverageRate, &positionCreatedAt)
+	).Scan(&pos.Quantity, &pos.AveragePrice, &pos.AverageRate, &positionCreatedDay)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fixedincomeexecution.PurchaseContext{}, err
 	}
@@ -89,7 +94,7 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 		if !ok {
 			return fixedincomeexecution.PurchaseContext{}, ErrSandboxScriptNotFound
 		}
-		pctx.AnnualRatePct = sandbox.RateOnDay(script, sandboxDayIndex(positionCreatedAt, pos.Quantity))
+		pctx.AnnualRatePct = sandbox.RateOnDay(script, sandboxDayIndex(positionCreatedDay, pos.Quantity, today))
 		return pctx, nil
 	}
 
@@ -129,18 +134,18 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 // sandbox (RF12, tarefa 4.11) usa sandbox.RateScript (mesmo roteiro lido na
 // compra — RateScript serve tanto de taxa contratada quanto de taxa de
 // mercado, ver doc do pacote sandbox) no dia decorrido desde a primeira
-// operação do usuário (fixed_income_positions.created_at — sempre existe
+// operação do usuário (fixed_income_positions.created_day — sempre existe
 // aqui, a posição já foi encontrada acima), nunca market_calendar.selic_rate
 // — o Temporizador nunca avança nada de sandbox. AnnualRatePct/IsSandbox
 // (achado 011, teste de ponta a ponta da Fase L) alimentam a correção do
 // spread em Redeem — ver nota do campo em RedeemContext.
 func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, userID, assetID string) (fixedincomeexecution.RedeemContext, error) {
 	var rctx fixedincomeexecution.RedeemContext
-	var positionCreatedAt time.Time
+	var positionCreatedDay int
 	err := r.db.QueryRowContext(ctx,
-		`SELECT quantity, average_price, average_rate, created_at FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
+		`SELECT quantity, average_price, average_rate, created_day FROM fixed_income_positions WHERE user_id = $1 AND asset_id = $2`,
 		userID, assetID,
-	).Scan(&rctx.Position.Quantity, &rctx.Position.AveragePrice, &rctx.Position.AverageRate, &positionCreatedAt)
+	).Scan(&rctx.Position.Quantity, &rctx.Position.AveragePrice, &rctx.Position.AverageRate, &positionCreatedDay)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fixedincomeexecution.RedeemContext{}, fixedincomeexecution.ErrPositionNotFound
 	}
@@ -148,7 +153,12 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 		return fixedincomeexecution.RedeemContext{}, err
 	}
 
-	rctx.PurchasedAt = positionCreatedAt
+	rctx.PurchasedAt = simcalendar.DateOf(positionCreatedDay)
+	today, err := loadSimulatedDay(ctx, r.db)
+	if err != nil {
+		return fixedincomeexecution.RedeemContext{}, err
+	}
+	rctx.SimulatedDay = today
 
 	var ticker string
 	var isSandbox bool
@@ -168,7 +178,7 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 		if !ok {
 			return fixedincomeexecution.RedeemContext{}, ErrSandboxScriptNotFound
 		}
-		dayIndex := sandbox.DaysSince(positionCreatedAt, time.Now())
+		dayIndex := sandbox.DaysSince(positionCreatedDay, today)
 		rctx.CurrentMarketRatePct = sandbox.RateOnDay(script, dayIndex)
 		return rctx, nil
 	}
@@ -188,7 +198,7 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 	// fixedincome.PostFixedValue usa pra valorizar de verdade, em vez de
 	// repetir só a Selic corrente.
 	if fixedincome.IsPostFixado(rctx.ProductType) {
-		rates, err := selicRatesSince(ctx, r.db, positionCreatedAt)
+		rates, err := selicRatesSince(ctx, r.db, positionCreatedDay)
 		if err != nil {
 			return fixedincomeexecution.RedeemContext{}, err
 		}
@@ -240,8 +250,8 @@ func (r *FixedIncomeExecutionRepository) PersistPurchase(ctx context.Context, re
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO fixed_income_positions (user_id, asset_id, quantity, average_price, average_rate)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO fixed_income_positions (user_id, asset_id, quantity, average_price, average_rate, created_day)
+		 VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0))
 		 ON CONFLICT (user_id, asset_id) DO UPDATE SET
 		   quantity = EXCLUDED.quantity, average_price = EXCLUDED.average_price, average_rate = EXCLUDED.average_rate, updated_at = now()`,
 		req.UserID, req.AssetID, outcome.NewPosition.Quantity, outcome.NewPosition.AveragePrice, outcome.NewPosition.AverageRate,

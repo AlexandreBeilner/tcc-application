@@ -2,10 +2,10 @@ package fixedincomeexecution
 
 import (
 	"context"
-	"time"
 
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/ipca"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // Repository é o colaborador que Service precisa pra ler o contexto de
@@ -60,7 +60,7 @@ func (s *Service) Purchase(ctx context.Context, req Request) (PurchaseOutcome, e
 		return PurchaseOutcome{}, err
 	}
 
-	now := time.Now()
+	now := simcalendar.DateOf(pctx.SimulatedDay)
 	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now)
 	outcome, err := Purchase(req, pctx, now, vnaBase, monthlyIPCA)
 	if err != nil {
@@ -82,7 +82,7 @@ func (s *Service) Redeem(ctx context.Context, req RedeemRequest) (RedeemOutcome,
 		return RedeemOutcome{}, err
 	}
 
-	now := time.Now()
+	now := simcalendar.DateOf(rctx.SimulatedDay)
 	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now)
 	outcome, err := Redeem(rctx, now, vnaBase, monthlyIPCA)
 	if err != nil {
@@ -105,7 +105,7 @@ func (s *Service) Redeem(ctx context.Context, req RedeemRequest) (RedeemOutcome,
 // cair numa janela de VNA diferente, por isso um CurrentVNAWindow
 // separado) a partir de s.ipcaCfg, mesma fonte de Purchase/Redeem.
 func (s *Service) Simulate(req SimulateRequest, ctx SimulateContext) (SimulateOutcome, error) {
-	now := time.Now()
+	now := simcalendar.DateOf(ctx.SimulatedDay)
 	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now)
 	projectedVNABase, projectedMonthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now.AddDate(0, 0, req.DaysHeld))
 	return Simulate(req, ctx, now, vnaBase, monthlyIPCA, projectedVNABase, projectedMonthlyIPCA)

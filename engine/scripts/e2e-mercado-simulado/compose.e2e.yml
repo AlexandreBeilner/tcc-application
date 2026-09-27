@@ -17,6 +17,8 @@ services:
       DATABASE_URL: postgres://tcc:tcc@postgres:5432/market?sslmode=disable
       REDIS_URL: redis://redis:6379/0
       SIMULATION_SEED: "42"
+      # Os scripts disparam o tick à mão (POST /admin/tick); sem isso a agenda (S.3) rodaria ticks por conta própria.
+      TICK_SCHEDULER_ENABLED: "false"
     depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}}
     expose: ["8080"]
   backend:

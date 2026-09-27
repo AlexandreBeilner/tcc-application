@@ -10,6 +10,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // listAssetsColumns é reaproveitada por ListAssets/FindAssetByID — mesma
@@ -327,6 +328,13 @@ func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, a
 // currentSelicRatePct.
 func (r *CatalogRepository) CurrentSelicRatePct(ctx context.Context) (float64, bool, error) {
 	return currentSelicRatePct(ctx, r.db)
+}
+
+// CurrentSimulatedDay devolve market_calendar.current_day (0 antes do primeiro
+// tick) — o "agora" das leituras de catálogo que dependem de tempo (ex:
+// Dividend Yield dos últimos 12 meses simulados, tarefa S.1).
+func (r *CatalogRepository) CurrentSimulatedDay(ctx context.Context) (int, error) {
+	return loadSimulatedDay(ctx, r.db)
 }
 
 // reprecificarOfertaParaExibicao aplica fixedincome.OfferedRate/
@@ -724,13 +732,17 @@ func insertCompanyFundamentals(ctx context.Context, exec sqlExecer, companyID st
 // qualquer, nunca contra o outstanding_shares real de um ativo específico
 // do catálogo) até o primeiro dia de relatório dela, produzindo um preço
 // justo (bot.FundamentalistFairPrice, Fase D.2) sem nenhuma relação com o
-// preço de mercado seedado. period_date usa o relógio real (mesma
-// convenção de SaveTick/company_fundamentals). Não passa por Event
+// preço de mercado seedado. period_date é a data do dia simulado
+// corrente (mesma convenção de SaveTick/company_fundamentals). Não passa por Event
 // Sourcing (mesmo raciocínio de dado cadastral já documentado no resto
 // deste arquivo). Chame só depois de confirmar via FindLatestFundamentals
 // que a empresa ainda não tem nenhum ciclo — não é idempotente sozinha.
 func (r *CatalogRepository) CreateInitialFundamentals(ctx context.Context, companyID string, f fundamentals.Financials) error {
-	return insertCompanyFundamentals(ctx, r.db, companyID, time.Now(), f)
+	today, err := loadSimulatedDay(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return insertCompanyFundamentals(ctx, r.db, companyID, simcalendar.DateOf(today), f)
 }
 
 // ListDividendHistory devolve o histórico de dividend_events de assetID,

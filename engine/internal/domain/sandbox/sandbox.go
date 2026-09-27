@@ -15,14 +15,11 @@
 // reabrir o motor de séries estocásticas (tick.Advance) só pra essa decisão.
 //
 // "Dia" do roteiro conta a partir da primeira operação do usuário naquele
-// ativo, não do dia global do Temporizador (spec 3.1: sandbox é individual e
-// roteirizado, não sincronizado com o Mercado Ao Vivo) — DaysSince converte
-// isso a partir do relógio de parede, mesmo precedente já usado por
-// fixedincomeexecution pro DU restante até o vencimento (nenhum contador de
-// dia simulado dedicado foi criado só pra isso). O ponto de partida em si
-// (positions.created_at / fixed_income_positions.created_at) já existe desde
-// a migration 000001/000006 e nunca era lido antes desta tarefa — nenhuma
-// migration nova foi necessária: created_at é preservado por
+// ativo (spec 3.1: sandbox é individual e roteirizado, não sincronizado com o
+// Mercado Ao Vivo), medido em dias SIMULADOS (tarefa S.1, achado 022): o
+// ponto de partida é positions.created_day / fixed_income_positions.
+// created_day (dia simulado da primeira compra) e o "agora" é
+// market_calendar.current_day, nunca o relógio de parede. created_day é preservado por
 // ON CONFLICT ... DO UPDATE (nunca sobrescrito numa compra seguinte) e o
 // resgate de renda fixa sempre apaga a linha inteira (fixedincomeexecution
 // nota 5), então uma recompra depois de um resgate legitimamente reinicia a
@@ -52,8 +49,6 @@
 // nesta tarefa por esse motivo — não haveria rota nenhuma exercitando
 // IPCAScript.
 package sandbox
-
-import "time"
 
 // PriceScript é a curva de preço fixa e determinística de um ativo sandbox
 // de renda variável — mesma curva pra todo usuário; só o índice que mapeia
@@ -114,12 +109,12 @@ func clampIndex(dayIndex, length int) int {
 }
 
 // DaysSince converte o tempo decorrido desde a primeira operação do usuário
-// naquele ativo (firstOperationAt) num índice de dia do roteiro — nunca
-// negativo (uma operação no mesmo instante da primeira, ou um relógio que
-// andou pra trás por qualquer motivo de infraestrutura, sempre cai no dia
-// 0, nunca num índice inválido).
-func DaysSince(firstOperationAt, now time.Time) int {
-	days := int(now.Sub(firstOperationAt).Hours() / 24)
+// naquele ativo num índice de dia do roteiro, ambos em DIA SIMULADO
+// (positions.created_day / market_calendar.current_day, tarefa S.1) — nunca
+// negativo (um dia corrente anterior ao da primeira operação, por qualquer
+// motivo de infraestrutura, sempre cai no dia 0, nunca num índice inválido).
+func DaysSince(firstOperationDay, currentDay int) int {
+	days := currentDay - firstOperationDay
 	if days < 0 {
 		return 0
 	}

@@ -262,7 +262,14 @@ func handleFixedIncomeSimulate(catalogReader assetCatalogReader, exec fixedIncom
 			return
 		}
 
+		today, err := catalogReader.CurrentSimulatedDay(r.Context())
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar dia simulado corrente")
+			return
+		}
+
 		simCtx := fixedincomeexecution.SimulateContext{
+			SimulatedDay:  today,
 			AnnualRatePct: *spec.InterestRate,
 			MaturityDate:  *spec.MaturityDate,
 			TaxExempt:     spec.TaxExempt,

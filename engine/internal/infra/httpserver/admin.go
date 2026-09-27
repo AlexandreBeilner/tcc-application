@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -89,6 +90,10 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 		extendWriteDeadline(w, adminTickWriteTimeout)
 
 		result, err := t.Run(r.Context())
+		if errors.Is(err, tick.ErrTickInProgress) {
+			writeCatalogError(w, http.StatusConflict, "já existe um tick em andamento")
+			return
+		}
 		if err != nil {
 			writeCatalogError(w, http.StatusInternalServerError, "erro ao executar tick")
 			return

@@ -39,10 +39,11 @@ var (
 // Defaults dos termos do fundo (tarefa R.1, migration 000026): valores
 // ilustrativos, mesma calibração fina da tarefa 8.1 que se aplica a todo
 // coeficiente sem tabela numérica fechada. A frequência de rebalanceamento
-// acompanha o ciclo de relatório de 14 dias simulados (R.7).
+// acompanha o ciclo de relatório de 91 dias simulados, rebalanceamento
+// trimestral (R.7, S.2).
 const (
 	DefaultExpenseRatioPct        = 0.50
-	DefaultRebalanceFrequencyDays = 14
+	DefaultRebalanceFrequencyDays = 91
 )
 
 // HoldingClass é a classe do ativo que um Holding com AssetID referencia,
