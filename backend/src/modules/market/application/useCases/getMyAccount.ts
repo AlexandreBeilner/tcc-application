@@ -1,4 +1,6 @@
-import type { AccountReader } from '../ports/accountReader'
+import { markPrice } from '../../domain/markPrice'
+import type { AccountReader, PositionRecord } from '../ports/accountReader'
+import type { CatalogReader } from '../ports/catalogReader'
 
 export interface MyAccountPosition {
   assetId: string
@@ -8,6 +10,10 @@ export interface MyAccountPosition {
   isSandbox: boolean
   quantity: number
   averagePrice: number
+  // Preço de marcação a mercado (tarefa S.6) — ponto médio do book com
+  // fallback pro último negócio (`markPrice`, `domain/markPrice.ts`).
+  // Ausente pra posição sandbox (nunca teve book real, RF12/RNF08).
+  markPrice?: number
 }
 
 export interface MyAccountFixedIncomePosition extends MyAccountPosition {
@@ -46,7 +52,10 @@ export interface GetMyAccountInput {
 // criaria uma dependência `market → ranking` só pra descartar a metade do
 // que aquele caso de uso calcula.
 export class GetMyAccountUseCase {
-  constructor(private readonly accountReader: AccountReader) {}
+  constructor(
+    private readonly accountReader: AccountReader,
+    private readonly catalogReader: CatalogReader,
+  ) {}
 
   async execute(input: GetMyAccountInput): Promise<MyAccountResult> {
     const [account, positions, fixedIncomePositions] = await Promise.all([
@@ -54,6 +63,8 @@ export class GetMyAccountUseCase {
       this.accountReader.listPositions(input.userId),
       this.accountReader.listFixedIncomePositions(input.userId),
     ])
+
+    const markPriceByAssetId = await this.loadMarkPrices(input.userId, positions)
 
     return {
       cashBalance: account.current_balance,
@@ -67,6 +78,7 @@ export class GetMyAccountUseCase {
         isSandbox: position.is_sandbox,
         quantity: position.quantity,
         averagePrice: position.average_price,
+        markPrice: markPriceByAssetId.get(position.asset_id),
       })),
       fixedIncomePositions: fixedIncomePositions.map((position) => ({
         assetId: position.asset_id,
@@ -79,5 +91,38 @@ export class GetMyAccountUseCase {
         averageRate: position.average_rate,
       })),
     }
+  }
+
+  // loadMarkPrices (tarefa S.6) resolve o preço de marcação a mercado só
+  // das posições de renda variável do Mercado Ao Vivo (sandbox nunca teve
+  // book real, RF12/RNF08 — fica sem `markPrice`). Um `GET .../book` por
+  // ativo distinto (não por posição — `positions` nunca repete `asset_id`
+  // duas vezes pro mesmo usuário) mais um `listAssets` pro fallback de
+  // último negócio; usuário sem posição de renda variável real não faz
+  // nenhuma chamada extra.
+  private async loadMarkPrices(
+    userId: string,
+    positions: PositionRecord[],
+  ): Promise<Map<string, number>> {
+    const liveAssetIds = [...new Set(positions.filter((p) => !p.is_sandbox).map((p) => p.asset_id))]
+    if (liveAssetIds.length === 0) {
+      return new Map()
+    }
+
+    const [assets, books] = await Promise.all([
+      this.catalogReader.listAssets(),
+      Promise.all(liveAssetIds.map((assetId) => this.catalogReader.getAssetBook(assetId, userId))),
+    ])
+    const lastTradeByAssetId = new Map(assets.map((asset) => [asset.id, asset.current_price]))
+
+    const result = new Map<string, number>()
+    liveAssetIds.forEach((assetId, index) => {
+      const lastTradePrice = lastTradeByAssetId.get(assetId)
+      if (lastTradePrice === undefined) {
+        return
+      }
+      result.set(assetId, markPrice(books[index].mid_price, lastTradePrice))
+    })
+    return result
   }
 }

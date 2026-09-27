@@ -22,6 +22,11 @@ export function createFakeCatalogReader(results: {
   quotes?: QuotePoint[]
   company?: CompanyDetail
   book?: AssetBook
+  // booksByAssetId (tarefa S.6) permite simular um book diferente por
+  // ativo — `GetMyAccountUseCase.loadMarkPrices` chama `getAssetBook` uma
+  // vez por ativo distinto da carteira. Tem precedência sobre `book`
+  // (usado pelos testes de um ativo só, ex: `getAssetBook.test.ts`).
+  booksByAssetId?: Record<string, AssetBook>
 }): FakeCatalogReader {
   const fake: FakeCatalogReader = {
     listAssetsCalls: [],
@@ -53,7 +58,7 @@ export function createFakeCatalogReader(results: {
     async getAssetBook(id, userId) {
       fake.getAssetBookCalls.push({ id, userId })
       if (fake.errorToThrow) throw fake.errorToThrow
-      return results.book as AssetBook
+      return (results.booksByAssetId?.[id] ?? results.book) as AssetBook
     },
   }
   return fake

@@ -12,6 +12,10 @@ export interface MyAccountPosition {
     isSandbox: boolean
     quantity: number
     averagePrice: number
+    // Preço de marcação a mercado (tarefa S.6) — ponto médio do book do
+    // ativo, com fallback pro último negócio quando falta um dos lados.
+    // Ausente pra posição sandbox (nunca teve book real).
+    markPrice?: number
 }
 
 export interface MyAccountFixedIncomePosition extends MyAccountPosition {

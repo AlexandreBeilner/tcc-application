@@ -138,7 +138,7 @@ function buildApp(
       getAssetQuotes: new GetAssetQuotesUseCase(catalogReader),
       getAssetBook: new GetAssetBookUseCase(catalogReader),
       getCompany: new GetCompanyUseCase(catalogReader),
-      getMyAccount: new GetMyAccountUseCase(accountReader),
+      getMyAccount: new GetMyAccountUseCase(accountReader, catalogReader),
       listMyEvents: new ListMyEventsUseCase(accountReader),
       placeOrder: new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader),
       cancelOrder: new CancelOrderUseCase(orderExecutor),

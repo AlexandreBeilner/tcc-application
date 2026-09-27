@@ -4240,13 +4240,35 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
   (`POST /auth/register` → `GET /market/assets/:id/book` com o token) confirmou 401 sem token, `book` correto pros dois casos e a
   injeção do `userId` do token.
 
-### S.6 · Marcação a ponto médio (carteira, patrimônio e ranking)
+### S.6 · Marcação a ponto médio (carteira, patrimônio e ranking) ✅
 - **Descrição:** patrimônio de posição de renda variável marcado ao ponto médio do book, com fallback para o último negócio quando
   falta um dos lados; aplicar em `GET /market/me/account`, no cálculo de patrimônio do ranking e no perfil. Gráfico e variação do
   dia seguem no último negócio.
 - **Critérios de aceite:** um negócio de 1 cota não altera o patrimônio marcado de outra carteira além do ponto médio; teste de
   não manipulação por wash trade; fecha a parte (b).
 - **Dependências:** S.5.
+- **Entregável:** sem mudança no motor — reaproveita `GET /assets/:id/book` (S.5, `mid_price`) e `GET /assets` (`current_price`,
+  fallback) já existentes. `markPrice(bookMidPrice, lastTradePrice) = bookMidPrice ?? lastTradePrice`, função pura duplicada (mesma
+  decisão de pequena duplicação entre módulos de `inProcessProfitabilityReader.ts`) em `modules/market/domain/markPrice.ts` e
+  `modules/ranking/domain/markPrice.ts`, cada uma com teste table-driven incluindo o caso de wash trade (mid presente ignora
+  qualquer último preço, por mais distante que esteja). `GetMyAccountUseCase` (`GET /market/me/account`) ganhou dependência de
+  `CatalogReader` e `loadMarkPrices`: só ativos distintos de renda variável **não sandbox** da carteira do usuário (sandbox nunca
+  teve book real, RF12/RNF08, fica sem o campo) — um `GET .../book` por ativo distinto mais um `GET /assets` pro fallback; usuário
+  sem posição real não faz nenhuma chamada extra. Cada `MyAccountPosition` ganhou `markPrice?: number` (`getMyAccount.ts`,
+  `services/market/types.ts`). `engineCurrentAccountStateReader.ts` (ranking "agora", usada também pelo perfil via
+  `GetNetWorthUseCase`/`inProcessProfitabilityReader`) trocou o `current_price` de `GET /assets` por essa mesma marcação por ativo
+  distinto da carteira — cobre "ranking" e "perfil" com uma única mudança, já que o perfil reaproveita o mesmo `NetWorthReader`.
+  Replay (`asOf` passado, baseline) continua no último preço histórico (`GET /assets/:id/quotes`) — o motor não guarda histórico de
+  book, só de última cotação; documentado em `.docs/backend/ranking.md`. Frontend: `MyAccountPosition`/`PositionLike` ganharam
+  `markPrice?`; `calculateAccountTotals` usa `markPrice ?? averagePrice` (só muda o resultado pra posição real de renda variável,
+  sandbox/renda fixa inalterados) — fecha o "fora de escopo" documentado antes na S.6.0.3 em `NetWorthCards` (comentário
+  reescrito). Fakes: `fakeCatalogReader.booksByAssetId` (book por ativo distinto, precedência sobre `book` único). Testes: 659
+  backend (13 novos: `markPrice` × 2 módulos com 3 casos cada, `getMyAccount` com 4 casos incluindo sandbox sem `markPrice` e
+  fallback, `engineCurrentAccountStateReader` com 5 casos incluindo wash trade explícito), 755 frontend (1 novo em `accountTotals`);
+  `npm run lint`/`build` (backend) e `tsc`/`oxlint` (frontend) verdes nos dois. Validado ao vivo via `docker compose up -d --build` (stack `tccsim`, seed do motor + lições): compra
+  real de VALR3 (book com os dois lados, mid 97,44) devolveu `markPrice: 97.44` em `GET /market/me/account` igual ao `mid_price` do
+  book (preço executado da ordem foi 98,41, nunca usado como marcação); `GET /ranking` do mesmo usuário bateu com o cálculo manual
+  usando 97,44; posição sandbox (SAND3) confirmada sem `markPrice`.
 
 ### S.7 · Frontend: bid/ask, custo estimado e preço executado no diálogo de ordem
 - **Descrição:** painel "Nova ordem" mostra melhor bid/ask e "custo estimado" contra o book; resultado informa preço médio
