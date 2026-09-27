@@ -4209,12 +4209,36 @@ pelo autor em 2026-09-26 (registro completo em `pontos-em-aberto-decisao-produto
   novo"). Docs em `.docs/backend/lessons.md`. E2E: `compose.e2e.yml` ganha `LESSON_MIN_STEP_INTERVAL_MS=300`, `lib.complete_lessons`
   espera 0,35 s por passo, `gating.py` afirma os dois `422`; trilha de 35 lições pelo fluxo normal em 38 s, pulo direto retorna `422`.
 
-### S.5 · Rota de book: melhor bid/ask e profundidade resumida
+### S.5 · Rota de book: melhor bid/ask e profundidade resumida ✅
 - **Descrição:** `GET /assets/{id}/book` no motor (melhor bid, melhor ask, ponto médio, profundidade agregada nos N primeiros níveis,
   sem expor ordens nem donos) e proxy `GET /market/assets/:id/book` no backend, com Zod, teste e docs (`.docs/engine/`,
   `.docs/backend/market.md`). Ativo sandbox devolve o preço do roteiro sem book.
 - **Critérios de aceite:** nunca vaza identidade nem tamanho de ordem individual; lado vazio devolvido como nulo; fecha a parte (a).
 - **Dependências:** nenhuma.
+- **Entregável:** motor: `orderbook.Level`/`orderbook.Snapshot`/`BuildSnapshot` (função pura nova, `internal/domain/orderbook/snapshot.go`) —
+  agrega bids/asks em níveis por preço, ordena por prioridade, recorta aos `depth` primeiros e calcula melhor bid/ask/ponto médio;
+  `BestBid`/`BestAsk`/`MidPrice` e `Bids`/`Asks` ficam `nil` (JSON `null`) quando o lado correspondente está vazio.
+  `orderexecution.BookResult`/`Repository.AssetBook`/`Service.AssetBook` (novos, `service.go`) — sem regra de domínio própria, só
+  repassam pro repositório. `db.OrderExecutionRepository.AssetBook`/`BookLevels` (`order_execution_repository.go`): ramo sandbox
+  reaproveita `sandboxPriceForUser` (extraído do ramo sandbox de `referencePrice` — mesma fórmula, dois consumidores agora) com
+  `userID` opcional (sem posição/usuário cai no dia 0 do roteiro, mesmo fallback já existente de quem nunca operou o ativo); ramo
+  Mercado Ao Vivo lê `BookLevels` (`SELECT side, price, SUM(quantity - filled_quantity) ... GROUP BY side, price`, mesmo filtro de
+  `loadRestingOrders` mas sem juntar `accounts`/`positions`) e agrega via `BuildSnapshot`. `httpserver.handleGetAssetBook`
+  (`book.go`, rota `GET /assets/{id}/book`, `defaultBookDepth = 5`) valida `user_id` opcional (UUID) e monta a resposta
+  `{ is_sandbox, price, best_bid, best_ask, mid_price, bids, asks }` — sandbox só preenche `price`, o resto vem `null`.
+  `orderSubmitter` ganhou `AssetBook` (mesmo `*orderexecution.Service` que já implementa `Cancel`/`ListOrders`). Testes:
+  `orderbook` (6 casos da função pura), `orderexecution.Service` (passthrough + propagação de erro), `httpserver` (Mercado Ao Vivo,
+  lado vazio devolve `null`, sandbox, 404/400/500/503). Backend: `CatalogReader.getAssetBook(id, userId)`
+  (`application/ports/catalogReader.ts`, tipo `AssetBook`), `engineCatalogReader.getAssetBook` (query `user_id`),
+  `GetAssetBookUseCase`, rota `GET /market/assets/:id/book` (`marketRouter.ts`) — sempre injeta o `userId` do token (mesmo padrão de
+  `GET /market/calendar`), nunca aceita um da requisição; sandbox resolve o dia do roteiro específico desse usuário. `go build`/
+  `go test ./...`/`golangci-lint run` (Docker, v2.12.2, 0 issues) e `tsc --noEmit`/`eslint`/`vitest run` (646 testes) verdes. Docs:
+  `.docs/engine/orders.md`, `.docs/backend/market.md`. Validado ao vivo via `docker compose up -d --build` (sem `down -v`, dados
+  reais já seedados): motor direto devolveu book real de VALR3 (2 níveis por lado, melhor bid/ask/ponto médio corretos) e preço do
+  roteiro de SAND3 (100 sem `user_id`/posição zerada, 103 com `user_id` de um usuário com posição real — `created_day` 818 contra
+  `current_day` 826); 404 (ativo inexistente) e 400 (`user_id` não-UUID) confirmados; ponta a ponta pelo gateway
+  (`POST /auth/register` → `GET /market/assets/:id/book` com o token) confirmou 401 sem token, `book` correto pros dois casos e a
+  injeção do `userId` do token.
 
 ### S.6 · Marcação a ponto médio (carteira, patrimônio e ranking)
 - **Descrição:** patrimônio de posição de renda variável marcado ao ponto médio do book, com fallback para o último negócio quando

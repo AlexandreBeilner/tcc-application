@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { requireUuidParam } from '../../../../shared/http/uuidParam'
 import { EngineRequestError, ProductLockedError } from '../../domain/errors'
+import type { GetAssetBookUseCase } from '../../application/useCases/getAssetBook'
 import type { GetAssetQuotesUseCase } from '../../application/useCases/getAssetQuotes'
 import type { GetAssetUseCase } from '../../application/useCases/getAsset'
 import type { GetCompanyUseCase } from '../../application/useCases/getCompany'
@@ -37,6 +38,7 @@ export interface MarketRouterDeps {
   listAssets: ListAssetsUseCase
   getAsset: GetAssetUseCase
   getAssetQuotes: GetAssetQuotesUseCase
+  getAssetBook: GetAssetBookUseCase
   getCompany: GetCompanyUseCase
   getMyAccount: GetMyAccountUseCase
   listMyEvents: ListMyEventsUseCase
@@ -128,6 +130,24 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     try {
       const company = await deps.getCompany.execute({ id: req.params.id as string })
       res.status(200).json({ company })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  // Melhor bid/ask e profundidade resumida do book (tarefa S.5) — o
+  // backend sempre injeta o userId do token (nunca um id vindo da
+  // requisição, mesmo padrão de GET /market/calendar): sandbox usa isso
+  // pra resolver o dia do roteiro específico do usuário.
+  router.get('/market/assets/:id/book', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    try {
+      const book = await deps.getAssetBook.execute({ id: req.params.id as string, userId: req.auth.userId })
+      res.status(200).json({ book })
     } catch (err) {
       sendEngineError(err, res)
     }

@@ -24,6 +24,9 @@ type orderSubmitter interface {
 	// ListOrders devolve todas as ordens de userID (tarefa O.3, GET
 	// /orders) — mesmo *orderexecution.Service acima, idem.
 	ListOrders(ctx context.Context, userID string) ([]orderexecution.OrderRecord, error)
+	// AssetBook devolve a leitura pública do book de assetID (tarefa S.5,
+	// GET /assets/{id}/book) — mesmo *orderexecution.Service acima, idem.
+	AssetBook(ctx context.Context, assetID, userID string, depth int) (orderexecution.BookResult, error)
 }
 
 // tradableAssetTypes são os únicos tipos de ativo que passam por matching

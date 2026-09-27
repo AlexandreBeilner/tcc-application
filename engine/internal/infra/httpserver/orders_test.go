@@ -27,6 +27,11 @@ type fakeOrderSubmitter struct {
 	listOrders    []orderexecution.OrderRecord
 	listOrdersErr error
 	listedUserID  string
+
+	bookResult              orderexecution.BookResult
+	bookErr                 error
+	bookAssetID, bookUserID string
+	bookDepth               int
 }
 
 func (f *fakeOrderSubmitter) SubmitByUser(_ context.Context, req orderexecution.Request) (orderexecution.Outcome, error) {
@@ -43,6 +48,11 @@ func (f *fakeOrderSubmitter) Cancel(_ context.Context, orderID, userID string) e
 func (f *fakeOrderSubmitter) ListOrders(_ context.Context, userID string) ([]orderexecution.OrderRecord, error) {
 	f.listedUserID = userID
 	return f.listOrders, f.listOrdersErr
+}
+
+func (f *fakeOrderSubmitter) AssetBook(_ context.Context, assetID, userID string, depth int) (orderexecution.BookResult, error) {
+	f.bookAssetID, f.bookUserID, f.bookDepth = assetID, userID, depth
+	return f.bookResult, f.bookErr
 }
 
 func postOrder(t *testing.T, reader catalogReader, orders orderSubmitter, body string) *httptest.ResponseRecorder {

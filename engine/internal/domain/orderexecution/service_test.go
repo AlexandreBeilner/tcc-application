@@ -23,6 +23,11 @@ type fakeRepository struct {
 	listOrders       []OrderRecord
 	listOrdersErr    error
 	listedUserID     string
+	assetBookResult  BookResult
+	assetBookErr     error
+	bookAssetID      string
+	bookUserID       string
+	bookDepth        int
 }
 
 func (f *fakeRepository) LoadContext(_ context.Context, _, _ string) (Context, error) {
@@ -45,6 +50,11 @@ func (f *fakeRepository) CancelOrder(_ context.Context, orderID, userID string) 
 func (f *fakeRepository) ListOrders(_ context.Context, userID string) ([]OrderRecord, error) {
 	f.listedUserID = userID
 	return f.listOrders, f.listOrdersErr
+}
+
+func (f *fakeRepository) AssetBook(_ context.Context, assetID, userID string, depth int) (BookResult, error) {
+	f.bookAssetID, f.bookUserID, f.bookDepth = assetID, userID, depth
+	return f.assetBookResult, f.assetBookErr
 }
 
 func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
@@ -214,6 +224,35 @@ func TestService_ListOrders_PropagaErroDoRepositorio(t *testing.T) {
 
 	if _, err := svc.ListOrders(context.Background(), "user-1"); err == nil {
 		t.Fatal("err = nil, want erro propagado de ListOrders")
+	}
+}
+
+// TestService_AssetBook_RepassaProRepositorio cobre a tarefa S.5: sem regra
+// de domínio própria, AssetBook só repassa assetID/userID/depth pro
+// repositório.
+func TestService_AssetBook_RepassaProRepositorio(t *testing.T) {
+	want := BookResult{Sandbox: true, SandboxPrice: 42}
+	repo := &fakeRepository{assetBookResult: want}
+	svc := NewService(repo)
+
+	got, err := svc.AssetBook(context.Background(), "asset-1", "user-1", 5)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if got.Sandbox != want.Sandbox || got.SandboxPrice != want.SandboxPrice {
+		t.Errorf("AssetBook = %+v, want %+v", got, want)
+	}
+	if repo.bookAssetID != "asset-1" || repo.bookUserID != "user-1" || repo.bookDepth != 5 {
+		t.Errorf("repo recebeu (%q, %q, %d), want (%q, %q, %d)", repo.bookAssetID, repo.bookUserID, repo.bookDepth, "asset-1", "user-1", 5)
+	}
+}
+
+func TestService_AssetBook_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{assetBookErr: errors.New("falha de leitura")}
+	svc := NewService(repo)
+
+	if _, err := svc.AssetBook(context.Background(), "asset-1", "user-1", 5); err == nil {
+		t.Fatal("err = nil, want erro propagado de AssetBook")
 	}
 }
 

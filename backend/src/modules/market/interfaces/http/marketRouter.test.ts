@@ -4,6 +4,7 @@ import request from 'supertest'
 import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { EngineRequestError } from '../../domain/errors'
+import { GetAssetBookUseCase } from '../../application/useCases/getAssetBook'
 import { GetAssetQuotesUseCase } from '../../application/useCases/getAssetQuotes'
 import { GetAssetUseCase } from '../../application/useCases/getAsset'
 import { GetCompanyUseCase } from '../../application/useCases/getCompany'
@@ -53,6 +54,15 @@ function buildApp(
       is_sandbox: false,
     },
     quotes: [{ simulated_day: 1, price: 100 }],
+    book: {
+      is_sandbox: false,
+      price: null,
+      best_bid: 10,
+      best_ask: 10.5,
+      mid_price: 10.25,
+      bids: [{ price: 10, quantity: 100 }],
+      asks: [{ price: 10.5, quantity: 50 }],
+    },
     company: {
       id: 'company-1',
       name: 'Petrobras',
@@ -126,6 +136,7 @@ function buildApp(
       listAssets: new ListAssetsUseCase(catalogReader),
       getAsset: new GetAssetUseCase(catalogReader),
       getAssetQuotes: new GetAssetQuotesUseCase(catalogReader),
+      getAssetBook: new GetAssetBookUseCase(catalogReader),
       getCompany: new GetCompanyUseCase(catalogReader),
       getMyAccount: new GetMyAccountUseCase(accountReader),
       listMyEvents: new ListMyEventsUseCase(accountReader),
@@ -248,6 +259,52 @@ describe('GET /market/assets/:id/quotes', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.quotes).toEqual([{ simulated_day: 1, price: 100 }])
+  })
+})
+
+describe('GET /market/assets/:id/book', () => {
+  it('retorna o book e injeta o userId do token no CatalogReader', async () => {
+    const { app, tokenIssuer, catalogReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/assets/a74dfc5a-12f3-45aa-a146-313f3605c497/book')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.book).toEqual({
+      is_sandbox: false,
+      price: null,
+      best_bid: 10,
+      best_ask: 10.5,
+      mid_price: 10.25,
+      bids: [{ price: 10, quantity: 100 }],
+      asks: [{ price: 10.5, quantity: 50 }],
+    })
+    expect(catalogReader.getAssetBookCalls).toEqual([
+      { id: 'a74dfc5a-12f3-45aa-a146-313f3605c497', userId: 'user-1' },
+    ])
+  })
+
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+
+    const res = await request(app).get('/market/assets/a74dfc5a-12f3-45aa-a146-313f3605c497/book')
+
+    expect(res.status).toBe(401)
+  })
+
+  it('traduz um EngineRequestError (404) do CatalogReader 1:1 pro cliente', async () => {
+    const { app, tokenIssuer, catalogReader } = buildApp()
+    catalogReader.errorToThrow = new EngineRequestError(404, 'ativo não encontrado')
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/assets/a74dfc5a-12f3-45aa-a146-313f3605c497/book')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'ativo não encontrado' })
   })
 })
 

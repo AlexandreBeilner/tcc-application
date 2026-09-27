@@ -82,6 +82,23 @@ Ativos de renda variável (`acao`/`etf`/`fii`) passam por esta rota — renda fi
 - **Erros:** `400` — `user_id` ausente ou não é UUID. `503` — motor subiu sem `DATABASE_URL` configurado.
 - **Regra:** `orderexecution.Service.ListOrders` → `OrderExecutionRepository.ListOrders` — sem regra de domínio própria, só uma leitura de `order_book` filtrada por `user_id`.
 
+### `GET /assets/{id}/book`
+
+*(Tarefa S.5, `backlog-motor-mercado-realista.md` — melhor bid/ask e profundidade resumida, insumo do diálogo de ordem, S.7, e da marcação a ponto médio, S.6.)*
+
+- **Autenticação:** interno — mesma convenção do resto do motor; o backend sempre injeta o `user_id` do token na query (mesmo padrão de `GET /market/calendar`), nunca aceita o de um usuário diferente do chamador.
+- **Path:** `id` — UUID do ativo.
+- **Query string:** `user_id` — string, UUID, opcional. Só usado quando o ativo é sandbox, pra resolver o dia do roteiro específico desse usuário (mesma regra de `sandboxDayIndex`, `.docs/engine/orders.md` acima); sem ele (ou pra ativo do Mercado Ao Vivo, que ignora) cai no dia 0 do roteiro — mesmo fallback de um usuário que nunca operou esse ativo.
+- **Sucesso:** `200` →
+  - Ativo do Mercado Ao Vivo: `{ is_sandbox: false, price: null, best_bid, best_ask, mid_price, bids: [{ price, quantity }], asks: [{ price, quantity }] }`. `best_bid`/`best_ask`/`mid_price` são `null` quando o lado correspondente do book está vazio (sem nenhuma oferta pendente); `mid_price` também é `null` quando só um dos dois lados tem oferta (não existe ponto médio de um lado só). `bids`/`asks` são `null` (não `[]`) quando o lado está vazio — nunca um array vazio. Cada nível de `bids`/`asks` é a soma agregada de `quantity - filled_quantity` de toda ordem `limit` `pending`/`partially_filled` naquele preço — **nunca** expõe id, dono nem tamanho de ordem individual; recortado aos 5 melhores preços de cada lado (`defaultBookDepth`, `internal/infra/httpserver/book.go`, sem critério de aceite fixando outro valor).
+  - Ativo sandbox: `{ is_sandbox: true, price, best_bid: null, best_ask: null, mid_price: null, bids: null, asks: null }` — sandbox nunca teve, nem vai ter, contraparte real (RF12/RNF08, `.docs/engine/orders.md` acima, seção "Sandbox"), então não existe book de verdade; `price` é o preço do roteiro (`sandbox.PriceScript`) no dia resolvido a partir da posição do usuário nesse ativo.
+- **Erros:**
+  - `400` — `user_id` (query) não é UUID.
+  - `404` — ativo não encontrado.
+  - `500` — falha inesperada de leitura, incluindo `ErrSandboxScriptNotFound` (ativo sandbox sem roteiro cadastrado pro ticker).
+  - `503` — motor subiu sem `DATABASE_URL` configurado.
+- **Regra:** `orderexecution.Service.AssetBook` → `OrderExecutionRepository.AssetBook`. Ramo sandbox reaproveita `sandboxPriceForUser` (extraído nesta tarefa do ramo sandbox de `referencePrice`, ver seção "Sandbox" acima — mesma fórmula, dois consumidores). Ramo Mercado Ao Vivo lê `BookLevels` (`SELECT side, price, SUM(quantity - filled_quantity) ... GROUP BY side, price`, mesmo filtro `type = 'limit' AND status IN ('pending', 'partially_filled')` de `loadRestingOrders`, mas sem juntar `accounts`/`positions` — não precisa de dono nenhum) e agrega em `orderbook.BuildSnapshot` (função pura, `internal/domain/orderbook/snapshot.go`): ordena bid do maior pro menor preço e ask do menor pro maior, soma quantidade repetida no mesmo preço, recorta na profundidade e calcula melhor bid/ask/ponto médio.
+
 ### Tabelas
 
 - `order_book` — ganhou `filled_quantity` (migration `000005`) pra sustentar o *replay*: `orderexecution.Execute` precisa da quantidade **restante** de cada ordem pendente, não da original. Ganhou `simulated_day` (migration `000017`, achado 005 parte A) — o dia simulado em que a ordem nasceu, insumo de `ExpireStaleOrders`. Ganhou `cancel_reason` (migration `000022`, tarefa O.3, enum `order_cancel_reason` — `user_cancelled`/`expired`/`no_liquidity`/`requoted`, nullable, só preenchido junto de `status = cancelled`).

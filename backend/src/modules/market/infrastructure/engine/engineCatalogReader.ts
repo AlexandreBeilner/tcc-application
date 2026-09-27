@@ -1,4 +1,5 @@
 import type {
+  AssetBook,
   AssetDetail,
   AssetSummary,
   CatalogReader,
@@ -25,6 +26,11 @@ export function createEngineCatalogReader(engineUrl: string): CatalogReader {
 
     getCompany(id) {
       return engineFetch<CompanyDetail>(`${engineUrl}/companies/${id}`)
+    },
+
+    getAssetBook(id, userId) {
+      const params = new URLSearchParams({ user_id: userId })
+      return engineFetch<AssetBook>(`${engineUrl}/assets/${id}/book?${params.toString()}`)
     },
   }
 }

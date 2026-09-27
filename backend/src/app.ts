@@ -126,6 +126,7 @@ import { createDiskAvatarStorage } from './modules/auth/infrastructure/storage/d
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
+import { GetAssetBookUseCase } from './modules/market/application/useCases/getAssetBook'
 import { GetAssetUseCase } from './modules/market/application/useCases/getAsset'
 import { CancelOrderUseCase } from './modules/market/application/useCases/cancelOrder'
 import { GetCompanyUseCase } from './modules/market/application/useCases/getCompany'
@@ -219,6 +220,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const listAssets = new ListAssetsUseCase(catalogReader)
   const getAsset = new GetAssetUseCase(catalogReader)
   const getAssetQuotes = new GetAssetQuotesUseCase(catalogReader)
+  const getAssetBook = new GetAssetBookUseCase(catalogReader)
   const getCompany = new GetCompanyUseCase(catalogReader)
   const getMyAccount = new GetMyAccountUseCase(accountReader)
   const listMyEvents = new ListMyEventsUseCase(accountReader)
@@ -484,6 +486,7 @@ export function createApp(deps: AppDeps = {}): Express {
       listAssets,
       getAsset,
       getAssetQuotes,
+      getAssetBook,
       getCompany,
       getMyAccount,
       listMyEvents,

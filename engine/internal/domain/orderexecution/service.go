@@ -61,6 +61,15 @@ type Repository interface {
 	// (O.1) não tinha nenhum caminho real pelo qual um cliente descobrisse
 	// qual id passar depois de um reload.
 	ListOrders(ctx context.Context, userID string) ([]OrderRecord, error)
+	// AssetBook devolve a leitura pública do book de assetID (tarefa S.5):
+	// melhor bid/ask, ponto médio e profundidade agregada nos `depth`
+	// primeiros níveis de cada lado — nunca id nem dono de ordem
+	// individual. Ativo sandbox devolve só o preço do roteiro em vez de
+	// book (doc de BookResult). userID é opcional (string vazia): só
+	// resolve o dia do roteiro sandbox específico desse usuário; sem ele
+	// cai no dia 0, mesmo fallback de quem nunca operou esse ativo
+	// (sandboxDayIndex).
+	AssetBook(ctx context.Context, assetID, userID string, depth int) (BookResult, error)
 }
 
 // Service orquestra a execução de uma ordem ponta a ponta (tarefa 3.12):
@@ -158,4 +167,12 @@ func (s *Service) Cancel(ctx context.Context, orderID, userID string) error {
 // domínio própria, repassa direto pro repositório.
 func (s *Service) ListOrders(ctx context.Context, userID string) ([]OrderRecord, error) {
 	return s.repo.ListOrders(ctx, userID)
+}
+
+// AssetBook devolve a leitura pública do book de assetID (tarefa S.5) —
+// sem regra de domínio própria (a agregação em níveis de preço já é pura,
+// orderbook.BuildSnapshot, chamada dentro do repositório), repassa direto
+// pro repositório.
+func (s *Service) AssetBook(ctx context.Context, assetID, userID string, depth int) (BookResult, error) {
+	return s.repo.AssetBook(ctx, assetID, userID, depth)
 }

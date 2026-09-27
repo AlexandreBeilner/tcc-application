@@ -39,6 +39,16 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Erros:** `400` — `days` inválido. `401`; `404` (traduzido do motor).
 - **Regra:** `GetAssetQuotesUseCase` → `CatalogReader.getAssetQuotes`.
 
+### `GET /market/assets/:id/book`
+
+*(Tarefa S.5, `backlog-motor-mercado-realista.md` — proxy de `GET /assets/:id/book` do motor, ver `.docs/engine/orders.md`. Insumo do diálogo de ordem, S.7, e da marcação a ponto médio, S.6.)*
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum — o backend sempre passa o `userId` do token pro motor (mesmo padrão de `GET /market/calendar`), nunca aceita um `user_id` da requisição.
+- **Sucesso:** `200` → `{ book: {...} }`, proxy 1:1 de `GET /assets/:id/book`: `{ is_sandbox, price, best_bid, best_ask, mid_price, bids, asks }`. Ativo do Mercado Ao Vivo: `price` é `null`, `best_bid`/`best_ask`/`mid_price` são `null` quando o lado correspondente do book está vazio (`mid_price` também fica `null` com só um lado disponível), `bids`/`asks` são `null` (não `[]`) no mesmo caso — cada nível (`{ price, quantity }`) é a soma agregada de ordens `limit` pendentes naquele preço, nunca id nem dono de ordem individual, recortado aos 5 melhores preços de cada lado. Ativo sandbox: só `price` vem preenchido (preço do roteiro, resolvido pelo `userId` do token), os 5 campos de book vêm todos `null` — sandbox nunca teve, nem vai ter, contraparte real.
+- **Erros:** `401`; `404` (traduzido do motor) — ativo não encontrado.
+- **Regra:** `GetAssetBookUseCase` → `CatalogReader.getAssetBook(id, userId)`.
+
 ### `GET /market/companies/:id`
 
 - **Autenticação:** Bearer token.
