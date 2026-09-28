@@ -76,6 +76,9 @@ export interface AdvanceLessonResult {
     // `unlockedAchievements` ainda sem consumidor (I.4/I.5).
     xpAwarded?: number
     leveledUp?: boolean
+    // Nível após este crédito (tarefa T.10) — consumido pelo reveal de
+    // level-up pra calcular o salário novo (`monthlySalaryForLevel`).
+    newLevel?: number
     streakMilestone?: number | null
     unlockedAchievements?: UnlockedAchievement[]
 }

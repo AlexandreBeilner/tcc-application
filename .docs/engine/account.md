@@ -10,7 +10,7 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 - **Autenticação:** interno — chamado pelo backend gamificado (`ENGINE_URL`), nunca exposto direto ao navegador via gateway.
 - **Payload (JSON):** `user_id` — string, UUID do usuário (banco `gamification`), obrigatório.
-- **Sucesso:** `201` → `{ user_id, current_balance, total_invested, total_dividends_received }`. `current_balance` sempre `10000.00` (RNF06).
+- **Sucesso:** `201` → `{ user_id, current_balance, total_invested, total_disinvested, total_dividends_received }`. `current_balance` sempre `10000.00` (RNF06).
 - **Erros:**
   - `400` — `user_id` ausente ou não é um UUID válido.
   - `409` — já existe conta para esse `user_id`.
@@ -20,11 +20,25 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 ---
 
+### `POST /accounts/{user_id}/salary`
+
+- **Autenticação:** interno, mesma observação de `POST /accounts`.
+- **Payload:** `user_id` no path. Corpo (JSON): `amount` — número, obrigatório, deve ser positivo; `reference_month` — string, obrigatório, formato `AAAA-MM` (achado 025).
+- **Sucesso:** `204`, sem corpo.
+- **Erros:**
+  - `400` — `amount` ausente, zero ou negativo; `reference_month` ausente ou fora do formato `AAAA-MM`; ou JSON inválido.
+  - `404` — nenhuma conta com esse `user_id` (diferente de `POST /accounts`, essa rota nunca cria conta).
+  - `503` — motor subiu sem `DATABASE_URL` configurado.
+  - `500` — falha inesperada de persistência.
+- **Regra:** `account.Service.CreditSalary` (tarefa T.2, Fase T — salário mensal simulado). Grava o evento imutável `salary_payment` em `market_events` (com `reference_month`, achado 025 — ver `.claude/pontos-em-aberto-decisao-produto.md`) e só então soma `amount` em `accounts.current_balance`, na mesma transação (Event Sourcing, CLAUDE.md) — mesma FK deferrable de `POST /accounts`. **Nunca** incrementa `total_invested`/`total_disinvested`/`total_dividends_received`: salário é caixa livre, nunca capital de risco (T.1), e por isso não entra no cálculo de rentabilidade (RF17). O motor só executa o crédito — decidir quando (5º dia útil do mês-calendário real), quanto pagar (fórmula por nível de gamificação) e a que mês cada crédito se refere é responsabilidade do backend (tarefas T.3/T.4/T.5). `reference_month` é o mês-calendário real a que o salário se refere — normalmente igual ao mês em que o crédito é processado, mas pode divergir num catch-up de vários meses atrasados de uma vez (T.5): todos os créditos desse catch-up caem no mesmo `simulated_day` (o dia em que o job rodou), então `reference_month` é o único jeito de distinguir "salário de junho" do "salário de agosto" quando os dois chegam juntos — ver `GET /market/calendar` (`.docs/engine/calendar.md`).
+
+---
+
 ### `GET /accounts/{user_id}`
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.
 - **Payload:** `user_id` no path — UUID do usuário.
-- **Sucesso:** `200` → `{ user_id, current_balance, total_invested, total_dividends_received }` — os 3 campos monetários de `accounts`, sempre o valor corrente (não um snapshot da criação).
+- **Sucesso:** `200` → `{ user_id, current_balance, total_invested, total_disinvested, total_dividends_received }` — os 4 campos monetários de `accounts`, sempre o valor corrente (não um snapshot da criação). `total_disinvested` (tarefa T.1) é o simétrico de `total_invested`: soma bruta de vendas de renda variável + resgates de renda fixa, nunca líquida de compra — nenhum dos dois é filtrado por `is_sandbox` (mesma convenção de `current_balance`, que também reflete efeito real de operação sandbox).
 - **Erros:**
   - `404` — nenhuma conta com esse `user_id`.
   - `503` — motor subiu sem `DATABASE_URL` configurado.

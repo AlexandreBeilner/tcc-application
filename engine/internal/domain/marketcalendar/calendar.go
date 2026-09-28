@@ -34,6 +34,7 @@ const (
 	KindFixedIncomePurchase Kind = "fixed_income_purchase"
 	KindFixedIncomeRedeem   Kind = "fixed_income_redemption"
 	KindFixedIncomeMaturity Kind = "fixed_income_maturity"
+	KindSalaryPayment       Kind = "salary_payment"
 )
 
 const (
@@ -49,6 +50,7 @@ const (
 	eventDividendPayment       = "dividend_payment"
 	eventFixedIncomePurchase   = "fixed_income_purchase"
 	eventFixedIncomeRedemption = "fixed_income_redemption"
+	eventSalaryPayment         = "salary_payment"
 )
 
 // Event é um fato de um dia. Só os campos do tipo dele vêm preenchidos.
@@ -65,6 +67,13 @@ type Event struct {
 	Side      string // ordem: buy ou sell
 	Quantity  *float64
 	UnitValue *float64 // preço da ordem, valor por cota do provento, valor por título
+
+	// ReferenceMonth ('YYYY-MM', achado 025) só existe em KindSalaryPayment —
+	// o mês-calendário real a que o salário se refere, que pode divergir do
+	// dia deste Event quando o pagamento foi um catch-up de meses atrasados
+	// (T.5): sem ele, vários salários de meses diferentes creditados no mesmo
+	// dia (mesmo simulated_day) ficam indistinguíveis pro usuário.
+	ReferenceMonth string
 
 	SelicRate         *float64 // Copom já realizado: a Selic resultante
 	PreviousSelicRate *float64 // Copom já realizado: a Selic anterior
@@ -103,6 +112,9 @@ type UserFact struct {
 	Quantity  *float64
 	UnitValue *float64
 	Maturity  bool
+	// ReferenceMonth (achado 025) só vem preenchido no fato salary_payment —
+	// ver Event.ReferenceMonth.
+	ReferenceMonth string
 }
 
 // GlobalFacts lê o que é igual pra todos.
@@ -219,14 +231,25 @@ func (s *Service) Calendar(ctx context.Context, userID string, fromDay, toDay in
 		add(dv.PaymentDay, Event{Kind: KindDividendPayDate, Scope: scopeGlobal, Ticker: dv.Ticker, UnitValue: &value})
 	}
 
-	if userID != "" && s.user != nil {
-		facts, err := s.user.UserFactsBetween(ctx, userID, fromDay, toDay)
-		if err != nil {
-			return nil, err
+	if userID != "" {
+		if s.user != nil {
+			facts, err := s.user.UserFactsBetween(ctx, userID, fromDay, toDay)
+			if err != nil {
+				return nil, err
+			}
+			for _, f := range facts {
+				if e, ok := userEvent(f); ok {
+					add(f.Day, e)
+				}
+			}
 		}
-		for _, f := range facts {
-			if e, ok := userEvent(f); ok {
-				add(f.Day, e)
+		// O dia de pagamento futuro é determinístico (5º dia útil do mês), mas o
+		// valor depende do nível no momento do pagamento (backend, T.3/T.5) — só
+		// anuncia o dia, sem UnitValue. O salário já pago vem do fato real acima
+		// (market_events), nunca duplicado aqui: essa sintética só entra no futuro.
+		for d := max(fromDay, today+1); d <= toDay; d++ {
+			if simcalendar.IsFifthBusinessDayOfMonth(d) {
+				add(d, Event{Kind: KindSalaryPayment, Scope: scopeUser, ReferenceMonth: simcalendar.MonthKeyOf(d)})
 			}
 		}
 	}
@@ -240,7 +263,7 @@ func (s *Service) Calendar(ctx context.Context, userID string, fromDay, toDay in
 // userEvent traduz um fato do usuário; tipos de evento que não são "coisa que o
 // usuário fez ou recebeu" (depósito inicial, movimentos de bot/ETF) ficam de fora.
 func userEvent(f UserFact) (Event, bool) {
-	e := Event{Scope: scopeUser, Ticker: f.Ticker, Quantity: f.Quantity, UnitValue: f.UnitValue}
+	e := Event{Scope: scopeUser, Ticker: f.Ticker, Quantity: f.Quantity, UnitValue: f.UnitValue, ReferenceMonth: f.ReferenceMonth}
 	if f.Maturity {
 		e.Kind = KindFixedIncomeMaturity
 		return e, true
@@ -256,6 +279,8 @@ func userEvent(f UserFact) (Event, bool) {
 		e.Kind = KindFixedIncomePurchase
 	case eventFixedIncomeRedemption:
 		e.Kind = KindFixedIncomeRedeem
+	case eventSalaryPayment:
+		e.Kind = KindSalaryPayment
 	default:
 		return Event{}, false
 	}

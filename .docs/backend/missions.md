@@ -26,13 +26,14 @@ Catálogo (3 missões da spec 6.1 + 2 do backlog engajamento H.2/H.3, seed em `n
 
 - **Autenticação:** Bearer token.
 - **Payload:** nenhum (conclusão é auto-reportada pelo cliente, exceto na verificação cruzada abaixo).
-- **Sucesso:** `200` → `{ status: 'completed' }`, mais `xpAwarded`, `leveledUp`, `streakMilestone`, `unlockedAchievements` **só na chamada que de fato credita xp** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer resposta idempotente, ver abaixo):
+- **Sucesso:** `200` → `{ status: 'completed' }`, mais `xpAwarded`, `leveledUp`, `newLevel`, `streakMilestone`, `unlockedAchievements` **só na chamada que de fato credita xp** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer resposta idempotente, ver abaixo):
   - `xpAwarded` — sempre `mission.xpReward` quando presente.
   - `leveledUp` — `true` se esse crédito cruzou o limiar do próximo nível.
+  - `newLevel` — nível após este crédito (tarefa T.10, Fase de mercado realista) — sempre presente junto com `leveledUp`, mesmo quando `false`; consumido pelo frontend pra calcular o salário mensal novo no reveal de level-up sem round-trip extra (`monthlySalaryForLevel`, fórmula duplicada no frontend, fonte real em `backend/src/modules/payroll/domain/salary.ts`).
   - `streakMilestone` — `7`, `30` ou `null`.
   - `unlockedAchievements` — `{ id, name, description }[]`, união das conquistas recém-desbloqueadas pelo crédito de xp e pelo toque de streak.
 
-  Idempotente — reenviar depois de já concluída no dia não credita xp/streak de novo, apenas confirma o status (resposta só com `{ status: 'completed' }`, sem os 4 campos acima). Idempotência garantida por transição atômica no banco (`markCompleted`, UPSERT com `ON CONFLICT ... DO UPDATE ... WHERE status = 'pending' RETURNING`), não só pela leitura prévia de `findProgress` — duas requisições concorrentes pra mesma missão/dia (rede duplicando a chamada, ou alguém automatizando chamadas deliberadas pro endpoint) só creditam xp uma vez: o Postgres serializa via lock de linha, e só quem de fato transiciona `pending → completed` credita (e só esse quem recebe os 4 campos de volta).
+  Idempotente — reenviar depois de já concluída no dia não credita xp/streak de novo, apenas confirma o status (resposta só com `{ status: 'completed' }`, sem os 5 campos acima). Idempotência garantida por transição atômica no banco (`markCompleted`, UPSERT com `ON CONFLICT ... DO UPDATE ... WHERE status = 'pending' RETURNING`), não só pela leitura prévia de `findProgress` — duas requisições concorrentes pra mesma missão/dia (rede duplicando a chamada, ou alguém automatizando chamadas deliberadas pro endpoint) só creditam xp uma vez: o Postgres serializa via lock de linha, e só quem de fato transiciona `pending → completed` credita (e só esse quem recebe os 5 campos de volta).
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
   - `404` — missão inexistente no catálogo.

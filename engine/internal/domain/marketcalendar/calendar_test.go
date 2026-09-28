@@ -196,6 +196,101 @@ func TestCalendar_FatosDoUsuario(t *testing.T) {
 	}
 }
 
+func TestCalendar_SalarioPagoVemDoFatoReal(t *testing.T) {
+	value := 1000.0
+	user := &fakeUser{facts: []UserFact{{Day: 9, EventType: "salary_payment", UnitValue: &value, ReferenceMonth: "2026-01"}}}
+	svc := NewService(fakeGlobal{day: 10}, user)
+
+	days, err := svc.Calendar(context.Background(), "u-1", 9, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := kinds(days[0]); len(got) != 1 || got[0] != KindSalaryPayment {
+		t.Fatalf("dia 9 = %+v", days[0].Events)
+	}
+	e := days[0].Events[0]
+	if e.Future || e.UnitValue == nil || *e.UnitValue != value || e.Scope != scopeUser {
+		t.Errorf("salário pago deve trazer o valor e não ser futuro: %+v", e)
+	}
+	if e.ReferenceMonth != "2026-01" {
+		t.Errorf("ReferenceMonth = %q, want \"2026-01\"", e.ReferenceMonth)
+	}
+}
+
+// TestCalendar_CatchUpDeVariosMesesTrazReferenceMonthDistinto cobre o achado
+// 025: quando o job de folha de pagamento (T.5) recupera vários meses
+// atrasados de uma vez, todos os eventos caem no mesmo simulated_day (o dia
+// em que o job rodou) — sem reference_month eles seriam indistinguíveis no
+// calendário. Aqui simula 3 meses (junho, julho, agosto) creditados juntos no
+// dia 217, e confere que cada Event carrega o mês certo.
+func TestCalendar_CatchUpDeVariosMesesTrazReferenceMonthDistinto(t *testing.T) {
+	value := 100.0
+	user := &fakeUser{facts: []UserFact{
+		{Day: 217, EventType: "salary_payment", UnitValue: &value, ReferenceMonth: "2026-06"},
+		{Day: 217, EventType: "salary_payment", UnitValue: &value, ReferenceMonth: "2026-07"},
+		{Day: 217, EventType: "salary_payment", UnitValue: &value, ReferenceMonth: "2026-08"},
+	}}
+	svc := NewService(fakeGlobal{day: 217}, user)
+
+	days, err := svc.Calendar(context.Background(), "u-1", 217, 217)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := days[0].Events
+	if len(events) != 3 {
+		t.Fatalf("events = %+v, want 3 salários", events)
+	}
+	got := map[string]bool{}
+	for _, e := range events {
+		if e.Kind != KindSalaryPayment {
+			t.Errorf("evento inesperado no catch-up: %+v", e)
+		}
+		got[e.ReferenceMonth] = true
+	}
+	for _, month := range []string{"2026-06", "2026-07", "2026-08"} {
+		if !got[month] {
+			t.Errorf("catch-up não trouxe ReferenceMonth = %q: events = %+v", month, events)
+		}
+	}
+}
+
+func TestCalendar_SalarioFuturoAnunciaDiaSemValor(t *testing.T) {
+	// dia 32 (6/fev/2026) é o 5º dia útil de fevereiro; today = dia 15 (20/jan/2026), no passado do salário.
+	svc := NewService(fakeGlobal{day: 15}, &fakeUser{})
+
+	days, err := svc.Calendar(context.Background(), "u-1", 30, 34)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byDay := map[int]DayEntry{}
+	for _, d := range days {
+		byDay[d.Day] = d
+	}
+	e := byDay[32].Events
+	if len(e) != 1 || e[0].Kind != KindSalaryPayment || !e[0].Future || e[0].UnitValue != nil || e[0].Scope != scopeUser {
+		t.Fatalf("dia 32 (5º dia útil futuro) = %+v", e)
+	}
+	if e[0].ReferenceMonth != "2026-02" {
+		t.Errorf("ReferenceMonth = %q, want \"2026-02\" (mês do dia 32)", e[0].ReferenceMonth)
+	}
+	if len(byDay[31].Events) != 0 || len(byDay[33].Events) != 0 {
+		t.Errorf("dias vizinhos não são o 5º dia útil: %+v / %+v", byDay[31].Events, byDay[33].Events)
+	}
+}
+
+func TestCalendar_SalarioFuturoNaoAparecemSemUsuario(t *testing.T) {
+	svc := NewService(fakeGlobal{day: 15}, nil)
+	days, err := svc.Calendar(context.Background(), "", 30, 34)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range days {
+		if len(d.Events) != 0 {
+			t.Fatalf("sem userID não deve anunciar salário futuro: dia %d = %+v", d.Day, d.Events)
+		}
+	}
+}
+
 func TestCalendar_SemUsuarioNaoLeFatosPessoais(t *testing.T) {
 	user := &fakeUser{facts: []UserFact{{Day: 9, EventType: "buy_order_executed", Ticker: "X"}}}
 	svc := NewService(fakeGlobal{day: 10}, user)

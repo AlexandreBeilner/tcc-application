@@ -269,7 +269,9 @@ func (r *FixedIncomeExecutionRepository) PersistPurchase(ctx context.Context, re
 
 // PersistRedeem grava o evento imutável, credita accounts (sem decrementar
 // total_invested — métrica cumulativa de capital já implantado, mesmo
-// precedente do lado de venda em order_execution_repository.go) e remove a
+// precedente do lado de venda em order_execution_repository.go — e
+// incrementando total_disinvested, tarefa T.1, simétrico ao que
+// applyFillSide já faz na venda de renda variável) e remove a
 // posição inteira (resgate sempre integral, nota 5 do doc de
 // fixedincomeexecution).
 func (r *FixedIncomeExecutionRepository) PersistRedeem(ctx context.Context, req fixedincomeexecution.RedeemRequest, outcome fixedincomeexecution.RedeemOutcome) error {
@@ -289,7 +291,7 @@ func (r *FixedIncomeExecutionRepository) PersistRedeem(ctx context.Context, req 
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE accounts SET current_balance = current_balance + $1, updated_at = now() WHERE user_id = $2`,
+		`UPDATE accounts SET current_balance = current_balance + $1, total_disinvested = total_disinvested + $1, updated_at = now() WHERE user_id = $2`,
 		outcome.TotalValue, req.UserID,
 	); err != nil {
 		return err

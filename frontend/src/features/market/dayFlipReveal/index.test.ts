@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MarketClock } from '../../../services/market'
-import { describeDayFlip } from '.'
+import { describeDayFlip, describeSalaryReveal } from '.'
 
 const open: MarketClock = {
     simulated_day: 135,
@@ -29,5 +29,21 @@ describe('describeDayFlip', () => {
             title: 'Novo dia: fim de semana',
             description: 'Mercado fechado até segunda. Hora de estudar.',
         })
+    })
+})
+
+describe('describeSalaryReveal', () => {
+    it('anuncia o valor recebido', () => {
+        const content = describeSalaryReveal(1000)
+        expect(content.title).toBe('Salário do mês')
+        expect(content.description).toMatch(/^R\$\s1\.000,00 caiu na sua conta$/)
+    })
+
+    // Achado 025: catch-up de vários meses atrasados nomeia o mês no título,
+    // pra distinguir os toasts da fila quando mais de um cai no mesmo dia.
+    it('com referenceMonth nomeia o mês no título', () => {
+        const content = describeSalaryReveal(100, '2026-06')
+        expect(content.title).toBe('Salário de junho de 2026')
+        expect(content.description).toMatch(/^R\$\s100,00 caiu na sua conta$/)
     })
 })

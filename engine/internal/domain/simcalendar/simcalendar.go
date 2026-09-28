@@ -56,6 +56,36 @@ func BusinessDaysBetween(fromDay, toDay int) int {
 	return count
 }
 
+// IsFifthBusinessDayOfMonth diz se o dia simulado cai no 5º dia útil do
+// mês-calendário real (não o bloco de 30 dias fixos usado noutras contagens,
+// ex. IPCA) que a data dele mapeia — única fonte dessa regra: o salário
+// mensal (tarefa T.4/T.5, backend) já evita duplicá-la lá, só conta o
+// `weekday` que o calendário devolve; aqui é usado pra o motor anunciar o
+// próximo pagamento no calendário (tarefa T.6).
+func IsFifthBusinessDayOfMonth(day int) bool {
+	if !IsBusinessDay(day) {
+		return false
+	}
+	date := DateOf(day)
+	firstOfMonth := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, time.UTC)
+	count := 0
+	for d := DayOf(firstOfMonth); d <= day; d++ {
+		if IsBusinessDay(d) {
+			count++
+		}
+	}
+	return count == 5
+}
+
+// MonthKeyOf devolve o mês-calendário real ('YYYY-MM') que o dia simulado
+// mapeia — mesma convenção de mês-calendário real usada pelo salário mensal
+// (achado 025, backlog Fase T): identifica a que mês um crédito de salário se
+// refere, distinto do dia em que ele de fato foi processado (que pode ser
+// mais tarde, num catch-up de vários meses atrasados de uma vez).
+func MonthKeyOf(day int) string {
+	return DateOf(day).Format("2006-01")
+}
+
 // MarketClosedError é a recusa de negociar com o mercado fechado (tarefa S.11,
 // decisão do autor de 2026-09-26): sábado e domingo simulados. Carrega quando
 // o mercado reabre, pra resposta HTTP e o frontend dizerem "abre em ...".

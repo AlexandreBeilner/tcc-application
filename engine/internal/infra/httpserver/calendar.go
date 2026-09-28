@@ -95,6 +95,10 @@ type calendarEventResponse struct {
 	UnitValue         *float64 `json:"unit_value,omitempty"`
 	SelicRate         *float64 `json:"selic_rate,omitempty"`
 	PreviousSelicRate *float64 `json:"previous_selic_rate,omitempty"`
+	// ReferenceMonth (achado 025) só vem em kind salary_payment — o
+	// mês-calendário real a que o salário se refere, distinto do dia deste
+	// evento quando o pagamento foi um catch-up de meses atrasados (T.5).
+	ReferenceMonth *string `json:"reference_month,omitempty"`
 }
 
 type calendarDayResponse struct {
@@ -184,6 +188,7 @@ func handleGetMarketCalendar(api *CalendarAPI) http.HandlerFunc {
 					Ticker: optionalString(e.Ticker), Side: optionalString(e.Side),
 					Quantity: e.Quantity, UnitValue: e.UnitValue,
 					SelicRate: e.SelicRate, PreviousSelicRate: e.PreviousSelicRate,
+					ReferenceMonth: optionalString(e.ReferenceMonth),
 				})
 			}
 			resp.Days = append(resp.Days, calendarDayResponse{

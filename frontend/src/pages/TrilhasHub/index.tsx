@@ -4,9 +4,11 @@ import { groupLessonsByTrack } from '../../features/lessons/trackGroups'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
+import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { TrackCard } from '../../components/organisms/TrackCard'
+import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
 import styles from './index.module.css'
 
 // Tela 3.1 redesenhada (backlog engajamento O.1, mockup vivo em
@@ -20,6 +22,7 @@ export function TrilhasHub() {
     const lessonsQuery = useLessonsQuery()
     const progressionQuery = useProgressionQuery()
     const streakQuery = useStreakQuery()
+    const daysUntilNextSalary = useNextSalaryPayment()
 
     const lessons = lessonsQuery.data?.lessons ?? []
     const groups = groupLessonsByTrack(lessons)
@@ -63,7 +66,13 @@ export function TrilhasHub() {
 
                 <aside className={styles.sidebar}>
                     {progressionQuery.data && streakQuery.data && (
-                        <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} nextUnlock={nextUnlock} />
+                        <>
+                            <ProgressionSummary progression={progressionQuery.data} streak={streakQuery.data} nextUnlock={nextUnlock} />
+                            <SalaryIndicator
+                                monthlySalary={progressionQuery.data.monthlySalary}
+                                daysUntilNextPayment={daysUntilNextSalary}
+                            />
+                        </>
                     )}
                     {lessons.length > 0 && <ResumeLessonCard lessons={lessons} />}
                 </aside>

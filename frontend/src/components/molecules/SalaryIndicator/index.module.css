@@ -1,0 +1,39 @@
+.container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+}
+
+.text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.value {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.detail {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}

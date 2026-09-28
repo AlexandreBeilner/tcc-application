@@ -62,6 +62,48 @@ func TestBusinessDaysBetween(t *testing.T) {
 	}
 }
 
+func TestIsFifthBusinessDayOfMonth(t *testing.T) {
+	tests := []struct {
+		name   string
+		date   time.Time
+		isFive bool
+	}{
+		{"mês começa segunda (jun/2026): 5º dia útil é o dia 5", time.Date(2026, time.June, 5, 0, 0, 0, 0, time.UTC), true},
+		{"mês começa segunda: dia 4 ainda não é o 5º", time.Date(2026, time.June, 4, 0, 0, 0, 0, time.UTC), false},
+		{"mês começa quinta (jan/2026): 5º dia útil é dia 7 (fim de semana no meio)", time.Date(2026, time.January, 7, 0, 0, 0, 0, time.UTC), true},
+		{"mês começa domingo (mar/2026): 5º dia útil é dia 6", time.Date(2026, time.March, 6, 0, 0, 0, 0, time.UTC), true},
+		{"mês começa sábado (ago/2026): 5º dia útil é dia 7", time.Date(2026, time.August, 7, 0, 0, 0, 0, time.UTC), true},
+		{"fim de semana nunca é o 5º dia útil", time.Date(2026, time.August, 8, 0, 0, 0, 0, time.UTC), false},
+		{"dia comum fora da contagem", time.Date(2026, time.June, 15, 0, 0, 0, 0, time.UTC), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsFifthBusinessDayOfMonth(DayOf(tt.date)); got != tt.isFive {
+				t.Errorf("IsFifthBusinessDayOfMonth(%s) = %v, quer %v", tt.date.Format("2006-01-02"), got, tt.isFive)
+			}
+		})
+	}
+}
+
+// TestMonthKeyOf cobre o achado 025: MonthKeyOf é a fonte do reference_month
+// gravado pelo salário (T.2), tanto no fato futuro sintético do calendário
+// quanto no valor que o backend manda no crédito de catch-up.
+func TestMonthKeyOf(t *testing.T) {
+	tests := []struct {
+		date time.Time
+		want string
+	}{
+		{time.Date(2026, time.January, 7, 0, 0, 0, 0, time.UTC), "2026-01"},
+		{time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC), "2026-12"},
+		{time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC), "2027-01"},
+	}
+	for _, tt := range tests {
+		if got := MonthKeyOf(DayOf(tt.date)); got != tt.want {
+			t.Errorf("MonthKeyOf(%s) = %q, want %q", tt.date.Format("2006-01-02"), got, tt.want)
+		}
+	}
+}
+
 func TestCheckMarketOpen(t *testing.T) {
 	tests := []struct {
 		name       string

@@ -4625,7 +4625,7 @@ diretamente na conversa, registradas abaixo.
    convenção só daquele cálculo, ver S.2). Igual à vida real.
 6. Precisa virar informação visual no Calendário (S.10-S.12) — pedido explícito do autor.
 
-### T.1 · Rentabilidade calculada só sobre capital de risco (pré-requisito antes do salário)
+### T.1 · Rentabilidade calculada só sobre capital de risco (pré-requisito antes do salário) ✅
 - **Descrição:** hoje `backend/src/modules/ranking/domain/profitability.ts` (`profitabilityPct(baseline, current)`) compara
   o patrimônio total (caixa + posições, `networth.ts` `replay().total`) contra a baseline fixa de R$10.000 — só funciona
   hoje porque a única fonte de caixa é o depósito inicial. Redefinir como retorno sobre capital de risco:
@@ -4649,8 +4649,33 @@ diretamente na conversa, registradas abaixo.
   `networth.ts` (`replay`) ganha os mesmos 3 acumuladores; `profitability.ts` reescrito (nome novo, ex.
   `investmentReturnPct`); todos os consumidores de `profitabilityPct` atualizados (`getRanking.ts`, perfil público);
   `.docs/engine/orders.md`/`fixedincome.md`, `.docs/backend/ranking.md`.
+- **Entregável real (sessão 2026-09-27):** decisão de sessão fechada com o autor antes de implementar — a fórmula do
+  motor é cumulativa desde a criação da conta por natureza (`investedCost`/`disinvestedProceeds`/`dividendsReceived`
+  nunca resetam), mas o ranking (RF17) precisa de janela fixa pra não dar vantagem permanente a quem entrou primeiro.
+  Resolvido com `investmentReturnPct(current, baseline?)` (`domain/profitability.ts`): ganho
+  `riskCapitalGain(s) = s.currentInvestedValue + s.disinvestedProceeds + s.dividendsReceived - s.investedCost`,
+  retorno = `(riskCapitalGain(current) - riskCapitalGain(baseline)) / current.investedCost × 100`, `baseline` default
+  zero (dá o retorno "desde sempre", exatamente os testes table-driven pedidos) — chamado com `baseline` real
+  (`toRiskCapitalSnapshot(baseline)`), dá o retorno da janela: o custo de uma posição comprada antes da janela se
+  cancela na subtração dos dois ganhos, só o movimento real dentro da janela sobra (venda com lucro sem reinvestir
+  conta; nenhuma atividade na janela dá 0% mesmo com histórico grande). Guard em `current.investedCost === 0` (nunca
+  `baseline`) — quem só investiu dentro da janela (baseline zerado) não é penalizado. `RiskCapitalSnapshot`/
+  `toRiskCapitalSnapshot` mapeiam de `Snapshot` (`currentInvestedValue = variableIncomeValue + fixedIncomeValue`).
+  `investedCost`/`disinvestedProceeds`/`dividendsReceived` (motor E replay) **não filtram sandbox** — mesma convenção
+  de `cash` (não de `variableIncomeValue`), pra bater com os acumuladores crus do motor
+  (`accounts.total_invested`/`total_disinvested`/`total_dividends_received`, que também não filtram) — decisão
+  documentada em `networth.ts`/`.docs/backend/ranking.md`, mesmo precedente do comentário de sandbox já existente lá.
+  Critérios `fixedIncome`/`variableIncome` do ranking inalterados (não usam caixa, `profitabilityPct` original
+  preservada só pra eles). Migration `000035` sem sandbox-awareness no motor (incrementa
+  `total_invested`/`total_disinvested` incondicionalmente, simétrico ao que já existia). Validado ao vivo via
+  `docker compose up -d --build` em volumes novos (seed do catálogo mínimo rodado manualmente,
+  `DATABASE_URL=... go run ./cmd/seed`): compra+venda sandbox (SAND3, sem variação de preço) deu 0% correto; compra
+  real de VALR3 a mercado (preço subiu no book entre compra e venda) mostrou `-0,45%` enquanto ainda posicionado e
+  `-0,90%` depois de vender com perda, batendo exatamente com o cálculo manual — confirma "venda com prejuízo sem
+  reinvestir continua contando" ao vivo, não só em teste. `go test ./...`/`golangci-lint run` (Docker v2.5.0, 0
+  issues) e `tsc -b`/`eslint`/`vitest` (675 testes) verdes.
 
-### T.2 · Evento de salário no motor e endpoint de crédito
+### T.2 · Evento de salário no motor e endpoint de crédito ✅
 - **Descrição:** novo tipo de evento `salary_payment` no enum Postgres `market_event_type` (`ALTER TYPE ... ADD VALUE`,
   migration `000036`) + constante `EventSalaryPayment` em `eventstore.go`, travada no teste que confere o enum do banco
   (mesmo padrão de `bot_initial_cash`). Novo endpoint `POST /accounts/{user_id}/salary` (`{ amount }`, `amount > 0`) que
@@ -4662,8 +4687,29 @@ diretamente na conversa, registradas abaixo.
   (`400`); não altera `total_invested`/`total_disinvested`; teste de domínio, de repositório (Postgres real) e de
   `httpserver`.
 - **Dependências:** nenhuma (pode rodar em paralelo a T.1).
+- **Entregável real (sessão 2026-09-27):** `domain.EventSalaryPayment` (`eventstore.go`) + caso do teste de enum
+  (`eventstore_test.go`); migration `000036_salary_payment_event` (up/down, mesmo padrão do down de
+  `000014_bot_initial_cash_event` — recria o enum sem o valor novo, falha de propósito se algum salário já foi pago).
+  `account.Repository` ganhou `CreditSalary(ctx, userID, amount) error` ao lado de `Create`; `account.Service.CreditSalary`
+  valida `amount > 0` (`ErrInvalidSalaryAmount`) antes de delegar — validação no domínio, não no handler HTTP.
+  `AccountRepository.CreditSalary` (infra) grava o evento e faz `UPDATE accounts SET current_balance = current_balance + $1`
+  na mesma transação; `UPDATE` com 0 linhas afetadas (conta inexistente) devolve `account.ErrNotFound` e desfaz a
+  transação inteira via `defer tx.Rollback()` — a FK deferrable de `market_events.user_id` nunca chega a ser checada
+  nesse caminho, então o evento gravado antes também some. Endpoint `POST /accounts/{user_id}/salary` novo em
+  `httpserver/account.go`, 204 sem corpo no sucesso (mesmo padrão de `handleCancelOrder`). `accountOpener`
+  (`New`/`Run` em `server.go`) virou `accountWriter` (`accountOpener` + `accountSalaryCrediter` embutidas) — mesma
+  convenção de `userMarketDataReader` já agregar leituras pequenas pro mesmo `*db.AccountRepository`, aqui do lado da
+  escrita; nenhum parâmetro novo em `New`/`Run` (só o tipo do parâmetro `accounts` mudou), então só um teste
+  (`account_test.go`, tipo do parâmetro dos helpers `postAccount`/`getUserMarketData`) precisou de ajuste mecânico.
+  Teste de domínio (`account_test.go`: `TestService_CreditSalary`/`_RejeitaAmountNaoPositivo`/
+  `_PropagaErroDoRepositorio`), de repositório contra Postgres real em banco descartável
+  (`account_repository_integration_test.go`: `TestCreditSalary_CreditaSaldoEGravaEvento`/`_ContaNaoEncontrada`, rodados
+  de fato via `TEST_DATABASE_URL` com `docker compose up -d postgres`, não só compilados) e de `httpserver`
+  (`account_test.go`: sucesso, `amount` inválido/JSON quebrado, conta não encontrada, erro interno, sem colaborador).
+  `go build`/`go vet`/`go test ./...` e `golangci-lint run` (Docker v2.5.0, 0 issues) verdes. `.docs/engine/account.md`
+  documentado.
 
-### T.3 · Fórmula de salário por nível (função pura no backend)
+### T.3 · Fórmula de salário por nível (função pura no backend) ✅
 - **Descrição:** `monthlySalaryForLevel(level: number): number`, novo módulo `backend/src/modules/payroll/domain/` (módulo
   próprio — cruza `gamification`, dono do nível, com `market`, que credita caixa; não pertence a nenhum dos dois). Fórmula
   em degraus confirmada com o autor: tier `k = Math.ceil(level / 10)`,
@@ -4671,8 +4717,12 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** teste table-driven cobrindo nível 1 (R$100), 10 (R$1.000), 11, 20 (R$3.000), 21, 30 (R$6.000) e
   um nível alto (ex. 100); função pura, sem I/O.
 - **Dependências:** nenhuma.
+- **Entregável real (sessão 2026-09-27):** `backend/src/modules/payroll/domain/salary.ts` — só a pasta `domain/` por
+  enquanto (função pura, sem I/O; `application/infrastructure/interfaces` chegam na T.5 quando o job de folha de
+  pagamento precisar delas). Teste table-driven (`salary.test.ts`) cobrindo os 7 níveis de referência do critério de
+  aceite (1, 10, 11, 20, 21, 30, 100). `npx vitest run`/`npm run lint`/`npx tsc -b` verdes (682 testes, 0 erros).
 
-### T.4 · Detecção do 5º dia útil do mês-calendário real
+### T.4 · Detecção do 5º dia útil do mês-calendário real ✅
 - **Descrição:** função pura que recebe os dias do mês corrente (reaproveitando
   `GET /market/calendar?from=<1º dia do mês>&to=<hoje>`, que já devolve `weekday` por dia — S.10) e determina se o dia
   simulado de hoje é o 5º dia útil desse mês-calendário real (mês/ano da data mapeada pelo dia simulado, nunca o bloco de
@@ -4681,8 +4731,17 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** teste table-driven com meses que abrem em dia de semana diferente (deslocando o 5º dia útil,
   ex. mês que começa numa sexta/sábado/domingo); nunca conta sábado/domingo.
 - **Dependências:** nenhuma.
+- **Entregável real (sessão 2026-09-27):** `isFifthBusinessDayOfMonth(days: CalendarDaySummary[])`,
+  `backend/src/modules/payroll/domain/businessDay.ts` — `CalendarDaySummary { date, weekday }` é um tipo local mínimo
+  (não importa `CalendarDay` de `market/application/ports`, mesma convenção de domínio-não-importa-domínio-de-outro-módulo
+  já seguida pelo resto do backend); `days` é a sequência do 1º dia do mês até hoje, na mesma ordem que
+  `GET /market/calendar` devolve — a função só filtra `weekday` fora de `{sat, sun}` e confere se são exatamente 5 até
+  o último elemento (hoje). Teste table-driven (`businessDay.test.ts`) cobrindo mês começando em segunda (sem fim de
+  semana no meio, 5º dia útil = dia 5), sexta e sábado (5º dia útil = dia 7, fim de semana no meio), domingo (5º dia
+  útil = dia 6), "hoje" caindo num fim de semana (nunca é o 5º dia útil) e lista vazia. `npx vitest run` (688
+  testes)/`npm run lint`/`npx tsc -b` verdes.
 
-### T.5 · Job de folha de pagamento com catch-up e idempotência
+### T.5 · Job de folha de pagamento com catch-up e idempotência ✅
 - **Descrição:** novo caso de uso em `payroll` (T.3) que, por conta: lê o nível (`gamification`), verifica se hoje é o 5º
   dia útil do mês (T.4) e se esse mês-calendário já foi pago (nova coluna/tabela, ex.
   `user_progression.last_salary_paid_month` ou tabela própria `salary_payments`), calcula o valor (T.3) e credita via o
@@ -4693,8 +4752,45 @@ diretamente na conversa, registradas abaixo.
   pagamento ainda paga esse mês (uma vez, não retroativo pra sempre); teste do caso de uso com fakes (relógio do motor,
   leitor de nível, port de crédito) cobrindo pago/já pago/fora do dia/catch-up.
 - **Dependências:** T.2, T.3, T.4.
+- **Entregável real (sessão 2026-09-27):** domínio novo puro — `payroll/domain/payrollDecision.ts` (`monthsToPay`,
+  decide quais meses-calendário `'YYYY-MM'` estão devidos: todo mês estritamente anterior ao corrente é presumido
+  vencido, sem reconsultar calendário; o corrente só entra se `businessDaysElapsed >= 5`; teto aplicado descartando os
+  mais antigos) + `payroll/domain/monthKey.ts` (`monthKeyOf`/`addMonths`/`monthsBetween`, aritmética de índice de mês,
+  sem `Date` do JS) + `businessDay.ts` ganhou `businessDaysElapsed` (T.4 generalizada: "quantos dias úteis já passaram",
+  não só "hoje é exatamente o 5º"). Decisão de sessão importante: **`lastPaidMonthKey === null` nunca paga retroativo
+  além do mês corrente** — sem isso, a primeira execução depois do módulo existir pagaria "desde a criação da conta"
+  pra todo usuário existente (validado ao vivo: só pagou o mês corrente, não os ~9 meses anteriores).
+  Aplicação: `CreditMonthlyPayrollForUserUseCase` (por usuário — lê `lastPaidMonth`, decide, credita 1x por mês devido,
+  grava `lastPaidMonth` **depois de cada crédito** dentro do laço, não só no fim, pra um catch-up de vários meses
+  resumir do ponto certo se o processo cair no meio) e `RunPayrollCheckUseCase` (lê o progresso do mês corrente **uma
+  única vez por ciclo** — dado global, não por usuário — e itera todo usuário via `UserDirectory`; falha isolada num
+  usuário é logada e não impede os demais, mesmo espírito do Temporizador do motor). Portas próprias do módulo
+  (`LevelReader`, `PayrollCalendarReader`, `PayrollStateRepository`, `SalaryCrediter`, `UserDirectory`) — nenhuma
+  importa tipo de outro módulo, mesma convenção de `ranking`/`achievements` (domínio de um módulo nunca depende de
+  domínio/porta de outro). Infra: `engineSalaryCrediter` (`POST /accounts/{user_id}/salary`, mesmo padrão de
+  `engineAccountProvisioner`), `inProcessLevelReader`/`inProcessPayrollCalendarReader` (compõem
+  `GetProgressionUseCase`/`GetMarketClockUseCase`/`GetMarketCalendarUseCase` já existentes, mesmo padrão de
+  `inProcessProgressSnapshotReader` do `achievements`) — `inProcessPayrollCalendarReader` chama
+  `getMarketCalendar.execute({ userId: '' })` de propósito: o motor trata `user_id` vazio/ausente como "sem filtro de
+  usuário" (`handleGetMarketCalendar`), e o job só precisa do `weekday` global, nunca de fato de um usuário
+  específico — evita N chamadas HTTP ao motor por ciclo (1 leitura de calendário serve todo usuário do mesmo ciclo).
+  `drizzlePayrollStateRepository`/`drizzleUserDirectory` (tabela nova `payroll_state`, migration `0017`, gerada via
+  `drizzle-kit generate` sem TTY — mudança só aditiva, sem ambiguidade de rename). Scheduler
+  (`payroll/infrastructure/scheduler/payrollScheduler.ts`, mesmo espírito de `scheduler.Run` do motor S.3: roda uma
+  vez já na subida, depois a cada intervalo, falha isolada só loga) ligado em `server.ts` (não em `app.ts` — processo
+  de fundo, não rota HTTP; `payroll/composition.ts` isola a montagem pra não replumbar `createApp`), configurável via
+  `PAYROLL_CHECK_INTERVAL_MS` (default 1h) e `PAYROLL_MAX_CATCHUP_MONTHS` (default 3). Sem rota HTTP nova (sem entrada
+  em `.docs/`, por escopo — T.5 é só o job; T.8/T.9 expõem o valor por HTTP depois). Testes com fakes cobrindo
+  literalmente os 4 cenários do critério de aceite (pago/já pago/fora do dia/catch-up, incluindo teto e virada de
+  ano) + `RunPayrollCheckUseCase` (ciclo único de calendário, falha isolada não trava os demais) + adapter de motor
+  (`engineSalaryCrediter`, fetch mockado, mesmo padrão de `engineAccountProvisioner.test.ts`). `npx vitest run` (717
+  testes)/`npm run lint`/`npx tsc -b` verdes. Validado ao vivo via `docker compose up -d --build` (sem reset de
+  volume): migration `0017` aplicou limpo; subida do backend já correu o primeiro ciclo e creditou os 2 usuários
+  reais existentes (R$100, nível 1) exatamente 1 mês cada — confirma que `lastPaidMonthKey === null` não pagou
+  retroativo; `docker compose restart backend` (simulando reinício) rodou o ciclo de novo sem gerar nenhum evento
+  novo nem mudar `payroll_state.updated_at` — idempotência confirmada fora dos fakes, não só em teste.
 
-### T.6 · Salário no calendário do usuário
+### T.6 · Salário no calendário do usuário ✅
 - **Descrição:** o evento `salary_payment` (T.2) precisa aparecer em `GET /market/calendar` como fato do usuário (novo
   `kind: salary_payment` em `marketcalendar.UserFacts`, ao lado de `dividend_received` etc. — S.10). Diferente de
   dividendo/vencimento (determinísticos), o valor de um pagamento futuro depende do nível no momento do pagamento, que
@@ -4703,8 +4799,29 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** salário pago aparece na linha do tempo do usuário no dia certo, nunca pra outro usuário; item
   futuro nunca mostra valor.
 - **Dependências:** T.2, T.5.
+- **Entregável real (sessão 2026-09-27):** `KindSalaryPayment` novo em `marketcalendar.calendar.go`, dois caminhos
+  distintos, nunca duplicados no mesmo dia: (1) **passado** — `eventSalaryPayment = "salary_payment"` novo `case` em
+  `userEvent()`, lido do fato real gravado pelo endpoint da T.2; a query `UserFactsBetween`
+  (`calendar_repository.go`) trocou `JOIN assets` por `LEFT JOIN assets` (+ `a.is_sandbox = false OR a.id IS NULL`)
+  porque `salary_payment` grava `asset_id NULL` (achado durante a implementação — o `INNER JOIN` descartava a linha
+  silenciosamente) e passou a incluir `'salary_payment'` no `IN (...)`; `ticker` virou `sql.NullString` (fica vazio
+  pra salário, sem asset). (2) **futuro** — nova função pura `simcalendar.IsFifthBusinessDayOfMonth(day)` (conta dias
+  úteis do dia 1 do mês-calendário real da data até `day`, mesma convenção do `payroll/domain/businessDay.ts` do
+  backend, sem duplicar a lógica lá — lá só conta `weekday`, aqui é a fonte); `Calendar()` sintetiza
+  `Event{Kind: KindSalaryPayment, Scope: scopeUser}` (sem `UnitValue`) pra todo dia estritamente futuro
+  (`day > today`) que bate nessa função, só quando `userID != ""` — nunca colide com o fato real porque só entra no
+  futuro (o passado já pago vem exclusivamente do fato real, mesmo que o dia real do crédito não seja exatamente o 5º
+  dia útil por causa de catch-up do backend). Testes novos: `simcalendar_test.go`
+  (`TestIsFifthBusinessDayOfMonth`, 4 meses começando em dias da semana diferentes) e `calendar_test.go`
+  (`TestCalendar_SalarioPagoVemDoFatoReal`, `TestCalendar_SalarioFuturoAnunciaDiaSemValor`,
+  `TestCalendar_SalarioFuturoNaoAparecemSemUsuario`). `go build`/`go vet`/`go test ./...` e `golangci-lint run`
+  (Docker v2.5.0, 0 issues) verdes. `.docs/engine/calendar.md` documentado (novo `kind` na lista de `scope: "user"` +
+  frase na regra do futuro). Validado ao vivo via `docker compose up -d --build` (sem reset de volume): consulta de
+  `GET /market/calendar` numa janela futura mostrou `salary_payment`/`future: true` sem `unit_value` exatamente em
+  2026-02-06 (5º dia útil de fevereiro, dias vizinhos sem evento); `POST /accounts/{user_id}/salary` seguido da
+  mesma consulta na data do crédito mostrou `future: false` com `unit_value` correto.
 
-### T.7 · Frontend: marcador de salário no calendário e teatro de recompensa
+### T.7 · Frontend: marcador de salário no calendário e teatro de recompensa ✅
 - **Descrição:** `CalendarEventItem`/`CalendarKindIcon` ganham o `kind: salary_payment` (ícone e rótulo próprios:
   "Salário: R$ X" no passado, "Dia de pagamento" sem valor no futuro); ao detectar salário recebido na virada de dia,
   reaproveitar `dayFlipReveal`/`RewardRevealProvider` (S.12) com um toast dedicado ("Salário do mês: R$ X caiu na sua
@@ -4712,15 +4829,62 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** marcador visível na faixa de dias e no painel de detalhe; toast só dispara pro próprio
   usuário; responsivo nos três breakpoints; sem em dash em texto de UI.
 - **Dependências:** T.6.
+- **Entregável real (sessão 2026-09-27):** `services/market/types.ts` (`CalendarEventKind` +`'salary_payment'`),
+  `CalendarKindIcon` (ícone `HandCoins`), `calendarEvents/index.ts` (`KIND_LABEL.salary_payment = 'Salário'` +
+  `case 'salary_payment'` em `describeCalendarEvent`, ramificando em `event.future` como `describeCopom` já fazia —
+  passado usa `money(event.unit_value)`, futuro nunca lê `unit_value`, nenhum dos dois usa `ticker`, que vem vazio
+  pro salário). `MarketCalendarPanel` ganhou a entrada na `LEGEND` (marcador visível também na legenda do painel, não
+  só na faixa de dias/`CalendarEventItem`, que já funcionavam de graça assim que o ícone/label existissem — nenhuma
+  mudança de lógica neles). Teatro de recompensa: nova função pura `describeSalaryReveal(amount)`
+  (`features/market/dayFlipReveal/index.ts`, ao lado de `describeDayFlip`, mesmo padrão "texto separado do hook").
+  `useDayFlipReveal` (`features/market/useDayFlipReveal/index.tsx`) ganhou uma segunda chamada assíncrona dentro do
+  mesmo `useEffect` de virada de dia — depois de disparar o toast de "Novo dia" (já existente), busca
+  `getMarketCalendar(token, clock.date, clock.date)` (o backend sempre injeta o usuário do token, RNF09), procura um
+  evento `salary_payment`/`scope: user`/`future: false` nesse dia e, se achar, chama `show()` de novo com o toast
+  dedicado — a fila do `RewardRevealProvider` (já existente, S.12/I.1) resolve a concorrência sozinha (o toast de
+  virada de dia sempre aparece primeiro, o de salário só depois de fechado, nunca sobrepostos). Nenhuma rota nova, só
+  consumo do que T.6 já expõe — sem entrada em `.docs/` (frontend não documenta contrato próprio ali).
+  `getMarketCalendar` mockado nos testes de `MarketClockChip` (que exercitam `useDayFlipReveal` de ponta a ponta),
+  cobrindo o cenário de salário pago no dia da virada (toast dedicado aparece só depois de fechar o de "Novo dia",
+  clicando "Fechar aviso"). Testes novos: `describeCalendarEvent` (passado com valor via regex por causa do espaço
+  não separável do `Intl.NumberFormat('pt-BR')`, futuro sem `R$` no texto), `describeSalaryReveal`,
+  `MarketClockChip` (toast dedicado). `npx vitest run` (802 testes)/`npx tsc -b`/`npm run lint` (oxlint, só warnings
+  pré-existentes de outros arquivos) e `npx prettier --check` verdes. **Sem `docker compose up`** desta vez: outra
+  sessão já tinha a stack rodando com os mesmos nomes fixos de container (`tcc-postgres`/`tcc-redis`/`tcc-engine`,
+  `container_name` fixo no `docker-compose.yml`) — não derrubada, pra não interferir em trabalho alheio; T.6 (mesma
+  sessão anterior) já validou ao vivo o `GET /market/calendar` que esta tarefa só consome, então o contrato de dados
+  já está confirmado, só a renderização/toast ficaram sem checagem visual real neste momento.
 
-### T.8 · Salário exposto na resposta de progressão (fonte única do valor)
+### T.8 · Salário exposto na resposta de progressão (fonte única do valor) ✅
 - **Descrição:** `GET /gamification/progression` (`progressionRouter.ts`) passa a incluir `monthlySalary` no payload,
   calculado via `monthlySalaryForLevel` (T.3) — única fonte do valor pro frontend, a fórmula em degraus nunca é
   duplicada lá. `useProgressionQuery` ganha o campo no tipo de retorno.
 - **Critérios de aceite:** valor bate com T.3 pro nível atual do usuário; teste de router/serviço.
 - **Dependências:** T.3.
+- **Entregável real (sessão 2026-09-27):** `monthlySalary` composto **na borda HTTP** (`progressionRouter.ts`), não
+  na entidade `Progression`/`GetProgressionUseCase` — decisão de sessão: `GetProgressionUseCase` é consumido por
+  vários outros módulos (`profile`, `achievements`, `ranking`, `auth`, `payroll`), então o campo derivado do salário
+  não deveria vazar pra dentro do caso de uso persistido, só pro payload das duas rotas (`/me/progression` e
+  `/users/:id/progression`, ambas ganham o campo — é função pura do nível, já público, RNF09 intocado). Nova port
+  `gamification/application/ports/monthlySalaryReader.ts` (`{ getMonthlySalaryForLevel(level): number }`, síncrona —
+  fórmula pura, sem I/O) + adapter `gamification/infrastructure/payroll/inProcessMonthlySalaryReader.ts` sobre
+  `monthlySalaryForLevel` (T.3). **Primeira porta cruzada do backend na direção inversa dos 4 precedentes já
+  existentes** (`ranking`/`auth`/`payroll` importam `gamification` via `GetProgressionUseCase`) — aqui é
+  `gamification` quem consome `payroll`, e o módulo provedor só tinha uma função pura de domínio (T.3 nunca ganhou
+  `application/ports` própria), não um caso de uso pronto pra importar como nos outros 4 casos. Teste do router
+  usa um fake fixo (`test/fakes/fakeMonthlySalaryReader.ts`, `level * 100`, não a fórmula real) — **achado de
+  lint durante a implementação:** `interfaces/http` não pode importar `infrastructure/` nem do próprio módulo nem
+  de outro (regra já existia, nunca tinha sido testada por um teste de router que quisesse usar um adapter real
+  em vez de fake) — usar o adapter de verdade no teste do router violava essa regra; resolvido usando o fake, com
+  a fórmula real coberta à parte por `inProcessMonthlySalaryReader.test.ts` (níveis 1/10/20/30, mesmos valores de
+  referência de T.3) e por `payroll/domain/salary.test.ts` (já existente). Frontend: `services/gamification/types.ts`
+  (`Progression.monthlySalary: number`) — 3 fixtures de teste existentes (`Portfolio`/`TrilhasHub`/
+  `ProgressionSummary`) precisaram do campo novo pra `tsc -b` não quebrar. `npx vitest run` (backend 721 testes,
+  frontend 802 testes)/`npx tsc -b`/`npm run lint`/`eslint .` verdes nos dois lados. `.docs/backend/gamification.md`
+  atualizado (payload das duas rotas + nova seção "Port `monthlySalaryReader`"). **Sem `docker compose up`** — mesma
+  razão da T.7 (outra sessão já com a stack rodando nos mesmos nomes fixos de container).
 
-### T.9 · Indicador persistente de salário no Dashboard
+### T.9 · Indicador persistente de salário no Dashboard ✅
 - **Descrição:** pequeno card/linha perto de `components/organisms/ProgressionSummary` (dentro dele ou ao lado, a
   decidir na sessão de implementação — não é tela âncora, mas segue `identidade-visual-tokens.md`/`padroes.md`) com
   "Salário: R$X/mês" e o próximo pagamento (reaproveita `useMarketCalendarQuery`, achando o próximo `salary_payment`
@@ -4728,8 +4892,24 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** mostra o valor certo pro nível atual (T.8); "próximo pagamento em N dias" consistente com
   T.4/T.5; não quebra layout em nenhum breakpoint.
 - **Dependências:** T.6, T.8.
+- **Entregável real (sessão 2026-09-27):** ao lado, não dentro — `ProgressionSummary` continua puramente
+  apresentacional (props in, sem hook de query), então o indicador de salário nasceu como molécula própria
+  `components/molecules/SalaryIndicator` (mesmo padrão: presentacional, recebe `monthlySalary`/`daysUntilNextPayment`
+  como props), renderizada logo depois de `ProgressionSummary` nos dois consumidores atuais (`pages/TrilhasHub`,
+  sidebar; `pages/Portfolio`, header — este ganhou um wrapper `.headerRight` porque o header usa
+  `justify-content: space-between` com 2 filhos, não 3). Contagem de dias segue a convenção já fixada pelo
+  `MarketCalendarPanel` (S.12): dias **simulados** (`simulated_day`), não diferença de data real — função pura
+  `features/market/nextSalaryPayment` (testada, table-driven) + hook de wiring `useNextSalaryPayment` (não testado,
+  mesmo padrão de `useClockProgress`/`clockProgress`: par hook+função pura, só a função pura ganha teste) que combina
+  `useMarketClockQuery` (hoje) e uma janela de `useMarketCalendarQuery` de 40 dias (folga sobre o pior caso de ~35
+  dias entre o 5º dia útil de um mês e o do próximo). Visual neutro (borda + `--color-bg-surface`, sem as cores de
+  XP/streak nem as de ganho/perda) por decisão de sessão lida em `identidade-visual-padroes.md` — salário não é XP
+  nem P&L, e o teatro de recompensa é reservado pro level-up (T.10), não pra um indicador steady-state; ícone
+  `HandCoins`, o mesmo já usado por `CalendarKindIcon` pra `salary_payment`. `npx vitest run` (812 testes, +10 sobre
+  a baseline da T.8)/`npx tsc -b`/`npx oxlint` verdes, sem warning novo. Sem mudança de contrato HTTP, então sem
+  entrada nova em `.docs/`. **Sem `docker compose up`** — mudança é só de frontend (não containerizado).
 
-### T.10 · Salário no teatro de recompensa do level-up
+### T.10 · Salário no teatro de recompensa do level-up ✅
 - **Descrição:** `XpRewardSource` (`features/shell/xpRewardReveal/types.ts`, usado por `xpRevealContent`) ganha
   `newLevel?: number`, vindo de `AdvanceLessonResult`/`CompleteMissionResult` (que já calculam o novo nível ao chamar
   `AwardXpUseCase` — só falta expor esse número na resposta). `xpRevealContent` (quando `leveledUp`) calcula
@@ -4739,13 +4919,56 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** reveal de level-up mostra o salário novo e a diferença; teste da função pura
   `xpRevealContent` com o novo campo; nível 1 (sem nível anterior) não quebra.
 - **Dependências:** T.3.
+- **Entregável real (sessão 2026-09-28):** `newLevel?: number` acrescentado em `AdvanceLessonResult`
+  (`lessons/application/useCases/advanceLesson.ts`) e `CompleteMissionResult`
+  (`missions/application/useCases/completeMission.ts`), preenchido com `xpResult.level` (já devolvido por
+  `XpAwarder.award`, T.3/`I.2` — nenhuma porta nova precisou ser criada, o número já existia no resultado do crédito
+  de xp, só faltava propagar pra fora) — presente sempre que `leveledUp` está no payload, mesmo `false` (nível atual,
+  não só quando sobe). Espelhado nos tipos do frontend (`services/lessons/types.ts`/`services/missions/types.ts`).
+  **`monthlySalaryForLevel` duplicada no frontend** (`features/shell/xpRewardReveal/index.tsx`, função privada não
+  exportada) em vez de reusar a do backend (`payroll/domain/salary.ts`, T.3) — decisão de sessão: frontend/backend
+  são bundles TS separados sem pacote compartilhado, então não há como importar a função real; mesmo tipo de
+  duplicação entre runtimes já aceito na Fase S/T.6 (lá entre Go e Node), documentado com comentário apontando a
+  fonte real. `describeSalaryChange(newLevel)` chama a fórmula duas vezes (nível novo e `newLevel - 1`) e monta a
+  string via `formatCurrency` (`features/portfolio/format`, já existente) — nível 1 usa "nível 0" como base
+  (a fórmula já resolve tier 0 pra R$0, sem caso especial). `xpRevealContent` passa `description: undefined` quando
+  `newLevel` está ausente (mesmo formato de resposta que reabrir/idempotência já produzem hoje). Testes: backend
+  (`advanceLesson.test.ts`/`completeMission.test.ts`, `toEqual` dos dois casos leveledUp true/false atualizados com
+  `newLevel`; `lessonsRouter.test.ts`/`missionsRouter.test.ts` idem, ponta a ponta do payload HTTP) e frontend
+  (`xpRewardReveal/index.test.tsx`: nível 10 mostra "R$ 1.000,00 (+R$ 100,00)" via regex por causa do espaço não
+  separável do `Intl.NumberFormat('pt-BR')`, mesmo padrão de `calendarEvents/index.test.ts`; nível 1 não quebra; sem
+  `newLevel` não mostra descrição). `npx vitest run` (backend 721 testes, frontend 815 testes, +3 sobre a baseline da
+  T.9)/`npx tsc -b`/`npm run lint`/`npx oxlint`/`npx prettier --check` verdes nos dois lados — sem warning novo.
+  `.docs/backend/lessons.md`/`missions.md` atualizados (`newLevel` documentado nas duas rotas, com a nota de que a
+  fórmula é duplicada no frontend). Validado ao vivo via `docker compose up -d --build` (containers antigos parados
+  de outra sessão removidos antes, sem tocar nos volumes — `docker rm tcc-redis tcc-postgres tcc-engine`, todos
+  `Exited` há 19h): usuário novo registrado, lições e missões semeadas manualmente (`tsx src/db/seedLessons.ts`/
+  `seedMissions.ts`), `POST /lessons/:id/progress` no step de desbloqueio devolveu
+  `{"xpAwarded":50,"leveledUp":false,"newLevel":1,...}` e `POST /missions/:id/complete` devolveu
+  `{"xpAwarded":30,"leveledUp":false,"newLevel":1,...}` — contrato confirmado ponta a ponta, não só em teste. Stack
+  derrubada com `docker compose down` (volumes preservados) ao final.
 
-### T.11 · Passo no onboarding explicando o salário
+### T.11 · Passo no onboarding explicando o salário ✅
 - **Descrição:** novo slide no onboarding, mesma sequência da S.12 ("Aqui o tempo passa mais rápido"): explica que o
   salário mensal cresce com o nível e cai automaticamente no 5º dia útil do mês, sem precisar fazer nada.
 - **Critérios de aceite:** slide navegável nos três breakpoints, sem em dash em texto de UI.
 - **Dependências:** nenhuma tecnicamente, mas só faz sentido publicar depois de T.5 estar em produção (senão o
   onboarding promete um mecanismo que ainda não existe).
+- **Entregável real (sessão 2026-09-28):** novo slide "Seu salário cresce com você" inserido entre o slide do tempo
+  acelerado (S.12) e o de amigos em `SLIDES` (`frontend/src/pages/Onboarding/index.tsx`), ícone `HandCoins` (mesmo do
+  resto do salário — `SalaryIndicator`/`CalendarKindIcon`). Visual próprio (`visual: 'salary'`, componente
+  `SalaryVisual`) reusa o padrão `compareBox` já usado pelo slide do tempo (`.timeVisual`/`.compare`/`.compareBox` do
+  `index.module.css`, sem CSS novo) pra mostrar dois valores de referência lado a lado (nível 10 → R$1.000,00, nível
+  30 → R$6.000,00, via `formatCurrency`). `monthlySalaryForLevel` duplicada localmente (função privada não
+  exportada, mesma decisão de duplicação entre bundles TS já tomada na T.10 pro reveal de level-up — comentário
+  aponta a fonte real em `backend/src/modules/payroll/domain/salary.ts`). Responsivo nos três breakpoints de graça
+  (herda o layout existente do carrossel, sem CSS específico de breakpoint). Sem em dash em texto de UI. Testes:
+  `index.test.tsx` ganhou um teste pro novo slide (título, menção ao "5º dia útil do mês", valor "no nível 10") e os
+  testes existentes que navegavam até o último slide por posição fixa foram ajustados pro clique extra de "Próximo"
+  (slide de amigos e "Começar" agora são o 5º/último, não mais o 4º). `npx vitest run` (816 testes, +1 sobre a
+  baseline da T.10)/`npx tsc -b`/`npx oxlint`/`npx prettier --check` verdes, sem warning novo. Sem mudança de
+  contrato HTTP, então sem entrada nova em `.docs/`. **Sem `docker compose up`** — mudança é só de frontend (não
+  containerizado). **Fase T completa** (T.1–T.11, todas ✅).
 
 ## Sequência sugerida
 

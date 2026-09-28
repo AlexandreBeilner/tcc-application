@@ -95,11 +95,11 @@ func (r *CalendarRepository) DividendsBetween(ctx context.Context, fromDay, toDa
 // simulado em que aconteceram) e os vencimentos de renda fixa que ele ainda carrega.
 func (r *CalendarRepository) UserFactsBetween(ctx context.Context, userID string, fromDay, toDay int) ([]marketcalendar.UserFact, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT e.simulated_day, e.event_type, a.ticker, e.quantity, e.unit_value
-		 FROM market_events e JOIN assets a ON a.id = e.asset_id
-		 WHERE e.user_id = $1 AND a.is_sandbox = false AND e.simulated_day BETWEEN $2 AND $3
+		`SELECT e.simulated_day, e.event_type, a.ticker, e.quantity, e.unit_value, e.reference_month
+		 FROM market_events e LEFT JOIN assets a ON a.id = e.asset_id
+		 WHERE e.user_id = $1 AND (a.is_sandbox = false OR a.id IS NULL) AND e.simulated_day BETWEEN $2 AND $3
 		   AND e.event_type IN ('buy_order_executed', 'sell_order_executed', 'dividend_payment',
-		                        'fixed_income_purchase', 'fixed_income_redemption')
+		                        'fixed_income_purchase', 'fixed_income_redemption', 'salary_payment')
 		 ORDER BY e.simulated_day, e."timestamp", e.id`, userID, fromDay, toDay)
 	if err != nil {
 		return nil, err
@@ -109,16 +109,24 @@ func (r *CalendarRepository) UserFactsBetween(ctx context.Context, userID string
 	facts := make([]marketcalendar.UserFact, 0)
 	for rows.Next() {
 		var f marketcalendar.UserFact
+		var ticker sql.NullString
 		var quantity sql.NullFloat64
 		var unitValue sql.NullFloat64
-		if err := rows.Scan(&f.Day, &f.EventType, &f.Ticker, &quantity, &unitValue); err != nil {
+		var referenceMonth sql.NullString
+		if err := rows.Scan(&f.Day, &f.EventType, &ticker, &quantity, &unitValue, &referenceMonth); err != nil {
 			return nil, err
+		}
+		if ticker.Valid {
+			f.Ticker = ticker.String
 		}
 		if quantity.Valid {
 			f.Quantity = &quantity.Float64
 		}
 		if unitValue.Valid {
 			f.UnitValue = &unitValue.Float64
+		}
+		if referenceMonth.Valid {
+			f.ReferenceMonth = referenceMonth.String
 		}
 		facts = append(facts, f)
 	}

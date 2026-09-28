@@ -71,10 +71,25 @@ describe('Onboarding (tela 1.2)', () => {
         expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
     })
 
+    it('o quarto slide explica o salário mensal (T.11)', () => {
+        mockAuth(false)
+
+        renderOnboarding()
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+
+        expect(screen.getByText('Seu salário cresce com você')).toBeInTheDocument()
+        expect(screen.getByText(/5º dia útil do mês/)).toBeInTheDocument()
+        expect(screen.getByText('no nível 10')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
+    })
+
     it('avançar até o último slide troca o botão pra "Começar"', () => {
         mockAuth(false)
 
         renderOnboarding()
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
@@ -99,6 +114,7 @@ describe('Onboarding (tela 1.2)', () => {
         })
 
         renderOnboarding()
+        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
         fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
