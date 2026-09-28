@@ -26,9 +26,9 @@ var ErrAlreadyExists = errors.New("conta já existe para este usuário")
 var ErrInvalidBotAccount = errors.New("conta de bot inválida")
 
 type Account struct {
-	UserID                 string
-	CurrentBalance         float64
-	TotalInvested          float64
+	UserID         string
+	CurrentBalance float64
+	TotalInvested  float64
 	// TotalDisinvested (tarefa T.1) é o simétrico de TotalInvested: soma bruta
 	// de vendas de renda variável + resgates de renda fixa, nunca líquida de
 	// compra — junto com TotalInvested/TotalDividendsReceived, alimenta a
