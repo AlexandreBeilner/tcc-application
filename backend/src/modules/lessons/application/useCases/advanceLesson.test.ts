@@ -108,6 +108,7 @@ describe('AdvanceLessonUseCase', () => {
       completed: true,
       xpAwarded: LESSON_XP_REWARD,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -154,6 +155,7 @@ describe('AdvanceLessonUseCase', () => {
       completed: true,
       xpAwarded: LESSON_XP_REWARD,
       leveledUp: true,
+      newLevel: 2,
       streakMilestone: 7,
       unlockedAchievements: [
         { id: 'a1', name: 'Primeiros Passos', description: null },

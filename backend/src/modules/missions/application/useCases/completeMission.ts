@@ -29,6 +29,9 @@ export interface CompleteMissionResult {
   // do claim. Aditivos ao contrato já existente (tarefa I.2).
   xpAwarded?: number
   leveledUp?: boolean
+  // Nível após este crédito (tarefa T.10) — mesma finalidade de
+  // `AdvanceLessonResult.newLevel`.
+  newLevel?: number
   streakMilestone?: number | null
   unlockedAchievements?: UnlockedAchievement[]
 }
@@ -119,6 +122,7 @@ export class CompleteMissionUseCase {
       status: 'completed',
       xpAwarded: mission.xpReward,
       leveledUp: xpResult.leveledUp,
+      newLevel: xpResult.level,
       streakMilestone: streakResult.milestoneReached,
       unlockedAchievements: [
         ...xpResult.unlockedAchievements,

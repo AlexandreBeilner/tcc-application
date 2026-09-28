@@ -4851,7 +4851,7 @@ diretamente na conversa, registradas abaixo.
   a baseline da T.8)/`npx tsc -b`/`npx oxlint` verdes, sem warning novo. Sem mudança de contrato HTTP, então sem
   entrada nova em `.docs/`. **Sem `docker compose up`** — mudança é só de frontend (não containerizado).
 
-### T.10 · Salário no teatro de recompensa do level-up
+### T.10 · Salário no teatro de recompensa do level-up ✅
 - **Descrição:** `XpRewardSource` (`features/shell/xpRewardReveal/types.ts`, usado por `xpRevealContent`) ganha
   `newLevel?: number`, vindo de `AdvanceLessonResult`/`CompleteMissionResult` (que já calculam o novo nível ao chamar
   `AwardXpUseCase` — só falta expor esse número na resposta). `xpRevealContent` (quando `leveledUp`) calcula
@@ -4861,6 +4861,34 @@ diretamente na conversa, registradas abaixo.
 - **Critérios de aceite:** reveal de level-up mostra o salário novo e a diferença; teste da função pura
   `xpRevealContent` com o novo campo; nível 1 (sem nível anterior) não quebra.
 - **Dependências:** T.3.
+- **Entregável real (sessão 2026-09-28):** `newLevel?: number` acrescentado em `AdvanceLessonResult`
+  (`lessons/application/useCases/advanceLesson.ts`) e `CompleteMissionResult`
+  (`missions/application/useCases/completeMission.ts`), preenchido com `xpResult.level` (já devolvido por
+  `XpAwarder.award`, T.3/`I.2` — nenhuma porta nova precisou ser criada, o número já existia no resultado do crédito
+  de xp, só faltava propagar pra fora) — presente sempre que `leveledUp` está no payload, mesmo `false` (nível atual,
+  não só quando sobe). Espelhado nos tipos do frontend (`services/lessons/types.ts`/`services/missions/types.ts`).
+  **`monthlySalaryForLevel` duplicada no frontend** (`features/shell/xpRewardReveal/index.tsx`, função privada não
+  exportada) em vez de reusar a do backend (`payroll/domain/salary.ts`, T.3) — decisão de sessão: frontend/backend
+  são bundles TS separados sem pacote compartilhado, então não há como importar a função real; mesmo tipo de
+  duplicação entre runtimes já aceito na Fase S/T.6 (lá entre Go e Node), documentado com comentário apontando a
+  fonte real. `describeSalaryChange(newLevel)` chama a fórmula duas vezes (nível novo e `newLevel - 1`) e monta a
+  string via `formatCurrency` (`features/portfolio/format`, já existente) — nível 1 usa "nível 0" como base
+  (a fórmula já resolve tier 0 pra R$0, sem caso especial). `xpRevealContent` passa `description: undefined` quando
+  `newLevel` está ausente (mesmo formato de resposta que reabrir/idempotência já produzem hoje). Testes: backend
+  (`advanceLesson.test.ts`/`completeMission.test.ts`, `toEqual` dos dois casos leveledUp true/false atualizados com
+  `newLevel`; `lessonsRouter.test.ts`/`missionsRouter.test.ts` idem, ponta a ponta do payload HTTP) e frontend
+  (`xpRewardReveal/index.test.tsx`: nível 10 mostra "R$ 1.000,00 (+R$ 100,00)" via regex por causa do espaço não
+  separável do `Intl.NumberFormat('pt-BR')`, mesmo padrão de `calendarEvents/index.test.ts`; nível 1 não quebra; sem
+  `newLevel` não mostra descrição). `npx vitest run` (backend 721 testes, frontend 815 testes, +3 sobre a baseline da
+  T.9)/`npx tsc -b`/`npm run lint`/`npx oxlint`/`npx prettier --check` verdes nos dois lados — sem warning novo.
+  `.docs/backend/lessons.md`/`missions.md` atualizados (`newLevel` documentado nas duas rotas, com a nota de que a
+  fórmula é duplicada no frontend). Validado ao vivo via `docker compose up -d --build` (containers antigos parados
+  de outra sessão removidos antes, sem tocar nos volumes — `docker rm tcc-redis tcc-postgres tcc-engine`, todos
+  `Exited` há 19h): usuário novo registrado, lições e missões semeadas manualmente (`tsx src/db/seedLessons.ts`/
+  `seedMissions.ts`), `POST /lessons/:id/progress` no step de desbloqueio devolveu
+  `{"xpAwarded":50,"leveledUp":false,"newLevel":1,...}` e `POST /missions/:id/complete` devolveu
+  `{"xpAwarded":30,"leveledUp":false,"newLevel":1,...}` — contrato confirmado ponta a ponta, não só em teste. Stack
+  derrubada com `docker compose down` (volumes preservados) ao final.
 
 ### T.11 · Passo no onboarding explicando o salário
 - **Descrição:** novo slide no onboarding, mesma sequência da S.12 ("Aqui o tempo passa mais rápido"): explica que o

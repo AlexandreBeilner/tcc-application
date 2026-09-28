@@ -113,6 +113,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -139,6 +140,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -165,6 +167,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -181,6 +184,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 20,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -209,6 +213,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 20,
       leveledUp: true,
+      newLevel: 2,
       streakMilestone: 7,
       unlockedAchievements: [
         { id: 'a1', name: 'Primeiros Passos', description: null },
