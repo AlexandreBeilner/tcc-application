@@ -36,7 +36,9 @@ export class CreditMonthlyPayrollForUserUseCase {
     private readonly salaryCrediter: SalaryCrediter,
   ) {}
 
-  async execute(input: CreditMonthlyPayrollForUserInput): Promise<CreditMonthlyPayrollForUserResult> {
+  async execute(
+    input: CreditMonthlyPayrollForUserInput,
+  ): Promise<CreditMonthlyPayrollForUserResult> {
     const lastPaidMonthKey = await this.payrollStateRepository.getLastPaidMonth(input.userId)
     const months = monthsToPay({
       currentMonthKey: input.currentMonthKey,

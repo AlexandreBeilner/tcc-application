@@ -41,17 +41,29 @@ describe('investmentReturnPct (sem baseline — retorno desde a criação da con
   })
 
   it('venda com lucro (totalmente realizada, nada mais posicionado)', () => {
-    const current = riskCapital({ investedCost: 1000, disinvestedProceeds: 1300, currentInvestedValue: 0 })
+    const current = riskCapital({
+      investedCost: 1000,
+      disinvestedProceeds: 1300,
+      currentInvestedValue: 0,
+    })
     expect(investmentReturnPct(current)).toBeCloseTo(30)
   })
 
   it('venda com perda (totalmente realizada, nada mais posicionado)', () => {
-    const current = riskCapital({ investedCost: 1000, disinvestedProceeds: 800, currentInvestedValue: 0 })
+    const current = riskCapital({
+      investedCost: 1000,
+      disinvestedProceeds: 800,
+      currentInvestedValue: 0,
+    })
     expect(investmentReturnPct(current)).toBeCloseTo(-20)
   })
 
   it('dividendo recebido, ainda posicionado sem variação de preço', () => {
-    const current = riskCapital({ investedCost: 1000, currentInvestedValue: 1000, dividendsReceived: 50 })
+    const current = riskCapital({
+      investedCost: 1000,
+      currentInvestedValue: 1000,
+      dividendsReceived: 50,
+    })
     expect(investmentReturnPct(current)).toBeCloseTo(5)
   })
 
@@ -66,14 +78,26 @@ describe('investmentReturnPct (com baseline — retorno da janela do ranking)', 
     // Comprou por R$1.000 antes da janela; no início da janela valia
     // R$1.100 (ganho não realizado); vendeu por R$1.300 durante a janela.
     const baseline = riskCapital({ investedCost: 1000, currentInvestedValue: 1100 })
-    const current = riskCapital({ investedCost: 1000, disinvestedProceeds: 1300, currentInvestedValue: 0 })
+    const current = riskCapital({
+      investedCost: 1000,
+      disinvestedProceeds: 1300,
+      currentInvestedValue: 0,
+    })
     // (1300 - 1000) - (1100 - 1000) = 200, sobre investedCost atual (1000) = 20%.
     expect(investmentReturnPct(current, baseline)).toBeCloseTo(20)
   })
 
   it('nenhuma atividade dentro da janela — retorno da janela é 0%, mesmo com ganho histórico grande', () => {
-    const baseline = riskCapital({ investedCost: 1000, disinvestedProceeds: 1300, currentInvestedValue: 0 })
-    const current = riskCapital({ investedCost: 1000, disinvestedProceeds: 1300, currentInvestedValue: 0 })
+    const baseline = riskCapital({
+      investedCost: 1000,
+      disinvestedProceeds: 1300,
+      currentInvestedValue: 0,
+    })
+    const current = riskCapital({
+      investedCost: 1000,
+      disinvestedProceeds: 1300,
+      currentInvestedValue: 0,
+    })
     expect(investmentReturnPct(current, baseline)).toBe(0)
   })
 

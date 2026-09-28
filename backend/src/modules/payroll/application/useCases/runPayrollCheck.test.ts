@@ -17,7 +17,11 @@ describe('RunPayrollCheckUseCase', () => {
     const levelReader = createFakeLevelReader({ 'user-a': 10, 'user-b': 20 })
     const stateRepository = createFakePayrollStateRepository()
     const crediter = createFakeSalaryCrediter()
-    const creditForUser = new CreditMonthlyPayrollForUserUseCase(levelReader, stateRepository, crediter)
+    const creditForUser = new CreditMonthlyPayrollForUserUseCase(
+      levelReader,
+      stateRepository,
+      crediter,
+    )
     const useCase = new RunPayrollCheckUseCase(userDirectory, calendarReader, creditForUser, 3)
 
     const result = await useCase.execute()
@@ -38,7 +42,11 @@ describe('RunPayrollCheckUseCase', () => {
     const levelReader = createFakeLevelReader({ 'user-a': 10 })
     const stateRepository = createFakePayrollStateRepository({ 'user-a': '2026-09' })
     const crediter = createFakeSalaryCrediter()
-    const creditForUser = new CreditMonthlyPayrollForUserUseCase(levelReader, stateRepository, crediter)
+    const creditForUser = new CreditMonthlyPayrollForUserUseCase(
+      levelReader,
+      stateRepository,
+      crediter,
+    )
     const useCase = new RunPayrollCheckUseCase(userDirectory, calendarReader, creditForUser, 3)
 
     const result = await useCase.execute()

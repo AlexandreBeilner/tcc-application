@@ -36,7 +36,10 @@ export function monthsToPay(input: PayrollDecisionInput): string[] {
   for (let i = 0; i < totalCandidateMonths; i++) {
     const monthKey = addMonths(start, i)
     const isCurrentMonth = monthKey === input.currentMonthKey
-    if (isCurrentMonth && input.currentMonthBusinessDaysElapsed < REQUIRED_BUSINESS_DAYS_FOR_CURRENT_MONTH) {
+    if (
+      isCurrentMonth &&
+      input.currentMonthBusinessDaysElapsed < REQUIRED_BUSINESS_DAYS_FOR_CURRENT_MONTH
+    ) {
       break
     }
     months.push(monthKey)

@@ -763,7 +763,11 @@ describe('GetRankingUseCase', () => {
         'u1|baseline': snapshot({ investedCost: 1000, variableIncomeValue: 1100 }),
         // Vendeu por R$1.300 durante a janela, sem reinvestir — nada mais
         // posicionado, investedCost não muda (nenhuma compra nova).
-        'u1|now': snapshot({ investedCost: 1000, disinvestedProceeds: 1300, variableIncomeValue: 0 }),
+        'u1|now': snapshot({
+          investedCost: 1000,
+          disinvestedProceeds: 1300,
+          variableIncomeValue: 0,
+        }),
       }
       const getNetWorth = {
         async execute(input: { userId: string; asOf?: Date }) {
@@ -796,7 +800,11 @@ describe('GetRankingUseCase', () => {
       vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
 
       const userDirectory = createFakeUserDirectory([
-        { id: 'nunca-investiu', username: 'nunca-investiu', createdAt: new Date('2026-01-01T00:00:00Z') },
+        {
+          id: 'nunca-investiu',
+          username: 'nunca-investiu',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
       ])
       const getNetWorth = {
         async execute() {

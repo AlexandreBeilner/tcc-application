@@ -46,7 +46,12 @@ describe('engineCurrentAccountStateReader', () => {
 
   it('marca posição de renda variável ao ponto médio do book quando os dois lados existem', async () => {
     mockEngine({
-      account: { current_balance: 1000, total_invested: 300, total_disinvested: 0, total_dividends_received: 0 },
+      account: {
+        current_balance: 1000,
+        total_invested: 300,
+        total_disinvested: 0,
+        total_dividends_received: 0,
+      },
       positions: [{ asset_id: 'asset-1', is_sandbox: false, quantity: 10, average_price: 30 }],
       assets: [{ id: 'asset-1', current_price: 999 }],
       booksByAssetId: { 'asset-1': { mid_price: 32.25 } },
@@ -62,7 +67,12 @@ describe('engineCurrentAccountStateReader', () => {
 
   it('cai pro último preço negociado quando o book não tem os dois lados', async () => {
     mockEngine({
-      account: { current_balance: 1000, total_invested: 300, total_disinvested: 0, total_dividends_received: 0 },
+      account: {
+        current_balance: 1000,
+        total_invested: 300,
+        total_disinvested: 0,
+        total_dividends_received: 0,
+      },
       positions: [{ asset_id: 'asset-1', is_sandbox: false, quantity: 10, average_price: 30 }],
       assets: [{ id: 'asset-1', current_price: 40 }],
       booksByAssetId: { 'asset-1': { mid_price: null } },
@@ -79,7 +89,12 @@ describe('engineCurrentAccountStateReader', () => {
     // lados do book seguem com oferta real — a marcação das duas carteiras
     // usa o mesmo ponto médio, nunca o último negócio manipulado.
     mockEngine({
-      account: { current_balance: 0, total_invested: 3000, total_disinvested: 0, total_dividends_received: 0 },
+      account: {
+        current_balance: 0,
+        total_invested: 3000,
+        total_disinvested: 0,
+        total_dividends_received: 0,
+      },
       positions: [{ asset_id: 'asset-1', is_sandbox: false, quantity: 100, average_price: 30 }],
       assets: [{ id: 'asset-1', current_price: 5000 }],
       booksByAssetId: { 'asset-1': { mid_price: 32 } },
@@ -99,7 +114,12 @@ describe('engineCurrentAccountStateReader', () => {
         ])
       }
       if (url.includes('/accounts/'))
-        return jsonResponse({ current_balance: 1000, total_invested: 500, total_disinvested: 0, total_dividends_received: 0 })
+        return jsonResponse({
+          current_balance: 1000,
+          total_invested: 500,
+          total_disinvested: 0,
+          total_dividends_received: 0,
+        })
       throw new Error(`URL inesperada no teste: ${url}`)
     })
     vi.stubGlobal('fetch', fetchSpy)

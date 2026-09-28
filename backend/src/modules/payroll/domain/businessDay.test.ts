@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { businessDaysElapsed, isFifthBusinessDayOfMonth, type CalendarDaySummary } from './businessDay'
+import {
+  businessDaysElapsed,
+  isFifthBusinessDayOfMonth,
+  type CalendarDaySummary,
+} from './businessDay'
 
 const WEEK_CYCLE = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 

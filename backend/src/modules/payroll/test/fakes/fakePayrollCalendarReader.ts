@@ -3,7 +3,9 @@ import type {
   PayrollCalendarReader,
 } from '../../application/ports/payrollCalendarReader'
 
-export function createFakePayrollCalendarReader(progress: CurrentMonthProgress): PayrollCalendarReader {
+export function createFakePayrollCalendarReader(
+  progress: CurrentMonthProgress,
+): PayrollCalendarReader {
   return {
     async getCurrentMonthProgress() {
       return progress

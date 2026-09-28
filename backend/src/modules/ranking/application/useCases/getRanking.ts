@@ -1,6 +1,10 @@
 import { paginate } from '../../../../shared/pagination'
 import type { Snapshot } from '../../domain/networth'
-import { investmentReturnPct, profitabilityPct, toRiskCapitalSnapshot } from '../../domain/profitability'
+import {
+  investmentReturnPct,
+  profitabilityPct,
+  toRiskCapitalSnapshot,
+} from '../../domain/profitability'
 import { windowFor, type WindowKind } from '../../domain/window'
 import type { FriendGraphReader } from '../ports/friendGraphReader'
 import type { LevelReader } from '../ports/levelReader'
@@ -223,7 +227,10 @@ export class GetRankingUseCase {
           // excluído (0% pra quem nunca investiu, não -100% nem exclusão,
           // diferente do critério de renda fixa/variável abaixo).
           if (criterion === 'overall') {
-            const pct = investmentReturnPct(toRiskCapitalSnapshot(current), toRiskCapitalSnapshot(baseline))
+            const pct = investmentReturnPct(
+              toRiskCapitalSnapshot(current),
+              toRiskCapitalSnapshot(baseline),
+            )
             return {
               userId: user.id,
               username: user.username,
