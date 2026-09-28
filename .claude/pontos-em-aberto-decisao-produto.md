@@ -687,7 +687,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** exige decidir horário/fuso do tick e a política de recuperação (rodar N ticks de uma vez? pular?).
 - **Opções:** (a) ancorar em horário fixo (ex.: 00:00 America/Sao_Paulo) lendo o último tick de `market_calendar`; (b) idem + recuperar dias perdidos limitado a K; (c) manter e operar o tick só pelo admin.
 - **Decisão (2026-09-26, autor, Fase S):** horário fixo (00:00 America/Sao_Paulo) com recuperação limitada de dias perdidos (teto de K dias, ex.: 3) e trava contra tick duplicado.
-- **Status:** Resolvido pela S.3 (2026-09-27): agenda ancorada às 00:00 America/Sao_Paulo, recuperação limitada (`TICK_MAX_CATCHUP`) e trava consultiva contra tick duplicado; revalidação final na S.9
+- **Status:** Resolvido pela S.3 (2026-09-27): agenda ancorada às 00:00 America/Sao_Paulo, recuperação limitada (`TICK_MAX_CATCHUP`) e trava consultiva contra tick duplicado. **Revalidação final (S.9, 2026-09-27):** `go test ./internal/infra/db -run TickLock` verde contra o Postgres do stack de teste (as 3 sub-testes: exclusão mútua entre duas instâncias, disputa concorrente com vencedor único, liberação quando a conexão cai); run de 130 dias simulados via `sim.py` sem nenhum tick duplicado/perdido fora do teto configurado.
 
 ### 019 · Escala de tempo: crescimento de fundamentos por ciclo de 14 dias gera drift de ~+40%/ano em renda variável contra Selic de 10%
 
@@ -698,7 +698,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) `DefaultBaseGrowth` proporcional ao ciclo (~0,67%) e DY idem; (b) manter e assumir tempo comprimido também na renda fixa; (c) margem líquida com reversão à média para gerar ciclos de queda.
 - **Decisão (2026-09-26, autor, Fase S):** proposta do autor: manter o trimestre real (ciclo de relatório de ~63 dias simulados, crescimento de 3% e DY reais por trimestre) e acelerar o relógio: 1 dia real = 5 dias simulados (fator 5 como constante ajustável), com 5 ticks por dia real espaçados (~4h48) para o mercado andar ao longo do dia. Ordem limitada 'day order' passa a viver ~5h reais. Interage com o 018 (agenda passa a ser de 5 ticks/dia ancorados) e fecha o 022.
 - **Revisão (2026-09-26, autor, Fase S):** o dia simulado passa a ser **dia de calendário** (7 por semana, data-base fixa numa segunda-feira, feriados ignorados por ora), não dia útil. Fim de semana simulado (~9h30 reais) com mercado fechado para negociação de renda variável e renda fixa (sandbox, lições e cancelamento de ordem seguem abertos). Selic/CDI rendem só em dia útil (base 252); IR da renda fixa conta dias corridos direto. Trimestre = 91 dias, Copom = 45 dias, rebalanceamento de ETF trimestral (91), FII paga proventos a cada 30 dias. Calendário da simulação visível no frontend (tarefas S.10 a S.12).
-- **Status:** Parcialmente resolvido (2026-09-27): escala 1 dia real = 5 simulados, trimestre de 91 dias e fim de semana sem negociação de bots feitos (S.1 a S.3); falta o mercado fechado para o usuário e o calendário no frontend (S.10 a S.12)
+- **Status:** Resolvido (2026-09-27, fecha na S.9): escala 1 dia real = 5 simulados, trimestre de 91 dias e fim de semana sem negociação de bots (S.1-S.3); mercado fechado para o usuário no fim de semana simulado (S.11, `weekend.py` sem falhas na revalidação da S.9) e calendário/relógio no frontend (S.10-S.12). **Revalidação final (S.9):** run de 130 dias simulados (25 usuários reais + bots, catálogo de 23 ativos de renda variável) devolveu retorno médio de preço ~+0,6% no período (≈1,6%/ano anualizado, ante o antigo +19% em 132 dias/achado original), bem abaixo da Selic simulada (9,75%-10%) — sem nenhum resquício do drift de +40%/ano; dia 91 confirmado como o primeiro ciclo de relatório real (trimestre de 91 dias) com reunião do Copom no mesmo dia (Selic 10% → 9,75%), como desenhado.
 
 ### 020 · Lição concluível pulando direto pro passo 3: trilha inteira em ~1 s, 1.750 XP e todos os produtos liberados
 
@@ -708,7 +708,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** exige decidir a regra (passos sequenciais? tempo mínimo por passo? só avançar 1 passo por chamada?).
 - **Opções:** (a) `step` só pode ser `currentStep` ou `currentStep + 1`; (b) idem + tempo mínimo por passo; (c) aceitar (protótipo) e documentar.
 - **Decisão (2026-09-26, autor, Fase S):** passos sequenciais (`step` só pode ser `currentStep` ou `currentStep + 1`) mais tempo mínimo entre avanços (ex.: 5 s, ajustável).
-- **Status:** Resolvido (2026-09-26, tarefa S.4): gate de passos sequenciais e tempo mínimo de 5 s entre avanços (`LESSON_MIN_STEP_INTERVAL_MS`), `422` `step_out_of_order`/`step_too_fast`; validado ponta a ponta. Fechamento formal na S.9.
+- **Status:** Resolvido (2026-09-26, tarefa S.4): gate de passos sequenciais e tempo mínimo de 5 s entre avanços (`LESSON_MIN_STEP_INTERVAL_MS`), `422` `step_out_of_order`/`step_too_fast`; validado ponta a ponta. **Fechamento formal (S.9, 2026-09-27):** `gating.py` revalidado do zero contra o stack de teste — 0 falhas nas 35 lições × 11 tipos de ativo (gate de produto) e nos dois `422` de passo (pular direto, avançar rápido demais).
 
 ### 021 · Tela de ordem mostra o último negócio como preço unitário; execução é contra o book (spread ~2%) e o preço oficial oscila com um único negócio
 
@@ -718,7 +718,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** decisão de produto (mostrar melhor bid/ask e preço estimado? marcar carteira a ponto médio?).
 - **Opções:** (a) mostrar bid/ask e "custo estimado" no diálogo e o preço médio no resultado; (b) marcar carteira/ranking a ponto médio do book; (c) ambas.
 - **Decisão (2026-09-26, autor, Fase S):** (a) rota de leitura com melhor bid/ask e profundidade resumida; diálogo mostra custo estimado contra o book, resultado informa preço médio executado, e o 422 de all-in ganha mensagem clara com a quantidade máxima possível; (b) carteira, patrimônio e ranking marcam a ponto médio do book (fallback: último negócio se faltar um dos lados). Gráfico e variação do dia continuam no último negócio.
-- **Status:** Decidido, aguardando implementação (Fase S)
+- **Status:** Resolvido (2026-09-27, tarefas S.5-S.7): `GET /assets/{id}/book` (motor) + proxy no backend expõem melhor bid/ask e profundidade; painel "Nova ordem" mostra custo estimado contra o book e "Usar o máximo" calcula pela profundidade real; resultado informa preço médio executado; carteira/patrimônio/ranking marcam a ponto médio do book (S.6). **Revalidação final (S.9):** `liq.py` contra os 23 ativos reais do run de 130 dias — 100% de preenchimento em todos, slippage médio de ida ~+1% / volta ~-1% (round-trip ~2%, mesma ordem de grandeza da validação original), nenhum 500/preenchimento zero inesperado.
 
 ### 022 · Composição de tempo do renda fixa mistura relógio de parede e dia simulado
 
@@ -728,7 +728,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (a) derivar tudo de dias simulados; (b) manter e proibir tick manual em produção.
 - **Decisão (2026-09-26, autor, Fase S):** derivar prazo/vencimento e IR da renda fixa, datas de dividendos (DY de 12 meses) e o dia do roteiro sandbox do dia simulado, não do relógio de parede. Implementado junto com a aceleração de 5 dias simulados por dia real (ver 019).
 - **Revisão (2026-09-26, autor, Fase S):** o dia simulado passa a ser **dia de calendário** (7 por semana, data-base fixa numa segunda-feira, feriados ignorados por ora), não dia útil. Fim de semana simulado (~9h30 reais) com mercado fechado para negociação de renda variável e renda fixa (sandbox, lições e cancelamento de ordem seguem abertos). Selic/CDI rendem só em dia útil (base 252); IR da renda fixa conta dias corridos direto. Trimestre = 91 dias, Copom = 45 dias, rebalanceamento de ETF trimestral (91), FII paga proventos a cada 30 dias. Calendário da simulação visível no frontend (tarefas S.10 a S.12).
-- **Status:** Resolvido pela S.1 (2026-09-26): prazo/IR/VNA da renda fixa, datas de dividendo/fundamentos e dia do roteiro sandbox derivam do dia simulado (`simcalendar`); revalidação final na S.9
+- **Status:** Resolvido pela S.1 (2026-09-26): prazo/IR/VNA da renda fixa, datas de dividendo/fundamentos e dia do roteiro sandbox derivam do dia simulado (`simcalendar`). **Revalidação final (S.9, 2026-09-27):** compra de LFT2029 (Tesouro Selic, pós-fixado) seguida de 21 ticks corridos (15 dias úteis de 21, 6 dias de fim de semana simulado corretamente sem render) e resgate — retorno realizado 0,5553% bate com o cálculo teórico de 15 dias úteis compostos à Selic corrente (9,75% a.a., base 252) dentro de 0,001pp; IR regressivo 22,5% (primeira faixa) correto pros 21 dias corridos mantidos.
 
 ### 023 · Ativo sandbox aparece na tabela de Ações do mercado real como "aguardando cotação"
 
@@ -737,7 +737,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** `SAND3` (sandbox) aparece misturado às ações reais, sem risco nem cotação, na lista do Mercado Ao Vivo. Confunde o usuário sobre o que conta no ranking.
 - **Opções:** (a) esconder sandbox da lista do mercado real e listá-lo só no modo aprendizado; (b) rotular claramente.
 - **Decisão (2026-09-26, autor, Fase S):** esconder ativos sandbox do mercado real (`GET /market/assets` exclui `is_sandbox` por padrão, com parâmetro para incluir); sandbox fica acessível só pelo card Modo Aprendizado do Portfólio e pelas lições, que continuam achando o ativo pelo ticker.
-- **Status:** Resolvido (2026-09-26, tarefa S.8): `GET /market/assets` esconde sandbox por padrão (`include_sandbox=true` p/ lições e extrato); validado ponta a ponta. Fechamento formal na S.9.
+- **Status:** Resolvido (2026-09-26, tarefa S.8): `GET /market/assets` esconde sandbox por padrão (`include_sandbox=true` p/ lições e extrato); validado ponta a ponta. **Fechamento formal (S.9, 2026-09-27):** confirmado no run de 130 dias — `SAND3`/`SANDPRE` ausentes da listagem padrão consumida pelo restante do script, presentes e operáveis só quando pedidos explicitamente com `include_sandbox=true` (persona "sand": compra/venda via sandbox funcionando normalmente durante todo o run).
 
 ### 024 · Preço de FII deriva para baixo sem âncora fundamentalista (-49% em 200 dias simulados)
 

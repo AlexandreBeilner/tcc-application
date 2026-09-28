@@ -14,13 +14,18 @@ import (
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
 
-// ErrMarketCalendarNotInitialized é devolvido por LoadRedeemContext quando
-// o Temporizador (tarefa 3.11) ainda não rodou nenhum tick — sem uma linha
-// em market_calendar não há taxa Selic simulada pra marcar a mercado o
-// resgate, e diferente de asset_quotes (que tem um fallback documentado,
-// tick.DefaultInitialPrice) não existe um valor default decidido pra Selic
-// nesse repositório; um resgate nessas condições é um erro de precondição,
-// não um caso a mascarar com um número inventado aqui.
+// ErrMarketCalendarNotInitialized é devolvido pelos repositórios do pacote
+// `db` (mesmo raciocínio de precondição em mais de um lugar: sem uma linha
+// em market_calendar não há taxa Selic simulada, e diferente de asset_quotes
+// — que tem um fallback documentado, tick.DefaultInitialPrice — não existe
+// valor default decidido pra Selic) quando o Temporizador (tarefa 3.11)
+// ainda não rodou nenhum tick. Usado hoje só por MacroEventRepository.
+// LoadCurrentDay — LoadPurchaseContext/LoadRedeemContext deste arquivo
+// devolvem o sentinel de domínio fixedincomeexecution.ErrMarketNotInitialized
+// (achado da S.9: o motor de erro cru desta variável, sem tradução pro
+// domínio, caía no default de writeFixedIncomePurchaseError/
+// writeFixedIncomeRedemptionError e virava um 500 opaco em vez do 503 que a
+// mesma precondição já ganhava em handleSimulateFixedIncome).
 var ErrMarketCalendarNotInitialized = errors.New("temporizador ainda não rodou nenhum tick — sem taxa Selic simulada pra marcar a mercado o resgate")
 
 // FixedIncomeExecutionRepository implementa fixedincomeexecution.Repository
@@ -109,7 +114,7 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 			return fixedincomeexecution.PurchaseContext{}, err
 		}
 		if !ok {
-			return fixedincomeexecution.PurchaseContext{}, ErrMarketCalendarNotInitialized
+			return fixedincomeexecution.PurchaseContext{}, fixedincomeexecution.ErrMarketNotInitialized
 		}
 		pctx.CurrentMarketRatePct = selic
 
@@ -119,7 +124,7 @@ func (r *FixedIncomeExecutionRepository) LoadPurchaseContext(ctx context.Context
 				return fixedincomeexecution.PurchaseContext{}, err
 			}
 			if !ok {
-				return fixedincomeexecution.PurchaseContext{}, ErrMarketCalendarNotInitialized
+				return fixedincomeexecution.PurchaseContext{}, fixedincomeexecution.ErrMarketNotInitialized
 			}
 			pctx.IPCAAccumulated12m = accumulated
 		}
@@ -187,7 +192,7 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 		`SELECT selic_rate FROM market_calendar WHERE id = 1`,
 	).Scan(&rctx.CurrentMarketRatePct); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
+			return fixedincomeexecution.RedeemContext{}, fixedincomeexecution.ErrMarketNotInitialized
 		}
 		return fixedincomeexecution.RedeemContext{}, err
 	}
@@ -215,7 +220,7 @@ func (r *FixedIncomeExecutionRepository) LoadRedeemContext(ctx context.Context, 
 			return fixedincomeexecution.RedeemContext{}, err
 		}
 		if !ok {
-			return fixedincomeexecution.RedeemContext{}, ErrMarketCalendarNotInitialized
+			return fixedincomeexecution.RedeemContext{}, fixedincomeexecution.ErrMarketNotInitialized
 		}
 		rctx.IPCAAccumulated12m = accumulated
 	}
