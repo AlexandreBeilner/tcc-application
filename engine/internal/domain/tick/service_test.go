@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/bot"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
@@ -370,7 +371,7 @@ func TestService_Run_PersisteFundamentalsNoDiaDeRelatorio(t *testing.T) {
 	repo := &fakeRepository{
 		state:      State{Day: 13, SelicRate: 10},
 		stateFound: true,
-		companies:  []CompanyForFundamentals{{CompanyID: "c1", ReportFrequencyDays: 14}},
+		companies:  []CompanyForFundamentals{{BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100, CompanyID: "c1", ReportFrequencyDays: 14}},
 	}
 	svc := newTestService(repo)
 

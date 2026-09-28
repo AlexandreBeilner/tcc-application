@@ -62,8 +62,8 @@ func main() {
 	coverageRepo := db.NewCoverageRepository(pool)
 	ctx := context.Background()
 
-	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao)
-	banco := ensureCompany(ctx, repo, "Banco Nordeste Digital S.A.", "22333444000162", catalog.SectorBancario)
+	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao, catalog.DefaultBaseGrowthPct)
+	banco := ensureCompany(ctx, repo, "Banco Nordeste Digital S.A.", "22333444000162", catalog.SectorBancario, catalog.DefaultBaseGrowthPct)
 
 	const valr3OutstandingShares = 500_000_000
 	// bancoOutstandingShares é compartilhado por BNDD3 (ON) e BNDD4 (PN) —
@@ -84,11 +84,21 @@ func main() {
 	// de produto, já que é a mesma empresa/mesmo perfil de risco).
 	bndd3ID := seedEquity(ctx, repo, "BNDD3", "Banco Nordeste Digital ON", equityRiskSofisticado, &banco, "ON", bancoOutstandingShares)
 	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bancoOutstandingShares)
-	seedInitialFundamentals(ctx, repo, mineradora, catalog.SectorMineracao, valr3OutstandingShares)
-	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bancoOutstandingShares)
+	seedInitialFundamentals(ctx, repo, mineradora, catalog.SectorMineracao, valr3OutstandingShares, catalog.DefaultBaseGrowthPct)
+	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bancoOutstandingShares, catalog.DefaultBaseGrowthPct)
 
-	tjlo11ID := seedFIITijolo(ctx, repo)
-	papl11ID := seedFIIPapel(ctx, repo)
+	tjlo11ID := seedFIITijolo(ctx, repo, "TJLO11", "FII Tijolo Corporativo", "Lajes Corporativas", 5.2)
+	papl11ID := seedFIIPapel(ctx, repo, "PAPL11", "FII Papel Recebíveis", "CDI")
+	// shpp11ID/logt11ID/ipcp11ID (tarefa 7.2): segundo/terceiro segmento de
+	// tijolo e segundo indexador de papel, além dos dois já seedados desde a
+	// 3.9 — ver critério de aceite da 7.2 (backlog-plataforma-investimentos.md).
+	shpp11ID := seedFIITijolo(ctx, repo, "SHPP11", "FII Shopping Metrópole", "Shopping Centers", 8.5)
+	logt11ID := seedFIITijolo(ctx, repo, "LOGT11", "FII Logística Expressa", "Galpões Logísticos", 3.0)
+	ipcp11ID := seedFIIPapel(ctx, repo, "IPCP11", "FII Papel IPCA Renda", "IPCA+")
+
+	// newCompanyAssets (tarefa 7.2): as 22 empresas novas que cobrem os 6
+	// setores fixos com distribuição de qualidade (ver doc de newCompanySeeds).
+	newCompanyAssets := seedNewCompanies(ctx, repo)
 
 	botAssets := []botAssetSeed{
 		{AssetID: valr3ID, OutstandingShares: valr3OutstandingShares},
@@ -96,7 +106,11 @@ func main() {
 		{AssetID: bndd4ID, OutstandingShares: bancoOutstandingShares},
 		{AssetID: tjlo11ID, OutstandingShares: fiiOutstandingShares},
 		{AssetID: papl11ID, OutstandingShares: fiiOutstandingShares},
+		{AssetID: shpp11ID, OutstandingShares: fiiOutstandingShares},
+		{AssetID: logt11ID, OutstandingShares: fiiOutstandingShares},
+		{AssetID: ipcp11ID, OutstandingShares: fiiOutstandingShares},
 	}
+	botAssets = append(botAssets, newCompanyAssets...)
 	if *syntheticAssets > 0 {
 		botAssets = append(botAssets, seedSyntheticEquities(ctx, repo, *syntheticAssets)...)
 	}
@@ -125,6 +139,58 @@ func main() {
 	// referencia VALR3/BNDD3/TJLO11/PAPL11 reais, então já precisam existir.
 	ensureAuthorizedParticipant(ctx, accountRepo)
 	seedETF(ctx, repo, accountRepo)
+	// Os 4 ETFs abaixo (tarefa 7.2, critério "+1 ETF" superado — 5 no total
+	// contando o SINT11) variam a metodologia de replicação (spec 3.6,
+	// tela 4.4 "cada ETF mostra sua própria metodologia") em vez de
+	// repetir a mesma amostragem do SINT11 com outro nome: um índice de
+	// crescimento (empresas de alta qualidade dos 6 setores), um setorial
+	// concentrado, um de dividendos (FII-pesado) e um de réplica total
+	// (mais constituintes, pesos mais pulverizados, em contraste
+	// deliberado com a amostragem representativa do SINT11). Toda cesta só
+	// Ação/FII (R.1), precisa rodar depois de newCompanyAssets/FIIs novos
+	// já seedados (ver ordem acima).
+	seedETFAsset(ctx, repo, accountRepo, "SMLC11", "ETF Small Caps Crescimento", "Índice Small Caps Crescimento",
+		"Réplica por amostragem das empresas de maior crescimento esperado (companies.base_growth_pct) entre os 6 setores fixos — uma por setor.",
+		[]etfHoldingSpec{
+			{Name: "Mineração Serra Alta ON (MSAL3)", Ticker: "MSAL3", WeightPct: 16.67},
+			{Name: "AgroPampa Grãos ON (AGPP3)", Ticker: "AGPP3", WeightPct: 16.67},
+			{Name: "Banco Aurora ON (BAUR3)", Ticker: "BAUR3", WeightPct: 16.66},
+			{Name: "Varejo Estrela ON (VETR3)", Ticker: "VETR3", WeightPct: 16.67},
+			{Name: "Energética Rio Claro ON (ERCL3)", Ticker: "ERCL3", WeightPct: 16.67},
+			{Name: "TechNova Software ON (TNVA3)", Ticker: "TNVA3", WeightPct: 16.66},
+		})
+	seedETFAsset(ctx, repo, accountRepo, "FINX11", "ETF Financeiro", "Índice Setorial Financeiro",
+		"Réplica setorial concentrada nas ações do setor Bancário/Financeiro do catálogo.",
+		[]etfHoldingSpec{
+			{Name: "Banco Nordeste Digital ON (BNDD3)", Ticker: "BNDD3", WeightPct: 25},
+			{Name: "Banco Nordeste Digital PN (BNDD4)", Ticker: "BNDD4", WeightPct: 20},
+			{Name: "Banco Aurora ON (BAUR3)", Ticker: "BAUR3", WeightPct: 25},
+			{Name: "Financeira Planalto ON (FPLA3)", Ticker: "FPLA3", WeightPct: 20},
+			{Name: "Crediseg Financeira ON (CDSG3)", Ticker: "CDSG3", WeightPct: 10},
+		})
+	seedETFAsset(ctx, repo, accountRepo, "DIVI11", "ETF Dividendos", "Índice de Dividendos",
+		"Réplica por amostragem de ativos historicamente pagadores de proventos consistentes — FIIs e ações de setores de fluxo de caixa estável.",
+		[]etfHoldingSpec{
+			{Name: "FII Tijolo Corporativo (TJLO11)", Ticker: "TJLO11", WeightPct: 25},
+			{Name: "FII Papel Recebíveis (PAPL11)", Ticker: "PAPL11", WeightPct: 20},
+			{Name: "FII Logística Expressa (LOGT11)", Ticker: "LOGT11", WeightPct: 20},
+			{Name: "Distribuidora Nordeste Luz ON (DNLZ3)", Ticker: "DNLZ3", WeightPct: 20},
+			{Name: "Banco Nordeste Digital PN (BNDD4)", Ticker: "BNDD4", WeightPct: 15},
+		})
+	seedETFAsset(ctx, repo, accountRepo, "AMPL11", "ETF Amplo Mercado", "Índice Amplo de Mercado",
+		"Réplica total (full replication): mais constituintes e pesos mais pulverizados entre os 6 setores, em contraste com a amostragem representativa do SINT11.",
+		[]etfHoldingSpec{
+			{Name: "Mineradora Vale do Rio ON (VALR3)", Ticker: "VALR3", WeightPct: 10},
+			{Name: "Metais do Cerrado ON (MTCE3)", Ticker: "MTCE3", WeightPct: 10},
+			{Name: "Cerrado Agrícola ON (CRAG3)", Ticker: "CRAG3", WeightPct: 10},
+			{Name: "Banco Nordeste Digital ON (BNDD3)", Ticker: "BNDD3", WeightPct: 10},
+			{Name: "Lojas Popular ON (LPOP3)", Ticker: "LPOP3", WeightPct: 10},
+			{Name: "Transmissora Planalto ON (TPLN3)", Ticker: "TPLN3", WeightPct: 10},
+			{Name: "DataCore Sistemas ON (DTCR3)", Ticker: "DTCR3", WeightPct: 10},
+			{Name: "FII Tijolo Corporativo (TJLO11)", Ticker: "TJLO11", WeightPct: 10},
+			{Name: "FII Shopping Metrópole (SHPP11)", Ticker: "SHPP11", WeightPct: 10},
+			{Name: "CloudBrasil ON (CLBR3)", Ticker: "CLBR3", WeightPct: 10},
+		})
 	if *syntheticETFCount > 0 {
 		seedSyntheticETFs(ctx, repo, accountRepo, *syntheticETFCount, *syntheticAssets)
 	}
@@ -158,7 +224,7 @@ const (
 	equityRiskSofisticado = "Sofisticado"
 )
 
-func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj string, sector catalog.Sector) string {
+func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj string, sector catalog.Sector, baseGrowthPct float64) string {
 	if id, found, err := repo.FindCompanyByCNPJ(ctx, cnpj); err != nil {
 		log.Fatalf("erro ao buscar empresa %s: %v", cnpj, err)
 	} else if found {
@@ -166,7 +232,7 @@ func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj s
 		return id
 	}
 
-	company, err := catalog.NewCompany(name, cnpj, sector)
+	company, err := catalog.NewCompany(name, cnpj, sector, baseGrowthPct)
 	if err != nil {
 		log.Fatalf("empresa %s inválida: %v", name, err)
 	}
@@ -215,7 +281,7 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 	return id
 }
 
-func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, sector catalog.Sector, outstandingShares int64) {
+func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, sector catalog.Sector, outstandingShares int64, baseGrowthPct float64) {
 	if _, found, err := repo.FindLatestFundamentals(ctx, companyID); err != nil {
 		log.Fatalf("erro ao buscar fundamentos da empresa %s: %v", companyID, err)
 	} else if found {
@@ -239,8 +305,14 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 	// Os coeficientes já variam por setor desde a tarefa K.2 (margens,
 	// alavancagem, sensibilidade à Selic — fundamentals.CoefficientsBySector,
 	// calibrados na pesquisa da K.1, .claude/calibracao-fundamentos-setor.md).
+	// baseGrowthPct (tarefa 7.2, companies.base_growth_pct) é o crescimento
+	// PRÓPRIO desta empresa, não mais fundamentals.DefaultBaseGrowth fixo —
+	// bootstrap precisa calibrar o VPA inicial com o MESMO crescimento que
+	// fundamentalsConfig (tick.go) vai usar daqui em diante, senão o preço
+	// justo do dia 1 já nasceria divergindo do preço de partida por causa
+	// só da troca de crescimento entre o seed e o primeiro tick.
 	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(
-		sector, tick.DefaultInitialPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selic.DefaultNeutralRate/100)
+		sector, tick.DefaultInitialPrice, outstandingShares, baseGrowthPct/100, selic.DefaultNeutralRate/100)
 	if err != nil {
 		log.Fatalf("erro ao calibrar fundamentos iniciais da empresa %s: %v", companyID, err)
 	}
@@ -248,6 +320,98 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 		log.Fatalf("erro ao criar fundamentos iniciais da empresa %s: %v", companyID, err)
 	}
 	log.Printf("fundamentos iniciais da empresa %s criados (net_revenue=%.2f)", companyID, financials.NetRevenue)
+}
+
+// growthPctBoa/Media/Ruim (tarefa 7.2) são os 3 níveis ilustrativos de
+// qualidade usados por newCompanySeeds pra distribuir 1 Boa/2 Média/1 Ruim
+// por setor no catálogo novo (companies.base_growth_pct — ver doc de
+// catalog.Company.BaseGrowthPct sobre por que crescimento, e não ROE/
+// margem, é o grau de liberdade disponível hoje). growthPctMedia repete
+// catalog.DefaultBaseGrowthPct de propósito: mesmo crescimento que as duas
+// empresas já seedadas desde a 3.9 (Mineradora Vale do Rio, Banco Nordeste
+// Digital) sempre tiveram, nenhuma regressão nelas.
+const (
+	growthPctBoa   = 8.00
+	growthPctMedia = catalog.DefaultBaseGrowthPct
+	growthPctRuim  = -3.00
+)
+
+// newCompanySeeds (tarefa 7.2, backlog-plataforma-investimentos.md) cobre
+// os 6 setores fixos com pelo menos 4 empresas cada — Bancário/Financeiro
+// com só 3 aqui porque já aproveita o par ON/PN da Banco Nordeste Digital
+// seedado acima, chegando a 4 empresas/5 ativos no setor — e distribui 1
+// Boa/2 Média/1 Ruim por setor (contando a empresa/dupla já existente como
+// Média): o total do catálogo de ações fica em 25 ativos (3 já seedados +
+// 22 aqui), como pedido nesta sessão. RiskClass por setor segue a mesma
+// leitura qualitativa de fundamentals.CoefficientsBySector (K.1): Mineração/
+// Energia têm a menor SelicSensitivity calibrada (setores mais defensivos,
+// dolarizados/regulados) e ficam Conservador; Agronegócio/Bancário/Varejo/
+// Tecnologia têm a maior (mais cíclicos/alavancados) e ficam Sofisticado —
+// mesma classificação que VALR3 (Conservador)/BNDD3-4 (Sofisticado) já
+// tinham. Nomes/CNPJs fictícios, mesmo padrão de "Mineradora Vale do Rio
+// S.A." (tarefa 3.9); CNPJs seguem um prefixo próprio (331110...) que nunca
+// colide com os 2 CNPJs já seedados nem entre si.
+type newCompanySeed struct {
+	Ticker            string
+	AssetName         string
+	CompanyName       string
+	CNPJ              string
+	Sector            catalog.Sector
+	RiskClass         string
+	GrowthPct         float64
+	OutstandingShares int64
+}
+
+var newCompanySeeds = []newCompanySeed{
+	// Mineração (Conservador) — 1 já existe (VALR3, Média).
+	{"MSAL3", "Mineração Serra Alta ON", "Mineração Serra Alta S.A.", "33111000000001", catalog.SectorMineracao, equityRiskConservador, growthPctBoa, 250_000_000},
+	{"MTCE3", "Metais do Cerrado ON", "Metais do Cerrado S.A.", "33111000000002", catalog.SectorMineracao, equityRiskConservador, growthPctMedia, 400_000_000},
+	{"MPNG3", "Mineradora Pedra Negra ON", "Mineradora Pedra Negra S.A.", "33111000000003", catalog.SectorMineracao, equityRiskConservador, growthPctRuim, 180_000_000},
+
+	// Agronegócio (Sofisticado) — setor sem representante antes da 7.2.
+	{"AGPP3", "AgroPampa Grãos ON", "AgroPampa Grãos S.A.", "33111000000004", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctBoa, 150_000_000},
+	{"CRAG3", "Cerrado Agrícola ON", "Cerrado Agrícola S.A.", "33111000000005", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctMedia, 220_000_000},
+	{"SAFR3", "SafraForte Participações ON", "SafraForte Participações S.A.", "33111000000006", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctMedia, 260_000_000},
+	{"AVSC3", "Algodoeira Vale Seco ON", "Algodoeira Vale Seco S.A.", "33111000000007", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctRuim, 130_000_000},
+
+	// Bancário/Financeiro (Sofisticado) — 1 já existe (BNDD3/BNDD4, Média).
+	{"BAUR3", "Banco Aurora ON", "Banco Aurora S.A.", "33111000000008", catalog.SectorBancario, equityRiskSofisticado, growthPctBoa, 350_000_000},
+	{"FPLA3", "Financeira Planalto ON", "Financeira Planalto S.A.", "33111000000009", catalog.SectorBancario, equityRiskSofisticado, growthPctMedia, 200_000_000},
+	{"CDSG3", "Crediseg Financeira ON", "Crediseg Financeira S.A.", "33111000000010", catalog.SectorBancario, equityRiskSofisticado, growthPctRuim, 140_000_000},
+
+	// Varejo (Sofisticado) — setor sem representante antes da 7.2.
+	{"VETR3", "Varejo Estrela ON", "Varejo Estrela S.A.", "33111000000011", catalog.SectorVarejo, equityRiskSofisticado, growthPctBoa, 300_000_000},
+	{"LPOP3", "Lojas Popular ON", "Lojas Popular S.A.", "33111000000012", catalog.SectorVarejo, equityRiskSofisticado, growthPctMedia, 260_000_000},
+	{"MDRP3", "Moda Rápida ON", "Moda Rápida S.A.", "33111000000013", catalog.SectorVarejo, equityRiskSofisticado, growthPctMedia, 180_000_000},
+	{"CBPR3", "Comercial Bom Preço ON", "Comercial Bom Preço S.A.", "33111000000014", catalog.SectorVarejo, equityRiskSofisticado, growthPctRuim, 220_000_000},
+
+	// Energia (Conservador) — setor sem representante antes da 7.2.
+	{"ERCL3", "Energética Rio Claro ON", "Energética Rio Claro S.A.", "33111000000015", catalog.SectorEnergia, equityRiskConservador, growthPctBoa, 280_000_000},
+	{"TPLN3", "Transmissora Planalto ON", "Transmissora Planalto S.A.", "33111000000016", catalog.SectorEnergia, equityRiskConservador, growthPctMedia, 320_000_000},
+	{"DNLZ3", "Distribuidora Nordeste Luz ON", "Distribuidora Nordeste Luz S.A.", "33111000000017", catalog.SectorEnergia, equityRiskConservador, growthPctMedia, 240_000_000},
+	{"TVES3", "Termelétrica Vale Escuro ON", "Termelétrica Vale Escuro S.A.", "33111000000018", catalog.SectorEnergia, equityRiskConservador, growthPctRuim, 160_000_000},
+
+	// Tecnologia (Sofisticado) — setor sem representante antes da 7.2.
+	{"TNVA3", "TechNova Software ON", "TechNova Software S.A.", "33111000000019", catalog.SectorTecnologia, equityRiskSofisticado, growthPctBoa, 120_000_000},
+	{"DTCR3", "DataCore Sistemas ON", "DataCore Sistemas S.A.", "33111000000020", catalog.SectorTecnologia, equityRiskSofisticado, growthPctMedia, 150_000_000},
+	{"CLBR3", "CloudBrasil ON", "CloudBrasil S.A.", "33111000000021", catalog.SectorTecnologia, equityRiskSofisticado, growthPctMedia, 100_000_000},
+	{"INLG3", "InfoLegacy Sistemas ON", "InfoLegacy Sistemas S.A.", "33111000000022", catalog.SectorTecnologia, equityRiskSofisticado, growthPctRuim, 90_000_000},
+}
+
+// seedNewCompanies cria as 22 empresas/ações de newCompanySeeds e devolve a
+// entrada de liquidez de bot de cada uma, mesmo formato de
+// seedSyntheticEquities (cmd/seed/synthetic.go) — não reaproveitado direto
+// porque este catálogo tem nome/setor/qualidade curados, não gerados por
+// índice.
+func seedNewCompanies(ctx context.Context, repo *db.CatalogRepository) []botAssetSeed {
+	assets := make([]botAssetSeed, 0, len(newCompanySeeds))
+	for _, s := range newCompanySeeds {
+		companyID := ensureCompany(ctx, repo, s.CompanyName, s.CNPJ, s.Sector, s.GrowthPct)
+		assetID := seedEquity(ctx, repo, s.Ticker, s.AssetName, s.RiskClass, &companyID, "ON", s.OutstandingShares)
+		seedInitialFundamentals(ctx, repo, companyID, s.Sector, s.OutstandingShares, s.GrowthPct)
+		assets = append(assets, botAssetSeed{AssetID: assetID, OutstandingShares: s.OutstandingShares})
+	}
+	return assets
 }
 
 // seedETF monta a cesta 100% em ativos reais do catálogo — decisão do
@@ -415,6 +579,50 @@ func mustHolding(ctx context.Context, repo *db.CatalogRepository, name, ticker s
 	return etf.Holding{ConstituentName: name, AssetID: &id, Class: holdingClassOf(record.Type), WeightPct: weightPct}
 }
 
+// etfHoldingSpec é um constituinte real da cesta de um ETF novo (tarefa
+// 7.2) — resolvido pra um etf.Holding por seedETFAsset via mustHolding.
+type etfHoldingSpec struct {
+	Name      string
+	Ticker    string
+	WeightPct float64
+}
+
+// seedETFAsset cria um ETF adicional (tarefa 7.2, catálogo completo) com
+// benchmark/metodologia/cesta próprios — generalização de seedETF (SINT11)
+// pra qualquer ETF novo, sem a lógica de migração de cesta legada (só
+// SINT11 precisa dela, ver migrateETFBasketIfNeeded). Mesma regra de cesta
+// só Ação/FII da R.1 (etf.NewDetails já rejeita renda fixa). Precisa rodar
+// depois de todo constituinte referenciado já ter sido seedado (mustHolding
+// falha alto senão).
+func seedETFAsset(ctx context.Context, repo *db.CatalogRepository, accountRepo *db.AccountRepository, ticker, name, benchmarkIndex, methodology string, holdings []etfHoldingSpec) {
+	id, existed := ensureAsset(ctx, repo, ticker, name, catalog.AssetETF, nil, false)
+	if existed {
+		ensureETFFund(ctx, repo, accountRepo, id)
+		return
+	}
+
+	via, err := catalog.NewVariableIncomeAsset(id, nil, nil, nil)
+	if err != nil {
+		log.Fatalf("variable_income_assets inválido pra %s: %v", ticker, err)
+	}
+	if err := repo.CreateVariableIncomeAsset(ctx, via); err != nil {
+		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
+	}
+
+	holdingList := make([]etf.Holding, 0, len(holdings))
+	for _, h := range holdings {
+		holdingList = append(holdingList, mustHolding(ctx, repo, h.Name, h.Ticker, h.WeightPct))
+	}
+	details, err := etf.NewDetails(benchmarkIndex, methodology, holdingList)
+	if err != nil {
+		log.Fatalf("etf_details inválido pra %s: %v", ticker, err)
+	}
+	if err := repo.CreateETFDetails(ctx, id, details); err != nil {
+		log.Fatalf("erro ao criar etf_details pra %s: %v", ticker, err)
+	}
+	ensureETFFund(ctx, repo, accountRepo, id)
+}
+
 // fiiOutstandingShares (cotas em circulação) — sem fórmula de geração ainda
 // (mesmo tratamento ilustrativo de interest_rate/maturity_date, tarefa
 // 3.9), mas precisa estar preenchido desde a tarefa 4.9: é o denominador de
@@ -424,9 +632,11 @@ func mustHolding(ctx context.Context, repo *db.CatalogRepository, name, ticker s
 // dois).
 const fiiOutstandingShares = int64(1_000_000)
 
-func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) string {
-	const ticker = "TJLO11"
-	id, existed := ensureAsset(ctx, repo, ticker, "FII Tijolo Corporativo", catalog.AssetFII, nil, false)
+// seedFIITijolo cria um FII de tijolo (segment/vacancyRate próprios —
+// tarefa 7.2 generalizou pra além do TJLO11/Lajes Corporativas original,
+// cobrindo Shopping/Logística com vacância própria por segmento).
+func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name, segment string, vacancyRate float64) string {
+	id, existed := ensureAsset(ctx, repo, ticker, name, catalog.AssetFII, nil, false)
 	if existed {
 		return id
 	}
@@ -440,12 +650,10 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) string {
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
 
-	segment := "Lajes Corporativas"
 	// Valor patrimonial por cota = preço inicial (tick.DefaultInitialPrice = R$ 100, P/VP = 1),
 	// como nos FIIs reais; com 500M o patrimônio por cota era 5x o preço e o provento mensal
 	// (1,1% do patrimônio) virava um Dividend Yield absurdo (tarefa S.2).
 	netWorth := float64(fiiOutstandingShares) * tick.DefaultInitialPrice
-	vacancyRate := 5.2
 	details, err := fii.NewDetails(fii.TypeTijolo, &segment, &netWorth, &vacancyRate, nil, nil)
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
@@ -456,9 +664,10 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository) string {
 	return id
 }
 
-func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) string {
-	const ticker = "PAPL11"
-	id, existed := ensureAsset(ctx, repo, ticker, "FII Papel Recebíveis", catalog.AssetFII, nil, false)
+// seedFIIPapel cria um FII de papel (indexador próprio — tarefa 7.2
+// generalizou pra além do PAPL11/CDI original, cobrindo IPCA+).
+func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name, indexador string) string {
+	id, existed := ensureAsset(ctx, repo, ticker, name, catalog.AssetFII, nil, false)
 	if existed {
 		return id
 	}
@@ -477,7 +686,6 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository) string {
 	// recebíveis, mesmo tratamento "sujeito à calibração 8.1" de net_worth
 	// (seedFIITijolo) — é o denominador ausente que fazia PAPL11 nunca gerar
 	// provento/Dividend Yield antes desta tarefa.
-	indexador := "CDI"
 	portfolioValue := float64(fiiOutstandingShares) * tick.DefaultInitialPrice
 	details, err := fii.NewDetails(fii.TypePapel, nil, nil, nil, &indexador, &portfolioValue)
 	if err != nil {

@@ -511,7 +511,7 @@ func TestCompanyRoundContexts_EmpresaComDoisAtivosDeAcaoCompartilhaMesmoContexto
 	revenue := 1_000_000.0
 	company := CompanyForFundamentals{
 		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
-		Sector: "Mineração", LastRevenue: &revenue,
+		Sector: "Mineração", LastRevenue: &revenue, BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100,
 	}
 	assets := []AssetForPricing{acaoAsset("on1", 100), acaoAsset("pn1", 200)}
 
@@ -1134,7 +1134,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	}
 	company := CompanyForFundamentals{
 		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
-		Sector: sector, LastRevenue: &financials.NetRevenue,
+		Sector: sector, LastRevenue: &financials.NetRevenue, BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100,
 	}
 
 	severePct := -25.0
@@ -1290,7 +1290,7 @@ func TestService_Run_RodadasDeAcaoEntramEmResultQuotesUmaVezSo(t *testing.T) {
 func findReportGrowthSeed(t *testing.T, companyID string, sector catalog.Sector, cycleIndex int, selicNeutralFrac float64, match func(surprise float64) bool) int64 {
 	t.Helper()
 	for candidate := int64(1); candidate < 20_000; candidate++ {
-		cfg := fundamentalsConfig(candidate, companyID, sector)
+		cfg := fundamentalsConfig(candidate, companyID, sector, fundamentals.DefaultBaseGrowth*100)
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, selicNeutralFrac, selicNeutralFrac)
 		if match(actualGrowth - fundamentals.DefaultBaseGrowth) {
 			return candidate
@@ -1365,7 +1365,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	}
 	company := CompanyForFundamentals{
 		CompanyID: companyID, ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays,
-		Sector: sector, LastRevenue: &lastRevenue,
+		Sector: sector, LastRevenue: &lastRevenue, BaseGrowthPct: fundamentals.DefaultBaseGrowth * 100,
 	}
 
 	repo := &fakeRepository{

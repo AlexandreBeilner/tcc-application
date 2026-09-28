@@ -170,7 +170,7 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, f.net_revenue
+		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.base_growth_pct, f.net_revenue
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -188,7 +188,7 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	var companies []tick.CompanyForFundamentals
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.LastRevenue); err != nil {
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.LastRevenue); err != nil {
 			return nil, err
 		}
 		companies = append(companies, c)

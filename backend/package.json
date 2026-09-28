@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/migrations",
     "start": "node dist/server.js",
     "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.mts",
+    "typecheck:e2e": "tsc --noEmit -p test/e2e/tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

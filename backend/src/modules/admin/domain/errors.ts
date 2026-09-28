@@ -7,3 +7,10 @@
 // não pelo caso de uso — é a tradução de um 400 do motor pra um erro de
 // domínio que o router sabe mapear de volta pra 400.
 export class InvalidMacroEventError extends Error {}
+
+// TickInProgressError representa o 409 que o motor devolve quando já existe
+// um tick em andamento (agendado ou outro POST /admin/tick concorrente,
+// tarefa S.3/trava consultiva do Postgres) — traduzido pelo adapter de
+// infraestrutura (engineTickTrigger) pro router mapear de volta pra 409,
+// mesmo raciocínio de InvalidMacroEventError pro 400.
+export class TickInProgressError extends Error {}

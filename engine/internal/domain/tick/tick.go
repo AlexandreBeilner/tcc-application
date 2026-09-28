@@ -120,6 +120,11 @@ type CompanyForFundamentals struct {
 	// (Lei 6.404/76, art. 17), consumida por dividend.EquityValuePerShare.
 	// Empresa só-ON nunca chega a usar esse valor (pnShares = 0 no cálculo).
 	PnDividendPremiumPct float64
+	// BaseGrowthPct é companies.base_growth_pct (tarefa 7.2) — crescimento_base
+	// desta empresa por ciclo, em % (fundamentalsConfig converte pra fração).
+	// Substitui o único valor global (fundamentals.DefaultBaseGrowth) que toda
+	// empresa usava antes desta tarefa — ver doc de catalog.Company.BaseGrowthPct.
+	BaseGrowthPct float64
 }
 
 // MacroEventTargetForApplication espelha uma linha de macro_event_targets
@@ -511,9 +516,14 @@ func deterministicSeed(baseSeed int64, id string) int64 {
 // fixos da spec 3.3.2 — não deveria acontecer com o catálogo seedado
 // (catalog.NewCompany já valida o setor na criação), mas não trava o ciclo
 // de relatório se acontecer.
-func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector) fundamentals.Config {
+// fundamentalsConfig monta o Config de crescimento de uma empresa —
+// baseGrowthPct (companies.base_growth_pct, tarefa 7.2) é o crescimento_base
+// PRÓPRIO da empresa, não mais fundamentals.DefaultBaseGrowth fixo pra todo
+// mundo (ver doc de CompanyForFundamentals.BaseGrowthPct/catalog.Company.
+// BaseGrowthPct sobre por que isso importa pra "empresa boa/média/ruim").
+func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector, baseGrowthPct float64) fundamentals.Config {
 	return fundamentals.Config{
-		BaseGrowth:  fundamentals.DefaultBaseGrowth,
+		BaseGrowth:  baseGrowthPct / 100,
 		Sensitivity: fundamentals.CoefficientsForSector(sector).SelicSensitivity,
 		NoiseStdDev: fundamentals.DefaultNoiseStdDev,
 		Seed:        deterministicSeed(seed, companyID),
@@ -590,7 +600,7 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 	contexts := make(map[string]CompanyRoundContext, len(companies))
 	for _, c := range companies {
 		sector := catalog.Sector(c.Sector)
-		cfg := fundamentalsConfig(seed, c.CompanyID, sector)
+		cfg := fundamentalsConfig(seed, c.CompanyID, sector, c.BaseGrowthPct)
 
 		baseRevenue := fundamentals.DefaultBaseRevenue
 		if c.LastRevenue != nil {
@@ -1044,7 +1054,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		}
 
 		sector := catalog.Sector(c.Sector)
-		cfg := fundamentalsConfig(seed, c.CompanyID, sector)
+		cfg := fundamentalsConfig(seed, c.CompanyID, sector, c.BaseGrowthPct)
 		cycleIndex := (dayIndex+1)/c.ReportFrequencyDays - 1 // 0-based, um por ciclo de relatório já fechado
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, newSelicRate, selicCfg.Neutral)
 		if macroEffect, affected := macroFundamentalsEffects[c.CompanyID]; affected {
