@@ -7,9 +7,12 @@ import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
 import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
 import { createEngineMacroEventReader } from './modules/admin/infrastructure/engine/engineMacroEventReader'
+import { createEngineTickTrigger } from './modules/admin/infrastructure/engine/engineTickTrigger'
 import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/triggerMacroEvent'
 import { ListMacroEventsUseCase } from './modules/admin/application/useCases/listMacroEvents'
+import { TriggerTickUseCase } from './modules/admin/application/useCases/triggerTick'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
+import { createAdminTickRouter } from './modules/admin/interfaces/http/adminTickRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -197,6 +200,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const accountProvisioner = createEngineAccountProvisioner(engineUrl)
   const macroEventTrigger = createEngineMacroEventTrigger(engineUrl)
   const macroEventReader = createEngineMacroEventReader(engineUrl)
+  const tickTrigger = createEngineTickTrigger(engineUrl)
 
   // `lessonRepository` precisa existir antes do módulo `market` abaixo —
   // é o dado-fonte do gate de desbloqueio (`productUnlockReader`, 7.0.1).
@@ -265,6 +269,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
+  const triggerTick = new TriggerTickUseCase(tickTrigger)
   // Reaproveita a mesma instância de ListMacroEventsUseCase (admin, 4.5) —
   // feed público (6.0.6, tela 5.1) é o mesmo caso de uso, só sem
   // requireRole('admin') no router. newsReadRepository (6.6.2) decora
@@ -470,6 +475,7 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   app.use(createAdminPingRouter(authMiddleware))
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
+  app.use(createAdminTickRouter({ triggerTick, authMiddleware }))
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
