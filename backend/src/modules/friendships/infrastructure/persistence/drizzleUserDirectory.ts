@@ -48,7 +48,9 @@ export function createDrizzleUserDirectory(db: Database): UserDirectory {
       const rows = await db
         .select()
         .from(users)
-        .where(and(ilike(users.username, `%${escapeLikePattern(query)}%`), ne(users.id, excludeUserId)))
+        .where(
+          and(ilike(users.username, `%${escapeLikePattern(query)}%`), ne(users.id, excludeUserId)),
+        )
         .limit(20)
       return rows.map(toSummary)
     },
