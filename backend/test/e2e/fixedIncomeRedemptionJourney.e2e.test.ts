@@ -57,7 +57,8 @@ describe('jornada: resgate de renda fixa com IR', () => {
         .post('/market/fixed-income/purchases')
         .send({ asset_id: cdb.id, amount: 1000 })
       expect(purchase.status).toBe(201)
-      const purchaseDay = (await authed(user.token).get('/market/clock')).body.simulated_day as number
+      const purchaseDay = (await authed(user.token).get('/market/clock')).body
+        .simulated_day as number
 
       // Avança dias simulados o bastante pra sair da primeira faixa da
       // tabela de IR (> 180 dias corridos), provando que a suíte de fato
@@ -84,7 +85,11 @@ describe('jornada: resgate de renda fixa com IR', () => {
         .send({ asset_id: cdb.id })
       expect(redemption.status).toBe(200)
 
-      const { total_value: totalValue, net_value: netValue, tax_rate: taxRate } = redemption.body as {
+      const {
+        total_value: totalValue,
+        net_value: netValue,
+        tax_rate: taxRate,
+      } = redemption.body as {
         total_value: number
         net_value: number
         tax_rate: number

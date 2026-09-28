@@ -44,15 +44,18 @@ describe('jornada: evento macro → preço → relatório', () => {
 
       const companyBefore = await authed(user.token).get(`/market/companies/${companyId}`)
       expect(companyBefore.status).toBe(200)
-      const fundamentalsCountBefore = (companyBefore.body.company as CompanyDetail).fundamentals.length
+      const fundamentalsCountBefore = (companyBefore.body.company as CompanyDetail).fundamentals
+        .length
 
       // Template com efeito de preço E de fundamentos (macroevent/templates.go,
       // Category Regulatório/Mineração) — garante os dois efeitos exercitados
       // numa jornada só, mesma escolha documentada pra 4.4 (spec 3.3.2).
-      const trigger = await authed(adminToken).post('/admin/macro-events').send({
-        template_key: 'legislacao-ambiental-mineracao',
-        targets: [{ asset_id: target.id }],
-      })
+      const trigger = await authed(adminToken)
+        .post('/admin/macro-events')
+        .send({
+          template_key: 'legislacao-ambiental-mineracao',
+          targets: [{ asset_id: target.id }],
+        })
       expect(trigger.status).toBe(201)
       const event = trigger.body.event as {
         id: string
@@ -100,7 +103,8 @@ describe('jornada: evento macro → preço → relatório', () => {
 
       const companyAfter = await authed(user.token).get(`/market/companies/${companyId}`)
       expect(companyAfter.status).toBe(200)
-      const fundamentalsCountAfter = (companyAfter.body.company as CompanyDetail).fundamentals.length
+      const fundamentalsCountAfter = (companyAfter.body.company as CompanyDetail).fundamentals
+        .length
       expect(fundamentalsCountAfter).toBeGreaterThan(fundamentalsCountBefore)
 
       const news = await authed(user.token).get('/news?limit=50')
