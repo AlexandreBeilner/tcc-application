@@ -4890,12 +4890,27 @@ diretamente na conversa, registradas abaixo.
   `{"xpAwarded":30,"leveledUp":false,"newLevel":1,...}` — contrato confirmado ponta a ponta, não só em teste. Stack
   derrubada com `docker compose down` (volumes preservados) ao final.
 
-### T.11 · Passo no onboarding explicando o salário
+### T.11 · Passo no onboarding explicando o salário ✅
 - **Descrição:** novo slide no onboarding, mesma sequência da S.12 ("Aqui o tempo passa mais rápido"): explica que o
   salário mensal cresce com o nível e cai automaticamente no 5º dia útil do mês, sem precisar fazer nada.
 - **Critérios de aceite:** slide navegável nos três breakpoints, sem em dash em texto de UI.
 - **Dependências:** nenhuma tecnicamente, mas só faz sentido publicar depois de T.5 estar em produção (senão o
   onboarding promete um mecanismo que ainda não existe).
+- **Entregável real (sessão 2026-09-28):** novo slide "Seu salário cresce com você" inserido entre o slide do tempo
+  acelerado (S.12) e o de amigos em `SLIDES` (`frontend/src/pages/Onboarding/index.tsx`), ícone `HandCoins` (mesmo do
+  resto do salário — `SalaryIndicator`/`CalendarKindIcon`). Visual próprio (`visual: 'salary'`, componente
+  `SalaryVisual`) reusa o padrão `compareBox` já usado pelo slide do tempo (`.timeVisual`/`.compare`/`.compareBox` do
+  `index.module.css`, sem CSS novo) pra mostrar dois valores de referência lado a lado (nível 10 → R$1.000,00, nível
+  30 → R$6.000,00, via `formatCurrency`). `monthlySalaryForLevel` duplicada localmente (função privada não
+  exportada, mesma decisão de duplicação entre bundles TS já tomada na T.10 pro reveal de level-up — comentário
+  aponta a fonte real em `backend/src/modules/payroll/domain/salary.ts`). Responsivo nos três breakpoints de graça
+  (herda o layout existente do carrossel, sem CSS específico de breakpoint). Sem em dash em texto de UI. Testes:
+  `index.test.tsx` ganhou um teste pro novo slide (título, menção ao "5º dia útil do mês", valor "no nível 10") e os
+  testes existentes que navegavam até o último slide por posição fixa foram ajustados pro clique extra de "Próximo"
+  (slide de amigos e "Começar" agora são o 5º/último, não mais o 4º). `npx vitest run` (816 testes, +1 sobre a
+  baseline da T.10)/`npx tsc -b`/`npx oxlint`/`npx prettier --check` verdes, sem warning novo. Sem mudança de
+  contrato HTTP, então sem entrada nova em `.docs/`. **Sem `docker compose up`** — mudança é só de frontend (não
+  containerizado). **Fase T completa** (T.1–T.11, todas ✅).
 
 ## Sequência sugerida
 
