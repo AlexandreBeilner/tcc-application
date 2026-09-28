@@ -48,7 +48,15 @@ export class AwardXpUseCase {
     // (5.2) — checado em processo depois de persistir, nunca por polling.
     // Resultado capturado (I.2) — antes descartado, sem dado nenhum pro
     // "teatro de recompensa" (I.1) disparar.
-    const unlockedAchievements = await this.achievementChecker.checkAndUnlock(input.userId)
+    // Best-effort: xp/nível já foram persistidos acima, então uma falha
+    // aqui (ex: engine indisponível durante o replay de net worth) não pode
+    // virar 500 pra uma escrita que já teve sucesso — só logada.
+    let unlockedAchievements: UnlockedAchievement[] = []
+    try {
+      unlockedAchievements = await this.achievementChecker.checkAndUnlock(input.userId)
+    } catch (err) {
+      console.error(`checagem de conquistas falhou para userId=${input.userId}:`, err)
+    }
 
     return { xp, level, leveledUp: level > current.level, unlockedAchievements }
   }

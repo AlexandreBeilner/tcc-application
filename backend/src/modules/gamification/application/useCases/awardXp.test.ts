@@ -74,6 +74,24 @@ describe('AwardXpUseCase', () => {
     ])
   })
 
+  it('mantém o xp creditado mesmo se a checagem de conquistas falhar', async () => {
+    const progressionRepository = createFakeProgressionRepository()
+    const achievementChecker = {
+      calls: [] as string[],
+      async checkAndUnlock(userId: string) {
+        achievementChecker.calls.push(userId)
+        throw new Error('engine indisponível')
+      },
+    }
+    const useCase = new AwardXpUseCase(progressionRepository, achievementChecker)
+
+    const result = await useCase.execute({ userId: 'u1', amount: 50, reason: 'licao' })
+
+    expect(result).toEqual({ xp: 50, level: 1, leveledUp: false, unlockedAchievements: [] })
+    const stored = await progressionRepository.findByUserId('u1')
+    expect(stored?.xp).toBe(50)
+  })
+
   it('rejeita quantidade não positiva', async () => {
     const { useCase } = build()
 

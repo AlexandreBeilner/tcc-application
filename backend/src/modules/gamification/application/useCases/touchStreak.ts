@@ -50,7 +50,15 @@ export class TouchStreakUseCase {
     await this.progressionRepository.upsert({ ...current, ...next })
     // Qualquer toque de streak pode satisfazer um critério de conquista
     // (5.2) — mesmo raciocínio de AwardXpUseCase. Resultado capturado (I.2).
-    const unlockedAchievements = await this.achievementChecker.checkAndUnlock(input.userId)
+    // Best-effort: o streak já foi persistido acima, então uma falha aqui
+    // (ex: engine indisponível durante o replay de net worth) não pode
+    // virar 500 pra uma escrita que já teve sucesso — só logada.
+    let unlockedAchievements: UnlockedAchievement[] = []
+    try {
+      unlockedAchievements = await this.achievementChecker.checkAndUnlock(input.userId)
+    } catch (err) {
+      console.error(`checagem de conquistas falhou para userId=${input.userId}:`, err)
+    }
     const milestoneReached = streakMilestoneReached(current.currentStreak, next.currentStreak)
 
     return {
