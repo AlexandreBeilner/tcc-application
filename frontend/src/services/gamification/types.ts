@@ -6,6 +6,7 @@ export interface Progression {
     currentStreak: number
     longestStreak: number
     lastQualifyingActivityDate: string | null
+    monthlySalary: number
 }
 
 export interface Streak {

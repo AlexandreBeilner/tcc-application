@@ -60,11 +60,58 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO accounts (user_id, current_balance, total_invested, total_dividends_received, is_bot, is_active)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		acc.UserID, acc.CurrentBalance, acc.TotalInvested, acc.TotalDividendsReceived, acc.IsBot, acc.IsActive,
+		`INSERT INTO accounts (user_id, current_balance, total_invested, total_disinvested, total_dividends_received, is_bot, is_active)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		acc.UserID, acc.CurrentBalance, acc.TotalInvested, acc.TotalDisinvested, acc.TotalDividendsReceived, acc.IsBot, acc.IsActive,
 	); err != nil {
 		return mapAccountError(err)
+	}
+
+	return tx.Commit()
+}
+
+// CreditSalary credita amount em accounts.current_balance de userID,
+// gravando o evento imutável EventSalaryPayment (com referenceMonth, achado
+// 025 — o mês-calendário real a que o crédito se refere, que pode divergir do
+// dia em que ele de fato é processado num catch-up) na mesma transação
+// (tarefa T.2) — mesmo padrão de Event Sourcing de Create, mas sem tocar
+// total_invested/total_disinvested/total_dividends_received (T.1): salário
+// é caixa livre, nunca capital de risco. A conta precisa já existir (ao
+// contrário de Create, que sempre insere uma linha nova) — devolve
+// account.ErrNotFound se o UPDATE não afeta nenhuma linha, desfazendo a
+// transação inteira (incluindo o evento já gravado, já que a FK
+// market_events.user_id → accounts.user_id é DEFERRABLE INITIALLY DEFERRED
+// e só é checada no commit, que nunca acontece nesse caminho).
+func (r *AccountRepository) CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	event := domain.MarketEvent{
+		UserID:         userID,
+		EventType:      domain.EventSalaryPayment,
+		UnitValue:      &amount,
+		ReferenceMonth: &referenceMonth,
+	}
+	if err := eventstore.AppendTx(ctx, tx, event); err != nil {
+		return mapAccountError(err)
+	}
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE accounts SET current_balance = current_balance + $1 WHERE user_id = $2`,
+		amount, userID,
+	)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return account.ErrNotFound
 	}
 
 	return tx.Commit()
@@ -75,9 +122,9 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 func (r *AccountRepository) FindByUserID(ctx context.Context, userID string) (account.Account, bool, error) {
 	var acc account.Account
 	err := r.db.QueryRowContext(ctx,
-		`SELECT user_id, current_balance, total_invested, total_dividends_received, is_bot, is_active
+		`SELECT user_id, current_balance, total_invested, total_disinvested, total_dividends_received, is_bot, is_active
 		 FROM accounts WHERE user_id = $1`, userID,
-	).Scan(&acc.UserID, &acc.CurrentBalance, &acc.TotalInvested, &acc.TotalDividendsReceived, &acc.IsBot, &acc.IsActive)
+	).Scan(&acc.UserID, &acc.CurrentBalance, &acc.TotalInvested, &acc.TotalDisinvested, &acc.TotalDividendsReceived, &acc.IsBot, &acc.IsActive)
 	if errors.Is(err, sql.ErrNoRows) {
 		return account.Account{}, false, nil
 	}

@@ -196,6 +196,7 @@ describe('lessons routes', () => {
       completed: true,
       xpAwarded: LESSON_XP_REWARD,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })

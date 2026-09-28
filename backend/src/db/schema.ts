@@ -327,3 +327,18 @@ export const socialFeedEvents = pgTable('social_feed_events', {
   trackNumber: integer('track_number'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Idempotência/catch-up do salário mensal (tarefa T.5) — uma linha por
+// usuário, mesmo padrão de `user_progression` (chave primária = user_id,
+// sem histórico linha-a-linha; quem precisa do histórico de crédito em si é
+// `market_events` no motor, T.2, que já é append-only). `lastPaidMonth`
+// (formato 'YYYY-MM', mês-calendário real — nunca o bloco de 30 dias do
+// IPCA) é só o que o job de folha de pagamento precisa pra nunca pagar o
+// mesmo mês duas vezes e saber quantos meses recuperar num catch-up.
+export const payrollState = pgTable('payroll_state', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  lastPaidMonth: varchar('last_paid_month', { length: 7 }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})

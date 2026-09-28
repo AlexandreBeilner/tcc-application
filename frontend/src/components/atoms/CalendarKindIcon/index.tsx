@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Banknote, CircleDollarSign, FileText, Landmark, Zap } from 'lucide-react'
+import { ArrowLeftRight, Banknote, CircleDollarSign, FileText, HandCoins, Landmark, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { CalendarEventKind } from '../../../services/market'
 
@@ -13,6 +13,7 @@ const ICON: Record<CalendarEventKind, LucideIcon> = {
     fixed_income_purchase: Banknote,
     fixed_income_redemption: Banknote,
     fixed_income_maturity: Banknote,
+    salary_payment: HandCoins,
 }
 
 // Ícone por tipo de fato do calendário. Decorativo: quem usa sempre escreve o

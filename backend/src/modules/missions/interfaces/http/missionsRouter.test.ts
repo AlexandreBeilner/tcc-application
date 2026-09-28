@@ -138,6 +138,7 @@ describe('missions routes', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -167,6 +168,7 @@ describe('missions routes', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -196,6 +198,7 @@ describe('missions routes', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })

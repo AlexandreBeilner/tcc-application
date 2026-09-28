@@ -9,6 +9,9 @@ const sampleSnapshot: Snapshot = {
   fixedIncomeValue: 0,
   tradesExecuted: 2,
   total: 1500,
+  investedCost: 0,
+  disinvestedProceeds: 0,
+  dividendsReceived: 0,
 }
 
 function fakeRedisClient(overrides: Partial<Redis> = {}): Redis {

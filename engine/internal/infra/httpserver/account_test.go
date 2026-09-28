@@ -16,6 +16,11 @@ import (
 
 type fakeAccountOpener struct {
 	err error
+
+	creditErr      error
+	creditedUserID string
+	creditedAmount float64
+	creditedMonth  string
 }
 
 func (f *fakeAccountOpener) Open(_ context.Context, userID string) (account.Account, error) {
@@ -25,9 +30,17 @@ func (f *fakeAccountOpener) Open(_ context.Context, userID string) (account.Acco
 	return account.New(userID), nil
 }
 
+func (f *fakeAccountOpener) CreditSalary(_ context.Context, userID string, amount float64, referenceMonth string) error {
+	if f.creditErr != nil {
+		return f.creditErr
+	}
+	f.creditedUserID, f.creditedAmount, f.creditedMonth = userID, amount, referenceMonth
+	return nil
+}
+
 const validUserID = "8f14e45f-ceea-4a5c-8d1a-9f1d3e1c1234"
 
-func postAccount(t *testing.T, opener accountOpener, body string) *httptest.ResponseRecorder {
+func postAccount(t *testing.T, opener accountWriter, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/accounts", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
@@ -93,6 +106,85 @@ func TestHandleCreateAccount_SemAccountOpener(t *testing.T) {
 	}
 }
 
+func postSalary(t *testing.T, crediter accountWriter, userID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/accounts/"+userID+"/salary", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	New("", crediter, nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestHandleCreditSalary(t *testing.T) {
+	fake := &fakeAccountOpener{}
+	rec := postSalary(t, fake, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+	if fake.creditedUserID != validUserID || fake.creditedAmount != 1000 || fake.creditedMonth != "2026-01" {
+		t.Errorf("creditado = (%q, %v, %q), want (%q, 1000, \"2026-01\")", fake.creditedUserID, fake.creditedAmount, fake.creditedMonth, validUserID)
+	}
+}
+
+func TestHandleCreditSalary_AmountInvalido(t *testing.T) {
+	tests := map[string]string{
+		"ausente":       `{"reference_month":"2026-01"}`,
+		"zero":          `{"amount":0,"reference_month":"2026-01"}`,
+		"negativo":      `{"amount":-1,"reference_month":"2026-01"}`,
+		"json quebrado": `{`,
+	}
+
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := postSalary(t, &fakeAccountOpener{}, validUserID, body)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
+// TestHandleCreditSalary_ReferenceMonthInvalido cobre o achado 025:
+// reference_month obrigatório e no formato AAAA-MM.
+func TestHandleCreditSalary_ReferenceMonthInvalido(t *testing.T) {
+	tests := map[string]string{
+		"ausente":       `{"amount":1000}`,
+		"vazio":         `{"amount":1000,"reference_month":""}`,
+		"sem mês":       `{"amount":1000,"reference_month":"2026"}`,
+		"mal formatado": `{"amount":1000,"reference_month":"janeiro-2026"}`,
+	}
+
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := postSalary(t, &fakeAccountOpener{}, validUserID, body)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
+func TestHandleCreditSalary_ContaNaoEncontrada(t *testing.T) {
+	rec := postSalary(t, &fakeAccountOpener{creditErr: account.ErrNotFound}, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleCreditSalary_ErroInterno(t *testing.T) {
+	rec := postSalary(t, &fakeAccountOpener{creditErr: context.DeadlineExceeded}, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleCreditSalary_SemAccountSalaryCrediter(t *testing.T) {
+	rec := postSalary(t, nil, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
 // fakeUserMarketDataReader implementa userMarketDataReader (accountReader +
 // userEventLister + positionLister + fixedIncomePositionLister) — usado
 // pelos testes de leitura de estado de usuário (tarefa 4.7), mesmo padrão
@@ -141,7 +233,7 @@ func getUserMarketData(t *testing.T, userData userMarketDataReader, path string)
 
 func TestHandleGetAccount(t *testing.T) {
 	reader := &fakeUserMarketDataReader{
-		account:      account.Account{UserID: validUserID, CurrentBalance: 9500.50, TotalInvested: 500, TotalDividendsReceived: 12.30},
+		account:      account.Account{UserID: validUserID, CurrentBalance: 9500.50, TotalInvested: 500, TotalDisinvested: 80, TotalDividendsReceived: 12.30},
 		accountFound: true,
 	}
 
@@ -154,7 +246,7 @@ func TestHandleGetAccount(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.CurrentBalance != 9500.50 || body.TotalInvested != 500 || body.TotalDividendsReceived != 12.30 {
+	if body.CurrentBalance != 9500.50 || body.TotalInvested != 500 || body.TotalDisinvested != 80 || body.TotalDividendsReceived != 12.30 {
 		t.Errorf("body = %+v, inesperado", body)
 	}
 }

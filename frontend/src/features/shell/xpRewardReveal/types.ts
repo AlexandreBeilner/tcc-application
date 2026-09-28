@@ -4,4 +4,7 @@
 export interface XpRewardSource {
     xpAwarded?: number
     leveledUp?: boolean
+    // Nível após o crédito (tarefa T.10) — presente sempre que `leveledUp`
+    // é, usado pra calcular o salário mensal novo no reveal de level-up.
+    newLevel?: number
 }

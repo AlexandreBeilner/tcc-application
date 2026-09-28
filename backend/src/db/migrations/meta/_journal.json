@@ -120,6 +120,13 @@
       "when": 1789925238091,
       "tag": "0016_add_lesson_stable_key",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790548832458,
+      "tag": "0017_add_payroll_state",
+      "breakpoints": true
     }
   ]
 }

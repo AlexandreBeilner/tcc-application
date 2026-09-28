@@ -21,12 +21,24 @@ const KIND_LABEL: Record<CalendarEventKind, string> = {
     fixed_income_purchase: 'Renda fixa',
     fixed_income_redemption: 'Renda fixa',
     fixed_income_maturity: 'Renda fixa',
+    salary_payment: 'Salário',
 }
 
 const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
+const monthFormatter = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 function money(value: number | undefined): string {
     return value === undefined ? '' : formatCurrency(value)
+}
+
+// monthLabel (achado 025) traduz 'AAAA-MM' pro nome do mês em pt-BR — usado
+// aqui pro subtítulo de salary_payment e por `dayFlipReveal` pro teatro de
+// recompensa, pra distinguir "salário de junho" de "salário de agosto" quando
+// um catch-up (backend, T.5) credita vários meses atrasados no mesmo dia
+// simulado, todos com o mesmo valor.
+export function monthLabel(referenceMonth: string): string {
+    const [year, month] = referenceMonth.split('-').map(Number)
+    return monthFormatter.format(new Date(Date.UTC(year, month - 1, 1)))
 }
 
 function describeCopom(event: CalendarEvent): Pick<CalendarEventView, 'title' | 'subtitle'> {
@@ -72,5 +84,14 @@ export function describeCalendarEvent(event: CalendarEvent): CalendarEventView {
             return { title: `Resgate de ${ticker}`, subtitle: 'Renda fixa', label, mine }
         case 'fixed_income_maturity':
             return { title: `Vencimento de ${ticker}`, subtitle: 'Seu título vence e é resgatado', label, mine }
+        case 'salary_payment': {
+            if (event.future) return { title: 'Dia de pagamento', subtitle: 'Salário do mês', label, mine }
+            // reference_month (achado 025) pode divergir do dia deste evento num
+            // catch-up de vários meses atrasados de uma vez (backend, T.5) — sem
+            // mostrar o mês no subtítulo, vários salários do mesmo valor no mesmo
+            // dia ficariam indistinguíveis pro usuário.
+            const subtitle = event.reference_month ? `Referente a ${monthLabel(event.reference_month)}` : 'Caiu na sua conta'
+            return { title: `Salário: ${money(event.unit_value)}`, subtitle, label, mine }
+        }
     }
 }

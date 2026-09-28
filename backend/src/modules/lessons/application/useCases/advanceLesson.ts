@@ -44,6 +44,10 @@ export interface AdvanceLessonResult {
   // I.1 disparar em tempo real, sem precisar de um segundo round-trip).
   xpAwarded?: number
   leveledUp?: boolean
+  // Nível após este crédito (tarefa T.10) — presente sempre que `leveledUp`
+  // é, pra o teatro de recompensa calcular o salário novo
+  // (`monthlySalaryForLevel`, T.3) sem round-trip extra.
+  newLevel?: number
   streakMilestone?: number | null
   unlockedAchievements?: UnlockedAchievement[]
 }
@@ -197,6 +201,7 @@ export class AdvanceLessonUseCase {
       ...microDecisionFields,
       xpAwarded: LESSON_XP_REWARD,
       leveledUp: xpResult.leveledUp,
+      newLevel: xpResult.level,
       streakMilestone: streakResult.milestoneReached,
       unlockedAchievements: [
         ...xpResult.unlockedAchievements,

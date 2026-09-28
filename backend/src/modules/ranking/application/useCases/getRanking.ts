@@ -1,6 +1,10 @@
 import { paginate } from '../../../../shared/pagination'
 import type { Snapshot } from '../../domain/networth'
-import { profitabilityPct } from '../../domain/profitability'
+import {
+  investmentReturnPct,
+  profitabilityPct,
+  toRiskCapitalSnapshot,
+} from '../../domain/profitability'
 import { windowFor, type WindowKind } from '../../domain/window'
 import type { FriendGraphReader } from '../ports/friendGraphReader'
 import type { LevelReader } from '../ports/levelReader'
@@ -74,14 +78,13 @@ interface ScoredEntry {
   sortKey: number
 }
 
-// Escolhe, pra cada critério financeiro, qual par de campos do `Snapshot`
+// Escolhe, pro critério de renda fixa/variável, qual campo do `Snapshot`
 // alimenta `profitabilityPct` — achado da 6.8.3: nenhum dos dois caminhos
 // que populam `Snapshot` (estado atual via motor, replay pro baseline) foi
-// escrito só pensando em `total`, os três campos já existem hoje.
-function snapshotField(criterion: 'overall' | 'fixedIncome' | 'variableIncome'): keyof Snapshot {
+// escrito só pensando num campo isolado, os dois já existem hoje. Critério
+// `overall` não usa mais isso (tarefa T.1) — ver `investmentReturnPct`.
+function snapshotField(criterion: 'fixedIncome' | 'variableIncome'): keyof Snapshot {
   switch (criterion) {
-    case 'overall':
-      return 'total'
     case 'fixedIncome':
       return 'fixedIncomeValue'
     case 'variableIncome':
@@ -204,7 +207,6 @@ export class GetRankingUseCase {
   ): Promise<ScoredEntry[]> {
     const { start } = windowFor(window, new Date())
     const sandboxAssetIds = await this.sandboxAssetReader.listSandboxAssetIds()
-    const field = snapshotField(criterion)
 
     const settledEntries = await Promise.all(
       users.map(async (user): Promise<ScoredEntry | null> => {
@@ -220,12 +222,30 @@ export class GetRankingUseCase {
             this.levelReader.getProgression(user.id),
           ])
 
+          // Critério "geral" (tarefa T.1): rentabilidade sobre capital de
+          // risco, nunca sobre caixa nunca investido (ex. salário) — nunca
+          // excluído (0% pra quem nunca investiu, não -100% nem exclusão,
+          // diferente do critério de renda fixa/variável abaixo).
+          if (criterion === 'overall') {
+            const pct = investmentReturnPct(
+              toRiskCapitalSnapshot(current),
+              toRiskCapitalSnapshot(baseline),
+            )
+            return {
+              userId: user.id,
+              username: user.username,
+              level,
+              xp,
+              profitabilityPct: pct,
+              sortKey: pct,
+            }
+          }
+
           // Sem posição nenhuma dessa classe no início da janela — "nunca
           // investiu" não é o mesmo que "empatou em 0%" (achado da 6.8.3):
           // excluído deste critério em vez de mostrado com um 0% enganoso.
-          // Não se aplica ao critério `overall` (baseline nunca é
-          // legitimamente 0 — RNF06 garante R$10.000 iniciais).
-          if (criterion !== 'overall' && baseline[field] === 0) {
+          const field = snapshotField(criterion)
+          if (baseline[field] === 0) {
             return null
           }
 

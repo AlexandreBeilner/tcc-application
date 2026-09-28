@@ -18,6 +18,9 @@ func TestNew(t *testing.T) {
 	if acc.TotalInvested != 0 {
 		t.Errorf("TotalInvested = %v, want 0", acc.TotalInvested)
 	}
+	if acc.TotalDisinvested != 0 {
+		t.Errorf("TotalDisinvested = %v, want 0", acc.TotalDisinvested)
+	}
 	if acc.TotalDividendsReceived != 0 {
 		t.Errorf("TotalDividendsReceived = %v, want 0", acc.TotalDividendsReceived)
 	}
@@ -94,7 +97,7 @@ func TestAccount_EligibleForTradingRound(t *testing.T) {
 }
 
 func TestDeactivate(t *testing.T) {
-	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDividendsReceived: 30, IsBot: true, IsActive: true}
+	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDisinvested: 300, TotalDividendsReceived: 30, IsBot: true, IsActive: true}
 
 	got := Deactivate(acc)
 
@@ -104,7 +107,7 @@ func TestDeactivate(t *testing.T) {
 	if got.UserID != acc.UserID || got.IsBot != acc.IsBot {
 		t.Errorf("identidade da conta mudou: got = %+v, want mesma identidade de %+v", got, acc)
 	}
-	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
+	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDisinvested != acc.TotalDisinvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
 		t.Errorf("saldo mudou por desativar: got = %+v, want saldo intocado de %+v", got, acc)
 	}
 	if got.EligibleForTradingRound() {
@@ -113,14 +116,14 @@ func TestDeactivate(t *testing.T) {
 }
 
 func TestActivate(t *testing.T) {
-	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDividendsReceived: 30, IsBot: true, IsActive: false}
+	acc := Account{UserID: "bot-1", CurrentBalance: 5000, TotalInvested: 1200, TotalDisinvested: 300, TotalDividendsReceived: 30, IsBot: true, IsActive: false}
 
 	got := Activate(acc)
 
 	if !got.IsActive {
 		t.Error("IsActive = false, want true depois de Activate")
 	}
-	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
+	if got.CurrentBalance != acc.CurrentBalance || got.TotalInvested != acc.TotalInvested || got.TotalDisinvested != acc.TotalDisinvested || got.TotalDividendsReceived != acc.TotalDividendsReceived {
 		t.Errorf("saldo mudou por reativar: got = %+v, want saldo intocado de %+v", got, acc)
 	}
 	if !got.EligibleForTradingRound() {
@@ -131,6 +134,11 @@ func TestActivate(t *testing.T) {
 type fakeRepository struct {
 	created []Account
 	err     error
+
+	creditedUserID string
+	creditedAmount float64
+	creditedMonth  string
+	creditErr      error
 }
 
 func (f *fakeRepository) Create(_ context.Context, acc Account) error {
@@ -138,6 +146,14 @@ func (f *fakeRepository) Create(_ context.Context, acc Account) error {
 		return f.err
 	}
 	f.created = append(f.created, acc)
+	return nil
+}
+
+func (f *fakeRepository) CreditSalary(_ context.Context, userID string, amount float64, referenceMonth string) error {
+	if f.creditErr != nil {
+		return f.creditErr
+	}
+	f.creditedUserID, f.creditedAmount, f.creditedMonth = userID, amount, referenceMonth
 	return nil
 }
 
@@ -164,5 +180,65 @@ func TestService_Open_PropagaErroDoRepositorio(t *testing.T) {
 	_, err := svc.Open(context.Background(), "user-1")
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Errorf("err = %v, want ErrAlreadyExists", err)
+	}
+}
+
+func TestService_CreditSalary(t *testing.T) {
+	repo := &fakeRepository{}
+	svc := NewService(repo)
+
+	if err := svc.CreditSalary(context.Background(), "user-1", 1000, "2026-01"); err != nil {
+		t.Fatalf("CreditSalary() erro inesperado: %v", err)
+	}
+	if repo.creditedUserID != "user-1" || repo.creditedAmount != 1000 || repo.creditedMonth != "2026-01" {
+		t.Errorf("repo creditado = (%q, %v, %q), want (\"user-1\", 1000, \"2026-01\")", repo.creditedUserID, repo.creditedAmount, repo.creditedMonth)
+	}
+}
+
+func TestService_CreditSalary_RejeitaAmountNaoPositivo(t *testing.T) {
+	tests := []float64{0, -1, -0.01}
+
+	for _, amount := range tests {
+		repo := &fakeRepository{}
+		svc := NewService(repo)
+
+		err := svc.CreditSalary(context.Background(), "user-1", amount, "2026-01")
+		if !errors.Is(err, ErrInvalidSalaryAmount) {
+			t.Errorf("amount = %v: err = %v, want ErrInvalidSalaryAmount", amount, err)
+		}
+		if repo.creditedUserID != "" {
+			t.Errorf("amount = %v: repo.CreditSalary não deveria ser chamado", amount)
+		}
+	}
+}
+
+// TestService_CreditSalary_RejeitaReferenceMonthInvalido cobre o achado 025:
+// reference_month precisa ter formato AAAA-MM, senão o catch-up de vários
+// meses atrasados (T.5) grava eventos sem como distinguir a que mês cada um
+// se refere.
+func TestService_CreditSalary_RejeitaReferenceMonthInvalido(t *testing.T) {
+	tests := []string{"", "2026", "2026-1", "janeiro-2026", "2026/01"}
+
+	for _, month := range tests {
+		repo := &fakeRepository{}
+		svc := NewService(repo)
+
+		err := svc.CreditSalary(context.Background(), "user-1", 1000, month)
+		if !errors.Is(err, ErrInvalidReferenceMonth) {
+			t.Errorf("referenceMonth = %q: err = %v, want ErrInvalidReferenceMonth", month, err)
+		}
+		if repo.creditedUserID != "" {
+			t.Errorf("referenceMonth = %q: repo.CreditSalary não deveria ser chamado", month)
+		}
+	}
+}
+
+func TestService_CreditSalary_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{creditErr: ErrNotFound}
+	svc := NewService(repo)
+
+	err := svc.CreditSalary(context.Background(), "user-1", 1000, "2026-01")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }

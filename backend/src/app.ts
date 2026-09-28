@@ -30,6 +30,7 @@ import { GetProgressionUseCase } from './modules/gamification/application/useCas
 import { TouchStreakUseCase } from './modules/gamification/application/useCases/touchStreak'
 import { createInProcessAchievementChecker } from './modules/gamification/infrastructure/achievements/inProcessAchievementChecker'
 import { createInProcessAchievementChecker as createInProcessAchievementCheckerForLessons } from './modules/lessons/infrastructure/gamification/inProcessAchievementChecker'
+import { createInProcessMonthlySalaryReader } from './modules/gamification/infrastructure/payroll/inProcessMonthlySalaryReader'
 import { createDrizzleProgressionRepository } from './modules/gamification/infrastructure/persistence/drizzleProgressionRepository'
 import { createProgressionRouter } from './modules/gamification/interfaces/http/progressionRouter'
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
@@ -282,6 +283,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const markNewsEventAsSeen = new MarkNewsEventAsSeenUseCase(newsReadRepository)
   const progressionRepository = createDrizzleProgressionRepository(db)
   const getProgression = new GetProgressionUseCase(progressionRepository)
+  const monthlySalaryReader = createInProcessMonthlySalaryReader()
   const countCompletedLessons = new CountCompletedLessonsUseCase(lessonRepository)
   const getCurrentMicroDecisionStreak = new GetCurrentMicroDecisionStreakUseCase(lessonRepository)
   const getTracksCompletedWithoutErrorsCount = new GetTracksCompletedWithoutErrorsCountUseCase(
@@ -477,7 +479,7 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
   app.use(createAdminTickRouter({ triggerTick, authMiddleware }))
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
-  app.use(createProgressionRouter({ getProgression, authMiddleware }))
+  app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(
     createLessonsRouter({ getTrackMap, getLesson, advanceLesson, reviewLesson, authMiddleware }),

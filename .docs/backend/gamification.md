@@ -8,9 +8,9 @@ Módulo: `backend/src/modules/gamification/`. Dono único de XP/nível/streak do
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ userId, xp, level, currentStreak, longestStreak, lastQualifyingActivityDate }`. Usuário sem nenhuma atividade ainda (nenhuma linha em `user_progression`) recebe o estado zerado (`xp: 0, level: 1, currentStreak: 0, longestStreak: 0, lastQualifyingActivityDate: null`) — não é erro.
+- **Sucesso:** `200` → `{ userId, xp, level, currentStreak, longestStreak, lastQualifyingActivityDate, monthlySalary }`. Usuário sem nenhuma atividade ainda (nenhuma linha em `user_progression`) recebe o estado zerado (`xp: 0, level: 1, currentStreak: 0, longestStreak: 0, lastQualifyingActivityDate: null, monthlySalary: 100`) — não é erro.
 - **Erros:** `401` — token ausente ou inválido/expirado.
-- **Regra:** `GetProgressionUseCase`.
+- **Regra:** `GetProgressionUseCase`. `monthlySalary` (tarefa T.8) é composto na borda HTTP, não persistido em `Progression`/`user_progression` — ver "Port `monthlySalaryReader`" abaixo.
 
 ---
 
@@ -18,7 +18,7 @@ Módulo: `backend/src/modules/gamification/`. Dono único de XP/nível/streak do
 
 - **Autenticação:** público — nível/XP/streak nunca são o dado protegido por RNF09, só patrimônio absoluto é.
 - **Payload:** nenhum.
-- **Sucesso:** `200` → mesmo formato de `/me/progression`. `id` inexistente também devolve o estado zerado (o endpoint não valida existência do usuário, só lê `user_progression`).
+- **Sucesso:** `200` → mesmo formato de `/me/progression`, `monthlySalary` incluso — é função pura do nível, já público aqui, não revela nada novo (RNF09 continua intocado: só patrimônio absoluto é vedado). `id` inexistente também devolve o estado zerado (o endpoint não valida existência do usuário, só lê `user_progression`).
 - **Erros:** nenhum além do padrão do Express.
 - **Regra:** `GetProgressionUseCase`, mesmo caso de uso de `/me/progression`.
 
@@ -45,3 +45,7 @@ Módulo: `backend/src/modules/gamification/`. Dono único de XP/nível/streak do
 ## Port `achievementChecker` (consumida por este módulo, não fornecida por ele)
 
 Diferente de `xpAwarder`/`streakTracker` (este módulo é o *provedor*), aqui `gamification` é o *consumidor*: `application/ports/achievementChecker.ts` (`{ checkAndUnlock(userId): Promise<void> }`) é implementada, na composição (`app.ts`), por `gamification/infrastructure/achievements/inProcessAchievementChecker.ts` — um adapter fino em processo sobre `CheckAndUnlockAchievementsUseCase` de `modules/achievements` (5.2). Mesmo padrão de composição do resto da semana 5, só a direção da dependência que se inverte.
+
+## Port `monthlySalaryReader` (consumida por este módulo, tarefa T.8)
+
+Mesmo padrão do `achievementChecker` acima, agora sobre `modules/payroll`: `application/ports/monthlySalaryReader.ts` (`{ getMonthlySalaryForLevel(level): number }`, síncrona — a fórmula é pura, sem I/O) é implementada por `gamification/infrastructure/payroll/inProcessMonthlySalaryReader.ts`, um adapter fino sobre `monthlySalaryForLevel` (`payroll/domain/salary.ts`, tarefa T.3, degraus por nível). Diferente dos outros 4 precedentes de porta cruzada do backend (`ranking`/`auth`/`payroll` importando `gamification` via `GetProgressionUseCase`), aqui a direção é a inversa e o módulo provedor (`payroll`) só expõe uma função pura de domínio, não um caso de uso — não havia porta pronta em `payroll` esperando isso, essa foi a primeira vez que outro módulo precisou dessa fórmula.

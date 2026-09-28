@@ -1,4 +1,4 @@
-import { profitabilityPct } from '../../../ranking/domain/profitability'
+import { investmentReturnPct, toRiskCapitalSnapshot } from '../../../ranking/domain/profitability'
 import { windowFor } from '../../../ranking/domain/window'
 import type { SandboxAssetReader } from '../../../ranking/application/ports/sandboxAssetReader'
 import type { NetWorthReader } from '../../../ranking/application/useCases/getNetWorth'
@@ -25,7 +25,10 @@ export function createInProcessProfitabilityReader(
         getNetWorth.execute({ userId, sandboxAssetIds }),
       ])
 
-      return profitabilityPct(baseline.total, current.total)
+      // Tarefa T.1: rentabilidade sobre capital de risco, nunca sobre caixa
+      // nunca investido (ex. salário) — mesma fórmula do critério "geral"
+      // do ranking (`getRanking.ts`).
+      return investmentReturnPct(toRiskCapitalSnapshot(current), toRiskCapitalSnapshot(baseline))
     },
   }
 }
