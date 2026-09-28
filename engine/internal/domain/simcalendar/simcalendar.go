@@ -77,6 +77,15 @@ func IsFifthBusinessDayOfMonth(day int) bool {
 	return count == 5
 }
 
+// MonthKeyOf devolve o mês-calendário real ('YYYY-MM') que o dia simulado
+// mapeia — mesma convenção de mês-calendário real usada pelo salário mensal
+// (achado 025, backlog Fase T): identifica a que mês um crédito de salário se
+// refere, distinto do dia em que ele de fato foi processado (que pode ser
+// mais tarde, num catch-up de vários meses atrasados de uma vez).
+func MonthKeyOf(day int) string {
+	return DateOf(day).Format("2006-01")
+}
+
 // MarketClosedError é a recusa de negociar com o mercado fechado (tarefa S.11,
 // decisão do autor de 2026-09-26): sábado e domingo simulados. Carrega quando
 // o mercado reabre, pra resposta HTTP e o frontend dizerem "abre em ...".

@@ -58,6 +58,22 @@ describe('describeCalendarEvent', () => {
         expect(view.title).toMatch(/^Salário: R\$\s1\.000,00$/)
         expect(view.label).toBe('Salário')
         expect(view.mine).toBe(true)
+        expect(view.subtitle).toBe('Caiu na sua conta')
+    })
+
+    // Achado 025: catch-up de vários meses atrasados (backend, T.5) credita
+    // mais de um salário no mesmo dia simulado, todos com o mesmo valor — sem
+    // o mês no subtítulo, ficariam indistinguíveis na linha do tempo.
+    it('salário pago com reference_month mostra a que mês se refere', () => {
+        const view = describeCalendarEvent(event({ kind: 'salary_payment', scope: 'user', unit_value: 100, reference_month: '2026-06' }))
+        expect(view.subtitle).toBe('Referente a junho de 2026')
+    })
+
+    it('catch-up de vários meses gera subtítulos distintos pro mesmo valor e dia', () => {
+        const june = describeCalendarEvent(event({ kind: 'salary_payment', scope: 'user', unit_value: 100, reference_month: '2026-06' }))
+        const july = describeCalendarEvent(event({ kind: 'salary_payment', scope: 'user', unit_value: 100, reference_month: '2026-07' }))
+        expect(june.title).toBe(july.title)
+        expect(june.subtitle).not.toBe(july.subtitle)
     })
 
     it('salário futuro anuncia o dia sem valor', () => {

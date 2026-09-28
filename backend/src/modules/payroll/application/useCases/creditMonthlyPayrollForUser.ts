@@ -25,10 +25,13 @@ export interface CreditMonthlyPayrollForUserResult {
 // meses estão devidos (domínio puro, `monthsToPay`), calcula o valor pelo
 // nível atual (T.3, mesmo valor pra todo mês em atraso de um catch-up — o
 // motor não guarda nível histórico) e credita via o motor (T.2), um evento
-// por mês. Atualiza `lastPaidMonth` depois de CADA crédito bem-sucedido
-// (não só no fim do laço) — se o processo cair no meio de um catch-up de
-// vários meses, a próxima execução retoma do último mês que realmente foi
-// creditado, nunca paga de novo o que já foi.
+// por mês, cada um com o `monthKey` correspondente como `referenceMonth`
+// (achado 025) — sem isso, vários meses de catch-up creditados no mesmo dia
+// simulado (o dia em que o job rodou) ficariam indistinguíveis no calendário.
+// Atualiza `lastPaidMonth` depois de CADA crédito bem-sucedido (não só no
+// fim do laço) — se o processo cair no meio de um catch-up de vários meses,
+// a próxima execução retoma do último mês que realmente foi creditado,
+// nunca paga de novo o que já foi.
 export class CreditMonthlyPayrollForUserUseCase {
   constructor(
     private readonly levelReader: LevelReader,
@@ -55,7 +58,7 @@ export class CreditMonthlyPayrollForUserUseCase {
     const amountPerMonth = monthlySalaryForLevel(level)
 
     for (const monthKey of months) {
-      await this.salaryCrediter.credit(input.userId, amountPerMonth)
+      await this.salaryCrediter.credit(input.userId, amountPerMonth, monthKey)
       await this.payrollStateRepository.setLastPaidMonth(input.userId, monthKey)
     }
 

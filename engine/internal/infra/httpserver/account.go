@@ -41,10 +41,16 @@ type userEventLister interface {
 // concreta serve as duas portas, mesma convenção de userMarketDataReader
 // agregando leituras pequenas pro mesmo *db.AccountRepository).
 type accountSalaryCrediter interface {
-	CreditSalary(ctx context.Context, userID string, amount float64) error
+	CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error
 }
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// monthKeyPattern valida o formato 'YYYY-MM' de reference_month (achado 025)
+// — mesmo padrão de account.monthKeyPattern, duplicado aqui porque a
+// validação de forma do payload HTTP é da borda (interfaces/http), antes de
+// chamar o caso de uso; o domínio valida de novo por conta própria.
+var monthKeyPattern = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
 type createAccountRequest struct {
 	UserID string `json:"user_id"`
@@ -52,6 +58,11 @@ type createAccountRequest struct {
 
 type creditSalaryRequest struct {
 	Amount float64 `json:"amount"`
+	// ReferenceMonth ('YYYY-MM', achado 025) é o mês-calendário real a que
+	// este salário se refere — obrigatório: sem ele, um catch-up de vários
+	// meses atrasados (T.5) grava eventos indistinguíveis, todos no dia em
+	// que o job rodou.
+	ReferenceMonth string `json:"reference_month"`
 }
 
 type accountResponse struct {
@@ -140,11 +151,12 @@ func handleGetAccount(accounts accountReader) http.HandlerFunc {
 // handleCreditSalary serve POST /accounts/{user_id}/salary — crédito de
 // salário mensal (tarefa T.2), caixa livre que nunca passa por
 // total_invested/total_disinvested/total_dividends_received (T.1). Quem
-// decide quando/quanto pagar é externo ao motor (T.5, backend); aqui só se
-// valida amount > 0 e se grava o evento imutável correspondente antes de
-// creditar current_balance, na mesma transação (Event Sourcing, CLAUDE.md).
-// 204 sem corpo no sucesso — mesmo padrão de handleCancelOrder, não há
-// recurso novo pra devolver.
+// decide quando/quanto pagar e a que mês (reference_month, achado 025) é
+// externo ao motor (T.5, backend); aqui só se valida amount > 0 e
+// reference_month no formato AAAA-MM, e se grava o evento imutável
+// correspondente antes de creditar current_balance, na mesma transação
+// (Event Sourcing, CLAUDE.md). 204 sem corpo no sucesso — mesmo padrão de
+// handleCancelOrder, não há recurso novo pra devolver.
 func handleCreditSalary(accounts accountSalaryCrediter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if accounts == nil {
@@ -157,9 +169,13 @@ func handleCreditSalary(accounts accountSalaryCrediter) http.HandlerFunc {
 			writeAccountError(w, http.StatusBadRequest, "amount é obrigatório e deve ser positivo")
 			return
 		}
+		if !monthKeyPattern.MatchString(req.ReferenceMonth) {
+			writeAccountError(w, http.StatusBadRequest, "reference_month é obrigatório e deve ter formato AAAA-MM")
+			return
+		}
 
 		userID := r.PathValue("user_id")
-		if err := accounts.CreditSalary(r.Context(), userID, req.Amount); err != nil {
+		if err := accounts.CreditSalary(r.Context(), userID, req.Amount, req.ReferenceMonth); err != nil {
 			if errors.Is(err, account.ErrNotFound) {
 				writeAccountError(w, http.StatusNotFound, err.Error())
 				return

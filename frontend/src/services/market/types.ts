@@ -373,6 +373,10 @@ export interface CalendarEvent {
     unit_value?: number
     selic_rate?: number
     previous_selic_rate?: number
+    // reference_month ('AAAA-MM', achado 025) só vem em salary_payment — o mês
+    // a que aquele salário se refere, que pode divergir do dia deste evento
+    // num catch-up de vários meses atrasados de uma vez (backend, T.5).
+    reference_month?: string
 }
 
 export interface CalendarDay {

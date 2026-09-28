@@ -69,6 +69,12 @@ type MarketEvent struct {
 	EventType MarketEventType
 	Quantity  *int
 	UnitValue *float64
+	// ReferenceMonth ('YYYY-MM', achado 025) é o mês-calendário real a que o
+	// evento se refere — só preenchido em EventSalaryPayment, onde ele pode
+	// divergir do dia em que o evento de fato foi gravado (catch-up de meses
+	// atrasados, tarefa T.5, todos gravados no mesmo simulated_day). Todo
+	// outro tipo de evento deixa nil.
+	ReferenceMonth *string
 }
 
 // MarketEventRecord é um MarketEvent já persistido — ID e Timestamp só

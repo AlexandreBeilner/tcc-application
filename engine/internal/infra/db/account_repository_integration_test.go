@@ -99,14 +99,14 @@ func seedAssetAndAccount(t *testing.T, conn *sql.DB) (assetID, userID string) {
 // atômico de salário mensal (caixa livre, nunca capital de risco) — soma em
 // current_balance sem tocar total_invested/total_disinvested/
 // total_dividends_received (T.1), e grava o evento imutável salary_payment
-// em market_events. Precisa do banco descartável porque market_events é
-// append-only.
+// (com reference_month, achado 025) em market_events. Precisa do banco
+// descartável porque market_events é append-only.
 func TestCreditSalary_CreditaSaldoEGravaEvento(t *testing.T) {
 	repo, conn := openAccountRepositoryOnScratchDB(t)
 	ctx := context.Background()
 	_, userID := seedAssetAndAccount(t, conn)
 
-	if err := repo.CreditSalary(ctx, userID, 1000.00); err != nil {
+	if err := repo.CreditSalary(ctx, userID, 1000.00, "2026-01"); err != nil {
 		t.Fatalf("CreditSalary: %v", err)
 	}
 
@@ -126,13 +126,17 @@ func TestCreditSalary_CreditaSaldoEGravaEvento(t *testing.T) {
 
 	var eventType string
 	var unitValue float64
+	var referenceMonth string
 	if err := conn.QueryRowContext(ctx,
-		`SELECT event_type, unit_value FROM market_events WHERE user_id = $1 AND event_type = 'salary_payment'`, userID,
-	).Scan(&eventType, &unitValue); err != nil {
+		`SELECT event_type, unit_value, reference_month FROM market_events WHERE user_id = $1 AND event_type = 'salary_payment'`, userID,
+	).Scan(&eventType, &unitValue, &referenceMonth); err != nil {
 		t.Fatalf("evento salary_payment não gravado: %v", err)
 	}
 	if unitValue != 1000.00 {
 		t.Errorf("unit_value do evento = %v, want 1000.00", unitValue)
+	}
+	if referenceMonth != "2026-01" {
+		t.Errorf("reference_month do evento = %q, want \"2026-01\"", referenceMonth)
 	}
 }
 
@@ -144,7 +148,7 @@ func TestCreditSalary_ContaNaoEncontrada(t *testing.T) {
 	repo, conn := openAccountRepositoryOnScratchDB(t)
 	ctx := context.Background()
 
-	err := repo.CreditSalary(ctx, "00000000-0000-4000-8000-000000000000", 1000.00)
+	err := repo.CreditSalary(ctx, "00000000-0000-4000-8000-000000000000", 1000.00, "2026-01")
 	if !errors.Is(err, account.ErrNotFound) {
 		t.Fatalf("err = %v, want account.ErrNotFound", err)
 	}

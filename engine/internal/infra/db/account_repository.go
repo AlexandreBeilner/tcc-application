@@ -71,8 +71,10 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 }
 
 // CreditSalary credita amount em accounts.current_balance de userID,
-// gravando o evento imutável EventSalaryPayment na mesma transação (tarefa
-// T.2) — mesmo padrão de Event Sourcing de Create, mas sem tocar
+// gravando o evento imutável EventSalaryPayment (com referenceMonth, achado
+// 025 — o mês-calendário real a que o crédito se refere, que pode divergir do
+// dia em que ele de fato é processado num catch-up) na mesma transação
+// (tarefa T.2) — mesmo padrão de Event Sourcing de Create, mas sem tocar
 // total_invested/total_disinvested/total_dividends_received (T.1): salário
 // é caixa livre, nunca capital de risco. A conta precisa já existir (ao
 // contrário de Create, que sempre insere uma linha nova) — devolve
@@ -80,7 +82,7 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 // transação inteira (incluindo o evento já gravado, já que a FK
 // market_events.user_id → accounts.user_id é DEFERRABLE INITIALLY DEFERRED
 // e só é checada no commit, que nunca acontece nesse caminho).
-func (r *AccountRepository) CreditSalary(ctx context.Context, userID string, amount float64) error {
+func (r *AccountRepository) CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -88,9 +90,10 @@ func (r *AccountRepository) CreditSalary(ctx context.Context, userID string, amo
 	defer func() { _ = tx.Rollback() }()
 
 	event := domain.MarketEvent{
-		UserID:    userID,
-		EventType: domain.EventSalaryPayment,
-		UnitValue: &amount,
+		UserID:         userID,
+		EventType:      domain.EventSalaryPayment,
+		UnitValue:      &amount,
+		ReferenceMonth: &referenceMonth,
 	}
 	if err := eventstore.AppendTx(ctx, tx, event); err != nil {
 		return mapAccountError(err)

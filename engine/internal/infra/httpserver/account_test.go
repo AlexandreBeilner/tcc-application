@@ -20,6 +20,7 @@ type fakeAccountOpener struct {
 	creditErr      error
 	creditedUserID string
 	creditedAmount float64
+	creditedMonth  string
 }
 
 func (f *fakeAccountOpener) Open(_ context.Context, userID string) (account.Account, error) {
@@ -29,11 +30,11 @@ func (f *fakeAccountOpener) Open(_ context.Context, userID string) (account.Acco
 	return account.New(userID), nil
 }
 
-func (f *fakeAccountOpener) CreditSalary(_ context.Context, userID string, amount float64) error {
+func (f *fakeAccountOpener) CreditSalary(_ context.Context, userID string, amount float64, referenceMonth string) error {
 	if f.creditErr != nil {
 		return f.creditErr
 	}
-	f.creditedUserID, f.creditedAmount = userID, amount
+	f.creditedUserID, f.creditedAmount, f.creditedMonth = userID, amount, referenceMonth
 	return nil
 }
 
@@ -115,21 +116,21 @@ func postSalary(t *testing.T, crediter accountWriter, userID, body string) *http
 
 func TestHandleCreditSalary(t *testing.T) {
 	fake := &fakeAccountOpener{}
-	rec := postSalary(t, fake, validUserID, `{"amount":1000}`)
+	rec := postSalary(t, fake, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusNoContent, rec.Body.String())
 	}
-	if fake.creditedUserID != validUserID || fake.creditedAmount != 1000 {
-		t.Errorf("creditado = (%q, %v), want (%q, 1000)", fake.creditedUserID, fake.creditedAmount, validUserID)
+	if fake.creditedUserID != validUserID || fake.creditedAmount != 1000 || fake.creditedMonth != "2026-01" {
+		t.Errorf("creditado = (%q, %v, %q), want (%q, 1000, \"2026-01\")", fake.creditedUserID, fake.creditedAmount, fake.creditedMonth, validUserID)
 	}
 }
 
 func TestHandleCreditSalary_AmountInvalido(t *testing.T) {
 	tests := map[string]string{
-		"ausente":       `{}`,
-		"zero":          `{"amount":0}`,
-		"negativo":      `{"amount":-1}`,
+		"ausente":       `{"reference_month":"2026-01"}`,
+		"zero":          `{"amount":0,"reference_month":"2026-01"}`,
+		"negativo":      `{"amount":-1,"reference_month":"2026-01"}`,
 		"json quebrado": `{`,
 	}
 
@@ -143,22 +144,42 @@ func TestHandleCreditSalary_AmountInvalido(t *testing.T) {
 	}
 }
 
+// TestHandleCreditSalary_ReferenceMonthInvalido cobre o achado 025:
+// reference_month obrigatório e no formato AAAA-MM.
+func TestHandleCreditSalary_ReferenceMonthInvalido(t *testing.T) {
+	tests := map[string]string{
+		"ausente":       `{"amount":1000}`,
+		"vazio":         `{"amount":1000,"reference_month":""}`,
+		"sem mês":       `{"amount":1000,"reference_month":"2026"}`,
+		"mal formatado": `{"amount":1000,"reference_month":"janeiro-2026"}`,
+	}
+
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := postSalary(t, &fakeAccountOpener{}, validUserID, body)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
 func TestHandleCreditSalary_ContaNaoEncontrada(t *testing.T) {
-	rec := postSalary(t, &fakeAccountOpener{creditErr: account.ErrNotFound}, validUserID, `{"amount":1000}`)
+	rec := postSalary(t, &fakeAccountOpener{creditErr: account.ErrNotFound}, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
 	}
 }
 
 func TestHandleCreditSalary_ErroInterno(t *testing.T) {
-	rec := postSalary(t, &fakeAccountOpener{creditErr: context.DeadlineExceeded}, validUserID, `{"amount":1000}`)
+	rec := postSalary(t, &fakeAccountOpener{creditErr: context.DeadlineExceeded}, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
 
 func TestHandleCreditSalary_SemAccountSalaryCrediter(t *testing.T) {
-	rec := postSalary(t, nil, validUserID, `{"amount":1000}`)
+	rec := postSalary(t, nil, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}

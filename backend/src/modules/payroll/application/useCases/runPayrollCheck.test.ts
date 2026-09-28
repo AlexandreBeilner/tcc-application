@@ -28,8 +28,8 @@ describe('RunPayrollCheckUseCase', () => {
 
     expect(result).toEqual({ usersChecked: 2, usersPaid: 2, monthsPaidTotal: 2 })
     expect(crediter.credits).toEqual([
-      { userId: 'user-a', amount: 1000 },
-      { userId: 'user-b', amount: 3000 },
+      { userId: 'user-a', amount: 1000, referenceMonth: '2026-09' },
+      { userId: 'user-b', amount: 3000, referenceMonth: '2026-09' },
     ])
   })
 
@@ -64,11 +64,11 @@ describe('RunPayrollCheckUseCase', () => {
     const stateRepository = createFakePayrollStateRepository()
     const crediter = createFakeSalaryCrediter()
     const failingCrediter = {
-      async credit(userId: string, amount: number) {
+      async credit(userId: string, amount: number, referenceMonth: string) {
         if (userId === 'user-a') {
           throw new Error('motor fora do ar')
         }
-        await crediter.credit(userId, amount)
+        await crediter.credit(userId, amount, referenceMonth)
       },
     }
     const creditForUser = new CreditMonthlyPayrollForUserUseCase(
@@ -81,6 +81,6 @@ describe('RunPayrollCheckUseCase', () => {
     const result = await useCase.execute()
 
     expect(result).toEqual({ usersChecked: 2, usersPaid: 1, monthsPaidTotal: 1 })
-    expect(crediter.credits).toEqual([{ userId: 'user-b', amount: 1000 }])
+    expect(crediter.credits).toEqual([{ userId: 'user-b', amount: 1000, referenceMonth: '2026-09' }])
   })
 })

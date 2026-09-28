@@ -14,6 +14,11 @@ import (
 // userID de bot precisa ser aceito por esse tipo de coluna no Postgres.
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
+// monthKeyPattern valida o formato 'YYYY-MM' de referenceMonth (achado 025) —
+// só a forma, não se o mês é 01-12: quem decide qual mês está devido é o
+// backend (payroll, T.5), o motor só garante que o formato chega íntegro.
+var monthKeyPattern = regexp.MustCompile(`^\d{4}-\d{2}$`)
+
 // InitialBalance é o capital inicial de toda conta nova, no mercado ao vivo
 // — fixado como premissa (spec 3.5), não configurável (CLAUDE.md).
 const InitialBalance = 10000.00
@@ -117,6 +122,11 @@ var ErrNotFound = errors.New("conta não encontrada")
 // positivo (tarefa T.2, critério de aceite "rejeita amount <= 0").
 var ErrInvalidSalaryAmount = errors.New("valor de salário inválido")
 
+// ErrInvalidReferenceMonth é devolvido por CreditSalary quando referenceMonth
+// não está no formato 'YYYY-MM' (achado 025 — distingue o mês a que o
+// salário se refere do dia em que o crédito de fato foi processado).
+var ErrInvalidReferenceMonth = errors.New("mês de referência inválido")
+
 // Repository persiste a criação de uma conta nova e o crédito de salário
 // mensal numa conta já existente. A implementação concreta
 // (internal/infra/db) grava o evento imutável correspondente em
@@ -125,11 +135,12 @@ var ErrInvalidSalaryAmount = errors.New("valor de salário inválido")
 type Repository interface {
 	Create(ctx context.Context, acc Account) error
 	// CreditSalary credita amount em CurrentBalance da conta de userID,
-	// gravando o evento imutável EventSalaryPayment antes de projetar o
-	// saldo (tarefa T.2) — nunca toca TotalInvested/TotalDisinvested/
-	// TotalDividendsReceived: salário é caixa livre, nunca capital de
-	// risco (T.1). Devolve ErrNotFound se a conta não existe.
-	CreditSalary(ctx context.Context, userID string, amount float64) error
+	// gravando o evento imutável EventSalaryPayment (com o mês de referência,
+	// achado 025) antes de projetar o saldo (tarefa T.2) — nunca toca
+	// TotalInvested/TotalDisinvested/TotalDividendsReceived: salário é caixa
+	// livre, nunca capital de risco (T.1). Devolve ErrNotFound se a conta não
+	// existe.
+	CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error
 }
 
 // Service abre contas novas sempre com o capital inicial padronizado e
@@ -151,12 +162,15 @@ func (s *Service) Open(ctx context.Context, userID string) (Account, error) {
 }
 
 // CreditSalary credita o salário mensal (tarefa T.2) na conta de userID —
-// quem decide quando/quanto pagar é externo ao motor (T.5, backend); aqui
-// só valida que o valor é positivo e delega o crédito atômico ao
-// Repository.
-func (s *Service) CreditSalary(ctx context.Context, userID string, amount float64) error {
+// quem decide quando/quanto pagar e a que mês-calendário real (referenceMonth,
+// achado 025) o crédito se refere é externo ao motor (T.5, backend); aqui só
+// se valida o formato de entrada e delega o crédito atômico ao Repository.
+func (s *Service) CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error {
 	if amount <= 0 {
 		return fmt.Errorf("%w: precisa ser positivo (%.2f)", ErrInvalidSalaryAmount, amount)
 	}
-	return s.repo.CreditSalary(ctx, userID, amount)
+	if !monthKeyPattern.MatchString(referenceMonth) {
+		return fmt.Errorf("%w: precisa ter formato AAAA-MM (%q)", ErrInvalidReferenceMonth, referenceMonth)
+	}
+	return s.repo.CreditSalary(ctx, userID, amount, referenceMonth)
 }

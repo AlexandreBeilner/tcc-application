@@ -132,6 +132,44 @@ describe('MarketClockChip', () => {
         expect(getMarketCalendar).toHaveBeenCalledWith('token', '2026-07-09', '2026-07-09')
     })
 
+    // Achado 025: catch-up de vários meses atrasados (backend, T.5) credita
+    // mais de um salary_payment no mesmo dia — a fila do RewardRevealProvider
+    // mostra um toast por mês, cada um nomeado, nunca um só escondendo os
+    // outros.
+    it('virada de dia com catch-up de vários meses mostra um toast dedicado por mês', async () => {
+        vi.mocked(getMarketClock).mockResolvedValueOnce(WEDNESDAY_CLOCK)
+        vi.mocked(getIndicatorHistory).mockResolvedValue({
+            indicators: [{ simulated_day: 136, selic_rate: 10.5, ipca_monthly_rate: 0.4, ipca_accumulated_12m: 4 }],
+        })
+        vi.mocked(getMarketCalendar).mockResolvedValue({
+            from_day: 136,
+            to_day: 136,
+            days: [
+                {
+                    simulated_day: 136,
+                    date: '2026-07-09',
+                    weekday: 'thu',
+                    market_open: true,
+                    events: [
+                        { kind: 'salary_payment', scope: 'user', future: false, unit_value: 100, reference_month: '2026-05' },
+                        { kind: 'salary_payment', scope: 'user', future: false, unit_value: 100, reference_month: '2026-06' },
+                    ],
+                },
+            ],
+        })
+        const { queryClient } = renderChip()
+        await screen.findByText('Dia 135 · qua 08/07')
+
+        vi.mocked(getMarketClock).mockResolvedValue({ ...WEDNESDAY_CLOCK, simulated_day: 136, date: '2026-07-09', weekday: 'thu' })
+        await queryClient.invalidateQueries({ queryKey: ['market', 'clock'] })
+
+        expect(await screen.findByText('Novo dia: Selic 10,50%')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Fechar aviso' }))
+        expect(await screen.findByText('Salário de maio de 2026')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Fechar aviso' }))
+        expect(await screen.findByText('Salário de junho de 2026')).toBeInTheDocument()
+    })
+
     it('virada pro sábado convida a estudar', async () => {
         vi.mocked(getMarketClock).mockResolvedValueOnce({ ...WEDNESDAY_CLOCK, simulated_day: 137, date: '2026-07-10', weekday: 'fri' })
         vi.mocked(getIndicatorHistory).mockRejectedValue(new Error('fora do ar'))

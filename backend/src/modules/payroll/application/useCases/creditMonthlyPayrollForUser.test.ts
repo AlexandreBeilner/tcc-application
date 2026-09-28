@@ -21,7 +21,7 @@ describe('CreditMonthlyPayrollForUserUseCase', () => {
     })
 
     expect(result).toEqual({ monthsPaid: ['2026-09'], amountPerMonth: 1000 })
-    expect(crediter.credits).toEqual([{ userId: USER_ID, amount: 1000 }])
+    expect(crediter.credits).toEqual([{ userId: USER_ID, amount: 1000, referenceMonth: '2026-09' }])
     await expect(stateRepository.getLastPaidMonth(USER_ID)).resolves.toBe('2026-09')
   })
 
@@ -93,9 +93,13 @@ describe('CreditMonthlyPayrollForUserUseCase', () => {
     })
 
     expect(result).toEqual({ monthsPaid: ['2026-08', '2026-09'], amountPerMonth: 3000 })
+    // Achado 025: cada crédito do catch-up leva o referenceMonth do mês que
+    // está pagando, não o dia em que o job de fato rodou — é isso que deixa
+    // "salário de agosto" e "salário de setembro" distinguíveis mesmo caindo
+    // no mesmo simulated_day no motor.
     expect(crediter.credits).toEqual([
-      { userId: USER_ID, amount: 3000 },
-      { userId: USER_ID, amount: 3000 },
+      { userId: USER_ID, amount: 3000, referenceMonth: '2026-08' },
+      { userId: USER_ID, amount: 3000, referenceMonth: '2026-09' },
     ])
     await expect(stateRepository.getLastPaidMonth(USER_ID)).resolves.toBe('2026-09')
   })

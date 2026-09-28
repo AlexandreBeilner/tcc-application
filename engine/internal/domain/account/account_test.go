@@ -137,6 +137,7 @@ type fakeRepository struct {
 
 	creditedUserID string
 	creditedAmount float64
+	creditedMonth  string
 	creditErr      error
 }
 
@@ -148,11 +149,11 @@ func (f *fakeRepository) Create(_ context.Context, acc Account) error {
 	return nil
 }
 
-func (f *fakeRepository) CreditSalary(_ context.Context, userID string, amount float64) error {
+func (f *fakeRepository) CreditSalary(_ context.Context, userID string, amount float64, referenceMonth string) error {
 	if f.creditErr != nil {
 		return f.creditErr
 	}
-	f.creditedUserID, f.creditedAmount = userID, amount
+	f.creditedUserID, f.creditedAmount, f.creditedMonth = userID, amount, referenceMonth
 	return nil
 }
 
@@ -186,11 +187,11 @@ func TestService_CreditSalary(t *testing.T) {
 	repo := &fakeRepository{}
 	svc := NewService(repo)
 
-	if err := svc.CreditSalary(context.Background(), "user-1", 1000); err != nil {
+	if err := svc.CreditSalary(context.Background(), "user-1", 1000, "2026-01"); err != nil {
 		t.Fatalf("CreditSalary() erro inesperado: %v", err)
 	}
-	if repo.creditedUserID != "user-1" || repo.creditedAmount != 1000 {
-		t.Errorf("repo creditado = (%q, %v), want (\"user-1\", 1000)", repo.creditedUserID, repo.creditedAmount)
+	if repo.creditedUserID != "user-1" || repo.creditedAmount != 1000 || repo.creditedMonth != "2026-01" {
+		t.Errorf("repo creditado = (%q, %v, %q), want (\"user-1\", 1000, \"2026-01\")", repo.creditedUserID, repo.creditedAmount, repo.creditedMonth)
 	}
 }
 
@@ -201,7 +202,7 @@ func TestService_CreditSalary_RejeitaAmountNaoPositivo(t *testing.T) {
 		repo := &fakeRepository{}
 		svc := NewService(repo)
 
-		err := svc.CreditSalary(context.Background(), "user-1", amount)
+		err := svc.CreditSalary(context.Background(), "user-1", amount, "2026-01")
 		if !errors.Is(err, ErrInvalidSalaryAmount) {
 			t.Errorf("amount = %v: err = %v, want ErrInvalidSalaryAmount", amount, err)
 		}
@@ -211,11 +212,32 @@ func TestService_CreditSalary_RejeitaAmountNaoPositivo(t *testing.T) {
 	}
 }
 
+// TestService_CreditSalary_RejeitaReferenceMonthInvalido cobre o achado 025:
+// reference_month precisa ter formato AAAA-MM, senão o catch-up de vários
+// meses atrasados (T.5) grava eventos sem como distinguir a que mês cada um
+// se refere.
+func TestService_CreditSalary_RejeitaReferenceMonthInvalido(t *testing.T) {
+	tests := []string{"", "2026", "2026-1", "janeiro-2026", "2026/01"}
+
+	for _, month := range tests {
+		repo := &fakeRepository{}
+		svc := NewService(repo)
+
+		err := svc.CreditSalary(context.Background(), "user-1", 1000, month)
+		if !errors.Is(err, ErrInvalidReferenceMonth) {
+			t.Errorf("referenceMonth = %q: err = %v, want ErrInvalidReferenceMonth", month, err)
+		}
+		if repo.creditedUserID != "" {
+			t.Errorf("referenceMonth = %q: repo.CreditSalary não deveria ser chamado", month)
+		}
+	}
+}
+
 func TestService_CreditSalary_PropagaErroDoRepositorio(t *testing.T) {
 	repo := &fakeRepository{creditErr: ErrNotFound}
 	svc := NewService(repo)
 
-	err := svc.CreditSalary(context.Background(), "user-1", 1000)
+	err := svc.CreditSalary(context.Background(), "user-1", 1000, "2026-01")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}

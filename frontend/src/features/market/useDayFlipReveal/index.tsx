@@ -3,7 +3,7 @@ import { HandCoins, Zap } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { useRewardReveal } from '../../shell/RewardRevealProvider'
 import { getIndicatorHistory, getMarketCalendar } from '../../../services/market'
-import type { MarketClock } from '../../../services/market'
+import type { CalendarEvent, MarketClock } from '../../../services/market'
 import { describeDayFlip, describeSalaryReveal } from '../dayFlipReveal'
 
 const FLIP_ANIMATION_MS = 800
@@ -13,8 +13,11 @@ const FLIP_ANIMATION_MS = 800
 // dourado avisa "Novo dia: Selic X%". A primeira leitura nunca conta como virada.
 // A Selic vem do último ponto de `/market/indicators`; se falhar, o toast cai
 // no número do dia em vez de sumir. Se o novo dia também pagou salário
-// (tarefa T.7), um segundo toast dedicado entra na mesma fila do
-// RewardRevealProvider, sem substituir o de virada de dia.
+// (tarefa T.7), um toast dedicado por crédito entra na mesma fila do
+// RewardRevealProvider, sem substituir o de virada de dia — normalmente só
+// um, mas um catch-up de meses atrasados (backend T.5, achado 025) credita
+// mais de um salary_payment no mesmo dia, então mais de um toast pode entrar
+// na fila, cada um nomeando o mês a que se refere.
 export function useDayFlipReveal(clock: MarketClock | undefined): boolean {
     const { token } = useAuth()
     const { show } = useRewardReveal()
@@ -48,16 +51,22 @@ export function useDayFlipReveal(clock: MarketClock | undefined): boolean {
             const content = describeDayFlip(clock, selic)
             show({ icon: <Zap size={22} strokeWidth={2.2} fill="currentColor" />, ...content })
 
-            let salary: number | null = null
+            let salariesPaid: CalendarEvent[] = []
             try {
                 const { days } = await getMarketCalendar(token as string, clock.date, clock.date)
-                const paid = days[0]?.events.find((e) => e.kind === 'salary_payment' && e.scope === 'user' && !e.future)
-                salary = paid?.unit_value ?? null
+                salariesPaid = (days[0]?.events ?? []).filter((e) => e.kind === 'salary_payment' && e.scope === 'user' && !e.future)
             } catch {
-                salary = null
+                salariesPaid = []
             }
-            if (cancelled || salary === null) return
-            show({ icon: <HandCoins size={22} strokeWidth={2.2} />, ...describeSalaryReveal(salary) })
+            if (cancelled) return
+            // Catch-up de vários meses atrasados (backend, T.5, achado 025) credita
+            // mais de um salary_payment no mesmo dia — um toast por crédito, cada
+            // um nomeando o mês quando há mais de um (senão saem idênticos).
+            for (const paid of salariesPaid) {
+                if (paid.unit_value === undefined) continue
+                const referenceMonth = salariesPaid.length > 1 ? paid.reference_month : undefined
+                show({ icon: <HandCoins size={22} strokeWidth={2.2} />, ...describeSalaryReveal(paid.unit_value, referenceMonth) })
+            }
         })()
 
         return () => {

@@ -95,7 +95,7 @@ func (r *CalendarRepository) DividendsBetween(ctx context.Context, fromDay, toDa
 // simulado em que aconteceram) e os vencimentos de renda fixa que ele ainda carrega.
 func (r *CalendarRepository) UserFactsBetween(ctx context.Context, userID string, fromDay, toDay int) ([]marketcalendar.UserFact, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT e.simulated_day, e.event_type, a.ticker, e.quantity, e.unit_value
+		`SELECT e.simulated_day, e.event_type, a.ticker, e.quantity, e.unit_value, e.reference_month
 		 FROM market_events e LEFT JOIN assets a ON a.id = e.asset_id
 		 WHERE e.user_id = $1 AND (a.is_sandbox = false OR a.id IS NULL) AND e.simulated_day BETWEEN $2 AND $3
 		   AND e.event_type IN ('buy_order_executed', 'sell_order_executed', 'dividend_payment',
@@ -112,7 +112,8 @@ func (r *CalendarRepository) UserFactsBetween(ctx context.Context, userID string
 		var ticker sql.NullString
 		var quantity sql.NullFloat64
 		var unitValue sql.NullFloat64
-		if err := rows.Scan(&f.Day, &f.EventType, &ticker, &quantity, &unitValue); err != nil {
+		var referenceMonth sql.NullString
+		if err := rows.Scan(&f.Day, &f.EventType, &ticker, &quantity, &unitValue, &referenceMonth); err != nil {
 			return nil, err
 		}
 		if ticker.Valid {
@@ -123,6 +124,9 @@ func (r *CalendarRepository) UserFactsBetween(ctx context.Context, userID string
 		}
 		if unitValue.Valid {
 			f.UnitValue = &unitValue.Float64
+		}
+		if referenceMonth.Valid {
+			f.ReferenceMonth = referenceMonth.String
 		}
 		facts = append(facts, f)
 	}

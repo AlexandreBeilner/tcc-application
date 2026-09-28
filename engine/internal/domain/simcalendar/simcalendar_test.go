@@ -85,6 +85,25 @@ func TestIsFifthBusinessDayOfMonth(t *testing.T) {
 	}
 }
 
+// TestMonthKeyOf cobre o achado 025: MonthKeyOf é a fonte do reference_month
+// gravado pelo salário (T.2), tanto no fato futuro sintético do calendário
+// quanto no valor que o backend manda no crédito de catch-up.
+func TestMonthKeyOf(t *testing.T) {
+	tests := []struct {
+		date time.Time
+		want string
+	}{
+		{time.Date(2026, time.January, 7, 0, 0, 0, 0, time.UTC), "2026-01"},
+		{time.Date(2026, time.December, 31, 0, 0, 0, 0, time.UTC), "2026-12"},
+		{time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC), "2027-01"},
+	}
+	for _, tt := range tests {
+		if got := MonthKeyOf(DayOf(tt.date)); got != tt.want {
+			t.Errorf("MonthKeyOf(%s) = %q, want %q", tt.date.Format("2006-01-02"), got, tt.want)
+		}
+	}
+}
+
 func TestCheckMarketOpen(t *testing.T) {
 	tests := []struct {
 		name       string
