@@ -35,3 +35,17 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
   - `403` — token válido, mas `role` diferente de `admin`.
   - `400` — `limit`/`offset` fora da faixa aceita (ex: `limit=0`, `limit=101`, `offset=-1`, valor não numérico).
 - **Regra:** `ListMacroEventsUseCase` delega inteiramente pra `MacroEventReader` (porta) → `engineMacroEventReader` (adapter, chama `GET /macro-events` via `ENGINE_URL`, repassando `limit`/`offset` como query string) — nenhuma regra de negócio própria, mesmo padrão de delegação fina de `TriggerMacroEventUseCase`. Não expõe patrimônio nem dado de conta de usuário — evento macro é estado global do motor (Mercado Ao Vivo único), não por conta (CLAUDE.md).
+
+### `POST /admin/tick`
+
+*(Gap fechado na tarefa 7.3, `backlog-plataforma-investimentos.md` — até esta tarefa, `POST /admin/tick` só existia na rede interna do Compose, `engine:8080`, nunca alcançável do host nem do gateway; comentário de `handleAdminTick` em `engine/internal/infra/httpserver/admin.go` já antecipava esse proxy "quando o painel admin existir". Sem ele, a suíte e2e não tinha como avançar dias simulados batendo só no gateway — decisão confirmada com o autor em 2026-09-28: criar o proxy em vez de expor a porta do motor ao host ou contornar via `docker exec`.)*
+
+- **Autenticação:** Bearer token + `role: 'admin'`.
+- **Payload:** nenhum — o motor não aceita parâmetro nenhum nesta rota.
+- **Sucesso:** `200` → corpo idêntico ao de `POST /admin/tick` do motor: `{ day, selic_rate, quotes_count, fundamentals_count, is_copom_day, is_report_day, dividends_generated_count, dividends_paid_count, bot_fills_count, expired_orders_count, uncovered_assets_count, intraday_rounds_count }` (ver `.docs/engine/tick.md`).
+- **Erros:**
+  - `401` — token ausente ou inválido.
+  - `403` — token válido, mas `role` diferente de `admin`.
+  - `409` — já existe um tick em andamento (trava consultiva do motor, tarefa S.3 — job diário automático ou outro `POST /admin/tick` concorrente).
+  - Qualquer outra falha do motor (`500`/`503`) propaga como erro genérico (`500`, tratamento padrão do Express) — mesmo raciocínio de `POST /admin/macro-events` pra falhas fora das traduzidas explicitamente.
+- **Regra:** `TriggerTickUseCase` delega inteiramente pra `TickTrigger` (porta) → `engineTickTrigger` (adapter, chama `POST /admin/tick` via `ENGINE_URL`, sem body) — nenhuma regra de negócio própria, mesmo padrão de delegação fina das outras duas rotas deste módulo. Serve tanto demonstração ao vivo pra banca quanto a suíte `backend/test/e2e/` (avançar dias simulados sem esperar o job diário real).

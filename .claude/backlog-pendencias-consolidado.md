@@ -34,15 +34,15 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
   (só o crescimento diferencia P/L e P/VP) — `pontos-em-aberto-decisao-produto.md`, achado 025.
 - **Status:** ✅ Resolvido. Libera P1.2 (e2e formal).
 
-### P1.2 · Testes ponta a ponta formais
+### P1.2 · Testes ponta a ponta formais ✅ concluída (2026-09-28)
 
-- **Local:** `.claude/backlog-plataforma-investimentos.md`, tarefa **7.3** (linha ~1037)
-- **O que falta:** hoje toda validação "ponta a ponta via `docker compose up`" é manual
-  (curl/Chrome, a cada sessão) — não existe `backend/test/e2e/` nem `npm run test:e2e`. A tarefa
-  original pede suíte `supertest` apontando pro gateway real (não `createApp()` em processo)
-  cobrindo as 3 jornadas da spec: compra/venda de ação com gate de desbloqueio, resgate de renda
-  fixa com IR, evento macro → preço → relatório.
-- **Depende de:** P1.1 (precisa do catálogo completo pra ter tickers/setores reais pra testar).
+- **Local:** `.claude/backlog-plataforma-investimentos.md`, tarefa **7.3** (linha ~1037) — Entregável
+  completo lá.
+- **Resumo:** suíte nova `backend/test/e2e/` (3 jornadas, `npm run test:e2e`) batendo em HTTP real
+  contra o gateway. Gap real fechado no caminho: `POST /admin/tick` não tinha proxy no backend (só
+  existia na rede interna do Compose) — criado nesta sessão (`modules/admin`, admin-only,
+  `.docs/backend/admin.md`), decisão confirmada com o autor antes de escrever os testes.
+- **Status:** ✅ Resolvido. Libera P1.3 (Semana 8).
 
 ### P1.3 · Semana 8 — Polimento (não pode começar antes de P1.2)
 
