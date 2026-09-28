@@ -81,6 +81,8 @@ describe('RunPayrollCheckUseCase', () => {
     const result = await useCase.execute()
 
     expect(result).toEqual({ usersChecked: 2, usersPaid: 1, monthsPaidTotal: 1 })
-    expect(crediter.credits).toEqual([{ userId: 'user-b', amount: 1000, referenceMonth: '2026-09' }])
+    expect(crediter.credits).toEqual([
+      { userId: 'user-b', amount: 1000, referenceMonth: '2026-09' },
+    ])
   })
 })

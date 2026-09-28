@@ -30,6 +30,8 @@ describe('engineSalaryCrediter', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 })
     const crediter = createEngineSalaryCrediter('http://engine:8080')
 
-    await expect(crediter.credit('user-1', 1000, '2026-09')).rejects.toThrow(/falha ao creditar salário/)
+    await expect(crediter.credit('user-1', 1000, '2026-09')).rejects.toThrow(
+      /falha ao creditar salário/,
+    )
   })
 })
