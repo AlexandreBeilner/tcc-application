@@ -56,24 +56,27 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
 
 ---
 
-## Prioridade 2 — Fase T em andamento (branch não mesclada)
+## Prioridade 2 — Fase T ✅ concluída (2026-09-29)
 
-### P2.1 · Fase T — Salário mensal simulado (T.4 a T.11)
+### P2.1 · Fase T — Salário mensal simulado (T.1 a T.11) ✅
 
-- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase T (linha ~4601)
-- **Estado real:** branch local `fase-t-salario-mensal` (não pusheda pro `origin`, não mesclada em
-  `main`) já tem **T.1, T.2, T.3 concluídas** (commits `633d279`, `b4c7658`, `7533446`). Faltam:
-  - **T.4** · detecção do 5º dia útil do mês-calendário real
-  - **T.5** · job de folha de pagamento com catch-up e idempotência (depende de T.2/T.3/T.4)
-  - **T.6** · salário aparece no calendário do usuário
-  - **T.7** · frontend: marcador de salário + teatro de recompensa
-  - **T.8** · salário exposto na resposta de progressão
-  - **T.9** · indicador persistente de salário no Dashboard
-  - **T.10** · salário no teatro de recompensa do level-up
-  - **T.11** · passo no onboarding explicando o salário
-- **Ação antes de continuar:** decidir se retoma direto na branch `fase-t-salario-mensal` (`git
-  checkout fase-t-salario-mensal`) — hoje o worktree está em `HEAD` destacado, num commit anterior
-  a essa branch (`fffb030`).
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase T (linha ~4601) — Entregável completo lá
+  (T.1–T.11 todas ✅).
+- **Status:** ✅ Resolvido. Mesclada em `main` via PR #47 (`fase-t-salario-mensal`).
+
+---
+
+## Prioridade 2b — Fase U: preço justo de FII (decidida em 2026-09-29)
+
+### P2.2 · Fase U — Preço justo de FII para o Fundamentalista (U.1 a U.7)
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase U (linha ~4974) — achado 024 de
+  `pontos-em-aberto-decisao-produto.md` (decisão tomada: opção A, calibrada por pesquisa de mercado).
+- **Resumo:** TJLO11/PAPL11 caíam ~49% em 200 dias simulados porque nenhum bot tem noção de valor de
+  FII. A fase cria o preço justo de FII (patrimônio por cota × P/VP-alvo por segmento, deslocado pela
+  Selic), faz o Fundamentalista negociar FII, aplica o efeito do provento (fecha a reserva S.14),
+  recalibra o seed pra não criar degrau no dia 1 e fecha com validação de 200 dias.
+- **Status:** 7 tarefas abertas, nenhuma iniciada. Começa por U.1.
 
 ---
 
@@ -197,8 +200,7 @@ não apagar sem essa checagem.
 ## Sequência sugerida
 
 1. **P1.1 → P1.2** (catálogo completo → e2e formal) — fecha a Semana 7.
-2. **P2.1** (T.4 → T.5 → T.6 → ... → T.11, retomando `fase-t-salario-mensal`) — pode rodar em
-   paralelo ao passo 1, é uma trilha independente do motor.
+2. ~~**P2.1** (Fase T)~~ ✅ concluída.
 3. **P3.3 → P4.1 → P4.2** (teto de spread, depois o Painel Admin de Bots em si).
 4. **P3.1, P3.2** — decisões pontuais, encaixar em qualquer sessão livre.
 5. **P5.1** — sessão isolada e pequena, sem dependência de nada acima.
