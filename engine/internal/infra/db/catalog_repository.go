@@ -231,6 +231,31 @@ func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string
 	return err
 }
 
+// RecalibrateFIIBaseValueIfNeverQuoted (tarefa U.5) grava o valor-base inicial
+// do FII (net_worth no tijolo, portfolio_value no papel) só se o ativo ainda
+// não tem nenhuma cotação (asset_quotes): um volume que já rodou ticks teve o
+// valor-base evoluído pelo motor (Selic, ruído), e sobrescrevê-lo apagaria
+// histórico de fundamento. Devolve se alterou. É dado de fundamento, não move
+// saldo nem posição, então não passa por market_events.
+func (r *CatalogRepository) RecalibrateFIIBaseValueIfNeverQuoted(ctx context.Context, assetID string, baseValue float64) (bool, error) {
+	// $2 é arredondado a 2 casas (escala das colunas numeric): sem isso a
+	// comparação com o valor já gravado nunca bate e a chamada nunca é idempotente.
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE fii_details
+		    SET net_worth = CASE WHEN fii_type = 'tijolo' THEN ROUND($2::numeric, 2) ELSE net_worth END,
+		        portfolio_value = CASE WHEN fii_type = 'papel' THEN ROUND($2::numeric, 2) ELSE portfolio_value END
+		  WHERE asset_id = $1
+		    AND NOT EXISTS (SELECT 1 FROM asset_quotes WHERE asset_id = $1)
+		    AND ((fii_type = 'tijolo' AND net_worth IS DISTINCT FROM ROUND($2::numeric, 2))
+		      OR (fii_type = 'papel' AND portfolio_value IS DISTINCT FROM ROUND($2::numeric, 2)))`,
+		assetID, baseValue)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 // ListAssets devolve os ativos do catálogo, opcionalmente filtrados por
 // assetType (string vazia = sem filtro) — usado por GET /assets (tarefa
 // 3.10). O chamador (httpserver) é responsável por validar assetType contra

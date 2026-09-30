@@ -632,12 +632,47 @@ func seedETFAsset(ctx context.Context, repo *db.CatalogRepository, accountRepo *
 // dois).
 const fiiOutstandingShares = int64(1_000_000)
 
+// fiiInitialBaseValue (tarefa U.5, achado 024) é o patrimônio (tijolo) ou a
+// carteira (papel) inicial que faz o preço justo do Fundamentalista
+// (fii.FairPrice) nascer exatamente em tick.DefaultInitialPrice, pra Selic
+// neutra: o P/VP-alvo do segmento (lajes 0,75, shopping 0,88, etc.) deixa de
+// ser 1, então patrimônio = cotas × preço daria um degrau de até 25% no
+// primeiro tick. Mesma correção do achado 003 pra ações
+// (fundamentals.BootstrapFinancialsForTargetPrice), via a função inversa
+// fii.BootstrapBaseValueForTargetPrice.
+func fiiInitialBaseValue(fiiType fii.Type, segment string) float64 {
+	targetPriceToBook, err := fii.TargetPriceToBook(fiiType, segment, selic.DefaultNeutralRate, selic.DefaultNeutralRate)
+	if err != nil {
+		log.Fatalf("P/VP-alvo inicial inválido (%s, %q): %v", fiiType, segment, err)
+	}
+	baseValue, ok := fii.BootstrapBaseValueForTargetPrice(tick.DefaultInitialPrice, fiiOutstandingShares, targetPriceToBook)
+	if !ok {
+		log.Fatalf("valor-base inicial inválido (%s, %q)", fiiType, segment)
+	}
+	return baseValue
+}
+
+// recalibrateExistingFII leva um FII já seedado (antes da U.5, com P/VP=1) ao
+// valor-base coerente com o P/VP-alvo, se o ativo nunca teve cotação; um
+// volume que já rodou ticks fica como está (ver RecalibrateFIIBaseValueIfNeverQuoted).
+func recalibrateExistingFII(ctx context.Context, repo *db.CatalogRepository, id, ticker string, baseValue float64) {
+	changed, err := repo.RecalibrateFIIBaseValueIfNeverQuoted(ctx, id, baseValue)
+	if err != nil {
+		log.Fatalf("erro ao recalibrar o valor-base de %s: %v", ticker, err)
+	}
+	if changed {
+		log.Printf("valor-base de %s recalibrado para %.2f (preço justo do dia 1 = preço inicial)", ticker, baseValue)
+	}
+}
+
 // seedFIITijolo cria um FII de tijolo (segment/vacancyRate próprios —
 // tarefa 7.2 generalizou pra além do TJLO11/Lajes Corporativas original,
 // cobrindo Shopping/Logística com vacância própria por segmento).
 func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name, segment string, vacancyRate float64) string {
 	id, existed := ensureAsset(ctx, repo, ticker, name, catalog.AssetFII, nil, false)
+	netWorth := fiiInitialBaseValue(fii.TypeTijolo, segment)
 	if existed {
+		recalibrateExistingFII(ctx, repo, id, ticker, netWorth)
 		return id
 	}
 
@@ -650,10 +685,10 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name
 		log.Fatalf("erro ao criar variable_income_assets pra %s: %v", ticker, err)
 	}
 
-	// Valor patrimonial por cota = preço inicial (tick.DefaultInitialPrice = R$ 100, P/VP = 1),
-	// como nos FIIs reais; com 500M o patrimônio por cota era 5x o preço e o provento mensal
-	// (1,1% do patrimônio) virava um Dividend Yield absurdo (tarefa S.2).
-	netWorth := float64(fiiOutstandingShares) * tick.DefaultInitialPrice
+	// Patrimônio calibrado pelo P/VP-alvo do segmento (fiiInitialBaseValue, U.5), não mais
+	// cotas × preço (P/VP = 1): o preço justo nasce igual ao preço inicial. O patrimônio por
+	// cota segue na casa do preço (com 500M era 5x o preço e o provento mensal, 1,1% do
+	// patrimônio, virava um Dividend Yield absurdo, tarefa S.2).
 	details, err := fii.NewDetails(fii.TypeTijolo, &segment, &netWorth, &vacancyRate, nil, nil)
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
@@ -668,7 +703,9 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name
 // generalizou pra além do PAPL11/CDI original, cobrindo IPCA+).
 func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name, indexador string) string {
 	id, existed := ensureAsset(ctx, repo, ticker, name, catalog.AssetFII, nil, false)
+	portfolioValue := fiiInitialBaseValue(fii.TypePapel, "")
 	if existed {
+		recalibrateExistingFII(ctx, repo, id, ticker, portfolioValue)
 		return id
 	}
 
@@ -686,7 +723,6 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name,
 	// recebíveis, mesmo tratamento "sujeito à calibração 8.1" de net_worth
 	// (seedFIITijolo) — é o denominador ausente que fazia PAPL11 nunca gerar
 	// provento/Dividend Yield antes desta tarefa.
-	portfolioValue := float64(fiiOutstandingShares) * tick.DefaultInitialPrice
 	details, err := fii.NewDetails(fii.TypePapel, nil, nil, nil, &indexador, &portfolioValue)
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)

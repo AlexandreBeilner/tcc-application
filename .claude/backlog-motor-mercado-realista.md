@@ -5183,7 +5183,7 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   não reproduziu em 3 reruns nem sem a mudança. Sem rota nova e sem `docker compose up` (validação fica na U.7).
   **Fecha a reserva S.14** no que depende do motor; marcar o achado/reserva como resolvidos na U.7.
 
-### U.5 · Seed e dado existente: preço inicial coerente com o P/VP-alvo
+### U.5 · Seed e dado existente: preço inicial coerente com o P/VP-alvo ✅
 - **Descrição:** `seedFIITijolo`/`seedFIIPapel` (`cmd/seed/main.go`) passam a calcular `net_worth`/`portfolio_value` iniciais com
   `fii.BootstrapNetWorthForTargetPrice(tick.DefaultInitialPrice, fiiOutstandingShares, P/VP-alvo do segmento na Selic neutra)`,
   em vez de `cotas × preço` (P/VP = 1). Assim o preço justo nasce igual ao preço inicial e o Fundamentalista não empurra o FII num
@@ -5197,6 +5197,23 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   justo do dia 1 = preço inicial para os 5 FIIs, tijolo e papel, inclusive nos 3 segmentos; DY anual inicial de cada FII calculado
   e registrado no Entregável; validado contra um Postgres descartável e depois no volume de dev.
 - **Dependências:** U.1 (função inversa). Independe de U.2 a U.4 e pode entrar em paralelo a elas.
+
+- **Entregável:** `cmd/seed/main.go`: `fiiInitialBaseValue(tipo, segmento)` calcula o patrimônio (tijolo) ou a carteira (papel) inicial por
+  `fii.BootstrapBaseValueForTargetPrice(DefaultInitialPrice, cotas, P/VP-alvo na Selic neutra)`; `seedFIITijolo`/`seedFIIPapel` usam
+  esse valor em vez de `cotas × preço`. Valores resultantes (1.000.000 de cotas): TJLO11 133.333.333,33 (P/VP 0,75), SHPP11
+  113.636.363,64 (0,88), LOGT11 117.647.058,82 (0,85), PAPL11/IPCP11 100.000.000,00 (1,00). **Volume existente:** novo
+  `CatalogRepository.RecalibrateFIIBaseValueIfNeverQuoted` (arredonda a 2 casas, idempotente) é chamado pelo seed quando o FII já existe,
+  e **só altera se o ativo nunca teve cotação** (`asset_quotes`): num volume que já rodou ticks o valor-base evoluiu pelo motor e não é
+  sobrescrito (é dado de fundamento, não move saldo nem `market_events`). **O volume de dev `market` atual tem 27.235 cotações, então o
+  seed não o altera: para o preço justo do dia 1 coincidir com o inicial ali, é preciso `docker compose down -v` (decisão do autor, não
+  executada).** DY anual inicial (12 × 1,1% do VP sobre o preço de R$ 100): lajes 17,6%, logística 15,5%, shopping 15,0%, papel 13,2%;
+  lajes e logística saem da faixa de 8% a 15%, então **registrado como achado 027** em vez de calibrar `DefaultFIIYieldPerCyclePct` às
+  cegas. Testes: `cmd/seed/fii_test.go` (preço justo do dia 1 = preço inicial nos 3 segmentos e 2 tipos de papel, loga o DY),
+  `internal/infra/db/catalog_fii_integration_test.go` (Postgres descartável: sem cotação recalibra, com cotação não, segunda chamada é
+  no-op, inclusive com fração além de 2 casas). Validação ponta a ponta em banco descartável (`market_u5`, criado e apagado): migrations
+  do zero, seed completo, os 5 valores acima conferidos em `fii_details`, segundo `seed` sem nenhuma recalibração (idempotente).
+  `go vet`, `go test ./...` (com `TEST_DATABASE_URL`) e `golangci-lint` (0 issues) verdes; `infra/scheduler` teve de novo a falha
+  intermitente dependente de horário já vista na U.4 (passa em rerun, sem relação). Sem rota nova.
 
 ### U.6 · Frontend, lições e documentação
 - **Descrição:** (a) **Correção de premissa (2026-09-30):** a tela de FII **não exibe P/VP hoje**. `FiiIndicatorsPanel`
