@@ -5154,7 +5154,7 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   FII e nasce com P/VP=1 no seed antigo, o degrau do dia 1 que a U.5 corrige), então a validação ponta a ponta fica para depois da
   U.5, dentro da U.7.
 
-### U.4 · Efeito do provento de FII no preço justo (fecha a S.14)
+### U.4 · Efeito do provento de FII no preço justo (fecha a S.14) ✅
 - **Descrição:** o FII paga 1,1% do VP por mês (`dividend.FIIPayoutIntervalDays`), e o VP nunca é decrementado, então nada reflete a
   saída do provento no preço. Mesmo padrão da S.13: efeito transitório e negativo em `FIIRoundContext.DividendEffectPct`, ativo por
   uma banda curta de dias simulados a partir da data-ex, sem estado persistido. Diferença em relação à ação: o provento de FII vem
@@ -5167,6 +5167,21 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   zero fora, guarda do primeiro ciclo); teste de `applyEventAttention` com FII em janela de provento; o preço justo cai
   proporcionalmente ao provento na banda e volta ao base fora dela.
 - **Dependências:** U.2, U.3.
+
+- **Entregável:** `dividend.FIIPriceEffectPct(valuePerShare, baseValuePerShare)` (`dividend/dividend.go`): provento por cota ÷ VP por
+  cota, percentual negativo, clampado em `MinEquityPriceEffectPct`, 0 sem dado. `tick.fiiDividendPriceEffectPct(baseValue,
+  shares, dayIndex)` aplica a janela: ativo do dia do pagamento (calendário de 30 dias, `FIIPayoutIntervalDays`) até
+  `dividendPriceEffectBandDays` (10) dias depois, com a mesma guarda de primeiro ciclo de `dividendPriceEffectPct` e sem estado
+  persistido; fora da banda volta a 0, então o preço justo retorna ao valor-base (dente de serra mensal, efeito **não**
+  permanente, ao contrário da ação). `fiiRoundContexts` ganhou o parâmetro `dayIndex` e preenche `FIIRoundContext.DividendEffectPct`.
+  `applyEventAttention` passou a receber `RoundContext` e ganhou o ramo de FII (atenção extra enquanto `DividendEffectPct != 0`, sem
+  exigir `CompanyID`), então o Fundamentalista ganha turnos perto da data-ex. Como o provento é sempre 1,1% do VP
+  (`DefaultFIIYieldPerCyclePct`), o efeito na banda é -1,1% do VP (antes do P/VP-alvo); a calibração fina é a 8.1. Testes: função
+  pura (normal, zero, sem VP, clamp), janela (guarda do primeiro ciclo, véspera, dia do pagamento, dentro/fora da banda, 2º ciclo,
+  sem cotas), contexto (preço justo cai na banda e volta ao base fora dela) e `applyEventAttention` com FII. `go vet`, `go test
+  ./...` e `golangci-lint` (0 issues) verdes; `infra/scheduler` teve uma falha intermitente dependente de horário, sem relação, que
+  não reproduziu em 3 reruns nem sem a mudança. Sem rota nova e sem `docker compose up` (validação fica na U.7).
+  **Fecha a reserva S.14** no que depende do motor; marcar o achado/reserva como resolvidos na U.7.
 
 ### U.5 · Seed e dado existente: preço inicial coerente com o P/VP-alvo
 - **Descrição:** `seedFIITijolo`/`seedFIIPapel` (`cmd/seed/main.go`) passam a calcular `net_worth`/`portfolio_value` iniciais com

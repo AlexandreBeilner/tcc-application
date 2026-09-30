@@ -588,6 +588,27 @@ func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex, report
 	return dividend.EquityPriceEffectPct(financials.NetIncome, financials.NetEquity)
 }
 
+// fiiDividendPriceEffectPct (tarefa U.4) é o equivalente de
+// dividendPriceEffectPct pro provento mensal de FII: o efeito negativo do
+// provento (dividend.FIIPriceEffectPct) enquanto dayIndex está dentro de
+// dividendPriceEffectBandDays desde o último pagamento
+// (dividend.FIIPayoutIntervalDays, calendário de 30 dias, mesma técnica sem
+// estado persistido e mesma guarda de primeiro ciclo), 0 fora da banda. Não é
+// permanente: ver o doc de dividend.FIIPriceEffectPct.
+func fiiDividendPriceEffectPct(baseValue float64, outstandingShares int64, dayIndex int) float64 {
+	if dayIndex < dividend.FIIPayoutIntervalDays-1 {
+		return 0
+	}
+	if (dayIndex+1)%dividend.FIIPayoutIntervalDays >= dividendPriceEffectBandDays {
+		return 0
+	}
+	perShare, ok := dividend.FIIValuePerShare(baseValue, outstandingShares)
+	if !ok {
+		return 0
+	}
+	return dividend.FIIPriceEffectPct(perShare, baseValue/float64(outstandingShares))
+}
+
 // companyRoundContexts monta, pra CADA empresa (não só as que bateram dia de
 // relatório neste tick — diferente do loop que produz reportedRevenue/
 // fundamentalsRecords acima), o que a Fase D.2 (runIntradayRounds, rounds.go)
@@ -981,7 +1002,7 @@ func fiiPortfolioValueUpdatesForCycle(payers []DividendPayerAsset, dayIndex int,
 // desconhecido fica de fora sem erro, mesmo tratamento de "dado ausente do
 // catálogo não é erro" de dividendRecordsForCycle. DividendEffectPct nasce 0
 // (o efeito do provento é a tarefa U.4).
-func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpdate, portfolioValueUpdates []PortfolioValueUpdate, newSelicRate, selicNeutral float64) map[string]FIIRoundContext {
+func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpdate, portfolioValueUpdates []PortfolioValueUpdate, newSelicRate, selicNeutral float64, dayIndex int) map[string]FIIRoundContext {
 	netWorthByAsset := make(map[string]float64, len(netWorthUpdates))
 	for _, u := range netWorthUpdates {
 		netWorthByAsset[u.AssetID] = u.NetWorth
@@ -1033,6 +1054,7 @@ func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpd
 			BaseValue:         baseValue,
 			OutstandingShares: *a.OutstandingShares,
 			TargetPriceToBook: targetPriceToBook,
+			DividendEffectPct: fiiDividendPriceEffectPct(baseValue, *a.OutstandingShares, dayIndex),
 		}
 	}
 	return contexts
@@ -1235,7 +1257,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		PortfolioValueUpdates: portfolioValueUpdates,
 		IntradayRounds:        intradayRounds,
 		CompanyContext:        companyContext,
-		FIIContext:            fiiRoundContexts(dividendPayers, netWorthUpdates, portfolioValueUpdates, newSelicRate, selicCfg.Neutral),
+		FIIContext:            fiiRoundContexts(dividendPayers, netWorthUpdates, portfolioValueUpdates, newSelicRate, selicCfg.Neutral, dayIndex),
 		IPCAMonthlyRate:       ipcaMonthlyRate,
 		IPCAAccumulated12m:    ipcaAccumulated12m,
 	}

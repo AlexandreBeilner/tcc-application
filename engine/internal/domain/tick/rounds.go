@@ -140,7 +140,8 @@ type FIIRoundContext struct {
 	// e tipo (fii.TargetPriceToBook), já resolvido por quem monta o contexto.
 	TargetPriceToBook float64
 	// DividendEffectPct é o efeito de preço, em %, do último provento pago
-	// enquanto dura a banda curta pós data-ex. Sempre 0 até a tarefa U.4.
+	// enquanto dura a banda curta pós data-ex (fiiDividendPriceEffectPct, U.4),
+	// 0 fora dela.
 	DividendEffectPct float64
 }
 
@@ -641,7 +642,7 @@ func (s *Service) runIntradayRounds(
 	for i, b := range directional {
 		candidates[i] = bot.TurnCandidate{Scope: b.Personality.Scope, Archetype: b.Personality.Archetype}
 	}
-	applyEventAttention(universe, equities, contexts.Company, etfFunds)
+	applyEventAttention(universe, equities, contexts, etfFunds)
 	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
 	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
 	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
@@ -851,8 +852,17 @@ func (r *roundRun) directionalCeilingPct(assetID string) float64 {
 // turnos e volume, e os turnos preferem Fundamentalistas — os dois efeitos
 // somados no mesmo gatilho, generalizando o que antes só checava
 // MacroEffectPct. ETF deriva a atenção da cesta (R.10).
-func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext, etfFunds map[string]etf.FundSnapshot) {
+func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, contexts RoundContext, etfFunds map[string]etf.FundSnapshot) {
+	companyContext := contexts.Company
 	for i := range universe {
+		// FII (tarefa U.4): sem empresa, só o efeito do provento mensal, na
+		// mesma banda curta que a ação, liga a atenção extra.
+		if fc, ok := contexts.FII[universe[i].AssetID]; ok {
+			if fc.DividendEffectPct != 0 {
+				universe[i].Attention = bot.AttentionMultiplier(fc.DividendEffectPct)
+			}
+			continue
+		}
 		state := equities[universe[i].AssetID]
 		if state == nil || state.CompanyID == nil {
 			continue

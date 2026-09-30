@@ -100,6 +100,28 @@ func Yield(sumLast12Months, currentPrice float64) (float64, bool) {
 	return sumLast12Months / currentPrice, true
 }
 
+// FIIPriceEffectPct (tarefa U.4, achado 024, fecha a reserva S.14) estima
+// quanto o provento de FII recém-pago reduz o preço justo do Fundamentalista
+// (fii.FairPrice, dividendEffectPct): provento por cota sobre o valor
+// patrimonial por cota, em escala percentual negativa (mesma convenção de
+// EquityPriceEffectPct), clampada em MinEquityPriceEffectPct. Diferente da
+// ação, o provento de FII sai da renda recorrente do fundo e não do
+// patrimônio (o VP nunca é decrementado), então quem chama só aplica o efeito
+// durante uma banda curta pós data-ex e ele NÃO é permanente: fora da banda o
+// preço justo volta ao valor-base, e o preço faz um dente de serra mensal.
+// Sem VP por cota positivo, 0 (mesmo tratamento de "sem dado" de
+// EquityPriceEffectPct).
+func FIIPriceEffectPct(valuePerShare, baseValuePerShare float64) float64 {
+	if baseValuePerShare <= 0 || valuePerShare <= 0 {
+		return 0
+	}
+	effect := -(valuePerShare / baseValuePerShare) * 100
+	if effect < MinEquityPriceEffectPct {
+		return MinEquityPriceEffectPct
+	}
+	return effect
+}
+
 // MinEquityPriceEffectPct é o piso de EquityPriceEffectPct — o pool
 // distribuído nunca reduz o patrimônio líquido em mais de 100% dele mesmo
 // (payout > patrimônio não deveria acontecer com DefaultEquityPayoutRatio

@@ -2,6 +2,7 @@ package tick
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
@@ -1080,7 +1081,7 @@ func TestFIIRoundContexts_TijoloEPapelComP_VPAlvoDaSelicDeHoje(t *testing.T) {
 		fiiPayerForContext("papel", "papel", nil, nil, &portfolio, &shares),
 	}
 
-	got := fiiRoundContexts(payers, nil, nil, 10, 10)
+	got := fiiRoundContexts(payers, nil, nil, 10, 10, 0)
 
 	if len(got) != 2 {
 		t.Fatalf("len(contexts) = %d, want 2", len(got))
@@ -1093,7 +1094,7 @@ func TestFIIRoundContexts_TijoloEPapelComP_VPAlvoDaSelicDeHoje(t *testing.T) {
 	}
 
 	// A Selic de hoje desloca o P/VP-alvo (mesma função do domínio).
-	high := fiiRoundContexts(payers, nil, nil, 15, 10)
+	high := fiiRoundContexts(payers, nil, nil, 15, 10, 0)
 	want, _ := fii.TargetPriceToBook(fii.TypeTijolo, segment, 15, 10)
 	if high["tijolo"].TargetPriceToBook != want || want >= fii.LajesCorporativasPriceToBook {
 		t.Errorf("P/VP-alvo com Selic 15 = %v, want %v (< base)", high["tijolo"].TargetPriceToBook, want)
@@ -1111,7 +1112,7 @@ func TestFIIRoundContexts_UsaValorReavaliadoNoMesmoTick(t *testing.T) {
 	got := fiiRoundContexts(payers,
 		[]NetWorthUpdate{{AssetID: "tijolo", NetWorth: 97_000_000}},
 		[]PortfolioValueUpdate{{AssetID: "papel", PortfolioValue: 203_000_000}},
-		10, 10)
+		10, 10, 0)
 
 	if got["tijolo"].BaseValue != 97_000_000 {
 		t.Errorf("tijolo BaseValue = %v, want valor reavaliado 97000000", got["tijolo"].BaseValue)
@@ -1140,7 +1141,7 @@ func TestFIIRoundContexts_FIIInavaliavelFicaDeForaSemErro(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := fiiRoundContexts([]DividendPayerAsset{tt.payer}, nil, nil, 10, 10); len(got) != 0 {
+			if got := fiiRoundContexts([]DividendPayerAsset{tt.payer}, nil, nil, 10, 10, 0); len(got) != 0 {
 				t.Errorf("contexts = %+v, want vazio", got)
 			}
 		})
@@ -1154,7 +1155,7 @@ func TestFIIRoundContexts_SegmentoNilOuDesconhecidoUsaPadraoDoTijolo(t *testing.
 	got := fiiRoundContexts([]DividendPayerAsset{
 		fiiPayerForContext("nil", "tijolo", nil, &netWorth, nil, &shares),
 		fiiPayerForContext("desconhecido", "tijolo", &unknown, &netWorth, nil, &shares),
-	}, nil, nil, 10, 10)
+	}, nil, nil, 10, 10, 0)
 
 	for _, id := range []string{"nil", "desconhecido"} {
 		if got[id].TargetPriceToBook != fii.DefaultTijoloPriceToBook {
@@ -1185,5 +1186,60 @@ func TestAdvance_FIIContextUsaPatrimonioReavaliadoNoDiaDeRelatorio(t *testing.T)
 	other := Advance(State{Day: 5, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
 	if got := other.FIIContext["fii1"].BaseValue; got != netWorth {
 		t.Errorf("fora do relatório BaseValue = %v, want %v", got, netWorth)
+	}
+}
+
+// Tarefa U.4: o provento mensal de FII desloca o preço justo numa banda curta
+// pós data-ex e some depois (efeito transitório, não permanente).
+func TestFIIDividendPriceEffectPct(t *testing.T) {
+	const shares = int64(1_000_000)
+	const base = 100_000_000.0
+	want := -dividend.DefaultFIIYieldPerCyclePct
+
+	tests := []struct {
+		name     string
+		dayIndex int
+		want     float64
+	}{
+		{"antes do primeiro pagamento (guarda)", 10, 0},
+		{"véspera do primeiro pagamento", 28, 0},
+		{"dia do primeiro pagamento (dia 29)", 29, want},
+		{"dentro da banda", 29 + dividendPriceEffectBandDays - 1, want},
+		{"fora da banda", 29 + dividendPriceEffectBandDays, 0},
+		{"meio do ciclo", 45, 0},
+		{"pagamento seguinte (dia 59)", 59, want},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fiiDividendPriceEffectPct(base, shares, tt.dayIndex)
+			if math.Abs(got-tt.want) > 1e-9 {
+				t.Fatalf("dia %d: got %v, want %v", tt.dayIndex, got, tt.want)
+			}
+		})
+	}
+	if got := fiiDividendPriceEffectPct(base, 0, 29); got != 0 {
+		t.Fatalf("sem cotas: got %v, want 0", got)
+	}
+}
+
+func TestFIIRoundContexts_EfeitoDeProventoSoNaBanda(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth := 100_000_000.0
+	payers := []DividendPayerAsset{fiiPayerForContext("tijolo", "tijolo", nil, &netWorth, nil, &shares)}
+
+	inBand := fiiRoundContexts(payers, nil, nil, 10, 10, 30)["tijolo"]
+	outOfBand := fiiRoundContexts(payers, nil, nil, 10, 10, 50)["tijolo"]
+	if inBand.DividendEffectPct >= 0 {
+		t.Errorf("dentro da banda: DividendEffectPct = %v, want negativo", inBand.DividendEffectPct)
+	}
+	if outOfBand.DividendEffectPct != 0 {
+		t.Errorf("fora da banda: DividendEffectPct = %v, want 0", outOfBand.DividendEffectPct)
+	}
+	// O preço justo cai na banda e volta ao base fora dela.
+	base := inBand.BaseValue / float64(shares) * inBand.TargetPriceToBook
+	fairIn, _ := fii.FairPrice(inBand.BaseValue, shares, inBand.TargetPriceToBook, 0, inBand.DividendEffectPct)
+	fairOut, _ := fii.FairPrice(outOfBand.BaseValue, shares, outOfBand.TargetPriceToBook, 0, outOfBand.DividendEffectPct)
+	if math.Abs(fairOut-base) > 1e-9 || fairIn >= fairOut {
+		t.Errorf("fairIn=%v fairOut=%v base=%v, want fairIn < fairOut == base", fairIn, fairOut, base)
 	}
 }

@@ -146,3 +146,23 @@ func TestYield(t *testing.T) {
 		})
 	}
 }
+
+func TestFIIPriceEffectPct(t *testing.T) {
+	tests := []struct {
+		name            string
+		perShare, vpsPS float64
+		want            float64
+	}{
+		{"provento normal de 1,1% do VP", 0.11, 10, -1.1},
+		{"sem provento", 0, 10, 0},
+		{"sem VP", 0.11, 0, 0},
+		{"provento maior que o VP, clampado", 25, 10, MinEquityPriceEffectPct},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FIIPriceEffectPct(tt.perShare, tt.vpsPS); math.Abs(got-tt.want) > 1e-9 {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

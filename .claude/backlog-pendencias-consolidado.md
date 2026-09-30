@@ -76,7 +76,7 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
   FII. A fase cria o preço justo de FII (patrimônio por cota × P/VP-alvo por segmento, deslocado pela
   Selic), faz o Fundamentalista negociar FII, aplica o efeito do provento (fecha a reserva S.14),
   recalibra o seed pra não criar degrau no dia 1 e fecha com validação de 200 dias.
-- **Status:** U.1, U.2 e U.3 concluídas. Próxima: U.4 (efeito do provento de FII no preço justo).
+- **Status:** U.1 a U.4 concluídas. Próxima: U.5 (seed com preço inicial coerente com o P/VP-alvo).
 
 ---
 

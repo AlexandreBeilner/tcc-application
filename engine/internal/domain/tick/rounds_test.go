@@ -1801,10 +1801,10 @@ func TestApplyEventAttention(t *testing.T) {
 	assets[1] = a2
 	equities, universe := buildEquityUniverse(assets)
 
-	applyEventAttention(universe, equities, map[string]CompanyRoundContext{
+	applyEventAttention(universe, equities, RoundContext{Company: map[string]CompanyRoundContext{
 		"c1": {MacroEffectPct: -25},
 		"c2": {MacroEffectPct: 0},
-	}, nil)
+	}}, nil)
 
 	got := map[string]float64{}
 	for _, e := range universe {
@@ -1884,7 +1884,7 @@ func TestApplyEventAttention_ETFDerivaDaCesta(t *testing.T) {
 		"e2": {Targets: []etf.TargetWeight{{AssetID: "a2", WeightPct: 100}}},
 	}
 
-	applyEventAttention(universe, equities, map[string]CompanyRoundContext{"c1": {MacroEffectPct: -25}}, funds)
+	applyEventAttention(universe, equities, RoundContext{Company: map[string]CompanyRoundContext{"c1": {MacroEffectPct: -25}}}, funds)
 
 	got := map[string]float64{}
 	for _, e := range universe {

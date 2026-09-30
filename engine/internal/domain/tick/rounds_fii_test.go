@@ -116,3 +116,23 @@ func TestRunIntradayRounds_FundamentalistaNegociaFIIComContexto(t *testing.T) {
 		t.Fatalf("closing = %.2f, want acima de 100 (convergindo ao justo)", closing["fii1"])
 	}
 }
+
+func TestApplyEventAttention_FIIEmJanelaDeProvento(t *testing.T) {
+	equities, universe := buildEquityUniverse([]AssetForPricing{fiiAsset("f1", 100), fiiAsset("f2", 100)})
+
+	applyEventAttention(universe, equities, RoundContext{FII: map[string]FIIRoundContext{
+		"f1": {DividendEffectPct: -1.1},
+		"f2": {DividendEffectPct: 0},
+	}}, nil)
+
+	got := map[string]float64{}
+	for _, e := range universe {
+		got[e.AssetID] = e.Attention
+	}
+	if got["f1"] <= 1 {
+		t.Errorf("f1 (provento na banda) Attention = %v, want > 1", got["f1"])
+	}
+	if got["f2"] > 1 {
+		t.Errorf("f2 (sem efeito) Attention = %v, want 1", got["f2"])
+	}
+}
