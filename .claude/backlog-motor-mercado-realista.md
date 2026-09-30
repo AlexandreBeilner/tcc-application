@@ -5107,7 +5107,7 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   apagado; o `market` de dev não foi tocado): migrations até 38 aplicadas do zero, seed completo, 3 ticks via `POST /admin/tick`
   sem erro (99, 87 e 98 fills de bot), 5 FIIs com tipo/segmento corretos. Nenhuma mudança de comportamento de mercado, como previsto.
 
-### U.3 · Fundamentalista negocia FII
+### U.3 · Fundamentalista negocia FII ✅
 - **Descrição:** o arquétipo passa a decidir sobre FII usando `fii.FairPrice`. Trabalho: (a) função de decisão para FII no pacote `bot`
   (`DecideFundamentalistFIIOrder` ou ramo em `DecideFundamentalistOrder`), **reaproveitando o trecho comum** de ruído de conhecimento,
   limiar de mispricing, limite da ordem no preço justo e dimensionamento (`quantityForSide`, `OrderSizeCeiling`), sem duplicar; (b)
@@ -5129,6 +5129,30 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   piso) e continua excluído de ativo sem contexto; Fundamentalista de ação inalterado (testes existentes passam sem edição de
   expectativa).
 - **Dependências:** U.1, U.2.
+
+- **Entregável:** `bot.DecideFundamentalistFIIOrder` (`bot/fundamentalist.go`) calcula o preço justo com `fii.FairPrice` (piso
+  `FundamentalistMinFairPrice` aplicado aqui, como a U.1 deixou combinado) e reaproveita o trecho comum com a ação, extraído em
+  `fundamentalistOrderForFairPrice` (ruído de conhecimento, limiar de mispricing, limite da ordem no preço justo,
+  `quantityForSide`/teto), sem duplicar; o caminho de ação ficou idêntico (testes existentes passam sem edição de expectativa).
+  Sem `macroEffectPct` (evento por FII está fora de escopo da fase); `dividendEffectPct` entra sem filtro de conhecimento, como na
+  ação. `bot.DecisionInput` ganhou `FII *FIIFairPriceInput` (`BaseValue`, `TargetPriceToBook`, `DividendEffectPct`), e `bot.Decide`
+  despacha por ele. No `tick`: **a troca de assinatura pedida pela U.2 foi feita**, `runIntradayRounds` e `decisionInputFor`
+  recebem `RoundContext{Company, FII}` em vez de `companyContext` posicional (a próxima fase que precisar de contexto novo não muda
+  a assinatura de novo; `roundRun.contexts` substitui `companyContext`). `fundamentalistHasCompanyContext` e
+  `assetHasCompanyContext` viraram `fundamentalistHasContext`/`assetHasFundamentalContext(assetID, state, contexts)`: abrem só
+  ativo com entrada em `contexts.FII` (por `AssetID`) ou com empresa em `contexts.Company`, então **ETF continua de fora por
+  construção** (`fiiRoundContexts` só monta FII) e FII sem valor-base também. `Advance` passa `RoundContext{Company:
+  result.CompanyContext, FII: result.FIIContext}`. **Escopo de especialização:** nenhum ajuste de seed, como previsto na descrição
+  (a conferência de que ao menos um Fundamentalista tem `fii` no escopo fica pra U.7). **Não feito (é da U.4):**
+  `applyEventAttention` segue só com `CompanyID`, e `FIIRoundContext.DividendEffectPct` segue 0. Testes: decisão table-driven
+  (compra/venda/limiar/sem caixa/sem posição, limite no preço justo, efeito de provento, teto de tamanho, ruído por conhecimento,
+  erros, `Decide` despachando FII) em `bot/fundamentalist_fii_test.go`; `assetHasFundamentalContext` (FII com/sem contexto, ação,
+  ETF nunca, estado nil), `decisionInputFor` de FII e `runIntradayRounds` com Fundamentalista negociando FII comprando quando o
+  justo está acima do mercado, em `tick/rounds_fii_test.go`; o teste antigo "Fundamentalista nunca negocia FII" segue válido pro
+  FII sem contexto. `go build`, `go vet`, `go test ./...` e `golangci-lint run` (Docker `v2.12.2`, 0 issues) verdes. Sem rota nova
+  nem mudança de contrato HTTP. **Sem `docker compose up` ainda:** o comportamento de mercado mudou (Fundamentalista agora negocia
+  FII e nasce com P/VP=1 no seed antigo, o degrau do dia 1 que a U.5 corrige), então a validação ponta a ponta fica para depois da
+  U.5, dentro da U.7.
 
 ### U.4 · Efeito do provento de FII no preço justo (fecha a S.14)
 - **Descrição:** o FII paga 1,1% do VP por mês (`dividend.FIIPayoutIntervalDays`), e o VP nunca é decrementado, então nada reflete a

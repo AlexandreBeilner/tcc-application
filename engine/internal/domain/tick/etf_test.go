@@ -423,7 +423,7 @@ func TestRunIntradayRounds_MarketMakerCotaETFEmTornoDoINAV(t *testing.T) {
 		acaoAsset("a1", 100),
 		{AssetID: "etf1", Type: assetTypeETF, LastPrice: &etfPrice, OutstandingShares: &shares},
 	}
-	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 

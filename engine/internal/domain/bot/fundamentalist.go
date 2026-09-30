@@ -26,6 +26,7 @@ import (
 	"math/rand"
 
 	"tcc-investimentos/engine/internal/domain/equity"
+	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 )
@@ -214,6 +215,55 @@ func DecideFundamentalistOrder(
 		return Decision{}, err
 	}
 
+	return fundamentalistOrderForFairPrice(personality, fairPrice, currentMarketPrice, availableCash, currentPosition, seed, orderSizeCeiling)
+}
+
+// DecideFundamentalistFIIOrder (tarefa U.3, achado 024) é o equivalente de
+// DecideFundamentalistOrder pra FII, que não tem empresa emissora nem
+// fundamentos de empresa: o preço justo vem de fii.FairPrice (VP por cota ×
+// P/VP-alvo já resolvido pra Selic do dia, com o efeito do provento), e o
+// resto da decisão (ruído de conhecimento, limiar de mispricing, limite da
+// ordem no preço justo, dimensionamento) é o mesmo trecho comum das ações
+// (fundamentalistOrderForFairPrice). Sem macroEffectPct: evento macro por
+// FII está fora de escopo da Fase U. dividendEffectPct não passa pelo filtro
+// de KnowledgeLevel, mesmo tratamento de fato público (data-ex e valor do
+// provento) dado a ele em FundamentalistFairPrice.
+func DecideFundamentalistFIIOrder(
+	personality Personality,
+	input FIIFairPriceInput,
+	outstandingShares int64,
+	currentMarketPrice float64,
+	availableCash float64,
+	currentPosition int,
+	seed int64,
+	orderSizeCeiling *int64,
+) (Decision, error) {
+	if personality.Archetype != ArchetypeFundamentalista {
+		return Decision{}, ErrWrongArchetype
+	}
+	if personality.KnowledgeLevel == nil {
+		return Decision{}, ErrMissingKnowledgeLevel
+	}
+	if currentMarketPrice <= 0 {
+		return Decision{}, ErrInvalidReferencePrice
+	}
+
+	fairPrice, ok := fii.FairPrice(input.BaseValue, outstandingShares, input.TargetPriceToBook, 0, input.DividendEffectPct)
+	if !ok {
+		return Decision{}, ErrInvalidFinancials
+	}
+	if fairPrice < FundamentalistMinFairPrice {
+		fairPrice = FundamentalistMinFairPrice
+	}
+
+	return fundamentalistOrderForFairPrice(personality, fairPrice, currentMarketPrice, availableCash, currentPosition, seed, orderSizeCeiling)
+}
+
+// fundamentalistOrderForFairPrice é o trecho comum de ação e FII: aplica o
+// ruído de conhecimento ao preço justo "verdadeiro", compara com o preço de
+// mercado e devolve a ordem limitada à própria estimativa (ou
+// ErrNoMispricingDetected dentro do limiar).
+func fundamentalistOrderForFairPrice(personality Personality, fairPrice, currentMarketPrice, availableCash float64, currentPosition int, seed int64, orderSizeCeiling *int64) (Decision, error) {
 	rng := rand.New(rand.NewSource(seed))
 	noiseStdDev := FundamentalistMaxNoiseStdDevPct * (1 - *personality.KnowledgeLevel)
 	estimatedFairPrice := fairPrice * (1 + rng.NormFloat64()*noiseStdDev)
