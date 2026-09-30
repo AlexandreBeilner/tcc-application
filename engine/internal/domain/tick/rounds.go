@@ -124,6 +124,26 @@ type CompanyRoundContext struct {
 	DividendEffectPct float64
 }
 
+// FIIRoundContext (tarefa U.2, achado 024) é "o que se sabe hoje" sobre um
+// FII, o equivalente de CompanyRoundContext pra ativo sem empresa emissora —
+// montado por fiiRoundContexts (tick.go) pra todo FII avaliável, indexado por
+// AssetID. Insumo de fii.FairPrice, consumido pelo Fundamentalista a partir
+// da tarefa U.3.
+type FIIRoundContext struct {
+	// BaseValue é o patrimônio líquido (tijolo) ou o valor da carteira
+	// (papel) total do fundo, já reavaliado neste tick quando o dia é de
+	// relatório global. Dividido por OutstandingShares dá o valor por cota
+	// que fii.FairPrice multiplica pelo P/VP-alvo.
+	BaseValue         float64
+	OutstandingShares int64
+	// TargetPriceToBook é o P/VP a que a cota tende pra esta Selic, segmento
+	// e tipo (fii.TargetPriceToBook), já resolvido por quem monta o contexto.
+	TargetPriceToBook float64
+	// DividendEffectPct é o efeito de preço, em %, do último provento pago
+	// enquanto dura a banda curta pós data-ex. Sempre 0 até a tarefa U.4.
+	DividendEffectPct float64
+}
+
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
 // (account.EligibleForTradingRound: is_bot && is_active) com sua
 // personalidade persistida (C.6) — insumo de BotRoster.ListEligibleForTradingRound.

@@ -1064,3 +1064,126 @@ func TestAdvance_IntradayRounds_NaoAfetaOutrosCamposDoResult(t *testing.T) {
 		t.Errorf("Quotes = %v, want 1 cotação com preço > 0 (regressão: sortição de IntradayRounds não deve afetar isto)", result.Quotes)
 	}
 }
+
+// fiiPayerForContext monta um FII pagador com os campos que fiiRoundContexts
+// lê (tarefa U.2).
+func fiiPayerForContext(id, fiiType string, segment *string, netWorth, portfolioValue *float64, shares *int64) DividendPayerAsset {
+	return DividendPayerAsset{AssetID: id, Type: "fii", FIIType: &fiiType, Segment: segment, NetWorth: netWorth, PortfolioValue: portfolioValue, OutstandingShares: shares}
+}
+
+func TestFIIRoundContexts_TijoloEPapelComP_VPAlvoDaSelicDeHoje(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth, portfolio := 100_000_000.0, 100_000_000.0
+	segment := fii.SegmentLajesCorporativas
+	payers := []DividendPayerAsset{
+		fiiPayerForContext("tijolo", "tijolo", &segment, &netWorth, nil, &shares),
+		fiiPayerForContext("papel", "papel", nil, nil, &portfolio, &shares),
+	}
+
+	got := fiiRoundContexts(payers, nil, nil, 10, 10)
+
+	if len(got) != 2 {
+		t.Fatalf("len(contexts) = %d, want 2", len(got))
+	}
+	if c := got["tijolo"]; c.BaseValue != netWorth || c.OutstandingShares != shares || c.TargetPriceToBook != fii.LajesCorporativasPriceToBook || c.DividendEffectPct != 0 {
+		t.Errorf("tijolo = %+v, want base=%v shares=%v pb=%v", c, netWorth, shares, fii.LajesCorporativasPriceToBook)
+	}
+	if c := got["papel"]; c.BaseValue != portfolio || c.TargetPriceToBook != fii.PapelPriceToBook {
+		t.Errorf("papel = %+v, want base=%v pb=%v", c, portfolio, fii.PapelPriceToBook)
+	}
+
+	// A Selic de hoje desloca o P/VP-alvo (mesma função do domínio).
+	high := fiiRoundContexts(payers, nil, nil, 15, 10)
+	want, _ := fii.TargetPriceToBook(fii.TypeTijolo, segment, 15, 10)
+	if high["tijolo"].TargetPriceToBook != want || want >= fii.LajesCorporativasPriceToBook {
+		t.Errorf("P/VP-alvo com Selic 15 = %v, want %v (< base)", high["tijolo"].TargetPriceToBook, want)
+	}
+}
+
+func TestFIIRoundContexts_UsaValorReavaliadoNoMesmoTick(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth, portfolio := 100_000_000.0, 200_000_000.0
+	payers := []DividendPayerAsset{
+		fiiPayerForContext("tijolo", "tijolo", nil, &netWorth, nil, &shares),
+		fiiPayerForContext("papel", "papel", nil, nil, &portfolio, &shares),
+	}
+
+	got := fiiRoundContexts(payers,
+		[]NetWorthUpdate{{AssetID: "tijolo", NetWorth: 97_000_000}},
+		[]PortfolioValueUpdate{{AssetID: "papel", PortfolioValue: 203_000_000}},
+		10, 10)
+
+	if got["tijolo"].BaseValue != 97_000_000 {
+		t.Errorf("tijolo BaseValue = %v, want valor reavaliado 97000000", got["tijolo"].BaseValue)
+	}
+	if got["papel"].BaseValue != 203_000_000 {
+		t.Errorf("papel BaseValue = %v, want valor reavaliado 203000000", got["papel"].BaseValue)
+	}
+}
+
+func TestFIIRoundContexts_FIIInavaliavelFicaDeForaSemErro(t *testing.T) {
+	shares, zeroShares := int64(1_000_000), int64(0)
+	netWorth := 100_000_000.0
+	unknownType := "fiagro"
+
+	tests := []struct {
+		name  string
+		payer DividendPayerAsset
+	}{
+		{"sem fii_details (tipo nil)", DividendPayerAsset{AssetID: "x", Type: "fii", NetWorth: &netWorth, OutstandingShares: &shares}},
+		{"tijolo sem net_worth", fiiPayerForContext("x", "tijolo", nil, nil, nil, &shares)},
+		{"papel sem portfolio_value", fiiPayerForContext("x", "papel", nil, nil, nil, &shares)},
+		{"cotas nil", fiiPayerForContext("x", "tijolo", nil, &netWorth, nil, nil)},
+		{"cotas zero", fiiPayerForContext("x", "tijolo", nil, &netWorth, nil, &zeroShares)},
+		{"tipo desconhecido", DividendPayerAsset{AssetID: "x", Type: "fii", FIIType: &unknownType, NetWorth: &netWorth, OutstandingShares: &shares}},
+		{"ação é ignorada", DividendPayerAsset{AssetID: "x", Type: "acao", OutstandingShares: &shares}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := fiiRoundContexts([]DividendPayerAsset{tt.payer}, nil, nil, 10, 10); len(got) != 0 {
+				t.Errorf("contexts = %+v, want vazio", got)
+			}
+		})
+	}
+}
+
+func TestFIIRoundContexts_SegmentoNilOuDesconhecidoUsaPadraoDoTijolo(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth := 100_000_000.0
+	unknown := "Hospitais"
+	got := fiiRoundContexts([]DividendPayerAsset{
+		fiiPayerForContext("nil", "tijolo", nil, &netWorth, nil, &shares),
+		fiiPayerForContext("desconhecido", "tijolo", &unknown, &netWorth, nil, &shares),
+	}, nil, nil, 10, 10)
+
+	for _, id := range []string{"nil", "desconhecido"} {
+		if got[id].TargetPriceToBook != fii.DefaultTijoloPriceToBook {
+			t.Errorf("%s: TargetPriceToBook = %v, want %v", id, got[id].TargetPriceToBook, fii.DefaultTijoloPriceToBook)
+		}
+	}
+}
+
+// Advance encadeia a reavaliação de patrimônio do dia de relatório e o
+// contexto da rodada: o preço justo do dia da reavaliação já usa o valor novo.
+func TestAdvance_FIIContextUsaPatrimonioReavaliadoNoDiaDeRelatorio(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth := 100_000_000.0
+	payer := fiiPayerForContext("fii1", "tijolo", nil, &netWorth, nil, &shares)
+	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
+
+	// Day 90 -> newDay 91 = dia de relatório global (91 dias, S.2).
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+
+	if len(result.NetWorthUpdates) != 1 {
+		t.Fatalf("len(NetWorthUpdates) = %d, want 1 (dia de relatório)", len(result.NetWorthUpdates))
+	}
+	if got := result.FIIContext["fii1"].BaseValue; got != result.NetWorthUpdates[0].NetWorth {
+		t.Errorf("FIIContext.BaseValue = %v, want patrimônio reavaliado %v", got, result.NetWorthUpdates[0].NetWorth)
+	}
+
+	// Fora do dia de relatório usa o último valor persistido.
+	other := Advance(State{Day: 5, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
+	if got := other.FIIContext["fii1"].BaseValue; got != netWorth {
+		t.Errorf("fora do relatório BaseValue = %v, want %v", got, netWorth)
+	}
+}

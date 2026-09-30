@@ -244,7 +244,15 @@ type DividendPayerAsset struct {
 	NetWorth       *float64
 	PortfolioValue *float64
 	Indexador      *string
-	Holders        []PositionHolder
+	// FIIType ("tijolo"/"papel", fii_details.fii_type) e Segment
+	// (fii_details.segment, texto livre e nullable) só vêm preenchidos pra
+	// "fii" (tarefa U.2): são o insumo de fiiRoundContexts, que resolve o
+	// P/VP-alvo do preço justo de FII (fii.TargetPriceToBook) sem nenhuma
+	// leitura nova do catálogo, mesma reutilização de lista de NetWorth/
+	// PortfolioValue/Indexador acima.
+	FIIType *string
+	Segment *string
+	Holders []PositionHolder
 }
 
 // DividendRecord é um novo dividend_events pronto pra persistir — gerado
@@ -366,6 +374,13 @@ type Result struct {
 	// mesmo sem relatório novo — não persistido, existe só pra alimentar a
 	// rodada dentro desta mesma chamada de Run.
 	CompanyContext map[string]CompanyRoundContext
+	// FIIContext (tarefa U.2, achado 024) é o equivalente de CompanyContext
+	// pra FII, indexado por AssetID (FII não tem empresa): valor-base por
+	// cota já reavaliado neste mesmo tick, P/VP-alvo pra Selic de hoje e
+	// efeito de provento (FIIRoundContext, rounds.go). Só montado por
+	// fiiRoundContexts, ainda sem consumidor: o Fundamentalista passa a
+	// lê-lo na tarefa U.3.
+	FIIContext map[string]FIIRoundContext
 	// IntradayFillsCount é quantos fills reais aconteceram nas rodadas de
 	// negociação de bot deste tick (Fase D.2, runIntradayRounds) — sempre 0
 	// vindo de Advance (Advance não roda rodada nenhuma, é puro); Service.Run
@@ -954,6 +969,75 @@ func fiiPortfolioValueUpdatesForCycle(payers []DividendPayerAsset, dayIndex int,
 	return updates
 }
 
+// fiiRoundContexts monta o FIIRoundContext de cada FII que o Fundamentalista
+// consegue avaliar hoje (tarefa U.2, achado 024), indexado por AssetID. O
+// valor-base é o NetWorth (tijolo) ou PortfolioValue (papel) **já
+// reavaliado neste mesmo tick** quando o dia é de relatório global
+// (netWorthUpdates/portfolioValueUpdates, G.2/G.3), senão o último valor
+// persistido: sem isso o preço justo do dia da reavaliação usaria o
+// patrimônio do trimestre anterior. O P/VP-alvo usa a Selic de hoje
+// (newSelicRate, selicNeutral, escala 0-100 como o resto do tick). FII sem
+// fii_details (tipo nil), sem valor-base, sem cotas positivas ou com tipo
+// desconhecido fica de fora sem erro, mesmo tratamento de "dado ausente do
+// catálogo não é erro" de dividendRecordsForCycle. DividendEffectPct nasce 0
+// (o efeito do provento é a tarefa U.4).
+func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpdate, portfolioValueUpdates []PortfolioValueUpdate, newSelicRate, selicNeutral float64) map[string]FIIRoundContext {
+	netWorthByAsset := make(map[string]float64, len(netWorthUpdates))
+	for _, u := range netWorthUpdates {
+		netWorthByAsset[u.AssetID] = u.NetWorth
+	}
+	portfolioValueByAsset := make(map[string]float64, len(portfolioValueUpdates))
+	for _, u := range portfolioValueUpdates {
+		portfolioValueByAsset[u.AssetID] = u.PortfolioValue
+	}
+
+	contexts := make(map[string]FIIRoundContext)
+	for _, a := range payers {
+		if a.Type != assetTypeFII || a.FIIType == nil || a.OutstandingShares == nil || *a.OutstandingShares <= 0 {
+			continue
+		}
+		fiiType := fii.Type(*a.FIIType)
+
+		var baseValue float64
+		switch fiiType {
+		case fii.TypeTijolo:
+			if a.NetWorth == nil {
+				continue
+			}
+			baseValue = *a.NetWorth
+			if updated, ok := netWorthByAsset[a.AssetID]; ok {
+				baseValue = updated
+			}
+		case fii.TypePapel:
+			if a.PortfolioValue == nil {
+				continue
+			}
+			baseValue = *a.PortfolioValue
+			if updated, ok := portfolioValueByAsset[a.AssetID]; ok {
+				baseValue = updated
+			}
+		default:
+			continue
+		}
+
+		var segment string
+		if a.Segment != nil {
+			segment = *a.Segment
+		}
+		targetPriceToBook, err := fii.TargetPriceToBook(fiiType, segment, newSelicRate, selicNeutral)
+		if err != nil {
+			continue
+		}
+
+		contexts[a.AssetID] = FIIRoundContext{
+			BaseValue:         baseValue,
+			OutstandingShares: *a.OutstandingShares,
+			TargetPriceToBook: targetPriceToBook,
+		}
+	}
+	return contexts
+}
+
 // duePaymentsForDay filtra, de todo PendingDividendPayment ainda não pago,
 // os que vencem exatamente em newDay — mesmo padrão de
 // macroFundamentalsEffectsByCompany filtrando por FundamentalsReportDay ==
@@ -1135,6 +1219,9 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		}
 	}
 
+	netWorthUpdates := fiiNetWorthUpdatesForCycle(dividendPayers, dayIndex, newSelicRate, selicCfg.Neutral, seed)
+	portfolioValueUpdates := fiiPortfolioValueUpdatesForCycle(dividendPayers, dayIndex, newSelicRate)
+
 	return Result{
 		State:                 State{Day: newDay, SelicRate: newSelicRate},
 		Quotes:                quotes,
@@ -1144,10 +1231,11 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		AppliedMacroEventIDs:  appliedMacroEventIDs,
 		NewDividends:          dividendRecordsForCycle(dividendPayers, netIncomeByCompany, pnPremiumPctByCompany, dayIndex, newDay),
 		DuePayments:           duePaymentsForDay(pendingDividends, newDay),
-		NetWorthUpdates:       fiiNetWorthUpdatesForCycle(dividendPayers, dayIndex, newSelicRate, selicCfg.Neutral, seed),
-		PortfolioValueUpdates: fiiPortfolioValueUpdatesForCycle(dividendPayers, dayIndex, newSelicRate),
+		NetWorthUpdates:       netWorthUpdates,
+		PortfolioValueUpdates: portfolioValueUpdates,
 		IntradayRounds:        intradayRounds,
 		CompanyContext:        companyContext,
+		FIIContext:            fiiRoundContexts(dividendPayers, netWorthUpdates, portfolioValueUpdates, newSelicRate, selicCfg.Neutral),
 		IPCAMonthlyRate:       ipcaMonthlyRate,
 		IPCAAccumulated12m:    ipcaAccumulated12m,
 	}
