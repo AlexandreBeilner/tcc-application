@@ -38,8 +38,17 @@ func TestFIIInitialBaseValue_PrecoJustoDoDiaUmIgualAoPrecoInicial(t *testing.T) 
 			}
 
 			// Dividend Yield anual inicial sobre o preço (12 pagamentos de 1,1% do VP).
-			perShare, _ := dividend.FIIValuePerShare(base, fiiOutstandingShares)
-			t.Logf("%s: base=%.2f P/VP-alvo=%.2f DY anual=%.1f%%", c.name, base, pb, perShare*12/tick.DefaultInitialPrice*100)
+			yieldPct, err := fii.PayoutYieldPerCyclePct(c.fiiType, c.segment)
+			if err != nil {
+				t.Fatal(err)
+			}
+			perShare, _ := dividend.FIIValuePerShare(base, fiiOutstandingShares, yieldPct)
+			dy := perShare * 12 / tick.DefaultInitialPrice * 100
+			t.Logf("%s: base=%.2f P/VP-alvo=%.2f DY anual=%.1f%%", c.name, base, pb, dy)
+			// Achado 027: o DY anual inicial é o mesmo em todos os segmentos.
+			if math.Abs(dy-fii.TargetAnnualDividendYieldPct) > 1e-6 {
+				t.Fatalf("DY anual inicial = %.4f%%, want %.1f%%", dy, fii.TargetAnnualDividendYieldPct)
+			}
 		})
 	}
 }

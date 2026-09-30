@@ -76,7 +76,7 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
   FII. A fase cria o preço justo de FII (patrimônio por cota × P/VP-alvo por segmento, deslocado pela
   Selic), faz o Fundamentalista negociar FII, aplica o efeito do provento (fecha a reserva S.14),
   recalibra o seed pra não criar degrau no dia 1 e fecha com validação de 200 dias.
-- **Status:** ✅ Concluída (U.1 a U.7), validada em 200 dias simulados (deriva de -49% para no máximo +5%). Resíduo: achado 027 (DY inicial de lajes/logística acima da faixa, decisão do autor) e 1 dia sem negócio em 1.000 dias-FII.
+- **Status:** ✅ Concluída (U.1 a U.7), validada em 200 dias simulados (deriva de -49% para no máximo +5%). Achado 027 (DY inicial de lajes/logística) resolvido com taxa de provento por segmento (DY anual-alvo de 13,2%). Resíduo: 1 dia sem negócio esporádico, igual ao do resto do catálogo.
 
 ---
 

@@ -69,16 +69,18 @@ func TestFIIValuePerShare(t *testing.T) {
 	tests := map[string]struct {
 		netWorth          float64
 		outstandingShares int64
+		yieldPct          float64
 		want              float64
 		wantOK            bool
 	}{
-		"caso normal":                  {netWorth: 100_000_000, outstandingShares: 1_000_000, want: 1.1, wantOK: true},
-		"cotas em circulação zero":     {netWorth: 100_000_000, outstandingShares: 0, want: 0, wantOK: false},
-		"cotas em circulação negativa": {netWorth: 100_000_000, outstandingShares: -1, want: 0, wantOK: false},
+		"caso normal":                  {netWorth: 100_000_000, outstandingShares: 1_000_000, yieldPct: 1.1, want: 1.1, wantOK: true},
+		"taxa por segmento (lajes)":    {netWorth: 133_333_333.33, outstandingShares: 1_000_000, yieldPct: 0.825, want: 1.1, wantOK: true},
+		"cotas em circulação zero":     {netWorth: 100_000_000, outstandingShares: 0, yieldPct: 1.1, want: 0, wantOK: false},
+		"cotas em circulação negativa": {netWorth: 100_000_000, outstandingShares: -1, yieldPct: 1.1, want: 0, wantOK: false},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, ok := FIIValuePerShare(tt.netWorth, tt.outstandingShares)
+			got, ok := FIIValuePerShare(tt.netWorth, tt.outstandingShares, tt.yieldPct)
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}

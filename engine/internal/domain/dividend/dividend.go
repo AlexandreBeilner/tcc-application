@@ -27,12 +27,6 @@ const (
 	// mensal, como no mercado real (tarefa S.2) — independente do ciclo
 	// trimestral de relatório (fundamentals.DefaultReportFrequencyDays).
 	FIIPayoutIntervalDays = 30
-	// DefaultFIIYieldPerCyclePct é a fração ilustrativa (%) de net_worth
-	// distribuída a cada pagamento mensal (FIIPayoutIntervalDays) pra FII —
-	// ver nota de implementação no doc do pacote. 1.1% ao mês equivale a um
-	// Dividend Yield ilustrativo de ~13% a.a., ordem de grandeza plausível
-	// pra FII no mercado real.
-	DefaultFIIYieldPerCyclePct = 1.1
 	// DefaultPaymentLagDays é a defasagem, em dias simulados, entre a data
 	// ex e o dia de pagamento de um provento — menor que o menor
 	// intervalo entre proventos do mesmo ativo (30 dias, FII) pra sempre liquidar antes do próximo ciclo gerar
@@ -81,12 +75,14 @@ func EquityValuePerShare(netIncome float64, onShares, pnShares int64, pnPremiumP
 // grandeza numérica própria do perfil de FII (fii_details.net_worth pro
 // tijolo, fii_details.portfolio_value pro papel desde a tarefa 4.10) — ver
 // nota de implementação no doc do pacote. A fórmula é a mesma pros dois
-// perfis, só a coluna de origem que o chamador passa muda.
-func FIIValuePerShare(baseValue float64, outstandingShares int64) (float64, bool) {
+// perfis, só a coluna de origem que o chamador passa muda. yieldPerCyclePct é a
+// fração (em %) do valor-base distribuída a cada pagamento mensal, por
+// segmento (fii.PayoutYieldPerCyclePct, achado 027).
+func FIIValuePerShare(baseValue float64, outstandingShares int64, yieldPerCyclePct float64) (float64, bool) {
 	if outstandingShares <= 0 {
 		return 0, false
 	}
-	return baseValue * DefaultFIIYieldPerCyclePct / 100 / float64(outstandingShares), true
+	return baseValue * yieldPerCyclePct / 100 / float64(outstandingShares), true
 }
 
 // Yield (Dividend Yield, RF21 — exigido tanto pra Ações quanto pros dois

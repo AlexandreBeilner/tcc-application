@@ -773,7 +773,8 @@ func TestAdvance_Dividendos_FIIGeraProventoNoCalendarioMensal(t *testing.T) {
 	netWorth := 100_000_000.0
 	shares := int64(1_000_000)
 	holders := []PositionHolder{{UserID: "u1", Quantity: 100}}
-	payer := DividendPayerAsset{AssetID: "fii1", Type: "fii", NetWorth: &netWorth, OutstandingShares: &shares, Holders: holders}
+	fiiType, segment := "tijolo", fii.SegmentLajesCorporativas
+	payer := DividendPayerAsset{AssetID: "fii1", Type: "fii", FIIType: &fiiType, Segment: &segment, NetWorth: &netWorth, OutstandingShares: &shares, Holders: holders}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	// Day: 29 -> newDay = 30 = dia de pagamento mensal do FII
@@ -784,7 +785,8 @@ func TestAdvance_Dividendos_FIIGeraProventoNoCalendarioMensal(t *testing.T) {
 	if len(result.NewDividends) != 1 {
 		t.Fatalf("len(NewDividends) = %d, want 1", len(result.NewDividends))
 	}
-	wantValue, ok := dividend.FIIValuePerShare(netWorth, shares)
+	wantYield, _ := fii.PayoutYieldPerCyclePct(fii.TypeTijolo, segment)
+	wantValue, ok := dividend.FIIValuePerShare(netWorth, shares, wantYield)
 	if !ok {
 		t.Fatal("dividend.FIIValuePerShare() ok = false, want true")
 	}
@@ -801,7 +803,8 @@ func TestAdvance_Dividendos_FIIPapelUsaPortfolioValue(t *testing.T) {
 	portfolioValue := 300_000_000.0
 	shares := int64(1_000_000)
 	holders := []PositionHolder{{UserID: "u1", Quantity: 50}}
-	payer := DividendPayerAsset{AssetID: "fii2", Type: "fii", PortfolioValue: &portfolioValue, OutstandingShares: &shares, Holders: holders}
+	fiiType := "papel"
+	payer := DividendPayerAsset{AssetID: "fii2", Type: "fii", FIIType: &fiiType, PortfolioValue: &portfolioValue, OutstandingShares: &shares, Holders: holders}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	result := Advance(State{Day: 29, SelicRate: 10}, nil, nil, nil, []DividendPayerAsset{payer}, nil, cfg, testIPCAConfig(), 1)
@@ -809,7 +812,8 @@ func TestAdvance_Dividendos_FIIPapelUsaPortfolioValue(t *testing.T) {
 	if len(result.NewDividends) != 1 {
 		t.Fatalf("len(NewDividends) = %d, want 1", len(result.NewDividends))
 	}
-	wantValue, ok := dividend.FIIValuePerShare(portfolioValue, shares)
+	wantYield, _ := fii.PayoutYieldPerCyclePct(fii.TypePapel, "")
+	wantValue, ok := dividend.FIIValuePerShare(portfolioValue, shares, wantYield)
 	if !ok {
 		t.Fatal("dividend.FIIValuePerShare() ok = false, want true")
 	}
@@ -824,7 +828,8 @@ func TestAdvance_Dividendos_FIIPapelUsaPortfolioValue(t *testing.T) {
 func TestAdvance_Dividendos_FIIPagaMensalEEmpresaTrimestral(t *testing.T) {
 	netWorth := 100_000_000.0
 	shares := int64(1_000_000)
-	payer := DividendPayerAsset{AssetID: "fii1", Type: "fii", NetWorth: &netWorth, OutstandingShares: &shares, Holders: []PositionHolder{{UserID: "u1", Quantity: 1}}}
+	fiiType := "tijolo"
+	payer := DividendPayerAsset{AssetID: "fii1", Type: "fii", FIIType: &fiiType, NetWorth: &netWorth, OutstandingShares: &shares, Holders: []PositionHolder{{UserID: "u1", Quantity: 1}}}
 	cfg := selic.Config{Neutral: 10, ReversionSpeed: 0, Volatility: 0, Seed: 1}
 
 	// Um ano de calendário simulado: FII paga a cada 30 dias (dias 30, 60, ..., 360).
@@ -1194,7 +1199,8 @@ func TestAdvance_FIIContextUsaPatrimonioReavaliadoNoDiaDeRelatorio(t *testing.T)
 func TestFIIDividendPriceEffectPct(t *testing.T) {
 	const shares = int64(1_000_000)
 	const base = 100_000_000.0
-	want := -dividend.DefaultFIIYieldPerCyclePct
+	const yieldPct = 0.825 // lajes (fii.PayoutYieldPerCyclePct)
+	want := -yieldPct
 
 	tests := []struct {
 		name     string
@@ -1211,13 +1217,13 @@ func TestFIIDividendPriceEffectPct(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := fiiDividendPriceEffectPct(base, shares, tt.dayIndex)
+			got := fiiDividendPriceEffectPct(base, shares, yieldPct, tt.dayIndex)
 			if math.Abs(got-tt.want) > 1e-9 {
 				t.Fatalf("dia %d: got %v, want %v", tt.dayIndex, got, tt.want)
 			}
 		})
 	}
-	if got := fiiDividendPriceEffectPct(base, 0, 29); got != 0 {
+	if got := fiiDividendPriceEffectPct(base, 0, yieldPct, 29); got != 0 {
 		t.Fatalf("sem cotas: got %v, want 0", got)
 	}
 }
@@ -1241,5 +1247,26 @@ func TestFIIRoundContexts_EfeitoDeProventoSoNaBanda(t *testing.T) {
 	fairOut, _ := fii.FairPrice(outOfBand.BaseValue, shares, outOfBand.TargetPriceToBook, 0, outOfBand.DividendEffectPct)
 	if math.Abs(fairOut-base) > 1e-9 || fairIn >= fairOut {
 		t.Errorf("fairIn=%v fairOut=%v base=%v, want fairIn < fairOut == base", fairIn, fairOut, base)
+	}
+}
+
+// Achado 027: o efeito do provento no contexto acompanha a taxa do segmento, não uma taxa única.
+func TestFIIRoundContexts_EfeitoDeProventoUsaTaxaDoSegmento(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth := 100_000_000.0
+	lajes, logistica := fii.SegmentLajesCorporativas, fii.SegmentGalpoesLogisticos
+	payers := []DividendPayerAsset{
+		fiiPayerForContext("lajes", "tijolo", &lajes, &netWorth, nil, &shares),
+		fiiPayerForContext("log", "tijolo", &logistica, &netWorth, nil, &shares),
+	}
+	got := fiiRoundContexts(payers, nil, nil, 10, 10, 30)
+	for id, segment := range map[string]string{"lajes": lajes, "log": logistica} {
+		rate, _ := fii.PayoutYieldPerCyclePct(fii.TypeTijolo, segment)
+		if math.Abs(got[id].DividendEffectPct+rate) > 1e-9 {
+			t.Errorf("%s: DividendEffectPct = %v, want %v", id, got[id].DividendEffectPct, -rate)
+		}
+	}
+	if got["lajes"].DividendEffectPct == got["log"].DividendEffectPct {
+		t.Error("segmentos com P/VP-base diferente deveriam ter efeito de provento diferente")
 	}
 }

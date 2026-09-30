@@ -5299,6 +5299,7 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   4): não reproduziu.** Nova rodada com o mesmo catálogo e seed 42 (50 ticks): o PAPL11 negocia no dia 45 (975 cotas) e os 6 dias sem
   negócio caíram em ETFs e ações (nenhum em FII), então o motor não é bit a bit reprodutível entre execuções e o resíduo é o mesmo
   esporádico do resto do catálogo, sem causa ligada ao FII. Sem correção de código.
+  **Atualização (achado 027 resolvido, 2026-09-30):** a taxa de provento passou a ser por segmento (`fii.PayoutYieldPerCyclePct`, DY anual-alvo de 13,2%), então os DY abaixo (17,7%/15,6%) valem só para a taxa única anterior; com a taxa por segmento o DY realizado ficou em 13,1% a 13,5% (100 ticks, catálogo padrão).
   **DY realizado em 200 dias (6 pagamentos por FII):** TJLO11 17,7%, LOGT11 15,6%, SHPP11 15,0%, PAPL11/IPCP11 13,3%, igual ao
   inicial, então o achado 027 continua aberto (decisão do autor). **Fechamento:** achado 024 e reserva S.14 marcados como
   resolvidos, `backlog-pendencias-consolidado.md` atualizado. Sem código novo nesta tarefa. **Pendência:** o critério 4 literal (zero

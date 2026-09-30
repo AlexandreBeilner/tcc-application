@@ -595,14 +595,14 @@ func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex, report
 // (dividend.FIIPayoutIntervalDays, calendário de 30 dias, mesma técnica sem
 // estado persistido e mesma guarda de primeiro ciclo), 0 fora da banda. Não é
 // permanente: ver o doc de dividend.FIIPriceEffectPct.
-func fiiDividendPriceEffectPct(baseValue float64, outstandingShares int64, dayIndex int) float64 {
+func fiiDividendPriceEffectPct(baseValue float64, outstandingShares int64, yieldPerCyclePct float64, dayIndex int) float64 {
 	if dayIndex < dividend.FIIPayoutIntervalDays-1 {
 		return 0
 	}
 	if (dayIndex+1)%dividend.FIIPayoutIntervalDays >= dividendPriceEffectBandDays {
 		return 0
 	}
-	perShare, ok := dividend.FIIValuePerShare(baseValue, outstandingShares)
+	perShare, ok := dividend.FIIValuePerShare(baseValue, outstandingShares, yieldPerCyclePct)
 	if !ok {
 		return 0
 	}
@@ -912,7 +912,18 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 			if baseValue == nil {
 				continue
 			}
-			value, ok = dividend.FIIValuePerShare(*baseValue, *a.OutstandingShares)
+			if a.FIIType == nil {
+				continue
+			}
+			var segment string
+			if a.Segment != nil {
+				segment = *a.Segment
+			}
+			yieldPct, err := fii.PayoutYieldPerCyclePct(fii.Type(*a.FIIType), segment)
+			if err != nil {
+				continue
+			}
+			value, ok = dividend.FIIValuePerShare(*baseValue, *a.OutstandingShares, yieldPct)
 		}
 		if !ok {
 			continue
@@ -1050,11 +1061,15 @@ func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpd
 			continue
 		}
 
+		payoutYieldPct, err := fii.PayoutYieldPerCyclePct(fiiType, segment)
+		if err != nil {
+			continue
+		}
 		contexts[a.AssetID] = FIIRoundContext{
 			BaseValue:         baseValue,
 			OutstandingShares: *a.OutstandingShares,
 			TargetPriceToBook: targetPriceToBook,
-			DividendEffectPct: fiiDividendPriceEffectPct(baseValue, *a.OutstandingShares, dayIndex),
+			DividendEffectPct: fiiDividendPriceEffectPct(baseValue, *a.OutstandingShares, payoutYieldPct, dayIndex),
 		}
 	}
 	return contexts
