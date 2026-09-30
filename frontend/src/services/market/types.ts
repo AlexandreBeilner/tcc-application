@@ -150,6 +150,7 @@ export interface FiiDetail {
     indexador?: string
     portfolio_value?: number
     dividend_yield?: number
+    price_to_book_value?: number
     dividend_history: DividendHistoryEntry[]
 }
 

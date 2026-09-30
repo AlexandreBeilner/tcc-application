@@ -4518,6 +4518,7 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
 - **Dependências:** um arquétipo de bot com "preço justo" de FII (não existe hoje) — provável pré-requisito de uma fase futura, não
   desta.
 - **Status (2026-09-29):** agora tem dono — **Fase U** (U.1 a U.7), em especial a **U.4** (efeito do provento no preço justo de FII).
+- **Atualização (U.6, 2026-09-30):** a nota "sem âncora" deixou de valer: o Fundamentalista negocia FII com preço justo (U.3) e o provento entra nele (U.4); fecho formal na U.7.
 
 ### S.15 · Provento recebido por posição, exposto por ativo (motor + backend) ✅
 - **Descrição:** `accounts.total_dividends_received` só existe agregado por conta (`GET /market/me/account`), sem quebra por
@@ -5215,7 +5216,7 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   `go vet`, `go test ./...` (com `TEST_DATABASE_URL`) e `golangci-lint` (0 issues) verdes; `infra/scheduler` teve de novo a falha
   intermitente dependente de horário já vista na U.4 (passa em rerun, sem relação). Sem rota nova.
 
-### U.6 · Frontend, lições e documentação
+### U.6 · Frontend, lições e documentação ✅
 - **Descrição:** (a) **Correção de premissa (2026-09-30):** a tela de FII **não exibe P/VP hoje**. `FiiIndicatorsPanel`
   (`frontend/src/components/organisms/FiiIndicatorsPanel/index.tsx`) mostra patrimônio/carteira, vacância (tijolo), indexador (papel) e
   Dividend Yield; o P/VP só existe para ação (`EquityIndicatorsPanel`, calculado em `engine/internal/infra/httpserver/assets.go:179`). Como
@@ -5236,6 +5237,24 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   travessão como pontuação; conclusão sobre as lições registrada no Entregável; `npm run lint`/`build`/`test` do backend e
   `vitest`/`tsc -b`/`oxlint`/`prettier --check` do frontend verdes; sem Dockerfile novo de frontend.
 - **Dependências:** U.5.
+
+- **Entregável:** (a) **P/VP do FII exposto.** Motor: `fii.Details` ganhou `OutstandingShares` (só leitura, ignorado por `NewDetails`),
+  preenchido por `FindFIIDetails` via `LEFT JOIN variable_income_assets`; `fiiDetailResponse.PriceToBookValue`
+  (`price_to_book_value`, omitido sem cotação, valor-base ou cotas) calculado por `fiiPriceToBook` reaproveitando
+  `fundamentals.PriceToBookValue` (tijolo usa `net_worth`, papel `portfolio_value`). Backend: só o tipo `FiiDetails`
+  (`catalogReader.ts`), o proxy é 1:1. Frontend: tipo `FiiDetail` e linha "P/VP" no `FiiIndicatorsPanel`. **Desvio do texto:** em vez de
+  `formatDecimal` (1 casa), criei `formatPriceToBook` (2 casas), porque a faixa relevante (0,75 a 1,00) some com 1 casa (0,75 e 0,78
+  viram 0,8). (b) **Lições:** conferido, nenhuma afirma "P/VP perto de 1 é o normal" (lição 2.10, `seedLessons.ts`, e a de P/L e P/VP, só
+  ação), então **nenhuma mudou**; a frase opcional sobre desconto ao patrimônio na revelação da 2.10 ficou de fora (decisão do autor,
+  não bloqueia). (c) **Docs:** `.docs/engine/catalog.md` (campo novo), `.docs/backend/market.md`, `.docs/engine/tick.md` (G.2/G.3: o
+  Fundamentalista agora lê `net_worth`/`portfolio_value`; novo parágrafo do provento de FII da U.4). (d)
+  `proposta-motor-mercado-realista.md` (seção 4) e a nota da S.14 atualizadas. Testes: `assets_test.go` (tijolo, papel, sem cotação, sem
+  cotas, cotas zero, sem valor-base), integração de `FindFIIDetails` com as cotas (Postgres descartável), `FiiIndicatorsPanel` (com e
+  sem o campo), `formatPriceToBook`. `go vet`, `go test ./...` (com `TEST_DATABASE_URL`), `golangci-lint` (0 issues), `tsc -b`, `vitest`
+  e `prettier --check` dos arquivos tocados verdes; `oxlint` só com 2 warnings antigos, em arquivos não tocados. **Bug mecânico
+  corrigido no caminho:** `scheduler.Run` (`infra/scheduler/daily.go`) deixava o `select` escolher ao acaso entre o timer já vencido e
+  o cancelamento do contexto (teste `TestRun_RecuperaNaSubidaEDisparaNoProximoSlot` falhava cerca de metade das vezes); agora checa o
+  contexto antes de cada tentativa (30 execuções seguidas passam). Sem Dockerfile novo de frontend.
 
 ### U.7 · Validação ponta a ponta e fechamento do achado 024
 - **Descrição:** repetir a medição que originou o achado: 200 dias simulados com o catálogo completo, via `engine/scripts/e2e-mercado-simulado`

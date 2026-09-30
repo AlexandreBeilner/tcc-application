@@ -80,3 +80,33 @@ func TestRecalibrateFIIBaseValueIfNeverQuoted(t *testing.T) {
 		t.Errorf("papel: portfolio=%v net_worth=%v, want 120000000/nil", *d.PortfolioValue, d.NetWorth)
 	}
 }
+
+// TestFindFIIDetails_TrazCotasEmCirculacao cobre a tarefa U.6: o P/VP exibido
+// precisa das cotas (variable_income_assets), vindas junto de fii_details.
+func TestFindFIIDetails_TrazCotasEmCirculacao(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	repo := NewCatalogRepository(conn, nil)
+
+	id, err := repo.CreateAsset(ctx, catalog.Asset{Ticker: "TJLO11", Name: "TJLO11", Type: catalog.AssetFII})
+	if err != nil {
+		t.Fatal(err)
+	}
+	shares := int64(1_000_000)
+	if err := repo.CreateVariableIncomeAsset(ctx, catalog.VariableIncomeAsset{AssetID: id, OutstandingShares: &shares}); err != nil {
+		t.Fatal(err)
+	}
+	segment, vacancy, netWorth := fii.SegmentLajesCorporativas, 5.2, 133_333_333.33
+	details, _ := fii.NewDetails(fii.TypeTijolo, &segment, &netWorth, &vacancy, nil, nil)
+	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok, err := repo.FindFIIDetails(ctx, id)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	if got.OutstandingShares == nil || *got.OutstandingShares != shares {
+		t.Fatalf("OutstandingShares = %v, want %d", got.OutstandingShares, shares)
+	}
+}

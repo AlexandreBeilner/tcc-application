@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -893,3 +894,57 @@ func TestHandleGetAssetQuoteHistory_ErroInterno(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
+
+// TestHandleGetAsset_FIIPriceToBook cobre a tarefa U.6: o P/VP do FII é o
+// preço sobre o valor patrimonial por cota (tijolo: net_worth; papel:
+// portfolio_value), e some quando falta cotação, valor-base ou cotas.
+func TestHandleGetAsset_FIIPriceToBook(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth := 133_333_333.33
+	portfolio := 100_000_000.0
+	zeroShares := int64(0)
+
+	tests := []struct {
+		name    string
+		details fii.Details
+		quote   bool
+		want    *float64
+	}{
+		{"tijolo com cotação", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth, OutstandingShares: &shares}, true, ptrFloat(75.0 / (133_333_333.33 / 1_000_000))},
+		{"papel usa portfolio_value", fii.Details{Type: fii.TypePapel, PortfolioValue: &portfolio, OutstandingShares: &shares}, true, ptrFloat(0.75)},
+		{"sem cotação", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth, OutstandingShares: &shares}, false, nil},
+		{"sem cotas", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth}, true, nil},
+		{"cotas zero", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth, OutstandingShares: &zeroShares}, true, nil},
+		{"sem valor-base", fii.Details{Type: fii.TypePapel, OutstandingShares: &shares}, true, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := &fakeCatalogReader{
+				asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "TJLO11", Name: "FII", Type: catalog.AssetFII}},
+				assetFound: true,
+				fiiDetails: tt.details,
+				fiiOK:      true,
+			}
+			if tt.quote {
+				reader.currentQuote, reader.currentQuoteFound = catalog.Quote{Price: 75}, true
+			}
+			rec := getCatalog(t, reader, "/assets/1")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+			}
+			var body assetDetailResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			got := body.FII.PriceToBookValue
+			switch {
+			case tt.want == nil && got != nil:
+				t.Fatalf("PriceToBookValue = %v, want omitido", *got)
+			case tt.want != nil && (got == nil || math.Abs(*got-*tt.want) > 1e-9):
+				t.Fatalf("PriceToBookValue = %v, want %v", got, *tt.want)
+			}
+		})
+	}
+}
+
+func ptrFloat(v float64) *float64 { return &v }

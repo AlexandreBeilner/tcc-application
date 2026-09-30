@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDecimal, formatRatePercent, formatSignedPercent } from '.'
+import { formatDecimal, formatPriceToBook, formatRatePercent, formatSignedPercent } from '.'
 
 describe('features/market/format', () => {
     it('formatSignedPercent adiciona + pra valores positivos', () => {
@@ -16,6 +16,11 @@ describe('features/market/format', () => {
 
     it('formatDecimal usa 1 casa decimal com vírgula', () => {
         expect(formatDecimal(14.24)).toBe('14,2')
+    })
+
+    it('formatPriceToBook usa 2 casas decimais com vírgula', () => {
+        expect(formatPriceToBook(0.754)).toBe('0,75')
+        expect(formatPriceToBook(1)).toBe('1,00')
     })
 
     it('formatRatePercent não multiplica por 100 (valor já vem em pontos percentuais)', () => {

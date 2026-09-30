@@ -498,8 +498,11 @@ func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) 
 	var d fii.Details
 	var fiiType string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value FROM fii_details WHERE asset_id = $1`, assetID,
-	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue)
+		`SELECT f.fii_type, f.segment, f.net_worth, f.vacancy_rate, f.indexador, f.portfolio_value, v.outstanding_shares
+		   FROM fii_details f
+		   LEFT JOIN variable_income_assets v ON v.asset_id = f.asset_id
+		  WHERE f.asset_id = $1`, assetID,
+	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue, &d.OutstandingShares)
 	if err == sql.ErrNoRows {
 		return fii.Details{}, false, nil
 	}

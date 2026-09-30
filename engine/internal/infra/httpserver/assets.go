@@ -267,8 +267,14 @@ type fiiDetailResponse struct {
 	// (dividend_events) e mesmo cálculo (dividend.Yield) do bloco de ação,
 	// nunca o layout de equityIndicatorsResponse (RF21, CLAUDE.md: FII não
 	// mostra indicador de empresa nenhum).
-	DividendYield   *float64                       `json:"dividend_yield,omitempty"`
-	DividendHistory []dividendHistoryEntryResponse `json:"dividend_history"`
+	DividendYield *float64 `json:"dividend_yield,omitempty"`
+	// PriceToBookValue (tarefa U.6, achado 024) é o P/VP do FII: cotação
+	// corrente sobre o valor patrimonial por cota (net_worth no tijolo,
+	// portfolio_value no papel, dividido pelas cotas em circulação). Omitido
+	// sem cotação, sem valor-base ou sem cotas. É a âncora do preço justo do
+	// Fundamentalista (fii.FairPrice).
+	PriceToBookValue *float64                       `json:"price_to_book_value,omitempty"`
+	DividendHistory  []dividendHistoryEntryResponse `json:"dividend_history"`
 }
 
 type assetDetailResponse struct {
@@ -277,6 +283,20 @@ type assetDetailResponse struct {
 	Equity      *equityDetailResponse      `json:"equity,omitempty"`
 	ETF         *etfDetailResponse         `json:"etf,omitempty"`
 	FII         *fiiDetailResponse         `json:"fii,omitempty"`
+}
+
+// fiiPriceToBook calcula o P/VP do FII (preço ÷ valor patrimonial por cota),
+// reaproveitando fundamentals.PriceToBookValue. ok = false sem valor-base,
+// sem cotas ou sem cotação válida.
+func fiiPriceToBook(d fii.Details, price float64) (float64, bool) {
+	baseValue := d.NetWorth
+	if d.Type == fii.TypePapel {
+		baseValue = d.PortfolioValue
+	}
+	if baseValue == nil || d.OutstandingShares == nil || *d.OutstandingShares <= 0 {
+		return 0, false
+	}
+	return fundamentals.PriceToBookValue(price, *baseValue/float64(*d.OutstandingShares))
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -495,6 +515,9 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 					sum := sumDividendsLast12Months(dividendHistory, simcalendar.DateOf(today))
 					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
 						fiiDetail.DividendYield = &v
+					}
+					if v, ok := fiiPriceToBook(details, quotePtr.Price); ok {
+						fiiDetail.PriceToBookValue = &v
 					}
 				}
 				resp.FII = fiiDetail

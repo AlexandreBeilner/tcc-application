@@ -19,6 +19,14 @@ export function formatDecimal(value: number): string {
     return decimalFormatter.format(value)
 }
 
+// P/VP de FII com 2 casas: a faixa relevante (0,75 a 1,00) some com 1 casa
+// (0,75 e 0,78 virariam 0,8), então diferente de `formatDecimal`.
+const priceToBookFormatter = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+export function formatPriceToBook(value: number): string {
+    return priceToBookFormatter.format(value)
+}
+
 // `fixed_income.interest_rate` (`GET /market/assets/:id`) já vem em pontos
 // percentuais (ex: `11.75` = 11,75%) — confirmado em
 // `fixedincomeexecution.Purchase` (`ctx.AnnualRatePct / 100` antes de virar
