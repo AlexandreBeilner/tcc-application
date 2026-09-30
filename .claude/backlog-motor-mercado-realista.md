@@ -5288,6 +5288,17 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   memória por FII; 200 ticks rodaram em cerca de 5 minutos no total, sem timeout. (7) **Invariantes: passou.** `validacao-etf.sql`
   (saldos não negativos, conciliação de saldo e de posição contra `market_events`, conservação do float, proventos de ETF, passivos
   de fundo): todas 0 violações. (8) **Sem mudança em `orderbook`/`orderexecution`/Market Maker:** confirmado pelo diff da fase.
+  **Resíduos medidos depois (2026-09-30):** (a) **Critério 6 medido.** `engine/scripts/benchmark-cobertura.sh 30 60` (30 ativos
+  sintéticos, 60 ticks, comandos SQL pelo log do Postgres, mesmo método da Fase Q) contra o commit imediatamente anterior à Fase U
+  (`9de4ee5`; a `main` não sobe o motor por causa das duas migrations `000035`, corrigidas só nesta branch): comandos SQL por tick
+  média 2.915 → 2.944 (+1,0%), p95 4.441 → 4.543 (+2,3%), máximo 5.661 → 5.883; tempo médio 1,03 → 1,04 s; 60 de 60 ativos cotados
+  nos dois lados e 0 dias sem negociação em 975 nas duas medições. O custo do Fundamentalista alcançando FII é marginal e dentro do
+  ruído. **Nota à parte, não causada pela Fase U:** o p50 já era 3.882 na linha de base, acima dos 3.500 da tabela da 6.1 (que media 55
+  ativos antes das fases R/S/T); o orçamento de 6.1 está desatualizado, mas não é decisão desta fase. Redis: 14.869 comandos em 60 ticks
+  (~248 por tick, 90% `GET`) no catálogo padrão, sem linha de base na `main` (não sobe). (b) **Dia sem negócio do PAPL11 (critério
+  4): não reproduziu.** Nova rodada com o mesmo catálogo e seed 42 (50 ticks): o PAPL11 negocia no dia 45 (975 cotas) e os 6 dias sem
+  negócio caíram em ETFs e ações (nenhum em FII), então o motor não é bit a bit reprodutível entre execuções e o resíduo é o mesmo
+  esporádico do resto do catálogo, sem causa ligada ao FII. Sem correção de código.
   **DY realizado em 200 dias (6 pagamentos por FII):** TJLO11 17,7%, LOGT11 15,6%, SHPP11 15,0%, PAPL11/IPCP11 13,3%, igual ao
   inicial, então o achado 027 continua aberto (decisão do autor). **Fechamento:** achado 024 e reserva S.14 marcados como
   resolvidos, `backlog-pendencias-consolidado.md` atualizado. Sem código novo nesta tarefa. **Pendência:** o critério 4 literal (zero
