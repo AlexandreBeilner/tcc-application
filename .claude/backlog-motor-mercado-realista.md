@@ -4518,7 +4518,8 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
 - **Dependências:** um arquétipo de bot com "preço justo" de FII (não existe hoje) — provável pré-requisito de uma fase futura, não
   desta.
 - **Status (2026-09-29):** agora tem dono — **Fase U** (U.1 a U.7), em especial a **U.4** (efeito do provento no preço justo de FII).
-- **Atualização (U.6, 2026-09-30):** a nota "sem âncora" deixou de valer: o Fundamentalista negocia FII com preço justo (U.3) e o provento entra nele (U.4); fecho formal na U.7.
+- **Atualização (U.6, 2026-09-30):** a nota "sem âncora" deixou de valer: o Fundamentalista negocia FII com preço justo (U.3) e o provento entra nele (U.4).
+- **Status final (U.7, 2026-09-30):** ✅ resolvida, validada em 200 dias simulados.
 
 ### S.15 · Provento recebido por posição, exposto por ativo (motor + backend) ✅
 - **Descrição:** `accounts.total_dividends_received` só existe agregado por conta (`GET /market/me/account`), sem quebra por
@@ -5256,7 +5257,7 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   o cancelamento do contexto (teste `TestRun_RecuperaNaSubidaEDisparaNoProximoSlot` falhava cerca de metade das vezes); agora checa o
   contexto antes de cada tentativa (30 execuções seguidas passam). Sem Dockerfile novo de frontend.
 
-### U.7 · Validação ponta a ponta e fechamento do achado 024
+### U.7 · Validação ponta a ponta e fechamento do achado 024 ✅
 - **Descrição:** repetir a medição que originou o achado: 200 dias simulados com o catálogo completo, via `engine/scripts/e2e-mercado-simulado`
   (ou `POST /admin/tick` em `docker compose up`), comparando com a linha de base do achado (TJLO11 e PAPL11 em -49%). Ajustar β e as
   constantes ilustrativas da U.1 se o resultado ficar fora dos critérios (o ajuste é calibração da própria fase, não decisão nova).
@@ -5269,6 +5270,29 @@ Sem migration nova: `fii_details.segment` já existe e o preço justo é calcula
   Fechamento: marcar o achado 024 e a S.14 como resolvidos, atualizar `backlog-pendencias-consolidado.md` e registrar como achado
   qualquer critério que não passe e exija decisão de produto.
 - **Dependências:** U.1 a U.6.
+
+- **Entregável:** medição em banco descartável (`market_u7`, apagado depois) com o motor real (`cmd/api` + `cmd/seed`, catálogo completo de 45
+  ativos, 69 bots, seed 42), 200 ticks via `POST /admin/tick`, leitura por SQL. Sem a stack Compose completa nem usuários humanos
+  (não havia razão para o script `e2e-mercado-simulado`, que exercita backend/gateway). Resultados por critério:
+  (1) **Deriva: passou.** Preço inicial → final: TJLO11 99,99 → 102,89, LOGT11 103,03 → 100,04, SHPP11 102,01 → 104,85, PAPL11
+  101,00 → 100,35, IPCP11 99,00 → 103,21 (mínimo/máximo 91,6 a 108,5), contra -49% antes. (2) **P/VP médio por segmento: passou.**
+  Lajes 0,737 (base 0,75), shopping 0,879 (0,88), logística 0,845 (0,85), papel 0,958 e 0,973 (1,00): todos dentro de ±10%.
+  (3) **Dente de serra sem queda cumulativa: passou** (TJLO11 oscila cerca de 95 a 103 entre os dias 60 e 95 e termina acima do
+  início). (4) **Negociação diária: 1 exceção.** 1 dia sem negócio em 1.000 dias-FII (PAPL11, dia 45, dia útil), contra 3,8% antes da Q.8
+  e 0,2% nas ações; ações 3 dias e ETFs 5 dias no run inteiro. Não é decisão de produto (é o resíduo já tolerado na Q.8), mas não é
+  "nenhum dia" literal. Volume médio por FII estável: 2.539 a 2.903 por dia nos dias 0-50 contra 2.290 a 2.982 nos dias 150-200.
+  (5) **ETFs: não piorou.** Ágio/deságio absoluto médio 0,95% a 1,04% (achado 016 medira 1,05% a 1,35%), média com sinal de 0,04% a
+  0,24%, tracking error médio 1,1% a 2,7% (sem linha de base numérica em 016 para comparar o tracking error). (6) **Custo por tick:
+  não medido em comandos Redis/SQL.** Pelo desenho não cresce: o orçamento de turnos é por tick e por tamanho do universo
+  (`bot.TurnBudget`), e o Fundamentalista só passou a poder ser sorteado em FII dentro do mesmo orçamento, mais 1 leitura em
+  memória por FII; 200 ticks rodaram em cerca de 5 minutos no total, sem timeout. (7) **Invariantes: passou.** `validacao-etf.sql`
+  (saldos não negativos, conciliação de saldo e de posição contra `market_events`, conservação do float, proventos de ETF, passivos
+  de fundo): todas 0 violações. (8) **Sem mudança em `orderbook`/`orderexecution`/Market Maker:** confirmado pelo diff da fase.
+  **DY realizado em 200 dias (6 pagamentos por FII):** TJLO11 17,7%, LOGT11 15,6%, SHPP11 15,0%, PAPL11/IPCP11 13,3%, igual ao
+  inicial, então o achado 027 continua aberto (decisão do autor). **Fechamento:** achado 024 e reserva S.14 marcados como
+  resolvidos, `backlog-pendencias-consolidado.md` atualizado. Sem código novo nesta tarefa. **Pendência:** o critério 4 literal (zero
+  dia sem negócio) e a medição de comandos Redis do critério 6 ficam como resíduo declarado, sem registro em `pontos-em-aberto`
+  por não exigirem decisão de produto.
 
 ## Sequência sugerida
 

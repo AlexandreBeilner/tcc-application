@@ -68,7 +68,7 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
 
 ## Prioridade 2b — Fase U: preço justo de FII (decidida em 2026-09-29)
 
-### P2.2 · Fase U — Preço justo de FII para o Fundamentalista (U.1 a U.7)
+### P2.2 · Fase U — Preço justo de FII para o Fundamentalista (U.1 a U.7) ✅
 
 - **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase U (linha ~4974) — achado 024 de
   `pontos-em-aberto-decisao-produto.md` (decisão tomada: opção A, calibrada por pesquisa de mercado).
@@ -76,7 +76,7 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
   FII. A fase cria o preço justo de FII (patrimônio por cota × P/VP-alvo por segmento, deslocado pela
   Selic), faz o Fundamentalista negociar FII, aplica o efeito do provento (fecha a reserva S.14),
   recalibra o seed pra não criar degrau no dia 1 e fecha com validação de 200 dias.
-- **Status:** U.1 a U.6 concluídas (achado 027 aberto: DY inicial de lajes/logística). Próxima: U.7 (validação ponta a ponta de 200 dias e fechamento do achado 024).
+- **Status:** ✅ Concluída (U.1 a U.7), validada em 200 dias simulados (deriva de -49% para no máximo +5%). Resíduo: achado 027 (DY inicial de lajes/logística acima da faixa, decisão do autor) e 1 dia sem negócio em 1.000 dias-FII.
 
 ---
 
