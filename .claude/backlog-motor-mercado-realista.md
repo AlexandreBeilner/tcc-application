@@ -2744,11 +2744,9 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
   usuário não-admin nas 3 rotas.
 - **Referências:** proposta 2.3; `.docs/engine/admin.md` (a criar/estender); tela 10.1/10.2 como
   precedente de padrão admin.
-- **Nota (achado 002, `.claude/pontos-em-aberto-decisao-produto.md`):** `POST /admin/bots` é o
-  primeiro consumidor real de `bot.NewRiskProfile` fora do seed (que hoje só cria com `0.02`
-  fixo) — `SpreadWidthPct` não tem teto superior (só rejeita `< 0`) antes do `>= 2` de
-  `DecideMarketMakerOrders` colapsar o book. Achado ainda sem decisão de produto (qual teto máximo
-  é razoável) — resolver antes de aceitar esse campo vindo de input externo nesta tarefa.
+- **Nota (achado 002, resolvido na P.6):** `bot.NewRiskProfile` já valida `SpreadWidthPct` em
+  `[0, MaxSpreadWidthPct = 0.10]` (`ErrSpreadWidthAboveMax`); `POST /admin/bots` só precisa reaproveitá-lo,
+  sem teto novo.
 - **Dependências:** A.4, C.1, C.6 (catálogo de bots já existente pra listar).
 
 ### N.2 · Tela "Painel Admin — Bots" no frontend

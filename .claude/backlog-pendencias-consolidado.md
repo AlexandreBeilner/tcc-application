@@ -101,15 +101,10 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
   radius — assinatura de 11 parâmetros, vários call sites e testes), ou (b) manter deliberadamente
   separadas e documentar como decisão consciente.
 
-### P3.3 · Teto máximo de `SpreadWidthPct` pra bot Market Maker criado via admin (novo, ainda não registrado no arquivo de achados)
+### P3.3 · ✅ Teto máximo de `SpreadWidthPct` pra bot Market Maker criado via admin
 
-- **Local:** achado embutido em `.claude/backlog-motor-mercado-realista.md`, tarefa **N.1** (linha
-  ~2748) — **ainda não tem entrada própria em `pontos-em-aberto-decisao-produto.md`, vale promover
-  antes de abrir N.1.**
-- **Resumo:** `bot.NewRiskProfile` só rejeita `SpreadWidthPct < 0` — sem teto superior, um valor
-  `>= 2` faz `DecideMarketMakerOrders` colapsar o book. Hoje inofensivo porque só o seed cria bot
-  (sempre com `0.02` fixo); `POST /admin/bots` (N.1) seria o primeiro consumidor real vindo de input
-  externo, e precisa de um teto antes de aceitar esse campo.
+- **Status:** ✅ Já resolvido (achado 002, tarefa P.6, 2026-09-23): `bot.MaxSpreadWidthPct = 0.10`
+  validado em `NewRiskProfile` (`ErrSpreadWidthAboveMax`). Esta entrada estava desatualizada.
 
 ---
 
@@ -118,8 +113,7 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 ### P4.1 · N.1 — Endpoints admin pra listar/criar/desativar bots
 
 - **Local:** `.claude/backlog-motor-mercado-realista.md`, tarefa **N.1** (linha ~2730)
-- **Bloqueio:** resolver P3.3 antes (teto de `SpreadWidthPct`) — o próprio texto da tarefa já pede
-  isso.
+- **Bloqueio:** nenhum (P3.3 já resolvido; `POST /admin/bots` reaproveita `NewRiskProfile`, que já aplica o teto).
 
 ### P4.2 · N.2 — Tela "Painel Admin — Bots" no frontend
 
@@ -201,7 +195,7 @@ não apagar sem essa checagem.
 
 1. **P1.1 → P1.2** (catálogo completo → e2e formal) — fecha a Semana 7.
 2. ~~**P2.1** (Fase T)~~ ✅ concluída.
-3. **P3.3 → P4.1 → P4.2** (teto de spread, depois o Painel Admin de Bots em si).
+3. **P4.1 → P4.2** (Painel Admin de Bots; o teto de spread, P3.3, já está resolvido).
 4. **P3.1, P3.2** — decisões pontuais, encaixar em qualquer sessão livre.
 5. **P5.1** — sessão isolada e pequena, sem dependência de nada acima.
 6. **P1.3** (Semana 8, polimento) — só depois do passo 1 fechado.
