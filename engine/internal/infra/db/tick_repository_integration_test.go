@@ -72,3 +72,44 @@ func TestListDividendPayerAssets_FIITrazTipoESegmento(t *testing.T) {
 		t.Errorf("papel = %+v, want FIIType=papel Segment=nil PortfolioValue preenchido", p)
 	}
 }
+
+// TestListCompaniesForFundamentals_TrazQualityMultiplier cobre o achado 025:
+// o multiplicador gravado por CreateCompany chega em
+// tick.CompanyForFundamentals, e a empresa criada sem personalizar usa o
+// neutro (1.00). Usa o banco descartável (roda só com TEST_DATABASE_URL).
+func TestListCompaniesForFundamentals_TrazQualityMultiplier(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	catalogRepo := NewCatalogRepository(conn, nil)
+
+	for _, c := range []struct {
+		name, cnpj string
+		quality    float64
+	}{
+		{"Boa S.A.", "44444444000101", 1.25},
+		{"Media S.A.", "44444444000102", catalog.DefaultQualityMultiplier},
+		{"Ruim S.A.", "44444444000103", 0.75},
+	} {
+		company, err := catalog.NewCompany(c.name, c.cnpj, catalog.SectorMineracao, catalog.DefaultBaseGrowthPct, c.quality)
+		if err != nil {
+			t.Fatalf("NewCompany %s: %v", c.name, err)
+		}
+		if _, err := catalogRepo.CreateCompany(ctx, company); err != nil {
+			t.Fatalf("CreateCompany %s: %v", c.name, err)
+		}
+	}
+
+	companies, err := NewTickRepository(conn, nil).ListCompaniesForFundamentals(ctx)
+	if err != nil {
+		t.Fatalf("ListCompaniesForFundamentals: %v", err)
+	}
+	got := map[float64]bool{}
+	for _, c := range companies {
+		got[c.QualityMultiplier] = true
+	}
+	for _, want := range []float64{1.25, 1.0, 0.75} {
+		if !got[want] {
+			t.Errorf("multiplicador %v ausente em %+v", want, companies)
+		}
+	}
+}

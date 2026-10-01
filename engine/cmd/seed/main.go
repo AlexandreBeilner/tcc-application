@@ -62,8 +62,8 @@ func main() {
 	coverageRepo := db.NewCoverageRepository(pool)
 	ctx := context.Background()
 
-	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao, catalog.DefaultBaseGrowthPct)
-	banco := ensureCompany(ctx, repo, "Banco Nordeste Digital S.A.", "22333444000162", catalog.SectorBancario, catalog.DefaultBaseGrowthPct)
+	mineradora := ensureCompany(ctx, repo, "Mineradora Vale do Rio S.A.", "11222333000181", catalog.SectorMineracao, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
+	banco := ensureCompany(ctx, repo, "Banco Nordeste Digital S.A.", "22333444000162", catalog.SectorBancario, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
 
 	const valr3OutstandingShares = 500_000_000
 	// bancoOutstandingShares é compartilhado por BNDD3 (ON) e BNDD4 (PN) —
@@ -84,8 +84,8 @@ func main() {
 	// de produto, já que é a mesma empresa/mesmo perfil de risco).
 	bndd3ID := seedEquity(ctx, repo, "BNDD3", "Banco Nordeste Digital ON", equityRiskSofisticado, &banco, "ON", bancoOutstandingShares)
 	bndd4ID := seedEquity(ctx, repo, "BNDD4", "Banco Nordeste Digital PN", equityRiskSofisticado, &banco, "PN", bancoOutstandingShares)
-	seedInitialFundamentals(ctx, repo, mineradora, catalog.SectorMineracao, valr3OutstandingShares, catalog.DefaultBaseGrowthPct)
-	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bancoOutstandingShares, catalog.DefaultBaseGrowthPct)
+	seedInitialFundamentals(ctx, repo, mineradora, catalog.SectorMineracao, valr3OutstandingShares, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
+	seedInitialFundamentals(ctx, repo, banco, catalog.SectorBancario, bancoOutstandingShares, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
 
 	tjlo11ID := seedFIITijolo(ctx, repo, "TJLO11", "FII Tijolo Corporativo", "Lajes Corporativas", 5.2)
 	papl11ID := seedFIIPapel(ctx, repo, "PAPL11", "FII Papel Recebíveis", "CDI")
@@ -224,7 +224,7 @@ const (
 	equityRiskSofisticado = "Sofisticado"
 )
 
-func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj string, sector catalog.Sector, baseGrowthPct float64) string {
+func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj string, sector catalog.Sector, baseGrowthPct, qualityMultiplier float64) string {
 	if id, found, err := repo.FindCompanyByCNPJ(ctx, cnpj); err != nil {
 		log.Fatalf("erro ao buscar empresa %s: %v", cnpj, err)
 	} else if found {
@@ -232,7 +232,7 @@ func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj s
 		return id
 	}
 
-	company, err := catalog.NewCompany(name, cnpj, sector, baseGrowthPct)
+	company, err := catalog.NewCompany(name, cnpj, sector, baseGrowthPct, qualityMultiplier)
 	if err != nil {
 		log.Fatalf("empresa %s inválida: %v", name, err)
 	}
@@ -281,7 +281,7 @@ func seedEquity(ctx context.Context, repo *db.CatalogRepository, ticker, name, r
 	return id
 }
 
-func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, sector catalog.Sector, outstandingShares int64, baseGrowthPct float64) {
+func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, companyID string, sector catalog.Sector, outstandingShares int64, baseGrowthPct, qualityMultiplier float64) {
 	if _, found, err := repo.FindLatestFundamentals(ctx, companyID); err != nil {
 		log.Fatalf("erro ao buscar fundamentos da empresa %s: %v", companyID, err)
 	} else if found {
@@ -312,7 +312,7 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 	// justo do dia 1 já nasceria divergindo do preço de partida por causa
 	// só da troca de crescimento entre o seed e o primeiro tick.
 	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(
-		sector, tick.DefaultInitialPrice, outstandingShares, baseGrowthPct/100, selic.DefaultNeutralRate/100)
+		sector, qualityMultiplier, tick.DefaultInitialPrice, outstandingShares, baseGrowthPct/100, selic.DefaultNeutralRate/100)
 	if err != nil {
 		log.Fatalf("erro ao calibrar fundamentos iniciais da empresa %s: %v", companyID, err)
 	}
@@ -325,8 +325,8 @@ func seedInitialFundamentals(ctx context.Context, repo *db.CatalogRepository, co
 // growthPctBoa/Media/Ruim (tarefa 7.2) são os 3 níveis ilustrativos de
 // qualidade usados por newCompanySeeds pra distribuir 1 Boa/2 Média/1 Ruim
 // por setor no catálogo novo (companies.base_growth_pct — ver doc de
-// catalog.Company.BaseGrowthPct sobre por que crescimento, e não ROE/
-// margem, é o grau de liberdade disponível hoje). growthPctMedia repete
+// catalog.Company.BaseGrowthPct; o nível também define o multiplicador de
+// qualidade que varia ROE/margem/alavancagem, achado 025). growthPctMedia repete
 // catalog.DefaultBaseGrowthPct de propósito: mesmo crescimento que as duas
 // empresas já seedadas desde a 3.9 (Mineradora Vale do Rio, Banco Nordeste
 // Digital) sempre tiveram, nenhuma regressão nelas.
@@ -334,6 +334,14 @@ const (
 	growthPctBoa   = 8.00
 	growthPctMedia = catalog.DefaultBaseGrowthPct
 	growthPctRuim  = -3.00
+
+	// qualityBoa/Media/Ruim (achado 025) são os multiplicadores de
+	// companies.quality_multiplier pareados com cada nível acima: empresa
+	// Boa tem margem/ROE 25% acima da média do setor e menos dívida, Ruim o
+	// inverso. qualityMedia é neutro, preservando as empresas da 3.9.
+	qualityBoa   = 1.25
+	qualityMedia = catalog.DefaultQualityMultiplier
+	qualityRuim  = 0.75
 )
 
 // newCompanySeeds (tarefa 7.2, backlog-plataforma-investimentos.md) cobre
@@ -359,43 +367,44 @@ type newCompanySeed struct {
 	Sector            catalog.Sector
 	RiskClass         string
 	GrowthPct         float64
+	QualityMultiplier float64
 	OutstandingShares int64
 }
 
 var newCompanySeeds = []newCompanySeed{
 	// Mineração (Conservador) — 1 já existe (VALR3, Média).
-	{"MSAL3", "Mineração Serra Alta ON", "Mineração Serra Alta S.A.", "33111000000001", catalog.SectorMineracao, equityRiskConservador, growthPctBoa, 250_000_000},
-	{"MTCE3", "Metais do Cerrado ON", "Metais do Cerrado S.A.", "33111000000002", catalog.SectorMineracao, equityRiskConservador, growthPctMedia, 400_000_000},
-	{"MPNG3", "Mineradora Pedra Negra ON", "Mineradora Pedra Negra S.A.", "33111000000003", catalog.SectorMineracao, equityRiskConservador, growthPctRuim, 180_000_000},
+	{"MSAL3", "Mineração Serra Alta ON", "Mineração Serra Alta S.A.", "33111000000001", catalog.SectorMineracao, equityRiskConservador, growthPctBoa, qualityBoa, 250_000_000},
+	{"MTCE3", "Metais do Cerrado ON", "Metais do Cerrado S.A.", "33111000000002", catalog.SectorMineracao, equityRiskConservador, growthPctMedia, qualityMedia, 400_000_000},
+	{"MPNG3", "Mineradora Pedra Negra ON", "Mineradora Pedra Negra S.A.", "33111000000003", catalog.SectorMineracao, equityRiskConservador, growthPctRuim, qualityRuim, 180_000_000},
 
 	// Agronegócio (Sofisticado) — setor sem representante antes da 7.2.
-	{"AGPP3", "AgroPampa Grãos ON", "AgroPampa Grãos S.A.", "33111000000004", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctBoa, 150_000_000},
-	{"CRAG3", "Cerrado Agrícola ON", "Cerrado Agrícola S.A.", "33111000000005", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctMedia, 220_000_000},
-	{"SAFR3", "SafraForte Participações ON", "SafraForte Participações S.A.", "33111000000006", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctMedia, 260_000_000},
-	{"AVSC3", "Algodoeira Vale Seco ON", "Algodoeira Vale Seco S.A.", "33111000000007", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctRuim, 130_000_000},
+	{"AGPP3", "AgroPampa Grãos ON", "AgroPampa Grãos S.A.", "33111000000004", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctBoa, qualityBoa, 150_000_000},
+	{"CRAG3", "Cerrado Agrícola ON", "Cerrado Agrícola S.A.", "33111000000005", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctMedia, qualityMedia, 220_000_000},
+	{"SAFR3", "SafraForte Participações ON", "SafraForte Participações S.A.", "33111000000006", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctMedia, qualityMedia, 260_000_000},
+	{"AVSC3", "Algodoeira Vale Seco ON", "Algodoeira Vale Seco S.A.", "33111000000007", catalog.SectorAgronegocio, equityRiskSofisticado, growthPctRuim, qualityRuim, 130_000_000},
 
 	// Bancário/Financeiro (Sofisticado) — 1 já existe (BNDD3/BNDD4, Média).
-	{"BAUR3", "Banco Aurora ON", "Banco Aurora S.A.", "33111000000008", catalog.SectorBancario, equityRiskSofisticado, growthPctBoa, 350_000_000},
-	{"FPLA3", "Financeira Planalto ON", "Financeira Planalto S.A.", "33111000000009", catalog.SectorBancario, equityRiskSofisticado, growthPctMedia, 200_000_000},
-	{"CDSG3", "Crediseg Financeira ON", "Crediseg Financeira S.A.", "33111000000010", catalog.SectorBancario, equityRiskSofisticado, growthPctRuim, 140_000_000},
+	{"BAUR3", "Banco Aurora ON", "Banco Aurora S.A.", "33111000000008", catalog.SectorBancario, equityRiskSofisticado, growthPctBoa, qualityBoa, 350_000_000},
+	{"FPLA3", "Financeira Planalto ON", "Financeira Planalto S.A.", "33111000000009", catalog.SectorBancario, equityRiskSofisticado, growthPctMedia, qualityMedia, 200_000_000},
+	{"CDSG3", "Crediseg Financeira ON", "Crediseg Financeira S.A.", "33111000000010", catalog.SectorBancario, equityRiskSofisticado, growthPctRuim, qualityRuim, 140_000_000},
 
 	// Varejo (Sofisticado) — setor sem representante antes da 7.2.
-	{"VETR3", "Varejo Estrela ON", "Varejo Estrela S.A.", "33111000000011", catalog.SectorVarejo, equityRiskSofisticado, growthPctBoa, 300_000_000},
-	{"LPOP3", "Lojas Popular ON", "Lojas Popular S.A.", "33111000000012", catalog.SectorVarejo, equityRiskSofisticado, growthPctMedia, 260_000_000},
-	{"MDRP3", "Moda Rápida ON", "Moda Rápida S.A.", "33111000000013", catalog.SectorVarejo, equityRiskSofisticado, growthPctMedia, 180_000_000},
-	{"CBPR3", "Comercial Bom Preço ON", "Comercial Bom Preço S.A.", "33111000000014", catalog.SectorVarejo, equityRiskSofisticado, growthPctRuim, 220_000_000},
+	{"VETR3", "Varejo Estrela ON", "Varejo Estrela S.A.", "33111000000011", catalog.SectorVarejo, equityRiskSofisticado, growthPctBoa, qualityBoa, 300_000_000},
+	{"LPOP3", "Lojas Popular ON", "Lojas Popular S.A.", "33111000000012", catalog.SectorVarejo, equityRiskSofisticado, growthPctMedia, qualityMedia, 260_000_000},
+	{"MDRP3", "Moda Rápida ON", "Moda Rápida S.A.", "33111000000013", catalog.SectorVarejo, equityRiskSofisticado, growthPctMedia, qualityMedia, 180_000_000},
+	{"CBPR3", "Comercial Bom Preço ON", "Comercial Bom Preço S.A.", "33111000000014", catalog.SectorVarejo, equityRiskSofisticado, growthPctRuim, qualityRuim, 220_000_000},
 
 	// Energia (Conservador) — setor sem representante antes da 7.2.
-	{"ERCL3", "Energética Rio Claro ON", "Energética Rio Claro S.A.", "33111000000015", catalog.SectorEnergia, equityRiskConservador, growthPctBoa, 280_000_000},
-	{"TPLN3", "Transmissora Planalto ON", "Transmissora Planalto S.A.", "33111000000016", catalog.SectorEnergia, equityRiskConservador, growthPctMedia, 320_000_000},
-	{"DNLZ3", "Distribuidora Nordeste Luz ON", "Distribuidora Nordeste Luz S.A.", "33111000000017", catalog.SectorEnergia, equityRiskConservador, growthPctMedia, 240_000_000},
-	{"TVES3", "Termelétrica Vale Escuro ON", "Termelétrica Vale Escuro S.A.", "33111000000018", catalog.SectorEnergia, equityRiskConservador, growthPctRuim, 160_000_000},
+	{"ERCL3", "Energética Rio Claro ON", "Energética Rio Claro S.A.", "33111000000015", catalog.SectorEnergia, equityRiskConservador, growthPctBoa, qualityBoa, 280_000_000},
+	{"TPLN3", "Transmissora Planalto ON", "Transmissora Planalto S.A.", "33111000000016", catalog.SectorEnergia, equityRiskConservador, growthPctMedia, qualityMedia, 320_000_000},
+	{"DNLZ3", "Distribuidora Nordeste Luz ON", "Distribuidora Nordeste Luz S.A.", "33111000000017", catalog.SectorEnergia, equityRiskConservador, growthPctMedia, qualityMedia, 240_000_000},
+	{"TVES3", "Termelétrica Vale Escuro ON", "Termelétrica Vale Escuro S.A.", "33111000000018", catalog.SectorEnergia, equityRiskConservador, growthPctRuim, qualityRuim, 160_000_000},
 
 	// Tecnologia (Sofisticado) — setor sem representante antes da 7.2.
-	{"TNVA3", "TechNova Software ON", "TechNova Software S.A.", "33111000000019", catalog.SectorTecnologia, equityRiskSofisticado, growthPctBoa, 120_000_000},
-	{"DTCR3", "DataCore Sistemas ON", "DataCore Sistemas S.A.", "33111000000020", catalog.SectorTecnologia, equityRiskSofisticado, growthPctMedia, 150_000_000},
-	{"CLBR3", "CloudBrasil ON", "CloudBrasil S.A.", "33111000000021", catalog.SectorTecnologia, equityRiskSofisticado, growthPctMedia, 100_000_000},
-	{"INLG3", "InfoLegacy Sistemas ON", "InfoLegacy Sistemas S.A.", "33111000000022", catalog.SectorTecnologia, equityRiskSofisticado, growthPctRuim, 90_000_000},
+	{"TNVA3", "TechNova Software ON", "TechNova Software S.A.", "33111000000019", catalog.SectorTecnologia, equityRiskSofisticado, growthPctBoa, qualityBoa, 120_000_000},
+	{"DTCR3", "DataCore Sistemas ON", "DataCore Sistemas S.A.", "33111000000020", catalog.SectorTecnologia, equityRiskSofisticado, growthPctMedia, qualityMedia, 150_000_000},
+	{"CLBR3", "CloudBrasil ON", "CloudBrasil S.A.", "33111000000021", catalog.SectorTecnologia, equityRiskSofisticado, growthPctMedia, qualityMedia, 100_000_000},
+	{"INLG3", "InfoLegacy Sistemas ON", "InfoLegacy Sistemas S.A.", "33111000000022", catalog.SectorTecnologia, equityRiskSofisticado, growthPctRuim, qualityRuim, 90_000_000},
 }
 
 // seedNewCompanies cria as 22 empresas/ações de newCompanySeeds e devolve a
@@ -406,9 +415,9 @@ var newCompanySeeds = []newCompanySeed{
 func seedNewCompanies(ctx context.Context, repo *db.CatalogRepository) []botAssetSeed {
 	assets := make([]botAssetSeed, 0, len(newCompanySeeds))
 	for _, s := range newCompanySeeds {
-		companyID := ensureCompany(ctx, repo, s.CompanyName, s.CNPJ, s.Sector, s.GrowthPct)
+		companyID := ensureCompany(ctx, repo, s.CompanyName, s.CNPJ, s.Sector, s.GrowthPct, s.QualityMultiplier)
 		assetID := seedEquity(ctx, repo, s.Ticker, s.AssetName, s.RiskClass, &companyID, "ON", s.OutstandingShares)
-		seedInitialFundamentals(ctx, repo, companyID, s.Sector, s.OutstandingShares, s.GrowthPct)
+		seedInitialFundamentals(ctx, repo, companyID, s.Sector, s.OutstandingShares, s.GrowthPct, s.QualityMultiplier)
 		assets = append(assets, botAssetSeed{AssetID: assetID, OutstandingShares: s.OutstandingShares})
 	}
 	return assets

@@ -31,7 +31,7 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
   empresas cobrindo os 6 setores fixos com distribuição de qualidade Boa/Média/Ruim via nova coluna
   `companies.base_growth_pct`, 5 ETFs com metodologia própria cada, 5 FIIs em 3 segmentos de tijolo +
   2 indexadores de papel). Achado registrado (não bloqueante): ROE/margem continuam fixos por setor
-  (só o crescimento diferencia P/L e P/VP) — `pontos-em-aberto-decisao-produto.md`, achado 025.
+  (só o crescimento diferencia P/L e P/VP) — achado 025, **resolvido em 2026-10-01** com `companies.quality_multiplier` (ver `pontos-em-aberto-decisao-produto.md`).
 - **Status:** ✅ Resolvido. Libera P1.2 (e2e formal).
 
 ### P1.2 · Testes ponta a ponta formais ✅ concluída (2026-09-28)

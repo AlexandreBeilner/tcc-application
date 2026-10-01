@@ -268,7 +268,7 @@ func TestAdvance_DiaDeRelatorioGeraOsSeisCamposDeFundamentals(t *testing.T) {
 		t.Fatalf("len(Fundamentals) = %d, want 1", len(result.Fundamentals))
 	}
 	f := result.Fundamentals[0]
-	want := fundamentals.DeriveFinancials(catalog.Sector(companies[0].Sector), f.NetRevenue)
+	want := fundamentals.DeriveFinancials(catalog.Sector(companies[0].Sector), companies[0].QualityMultiplier, f.NetRevenue)
 
 	if f.NetIncome != want.NetIncome {
 		t.Errorf("NetIncome = %v, want %v", f.NetIncome, want.NetIncome)
@@ -1268,5 +1268,29 @@ func TestFIIRoundContexts_EfeitoDeProventoUsaTaxaDoSegmento(t *testing.T) {
 	}
 	if got["lajes"].DividendEffectPct == got["log"].DividendEffectPct {
 		t.Error("segmentos com P/VP-base diferente deveriam ter efeito de provento diferente")
+	}
+}
+
+// TestAdvance_QualityMultiplierDiferenciaFundamentosDoMesmoSetor (achado
+// 025): duas empresas do mesmo setor, mesma receita de partida, com
+// multiplicadores de qualidade diferentes, divulgam lucro/dívida diferentes.
+func TestAdvance_QualityMultiplierDiferenciaFundamentosDoMesmoSetor(t *testing.T) {
+	mk := func(id string, q float64) CompanyForFundamentals {
+		return CompanyForFundamentals{CompanyID: id, Sector: "Mineração", ReportFrequencyDays: fundamentals.DefaultReportFrequencyDays, BaseGrowthPct: 3, QualityMultiplier: q}
+	}
+	companies := []CompanyForFundamentals{mk("boa", 1.25), mk("ruim", 0.75)}
+
+	result := Advance(State{Day: 90, SelicRate: 10}, nil, companies, nil, nil, nil, testSelicConfig(), testIPCAConfig(), 1)
+
+	byID := map[string]FundamentalsRecord{}
+	for _, f := range result.Fundamentals {
+		byID[f.CompanyID] = f
+	}
+	boa, ruim := byID["boa"], byID["ruim"]
+	if boa.NetIncome/boa.NetEquity <= ruim.NetIncome/ruim.NetEquity {
+		t.Errorf("ROE boa (%v) deveria superar ROE ruim (%v)", boa.NetIncome/boa.NetEquity, ruim.NetIncome/ruim.NetEquity)
+	}
+	if boa.GrossDebt/boa.NetEquity >= ruim.GrossDebt/ruim.NetEquity {
+		t.Errorf("alavancagem boa deveria ficar abaixo da ruim")
 	}
 }

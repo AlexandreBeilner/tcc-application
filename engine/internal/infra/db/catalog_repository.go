@@ -65,9 +65,9 @@ func (r *CatalogRepository) FindCompanyByCNPJ(ctx context.Context, cnpj string) 
 func (r *CatalogRepository) CreateCompany(ctx context.Context, c catalog.Company) (string, error) {
 	var id string
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct)
-		 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays, c.BaseGrowthPct,
+		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct, quality_multiplier)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays, c.BaseGrowthPct, c.QualityMultiplier,
 	).Scan(&id)
 	return id, err
 }

@@ -1123,7 +1123,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), fundamentals.NeutralQualityMultiplier, startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -1344,7 +1344,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), fundamentals.NeutralQualityMultiplier, startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}

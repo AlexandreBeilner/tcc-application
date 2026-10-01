@@ -69,6 +69,13 @@ intermitente. Rodar em série elimina a corrida; o custo é só tempo de parede 
 3. **`macroEventJourney.e2e.test.ts`** — dispara um template do catálogo (`macroevent.Templates`,
    spec 3.3.2) contra uma ação real do catálogo pós-7.2, avança ticks até o dia de relatório e
    confirma o evento aparecendo no feed (`GET /news`) com `status: aplicado`.
+4. **`companyQualityJourney.e2e.test.ts`** — achado 025 (`companies.quality_multiplier`): lê o
+   `indicators` de todas as ações reais (`GET /market/assets/:id`) e confere que, em cada um dos 6
+   setores, ROE, margem líquida, margem EBIT e P/VP variam entre empresas (Boa > Ruim), nos
+   fundamentos do seed e de novo depois de um ciclo de relatório de 91 dias simulados, com o ROE de
+   cada empresa estável entre os dois momentos. **Precondição própria:** banco de mercado seedado
+   _depois_ da migration 000039 (`ensureCompany` pula empresa existente, então um banco antigo fica
+   com multiplicador 1.00 e este teste falha de propósito, apontando o seed desatualizado).
 
 ## Sobre `POST /admin/tick`
 

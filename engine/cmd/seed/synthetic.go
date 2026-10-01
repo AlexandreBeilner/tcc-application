@@ -63,9 +63,9 @@ func seedSyntheticEquities(ctx context.Context, repo *db.CatalogRepository, n in
 
 	assets := make([]botAssetSeed, 0, n)
 	for _, spec := range syntheticEquities(n) {
-		companyID := ensureCompany(ctx, repo, spec.Name, spec.CNPJ, spec.Sector, catalog.DefaultBaseGrowthPct)
+		companyID := ensureCompany(ctx, repo, spec.Name, spec.CNPJ, spec.Sector, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
 		assetID := seedEquity(ctx, repo, spec.Ticker, spec.Name, spec.RiskClass, &companyID, "ON", spec.OutstandingShares)
-		seedInitialFundamentals(ctx, repo, companyID, spec.Sector, spec.OutstandingShares, catalog.DefaultBaseGrowthPct)
+		seedInitialFundamentals(ctx, repo, companyID, spec.Sector, spec.OutstandingShares, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
 		assets = append(assets, botAssetSeed{AssetID: assetID, OutstandingShares: spec.OutstandingShares})
 	}
 	return assets

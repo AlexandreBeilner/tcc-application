@@ -125,6 +125,10 @@ type CompanyForFundamentals struct {
 	// Substitui o único valor global (fundamentals.DefaultBaseGrowth) que toda
 	// empresa usava antes desta tarefa — ver doc de catalog.Company.BaseGrowthPct.
 	BaseGrowthPct float64
+	// QualityMultiplier é companies.quality_multiplier (achado 025) — escala
+	// margens/alavancagem do setor pra esta empresa (fundamentals.
+	// CoefficientsForCompany). Zero (campo não preenchido) vale neutro (1).
+	QualityMultiplier float64
 }
 
 // MacroEventTargetForApplication espelha uma linha de macro_event_targets
@@ -645,7 +649,7 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 		if reported, ok := reportedRevenue[c.CompanyID]; ok {
 			baseRevenue = reported
 		}
-		financials := fundamentals.DeriveFinancials(sector, baseRevenue)
+		financials := fundamentals.DeriveFinancials(sector, c.QualityMultiplier, baseRevenue)
 
 		contexts[c.CompanyID] = CompanyRoundContext{
 			Financials:           financials,
@@ -1187,7 +1191,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			baseRevenue = *c.LastRevenue
 		}
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
-		financials := fundamentals.DeriveFinancials(sector, netRevenue)
+		financials := fundamentals.DeriveFinancials(sector, c.QualityMultiplier, netRevenue)
 		netIncomeByCompany[c.CompanyID] = financials.NetIncome
 
 		reportedRevenue[c.CompanyID] = netRevenue

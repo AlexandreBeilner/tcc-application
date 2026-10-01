@@ -53,11 +53,22 @@ const DefaultBaseGrowthPct = 3.00
 // de fundamentals.ErrInvalidGrowthRate).
 const minBaseGrowthPct = -100.0
 
+// DefaultQualityMultiplier é o default do schema (companies.
+// quality_multiplier, migration 000039): empresa na média do setor, com os
+// coeficientes de fundamentals.CoefficientsBySector sem ajuste.
+const DefaultQualityMultiplier = 1.00
+
+// maxQualityMultiplier é o teto de qualityMultiplier: acima disso a margem
+// líquida do setor mais rentável (Bancário, 22%) passaria de 44% e deixaria
+// de ser plausível pra uma empresa sintética.
+const maxQualityMultiplier = 2.0
+
 var (
-	ErrMissingCompanyName   = errors.New("nome da empresa é obrigatório")
-	ErrInvalidCNPJ          = errors.New("CNPJ deve ter 14 dígitos")
-	ErrUnknownSector        = errors.New("setor de empresa desconhecido")
-	ErrInvalidBaseGrowthPct = errors.New("crescimento_base da empresa não pode zerar ou inverter o fator (1+crescimento)")
+	ErrMissingCompanyName       = errors.New("nome da empresa é obrigatório")
+	ErrInvalidCNPJ              = errors.New("CNPJ deve ter 14 dígitos")
+	ErrUnknownSector            = errors.New("setor de empresa desconhecido")
+	ErrInvalidBaseGrowthPct     = errors.New("crescimento_base da empresa não pode zerar ou inverter o fator (1+crescimento)")
+	ErrInvalidQualityMultiplier = errors.New("multiplicador de qualidade da empresa precisa estar em (0, 2]")
 )
 
 // Company é o cadastro de uma empresa emissora de ações (companies) —
@@ -72,21 +83,28 @@ type Company struct {
 	// desta empresa por ciclo de relatório, em % (ex: 8.00 = 8% ao
 	// trimestre) — substitui o único valor global que toda empresa usava
 	// (fundamentals.DefaultBaseGrowth) por um grau de liberdade por
-	// empresa: é o único jeito hoje de expressar "empresa boa/média/ruim"
-	// dentro de um mesmo setor, já que ROE/margens continuam fixos por
-	// catalog.Sector (fundamentals.CoefficientsBySector) — uma empresa com
-	// crescimento mais alto sustenta um preço justo mais alto pro mesmo
-	// ROE setorial (fundamentals.BootstrapFinancialsForTargetPrice/
+	// empresa — junto de QualityMultiplier (achado 025), que varia ROE/
+	// margem/alavancagem, expressa "empresa boa/média/ruim" dentro de um
+	// mesmo setor. Uma empresa com crescimento mais alto sustenta um preço
+	// justo mais alto (fundamentals.BootstrapFinancialsForTargetPrice/
 	// bot.FundamentalistFairPrice), lido todo dia pelo Fundamentalista
 	// (tick.companyRoundContexts), não só no dia de relatório.
 	BaseGrowthPct float64
+	// QualityMultiplier (achado 025, migration 000039) escala a rentabilidade
+	// e a alavancagem do setor pra esta empresa (fundamentals.
+	// CoefficientsForCompany): 1.00 é a média do setor, acima disso a
+	// empresa tem margem/ROE maiores e menos dívida, abaixo o contrário.
+	// Complementa BaseGrowthPct: sem ele, ROE/margem/alavancagem eram
+	// idênticos pra toda empresa do mesmo setor.
+	QualityMultiplier float64
 }
 
 // NewCompany valida os invariantes mínimos de uma empresa cadastrada —
 // nome não vazio, CNPJ com 14 dígitos (sem validar dígito verificador,
 // fora de escopo pra dado sintético), setor dentre os 6 valores fixos,
-// baseGrowthPct que não zere/inverta o fator (1+crescimento) (tarefa 7.2).
-func NewCompany(name, cnpj string, sector Sector, baseGrowthPct float64) (Company, error) {
+// baseGrowthPct que não zere/inverta o fator (1+crescimento) (tarefa 7.2),
+// qualityMultiplier em (0, 2] (achado 025).
+func NewCompany(name, cnpj string, sector Sector, baseGrowthPct, qualityMultiplier float64) (Company, error) {
 	if name == "" {
 		return Company{}, ErrMissingCompanyName
 	}
@@ -105,11 +123,16 @@ func NewCompany(name, cnpj string, sector Sector, baseGrowthPct float64) (Compan
 		return Company{}, ErrInvalidBaseGrowthPct
 	}
 
+	if qualityMultiplier <= 0 || qualityMultiplier > maxQualityMultiplier {
+		return Company{}, ErrInvalidQualityMultiplier
+	}
+
 	return Company{
 		Name:                name,
 		CNPJ:                cnpj,
 		Sector:              sector,
 		ReportFrequencyDays: DefaultReportFrequencyDays,
 		BaseGrowthPct:       baseGrowthPct,
+		QualityMultiplier:   qualityMultiplier,
 	}, nil
 }

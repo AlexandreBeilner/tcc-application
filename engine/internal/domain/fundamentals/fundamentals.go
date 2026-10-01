@@ -87,10 +87,9 @@ var SensitivityByRiskClass = map[equity.RiskClass]float64{
 // (Default*) usado até a tarefa K.2. Cada campo aqui é o CENTRO da faixa
 // que o documento da K.1 propõe pra cada setor, não um teto/piso — a faixa
 // de variação plausível entre empresas do mesmo setor (pedido explícito do
-// autor: "podemos ter empresas acima ou abaixo da média") ainda não tem
-// mecanismo de sorteio implementado; a nota de implementação da K.1 (seção
-// "Recomendação de implementação para a K.2" do documento) já registra isso
-// como trabalho futuro, não coberto por esta struct.
+// autor: "podemos ter empresas acima ou abaixo da média") é coberta pelo
+// multiplicador de qualidade por empresa (CoefficientsForCompany, achado
+// 025), aplicado sobre estes valores centrais.
 type SectorCoefficients struct {
 	NetMarginPct         float64
 	EBITMarginPct        float64
@@ -164,6 +163,36 @@ func CoefficientsForSector(sector catalog.Sector) SectorCoefficients {
 		DebtToEquityRatio:    DefaultDebtToEquityRatio,
 		CashToRevenueRatio:   DefaultCashToRevenueRatio,
 	}
+}
+
+// NeutralQualityMultiplier é o multiplicador de qualidade de uma empresa
+// "média" (companies.quality_multiplier, achado 025): deixa os coeficientes
+// do setor exatamente como calibrados na K.1.
+const NeutralQualityMultiplier = 1.0
+
+// CoefficientsForCompany aplica o multiplicador de qualidade da empresa
+// (companies.quality_multiplier, achado 025) sobre os coeficientes centrais
+// do setor (CoefficientsForSector): margem líquida e margem EBIT escalam
+// por qualityMultiplier e o índice dívida/patrimônio escala pelo inverso —
+// empresa melhor que a média do setor é mais rentável e menos alavancada,
+// empresa pior é o contrário. Patrimônio/receita, caixa/receita e a
+// sensibilidade à Selic ficam os do setor (são estrutura do negócio, não
+// qualidade), então ROE = NetMargin/EquityToRevenue escala por
+// qualityMultiplier e a ordem EBIT >= lucro líquido se preserva.
+//
+// qualityMultiplier não positivo (valor zero de uma struct sem o campo
+// preenchido) é tratado como NeutralQualityMultiplier, mesmo tratamento
+// defensivo de CoefficientsForSector pra setor desconhecido:
+// catalog.NewCompany já rejeita o valor inválido na criação da empresa.
+func CoefficientsForCompany(sector catalog.Sector, qualityMultiplier float64) SectorCoefficients {
+	coeffs := CoefficientsForSector(sector)
+	if qualityMultiplier <= 0 {
+		qualityMultiplier = NeutralQualityMultiplier
+	}
+	coeffs.NetMarginPct *= qualityMultiplier
+	coeffs.EBITMarginPct *= qualityMultiplier
+	coeffs.DebtToEquityRatio /= qualityMultiplier
+	return coeffs
 }
 
 // Config parametriza a geração de fundamentos sintéticos de uma empresa
@@ -274,11 +303,11 @@ type Financials struct {
 // DeriveFinancials deriva net_income/ebit/net_equity/gross_debt/
 // cash_equivalents a partir de net_revenue já calculado (RevenueSeries/
 // NextGrowth), aplicando os coeficientes calibrados por setor
-// (CoefficientsForSector, tarefa K.2 — antes da K.2, um único conjunto
-// genérico pra toda empresa). Usada pelo Temporizador (tarefa 3.14) a cada
+// (CoefficientsForCompany: setor calibrado na K.2 mais o multiplicador de
+// qualidade da empresa, achado 025). Usada pelo Temporizador (tarefa 3.14) a cada
 // ciclo de relatório, junto de RevenueSeries/NextGrowth.
-func DeriveFinancials(sector catalog.Sector, netRevenue float64) Financials {
-	coeffs := CoefficientsForSector(sector)
+func DeriveFinancials(sector catalog.Sector, qualityMultiplier, netRevenue float64) Financials {
+	coeffs := CoefficientsForCompany(sector, qualityMultiplier)
 	netEquity := netRevenue * coeffs.EquityToRevenueRatio
 	return Financials{
 		NetRevenue:      netRevenue,
@@ -331,9 +360,9 @@ var (
 //	netEquity = VPA × outstandingShares
 //	netRevenue = netEquity / coeffs.EquityToRevenueRatio
 //
-// ROE usa os coeficientes calibrados de sector (CoefficientsForSector,
-// tarefa K.2 — antes da K.2, o único conjunto genérico global que
-// DeriveFinancials aplicava). requiredReturn assume == selicNeutral: no
+// ROE usa os coeficientes calibrados de sector com o multiplicador de
+// qualidade da empresa (CoefficientsForCompany, K.2 + achado 025) — o
+// mesmo que DeriveFinancials aplica depois. requiredReturn assume == selicNeutral: no
 // instante do seed, antes de qualquer ciclo de relatório, a Selic simulada
 // ainda não teve chance de desviar da sua âncora neutra, então o termo de
 // desvio de FundamentalistFairPrice (sensibilidade × desvio) é zero —
@@ -344,7 +373,7 @@ var (
 // dado qualquer sector/outstandingShares/targetPrice, devolve o net_revenue
 // exato que faz o Fundamentalista nascer "satisfeito" com o preço de
 // partida — nenhuma álgebra manual nem constante por ativo.
-func BootstrapFinancialsForTargetPrice(sector catalog.Sector, targetPrice float64, outstandingShares int64, growthRate, selicNeutral float64) (Financials, error) {
+func BootstrapFinancialsForTargetPrice(sector catalog.Sector, qualityMultiplier, targetPrice float64, outstandingShares int64, growthRate, selicNeutral float64) (Financials, error) {
 	if targetPrice <= 0 {
 		return Financials{}, ErrInvalidTargetPrice
 	}
@@ -368,10 +397,10 @@ func BootstrapFinancialsForTargetPrice(sector catalog.Sector, targetPrice float6
 	// fórmula que bot.FundamentalistFairPrice também usa via fundamentals.
 	// ROE — ok é sempre true aqui (EquityToRevenueRatio é uma constante > 0
 	// calibrada por setor, nunca o net_equity real de uma empresa).
-	coeffs := CoefficientsForSector(sector)
+	coeffs := CoefficientsForCompany(sector, qualityMultiplier)
 	roe, _ := ROE(coeffs.NetMarginPct, coeffs.EquityToRevenueRatio)
 	vpa := targetPrice / ((roe / selicNeutral) * growthFactor)
 	netEquity := vpa * float64(outstandingShares)
 	netRevenue := netEquity / coeffs.EquityToRevenueRatio
-	return DeriveFinancials(sector, netRevenue), nil
+	return DeriveFinancials(sector, qualityMultiplier, netRevenue), nil
 }
