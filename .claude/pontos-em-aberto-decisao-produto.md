@@ -51,42 +51,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `MarketOrderPreference` antes de montar a `Decision`).
 - **Status:** aberto
 
-### 008 · Duas fontes de sensibilidade à Selic para a mesma empresa (setor vs. `risk_class`)
-
-- **Local:** `engine/internal/domain/fundamentals/fundamentals.go` (`CoefficientsBySector[...].
-  SelicSensitivity`, usada por `ExpectedGrowth`/`GrowthSeries`/`NextGrowth` via `tick.
-  fundamentalsConfig`) vs. `engine/internal/domain/bot/fundamentalist.go:109`
-  (`fundamentals.SensitivityByRiskClass[riskClass]`, usada por `FundamentalistFairPrice` no cálculo
-  do retorno exigido da fórmula de Justified Price-to-Book)
-- **Origem:** tarefa K.2 (`backlog-motor-mercado-realista.md`), 2026-09-19 — a K.1
-  (`.claude/calibracao-fundamentos-setor.md`) já tinha sinalizado isso como recomendação de
-  implementação não-decidida
-- **O que é:** antes da K.2, as duas fórmulas (crescimento de receita e retorno exigido no preço
-  justo) liam a mesma tabela `SensitivityByRiskClass` (2 valores, por `risk_class` do ativo) — o
-  comentário original de `bot.FundamentalistFairPrice` até dizia explicitamente "reaproveitado aqui,
-  não duplicado". A K.2 migrou só a primeira fórmula pra uma tabela por setor (`CoefficientsBySector`,
-  6 valores, calibrados com fonte real pela K.1), porque o próprio texto da tarefa a escopava em
-  "aplicação da calibração em `fundamentals.go`" — `bot.FundamentalistFairPrice` fica fora desse
-  arquivo e, principalmente, fora do escopo de uma sessão (mudar sua assinatura de 11 parâmetros
-  rippla por `bot/round.go`, `tick/rounds.go` e os testes das Fases C/D/E, já fechadas). Resultado:
-  hoje as duas fórmulas podem divergir pra uma mesma empresa — ex: VALR3 (Mineração) usa sensibilidade
-  0.02 pro crescimento de receita (tabela por setor) mas 0.02 (Conservador) pro retorno exigido
-  (tabela por risk_class, coincidência dos números atuais, não garantia); BNDD4 (Bancário) usa 0.05
-  (tabela por setor) pro crescimento mas 0.06 (Sofisticado) pro retorno exigido — já divergem hoje.
-- **Por que não foi corrigido:** decidir se as duas fórmulas devem convergir pra uma fonte única
-  (sector) é uma escolha de design que muda o comportamento de todo o arquétipo Fundamentalista
-  (Fase C, já fechada e validada ao vivo) — não é um número sem valor confirmado, é uma escolha de
-  arquitetura/comportamento entre manter dois conceitos de sensibilidade deliberadamente separados
-  (um por setor pra fundamentos, um por risk_class pra valuation) ou unificar os dois por setor.
-- **Opções:** (a) migrar `bot.FundamentalistFairPrice`/`DecideFundamentalistOrder` pra receber
-  `catalog.Sector` em vez de `equity.RiskClass` e ler `fundamentals.CoefficientsForSector(sector).
-  SelicSensitivity`, unificando as duas fórmulas numa fonte só — maior blast radius (assinatura de
-  11 parâmetros, `bot.DecisionInput.RiskClass`, call sites em `round.go`/`rounds.go`, testes de
-  C.5/D.2/E.2); (b) manter as duas tabelas deliberadamente separadas (crescimento de receita
-  reflete margem/alavancagem setorial real, retorno exigido reflete um conceito de risco por classe
-  de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
-- **Status:** aberto
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -787,3 +751,44 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** exige decidir se o evento em FII deve (a) ser rejeitado na criação (`422`, "FII não é alvo válido"), (b) passar a ter efeito (preço justo do FII ganha o termo de efeito macro que `fii.FairPrice` já recebe como parâmetro `macroEffectPct`, hoje sempre 0), ou (c) continuar aceito e apenas ser documentado como sem efeito.
 - **Decisão (2026-10-01, autor):** opção (a), rejeitar na criação. Motivo: o efeito macro que importa para FII (juros e inflação) já chega pelo preço justo via Selic e IPCA; os templates atuais são de setor e não descrevem nada de FII, e os eventos reais de FII são locais (vacância, inadimplência, laudo), um conjunto de templates próprio que seria uma fase futura.
 - **Status:** Resolvido (2026-10-01): `macroeventtrigger.Service.Trigger` consulta `Repository.AssetsWithCompany` (uma consulta por disparo, só quando há alvo por `asset_id`) e devolve `ErrUnknownTargetAsset` (ativo inexistente ou id malformado) ou `ErrAssetNotTargetable` (FII, ETF, renda fixa), ambos `400` no motor (mesma família de `ErrUnknownSector`, então o backend os repassa como `400` sem mudança). Um alvo inválido recusa o evento inteiro antes de gravar. Alvos de setor e `risk_class` não consultam o catálogo. Antes, um `asset_id` inexistente caía num erro de chave estrangeira (`500`); agora é `400`. Testes: domínio (`macroeventtrigger_test.go`, tabela com ação/FII/misturado/inexistente/malformado/setor/risk_class e erro de consulta), `httpserver` (mapeamento `400`), banco (`macro_event_repository_integration_test.go` contra Postgres real) e e2e (`pr49.py`, cenário E). Sem alvo FII em nenhum dos 3 testes e2e do backend, que usam ação.
+
+### 008 · Duas fontes de sensibilidade à Selic para a mesma empresa (setor vs. `risk_class`)
+
+- **Local:** `engine/internal/domain/fundamentals/fundamentals.go` (`CoefficientsBySector[...].
+  SelicSensitivity`, usada por `ExpectedGrowth`/`GrowthSeries`/`NextGrowth` via `tick.
+  fundamentalsConfig`) vs. `engine/internal/domain/bot/fundamentalist.go:109`
+  (`fundamentals.SensitivityByRiskClass[riskClass]`, usada por `FundamentalistFairPrice` no cálculo
+  do retorno exigido da fórmula de Justified Price-to-Book)
+- **Origem:** tarefa K.2 (`backlog-motor-mercado-realista.md`), 2026-09-19 — a K.1
+  (`.claude/calibracao-fundamentos-setor.md`) já tinha sinalizado isso como recomendação de
+  implementação não-decidida
+- **O que é:** antes da K.2, as duas fórmulas (crescimento de receita e retorno exigido no preço
+  justo) liam a mesma tabela `SensitivityByRiskClass` (2 valores, por `risk_class` do ativo) — o
+  comentário original de `bot.FundamentalistFairPrice` até dizia explicitamente "reaproveitado aqui,
+  não duplicado". A K.2 migrou só a primeira fórmula pra uma tabela por setor (`CoefficientsBySector`,
+  6 valores, calibrados com fonte real pela K.1), porque o próprio texto da tarefa a escopava em
+  "aplicação da calibração em `fundamentals.go`" — `bot.FundamentalistFairPrice` fica fora desse
+  arquivo e, principalmente, fora do escopo de uma sessão (mudar sua assinatura de 11 parâmetros
+  rippla por `bot/round.go`, `tick/rounds.go` e os testes das Fases C/D/E, já fechadas). Resultado:
+  hoje as duas fórmulas podem divergir pra uma mesma empresa — ex: VALR3 (Mineração) usa sensibilidade
+  0.02 pro crescimento de receita (tabela por setor) mas 0.02 (Conservador) pro retorno exigido
+  (tabela por risk_class, coincidência dos números atuais, não garantia); BNDD4 (Bancário) usa 0.05
+  (tabela por setor) pro crescimento mas 0.06 (Sofisticado) pro retorno exigido — já divergem hoje.
+- **Por que não foi corrigido:** decidir se as duas fórmulas devem convergir pra uma fonte única
+  (sector) é uma escolha de design que muda o comportamento de todo o arquétipo Fundamentalista
+  (Fase C, já fechada e validada ao vivo) — não é um número sem valor confirmado, é uma escolha de
+  arquitetura/comportamento entre manter dois conceitos de sensibilidade deliberadamente separados
+  (um por setor pra fundamentos, um por risk_class pra valuation) ou unificar os dois por setor.
+- **Opções:** (a) migrar `bot.FundamentalistFairPrice`/`DecideFundamentalistOrder` pra receber
+  `catalog.Sector` em vez de `equity.RiskClass` e ler `fundamentals.CoefficientsForSector(sector).
+  SelicSensitivity`, unificando as duas fórmulas numa fonte só — maior blast radius (assinatura de
+  11 parâmetros, `bot.DecisionInput.RiskClass`, call sites em `round.go`/`rounds.go`, testes de
+  C.5/D.2/E.2); (b) manter as duas tabelas deliberadamente separadas (crescimento de receita
+  reflete margem/alavancagem setorial real, retorno exigido reflete um conceito de risco por classe
+  de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
+- **Decisão (2026-10-02, confirmada com o autor):** opção (b), manter as duas tabelas separadas. Crescimento
+  de receita reflete a estrutura do setor (por setor); retorno exigido é uma taxa de desconto ligada ao
+  risco da classe do ativo (por `risk_class`). Divergir pra uma mesma empresa (BNDD4: 0.05 vs 0.06) não é
+  inconsistência. Só comentários mudaram (`fundamentals.go`, `tick.go`, `bot/fundamentalist.go`), sem
+  alteração de comportamento; `go build`/`go vet` verdes.
+- **Status:** resolvido

@@ -92,7 +92,9 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
   — precisaria reabrir com esse uso) e documentar isso no comentário do pacote `bot`, ou (b)
   desenhar agora a regra de uso.
 
-### P3.2 · Duas fontes de sensibilidade à Selic divergentes pra mesma empresa
+### P3.2 · ✅ Duas fontes de sensibilidade à Selic divergentes pra mesma empresa
+
+- **Status:** ✅ Resolvido (2026-10-02), opção (b): separação deliberada, documentada no código.
 
 - **Local:** `.claude/pontos-em-aberto-decisao-produto.md`, achado **008**
 - **Resumo:** crescimento de receita usa sensibilidade por setor (`CoefficientsBySector`),
