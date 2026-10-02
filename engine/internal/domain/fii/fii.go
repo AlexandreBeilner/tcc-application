@@ -42,6 +42,10 @@ type Details struct {
 	VacancyRate    *float64
 	Indexador      *string
 	PortfolioValue *float64
+	// OutstandingShares (tarefa U.6) são as cotas em circulação
+	// (variable_income_assets), preenchidas só na leitura do catálogo
+	// (FindFIIDetails) e ignoradas por NewDetails: servem ao P/VP exibido.
+	OutstandingShares *int64
 }
 
 // NewDetails monta a especialização de um FII, validando o critério de

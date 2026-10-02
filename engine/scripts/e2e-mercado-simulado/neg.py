@@ -61,7 +61,10 @@ chk("compra a mercado de renda fixa via /orders",o(a,asset_id=CDB)[0],400)
 # que dá pra checar de fora: nunca preenche além do que o saldo paga.
 cash_a=a.acct()["cashBalance"]
 st,d=o(a,quantity=10_000_000)
-chk("compra > saldo (aceita e preenche só a parte que cabe no book, nunca estoura saldo)",st,201,d)
+# O motor recusa (422 saldo insuficiente) quando o custo do que preencheria excede o saldo; as duas
+# respostas (201 parcial, 422 recusa) respeitam a garantia. Verificado igual na linha de base do PR #49.
+chk("compra > saldo (201 parcial ou 422 recusa, nunca estoura saldo)",st,(201,422),d)
+if st==422: chk("compra > saldo recusada: saldo intacto",a.acct()["cashBalance"],cash_a)
 if st==201: chk("compra > saldo: nunca preenche custo maior que o saldo",sum(f["price"]*f["quantity"] for f in d["fills"])<=cash_a,True,d)
 d_user=User("neg_d","x"); complete_lessons(d_user)  # usuário isolado: `a` já tem posição de VALR3 desde o IDOR acima
 chk("venda sem posição",o(d_user,side="sell",quantity=1)[0],422)

@@ -426,6 +426,8 @@ func TestHandleTriggerMacroEvent_ErrosDeValidacaoRetornam400(t *testing.T) {
 		{"template desconhecido", macroeventtrigger.ErrUnknownTemplate},
 		{"campos obrigatórios ausentes", macroeventtrigger.ErrMissingFields},
 		{"setor desconhecido", macroeventtrigger.ErrUnknownSector},
+		{"ativo inexistente", macroeventtrigger.ErrUnknownTargetAsset},
+		{"ativo sem empresa (FII/ETF)", macroeventtrigger.ErrAssetNotTargetable},
 		{"alvo com escopo ambíguo", macroevent.ErrTargetScopeAmbiguous},
 		{"banda desconhecida", macroevent.ErrUnknownBand},
 	}

@@ -124,6 +124,37 @@ type CompanyRoundContext struct {
 	DividendEffectPct float64
 }
 
+// FIIRoundContext (tarefa U.2, achado 024) é "o que se sabe hoje" sobre um
+// FII, o equivalente de CompanyRoundContext pra ativo sem empresa emissora —
+// montado por fiiRoundContexts (tick.go) pra todo FII avaliável, indexado por
+// AssetID. Insumo de fii.FairPrice, consumido pelo Fundamentalista a partir
+// da tarefa U.3.
+type FIIRoundContext struct {
+	// BaseValue é o patrimônio líquido (tijolo) ou o valor da carteira
+	// (papel) total do fundo, já reavaliado neste tick quando o dia é de
+	// relatório global. Dividido por OutstandingShares dá o valor por cota
+	// que fii.FairPrice multiplica pelo P/VP-alvo.
+	BaseValue         float64
+	OutstandingShares int64
+	// TargetPriceToBook é o P/VP a que a cota tende pra esta Selic, segmento
+	// e tipo (fii.TargetPriceToBook), já resolvido por quem monta o contexto.
+	TargetPriceToBook float64
+	// DividendEffectPct é o efeito de preço, em %, do último provento pago
+	// enquanto dura a banda curta pós data-ex (fiiDividendPriceEffectPct, U.4),
+	// 0 fora dela.
+	DividendEffectPct float64
+}
+
+// RoundContext agrupa o contexto por ativo que as rodadas intradiárias
+// consomem (Advance monta, runIntradayRounds repassa): fundamentos por empresa
+// (Ação) e preço justo por ativo (FII). Um grupo só, em vez de um parâmetro
+// posicional por tipo de ativo, pra o próximo contexto não mudar a assinatura
+// de novo.
+type RoundContext struct {
+	Company map[string]CompanyRoundContext
+	FII     map[string]FIIRoundContext
+}
+
 // BotForRound é o roster de um bot elegível pra uma rodada de negociação
 // (account.EligibleForTradingRound: is_bot && is_active) com sua
 // personalidade persistida (C.6) — insumo de BotRoster.ListEligibleForTradingRound.
@@ -330,23 +361,18 @@ func buildEquityUniverse(assets []AssetForPricing) (map[string]*equityRoundState
 	return equities, universe
 }
 
-// fundamentalistHasCompanyContext reporta se um bot Fundamentalista tem o
-// que precisa pra participar da rodada (state.CompanyID e uma entrada
-// correspondente em companyContext) — checagem em memória, sem custo de IO,
-// que decisionInputFor também faz (ver seu case ArchetypeFundamentalista)
-// mas só depois de já ter pago o round trip de LoadContext. Chamar isto
-// antes de LoadContext evita esse round trip pra bots que vão ser
-// descartados de qualquer forma; devolve true pra qualquer outro arquétipo
-// (sem precondição própria que não dependa de execCtx).
-func fundamentalistHasCompanyContext(personality bot.Personality, state *equityRoundState, companyContext map[string]CompanyRoundContext) bool {
+// fundamentalistHasContext reporta se um bot Fundamentalista tem o que precisa
+// pra participar da rodada neste ativo (assetHasFundamentalContext) — checagem
+// em memória, sem custo de IO, que decisionInputFor também faz (ver seu case
+// ArchetypeFundamentalista) mas só depois de já ter pago o round trip de
+// LoadContext. Chamar isto antes de LoadContext evita esse round trip pra bots
+// que vão ser descartados de qualquer forma; devolve true pra qualquer outro
+// arquétipo (sem precondição própria que não dependa de execCtx).
+func fundamentalistHasContext(personality bot.Personality, assetID string, state *equityRoundState, contexts RoundContext) bool {
 	if personality.Archetype != bot.ArchetypeFundamentalista {
 		return true
 	}
-	if state.CompanyID == nil {
-		return false
-	}
-	_, ok := companyContext[*state.CompanyID]
-	return ok
+	return assetHasFundamentalContext(assetID, state, contexts)
 }
 
 // effectiveOrderSizeCeiling combina o float finito do ativo (floatCeiling,
@@ -431,12 +457,12 @@ func (s *Service) decisionInputFor(
 	personality bot.Personality,
 	state *equityRoundState,
 	execCtx orderexecution.Context,
-	companyContext map[string]CompanyRoundContext,
+	assetID string,
+	contexts RoundContext,
 	selicRate, selicNeutral float64,
 	seed int64,
 	priceHistoryCache map[string][]float64,
 	volumeCache map[string][]int,
-	assetID string,
 	orderCeilingPct float64,
 ) (bot.DecisionInput, bool, error) {
 	recentVolume, cached := volumeCache[assetID]
@@ -498,10 +524,21 @@ func (s *Service) decisionInputFor(
 		input.PriceHistory = append(append([]float64{}, history...), state.Price)
 
 	case bot.ArchetypeFundamentalista:
-		if state.CompanyID == nil || execCtx.OutstandingShares == nil {
+		if execCtx.OutstandingShares == nil {
 			return bot.DecisionInput{}, false, nil
 		}
-		cc, ok := companyContext[*state.CompanyID]
+		input.OutstandingShares = *execCtx.OutstandingShares
+		// FII (tarefa U.3): sem empresa, o preço justo vem do contexto por
+		// ativo. Só chega aqui um ativo com entrada em contexts.FII, então
+		// ETF continua descartado pela falta de contexto.
+		if fc, ok := contexts.FII[assetID]; ok {
+			input.FII = &bot.FIIFairPriceInput{BaseValue: fc.BaseValue, TargetPriceToBook: fc.TargetPriceToBook, DividendEffectPct: fc.DividendEffectPct}
+			return input, true, nil
+		}
+		if state.CompanyID == nil {
+			return bot.DecisionInput{}, false, nil
+		}
+		cc, ok := contexts.Company[*state.CompanyID]
 		if !ok {
 			return bot.DecisionInput{}, false, nil
 		}
@@ -509,7 +546,6 @@ func (s *Service) decisionInputFor(
 		input.GrowthRate = cc.GrowthRate
 		input.MacroEffectPct = cc.MacroEffectPct
 		input.DividendEffectPct = cc.DividendEffectPct
-		input.OutstandingShares = *execCtx.OutstandingShares
 		// PnDividendPremiumPct (tarefa J.3) só se aplica a um ativo PN —
 		// state.ShareClass nil ou qualquer valor != "PN" conta como ON
 		// (mesma convenção de equityShareClassesByCompany, tick.go), então
@@ -561,7 +597,7 @@ func (s *Service) runIntradayRounds(
 	dayIndex int,
 	rounds []IntradayRound,
 	assets []AssetForPricing,
-	companyContext map[string]CompanyRoundContext,
+	contexts RoundContext,
 	selicRate, selicNeutral float64,
 ) (map[string]float64, map[string]int, int, int, error) {
 	equities, universe := buildEquityUniverse(assets)
@@ -590,7 +626,7 @@ func (s *Service) runIntradayRounds(
 	run := &roundRun{
 		dayIndex:          dayIndex,
 		equities:          equities,
-		companyContext:    companyContext,
+		contexts:          contexts,
 		selicRate:         selicRate,
 		selicNeutral:      selicNeutral,
 		priceHistoryCache: make(map[string][]float64),
@@ -606,7 +642,7 @@ func (s *Service) runIntradayRounds(
 	for i, b := range directional {
 		candidates[i] = bot.TurnCandidate{Scope: b.Personality.Scope, Archetype: b.Personality.Archetype}
 	}
-	applyEventAttention(universe, equities, companyContext, etfFunds)
+	applyEventAttention(universe, equities, contexts, etfFunds)
 	turnRng := rand.New(rand.NewSource(deterministicSeed(s.seed, "turns") + int64(dayIndex)))
 	dayTurns := bot.AllocateTurns(universe, bot.TurnBudget(len(universe)), turnRng)
 	run.orderCeilingPct = orderCeilingPcts(universe, dayTurns)
@@ -718,7 +754,7 @@ func (s *Service) finalQuotePass(ctx context.Context, run *roundRun, roster []Bo
 type roundRun struct {
 	dayIndex          int
 	equities          map[string]*equityRoundState
-	companyContext    map[string]CompanyRoundContext
+	contexts          RoundContext
 	selicRate         float64
 	selicNeutral      float64
 	priceHistoryCache map[string][]float64
@@ -816,8 +852,17 @@ func (r *roundRun) directionalCeilingPct(assetID string) float64 {
 // turnos e volume, e os turnos preferem Fundamentalistas — os dois efeitos
 // somados no mesmo gatilho, generalizando o que antes só checava
 // MacroEffectPct. ETF deriva a atenção da cesta (R.10).
-func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, companyContext map[string]CompanyRoundContext, etfFunds map[string]etf.FundSnapshot) {
+func applyEventAttention(universe []bot.EquityForRound, equities map[string]*equityRoundState, contexts RoundContext, etfFunds map[string]etf.FundSnapshot) {
+	companyContext := contexts.Company
 	for i := range universe {
+		// FII (tarefa U.4): sem empresa, só o efeito do provento mensal, na
+		// mesma banda curta que a ação, liga a atenção extra.
+		if fc, ok := contexts.FII[universe[i].AssetID]; ok {
+			if fc.DividendEffectPct != 0 {
+				universe[i].Attention = bot.AttentionMultiplier(fc.DividendEffectPct)
+			}
+			continue
+		}
 		state := equities[universe[i].AssetID]
 		if state == nil || state.CompanyID == nil {
 			continue
@@ -892,12 +937,12 @@ func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRoun
 	if turn.Floor {
 		attempts = floorTurnAttempts
 	}
-	// Fundamentalista não negocia ativo sem empresa/fundamentos (FII, ou uma empresa
-	// ainda sem relatório): sorteá-lo desperdiçaria o turno, e o turno de piso
-	// esgotava as tentativas mais vezes em FII (3,8% dos dias sem negócio contra
-	// 0,2% nas ações no teste ponta a ponta da Fase Q).
+	// Fundamentalista não negocia ativo sem contexto (ETF, uma empresa ainda sem
+	// relatório, um FII sem valor-base): sorteá-lo desperdiçaria o turno, e o turno de
+	// piso esgotava as tentativas (3,8% dos dias sem negócio em FII contra 0,2% nas
+	// ações no teste ponta a ponta da Fase Q, quando FII ainda não tinha contexto).
 	eligible, indexes := candidates, []int(nil)
-	if !assetHasCompanyContext(run.equities[turn.AssetID], run.companyContext) {
+	if !assetHasFundamentalContext(turn.AssetID, run.equities[turn.AssetID], run.contexts) {
 		eligible = make([]bot.TurnCandidate, 0, len(candidates))
 		indexes = make([]int, 0, len(candidates))
 		for i, c := range candidates {
@@ -928,13 +973,21 @@ func (s *Service) runTurn(ctx context.Context, run *roundRun, round IntradayRoun
 	return nil
 }
 
-// assetHasCompanyContext reporta se o ativo tem empresa com fundamentos no dia, o
-// que um Fundamentalista precisa para decidir (ver fundamentalistHasCompanyContext).
-func assetHasCompanyContext(state *equityRoundState, companyContext map[string]CompanyRoundContext) bool {
-	if state == nil || state.CompanyID == nil {
+// assetHasFundamentalContext reporta se o ativo tem o que um Fundamentalista
+// precisa pra decidir: empresa com fundamentos no dia (Ação) ou contexto de
+// preço justo de FII (U.2, indexado por AssetID). ETF nunca tem um dos dois
+// (preço ancorado no iNAV, R.5/R.6), então segue fora do arquétipo.
+func assetHasFundamentalContext(assetID string, state *equityRoundState, contexts RoundContext) bool {
+	if state == nil {
 		return false
 	}
-	_, ok := companyContext[*state.CompanyID]
+	if _, ok := contexts.FII[assetID]; ok {
+		return true
+	}
+	if state.CompanyID == nil {
+		return false
+	}
+	_, ok := contexts.Company[*state.CompanyID]
 	return ok
 }
 
@@ -983,7 +1036,7 @@ func countUncoveredAssets(roster []BotForRound, equities map[string]*equityRound
 func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round IntradayRound, b BotForRound, assetID, purpose string, floor bool) (int, error) {
 	state := run.equities[assetID]
 
-	if !fundamentalistHasCompanyContext(b.Personality, state, run.companyContext) {
+	if !fundamentalistHasContext(b.Personality, assetID, state, run.contexts) {
 		return 0, nil
 	}
 
@@ -993,7 +1046,7 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 	}
 
 	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision:"+purpose)
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, run.companyContext, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, assetID, run.directionalCeilingPct(assetID))
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, assetID, run.contexts, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, run.directionalCeilingPct(assetID))
 	if err != nil {
 		return 0, err
 	}
@@ -1126,7 +1179,7 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 	// último preço, segue sendo o que os fills atualizam.
 	quoteState := *state
 	quoteState.Price = reference
-	input, ok, err := s.decisionInputFor(ctx, b.Personality, &quoteState, execCtx, run.companyContext, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, assetID, MinOrderPctOfFloat)
+	input, ok, err := s.decisionInputFor(ctx, b.Personality, &quoteState, execCtx, assetID, run.contexts, run.selicRate, run.selicNeutral, 0, run.priceHistoryCache, run.volumeCache, MinOrderPctOfFloat)
 	if err != nil {
 		return true, err
 	}

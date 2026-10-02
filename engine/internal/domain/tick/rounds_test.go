@@ -129,7 +129,7 @@ func TestRunIntradayRounds_SemAcaoNoUniversoNaoFazNada(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), nil, nil, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), nil, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -152,7 +152,7 @@ func TestRunIntradayRounds_FIINegociaComoAcaoViaBookReal(t *testing.T) {
 
 	assets := []AssetForPricing{fiiAsset("fii1", 100)}
 
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -191,7 +191,7 @@ func TestRunIntradayRounds_QuantidadeDeCompraNuncaExcedeOFloat(t *testing.T) {
 
 	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
 
-	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -327,7 +327,7 @@ func TestRunIntradayRounds_TetoDeVolumeLimitaOrdemQuandoMenorQueOFloat(t *testin
 
 	const wantCeiling = 2 // avg(10) * MaxOrderPctOfAverageVolumePct (0.20) = 2, << floatCeiling
 
-	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -366,7 +366,7 @@ func TestRunIntradayRounds_VolumeRealZeradoPorVariosDiasNaoTravaOrdemDeCompra(t 
 
 	assets := []AssetForPricing{fiiAsset("fii1", 134.65)}
 
-	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -398,7 +398,7 @@ func TestRunIntradayRounds_PropagaErroDeRecentTradedVolume(t *testing.T) {
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	svc.tradedVolume = &fakeTradedVolumeReader{readErr: errors.New("falha de conexão")}
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de RecentTradedVolume")
 	}
@@ -420,7 +420,7 @@ func TestRunIntradayRounds_VolumeNegociadoAcumuladoPorAtivo(t *testing.T) {
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	_, volumes, fills, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, volumes, fills, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -468,7 +468,7 @@ func TestRunIntradayRounds_DuasAcoesDaMesmaEmpresaNegociamEmBooksIndependentes(t
 		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
 	}
 
-	closing, volumes, fills, _, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, volumes, fills, _, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -582,7 +582,7 @@ func TestRunIntradayRounds_FundamentalistaValorizaPnAcimaDeOnProporcionalAoPremi
 		rounds[i] = IntradayRound{SequenceIndex: i, TimeOfDay: float64(i) / float64(len(rounds))}
 	}
 
-	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, companyContext, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, rounds, assets, RoundContext{Company: companyContext}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -631,7 +631,7 @@ func TestRunIntradayRounds_CotacaoBoaNaoGeraCancelamentoNemSubmissao(t *testing.
 	lifecycle := &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": goodQuote("a1")}}
 	svc.orderLifecycle = lifecycle
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -666,7 +666,7 @@ func TestRunIntradayRounds_LadoConsumidoERecotadoSozinho(t *testing.T) {
 	lifecycle := &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": {goodQuote("a1")[1]}}}
 	svc.orderLifecycle = lifecycle
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -699,7 +699,7 @@ func TestRunIntradayRounds_LadoForaDaToleranciaCancelaSoEsseLado(t *testing.T) {
 	svc.orderLifecycle = &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": stale}}
 	lifecycle := svc.orderLifecycle.(*fakeOrderLifecycleManager)
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nenhum erro", err)
 	}
@@ -730,7 +730,7 @@ func TestRunIntradayRounds_LeituraDeOrdensEmLotePorMarketMaker(t *testing.T) {
 	svc.orderLifecycle = lifecycle
 
 	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
-	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	if want := 2 + finalPassMaxIterations; len(lifecycle.listCalls) != want {
@@ -754,7 +754,7 @@ func TestRunIntradayRounds_PassadaFinalRecotaOQueFoiConsumido(t *testing.T) {
 	svc.orderLifecycle = &fakeOrderLifecycleManager{}
 
 	rounds := twoIntradayRounds()
-	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, rounds[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, rounds[:1], []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	// 1 rodada + passada final repetida (o fake não simula o book), os 2 lados
@@ -774,7 +774,7 @@ func TestRunIntradayRounds_NaoMarketMakerNuncaMexeEmOrdemPropria(t *testing.T) {
 	lifecycle := &fakeOrderLifecycleManager{}
 	svc.orderLifecycle = lifecycle
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -798,7 +798,7 @@ func TestRunIntradayRounds_PropagaErroDaManutencaoDeCotacao(t *testing.T) {
 			svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 			svc.orderLifecycle = lifecycle
 
-			_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+			_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 			if err == nil {
 				t.Fatal("err = nil, want erro propagado")
 			}
@@ -821,7 +821,7 @@ func TestRunIntradayRounds_FundamentalistaNuncaNegociaFII(t *testing.T) {
 
 	assets := []AssetForPricing{fiiAsset("fii1", 100)}
 
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -837,7 +837,7 @@ func TestRunIntradayRounds_SemRodadaSorteadaNaoFazNada(t *testing.T) {
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, nil, []AssetForPricing{acaoAsset("a1", 100)}, nil, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, nil, []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -859,7 +859,7 @@ func TestRunIntradayRounds_FechamentoUsaUltimoFillDeTodasAsRodadas(t *testing.T)
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -903,7 +903,7 @@ func TestRunIntradayRounds_PrimeiraOrdemReaproveitaContextoJaCarregado(t *testin
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -929,7 +929,7 @@ func TestRunIntradayRounds_SemFillMantemPrecoAnterior(t *testing.T) {
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -953,7 +953,7 @@ func TestRunIntradayRounds_BotInelegivelNuncaESubmetido(t *testing.T) {
 	svc.orderSubmitter = submitter
 
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
-	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -981,12 +981,12 @@ func TestRunIntradayRounds_Deterministico(t *testing.T) {
 	assets := []AssetForPricing{acaoAsset("a1", 100)}
 
 	svc1, sub1 := buildService()
-	_, _, _, _, err := svc1.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc1.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	svc2, sub2 := buildService()
-	_, _, _, _, err = svc2.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err = svc2.runIntradayRounds(context.Background(), 5, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -1005,7 +1005,7 @@ func TestRunIntradayRounds_PropagaErroDeListEligibleForTradingRound(t *testing.T
 	svc := newTestService(&fakeRepository{})
 	svc.bots = &fakeBotRoster{listErr: errors.New("falha de conexão")}
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de ListEligibleForTradingRound")
 	}
@@ -1029,7 +1029,7 @@ func TestRunIntradayRounds_FundamentalistaSemCompanyIDNuncaChamaLoadContext(t *t
 	lastPrice := 100.0
 	assets := []AssetForPricing{{AssetID: "a1", Type: assetTypeAcao, RiskClass: &riskClass, Sector: &sector, LastPrice: &lastPrice}} // CompanyID nil
 
-	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -1046,7 +1046,7 @@ func TestRunIntradayRounds_PropagaErroDeLoadContext(t *testing.T) {
 	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
 	svc.orderContext = &fakeOrderContextLoader{loadErr: errors.New("falha de conexão")}
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de LoadContext")
 	}
@@ -1058,7 +1058,7 @@ func TestRunIntradayRounds_PropagaErroDeSubmit(t *testing.T) {
 	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 	svc.orderSubmitter = &fakeOrderSubmitter{submitErr: errors.New("falha de conexão")}
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Submit")
 	}
@@ -1085,7 +1085,7 @@ func TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick(t *testing.T)
 			svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}}
 			svc.orderSubmitter = &fakeOrderSubmitter{submitErr: businessErr}
 
-			_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+			_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 			if err != nil {
 				t.Fatalf("err = %v, want nil — rejeição de negócio só deve descartar a ordem, não abortar o tick", err)
 			}
@@ -1123,7 +1123,7 @@ func TestService_Run_EventoMacroSeveroMovePrecoGradualmenteViaNegociacao(t *test
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), fundamentals.NeutralQualityMultiplier, startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -1344,7 +1344,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	shares := int64(outstandingShares)
 	startPriceCopy := startPrice
 
-	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
+	financials, err := fundamentals.BootstrapFinancialsForTargetPrice(catalog.Sector(sector), fundamentals.NeutralQualityMultiplier, startPrice, outstandingShares, fundamentals.DefaultBaseGrowth, selicNeutralFrac)
 	if err != nil {
 		t.Fatalf("BootstrapFinancialsForTargetPrice: err = %v, want nil", err)
 	}
@@ -1499,7 +1499,7 @@ func TestRunIntradayRounds_MarketMakerCotaTodaACoberturaEmTodaRodada(t *testing.
 	svc.orderLifecycle = &fakeOrderLifecycleManager{}
 
 	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
-	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -1538,7 +1538,7 @@ func TestRunIntradayRounds_MarketMakerIgnoraAtivoCobertoForaDoUniverso(t *testin
 	lifecycle := &fakeOrderLifecycleManager{}
 	svc.orderLifecycle = lifecycle
 
-	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -1563,7 +1563,7 @@ func TestRunIntradayRounds_ContaAtivosSemCobertura(t *testing.T) {
 	svc.orderLifecycle = &fakeOrderLifecycleManager{}
 
 	assets := []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100), acaoAsset("a3", 100)}
-	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10)
+	_, _, _, uncovered, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), assets, RoundContext{}, 10, 10)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
@@ -1580,7 +1580,7 @@ func TestRunIntradayRounds_MarketMakerComCoberturaEDeterministico(t *testing.T) 
 		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000}}
 		svc.orderSubmitter = &fakeOrderSubmitter{fillAtRequestedPrice: true}
 		svc.orderLifecycle = &fakeOrderLifecycleManager{}
-		closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 4, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100)}, map[string]CompanyRoundContext{}, 10, 10)
+		closing, _, fills, _, err := svc.runIntradayRounds(context.Background(), 4, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100), acaoAsset("a2", 100)}, RoundContext{}, 10, 10)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -1605,7 +1605,7 @@ func TestRunIntradayRounds_AbreUmEscopoDeLeituraPorTick(t *testing.T) {
 	svc.orderContext = loader
 	svc.orderSubmitter = &fakeOrderSubmitter{fillPrice: 105}
 
-	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if loader.scopes != 1 {
@@ -1658,7 +1658,7 @@ func TestRunIntradayRounds_TodoAtivoRecebeUmTurnoDePisoPorDiaAMercado(t *testing
 			svc.orderContext.(*fakeOrderContextLoader).positions[a.AssetID] = 10_000
 		}
 
-		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 5, rounds, assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 5, rounds, assets, RoundContext{}, 10, 10); err != nil {
 			t.Fatalf("%d rodadas: err = %v", len(rounds), err)
 		}
 
@@ -1685,7 +1685,7 @@ func TestRunIntradayRounds_OrcamentoDeTurnosIndependeDoNumeroDeRodadas(t *testin
 		svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000, "a2": 10_000, "a3": 10_000}}
 		submitter := &fakeOrderSubmitter{fillPrice: 100}
 		svc.orderSubmitter = submitter
-		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 2, rounds, assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+		if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 2, rounds, assets, RoundContext{}, 10, 10); err != nil {
 			t.Fatal(err)
 		}
 		return len(submitter.submitted)
@@ -1720,7 +1720,7 @@ func TestRunIntradayRounds_TurnoDePisoTentaOutroBotSeOPrimeiroNaoNegocia(t *test
 		return nil
 	}
 
-	if _, _, fills, _, err := svc.runIntradayRounds(context.Background(), 1, []IntradayRound{{SequenceIndex: 0}}, []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, fills, _, err := svc.runIntradayRounds(context.Background(), 1, []IntradayRound{{SequenceIndex: 0}}, []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10); err != nil {
 		t.Fatal(err)
 	} else if fills == 0 {
 		t.Error("fills = 0, want > 0: o piso tenta outro bot depois da rejeição")
@@ -1780,7 +1780,7 @@ func TestRunIntradayRounds_PassadaFinalRepeteAteACotacaoEstabilizar(t *testing.T
 	lifecycle := &fakeOrderLifecycleManager{restingByCall: []map[string][]bot.RestingQuote{nil, nil, good}}
 	svc.orderLifecycle = lifecycle
 
-	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds()[:1], []AssetForPricing{acaoAsset("a1", 100)}, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds()[:1], []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10); err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
 	if len(lifecycle.listCalls) != 3 {
@@ -1801,10 +1801,10 @@ func TestApplyEventAttention(t *testing.T) {
 	assets[1] = a2
 	equities, universe := buildEquityUniverse(assets)
 
-	applyEventAttention(universe, equities, map[string]CompanyRoundContext{
+	applyEventAttention(universe, equities, RoundContext{Company: map[string]CompanyRoundContext{
 		"c1": {MacroEffectPct: -25},
 		"c2": {MacroEffectPct: 0},
-	}, nil)
+	}}, nil)
 
 	got := map[string]float64{}
 	for _, e := range universe {
@@ -1852,7 +1852,7 @@ func TestRunIntradayRounds_TurnoDeFIINaoSorteiaFundamentalista(t *testing.T) {
 	submitter := &fakeOrderSubmitter{fillPrice: 100}
 	svc.orderSubmitter = submitter
 
-	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, map[string]CompanyRoundContext{}, 10, 10); err != nil {
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 3, twoIntradayRounds(), assets, RoundContext{}, 10, 10); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1884,7 +1884,7 @@ func TestApplyEventAttention_ETFDerivaDaCesta(t *testing.T) {
 		"e2": {Targets: []etf.TargetWeight{{AssetID: "a2", WeightPct: 100}}},
 	}
 
-	applyEventAttention(universe, equities, map[string]CompanyRoundContext{"c1": {MacroEffectPct: -25}}, funds)
+	applyEventAttention(universe, equities, RoundContext{Company: map[string]CompanyRoundContext{"c1": {MacroEffectPct: -25}}}, funds)
 
 	got := map[string]float64{}
 	for _, e := range universe {

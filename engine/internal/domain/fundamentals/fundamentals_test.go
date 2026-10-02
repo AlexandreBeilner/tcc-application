@@ -233,7 +233,7 @@ func TestRevenueSeries_ReageDeFormaPlausivelAMudancasDeSelic(t *testing.T) {
 // receita×margem, dívida = patrimônio×ratio, caixa = receita×ratio)
 // continua funcionando igual, só a fonte do coeficiente mudou.
 func TestDeriveFinancials_SetorDesconhecidoUsaFallbackGenerico(t *testing.T) {
-	got := DeriveFinancials(catalog.Sector("Inexistente"), 1_000_000)
+	got := DeriveFinancials(catalog.Sector("Inexistente"), NeutralQualityMultiplier, 1_000_000)
 
 	want := Financials{
 		NetRevenue:      1_000_000,
@@ -290,7 +290,7 @@ func TestDeriveFinancials_CoeficientesVariamPorSetor(t *testing.T) {
 	seen := make(map[Financials]bool, len(tests))
 	for _, tt := range tests {
 		t.Run(string(tt.sector), func(t *testing.T) {
-			got := DeriveFinancials(tt.sector, netRevenue)
+			got := DeriveFinancials(tt.sector, NeutralQualityMultiplier, netRevenue)
 			if got != tt.want {
 				t.Errorf("DeriveFinancials(%s, %v) = %+v, want %+v", tt.sector, netRevenue, got, tt.want)
 			}
@@ -307,7 +307,7 @@ func TestDeriveFinancials_EBITMarginMaiorQueNetMargin(t *testing.T) {
 	// respeitando, em todo setor: EBIT vem antes de juros/impostos, por
 	// isso é sempre >= net_income pra receita positiva.
 	for sector := range CoefficientsBySector {
-		got := DeriveFinancials(sector, 500_000)
+		got := DeriveFinancials(sector, NeutralQualityMultiplier, 500_000)
 
 		if got.EBIT <= got.NetIncome {
 			t.Errorf("setor %s: EBIT (%v) deveria ser maior que NetIncome (%v)", sector, got.EBIT, got.NetIncome)
@@ -358,7 +358,7 @@ func TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := BootstrapFinancialsForTargetPrice(tt.sector, tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			got, err := BootstrapFinancialsForTargetPrice(tt.sector, NeutralQualityMultiplier, tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
 			if err != nil {
 				t.Fatalf("erro inesperado: %v", err)
 			}
@@ -383,7 +383,7 @@ func TestBootstrapFinancialsForTargetPrice_RoundTripReproduzPrecoAlvo(t *testing
 func TestBootstrapFinancialsForTargetPrice_RevenuePorAcaoReflecteCoeficientesDoSetor(t *testing.T) {
 	const outstandingShares = 500_000_000
 
-	got, err := BootstrapFinancialsForTargetPrice(catalog.SectorMineracao, 100, outstandingShares, 0.03, 0.10)
+	got, err := BootstrapFinancialsForTargetPrice(catalog.SectorMineracao, NeutralQualityMultiplier, 100, outstandingShares, 0.03, 0.10)
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
@@ -415,10 +415,70 @@ func TestBootstrapFinancialsForTargetPrice_ErrosDeEntrada(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := BootstrapFinancialsForTargetPrice(catalog.SectorMineracao, tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
+			_, err := BootstrapFinancialsForTargetPrice(catalog.SectorMineracao, NeutralQualityMultiplier, tt.targetPrice, tt.outstandingShares, tt.growthRate, tt.selicNeutral)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("err = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestDeriveFinancials_QualidadeDiferenciaEmpresasDoMesmoSetor é o critério
+// de aceite do achado 025: duas empresas do mesmo setor com multiplicadores
+// diferentes têm ROE, margem e alavancagem diferentes (antes eram idênticos),
+// e o multiplicador neutro reproduz exatamente o coeficiente do setor.
+func TestDeriveFinancials_QualidadeDiferenciaEmpresasDoMesmoSetor(t *testing.T) {
+	const netRevenue = 1_000_000.0
+	for sector, base := range CoefficientsBySector {
+		boa := DeriveFinancials(sector, 1.25, netRevenue)
+		media := DeriveFinancials(sector, NeutralQualityMultiplier, netRevenue)
+		ruim := DeriveFinancials(sector, 0.75, netRevenue)
+
+		roe := func(f Financials) float64 { return f.NetIncome / f.NetEquity }
+		if !(roe(boa) > roe(media) && roe(media) > roe(ruim)) {
+			t.Errorf("%s: ROE boa/média/ruim = %v/%v/%v, want estritamente decrescente", sector, roe(boa), roe(media), roe(ruim))
+		}
+		debtRatio := func(f Financials) float64 { return f.GrossDebt / f.NetEquity }
+		if !(debtRatio(boa) < debtRatio(media) && debtRatio(media) < debtRatio(ruim)) {
+			t.Errorf("%s: dívida/patrimônio boa/média/ruim = %v/%v/%v, want estritamente crescente", sector, debtRatio(boa), debtRatio(media), debtRatio(ruim))
+		}
+		if boa.NetEquity != media.NetEquity || boa.CashEquivalents != media.CashEquivalents {
+			t.Errorf("%s: patrimônio/caixa não deveriam variar com a qualidade", sector)
+		}
+		if got, want := roe(media), base.NetMarginPct/base.EquityToRevenueRatio; math.Abs(got-want) > 1e-12 {
+			t.Errorf("%s: ROE neutro = %v, want %v (coeficiente do setor)", sector, got, want)
+		}
+		if boa.EBIT < boa.NetIncome || ruim.EBIT < ruim.NetIncome {
+			t.Errorf("%s: EBIT abaixo do lucro líquido com multiplicador de qualidade", sector)
+		}
+	}
+}
+
+// TestCoefficientsForCompany_MultiplicadorNaoPositivoVaiNeutro cobre o
+// tratamento defensivo do valor zero (struct sem o campo preenchido).
+func TestCoefficientsForCompany_MultiplicadorNaoPositivoVaiNeutro(t *testing.T) {
+	want := CoefficientsForSector(catalog.SectorVarejo)
+	for _, q := range []float64{0, -1} {
+		if got := CoefficientsForCompany(catalog.SectorVarejo, q); got != want {
+			t.Errorf("CoefficientsForCompany(Varejo, %v) = %+v, want %+v", q, got, want)
+		}
+	}
+}
+
+// TestBootstrapFinancialsForTargetPrice_QualidadeMantemPrecoJusto: o preço
+// justo de partida bate com o alvo independente do multiplicador (empresa
+// melhor precisa de menos patrimônio pro mesmo preço).
+func TestBootstrapFinancialsForTargetPrice_QualidadeMantemPrecoJusto(t *testing.T) {
+	const shares, growth, neutral = int64(1_000_000), 0.03, 0.10
+	for _, q := range []float64{0.75, 1.0, 1.25} {
+		f, err := BootstrapFinancialsForTargetPrice(catalog.SectorTecnologia, q, 100, shares, growth, neutral)
+		if err != nil {
+			t.Fatalf("q=%v: %v", q, err)
+		}
+		vpa := f.NetEquity / float64(shares)
+		fair := vpa * (f.NetIncome / f.NetEquity / neutral) * (1 + growth)
+		if math.Abs(fair-100) > 1e-6 {
+			t.Errorf("q=%v: preço justo = %v, want 100", q, fair)
+		}
 	}
 }

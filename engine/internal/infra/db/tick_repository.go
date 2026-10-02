@@ -170,7 +170,7 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.base_growth_pct, f.net_revenue
+		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.base_growth_pct, c.quality_multiplier, f.net_revenue
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -188,7 +188,7 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	var companies []tick.CompanyForFundamentals
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.LastRevenue); err != nil {
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.LastRevenue); err != nil {
 			return nil, err
 		}
 		companies = append(companies, c)
@@ -270,7 +270,7 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // o snapshot de cotistas de ETFFundRepository.ListShareHolders.
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador
+		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador, fd.fii_type, fd.segment
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -287,7 +287,7 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.ShareClass, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.ShareClass, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador, &a.FIIType, &a.Segment); err != nil {
 			return nil, err
 		}
 		a.Type = assetType

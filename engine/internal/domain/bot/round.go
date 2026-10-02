@@ -114,10 +114,16 @@ type DecisionInput struct {
 	// pela empresa deste ativo, 0 fora da banda curta de dias em que o
 	// efeito fica ativo (tick.companyRoundContexts).
 	DividendEffectPct float64
-	SelicAnnualRate   float64
-	SelicNeutral      float64
-	RiskClass         equity.RiskClass
-	Seed              int64
+	// FII (tarefa U.3, achado 024) é o contexto de preço justo de um FII; nil
+	// pra Ação/ETF. Quando presente, o Fundamentalista decide por
+	// DecideFundamentalistFIIOrder (OutstandingShares continua sendo o float
+	// do ativo) em vez da fórmula de empresa. Ignorado pelos demais
+	// arquétipos.
+	FII             *FIIFairPriceInput
+	SelicAnnualRate float64
+	SelicNeutral    float64
+	RiskClass       equity.RiskClass
+	Seed            int64
 	// OrderSizeCeiling (achado 005, pontos-em-aberto-decisao-produto.md) é
 	// o teto de tamanho de ordem de compra repassado aos 4 arquétipos
 	// (capToFloat, marketmaker.go) — nil quando nenhum teto se aplica (ex:
@@ -130,6 +136,16 @@ type DecisionInput struct {
 	// com o que o mercado de fato absorve) — nenhum dos 4 arquétipos
 	// precisa saber de onde o teto veio, só que não pode ser excedido.
 	OrderSizeCeiling *int64
+}
+
+// FIIFairPriceInput são os insumos de fii.FairPrice que o Fundamentalista
+// precisa pra decidir sobre um FII (tarefa U.3): o patrimônio (tijolo) ou a
+// carteira (papel) total, o P/VP-alvo já resolvido pra Selic do dia e o efeito
+// do provento (% transitório, U.4).
+type FIIFairPriceInput struct {
+	BaseValue         float64
+	TargetPriceToBook float64
+	DividendEffectPct float64
 }
 
 // Decide despacha pra função de decisão do arquétipo de personality
@@ -160,6 +176,13 @@ func Decide(personality Personality, input DecisionInput) ([]Decision, error) {
 		}
 		return []Decision{d}, nil
 	case ArchetypeFundamentalista:
+		if input.FII != nil {
+			d, err := DecideFundamentalistFIIOrder(personality, *input.FII, input.OutstandingShares, input.ReferencePrice, input.AvailableCash, input.CurrentPosition, input.Seed, input.OrderSizeCeiling)
+			if err != nil {
+				return nil, err
+			}
+			return []Decision{d}, nil
+		}
 		d, err := DecideFundamentalistOrder(
 			personality, input.Financials, input.OutstandingShares, input.GrowthRate, input.MacroEffectPct, input.PnDividendPremiumPct, input.DividendEffectPct,
 			input.ReferencePrice, input.SelicAnnualRate, input.SelicNeutral, input.RiskClass,

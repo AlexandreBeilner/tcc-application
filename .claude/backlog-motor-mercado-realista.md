@@ -2744,11 +2744,9 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
   usuário não-admin nas 3 rotas.
 - **Referências:** proposta 2.3; `.docs/engine/admin.md` (a criar/estender); tela 10.1/10.2 como
   precedente de padrão admin.
-- **Nota (achado 002, `.claude/pontos-em-aberto-decisao-produto.md`):** `POST /admin/bots` é o
-  primeiro consumidor real de `bot.NewRiskProfile` fora do seed (que hoje só cria com `0.02`
-  fixo) — `SpreadWidthPct` não tem teto superior (só rejeita `< 0`) antes do `>= 2` de
-  `DecideMarketMakerOrders` colapsar o book. Achado ainda sem decisão de produto (qual teto máximo
-  é razoável) — resolver antes de aceitar esse campo vindo de input externo nesta tarefa.
+- **Nota (achado 002, resolvido na P.6):** `bot.NewRiskProfile` já valida `SpreadWidthPct` em
+  `[0, MaxSpreadWidthPct = 0.10]` (`ErrSpreadWidthAboveMax`); `POST /admin/bots` só precisa reaproveitá-lo,
+  sem teto novo.
 - **Dependências:** A.4, C.1, C.6 (catálogo de bots já existente pra listar).
 
 ### N.2 · Tela "Painel Admin — Bots" no frontend
@@ -4517,6 +4515,9 @@ mecanicamente na data-ex; a ordem sugerida é S.15 → S.16 → S.13 → S.14, m
   correção prevista ainda.
 - **Dependências:** um arquétipo de bot com "preço justo" de FII (não existe hoje) — provável pré-requisito de uma fase futura, não
   desta.
+- **Status (2026-09-29):** agora tem dono — **Fase U** (U.1 a U.7), em especial a **U.4** (efeito do provento no preço justo de FII).
+- **Atualização (U.6, 2026-09-30):** a nota "sem âncora" deixou de valer: o Fundamentalista negocia FII com preço justo (U.3) e o provento entra nele (U.4).
+- **Status final (U.7, 2026-09-30):** ✅ resolvida, validada em 200 dias simulados.
 
 ### S.15 · Provento recebido por posição, exposto por ativo (motor + backend) ✅
 - **Descrição:** `accounts.total_dividends_received` só existe agregado por conta (`GET /market/me/account`), sem quebra por
@@ -4970,6 +4971,339 @@ diretamente na conversa, registradas abaixo.
   contrato HTTP, então sem entrada nova em `.docs/`. **Sem `docker compose up`** — mudança é só de frontend (não
   containerizado). **Fase T completa** (T.1–T.11, todas ✅).
 
+## Fase U — Preço justo de FII para o Fundamentalista (achado 024, fecha a reserva S.14)
+
+**Origem:** achado 024 de `pontos-em-aberto-decisao-produto.md` (validação da S.2, 2026-09-26): TJLO11 e PAPL11 caíram em média
+49% em 200 dias simulados com o patrimônio por cota estável, porque nenhum bot tem noção de valor de FII
+(`FundamentalistFairPrice` é só de ação). Mesma lacuna registrada como reserva na S.14. Decisão do autor (2026-09-29): **opção A**
+do achado, calibrada por pesquisa de como o mercado real avalia FII.
+
+**Como o mercado real avalia FII (pesquisa de 2026-09-29, fontes no achado 024):** duas lentes usadas juntas. (1) **P/VP**:
+preço sobre valor patrimonial por cota, que no tijolo é essencialmente o laudo dos imóveis. Desconto persistente é normal e varia
+por segmento (lajes corporativas ~0,66x, shoppings ~0,86x, logística ~18% de desconto médio, 85% dos FIIs abaixo do VP), e desconto
+sozinho não é sinal de compra. (2) **Renda contra o juro livre de risco**: gestores acompanham o spread entre o Dividend Yield do
+tijolo e a NTN-B (média histórica ~2,9% a 3,0% desde 2016, chegou a 3,6% em ago/2024). Juro mais alto exige yield maior e empurra o
+P/VP pra baixo. Os números vêm de reportagens e relatórios de gestoras: servem de ordem de grandeza, não de calibração fina (a
+calibração fina é a 8.1).
+
+**Decisões de design (2026-09-29):**
+1. **Fórmula (opção A, híbrida):** `preço justo = VP por cota × P/VP-alvo × (1 + efeito macro) × (1 + efeito de provento)`, com
+   `P/VP-alvo = P/VP-base(segmento) × (1 − β × (yield_exigido − yield_neutro) / yield_neutro)`, `yield_exigido = Selic + spread`,
+   `yield_neutro = Selic neutra + spread`, resultado limitado a uma faixa (ex.: 0,5 a 1,5) e o preço justo nunca abaixo de
+   `FundamentalistMinFairPrice`. Em palavras: parte do patrimônio, aplica o desconto típico do segmento e desloca esse desconto
+   quando a Selic sai da neutra.
+2. **VP por cota:** `fii_details.net_worth` (tijolo) ou `portfolio_value` (papel) ÷ `outstanding_shares`, a mesma grandeza que
+   `dividend.FIIValuePerShare` já usa.
+3. **Constantes ilustrativas** (como `SensitivityByRiskClass` e as da J.6): P/VP-base por segmento, spread por tipo e β por tipo,
+   marcadas como sujeitas à 8.1. Papel tem β menor (indexado a CDI/IPCA, sofre menos com juro alto) e P/VP-base perto de 1,0. Não
+   achei P/VP nem spread histórico confiável de FII de papel na pesquisa, então o valor do papel é declaradamente ilustrativo.
+4. **Fora de escopo:** evento macro afetando FII (hoje o efeito macro é por empresa, e FII não tem empresa); rebalanceamento de FII
+   por marcação a mercado de imóvel (o VP continua evoluindo só pela Selic + ruído, `fii.NextNetWorth`).
+
+**Riscos já mapeados no código (por que a fase tem 7 tarefas e não 1):**
+- O Fundamentalista é **explicitamente excluído de FII** em três pontos: `fundamentalistHasCompanyContext`/`assetHasCompanyContext`
+  (dependem de `CompanyID`, que FII não tem) e o filtro de candidatos em `runTurn` (`rounds.go`, existe porque o turno de piso
+  esgotava tentativas em FII). Todos precisam passar a reconhecer FII com contexto próprio, senão o arquétipo novo nunca roda.
+- `applyEventAttention` só liga a atenção extra para ativo com `CompanyID`, então o efeito de provento de FII (U.4) não teria
+  turnos suficientes sem um ramo próprio.
+- **Degrau no dia 1:** o seed cria FII com `net_worth = cotas × preço inicial` (P/VP = 1). Com P/VP-alvo de 0,75 (lajes), o
+  Fundamentalista empurraria o preço 25% pra baixo no primeiro tick. A calibração do seed precisa ser inversa, como já foi feito
+  para ações no achado 003 (`fundamentals.BootstrapFinancialsForTargetPrice`): calcular o `net_worth` inicial a partir do preço-alvo.
+- **Dupla contagem da Selic:** `fii.NextNetWorth` já reduz o VP quando a Selic sobe (sensibilidade 0,03 por ciclo), e o P/VP-alvo
+  também reage à Selic. O efeito somado pode ficar forte demais; a U.7 mede isso e o β é o botão de ajuste.
+- **Provento (1,1% do VP por mês) muda de yield efetivo** quando o VP inicial passa a ser maior que o preço (P/VP-alvo < 1): o
+  yield sobre o preço sobe. Conferir na U.7 que o DY anual continua numa faixa plausível.
+- ETF que carrega FII (SINT11 e outros da cesta) herda qualquer mudança de preço de FII: a U.7 precisa conferir que o tracking
+  error e o ágio/deságio (achado 016) não pioram.
+
+**Mapa de impacto (varredura de 2026-09-30, arquivo por arquivo):**
+
+| Área | Arquivo | Muda? | Tarefa |
+|---|---|---|---|
+| Domínio FII | `engine/internal/domain/fii/` (novo `fairprice.go` + teste) | Sim, arquivo novo | U.1 |
+| Tick | `tick/tick.go` (`DividendPayerAsset`, novo `fiiRoundContexts`, `Result`/`Advance`) | Sim | U.2 |
+| Tick | `tick/rounds.go` (`equityRoundState`, `decisionInputFor`, `fundamentalistHasCompanyContext`, `assetHasCompanyContext`, filtro de `runTurn`, `applyEventAttention`, `roundRun`) | Sim | U.2, U.3, U.4 |
+| Infra DB | `infra/db/tick_repository.go` (`ListDividendPayerAssets`: `fd.segment`, `fd.fii_type` + `Scan`) | Sim | U.2 |
+| Bot | `bot/fundamentalist.go` (decisão de FII reaproveitando o trecho comum), `bot/round.go` (`DecisionInput`) | Sim | U.3 |
+| Dividendo | `dividend/dividend.go` (`FIIPriceEffectPct`) | Sim | U.4 |
+| Seed | `cmd/seed/main.go` (`seedFIITijolo`, `seedFIIPapel`) | Sim | U.5 |
+| API do motor | `infra/httpserver/assets.go` (campo `price_to_book_value` do FII) | Sim | U.6 |
+| Backend | `modules/market/application/ports/catalogReader.ts` (+ proxy) | Sim | U.6 |
+| Frontend | `services/market/types.ts`, `FiiIndicatorsPanel` | Sim | U.6 |
+| Docs | `.docs/engine/tick.md`, `.docs/engine/catalog.md`, `.docs/backend/market.md`, `proposta-motor-mercado-realista.md` | Sim | U.6 |
+| Testes existentes | `tick/tick_test.go`, `tick/rounds_test.go` (cenários de FII, fakes do repositório de tick), `infra/httpserver/assets_test.go` | Podem quebrar ou precisar de caso novo | U.2 a U.6 |
+| Sem mudança | `orderbook`, `orderexecution`, Market Maker, `etf/*` (só consome o preço do FII), `fii/networth.go` e `portfoliovalue.go`, migrations (nenhuma coluna nova), `bot_personalities`, scripts `e2e-mercado-simulado` (só listam FII para comprar/conferir invariantes), lições 2.10 e 2.6.4 | Não | (U.7 confere) |
+
+Sem migration nova: `fii_details.segment` já existe e o preço justo é calculado em memória a cada tick, sem estado persistido.
+
+### U.1 · Função pura de preço justo de FII e tabela de calibração ✅
+- **Descrição:** pacote `fii` (domínio puro, sem `net/http`/`database/sql`) ganha `FairPrice` e a calibração por segmento/tipo.
+  Componentes: (a) `TargetPriceToBook(segment, fiiType, selicAnnualRate, selicNeutral)` aplicando a decisão 1, com P/VP-base por
+  segmento (`Lajes Corporativas`, `Shopping Centers`, `Galpões Logísticos`, papel), spread e β por tipo, fallback para segmento
+  desconhecido (P/VP-base neutro, nunca erro, já que `segment` é coluna livre e nullable); (b) `FairPrice(netWorthOrPortfolio,
+  outstandingShares, targetPB, macroEffectPct, dividendEffectPct)` devolvendo `ok=false` para cotas inválidas (mesmo contrato de
+  `dividend.FIIValuePerShare`); (c) a função inversa `BootstrapNetWorthForTargetPrice(targetPrice, outstandingShares, targetPB)`
+  para o seed (U.5). Escala percentual igual à do resto do domínio (Selic em 0-100, efeitos em % como `macroevent.EffectRange`).
+- **Critérios de aceite:** testes table-driven cobrindo: Selic na neutra (P/VP-alvo = base), Selic acima e abaixo (sinal e magnitude),
+  clamp da faixa nas duas pontas, segmento desconhecido/nil, tijolo vs papel (β menor no papel), cotas zero ou negativas, efeitos
+  macro/provento em 0 e diferentes de 0, piso `FundamentalistMinFairPrice`, e round-trip da função inversa (preço justo recalculado
+  bate com o preço-alvo, mesma técnica do achado 003, para várias combinações de cotas/preço/segmento). Constantes com comentário de
+  origem (pesquisa de 2026-09-29) e nota "ilustrativo, sujeito à 8.1". `golangci-lint` (depguard) limpo, sem importar `internal/infra`.
+- **Dependências:** nenhuma.
+
+- **Entregável:** `engine/internal/domain/fii/fairprice.go` (+ `fairprice_test.go`), domínio puro sem import de infraestrutura.
+  `TargetPriceToBook(fiiType, segment, selicAnnualRate, selicNeutral)` aplica `base × (1 − β × (yieldExigido − yieldNeutro) /
+  yieldNeutro)` limitado a [0,5, 1,5] (`MinTargetPriceToBook`/`MaxTargetPriceToBook`); `FairPrice(baseValue, outstandingShares,
+  targetPriceToBook, macroEffectPct, dividendEffectPct)` devolve `(preço, ok)` com o mesmo contrato de `dividend.FIIValuePerShare`;
+  `BootstrapBaseValueForTargetPrice(targetPrice, outstandingShares, targetPriceToBook)` é a inversa, pra U.5. Constantes
+  ilustrativas (sujeitas à 8.1): P/VP-base Lajes 0,75, Shopping 0,88, Logística 0,85, tijolo desconhecido 0,85, papel 1,00; spread
+  3,0 (tijolo) e 2,0 (papel) sobre a Selic; β 0,5 (tijolo) e 0,2 (papel). **Desvio do texto original:** o piso de preço absoluto
+  (`bot.FundamentalistMinFairPrice`) **não** foi aplicado dentro de `fii.FairPrice`, porque a constante mora em `bot` e `fii` não
+  pode importá-lo; `FairPrice` limita só os efeitos percentuais a -100% (resultado nunca negativo) e o piso de 0,01 fica com a U.3,
+  que já chama a função. Decisão de assinatura: `segment` é `string` (quem chama desreferencia o `*string` do catálogo, vazio vale
+  como desconhecido). Testes table-driven: Selic na neutra por segmento, Selic acima/abaixo (valor exato e monotonia), papel reage
+  menos que tijolo, clamp nas duas pontas, yield neutro não positivo, tipo desconhecido, efeitos macro/provento (compõem, -250% vira
+  zero sem negativar), entradas inválidas, e round-trip da função inversa em 5 perfis × 4 preços × 4 contagens de cotas × 3 Selics
+  (inclui o caso de hoje: lajes exige patrimônio maior que cotas × preço). `go build`, `go vet`, `go test ./...` (incl. `-race` no
+  pacote) e `golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes. Sem rota nova, sem `docker compose up` (nada ligado ao
+  motor ainda).
+
+### U.2 · Contexto de FII por rodada (tick) ✅
+- **Descrição:** hoje o contexto do Fundamentalista é `CompanyRoundContext`, indexado por empresa. FII não tem empresa, então cria-se
+  um contexto equivalente por ativo, `FIIRoundContext` (VP por cota via `net_worth`/`portfolio_value` e cotas, P/VP-alvo já resolvido
+  para a Selic do dia, `DividendEffectPct` da U.4), montado no mesmo ponto de `companyRoundContexts` (`tick.go`), a partir do que
+  `dividendPayers` já carrega (`NetWorth`, `PortfolioValue`, `OutstandingShares`). Trabalho: (a) adicionar `Segment` (e o tipo do FII,
+  `fd.fii_type`) a `tick.DividendPayerAsset` (`tick.go:233`) e ao `SELECT` de `TickRepository.ListDividendPayerAssets`
+  (`tick_repository.go:271`, que hoje lê `fd.net_worth, fd.portfolio_value, fd.indexador` mas não `fd.segment`) e ao `Scan` da linha
+  seguinte; `ListPricingAssets` (`tick_repository.go:59`) **não** precisa mudar, porque o contexto nasce do mesmo `dividendPayers`
+  que `Advance` já recebe (`service.go:196`); (b) usar o `net_worth`/
+  `portfolio_value` **já reavaliado no mesmo tick** quando o dia é de relatório (`NetWorthUpdates`/`PortfolioValueUpdates`), senão o
+  Fundamentalista decide com o VP do trimestre anterior; (c) expor o mapa em `Result`/`roundRun`, por `AssetID`.
+- **Critérios de aceite:** teste de `fiiRoundContexts` (tijolo e papel, com e sem reavaliação no dia, FII sem `net_worth` nem
+  `portfolio_value` fica de fora sem erro, cotas nil ou zero fica de fora); teste do repositório contra Postgres real (padrão dos
+  testes de integração existentes) confirmando que `Segment` chega; nenhuma mudança de comportamento de mercado ainda (o contexto só
+  é montado, ninguém o consome até a U.3).
+- **Dependências:** U.1.
+
+- **Entregável:** `tick.FIIRoundContext` (`rounds.go`: `BaseValue`, `OutstandingShares`, `TargetPriceToBook`, `DividendEffectPct`
+  sempre 0 até a U.4) e `fiiRoundContexts(payers, netWorthUpdates, portfolioValueUpdates, newSelicRate, selicNeutral)` (`tick.go`),
+  indexado por `AssetID` e exposto em `Result.FIIContext`, preenchido por `Advance`. O valor-base usa o patrimônio/carteira **já
+  reavaliado no mesmo tick** (`NetWorthUpdates`/`PortfolioValueUpdates` agora são calculados uma vez em `Advance` e reaproveitados);
+  FII sem `fii_details`, sem valor-base, com cotas nil/zero ou tipo desconhecido fica de fora sem erro. `DividendPayerAsset` ganhou
+  `FIIType` e `Segment`, e `TickRepository.ListDividendPayerAssets` passou a ler `fd.fii_type, fd.segment`; `ListPricingAssets` não
+  mudou, como previsto. **Desvio do texto original ("expor o mapa em `Result`/`roundRun`"):** só `Result` foi feito. Ligar ao
+  `roundRun` exige nova assinatura de `runIntradayRounds` (~50 chamadas em `rounds_test.go`/`etf_test.go`), e o acesso só ganha
+  sentido na U.3; **a U.3 deve fazer essa troca de assinatura agrupando os parâmetros de contexto numa struct** (em vez de mais um
+  argumento posicional) pra não repetir o custo a cada fase. Testes: `fiiRoundContexts` (tijolo e papel, Selic de hoje desloca o
+  P/VP-alvo, valor reavaliado no mesmo tick, 7 casos de FII inavaliável, segmento nil/desconhecido) e `Advance` (dia de relatório usa
+  o patrimônio reavaliado, fora dele usa o persistido) em `tick_test.go`; integração do repositório contra Postgres descartável
+  (`tick_repository_integration_test.go`, tijolo e papel). **Bug mecânico achado e corrigido no caminho (não é da U.2):** a `main` tinha
+  duas migrations `000035` (`company_base_growth_pct` da 7.2 e `total_disinvested` da T.1, mescladas nos PRs #46/#47), e o
+  golang-migrate recusava qualquer banco novo com "duplicate migration file" (nenhum teste de integração conseguia rodar, e o motor
+  não subiria com volume vazio). `total_disinvested` foi renumerada para `000038` (`git mv` + `ADD COLUMN IF NOT EXISTS`, segura se
+  algum banco já a aplicou sob o número antigo); o volume de dev (versão 35, com `base_growth_pct` e sem `total_disinvested`) aplica
+  36, 37 e 38 normalmente. `go build`, `go vet`, `go test ./...` (com `TEST_DATABASE_URL`, incluindo `-race` em `tick`/`fii`) e
+  `golangci-lint run` (Docker, `v2.12.2`, 0 issues) verdes. Validação ponta a ponta em banco descartável (`market_u2`, criado e
+  apagado; o `market` de dev não foi tocado): migrations até 38 aplicadas do zero, seed completo, 3 ticks via `POST /admin/tick`
+  sem erro (99, 87 e 98 fills de bot), 5 FIIs com tipo/segmento corretos. Nenhuma mudança de comportamento de mercado, como previsto.
+
+### U.3 · Fundamentalista negocia FII ✅
+- **Descrição:** o arquétipo passa a decidir sobre FII usando `fii.FairPrice`. Trabalho: (a) função de decisão para FII no pacote `bot`
+  (`DecideFundamentalistFIIOrder` ou ramo em `DecideFundamentalistOrder`), **reaproveitando o trecho comum** de ruído de conhecimento,
+  limiar de mispricing, limite da ordem no preço justo e dimensionamento (`quantityForSide`, `OrderSizeCeiling`), sem duplicar; (b)
+  novos campos em `bot.DecisionInput` para o VP por cota e o P/VP-alvo; (c) `decisionInputFor` (`rounds.go`) ganha o ramo de FII no
+  `case ArchetypeFundamentalista`; (d) `fundamentalistHasCompanyContext`, `assetHasCompanyContext` e o filtro de candidatos de
+  `runTurn` passam a reconhecer "tem contexto" para FII (contexto por ativo, U.2), sem remover a exclusão para ativo sem nenhum
+  contexto; (e) **escopo de especialização, já verificado no código (2026-09-30):** nenhum ajuste de seed é necessário em princípio.
+  `bot.AssignSpecializations(botDirectionalArchetypes, sixFixedSectors, nonEquityAssetClasses, ...)` (`cmd/seed/main.go:1028`)
+  distribui os 6 setores **mais** as classes `fii` e `etf` como chaves de cobertura entre os 3 arquétipos direcionais, e
+  `SpecializationScope.MatchesEquity` (`bot/round.go:59`) casa FII só por `AssetClasses`. Então um Fundamentalista cujo chunk inclui a
+  chave `fii` já é candidato de FII; o que o impedia era só a checagem de contexto de empresa. **Risco a conferir na U.7:** o chunking é
+  por arquétipo e depende do tamanho do pool, então confirmar com uma consulta a `bot_personalities` que **pelo menos um
+  Fundamentalista** tem `fii` no escopo (se nenhum tiver, registrar como achado: decidir cobertura é decisão de produto). **Cuidado
+  com ETF:** a mesma lista de chaves dá a classe `etf` a alguns Fundamentalistas, e ETF continua sem contexto de Fundamentalista
+  (preço ancorado no iNAV, R.5/R.6). As três checagens de contexto devem abrir **só FII**, nunca ETF; teste explícito para isso.
+- **Critérios de aceite:** testes table-driven de decisão (preço de mercado abaixo do justo compra, acima vende, dentro do limiar
+  devolve `ErrNoMispricingDetected`, limite da ordem no preço justo com ruído, teto de tamanho de ordem respeitado); teste de
+  `decisionInputFor` para FII; teste de `runTurn` mostrando que o Fundamentalista agora é candidato de FII (inclusive no turno de
+  piso) e continua excluído de ativo sem contexto; Fundamentalista de ação inalterado (testes existentes passam sem edição de
+  expectativa).
+- **Dependências:** U.1, U.2.
+
+- **Entregável:** `bot.DecideFundamentalistFIIOrder` (`bot/fundamentalist.go`) calcula o preço justo com `fii.FairPrice` (piso
+  `FundamentalistMinFairPrice` aplicado aqui, como a U.1 deixou combinado) e reaproveita o trecho comum com a ação, extraído em
+  `fundamentalistOrderForFairPrice` (ruído de conhecimento, limiar de mispricing, limite da ordem no preço justo,
+  `quantityForSide`/teto), sem duplicar; o caminho de ação ficou idêntico (testes existentes passam sem edição de expectativa).
+  Sem `macroEffectPct` (evento por FII está fora de escopo da fase); `dividendEffectPct` entra sem filtro de conhecimento, como na
+  ação. `bot.DecisionInput` ganhou `FII *FIIFairPriceInput` (`BaseValue`, `TargetPriceToBook`, `DividendEffectPct`), e `bot.Decide`
+  despacha por ele. No `tick`: **a troca de assinatura pedida pela U.2 foi feita**, `runIntradayRounds` e `decisionInputFor`
+  recebem `RoundContext{Company, FII}` em vez de `companyContext` posicional (a próxima fase que precisar de contexto novo não muda
+  a assinatura de novo; `roundRun.contexts` substitui `companyContext`). `fundamentalistHasCompanyContext` e
+  `assetHasCompanyContext` viraram `fundamentalistHasContext`/`assetHasFundamentalContext(assetID, state, contexts)`: abrem só
+  ativo com entrada em `contexts.FII` (por `AssetID`) ou com empresa em `contexts.Company`, então **ETF continua de fora por
+  construção** (`fiiRoundContexts` só monta FII) e FII sem valor-base também. `Advance` passa `RoundContext{Company:
+  result.CompanyContext, FII: result.FIIContext}`. **Escopo de especialização:** nenhum ajuste de seed, como previsto na descrição
+  (a conferência de que ao menos um Fundamentalista tem `fii` no escopo fica pra U.7). **Não feito (é da U.4):**
+  `applyEventAttention` segue só com `CompanyID`, e `FIIRoundContext.DividendEffectPct` segue 0. Testes: decisão table-driven
+  (compra/venda/limiar/sem caixa/sem posição, limite no preço justo, efeito de provento, teto de tamanho, ruído por conhecimento,
+  erros, `Decide` despachando FII) em `bot/fundamentalist_fii_test.go`; `assetHasFundamentalContext` (FII com/sem contexto, ação,
+  ETF nunca, estado nil), `decisionInputFor` de FII e `runIntradayRounds` com Fundamentalista negociando FII comprando quando o
+  justo está acima do mercado, em `tick/rounds_fii_test.go`; o teste antigo "Fundamentalista nunca negocia FII" segue válido pro
+  FII sem contexto. `go build`, `go vet`, `go test ./...` e `golangci-lint run` (Docker `v2.12.2`, 0 issues) verdes. Sem rota nova
+  nem mudança de contrato HTTP. **Sem `docker compose up` ainda:** o comportamento de mercado mudou (Fundamentalista agora negocia
+  FII e nasce com P/VP=1 no seed antigo, o degrau do dia 1 que a U.5 corrige), então a validação ponta a ponta fica para depois da
+  U.5, dentro da U.7.
+
+### U.4 · Efeito do provento de FII no preço justo (fecha a S.14) ✅
+- **Descrição:** o FII paga 1,1% do VP por mês (`dividend.FIIPayoutIntervalDays`), e o VP nunca é decrementado, então nada reflete a
+  saída do provento no preço. Mesmo padrão da S.13: efeito transitório e negativo em `FIIRoundContext.DividendEffectPct`, ativo por
+  uma banda curta de dias simulados a partir da data-ex, sem estado persistido. Diferença em relação à ação: o provento de FII vem
+  de renda recorrente do fundo, então o efeito **não é permanente**. Fora da banda o preço justo volta ao valor-base e o preço faz
+  um dente de serra mensal, o que se parece com o comportamento real de FII. Trabalho: (a) função pura `dividend.FIIPriceEffectPct`
+  (provento por cota ÷ VP por cota, negativo, clampado como `MinEquityPriceEffectPct`); (b) derivar "dias desde a última data-ex" do
+  calendário de 30 dias, com guarda para o primeiro ciclo (mesma técnica de `dividendPriceEffectBandDays`); (c) `applyEventAttention`
+  ganha ramo para ativo de FII (hoje exige `CompanyID`), senão o Fundamentalista não ganha turno suficiente perto da data-ex.
+- **Critérios de aceite:** testes da função pura (zero, normal, maior que o VP clampado); teste de janela (efeito dentro da banda,
+  zero fora, guarda do primeiro ciclo); teste de `applyEventAttention` com FII em janela de provento; o preço justo cai
+  proporcionalmente ao provento na banda e volta ao base fora dela.
+- **Dependências:** U.2, U.3.
+
+- **Entregável:** `dividend.FIIPriceEffectPct(valuePerShare, baseValuePerShare)` (`dividend/dividend.go`): provento por cota ÷ VP por
+  cota, percentual negativo, clampado em `MinEquityPriceEffectPct`, 0 sem dado. `tick.fiiDividendPriceEffectPct(baseValue,
+  shares, dayIndex)` aplica a janela: ativo do dia do pagamento (calendário de 30 dias, `FIIPayoutIntervalDays`) até
+  `dividendPriceEffectBandDays` (10) dias depois, com a mesma guarda de primeiro ciclo de `dividendPriceEffectPct` e sem estado
+  persistido; fora da banda volta a 0, então o preço justo retorna ao valor-base (dente de serra mensal, efeito **não**
+  permanente, ao contrário da ação). `fiiRoundContexts` ganhou o parâmetro `dayIndex` e preenche `FIIRoundContext.DividendEffectPct`.
+  `applyEventAttention` passou a receber `RoundContext` e ganhou o ramo de FII (atenção extra enquanto `DividendEffectPct != 0`, sem
+  exigir `CompanyID`), então o Fundamentalista ganha turnos perto da data-ex. Como o provento é sempre 1,1% do VP
+  (`DefaultFIIYieldPerCyclePct`), o efeito na banda é -1,1% do VP (antes do P/VP-alvo); a calibração fina é a 8.1. Testes: função
+  pura (normal, zero, sem VP, clamp), janela (guarda do primeiro ciclo, véspera, dia do pagamento, dentro/fora da banda, 2º ciclo,
+  sem cotas), contexto (preço justo cai na banda e volta ao base fora dela) e `applyEventAttention` com FII. `go vet`, `go test
+  ./...` e `golangci-lint` (0 issues) verdes; `infra/scheduler` teve uma falha intermitente dependente de horário, sem relação, que
+  não reproduziu em 3 reruns nem sem a mudança. Sem rota nova e sem `docker compose up` (validação fica na U.7).
+  **Fecha a reserva S.14** no que depende do motor; marcar o achado/reserva como resolvidos na U.7.
+
+### U.5 · Seed e dado existente: preço inicial coerente com o P/VP-alvo ✅
+- **Descrição:** `seedFIITijolo`/`seedFIIPapel` (`cmd/seed/main.go`) passam a calcular `net_worth`/`portfolio_value` iniciais com
+  `fii.BootstrapNetWorthForTargetPrice(tick.DefaultInitialPrice, fiiOutstandingShares, P/VP-alvo do segmento na Selic neutra)`,
+  em vez de `cotas × preço` (P/VP = 1). Assim o preço justo nasce igual ao preço inicial e o Fundamentalista não empurra o FII num
+  degrau no dia 1 (mesma correção do achado 003 para ações). Para o volume de dev existente (FIIs já seedados, sem `down -v`): tratar
+  como o achado 006 tratou o `SINT11`, com `UPDATE` direto em `fii_details` só do valor inicial dos 5 FIIs (checar antes que nenhuma
+  posição/ordem depende disso, o VP é dado de fundamento e não move saldo), ou orientar `down -v` se o autor preferir. Rever o
+  provento resultante (1,1% do VP maior que o preço eleva o yield sobre o preço) e decidir, na própria tarefa, se a taxa
+  (`DefaultFIIYieldPerCyclePct`) precisa acompanhar; se o DY anual sair fora de uma faixa plausível (~8% a 15% a.a.), registrar como
+  achado em vez de calibrar às cegas.
+- **Critérios de aceite:** seed idempotente (reexecutar não muda nada); teste do seed ou de uma função auxiliar mostrando o preço
+  justo do dia 1 = preço inicial para os 5 FIIs, tijolo e papel, inclusive nos 3 segmentos; DY anual inicial de cada FII calculado
+  e registrado no Entregável; validado contra um Postgres descartável e depois no volume de dev.
+- **Dependências:** U.1 (função inversa). Independe de U.2 a U.4 e pode entrar em paralelo a elas.
+
+- **Entregável:** `cmd/seed/main.go`: `fiiInitialBaseValue(tipo, segmento)` calcula o patrimônio (tijolo) ou a carteira (papel) inicial por
+  `fii.BootstrapBaseValueForTargetPrice(DefaultInitialPrice, cotas, P/VP-alvo na Selic neutra)`; `seedFIITijolo`/`seedFIIPapel` usam
+  esse valor em vez de `cotas × preço`. Valores resultantes (1.000.000 de cotas): TJLO11 133.333.333,33 (P/VP 0,75), SHPP11
+  113.636.363,64 (0,88), LOGT11 117.647.058,82 (0,85), PAPL11/IPCP11 100.000.000,00 (1,00). **Volume existente:** novo
+  `CatalogRepository.RecalibrateFIIBaseValueIfNeverQuoted` (arredonda a 2 casas, idempotente) é chamado pelo seed quando o FII já existe,
+  e **só altera se o ativo nunca teve cotação** (`asset_quotes`): num volume que já rodou ticks o valor-base evoluiu pelo motor e não é
+  sobrescrito (é dado de fundamento, não move saldo nem `market_events`). **O volume de dev `market` atual tem 27.235 cotações, então o
+  seed não o altera: para o preço justo do dia 1 coincidir com o inicial ali, é preciso `docker compose down -v` (decisão do autor, não
+  executada).** DY anual inicial (12 × 1,1% do VP sobre o preço de R$ 100): lajes 17,6%, logística 15,5%, shopping 15,0%, papel 13,2%;
+  lajes e logística saem da faixa de 8% a 15%, então **registrado como achado 027** em vez de calibrar `DefaultFIIYieldPerCyclePct` às
+  cegas. Testes: `cmd/seed/fii_test.go` (preço justo do dia 1 = preço inicial nos 3 segmentos e 2 tipos de papel, loga o DY),
+  `internal/infra/db/catalog_fii_integration_test.go` (Postgres descartável: sem cotação recalibra, com cotação não, segunda chamada é
+  no-op, inclusive com fração além de 2 casas). Validação ponta a ponta em banco descartável (`market_u5`, criado e apagado): migrations
+  do zero, seed completo, os 5 valores acima conferidos em `fii_details`, segundo `seed` sem nenhuma recalibração (idempotente).
+  `go vet`, `go test ./...` (com `TEST_DATABASE_URL`) e `golangci-lint` (0 issues) verdes; `infra/scheduler` teve de novo a falha
+  intermitente dependente de horário já vista na U.4 (passa em rerun, sem relação). Sem rota nova.
+
+### U.6 · Frontend, lições e documentação ✅
+- **Descrição:** (a) **Correção de premissa (2026-09-30):** a tela de FII **não exibe P/VP hoje**. `FiiIndicatorsPanel`
+  (`frontend/src/components/organisms/FiiIndicatorsPanel/index.tsx`) mostra patrimônio/carteira, vacância (tijolo), indexador (papel) e
+  Dividend Yield; o P/VP só existe para ação (`EquityIndicatorsPanel`, calculado em `engine/internal/infra/httpserver/assets.go:179`). Como
+  o preço agora converge para `VP × P/VP-alvo`, vale **expor o P/VP do FII** para o usuário enxergar a âncora (escolha pequena, dentro do
+  que a fase já decide, sem mudar regra de negócio): campo `price_to_book_value` na resposta de FII do motor (`assets.go:262`, junto de
+  `NetWorth`/`PortfolioValue`, mesma omissão quando não há dado), proxy/tipo no backend
+  (`backend/src/modules/market/application/ports/catalogReader.ts`, bloco `FiiDetails`), tipo no frontend
+  (`frontend/src/services/market/types.ts:148`) e linha "P/VP" no `FiiIndicatorsPanel` (formatação `formatDecimal`, sem travessão). (b) **Lições:**
+  conferido no código que a lição 2.10 (`seedLessons.ts:1230`, FIIs) e a lição de P/L e P/VP (`seedLessons.ts:1000`, só ação) **não
+  afirmam** "P/VP perto de 1 é o normal"; nenhuma precisa mudar para o motor continuar coerente. Opcional (decisão do autor, não
+  bloqueia): uma frase na revelação da 2.10 dizendo que FII costuma negociar com desconto ao patrimônio e que isso varia por segmento.
+  (c) **Documentação:** `.docs/engine/tick.md` (seções de FII, linhas ~36 e ~40: G.2/G.3 descrevem `net_worth`/`portfolio_value`
+  como se só o GBM/ciclo os movesse, e precisam dizer que agora o Fundamentalista os lê), `.docs/engine/catalog.md` e
+  `.docs/backend/market.md` (novo campo `price_to_book_value` do FII). (d) `proposta-motor-mercado-realista.md` (seção de FII) e a
+  nota de FII "sem âncora" da S.14.
+- **Critérios de aceite:** novo campo documentado em `.docs/` no mesmo commit (regra do CLAUDE.md); testes do handler
+  (`assets_test.go`, padrão dos campos de FII), do proxy/tipo no backend e do `FiiIndicatorsPanel` (com e sem o campo); texto de UI sem
+  travessão como pontuação; conclusão sobre as lições registrada no Entregável; `npm run lint`/`build`/`test` do backend e
+  `vitest`/`tsc -b`/`oxlint`/`prettier --check` do frontend verdes; sem Dockerfile novo de frontend.
+- **Dependências:** U.5.
+
+- **Entregável:** (a) **P/VP do FII exposto.** Motor: `fii.Details` ganhou `OutstandingShares` (só leitura, ignorado por `NewDetails`),
+  preenchido por `FindFIIDetails` via `LEFT JOIN variable_income_assets`; `fiiDetailResponse.PriceToBookValue`
+  (`price_to_book_value`, omitido sem cotação, valor-base ou cotas) calculado por `fiiPriceToBook` reaproveitando
+  `fundamentals.PriceToBookValue` (tijolo usa `net_worth`, papel `portfolio_value`). Backend: só o tipo `FiiDetails`
+  (`catalogReader.ts`), o proxy é 1:1. Frontend: tipo `FiiDetail` e linha "P/VP" no `FiiIndicatorsPanel`. **Desvio do texto:** em vez de
+  `formatDecimal` (1 casa), criei `formatPriceToBook` (2 casas), porque a faixa relevante (0,75 a 1,00) some com 1 casa (0,75 e 0,78
+  viram 0,8). (b) **Lições:** conferido, nenhuma afirma "P/VP perto de 1 é o normal" (lição 2.10, `seedLessons.ts`, e a de P/L e P/VP, só
+  ação), então **nenhuma mudou**; a frase opcional sobre desconto ao patrimônio na revelação da 2.10 ficou de fora (decisão do autor,
+  não bloqueia). (c) **Docs:** `.docs/engine/catalog.md` (campo novo), `.docs/backend/market.md`, `.docs/engine/tick.md` (G.2/G.3: o
+  Fundamentalista agora lê `net_worth`/`portfolio_value`; novo parágrafo do provento de FII da U.4). (d)
+  `proposta-motor-mercado-realista.md` (seção 4) e a nota da S.14 atualizadas. Testes: `assets_test.go` (tijolo, papel, sem cotação, sem
+  cotas, cotas zero, sem valor-base), integração de `FindFIIDetails` com as cotas (Postgres descartável), `FiiIndicatorsPanel` (com e
+  sem o campo), `formatPriceToBook`. `go vet`, `go test ./...` (com `TEST_DATABASE_URL`), `golangci-lint` (0 issues), `tsc -b`, `vitest`
+  e `prettier --check` dos arquivos tocados verdes; `oxlint` só com 2 warnings antigos, em arquivos não tocados. **Bug mecânico
+  corrigido no caminho:** `scheduler.Run` (`infra/scheduler/daily.go`) deixava o `select` escolher ao acaso entre o timer já vencido e
+  o cancelamento do contexto (teste `TestRun_RecuperaNaSubidaEDisparaNoProximoSlot` falhava cerca de metade das vezes); agora checa o
+  contexto antes de cada tentativa (30 execuções seguidas passam). Sem Dockerfile novo de frontend.
+
+### U.7 · Validação ponta a ponta e fechamento do achado 024 ✅
+- **Descrição:** repetir a medição que originou o achado: 200 dias simulados com o catálogo completo, via `engine/scripts/e2e-mercado-simulado`
+  (ou `POST /admin/tick` em `docker compose up`), comparando com a linha de base do achado (TJLO11 e PAPL11 em -49%). Ajustar β e as
+  constantes ilustrativas da U.1 se o resultado ficar fora dos critérios (o ajuste é calibração da própria fase, não decisão nova).
+- **Critérios de aceite (medidos, não estimados):** (1) deriva do preço de cada FII em 200 dias dentro de ±15% do que o VP e a Selic
+  justificam (não mais -49%); (2) P/VP médio por segmento dentro de ±10% do P/VP-base do segmento; (3) dente de serra do provento
+  visível e sem queda cumulativa; (4) FII negocia todo dia (nenhum dia sem negócio, como no piso da Q.8) e o volume por ativo não
+  cai; (5) SINT11 e os demais ETFs com FII na cesta: tracking error e ágio/deságio médio não pioram em relação à medição do achado
+  016; (6) custo por tick (comandos Redis/SQL) não passa do orçamento da Fase Q com o Fundamentalista agora alcançando FII; (7) todas
+  as invariantes financeiras do script continuam passando; (8) nenhuma mudança em `orderbook`/`orderexecution`/Market Maker.
+  Fechamento: marcar o achado 024 e a S.14 como resolvidos, atualizar `backlog-pendencias-consolidado.md` e registrar como achado
+  qualquer critério que não passe e exija decisão de produto.
+- **Dependências:** U.1 a U.6.
+
+- **Entregável:** medição em banco descartável (`market_u7`, apagado depois) com o motor real (`cmd/api` + `cmd/seed`, catálogo completo de 45
+  ativos, 69 bots, seed 42), 200 ticks via `POST /admin/tick`, leitura por SQL. Sem a stack Compose completa nem usuários humanos
+  (não havia razão para o script `e2e-mercado-simulado`, que exercita backend/gateway). Resultados por critério:
+  (1) **Deriva: passou.** Preço inicial → final: TJLO11 99,99 → 102,89, LOGT11 103,03 → 100,04, SHPP11 102,01 → 104,85, PAPL11
+  101,00 → 100,35, IPCP11 99,00 → 103,21 (mínimo/máximo 91,6 a 108,5), contra -49% antes. (2) **P/VP médio por segmento: passou.**
+  Lajes 0,737 (base 0,75), shopping 0,879 (0,88), logística 0,845 (0,85), papel 0,958 e 0,973 (1,00): todos dentro de ±10%.
+  (3) **Dente de serra sem queda cumulativa: passou** (TJLO11 oscila cerca de 95 a 103 entre os dias 60 e 95 e termina acima do
+  início). (4) **Negociação diária: 1 exceção.** 1 dia sem negócio em 1.000 dias-FII (PAPL11, dia 45, dia útil), contra 3,8% antes da Q.8
+  e 0,2% nas ações; ações 3 dias e ETFs 5 dias no run inteiro. Não é decisão de produto (é o resíduo já tolerado na Q.8), mas não é
+  "nenhum dia" literal. Volume médio por FII estável: 2.539 a 2.903 por dia nos dias 0-50 contra 2.290 a 2.982 nos dias 150-200.
+  (5) **ETFs: não piorou.** Ágio/deságio absoluto médio 0,95% a 1,04% (achado 016 medira 1,05% a 1,35%), média com sinal de 0,04% a
+  0,24%, tracking error médio 1,1% a 2,7% (sem linha de base numérica em 016 para comparar o tracking error). (6) **Custo por tick:
+  não medido em comandos Redis/SQL.** Pelo desenho não cresce: o orçamento de turnos é por tick e por tamanho do universo
+  (`bot.TurnBudget`), e o Fundamentalista só passou a poder ser sorteado em FII dentro do mesmo orçamento, mais 1 leitura em
+  memória por FII; 200 ticks rodaram em cerca de 5 minutos no total, sem timeout. (7) **Invariantes: passou.** `validacao-etf.sql`
+  (saldos não negativos, conciliação de saldo e de posição contra `market_events`, conservação do float, proventos de ETF, passivos
+  de fundo): todas 0 violações. (8) **Sem mudança em `orderbook`/`orderexecution`/Market Maker:** confirmado pelo diff da fase.
+  **Resíduos medidos depois (2026-09-30):** (a) **Critério 6 medido.** `engine/scripts/benchmark-cobertura.sh 30 60` (30 ativos
+  sintéticos, 60 ticks, comandos SQL pelo log do Postgres, mesmo método da Fase Q) contra o commit imediatamente anterior à Fase U
+  (`9de4ee5`; a `main` não sobe o motor por causa das duas migrations `000035`, corrigidas só nesta branch): comandos SQL por tick
+  média 2.915 → 2.944 (+1,0%), p95 4.441 → 4.543 (+2,3%), máximo 5.661 → 5.883; tempo médio 1,03 → 1,04 s; 60 de 60 ativos cotados
+  nos dois lados e 0 dias sem negociação em 975 nas duas medições. O custo do Fundamentalista alcançando FII é marginal e dentro do
+  ruído. **Nota à parte, não causada pela Fase U:** o p50 já era 3.882 na linha de base, acima dos 3.500 da tabela da 6.1 (que media 55
+  ativos antes das fases R/S/T); o orçamento de 6.1 está desatualizado, mas não é decisão desta fase. Redis: 14.869 comandos em 60 ticks
+  (~248 por tick, 90% `GET`) no catálogo padrão, sem linha de base na `main` (não sobe). (b) **Dia sem negócio do PAPL11 (critério
+  4): não reproduziu.** Nova rodada com o mesmo catálogo e seed 42 (50 ticks): o PAPL11 negocia no dia 45 (975 cotas) e os 6 dias sem
+  negócio caíram em ETFs e ações (nenhum em FII), então o motor não é bit a bit reprodutível entre execuções e o resíduo é o mesmo
+  esporádico do resto do catálogo, sem causa ligada ao FII. Sem correção de código.
+  **Atualização (achado 027 resolvido, 2026-09-30):** a taxa de provento passou a ser por segmento (`fii.PayoutYieldPerCyclePct`, DY anual-alvo de 13,2%), então os DY abaixo (17,7%/15,6%) valem só para a taxa única anterior; com a taxa por segmento o DY realizado ficou em 13,1% a 13,5% (100 ticks, catálogo padrão).
+  **DY realizado em 200 dias (6 pagamentos por FII):** TJLO11 17,7%, LOGT11 15,6%, SHPP11 15,0%, PAPL11/IPCP11 13,3%, igual ao
+  inicial, então o achado 027 continua aberto (decisão do autor). **Fechamento:** achado 024 e reserva S.14 marcados como
+  resolvidos, `backlog-pendencias-consolidado.md` atualizado. Sem código novo nesta tarefa. **Pendência:** o critério 4 literal (zero
+  dia sem negócio) e a medição de comandos Redis do critério 6 ficam como resíduo declarado, sem registro em `pontos-em-aberto`
+  por não exigirem decisão de produto.
+
 ## Sequência sugerida
 
 1. **A.1 → A.2 → A.3 → A.4** (fundação — pode já rodar em paralelo às Fases I, K, L, que são
@@ -5023,3 +5357,7 @@ diretamente na conversa, registradas abaixo.
     T.3 (paralelo, mesmo ponto de entrada de T.8), **T.11** fecha a fase (publicar só depois de T.5 em produção). T.1
     precisa estar em produção antes de T.5 ir ao ar (senão o salário corrompe a rentabilidade publicada durante a
     janela em que uma existe sem a outra), mesmo sem dependência técnica direta entre elas.
+21. **U.1** (função pura e calibração) abre a fase; **U.2** (contexto por rodada) e **U.5** (seed coerente com o P/VP-alvo, só
+    depende da função inversa da U.1) podem andar em paralelo; **U.3** (Fundamentalista negocia FII) depende de U.1 e U.2; **U.4**
+    (provento no preço justo, fecha a S.14) de U.2 e U.3; **U.6** (frontend, lições e docs) de U.5; **U.7** (validação ponta a ponta)
+    fecha a fase e o achado 024. Independente das Fases N, O e das pendências de produto (achados 001 e 008).

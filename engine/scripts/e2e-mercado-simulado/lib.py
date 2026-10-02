@@ -1,5 +1,6 @@
 import json,urllib.request,subprocess,time,random,sys
-BASE="http://localhost:8100"
+import os
+BASE=os.environ.get("E2E_BASE","http://localhost:8100")
 def req(m,p,b=None,t=None,raw=False):
     r=urllib.request.Request(BASE+p,method=m,data=json.dumps(b).encode() if b is not None else None,headers={"content-type":"application/json",**({"authorization":"Bearer "+t} if t else {})})
     try:
@@ -11,7 +12,7 @@ def req(m,p,b=None,t=None,raw=False):
         except: pass
         return e.code,d
 LESSON_STEP_WAIT=0.35  # um pouco acima de LESSON_MIN_STEP_INTERVAL_MS do compose.e2e.yml
-COMPOSE=["docker","compose","-p","tccsim","-f","engine/scripts/e2e-mercado-simulado/compose.e2e.yml"]
+COMPOSE=["docker","compose","-p","tccsim","-f",os.path.join(os.path.dirname(os.path.abspath(__file__)),"compose.e2e.yml")]
 def sql(db,q):
     r=subprocess.run(COMPOSE+["exec","-T","postgres","psql","-U","tcc","-d",db,"-At","-F","|","-c",q],capture_output=True,text=True)
     if r.returncode: raise Exception(r.stderr)

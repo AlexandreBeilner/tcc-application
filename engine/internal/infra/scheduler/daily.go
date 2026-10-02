@@ -93,12 +93,21 @@ func Run(ctx context.Context, cfg Config, now func() time.Time, run RunScheduled
 
 	attempt()
 	for {
+		// Prioriza o cancelamento: com o timer já vencido, o select abaixo
+		// escolheria entre os dois casos aleatoriamente e ainda tentaria um
+		// tick depois do encerramento.
+		if ctx.Err() != nil {
+			return
+		}
 		timer := time.NewTimer(time.Until(cfg.NextSlotStart(now())))
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			return
 		case <-timer.C:
+			if ctx.Err() != nil {
+				return
+			}
 			attempt()
 		}
 	}

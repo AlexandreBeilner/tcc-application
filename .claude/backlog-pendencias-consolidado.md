@@ -31,7 +31,7 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
   empresas cobrindo os 6 setores fixos com distribuição de qualidade Boa/Média/Ruim via nova coluna
   `companies.base_growth_pct`, 5 ETFs com metodologia própria cada, 5 FIIs em 3 segmentos de tijolo +
   2 indexadores de papel). Achado registrado (não bloqueante): ROE/margem continuam fixos por setor
-  (só o crescimento diferencia P/L e P/VP) — `pontos-em-aberto-decisao-produto.md`, achado 025.
+  (só o crescimento diferencia P/L e P/VP) — achado 025, **resolvido em 2026-10-01** com `companies.quality_multiplier` (ver `pontos-em-aberto-decisao-produto.md`).
 - **Status:** ✅ Resolvido. Libera P1.2 (e2e formal).
 
 ### P1.2 · Testes ponta a ponta formais ✅ concluída (2026-09-28)
@@ -56,24 +56,27 @@ Estas duas são as últimas peças fundacionais do backlog principal. Sem elas, 
 
 ---
 
-## Prioridade 2 — Fase T em andamento (branch não mesclada)
+## Prioridade 2 — Fase T ✅ concluída (2026-09-29)
 
-### P2.1 · Fase T — Salário mensal simulado (T.4 a T.11)
+### P2.1 · Fase T — Salário mensal simulado (T.1 a T.11) ✅
 
-- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase T (linha ~4601)
-- **Estado real:** branch local `fase-t-salario-mensal` (não pusheda pro `origin`, não mesclada em
-  `main`) já tem **T.1, T.2, T.3 concluídas** (commits `633d279`, `b4c7658`, `7533446`). Faltam:
-  - **T.4** · detecção do 5º dia útil do mês-calendário real
-  - **T.5** · job de folha de pagamento com catch-up e idempotência (depende de T.2/T.3/T.4)
-  - **T.6** · salário aparece no calendário do usuário
-  - **T.7** · frontend: marcador de salário + teatro de recompensa
-  - **T.8** · salário exposto na resposta de progressão
-  - **T.9** · indicador persistente de salário no Dashboard
-  - **T.10** · salário no teatro de recompensa do level-up
-  - **T.11** · passo no onboarding explicando o salário
-- **Ação antes de continuar:** decidir se retoma direto na branch `fase-t-salario-mensal` (`git
-  checkout fase-t-salario-mensal`) — hoje o worktree está em `HEAD` destacado, num commit anterior
-  a essa branch (`fffb030`).
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase T (linha ~4601) — Entregável completo lá
+  (T.1–T.11 todas ✅).
+- **Status:** ✅ Resolvido. Mesclada em `main` via PR #47 (`fase-t-salario-mensal`).
+
+---
+
+## Prioridade 2b — Fase U: preço justo de FII (decidida em 2026-09-29)
+
+### P2.2 · Fase U — Preço justo de FII para o Fundamentalista (U.1 a U.7) ✅
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase U (linha ~4974) — achado 024 de
+  `pontos-em-aberto-decisao-produto.md` (decisão tomada: opção A, calibrada por pesquisa de mercado).
+- **Resumo:** TJLO11/PAPL11 caíam ~49% em 200 dias simulados porque nenhum bot tem noção de valor de
+  FII. A fase cria o preço justo de FII (patrimônio por cota × P/VP-alvo por segmento, deslocado pela
+  Selic), faz o Fundamentalista negociar FII, aplica o efeito do provento (fecha a reserva S.14),
+  recalibra o seed pra não criar degrau no dia 1 e fecha com validação de 200 dias.
+- **Status:** ✅ Concluída (U.1 a U.7), validada em 200 dias simulados (deriva de -49% para no máximo +5%). Achado 027 (DY inicial de lajes/logística) resolvido com taxa de provento por segmento (DY anual-alvo de 13,2%). Resíduo: 1 dia sem negócio esporádico, igual ao do resto do catálogo.
 
 ---
 
@@ -98,15 +101,10 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
   radius — assinatura de 11 parâmetros, vários call sites e testes), ou (b) manter deliberadamente
   separadas e documentar como decisão consciente.
 
-### P3.3 · Teto máximo de `SpreadWidthPct` pra bot Market Maker criado via admin (novo, ainda não registrado no arquivo de achados)
+### P3.3 · ✅ Teto máximo de `SpreadWidthPct` pra bot Market Maker criado via admin
 
-- **Local:** achado embutido em `.claude/backlog-motor-mercado-realista.md`, tarefa **N.1** (linha
-  ~2748) — **ainda não tem entrada própria em `pontos-em-aberto-decisao-produto.md`, vale promover
-  antes de abrir N.1.**
-- **Resumo:** `bot.NewRiskProfile` só rejeita `SpreadWidthPct < 0` — sem teto superior, um valor
-  `>= 2` faz `DecideMarketMakerOrders` colapsar o book. Hoje inofensivo porque só o seed cria bot
-  (sempre com `0.02` fixo); `POST /admin/bots` (N.1) seria o primeiro consumidor real vindo de input
-  externo, e precisa de um teto antes de aceitar esse campo.
+- **Status:** ✅ Já resolvido (achado 002, tarefa P.6, 2026-09-23): `bot.MaxSpreadWidthPct = 0.10`
+  validado em `NewRiskProfile` (`ErrSpreadWidthAboveMax`). Esta entrada estava desatualizada.
 
 ---
 
@@ -115,8 +113,7 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 ### P4.1 · N.1 — Endpoints admin pra listar/criar/desativar bots
 
 - **Local:** `.claude/backlog-motor-mercado-realista.md`, tarefa **N.1** (linha ~2730)
-- **Bloqueio:** resolver P3.3 antes (teto de `SpreadWidthPct`) — o próprio texto da tarefa já pede
-  isso.
+- **Bloqueio:** nenhum (P3.3 já resolvido; `POST /admin/bots` reaproveita `NewRiskProfile`, que já aplica o teto).
 
 ### P4.2 · N.2 — Tela "Painel Admin — Bots" no frontend
 
@@ -197,9 +194,8 @@ não apagar sem essa checagem.
 ## Sequência sugerida
 
 1. **P1.1 → P1.2** (catálogo completo → e2e formal) — fecha a Semana 7.
-2. **P2.1** (T.4 → T.5 → T.6 → ... → T.11, retomando `fase-t-salario-mensal`) — pode rodar em
-   paralelo ao passo 1, é uma trilha independente do motor.
-3. **P3.3 → P4.1 → P4.2** (teto de spread, depois o Painel Admin de Bots em si).
+2. ~~**P2.1** (Fase T)~~ ✅ concluída.
+3. **P4.1 → P4.2** (Painel Admin de Bots; o teto de spread, P3.3, já está resolvido).
 4. **P3.1, P3.2** — decisões pontuais, encaixar em qualquer sessão livre.
 5. **P5.1** — sessão isolada e pequena, sem dependência de nada acima.
 6. **P1.3** (Semana 8, polimento) — só depois do passo 1 fechado.

@@ -72,7 +72,9 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
     const [clientErrors, setClientErrors] = useState<string[]>([])
     const [confirming, setConfirming] = useState(false)
 
-    const assetsQuery = useAssetsQuery()
+    // Só ação é alvo válido de evento macro (o efeito é por empresa); FII, ETF e renda fixa são recusados
+    // pelo motor (achado 028), então nem aparecem no seletor.
+    const assetsQuery = useAssetsQuery('acao')
     const triggerMutation = useTriggerMacroEventMutation()
     const assetLabels = useAssetLabels(assetsQuery.data?.assets)
 

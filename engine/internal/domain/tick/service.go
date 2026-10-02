@@ -230,7 +230,7 @@ func (s *Service) execute(ctx context.Context) (Result, error) {
 		result.IntradayRounds = nil
 	}
 
-	closingPrices, volumeByAssetID, fillsExecuted, uncoveredAssets, err := s.runIntradayRounds(ctx, dayIndex, rounds, assets, result.CompanyContext, result.State.SelicRate, s.selicCfg.Neutral)
+	closingPrices, volumeByAssetID, fillsExecuted, uncoveredAssets, err := s.runIntradayRounds(ctx, dayIndex, rounds, assets, RoundContext{Company: result.CompanyContext, FII: result.FIIContext}, result.State.SelicRate, s.selicCfg.Neutral)
 	if err != nil {
 		return Result{}, err
 	}

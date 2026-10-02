@@ -48,6 +48,12 @@ describe('MacroEventTriggerForm (tela 10.2)', () => {
         expect(screen.queryByPlaceholderText(/Ex: Nova legislação/)).not.toBeInTheDocument()
     })
 
+    it('só pede ações ao catálogo pro seletor de ativo (FII/ETF/renda fixa não são alvos válidos)', async () => {
+        renderForm()
+        await waitFor(() => expect(listAssets).toHaveBeenCalled())
+        expect(vi.mocked(listAssets).mock.calls.every((call) => call[1] === 'acao')).toBe(true)
+    })
+
     it('alterna pro modo avulso e mostra os campos textuais', () => {
         renderForm()
         fireEvent.click(screen.getByRole('button', { name: 'Criar evento avulso' }))

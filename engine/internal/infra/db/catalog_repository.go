@@ -65,9 +65,9 @@ func (r *CatalogRepository) FindCompanyByCNPJ(ctx context.Context, cnpj string) 
 func (r *CatalogRepository) CreateCompany(ctx context.Context, c catalog.Company) (string, error) {
 	var id string
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct)
-		 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays, c.BaseGrowthPct,
+		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct, quality_multiplier)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays, c.BaseGrowthPct, c.QualityMultiplier,
 	).Scan(&id)
 	return id, err
 }
@@ -229,6 +229,31 @@ func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string
 		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador, details.PortfolioValue,
 	)
 	return err
+}
+
+// RecalibrateFIIBaseValueIfNeverQuoted (tarefa U.5) grava o valor-base inicial
+// do FII (net_worth no tijolo, portfolio_value no papel) só se o ativo ainda
+// não tem nenhuma cotação (asset_quotes): um volume que já rodou ticks teve o
+// valor-base evoluído pelo motor (Selic, ruído), e sobrescrevê-lo apagaria
+// histórico de fundamento. Devolve se alterou. É dado de fundamento, não move
+// saldo nem posição, então não passa por market_events.
+func (r *CatalogRepository) RecalibrateFIIBaseValueIfNeverQuoted(ctx context.Context, assetID string, baseValue float64) (bool, error) {
+	// $2 é arredondado a 2 casas (escala das colunas numeric): sem isso a
+	// comparação com o valor já gravado nunca bate e a chamada nunca é idempotente.
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE fii_details
+		    SET net_worth = CASE WHEN fii_type = 'tijolo' THEN ROUND($2::numeric, 2) ELSE net_worth END,
+		        portfolio_value = CASE WHEN fii_type = 'papel' THEN ROUND($2::numeric, 2) ELSE portfolio_value END
+		  WHERE asset_id = $1
+		    AND NOT EXISTS (SELECT 1 FROM asset_quotes WHERE asset_id = $1)
+		    AND ((fii_type = 'tijolo' AND net_worth IS DISTINCT FROM ROUND($2::numeric, 2))
+		      OR (fii_type = 'papel' AND portfolio_value IS DISTINCT FROM ROUND($2::numeric, 2)))`,
+		assetID, baseValue)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // ListAssets devolve os ativos do catálogo, opcionalmente filtrados por
@@ -473,8 +498,11 @@ func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) 
 	var d fii.Details
 	var fiiType string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value FROM fii_details WHERE asset_id = $1`, assetID,
-	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue)
+		`SELECT f.fii_type, f.segment, f.net_worth, f.vacancy_rate, f.indexador, f.portfolio_value, v.outstanding_shares
+		   FROM fii_details f
+		   LEFT JOIN variable_income_assets v ON v.asset_id = f.asset_id
+		  WHERE f.asset_id = $1`, assetID,
+	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue, &d.OutstandingShares)
 	if err == sql.ErrNoRows {
 		return fii.Details{}, false, nil
 	}

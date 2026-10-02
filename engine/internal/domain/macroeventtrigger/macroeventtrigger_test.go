@@ -17,6 +17,25 @@ type fakeRepository struct {
 	persistErr     error
 	persistedEvent macroevent.Event
 	persistCalled  bool
+	// assets define o catálogo do fake (asset_id -> tem empresa). Nil = todo
+	// asset_id existe e é uma ação com empresa.
+	assets   map[string]bool
+	assetErr error
+}
+
+func (f *fakeRepository) AssetsWithCompany(_ context.Context, ids []string) (map[string]bool, error) {
+	if f.assetErr != nil {
+		return nil, f.assetErr
+	}
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if f.assets == nil {
+			out[id] = true
+		} else if hasCompany, ok := f.assets[id]; ok {
+			out[id] = hasCompany
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeRepository) LoadCurrentDay(_ context.Context) (int, error) {
@@ -494,4 +513,60 @@ func TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng(t *testing.T) {
 	if repo.calls != goroutines {
 		t.Errorf("Persist calls = %d, want %d", repo.calls, goroutines)
 	}
+}
+
+// TestTrigger_AlvoDeAtivoSemEmpresaOuInexistenteEhRejeitado cobre o achado
+// 028: FII/ETF/renda fixa (sem empresa) e id inexistente são recusados antes
+// de persistir; ação e alvo de setor/risk_class seguem aceitos.
+func TestTrigger_AlvoDeAtivoSemEmpresaOuInexistenteEhRejeitado(t *testing.T) {
+	assets := map[string]bool{"acao-1": true, "acao-2": true, "fii-1": false}
+	tests := []struct {
+		name    string
+		targets []TargetInput
+		wantErr error
+	}{
+		{"ação é válida", []TargetInput{{AssetID: ptr("acao-1")}}, nil},
+		{"duas ações são válidas", []TargetInput{{AssetID: ptr("acao-1")}, {AssetID: ptr("acao-2")}}, nil},
+		{"FII é recusado", []TargetInput{{AssetID: ptr("fii-1")}}, ErrAssetNotTargetable},
+		{"FII misturado com ação recusa o evento inteiro", []TargetInput{{AssetID: ptr("acao-1")}, {AssetID: ptr("fii-1")}}, ErrAssetNotTargetable},
+		{"ativo inexistente", []TargetInput{{AssetID: ptr("nao-existe")}}, ErrUnknownTargetAsset},
+		{"id malformado vira inexistente", []TargetInput{{AssetID: ptr("'; DROP TABLE assets;--")}}, ErrUnknownTargetAsset},
+		{"alvo de setor não consulta ativos", []TargetInput{{Sector: ptr("Mineração")}}, nil},
+		{"alvo de risk_class não consulta ativos", []TargetInput{{RiskClass: ptr("Conservador")}}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{currentDay: 1, assets: assets}
+			_, _, err := NewService(repo).Trigger(context.Background(), Request{
+				TemplateKey: ptr("legislacao-ambiental-mineracao"),
+				Targets:     tt.targets,
+			})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if persisted := repo.persistCalled; persisted != (tt.wantErr == nil) {
+				t.Errorf("Persist chamado = %v, want %v", persisted, tt.wantErr == nil)
+			}
+		})
+	}
+}
+
+func TestTrigger_ErroAoConsultarAtivosPropagaSemPersistir(t *testing.T) {
+	boom := errors.New("banco fora")
+	repo := &fakeRepository{currentDay: 1, assetErr: boom}
+	_, _, err := NewService(repo).Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{AssetID: ptr("acao-1")}},
+	})
+	if !errors.Is(err, boom) || repo.persistCalled {
+		t.Errorf("err = %v persistCalled = %v, want %v/false", err, repo.persistCalled, boom)
+	}
+}
+
+func (f *concurrentFakeRepository) AssetsWithCompany(_ context.Context, ids []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
 }
