@@ -526,20 +526,13 @@ func deterministicSeed(baseSeed int64, id string) int64 {
 // fundamentalsConfig monta o fundamentals.Config de uma empresa pro ciclo
 // de relatório — Sensitivity vem do setor da empresa
 // (fundamentals.CoefficientsForSector, tarefa K.2) usada pra calibrar o
-// quanto a empresa reage a desvios da Selic (spec 3.2.2). Antes da K.2,
-// Sensitivity vinha da risk_class de um ativo de renda variável vinculado à
-// empresa (fundamentals.SensitivityByRiskClass) — essa tabela continua
-// existindo e em uso só por bot.FundamentalistFairPrice (retorno exigido,
-// consumo fora do escopo da K.2), não mais aqui. Sensitivity cai no
-// fallback genérico (CoefficientsForSector) se sector não for um dos 6
-// fixos da spec 3.3.2 — não deveria acontecer com o catálogo seedado
-// (catalog.NewCompany já valida o setor na criação), mas não trava o ciclo
-// de relatório se acontecer.
-// fundamentalsConfig monta o Config de crescimento de uma empresa —
-// baseGrowthPct (companies.base_growth_pct, tarefa 7.2) é o crescimento_base
-// PRÓPRIO da empresa, não mais fundamentals.DefaultBaseGrowth fixo pra todo
-// mundo (ver doc de CompanyForFundamentals.BaseGrowthPct/catalog.Company.
-// BaseGrowthPct sobre por que isso importa pra "empresa boa/média/ruim").
+// quanto o crescimento reage a desvios da Selic (spec 3.2.2). Não é a mesma
+// fonte do retorno exigido em bot.FundamentalistFairPrice, que usa
+// fundamentals.SensitivityByRiskClass: separação deliberada (achado 008, ver
+// doc de SensitivityByRiskClass). Cai no fallback genérico de
+// CoefficientsForSector se sector não for um dos 6 fixos da spec 3.3.2 —
+// não deveria acontecer com o catálogo seedado (catalog.NewCompany já valida
+// o setor), mas não trava o ciclo de relatório se acontecer.
 func fundamentalsConfig(seed int64, companyID string, sector catalog.Sector, baseGrowthPct float64) fundamentals.Config {
 	return fundamentals.Config{
 		BaseGrowth:  baseGrowthPct / 100,

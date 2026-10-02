@@ -132,6 +132,9 @@ func FundamentalistFairPrice(financials fundamentals.Financials, outstandingShar
 		return 0, ErrInvalidFinancials
 	}
 
+	// Por risk_class, não por setor, de propósito (achado 008): retorno
+	// exigido é taxa de desconto do risco do ativo, conceito separado da
+	// sensibilidade de crescimento (fundamentals.CoefficientsBySector).
 	sensitivity := fundamentals.SensitivityByRiskClass[riskClass]
 	requiredReturn := selicNeutral + sensitivity*(selicAnnualRate-selicNeutral)
 	if requiredReturn <= 0 {

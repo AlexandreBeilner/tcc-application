@@ -66,15 +66,18 @@ const (
 // desvios da Selic por `risk_class` do ativo vinculado à empresa (spec
 // 3.2.2: setores cíclicos/mais alavancados — Sofisticado — são mais
 // sensíveis a juros altos que setores de fluxo de caixa mais estável —
-// Conservador). Continua em uso só por bot.FundamentalistFairPrice (retorno
-// exigido na fórmula de Justified Price-to-Book) — o crescimento
-// (ExpectedGrowth/GrowthSeries/NextGrowth, abaixo) passou a usar
-// CoefficientsBySector[sector].SelicSensitivity a partir da tarefa K.2, não
-// mais este mapa. As duas fontes de sensibilidade podem divergir pra uma
-// mesma empresa (uma por setor, outra por risk_class do ativo) — achado
-// registrado em .claude/pontos-em-aberto-decisao-produto.md, decisão de
-// unificação (ou não) fica pra uma sessão futura, fora do escopo de K.2
-// ("Aplicação da calibração em fundamentals.go").
+// Conservador). Usada só por bot.FundamentalistFairPrice, como inclinação do
+// retorno exigido na fórmula de Justified Price-to-Book.
+//
+// Decisão consciente (achado 008, 2026-10-02): esta tabela e
+// CoefficientsBySector[sector].SelicSensitivity (usada por ExpectedGrowth/
+// GrowthSeries/NextGrowth) são dois conceitos separados de propósito, não
+// uma duplicação a unificar. O crescimento de receita reflete a estrutura
+// do setor (margem, alavancagem, ciclicidade da demanda), por isso é por
+// setor. O retorno exigido é uma taxa de desconto, que reflete o risco da
+// classe do ativo, por isso é por risk_class. As duas podem divergir pra
+// uma mesma empresa (ex: BNDD4 usa 0.05 no crescimento e 0.06 no retorno
+// exigido) sem ser inconsistência.
 var SensitivityByRiskClass = map[equity.RiskClass]float64{
 	equity.RiskClassConservador: 0.02,
 	equity.RiskClassSofisticado: 0.06,
@@ -201,9 +204,9 @@ type Config struct {
 	// BaseGrowth é o crescimento_base do ciclo, em decimal (ex: 0.03 para
 	// 3% no trimestre), antes do ajuste pelo fator Selic e do ruído.
 	BaseGrowth float64
-	// Sensitivity é a sensibilidade a desvios da Selic em relação à Selic
-	// neutra — tipicamente um valor de SensitivityByRiskClass pra
-	// risk_class do ativo vinculado à empresa.
+	// Sensitivity é a sensibilidade do crescimento a desvios da Selic em
+	// relação à Selic neutra — vem de CoefficientsBySector[setor] (não de
+	// SensitivityByRiskClass, que é o conceito separado do retorno exigido).
 	Sensitivity float64
 	// NoiseStdDev é o desvio-padrão do ruído idiossincrático por ciclo.
 	NoiseStdDev float64
