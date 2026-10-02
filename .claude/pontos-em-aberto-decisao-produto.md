@@ -87,14 +87,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
 - **Status:** aberto
 
-### 028 · Evento macro apontado para um FII é aceito e marcado `aplicado`, mas não move nada
-
-- **Local:** `POST /admin/macro-events` (backend, `modules/admin`) e `engine/internal/domain/tick/tick.go` (`assetToCompany`, ~linha 694-718: só ativo com `CompanyID` entra no fan-out do efeito)
-- **Origem:** teste ponta a ponta adversarial do PR #49 (2026-10-01), cenário E: `POST /admin/macro-events` com `targets: [{ asset_id: <FII> }]` devolveu `201`, o evento passou por `pendente` e terminou `aplicado` (aparece assim no feed `/news`), mas o preço do FII não recebeu nenhum efeito.
-- **O que é:** a Fase U declara "evento macro afetando FII" fora de escopo (FII não tem empresa, e o efeito macro é por empresa). Só que a API não recusa o alvo: o admin dispara o evento, o usuário comum vê "aplicado" no feed e nada acontece no ativo. Não há erro, nem 5xx, nem efeito.
-- **Por que não foi corrigido:** exige decidir se o evento em FII deve (a) ser rejeitado na criação (`422`, "FII não é alvo válido"), (b) passar a ter efeito (preço justo do FII ganha o termo de efeito macro que `fii.FairPrice` já recebe como parâmetro `macroEffectPct`, hoje sempre 0), ou (c) continuar aceito e apenas ser documentado como sem efeito.
-- **Status:** aberto
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -787,3 +779,11 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Decisão (2026-09-30, autor):** opção (b), taxa de provento por segmento derivada do P/VP-base, com Dividend Yield anual-alvo de 13,2% (o do papel, 12 × 1,1%).
 - **Status:** Resolvido (2026-09-30): `fii.PayoutYieldPerCyclePct(tipo, segmento)` = 13,2 × P/VP-base ÷ 12 (lajes 0,825%, shopping 0,968%, logística 0,935%, papel 1,10% inalterado, tijolo desconhecido 0,935%). `dividend.FIIValuePerShare` recebe a taxa; `dividend.DefaultFIIYieldPerCyclePct` foi removida; o efeito do provento no preço justo (U.4) usa a mesma taxa. DY anual inicial 13,2% nos 5 FIIs (antes 17,7% em lajes e 15,6% em logística). Validado em 100 ticks no catálogo padrão: DY realizado de 13,1% a 13,5%, preços dos FIIs entre 98 e 102 em média, invariantes financeiras com 0 violações. Testes em `fii/payout_test.go`, `dividend_test.go`, `tick_test.go` e `cmd/seed/fii_test.go`.
 
+### 028 · Evento macro apontado para um FII é aceito e marcado `aplicado`, mas não move nada
+
+- **Local:** `POST /admin/macro-events` (backend, `modules/admin`) e `engine/internal/domain/tick/tick.go` (`assetToCompany`, ~linha 694-718: só ativo com `CompanyID` entra no fan-out do efeito)
+- **Origem:** teste ponta a ponta adversarial do PR #49 (2026-10-01), cenário E: `POST /admin/macro-events` com `targets: [{ asset_id: <FII> }]` devolveu `201`, o evento passou por `pendente` e terminou `aplicado` (aparece assim no feed `/news`), mas o preço do FII não recebeu nenhum efeito.
+- **O que é:** a Fase U declara "evento macro afetando FII" fora de escopo (FII não tem empresa, e o efeito macro é por empresa). Só que a API não recusa o alvo: o admin dispara o evento, o usuário comum vê "aplicado" no feed e nada acontece no ativo. Não há erro, nem 5xx, nem efeito.
+- **Por que não foi corrigido:** exige decidir se o evento em FII deve (a) ser rejeitado na criação (`422`, "FII não é alvo válido"), (b) passar a ter efeito (preço justo do FII ganha o termo de efeito macro que `fii.FairPrice` já recebe como parâmetro `macroEffectPct`, hoje sempre 0), ou (c) continuar aceito e apenas ser documentado como sem efeito.
+- **Decisão (2026-10-01, autor):** opção (a), rejeitar na criação. Motivo: o efeito macro que importa para FII (juros e inflação) já chega pelo preço justo via Selic e IPCA; os templates atuais são de setor e não descrevem nada de FII, e os eventos reais de FII são locais (vacância, inadimplência, laudo), um conjunto de templates próprio que seria uma fase futura.
+- **Status:** Resolvido (2026-10-01): `macroeventtrigger.Service.Trigger` consulta `Repository.AssetsWithCompany` (uma consulta por disparo, só quando há alvo por `asset_id`) e devolve `ErrUnknownTargetAsset` (ativo inexistente ou id malformado) ou `ErrAssetNotTargetable` (FII, ETF, renda fixa), ambos `400` no motor (mesma família de `ErrUnknownSector`, então o backend os repassa como `400` sem mudança). Um alvo inválido recusa o evento inteiro antes de gravar. Alvos de setor e `risk_class` não consultam o catálogo. Antes, um `asset_id` inexistente caía num erro de chave estrangeira (`500`); agora é `400`. Testes: domínio (`macroeventtrigger_test.go`, tabela com ação/FII/misturado/inexistente/malformado/setor/risk_class e erro de consulta), `httpserver` (mapeamento `400`), banco (`macro_event_repository_integration_test.go` contra Postgres real) e e2e (`pr49.py`, cenário E). Sem alvo FII em nenhum dos 3 testes e2e do backend, que usam ação.

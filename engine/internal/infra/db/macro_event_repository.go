@@ -37,6 +37,35 @@ func (r *MacroEventRepository) LoadCurrentDay(ctx context.Context) (int, error) 
 	return day, nil
 }
 
+// AssetsWithCompany devolve, para cada id existente em assets, se o ativo
+// tem empresa emissora (variable_income_assets.company_id) — só ação tem.
+// Compara como texto pra que um id malformado seja "inexistente" em vez de
+// erro de sintaxe de uuid.
+func (r *MacroEventRepository) AssetsWithCompany(ctx context.Context, assetIDs []string) (map[string]bool, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT a.id::text, v.company_id IS NOT NULL
+		 FROM assets a
+		 LEFT JOIN variable_income_assets v ON v.asset_id = a.id
+		 WHERE a.id::text = ANY($1)`,
+		pq.Array(assetIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string]bool, len(assetIDs))
+	for rows.Next() {
+		var id string
+		var hasCompany bool
+		if err := rows.Scan(&id, &hasCompany); err != nil {
+			return nil, err
+		}
+		result[id] = hasCompany
+	}
+	return result, rows.Err()
+}
+
 // Persist grava o evento e seus alvos numa única transação: macro_events
 // primeiro (RETURNING id), depois um INSERT por Target em
 // macro_event_targets — status inicial sempre 'pendente' (macroevent.

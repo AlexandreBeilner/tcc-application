@@ -33,6 +33,17 @@ var (
 	// ErrUnknownSector é devolvido quando um Target de escopo setor não
 	// bate com nenhum dos 6 setores fixos da spec 3.3.2.
 	ErrUnknownSector = errors.New("setor de alvo de evento macro desconhecido")
+	// ErrUnknownTargetAsset é devolvido quando um Target de escopo ativo
+	// aponta para um asset_id que não existe no catálogo.
+	ErrUnknownTargetAsset = errors.New("ativo de alvo de evento macro não existe")
+	// ErrAssetNotTargetable é devolvido quando um Target de escopo ativo
+	// aponta para um ativo sem empresa emissora (FII, ETF, renda fixa).
+	// Evento macro só tem efeito por empresa (efeito de preço via
+	// preço justo da empresa, efeito de fundamentos via ciclo de relatório),
+	// então aceitar esse alvo criaria um evento "aplicado" que nunca moveu
+	// nada (achado 028 de .claude/pontos-em-aberto-decisao-produto.md). O
+	// efeito macro que importa para FII/ETF já chega pela Selic e pelo IPCA.
+	ErrAssetNotTargetable = errors.New("evento macro só pode ter como alvo ação (ativo com empresa emissora): FII, ETF e renda fixa não são alvos válidos")
 )
 
 // TargetInput é um alvo recebido no payload de disparo, antes de validado
@@ -75,6 +86,10 @@ type Repository interface {
 	// Persist grava o evento + seus alvos numa única transação e devolve
 	// o id gerado pelo banco.
 	Persist(ctx context.Context, event macroevent.Event) (string, error)
+	// AssetsWithCompany recebe os asset_id dos alvos de escopo ativo e
+	// devolve, para cada id que existe no catálogo, se o ativo tem empresa
+	// emissora. Id ausente do mapa significa ativo inexistente.
+	AssetsWithCompany(ctx context.Context, assetIDs []string) (map[string]bool, error)
 }
 
 // Service dispara um evento macro ponta a ponta (tarefa 4.4). rngMu guarda
@@ -149,6 +164,10 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 		targets = append(targets, target)
 	}
 
+	if err := s.validateAssetTargets(ctx, targets); err != nil {
+		return "", macroevent.Event{}, err
+	}
+
 	event, err := macroevent.NewEvent(req.TemplateKey, *title, *narrative, *direction, *band, *affectsPrice, *affectsFundamentals, targets, req.CreatedBy)
 	if err != nil {
 		return "", macroevent.Event{}, err
@@ -185,6 +204,36 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 		return "", macroevent.Event{}, err
 	}
 	return id, event, nil
+}
+
+// validateAssetTargets recusa alvo de escopo ativo que não existe ou que não
+// é uma ação com empresa (achado 028) — uma consulta só, independente do
+// número de alvos.
+func (s *Service) validateAssetTargets(ctx context.Context, targets []macroevent.Target) error {
+	var ids []string
+	for _, t := range targets {
+		if t.AssetID != nil {
+			ids = append(ids, *t.AssetID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	withCompany, err := s.repo.AssetsWithCompany(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		hasCompany, exists := withCompany[id]
+		if !exists {
+			return ErrUnknownTargetAsset
+		}
+		if !hasCompany {
+			return ErrAssetNotTargetable
+		}
+	}
+	return nil
 }
 
 // sampleEffects amostra o efeito de preço/fundamentos do evento inteiro

@@ -12,6 +12,7 @@ def sec(t): print("\n== "+t)
 st,d=req("POST","/auth/login",{"email":"admin@sim.test","password":"Admin1234!"}); AT=d["token"]
 probe=User("pr49p"+uuid.uuid4().hex[:8],"x")
 A=probe.g("/market/assets?include_sandbox=false")[1]["assets"]
+FI_ASSET=next(a for a in probe.g("/market/assets?include_sandbox=false")[1]["assets"] if a["type"] not in ("acao","etf","fii"))
 FII=[a for a in A if a["type"]=="fii"]; ACAO=[a for a in A if a["type"]=="acao"]; ETF=[a for a in A if a["type"]=="etf"]
 def detail(u,aid): return u.g("/market/assets/"+aid)
 def vp(aid):
@@ -107,18 +108,20 @@ if st==201:
     st,d=u.order(tgt["id"],"sell","market",q)
     check("venda total valida -> 201 ou mercado fechado 422",st in(201,422),(st,d))
 
-sec("E. Evento macro mirando FII (fora de escopo da fase: nao pode quebrar nada)")
-tpls=req("GET","/admin/macro-events/templates",t=AT)
-key=None
-if tpls[0]==200:
-    L=tpls[1].get("templates",tpls[1]) if isinstance(tpls[1],dict) else tpls[1]
-    key=(L[0].get("key") or L[0].get("template_key")) if L else None
-key=key or "legislacao-ambiental-mineracao"
-st,d=req("POST","/admin/macro-events",{"template_key":key,"targets":[{"asset_id":FII[3]["id"]}]},AT)
-print("   macro em FII devolveu",st,str(d)[:140])
-check("macro mirando FII -> resposta controlada (2xx/4xx, nunca 5xx)",st<500,(st,str(d)[:200]))
-run_ticks(5,"apos evento macro em FII",(FII[3],))
-st,d=detail(probe,FII[3]["id"]); check("FII alvo continua consultavel e cotado",st==200 and d["asset"].get("current_price",0)>0)
+sec("E. Evento macro com alvo invalido e recusado (achado 028); alvo valido segue aceito")
+def macro(targets):
+    return req("POST","/admin/macro-events",{"template_key":"legislacao-ambiental-mineracao","targets":targets},AT)
+n0=int(sql("market","select count(*) from macro_events")[0][0])
+etf=ETF[0]; acao=ACAO[0]; fi=FI_ASSET
+for label,targets in [("FII",[{"asset_id":FII[3]["id"]}]),("ETF",[{"asset_id":etf["id"]}]),("renda fixa",[{"asset_id":fi["id"]}]),
+                      ("acao + FII (evento inteiro recusado)",[{"asset_id":acao["id"]},{"asset_id":FII[3]["id"]}]),
+                      ("ativo inexistente",[{"asset_id":str(uuid.uuid4())}]),("id malformado",[{"asset_id":"'; DROP TABLE assets;--"}])]:
+    st,d=macro(targets); check(f"alvo {label} -> 400",st==400,(st,str(d)[:140]))
+check("nenhum evento gravado pelas recusas",int(sql("market","select count(*) from macro_events")[0][0])==n0)
+st,d=macro([{"asset_id":acao["id"]}]); check("alvo acao -> 201",st==201,(st,str(d)[:140]))
+st,d=macro([{"sector":"Mineração"}]); check("alvo de setor -> 201",st==201,(st,str(d)[:140]))
+run_ticks(3,"apos eventos macro",(FII[3],))
+st,d=detail(probe,FII[3]["id"]); check("FII segue consultavel e cotado",st==200 and d["asset"].get("current_price",0)>0)
 
 sec("F. Invariantes financeiras do motor depois de tudo")
 INV=open("inv.sql").read()

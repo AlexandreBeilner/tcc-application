@@ -312,6 +312,8 @@ func writeMacroEventTriggerError(w http.ResponseWriter, err error) {
 	case errors.Is(err, macroeventtrigger.ErrUnknownTemplate),
 		errors.Is(err, macroeventtrigger.ErrMissingFields),
 		errors.Is(err, macroeventtrigger.ErrUnknownSector),
+		errors.Is(err, macroeventtrigger.ErrUnknownTargetAsset),
+		errors.Is(err, macroeventtrigger.ErrAssetNotTargetable),
 		errors.Is(err, macroevent.ErrMissingTitle),
 		errors.Is(err, macroevent.ErrMissingNarrative),
 		errors.Is(err, macroevent.ErrNoEffectEnabled),
