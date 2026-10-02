@@ -87,6 +87,14 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   de ativo, não por setor da empresa) e documentar isso como decisão consciente, não gap.
 - **Status:** aberto
 
+### 028 · Evento macro apontado para um FII é aceito e marcado `aplicado`, mas não move nada
+
+- **Local:** `POST /admin/macro-events` (backend, `modules/admin`) e `engine/internal/domain/tick/tick.go` (`assetToCompany`, ~linha 694-718: só ativo com `CompanyID` entra no fan-out do efeito)
+- **Origem:** teste ponta a ponta adversarial do PR #49 (2026-10-01), cenário E: `POST /admin/macro-events` com `targets: [{ asset_id: <FII> }]` devolveu `201`, o evento passou por `pendente` e terminou `aplicado` (aparece assim no feed `/news`), mas o preço do FII não recebeu nenhum efeito.
+- **O que é:** a Fase U declara "evento macro afetando FII" fora de escopo (FII não tem empresa, e o efeito macro é por empresa). Só que a API não recusa o alvo: o admin dispara o evento, o usuário comum vê "aplicado" no feed e nada acontece no ativo. Não há erro, nem 5xx, nem efeito.
+- **Por que não foi corrigido:** exige decidir se o evento em FII deve (a) ser rejeitado na criação (`422`, "FII não é alvo válido"), (b) passar a ter efeito (preço justo do FII ganha o termo de efeito macro que `fii.FairPrice` já recebe como parâmetro `macroEffectPct`, hoje sempre 0), ou (c) continuar aceito e apenas ser documentado como sem efeito.
+- **Status:** aberto
+
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
