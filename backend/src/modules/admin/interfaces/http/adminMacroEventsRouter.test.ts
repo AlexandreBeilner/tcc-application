@@ -6,6 +6,8 @@ import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { InvalidMacroEventError } from '../../domain/errors'
 import { TriggerMacroEventUseCase } from '../../application/useCases/triggerMacroEvent'
 import { ListMacroEventsUseCase } from '../../application/useCases/listMacroEvents'
+import { RecordAdminActionUseCase } from '../../application/useCases/recordAdminAction'
+import { createFakeAuditLogRepository } from '../../test/fakes/fakeAuditLogRepository'
 import { createFakeMacroEventTrigger } from '../../test/fakes/fakeMacroEventTrigger'
 import { createFakeMacroEventReader } from '../../test/fakes/fakeMacroEventReader'
 import { createAdminMacroEventsRouter } from './adminMacroEventsRouter'
@@ -40,12 +42,16 @@ function buildApp(
 ) {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
-  const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
+  const auditLog = createFakeAuditLogRepository()
+  const triggerMacroEvent = new TriggerMacroEventUseCase(
+    macroEventTrigger,
+    new RecordAdminActionUseCase(auditLog),
+  )
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
   const app = express()
   app.use(express.json())
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
-  return { app, tokenIssuer, macroEventTrigger, macroEventReader }
+  return { app, tokenIssuer, macroEventTrigger, macroEventReader, auditLog }
 }
 
 describe('POST /admin/macro-events', () => {
@@ -78,6 +84,36 @@ describe('POST /admin/macro-events', () => {
     expect(res.status).toBe(201)
     expect(res.body).toEqual({ event: sampleResult })
     expect(macroEventTrigger.calls).toEqual([validTemplateBody])
+  })
+
+  it('audita o disparo com o id do admin e do evento criado', async () => {
+    const { app, tokenIssuer, auditLog } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-7', role: 'admin' })
+
+    await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send(validTemplateBody)
+
+    expect(auditLog.entries).toHaveLength(1)
+    expect(auditLog.entries[0]).toMatchObject({
+      adminId: 'admin-7',
+      action: 'macro_event.trigger',
+      targetId: 'event-1',
+      result: 'success',
+    })
+  })
+
+  it('não audita payload recusado pelo Zod (400 antes de chegar ao caso de uso)', async () => {
+    const { app, tokenIssuer, auditLog } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ foo: 'bar' })
+
+    expect(auditLog.entries).toHaveLength(0)
   })
 
   it('retorna 201 para admin com evento avulso', async () => {

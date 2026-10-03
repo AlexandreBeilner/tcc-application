@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ADMIN_AUDIT_ACTIONS } from '../../domain/auditEntry'
 
 const macroEventTargetSchema = z
   .object({
@@ -48,4 +49,38 @@ export const triggerMacroEventBodySchema = z.union([
 export const listMacroEventsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+})
+
+// GET /admin/audit-log (N.4) — filtros todos opcionais; datas ISO 8601. `limit`
+// default 20 / máximo 100, mesmo teto de GET /admin/macro-events. `action` é
+// validado contra a lista fechada de ações auditáveis, não texto livre.
+export const listAuditLogQuerySchema = z
+  .object({
+    admin_id: z.uuid().optional(),
+    action: z.enum(ADMIN_AUDIT_ACTIONS).optional(),
+    result: z.enum(['success', 'failed']).optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from deve ser anterior ou igual a to',
+    path: ['from'],
+  })
+
+// GET /admin/ticks (N.6): mesma paginação limit/offset de GET /admin/macro-events,
+// repassada ao motor (que aplica o padrão de 20 e o teto de 100).
+export const listTicksQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+})
+
+// POST /admin/tick/advance (N.6): 1 a 30 dias, o mesmo teto do motor
+// (tick.MaxAdvanceDays). O motor valida de novo; aqui a borda recusa antes de
+// auditar e de chamar.
+export const MAX_ADVANCE_DAYS = 30
+
+export const advanceTicksBodySchema = z.object({
+  days: z.number().int().min(1).max(MAX_ADVANCE_DAYS),
 })

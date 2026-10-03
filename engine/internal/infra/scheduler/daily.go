@@ -56,32 +56,69 @@ func (c Config) NextSlotStart(t time.Time) time.Time {
 // o último tick gravado (1 se o Temporizador nunca rodou), limitado a
 // MaxCatchUp. Nunca negativo (relógio que andou pra trás não roda nada).
 func (c Config) Plan(now, lastTickAt time.Time, found bool) int {
+	run, _ := c.PlanWithDiscard(now, lastTickAt, found)
+	return run
+}
+
+// PlanWithDiscard é o Plan que também devolve quantos slots atrasados o MaxCatchUp
+// descartou (tarefa N.6): o excedente nunca roda, mas passa a ser registrado no
+// histórico de ticks em vez de só ir pro log.
+func (c Config) PlanWithDiscard(now, lastTickAt time.Time, found bool) (run, discarded int) {
 	if !found {
-		return 1
+		return 1, 0
 	}
 	missed := c.SlotOf(now) - c.SlotOf(lastTickAt)
 	if missed <= 0 {
-		return 0
+		return 0, 0
 	}
 	if missed > int64(c.MaxCatchUp) {
 		log.Printf("temporizador: %d ticks atrasados, recuperando só %d", missed, c.MaxCatchUp)
-		return c.MaxCatchUp
+		return c.MaxCatchUp, int(missed) - c.MaxCatchUp
 	}
-	return int(missed)
+	return int(missed), 0
+}
+
+// Control é o estado de pausa do agendador, lido antes de cada tentativa (tarefa
+// N.6). ResumedAt é o instante em que a última pausa acabou (zero se nunca houve):
+// os slots perdidos são contados a partir dele, então parar o relógio de propósito
+// não vira recuperação em massa ao retomar.
+type Control interface {
+	State(ctx context.Context) (paused bool, resumedAt time.Time, err error)
 }
 
 // RunScheduledFunc roda os ticks devidos sob a trava do tick; plan diz quantos.
 // Devolve quantos rodaram (tick.Service.RunScheduled).
-type RunScheduledFunc func(ctx context.Context, plan func(lastTickAt time.Time, found bool) int) (int, error)
+type RunScheduledFunc func(ctx context.Context, plan func(lastTickAt time.Time, found bool) (run, discarded int)) (int, error)
 
 // Run recupera os ticks perdidos na subida e depois dispara um tick a cada
 // slot da agenda, até ctx ser cancelado. Toda decisão de "quantos rodar" acontece
 // dentro da trava do tick (RunScheduled), então deploy repetido, duas
 // instâncias ou um POST /admin/tick no mesmo slot nunca duplicam o dia. Uma
-// falha isolada é logada, não derruba o processo.
-func Run(ctx context.Context, cfg Config, now func() time.Time, run RunScheduledFunc) {
+// falha isolada é logada, não derruba o processo. control (opcional, nil = nunca
+// pausa) é consultado a cada tentativa: pausado, o slot é pulado; o tick manual
+// não passa por aqui e segue valendo.
+func Run(ctx context.Context, cfg Config, now func() time.Time, run RunScheduledFunc, control Control) {
 	attempt := func() {
-		ran, err := run(ctx, func(last time.Time, found bool) int { return cfg.Plan(now(), last, found) })
+		var resumedAt time.Time
+		if control != nil {
+			paused, resumed, err := control.State(ctx)
+			if err != nil {
+				// Sem saber se está pausado, não rodar é o lado seguro: uma pausa
+				// deliberada nunca pode ser ignorada por falha de leitura.
+				log.Printf("temporizador: não foi possível ler o estado de pausa, tick adiado: %v", err)
+				return
+			}
+			if paused {
+				return
+			}
+			resumedAt = resumed
+		}
+		ran, err := run(ctx, func(last time.Time, found bool) (int, int) {
+			if resumedAt.After(last) {
+				last, found = resumedAt, true
+			}
+			return cfg.PlanWithDiscard(now(), last, found)
+		})
 		if err != nil {
 			log.Printf("temporizador: erro no tick automático (rodaram %d): %v", ran, err)
 			return

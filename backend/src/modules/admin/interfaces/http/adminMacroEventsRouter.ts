@@ -20,6 +20,11 @@ export function createAdminMacroEventsRouter(deps: AdminMacroEventsRouterDeps): 
     deps.authMiddleware.authenticate,
     deps.authMiddleware.requireRole('admin'),
     async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+
       const parsed = triggerMacroEventBodySchema.safeParse(req.body)
       if (!parsed.success) {
         res
@@ -29,7 +34,7 @@ export function createAdminMacroEventsRouter(deps: AdminMacroEventsRouterDeps): 
       }
 
       try {
-        const event = await deps.triggerMacroEvent.execute(parsed.data)
+        const event = await deps.triggerMacroEvent.execute(req.auth.userId, parsed.data)
         res.status(201).json({ event })
       } catch (err) {
         if (err instanceof InvalidMacroEventError) {

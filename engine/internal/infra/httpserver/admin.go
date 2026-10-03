@@ -99,19 +99,25 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, tickResponse{
-			Day:                     result.State.Day,
-			SelicRate:               result.State.SelicRate,
-			QuotesCount:             len(result.Quotes),
-			FundamentalsCount:       len(result.Fundamentals),
-			IsCopomDay:              result.IsCopomDay,
-			IsReportDay:             result.IsReportDay,
-			DividendsGeneratedCount: len(result.NewDividends),
-			DividendsPaidCount:      len(result.DuePayments),
-			BotFillsCount:           result.IntradayFillsCount,
-			ExpiredOrdersCount:      result.ExpiredOrdersCount,
-			UncoveredAssetsCount:    result.UncoveredAssetsCount,
-			IntradayRoundsCount:     len(result.IntradayRounds),
-		})
+		writeJSON(w, http.StatusOK, toTickResponse(result))
+	}
+}
+
+// toTickResponse monta o corpo de POST /admin/tick (e de cada item de POST
+// /admin/tick/advance) a partir do resultado do tick.
+func toTickResponse(result tick.Result) tickResponse {
+	return tickResponse{
+		Day:                     result.State.Day,
+		SelicRate:               result.State.SelicRate,
+		QuotesCount:             len(result.Quotes),
+		FundamentalsCount:       len(result.Fundamentals),
+		IsCopomDay:              result.IsCopomDay,
+		IsReportDay:             result.IsReportDay,
+		DividendsGeneratedCount: len(result.NewDividends),
+		DividendsPaidCount:      len(result.DuePayments),
+		BotFillsCount:           result.IntradayFillsCount,
+		ExpiredOrdersCount:      result.ExpiredOrdersCount,
+		UncoveredAssetsCount:    result.UncoveredAssetsCount,
+		IntradayRoundsCount:     len(result.IntradayRounds),
 	}
 }

@@ -122,6 +122,14 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 - **Local:** `.claude/backlog-motor-mercado-realista.md`, tarefa **N.2** (linha ~2754)
 - **Depende de:** P4.1.
 
+### P4.3 · N.3 a N.22 — Painel Admin completo (ampliação de 2026-10-03)
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase N, seção "Ampliação da Fase N" (20 tarefas
+  em 8 blocos: shell e auditoria, visão geral e tempo, mercado, catálogo, bots, usuários, conteúdo e
+  gamificação, sistema) com sequência sugerida no final.
+- **Bloqueio parcial:** decisões do autor no achado 029 (parâmetros editáveis, pausa x tick, patrimônio
+  visível ao admin, suspensão, crédito de compensação) e achado 001 (N.15). N.3, N.4 e N.6 ✅ concluídas (2026-10-03); próximas sem bloqueio: N.5 (visão geral), N.8 (monitor de mercado) e N.10/N.1 (bots).
+
 ---
 
 ## Prioridade 5 — Engajamento/gamificação (só um item realmente acionável agora)

@@ -1,0 +1,17 @@
+import type { AuditAction, AuditResult } from '../../../services/admin'
+
+// Rótulos dos valores da lista fechada de ações auditáveis do backend. Ação
+// nova da Fase N entra aqui junto de `AuditAction` (o `Record` quebra o build
+// se faltar uma).
+export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
+    'macro_event.trigger': 'Disparo de evento macro',
+    'tick.trigger': 'Disparo de tick',
+    'tick.advance': 'Avanço de dias do mercado',
+    'scheduler.pause': 'Pausa do temporizador',
+    'scheduler.resume': 'Retomada do temporizador',
+}
+
+export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {
+    success: 'Sucesso',
+    failed: 'Falha',
+}

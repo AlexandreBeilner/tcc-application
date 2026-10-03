@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { listMacroEvents } from '../../services/admin'
 import { listAssets } from '../../services/market'
-import { PainelAdmin } from '.'
+import { AdminEventosMacro } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/admin', () => ({ listMacroEvents: vi.fn() }))
@@ -15,7 +15,7 @@ function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const router = createMemoryRouter(
         [
-            { path: '/', element: <PainelAdmin /> },
+            { path: '/', element: <AdminEventosMacro /> },
             { path: '/admin/eventos/novo', element: <div>tela de criação</div> },
             { path: '/mercado/ativos/:id', element: <div>detalhe do ativo</div> },
         ],
@@ -28,7 +28,7 @@ function renderPage() {
     )
 }
 
-describe('PainelAdmin (tela 10.1)', () => {
+describe('AdminEventosMacro (tela 10.3)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',

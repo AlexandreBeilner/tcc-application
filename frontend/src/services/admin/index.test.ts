@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { listMacroEvents, triggerMacroEvent } from '.'
+import {
+    advanceTicks,
+    getScheduler,
+    listAuditLog,
+    listMacroEvents,
+    listTicks,
+    pauseScheduler,
+    resumeScheduler,
+    triggerMacroEvent,
+    triggerTick,
+} from '.'
 
 function mockFetchOnce(body: unknown, status = 200) {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status, json: async () => body })
@@ -49,5 +59,56 @@ describe('services/admin', () => {
         await triggerMacroEvent('token', input)
         const [, init] = fetchMock.mock.calls[0]
         expect(JSON.parse(init.body)).toEqual(input)
+    })
+
+    it('listAuditLog sem filtros faz GET /admin/audit-log', async () => {
+        const fetchMock = mockFetchOnce({ entries: [], total_entries: 0 })
+        await listAuditLog('token')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/audit-log')
+        expect(init.headers.Authorization).toBe('Bearer token')
+    })
+
+    it('listAuditLog monta a query só com os filtros preenchidos', async () => {
+        const fetchMock = mockFetchOnce({ entries: [], total_entries: 0 })
+        await listAuditLog('token', { action: 'tick.trigger', result: undefined, limit: 20, offset: 40 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/audit-log?action=tick.trigger&limit=20&offset=40')
+    })
+
+    it('getScheduler faz GET /admin/scheduler', async () => {
+        const fetchMock = mockFetchOnce({ enabled: true })
+        await getScheduler('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/scheduler')
+    })
+
+    it('pauseScheduler e resumeScheduler fazem POST nas rotas certas', async () => {
+        const fetchMock = mockFetchOnce({ paused: true })
+        await pauseScheduler('token')
+        await resumeScheduler('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/scheduler/pause')
+        expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/scheduler/resume')
+    })
+
+    it('listTicks monta limit/offset', async () => {
+        const fetchMock = mockFetchOnce({ ticks: [], total_entries: 0 })
+        await listTicks('token', 20, 40)
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/ticks?limit=20&offset=40')
+    })
+
+    it('triggerTick faz POST /admin/tick', async () => {
+        const fetchMock = mockFetchOnce({ day: 1 })
+        await triggerTick('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/tick')
+        expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+    })
+
+    it('advanceTicks faz POST /admin/tick/advance com { days }', async () => {
+        const fetchMock = mockFetchOnce({ requested: 3, ticks: [] })
+        await advanceTicks('token', 3)
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/tick/advance')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ days: 3 })
     })
 })

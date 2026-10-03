@@ -13,6 +13,16 @@ import { ListMacroEventsUseCase } from './modules/admin/application/useCases/lis
 import { TriggerTickUseCase } from './modules/admin/application/useCases/triggerTick'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
 import { createAdminTickRouter } from './modules/admin/interfaces/http/adminTickRouter'
+import { createAdminSchedulerRouter } from './modules/admin/interfaces/http/adminSchedulerRouter'
+import { createEngineSchedulerAdmin } from './modules/admin/infrastructure/engine/engineSchedulerAdmin'
+import { GetSchedulerStatusUseCase } from './modules/admin/application/useCases/getSchedulerStatus'
+import { ListTicksUseCase } from './modules/admin/application/useCases/listTicks'
+import { SetSchedulerPausedUseCase } from './modules/admin/application/useCases/setSchedulerPaused'
+import { AdvanceTicksUseCase } from './modules/admin/application/useCases/advanceTicks'
+import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
+import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
+import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
+import { ListAuditLogUseCase } from './modules/admin/application/useCases/listAuditLog'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -268,9 +278,17 @@ export function createApp(deps: AppDeps = {}): Express {
     accountProvisioner,
   )
   const authMiddleware = createAuthMiddleware(tokenIssuer)
-  const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
+  const auditLogRepository = createDrizzleAuditLogRepository(db)
+  const recordAdminAction = new RecordAdminActionUseCase(auditLogRepository)
+  const listAuditLog = new ListAuditLogUseCase(auditLogRepository)
+  const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger, recordAdminAction)
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
-  const triggerTick = new TriggerTickUseCase(tickTrigger)
+  const triggerTick = new TriggerTickUseCase(tickTrigger, recordAdminAction)
+  const schedulerAdmin = createEngineSchedulerAdmin(engineUrl)
+  const getSchedulerStatus = new GetSchedulerStatusUseCase(schedulerAdmin)
+  const setSchedulerPaused = new SetSchedulerPausedUseCase(schedulerAdmin, recordAdminAction)
+  const listTicks = new ListTicksUseCase(schedulerAdmin)
+  const advanceTicks = new AdvanceTicksUseCase(schedulerAdmin, recordAdminAction)
   // Reaproveita a mesma instância de ListMacroEventsUseCase (admin, 4.5) —
   // feed público (6.0.6, tela 5.1) é o mesmo caso de uso, só sem
   // requireRole('admin') no router. newsReadRepository (6.6.2) decora
@@ -478,6 +496,16 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createAdminPingRouter(authMiddleware))
   app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
   app.use(createAdminTickRouter({ triggerTick, authMiddleware }))
+  app.use(
+    createAdminSchedulerRouter({
+      getSchedulerStatus,
+      setSchedulerPaused,
+      listTicks,
+      advanceTicks,
+      authMiddleware,
+    }),
+  )
+  app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))

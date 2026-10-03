@@ -11,7 +11,9 @@ import {
   boolean,
   check,
   date,
+  index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -342,3 +344,33 @@ export const payrollState = pgTable('payroll_state', {
   lastPaidMonth: varchar('last_paid_month', { length: 7 }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Log de auditoria das ações administrativas (Fase N, tarefa N.4). Append-only
+// também no banco: a migration 0018 cria um trigger que recusa UPDATE e DELETE
+// (mesmo padrão de `market_events` no motor). `action` é texto (a lista
+// fechada vive em `modules/admin/domain/auditEntry.ts`) pra uma ação nova não
+// pedir migration. `targetId` é texto porque o alvo nem sempre é um uuid (o
+// dia do tick, por exemplo). Sem backfill: ações anteriores à tarefa não
+// existem aqui.
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    adminId: uuid('admin_id')
+      .notNull()
+      .references(() => users.id),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    result: text('result').notNull(),
+    errorMessage: text('error_message'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('admin_audit_log_result_chk', sql`${table.result} IN ('success', 'failed')`),
+    index('admin_audit_log_occurred_at_idx').on(table.occurredAt),
+    index('admin_audit_log_admin_id_idx').on(table.adminId),
+    index('admin_audit_log_action_idx').on(table.action),
+  ],
+)

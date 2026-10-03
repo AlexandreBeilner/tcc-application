@@ -8,13 +8,14 @@ import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useMacroEventsQuery } from '../../features/admin/useMacroEventsQuery'
 import styles from './index.module.css'
 
-// Tela 10.1 (RF14, hub) — histórico de eventos macro disparados, acesso
-// restrito a `role = admin` (rota protegida em `router.tsx`, item de menu
-// em `AvatarMenu`). "Novo evento" leva pra 10.2 (`CriarEventoMacro`); ao
+// Tela 10.3 (RF14) — histórico de eventos macro disparados, acesso
+// restrito a `role = admin` (rota protegida em `router.tsx`, dentro do
+// `AdminShell`, seção "Mercado"). Era o hub `/admin` (10.1) até a N.3: o
+// hub passou a ser a Visão geral (`AdminVisaoGeral`). "Novo evento" leva pra 10.2 (`CriarEventoMacro`); ao
 // voltar de lá com sucesso, o evento novo já aparece no topo (`created_at
 // DESC`, `.docs/engine/macroevent.md`) sem refetch manual — a mutation de
 // disparo já invalida esta mesma query key.
-export function PainelAdmin() {
+export function AdminEventosMacro() {
     const navigate = useNavigate()
     const [page, setPage] = useState(1)
     const eventsQuery = useMacroEventsQuery(page)
@@ -24,7 +25,7 @@ export function PainelAdmin() {
     return (
         <main className={styles.page}>
             <div className={styles.header}>
-                <h1 className={styles.title}>Painel Administrativo</h1>
+                <h1 className={styles.title}>Eventos macro</h1>
                 <Button onClick={() => navigate('/admin/eventos/novo')}>Novo evento</Button>
             </div>
 

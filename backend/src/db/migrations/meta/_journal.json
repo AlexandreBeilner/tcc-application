@@ -127,6 +127,13 @@
       "when": 1790548832458,
       "tag": "0017_add_payroll_state",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791037574901,
+      "tag": "0018_add_admin_audit_log",
+      "breakpoints": true
     }
   ]
 }

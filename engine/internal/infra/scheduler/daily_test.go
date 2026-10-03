@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -88,14 +89,116 @@ func TestRun_RecuperaNaSubidaEDisparaNoProximoSlot(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var plans []int
-	run := func(_ context.Context, plan func(time.Time, bool) int) (int, error) {
-		n := plan(at(0, 30), true) // último tick às 00:30
+	run := func(_ context.Context, plan func(time.Time, bool) (int, int)) (int, error) {
+		n, _ := plan(at(0, 30), true) // último tick às 00:30
 		plans = append(plans, n)
 		cancel() // encerra depois da recuperação da subida
 		return n, nil
 	}
-	Run(ctx, cfg, now, run)
+	Run(ctx, cfg, now, run, nil)
 	if len(plans) != 1 || plans[0] != 2 {
 		t.Errorf("planos = %v, want [2] (2 slots perdidos recuperados na subida)", plans)
+	}
+}
+
+func TestConfig_PlanWithDiscard(t *testing.T) {
+	cfg := testConfig()
+	now := at(10, 0)
+	tests := []struct {
+		name          string
+		last          time.Time
+		found         bool
+		wantRun, want int
+	}{
+		{"nunca rodou", time.Time{}, false, 1, 0},
+		{"dentro do teto não descarta", at(0, 30), true, 2, 0},
+		{"exatamente no teto não descarta", at(19, 30).AddDate(0, 0, -1), true, 3, 0},
+		{"2 dias atrás: 12 slots perdidos, 3 recuperados, 9 descartados", at(0, 0).AddDate(0, 0, -2), true, 3, 9},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			run, discarded := cfg.PlanWithDiscard(now, tt.last, tt.found)
+			if run != tt.wantRun || discarded != tt.want {
+				t.Errorf("PlanWithDiscard() = (%d, %d), want (%d, %d)", run, discarded, tt.wantRun, tt.want)
+			}
+		})
+	}
+}
+
+type fakeControl struct {
+	paused    bool
+	resumedAt time.Time
+	err       error
+}
+
+func (f fakeControl) State(context.Context) (bool, time.Time, error) {
+	return f.paused, f.resumedAt, f.err
+}
+
+// runOnce roda a tentativa da subida do Run uma vez e devolve o plano calculado
+// (ou -1 se a agenda nem chamou run).
+func runOnce(t *testing.T, control Control, last time.Time) (plan int, called bool) {
+	t.Helper()
+	cfg := testConfig()
+	now := func() time.Time { return at(10, 0) }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	run := func(_ context.Context, plan func(time.Time, bool) (int, int)) (int, error) {
+		called = true
+		n, _ := plan(last, true)
+		cancel()
+		return n, nil
+	}
+	// Quando run não é chamado o ctx nunca é cancelado pelo teste: cancelamos
+	// por fora logo depois da tentativa da subida.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	var got int
+	wrapped := func(c context.Context, p func(time.Time, bool) (int, int)) (int, error) {
+		n, err := run(c, p)
+		got = n
+		return n, err
+	}
+	Run(ctx, cfg, now, wrapped, control)
+	return got, called
+}
+
+func TestRun_PausadoNaoRodaOTickAgendado(t *testing.T) {
+	if _, called := runOnce(t, fakeControl{paused: true}, at(0, 30)); called {
+		t.Error("agenda pausada chamou o tick")
+	}
+}
+
+func TestRun_FalhaAoLerAPausaNaoRodaOTick(t *testing.T) {
+	if _, called := runOnce(t, fakeControl{err: errors.New("banco fora")}, at(0, 30)); called {
+		t.Error("sem conseguir ler a pausa, o tick rodou")
+	}
+}
+
+func TestRun_NaoPausadoSemRetomadaRecuperaNormalmente(t *testing.T) {
+	plan, called := runOnce(t, fakeControl{}, at(0, 30))
+	if !called || plan != 2 {
+		t.Errorf("called = %v, plano = %d, want true, 2", called, plan)
+	}
+}
+
+// Retomar não recupera o tempo que ficou pausado de propósito: os slots são
+// contados a partir de resumedAt, não do último tick.
+func TestRun_RetomadaContaOsSlotsPerdidosAPartirDoResumedAt(t *testing.T) {
+	plan, called := runOnce(t, fakeControl{resumedAt: at(9, 50)}, at(0, 30))
+	if !called || plan != 0 {
+		t.Errorf("called = %v, plano = %d, want true, 0 (retomou no slot atual, nada a recuperar)", called, plan)
+	}
+	// Retomou há dois slots: recupera só o que passou desde então.
+	plan, _ = runOnce(t, fakeControl{resumedAt: at(4, 50)}, at(0, 30))
+	if plan != 1 {
+		t.Errorf("plano = %d, want 1", plan)
+	}
+	// resumedAt anterior ao último tick não interfere.
+	plan, _ = runOnce(t, fakeControl{resumedAt: at(0, 10)}, at(0, 30))
+	if plan != 2 {
+		t.Errorf("plano = %d, want 2", plan)
 	}
 }

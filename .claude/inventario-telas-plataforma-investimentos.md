@@ -406,21 +406,42 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ## 10. Painel Administrativo
 
-### 10.1 Painel Admin — Eventos Macro (hub)
-- **Objetivo:** cumprir RF14, escopo já delimitado na seção 3.3.3 da spec (só eventos macro, nada de cadastro de empresas/usuários nesta fase).
-- **Acesso:** menu do avatar, visível apenas para `role = admin`.
-- **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), botão "Novo evento".
+### 10.1 Painel Admin — Visão geral (hub)
+- **Objetivo:** porta de entrada do painel administrativo, que a Fase N de `backlog-motor-mercado-realista.md` amplia pra centro de controle geral da aplicação (spec 3.3.3, nota de revisão de 2026-10-03). Desde a N.3 o painel tem um shell próprio (navegação por seções) em volta de todas as telas 10.x.
+- **Acesso:** menu do avatar, visível apenas para `role = admin`; rota `/admin` protegida por `role = admin`.
+- **Conteúdo:** navegação por seções (Visão geral, Tempo, Mercado, Bots, Usuários, Conteúdo, Gamificação, Sistema, Auditoria) — barra lateral fixa no desktop, faixa horizontal no tablet, gaveta no mobile. Seção sem tela ainda aparece desabilitada com "Em breve". Provisória até a N.5 (dashboard de saúde e estado do mercado): cartões de acesso às seções.
+- **Ações:** abrir uma seção disponível (hoje só "Mercado" → **10.3**).
+- **Estados especiais:** nenhum.
+- **Dados envolvidos:** nenhum até a N.5.
+
+### 10.3 Histórico de Eventos Macro
+- **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
+- **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), paginada, botão "Novo evento".
 - **Ações:** "Novo evento" → **10.2 Criar/Disparar Evento**.
 - **Estados especiais:** nenhum evento disparado ainda.
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`.
 
 ### 10.2 Criar/Disparar Evento Macro
 - **Objetivo:** formalizar RF13 — criação e disparo manual de evento.
-- **Acesso:** a partir de 10.1.
+- **Acesso:** a partir de 10.3.
 - **Conteúdo:** seleção de template do catálogo (seção 3.3.2 da spec, 10 templates pré-definidos) OU criação avulsa (título, narrativa, setor/ativo-alvo, banda de magnitude — Leve/Moderado/Severo, tipo de efeito — preço/fundamentos/ambos).
-- **Ações:** "Disparar agora" → confirma e retorna a **10.1**, evento aparece no topo do histórico com status "aplicado".
+- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico com status "aplicado".
 - **Estados especiais:** validação de campos obrigatórios ao criar evento avulso.
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`, `companies` (para segmentar por setor).
+
+### 10.4 Auditoria
+- **Objetivo:** log das ações administrativas (N.4, regra transversal "nenhuma escrita sem auditoria"). Seção "Auditoria" do painel, rota `/admin/auditoria`, somente leitura (o log é append-only no banco).
+- **Conteúdo:** lista paginada, mais recentes primeiro: resultado (sucesso/falha, falha com selo tracejado e motivo), ação, admin e data; detalhe expansível com o alvo e o payload em JSON. Filtros: ação, resultado e período.
+- **Ações:** filtrar, paginar, expandir uma entrada.
+- **Estados especiais:** nenhum registro para o filtro; período invertido (aviso, filtro de datas ignorado); falha ao carregar.
+- **Dados envolvidos:** `admin_audit_log`.
+
+### 10.5 Tempo
+- **Objetivo:** controlar o Temporizador do mercado simulado sem reiniciar o motor (N.6). Seção "Tempo" do painel, rota `/admin/tempo`.
+- **Conteúdo:** estado da agenda (ativa, pausada ou desligada no ambiente), próximo tick agendado, último tick, ritmo (ticks por dia real e fuso), limite de recuperação e, se houver, quando foi retomada; aviso quando há tick em andamento. Histórico paginado de ticks, mais recente primeiro: dia simulado, gatilho (agendado, recuperação ou manual), resultado (falha com selo tracejado e motivo), duração e, no detalhe, os contadores do tick (cotações, rodadas, negócios de bots, ordens expiradas, proventos etc.) e o descarte do limite de recuperação.
+- **Ações:** "Pausar/Retomar agenda" (só vale pro tick agendado; persiste entre restarts), "Disparar 1 tick" e "Avançar N dias" (1 a 30), os dois últimos com confirmação que avisa que o mercado é compartilhado e afeta todos os usuários.
+- **Estados especiais:** agenda desligada no ambiente (pausa desabilitada), tick em andamento (ações travadas), falha no meio de "avançar" (informa quantos dias já rodaram), erro ao carregar.
+- **Dados envolvidos:** `scheduler_control`, `tick_runs`, `market_calendar`.
 
 ---
 
@@ -455,10 +476,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 9.1 | Meu Perfil | Perfil |
 | 9.2 | Configurações de Conta | Perfil |
 | 9.3 | Privacidade e LGPD | Perfil |
-| 10.1 | Painel Admin — hub | Admin |
+| 10.1 | Painel Admin — Visão geral (hub) | Admin |
 | 10.2 | Criar/Disparar Evento | Admin |
+| 10.3 | Histórico de Eventos Macro | Admin |
+| 10.4 | Auditoria | Admin |
+| 10.5 | Tempo | Admin |
 
-**Total: 29 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 32 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

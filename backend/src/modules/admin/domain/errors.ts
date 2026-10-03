@@ -14,3 +14,20 @@ export class InvalidMacroEventError extends Error {}
 // infraestrutura (engineTickTrigger) pro router mapear de volta pra 409,
 // mesmo raciocínio de InvalidMacroEventError pro 400.
 export class TickInProgressError extends Error {}
+
+// SchedulerDisabledError é o 409 do motor em pause/resume quando a agenda
+// automática está desligada no ambiente (TICK_SCHEDULER_ENABLED=false, tarefa
+// N.6): não há o que pausar. Traduzido pelo adapter pro router devolver 409.
+export class SchedulerDisabledError extends Error {}
+
+// TickAdvanceFailedError é a falha no meio de "avançar N dias" (tarefa N.6): o
+// motor devolve os ticks que já rodaram antes do erro (ficam gravados, o
+// mercado não volta atrás). Carregado aqui pra o painel mostrar até onde foi.
+export class TickAdvanceFailedError extends Error {
+  constructor(
+    message: string,
+    readonly completedTicks: unknown[],
+  ) {
+    super(message)
+  }
+}

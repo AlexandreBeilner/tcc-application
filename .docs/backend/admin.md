@@ -1,6 +1,6 @@
 # `admin` — rotas restritas a papel administrativo
 
-Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `POST /admin/macro-events` (tarefa 4.4) e `GET /admin/macro-events` (tarefa 4.5) formam o painel administrativo de Eventos Macro (RF13/RF14, tela 10.1/10.2 do inventário). Outros painéis administrativos chegam na semana 6 e são documentados aqui quando existirem.
+Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `POST /admin/macro-events` (tarefa 4.4) e `GET /admin/macro-events` (tarefa 4.5) formam o painel administrativo de Eventos Macro (RF13/RF14, tela 10.1/10.2 do inventário). Outros painéis administrativos chegam na semana 6 e são documentados aqui quando existirem. Desde a tarefa N.4 (Fase N, `backlog-motor-mercado-realista.md`) toda ação mutável do painel grava uma linha em `admin_audit_log` e `GET /admin/audit-log` consulta esse log (seção ao final).
 
 ---
 
@@ -23,6 +23,7 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.
   - `400` — corpo não bate com nenhuma das duas variantes do schema (campo obrigatório ausente, alvo com escopo ambíguo etc.) **ou** o motor rejeitou o evento por uma regra que só ele sabe validar (ex: `template_key` inexistente no catálogo, ou `asset_id` de alvo que não existe ou não é ação — FII, ETF e renda fixa são recusados) — dupla validação documentada (Zod na borda + `macroevent.NewEvent`/`NewTarget` no motor), não redundância acidental.
+- **Auditoria (N.4):** grava `macro_event.trigger` com `target_type = macro_event`, `target_id` = id do evento criado e `payload` = corpo recebido; `result = failed` com `error_message` quando o motor recusa (`400`). Corpo recusado pelo Zod (`400` antes do caso de uso) não gera linha.
 - **Regra:** `TriggerMacroEventUseCase` delega inteiramente pra `MacroEventTrigger` (porta) → `engineMacroEventTrigger` (adapter, chama `POST /macro-events` via `ENGINE_URL`) — a regra de negócio do disparo (sorteio de efeito por banda, defasagem preço↔fundamentos) vive toda no motor; este módulo só garante `role = admin` (RNF07) antes de repassar. Um `400` do motor é traduzido pelo adapter em `InvalidMacroEventError` (`domain/errors.ts`), mapeado de volta pra `400` pelo router — qualquer outra falha do motor (`500`+) propaga como erro genérico (`500`, tratamento padrão do Express).
 
 ### `GET /admin/macro-events`
@@ -48,4 +49,47 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
   - `403` — token válido, mas `role` diferente de `admin`.
   - `409` — já existe um tick em andamento (trava consultiva do motor, tarefa S.3 — job diário automático ou outro `POST /admin/tick` concorrente).
   - Qualquer outra falha do motor (`500`/`503`) propaga como erro genérico (`500`, tratamento padrão do Express) — mesmo raciocínio de `POST /admin/macro-events` pra falhas fora das traduzidas explicitamente.
+- **Auditoria (N.4):** grava `tick.trigger` com `target_type = tick`, `target_id` = dia simulado e `payload = { day }`; `result = failed` com o motivo quando o motor recusa (ex: `409` de tick em andamento).
 - **Regra:** `TriggerTickUseCase` delega inteiramente pra `TickTrigger` (porta) → `engineTickTrigger` (adapter, chama `POST /admin/tick` via `ENGINE_URL`, sem body) — nenhuma regra de negócio própria, mesmo padrão de delegação fina das outras duas rotas deste módulo. Serve tanto demonstração ao vivo pra banca quanto a suíte `backend/test/e2e/` (avançar dias simulados sem esperar o job diário real).
+
+### `GET /admin/audit-log`
+
+*(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
+
+- **Autenticação:** Bearer token + `role: 'admin'`.
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (`macro_event.trigger` | `tick.trigger`, lista fechada em `domain/auditEntry.ts`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
+- **Erros:**
+  - `401` — token ausente ou inválido.
+  - `403` — token válido, mas `role` diferente de `admin`.
+  - `400` — filtro fora do formato (ação desconhecida, uuid inválido, `limit` fora de 1–100, data inválida, intervalo invertido).
+- **Regra:** `ListAuditLogUseCase` delega pra `AuditLogRepository` (porta) → `drizzleAuditLogRepository` (`admin_audit_log` com join em `users` pro `admin_username`). Quem grava é `RecordAdminActionUseCase.run`, chamado pelos casos de uso do módulo em volta da operação mutável: registra `success` ou `failed` e devolve ou relança o resultado original. Se a gravação do log falhar, o erro é logado (`[audit]`) e a resposta da ação **não** muda (um tick que já rodou não vira `500`). O log é **append-only também no banco**: o trigger `admin_audit_log_append_only` recusa `UPDATE` e `DELETE` (migration `0018`). `payload` guarda só a entrada da ação, nunca senha, token ou patrimônio absoluto. Toda tarefa nova da Fase N que mude estado deve adicionar sua ação em `ADMIN_AUDIT_ACTIONS` e chamar `run`.
+
+### Painel de Tempo (tarefa N.6)
+
+Cinco rotas que repassam o controle do Temporizador do motor (ver `.docs/engine/tick.md#controle-do-temporizador-tarefa-n6-fase-n`). Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum, nada é chamado nem auditado nesses casos). Proxy fino: `SchedulerAdmin` (porta → `engineSchedulerAdmin`) chama o motor via `ENGINE_URL`; a regra (pausa só vale pro tick agendado, retomar não recupera o tempo parado, teto de dias) vive no motor.
+
+#### `GET /admin/scheduler`
+
+- **Sucesso:** `200` → `{ enabled, paused, resumed_at, ticks_per_day, timezone, max_catch_up, next_slot_at, tick_in_progress, last_tick_at }`, idêntico ao do motor. `enabled` é a agenda do processo (variável de ambiente, só leitura); `paused` é a pausa em runtime.
+
+#### `POST /admin/scheduler/pause` e `POST /admin/scheduler/resume`
+
+- **Payload:** nenhum.
+- **Sucesso:** `200` → o estado novo (mesmo corpo de `GET /admin/scheduler`). Idempotente.
+- **Erros:** `409` — agenda automática desligada neste ambiente (`TICK_SCHEDULER_ENABLED=false`), não há o que pausar.
+- **Auditoria:** `scheduler.pause` / `scheduler.resume`, `target_type = scheduler`; a recusa do motor grava `result = failed` com o motivo.
+
+#### `GET /admin/ticks`
+
+- **Payload:** query `limit` (1 a 100) e `offset` (≥ 0), opcionais, validados por `listTicksQuerySchema`.
+- **Sucesso:** `200` → `{ ticks: [...], total_entries }`, mais recente primeiro. Cada item: `{ simulated_day | null, trigger ('scheduled' | 'catchup' | 'manual'), status ('success' | 'failed'), error_message | null, started_at, duration_ms, catch_up_discarded, selic_rate | null, is_copom_day, is_report_day, quotes_count, fundamentals_count, dividends_generated_count, dividends_paid_count, bot_fills_count, expired_orders_count, uncovered_assets_count, intraday_rounds_count }`.
+- **Erros:** `400` — `limit`/`offset` fora da faixa.
+
+#### `POST /admin/tick/advance`
+
+- **Payload:** `{ "days": N }`, inteiro de 1 a 30 (`advanceTicksBodySchema`, o mesmo teto do motor).
+- **Sucesso:** `200` → `{ requested, ticks: [...] }`, um item por tick no formato de `POST /admin/tick`. Os N ticks rodam em sequência no motor sob uma única trava. **Afeta todos os usuários** (o mercado é compartilhado).
+- **Erros:** `400` — `days` ausente, fora de 1 a 30, fracionário ou texto (nada é chamado nem auditado); `409` — já existe um tick em andamento; `500` — falha no meio: `{ error, completed_ticks }` com os ticks que **já rodaram** (ficam gravados; não há rollback de mercado).
+- **Auditoria:** `tick.advance`, `target_type = tick`, `target_id` = último dia simulado, `payload = { days, executed, last_day }` (uma única linha pro lote inteiro); falha grava `result = failed` com o motivo e `payload = { days }`.
+- **Limite conhecido:** a resposta só volta quando todos os dias terminaram (cada tick leva alguns segundos e cresce com o catálogo); o motor dá 2 minutos de prazo de escrita por dia pedido.

@@ -51,6 +51,23 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   `MarketOrderPreference` antes de montar a `Decision`).
 - **Status:** aberto
 
+### 029 · Escopo do painel admin ampliado (Fase N, N.3 a N.22): decisões de produto que as tarefas não fecham
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase N (N.7, N.9, N.16, N.17, N.18)
+- **Origem:** ampliação da Fase N pedida pelo autor ("controle geral da aplicação"), 2026-10-03
+- **O que é:** a spec 3.3.3 limitava o painel a eventos macro; as tarefas novas cobrem tempo, mercado,
+  bots, usuários, conteúdo e gamificação, e algumas dependem de escolhas do autor: (a) **quais parâmetros
+  de simulação ficam editáveis em runtime** (N.7); (b) **pausa de negociação suspende também o tick?**
+  (N.9; recomendado: não); (c) **admin vê patrimônio absoluto de um usuário?** RNF09 proíbe expor a
+  *outro usuário*; recomendado: sim, auditado (N.16); (d) **suspensão de conta cabe nesta fase** e o
+  que ela retira (ranking, busca de amigos; recomendado: nunca apaga progresso) (N.16); (e) **crédito de
+  compensação de caixa** e seu teto (N.17); (f) **migrar o conteúdo das lições e templates de evento pro
+  banco** como fonte da verdade, o que habilitaria CMS (N.18).
+- **Por que não foi corrigido:** são escolhas de comportamento e de limite de negócio sem valor em
+  nenhum documento; a tarefa correspondente deve parar e perguntar antes de implementar o ponto.
+- **Opções:** as recomendações acima, ou restringir a tarefa ao mínimo somente leitura.
+- **Status:** aberto
+
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
