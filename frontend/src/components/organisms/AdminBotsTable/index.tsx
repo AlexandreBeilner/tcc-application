@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import { describeArchetype, describeScope, shortBotId } from '../../../features/admin/botLabels'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -26,7 +27,16 @@ function tickers(bot: AdminBot): string {
 // Bots do motor (N.2): tabela no tablet/desktop e cartões no mobile (nunca tabela com scroll
 // horizontal em tela estreita). Estado nunca só por cor: o selo repete o texto, e o bot inativo
 // ganha borda tracejada (convenção sólido/tracejado do app). Só o Market Maker mostra "Cobertura".
-export function AdminBotsTable({ bots, updatingId, onToggle, onEditCoverage, emptyMessage }: AdminBotsTableProps) {
+export function AdminBotsTable({
+    bots,
+    updatingId,
+    onToggle,
+    onEditCoverage,
+    emptyMessage,
+    expandedId,
+    onToggleActivity,
+    renderDetail,
+}: AdminBotsTableProps) {
     if (bots.length === 0) return <p className={styles.empty}>{emptyMessage}</p>
 
     const identity = (bot: AdminBot) => (
@@ -47,6 +57,14 @@ export function AdminBotsTable({ bots, updatingId, onToggle, onEditCoverage, emp
 
     const actions = (bot: AdminBot) => (
         <div className={styles.actions}>
+            <button
+                type="button"
+                className={styles.action}
+                aria-expanded={expandedId === bot.account_id}
+                onClick={() => onToggleActivity(bot)}
+            >
+                {expandedId === bot.account_id ? 'Ocultar desempenho' : 'Desempenho'}
+            </button>
             <button type="button" className={styles.action} disabled={updatingId === bot.account_id} onClick={() => onToggle(bot)}>
                 {bot.is_active ? 'Desativar' : 'Ativar'}
             </button>
@@ -77,18 +95,27 @@ export function AdminBotsTable({ bots, updatingId, onToggle, onEditCoverage, emp
                 </thead>
                 <tbody>
                     {bots.map((bot) => (
-                        <tr key={bot.account_id} className={styles.tr}>
-                            <td className={styles.td}>{identity(bot)}</td>
-                            <td className={styles.td}>{describeScope(bot.scope)}</td>
-                            <td className={`${styles.td} tabular-nums`}>{formatCurrency(bot.cash)}</td>
-                            <td className={styles.td}>{holdingsText(bot)}</td>
-                            <td className={styles.td}>
-                                {coverageText(bot)}
-                                {bot.covered_assets.length > 0 && <div className={styles.sub}>{tickers(bot)}</div>}
-                            </td>
-                            <td className={styles.td}>{status(bot)}</td>
-                            <td className={styles.td}>{actions(bot)}</td>
-                        </tr>
+                        <Fragment key={bot.account_id}>
+                            <tr className={styles.tr}>
+                                <td className={styles.td}>{identity(bot)}</td>
+                                <td className={styles.td}>{describeScope(bot.scope)}</td>
+                                <td className={`${styles.td} tabular-nums`}>{formatCurrency(bot.cash)}</td>
+                                <td className={styles.td}>{holdingsText(bot)}</td>
+                                <td className={styles.td}>
+                                    {coverageText(bot)}
+                                    {bot.covered_assets.length > 0 && <div className={styles.sub}>{tickers(bot)}</div>}
+                                </td>
+                                <td className={styles.td}>{status(bot)}</td>
+                                <td className={styles.td}>{actions(bot)}</td>
+                            </tr>
+                            {expandedId === bot.account_id && (
+                                <tr>
+                                    <td className={styles.detailCell} colSpan={7}>
+                                        {renderDetail(bot)}
+                                    </td>
+                                </tr>
+                            )}
+                        </Fragment>
                     ))}
                 </tbody>
             </table>
@@ -117,6 +144,7 @@ export function AdminBotsTable({ bots, updatingId, onToggle, onEditCoverage, emp
                         )}
                         {bot.covered_assets.length > 0 && <p className={styles.sub}>{tickers(bot)}</p>}
                         {actions(bot)}
+                        {expandedId === bot.account_id && renderDetail(bot)}
                     </li>
                 ))}
             </ul>

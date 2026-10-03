@@ -20,6 +20,7 @@ type adminReader interface {
 	adminOverviewReader
 	adminMarketReader
 	adminOrderReader
+	adminBotActivityReader
 }
 
 type indicatorResponse struct {

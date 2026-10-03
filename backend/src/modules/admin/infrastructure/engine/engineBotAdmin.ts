@@ -4,7 +4,13 @@ import {
   BotNotFoundError,
   BotRejectedError,
 } from '../../domain/errors'
-import type { AdminBot, AdminBotListing, BotAdmin } from '../../application/ports/botAdmin'
+import type {
+  AdminBot,
+  AdminBotListing,
+  BotActivity,
+  BotAdmin,
+  BotsSummary,
+} from '../../application/ports/botAdmin'
 
 const REQUEST_TIMEOUT_MS = 4000
 
@@ -88,6 +94,38 @@ export function createEngineBotAdmin(engineUrl: string): BotAdmin {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       return readBot(res, 'falha ao alterar o bot no motor de simulação')
+    },
+
+    async activity(botId, days) {
+      const query = days === undefined ? '' : `?days=${days}`
+      const res = await fetch(
+        `${engineUrl}/admin/bots/${encodeURIComponent(botId)}/activity${query}`,
+        {
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      )
+      if (res.status === 404) {
+        throw new BotNotFoundError(await errorMessage(res, 'bot não encontrado'))
+      }
+      if (!res.ok) {
+        throw new Error(
+          `falha ao ler o desempenho do bot no motor de simulação (status ${res.status})`,
+        )
+      }
+      return (await res.json()) as BotActivity
+    },
+
+    async summary(idleDays) {
+      const query = idleDays === undefined ? '' : `?idle_days=${idleDays}`
+      const res = await fetch(`${engineUrl}/admin/bots/summary${query}`, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      if (!res.ok) {
+        throw new Error(
+          `falha ao ler o resumo dos bots no motor de simulação (status ${res.status})`,
+        )
+      }
+      return (await res.json()) as BotsSummary
     },
   }
 }

@@ -92,6 +92,8 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("POST /admin/halts/{id}/lift", handleAdminLift(cfg.tradingHalts))
 	mux.HandleFunc("GET /market/halts", handleMarketHalts(cfg.tradingHalts))
 	mux.HandleFunc("GET /admin/bots", handleAdminListBots(cfg.botManager))
+	mux.HandleFunc("GET /admin/bots/summary", handleAdminBotsSummary(cfg.adminReader))
+	mux.HandleFunc("GET /admin/bots/{id}/activity", handleAdminBotActivity(cfg.adminReader))
 	mux.HandleFunc("POST /admin/bots", handleAdminCreateBot(cfg.botManager))
 	mux.HandleFunc("PATCH /admin/bots/{id}", handleAdminUpdateBot(cfg.botManager))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))

@@ -5,7 +5,7 @@ import {
   BotNotFoundError,
   BotRejectedError,
 } from '../../domain/errors'
-import { sampleBot } from '../../test/fakes/fakeBotAdmin'
+import { sampleActivity, sampleBot, sampleSummary } from '../../test/fakes/fakeBotAdmin'
 import { createEngineBotAdmin } from './engineBotAdmin'
 
 const fetchMock = vi.fn()
@@ -93,5 +93,27 @@ describe('engineBotAdmin', () => {
   it('falha inesperada do motor vira erro genérico', async () => {
     respond(500, {})
     await expect(engine().list()).rejects.toThrow('status 500')
+  })
+
+  it('activity chama GET /admin/bots/{id}/activity com a janela', async () => {
+    respond(200, sampleActivity)
+    expect(await engine().activity('bot-1', 7)).toEqual(sampleActivity)
+    expect(fetchMock.mock.calls[0][0]).toBe('http://engine:8080/admin/bots/bot-1/activity?days=7')
+  })
+
+  it('activity sem janela não manda query e traduz 404', async () => {
+    respond(200, sampleActivity)
+    await engine().activity('bot-1')
+    expect(fetchMock.mock.calls[0][0]).toBe('http://engine:8080/admin/bots/bot-1/activity')
+    respond(404, { error: 'bot não encontrado' })
+    await expect(engine().activity('bot-1')).rejects.toBeInstanceOf(BotNotFoundError)
+  })
+
+  it('summary chama GET /admin/bots/summary e falha em erro do motor', async () => {
+    respond(200, sampleSummary)
+    expect(await engine().summary(5)).toEqual(sampleSummary)
+    expect(fetchMock.mock.calls[0][0]).toBe('http://engine:8080/admin/bots/summary?idle_days=5')
+    respond(500, {})
+    await expect(engine().summary()).rejects.toThrow(/status 500/)
   })
 })

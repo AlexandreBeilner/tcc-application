@@ -10,20 +10,29 @@ import {
   BotRejectedError,
 } from '../../domain/errors'
 import type { CreateAdminBotUseCase } from '../../application/useCases/createAdminBot'
+import type { GetAdminBotActivityUseCase } from '../../application/useCases/getAdminBotActivity'
+import type { GetAdminBotsSummaryUseCase } from '../../application/useCases/getAdminBotsSummary'
 import type { ListAdminBotsUseCase } from '../../application/useCases/listAdminBots'
 import type { UpdateAdminBotUseCase } from '../../application/useCases/updateAdminBot'
-import { createBotBodySchema, updateBotBodySchema } from './schemas'
+import {
+  botActivityQuerySchema,
+  botsSummaryQuerySchema,
+  createBotBodySchema,
+  updateBotBodySchema,
+} from './schemas'
 
 export interface AdminBotsRouterDeps {
   listAdminBots: ListAdminBotsUseCase
   createAdminBot: CreateAdminBotUseCase
   updateAdminBot: UpdateAdminBotUseCase
+  getAdminBotActivity: GetAdminBotActivityUseCase
+  getAdminBotsSummary: GetAdminBotsSummaryUseCase
   authMiddleware: AuthMiddleware
 }
 
-// Gestão de bots (Fase N, tarefa N.1): lista, cria e altera (interruptor, teto e
-// cobertura de Market Maker). Proxy fino do motor; criar e alterar passam pela
-// auditoria (N.4).
+// Gestão de bots (Fase N, tarefas N.1 e N.14): lista, cria e altera (interruptor, teto e
+// cobertura de Market Maker) e lê o desempenho. Proxy fino do motor; criar e alterar passam
+// pela auditoria (N.4), as leituras não.
 export function createAdminBotsRouter(deps: AdminBotsRouterDeps): Router {
   const router = Router()
   const adminOnly = [deps.authMiddleware.authenticate, deps.authMiddleware.requireRole('admin')]
@@ -31,6 +40,31 @@ export function createAdminBotsRouter(deps: AdminBotsRouterDeps): Router {
 
   router.get('/admin/bots', ...adminOnly, async (_req, res) => {
     res.status(200).json(await deps.listAdminBots.execute())
+  })
+
+  // Resumo agregado (N.14): rota fixa, declarada antes de qualquer `/admin/bots/:id`.
+  router.get('/admin/bots/summary', ...adminOnly, async (req, res) => {
+    const parsed = botsSummaryQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+    res.status(200).json(await deps.getAdminBotsSummary.execute(parsed.data.idle_days))
+  })
+
+  router.get('/admin/bots/:id/activity', ...adminOnly, async (req, res) => {
+    const parsed = botActivityQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+    try {
+      res
+        .status(200)
+        .json(await deps.getAdminBotActivity.execute(req.params.id as string, parsed.data.days))
+    } catch (err) {
+      sendBotError(err, res)
+    }
   })
 
   router.post('/admin/bots', ...adminOnly, async (req, res) => {

@@ -45,6 +45,8 @@ import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseT
 import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
 import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
+import { GetAdminBotActivityUseCase } from './modules/admin/application/useCases/getAdminBotActivity'
+import { GetAdminBotsSummaryUseCase } from './modules/admin/application/useCases/getAdminBotsSummary'
 import { ListAdminBotsUseCase } from './modules/admin/application/useCases/listAdminBots'
 import { CreateAdminBotUseCase } from './modules/admin/application/useCases/createAdminBot'
 import { UpdateAdminBotUseCase } from './modules/admin/application/useCases/updateAdminBot'
@@ -349,6 +351,9 @@ export function createApp(deps: AppDeps = {}): Express {
   const listAdminBots = new ListAdminBotsUseCase(botAdmin)
   const createAdminBot = new CreateAdminBotUseCase(botAdmin, recordAdminAction)
   const updateAdminBot = new UpdateAdminBotUseCase(botAdmin, recordAdminAction)
+  // Desempenho dos bots (N.14).
+  const getAdminBotActivity = new GetAdminBotActivityUseCase(botAdmin)
+  const getAdminBotsSummary = new GetAdminBotsSummaryUseCase(botAdmin)
   const getAdminOverview = new GetAdminOverviewUseCase(
     marketOverviewReader,
     schedulerAdmin,
@@ -575,7 +580,16 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(
     createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),
   )
-  app.use(createAdminBotsRouter({ listAdminBots, createAdminBot, updateAdminBot, authMiddleware }))
+  app.use(
+    createAdminBotsRouter({
+      listAdminBots,
+      createAdminBot,
+      updateAdminBot,
+      getAdminBotActivity,
+      getAdminBotsSummary,
+      authMiddleware,
+    }),
+  )
   app.use(
     createAdminOrdersRouter({
       listAdminOrders,

@@ -3,14 +3,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { createAdminBot, listAdminBots, updateAdminBot } from '../../services/admin'
-import type { AdminBot, AdminBotListing } from '../../services/admin'
+import { createAdminBot, getAdminBotActivity, getAdminBotsSummary, listAdminBots, updateAdminBot } from '../../services/admin'
+import type { AdminBot, AdminBotListing, BotActivity, BotsSummary } from '../../services/admin'
 import { ApiError } from '../../services/client'
 import { AdminBots } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/admin', () => ({
     listAdminBots: vi.fn(),
+    getAdminBotActivity: vi.fn(),
+    getAdminBotsSummary: vi.fn(),
     createAdminBot: vi.fn(),
     updateAdminBot: vi.fn(),
 }))
@@ -47,6 +49,42 @@ const listing = (overrides: Partial<AdminBotListing> = {}): AdminBotListing => (
     ...overrides,
 })
 
+// Com um bot parado o painel de saúde mostra o alerta, sem o aviso "tudo certo" (role status), que
+// brigaria com o aviso de bot criado nos testes de criação.
+const summary = (overrides: Partial<BotsSummary> = {}): BotsSummary => ({
+    simulated_day: 20,
+    idle_days: 3,
+    active_bots: 2,
+    idle_bots: [{ account_id: inactive.account_id, archetype: 'ruido', last_order_day: null }],
+    low_cash_bots: [],
+    empty_inventory: [],
+    liquidity: [],
+    float_concentration: [],
+    ...overrides,
+})
+
+const activity = (overrides: Partial<BotActivity> = {}): BotActivity => ({
+    account_id: marketMaker.account_id,
+    archetype: 'market_maker',
+    is_active: true,
+    from_day: 1,
+    to_day: 30,
+    period_days: 30,
+    cash: 600,
+    holdings_value: 500,
+    net_worth: 1100,
+    capital_contributed: 1000,
+    pnl: 100,
+    pnl_pct: 10,
+    orders: { sent: 4, filled: 1, partially_filled: 0, open: 2, cancelled: 1, cancelled_by_reason: {}, fill_rate_pct: 25 },
+    trades: 1,
+    volume: 500,
+    last_order_at: null,
+    last_order_day: null,
+    quotes: [],
+    ...overrides,
+})
+
 function renderPage() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     render(
@@ -64,6 +102,8 @@ beforeEach(() => {
     vi.resetAllMocks()
     vi.mocked(useAuth).mockReturnValue({ token: 'tok' } as ReturnType<typeof useAuth>)
     vi.mocked(listAdminBots).mockResolvedValue(listing())
+    vi.mocked(getAdminBotsSummary).mockResolvedValue(summary())
+    vi.mocked(getAdminBotActivity).mockResolvedValue(activity())
     vi.mocked(updateAdminBot).mockResolvedValue(marketMaker)
     vi.mocked(createAdminBot).mockResolvedValue(chartist)
 })
@@ -226,5 +266,32 @@ describe('AdminBots', () => {
         vi.mocked(listAdminBots).mockRejectedValue(new Error('rede'))
         renderPage()
         expect(await screen.findByText(/Não foi possível carregar os bots/)).toBeInTheDocument()
+    })
+
+    it('mostra os alertas de saúde e abre o desempenho do bot clicado', async () => {
+        renderPage()
+        const health = await screen.findByRole('region', { name: 'Saúde dos bots' })
+        expect(within(health).getByText('1 bot parado')).toBeInTheDocument()
+
+        fireEvent.click(within(health).getByRole('button', { name: 'Ruído 000002' }))
+        // A tabela e os cartões do mobile renderizam o detalhe; o CSS esconde um dos dois.
+        expect((await screen.findAllByRole('region', { name: 'Desempenho do bot' })).length).toBeGreaterThan(0)
+        await waitFor(() => expect(getAdminBotActivity).toHaveBeenCalledWith('tok', inactive.account_id, 30))
+    })
+
+    it('Desempenho na linha abre o painel do bot, troca a janela e fecha', async () => {
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+
+        fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Desempenho' }))
+        expect((await screen.findAllByRole('region', { name: 'Desempenho do bot' })).length).toBeGreaterThan(0)
+        expect(getAdminBotActivity).toHaveBeenCalledWith('tok', marketMaker.account_id, 30)
+
+        fireEvent.click(screen.getAllByRole('button', { name: /Janela do desempenho/ })[0])
+        fireEvent.click(await screen.findByRole('option', { name: 'Últimos 7 dias' }))
+        await waitFor(() => expect(getAdminBotActivity).toHaveBeenCalledWith('tok', marketMaker.account_id, 7))
+
+        fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Ocultar desempenho' }))
+        expect(screen.queryAllByRole('region', { name: 'Desempenho do bot' })).toHaveLength(0)
     })
 })

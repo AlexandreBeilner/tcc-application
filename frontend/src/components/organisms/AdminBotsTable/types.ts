@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { AdminBot } from '../../../services/admin'
 
 export interface AdminBotsTableProps {
@@ -8,4 +9,8 @@ export interface AdminBotsTableProps {
     // Só o Market Maker tem cobertura pra editar.
     onEditCoverage: (bot: AdminBot) => void
     emptyMessage: string
+    // Bot com o desempenho aberto (N.14); o detalhe aparece logo abaixo da linha ou do cartão dele.
+    expandedId: string | null
+    onToggleActivity: (bot: AdminBot) => void
+    renderDetail: (bot: AdminBot) => ReactNode
 }

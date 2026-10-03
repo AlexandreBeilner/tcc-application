@@ -29,10 +29,22 @@ const chartist: AdminBot = {
     holdings: [],
 }
 
-function renderTable(bots: AdminBot[], handlers = { onToggle: vi.fn(), onEditCoverage: vi.fn() }, updatingId: string | null = null) {
+function renderTable(
+    bots: AdminBot[],
+    handlers = { onToggle: vi.fn(), onEditCoverage: vi.fn(), onToggleActivity: vi.fn() },
+    updatingId: string | null = null,
+    expandedId: string | null = null,
+) {
     render(
         <MemoryRouter>
-            <AdminBotsTable bots={bots} updatingId={updatingId} emptyMessage="Nenhum bot." {...handlers} />
+            <AdminBotsTable
+                bots={bots}
+                updatingId={updatingId}
+                emptyMessage="Nenhum bot."
+                expandedId={expandedId}
+                renderDetail={(bot) => <p>Detalhe de {bot.account_id.slice(-6)}</p>}
+                {...handlers}
+            />
         </MemoryRouter>,
     )
     return handlers
@@ -81,10 +93,25 @@ describe('AdminBotsTable', () => {
     })
 
     it('trava só os botões do bot em alteração', () => {
-        renderTable([marketMaker, chartist], { onToggle: vi.fn(), onEditCoverage: vi.fn() }, marketMaker.account_id)
+        renderTable(
+            [marketMaker, chartist],
+            { onToggle: vi.fn(), onEditCoverage: vi.fn(), onToggleActivity: vi.fn() },
+            marketMaker.account_id,
+        )
         const table = screen.getByRole('table')
         expect(within(table).getByRole('button', { name: 'Desativar' })).toBeDisabled()
         expect(within(table).getByRole('button', { name: 'Cobertura' })).toBeDisabled()
         expect(within(table).getByRole('button', { name: 'Ativar' })).toBeEnabled()
+    })
+
+    it('o botão Desempenho repassa o bot e o detalhe aparece só no bot expandido', () => {
+        const handlers = renderTable([marketMaker, chartist], undefined, null, marketMaker.account_id)
+        const table = screen.getByRole('table')
+        expect(within(table).getAllByText('Detalhe de 000002')).toHaveLength(1)
+        expect(within(table).queryByText('Detalhe de 000001')).not.toBeInTheDocument()
+        fireEvent.click(within(table).getByRole('button', { name: 'Ocultar desempenho' }))
+        fireEvent.click(within(table).getByRole('button', { name: 'Desempenho' }))
+        expect(handlers.onToggleActivity).toHaveBeenNthCalledWith(1, marketMaker)
+        expect(handlers.onToggleActivity).toHaveBeenNthCalledWith(2, chartist)
     })
 })

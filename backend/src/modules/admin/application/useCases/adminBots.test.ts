@@ -3,6 +3,8 @@ import { BotConflictError, BotRejectedError } from '../../domain/errors'
 import { createFakeAuditLogRepository } from '../../test/fakes/fakeAuditLogRepository'
 import { createFakeBotAdmin } from '../../test/fakes/fakeBotAdmin'
 import { CreateAdminBotUseCase } from './createAdminBot'
+import { GetAdminBotActivityUseCase } from './getAdminBotActivity'
+import { GetAdminBotsSummaryUseCase } from './getAdminBotsSummary'
 import { ListAdminBotsUseCase } from './listAdminBots'
 import { RecordAdminActionUseCase } from './recordAdminAction'
 import { UpdateAdminBotUseCase } from './updateAdminBot'
@@ -112,5 +114,18 @@ describe('UpdateAdminBotUseCase', () => {
       BotConflictError,
     )
     expect(auditLog.entries[0]).toMatchObject({ action: 'bot.update', result: 'failed' })
+  })
+})
+
+describe('leituras de desempenho (N.14)', () => {
+  it('atividade e resumo delegam ao motor sem auditar', async () => {
+    const { botAdmin, auditLog } = build()
+    const activity = await new GetAdminBotActivityUseCase(botAdmin).execute('bot-1', 7)
+    const summary = await new GetAdminBotsSummaryUseCase(botAdmin).execute(5)
+    expect(activity.account_id).toBe('bot-1')
+    expect(summary.active_bots).toBe(5)
+    expect(botAdmin.activityAsks).toEqual([{ botId: 'bot-1', days: 7 }])
+    expect(botAdmin.summaryAsks).toEqual([5])
+    expect(auditLog.entries).toHaveLength(0)
   })
 })

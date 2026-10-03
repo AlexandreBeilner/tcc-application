@@ -2,6 +2,8 @@ import { apiRequest } from '../client'
 import type {
     AdminBot,
     AdminBotListing,
+    BotActivity,
+    BotsSummary,
     CreateBotInput,
     UpdateBotInput,
     AdminOverview,
@@ -31,7 +33,10 @@ export type {
     AdminBotListing,
     BotArchetype,
     BotAssetRef,
+    BotActivity,
     BotHolding,
+    BotQuote,
+    BotsSummary,
     CreateBotInput,
     UpdateBotInput,
     HaltScope,
@@ -204,4 +209,15 @@ export function createAdminBot(token: string, input: CreateBotInput): Promise<Ad
 
 export function updateAdminBot(token: string, botId: string, input: UpdateBotInput): Promise<AdminBot> {
     return apiRequest<AdminBot>(`/admin/bots/${botId}`, { token, method: 'PATCH', body: input })
+}
+
+// Desempenho dos bots (N.14): só leitura. `days` e `idleDays` ausentes usam o padrão do motor.
+export function getAdminBotActivity(token: string, botId: string, days?: number): Promise<BotActivity> {
+    const query = days === undefined ? '' : `?days=${days}`
+    return apiRequest<BotActivity>(`/admin/bots/${botId}/activity${query}`, { token })
+}
+
+export function getAdminBotsSummary(token: string, idleDays?: number): Promise<BotsSummary> {
+    const query = idleDays === undefined ? '' : `?idle_days=${idleDays}`
+    return apiRequest<BotsSummary>(`/admin/bots/summary${query}`, { token })
 }

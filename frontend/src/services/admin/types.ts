@@ -389,6 +389,65 @@ export interface AdminBot {
     holdings: BotHolding[]
 }
 
+// Desempenho (N.14): espelha GET /admin/bots/{id}/activity e /summary do motor.
+export interface BotQuote extends BotAssetRef {
+    best_bid: number | null
+    best_ask: number | null
+    spread_pct: number | null
+    held_quantity: number
+    target_quantity: number
+    inventory_pct: number | null
+}
+
+export interface BotActivity {
+    account_id: string
+    archetype: BotArchetype
+    is_active: boolean
+    from_day: number
+    to_day: number
+    period_days: number
+    cash: number
+    holdings_value: number
+    net_worth: number
+    capital_contributed: number
+    pnl: number
+    pnl_pct: number | null
+    orders: {
+        sent: number
+        filled: number
+        partially_filled: number
+        open: number
+        cancelled: number
+        cancelled_by_reason: Record<string, number>
+        fill_rate_pct: number | null
+    }
+    trades: number
+    volume: number
+    last_order_at: string | null
+    last_order_day: number | null
+    // Só o Market Maker tem cotação.
+    quotes: BotQuote[]
+}
+
+export interface BotsSummary {
+    simulated_day: number
+    idle_days: number
+    active_bots: number
+    idle_bots: Array<{ account_id: string; archetype: BotArchetype; last_order_day: number | null }>
+    low_cash_bots: Array<{ account_id: string; archetype: BotArchetype; cash: number; capital: number }>
+    empty_inventory: Array<{ account_id: string; asset_id: string; ticker: string }>
+    liquidity: Array<{ asset_id: string; ticker: string; resting_by_provider: Record<string, number> }>
+    float_concentration: Array<{
+        asset_id: string
+        ticker: string
+        top_bot_id: string
+        top_bot_archetype: BotArchetype
+        top_bot_pct: number
+        all_bots_pct: number
+        outstanding_shares: number
+    }>
+}
+
 export interface AdminBotListing {
     bots: AdminBot[]
     // Ativos negociáveis sem Market Maker ativo cobrindo.

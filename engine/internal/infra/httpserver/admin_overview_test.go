@@ -20,6 +20,9 @@ type fakeAdminReader struct {
 	err      error
 	askedID  string
 	filter   adminview.OrderFilter
+	activity adminview.BotActivity
+	summary  adminview.BotsSummary
+	days     int
 }
 
 func (f *fakeAdminReader) AdminOrders(_ context.Context, filter adminview.OrderFilter) ([]adminview.OrderRow, int, error) {
@@ -87,4 +90,14 @@ func TestAdminOverview_DevolveOResumoDoMercado(t *testing.T) {
 			t.Errorf("%s = %v, want %v", k, got[k], v)
 		}
 	}
+}
+
+func (f *fakeAdminReader) BotActivity(_ context.Context, id string, days int) (adminview.BotActivity, error) {
+	f.askedID, f.days = id, days
+	return f.activity, f.err
+}
+
+func (f *fakeAdminReader) BotsSummary(_ context.Context, idleDays int) (adminview.BotsSummary, error) {
+	f.days = idleDays
+	return f.summary, f.err
 }

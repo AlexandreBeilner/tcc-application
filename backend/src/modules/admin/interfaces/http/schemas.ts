@@ -169,3 +169,13 @@ export const updateBotBodySchema = z
       b.covered_asset_ids !== undefined,
     { message: 'informe pelo menos um campo a alterar' },
   )
+
+// GET /admin/bots/:id/activity?days= e GET /admin/bots/summary?idle_days= (N.14): janelas em dias
+// simulados; ausente usa o padrão do motor (30 e 3).
+export const botActivityQuerySchema = z.object({
+  days: z.coerce.number().int().positive().max(365).optional(),
+})
+
+export const botsSummaryQuerySchema = z.object({
+  idle_days: z.coerce.number().int().positive().max(90).optional(),
+})

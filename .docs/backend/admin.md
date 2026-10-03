@@ -198,3 +198,20 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Sucesso:** `200` → o bot atualizado.
 - **Erros:** `400` — `id` não é UUID, corpo inválido ou recusa do motor (bot que não é Market Maker, cobertura acima do teto, ativo não negociável); `404` — bot inexistente; `409` — ativo já coberto por outro Market Maker; `422` com `{ error, code: "batch_too_large", matched, max }` — Market Maker com ordens demais pra cancelar no ativo removido (nada foi tirado).
 - **Auditoria:** `bot.update`, `target_type = bot`, `target_id` = id do bot, `payload` com **só os campos pedidos** (`is_active`, `max_covered_assets`, `covered_asset_ids`); a recusa do motor grava `result = failed` com o motivo.
+
+### Desempenho dos bots (tarefa N.14)
+
+Duas leituras que repassam o motor (formato e regras em `.docs/engine/admin.md`). Exigem `role = admin` (`401` sem token, `403` para usuário comum). Só leitura: não passam pela auditoria.
+
+#### `GET /admin/bots/:id/activity`
+
+- **Payload (query, opcional):** `days` — inteiro de 1 a 365 (padrão do motor: 30), validado por `botActivityQuerySchema`.
+- **Sucesso:** `200` → desempenho do bot (patrimônio, P&L, ordens por situação e motivo de cancelamento, taxa de fill, volume, última atividade e, no Market Maker, a cotação atual por ativo).
+- **Erros:** `400` — `id` não é UUID ou `days` inválido (o motor não é chamado); `404` — bot inexistente.
+
+#### `GET /admin/bots/summary`
+
+- **Payload (query, opcional):** `idle_days` — inteiro de 1 a 90 (padrão do motor: 3), validado por `botsSummaryQuerySchema`.
+- **Sucesso:** `200` → `{ simulated_day, idle_days, active_bots, idle_bots, low_cash_bots, empty_inventory, liquidity, float_concentration }`.
+- **Erros:** `400` — `idle_days` inválido.
+- **Rota fixa:** declarada antes de qualquer `/admin/bots/:id` no router, pra `summary` não ser lido como id.

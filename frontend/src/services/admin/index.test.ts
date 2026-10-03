@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     advanceTicks,
+    getAdminBotActivity,
+    getAdminBotsSummary,
     createAdminBot,
     listAdminBots,
     updateAdminBot,
@@ -235,5 +237,21 @@ describe('services/admin', () => {
         expect(url).toBe('/admin/bots/b1')
         expect(init.method).toBe('PATCH')
         expect(JSON.parse(init.body)).toEqual({ is_active: false })
+    })
+
+    it('getAdminBotActivity faz GET /admin/bots/:id/activity com a janela', async () => {
+        const fetchMock = mockFetchOnce({ account_id: 'b1' })
+        await getAdminBotActivity('token', 'b1', 7)
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/bots/b1/activity?days=7')
+        await getAdminBotActivity('token', 'b1')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/bots/b1/activity')
+    })
+
+    it('getAdminBotsSummary faz GET /admin/bots/summary com idle_days opcional', async () => {
+        const fetchMock = mockFetchOnce({ idle_bots: [] })
+        await getAdminBotsSummary('token', 5)
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/bots/summary?idle_days=5')
+        await getAdminBotsSummary('token')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/bots/summary')
     })
 })

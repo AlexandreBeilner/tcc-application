@@ -5,13 +5,17 @@ import { Select } from '../../components/atoms/Select'
 import type { SelectOption } from '../../components/atoms/Select'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AdminBotsTable } from '../../components/organisms/AdminBotsTable'
+import { BotActivityPanel } from '../../components/organisms/BotActivityPanel'
 import { BotCoverageEditor } from '../../components/organisms/BotCoverageEditor'
 import { BotCreateForm } from '../../components/organisms/BotCreateForm'
+import { BotHealthPanel } from '../../components/organisms/BotHealthPanel'
 import { describeBotError, parseNumber, toCreateInput } from '../../features/admin/botForm'
 import type { BotFormValues } from '../../features/admin/botForm'
 import { ARCHETYPES, ARCHETYPE_LABELS, describeArchetype, shortBotId } from '../../features/admin/botLabels'
 import { useCreateAdminBotMutation, useUpdateAdminBotMutation } from '../../features/admin/useAdminBotActions'
+import { useAdminBotActivityQuery } from '../../features/admin/useAdminBotActivityQuery'
 import { useAdminBotsQuery } from '../../features/admin/useAdminBotsQuery'
+import { useAdminBotsSummaryQuery } from '../../features/admin/useAdminBotsSummaryQuery'
 import type { AdminBot, BotAssetRef } from '../../services/admin'
 import styles from './index.module.css'
 
@@ -30,9 +34,10 @@ const STATUS_FILTER_OPTIONS: SelectOption[] = [
 
 const sortByTicker = (a: BotAssetRef, b: BotAssetRef) => a.ticker.localeCompare(b.ticker)
 
-// Tela 10.10 (N.2) — "Bots" do painel: quem dá liquidez ao mercado. Lista com escopo, caixa,
-// posições e cobertura de Market Maker; ativar e desativar; criação de bot novo; edição da
-// cobertura e do teto do Market Maker. Desktop: lista à esquerda e formulário fixo à direita.
+// Tela 10.10 (N.2, N.14) — "Bots" do painel: quem dá liquidez ao mercado. Saúde dos bots (parados,
+// sem caixa, Market Maker sem ações), lista com escopo, caixa, posições e cobertura de Market
+// Maker, desempenho por bot; ativar e desativar; criação de bot novo; edição da cobertura e do
+// teto do Market Maker. Desktop: lista à esquerda e formulário fixo à direita.
 // Tablet e mobile: o formulário abre pelo botão "Novo bot".
 export function AdminBots() {
     const [archetypeFilter, setArchetypeFilter] = useState('')
@@ -45,8 +50,12 @@ export function AdminBots() {
     const [notice, setNotice] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [createError, setCreateError] = useState<string | null>(null)
+    const [activityBotId, setActivityBotId] = useState<string | null>(null)
+    const [activityDays, setActivityDays] = useState(30)
 
     const botsQuery = useAdminBotsQuery()
+    const summaryQuery = useAdminBotsSummaryQuery()
+    const activityQuery = useAdminBotActivityQuery(activityBotId, activityDays)
     const create = useCreateAdminBotMutation()
     const update = useUpdateAdminBotMutation()
 
@@ -169,6 +178,17 @@ export function AdminBots() {
         )
     }
 
+    function toggleActivity(bot: AdminBot) {
+        setActivityBotId((current) => (current === bot.account_id ? null : bot.account_id))
+    }
+
+    // Do painel de saúde, abre o desempenho e limpa os filtros pra o bot aparecer na lista.
+    function openActivityFromHealth(botId: string) {
+        setArchetypeFilter('')
+        setStatusFilter('')
+        setActivityBotId(botId)
+    }
+
     const updatingId = update.isPending ? (update.variables?.botId ?? null) : null
 
     return (
@@ -216,6 +236,8 @@ export function AdminBots() {
                 </p>
             )}
 
+            {summaryQuery.data && <BotHealthPanel summary={summaryQuery.data} onOpenActivity={openActivityFromHealth} />}
+
             <div className={styles.layout}>
                 <section className={styles.main} aria-label="Lista de bots">
                     <div className={styles.toolbar}>
@@ -256,6 +278,17 @@ export function AdminBots() {
                             onToggle={(bot) => (bot.is_active ? setPending({ kind: 'deactivate', bot }) : activate(bot))}
                             onEditCoverage={openCoverage}
                             emptyMessage={bots.length === 0 ? 'Nenhum bot cadastrado ainda.' : 'Nenhum bot com esses filtros.'}
+                            expandedId={activityBotId}
+                            onToggleActivity={toggleActivity}
+                            renderDetail={() => (
+                                <BotActivityPanel
+                                    activity={activityQuery.data}
+                                    isLoading={activityQuery.isLoading}
+                                    isError={activityQuery.isError}
+                                    days={activityDays}
+                                    onDaysChange={setActivityDays}
+                                />
+                            )}
                         />
                     )}
                 </section>
