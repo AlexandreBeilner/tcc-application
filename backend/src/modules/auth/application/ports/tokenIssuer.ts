@@ -7,10 +7,13 @@ export interface AuthTokenPayload {
   // (login ou reautenticação, N.22). Ações destrutivas do painel exigem que
   // seja recente. `issue` assume "agora" quando omitido.
   authTime?: number
+  // Versão de sessão do usuário no momento da emissão (N.16); omitida = 0.
+  tokenVersion?: number
 }
 
 export interface VerifiedAuthToken extends AuthTokenPayload {
   authTime: number
+  tokenVersion: number
 }
 
 export interface TokenIssuer {

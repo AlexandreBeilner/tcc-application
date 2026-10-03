@@ -55,24 +55,37 @@ export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'live_macro_indicator',
 ])
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: varchar('name', { length: 100 }).notNull(),
-  email: varchar('email', { length: 100 }).notNull().unique(),
-  // Nullable: contas criadas só via OAuth Google não têm senha local.
-  passwordHash: varchar('password_hash', { length: 255 }),
-  username: varchar('username', { length: 30 }).notNull().unique(),
-  role: userRole('role').notNull().default('user'),
-  // Tela 1.2 (inventário) — controla se o pós-login cai no onboarding ou
-  // direto no Portfólio (2.1). Nunca lido de um flag local (localStorage):
-  // precisa sobreviver a um segundo dispositivo/navegador (tarefa 6.0.4).
-  onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
-  // Nome do arquivo salvo em disco (tarefa 6.10.8, upload de foto de
-  // perfil) — nunca a URL pronta, ver `shared/avatarUrl.ts`. Nullable: nem
-  // todo usuário fez upload.
-  avatarPath: varchar('avatar_path', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 100 }).notNull(),
+    email: varchar('email', { length: 100 }).notNull().unique(),
+    // Nullable: contas criadas só via OAuth Google não têm senha local.
+    passwordHash: varchar('password_hash', { length: 255 }),
+    username: varchar('username', { length: 30 }).notNull().unique(),
+    role: userRole('role').notNull().default('user'),
+    // Tela 1.2 (inventário) — controla se o pós-login cai no onboarding ou
+    // direto no Portfólio (2.1). Nunca lido de um flag local (localStorage):
+    // precisa sobreviver a um segundo dispositivo/navegador (tarefa 6.0.4).
+    onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+    // Nome do arquivo salvo em disco (tarefa 6.10.8, upload de foto de
+    // perfil) — nunca a URL pronta, ver `shared/avatarUrl.ts`. Nullable: nem
+    // todo usuário fez upload.
+    avatarPath: varchar('avatar_path', { length: 255 }),
+    // Suspensão pelo painel admin (N.16): reversível, nunca apaga progresso.
+    // Texto + CHECK em vez de enum do Postgres, como o `result` do log de
+    // auditoria: um terceiro estado futuro não exige migration de tipo.
+    status: text('status').notNull().default('active'),
+    suspendedReason: text('suspended_reason'),
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    // Incrementado por "forçar logout" (N.16): o token carrega a versão com que
+    // foi emitido e o `authMiddleware` recusa token de versão antiga.
+    tokenVersion: integer('token_version').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('users_status_chk', sql`${table.status} IN ('active', 'suspended')`)],
+)
 
 export const userIdentities = pgTable(
   'user_identities',

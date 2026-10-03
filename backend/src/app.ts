@@ -65,6 +65,15 @@ import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/admin
 import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
 import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
 import { ListAuditLogUseCase } from './modules/admin/application/useCases/listAuditLog'
+import { createDrizzleAdminUserDirectory } from './modules/admin/infrastructure/persistence/drizzleAdminUserDirectory'
+import { createEngineUserPortfolioReader } from './modules/admin/infrastructure/engine/engineUserPortfolioReader'
+import { ListAdminUsersUseCase } from './modules/admin/application/useCases/listAdminUsers'
+import { GetAdminUserDetailUseCase } from './modules/admin/application/useCases/getAdminUserDetail'
+import { SuspendUserUseCase } from './modules/admin/application/useCases/suspendUser'
+import { ReactivateUserUseCase } from './modules/admin/application/useCases/reactivateUser'
+import { ForceLogoutUserUseCase } from './modules/admin/application/useCases/forceLogoutUser'
+import { DeleteUserAccountUseCase } from './modules/admin/application/useCases/deleteUserAccount'
+import { createAdminUsersRouter } from './modules/admin/interfaces/http/adminUsersRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -210,6 +219,7 @@ import { createEngineOrderExecutor } from './modules/market/infrastructure/engin
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
+import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
 import { noStore } from './shared/http/noStore'
 import { createRateLimiter } from './shared/http/rateLimit'
 import { ReauthenticateUseCase } from './modules/auth/application/useCases/reauthenticate'
@@ -324,7 +334,7 @@ export function createApp(deps: AppDeps = {}): Express {
     tokenIssuer,
     accountProvisioner,
   )
-  const authMiddleware = createAuthMiddleware(tokenIssuer)
+  const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
   const loginUser = new LoginUserUseCase(
@@ -421,10 +431,11 @@ export function createApp(deps: AppDeps = {}): Express {
   // `trades_executed`. Reaproveitados de novo mais abaixo por `getRanking`.
   const userDirectory = createDrizzleUserDirectory(db)
   const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
+  const currentAccountStateReader = createEngineCurrentAccountStateReader(engineUrl)
   const getNetWorth = new GetNetWorthUseCase(
     createEngineAccountEventsReader(engineUrl),
     createEngineAssetPriceHistoryReader(engineUrl),
-    createEngineCurrentAccountStateReader(engineUrl),
+    currentAccountStateReader,
   )
 
   const achievementRepository = createDrizzleAchievementRepository(db)
@@ -552,14 +563,20 @@ export function createApp(deps: AppDeps = {}): Express {
   const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  // Reaproveitados pelo detalhe de usuário do painel admin (N.16).
+  const progressionExporter = createInProcessProgressionExporter(getProgression)
+  const achievementsExporter = createInProcessAchievementsExporter(
+    new ExportUnlockedAchievementsUseCase(achievementRepository),
+  )
+  const friendshipsExporter = createInProcessFriendshipsExporter(
+    new ExportFriendshipsUseCase(friendshipRepository),
+  )
   const exportUserData = new ExportUserDataUseCase(
     userRepository,
-    createInProcessProgressionExporter(getProgression),
+    progressionExporter,
     createInProcessLessonProgressExporter(new ExportLessonProgressUseCase(lessonRepository)),
-    createInProcessAchievementsExporter(
-      new ExportUnlockedAchievementsUseCase(achievementRepository),
-    ),
-    createInProcessFriendshipsExporter(new ExportFriendshipsUseCase(friendshipRepository)),
+    achievementsExporter,
+    friendshipsExporter,
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
   )
 
@@ -660,6 +677,29 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
+  app.use(
+    createAdminUsersRouter({
+      listAdminUsers: new ListAdminUsersUseCase(createDrizzleAdminUserDirectory(db)),
+      getAdminUserDetail: new GetAdminUserDetailUseCase(
+        userRepository,
+        progressionExporter,
+        achievementsExporter,
+        friendshipsExporter,
+        createEngineUserPortfolioReader(engineUrl, currentAccountStateReader),
+        orderAdmin,
+        auditLogRepository,
+      ),
+      suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction),
+      reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction),
+      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction),
+      deleteUserAccount: new DeleteUserAccountUseCase(
+        userRepository,
+        anonymizeAccount,
+        recordAdminAction,
+      ),
+      authMiddleware,
+    }),
+  )
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))

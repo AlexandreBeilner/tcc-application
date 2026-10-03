@@ -60,4 +60,12 @@ describe('ConfirmDialog', () => {
         fireEvent.click(confirm)
         expect(onConfirm).toHaveBeenCalledTimes(1)
     })
+
+    it('confirmDisabled trava o confirmar sem depender de texto digitado', () => {
+        const { onConfirm } = renderDialog({ confirmDisabled: true })
+        const confirm = screen.getByRole('button', { name: 'Avançar' })
+        expect(confirm).toBeDisabled()
+        fireEvent.click(confirm)
+        expect(onConfirm).not.toHaveBeenCalled()
+    })
 })

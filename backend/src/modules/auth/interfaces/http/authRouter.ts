@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
+  AccountSuspendedError,
   EmailAlreadyInUseError,
   InvalidCredentialsError,
   UsernameAlreadyInUseError,
@@ -66,6 +67,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         res.status(401).json({ error: err.message })
         return
       }
+      if (err instanceof AccountSuspendedError) {
+        res.status(403).json({ error: 'account_suspended' })
+        return
+      }
       throw err
     }
   })
@@ -122,6 +127,11 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
       res.redirect(`${frontendUrl}/auth/callback#token=${result.token}`)
     } catch (err) {
+      if (err instanceof AccountSuspendedError) {
+        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
+        res.redirect(`${frontendUrl}/auth/callback#error=account_suspended`)
+        return
+      }
       console.error('falha na troca de código OAuth do Google:', err)
       res.status(502).json({ error: 'falha ao autenticar com o Google' })
     }

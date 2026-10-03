@@ -28,6 +28,8 @@ export function createFakeAuditLogRepository(): FakeAuditLogRepository {
         .reverse() // mais recente primeiro, como o adapter real
         .filter((e) => !query.adminId || e.adminId === query.adminId)
         .filter((e) => !query.action || e.action === query.action)
+        .filter((e) => !query.targetType || e.targetType === query.targetType)
+        .filter((e) => !query.targetId || e.targetId === query.targetId)
         .filter((e) => !query.result || e.result === query.result)
         .filter((e) => !query.from || e.occurredAt >= query.from)
         .filter((e) => !query.to || e.occurredAt <= query.to)

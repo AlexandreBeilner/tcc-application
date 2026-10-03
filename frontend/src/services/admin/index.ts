@@ -1,5 +1,8 @@
 import { apiRequest } from '../client'
 import type {
+    AdminUserDetail,
+    AdminUsersFilters,
+    ListAdminUsersResult,
     AdminBot,
     AdminBotListing,
     BotActivity,
@@ -35,6 +38,15 @@ import type {
 } from './types'
 
 export type {
+    AdminUserDetail,
+    AdminUserRole,
+    AdminUserStatus,
+    AdminUserSummary,
+    AdminUserTimelineEntry,
+    AdminUsersFilters,
+    ListAdminUsersResult,
+    UserPortfolio,
+    UserPortfolioPosition,
     CancelMacroEventResult,
     MacroEventDetail,
     MacroEventFilters,
@@ -274,4 +286,34 @@ export function getMacroEventDetail(token: string, id: string, windowDays?: numb
 // Cancela um evento pendente que ainda não produziu efeito (N.11).
 export function cancelMacroEvent(token: string, id: string): Promise<CancelMacroEventResult> {
     return apiRequest<CancelMacroEventResult>(`/admin/macro-events/${id}`, { token, method: 'DELETE' })
+}
+
+// Gestão de usuários (N.16). Suspender, reativar, forçar logout e excluir respondem 204.
+export function listAdminUsers(token: string, filters: AdminUsersFilters = {}): Promise<ListAdminUsersResult> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiRequest<ListAdminUsersResult>(`/admin/users${query ? `?${query}` : ''}`, { token })
+}
+
+export function getAdminUser(token: string, userId: string): Promise<AdminUserDetail> {
+    return apiRequest<AdminUserDetail>(`/admin/users/${userId}`, { token })
+}
+
+export function suspendAdminUser(token: string, userId: string, reason: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/suspend`, { token, method: 'POST', body: { reason } })
+}
+
+export function reactivateAdminUser(token: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/reactivate`, { token, method: 'POST' })
+}
+
+export function forceLogoutAdminUser(token: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/force-logout`, { token, method: 'POST' })
+}
+
+export function deleteAdminUser(token: string, userId: string, confirmUsername: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}`, { token, method: 'DELETE', body: { confirm_username: confirmUsername } })
 }

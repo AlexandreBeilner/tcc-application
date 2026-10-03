@@ -10,9 +10,13 @@ export function createJwtTokenIssuer(secret: string): TokenIssuer {
   return {
     issue(payload: AuthTokenPayload) {
       const authTime = payload.authTime ?? Math.floor(Date.now() / 1000)
-      return jwt.sign({ sub: payload.sub, role: payload.role, authTime }, secret, {
-        expiresIn: payload.role === 'admin' ? ADMIN_TOKEN_TTL : USER_TOKEN_TTL,
-      })
+      return jwt.sign(
+        { sub: payload.sub, role: payload.role, authTime, tokenVersion: payload.tokenVersion ?? 0 },
+        secret,
+        {
+          expiresIn: payload.role === 'admin' ? ADMIN_TOKEN_TTL : USER_TOKEN_TTL,
+        },
+      )
     },
     verify(token) {
       const decoded = jwt.verify(token, secret)
@@ -26,6 +30,8 @@ export function createJwtTokenIssuer(secret: string): TokenIssuer {
         sub: String(decoded.sub),
         role: decoded.role as AuthTokenPayload['role'],
         authTime,
+        // Token anterior à N.16 não tem o claim: vale 0, a versão inicial.
+        tokenVersion: typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0,
       }
     },
   }

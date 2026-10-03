@@ -92,3 +92,12 @@ export class MacroEventNotFoundError extends Error {}
 // MacroEventConflictError é o 409 do motor: o evento já foi aplicado ou cancelado, já
 // começou a produzir efeito, ou há um tick em andamento (N.11). A mensagem diz qual.
 export class MacroEventConflictError extends Error {}
+
+// Operações do painel de usuários (N.16). Traduzidas pelo router: 404, 409, 422.
+export class AdminUserNotFoundError extends Error {}
+// Conta `admin` não é suspensa nem excluída pelo painel (evita se trancar fora).
+export class AdminAccountProtectedError extends Error {}
+// Suspender conta já suspensa, ou reativar conta que não está suspensa.
+export class UserStatusConflictError extends Error {}
+// Confirmação da exclusão não bate com o username atual.
+export class DeleteConfirmationMismatchError extends Error {}

@@ -92,6 +92,10 @@ export type AuditAction =
     | 'bot.fund'
     | 'settings.update'
     | 'settings.reset'
+    | 'user.suspend'
+    | 'user.reactivate'
+    | 'user.force_logout'
+    | 'user.delete'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -584,4 +588,83 @@ export interface MacroEventDetail extends MacroEventBase {
 
 export interface CancelMacroEventResult {
     event: MacroEventBase
+}
+
+// Gestão de usuários (N.16, `.docs/backend/admin.md#gestão-de-usuários-tarefa-n16`).
+export type AdminUserRole = 'user' | 'admin'
+export type AdminUserStatus = 'active' | 'suspended'
+
+export interface AdminUserSummary {
+    id: string
+    name: string
+    email: string
+    username: string
+    role: AdminUserRole
+    status: AdminUserStatus
+    onboarding_completed: boolean
+    // 'password' (senha local) e os provedores OAuth ('google').
+    providers: string[]
+    created_at: string
+}
+
+export interface AdminUsersFilters {
+    q?: string
+    role?: AdminUserRole
+    status?: AdminUserStatus
+    provider?: string
+    created_from?: string
+    created_to?: string
+    limit?: number
+    offset?: number
+}
+
+export interface ListAdminUsersResult {
+    users: AdminUserSummary[]
+    total: number
+}
+
+export interface UserPortfolioPosition {
+    asset_id: string
+    ticker: string
+    name: string
+    type: string
+    is_sandbox: boolean
+    quantity: number
+    average_price: number
+}
+
+export interface UserPortfolio {
+    cash: number
+    variable_income_value: number
+    fixed_income_value: number
+    net_worth: number
+    positions: UserPortfolioPosition[]
+}
+
+export interface AdminUserTimelineEntry {
+    id: string
+    admin_id: string
+    admin_username: string | null
+    action: AuditAction
+    payload: Record<string, unknown>
+    result: AuditResult
+    error_message: string | null
+    occurred_at: string
+}
+
+export interface AdminUserDetail {
+    account: AdminUserSummary & { suspended_reason: string | null; suspended_at: string | null }
+    progression: {
+        xp: number
+        level: number
+        current_streak: number
+        longest_streak: number
+        last_qualifying_activity_date: string | null
+    }
+    achievements_count: number
+    friends_count: number
+    // `null` quando o motor não respondeu: o resto do detalhe continua.
+    portfolio: UserPortfolio | null
+    open_orders: { total: number; orders: AdminOrder[] } | null
+    timeline: AdminUserTimelineEntry[]
 }

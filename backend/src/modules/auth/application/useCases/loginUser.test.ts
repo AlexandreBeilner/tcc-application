@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InvalidCredentialsError } from '../../domain/errors'
+import { AccountSuspendedError, InvalidCredentialsError } from '../../domain/errors'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
@@ -19,7 +19,7 @@ function build() {
     createFakeAccountProvisioner(),
   )
   const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
-  return { registerUser, loginUser }
+  return { registerUser, loginUser, userRepository, tokenIssuer }
 }
 
 describe('LoginUserUseCase', () => {
@@ -123,6 +123,43 @@ describe('LoginUserUseCase', () => {
       const { loginUser, sessionAuditor } = await buildWithAdmin()
       await loginUser.execute({ email: 'comum@example.com', password: 'senha-forte-123' })
       expect(sessionAuditor.events).toEqual([])
+    })
+  })
+
+  describe('conta suspensa (N.16)', () => {
+    it('recusa login com a senha certa e não revela a suspensão a quem erra a senha', async () => {
+      const { registerUser, loginUser, userRepository } = build()
+      const { user } = await registerUser.execute({
+        name: 'Alexandre',
+        email: 'susp@example.com',
+        username: 'susp',
+        password: 'senha-forte-123',
+      })
+      await userRepository.updateUser(user.id, { status: 'suspended' })
+
+      await expect(
+        loginUser.execute({ email: 'susp@example.com', password: 'senha-forte-123' }),
+      ).rejects.toBeInstanceOf(AccountSuspendedError)
+      await expect(
+        loginUser.execute({ email: 'susp@example.com', password: 'errada' }),
+      ).rejects.toBeInstanceOf(InvalidCredentialsError)
+    })
+
+    it('emite o token com a versão de sessão atual do usuário', async () => {
+      const { registerUser, loginUser, userRepository, tokenIssuer } = build()
+      const { user } = await registerUser.execute({
+        name: 'Alexandre',
+        email: 'ver@example.com',
+        username: 'ver',
+        password: 'senha-forte-123',
+      })
+      await userRepository.revokeSessions(user.id)
+
+      const { token } = await loginUser.execute({
+        email: 'ver@example.com',
+        password: 'senha-forte-123',
+      })
+      expect(tokenIssuer.verify(token).tokenVersion).toBe(1)
     })
   })
 })

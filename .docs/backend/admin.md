@@ -72,13 +72,50 @@ Valem para todas as rotas `/admin/*`:
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.
   - `400` — filtro fora do formato (ação desconhecida, uuid inválido, `limit` fora de 1–100, data inválida, intervalo invertido).
 - **Regra:** `ListAuditLogUseCase` delega pra `AuditLogRepository` (porta) → `drizzleAuditLogRepository` (`admin_audit_log` com join em `users` pro `admin_username`). Quem grava é `RecordAdminActionUseCase.run`, chamado pelos casos de uso do módulo em volta da operação mutável: registra `success` ou `failed` e devolve ou relança o resultado original. Se a gravação do log falhar, o erro é logado (`[audit]`) e a resposta da ação **não** muda (um tick que já rodou não vira `500`). O log é **append-only também no banco**: o trigger `admin_audit_log_append_only` recusa `UPDATE` e `DELETE` (migration `0018`). `payload` guarda só a entrada da ação, nunca senha, token ou patrimônio absoluto. Toda tarefa nova da Fase N que mude estado deve adicionar sua ação em `ADMIN_AUDIT_ACTIONS` e chamar `run`.
+
+### Gestão de usuários (tarefa N.16)
+
+Seis rotas. Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum). Quem **muda estado** (`suspend`, `force-logout`, `DELETE`) exige também senha conferida há menos de 5 minutos (`401 reauth_required`, N.22) e grava `admin_audit_log` com `target_type = user` e `target_id` = id do usuário (`reactivate` não pede senha: devolve acesso, não tira). O administrador **vê o patrimônio absoluto** de qualquer usuário, sem auditar a leitura (exceção deliberada à RNF09, CLAUDE.md, decisão de 2026-10-03). Não existe rota pra editar perfil de terceiro nem pra mudar `role`. "Solicitar redefinição de senha" ficou de fora: não há canal de e-mail no produto.
+
+#### `GET /admin/users`
+
+- **Payload:** query string, todos opcionais: `q` (nome, e-mail ou username, contém, sem caixa; um UUID também casa o id exato), `role` (`user` | `admin`), `status` (`active` | `suspended`), `provider` (`password` ou o nome de um provedor, hoje `google`), `created_from`/`created_to` (ISO 8601 com fuso, `created_from` ≤ `created_to`), `limit` (1–100, padrão 20), `offset` (≥ 0).
+- **Sucesso:** `200` → `{ users: [{ id, name, email, username, role, status, onboarding_completed, providers, created_at }], total }`, cadastro mais recente primeiro. Nunca devolve hash de senha nem token de provedor. `%` e `_` no `q` são literais.
+- **Erros:** `400` filtro inválido.
+
+#### `GET /admin/users/:id`
+
+- **Sucesso:** `200` → `{ account, progression, achievements_count, friends_count, portfolio, open_orders, timeline }`. `account`: dados de conta, `status`, `suspended_reason`, `suspended_at`, `providers`, `onboarding_completed`. `progression`: `xp`, `level`, `current_streak`, `longest_streak`, `last_qualifying_activity_date` (a "última atividade"). `portfolio`: `{ cash, variable_income_value, fixed_income_value, net_worth, positions[] }` lido do **saldo atual da conta no motor** (mesma marcação a mercado do ranking), nunca da reconstrução por replay; só posições com quantidade > 0. `open_orders`: `{ total, orders[] }` (até 10, via a mesma consulta do `GET /admin/orders`). `timeline`: até 20 ações do painel sobre esta conta, mais recentes primeiro (inclui as das tarefas seguintes). `portfolio` e `open_orders` vêm `null` se o motor não responder: o resto do detalhe continua.
+- **Erros:** `400` id que não é UUID; `404` usuário inexistente.
+
+#### `POST /admin/users/:id/suspend`
+
+- **Payload:** `{ reason }`, 3 a 500 caracteres (obrigatório; vai pro log e pra tela).
+- **Sucesso:** `204`. Grava `status = suspended`, `suspended_reason`, `suspended_at` e **revoga as sessões** (um token antigo não volta a valer na reativação). A conta sai do ranking e da busca de amigos, perde o login (`403 account_suspended`) e todo token existente passa a receber `403 account_suspended`; o progresso não é tocado. **Não cancela ordens em repouso** (use `POST /admin/orders/cancel-batch`, N.10). Auditoria: `user.suspend` com `payload.reason`.
+- **Erros:** `400` sem motivo; `401 reauth_required`; `404`; `409` conta já suspensa; `422 { code: "admin_account_protected" }` alvo é `admin` (evita se trancar fora).
+
+#### `POST /admin/users/:id/reactivate`
+
+- **Sucesso:** `204`. Volta a `active`, limpa motivo e instante, **sem perda** de progresso, conquistas, amizades ou posições. As sessões antigas continuam encerradas: a pessoa loga de novo. Auditoria: `user.reactivate`.
+- **Erros:** `404`; `409` conta que não está suspensa.
+
+#### `POST /admin/users/:id/force-logout`
+
+- **Sucesso:** `204`. Incrementa `users.token_version` (atômico); o `authMiddleware` compara a versão do token com a do banco e devolve `401 sessão encerrada` pra qualquer token emitido antes. A pessoa pode logar de novo. Auditoria: `user.force_logout`.
+- **Erros:** `401 reauth_required`; `404`.
+
+#### `DELETE /admin/users/:id`
+
+- **Payload:** `{ confirm_username }`, o username atual da conta digitado de volta (confirmação dupla junto com a senha recente).
+- **Sucesso:** `204`. Mesmo caminho do `DELETE /me` (`AnonymizeAccountUseCase`): anonimiza nome, e-mail, username e senha, desconecta os provedores, apaga a foto e **revoga as sessões**; a linha de `users` e o histórico imutável ficam. Auditoria: `user.delete` com **só o id** do alvo, nunca o username.
+- **Erros:** `400` sem `confirm_username`; `401 reauth_required`; `404`; `422 { code: "confirmation_mismatch" }` username não confere; `422 { code: "admin_account_protected" }` alvo é `admin`.
 
 ### Painel de Tempo (tarefa N.6)
 

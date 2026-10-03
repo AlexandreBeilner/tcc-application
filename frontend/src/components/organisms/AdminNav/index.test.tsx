@@ -26,10 +26,11 @@ describe('AdminNav (N.3)', () => {
         expect(screen.getByRole('link', { name: 'Visão geral' })).toHaveAttribute('href', '/admin')
         expect(screen.getByRole('link', { name: 'Mercado' })).toHaveAttribute('href', '/admin/mercado')
         expect(screen.getByRole('link', { name: 'Bots' })).toHaveAttribute('href', '/admin/bots')
-        expect(screen.queryByRole('link', { name: /Usuários/ })).not.toBeInTheDocument()
-        const users = screen.getByText('Usuários').closest('span[aria-disabled]')
-        expect(users).toHaveAttribute('aria-disabled', 'true')
-        expect(users).toHaveTextContent('Em breve')
+        expect(screen.getByRole('link', { name: 'Usuários' })).toHaveAttribute('href', '/admin/usuarios')
+        expect(screen.queryByRole('link', { name: /Conteúdo/ })).not.toBeInTheDocument()
+        const content = screen.getByText('Conteúdo').closest('span[aria-disabled]')
+        expect(content).toHaveAttribute('aria-disabled', 'true')
+        expect(content).toHaveTextContent('Em breve')
     })
 
     it('Visão geral não fica ativa em sub-rota; Mercado fica ativa em /admin/eventos/novo', () => {

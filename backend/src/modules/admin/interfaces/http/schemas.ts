@@ -234,3 +234,34 @@ export const engineSettingKeySchema = z.enum(['ticks_per_day', 'max_catch_up'])
 export const updateEngineSettingBodySchema = z.object({
   value: z.number().int(),
 })
+
+// GET /admin/users (N.16): busca livre e filtros, todos opcionais. `limit` default
+// 20 / máximo 100, mesma convenção do log de auditoria.
+export const listAdminUsersQuerySchema = z
+  .object({
+    q: z.string().trim().min(1).max(100).optional(),
+    role: z.enum(['user', 'admin']).optional(),
+    status: z.enum(['active', 'suspended']).optional(),
+    provider: z.string().trim().min(1).max(50).optional(),
+    created_from: z.iso.datetime({ offset: true }).optional(),
+    created_to: z.iso.datetime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine(
+    (q) => !q.created_from || !q.created_to || new Date(q.created_from) <= new Date(q.created_to),
+    {
+      message: 'created_from deve ser anterior ou igual a created_to',
+      path: ['created_from'],
+    },
+  )
+
+// POST /admin/users/:id/suspend (N.16): motivo obrigatório (fica no log e na tela).
+export const suspendUserBodySchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+})
+
+// DELETE /admin/users/:id (N.16, LGPD): o username atual digitado de volta.
+export const deleteUserBodySchema = z.object({
+  confirm_username: z.string().trim().min(1).max(30),
+})

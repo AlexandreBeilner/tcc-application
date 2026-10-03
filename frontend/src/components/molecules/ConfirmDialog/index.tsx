@@ -18,6 +18,7 @@ export function ConfirmDialog({
     pending = false,
     pendingLabel = 'Executando…',
     requireText,
+    confirmDisabled = false,
     onConfirm,
     onCancel,
 }: ConfirmDialogProps) {
@@ -72,7 +73,7 @@ export function ConfirmDialog({
                     <button ref={cancelRef} type="button" className={styles.cancel} disabled={pending} onClick={onCancel}>
                         {cancelLabel}
                     </button>
-                    <Button onClick={onConfirm} disabled={pending || confirmBlocked}>
+                    <Button onClick={onConfirm} disabled={pending || confirmBlocked || confirmDisabled}>
                         {pending ? pendingLabel : confirmLabel}
                     </Button>
                 </div>

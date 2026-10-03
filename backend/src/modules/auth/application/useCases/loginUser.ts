@@ -1,4 +1,4 @@
-import { InvalidCredentialsError } from '../../domain/errors'
+import { AccountSuspendedError, InvalidCredentialsError } from '../../domain/errors'
 import type { User } from '../../domain/user'
 import type { AdminSessionAuditor } from '../ports/adminSessionAuditor'
 import type { PasswordHasher } from '../ports/passwordHasher'
@@ -40,10 +40,20 @@ export class LoginUserUseCase {
       throw new InvalidCredentialsError('credenciais inválidas')
     }
 
+    // Depois de conferir a senha: quem erra a senha nunca descobre que a conta existe
+    // e está suspensa.
+    if (user.status === 'suspended') {
+      throw new AccountSuspendedError('account_suspended')
+    }
+
     if (user.role === 'admin') {
       await this.sessionAuditor?.record({ adminId: user.id, kind: 'login' })
     }
-    const token = this.tokenIssuer.issue({ sub: user.id, role: user.role })
+    const token = this.tokenIssuer.issue({
+      sub: user.id,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    })
     return { user, token }
   }
 }

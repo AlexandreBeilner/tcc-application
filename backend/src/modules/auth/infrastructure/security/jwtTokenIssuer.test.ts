@@ -43,4 +43,15 @@ describe('jwtTokenIssuer', () => {
     expect(ttl('admin')).toBe(2 * 3600)
     expect(ttl('user')).toBe(7 * 24 * 3600)
   })
+
+  it('carrega o tokenVersion e assume 0 quando omitido ou ausente no token antigo', () => {
+    const secret = 'segredo-de-teste'
+    const issuer = createJwtTokenIssuer(secret)
+    expect(
+      issuer.verify(issuer.issue({ sub: 'u', role: 'user', tokenVersion: 4 })).tokenVersion,
+    ).toBe(4)
+    expect(issuer.verify(issuer.issue({ sub: 'u', role: 'user' })).tokenVersion).toBe(0)
+    const legacy = jwt.sign({ sub: 'u', role: 'user' }, secret, { expiresIn: '1h' })
+    expect(issuer.verify(legacy).tokenVersion).toBe(0)
+  })
 })

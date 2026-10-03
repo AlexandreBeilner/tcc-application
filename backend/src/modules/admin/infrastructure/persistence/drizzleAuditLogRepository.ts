@@ -23,6 +23,8 @@ export function createDrizzleAuditLogRepository(db: Database): AuditLogRepositor
       const filters: SQL[] = []
       if (query.adminId) filters.push(eq(adminAuditLog.adminId, query.adminId))
       if (query.action) filters.push(eq(adminAuditLog.action, query.action))
+      if (query.targetType) filters.push(eq(adminAuditLog.targetType, query.targetType))
+      if (query.targetId) filters.push(eq(adminAuditLog.targetId, query.targetId))
       if (query.result) filters.push(eq(adminAuditLog.result, query.result))
       if (query.from) filters.push(gte(adminAuditLog.occurredAt, query.from))
       if (query.to) filters.push(lte(adminAuditLog.occurredAt, query.to))

@@ -40,6 +40,12 @@ export class ReauthenticateUseCase {
     if (user.role === 'admin') {
       await this.sessionAuditor?.record({ adminId: user.id, kind: 'reauth' })
     }
-    return { token: this.tokenIssuer.issue({ sub: user.id, role: user.role }) }
+    return {
+      token: this.tokenIssuer.issue({
+        sub: user.id,
+        role: user.role,
+        tokenVersion: user.tokenVersion,
+      }),
+    }
   }
 }

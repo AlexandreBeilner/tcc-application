@@ -22,6 +22,8 @@ import { AdminParametros } from '../pages/AdminParametros'
 import { AdminPausas } from '../pages/AdminPausas'
 import { AdminBots } from '../pages/AdminBots'
 import { AdminTempo } from '../pages/AdminTempo'
+import { AdminUsuarioDetalhe } from '../pages/AdminUsuarioDetalhe'
+import { AdminUsuarios } from '../pages/AdminUsuarios'
 import { AdminVisaoGeral } from '../pages/AdminVisaoGeral'
 import { CriarEventoMacro } from '../pages/CriarEventoMacro'
 import { EquityList } from '../pages/EquityList'
@@ -160,6 +162,8 @@ export const router = createBrowserRouter([
                                     { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
                                     { path: '/admin/mercado/pausas', element: <AdminPausas /> },
                                     { path: '/admin/bots', element: <AdminBots /> },
+                                    { path: '/admin/usuarios', element: <AdminUsuarios /> },
+                                    { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },
                                     { path: '/admin/auditoria', element: <AdminAuditoria /> },
                                     { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
                                 ],

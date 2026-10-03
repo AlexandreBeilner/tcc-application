@@ -12,7 +12,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     { key: 'time', label: 'Tempo', Icon: Clock, to: '/admin/tempo', task: 'N.6' },
     { key: 'market', label: 'Mercado', Icon: CandlestickChart, to: '/admin/mercado', alsoActiveOn: ['/admin/eventos'], task: 'N.8' },
     { key: 'bots', label: 'Bots', Icon: Bot, to: '/admin/bots', task: 'N.2' },
-    { key: 'users', label: 'Usuários', Icon: Users, task: 'N.16' },
+    { key: 'users', label: 'Usuários', Icon: Users, to: '/admin/usuarios', task: 'N.16' },
     { key: 'content', label: 'Conteúdo', Icon: FileText, task: 'N.18' },
     { key: 'gamification', label: 'Gamificação', Icon: Trophy, task: 'N.19' },
     { key: 'system', label: 'Sistema', Icon: Activity, task: 'N.20' },

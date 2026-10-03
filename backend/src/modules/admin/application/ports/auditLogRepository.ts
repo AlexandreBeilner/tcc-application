@@ -6,6 +6,9 @@ export interface ListAuditLogQuery {
   adminId?: string
   action?: AdminAuditAction
   result?: AdminAuditResult
+  // Ações sobre um alvo específico (linha do tempo do usuário, N.16).
+  targetType?: string
+  targetId?: string
   from?: Date
   to?: Date
   limit: number
