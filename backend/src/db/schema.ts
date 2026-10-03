@@ -217,6 +217,13 @@ export const userLessonProgress = pgTable(
     // (conquista/missão de sequência de acertos) poder consultar o
     // histórico depois, não só o momento da escolha.
     microDecisionSelectedOption: smallint('micro_decision_selected_option'),
+    // Dispensa (N.24): lição criada no meio do currículo depois que o usuário
+    // já tinha passado daquele ponto. Não é conclusão (`completedAt` segue
+    // nulo, sem XP), mas conta como "satisfeita" na progressão, então não
+    // bloqueia a sequência nem cancela as chaves de produto da lição. Se o
+    // usuário fizer a lição depois, `completedAt` é preenchido e `waivedAt`
+    // permanece como registro de origem.
+    waivedAt: timestamp('waived_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],

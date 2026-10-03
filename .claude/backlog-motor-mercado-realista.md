@@ -3099,7 +3099,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 - **Dependências:** N.4, N.18 (coluna `published`); **N.24** para criar lição (a edição de lição existente não
   depende dela e pode sair antes).
 
-### N.24 · Progressão com dispensa: lição nova no meio sem bloquear quem já passou
+### N.24 · Progressão com dispensa: lição nova no meio sem bloquear quem já passou ✅
 
 - **Descrição:** decisão do autor (2026-10-03, achado 030): lição nova pode entrar **no meio** do currículo; quem
   já avançou além daquele ponto **não é bloqueado** por ela, e quem ainda não chegou é bloqueado normalmente.
@@ -3128,6 +3128,23 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   (`isUnlocked`, `unlockedKeysFor`, `countCompleted`).
 - **Dependências:** nenhuma de painel (é backend de lições). **Refatoração do núcleo da progressão: fazer em PR
   próprio, antes da N.18 (publicar) e da N.23 (criar lição).**
+- **Entregável (sessão 2026-10-03, PR 4):** migration `0019_add_lesson_progress_waived_at` (coluna nullable
+  `user_lesson_progress.waived_at`, sem backfill, reversível por `DROP COLUMN`; é `0019` e não `0018` porque a branch do
+  PR 1 já ocupa a `0018`, então este PR foi empilhado sobre a branch do PR 3). Domínio (`modules/lessons/domain/lesson.ts`):
+  `isSatisfied` (concluída ou dispensada), `buildProgression(lessons, progress)` (fonte única da regra: posição = índice na
+  lista recebida, `satisfiedCount` conta só lições da lista) e `shouldWaiveInsertedLesson(satisfiedCount, posição)`;
+  `isUnlocked`, `lessonStatus`, `buildLessonView` e `unlockedKeysFor` passaram a usá-los. `getTrackMap`, `getLesson`,
+  `advanceLesson` e `getUnlockedProductKeys` trocaram `completedCount` por `buildProgression`; `countCompleted` (XP,
+  conquistas, missões) segue contando só conclusão real. Trilha concluída e conquista de trilha sem erro tratam dispensada
+  como satisfeita (troféu não regride). `GET /lessons` ganhou `waived` (dispensada e ainda não feita). Frontend: espelho
+  de `unlockedKeysFor`/`nextUnlockFor` agora conta `completed` ou `waived` e usa o índice na lista. Testes: tabela de
+  36 contagens x 36 posições de inserção provando "quem passou de k fica idêntico, quem estava em k ou antes é bloqueado",
+  despublicação com lacuna (não trava nem faz pular), dispensa que concede chaves, XP uma única vez ao fazer a dispensada.
+  Validado ao vivo: migração subiu sobre o banco com 68 linhas de progresso reais (nenhuma alterada) e um usuário com
+  dispensa plantada viu a lição `available`+`waived`, a seguinte liberada, e XP 50 só ao concluir.
+  **Deixado pra N.23/N.18, de propósito:** a transação de criação de lição (inserir linhas de dispensa e renumerar
+  `sort_order`, atenção ao `UNIQUE (sort_order)`, que exige deslocar em duas passadas) e o filtro de publicadas em
+  `listAll` (coluna `published`); o selo "nova, opcional" no Mapa da Trilha (o dado `waived` já chega no frontend).
 
 ### N.19 · Conquistas e missões diárias: catálogo operável
 
@@ -3203,7 +3220,7 @@ se o autor pedir.
 | **1** | ✅ feito, aguardando merge | Fundação | N.3 shell, N.4 auditoria, N.6 Tempo | engine, backend, frontend | nenhuma | branch `fase-n-painel-admin-shell-auditoria-tempo`, validada ao vivo |
 | **2** | ✅ feito, aguardando merge | Leituras | N.5 Visão geral e saúde, N.8 Monitor do mercado | engine, backend, frontend | PR 1 | cards e tabelas batem com o mercado público; derrubar o Redis mostra "fora" sem quebrar a tela |
 | **3** | ✅ feito, aguardando merge | Controle do book | N.10 Cancelar ordens como admin, N.9 Pausa de negociação | engine (caminho de ordem e rodadas de bot), backend, frontend (inclui o aviso ao usuário) | PR 2 | cancelar libera a reserva; ordem de usuário e de bot recusada na pausa e aceita depois |
-| **4** | ⬜ | Progressão de lições | N.24 Progressão com dispensa | backend (núcleo de lições) | nenhuma | **sozinho de propósito**: teste por contagem de 0 a 35, e2e e migração em banco com progresso real |
+| **4** | ✅ feito, aguardando merge | Progressão de lições | N.24 Progressão com dispensa | backend (núcleo de lições) | nenhuma | **sozinho de propósito**: teste por contagem de 0 a 35, e2e e migração em banco com progresso real |
 | **5** | ⬜ | Bots | N.1 API de bots, N.2 Tela de bots | engine, backend, frontend | PR 3 | criar bot pela tela e vê-lo na rodada seguinte; reatribuir cobertura cancela ordens do Market Maker |
 | **6** | ⬜ | Bots avançado | N.14 Desempenho, N.15 Editar bot e aportar | engine, backend, frontend | PR 5 | P&L e volume batem com `market_events`; aporte vale na rodada seguinte |
 | **7** | ⬜ | Operar a simulação | N.7 Parâmetros (só ritmo editável), N.11 Eventos macro completos | engine, backend, frontend | PR 1 | mudar ticks por dia reflete no próximo slot e sobrevive a restart; cancelar pendente, agendar e ver impacto |
