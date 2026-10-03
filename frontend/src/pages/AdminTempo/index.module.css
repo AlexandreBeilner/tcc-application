@@ -45,3 +45,13 @@
     color: var(--color-feedback-error-500);
     font-size: var(--font-size-sm);
 }
+
+.link {
+    color: var(--color-brand-500);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.link:hover {
+    text-decoration: underline;
+}

@@ -14,6 +14,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/botadmin"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/coverage"
+	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
@@ -166,6 +167,13 @@ func main() {
 		DaysPerRealDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
 	}
 	scheduleCfg, scheduleEnabled := loadScheduleConfig()
+	// Ritmo editável pelo painel (N.7): o ambiente é o padrão; o que o admin gravar em
+	// engine_settings vale por cima, sem reiniciar o motor.
+	settingsService := enginesetting.NewService(db.NewEngineSettingsRepository(pool), enginesetting.Values{
+		TicksPerDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
+		MaxCatchUp:  envInt("TICK_MAX_CATCHUP", 3),
+	})
+	calendarAPI.Current = settingsService.Current
 	schedulerAdmin := &httpserver.SchedulerAdminAPI{
 		Control:     schedulerControl,
 		Runs:        tickRepository,
@@ -174,6 +182,7 @@ func main() {
 		TicksPerDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
 		MaxCatchUp:  envInt("TICK_MAX_CATCHUP", 3),
 		Timezone:    schedulerTimezone(),
+		Current:     settingsService.Current,
 		LastTickAt:  tickRepository.LastTickAt,
 		// Sonda da trava consultiva: se não dá pra pegá-la, há um tick rodando.
 		InProgress: func(ctx context.Context) (bool, error) {
@@ -188,11 +197,26 @@ func main() {
 		},
 	}
 	if scheduleEnabled {
-		calendarAPI.NextTick = scheduleCfg.NextSlotStart
-		schedulerAdmin.NextSlot = scheduleCfg.NextSlotStart
+		// A agenda é remontada a cada leitura: o fuso é fixo, o ritmo vem das configurações.
+		liveConfig := func(ctx context.Context) (scheduler.Config, error) {
+			values, err := settingsService.Current(ctx)
+			if err != nil {
+				return scheduler.Config{}, err
+			}
+			return scheduler.Config{Location: scheduleCfg.Location, TicksPerDay: values.TicksPerDay, MaxCatchUp: values.MaxCatchUp}, nil
+		}
+		nextSlot := func(now time.Time) time.Time {
+			cfg, err := liveConfig(context.Background())
+			if err != nil {
+				cfg = scheduleCfg
+			}
+			return cfg.NextSlotStart(now)
+		}
+		calendarAPI.NextTick = nextSlot
+		schedulerAdmin.NextSlot = nextSlot
 		tickerCtx, stopTicker := context.WithCancel(context.Background())
 		defer stopTicker()
-		go scheduler.Run(tickerCtx, scheduleCfg, time.Now, tickService.RunScheduled, schedulerControl)
+		go scheduler.Run(tickerCtx, liveConfig, time.Now, tickService.RunScheduled, schedulerControl)
 	} else {
 		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
 	}
@@ -203,7 +227,7 @@ func main() {
 	botAdminRepository := db.NewBotAdminRepository(pool)
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

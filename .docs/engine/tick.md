@@ -26,7 +26,7 @@ Rotas internas do painel de Tempo, mesma convenção de `POST /admin/tick` (sem 
 
 #### `GET /admin/scheduler`
 
-- **Sucesso:** `200` → `{ enabled, paused, resumed_at, ticks_per_day, timezone, max_catch_up, next_slot_at, tick_in_progress, last_tick_at }`. `enabled` é a agenda do **processo** (`TICK_SCHEDULER_ENABLED`, só leitura em runtime); `paused` é a pausa em runtime (persistida, sobrevive a restart). `next_slot_at` é `null` com a agenda desligada ou pausada. `tick_in_progress` sonda a trava consultiva do Postgres (inclusive de outra instância). `last_tick_at` é o último `SaveTick`. Datas em RFC 3339 UTC; `resumed_at`/`last_tick_at` são `null` se nunca houve.
+- **Sucesso:** `200` → `{ enabled, paused, resumed_at, ticks_per_day, timezone, max_catch_up, next_slot_at, tick_in_progress, last_tick_at }`. `enabled` é a agenda do **processo** (`TICK_SCHEDULER_ENABLED`, só leitura em runtime); `ticks_per_day` e `max_catch_up` são os valores **vigentes** (padrão do ambiente ou o que o painel gravou, ver "Parâmetros de simulação" em `admin.md`); `paused` é a pausa em runtime (persistida, sobrevive a restart). `next_slot_at` é `null` com a agenda desligada ou pausada. `tick_in_progress` sonda a trava consultiva do Postgres (inclusive de outra instância). `last_tick_at` é o último `SaveTick`. Datas em RFC 3339 UTC; `resumed_at`/`last_tick_at` são `null` se nunca houve.
 - **Erros:** `500` — falha de leitura.
 
 #### `POST /admin/scheduler/pause` e `POST /admin/scheduler/resume`

@@ -90,6 +90,20 @@ type Control interface {
 // Devolve quantos rodaram (tick.Service.RunScheduled).
 type RunScheduledFunc func(ctx context.Context, plan func(lastTickAt time.Time, found bool) (run, discarded int)) (int, error)
 
+// ConfigSource entrega a agenda vigente a cada tentativa (tarefa N.7): ticks por dia e
+// teto de recuperação podem mudar em runtime pelo painel, então o agendador não guarda
+// uma cópia fixa. Falha ao ler adia a tentativa, igual à falha ao ler a pausa.
+type ConfigSource func(ctx context.Context) (Config, error)
+
+// Static adapta uma Config fixa (testes e o modo sem painel) a ConfigSource.
+func Static(cfg Config) ConfigSource {
+	return func(context.Context) (Config, error) { return cfg, nil }
+}
+
+// maxWait limita quanto o agendador dorme: uma mudança de ticks por dia no painel passa a
+// valer em até maxWait, em vez de só no fim de um slot que pode durar um dia inteiro.
+var maxWait = 30 * time.Second
+
 // Run recupera os ticks perdidos na subida e depois dispara um tick a cada
 // slot da agenda, até ctx ser cancelado. Toda decisão de "quantos rodar" acontece
 // dentro da trava do tick (RunScheduled), então deploy repetido, duas
@@ -97,8 +111,18 @@ type RunScheduledFunc func(ctx context.Context, plan func(lastTickAt time.Time, 
 // falha isolada é logada, não derruba o processo. control (opcional, nil = nunca
 // pausa) é consultado a cada tentativa: pausado, o slot é pulado; o tick manual
 // não passa por aqui e segue valendo.
-func Run(ctx context.Context, cfg Config, now func() time.Time, run RunScheduledFunc, control Control) {
+func Run(ctx context.Context, source ConfigSource, now func() time.Time, run RunScheduledFunc, control Control) {
+	// lastSlot é o slot da última tentativa, na agenda vigente; nova tentativa só quando o
+	// slot muda. Mudar ticks por dia muda a numeração dos slots, o que no máximo antecipa
+	// ou adia uma tentativa; quantos ticks rodam continua sendo decidido pelo Plan.
+	var lastSlot int64
 	attempt := func() {
+		cfg, err := source(ctx)
+		if err != nil {
+			log.Printf("temporizador: não foi possível ler a agenda, tick adiado: %v", err)
+			return
+		}
+		lastSlot = cfg.SlotOf(now())
 		var resumedAt time.Time
 		if control != nil {
 			paused, resumed, err := control.State(ctx)
@@ -136,7 +160,13 @@ func Run(ctx context.Context, cfg Config, now func() time.Time, run RunScheduled
 		if ctx.Err() != nil {
 			return
 		}
-		timer := time.NewTimer(time.Until(cfg.NextSlotStart(now())))
+		wait := maxWait
+		if cfg, err := source(ctx); err == nil {
+			if untilNext := time.Until(cfg.NextSlotStart(now())); untilNext < wait {
+				wait = untilNext
+			}
+		}
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -144,6 +174,9 @@ func Run(ctx context.Context, cfg Config, now func() time.Time, run RunScheduled
 		case <-timer.C:
 			if ctx.Err() != nil {
 				return
+			}
+			if cfg, err := source(ctx); err == nil && cfg.SlotOf(now()) == lastSlot {
+				continue
 			}
 			attempt()
 		}

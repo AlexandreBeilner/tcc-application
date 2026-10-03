@@ -177,6 +177,27 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Auditoria:** `trading.resume`, `target_id` = id da pausa, `payload = { scope, asset_id, ticker }`. Retomar não força uma rodada de bots: quem quiser liquidez imediata dispara 1 tick (`POST /admin/tick`).
 
 
+### Parâmetros de simulação (tarefa N.7)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve as faixas e o efeito): só `ticks_per_day` e `max_catch_up` são editáveis.
+
+#### `GET /admin/settings`
+
+- **Sucesso:** `200` → `{ editable: [{ key, value, default, min, max, overridden, updated_by, updated_at, version }], read_only: [{ key, value, reason }] }`.
+
+#### `PUT /admin/settings/:key`
+
+- **Payload (JSON):** `value` (inteiro), validado por `updateEngineSettingBodySchema`. O `admin_id` vem do token.
+- **Sucesso:** `200` → o mesmo corpo do `GET`, com o valor novo.
+- **Erros:** `400` — `value` não é inteiro (o motor não é chamado); `404` — `key` não é editável (o motor não é chamado); `422` — fora da faixa, com a mensagem do motor.
+- **Auditoria:** `settings.update`, `target_type = engine_setting`, `target_id` = a chave, `payload = { key, value }`; a recusa do motor grava `result = failed` com o motivo. O valor anterior não vai no payload: está na linha anterior da mesma chave.
+
+#### `DELETE /admin/settings/:key`
+
+- **Sucesso:** `200` → o mesmo corpo do `GET`, com a chave no padrão do ambiente.
+- **Erros:** `404` — `key` não é editável.
+- **Auditoria:** `settings.reset`, `target_id` = a chave, `payload = { key }`.
+
 ### Gestão de bots (tarefa N.1)
 
 Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve o formato do bot e as regras). Criar e alterar passam pela auditoria (N.4).

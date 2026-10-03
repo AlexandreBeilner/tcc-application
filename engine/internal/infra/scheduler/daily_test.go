@@ -95,7 +95,7 @@ func TestRun_RecuperaNaSubidaEDisparaNoProximoSlot(t *testing.T) {
 		cancel() // encerra depois da recuperação da subida
 		return n, nil
 	}
-	Run(ctx, cfg, now, run, nil)
+	Run(ctx, Static(cfg), now, run, nil)
 	if len(plans) != 1 || plans[0] != 2 {
 		t.Errorf("planos = %v, want [2] (2 slots perdidos recuperados na subida)", plans)
 	}
@@ -161,7 +161,7 @@ func runOnce(t *testing.T, control Control, last time.Time) (plan int, called bo
 		got = n
 		return n, err
 	}
-	Run(ctx, cfg, now, wrapped, control)
+	Run(ctx, Static(cfg), now, wrapped, control)
 	return got, called
 }
 
@@ -200,5 +200,48 @@ func TestRun_RetomadaContaOsSlotsPerdidosAPartirDoResumedAt(t *testing.T) {
 	plan, _ = runOnce(t, fakeControl{resumedAt: at(0, 10)}, at(0, 30))
 	if plan != 2 {
 		t.Errorf("plano = %d, want 2", plan)
+	}
+}
+
+// Mudar os ticks por dia no painel (N.7) vale na próxima tentativa: a fonte é lida de
+// novo, então a agenda nova entra sem reiniciar o motor.
+func TestRun_LeAAgendaVigenteACadaTentativa(t *testing.T) {
+	old := maxWait
+	maxWait = 5 * time.Millisecond
+	defer func() { maxWait = old }()
+
+	// Relógio parado às 10:00: com 5 ticks/dia o slot é o 2; com 24 é o 10.
+	now := func() time.Time { return at(10, 0) }
+	ticksPerDay := 5
+	source := func(context.Context) (Config, error) {
+		return Config{Location: saoPaulo, TicksPerDay: ticksPerDay, MaxCatchUp: 3}, nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	attempts := 0
+	run := func(context.Context, func(time.Time, bool) (int, int)) (int, error) {
+		attempts++
+		if attempts == 1 {
+			ticksPerDay = 24 // o admin trocou o ritmo; o slot atual passa a ser outro
+		} else {
+			cancel()
+		}
+		return 0, nil
+	}
+	Run(ctx, source, now, run, nil)
+	if attempts != 2 {
+		t.Errorf("tentativas = %d, want 2 (a troca de ritmo mudou o slot e disparou nova tentativa)", attempts)
+	}
+}
+
+func TestRun_FalhaAoLerAAgendaAdiaATentativa(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	called := false
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	source := func(context.Context) (Config, error) { return Config{}, errors.New("banco fora") }
+	run := func(context.Context, func(time.Time, bool) (int, int)) (int, error) { called = true; return 0, nil }
+	Run(ctx, source, func() time.Time { return at(10, 0) }, run, nil)
+	if called {
+		t.Error("sem conseguir ler a agenda, o tick rodou")
 	}
 }

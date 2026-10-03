@@ -78,3 +78,10 @@ export class BotConflictError extends Error {}
 // de domínio (a borda Zod cobre o formato; só o motor sabe, por exemplo, que um ativo de
 // renda fixa não pode ser coberto por Market Maker) (N.1).
 export class BotRejectedError extends Error {}
+
+// EngineSettingNotFoundError é o 404 do motor: a chave não é um parâmetro editável (N.7).
+export class EngineSettingNotFoundError extends Error {}
+
+// EngineSettingRejectedError é o 422 do motor: o valor está fora da faixa permitida da
+// chave (N.7). A mensagem traz a faixa, vinda do domínio do motor.
+export class EngineSettingRejectedError extends Error {}

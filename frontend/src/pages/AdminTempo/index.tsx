@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { Pagination } from '../../components/molecules/Pagination'
 import { SchedulerPanel } from '../../components/organisms/SchedulerPanel'
@@ -95,7 +96,12 @@ export function AdminTempo() {
     return (
         <main className={styles.page}>
             <h1 className={styles.title}>Tempo</h1>
-            <p className={styles.subtitle}>Controle do Temporizador do mercado simulado e histórico de ticks.</p>
+            <p className={styles.subtitle}>
+                Controle do Temporizador do mercado simulado e histórico de ticks.{' '}
+                <Link to="/admin/tempo/parametros" className={styles.link}>
+                    Parâmetros de ritmo
+                </Link>
+            </p>
 
             {notice && (
                 <p className={styles.notice} role="status">

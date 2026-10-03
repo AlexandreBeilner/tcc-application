@@ -205,3 +205,10 @@ export const botActivityQuerySchema = z.object({
 export const botsSummaryQuerySchema = z.object({
   idle_days: z.coerce.number().int().positive().max(90).optional(),
 })
+
+// PUT /admin/settings/:key (N.7). A faixa de cada chave é do motor (422); aqui só o formato.
+export const engineSettingKeySchema = z.enum(['ticks_per_day', 'max_catch_up'])
+
+export const updateEngineSettingBodySchema = z.object({
+  value: z.number().int(),
+})

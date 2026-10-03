@@ -44,6 +44,11 @@ import { ListTradingHaltsUseCase } from './modules/admin/application/useCases/li
 import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseTrading'
 import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
+import { createEngineSettingsAdmin } from './modules/admin/infrastructure/engine/engineSettingsAdmin'
+import { ListEngineSettingsUseCase } from './modules/admin/application/useCases/listEngineSettings'
+import { UpdateEngineSettingUseCase } from './modules/admin/application/useCases/updateEngineSetting'
+import { ResetEngineSettingUseCase } from './modules/admin/application/useCases/resetEngineSetting'
+import { createAdminSettingsRouter } from './modules/admin/interfaces/http/adminSettingsRouter'
 import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
 import { FundAdminBotUseCase } from './modules/admin/application/useCases/fundAdminBot'
 import { GetAdminBotActivityUseCase } from './modules/admin/application/useCases/getAdminBotActivity'
@@ -347,6 +352,10 @@ export function createApp(deps: AppDeps = {}): Express {
   const listTradingHalts = new ListTradingHaltsUseCase(tradingHaltAdmin)
   const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, recordAdminAction)
   const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, recordAdminAction)
+  const engineSettingsAdmin = createEngineSettingsAdmin(engineUrl)
+  const listEngineSettings = new ListEngineSettingsUseCase(engineSettingsAdmin)
+  const updateEngineSetting = new UpdateEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
+  const resetEngineSetting = new ResetEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
   // Gestão de bots (N.1).
   const botAdmin = createEngineBotAdmin(engineUrl)
   const listAdminBots = new ListAdminBotsUseCase(botAdmin)
@@ -581,6 +590,12 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(
     createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),
+    createAdminSettingsRouter({
+      listEngineSettings,
+      updateEngineSetting,
+      resetEngineSetting,
+      authMiddleware,
+    }),
   )
   app.use(
     createAdminBotsRouter({

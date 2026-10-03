@@ -8,7 +8,10 @@ import {
     listAdminBots,
     updateAdminBot,
     liftTradingHalt,
+    getEngineSettings,
     listTradingHalts,
+    resetEngineSetting,
+    updateEngineSetting,
     pauseTrading,
     cancelAdminOrder,
     cancelAdminOrdersBatch,
@@ -180,6 +183,29 @@ describe('services/admin', () => {
         expect(url).toBe('/admin/orders/cancel-batch')
         expect(JSON.parse(init.body)).toEqual({ asset_id: 'asset-1' })
         expect(result.cancelled_count).toBe(1)
+    })
+
+    it('getEngineSettings faz GET /admin/settings', async () => {
+        const fetchMock = mockFetchOnce({ editable: [], read_only: [] })
+        await getEngineSettings('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/settings')
+    })
+
+    it('updateEngineSetting faz PUT /admin/settings/:key com o valor', async () => {
+        const fetchMock = mockFetchOnce({ editable: [], read_only: [] })
+        await updateEngineSetting('token', 'ticks_per_day', 12)
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/settings/ticks_per_day')
+        expect(init.method).toBe('PUT')
+        expect(JSON.parse(init.body)).toEqual({ value: 12 })
+    })
+
+    it('resetEngineSetting faz DELETE /admin/settings/:key', async () => {
+        const fetchMock = mockFetchOnce({ editable: [], read_only: [] })
+        await resetEngineSetting('token', 'max_catch_up')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/settings/max_catch_up')
+        expect(init.method).toBe('DELETE')
     })
 
     it('listTradingHalts faz GET /admin/halts', async () => {

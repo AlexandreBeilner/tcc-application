@@ -96,6 +96,28 @@ Pacote de domínio: `engine/internal/domain/tradinghalt/` (`NewHalt`, `Blocking`
 
 ---
 
+### Parâmetros de simulação (tarefa N.7)
+
+Pacote de domínio: `engine/internal/domain/enginesetting/` (`Service`, `Validate`, lista fechada de chaves); tabela `engine_settings` (migration `000045`, uma linha por chave alterada: `key`, `value`, `updated_by`, `updated_at`, `version`). Sem linha vale o **padrão do ambiente** (`SIMULATION_DAYS_PER_REAL_DAY`, `TICK_MAX_CATCHUP`). **Só o ritmo do Temporizador é editável** (decisão do autor, achado 029): `ticks_per_day` (1 a 24) e `max_catch_up` (1 a 30). O resto aparece como somente leitura. O agendador lê o valor vigente a cada tentativa (no máximo 30 s de atraso) e nunca no meio de um tick; `GET /admin/scheduler` e `GET /market/clock` (`days_per_real_day`) refletem o valor vigente; o valor sobrevive a restart. Respondem `503` sem `httpserver.WithSettings`.
+
+#### `GET /admin/settings`
+
+- **Sucesso:** `200` → `{ editable: [...], read_only: [...] }`. `editable`: `{ key, value, default, min, max, overridden, updated_by | null, updated_at | null, version }`. `read_only`: `{ key, value (texto), reason }` (semente, capital inicial, intervalo do Copom, teto de spread de bot, teto de ordem de bot sobre o volume, teto de avançar dias, teto do lote de cancelamento).
+- **Erros:** `503`, `500`.
+
+#### `PUT /admin/settings/{key}`
+
+- **Payload (JSON):** `value` (inteiro), `admin_id` (UUID, informado pelo backend). `key` é `ticks_per_day` ou `max_catch_up`.
+- **Sucesso:** `200` → o mesmo corpo do `GET`, já com o valor novo.
+- **Erros:** `400` — corpo ou `admin_id` inválidos; `404` — chave desconhecida ou somente leitura; `422` — valor fora da faixa (mensagem do domínio com a faixa); `503`, `500`.
+
+#### `DELETE /admin/settings/{key}`
+
+- **Sucesso:** `200` → o mesmo corpo do `GET`, com a chave de volta ao padrão. Idempotente.
+- **Erros:** `404` — chave desconhecida; `503`, `500`.
+
+---
+
 ### Gestão de bots (tarefa N.1)
 
 Pacote de domínio: `engine/internal/domain/botadmin/` (`Service`, `CreateInput`, `UpdateInput`); leituras e escritas em `internal/infra/db/bot_admin_repository.go`. A personalidade reaproveita `bot.NewSpecializationScope`, `bot.NewRiskProfile` e `bot.NewPersonality` (nenhuma regra duplicada), e a cobertura reaproveita `coverage.MarketMakerLister`/`Provisioner` (P.1) e `NewMarketMakerID`. Respondem `503` sem `httpserver.WithBotAdmin`.

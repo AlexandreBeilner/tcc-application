@@ -83,6 +83,8 @@ export type AuditAction =
     | 'bot.create'
     | 'bot.update'
     | 'bot.fund'
+    | 'settings.update'
+    | 'settings.reset'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -490,4 +492,30 @@ export interface UpdateBotInput {
 export interface FundBotInput {
     cash?: number
     holdings?: Array<{ asset_id: string; quantity: number }>
+}
+
+// Parâmetros de simulação (N.7, `.docs/backend/admin.md#parametros-de-simulacao-tarefa-n7`).
+export type EngineSettingKey = 'ticks_per_day' | 'max_catch_up'
+
+export interface EditableSetting {
+    key: EngineSettingKey
+    value: number
+    default: number
+    min: number
+    max: number
+    overridden: boolean
+    updated_by: string | null
+    updated_at: string | null
+    version: number
+}
+
+export interface ReadOnlySetting {
+    key: string
+    value: string
+    reason: string
+}
+
+export interface EngineSettings {
+    editable: EditableSetting[]
+    read_only: ReadOnlySetting[]
 }

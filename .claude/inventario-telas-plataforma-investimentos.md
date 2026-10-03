@@ -477,6 +477,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** agenda desligada no ambiente (pausa desabilitada), tick em andamento (ações travadas), falha no meio de "avançar" (informa quantos dias já rodaram), erro ao carregar.
 - **Dados envolvidos:** `scheduler_control`, `tick_runs`, `market_calendar`.
 
+### 10.11 Parâmetros de simulação
+- **Objetivo:** ver e ajustar o ritmo do Temporizador sem reiniciar o motor (N.7). Rota `/admin/tempo/parametros`, dentro da seção "Tempo" (link na tela 10.5).
+- **Conteúdo:** dois cartões editáveis, **dias simulados por dia real** (1 a 24) e **recuperação máxima depois de uma parada** (1 a 30), cada um com valor atual, padrão do ambiente, faixa permitida e quando foi alterado; abaixo, a lista **somente leitura** (semente da simulação, capital inicial, intervalo do Copom, teto de spread do bot, teto de ordem do bot sobre o volume, teto de avançar dias, teto do lote de cancelamento) com o motivo de cada um, sem nenhum controle de edição.
+- **Ações:** salvar (valida a faixa na tela e no motor, confirma antes de enviar e avisa que afeta todos os usuários a partir do próximo tick agendado) e restaurar o padrão (só habilitado quando o valor foi alterado, com confirmação). Tudo na auditoria (`settings.update`, `settings.reset`).
+- **Estados especiais:** valor fora da faixa (mensagem da faixa), recusa do motor (mostra a mensagem dele), erro ao carregar.
+- **Dados envolvidos:** `engine_settings`.
+
 ---
 
 ## 11. Resumo — todas as telas numeradas
@@ -520,8 +527,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.8 | Ordens do Book | Admin |
 | 10.9 | Pausas de Negociação | Admin |
 | 10.10 | Bots | Admin |
+| 10.11 | Parâmetros de simulação | Admin |
 
-**Total: 37 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 38 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

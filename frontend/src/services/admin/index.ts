@@ -13,6 +13,8 @@ import type {
     AuditLogFilters,
     CancelOrdersBatchInput,
     CancelOrdersBatchResult,
+    EngineSettingKey,
+    EngineSettings,
     ListAdminOrdersResult,
     ListAuditLogResult,
     ListMacroEventsResult,
@@ -30,6 +32,10 @@ import type {
 } from './types'
 
 export type {
+    EditableSetting,
+    EngineSettingKey,
+    EngineSettings,
+    ReadOnlySetting,
     AdminBot,
     AdminBotListing,
     BotArchetype,
@@ -226,4 +232,16 @@ export function getAdminBotActivity(token: string, botId: string, days?: number)
 export function getAdminBotsSummary(token: string, idleDays?: number): Promise<BotsSummary> {
     const query = idleDays === undefined ? '' : `?idle_days=${idleDays}`
     return apiRequest<BotsSummary>(`/admin/bots/summary${query}`, { token })
+}
+
+export function getEngineSettings(token: string): Promise<EngineSettings> {
+    return apiRequest<EngineSettings>('/admin/settings', { token })
+}
+
+export function updateEngineSetting(token: string, key: EngineSettingKey, value: number): Promise<EngineSettings> {
+    return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'PUT', body: { value } })
+}
+
+export function resetEngineSetting(token: string, key: EngineSettingKey): Promise<EngineSettings> {
+    return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'DELETE' })
 }

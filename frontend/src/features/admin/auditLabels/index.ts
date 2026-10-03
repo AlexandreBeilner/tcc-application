@@ -16,6 +16,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'bot.create': 'Criação de bot',
     'bot.update': 'Alteração de bot',
     'bot.fund': 'Aporte em bot',
+    'settings.update': 'Alteração de parâmetro',
+    'settings.reset': 'Restauração de parâmetro',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

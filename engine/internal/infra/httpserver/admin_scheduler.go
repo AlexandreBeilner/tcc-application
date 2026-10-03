@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/tick"
 )
 
@@ -39,8 +40,11 @@ type SchedulerAdminAPI struct {
 	Enabled     bool
 	TicksPerDay int
 	MaxCatchUp  int
-	Timezone    string
-	NextSlot    func(now time.Time) time.Time
+	// Current (opcional) devolve os valores vigentes de ticks por dia e recuperação máxima
+	// (N.7); sem ela valem os campos fixos acima.
+	Current  func(ctx context.Context) (enginesetting.Values, error)
+	Timezone string
+	NextSlot func(now time.Time) time.Time
 	// InProgress diz se há um tick rodando agora (sonda da trava consultiva); LastTickAt
 	// é o instante do último tick gravado.
 	InProgress func(ctx context.Context) (bool, error)
@@ -57,6 +61,7 @@ type options struct {
 	orderCanceller adminOrderCanceller
 	tradingHalts   tradingHaltManager
 	botManager     adminBotManager
+	settings       *SettingsAPI
 }
 
 // WithSchedulerAdmin liga as rotas do painel de Tempo (N.6); sem ela respondem 503.
@@ -103,6 +108,13 @@ func (api *SchedulerAdminAPI) status(ctx context.Context) (schedulerStatusRespon
 		TicksPerDay: api.TicksPerDay,
 		Timezone:    api.Timezone,
 		MaxCatchUp:  api.MaxCatchUp,
+	}
+	if api.Current != nil {
+		values, err := api.Current(ctx)
+		if err != nil {
+			return schedulerStatusResponse{}, err
+		}
+		resp.TicksPerDay, resp.MaxCatchUp = values.TicksPerDay, values.MaxCatchUp
 	}
 	// Sem próximo slot quando a agenda está desligada no ambiente ou pausada.
 	if api.Enabled && !paused && api.NextSlot != nil {
