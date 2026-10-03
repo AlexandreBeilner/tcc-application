@@ -66,3 +66,15 @@ export class TradingHaltNotFoundError extends Error {}
 // regra de domínio (a borda Zod já cobre o formato; só o motor sabe, por exemplo, que
 // um ativo de renda fixa não tem book) (N.9).
 export class TradingHaltRejectedError extends Error {}
+
+// BotNotFoundError é o 404 do motor: o bot não existe (N.1).
+export class BotNotFoundError extends Error {}
+
+// BotConflictError é o 409 do motor: ID de bot já existente ou ativo que já é coberto
+// por outro Market Maker (N.1).
+export class BotConflictError extends Error {}
+
+// BotRejectedError é o 400 do motor: personalidade, caixa ou cobertura recusados pela regra
+// de domínio (a borda Zod cobre o formato; só o motor sabe, por exemplo, que um ativo de
+// renda fixa não pode ser coberto por Market Maker) (N.1).
+export class BotRejectedError extends Error {}

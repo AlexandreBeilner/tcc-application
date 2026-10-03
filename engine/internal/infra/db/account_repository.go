@@ -46,6 +46,16 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := createAccountTx(ctx, tx, acc); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// createAccountTx grava o evento e a projeção da conta dentro de uma transação
+// já aberta (a conta de bot criada pelo painel, N.1, entra na mesma transação da
+// personalidade).
+func createAccountTx(ctx context.Context, tx *sql.Tx, acc account.Account) error {
 	eventType := domain.EventInitialDeposit
 	if acc.IsBot {
 		eventType = domain.EventBotInitialCash
@@ -66,8 +76,7 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	); err != nil {
 		return mapAccountError(err)
 	}
-
-	return tx.Commit()
+	return nil
 }
 
 // CreditSalary credita amount em accounts.current_balance de userID,

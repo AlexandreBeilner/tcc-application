@@ -44,6 +44,11 @@ import { ListTradingHaltsUseCase } from './modules/admin/application/useCases/li
 import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseTrading'
 import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
+import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
+import { ListAdminBotsUseCase } from './modules/admin/application/useCases/listAdminBots'
+import { CreateAdminBotUseCase } from './modules/admin/application/useCases/createAdminBot'
+import { UpdateAdminBotUseCase } from './modules/admin/application/useCases/updateAdminBot'
+import { createAdminBotsRouter } from './modules/admin/interfaces/http/adminBotsRouter'
 import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
 import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
 import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
@@ -339,6 +344,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const listTradingHalts = new ListTradingHaltsUseCase(tradingHaltAdmin)
   const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, recordAdminAction)
   const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, recordAdminAction)
+  // Gestão de bots (N.1).
+  const botAdmin = createEngineBotAdmin(engineUrl)
+  const listAdminBots = new ListAdminBotsUseCase(botAdmin)
+  const createAdminBot = new CreateAdminBotUseCase(botAdmin, recordAdminAction)
+  const updateAdminBot = new UpdateAdminBotUseCase(botAdmin, recordAdminAction)
   const getAdminOverview = new GetAdminOverviewUseCase(
     marketOverviewReader,
     schedulerAdmin,
@@ -565,6 +575,7 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(
     createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),
   )
+  app.use(createAdminBotsRouter({ listAdminBots, createAdminBot, updateAdminBot, authMiddleware }))
   app.use(
     createAdminOrdersRouter({
       listAdminOrders,

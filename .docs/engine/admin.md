@@ -93,3 +93,29 @@ Pacote de domínio: `engine/internal/domain/tradinghalt/` (`NewHalt`, `Blocking`
 - **Sucesso:** `200` → `{ global: bool, asset_ids: [uuid] }`.
 - **Regra:** leitura pública mínima pro aviso "Negociação pausada" do usuário. **Nunca** expõe o motivo interno nem quem pausou.
 
+
+---
+
+### Gestão de bots (tarefa N.1)
+
+Pacote de domínio: `engine/internal/domain/botadmin/` (`Service`, `CreateInput`, `UpdateInput`); leituras e escritas em `internal/infra/db/bot_admin_repository.go`. A personalidade reaproveita `bot.NewSpecializationScope`, `bot.NewRiskProfile` e `bot.NewPersonality` (nenhuma regra duplicada), e a cobertura reaproveita `coverage.MarketMakerLister`/`Provisioner` (P.1) e `NewMarketMakerID`. Respondem `503` sem `httpserver.WithBotAdmin`.
+
+#### `GET /admin/bots`
+
+- **Sucesso:** `200` → `{ bots: [...], uncovered_assets: [{ asset_id, ticker }] }`. Cada bot: `{ account_id, archetype ('ruido' | 'market_maker' | 'chartista' | 'fundamentalista'), is_active, cash, scope: { sectors, risk_classes, asset_classes, within_scope_pct }, knowledge_level | null, risk_profile: { max_position_size_pct, market_order_preference, spread_width_pct }, max_covered_assets | null, covered_assets: [{ asset_id, ticker }], holdings: [{ asset_id, ticker, quantity, average_price }] }`. Ordenado por arquétipo e depois por `account_id`.
+- **Erros:** `503`, `500`.
+- **Regra:** quatro consultas pro roster inteiro, nenhuma por bot. `max_covered_assets` e `covered_assets` só são preenchidos no Market Maker. `holdings` traz só posição com quantidade maior que zero (`positions` mantém a linha de quem vendeu tudo). `uncovered_assets` é a mesma definição de `uncovered_assets` em `GET /admin/overview`: ativo negociável (ação, ETF e FII fora do sandbox) sem Market Maker **ativo** cobrindo. Setores e classes de risco usam os valores do domínio (strings de exibição, ex: `Bancário/Financeiro`, `Conservador`); classes de ativo são `acao`, `etf`, `fii`.
+
+#### `POST /admin/bots`
+
+- **Payload (JSON):** `archetype`, `sectors`, `risk_classes`, `asset_classes` (listas; pelo menos uma não vazia), `within_scope_pct` (0,85 a 0,90), `knowledge_level` (0 a 1, **obrigatório só no `fundamentalista`**, proibido nos outros), `max_position_size_pct` (maior que 0 até 1), `market_order_preference` (0 a 1), `spread_width_pct` (0 a `MaxSpreadWidthPct` = 0,10), `max_covered_assets` (inteiro positivo, só `market_maker`; padrão 10), `initial_cash` (maior que 0, até R$ 1.000.000.000.000, porte compatível com o float sintético, em que um Market Maker do seed passa de R$ 300 bilhões).
+- **Sucesso:** `201` → o bot criado (mesmo formato de um item de `GET /admin/bots`).
+- **Erros:** `400` — qualquer recusa de domínio (`bot.Err*`: arquétipo, escopo vazio, setor/classe desconhecidos, faixa de atividade, spread, posição, conhecimento, teto de cobertura) ou caixa fora da faixa; `409` — ID já existente; `503`, `500`.
+- **Regra:** conta e personalidade nascem **na mesma transação**; o caixa entra pelo evento imutável `bot_initial_cash` (o mesmo de `AccountRepository.Create`). **Não há posição inicial:** o float de todo ativo já está distribuído entre os detentores (B.1/P.2) e a posição teria que sair de alguém, então o bot começa só com caixa e ganha posição negociando (decisão desta tarefa, ver o Entregável da N.1). O ID é determinístico (entra na semente das rodadas, RNF08): Market Maker usa `coverage.NewMarketMakerID(quantos Market Makers existem)`, os demais `00000000-0000-0000-0002-<índice>` (prefixo próprio do painel, nunca colide com o pool do seed). Market Maker novo **nasce sem cobertura**: por ser o menos carregado, vira o candidato de `coverage.Assign` pro próximo ativo que precisar de cobertura, ou recebe ativos explícitos pelo `PATCH`. O bot novo entra na rodada seguinte (a coleta lê `bot_personalities` + `is_active` a cada rodada).
+
+#### `PATCH /admin/bots/{id}`
+
+- **Payload (JSON, pelo menos um campo):** `is_active` (bool), `max_covered_assets` (inteiro positivo, só Market Maker), `covered_asset_ids` (lista de UUIDs, só Market Maker: o conjunto **final** de ativos, que substitui o atual; lista vazia tira toda a cobertura). `id` no caminho, UUID.
+- **Sucesso:** `200` → o bot atualizado.
+- **Erros:** `400` — `id`/UUID inválido, corpo vazio, teto ou cobertura num bot que não é Market Maker, teto não positivo, ativo repetido, ativo não negociável, cobertura acima do teto; `404` — bot inexistente; `409` — ativo já coberto por **outro** Market Maker (tirar de lá primeiro: mover é remover e depois adicionar); `422` com `code: "batch_too_large"` — o Market Maker tem mais de 500 ordens em repouso no ativo a remover, nada foi tirado; `503`, `500`.
+- **Regra:** o estado final (teto e cobertura) é validado **antes** de gravar qualquer coisa, então só falha de infraestrutura deixa a alteração pela metade. Ordem de aplicação: teto, ativos novos (`ProvisionCoverage` com 0 ações e sem caixa, só a cobertura), ativos removidos, interruptor. **Ao remover um ativo, as ordens em repouso do Market Maker nele são canceladas** (mesmo cancelamento em lote da N.10, interseção ativo + dono, `cancel_reason = admin`) **antes** de a linha de cobertura sair, porque a cotação de Market Maker ativo não expira por dia (P.5); a posição que ele tem no ativo continua com ele. `is_active` só alterna `accounts.is_active`, nunca toca saldo nem posição (A.4); um Market Maker inativo perde a isenção de expiração (as cotações dele expiram no próximo tick) e deixa de contar como cobertura em `uncovered_assets`.

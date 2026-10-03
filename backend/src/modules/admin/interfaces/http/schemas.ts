@@ -125,3 +125,47 @@ export const pauseTradingBodySchema = z
     message: 'a pausa de um ativo exige asset_id e a global não leva asset_id',
     path: ['asset_id'],
   })
+
+// POST /admin/bots (N.1). Os valores de setor e classe de risco são os do motor (strings de
+// exibição, com acento); o motor valida de novo as faixas da personalidade (atividade no
+// escopo 0,85 a 0,90, spread até 0,10) e que o escopo não é vazio.
+export const BOT_SECTORS = [
+  'Mineração',
+  'Agronegócio',
+  'Bancário/Financeiro',
+  'Varejo',
+  'Energia',
+  'Tecnologia',
+] as const
+
+export const MAX_BOT_INITIAL_CASH = 1_000_000_000_000
+
+export const createBotBodySchema = z.object({
+  archetype: z.enum(['ruido', 'market_maker', 'chartista', 'fundamentalista']),
+  sectors: z.array(z.enum(BOT_SECTORS)).default([]),
+  risk_classes: z.array(z.enum(['Conservador', 'Sofisticado'])).default([]),
+  asset_classes: z.array(z.enum(['acao', 'etf', 'fii'])).default([]),
+  within_scope_pct: z.number().min(0.85).max(0.9),
+  knowledge_level: z.number().min(0).max(1).optional(),
+  max_position_size_pct: z.number().gt(0).max(1),
+  market_order_preference: z.number().min(0).max(1),
+  spread_width_pct: z.number().min(0).max(0.1),
+  max_covered_assets: z.number().int().positive().optional(),
+  initial_cash: z.number().gt(0).max(MAX_BOT_INITIAL_CASH),
+})
+
+// PATCH /admin/bots/:id (N.1): pelo menos um campo. `covered_asset_ids` é o conjunto final
+// de ativos do Market Maker; lista vazia tira toda a cobertura.
+export const updateBotBodySchema = z
+  .object({
+    is_active: z.boolean().optional(),
+    max_covered_assets: z.number().int().positive().optional(),
+    covered_asset_ids: z.array(z.uuid()).optional(),
+  })
+  .refine(
+    (b) =>
+      b.is_active !== undefined ||
+      b.max_covered_assets !== undefined ||
+      b.covered_asset_ids !== undefined,
+    { message: 'informe pelo menos um campo a alterar' },
+  )

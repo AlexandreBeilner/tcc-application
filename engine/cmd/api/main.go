@@ -11,6 +11,7 @@ import (
 	_ "time/tzdata" // fuso da agenda (America/Sao_Paulo) sem depender do tzdata da imagem
 
 	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/botadmin"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
@@ -196,7 +197,13 @@ func main() {
 		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
 	}
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(orderexecution.NewAdminService(orderExecutionRepository)), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
+	// Gestão de bots do painel (N.1): cobertura reaproveita o repositório de P.1 e o
+	// cancelamento de ordens o mesmo serviço da N.10.
+	adminOrderService := orderexecution.NewAdminService(orderExecutionRepository)
+	botAdminRepository := db.NewBotAdminRepository(pool)
+	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
+
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

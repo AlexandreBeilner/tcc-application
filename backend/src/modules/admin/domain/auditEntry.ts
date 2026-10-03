@@ -12,6 +12,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'order.cancel_batch',
   'trading.halt',
   'trading.resume',
+  'bot.create',
+  'bot.update',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

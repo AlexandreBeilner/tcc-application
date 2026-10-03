@@ -176,3 +176,25 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Erros:** `400` — `id` não é UUID; `404` — pausa inexistente; `409` — já encerrada.
 - **Auditoria:** `trading.resume`, `target_id` = id da pausa, `payload = { scope, asset_id, ticker }`. Retomar não força uma rodada de bots: quem quiser liquidez imediata dispara 1 tick (`POST /admin/tick`).
 
+
+### Gestão de bots (tarefa N.1)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve o formato do bot e as regras). Criar e alterar passam pela auditoria (N.4).
+
+#### `GET /admin/bots`
+
+- **Sucesso:** `200` → `{ bots: [...], uncovered_assets: [{ asset_id, ticker }] }` (formato do motor, sem tradução).
+
+#### `POST /admin/bots`
+
+- **Payload (JSON):** validado por `createBotBodySchema`: `archetype` (`ruido` | `market_maker` | `chartista` | `fundamentalista`), `sectors` (valores do motor, ex: `Bancário/Financeiro`), `risk_classes` (`Conservador` | `Sofisticado`), `asset_classes` (`acao` | `etf` | `fii`), `within_scope_pct` (0,85 a 0,90), `knowledge_level` (0 a 1, opcional), `max_position_size_pct` (> 0 até 1), `market_order_preference` (0 a 1), `spread_width_pct` (0 a 0,10), `max_covered_assets` (inteiro positivo, opcional), `initial_cash` (> 0 até 1.000.000.000.000). Listas ausentes valem `[]`.
+- **Sucesso:** `201` → o bot criado.
+- **Erros:** `400` — corpo inválido (o motor não é chamado) ou recusa de domínio do motor (escopo vazio, `knowledge_level` fora do `fundamentalista`...); `409` — ID já existente.
+- **Auditoria:** `bot.create`, `target_type = bot`, `target_id` = id do bot criado, `payload = { archetype, sectors, risk_classes, asset_classes, initial_cash }`; a recusa do motor grava `result = failed` com o motivo.
+
+#### `PATCH /admin/bots/:id`
+
+- **Payload (JSON, pelo menos um campo):** `is_active`, `max_covered_assets`, `covered_asset_ids` (UUIDs; conjunto final de ativos do Market Maker, `[]` tira toda a cobertura), validados por `updateBotBodySchema`.
+- **Sucesso:** `200` → o bot atualizado.
+- **Erros:** `400` — `id` não é UUID, corpo inválido ou recusa do motor (bot que não é Market Maker, cobertura acima do teto, ativo não negociável); `404` — bot inexistente; `409` — ativo já coberto por outro Market Maker; `422` com `{ error, code: "batch_too_large", matched, max }` — Market Maker com ordens demais pra cancelar no ativo removido (nada foi tirado).
+- **Auditoria:** `bot.update`, `target_type = bot`, `target_id` = id do bot, `payload` com **só os campos pedidos** (`is_active`, `max_covered_assets`, `covered_asset_ids`); a recusa do motor grava `result = failed` com o motivo.
