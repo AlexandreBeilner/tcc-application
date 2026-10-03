@@ -2873,8 +2873,11 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   simulado, `max_catch_up`, teto de `SpreadWidthPct` do bot (hoje `MaxSpreadWidthPct = 0.10`), valor/nível do
   salário mensal simulado (Fase T), limites de ordem. Tela "Parâmetros" lista valor atual, padrão, faixa e
   quem alterou por último, com "restaurar padrão". Mudança só vale a partir do próximo tick (nunca no meio de
-  um). **Decisão do autor pendente** (achado 029): quais parâmetros ficam editáveis — o padrão recomendado
-  é só os que não alteram regra financeira de usuário existente.
+  um). **Decisão do autor (2026-10-03, achado 029, item 1): só os parâmetros operacionais de ritmo são
+  editáveis, a saber ticks por dia real (`SIMULATION_DAYS_PER_REAL_DAY`) e recuperação máxima
+  (`TICK_MAX_CATCHUP`).** Todo o resto (salário, teto de `SpreadWidthPct`, limites de ordem, semente, capital
+  inicial, constantes de calendário) aparece só como leitura, sem controle de edição: regra financeira ou
+  invariante de domínio não muda por botão.
 - **Critérios de aceite:** valor fora da faixa é recusado com mensagem do domínio; edição gera linha em
   `admin_audit_log`; reiniciar o motor preserva o valor; parâmetro somente leitura não tem controle.
 - **Dependências:** N.4, N.6.
@@ -2902,7 +2905,11 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   tick continua rodando (dia, Selic, balanços, dividendos seguem). Ordens já em repouso permanecem (decisão
   padrão; cancelar em massa é a N.10). Frontend do usuário mostra o aviso "Negociação pausada" no detalhe do
   ativo e na confirmação de ordem. Tela admin: lista de pausas, "Pausar tudo", "Pausar ativo", "Retomar".
-  **Decisão do autor pendente** (achado 029): a pausa deve também suspender o tick? Padrão recomendado: não.
+  **Decisão do autor (2026-10-03, achado 029, item 2): a pausa de negociação NÃO suspende o tick**; o relógio
+  tem o seu próprio interruptor (N.6), são dois controles independentes. **Consequência aceita e que a tela deve
+  avisar:** ordens em repouso expiram a cada tick (regra Day) e os bots não recotam durante a pausa; se ela
+  atravessar um tick, o book fica vazio ao retomar e a liquidez só volta quando o próximo tick rodar as rodadas.
+  Retomar não força uma rodada; quem quiser liquidez imediata dispara 1 tick na tela de Tempo.
 - **Critérios de aceite:** ordem de usuário e de bot recusadas durante a pausa, aceitas depois; pausa
   global e por ativo coexistem (a mais restritiva vence); teste de domínio e de rota; `.docs/engine/orders.md`
   atualizado com o novo erro.
@@ -2985,13 +2992,14 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 
 - **Descrição:** `PATCH /admin/bots/{id}` da N.1 só alterna `is_active` e `max_covered_assets`. Aqui:
   ajustar arquétipo-parâmetros (`SpreadWidthPct`, agressividade, nível de conhecimento, escopo de
-  especialização, preferência de ordem — **depende da decisão do achado 001**) revalidando por
+  especialização; **a preferência por ordem a mercado NÃO é exposta**, ver achado 001, decidido em 2026-10-03:
+  o campo fica reservado e sem efeito) revalidando por
   `NewRiskProfile`/`Personality`; e **aportar caixa ou posição** num bot (ex: Market Maker esgotado) como
   evento imutável de alocação (mesmo tipo do `bot_initial_cash_event`/`bot_initial_allocation_event`),
   respeitando o teto de float da achado 005. Nunca remove caixa/posição existente.
 - **Critérios de aceite:** parâmetro inválido recusado; aporte aparece no extrato do bot e em `market_events`;
   mudança vale na rodada seguinte; auditado.
-- **Dependências:** N.1, N.4. Bloqueada em parte pelo achado 001 (campo de preferência).
+- **Dependências:** N.1, N.4. Sem bloqueio (achado 001 decidido: o campo de preferência fica fora do painel).
 
 #### Bloco 6 — Usuários
 
@@ -3006,9 +3014,11 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   (invalidar sessões: hoje JWT stateless, então requer `token_version` no usuário checado pelo
   `authMiddleware`), e **solicitar redefinição de senha** (só se existir canal de e-mail, senão fora).
   Excluir conta a pedido (LGPD, mesmo caminho do `DELETE /me`, com confirmação dupla). Admin **não** edita
-  perfil de terceiro nem promove/rebaixa `role` (CLAUDE.md). **Decisões do autor pendentes** (achado 029):
-  (a) se o admin vê patrimônio absoluto de usuário (RNF09 só fala de *outro usuário*; recomendado: admin
-  vê, marcado como dado operacional e auditado a cada leitura); (b) se suspensão cabe nesta fase.
+  perfil de terceiro nem promove/rebaixa `role` (CLAUDE.md). **Decisões do autor (2026-10-03, achado 029,
+  itens 3 e 4):** (a) o admin **vê o patrimônio absoluto** de qualquer usuário **sem auditar a leitura** (a RNF09
+  vale entre usuários, não pro administrador; a exceção está escrita no CLAUDE.md); (b) a **suspensão de conta
+  entra, na forma reversível**, como subtarefa separável no fim da N.16 (consulta, detalhe e exclusão LGPD
+  podem ser entregues antes). Suspender **não cancela** as ordens em repouso do usuário: o admin usa a N.10.
 - **Critérios de aceite:** usuário suspenso não loga nem usa token antigo; reativar restaura sem perda;
   `role = admin` não pode ser suspenso pelo painel (evita se trancar fora); teste de middleware, caso de
   uso e router; `.docs/backend/admin.md` e `auth.md` atualizados.
@@ -3016,15 +3026,25 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 
 ### N.17 · Correções manuais de conta de usuário
 
-- **Descrição:** ferramentas de suporte, todas auditadas e com motivo obrigatório: **ajustar XP/streak**
-  (crédito/débito com `reason`, via o caso de uso de gamificação, nunca update direto), **conceder ou
-  revogar conquista** manualmente, **marcar lição como concluída/reabrir** e **crédito de caixa de
-  compensação** (evento imutável `admin_credit` em `market_events`, valor limitado por parâmetro da N.7, não
-  conta como salário). **Resetar carteira** fica **fora** (apagaria histórico imutável e conflita com
+- **Descrição:** ferramentas de suporte, todas auditadas; motivo obrigatório nos ajustes de gamificação
+  (**ajustar XP/streak** com `reason`, via o caso de uso de gamificação, nunca update direto; **conceder ou
+  revogar conquista** manualmente; **marcar lição como concluída/reabrir**) e **opcional no crédito**.
+  **Crédito de caixa** (decisão do autor, 2026-10-03, achado 029 item 5): o admin pode **adicionar dinheiro
+  simulado na conta de qualquer usuário, sem teto**, pra uso excepcional (reparar prejuízo causado por bug,
+  preparar conta de demonstração). Evento imutável `admin_credit` em `market_events` (Event Sourcing), com
+  rótulo próprio no extrato, nunca confundido com salário. Validações mínimas: valor finito e maior que zero;
+  a UI usa o `ConfirmDialog` mostrando o valor formatado, pra um erro de digitação não virar milhões.
+  **Efeito no ranking:** nenhum direto. A rentabilidade do ranking (`investmentReturnPct`, T.1) é calculada só
+  sobre capital de risco, nunca sobre caixa parado, então o crédito não infla o retorno; se o usuário investir o
+  valor, ganho e perda contam normalmente. **Verificar na implementação:** a reconstrução de patrimônio do
+  ranking (`modules/ranking/domain/networth.ts`) não tem `case` para `salary_payment` e passará a não ter para
+  `admin_credit`, então o `cash` desse snapshot ignora os dois; o patrimônio mostrado ao admin na N.16 deve vir
+  do saldo atual da conta no motor, não dessa reconstrução. **Resetar carteira** fica **fora** (apagaria histórico imutável e conflita com
   RNF06); alternativa registrada: suspender e criar conta nova. Cada ação aparece na linha do tempo do
   usuário no detalhe da N.16.
-- **Critérios de aceite:** ajuste sem motivo é recusado; crédito aparece no extrato do usuário com rótulo
-  próprio; ranking recalcula normalmente; teste por ação.
+- **Critérios de aceite:** ajuste de gamificação sem motivo é recusado; crédito (sem teto) aparece no extrato do
+  usuário com rótulo próprio e é auditado com valor, usuário e motivo se houver; valor zero, negativo, `NaN` ou
+  infinito é recusado; o crédito não altera a rentabilidade do ranking; teste por ação.
 - **Dependências:** N.4, N.16.
 
 #### Bloco 7 — Conteúdo e gamificação
@@ -3033,16 +3053,77 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 
 - **Descrição:** tela "Conteúdo" listando as 35 lições (trilha, ordem, tipo, pré-requisito) com **funil**
   por lição (iniciaram, concluíram, tempo médio, taxa de acerto da aposta/micro-decisão, abandono no passo
-  N) — base pra calibrar conteúdo (achado 020, engajamento) — e **publicar/despublicar** (`lessons.
-  published`, lição despublicada some da trilha sem apagar progresso). Edição do texto/blocos da lição pela
-  interface (CMS) é **opcional e fica fora da Fase N**: hoje o conteúdo é versionado em `seedLessons.ts`, e editar
-  em dois lugares (seed e banco) cria divergência; só entra se o autor decidir migrar o conteúdo pro banco
-  como fonte.
+  N) — base pra calibrar conteúdo (achado 020, engajamento) — e **publicar/despublicar** (nova coluna
+  `lessons.published`, padrão `true`; lição despublicada some da trilha sem apagar progresso). **A regra de
+  despublicar no meio da trilha usa a progressão da N.24**: hoje, com a progressão por contagem, despublicar
+  uma lição que o usuário ainda não fez **trava** a trilha dele (as seguintes exigem uma contagem que ele não
+  alcança) e despublicar uma que ele fez o faz **pular** uma lição. Edição e criação de lição ficam na **N.23**
+  (decisão do autor de 2026-10-03: o banco é a fonte da verdade do conteúdo).
 - **Critérios de aceite:** funil bate com `user_lesson_progress`; despublicar lição no meio da trilha não
   quebra o desbloqueio das seguintes (regra definida e testada); auditado.
 - **Referências:** `backlog-engajamento-gamificacao.md` (D.0/D.1 dependem de dado de produção — esta
   tela é a fonte).
-- **Dependências:** N.4.
+- **Dependências:** N.4; **N.24** para publicar/despublicar (o funil não depende dela).
+
+### N.23 · Lições no banco como fonte da verdade: editor e criação
+
+- **Descrição:** decisão do autor (2026-10-03, achado 029 item 6): o conteúdo das lições passa a viver no
+  banco e o admin edita e cria lições pelo painel, em vez de mexer em `seedLessons.ts`. Peças: (1) **o seed
+  vira só importação inicial**: `upsertLessonSeed` deixa de usar `onConflictDoUpdate` e passa a inserir apenas
+  o que falta (por `stable_key`), nunca sobrescrevendo conteúdo editado; `seedLessons.test.ts` é reescrito pra
+  esse comportamento; CLAUDE.md e a spec (seção 5) passam a dizer que o banco é a fonte. (2) **Editor** (tela
+  `/admin/conteudo/:id`): `title`, `central_concept`, `scenario_text`, `micro_decision_prompt`,
+  `micro_decision_type` (+ `micro_decision_asset_ticker` quando `live_indicator`), `micro_decision_options` e
+  opção correta, `revelation_text`, `unlocks_description`, `unlocks_keys` (vocabulário fechado: `portfolio`,
+  `calculator`, `news_feed`, `asset:<AssetType>`) e `unlocks_asset_ticker`, com **pré-visualização** que renderiza
+  a lição como o usuário a vê. (3) **Validação de domínio compartilhada** (extrair do que o seed já assume):
+  aposta exige 2+ opções e índice correto dentro da faixa; `live_indicator` exige ticker que exista no catálogo
+  (consulta ao motor por porta); `asset:*` em `unlocks_keys` exige `unlocks_asset_ticker`; limites de tamanho de
+  texto; **aviso (não bloqueio)** se o texto tiver travessão como pontuação (regra de copy do produto).
+  (4) **Histórico de revisões** (`lesson_revisions`, append-only, com snapshot do conteúdo, admin e data) e
+  "restaurar versão" — sem isso o banco perde o histórico que o git dava. (5) **Criar lição** nova, com
+  `stable_key` gerada e imutável; **onde ela pode entrar na ordem depende do achado 030** (progressão por
+  contagem); **decisão do autor (2026-10-03, achado 030): pode entrar no meio**, e quem já avançou além daquele
+  ponto não é bloqueado, regra implementada na **N.24**. Sem exclusão de lição (só despublicar).
+  `trackNumber`, `stable_key`, `code` e `sort_order` de lição existente não são editáveis aqui.
+- **Critérios de aceite:** reexecutar o seed não desfaz edição feita pelo painel; edição inválida recusada
+  com a mensagem do domínio; cada edição, criação e restauração gera revisão e linha de auditoria (novas
+  ações `lesson.update`, `lesson.create`, `lesson.restore`); preview idêntico à tela da lição; criar uma lição
+  no meio não altera o acesso de nenhum usuário que já havia passado daquele ponto (garantido pela N.24).
+- **Referências:** achado 010 (renumeração e arrasto de progresso: o mesmo risco), achado 030;
+  `modules/lessons/domain/lesson.ts` (`isUnlocked`, `unlockedKeysFor`).
+- **Dependências:** N.4, N.18 (coluna `published`); **N.24** para criar lição (a edição de lição existente não
+  depende dela e pode sair antes).
+
+### N.24 · Progressão com dispensa: lição nova no meio sem bloquear quem já passou
+
+- **Descrição:** decisão do autor (2026-10-03, achado 030): lição nova pode entrar **no meio** do currículo; quem
+  já avançou além daquele ponto **não é bloqueado** por ela, e quem ainda não chegou é bloqueado normalmente.
+  Hoje a progressão é por contagem (`isUnlocked`: `sortOrder <= completedCount + 1`), então inserir no meio
+  desloca o acesso de todos. Peças: (1) **dispensa**: coluna `user_lesson_progress.waived_at` (nullable); uma
+  lição dispensada não tem `completed_at`, mas não bloqueia a sequência. (2) **Na criação**, numa transação,
+  cada usuário que já tinha concluído a posição de inserção ou além recebe uma linha de dispensa pra lição
+  nova; quem estava exatamente nessa posição (próxima a fazer) ou antes não recebe, e é bloqueado por ela.
+  (3) A progressão passa a ser calculada **sobre as lições publicadas**: posição = índice entre as publicadas e
+  "satisfeitas" = concluídas ou dispensadas; isso substitui `completedCount` em `getTrackMap`, `getLesson`,
+  `advanceLesson` e `getUnlockedProductKeys`, enquanto `countCompleted` (XP, conquistas, missões) continua
+  contando só lições **realmente concluídas**. (4) `sort_order` das lições seguintes é renumerado na mesma
+  transação (coluna única). (5) A mesma regra resolve **despublicar** (N.18): lição despublicada sai da conta pra
+  todos, sem travar nem pular ninguém. **Regras de detalhe (decididas pelo autor em 2026-10-03):** lição dispensada **concede as chaves de produto**
+  dela mesmo sem ter sido feita (quem já passou daquele ponto provavelmente já viu o conteúdo, a lição é um
+  complemento), então `unlockedKeysFor` conta dispensadas como satisfeitas, sem tratamento à parte; a lição
+  aparece no mapa como "nova, opcional" e o usuário pode fazê-la quando quiser; dispensa **não dá XP** (só a
+  conclusão real dá); para "trilha concluída", dispensada conta como satisfeita, então um troféu já conquistado
+  não regride.
+- **Critérios de aceite:** teste table-driven provando que, pra cada contagem de concluídas de 0 a 35, inserir
+  uma lição na posição k deixa o acesso de quem já passou de k **idêntico ao de antes** e bloqueia quem estava em
+  k ou antes; despublicar uma lição no meio não trava a trilha de quem não a fez nem faz pular quem a fez;
+  XP, conquistas, missões e ranking não mudam; usuário dispensado de uma lição que desbloqueia produto continua com
+  o produto liberado; `backend/test/e2e/` continua passando; migration reversível.
+- **Referências:** achado 010 (renumeração arrastando progresso), achado 030; `modules/lessons/domain/lesson.ts`
+  (`isUnlocked`, `unlockedKeysFor`, `countCompleted`).
+- **Dependências:** nenhuma de painel (é backend de lições). **Refatoração do núcleo da progressão: fazer em PR
+  próprio, antes da N.18 (publicar) e da N.23 (criar lição).**
 
 ### N.19 · Conquistas e missões diárias: catálogo operável
 
@@ -3096,21 +3177,51 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   excesso de requisições devolve `429`; teste de middleware e do fluxo de reautenticação no frontend.
 - **Dependências:** N.3, N.4.
 
-#### Sequência sugerida da Fase N
+#### Plano de PRs da Fase N (ordem linear de execução)
 
-1. **N.3** (shell) e **N.4** (auditoria) — fundação; N.4 antes de qualquer ação que mude estado.
-2. **N.6 → N.5** (tempo e visão geral): é o que mais dá sensação de "controle geral" e destrava a demo.
-3. **N.1 → N.2** (bots, já descritas) e **N.8** (monitor de mercado), em paralelo; depois **N.10**
-   (cancelamento administrativo — N.1 o reaproveita pra reatribuir cobertura, então avalie fazer N.10
-   antes de N.1) e **N.9** (pausa).
-4. **N.14 → N.15** (desempenho e edição dos bots).
-5. **N.11** (eventos macro completos) e **N.7** (parâmetros).
-6. **N.16 → N.17** (usuários), **N.18, N.19** (conteúdo e gamificação).
-7. **N.12 → N.13** (catálogo), **N.20** (comunicados), **N.21** (integridade), **N.22** (segurança do
-   painel; a reautenticação deve entrar antes de liberar N.9/N.16/N.17 em produção real).
+Criado em 2026-10-03, reagrupado e **ordenado em sequência única** no mesmo dia, a pedido do autor ("pode ajustar a ordem
+como achar melhor, eu mando sempre fazer o próximo"). **Como escolher o próximo PR: é o primeiro da tabela sem ✅ no
+Estado.** Os números já são a ordem de execução; não pule, salvo instrução do autor.
 
-**Fora da Fase N, de propósito:** editor de templates de evento macro e CMS de lições (candidatos da
-N.11/N.18, só se o autor migrar a fonte da verdade pro banco), definir preço/Selic/IPCA manualmente,
+**Ao fazer um PR:** (1) branch nova a partir da `main` atualizada, com o nome `fase-n-pr<número>-<tema>` (se o PR anterior
+ainda não foi mesclado e há dependência, partir da branch dele e dizer isso ao autor); (2) **um commit por tarefa** do PR,
+na ordem em que aparecem na coluna Tarefas; (3) cada tarefa segue o checklist do CLAUDE.md da camada que toca (backend
+Node e/ou engine Go), inclusive `.docs/`, testes junto e validação em `docker compose` (ver nota de ambiente abaixo);
+(4) ao terminar cada tarefa, marcar ✅ no título dela e registrar o **Entregável** nesta fase, e ao terminar o PR marcar ✅
+no Estado da tabela; (5) a descrição do PR lista cada tarefa e o passo de validação dela; (6) regra transversal 1: todo
+PR que muda estado adiciona a ação em `ADMIN_AUDIT_ACTIONS` e chama `RecordAdminActionUseCase.run`; (7) PRs que mexem em
+caminho crítico (3, 4, 8) pedem `/code-review` e a suíte e2e (`backend/test/e2e/`) antes de mesclar; os que podem pesar no
+tick (5, 11) medem o tick com o catálogo sintético (projetar pro crescimento); (8) fim de PR: `git push` e abrir o PR só
+se o autor pedir.
+
+| PR | Estado | Tema | Tarefas (um commit cada, nessa ordem) | Camadas | Depende de | Como validar sozinho |
+|---|---|---|---|---|---|---|
+| **1** | ✅ feito, aguardando merge | Fundação | N.3 shell, N.4 auditoria, N.6 Tempo | engine, backend, frontend | nenhuma | branch `fase-n-painel-admin-shell-auditoria-tempo`, validada ao vivo |
+| **2** | ⬜ | Leituras | N.5 Visão geral e saúde, N.8 Monitor do mercado | engine, backend, frontend | PR 1 | cards e tabelas batem com o mercado público; derrubar o Redis mostra "fora" sem quebrar a tela |
+| **3** | ⬜ | Controle do book | N.10 Cancelar ordens como admin, N.9 Pausa de negociação | engine (caminho de ordem e rodadas de bot), backend, frontend (inclui o aviso ao usuário) | PR 2 | cancelar libera a reserva; ordem de usuário e de bot recusada na pausa e aceita depois |
+| **4** | ⬜ | Progressão de lições | N.24 Progressão com dispensa | backend (núcleo de lições) | nenhuma | **sozinho de propósito**: teste por contagem de 0 a 35, e2e e migração em banco com progresso real |
+| **5** | ⬜ | Bots | N.1 API de bots, N.2 Tela de bots | engine, backend, frontend | PR 3 | criar bot pela tela e vê-lo na rodada seguinte; reatribuir cobertura cancela ordens do Market Maker |
+| **6** | ⬜ | Bots avançado | N.14 Desempenho, N.15 Editar bot e aportar | engine, backend, frontend | PR 5 | P&L e volume batem com `market_events`; aporte vale na rodada seguinte |
+| **7** | ⬜ | Operar a simulação | N.7 Parâmetros (só ritmo editável), N.11 Eventos macro completos | engine, backend, frontend | PR 1 | mudar ticks por dia reflete no próximo slot e sobrevive a restart; cancelar pendente, agendar e ver impacto |
+| **8** | ⬜ | Usuários | N.22 Segurança do painel, N.16 Usuários (consulta, patrimônio, LGPD, suspensão, forçar logout) | backend (autenticação), engine (leitura), frontend | PR 1 | ação destrutiva sem reautenticação devolve `401 reauth_required` (inclusive as já existentes: tick, avançar, pausa, cancelar em lote); suspenso não loga nem usa token antigo |
+| **9** | ⬜ | Gamificação e correções | N.17 Correções manuais (crédito sem teto, XP, conquistas, lição), N.19 Conquistas e missões | engine (`admin_credit`), backend, frontend | PR 8 | crédito aparece no extrato e não altera a rentabilidade; missão desativada não sorteia |
+| **10** | ⬜ | Lições no painel | N.18 Funil e publicar, N.23 Editor e criar lição (banco como fonte) | backend, frontend | PR 4 | seed reexecutado não desfaz edição; despublicar no meio não trava nem pula ninguém; lição criada no meio não altera o acesso de quem já passou |
+| **11** | ⬜ | Catálogo | N.12 Consulta e ajuste, N.13 Cadastrar ativo novo | engine, backend, frontend | PR 2, PR 3, PR 5 | edição inválida recusada; ativo novo ganha cotação de Market Maker e criar o 31º não altera os 30 |
+| **12** | ⬜ | Sistema | N.20 Comunicados e manutenção, N.21 Integridade e CSV | engine, backend, frontend | PR 3, PR 8 | faixa só na janela e dispensável; base consistente dá zero divergências; CSV respeita privacidade |
+
+**Por que essa ordem:** o PR 2 só lê, então entra primeiro sem risco. O PR 3 dá o controle do book e o cancelamento que o
+PR 5 reaproveita. O **PR 4 vem cedo de propósito**: é a refatoração mais arriscada (núcleo da progressão de todos os
+usuários) e, quanto antes entrar na `main`, mais tempo de uso ela tem antes do PR 10 depender dela. Bots (5 e 6) vêm logo
+depois porque eram a ideia original da fase. O PR 7 é independente e fica aqui como respiro operacional. Usuários (8)
+antes de gamificação e correções (9), porque o 9 usa o detalhe de usuário do 8. Catálogo (11) e sistema (12) ficam por
+último: o PR 11 tem a tarefa de maior risco de custo por tick (N.13) e o PR 12 usa tudo que veio antes.
+
+**Nota de ambiente:** o admin de teste e a stack local sobem com `docker compose up -d --build` e o seed do admin
+(`ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_USERNAME` com `node dist/db/seed.js`); testes de integração do engine usam
+`TEST_DATABASE_URL` apontando pra um Postgres do Compose, com banco descartável criado pelo próprio teste.
+
+**Fora da Fase N, de propósito:** editor de templates de evento macro (segue no código; o CMS de lições
+entrou como N.23 por decisão do autor de 2026-10-03), definir preço/Selic/IPCA manualmente,
 promover admin pela interface, resetar carteira, 2FA, gestão de assinaturas (depende de
 `estrategia-monetizacao.md`, ainda sem backlog).
 

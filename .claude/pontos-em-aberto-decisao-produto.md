@@ -32,42 +32,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
-### 001 · `RiskProfile.MarketOrderPreference` nunca é lido
-
-- **Local:** `engine/internal/domain/bot/personality.go:156` (campo), consumido por nenhuma das 4
-  `Decide*` (`noise.go`, `marketmaker.go`, `chartist.go`, `fundamentalist.go`)
-- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
-- **O que é:** o campo é validado (`NewRiskProfile`), semeado (0.50 pra todo bot) e persistido em
-  `bot_personalities.market_order_preference`, mas nenhuma função de decisão de arquétipo o consulta —
-  todas geram sempre `orderbook.TypeLimit`. Um dado totalmente modelado (validação própria, seed,
-  coluna no banco) sem efeito nenhum no comportamento do motor.
-- **Por que não foi corrigido:** usar o campo significa decidir *como* um bot escolhe entre ordem a
-  mercado e limitada (probabilidade sorteada por rodada? só alguns arquétipos? só em certas
-  condições de mercado?) — nenhuma dessas opções está fechada na proposta 2.3.2. As descrições de
-  aceite de C.2-C.5 já documentam "ordem sempre limitada", o que sugere adiamento deliberado pra Fase D
-  (orquestração da rodada), não descuido — mas isso não está confirmado.
-- **Opções:** (a) confirmar que é adiado pra Fase D e documentar isso explicitamente no comentário do
-  pacote `bot`, ou (b) desenhar agora a regra de uso (ex: `Decide*` sorteia o tipo com probabilidade
-  `MarketOrderPreference` antes de montar a `Decision`).
-- **Status:** aberto
-
-### 029 · Escopo do painel admin ampliado (Fase N, N.3 a N.22): decisões de produto que as tarefas não fecham
-
-- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase N (N.7, N.9, N.16, N.17, N.18)
-- **Origem:** ampliação da Fase N pedida pelo autor ("controle geral da aplicação"), 2026-10-03
-- **O que é:** a spec 3.3.3 limitava o painel a eventos macro; as tarefas novas cobrem tempo, mercado,
-  bots, usuários, conteúdo e gamificação, e algumas dependem de escolhas do autor: (a) **quais parâmetros
-  de simulação ficam editáveis em runtime** (N.7); (b) **pausa de negociação suspende também o tick?**
-  (N.9; recomendado: não); (c) **admin vê patrimônio absoluto de um usuário?** RNF09 proíbe expor a
-  *outro usuário*; recomendado: sim, auditado (N.16); (d) **suspensão de conta cabe nesta fase** e o
-  que ela retira (ranking, busca de amigos; recomendado: nunca apaga progresso) (N.16); (e) **crédito de
-  compensação de caixa** e seu teto (N.17); (f) **migrar o conteúdo das lições e templates de evento pro
-  banco** como fonte da verdade, o que habilitaria CMS (N.18).
-- **Por que não foi corrigido:** são escolhas de comportamento e de limite de negócio sem valor em
-  nenhum documento; a tarefa correspondente deve parar e perguntar antes de implementar o ponto.
-- **Opções:** as recomendações acima, ou restringir a tarefa ao mínimo somente leitura.
-- **Status:** aberto
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -808,4 +772,69 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   risco da classe do ativo (por `risk_class`). Divergir pra uma mesma empresa (BNDD4: 0.05 vs 0.06) não é
   inconsistência. Só comentários mudaram (`fundamentals.go`, `tick.go`, `bot/fundamentalist.go`), sem
   alteração de comportamento; `go build`/`go vet` verdes.
+- **Status:** resolvido
+
+### 001 · `RiskProfile.MarketOrderPreference` nunca é lido
+
+- **Local:** `engine/internal/domain/bot/personality.go:156` (campo), consumido por nenhuma das 4
+  `Decide*` (`noise.go`, `marketmaker.go`, `chartist.go`, `fundamentalist.go`)
+- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
+- **O que é:** o campo é validado (`NewRiskProfile`), semeado (0.50 pra todo bot) e persistido em
+  `bot_personalities.market_order_preference`, mas nenhuma função de decisão de arquétipo o consulta —
+  todas geram sempre `orderbook.TypeLimit`. Um dado totalmente modelado (validação própria, seed,
+  coluna no banco) sem efeito nenhum no comportamento do motor.
+- **Por que não foi corrigido:** usar o campo significa decidir *como* um bot escolhe entre ordem a
+  mercado e limitada (probabilidade sorteada por rodada? só alguns arquétipos? só em certas
+  condições de mercado?) — nenhuma dessas opções está fechada na proposta 2.3.2. As descrições de
+  aceite de C.2-C.5 já documentam "ordem sempre limitada", o que sugere adiamento deliberado pra Fase D
+  (orquestração da rodada), não descuido — mas isso não está confirmado.
+- **Opções:** (a) confirmar que é adiado pra Fase D e documentar isso explicitamente no comentário do
+  pacote `bot`, ou (b) desenhar agora a regra de uso (ex: `Decide*` sorteia o tipo com probabilidade
+  `MarketOrderPreference` antes de montar a `Decision`).
+- **Decisão (2026-10-03, autor): opção (a), mantida como está.** O campo continua **reservado e sem efeito**: todo
+  bot segue enviando só ordem limitada, a mesma decisão já tomada nas Fases C e D (já discutida e confirmada pelo
+  autor), podendo ser revista no futuro. Consequência prática: o painel de bots (N.15) **não expõe** esse campo,
+  pra não oferecer um botão que não faz nada. Se um dia a regra for desenhada, os candidatos naturais por realismo
+  são os arquétipos Chartista e Ruído; ordem a mercado de bot consome o book fino e exigiria recalibração.
+- **Status:** resolvido
+
+### 029 · Escopo do painel admin ampliado (Fase N, N.3 a N.24): decisões que travavam tarefas
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase N (N.7, N.9, N.16, N.17, N.18, N.23)
+- **Origem:** ampliação da Fase N pedida pelo autor ("controle geral da aplicação"), 2026-10-03
+- **O que é:** a spec 3.3.3 limitava o painel a eventos macro; as tarefas novas cobrem tempo, mercado, bots,
+  usuários, conteúdo e gamificação, e seis pontos dependiam de escolha do autor.
+- **Decisões (2026-10-03, autor):**
+  1. **Parâmetros editáveis (N.7):** só o ritmo do relógio (ticks por dia real e recuperação máxima); o resto fica
+     só leitura.
+  2. **Pausa de negociação (N.9):** não suspende o tick; relógio e negociação têm interruptores independentes. O
+     book fica vazio se a pausa atravessar um tick, e retomar não força rodada.
+  3. **Patrimônio absoluto (N.16):** o admin vê o de qualquer usuário, sem auditar a leitura ("o administrador pode
+     fazer o que quiser"). Exceção escrita no CLAUDE.md.
+  4. **Suspensão de conta (N.16):** entra, na forma reversível (bloqueia login e tokens, tira do ranking e da
+     busca, nunca apaga progresso), como subtarefa separável; não cancela as ordens do usuário.
+  5. **Crédito de caixa (N.17):** o admin adiciona dinheiro simulado na conta de qualquer usuário, **sem teto**,
+     pra uso excepcional (evento imutável `admin_credit`). Não afeta o ranking, que mede só capital de risco.
+  6. **Conteúdo das lições (N.23):** o banco é a fonte da verdade; o admin edita e cria lições pelo painel; o seed
+     vira só importação inicial.
+- **Status:** resolvido
+
+### 030 · Onde uma lição criada pelo painel pode entrar na ordem (progressão por contagem)
+
+- **Local:** `backend/src/modules/lessons/domain/lesson.ts:38` (`isUnlocked`: `sortOrder <= completedCount + 1`) e
+  `:193` (`unlockedKeysFor`: chave vale se existe lição com `sortOrder <= completedCount` que a desbloqueia)
+- **Origem:** decisão do autor de 2026-10-03 de ter o banco como fonte das lições e criar lições pelo painel (N.23)
+- **O que é:** a progressão é linear e por **contagem**, não por lição específica: quem concluiu N lições tem
+  liberadas as de `sort_order` até N+1, e os produtos vêm das lições de `sort_order` até N. Inserir uma lição **no
+  meio** desloca o `sort_order` das seguintes: um usuário com 5 concluídas passa a ser tratado como se tivesse feito
+  a lição nova sem tê-la feito, e a antiga 5ª (agora 6ª) deixa de contar, podendo **tirar de volta um produto já
+  desbloqueado**. Mesmo tipo de problema do achado 010. O mesmo vale pra **despublicar** (N.18): despublicar uma
+  lição que o usuário não fez trava a trilha dele, e despublicar uma que fez o faz pular uma.
+- **Decisão (2026-10-03, autor): permitir inserir no meio, com dispensa.** Lição nova no meio **não bloqueia quem já
+  passou daquele ponto**; só bloqueia quem ainda não chegou. Implementação na tarefa **N.24** (dispensa por usuário,
+  progressão calculada sobre as lições publicadas), que também resolve o despublicar.
+- **Regras de detalhe (2026-10-03, autor):** (a) lição dispensada **concede as chaves de produto** dela mesmo sem
+  ter sido feita, porque quem já passou daquele ponto provavelmente já viu o conteúdo e a lição é só um complemento
+  (aparece no mapa como "nova, opcional"); (b) dispensa **não dá XP**; (c) pra "trilha concluída", dispensada conta
+  como satisfeita (troféu já conquistado não regride). Os itens (b) e (c) foram aceitos como propostos.
 - **Status:** resolvido
