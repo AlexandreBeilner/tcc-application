@@ -22,6 +22,7 @@ import { Market } from '../pages/Market'
 import { MeuPerfil } from '../pages/MeuPerfil'
 import { MinhasOrdens } from '../pages/MinhasOrdens'
 import { News } from '../pages/News'
+import { NotFound } from '../pages/NotFound'
 import { Onboarding } from '../pages/Onboarding'
 import { PainelAdmin } from '../pages/PainelAdmin'
 import { PerfilPublico } from '../pages/PerfilPublico'
@@ -141,4 +142,5 @@ export const router = createBrowserRouter([
             },
         ],
     },
+    { path: '*', element: <NotFound /> },
 ])
