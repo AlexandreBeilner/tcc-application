@@ -80,4 +80,10 @@ describe('botForm', () => {
         expect(describeBotError(new ApiError(422, 'x', { matched: 600, max: 500 }))).toMatch(/600 ordens.*500/)
         expect(describeBotError(new Error('rede'))).toMatch(/Não foi possível concluir/)
     })
+
+    it('o 409 do aporte fala do teto de float, não de cobertura', () => {
+        const err = new ApiError(409, 'float')
+        expect(describeBotError(err, 'fund')).toMatch(/total de cotas em circulação/)
+        expect(describeBotError(err)).toMatch(/coberto por outro Market Maker/)
+    })
 })

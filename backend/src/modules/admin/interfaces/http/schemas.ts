@@ -154,21 +154,47 @@ export const createBotBodySchema = z.object({
   initial_cash: z.number().gt(0).max(MAX_BOT_INITIAL_CASH),
 })
 
-// PATCH /admin/bots/:id (N.1): pelo menos um campo. `covered_asset_ids` é o conjunto final
-// de ativos do Market Maker; lista vazia tira toda a cobertura.
+// PATCH /admin/bots/:id (N.1 e N.15): pelo menos um campo. `covered_asset_ids` é o conjunto final
+// de ativos do Market Maker; lista vazia tira toda a cobertura. Os campos de personalidade (N.15)
+// repetem as faixas da criação; o motor valida de novo (escopo final não vazio, conhecimento só no
+// fundamentalista). `market_order_preference` não existe aqui (achado 001): campo reservado e sem
+// efeito, então um valor enviado é descartado pelo schema.
 export const updateBotBodySchema = z
   .object({
     is_active: z.boolean().optional(),
     max_covered_assets: z.number().int().positive().optional(),
     covered_asset_ids: z.array(z.uuid()).optional(),
+    sectors: z.array(z.enum(BOT_SECTORS)).optional(),
+    risk_classes: z.array(z.enum(['Conservador', 'Sofisticado'])).optional(),
+    asset_classes: z.array(z.enum(['acao', 'etf', 'fii'])).optional(),
+    within_scope_pct: z.number().min(0.85).max(0.9).optional(),
+    knowledge_level: z.number().min(0).max(1).optional(),
+    max_position_size_pct: z.number().gt(0).max(1).optional(),
+    spread_width_pct: z.number().min(0).max(0.1).optional(),
   })
-  .refine(
-    (b) =>
-      b.is_active !== undefined ||
-      b.max_covered_assets !== undefined ||
-      b.covered_asset_ids !== undefined,
-    { message: 'informe pelo menos um campo a alterar' },
-  )
+  .refine((b) => Object.values(b).some((value) => value !== undefined), {
+    message: 'informe pelo menos um campo a alterar',
+  })
+
+// POST /admin/bots/:id/funding (N.15): aporte de caixa e/ou posição, sempre positivo.
+export const MAX_BOT_FUNDING_QUANTITY = 2_000_000_000
+
+export const fundBotBodySchema = z
+  .object({
+    cash: z.number().gt(0).max(MAX_BOT_INITIAL_CASH).optional(),
+    holdings: z
+      .array(
+        z.object({
+          asset_id: z.uuid(),
+          quantity: z.number().int().positive().max(MAX_BOT_FUNDING_QUANTITY),
+        }),
+      )
+      .min(1)
+      .optional(),
+  })
+  .refine((b) => b.cash !== undefined || b.holdings !== undefined, {
+    message: 'informe caixa e/ou posição a aportar',
+  })
 
 // GET /admin/bots/:id/activity?days= e GET /admin/bots/summary?idle_days= (N.14): janelas em dias
 // simulados; ausente usa o padrão do motor (30 e 3).

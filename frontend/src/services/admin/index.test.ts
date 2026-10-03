@@ -4,6 +4,7 @@ import {
     getAdminBotActivity,
     getAdminBotsSummary,
     createAdminBot,
+    fundAdminBot,
     listAdminBots,
     updateAdminBot,
     liftTradingHalt,
@@ -253,5 +254,20 @@ describe('services/admin', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/admin/bots/summary?idle_days=5')
         await getAdminBotsSummary('token')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/bots/summary')
+    })
+
+    it('fundAdminBot faz POST /admin/bots/:id/funding com caixa e posição', async () => {
+        const fetchMock = mockFetchOnce({ account_id: 'b1' })
+        await fundAdminBot('token', 'b1', { cash: 5000, holdings: [{ asset_id: 'a1', quantity: 40 }] })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/bots/b1/funding')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ cash: 5000, holdings: [{ asset_id: 'a1', quantity: 40 }] })
+    })
+
+    it('updateAdminBot repassa os campos de personalidade', async () => {
+        const fetchMock = mockFetchOnce({ account_id: 'b1' })
+        await updateAdminBot('token', 'b1', { spread_width_pct: 0.03, sectors: ['Varejo'] })
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ spread_width_pct: 0.03, sectors: ['Varejo'] })
     })
 })

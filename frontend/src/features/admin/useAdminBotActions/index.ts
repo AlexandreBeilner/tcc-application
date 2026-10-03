@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
-import { createAdminBot, updateAdminBot } from '../../../services/admin'
-import type { AdminBot, CreateBotInput, UpdateBotInput } from '../../../services/admin'
+import { createAdminBot, fundAdminBot, updateAdminBot } from '../../../services/admin'
+import type { AdminBot, CreateBotInput, FundBotInput, UpdateBotInput } from '../../../services/admin'
 import { AUDIT_LOG_QUERY_KEY } from '../useAuditLogQuery'
 import { MARKET_MONITOR_QUERY_KEY } from '../useMarketMonitorQuery'
 import { ADMIN_BOTS_QUERY_KEY } from '../useAdminBotsQuery'
@@ -39,6 +39,23 @@ export function useUpdateAdminBotMutation(): UseMutationResult<AdminBot, unknown
 
     return useMutation({
         mutationFn: ({ botId, input }: UpdateBotVariables) => updateAdminBot(token as string, botId, input),
+        onSettled: invalidate,
+    })
+}
+
+export interface FundBotVariables {
+    botId: string
+    input: FundBotInput
+}
+
+// O aporte muda caixa e posições do bot (lista e desempenho, invalidados junto pela chave
+// `admin/bots`) e entra na auditoria.
+export function useFundAdminBotMutation(): UseMutationResult<AdminBot, unknown, FundBotVariables> {
+    const { token } = useAuth()
+    const invalidate = useInvalidateBotQueries()
+
+    return useMutation({
+        mutationFn: ({ botId, input }: FundBotVariables) => fundAdminBot(token as string, botId, input),
         onSettled: invalidate,
     })
 }

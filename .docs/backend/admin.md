@@ -194,10 +194,17 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 
 #### `PATCH /admin/bots/:id`
 
-- **Payload (JSON, pelo menos um campo):** `is_active`, `max_covered_assets`, `covered_asset_ids` (UUIDs; conjunto final de ativos do Market Maker, `[]` tira toda a cobertura), validados por `updateBotBodySchema`.
+- **Payload (JSON, pelo menos um campo):** `is_active`, `max_covered_assets`, `covered_asset_ids` (UUIDs; conjunto final de ativos do Market Maker, `[]` tira toda a cobertura) e, a partir da N.15, a personalidade: `sectors`, `risk_classes`, `asset_classes` (cada lista enviada substitui a atual), `within_scope_pct` (0,85 a 0,90), `knowledge_level` (0 a 1, só fundamentalista), `max_position_size_pct` (> 0 até 1), `spread_width_pct` (0 a 0,10), validados por `updateBotBodySchema`. **`market_order_preference` não é editável** (achado 001): o schema o descarta, e um corpo que só traga esse campo é `400` (nenhum campo editável).
 - **Sucesso:** `200` → o bot atualizado.
 - **Erros:** `400` — `id` não é UUID, corpo inválido ou recusa do motor (bot que não é Market Maker, cobertura acima do teto, ativo não negociável); `404` — bot inexistente; `409` — ativo já coberto por outro Market Maker; `422` com `{ error, code: "batch_too_large", matched, max }` — Market Maker com ordens demais pra cancelar no ativo removido (nada foi tirado).
-- **Auditoria:** `bot.update`, `target_type = bot`, `target_id` = id do bot, `payload` com **só os campos pedidos** (`is_active`, `max_covered_assets`, `covered_asset_ids`); a recusa do motor grava `result = failed` com o motivo.
+- **Auditoria:** `bot.update`, `target_type = bot`, `target_id` = id do bot, `payload` com **só os campos pedidos** (`is_active`, `max_covered_assets`, `covered_asset_ids` e os de personalidade, em snake_case); a recusa do motor grava `result = failed` com o motivo.
+
+#### `POST /admin/bots/:id/funding`
+
+- **Payload (JSON, pelo menos um dos dois):** `cash` (> 0 até 1.000.000.000.000) e `holdings` (`[{ asset_id (UUID), quantity (inteiro de 1 a 2.000.000.000) }]`, não vazia quando enviada), validados por `fundBotBodySchema`.
+- **Sucesso:** `200` → o bot depois do aporte.
+- **Erros:** `400` — `id` não é UUID, corpo inválido (o motor não é chamado) ou recusa do motor (ativo não negociável, sem cotação, sem cotas em circulação, ativo repetido); `404` — bot inexistente; `409` — a posição passaria do total de cotas em circulação do ativo (teto de float).
+- **Auditoria:** `bot.fund`, `target_type = bot`, `target_id` = id do bot, `payload = { cash?, holdings?: [{ asset_id, quantity }] }`; a recusa do motor grava `result = failed` com o motivo. O aporte só soma (nunca remove) e entra por evento imutável no motor (ver `.docs/engine/admin.md`).
 
 ### Desempenho dos bots (tarefa N.14)
 

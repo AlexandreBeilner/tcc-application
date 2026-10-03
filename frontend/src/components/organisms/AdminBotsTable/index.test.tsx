@@ -31,7 +31,7 @@ const chartist: AdminBot = {
 
 function renderTable(
     bots: AdminBot[],
-    handlers = { onToggle: vi.fn(), onEditCoverage: vi.fn(), onToggleActivity: vi.fn() },
+    handlers = { onToggle: vi.fn(), onEditCoverage: vi.fn(), onToggleActivity: vi.fn(), onEdit: vi.fn(), onFund: vi.fn() },
     updatingId: string | null = null,
     expandedId: string | null = null,
 ) {
@@ -95,7 +95,7 @@ describe('AdminBotsTable', () => {
     it('trava só os botões do bot em alteração', () => {
         renderTable(
             [marketMaker, chartist],
-            { onToggle: vi.fn(), onEditCoverage: vi.fn(), onToggleActivity: vi.fn() },
+            { onToggle: vi.fn(), onEditCoverage: vi.fn(), onToggleActivity: vi.fn(), onEdit: vi.fn(), onFund: vi.fn() },
             marketMaker.account_id,
         )
         const table = screen.getByRole('table')
@@ -113,5 +113,23 @@ describe('AdminBotsTable', () => {
         fireEvent.click(within(table).getByRole('button', { name: 'Desempenho' }))
         expect(handlers.onToggleActivity).toHaveBeenNthCalledWith(1, marketMaker)
         expect(handlers.onToggleActivity).toHaveBeenNthCalledWith(2, chartist)
+    })
+
+    it('Editar e Aportar repassam o bot da linha e existem em todo arquétipo', () => {
+        const handlers = renderTable([marketMaker, chartist])
+        const table = screen.getByRole('table')
+        expect(within(table).getAllByRole('button', { name: 'Editar' })).toHaveLength(2)
+        expect(within(table).getAllByRole('button', { name: 'Aportar' })).toHaveLength(2)
+        fireEvent.click(within(table).getAllByRole('button', { name: 'Editar' })[1])
+        fireEvent.click(within(table).getAllByRole('button', { name: 'Aportar' })[0])
+        expect(handlers.onEdit).toHaveBeenCalledWith(chartist)
+        expect(handlers.onFund).toHaveBeenCalledWith(marketMaker)
+    })
+
+    it('trava Editar e Aportar do bot em alteração', () => {
+        renderTable([marketMaker], undefined, marketMaker.account_id)
+        const table = screen.getByRole('table')
+        expect(within(table).getByRole('button', { name: 'Editar' })).toBeDisabled()
+        expect(within(table).getByRole('button', { name: 'Aportar' })).toBeDisabled()
     })
 })

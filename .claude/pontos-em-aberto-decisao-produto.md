@@ -32,6 +32,15 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
+### 031 · Painel de bots: histórico de tempo de cotação e origem de uma posição aportada
+
+- **Local:** `engine/internal/infra/db/admin_bots_read_repository.go` (`marketMakerQuotes`) e `engine/internal/infra/db/bot_admin_repository.go` (`FundBot`)
+- **Origem:** N.14 e N.15 (PR 6 da Fase N), 2026-10-03
+- **O que é:** dois gaps entre o texto das tarefas e o que o dado permite. (1) A N.14 pede "tempo de cotação por ativo (% dos dias com bid+ask)" do Market Maker, mas o `order_book` não guarda quando uma ordem terminou (só `created_at`, `status` e `cancel_reason`), então esse histórico não é reconstruível; a tela mostra só a **situação atual** da cotação (melhor compra e venda do próprio Market Maker, spread e inventário contra o alvo). (2) A N.15 pede aporte de caixa **ou posição** "respeitando o teto de float", mas o float de todo ativo já está 100% distribuído (B.1/P.2), então o aporte de **posição** é recusado (`409`) em quase todo ativo; só o aporte de caixa funciona na prática. Mesmo ponto já registrado na N.1 ("de quem sai a posição?").
+- **Por que não foi corrigido:** (1) exige gravar um dado novo (um snapshot de cotação por dia e por Market Maker, ou o instante de encerramento da ordem), o que muda o motor e o custo por tick; (2) exige escolher de onde a posição aportada sai (de outro detentor, de uma criação de cotas, ou aumentando `outstanding_shares`), e cada uma tem efeito diferente na economia do ativo.
+- **Opções:** (1) tabela `market_maker_quote_days (mm_account_id, asset_id, simulated_day, had_bid, had_ask)` gravada pelo tick, ou coluna `closed_at` em `order_book`; ou aceitar a foto atual como suficiente. (2) aporte de posição como transferência explícita de outro bot (com contrapartida em evento), ou aceitar só caixa e retirar o campo de posição da tela.
+- **Status:** aberto
+
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado

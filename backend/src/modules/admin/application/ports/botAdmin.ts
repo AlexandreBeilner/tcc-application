@@ -59,6 +59,21 @@ export interface UpdateBotInput {
   maxCoveredAssets?: number
   // Conjunto final de ativos do Market Maker (substitui o atual).
   coveredAssetIds?: string[]
+  // Personalidade (N.15): campo ausente não muda; cada lista enviada substitui a atual. A
+  // preferência por ordem a mercado não é editável (achado 001).
+  sectors?: string[]
+  riskClasses?: string[]
+  assetClasses?: string[]
+  withinScopePct?: number
+  knowledgeLevel?: number
+  maxPositionSizePct?: number
+  spreadWidthPct?: number
+}
+
+// Aporte de caixa e/ou posição (N.15). Nunca remove nada do bot.
+export interface FundBotInput {
+  cash?: number
+  holdings?: Array<{ assetId: string; quantity: number }>
 }
 
 // Espelha GET /admin/bots/{id}/activity do motor (tarefa N.14).
@@ -137,6 +152,7 @@ export interface BotAdmin {
   list(): Promise<AdminBotListing>
   create(input: CreateBotInput): Promise<AdminBot>
   update(botId: string, input: UpdateBotInput): Promise<AdminBot>
+  fund(botId: string, input: FundBotInput): Promise<AdminBot>
   // `days` e `idleDays` ausentes usam o padrão do motor.
   activity(botId: string, days?: number): Promise<BotActivity>
   summary(idleDays?: number): Promise<BotsSummary>

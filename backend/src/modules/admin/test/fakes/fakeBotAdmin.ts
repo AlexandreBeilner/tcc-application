@@ -4,6 +4,7 @@ import type {
   BotAdmin,
   BotsSummary,
   CreateBotInput,
+  FundBotInput,
   UpdateBotInput,
 } from '../../application/ports/botAdmin'
 
@@ -11,6 +12,7 @@ export interface FakeBotAdmin extends BotAdmin {
   calls: string[]
   created: CreateBotInput[]
   updated: Array<{ botId: string; input: UpdateBotInput }>
+  funded: Array<{ botId: string; input: FundBotInput }>
   activityAsks: Array<{ botId: string; days?: number }>
   summaryAsks: Array<number | undefined>
   errorToThrow?: Error
@@ -83,6 +85,7 @@ export function createFakeBotAdmin(): FakeBotAdmin {
     calls: [],
     created: [],
     updated: [],
+    funded: [],
     activityAsks: [],
     summaryAsks: [],
     errorToThrow: undefined,
@@ -102,6 +105,12 @@ export function createFakeBotAdmin(): FakeBotAdmin {
       fake.updated.push({ botId, input })
       if (fake.errorToThrow) throw fake.errorToThrow
       return { ...sampleBot, account_id: botId, is_active: input.isActive ?? sampleBot.is_active }
+    },
+    async fund(botId, input) {
+      fake.calls.push('fund')
+      fake.funded.push({ botId, input })
+      if (fake.errorToThrow) throw fake.errorToThrow
+      return { ...sampleBot, account_id: botId, cash: sampleBot.cash + (input.cash ?? 0) }
     },
     async activity(botId, days) {
       fake.calls.push('activity')

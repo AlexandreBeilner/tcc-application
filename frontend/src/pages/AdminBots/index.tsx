@@ -8,18 +8,30 @@ import { AdminBotsTable } from '../../components/organisms/AdminBotsTable'
 import { BotActivityPanel } from '../../components/organisms/BotActivityPanel'
 import { BotCoverageEditor } from '../../components/organisms/BotCoverageEditor'
 import { BotCreateForm } from '../../components/organisms/BotCreateForm'
+import { BotEditForm } from '../../components/organisms/BotEditForm'
+import { BotFundingForm } from '../../components/organisms/BotFundingForm'
 import { BotHealthPanel } from '../../components/organisms/BotHealthPanel'
+import { editValuesFromBot, toUpdateInput, validateBotEdit } from '../../features/admin/botEdit'
+import type { BotEditErrors, BotEditValues } from '../../features/admin/botEdit'
 import { describeBotError, parseNumber, toCreateInput } from '../../features/admin/botForm'
 import type { BotFormValues } from '../../features/admin/botForm'
+import { EMPTY_FUNDING, toFundInput, validateFunding } from '../../features/admin/botFunding'
+import type { BotFundingErrors, BotFundingValues } from '../../features/admin/botFunding'
 import { ARCHETYPES, ARCHETYPE_LABELS, describeArchetype, shortBotId } from '../../features/admin/botLabels'
-import { useCreateAdminBotMutation, useUpdateAdminBotMutation } from '../../features/admin/useAdminBotActions'
+import { useCreateAdminBotMutation, useFundAdminBotMutation, useUpdateAdminBotMutation } from '../../features/admin/useAdminBotActions'
 import { useAdminBotActivityQuery } from '../../features/admin/useAdminBotActivityQuery'
 import { useAdminBotsQuery } from '../../features/admin/useAdminBotsQuery'
 import { useAdminBotsSummaryQuery } from '../../features/admin/useAdminBotsSummaryQuery'
+import { useMarketMonitorQuery } from '../../features/admin/useMarketMonitorQuery'
 import type { AdminBot, BotAssetRef } from '../../services/admin'
 import styles from './index.module.css'
 
-type Pending = { kind: 'deactivate'; bot: AdminBot } | { kind: 'coverage'; bot: AdminBot } | null
+type Pending =
+    | { kind: 'deactivate'; bot: AdminBot }
+    | { kind: 'coverage'; bot: AdminBot }
+    | { kind: 'edit'; bot: AdminBot }
+    | { kind: 'fund'; bot: AdminBot }
+    | null
 
 const ARCHETYPE_FILTER_OPTIONS: SelectOption[] = [
     { value: '', label: 'Todos os arquétipos' },
@@ -34,11 +46,11 @@ const STATUS_FILTER_OPTIONS: SelectOption[] = [
 
 const sortByTicker = (a: BotAssetRef, b: BotAssetRef) => a.ticker.localeCompare(b.ticker)
 
-// Tela 10.10 (N.2, N.14) — "Bots" do painel: quem dá liquidez ao mercado. Saúde dos bots (parados,
+// Tela 10.10 (N.2, N.14, N.15) — "Bots" do painel: quem dá liquidez ao mercado. Saúde dos bots (parados,
 // sem caixa, Market Maker sem ações), lista com escopo, caixa, posições e cobertura de Market
 // Maker, desempenho por bot; ativar e desativar; criação de bot novo; edição da cobertura e do
-// teto do Market Maker. Desktop: lista à esquerda e formulário fixo à direita.
-// Tablet e mobile: o formulário abre pelo botão "Novo bot".
+// teto do Market Maker; edição da personalidade e aporte de caixa ou posição (N.15). Desktop: lista
+// à esquerda e formulário fixo à direita. Tablet e mobile: o formulário abre pelo botão "Novo bot".
 export function AdminBots() {
     const [archetypeFilter, setArchetypeFilter] = useState('')
     const [statusFilter, setStatusFilter] = useState('')
@@ -52,12 +64,18 @@ export function AdminBots() {
     const [createError, setCreateError] = useState<string | null>(null)
     const [activityBotId, setActivityBotId] = useState<string | null>(null)
     const [activityDays, setActivityDays] = useState(30)
+    const [editValues, setEditValues] = useState<BotEditValues | null>(null)
+    const [editErrors, setEditErrors] = useState<BotEditErrors>({})
+    const [fundValues, setFundValues] = useState<BotFundingValues>(EMPTY_FUNDING)
+    const [fundErrors, setFundErrors] = useState<BotFundingErrors>({})
 
     const botsQuery = useAdminBotsQuery()
     const summaryQuery = useAdminBotsSummaryQuery()
     const activityQuery = useAdminBotActivityQuery(activityBotId, activityDays)
     const create = useCreateAdminBotMutation()
     const update = useUpdateAdminBotMutation()
+    const fund = useFundAdminBotMutation()
+    const monitorQuery = useMarketMonitorQuery()
 
     const bots = useMemo(() => botsQuery.data?.bots ?? [], [botsQuery.data])
     const uncovered = useMemo(() => botsQuery.data?.uncovered_assets ?? [], [botsQuery.data])
@@ -178,6 +196,66 @@ export function AdminBots() {
         )
     }
 
+    function openEdit(bot: AdminBot) {
+        setEditValues(editValuesFromBot(bot))
+        setEditErrors({})
+        setPending({ kind: 'edit', bot })
+    }
+
+    function confirmEdit() {
+        if (pending?.kind !== 'edit' || !editValues) return
+        const { bot } = pending
+        const found = validateBotEdit(editValues, bot.archetype)
+        setEditErrors(found)
+        if (Object.keys(found).length > 0) return
+        const input = toUpdateInput(editValues, bot)
+        if (Object.keys(input).length === 0) {
+            setPending(null)
+            setNotice('Nada a alterar: a personalidade já é essa.')
+            return
+        }
+        setNotice(null)
+        setError(null)
+        update.mutate(
+            { botId: bot.account_id, input },
+            {
+                onSuccess: () =>
+                    setNotice(
+                        `${describeArchetype(bot.archetype)} ${shortBotId(bot.account_id)} atualizado. A mudança vale na próxima rodada.`,
+                    ),
+                onError: (err) => setError(describeBotError(err)),
+                onSettled: () => setPending(null),
+            },
+        )
+    }
+
+    function openFund(bot: AdminBot) {
+        setFundValues(EMPTY_FUNDING)
+        setFundErrors({})
+        setPending({ kind: 'fund', bot })
+    }
+
+    function confirmFund() {
+        if (pending?.kind !== 'fund') return
+        const { bot } = pending
+        const found = validateFunding(fundValues)
+        setFundErrors(found)
+        if (Object.keys(found).length > 0) return
+        setNotice(null)
+        setError(null)
+        fund.mutate(
+            { botId: bot.account_id, input: toFundInput(fundValues) },
+            {
+                onSuccess: () =>
+                    setNotice(
+                        `Aporte feito em ${describeArchetype(bot.archetype)} ${shortBotId(bot.account_id)}. Vale na próxima rodada e fica na auditoria.`,
+                    ),
+                onError: (err) => setError(describeBotError(err, 'fund')),
+                onSettled: () => setPending(null),
+            },
+        )
+    }
+
     function toggleActivity(bot: AdminBot) {
         setActivityBotId((current) => (current === bot.account_id ? null : bot.account_id))
     }
@@ -189,7 +267,17 @@ export function AdminBots() {
         setActivityBotId(botId)
     }
 
-    const updatingId = update.isPending ? (update.variables?.botId ?? null) : null
+    const updatingId = update.isPending ? (update.variables?.botId ?? null) : fund.isPending ? (fund.variables?.botId ?? null) : null
+
+    const fundAssetOptions = useMemo(
+        () => [
+            { value: '', label: 'Sem posição' },
+            ...(monitorQuery.data ?? [])
+                .map((asset) => ({ value: asset.asset_id, label: asset.ticker }))
+                .sort((a, b) => a.label.localeCompare(b.label)),
+        ],
+        [monitorQuery.data],
+    )
 
     return (
         <main className={styles.page}>
@@ -277,6 +365,8 @@ export function AdminBots() {
                             updatingId={updatingId}
                             onToggle={(bot) => (bot.is_active ? setPending({ kind: 'deactivate', bot }) : activate(bot))}
                             onEditCoverage={openCoverage}
+                            onEdit={openEdit}
+                            onFund={openFund}
                             emptyMessage={bots.length === 0 ? 'Nenhum bot cadastrado ainda.' : 'Nenhum bot com esses filtros.'}
                             expandedId={activityBotId}
                             onToggleActivity={toggleActivity}
@@ -316,6 +406,37 @@ export function AdminBots() {
                         </p>
                     )}
                     <p>A ação fica registrada na auditoria.</p>
+                </ConfirmDialog>
+            )}
+            {pending?.kind === 'edit' && editValues && (
+                <ConfirmDialog
+                    title={`Editar ${describeArchetype(pending.bot.archetype)} ${shortBotId(pending.bot.account_id)}`}
+                    confirmLabel="Salvar alterações"
+                    pendingLabel="Salvando…"
+                    pending={update.isPending}
+                    onConfirm={confirmEdit}
+                    onCancel={() => setPending(null)}
+                >
+                    <BotEditForm archetype={pending.bot.archetype} values={editValues} onChange={setEditValues} errors={editErrors} />
+                </ConfirmDialog>
+            )}
+            {pending?.kind === 'fund' && (
+                <ConfirmDialog
+                    title={`Aportar em ${describeArchetype(pending.bot.archetype)} ${shortBotId(pending.bot.account_id)}`}
+                    confirmLabel="Aportar"
+                    pendingLabel="Aportando…"
+                    pending={fund.isPending}
+                    onConfirm={confirmFund}
+                    onCancel={() => setPending(null)}
+                >
+                    <BotFundingForm
+                        values={fundValues}
+                        onChange={setFundValues}
+                        errors={fundErrors}
+                        assetOptions={fundAssetOptions}
+                        currentCash={pending.bot.cash}
+                    />
+                    <p>O aporte só soma: nada do que o bot já tem é removido. Entra como evento imutável e fica registrado na auditoria.</p>
                 </ConfirmDialog>
             )}
             {coverageBot && (

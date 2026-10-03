@@ -45,6 +45,7 @@ import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseT
 import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
 import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
+import { FundAdminBotUseCase } from './modules/admin/application/useCases/fundAdminBot'
 import { GetAdminBotActivityUseCase } from './modules/admin/application/useCases/getAdminBotActivity'
 import { GetAdminBotsSummaryUseCase } from './modules/admin/application/useCases/getAdminBotsSummary'
 import { ListAdminBotsUseCase } from './modules/admin/application/useCases/listAdminBots'
@@ -351,6 +352,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const listAdminBots = new ListAdminBotsUseCase(botAdmin)
   const createAdminBot = new CreateAdminBotUseCase(botAdmin, recordAdminAction)
   const updateAdminBot = new UpdateAdminBotUseCase(botAdmin, recordAdminAction)
+  const fundAdminBot = new FundAdminBotUseCase(botAdmin, recordAdminAction)
   // Desempenho dos bots (N.14).
   const getAdminBotActivity = new GetAdminBotActivityUseCase(botAdmin)
   const getAdminBotsSummary = new GetAdminBotsSummaryUseCase(botAdmin)
@@ -585,6 +587,7 @@ export function createApp(deps: AppDeps = {}): Express {
       listAdminBots,
       createAdminBot,
       updateAdminBot,
+      fundAdminBot,
       getAdminBotActivity,
       getAdminBotsSummary,
       authMiddleware,

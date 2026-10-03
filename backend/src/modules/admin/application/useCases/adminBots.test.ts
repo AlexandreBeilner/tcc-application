@@ -3,6 +3,7 @@ import { BotConflictError, BotRejectedError } from '../../domain/errors'
 import { createFakeAuditLogRepository } from '../../test/fakes/fakeAuditLogRepository'
 import { createFakeBotAdmin } from '../../test/fakes/fakeBotAdmin'
 import { CreateAdminBotUseCase } from './createAdminBot'
+import { FundAdminBotUseCase } from './fundAdminBot'
 import { GetAdminBotActivityUseCase } from './getAdminBotActivity'
 import { GetAdminBotsSummaryUseCase } from './getAdminBotsSummary'
 import { ListAdminBotsUseCase } from './listAdminBots'
@@ -19,6 +20,7 @@ function build() {
     list: new ListAdminBotsUseCase(botAdmin),
     create: new CreateAdminBotUseCase(botAdmin, record),
     update: new UpdateAdminBotUseCase(botAdmin, record),
+    fund: new FundAdminBotUseCase(botAdmin, record),
   }
 }
 
@@ -114,6 +116,76 @@ describe('UpdateAdminBotUseCase', () => {
       BotConflictError,
     )
     expect(auditLog.entries[0]).toMatchObject({ action: 'bot.update', result: 'failed' })
+  })
+})
+
+describe('UpdateAdminBotUseCase, personalidade (N.15)', () => {
+  it('audita só os campos de personalidade pedidos, em snake_case', async () => {
+    const { update, botAdmin, auditLog } = build()
+    await update.execute('admin-1', 'bot-1', {
+      spreadWidthPct: 0.03,
+      maxPositionSizePct: 0.2,
+      sectors: ['Varejo'],
+      knowledgeLevel: 0.8,
+    })
+    expect(botAdmin.updated[0].input).toMatchObject({ spreadWidthPct: 0.03, sectors: ['Varejo'] })
+    expect(auditLog.entries[0]).toMatchObject({
+      action: 'bot.update',
+      result: 'success',
+      payload: {
+        spread_width_pct: 0.03,
+        max_position_size_pct: 0.2,
+        sectors: ['Varejo'],
+        knowledge_level: 0.8,
+      },
+    })
+    expect(auditLog.entries[0].payload).not.toHaveProperty('is_active')
+  })
+
+  it('personalidade recusada pelo motor: propaga e audita a falha', async () => {
+    const { update, botAdmin, auditLog } = build()
+    botAdmin.errorToThrow = new BotRejectedError('largura de spread acima do teto')
+    await expect(update.execute('admin-1', 'bot-1', { spreadWidthPct: 0.09 })).rejects.toThrow(
+      BotRejectedError,
+    )
+    expect(auditLog.entries[0]).toMatchObject({ action: 'bot.update', result: 'failed' })
+  })
+})
+
+describe('FundAdminBotUseCase (N.15)', () => {
+  it('aporta no motor e audita bot.fund com o que foi pedido', async () => {
+    const { fund, botAdmin, auditLog } = build()
+    const bot = await fund.execute('admin-1', 'bot-1', {
+      cash: 5000,
+      holdings: [{ assetId: 'asset-1', quantity: 40 }],
+    })
+    expect(bot.cash).toBe(85000)
+    expect(botAdmin.funded).toEqual([
+      { botId: 'bot-1', input: { cash: 5000, holdings: [{ assetId: 'asset-1', quantity: 40 }] } },
+    ])
+    expect(auditLog.entries[0]).toMatchObject({
+      adminId: 'admin-1',
+      action: 'bot.fund',
+      targetType: 'bot',
+      targetId: 'bot-1',
+      result: 'success',
+      payload: { cash: 5000, holdings: [{ asset_id: 'asset-1', quantity: 40 }] },
+    })
+  })
+
+  it('só caixa não audita holdings', async () => {
+    const { fund, auditLog } = build()
+    await fund.execute('admin-1', 'bot-1', { cash: 100 })
+    expect(auditLog.entries[0].payload).toEqual({ cash: 100 })
+  })
+
+  it('teto de float: propaga o 409 e audita a falha', async () => {
+    const { fund, botAdmin, auditLog } = build()
+    botAdmin.errorToThrow = new BotConflictError('a posição passaria do total de cotas')
+    await expect(
+      fund.execute('admin-1', 'bot-1', { holdings: [{ assetId: 'a', quantity: 1 }] }),
+    ).rejects.toThrow(BotConflictError)
+    expect(auditLog.entries[0]).toMatchObject({ action: 'bot.fund', result: 'failed' })
   })
 })
 

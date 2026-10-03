@@ -90,10 +90,30 @@ export function createEngineBotAdmin(engineUrl: string): BotAdmin {
           is_active: input.isActive,
           max_covered_assets: input.maxCoveredAssets,
           covered_asset_ids: input.coveredAssetIds,
+          sectors: input.sectors,
+          risk_classes: input.riskClasses,
+          asset_classes: input.assetClasses,
+          within_scope_pct: input.withinScopePct,
+          knowledge_level: input.knowledgeLevel,
+          max_position_size_pct: input.maxPositionSizePct,
+          spread_width_pct: input.spreadWidthPct,
         }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       return readBot(res, 'falha ao alterar o bot no motor de simulação')
+    },
+
+    async fund(botId, input) {
+      const res = await fetch(`${engineUrl}/admin/bots/${encodeURIComponent(botId)}/funding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cash: input.cash,
+          holdings: input.holdings?.map((h) => ({ asset_id: h.assetId, quantity: h.quantity })),
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      return readBot(res, 'falha ao aportar no bot no motor de simulação')
     },
 
     async activity(botId, days) {

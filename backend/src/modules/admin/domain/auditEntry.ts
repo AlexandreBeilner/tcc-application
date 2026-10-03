@@ -14,6 +14,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'trading.resume',
   'bot.create',
   'bot.update',
+  'bot.fund',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

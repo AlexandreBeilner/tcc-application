@@ -72,7 +72,7 @@ export function validateBotForm(values: BotFormValues): BotFormErrors {
 }
 
 // Percentual digitado vira fração, sem o ruído de ponto flutuante (0,9 e não 0,9000000000000001).
-function toFraction(pct: string): number {
+export function toFraction(pct: string): number {
     return Math.round(parseNumber(pct) * 100) / 10000
 }
 
@@ -97,11 +97,15 @@ export function toCreateInput(values: BotFormValues): CreateBotInput {
     return input
 }
 
-// Mensagens fixas por situação conhecida; a recusa do motor (400) traz o motivo específico.
-export function describeBotError(err: unknown): string {
+// Mensagens fixas por situação conhecida; a recusa do motor (400) traz o motivo específico. O 409
+// muda de sentido conforme a ação: na alteração é cobertura repetida, no aporte é o teto de float.
+export function describeBotError(err: unknown, action: 'update' | 'fund' = 'update'): string {
     if (err instanceof ApiError) {
         if (err.status === 400) return `O motor recusou: ${err.message}`
         if (err.status === 404) return 'Esse bot não existe mais. A lista foi atualizada.'
+        if (err.status === 409 && action === 'fund') {
+            return 'A posição passaria do total de cotas em circulação do ativo: o float já está distribuído. Nada foi aportado. Aporte só caixa ou escolha um ativo com folga.'
+        }
         if (err.status === 409) {
             return 'Esse ativo já é coberto por outro Market Maker (talvez um inativo). Tire-o de lá primeiro. A lista foi atualizada.'
         }

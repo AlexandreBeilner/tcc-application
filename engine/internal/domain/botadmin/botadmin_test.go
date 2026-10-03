@@ -8,7 +8,9 @@ import (
 	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/coverage"
+	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
+	"tcc-investimentos/engine/internal/domain/position"
 )
 
 // fakeWorld é um banco em memória que implementa as cinco interfaces do serviço, do
@@ -20,10 +22,52 @@ type fakeWorld struct {
 	cancelled []orderexecution.CancelFilter
 	cancelErr error
 	writeErr  error
+	// Aportes (N.15): cotação e cotas em circulação por ativo, o que foi gravado e o teto de float.
+	prices      map[string]float64
+	outstanding map[string]int64
+	funded      []FundingLine
+	fundedCash  float64
+	floatFull   bool
+	personality int
 }
 
 func newFakeWorld() *fakeWorld {
-	return &fakeWorld{bots: map[string]Bot{}, assets: map[string]string{"a1": "AAA3", "a2": "BBB3", "a3": "CCC3"}}
+	return &fakeWorld{
+		bots: map[string]Bot{}, assets: map[string]string{"a1": "AAA3", "a2": "BBB3", "a3": "CCC3"},
+		prices: map[string]float64{"a1": 10, "a2": 20}, outstanding: map[string]int64{"a1": 1000, "a2": 1000, "a3": 1000},
+	}
+}
+
+func (w *fakeWorld) FundingTarget(_ context.Context, id string) (FundingTarget, bool, error) {
+	t, ok := w.assets[id]
+	return FundingTarget{AssetRef: AssetRef{AssetID: id, Ticker: t}, LastPrice: w.prices[id], OutstandingShares: w.outstanding[id]}, ok, nil
+}
+
+func (w *fakeWorld) UpdatePersonality(_ context.Context, id string, p bot.Personality) error {
+	if w.writeErr != nil {
+		return w.writeErr
+	}
+	b := w.bots[id]
+	p.MaxCoveredAssets = b.Personality.MaxCoveredAssets
+	b.Personality = p
+	w.bots[id] = b
+	w.personality++
+	return nil
+}
+
+func (w *fakeWorld) FundBot(_ context.Context, id string, cash float64, lines []FundingLine) error {
+	if w.floatFull && len(lines) > 0 {
+		return position.ErrFloatExceeded
+	}
+	b := w.bots[id]
+	b.Cash += cash
+	for _, l := range lines {
+		b.Holdings = append(b.Holdings, Holding{AssetID: l.AssetID, Ticker: w.assets[l.AssetID], Quantity: l.Quantity, AveragePrice: l.Price})
+	}
+	w.bots[id] = b
+	w.fundedCash += cash
+	w.funded = append(w.funded, lines...)
+	return nil
 }
 
 func (w *fakeWorld) List(context.Context) (Listing, error) {
@@ -354,3 +398,174 @@ func TestUpdate_FalhaNoCancelamentoNaoTiraACobertura(t *testing.T) {
 
 func ptr(b bool) *bool  { return &b }
 func ptrInt(n int) *int { return &n }
+
+func newFundamentalist(t *testing.T, w *fakeWorld) Bot {
+	t.Helper()
+	level := 0.6
+	in := chartistInput()
+	in.Archetype = bot.ArchetypeFundamentalista
+	in.KnowledgeLevel = &level
+	created, err := w.service().Create(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return created
+}
+
+func TestUpdate_PersonalidadeRevalidaPelosConstrutoresEPreservaOResto(t *testing.T) {
+	w := newFakeWorld()
+	created := newFundamentalist(t, w)
+	svc := w.service()
+	ctx := context.Background()
+
+	position, spread, level, within := 0.2, 0.04, 0.9, 0.86
+	sectors := []catalog.Sector{catalog.SectorVarejo}
+	classes := []catalog.AssetType{catalog.AssetFII}
+	updated, err := svc.Update(ctx, created.AccountID, UpdateInput{
+		MaxPositionSizePct: &position, SpreadWidthPct: &spread, KnowledgeLevel: &level, WithinScopePct: &within,
+		Sectors: &sectors, AssetClasses: &classes,
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	p := updated.Personality
+	if p.RiskProfile.MaxPositionSizePct != 0.2 || p.RiskProfile.SpreadWidthPct != 0.04 || *p.KnowledgeLevel != 0.9 || p.Scope.WithinScopePct != 0.86 {
+		t.Errorf("personalidade = %+v", p)
+	}
+	if len(p.Scope.Sectors) != 1 || p.Scope.Sectors[0] != catalog.SectorVarejo || len(p.Scope.AssetClasses) != 1 {
+		t.Errorf("escopo = %+v", p.Scope)
+	}
+	if p.RiskProfile.MarketOrderPreference != created.Personality.RiskProfile.MarketOrderPreference || p.Archetype != bot.ArchetypeFundamentalista {
+		t.Errorf("preferência por ordem a mercado e arquétipo não podem mudar: %+v", p)
+	}
+	if updated.Cash != created.Cash {
+		t.Errorf("caixa mudou de %v pra %v", created.Cash, updated.Cash)
+	}
+}
+
+func TestUpdate_PersonalidadeInvalidaERecusadaSemGravar(t *testing.T) {
+	w := newFakeWorld()
+	created := newFundamentalist(t, w)
+	chartist, err := w.service().Create(context.Background(), chartistInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := func(v float64) *float64 { return &v }
+	empty := []catalog.Sector{}
+	unknown := []equity.RiskClass{"Arriscado"}
+
+	tests := []struct {
+		name string
+		id   string
+		in   UpdateInput
+		want error
+	}{
+		{"spread acima do teto", created.AccountID, UpdateInput{SpreadWidthPct: bad(0.5)}, bot.ErrSpreadWidthAboveMax},
+		{"posição zero", created.AccountID, UpdateInput{MaxPositionSizePct: bad(0)}, bot.ErrInvalidMaxPositionSizePct},
+		{"atividade fora da faixa", created.AccountID, UpdateInput{WithinScopePct: bad(0.5)}, bot.ErrInvalidWithinScopePct},
+		{"conhecimento fora da faixa", created.AccountID, UpdateInput{KnowledgeLevel: bad(1.5)}, bot.ErrInvalidKnowledgeLevel},
+		{"conhecimento em arquétipo que não é fundamentalista", chartist.AccountID, UpdateInput{KnowledgeLevel: bad(0.5)}, bot.ErrKnowledgeLevelWrongArchetype},
+		{"escopo esvaziado", chartist.AccountID, UpdateInput{Sectors: &empty, AssetClasses: &[]catalog.AssetType{}}, bot.ErrEmptySpecializationScope},
+		{"classe de risco desconhecida", created.AccountID, UpdateInput{RiskClasses: &unknown}, bot.ErrUnknownRiskClassInScope},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := w.personality
+			if _, err := w.service().Update(context.Background(), tt.id, tt.in); !errors.Is(err, tt.want) {
+				t.Fatalf("err = %v, want %v", err, tt.want)
+			}
+			if w.personality != before {
+				t.Error("gravou personalidade mesmo recusando")
+			}
+		})
+	}
+}
+
+func TestUpdate_PersonalidadeNaoTocaCoberturaNemTetoDoMarketMaker(t *testing.T) {
+	w := newFakeWorld()
+	mm, err := w.service().Create(context.Background(), marketMakerInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spread := 0.03
+	updated, err := w.service().Update(context.Background(), mm.AccountID, UpdateInput{SpreadWidthPct: &spread})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Personality.MaxCoveredAssets == nil || *updated.Personality.MaxCoveredAssets != bot.DefaultMaxCoveredAssets || updated.Personality.RiskProfile.SpreadWidthPct != 0.03 {
+		t.Errorf("personalidade = %+v", updated.Personality)
+	}
+}
+
+func TestFund_CaixaEPosicaoValorizadaPelaCotacao(t *testing.T) {
+	w := newFakeWorld()
+	created, err := w.service().Create(context.Background(), marketMakerInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	funded, err := w.service().Fund(context.Background(), created.AccountID, FundingInput{
+		Cash: 2500, Holdings: []FundingHolding{{AssetID: "a1", Quantity: 40}},
+	})
+	if err != nil {
+		t.Fatalf("Fund: %v", err)
+	}
+	if funded.Cash != created.Cash+2500 || len(funded.Holdings) != 1 || funded.Holdings[0].Quantity != 40 {
+		t.Errorf("bot = %+v", funded)
+	}
+	if len(w.funded) != 1 || w.funded[0].Price != 10 || w.funded[0].OutstandingShares != 1000 {
+		t.Errorf("linha gravada = %+v, want cotação 10 e 1000 cotas em circulação", w.funded)
+	}
+}
+
+func TestFund_Recusas(t *testing.T) {
+	w := newFakeWorld()
+	created, err := w.service().Create(context.Background(), marketMakerInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		id   string
+		in   FundingInput
+		want error
+	}{
+		{"vazio", created.AccountID, FundingInput{}, ErrNothingToFund},
+		{"caixa negativo", created.AccountID, FundingInput{Cash: -1}, ErrInvalidFundingCash},
+		{"caixa acima do teto", created.AccountID, FundingInput{Cash: MaxInitialCash + 1}, ErrInvalidFundingCash},
+		{"quantidade zero", created.AccountID, FundingInput{Holdings: []FundingHolding{{AssetID: "a1", Quantity: 0}}}, ErrInvalidFundingQuantity},
+		{"quantidade acima do teto", created.AccountID, FundingInput{Holdings: []FundingHolding{{AssetID: "a1", Quantity: MaxFundingQuantity + 1}}}, ErrInvalidFundingQuantity},
+		{"ativo repetido", created.AccountID, FundingInput{Holdings: []FundingHolding{{AssetID: "a1", Quantity: 1}, {AssetID: "a1", Quantity: 2}}}, ErrDuplicateFundingAsset},
+		{"ativo não negociável", created.AccountID, FundingInput{Holdings: []FundingHolding{{AssetID: "zz", Quantity: 1}}}, ErrAssetNotTradable},
+		{"ativo sem cotação", created.AccountID, FundingInput{Holdings: []FundingHolding{{AssetID: "a3", Quantity: 1}}}, ErrNoQuoteToValue},
+		{"bot inexistente", "nao-existe", FundingInput{Cash: 10}, ErrBotNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := w.service().Fund(context.Background(), tt.id, tt.in); !errors.Is(err, tt.want) {
+				t.Fatalf("err = %v, want %v", err, tt.want)
+			}
+			if len(w.funded) != 0 || w.fundedCash != 0 {
+				t.Error("gravou aporte mesmo recusando")
+			}
+		})
+	}
+}
+
+func TestFund_SemCotasEmCirculacaoERecusado(t *testing.T) {
+	w := newFakeWorld()
+	created, _ := w.service().Create(context.Background(), marketMakerInput())
+	w.outstanding["a1"] = 0
+	if _, err := w.service().Fund(context.Background(), created.AccountID, FundingInput{Holdings: []FundingHolding{{AssetID: "a1", Quantity: 1}}}); !errors.Is(err, ErrNoOutstandingShares) {
+		t.Errorf("err = %v, want ErrNoOutstandingShares", err)
+	}
+}
+
+func TestFund_TetoDeFloatViraErroDeDominio(t *testing.T) {
+	w := newFakeWorld()
+	created, _ := w.service().Create(context.Background(), marketMakerInput())
+	w.floatFull = true
+	_, err := w.service().Fund(context.Background(), created.AccountID, FundingInput{Cash: 100, Holdings: []FundingHolding{{AssetID: "a1", Quantity: 1}}})
+	if !errors.Is(err, ErrFloatCeilingExceeded) {
+		t.Fatalf("err = %v, want ErrFloatCeilingExceeded", err)
+	}
+}

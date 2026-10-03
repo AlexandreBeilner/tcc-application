@@ -116,4 +116,49 @@ describe('engineBotAdmin', () => {
     respond(500, {})
     await expect(engine().summary()).rejects.toThrow(/status 500/)
   })
+
+  it('update repassa os campos de personalidade em snake_case, sem market_order_preference', async () => {
+    respond(200, sampleBot)
+    await engine().update('bot-1', {
+      sectors: ['Varejo'],
+      riskClasses: [],
+      assetClasses: ['fii'],
+      withinScopePct: 0.88,
+      knowledgeLevel: 0.7,
+      maxPositionSizePct: 0.2,
+      spreadWidthPct: 0.03,
+    })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body).toEqual({
+      sectors: ['Varejo'],
+      risk_classes: [],
+      asset_classes: ['fii'],
+      within_scope_pct: 0.88,
+      knowledge_level: 0.7,
+      max_position_size_pct: 0.2,
+      spread_width_pct: 0.03,
+    })
+    expect(body).not.toHaveProperty('market_order_preference')
+  })
+
+  it('fund chama POST /admin/bots/{id}/funding traduzindo os campos', async () => {
+    respond(200, sampleBot)
+    await engine().fund('bot-1', { cash: 5000, holdings: [{ assetId: 'asset-1', quantity: 40 }] })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://engine:8080/admin/bots/bot-1/funding')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({
+      cash: 5000,
+      holdings: [{ asset_id: 'asset-1', quantity: 40 }],
+    })
+  })
+
+  it.each([
+    [400, BotRejectedError],
+    [404, BotNotFoundError],
+    [409, BotConflictError],
+  ])('fund traduz o status %i do motor pro erro de domínio', async (status, errorClass) => {
+    respond(status, { error: 'recusado' })
+    await expect(engine().fund('bot-1', { cash: 1 })).rejects.toThrow(errorClass)
+  })
 })

@@ -82,6 +82,7 @@ export type AuditAction =
     | 'trading.resume'
     | 'bot.create'
     | 'bot.update'
+    | 'bot.fund'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -474,4 +475,19 @@ export interface UpdateBotInput {
     max_covered_assets?: number
     // Conjunto final de ativos do Market Maker; lista vazia tira toda a cobertura.
     covered_asset_ids?: string[]
+    // Personalidade (N.15), frações de 0 a 1. Cada lista enviada substitui a atual. A preferência
+    // por ordem a mercado não é editável (achado 001).
+    sectors?: string[]
+    risk_classes?: string[]
+    asset_classes?: string[]
+    within_scope_pct?: number
+    knowledge_level?: number
+    max_position_size_pct?: number
+    spread_width_pct?: number
+}
+
+// Aporte (N.15): só soma, nunca remove caixa nem posição.
+export interface FundBotInput {
+    cash?: number
+    holdings?: Array<{ asset_id: string; quantity: number }>
 }

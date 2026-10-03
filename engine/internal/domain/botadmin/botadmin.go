@@ -1,6 +1,7 @@
-// Package botadmin é a gestão de bots pelo painel admin (tarefa N.1): listar,
-// criar e alterar (ativar/desativar, teto de cobertura, reatribuir cobertura).
-// Nenhuma regra de personalidade é reescrita aqui: a criação reaproveita
+// Package botadmin é a gestão de bots pelo painel admin (tarefas N.1 e N.15):
+// listar, criar, alterar (ativar/desativar, teto de cobertura, reatribuir
+// cobertura, personalidade) e aportar caixa ou posição. Nenhuma regra de
+// personalidade é reescrita aqui: criação e edição reaproveitam
 // bot.NewSpecializationScope/NewRiskProfile/NewPersonality, e a atribuição de
 // cobertura reaproveita coverage.Assign/Provisioner (P.1/P.9), nunca um caminho
 // paralelo.
@@ -16,6 +17,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/equity"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
+	"tcc-investimentos/engine/internal/domain/position"
 )
 
 // MaxInitialCash é o teto do caixa inicial de um bot criado pelo painel. Valor
@@ -34,7 +36,19 @@ var (
 	ErrAssetAlreadyCovered  = errors.New("o ativo já é coberto por outro Market Maker (tire-o de lá primeiro)")
 	ErrCoverageExceedsLimit = errors.New("a cobertura pedida passa do teto de ativos do Market Maker")
 	ErrDuplicateAssetIDs    = errors.New("covered_asset_ids repete um ativo")
+
+	ErrNothingToFund          = errors.New("informe caixa e/ou posição a aportar")
+	ErrInvalidFundingCash     = errors.New("o aporte de caixa precisa ser positivo e de no máximo R$ 1.000.000.000.000,00")
+	ErrInvalidFundingQuantity = errors.New("a quantidade a aportar precisa ser um inteiro positivo")
+	ErrDuplicateFundingAsset  = errors.New("holdings repete um ativo")
+	ErrNoQuoteToValue         = errors.New("o ativo não tem cotação pra valorizar a posição aportada")
+	ErrNoOutstandingShares    = errors.New("o ativo não tem cotas em circulação definidas")
+	ErrFloatCeilingExceeded   = errors.New("a posição passaria do total de cotas em circulação do ativo: o float já está distribuído, aporte só caixa ou escolha um ativo com folga")
 )
+
+// MaxFundingQuantity é o teto de cotas por linha de aporte: market_events.quantity é
+// um inteiro de 32 bits.
+const MaxFundingQuantity = 2_000_000_000
 
 // AssetRef identifica um ativo na listagem.
 type AssetRef struct {
@@ -79,6 +93,9 @@ type Reader interface {
 	// CountAdminBots conta os bots já criados pelo painel (prefixo de ID próprio),
 	// base do ID determinístico do próximo.
 	CountAdminBots(ctx context.Context) (int, error)
+	// FundingTarget devolve o ativo negociável com a última cotação e as cotas em
+	// circulação (0 quando desconhecidas), pra valorizar e validar um aporte.
+	FundingTarget(ctx context.Context, assetID string) (FundingTarget, bool, error)
 }
 
 // Writer é a escrita do painel de bots, implementada por *db.BotAdminRepository.
@@ -90,6 +107,41 @@ type Writer interface {
 	SetActive(ctx context.Context, accountID string, active bool) error
 	SetMaxCoveredAssets(ctx context.Context, accountID string, max int) error
 	RemoveCoverage(ctx context.Context, accountID, assetID string) error
+	// UpdatePersonality troca os parâmetros editáveis da personalidade (escopo, posição
+	// máxima, spread, conhecimento) numa transação só; arquétipo, preferência por ordem
+	// a mercado e teto de cobertura ficam como estão.
+	UpdatePersonality(ctx context.Context, accountID string, personality bot.Personality) error
+	// FundBot grava o aporte como evento imutável (caixa e alocação) e projeta saldo e
+	// posições na mesma transação, validando o teto de float; recusa o aporte inteiro
+	// com position.ErrFloatExceeded se alguma linha passar do teto.
+	FundBot(ctx context.Context, accountID string, cash float64, lines []FundingLine) error
+}
+
+// FundingTarget é o ativo de um aporte de posição.
+type FundingTarget struct {
+	AssetRef
+	LastPrice         float64
+	OutstandingShares int64
+}
+
+// FundingHolding é uma linha do aporte pedida pelo painel.
+type FundingHolding struct {
+	AssetID  string
+	Quantity int64
+}
+
+// FundingLine é uma linha do aporte já valorizada pela última cotação.
+type FundingLine struct {
+	AssetID           string
+	Quantity          int64
+	Price             float64
+	OutstandingShares int64
+}
+
+// FundingInput é o aporte: caixa e/ou posições. Nunca remove caixa nem posição.
+type FundingInput struct {
+	Cash     float64
+	Holdings []FundingHolding
 }
 
 // OrderCanceller é o cancelamento em lote da N.10, reaproveitado pra limpar a
@@ -210,6 +262,20 @@ type UpdateInput struct {
 	IsActive         *bool
 	MaxCoveredAssets *int
 	CoveredAssetIDs  *[]string
+	// Personalidade (N.15): campo nil não muda. A preferência por ordem a mercado fica
+	// de fora de propósito (achado 001): o campo está reservado e sem efeito.
+	Sectors            *[]catalog.Sector
+	RiskClasses        *[]equity.RiskClass
+	AssetClasses       *[]catalog.AssetType
+	WithinScopePct     *float64
+	KnowledgeLevel     *float64
+	MaxPositionSizePct *float64
+	SpreadWidthPct     *float64
+}
+
+func (in UpdateInput) changesPersonality() bool {
+	return in.Sectors != nil || in.RiskClasses != nil || in.AssetClasses != nil || in.WithinScopePct != nil ||
+		in.KnowledgeLevel != nil || in.MaxPositionSizePct != nil || in.SpreadWidthPct != nil
 }
 
 // Update valida o estado final por inteiro antes de gravar qualquer coisa, então
@@ -218,7 +284,7 @@ type UpdateInput struct {
 // Maker neles: a cotação de Market Maker ativo não expira por dia, P.5), e por
 // último o interruptor.
 func (s *Service) Update(ctx context.Context, accountID string, in UpdateInput) (Bot, error) {
-	if in.IsActive == nil && in.MaxCoveredAssets == nil && in.CoveredAssetIDs == nil {
+	if in.IsActive == nil && in.MaxCoveredAssets == nil && in.CoveredAssetIDs == nil && !in.changesPersonality() {
 		return Bot{}, ErrNothingToUpdate
 	}
 	current, found, err := s.reader.Find(ctx, accountID)
@@ -233,7 +299,11 @@ func (s *Service) Update(ctx context.Context, accountID string, in UpdateInput) 
 	if err != nil {
 		return Bot{}, err
 	}
-	if err := s.apply(ctx, current, in, plan); err != nil {
+	personality, err := planPersonality(current, in)
+	if err != nil {
+		return Bot{}, err
+	}
+	if err := s.apply(ctx, current, in, plan, personality); err != nil {
 		return Bot{}, err
 	}
 
@@ -334,8 +404,63 @@ func (s *Service) validateAdded(ctx context.Context, added []string) error {
 	return nil
 }
 
-func (s *Service) apply(ctx context.Context, current Bot, in UpdateInput, plan coveragePlan) error {
+// planPersonality monta a personalidade final pelos construtores de domínio (a mesma
+// validação da criação, nunca regra duplicada). nil quando o PATCH não mexe nela. A
+// preferência por ordem a mercado, o arquétipo e o teto de cobertura vêm do bot atual.
+func planPersonality(current Bot, in UpdateInput) (*bot.Personality, error) {
+	if !in.changesPersonality() {
+		return nil, nil
+	}
+	p := current.Personality
+	sectors, riskClasses, assetClasses, within := p.Scope.Sectors, p.Scope.RiskClasses, p.Scope.AssetClasses, p.Scope.WithinScopePct
+	if in.Sectors != nil {
+		sectors = *in.Sectors
+	}
+	if in.RiskClasses != nil {
+		riskClasses = *in.RiskClasses
+	}
+	if in.AssetClasses != nil {
+		assetClasses = *in.AssetClasses
+	}
+	if in.WithinScopePct != nil {
+		within = *in.WithinScopePct
+	}
+	scope, err := bot.NewSpecializationScope(sectors, riskClasses, assetClasses, within)
+	if err != nil {
+		return nil, err
+	}
+
+	maxPosition, spread := p.RiskProfile.MaxPositionSizePct, p.RiskProfile.SpreadWidthPct
+	if in.MaxPositionSizePct != nil {
+		maxPosition = *in.MaxPositionSizePct
+	}
+	if in.SpreadWidthPct != nil {
+		spread = *in.SpreadWidthPct
+	}
+	risk, err := bot.NewRiskProfile(maxPosition, p.RiskProfile.MarketOrderPreference, spread)
+	if err != nil {
+		return nil, err
+	}
+
+	knowledge := p.KnowledgeLevel
+	if in.KnowledgeLevel != nil {
+		knowledge = in.KnowledgeLevel
+	}
+	next, err := bot.NewPersonality(p.Archetype, scope, knowledge, risk)
+	if err != nil {
+		return nil, err
+	}
+	next.MaxCoveredAssets = p.MaxCoveredAssets
+	return &next, nil
+}
+
+func (s *Service) apply(ctx context.Context, current Bot, in UpdateInput, plan coveragePlan, personality *bot.Personality) error {
 	id := current.AccountID
+	if personality != nil {
+		if err := s.writer.UpdatePersonality(ctx, id, *personality); err != nil {
+			return fmt.Errorf("alterar a personalidade do bot: %w", err)
+		}
+	}
 	if plan.max != nil {
 		if err := s.writer.SetMaxCoveredAssets(ctx, id, *plan.max); err != nil {
 			return fmt.Errorf("ajustar o teto de cobertura: %w", err)
@@ -362,4 +487,64 @@ func (s *Service) apply(ctx context.Context, current Bot, in UpdateInput, plan c
 		}
 	}
 	return nil
+}
+
+// Fund aporta caixa e/ou posição num bot (ex: Market Maker esgotado). Nunca remove
+// caixa nem posição existentes. Cada linha de posição é valorizada pela última cotação
+// do ativo e o teto de float é validado na gravação (o float de todo ativo já costuma
+// estar distribuído, então o aporte de posição só passa onde houver folga). O aporte
+// inteiro é validado antes de gravar e entra por evento imutável, atomicamente.
+func (s *Service) Fund(ctx context.Context, accountID string, in FundingInput) (Bot, error) {
+	if in.Cash == 0 && len(in.Holdings) == 0 {
+		return Bot{}, ErrNothingToFund
+	}
+	if in.Cash < 0 || in.Cash > MaxInitialCash {
+		return Bot{}, ErrInvalidFundingCash
+	}
+	if _, found, err := s.reader.Find(ctx, accountID); err != nil {
+		return Bot{}, err
+	} else if !found {
+		return Bot{}, ErrBotNotFound
+	}
+
+	lines := make([]FundingLine, 0, len(in.Holdings))
+	seen := make(map[string]bool, len(in.Holdings))
+	for _, h := range in.Holdings {
+		if h.Quantity <= 0 || h.Quantity > MaxFundingQuantity {
+			return Bot{}, ErrInvalidFundingQuantity
+		}
+		if seen[h.AssetID] {
+			return Bot{}, ErrDuplicateFundingAsset
+		}
+		seen[h.AssetID] = true
+		target, ok, err := s.reader.FundingTarget(ctx, h.AssetID)
+		if err != nil {
+			return Bot{}, err
+		}
+		if !ok {
+			return Bot{}, ErrAssetNotTradable
+		}
+		if target.LastPrice <= 0 {
+			return Bot{}, ErrNoQuoteToValue
+		}
+		if target.OutstandingShares <= 0 {
+			return Bot{}, ErrNoOutstandingShares
+		}
+		lines = append(lines, FundingLine{AssetID: h.AssetID, Quantity: h.Quantity, Price: target.LastPrice, OutstandingShares: target.OutstandingShares})
+	}
+
+	if err := s.writer.FundBot(ctx, accountID, in.Cash, lines); err != nil {
+		if errors.Is(err, position.ErrFloatExceeded) {
+			return Bot{}, ErrFloatCeilingExceeded
+		}
+		return Bot{}, fmt.Errorf("aportar no bot %s: %w", accountID, err)
+	}
+	funded, found, err := s.reader.Find(ctx, accountID)
+	if err != nil {
+		return Bot{}, err
+	}
+	if !found {
+		return Bot{}, ErrBotNotFound
+	}
+	return funded, nil
 }

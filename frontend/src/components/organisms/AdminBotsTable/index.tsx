@@ -32,6 +32,8 @@ export function AdminBotsTable({
     updatingId,
     onToggle,
     onEditCoverage,
+    onEdit,
+    onFund,
     emptyMessage,
     expandedId,
     onToggleActivity,
@@ -67,6 +69,12 @@ export function AdminBotsTable({
             </button>
             <button type="button" className={styles.action} disabled={updatingId === bot.account_id} onClick={() => onToggle(bot)}>
                 {bot.is_active ? 'Desativar' : 'Ativar'}
+            </button>
+            <button type="button" className={styles.action} disabled={updatingId === bot.account_id} onClick={() => onEdit(bot)}>
+                Editar
+            </button>
+            <button type="button" className={styles.action} disabled={updatingId === bot.account_id} onClick={() => onFund(bot)}>
+                Aportar
             </button>
             {bot.max_covered_assets !== null && (
                 <button

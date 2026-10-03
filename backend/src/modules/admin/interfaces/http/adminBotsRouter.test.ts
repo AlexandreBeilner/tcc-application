@@ -10,6 +10,7 @@ import {
   BotRejectedError,
 } from '../../domain/errors'
 import { CreateAdminBotUseCase } from '../../application/useCases/createAdminBot'
+import { FundAdminBotUseCase } from '../../application/useCases/fundAdminBot'
 import { GetAdminBotActivityUseCase } from '../../application/useCases/getAdminBotActivity'
 import { GetAdminBotsSummaryUseCase } from '../../application/useCases/getAdminBotsSummary'
 import { ListAdminBotsUseCase } from '../../application/useCases/listAdminBots'
@@ -35,6 +36,7 @@ function buildApp() {
       listAdminBots: new ListAdminBotsUseCase(botAdmin),
       createAdminBot: new CreateAdminBotUseCase(botAdmin, record),
       updateAdminBot: new UpdateAdminBotUseCase(botAdmin, record),
+      fundAdminBot: new FundAdminBotUseCase(botAdmin, record),
       getAdminBotActivity: new GetAdminBotActivityUseCase(botAdmin),
       getAdminBotsSummary: new GetAdminBotsSummaryUseCase(botAdmin),
       authMiddleware,
@@ -60,6 +62,7 @@ const routes: Array<[string, 'get' | 'post' | 'patch', string, object?]> = [
   ['GET /admin/bots', 'get', '/admin/bots'],
   ['POST /admin/bots', 'post', '/admin/bots', validCreate],
   ['PATCH /admin/bots/:id', 'patch', `/admin/bots/${BOT_ID}`, { is_active: false }],
+  ['POST /admin/bots/:id/funding', 'post', `/admin/bots/${BOT_ID}/funding`, { cash: 100 }],
   ['GET /admin/bots/summary', 'get', '/admin/bots/summary'],
   ['GET /admin/bots/:id/activity', 'get', `/admin/bots/${BOT_ID}/activity`],
 ]
@@ -286,5 +289,145 @@ describe('rotas de desempenho de bots (N.14)', () => {
       .get('/admin/bots/summary?idle_days=0')
       .set('Authorization', adminToken())
     expect(res.status).toBe(400)
+  })
+})
+
+describe('personalidade e aporte de bots (N.15)', () => {
+  it('PATCH repassa os campos de personalidade e audita', async () => {
+    const { app, adminToken, botAdmin, auditLog } = buildApp()
+    const res = await request(app)
+      .patch(`/admin/bots/${BOT_ID}`)
+      .set('Authorization', adminToken())
+      .send({
+        sectors: ['Varejo', 'Energia'],
+        risk_classes: [],
+        asset_classes: ['fii'],
+        within_scope_pct: 0.88,
+        knowledge_level: 0.7,
+        max_position_size_pct: 0.2,
+        spread_width_pct: 0.03,
+      })
+    expect(res.status).toBe(200)
+    expect(botAdmin.updated[0]).toEqual({
+      botId: BOT_ID,
+      input: {
+        isActive: undefined,
+        maxCoveredAssets: undefined,
+        coveredAssetIds: undefined,
+        sectors: ['Varejo', 'Energia'],
+        riskClasses: [],
+        assetClasses: ['fii'],
+        withinScopePct: 0.88,
+        knowledgeLevel: 0.7,
+        maxPositionSizePct: 0.2,
+        spreadWidthPct: 0.03,
+      },
+    })
+    expect(auditLog.entries[0]).toMatchObject({ action: 'bot.update', result: 'success' })
+  })
+
+  it('PATCH descarta market_order_preference (achado 001: campo reservado, sem efeito)', async () => {
+    const { app, adminToken, botAdmin } = buildApp()
+    const res = await request(app)
+      .patch(`/admin/bots/${BOT_ID}`)
+      .set('Authorization', adminToken())
+      .send({ spread_width_pct: 0.03, market_order_preference: 0.99 })
+    expect(res.status).toBe(200)
+    expect(JSON.stringify(botAdmin.updated[0].input)).not.toContain('0.99')
+  })
+
+  it('PATCH só com market_order_preference é recusado: nenhum campo editável', async () => {
+    const { app, adminToken, botAdmin } = buildApp()
+    const res = await request(app)
+      .patch(`/admin/bots/${BOT_ID}`)
+      .set('Authorization', adminToken())
+      .send({ market_order_preference: 0.5 })
+    expect(res.status).toBe(400)
+    expect(botAdmin.calls).toHaveLength(0)
+  })
+
+  it.each([
+    { within_scope_pct: 0.5 },
+    { max_position_size_pct: 0 },
+    { max_position_size_pct: 1.5 },
+    { spread_width_pct: 0.5 },
+    { spread_width_pct: -0.01 },
+    { knowledge_level: 2 },
+    { sectors: ['Cripto'] },
+    { risk_classes: ['Arrojado'] },
+    { asset_classes: ['cdb'] },
+  ])('PATCH com %j retorna 400 sem chamar o motor', async (body) => {
+    const { app, adminToken, botAdmin, auditLog } = buildApp()
+    const res = await request(app)
+      .patch(`/admin/bots/${BOT_ID}`)
+      .set('Authorization', adminToken())
+      .send(body)
+    expect(res.status).toBe(400)
+    expect(botAdmin.calls).toHaveLength(0)
+    expect(auditLog.entries).toHaveLength(0)
+  })
+
+  it('POST /funding aporta caixa e posição, devolve o bot e audita bot.fund', async () => {
+    const { app, adminToken, botAdmin, auditLog } = buildApp()
+    const res = await request(app)
+      .post(`/admin/bots/${BOT_ID}/funding`)
+      .set('Authorization', adminToken())
+      .send({ cash: 5000, holdings: [{ asset_id: ASSET_ID, quantity: 40 }] })
+    expect(res.status).toBe(200)
+    expect(res.body.cash).toBe(sampleBot.cash + 5000)
+    expect(botAdmin.funded).toEqual([
+      { botId: BOT_ID, input: { cash: 5000, holdings: [{ assetId: ASSET_ID, quantity: 40 }] } },
+    ])
+    expect(auditLog.entries[0]).toMatchObject({
+      adminId: 'admin-1',
+      action: 'bot.fund',
+      targetId: BOT_ID,
+      result: 'success',
+    })
+  })
+
+  it.each([
+    {},
+    { cash: 0 },
+    { cash: -5 },
+    { cash: 1_000_000_000_001 },
+    { holdings: [] },
+    { holdings: [{ asset_id: 'x', quantity: 1 }] },
+    { holdings: [{ asset_id: ASSET_ID, quantity: 0 }] },
+    { holdings: [{ asset_id: ASSET_ID, quantity: 1.5 }] },
+    { holdings: [{ asset_id: ASSET_ID, quantity: 2_000_000_001 }] },
+  ])('POST /funding com corpo %j retorna 400 sem chamar o motor', async (body) => {
+    const { app, adminToken, botAdmin, auditLog } = buildApp()
+    const res = await request(app)
+      .post(`/admin/bots/${BOT_ID}/funding`)
+      .set('Authorization', adminToken())
+      .send(body)
+    expect(res.status).toBe(400)
+    expect(botAdmin.calls).toHaveLength(0)
+    expect(auditLog.entries).toHaveLength(0)
+  })
+
+  it('POST /funding recusa id que não é UUID', async () => {
+    const { app, adminToken } = buildApp()
+    const res = await request(app)
+      .post('/admin/bots/nao-uuid/funding')
+      .set('Authorization', adminToken())
+      .send({ cash: 100 })
+    expect(res.status).toBe(400)
+  })
+
+  it.each([
+    [new BotRejectedError('ativo sem cotação'), 400],
+    [new BotNotFoundError('bot não encontrado'), 404],
+    [new BotConflictError('a posição passaria do total de cotas'), 409],
+  ])('POST /funding mapeia %s para %i e audita a falha', async (error, status) => {
+    const { app, adminToken, botAdmin, auditLog } = buildApp()
+    botAdmin.errorToThrow = error
+    const res = await request(app)
+      .post(`/admin/bots/${BOT_ID}/funding`)
+      .set('Authorization', adminToken())
+      .send({ cash: 100 })
+    expect(res.status).toBe(status)
+    expect(auditLog.entries[0]).toMatchObject({ action: 'bot.fund', result: 'failed' })
   })
 })

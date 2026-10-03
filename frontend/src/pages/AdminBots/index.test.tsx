@@ -3,7 +3,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { createAdminBot, getAdminBotActivity, getAdminBotsSummary, listAdminBots, updateAdminBot } from '../../services/admin'
+import {
+    createAdminBot,
+    fundAdminBot,
+    getAdminBotActivity,
+    getAdminBotsSummary,
+    listAdminBots,
+    listMarketMonitor,
+    updateAdminBot,
+} from '../../services/admin'
 import type { AdminBot, AdminBotListing, BotActivity, BotsSummary } from '../../services/admin'
 import { ApiError } from '../../services/client'
 import { AdminBots } from '.'
@@ -13,6 +21,8 @@ vi.mock('../../services/admin', () => ({
     listAdminBots: vi.fn(),
     getAdminBotActivity: vi.fn(),
     getAdminBotsSummary: vi.fn(),
+    fundAdminBot: vi.fn(),
+    listMarketMonitor: vi.fn(),
     createAdminBot: vi.fn(),
     updateAdminBot: vi.fn(),
 }))
@@ -104,6 +114,10 @@ beforeEach(() => {
     vi.mocked(listAdminBots).mockResolvedValue(listing())
     vi.mocked(getAdminBotsSummary).mockResolvedValue(summary())
     vi.mocked(getAdminBotActivity).mockResolvedValue(activity())
+    vi.mocked(fundAdminBot).mockResolvedValue(marketMaker)
+    vi.mocked(listMarketMonitor).mockResolvedValue({ assets: [{ asset_id: 'a1', ticker: 'AAA3' }] } as Awaited<
+        ReturnType<typeof listMarketMonitor>
+    >)
     vi.mocked(updateAdminBot).mockResolvedValue(marketMaker)
     vi.mocked(createAdminBot).mockResolvedValue(chartist)
 })
@@ -293,5 +307,94 @@ describe('AdminBots', () => {
 
         fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Ocultar desempenho' }))
         expect(screen.queryAllByRole('region', { name: 'Desempenho do bot' })).toHaveLength(0)
+    })
+
+    it('Editar abre o diálogo com a personalidade atual e envia só o que mudou', async () => {
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+
+        fireEvent.click(within(rows()[1]).getByRole('button', { name: 'Editar' }))
+        const dialog = await screen.findByRole('dialog')
+        expect(within(dialog).getByRole('checkbox', { name: 'Varejo' })).toBeChecked()
+        fireEvent.change(within(dialog).getByLabelText(/Largura do spread/), { target: { value: '3' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar alterações' }))
+
+        await waitFor(() => expect(updateAdminBot).toHaveBeenCalledWith('tok', chartist.account_id, { spread_width_pct: 0.03 }))
+        expect(await screen.findByRole('status')).toHaveTextContent('atualizado. A mudança vale na próxima rodada')
+    })
+
+    it('Editar sem mudar nada não chama o motor', async () => {
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+        fireEvent.click(within(rows()[1]).getByRole('button', { name: 'Editar' }))
+        fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Salvar alterações' }))
+        expect(await screen.findByRole('status')).toHaveTextContent('Nada a alterar')
+        expect(updateAdminBot).not.toHaveBeenCalled()
+    })
+
+    it('Editar com valor inválido mostra o erro e mantém o diálogo', async () => {
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+        fireEvent.click(within(rows()[1]).getByRole('button', { name: 'Editar' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.change(within(dialog).getByLabelText(/Atividade dentro do escopo/), { target: { value: '50' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar alterações' }))
+        expect(await within(dialog).findByText(/Use um valor entre 85 e 90/)).toBeInTheDocument()
+        expect(updateAdminBot).not.toHaveBeenCalled()
+    })
+
+    it('recusa do motor na edição aparece como erro da tela', async () => {
+        vi.mocked(updateAdminBot).mockRejectedValue(new ApiError(400, 'largura de spread acima do teto'))
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+        fireEvent.click(within(rows()[1]).getByRole('button', { name: 'Editar' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.change(within(dialog).getByLabelText(/Largura do spread/), { target: { value: '4' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Salvar alterações' }))
+        expect(await screen.findByRole('alert')).toHaveTextContent('O motor recusou: largura de spread acima do teto')
+    })
+
+    it('Aportar caixa e posição envia o aporte e confirma', async () => {
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+
+        fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Aportar' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.change(within(dialog).getByLabelText(/Caixa a aportar/), { target: { value: '5000' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: /Ativo da posição/ }))
+        fireEvent.click(await screen.findByRole('option', { name: 'AAA3' }))
+        fireEvent.change(within(dialog).getByLabelText(/Quantidade de cotas/), { target: { value: '40' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Aportar' }))
+
+        await waitFor(() =>
+            expect(fundAdminBot).toHaveBeenCalledWith('tok', marketMaker.account_id, {
+                cash: 5000,
+                holdings: [{ asset_id: 'a1', quantity: 40 }],
+            }),
+        )
+        expect(await screen.findByRole('status')).toHaveTextContent('Aporte feito em Market Maker')
+    })
+
+    it('Aportar vazio mostra o erro e não chama o motor', async () => {
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+        fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Aportar' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Aportar' }))
+        expect(await within(dialog).findByText(/Informe um valor em caixa e\/ou uma posição/)).toBeInTheDocument()
+        expect(fundAdminBot).not.toHaveBeenCalled()
+    })
+
+    it('teto de float no aporte mostra a mensagem própria do aporte', async () => {
+        vi.mocked(fundAdminBot).mockRejectedValue(new ApiError(409, 'float'))
+        renderPage()
+        await screen.findByText('2 de 3 bots ativos')
+        fireEvent.click(within(rows()[0]).getByRole('button', { name: 'Aportar' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(within(dialog).getByRole('button', { name: /Ativo da posição/ }))
+        fireEvent.click(await screen.findByRole('option', { name: 'AAA3' }))
+        fireEvent.change(within(dialog).getByLabelText(/Quantidade de cotas/), { target: { value: '10' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Aportar' }))
+        expect(await screen.findByRole('alert')).toHaveTextContent('total de cotas em circulação')
     })
 })

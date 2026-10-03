@@ -21,6 +21,8 @@ type fakeBotManager struct {
 	created   botadmin.CreateInput
 	updatedID string
 	updated   botadmin.UpdateInput
+	fundedID  string
+	funded    botadmin.FundingInput
 }
 
 func sampleAdminBot() botadmin.Bot {
@@ -52,6 +54,11 @@ func (f *fakeBotManager) Update(_ context.Context, id string, in botadmin.Update
 	return sampleAdminBot(), f.err
 }
 
+func (f *fakeBotManager) Fund(_ context.Context, id string, in botadmin.FundingInput) (botadmin.Bot, error) {
+	f.fundedID, f.funded = id, in
+	return sampleAdminBot(), f.err
+}
+
 func callBots(t *testing.T, m adminBotManager, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	var opts []Option
@@ -68,6 +75,7 @@ func TestAdminBots_503SemServico(t *testing.T) {
 		{http.MethodGet, "/admin/bots"},
 		{http.MethodPost, "/admin/bots"},
 		{http.MethodPatch, "/admin/bots/" + validUserID},
+		{http.MethodPost, "/admin/bots/" + validUserID + "/funding"},
 	} {
 		if rec := callBots(t, nil, tc.method, tc.path, `{}`); rec.Code != http.StatusServiceUnavailable {
 			t.Errorf("%s %s sem serviço = %d, want 503", tc.method, tc.path, rec.Code)
@@ -194,6 +202,79 @@ func TestAdminUpdateBot(t *testing.T) {
 			{&orderexecution.BatchTooLargeError{Matched: 600, Max: 500}, http.StatusUnprocessableEntity},
 		} {
 			if rec := callBots(t, &fakeBotManager{err: tt.err}, http.MethodPatch, "/admin/bots/"+validUserID, `{"is_active":true}`); rec.Code != tt.want {
+				t.Errorf("%v = %d, want %d", tt.err, rec.Code, tt.want)
+			}
+		}
+	})
+}
+
+func TestAdminUpdateBot_PersonalidadeEMarketOrderPreferenceIgnorada(t *testing.T) {
+	fake := &fakeBotManager{}
+	body := `{"sectors":["Varejo"],"risk_classes":[],"asset_classes":["fii"],"within_scope_pct":0.88,"knowledge_level":0.7,` +
+		`"max_position_size_pct":0.2,"spread_width_pct":0.03,"market_order_preference":0.99}`
+	rec := callBots(t, fake, http.MethodPatch, "/admin/bots/"+validUserID, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	in := fake.updated
+	if in.Sectors == nil || (*in.Sectors)[0] != catalog.SectorVarejo || in.RiskClasses == nil || len(*in.RiskClasses) != 0 ||
+		(*in.AssetClasses)[0] != catalog.AssetFII || *in.WithinScopePct != 0.88 || *in.KnowledgeLevel != 0.7 ||
+		*in.MaxPositionSizePct != 0.2 || *in.SpreadWidthPct != 0.03 {
+		t.Errorf("input = %+v", in)
+	}
+	// O campo market_order_preference não existe no UpdateInput (achado 001): é ignorado.
+}
+
+func TestAdminUpdateBot_ErrosDePersonalidadeSao400(t *testing.T) {
+	for _, err := range []error{bot.ErrSpreadWidthAboveMax, bot.ErrKnowledgeLevelWrongArchetype, bot.ErrEmptySpecializationScope} {
+		if rec := callBots(t, &fakeBotManager{err: err}, http.MethodPatch, "/admin/bots/"+validUserID, `{"spread_width_pct":0.5}`); rec.Code != http.StatusBadRequest {
+			t.Errorf("%v = %d, want 400", err, rec.Code)
+		}
+	}
+}
+
+func TestAdminFundBot(t *testing.T) {
+	path := "/admin/bots/" + validUserID + "/funding"
+
+	t.Run("repassa caixa e posições", func(t *testing.T) {
+		fake := &fakeBotManager{}
+		rec := callBots(t, fake, http.MethodPost, path, `{"cash":5000,"holdings":[{"asset_id":"`+validAssetID+`","quantity":40}]}`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+		}
+		if fake.fundedID != validUserID || fake.funded.Cash != 5000 || len(fake.funded.Holdings) != 1 ||
+			fake.funded.Holdings[0].AssetID != validAssetID || fake.funded.Holdings[0].Quantity != 40 {
+			t.Errorf("funded = %+v", fake.funded)
+		}
+	})
+
+	t.Run("entradas inválidas", func(t *testing.T) {
+		for name, tc := range map[string]struct{ path, body string }{
+			"id não é UUID":    {"/admin/bots/abc/funding", `{"cash":1}`},
+			"corpo inválido":   {path, `{`},
+			"ativo não é UUID": {path, `{"holdings":[{"asset_id":"x","quantity":1}]}`},
+		} {
+			if rec := callBots(t, &fakeBotManager{}, http.MethodPost, tc.path, tc.body); rec.Code != http.StatusBadRequest {
+				t.Errorf("%s = %d, want 400", name, rec.Code)
+			}
+		}
+	})
+
+	t.Run("mapeia os erros do domínio", func(t *testing.T) {
+		for _, tt := range []struct {
+			err  error
+			want int
+		}{
+			{botadmin.ErrBotNotFound, http.StatusNotFound},
+			{botadmin.ErrNothingToFund, http.StatusBadRequest},
+			{botadmin.ErrInvalidFundingCash, http.StatusBadRequest},
+			{botadmin.ErrInvalidFundingQuantity, http.StatusBadRequest},
+			{botadmin.ErrAssetNotTradable, http.StatusBadRequest},
+			{botadmin.ErrNoQuoteToValue, http.StatusBadRequest},
+			{botadmin.ErrFloatCeilingExceeded, http.StatusConflict},
+			{errors.New("falha de banco"), http.StatusInternalServerError},
+		} {
+			if rec := callBots(t, &fakeBotManager{err: tt.err}, http.MethodPost, path, `{"cash":1}`); rec.Code != tt.want {
 				t.Errorf("%v = %d, want %d", tt.err, rec.Code, tt.want)
 			}
 		}

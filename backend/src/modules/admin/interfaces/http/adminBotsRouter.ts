@@ -10,6 +10,7 @@ import {
   BotRejectedError,
 } from '../../domain/errors'
 import type { CreateAdminBotUseCase } from '../../application/useCases/createAdminBot'
+import type { FundAdminBotUseCase } from '../../application/useCases/fundAdminBot'
 import type { GetAdminBotActivityUseCase } from '../../application/useCases/getAdminBotActivity'
 import type { GetAdminBotsSummaryUseCase } from '../../application/useCases/getAdminBotsSummary'
 import type { ListAdminBotsUseCase } from '../../application/useCases/listAdminBots'
@@ -18,6 +19,7 @@ import {
   botActivityQuerySchema,
   botsSummaryQuerySchema,
   createBotBodySchema,
+  fundBotBodySchema,
   updateBotBodySchema,
 } from './schemas'
 
@@ -25,14 +27,15 @@ export interface AdminBotsRouterDeps {
   listAdminBots: ListAdminBotsUseCase
   createAdminBot: CreateAdminBotUseCase
   updateAdminBot: UpdateAdminBotUseCase
+  fundAdminBot: FundAdminBotUseCase
   getAdminBotActivity: GetAdminBotActivityUseCase
   getAdminBotsSummary: GetAdminBotsSummaryUseCase
   authMiddleware: AuthMiddleware
 }
 
-// Gestão de bots (Fase N, tarefas N.1 e N.14): lista, cria e altera (interruptor, teto e
-// cobertura de Market Maker) e lê o desempenho. Proxy fino do motor; criar e alterar passam
-// pela auditoria (N.4), as leituras não.
+// Gestão de bots (Fase N, tarefas N.1, N.14 e N.15): lista, cria, altera (interruptor, teto,
+// cobertura e personalidade), aporta caixa/posição e lê o desempenho. Proxy fino do motor; criar,
+// alterar e aportar passam pela auditoria (N.4), as leituras não.
 export function createAdminBotsRouter(deps: AdminBotsRouterDeps): Router {
   const router = Router()
   const adminOnly = [deps.authMiddleware.authenticate, deps.authMiddleware.requireRole('admin')]
@@ -119,8 +122,39 @@ export function createAdminBotsRouter(deps: AdminBotsRouterDeps): Router {
         isActive: parsed.data.is_active,
         maxCoveredAssets: parsed.data.max_covered_assets,
         coveredAssetIds: parsed.data.covered_asset_ids,
+        sectors: parsed.data.sectors,
+        riskClasses: parsed.data.risk_classes,
+        assetClasses: parsed.data.asset_classes,
+        withinScopePct: parsed.data.within_scope_pct,
+        knowledgeLevel: parsed.data.knowledge_level,
+        maxPositionSizePct: parsed.data.max_position_size_pct,
+        spreadWidthPct: parsed.data.spread_width_pct,
       })
       res.status(200).json(updated)
+    } catch (err) {
+      sendBotError(err, res)
+    }
+  })
+
+  router.post('/admin/bots/:id/funding', ...adminOnly, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+    const parsed = fundBotBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({
+        error: 'dados do aporte inválidos',
+        details: z.flattenError(parsed.error),
+      })
+      return
+    }
+    try {
+      const funded = await deps.fundAdminBot.execute(req.auth.userId, req.params.id as string, {
+        cash: parsed.data.cash,
+        holdings: parsed.data.holdings?.map((h) => ({ assetId: h.asset_id, quantity: h.quantity })),
+      })
+      res.status(200).json(funded)
     } catch (err) {
       sendBotError(err, res)
     }

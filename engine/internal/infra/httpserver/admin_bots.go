@@ -22,6 +22,7 @@ type adminBotManager interface {
 	List(ctx context.Context) (botadmin.Listing, error)
 	Create(ctx context.Context, in botadmin.CreateInput) (botadmin.Bot, error)
 	Update(ctx context.Context, accountID string, in botadmin.UpdateInput) (botadmin.Bot, error)
+	Fund(ctx context.Context, accountID string, in botadmin.FundingInput) (botadmin.Bot, error)
 }
 
 // WithBotAdmin liga as rotas /admin/bots; sem ela respondem 503.
@@ -179,6 +180,44 @@ type updateBotRequest struct {
 	IsActive         *bool     `json:"is_active"`
 	MaxCoveredAssets *int      `json:"max_covered_assets"`
 	CoveredAssetIDs  *[]string `json:"covered_asset_ids"`
+	// Personalidade (N.15). A preferência por ordem a mercado não é aceita (achado 001).
+	Sectors            *[]string `json:"sectors"`
+	RiskClasses        *[]string `json:"risk_classes"`
+	AssetClasses       *[]string `json:"asset_classes"`
+	WithinScopePct     *float64  `json:"within_scope_pct"`
+	KnowledgeLevel     *float64  `json:"knowledge_level"`
+	MaxPositionSizePct *float64  `json:"max_position_size_pct"`
+	SpreadWidthPct     *float64  `json:"spread_width_pct"`
+}
+
+func (req updateBotRequest) toInput() botadmin.UpdateInput {
+	in := botadmin.UpdateInput{
+		IsActive: req.IsActive, MaxCoveredAssets: req.MaxCoveredAssets, CoveredAssetIDs: req.CoveredAssetIDs,
+		WithinScopePct: req.WithinScopePct, KnowledgeLevel: req.KnowledgeLevel,
+		MaxPositionSizePct: req.MaxPositionSizePct, SpreadWidthPct: req.SpreadWidthPct,
+	}
+	if req.Sectors != nil {
+		sectors := make([]catalog.Sector, 0, len(*req.Sectors))
+		for _, s := range *req.Sectors {
+			sectors = append(sectors, catalog.Sector(s))
+		}
+		in.Sectors = &sectors
+	}
+	if req.RiskClasses != nil {
+		riskClasses := make([]equity.RiskClass, 0, len(*req.RiskClasses))
+		for _, rc := range *req.RiskClasses {
+			riskClasses = append(riskClasses, equity.RiskClass(rc))
+		}
+		in.RiskClasses = &riskClasses
+	}
+	if req.AssetClasses != nil {
+		assetClasses := make([]catalog.AssetType, 0, len(*req.AssetClasses))
+		for _, ac := range *req.AssetClasses {
+			assetClasses = append(assetClasses, catalog.AssetType(ac))
+		}
+		in.AssetClasses = &assetClasses
+	}
+	return in
 }
 
 // handleAdminUpdateBot serve PATCH /admin/bots/{id}.
@@ -206,14 +245,56 @@ func handleAdminUpdateBot(m adminBotManager) http.HandlerFunc {
 				}
 			}
 		}
-		updated, err := m.Update(r.Context(), id, botadmin.UpdateInput{
-			IsActive: req.IsActive, MaxCoveredAssets: req.MaxCoveredAssets, CoveredAssetIDs: req.CoveredAssetIDs,
-		})
+		updated, err := m.Update(r.Context(), id, req.toInput())
 		if err != nil {
 			writeBotAdminError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, toAdminBotResponse(updated))
+	}
+}
+
+type fundingHoldingRequest struct {
+	AssetID  string `json:"asset_id"`
+	Quantity int64  `json:"quantity"`
+}
+
+type fundBotRequest struct {
+	Cash     float64                 `json:"cash"`
+	Holdings []fundingHoldingRequest `json:"holdings"`
+}
+
+// handleAdminFundBot serve POST /admin/bots/{id}/funding.
+func handleAdminFundBot(m adminBotManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if m == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "gestão de bots indisponível")
+			return
+		}
+		id := r.PathValue("id")
+		if !uuidPattern.MatchString(id) {
+			writeCatalogError(w, http.StatusBadRequest, "id deve ser um UUID válido")
+			return
+		}
+		var req fundBotRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeCatalogError(w, http.StatusBadRequest, "corpo da requisição inválido")
+			return
+		}
+		in := botadmin.FundingInput{Cash: req.Cash}
+		for _, h := range req.Holdings {
+			if !uuidPattern.MatchString(h.AssetID) {
+				writeCatalogError(w, http.StatusBadRequest, "holdings deve conter só asset_id UUID válido")
+				return
+			}
+			in.Holdings = append(in.Holdings, botadmin.FundingHolding{AssetID: h.AssetID, Quantity: h.Quantity})
+		}
+		funded, err := m.Fund(r.Context(), id, in)
+		if err != nil {
+			writeBotAdminError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toAdminBotResponse(funded))
 	}
 }
 
@@ -227,6 +308,8 @@ var botValidationErrors = []error{
 	bot.ErrSpreadWidthAboveMax, bot.ErrInvalidMaxCoveredAssets, bot.ErrMaxCoveredAssetsWrongArchetype,
 	botadmin.ErrInvalidInitialCash, botadmin.ErrNothingToUpdate, botadmin.ErrNotMarketMaker,
 	botadmin.ErrAssetNotTradable, botadmin.ErrCoverageExceedsLimit, botadmin.ErrDuplicateAssetIDs,
+	botadmin.ErrNothingToFund, botadmin.ErrInvalidFundingCash, botadmin.ErrInvalidFundingQuantity,
+	botadmin.ErrDuplicateFundingAsset, botadmin.ErrNoQuoteToValue, botadmin.ErrNoOutstandingShares,
 }
 
 func writeBotAdminError(w http.ResponseWriter, err error) {
@@ -234,7 +317,7 @@ func writeBotAdminError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, botadmin.ErrBotNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, botadmin.ErrAssetAlreadyCovered), errors.Is(err, account.ErrAlreadyExists):
+	case errors.Is(err, botadmin.ErrAssetAlreadyCovered), errors.Is(err, botadmin.ErrFloatCeilingExceeded), errors.Is(err, account.ErrAlreadyExists):
 		writeCatalogError(w, http.StatusConflict, err.Error())
 	case errors.As(err, &tooLarge):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{

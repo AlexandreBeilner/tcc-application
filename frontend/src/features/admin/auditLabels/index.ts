@@ -15,6 +15,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'trading.resume': 'Retomada da negociação',
     'bot.create': 'Criação de bot',
     'bot.update': 'Alteração de bot',
+    'bot.fund': 'Aporte em bot',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

@@ -96,6 +96,7 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /admin/bots/{id}/activity", handleAdminBotActivity(cfg.adminReader))
 	mux.HandleFunc("POST /admin/bots", handleAdminCreateBot(cfg.botManager))
 	mux.HandleFunc("PATCH /admin/bots/{id}", handleAdminUpdateBot(cfg.botManager))
+	mux.HandleFunc("POST /admin/bots/{id}/funding", handleAdminFundBot(cfg.botManager))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
 	mux.HandleFunc("POST /orders/{id}/cancel", handleCancelOrder(orders))
 	mux.HandleFunc("GET /orders", handleListOrders(orders))

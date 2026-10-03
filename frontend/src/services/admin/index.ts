@@ -5,6 +5,7 @@ import type {
     BotActivity,
     BotsSummary,
     CreateBotInput,
+    FundBotInput,
     UpdateBotInput,
     AdminOverview,
     AdminOrdersFilters,
@@ -38,6 +39,7 @@ export type {
     BotQuote,
     BotsSummary,
     CreateBotInput,
+    FundBotInput,
     UpdateBotInput,
     HaltScope,
     PauseTradingInput,
@@ -209,6 +211,10 @@ export function createAdminBot(token: string, input: CreateBotInput): Promise<Ad
 
 export function updateAdminBot(token: string, botId: string, input: UpdateBotInput): Promise<AdminBot> {
     return apiRequest<AdminBot>(`/admin/bots/${botId}`, { token, method: 'PATCH', body: input })
+}
+
+export function fundAdminBot(token: string, botId: string, input: FundBotInput): Promise<AdminBot> {
+    return apiRequest<AdminBot>(`/admin/bots/${botId}/funding`, { token, method: 'POST', body: input })
 }
 
 // Desempenho dos bots (N.14): só leitura. `days` e `idleDays` ausentes usam o padrão do motor.

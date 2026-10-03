@@ -80,21 +80,27 @@ func createPersonalityTx(ctx context.Context, tx *sql.Tx, accountID string, pers
 		return err
 	}
 
-	for _, sector := range personality.Scope.Sectors {
+	return insertScopeTx(ctx, tx, accountID, personality.Scope)
+}
+
+// insertScopeTx grava uma linha de bot_personality_scopes por setor, classe de risco e
+// classe de ativo do escopo; reaproveitado pela criação e pela edição da personalidade (N.15).
+func insertScopeTx(ctx context.Context, tx *sql.Tx, accountID string, scope bot.SpecializationScope) error {
+	for _, sector := range scope.Sectors {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO bot_personality_scopes (account_id, sector) VALUES ($1, $2)`, accountID, string(sector),
 		); err != nil {
 			return err
 		}
 	}
-	for _, riskClass := range personality.Scope.RiskClasses {
+	for _, riskClass := range scope.RiskClasses {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO bot_personality_scopes (account_id, risk_class) VALUES ($1, $2)`, accountID, string(riskClass),
 		); err != nil {
 			return err
 		}
 	}
-	for _, assetClass := range personality.Scope.AssetClasses {
+	for _, assetClass := range scope.AssetClasses {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO bot_personality_scopes (account_id, asset_class) VALUES ($1, $2)`, accountID, string(assetClass),
 		); err != nil {
