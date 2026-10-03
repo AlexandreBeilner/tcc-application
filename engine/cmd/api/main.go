@@ -195,7 +195,7 @@ func main() {
 		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
 	}
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin)); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

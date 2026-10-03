@@ -1,17 +1,26 @@
 import { apiRequest } from '../client'
 import type {
+    AdminOverview,
     AdvanceTicksResult,
     AuditLogFilters,
     ListAuditLogResult,
     ListMacroEventsResult,
     ListTicksResult,
     SchedulerStatus,
+    SystemHealth,
     TickResult,
     TriggerMacroEventInput,
     TriggerMacroEventResult,
 } from './types'
 
 export type {
+    AdminOverview,
+    ComponentHealth,
+    HealthComponentKey,
+    HealthStatus,
+    MarketOverview,
+    SystemHealth,
+    UserStats,
     AdvanceTicksResult,
     AuditAction,
     AuditLogEntry,
@@ -93,4 +102,13 @@ export function triggerTick(token: string): Promise<TickResult> {
 
 export function advanceTicks(token: string, days: number): Promise<AdvanceTicksResult> {
     return apiRequest<AdvanceTicksResult>('/admin/tick/advance', { token, method: 'POST', body: { days } })
+}
+
+// Visão geral e saúde (N.5): só leitura.
+export function getSystemHealth(token: string): Promise<SystemHealth> {
+    return apiRequest<SystemHealth>('/admin/system/health', { token })
+}
+
+export function getAdminOverview(token: string): Promise<AdminOverview> {
+    return apiRequest<AdminOverview>('/admin/overview', { token })
 }

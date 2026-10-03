@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     advanceTicks,
+    getAdminOverview,
     getScheduler,
+    getSystemHealth,
     listAuditLog,
     listMacroEvents,
     listTicks,
@@ -110,5 +112,21 @@ describe('services/admin', () => {
         expect(url).toBe('/admin/tick/advance')
         expect(init.method).toBe('POST')
         expect(JSON.parse(init.body)).toEqual({ days: 3 })
+    })
+
+    it('getSystemHealth faz GET /admin/system/health com o token', async () => {
+        const fetchMock = mockFetchOnce({ checked_at: '2026-10-03T12:00:00Z', components: [] })
+        await getSystemHealth('token')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/system/health')
+        expect(init.headers.Authorization).toBe('Bearer token')
+    })
+
+    it('getAdminOverview faz GET /admin/overview com o token', async () => {
+        const fetchMock = mockFetchOnce({ market: null, scheduler: null, last_tick: null, users: null, errors: {} })
+        await getAdminOverview('token')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/overview')
+        expect(init.headers.Authorization).toBe('Bearer token')
     })
 })

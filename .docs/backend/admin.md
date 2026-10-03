@@ -93,3 +93,23 @@ Cinco rotas que repassam o controle do Temporizador do motor (ver `.docs/engine/
 - **Erros:** `400` — `days` ausente, fora de 1 a 30, fracionário ou texto (nada é chamado nem auditado); `409` — já existe um tick em andamento; `500` — falha no meio: `{ error, completed_ticks }` com os ticks que **já rodaram** (ficam gravados; não há rollback de mercado).
 - **Auditoria:** `tick.advance`, `target_type = tick`, `target_id` = último dia simulado, `payload = { days, executed, last_day }` (uma única linha pro lote inteiro); falha grava `result = failed` com o motivo e `payload = { days }`.
 - **Limite conhecido:** a resposta só volta quando todos os dias terminaram (cada tick leva alguns segundos e cresce com o catálogo); o motor dá 2 minutos de prazo de escrita por dia pedido.
+
+### Visão geral e saúde do sistema (tarefa N.5)
+
+Duas rotas de leitura da tela de entrada do painel. Exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum). Só leitura: não passam pela auditoria (N.4).
+
+#### `GET /admin/system/health`
+
+- **Sucesso:** `200` → `{ checked_at, components: [{ key, status, latency_ms | null, detail | null }] }`, sempre nesta ordem: `backend`, `engine`, `gamification_db`, `market_db`, `redis`. `status` é `ok`, `degradado` (respondeu, mas em mais de 1000 ms) ou `fora` (falhou ou não respondeu em 3 s; `latency_ms` vira `null` e `detail` traz o motivo).
+- **Erros:** nenhum próprio. Um componente fora **não** derruba a resposta, só aparece como `fora`.
+- **Regra:** `GetSystemHealthUseCase` sonda os componentes em paralelo por `HealthProbe` (porta): `engine` = `GET /health` do motor; `gamification_db` = `select 1` no pool do backend; `redis` = `PING`; `market_db` = a leitura da visão geral do motor (só o motor fala com esse banco, então se ela responde o banco está de pé). O `backend` é `ok` por definição.
+
+#### `GET /admin/overview`
+
+- **Sucesso:** `200` → `{ market, scheduler, last_tick, users, errors }`.
+  - `market`: o corpo de `GET /admin/overview` do motor (ver `.docs/engine/admin.md`).
+  - `scheduler`: o corpo de `GET /admin/scheduler` (agenda ligada/pausada, próximo slot).
+  - `last_tick`: a linha mais recente de `GET /admin/ticks`, ou `null` se nunca houve tick.
+  - `users`: `{ total, signups_last_24h, signups_last_7d }`, só contas `role = user`.
+  - `errors`: por seção que falhou (`market`, `scheduler`, `last_tick`, `users`), a mensagem do erro; vazio quando tudo respondeu.
+- **Erros:** nenhum próprio. Uma fonte fora vira `null` na seção dela e a mensagem em `errors`; as demais seguem. A tela de entrada precisa abrir justamente quando algo está quebrado.

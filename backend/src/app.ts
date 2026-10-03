@@ -19,6 +19,17 @@ import { GetSchedulerStatusUseCase } from './modules/admin/application/useCases/
 import { ListTicksUseCase } from './modules/admin/application/useCases/listTicks'
 import { SetSchedulerPausedUseCase } from './modules/admin/application/useCases/setSchedulerPaused'
 import { AdvanceTicksUseCase } from './modules/admin/application/useCases/advanceTicks'
+import { createEngineMarketOverviewReader } from './modules/admin/infrastructure/engine/engineMarketOverviewReader'
+import { createDrizzleUserStatsReader } from './modules/admin/infrastructure/persistence/drizzleUserStatsReader'
+import {
+  createDatabaseProbe,
+  createEngineHealthProbe,
+  createMarketDatabaseProbe,
+  createRedisProbe,
+} from './modules/admin/infrastructure/health/probes'
+import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
+import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
+import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
 import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
 import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
 import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
@@ -289,6 +300,20 @@ export function createApp(deps: AppDeps = {}): Express {
   const setSchedulerPaused = new SetSchedulerPausedUseCase(schedulerAdmin, recordAdminAction)
   const listTicks = new ListTicksUseCase(schedulerAdmin)
   const advanceTicks = new AdvanceTicksUseCase(schedulerAdmin, recordAdminAction)
+  // Visão geral e saúde (N.5): só leitura. O banco "market" é sondado pela mesma
+  // leitura da visão geral do motor (só o motor fala com ele).
+  const marketOverviewReader = createEngineMarketOverviewReader(engineUrl)
+  const getSystemHealth = new GetSystemHealthUseCase({
+    engine: createEngineHealthProbe(engineUrl),
+    gamification_db: createDatabaseProbe(db),
+    market_db: createMarketDatabaseProbe(marketOverviewReader),
+    redis: createRedisProbe(redisClient),
+  })
+  const getAdminOverview = new GetAdminOverviewUseCase(
+    marketOverviewReader,
+    schedulerAdmin,
+    createDrizzleUserStatsReader(db),
+  )
   // Reaproveita a mesma instância de ListMacroEventsUseCase (admin, 4.5) —
   // feed público (6.0.6, tela 5.1) é o mesmo caso de uso, só sem
   // requireRole('admin') no router. newsReadRepository (6.6.2) decora
@@ -505,6 +530,7 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))

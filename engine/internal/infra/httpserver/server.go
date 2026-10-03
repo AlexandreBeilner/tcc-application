@@ -52,7 +52,8 @@ type userMarketDataReader interface {
 // /accounts/:user_id[/events], GET /positions, GET /fixed-income/positions,
 // GET /market/indicators/history, GET /market/clock e GET /market/calendar respondem 503 nesse caso, em vez de
 // panicar. As rotas do painel de Tempo (N.6: /admin/scheduler, /admin/ticks,
-// /admin/tick/advance) só funcionam com WithSchedulerAdmin; sem ela respondem 503.
+// /admin/tick/advance) só funcionam com WithSchedulerAdmin; sem ela respondem 503. A de leitura
+// do painel (N.5: /admin/overview) depende de WithAdminReader, idem.
 func New(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) *http.Server {
 	var cfg options
 	for _, opt := range opts {
@@ -78,6 +79,7 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("POST /admin/scheduler/pause", handleSetSchedulerPaused(cfg.scheduler, true))
 	mux.HandleFunc("POST /admin/scheduler/resume", handleSetSchedulerPaused(cfg.scheduler, false))
 	mux.HandleFunc("GET /admin/ticks", handleListTicks(cfg.scheduler))
+	mux.HandleFunc("GET /admin/overview", handleAdminOverview(cfg.adminReader))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
 	mux.HandleFunc("POST /orders/{id}/cancel", handleCancelOrder(orders))
 	mux.HandleFunc("GET /orders", handleListOrders(orders))

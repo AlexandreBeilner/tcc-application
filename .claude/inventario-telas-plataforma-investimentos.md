@@ -409,10 +409,10 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 ### 10.1 Painel Admin — Visão geral (hub)
 - **Objetivo:** porta de entrada do painel administrativo, que a Fase N de `backlog-motor-mercado-realista.md` amplia pra centro de controle geral da aplicação (spec 3.3.3, nota de revisão de 2026-10-03). Desde a N.3 o painel tem um shell próprio (navegação por seções) em volta de todas as telas 10.x.
 - **Acesso:** menu do avatar, visível apenas para `role = admin`; rota `/admin` protegida por `role = admin`.
-- **Conteúdo:** navegação por seções (Visão geral, Tempo, Mercado, Bots, Usuários, Conteúdo, Gamificação, Sistema, Auditoria) — barra lateral fixa no desktop, faixa horizontal no tablet, gaveta no mobile. Seção sem tela ainda aparece desabilitada com "Em breve". Provisória até a N.5 (dashboard de saúde e estado do mercado): cartões de acesso às seções.
-- **Ações:** abrir uma seção disponível (hoje só "Mercado" → **10.3**).
-- **Estados especiais:** nenhum.
-- **Dados envolvidos:** nenhum até a N.5.
+- **Conteúdo:** navegação por seções (Visão geral, Tempo, Mercado, Bots, Usuários, Conteúdo, Gamificação, Sistema, Auditoria) — barra lateral fixa no desktop, faixa horizontal no tablet, gaveta no mobile; seção sem tela ainda aparece desabilitada com "Em breve". Desde a N.5 a tela em si é o dashboard de entrada: (1) **faixa de saúde** com backend, motor, banco de usuários, banco de mercado e Redis (cada um "No ar", "Lento" ou "Fora", com latência e o motivo da falha); (2) cartões **Mercado** (dia simulado, Selic, IPCA no mês e em 12 meses, eventos macro pendentes, ativos sem Market Maker), **Tempo** (agenda ativa/pausada/desligada, próximo tick, ritmo, tick em andamento, último tick), **Negociação** (negócios, volume e ordens abertas no dia simulado, bots ativos) e **Usuários** (total, cadastros em 24 h e 7 dias). Atualiza sozinha por polling de 15 s.
+- **Ações:** abrir a seção de um cartão ("Eventos macro", "Controlar o tempo").
+- **Estados especiais:** carregando; backend fora do ar (aviso no lugar da faixa e do resumo); **fonte fora do ar** (o cartão daquela fonte mostra "Indisponível: motivo" e os demais seguem). Composição própria por breakpoint: 2 colunas de cartões a partir de 768 px, 5 chips lado a lado na faixa de saúde.
+- **Dados envolvidos:** `GET /admin/system/health` e `GET /admin/overview` (`.docs/backend/admin.md`), que agregam `GET /admin/overview` do motor (`.docs/engine/admin.md`), `GET /admin/scheduler`, o último item de `GET /admin/ticks` e a contagem de usuários.
 
 ### 10.3 Histórico de Eventos Macro
 - **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.

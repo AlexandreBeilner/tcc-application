@@ -163,3 +163,48 @@ export interface AdvanceTicksResult {
     requested: number
     ticks: TickResult[]
 }
+
+// Visão geral e saúde (N.5, `.docs/backend/admin.md#visao-geral-e-saude-do-sistema-tarefa-n5`).
+export type HealthStatus = 'ok' | 'degradado' | 'fora'
+export type HealthComponentKey = 'backend' | 'engine' | 'gamification_db' | 'market_db' | 'redis'
+
+export interface ComponentHealth {
+    key: HealthComponentKey
+    status: HealthStatus
+    latency_ms: number | null
+    detail: string | null
+}
+
+export interface SystemHealth {
+    checked_at: string
+    components: ComponentHealth[]
+}
+
+export interface MarketOverview {
+    simulated_day: number
+    selic_rate: number
+    ipca_monthly: number | null
+    ipca_accumulated_12m: number | null
+    pending_macro_events: number
+    uncovered_assets: number
+    tradable_assets: number
+    active_bots: number
+    total_bots: number
+    day_trades: number
+    day_volume: number
+    resting_orders: number
+}
+
+export interface UserStats {
+    total: number
+    signups_last_24h: number
+    signups_last_7d: number
+}
+
+export interface AdminOverview {
+    market: MarketOverview | null
+    scheduler: SchedulerStatus | null
+    last_tick: TickRun | null
+    users: UserStats | null
+    errors: Partial<Record<'market' | 'scheduler' | 'last_tick' | 'users', string>>
+}

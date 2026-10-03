@@ -2830,7 +2830,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 
 #### Bloco 2 — Visão geral e tempo
 
-### N.5 · Visão geral e saúde do sistema (tela 10.x)
+### N.5 · Visão geral e saúde do sistema (tela 10.x) ✅
 
 - **Descrição:** dashboard de entrada. Faixa de **saúde**: motor, backend, Postgres (os dois bancos
   lógicos), Redis — `GET /admin/system/health` (backend consulta o próprio banco e Redis e chama
@@ -2843,6 +2843,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 - **Critérios de aceite:** componente fora do ar aparece como "fora" sem derrubar a tela; números batem com
   `GET /market/clock` e `/market/indicators`; responsiva; `.docs/engine` e `.docs/backend/admin.md`.
 - **Dependências:** N.3, N.6 (histórico de tick).
+- **Entregável (sessão 2026-10-03):** **Motor:** `GET /admin/overview` (`httpserver.WithAdminReader`, `503` sem banco) devolve o recorte do mercado numa chamada (dia simulado, Selic e IPCA da última linha de `market_indicator_history`, eventos macro pendentes, ativos negociáveis e quantos estão **agora** sem Market Maker ativo, bots ativos/total, negócios e volume do dia simulado, ordens abertas no book), lido por `db.AdminReadRepository.Overview` (domínio `internal/domain/adminview`, só leitura). **Backend:** `GET /admin/system/health` (`GetSystemHealthUseCase` sonda motor, banco de usuários, banco de mercado e Redis em paralelo por `HealthProbe`, com prazo de 3 s, `ok`/`degradado` acima de 1 s/`fora` com o motivo) e `GET /admin/overview` (`GetAdminOverviewUseCase` junta a visão do motor, `GET /admin/scheduler`, o último item de `GET /admin/ticks` e a contagem de usuários por `UserStatsReader`; cada fonte falha sozinha, vira `null` com o motivo em `errors`). **Frontend:** tela **10.1** reescrita como dashboard (`SystemHealthStrip`, `StatCard`, polling de 15 s; cartões Mercado, Tempo, Negociação e Usuários; cartão da fonte que caiu mostra "Indisponível: motivo" sem derrubar os outros). Documentado em `.docs/engine/admin.md` (novo) e `.docs/backend/admin.md`; inventário atualizado. **Decisões declaradas:** (1) o banco "market" é sondado pela própria leitura da visão geral do motor, porque só o motor fala com ele (o `/health` do motor é liveness e responde com o banco fora); (2) o backend é `ok` por definição; (3) "usuários" conta só `role = user`; (4) o card de Mercado aponta pra `/admin/eventos` até a N.8. **Achado na validação ao vivo e corrigido:** o cliente Redis do backend é `lazyConnect` e sem fila offline, então a primeira sonda antes de conectar dizia "fora" com o Redis de pé; a sonda agora conecta antes do `PING` (teste novo). **Validado em `docker compose`:** os números batem com `GET /market/clock` (dia 373) e com a contagem direta de ordens abertas no Postgres (82); com `docker stop tcc-redis` a faixa mostra o Redis "fora" e as outras quatro seguem "ok". **Testes:** motor (go test ./... com banco descartável, `golangci-lint` 0 issues), backend (eslint, tsc, build, 828 testes com `TEST_DATABASE_URL` e `--no-file-parallelism`, porque duas suítes de integração migrando o mesmo banco ao mesmo tempo disputam o schema `drizzle`), frontend (tsc, oxlint sem aviso novo, testes das telas/serviços novos).
 
 ### N.6 · Controle do Temporizador e histórico de ticks ✅
 
