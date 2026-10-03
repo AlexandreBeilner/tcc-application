@@ -12,14 +12,21 @@ import type {
     ListTicksResult,
     MonitorAsset,
     MonitorAssetDetail,
+    PauseTradingInput,
     SchedulerStatus,
     SystemHealth,
     TickResult,
+    TradingHalt,
+    TradingHaltListing,
     TriggerMacroEventInput,
     TriggerMacroEventResult,
 } from './types'
 
 export type {
+    HaltScope,
+    PauseTradingInput,
+    TradingHalt,
+    TradingHaltListing,
     AdminOrder,
     AdminOrdersFilters,
     AdminOrderStatus,
@@ -159,4 +166,17 @@ export function cancelAdminOrder(token: string, orderId: string): Promise<void> 
 
 export function cancelAdminOrdersBatch(token: string, input: CancelOrdersBatchInput): Promise<CancelOrdersBatchResult> {
     return apiRequest<CancelOrdersBatchResult>('/admin/orders/cancel-batch', { token, method: 'POST', body: input })
+}
+
+// Pausa de negociação (N.9): lista, pausa e retomada. Retomar responde com a pausa encerrada.
+export function listTradingHalts(token: string): Promise<TradingHaltListing> {
+    return apiRequest<TradingHaltListing>('/admin/halts', { token })
+}
+
+export function pauseTrading(token: string, input: PauseTradingInput): Promise<TradingHalt> {
+    return apiRequest<TradingHalt>('/admin/halts', { token, method: 'POST', body: input })
+}
+
+export function liftTradingHalt(token: string, haltId: string): Promise<TradingHalt> {
+    return apiRequest<TradingHalt>(`/admin/halts/${haltId}/lift`, { token, method: 'POST' })
 }

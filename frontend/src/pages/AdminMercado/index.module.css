@@ -144,3 +144,13 @@
     padding: 0;
     list-style: none;
 }
+
+/* Pausa vigente: borda tracejada (atenção operacional), texto sempre presente. */
+.haltBanner {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-feedback-error-500);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}

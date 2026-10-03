@@ -55,6 +55,7 @@ type options struct {
 	scheduler      *SchedulerAdminAPI
 	adminReader    adminReader
 	orderCanceller adminOrderCanceller
+	tradingHalts   tradingHaltManager
 }
 
 // WithSchedulerAdmin liga as rotas do painel de Tempo (N.6); sem ela respondem 503.

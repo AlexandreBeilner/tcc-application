@@ -105,6 +105,8 @@ type fakeOrderContextLoader struct {
 	outstandingShares *int64
 	// scopes conta quantos escopos de leitura de tick foram abertos (Q.1).
 	scopes int
+	// halted marca os ativos com negociação pausada (N.9): LoadContext devolve Halt.
+	halted map[string]bool
 }
 
 func (f *fakeOrderContextLoader) WithReadScope(ctx context.Context) context.Context {
@@ -117,10 +119,15 @@ func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ strin
 	if f.loadErr != nil {
 		return orderexecution.Context{}, f.loadErr
 	}
+	var halt *orderexecution.HaltInfo
+	if f.halted[assetID] {
+		halt = &orderexecution.HaltInfo{}
+	}
 	return orderexecution.Context{
 		IncomingUserBalance:  f.balance,
 		IncomingUserPosition: f.positions[assetID],
 		OutstandingShares:    f.outstandingShares,
+		Halt:                 halt,
 	}, nil
 }
 

@@ -11,6 +11,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'scheduler.resume': 'Retomada do temporizador',
     'order.cancel': 'Cancelamento de ordem',
     'order.cancel_batch': 'Cancelamento de ordens em lote',
+    'trading.halt': 'Pausa de negociação',
+    'trading.resume': 'Retomada da negociação',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

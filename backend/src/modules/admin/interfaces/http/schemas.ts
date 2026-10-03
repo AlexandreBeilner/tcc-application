@@ -112,3 +112,16 @@ export const cancelOrdersBatchBodySchema = z
   .refine((b) => b.asset_id !== undefined || b.user_id !== undefined, {
     message: 'informe asset_id ou user_id',
   })
+
+// POST /admin/halts (N.9): pausa global ou de um ativo. O motivo é obrigatório e fica na
+// auditoria; o teto de 200 caracteres é o do motor.
+export const pauseTradingBodySchema = z
+  .object({
+    scope: z.enum(['global', 'asset']),
+    asset_id: z.uuid().optional(),
+    reason: z.string().trim().min(1).max(200),
+  })
+  .refine((b) => (b.scope === 'asset' ? b.asset_id !== undefined : b.asset_id === undefined), {
+    message: 'a pausa de um ativo exige asset_id e a global não leva asset_id',
+    path: ['asset_id'],
+  })

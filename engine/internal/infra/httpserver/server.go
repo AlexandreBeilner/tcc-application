@@ -54,7 +54,8 @@ type userMarketDataReader interface {
 // panicar. As rotas do painel de Tempo (N.6: /admin/scheduler, /admin/ticks,
 // /admin/tick/advance) só funcionam com WithSchedulerAdmin; sem ela respondem 503. As de leitura
 // do painel (N.5/N.8/N.10: /admin/overview, /admin/market/assets[/{id}], /admin/orders) dependem de WithAdminReader, idem;
-// o cancelamento por intervenção (N.10) depende de WithAdminOrderCanceller.
+// o cancelamento por intervenção (N.10) depende de WithAdminOrderCanceller e as pausas de negociação (N.9:
+// /admin/halts, GET /market/halts) de WithTradingHalts.
 func New(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) *http.Server {
 	var cfg options
 	for _, opt := range opts {
@@ -86,6 +87,10 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /admin/orders", handleAdminOrders(cfg.adminReader))
 	mux.HandleFunc("POST /admin/orders/cancel-batch", handleAdminCancelBatch(cfg.orderCanceller))
 	mux.HandleFunc("POST /admin/orders/{id}/cancel", handleAdminCancelOrder(cfg.orderCanceller))
+	mux.HandleFunc("GET /admin/halts", handleAdminListHalts(cfg.tradingHalts))
+	mux.HandleFunc("POST /admin/halts", handleAdminPause(cfg.tradingHalts))
+	mux.HandleFunc("POST /admin/halts/{id}/lift", handleAdminLift(cfg.tradingHalts))
+	mux.HandleFunc("GET /market/halts", handleMarketHalts(cfg.tradingHalts))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
 	mux.HandleFunc("POST /orders/{id}/cancel", handleCancelOrder(orders))
 	mux.HandleFunc("GET /orders", handleListOrders(orders))

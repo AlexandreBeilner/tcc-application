@@ -21,6 +21,7 @@ import type { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/ge
 import type { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
 import type { GetMarketCalendarUseCase } from '../../application/useCases/getMarketCalendar'
 import type { GetMarketClockUseCase } from '../../application/useCases/getMarketClock'
+import type { GetTradingHaltsUseCase } from '../../application/useCases/getTradingHalts'
 import {
   fixedIncomeTaxRateQuerySchema,
   getAssetQuotesQuerySchema,
@@ -52,6 +53,7 @@ export interface MarketRouterDeps {
   getIndicatorHistory: GetIndicatorHistoryUseCase
   getMarketClock: GetMarketClockUseCase
   getMarketCalendar: GetMarketCalendarUseCase
+  getTradingHalts: GetTradingHaltsUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -182,6 +184,15 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
     try {
       const clock = await deps.getMarketClock.execute()
       res.status(200).json(clock)
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  // Pausa de negociação vigente (N.9): o usuário só vê se é global e em quais ativos.
+  router.get('/market/halts', deps.authMiddleware.authenticate, async (_req, res) => {
+    try {
+      res.status(200).json(await deps.getTradingHalts.execute())
     } catch (err) {
       sendEngineError(err, res)
     }

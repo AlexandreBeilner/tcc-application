@@ -10,6 +10,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'scheduler.resume',
   'order.cancel',
   'order.cancel_batch',
+  'trading.halt',
+  'trading.resume',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

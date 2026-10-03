@@ -54,3 +54,15 @@ export class BatchTooLargeError extends Error {
     super(message)
   }
 }
+
+// TradingHaltConflictError é o 409 do motor: já existe pausa vigente no escopo, ou a
+// pausa já foi encerrada (N.9).
+export class TradingHaltConflictError extends Error {}
+
+// TradingHaltNotFoundError é o 404 do motor: pausa ou ativo inexistente (N.9).
+export class TradingHaltNotFoundError extends Error {}
+
+// TradingHaltRejectedError é o 400 do motor: escopo, motivo ou ativo recusados pela
+// regra de domínio (a borda Zod já cobre o formato; só o motor sabe, por exemplo, que
+// um ativo de renda fixa não tem book) (N.9).
+export class TradingHaltRejectedError extends Error {}

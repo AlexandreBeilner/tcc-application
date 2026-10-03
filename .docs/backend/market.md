@@ -78,6 +78,14 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Erros:** `401`. Erro do motor (`500`/`503`) repassado com o mesmo status.
 - **Regra:** `GetMarketClockUseCase` → `MarketCalendarReader.getClock` (port própria do módulo). Sem regra de negócio no backend.
 
+### `GET /market/halts`
+
+*(Tarefa N.9 — proxy de `GET /market/halts` do motor, ver `.docs/engine/admin.md`, "Pausa de negociação".)*
+
+- **Autenticação:** Bearer token (qualquer usuário).
+- **Sucesso:** `200` → `{ global: bool, asset_ids: [uuid] }`: se há pausa de negociação global vigente e em quais ativos há pausa própria. Alimenta o aviso "Negociação pausada" do detalhe do ativo.
+- **Regra:** nunca expõe o motivo interno nem quem pausou. Com pausa vigente, `POST /market/orders` devolve `409` com `{ error, code: "trading_halted", scope: "global" | "asset" }`, repassado 1:1 do motor; cancelar ordem e o ativo sandbox seguem abertos.
+
 ### `GET /market/calendar`
 
 *(Tarefa S.10 — proxy de `GET /market/calendar` do motor, ver `.docs/engine/calendar.md`.)*
@@ -118,7 +126,7 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Autenticação:** Bearer token.
 - **Payload:** `asset_id` (UUID), `side` (`buy`/`sell`), `type` (`market`/`limit`), `price` (obrigatório e > 0 só se `type = limit`), `quantity` (inteiro > 0) — ver `.docs/engine/orders.md`.
 - **Sucesso:** `201` → `{ order_id, filled_quantity, remaining_quantity, fills: [...] }`, corpo idêntico ao do motor. `order_id` (tarefa O.3) é o id da ordem recém-criada, necessário pra chamar `POST /market/orders/:id/cancel` depois.
-- **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `403` — produto travado pela trilha (tarefa 7.0.1, abaixo); `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente **ou** a ordem pendurada que seria casada foi cancelada pelo dono entre a leitura e a escrita do match (achado ao vivo/corrigido na sessão da tarefa O.1, ver `.docs/engine/orders.md`) — traduzido do motor, nada é persistido; **`422` com `code: "market_closed"`** (tarefa S.11) em sábado/domingo simulado: `{ error, code, opens_on, days_until_open }`, repassado 1:1 do motor (o `EngineRequestError` carrega os campos extras em `details`). Ativo sandbox segue aberto; cancelar ordem também.
+- **Erros:** `400` — payload inválido (Zod) ou ativo não é de renda variável (motor). `401`; `403` — produto travado pela trilha (tarefa 7.0.1, abaixo); `404` — ativo/conta não encontrados; `422` — saldo/posição insuficiente **ou** a ordem pendurada que seria casada foi cancelada pelo dono entre a leitura e a escrita do match (achado ao vivo/corrigido na sessão da tarefa O.1, ver `.docs/engine/orders.md`) — traduzido do motor, nada é persistido; **`409` com `code: "trading_halted"`** (tarefa N.9) quando há pausa de negociação vigente no ativo ou global: `{ error, code, scope }`, repassado 1:1 do motor. **`422` com `code: "market_closed"`** (tarefa S.11) em sábado/domingo simulado: `{ error, code, opens_on, days_until_open }`, repassado 1:1 do motor (o `EngineRequestError` carrega os campos extras em `details`). Ativo sandbox segue aberto; cancelar ordem também.
 - **Regra:** `PlaceOrderUseCase` → resolve o `AssetType` do ativo (`CatalogReader.getAsset`) e, se **não for sandbox**, exige `asset:<type>` no conjunto de chaves desbloqueadas do usuário (`ProductUnlockReader`, port sobre `modules/lessons` — tarefa 7.0.1) antes de repassar pro `OrderExecutor.submit`. Sandbox (`is_sandbox = true`) segue isento (RF12). Validado ponta a ponta via `docker compose up`: uma ordem `market` reflete em `GET /market/me/account`/`GET /market/me/events` imediatamente. Desde a tarefa A.2 (backlog-motor-mercado-realista), ordem `market` de ativo do Mercado Ao Vivo só executa a parte com contraparte real disponível (`remaining_quantity` reporta a sobra não executada, sem erro) — só ativo sandbox mantém a execução garantida via liquidez sintética (`.docs/engine/orders.md`).
 
 ### `POST /market/orders/:id/cancel`

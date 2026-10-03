@@ -41,7 +41,8 @@ export interface EngineOrderRecord {
   filled_quantity: number
   price: number
   status: string
-  cancel_reason?: 'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted' | 'insufficient_funds' | 'admin'
+  cancel_reason?:
+    'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted' | 'insufficient_funds' | 'admin'
   created_at: string
 }
 

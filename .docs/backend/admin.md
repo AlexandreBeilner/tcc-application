@@ -153,3 +153,26 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Sucesso:** `200` → `{ cancelled_count, cancelled_ids }`.
 - **Erros:** `400` — corpo inválido ou nenhum filtro; `422` com `{ error, code: "batch_too_large", matched, max }` — o filtro atinge mais que 500 ordens e **nada é cancelado**.
 - **Auditoria:** `order.cancel_batch`, `target_type = order`, **uma linha** com `payload = { asset_id | null, user_id | null, cancelled_count, cancelled_ids }`; o lote recusado grava `result = failed` com o filtro.
+
+### Pausa de negociação (tarefa N.9)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve o que a pausa faz): **não suspende o tick**, ordens em repouso permanecem, ordem nova de usuário e de bot no escopo é recusada.
+
+#### `GET /admin/halts`
+
+- **Sucesso:** `200` → `{ active: [...], recent: [...] }`; cada item `{ id, scope ('global' | 'asset'), asset_id | null, ticker | null, reason, created_by, created_at, lifted_at | null, lifted_by | null }`. `active` são as vigentes (a global primeiro), `recent` as últimas 30 encerradas.
+
+#### `POST /admin/halts`
+
+- **Payload (JSON):** `scope` (`global` | `asset`), `asset_id` (UUID; obrigatório com `asset`, proibido com `global`), `reason` (1 a 200 caracteres, aparado), validados por `pauseTradingBodySchema`. O `admin_id` vem do token, nunca do corpo.
+- **Sucesso:** `201` → a pausa criada.
+- **Erros:** `400` — corpo inválido (o motor não é chamado) ou recusa do motor (ativo de renda fixa ou sandbox); `404` — ativo inexistente; `409` — já existe pausa vigente nesse escopo.
+- **Auditoria:** `trading.halt`, `target_type = trading_halt`, `target_id` = id da pausa, `payload = { scope, asset_id | null, reason }`; a recusa do motor grava `result = failed` com o motivo.
+
+#### `POST /admin/halts/:id/lift`
+
+- **Payload:** nenhum (`id` UUID no caminho).
+- **Sucesso:** `200` → a pausa encerrada.
+- **Erros:** `400` — `id` não é UUID; `404` — pausa inexistente; `409` — já encerrada.
+- **Auditoria:** `trading.resume`, `target_id` = id da pausa, `payload = { scope, asset_id, ticker }`. Retomar não força uma rodada de bots: quem quiser liquidez imediata dispara 1 tick (`POST /admin/tick`).
+

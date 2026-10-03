@@ -71,7 +71,15 @@ export interface TriggerMacroEventResult {
 // `action` é a lista fechada do backend (`ADMIN_AUDIT_ACTIONS`): cada tarefa
 // nova da Fase N que audite uma ação nova acrescenta aqui e em `auditLabels`.
 export type AuditAction =
-    'macro_event.trigger' | 'tick.trigger' | 'tick.advance' | 'scheduler.pause' | 'scheduler.resume' | 'order.cancel' | 'order.cancel_batch'
+    | 'macro_event.trigger'
+    | 'tick.trigger'
+    | 'tick.advance'
+    | 'scheduler.pause'
+    | 'scheduler.resume'
+    | 'order.cancel'
+    | 'order.cancel_batch'
+    | 'trading.halt'
+    | 'trading.resume'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -315,4 +323,30 @@ export interface CancelOrdersBatchInput {
 export interface CancelOrdersBatchResult {
     cancelled_count: number
     cancelled_ids: string[]
+}
+
+// Pausa de negociação (N.9, `.docs/backend/admin.md#pausa-de-negociação-tarefa-n9`).
+export type HaltScope = 'global' | 'asset'
+
+export interface TradingHalt {
+    id: string
+    scope: HaltScope
+    asset_id: string | null
+    ticker: string | null
+    reason: string
+    created_by: string
+    created_at: string
+    lifted_at: string | null
+    lifted_by: string | null
+}
+
+export interface TradingHaltListing {
+    active: TradingHalt[]
+    recent: TradingHalt[]
+}
+
+export interface PauseTradingInput {
+    scope: HaltScope
+    asset_id?: string
+    reason: string
 }

@@ -20,6 +20,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
+	"tcc-investimentos/engine/internal/domain/tradinghalt"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
 	"tcc-investimentos/engine/internal/infra/httpserver"
@@ -195,7 +196,7 @@ func main() {
 		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
 	}
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(orderexecution.NewAdminService(orderExecutionRepository))); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(orderexecution.NewAdminService(orderExecutionRepository)), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

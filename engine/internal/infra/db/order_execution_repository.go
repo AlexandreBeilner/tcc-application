@@ -45,12 +45,18 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 	var balance float64
 	var positionQty sql.NullInt64
 	var positionCreatedDay sql.NullInt64
+	// A pausa de negociação vigente que barra o ativo (N.9) vem na mesma consulta,
+	// sem ida extra ao banco: a global tem prioridade (a mais restritiva).
+	var haltScope sql.NullString
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT a.current_balance, p.quantity, p.created_day
+		`SELECT a.current_balance, p.quantity, p.created_day,
+		        (SELECT h.scope FROM trading_halts h
+		         WHERE h.lifted_at IS NULL AND (h.scope = 'global' OR h.asset_id = $2)
+		         ORDER BY (h.scope = 'global') DESC LIMIT 1)
 		 FROM accounts a
 		 LEFT JOIN positions p ON p.user_id = a.user_id AND p.asset_id = $2
 		 WHERE a.user_id = $1`, userID, assetID,
-	).Scan(&balance, &positionQty, &positionCreatedDay); err != nil {
+	).Scan(&balance, &positionQty, &positionCreatedDay, &haltScope); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return orderexecution.Context{}, orderexecution.ErrAccountNotFound
 		}
@@ -89,7 +95,13 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
+	var halt *orderexecution.HaltInfo
+	if haltScope.Valid {
+		halt = &orderexecution.HaltInfo{Global: haltScope.String == "global"}
+	}
+
 	return orderexecution.Context{
+		Halt:                       halt,
 		ReferencePrice:             referencePrice,
 		Resting:                    resting,
 		IncomingUserBalance:        balance,

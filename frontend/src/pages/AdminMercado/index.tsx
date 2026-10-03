@@ -15,6 +15,7 @@ import {
     type MonitorSortKey,
 } from '../../features/admin/marketMonitor'
 import { useMarketMonitorQuery } from '../../features/admin/useMarketMonitorQuery'
+import { useTradingHaltsQuery } from '../../features/admin/useTradingHaltsQuery'
 import { formatDayMonth, shiftIsoDate } from '../../features/market/calendarFormat'
 import { formatRatePercent } from '../../features/market/format'
 import { nextCopomSimulatedDay } from '../../features/market/nextCopomDay'
@@ -49,6 +50,8 @@ export function AdminMercado() {
     const [rangeDays, setRangeDays] = useState(RANGES[0].days)
 
     const monitorQuery = useMarketMonitorQuery()
+    const haltsQuery = useTradingHaltsQuery()
+    const activeHalts = haltsQuery.data?.active ?? []
     const indicatorsQuery = useIndicatorHistoryQuery(rangeDays)
     const clockQuery = useMarketClockQuery()
     const clock = clockQuery.data
@@ -91,6 +94,9 @@ export function AdminMercado() {
                     </p>
                 </div>
                 <div className={styles.links}>
+                    <Link to="/admin/mercado/pausas" className={styles.link}>
+                        Pausas
+                    </Link>
                     <Link to="/admin/mercado/ordens" className={styles.link}>
                         Ordens
                     </Link>
@@ -99,6 +105,17 @@ export function AdminMercado() {
                     </Link>
                 </div>
             </header>
+
+            {activeHalts.length > 0 && (
+                <p className={styles.haltBanner} role="status">
+                    {activeHalts.some((halt) => halt.scope === 'global')
+                        ? 'Negociação pausada em todo o mercado.'
+                        : `Negociação pausada em ${activeHalts.length} ativo(s).`}{' '}
+                    <Link to="/admin/mercado/pausas" className={styles.link}>
+                        Ver pausas
+                    </Link>
+                </p>
+            )}
 
             <section className={styles.section} aria-label="Ativos">
                 <div className={styles.filters}>

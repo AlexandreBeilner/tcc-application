@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     advanceTicks,
+    liftTradingHalt,
+    listTradingHalts,
+    pauseTrading,
     cancelAdminOrder,
     cancelAdminOrdersBatch,
     listAdminOrders,
@@ -171,5 +174,28 @@ describe('services/admin', () => {
         expect(url).toBe('/admin/orders/cancel-batch')
         expect(JSON.parse(init.body)).toEqual({ asset_id: 'asset-1' })
         expect(result.cancelled_count).toBe(1)
+    })
+
+    it('listTradingHalts faz GET /admin/halts', async () => {
+        const fetchMock = mockFetchOnce({ active: [], recent: [] })
+        await listTradingHalts('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/halts')
+    })
+
+    it('pauseTrading faz POST /admin/halts com escopo, ativo e motivo', async () => {
+        const fetchMock = mockFetchOnce({ id: 'h1' }, 201)
+        await pauseTrading('token', { scope: 'asset', asset_id: 'a1', reason: 'volatilidade' })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/halts')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ scope: 'asset', asset_id: 'a1', reason: 'volatilidade' })
+    })
+
+    it('liftTradingHalt faz POST /admin/halts/:id/lift', async () => {
+        const fetchMock = mockFetchOnce({ id: 'h1' })
+        await liftTradingHalt('token', 'h1')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/halts/h1/lift')
+        expect(init.method).toBe('POST')
     })
 })

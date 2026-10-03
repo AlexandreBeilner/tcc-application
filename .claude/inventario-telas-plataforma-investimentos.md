@@ -434,6 +434,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** carregando; lista vazia; ordem já executada ou cancelada no meio do caminho (409, mensagem e lista atualizada); lote acima do teto (mensagem com a contagem, nada é cancelado); id de dono inválido (aviso, filtro ignorado). Tabela no tablet/desktop e cartões no mobile.
 - **Dados envolvidos:** `GET /admin/orders`, `POST /admin/orders/:id/cancel`, `POST /admin/orders/cancel-batch` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
 
+### 10.9 Pausas de Negociação
+- **Objetivo:** disjuntor operacional (N.9). Rota `/admin/mercado/pausas`, dentro da seção "Mercado"; link na 10.6, que também mostra uma faixa quando há pausa vigente.
+- **Conteúdo:** aviso das consequências (a pausa não suspende o tick, ordens em repouso expiram a cada tick, o book pode ficar vazio ao retomar); formulário com motivo obrigatório, "Pausar ativo" (escolha do ativo) e "Pausar tudo"; lista de pausas vigentes com "Retomar" e as últimas encerradas.
+- **Ações:** pausar tudo (digitar PAUSAR TUDO), pausar um ativo (digitar o ticker), retomar (confirmação). Tudo na auditoria.
+- **Estados especiais:** carregando; sem pausa vigente; pausa duplicada ou já retomada (409, mensagem e lista atualizada); mercado já pausado (botão desabilitado). Para o usuário, o detalhe do ativo (4.5) mostra "Negociação pausada" e desabilita a ordem.
+- **Dados envolvidos:** `GET/POST /admin/halts`, `POST /admin/halts/:id/lift`, `GET /market/halts`.
+
 ### 10.3 Histórico de Eventos Macro
 - **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
 - **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), paginada, botão "Novo evento".
@@ -504,8 +511,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.6 | Mercado (monitor ao vivo) | Admin |
 | 10.7 | Detalhe do Ativo no Monitor | Admin |
 | 10.8 | Ordens do Book | Admin |
+| 10.9 | Pausas de Negociação | Admin |
 
-**Total: 35 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 36 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

@@ -393,3 +393,10 @@ export interface MarketCalendar {
     to_day: number
     days: CalendarDay[]
 }
+
+// `GET /market/halts` (tarefa N.9): pausa de negociação vigente, só o que o usuário pode
+// saber. Nunca o motivo interno nem quem pausou.
+export interface TradingHaltStatus {
+    global: boolean
+    asset_ids: string[]
+}

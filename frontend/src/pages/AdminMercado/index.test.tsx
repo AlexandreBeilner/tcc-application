@@ -3,13 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { listMarketMonitor } from '../../services/admin'
+import { listMarketMonitor, listTradingHalts } from '../../services/admin'
 import type { MonitorAsset } from '../../services/admin'
 import { getIndicatorHistory, getMarketCalendar, getMarketClock } from '../../services/market'
 import { AdminMercado } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/admin', () => ({ listMarketMonitor: vi.fn() }))
+vi.mock('../../services/admin', () => ({ listMarketMonitor: vi.fn(), listTradingHalts: vi.fn() }))
 vi.mock('../../services/market', () => ({
     getIndicatorHistory: vi.fn(),
     getMarketClock: vi.fn(),
@@ -83,6 +83,7 @@ describe('AdminMercado (tela 10.6)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'tok' } as ReturnType<typeof useAuth>)
         vi.mocked(listMarketMonitor).mockReset().mockResolvedValue({ assets })
+        vi.mocked(listTradingHalts).mockReset().mockResolvedValue({ active: [], recent: [] })
         vi.mocked(getIndicatorHistory)
             .mockReset()
             .mockResolvedValue({
@@ -168,5 +169,30 @@ describe('AdminMercado (tela 10.6)', () => {
         renderPage()
         expect(await screen.findByText(/Não foi possível carregar o mercado/)).toBeInTheDocument()
         expect(screen.getByRole('link', { name: 'Eventos macro' })).toHaveAttribute('href', '/admin/eventos')
+    })
+
+    it('mostra o aviso de pausa vigente com link para as pausas', async () => {
+        const global = {
+            id: 'h1',
+            scope: 'global' as const,
+            asset_id: null,
+            ticker: null,
+            reason: 'm',
+            created_by: 'a',
+            created_at: '2026-10-03T12:00:00Z',
+            lifted_at: null,
+            lifted_by: null,
+        }
+        vi.mocked(listTradingHalts).mockResolvedValue({ active: [global], recent: [] })
+        renderPage()
+        expect(await screen.findByText(/Negociação pausada em todo o mercado/)).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: 'Ver pausas' })).toHaveAttribute('href', '/admin/mercado/pausas')
+        expect(screen.getByRole('link', { name: 'Pausas' })).toHaveAttribute('href', '/admin/mercado/pausas')
+    })
+
+    it('sem pausa não mostra aviso', async () => {
+        renderPage()
+        await screen.findAllByText('ACME3')
+        expect(screen.queryByText(/Negociação pausada/)).not.toBeInTheDocument()
     })
 })

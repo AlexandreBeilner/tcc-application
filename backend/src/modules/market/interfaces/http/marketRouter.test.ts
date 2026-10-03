@@ -21,6 +21,7 @@ import { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixe
 import { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
 import { GetMarketCalendarUseCase } from '../../application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from '../../application/useCases/getMarketClock'
+import { GetTradingHaltsUseCase } from '../../application/useCases/getTradingHalts'
 import { createFakeAccountReader } from '../../test/fakes/fakeAccountReader'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeFixedIncomeExecutor } from '../../test/fakes/fakeFixedIncomeExecutor'
@@ -154,6 +155,7 @@ function buildApp(
       getIndicatorHistory: new GetIndicatorHistoryUseCase(indicatorHistoryReader),
       getMarketClock: new GetMarketClockUseCase(marketCalendarReader),
       getMarketCalendar: new GetMarketCalendarUseCase(marketCalendarReader),
+      getTradingHalts: new GetTradingHaltsUseCase(marketCalendarReader),
       authMiddleware,
     }),
   )
@@ -512,7 +514,51 @@ describe('GET /market/orders', () => {
   })
 })
 
+describe('GET /market/halts', () => {
+  it('exige autenticação', async () => {
+    const { app } = buildApp()
+    expect((await request(app).get('/market/halts')).status).toBe(401)
+  })
+
+  it('devolve só se a pausa é global e quais ativos (nunca o motivo)', async () => {
+    const { app, tokenIssuer, marketCalendarReader } = buildApp()
+    marketCalendarReader.halts = { global: false, asset_ids: ['a1'] }
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app).get('/market/halts').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ global: false, asset_ids: ['a1'] })
+  })
+})
+
 describe('POST /market/orders', () => {
+  it('repassa o código e o escopo do erro trading_halted do motor (tarefa N.9)', async () => {
+    const { app, tokenIssuer, orderExecutor } = buildApp()
+    orderExecutor.errorToThrow = new EngineRequestError(409, 'Negociação pausada neste ativo.', {
+      code: 'trading_halted',
+      scope: 'asset',
+    })
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .post('/market/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        asset_id: '11111111-1111-4111-8111-111111111111',
+        side: 'buy',
+        type: 'market',
+        quantity: 10,
+      })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({
+      error: 'Negociação pausada neste ativo.',
+      code: 'trading_halted',
+      scope: 'asset',
+    })
+  })
+
   it('repassa o código e a reabertura do erro market_closed do motor (tarefa S.11)', async () => {
     const { app, tokenIssuer, orderExecutor } = buildApp()
     orderExecutor.errorToThrow = new EngineRequestError(422, 'mercado fechado', {

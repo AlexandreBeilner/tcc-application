@@ -61,3 +61,35 @@ Rotas internas do painel: **leitura** (tarefas N.5, N.8 e a consulta de ordens d
 - **Sucesso:** `200` → `{ cancelled_count, cancelled_ids: [...] }` (lista vazia se nada estava em repouso).
 - **Erros:** `400` — corpo inválido, UUID inválido ou nenhum filtro; `422` com `code: "batch_too_large"` e `{ matched, max }` — o filtro atinge mais que 500 ordens (`orderexecution.MaxAdminCancelBatch`); **nada é cancelado**, o admin estreita o filtro; `503`, `500`.
 - **Regra:** uma transação: trava as ordens em repouso do filtro (`FOR UPDATE`, lê no máximo `max + 1`), recusa se passou do teto e senão cancela todas com `cancel_reason = admin`. A auditoria (uma linha com a lista de ids) é do backend.
+
+---
+
+### Pausa de negociação (tarefa N.9)
+
+Pacote de domínio: `engine/internal/domain/tradinghalt/` (`NewHalt`, `Blocking`, `Service`); tabela `trading_halts` (migration `000043`). Uma pausa é global ou de um ativo, fica **vigente** até `lifted_at` ser preenchido e nunca é apagada. Respondem `503` sem `httpserver.WithTradingHalts`.
+
+**O que a pausa faz:** enquanto vigente, `POST /orders` do escopo responde `409` com `code: "trading_halted"` (ver `orders.md`) e as rodadas dos bots não enviam ordem pro ativo (o bot nem decide, e o Market Maker **não cancela** a cotação velha, porque não poderia repô-la). Ordens **já em repouso permanecem** (cancelar em massa é a N.10). O ativo sandbox nunca é pausado. Pausa global e de ativo coexistem e a global vence. **A pausa não suspende o tick** (decisão do autor, achado 029): dia, Selic, balanços e dividendos seguem; o relógio tem o próprio interruptor (`tick.md`). **Consequência aceita:** as ordens em repouso expiram a cada tick (regra Day) e os bots não recotam durante a pausa, então se ela atravessar um tick o book fica vazio ao retomar; retomar não força uma rodada, e quem quiser liquidez imediata dispara 1 tick.
+
+#### `GET /admin/halts`
+
+- **Sucesso:** `200` → `{ active: [...], recent: [...] }`; `active` são as pausas vigentes (a global primeiro), `recent` as últimas 30 encerradas. Cada item: `{ id, scope ('global' | 'asset'), asset_id | null, ticker | null, reason, created_by, created_at, lifted_at | null, lifted_by | null }`.
+- **Erros:** `503`, `500`.
+
+#### `POST /admin/halts`
+
+- **Payload (JSON):** `scope` (`global` | `asset`), `asset_id` (UUID, obrigatório se `asset`, proibido se `global`), `reason` (texto de 1 a 200 caracteres), `admin_id` (UUID de quem pausa, informado pelo backend).
+- **Sucesso:** `201` → a pausa criada.
+- **Erros:** `400` — corpo, UUID, escopo ou motivo inválidos, ou ativo que não é negociável no book (sandbox, renda fixa); `404` — ativo inexistente; `409` — já existe pausa vigente nesse escopo (índice parcial único: uma global e uma por ativo); `503`, `500`.
+
+#### `POST /admin/halts/{id}/lift`
+
+- **Payload (JSON):** `admin_id` (UUID). `id` no caminho, UUID.
+- **Sucesso:** `200` → a pausa encerrada (`lifted_at` e `lifted_by` preenchidos).
+- **Erros:** `400` — UUID inválido; `404` — pausa inexistente; `409` — já encerrada (o `UPDATE` condicionado a `lifted_at IS NULL` é atômico, duas retomadas concorrentes não encerram duas vezes); `503`, `500`.
+
+#### `GET /market/halts`
+
+- **Autenticação:** interno (o backend repassa a usuário autenticado).
+- **Sucesso:** `200` → `{ global: bool, asset_ids: [uuid] }`.
+- **Regra:** leitura pública mínima pro aviso "Negociação pausada" do usuário. **Nunca** expõe o motivo interno nem quem pausou.
+

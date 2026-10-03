@@ -39,6 +39,11 @@ import { ListAdminOrdersUseCase } from './modules/admin/application/useCases/lis
 import { CancelAdminOrderUseCase } from './modules/admin/application/useCases/cancelAdminOrder'
 import { CancelAdminOrdersBatchUseCase } from './modules/admin/application/useCases/cancelAdminOrdersBatch'
 import { createAdminOrdersRouter } from './modules/admin/interfaces/http/adminOrdersRouter'
+import { createEngineTradingHaltAdmin } from './modules/admin/infrastructure/engine/engineTradingHaltAdmin'
+import { ListTradingHaltsUseCase } from './modules/admin/application/useCases/listTradingHalts'
+import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseTrading'
+import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
+import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
 import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
 import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
 import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
@@ -176,6 +181,7 @@ import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCa
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
 import { GetMarketCalendarUseCase } from './modules/market/application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from './modules/market/application/useCases/getMarketClock'
+import { GetTradingHaltsUseCase } from './modules/market/application/useCases/getTradingHalts'
 import { createEngineMarketCalendarReader } from './modules/market/infrastructure/engine/engineMarketCalendarReader'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
@@ -282,6 +288,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
   const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
+  const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -327,6 +334,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const listAdminOrders = new ListAdminOrdersUseCase(orderAdmin)
   const cancelAdminOrder = new CancelAdminOrderUseCase(orderAdmin, recordAdminAction)
   const cancelAdminOrdersBatch = new CancelAdminOrdersBatchUseCase(orderAdmin, recordAdminAction)
+  // Pausa de negociação (N.9).
+  const tradingHaltAdmin = createEngineTradingHaltAdmin(engineUrl)
+  const listTradingHalts = new ListTradingHaltsUseCase(tradingHaltAdmin)
+  const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, recordAdminAction)
+  const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, recordAdminAction)
   const getAdminOverview = new GetAdminOverviewUseCase(
     marketOverviewReader,
     schedulerAdmin,
@@ -551,6 +563,9 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(
+    createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),
+  )
+  app.use(
     createAdminOrdersRouter({
       listAdminOrders,
       cancelAdminOrder,
@@ -589,6 +604,7 @@ export function createApp(deps: AppDeps = {}): Express {
       getIndicatorHistory,
       getMarketClock,
       getMarketCalendar,
+      getTradingHalts,
       authMiddleware,
     }),
   )
