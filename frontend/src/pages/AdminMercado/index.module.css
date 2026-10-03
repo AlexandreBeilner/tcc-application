@@ -26,6 +26,11 @@
     font-size: var(--font-size-sm);
 }
 
+.links {
+    display: flex;
+    gap: var(--space-4);
+}
+
 .link {
     color: var(--color-brand-500);
     font-size: var(--font-size-sm);

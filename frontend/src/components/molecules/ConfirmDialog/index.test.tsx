@@ -46,4 +46,18 @@ describe('ConfirmDialog', () => {
         fireEvent.click(screen.getByTestId('confirm-backdrop'))
         expect(onCancel).not.toHaveBeenCalled()
     })
+
+    it('com requireText, só habilita o confirmar depois de digitar o texto exato', () => {
+        const { onConfirm } = renderDialog({ requireText: 'ACME3' })
+        const confirm = screen.getByRole('button', { name: 'Avançar' })
+        expect(confirm).toBeDisabled()
+
+        fireEvent.change(screen.getByLabelText(/Para confirmar, digite/), { target: { value: 'acme' } })
+        expect(confirm).toBeDisabled()
+
+        fireEvent.change(screen.getByLabelText(/Para confirmar, digite/), { target: { value: 'ACME3' } })
+        expect(confirm).toBeEnabled()
+        fireEvent.click(confirm)
+        expect(onConfirm).toHaveBeenCalledTimes(1)
+    })
 })

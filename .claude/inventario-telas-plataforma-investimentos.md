@@ -427,6 +427,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** ativo inexistente ou fora do universo negociável (mensagem e volta ao monitor); sem Market Maker (aviso); book e negócios vazios.
 - **Dados envolvidos:** `GET /admin/market/assets/:id`.
 
+### 10.8 Ordens do Book
+- **Objetivo:** achar e cancelar ordens por intervenção (N.10). Rota `/admin/mercado/ordens`, dentro da seção "Mercado"; link na 10.6 e, com o ativo já filtrado, na 10.7.
+- **Conteúdo:** filtros de status (abertas por padrão), lado, ativo e dono (UUID do usuário ou bot); tabela de ordens com ativo, lado e tipo, executado/total, preço, dono (bot com arquétipo ou usuário com id curto), status com o motivo do cancelamento e data. Cancelar tira a ordem do book sem mexer em saldo nem posição (nenhuma ordem em repouso reserva nada).
+- **Ações:** cancelar uma ordem em repouso (confirmação); cancelar em lote as ordens abertas de um ativo e/ou dono (só com um dos dois filtros, exige digitar o ticker ou "CANCELAR", teto de 500 por lote). Tudo vai pra auditoria, o lote como uma linha com a lista de ids.
+- **Estados especiais:** carregando; lista vazia; ordem já executada ou cancelada no meio do caminho (409, mensagem e lista atualizada); lote acima do teto (mensagem com a contagem, nada é cancelado); id de dono inválido (aviso, filtro ignorado). Tabela no tablet/desktop e cartões no mobile.
+- **Dados envolvidos:** `GET /admin/orders`, `POST /admin/orders/:id/cancel`, `POST /admin/orders/cancel-batch` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
 ### 10.3 Histórico de Eventos Macro
 - **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
 - **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), paginada, botão "Novo evento".
@@ -496,8 +503,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.5 | Tempo | Admin |
 | 10.6 | Mercado (monitor ao vivo) | Admin |
 | 10.7 | Detalhe do Ativo no Monitor | Admin |
+| 10.8 | Ordens do Book | Admin |
 
-**Total: 34 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 35 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

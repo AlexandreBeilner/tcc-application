@@ -1,6 +1,6 @@
-# `admin` — leituras do painel administrativo (Fase N)
+# `admin` — leituras e intervenções do painel administrativo (Fase N)
 
-Rotas internas de **leitura** do painel (tarefas N.5 e N.8), mesma convenção de `POST /admin/tick`: sem checagem de role no motor, o backend valida `role = admin` antes de repassar (ver `.docs/backend/admin.md`). O controle do Temporizador está em `tick.md`. Pacote de domínio: `engine/internal/domain/adminview/` (modelos de leitura e fórmulas puras: spread, variação, indicador por classe); consultas em `internal/infra/db/admin_read_repository.go`. Nada aqui grava saldo, posição ou evento. Respondem `503` se o motor subiu sem `DATABASE_URL` (sem `httpserver.WithAdminReader`).
+Rotas internas do painel: **leitura** (tarefas N.5, N.8 e a consulta de ordens da N.10) e **cancelamento de ordens por intervenção** (N.10, seção no fim), mesma convenção de `POST /admin/tick`: sem checagem de role no motor, o backend valida `role = admin` antes de repassar (ver `.docs/backend/admin.md`). O controle do Temporizador está em `tick.md`. Pacote de domínio: `engine/internal/domain/adminview/` (modelos de leitura e fórmulas puras: spread, variação, indicador por classe); consultas em `internal/infra/db/admin_read_repository.go`. Nada aqui grava saldo, posição ou evento. Respondem `503` se o motor subiu sem `DATABASE_URL` (sem `httpserver.WithAdminReader`).
 
 ---
 
@@ -31,3 +31,33 @@ Rotas internas de **leitura** do painel (tarefas N.5 e N.8), mesma convenção d
 - **Sucesso:** `200` → o mesmo item de `GET /admin/market/assets` mais `bids` e `asks` (`[{ price, quantity, bot_quantity }]`, book **completo** agregado por preço: bids do maior pro menor, asks do menor pro maior), `trades` (últimos 30 negócios: `{ simulated_day, price, quantity, buyer_is_bot }`), `quotes` (60 últimos fechamentos: `{ simulated_day, price }`) e `nav_history` (30 últimos NAVs de ETF: `{ simulated_day, nav, close_price, premium_pct }`; vazio fora de ETF).
 - **Erros:** `400` — `id` não é UUID; `404` — ativo inexistente ou fora do universo negociável (sandbox, renda fixa); `503`, `500` como acima.
 - **Regra:** nunca expõe o dono de uma ordem individual, só a quantidade agregada por preço e quanto dela é de bot.
+
+---
+
+### `GET /admin/orders`
+
+- **Autenticação:** interno.
+- **Payload (query, tudo opcional):** `user_id`, `asset_id` (UUID); `side` (`buy` | `sell`); `status` (`open` = pending + partially_filled, `pending`, `partially_filled`, `filled`, `cancelled`); `from`, `to` (ISO 8601); `limit` (padrão 50, máximo 200), `offset`.
+- **Sucesso:** `200` → `{ orders: [...], total }`, mais recentes primeiro. Cada ordem: `{ order_id, asset_id, ticker, user_id, is_bot, bot_archetype | null, side, type, quantity, filled_quantity, price, status, cancel_reason | null, simulated_day, created_at }`. `total` é o total que casa com o filtro, pra paginar.
+- **Erros:** `400` — UUID, `side`, `status`, data ou número inválidos; `503` — sem banco; `500`.
+- **Regra:** diferente do book público e do monitor, aqui o dono da ordem aparece (o admin investiga). Nunca traz patrimônio. `cancel_reason` ganhou o valor `admin` (migration `000042`).
+
+---
+
+### `POST /admin/orders/{id}/cancel`
+
+- **Autenticação:** interno.
+- **Payload:** nenhum (`id` no caminho, UUID).
+- **Sucesso:** `204`.
+- **Erros:** `400` — `id` não é UUID; `404` — ordem inexistente; `409` — ordem já `filled` ou `cancelled`; `503`, `500`.
+- **Regra:** cancela com `cancel_reason = admin`, qualquer que seja o dono (sem a checagem de dono de `POST /orders/{id}/cancel`). Lê a linha com `FOR UPDATE`, então serializa contra um fill concorrente (o fill checa o status). O `filled_quantity` já executado não é revertido. **Não há reserva a devolver nem evento a emitir:** nenhuma ordem em repouso reserva saldo ou posição (achado 015, o motor revalida o dono no match), e cancelar nunca passou por `market_events` (mesma regra do cancelamento do dono, O.1).
+
+---
+
+### `POST /admin/orders/cancel-batch`
+
+- **Autenticação:** interno.
+- **Payload (JSON):** `asset_id` e/ou `user_id` (UUID). **Pelo menos um** é obrigatório; com os dois, vale a interseção (ordens do dono naquele ativo, o caminho que a N.1 usa ao tirar um ativo de um Market Maker). "Cancelar tudo" não existe.
+- **Sucesso:** `200` → `{ cancelled_count, cancelled_ids: [...] }` (lista vazia se nada estava em repouso).
+- **Erros:** `400` — corpo inválido, UUID inválido ou nenhum filtro; `422` com `code: "batch_too_large"` e `{ matched, max }` — o filtro atinge mais que 500 ordens (`orderexecution.MaxAdminCancelBatch`); **nada é cancelado**, o admin estreita o filtro; `503`, `500`.
+- **Regra:** uma transação: trava as ordens em repouso do filtro (`FOR UPDATE`, lê no máximo `max + 1`), recusa se passou do teto e senão cancela todas com `cancel_reason = admin`. A auditoria (uma linha com a lista de ids) é do backend.

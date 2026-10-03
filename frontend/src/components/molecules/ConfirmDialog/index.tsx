@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '../../atoms/Button'
 import type { ConfirmDialogProps } from './types'
 import styles from './index.module.css'
@@ -17,11 +17,15 @@ export function ConfirmDialog({
     cancelLabel = 'Cancelar',
     pending = false,
     pendingLabel = 'Executando…',
+    requireText,
     onConfirm,
     onCancel,
 }: ConfirmDialogProps) {
     const titleId = useId()
     const cancelRef = useRef<HTMLButtonElement>(null)
+    const inputId = useId()
+    const [typed, setTyped] = useState('')
+    const confirmBlocked = requireText !== undefined && typed.trim() !== requireText
 
     useEffect(() => {
         cancelRef.current?.focus()
@@ -49,11 +53,26 @@ export function ConfirmDialog({
                     {title}
                 </h2>
                 <div className={styles.body}>{children}</div>
+                {requireText !== undefined && (
+                    <label htmlFor={inputId} className={styles.requireText}>
+                        <span>
+                            Para confirmar, digite <strong>{requireText}</strong>
+                        </span>
+                        <input
+                            id={inputId}
+                            className={styles.requireInput}
+                            value={typed}
+                            autoComplete="off"
+                            disabled={pending}
+                            onChange={(event) => setTyped(event.target.value)}
+                        />
+                    </label>
+                )}
                 <div className={styles.actions}>
                     <button ref={cancelRef} type="button" className={styles.cancel} disabled={pending} onClick={onCancel}>
                         {cancelLabel}
                     </button>
-                    <Button onClick={onConfirm} disabled={pending}>
+                    <Button onClick={onConfirm} disabled={pending || confirmBlocked}>
                         {pending ? pendingLabel : confirmLabel}
                     </Button>
                 </div>

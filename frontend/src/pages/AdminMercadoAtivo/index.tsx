@@ -70,6 +70,9 @@ export function AdminMercadoAtivo() {
                         Sem Market Maker ativo cobrindo este ativo.
                     </p>
                 )}
+                <Link to={`/admin/mercado/ordens?asset_id=${asset.asset_id}`} className={styles.back}>
+                    Ver e cancelar ordens deste ativo
+                </Link>
             </header>
 
             <dl className={styles.facts}>

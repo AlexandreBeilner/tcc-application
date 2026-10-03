@@ -121,6 +121,9 @@ const (
 	// honrá-la (achado 015): a ordem é pulada e cancelada em vez de travar o book
 	// ou levar o dono a saldo negativo.
 	CancelReasonInsufficientFunds CancelReason = "insufficient_funds"
+	// CancelReasonAdmin é gravado pelo cancelamento por intervenção do painel
+	// admin (tarefa N.10), de uma ordem ou de um lote.
+	CancelReasonAdmin CancelReason = "admin"
 )
 
 // RestingOrder é uma ordem já persistida em order_book aguardando

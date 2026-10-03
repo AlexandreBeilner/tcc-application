@@ -19,6 +19,7 @@ type adminMarketReader interface {
 type adminReader interface {
 	adminOverviewReader
 	adminMarketReader
+	adminOrderReader
 }
 
 type indicatorResponse struct {

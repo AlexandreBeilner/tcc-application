@@ -70,7 +70,8 @@ export interface TriggerMacroEventResult {
 // `GET /admin/audit-log` (N.4, `.docs/backend/admin.md#get-adminaudit-log`).
 // `action` é a lista fechada do backend (`ADMIN_AUDIT_ACTIONS`): cada tarefa
 // nova da Fase N que audite uma ação nova acrescenta aqui e em `auditLabels`.
-export type AuditAction = 'macro_event.trigger' | 'tick.trigger' | 'tick.advance' | 'scheduler.pause' | 'scheduler.resume'
+export type AuditAction =
+    'macro_event.trigger' | 'tick.trigger' | 'tick.advance' | 'scheduler.pause' | 'scheduler.resume' | 'order.cancel' | 'order.cancel_batch'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -266,4 +267,52 @@ export interface MonitorAssetDetail extends MonitorAsset {
     trades: MonitorTrade[]
     quotes: Array<{ simulated_day: number; price: number }>
     nav_history: MonitorNavPoint[]
+}
+
+// Ordens do book (N.10, `.docs/backend/admin.md#ordens-do-book-consulta-e-cancelamento-por-intervenção-tarefa-n10`).
+export type AdminOrderStatus = 'pending' | 'partially_filled' | 'filled' | 'cancelled'
+
+export interface AdminOrder {
+    order_id: string
+    asset_id: string
+    ticker: string
+    user_id: string
+    is_bot: boolean
+    bot_archetype: string | null
+    side: 'buy' | 'sell'
+    type: 'market' | 'limit'
+    quantity: number
+    filled_quantity: number
+    price: number
+    status: AdminOrderStatus
+    cancel_reason: string | null
+    simulated_day: number
+    created_at: string
+}
+
+export interface AdminOrdersFilters {
+    user_id?: string
+    asset_id?: string
+    side?: 'buy' | 'sell'
+    // 'open' junta pending e partially_filled.
+    status?: 'open' | AdminOrderStatus
+    from?: string
+    to?: string
+    limit?: number
+    offset?: number
+}
+
+export interface ListAdminOrdersResult {
+    orders: AdminOrder[]
+    total: number
+}
+
+export interface CancelOrdersBatchInput {
+    asset_id?: string
+    user_id?: string
+}
+
+export interface CancelOrdersBatchResult {
+    cancelled_count: number
+    cancelled_ids: string[]
 }

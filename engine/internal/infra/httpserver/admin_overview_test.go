@@ -15,8 +15,16 @@ type fakeAdminReader struct {
 	overview adminview.Overview
 	assets   []adminview.AssetRow
 	detail   adminview.AssetDetail
+	orders   []adminview.OrderRow
+	total    int
 	err      error
 	askedID  string
+	filter   adminview.OrderFilter
+}
+
+func (f *fakeAdminReader) AdminOrders(_ context.Context, filter adminview.OrderFilter) ([]adminview.OrderRow, int, error) {
+	f.filter = filter
+	return f.orders, f.total, f.err
 }
 
 func (f *fakeAdminReader) Overview(context.Context) (adminview.Overview, error) {

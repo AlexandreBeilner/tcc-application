@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     advanceTicks,
+    cancelAdminOrder,
+    cancelAdminOrdersBatch,
+    listAdminOrders,
     getAdminOverview,
     getMarketMonitorAsset,
     getScheduler,
@@ -144,5 +147,29 @@ describe('services/admin', () => {
         const fetchMock = mockFetchOnce({ asset_id: 'a1' })
         await getMarketMonitorAsset('token', 'a1')
         expect(fetchMock.mock.calls[0][0]).toBe('/admin/market/assets/a1')
+    })
+
+    it('listAdminOrders monta a query só com os filtros definidos', async () => {
+        const fetchMock = mockFetchOnce({ orders: [], total: 0 })
+        await listAdminOrders('token', { status: 'open', asset_id: 'a1', side: undefined, limit: 50, offset: 100 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/orders?status=open&asset_id=a1&limit=50&offset=100')
+    })
+
+    it('cancelAdminOrder faz POST /admin/orders/:id/cancel', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => undefined })
+        vi.stubGlobal('fetch', fetchMock)
+        await cancelAdminOrder('token', 'ord-1')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/orders/ord-1/cancel')
+        expect(init.method).toBe('POST')
+    })
+
+    it('cancelAdminOrdersBatch faz POST com o filtro no corpo', async () => {
+        const fetchMock = mockFetchOnce({ cancelled_count: 1, cancelled_ids: ['a'] })
+        const result = await cancelAdminOrdersBatch('token', { asset_id: 'asset-1' })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/orders/cancel-batch')
+        expect(JSON.parse(init.body)).toEqual({ asset_id: 'asset-1' })
+        expect(result.cancelled_count).toBe(1)
     })
 })

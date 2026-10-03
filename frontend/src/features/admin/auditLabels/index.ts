@@ -9,6 +9,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'tick.advance': 'Avanço de dias do mercado',
     'scheduler.pause': 'Pausa do temporizador',
     'scheduler.resume': 'Retomada do temporizador',
+    'order.cancel': 'Cancelamento de ordem',
+    'order.cancel_batch': 'Cancelamento de ordens em lote',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

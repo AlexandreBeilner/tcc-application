@@ -236,7 +236,7 @@ export interface MarketEvent {
 export type OrderSide = 'buy' | 'sell'
 export type OrderType = 'market' | 'limit'
 export type OrderStatus = 'pending' | 'partially_filled' | 'filled' | 'cancelled'
-export type OrderCancelReason = 'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted' | 'insufficient_funds'
+export type OrderCancelReason = 'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted' | 'insufficient_funds' | 'admin'
 
 export interface PlaceOrderInput {
     asset_id: string

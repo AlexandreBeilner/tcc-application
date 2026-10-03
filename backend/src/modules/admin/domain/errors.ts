@@ -36,3 +36,21 @@ export class TickAdvanceFailedError extends Error {
 // existe ou não é negociável (sandbox, renda fixa). Traduzido pelo adapter pro router
 // devolver 404.
 export class AdminAssetNotFoundError extends Error {}
+
+// AdminOrderNotFoundError é o 404 do motor ao cancelar uma ordem que não existe (N.10).
+export class AdminOrderNotFoundError extends Error {}
+
+// AdminOrderNotCancellableError é o 409 do motor: a ordem já foi executada ou cancelada (N.10).
+export class AdminOrderNotCancellableError extends Error {}
+
+// BatchTooLargeError é o 422 do motor: o filtro do lote atinge mais ordens que o
+// teto e nada foi cancelado (N.10). Carrega a contagem pro admin estreitar o filtro.
+export class BatchTooLargeError extends Error {
+  constructor(
+    message: string,
+    readonly matched: number,
+    readonly max: number,
+  ) {
+    super(message)
+  }
+}

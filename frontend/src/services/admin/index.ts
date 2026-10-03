@@ -1,8 +1,12 @@
 import { apiRequest } from '../client'
 import type {
     AdminOverview,
+    AdminOrdersFilters,
     AdvanceTicksResult,
     AuditLogFilters,
+    CancelOrdersBatchInput,
+    CancelOrdersBatchResult,
+    ListAdminOrdersResult,
     ListAuditLogResult,
     ListMacroEventsResult,
     ListTicksResult,
@@ -16,6 +20,12 @@ import type {
 } from './types'
 
 export type {
+    AdminOrder,
+    AdminOrdersFilters,
+    AdminOrderStatus,
+    CancelOrdersBatchInput,
+    CancelOrdersBatchResult,
+    ListAdminOrdersResult,
     AdminOverview,
     ComponentHealth,
     HealthComponentKey,
@@ -130,4 +140,23 @@ export function listMarketMonitor(token: string): Promise<{ assets: MonitorAsset
 
 export function getMarketMonitorAsset(token: string, assetId: string): Promise<MonitorAssetDetail> {
     return apiRequest<MonitorAssetDetail>(`/admin/market/assets/${assetId}`, { token })
+}
+
+// Ordens do book (N.10): busca e cancelamento por intervenção. O cancelamento de uma
+// ordem responde 204 (sem corpo).
+export function listAdminOrders(token: string, filters: AdminOrdersFilters = {}): Promise<ListAdminOrdersResult> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiRequest<ListAdminOrdersResult>(`/admin/orders${query ? `?${query}` : ''}`, { token })
+}
+
+export function cancelAdminOrder(token: string, orderId: string): Promise<void> {
+    return apiRequest<void>(`/admin/orders/${orderId}/cancel`, { token, method: 'POST' })
+}
+
+export function cancelAdminOrdersBatch(token: string, input: CancelOrdersBatchInput): Promise<CancelOrdersBatchResult> {
+    return apiRequest<CancelOrdersBatchResult>('/admin/orders/cancel-batch', { token, method: 'POST', body: input })
 }

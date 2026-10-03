@@ -57,7 +57,7 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (`macro_event.trigger` | `tick.trigger`, lista fechada em `domain/auditEntry.ts`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
@@ -128,3 +128,28 @@ Duas rotas de leitura que repassam o monitor do motor (ver `.docs/engine/admin.m
 - **Payload:** `:id` UUID (validado por `requireUuidParam`).
 - **Sucesso:** `200` → o item acima mais `bids`, `asks`, `trades`, `quotes` e `nav_history`.
 - **Erros:** `400` — `id` não é UUID (o motor não é chamado); `404` — ativo inexistente ou fora do universo negociável.
+
+### Ordens do book: consulta e cancelamento por intervenção (tarefa N.10)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`); o dono da ordem aparece aqui, ao contrário do book público.
+
+#### `GET /admin/orders`
+
+- **Payload:** query opcional validada por `listAdminOrdersQuerySchema`: `user_id`, `asset_id` (UUID), `side` (`buy` | `sell`), `status` (`open` | `pending` | `partially_filled` | `filled` | `cancelled`; `open` junta pending e partially_filled), `from`, `to` (ISO 8601, `from` ≤ `to`), `limit` (1 a 200), `offset` (≥ 0).
+- **Sucesso:** `200` → `{ orders: [{ order_id, asset_id, ticker, user_id, is_bot, bot_archetype | null, side, type, quantity, filled_quantity, price, status, cancel_reason | null, simulated_day, created_at }], total }`, mais recentes primeiro.
+- **Erros:** `400` — filtro inválido (o motor não é chamado).
+
+#### `POST /admin/orders/:id/cancel`
+
+- **Payload:** nenhum (`id` UUID no caminho).
+- **Sucesso:** `204`.
+- **Erros:** `400` — `id` não é UUID; `404` — ordem inexistente; `409` — ordem já executada ou cancelada.
+- **Regra:** cancela com `cancel_reason = admin`, de qualquer dono. Não há reserva de saldo/posição a devolver (nenhuma ordem em repouso reserva, achado 015) nem evento a emitir.
+- **Auditoria:** `order.cancel`, `target_type = order`, `target_id` = id da ordem; a recusa do motor grava `result = failed` com o motivo.
+
+#### `POST /admin/orders/cancel-batch`
+
+- **Payload (JSON):** `asset_id` e/ou `user_id` (UUID); pelo menos um é obrigatório (`cancelOrdersBatchBodySchema`). Com os dois vale a interseção.
+- **Sucesso:** `200` → `{ cancelled_count, cancelled_ids }`.
+- **Erros:** `400` — corpo inválido ou nenhum filtro; `422` com `{ error, code: "batch_too_large", matched, max }` — o filtro atinge mais que 500 ordens e **nada é cancelado**.
+- **Auditoria:** `order.cancel_batch`, `target_type = order`, **uma linha** com `payload = { asset_id | null, user_id | null, cancelled_count, cancelled_ids }`; o lote recusado grava `result = failed` com o filtro.

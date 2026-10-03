@@ -84,3 +84,31 @@ export const MAX_ADVANCE_DAYS = 30
 export const advanceTicksBodySchema = z.object({
   days: z.number().int().min(1).max(MAX_ADVANCE_DAYS),
 })
+
+// GET /admin/orders (N.10): filtros opcionais repassados ao motor, que valida de novo.
+// `limit` até 200, o teto do motor.
+export const listAdminOrdersQuerySchema = z
+  .object({
+    user_id: z.uuid().optional(),
+    asset_id: z.uuid().optional(),
+    side: z.enum(['buy', 'sell']).optional(),
+    status: z.enum(['open', 'pending', 'partially_filled', 'filled', 'cancelled']).optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from deve ser anterior ou igual a to',
+    path: ['from'],
+  })
+
+// POST /admin/orders/cancel-batch (N.10): pelo menos um filtro. "Cancelar tudo" não existe.
+export const cancelOrdersBatchBodySchema = z
+  .object({
+    asset_id: z.uuid().optional(),
+    user_id: z.uuid().optional(),
+  })
+  .refine((b) => b.asset_id !== undefined || b.user_id !== undefined, {
+    message: 'informe asset_id ou user_id',
+  })

@@ -2918,7 +2918,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 - **Referências:** O.1 (cancelamento), P.5 (cotação de Market Maker); `orderexecution`.
 - **Dependências:** N.4, N.8.
 
-### N.10 · Ordens e book: inspecionar e cancelar por intervenção
+### N.10 · Ordens e book: inspecionar e cancelar por intervenção ✅
 
 - **Descrição:** tela "Ordens" com busca de ordens por usuário/bot, ativo, lado, status e período
   (`GET /admin/orders`), e **cancelamento administrativo** de uma ordem ou em lote por ativo/dono
@@ -2930,6 +2930,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   existente; lote tem teto e é auditado como uma ação com a lista de ids; ordem já executada devolve erro
   tipado; teste table-driven por status.
 - **Dependências:** N.4, N.8; **N.1 deve reaproveitar** (não duplicar) este cancelamento.
+- **Entregável (sessão 2026-10-03, PR 3 da Fase N):** **Motor:** `GET /admin/orders` (filtros dono, ativo, lado, status com o atalho `open`, período, paginação até 200; traz o dono e o arquétipo do bot), `POST /admin/orders/{id}/cancel` e `POST /admin/orders/cancel-batch`. Domínio em `orderexecution/admincancel.go` (`AdminService`, `CancelFilter`, `MaxAdminCancelBatch = 500`, `BatchTooLargeError`), separado do `Service` do usuário pra não tocar o contrato existente; `OrderExecutionRepository.AdminCancelOrder` (leitura `FOR UPDATE`, sem checar dono) e `AdminCancelBatch` (trava as linhas, lê no máximo `max + 1`, recusa o lote inteiro acima do teto), migration `000042` com `cancel_reason = admin`. O lote exige ativo e/ou dono (com os dois vale a interseção, que é o caminho que a N.1 deve reaproveitar ao tirar um ativo de um Market Maker). **Backend:** porta `OrderAdmin`, adapter, três casos de uso (os dois cancelamentos auditados como `order.cancel` e `order.cancel_batch`, o lote em UMA linha com a lista de ids; recusa do motor vira `failed` com o motivo), router `adminOrdersRouter` com Zod. **Frontend:** tela **10.8** em `/admin/mercado/ordens` (filtros, tabela que vira cartões no mobile, cancelar uma ordem, cancelar em lote exigindo digitar o ticker ou "CANCELAR"), link na 10.6 e na 10.7; `ConfirmDialog` ganhou `requireText` (reaproveitável pela N.9). **Decisões declaradas:** (1) "devolve a reserva e emite o evento de cancelamento" do texto da tarefa não se aplica: nenhuma ordem em repouso reserva saldo ou posição (achado 015, revalidação no match) e nenhum cancelamento passa por `market_events`; o cancelamento admin segue a mesma regra do cancelamento do dono (O.1); (2) lote acima do teto é recusado inteiro (422 `batch_too_large` com a contagem) em vez de cancelar parcialmente; (3) o valor `admin` aparece também em "Minhas Ordens" do usuário ("Cancelada pela administração"). **Validado ao vivo em `docker compose`:** cancelar 204, repetir 409, inexistente 404, lote sem filtro 400, lote por ativo cancelou a cotação de um Market Maker, `order_book` com `cancel_reason = admin`, auditoria com as 4 linhas. Testes: domínio, rotas HTTP, integração com Postgres descartável, caso de uso, adapter e router do backend, componentes e página do frontend.
 
 ### N.11 · Eventos macro: ciclo de vida completo
 

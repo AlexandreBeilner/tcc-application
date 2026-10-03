@@ -785,3 +785,90 @@ func weightedAveragePrice(fills []orderexecution.Fill) float64 {
 	}
 	return totalCost / float64(totalQuantity)
 }
+
+// AdminCancelOrder cancela por intervenção administrativa a ordem orderID,
+// qualquer que seja o dono (tarefa N.10). Mesma leitura com FOR UPDATE de
+// CancelOrder, pra distinguir "não existe" de "já não está em repouso" e pra
+// serializar contra um fill concorrente (fillRestingOrder checa o status).
+func (r *OrderExecutionRepository) AdminCancelOrder(ctx context.Context, orderID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var status string
+	err = tx.QueryRowContext(ctx, `SELECT status FROM order_book WHERE id = $1 FOR UPDATE`, orderID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return orderexecution.ErrOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != "pending" && status != "partially_filled" {
+		return orderexecution.ErrOrderNotCancellable
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'admin' WHERE id = $1`, orderID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// AdminCancelBatch cancela, numa transação, as ordens em repouso do filtro (ativo,
+// dono ou os dois) e devolve os ids cancelados (tarefa N.10). Trava as linhas
+// com FOR UPDATE e lê no máximo max+1: se vier mais que max, recusa o lote
+// inteiro sem cancelar nenhuma. Reaproveitado pela N.1 ao tirar um ativo de um
+// Market Maker (filtro dono + ativo).
+func (r *OrderExecutionRepository) AdminCancelBatch(ctx context.Context, filter orderexecution.CancelFilter, max int) ([]string, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := tx.QueryContext(ctx,
+		`SELECT id FROM order_book
+		 WHERE status IN ('pending', 'partially_filled')
+		   AND ($1 = '' OR asset_id::text = $1)
+		   AND ($2 = '' OR user_id::text = $2)
+		 ORDER BY created_at
+		 LIMIT $3
+		 FOR UPDATE`,
+		filter.AssetID, filter.UserID, max+1,
+	)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+
+	if len(ids) > max {
+		return nil, &orderexecution.BatchTooLargeError{Matched: len(ids), Max: max}
+	}
+	if len(ids) == 0 {
+		return ids, nil
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'admin' WHERE id = ANY($1)`, pq.Array(ids),
+	); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}

@@ -34,6 +34,11 @@ import { createEngineMarketMonitorReader } from './modules/admin/infrastructure/
 import { ListMarketMonitorUseCase } from './modules/admin/application/useCases/listMarketMonitor'
 import { GetMarketMonitorAssetUseCase } from './modules/admin/application/useCases/getMarketMonitorAsset'
 import { createAdminMarketRouter } from './modules/admin/interfaces/http/adminMarketRouter'
+import { createEngineOrderAdmin } from './modules/admin/infrastructure/engine/engineOrderAdmin'
+import { ListAdminOrdersUseCase } from './modules/admin/application/useCases/listAdminOrders'
+import { CancelAdminOrderUseCase } from './modules/admin/application/useCases/cancelAdminOrder'
+import { CancelAdminOrdersBatchUseCase } from './modules/admin/application/useCases/cancelAdminOrdersBatch'
+import { createAdminOrdersRouter } from './modules/admin/interfaces/http/adminOrdersRouter'
 import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
 import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
 import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
@@ -317,6 +322,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const marketMonitorReader = createEngineMarketMonitorReader(engineUrl)
   const listMarketMonitor = new ListMarketMonitorUseCase(marketMonitorReader)
   const getMarketMonitorAsset = new GetMarketMonitorAssetUseCase(marketMonitorReader)
+  // Ordens do painel (N.10): consulta e cancelamento por intervenção.
+  const orderAdmin = createEngineOrderAdmin(engineUrl)
+  const listAdminOrders = new ListAdminOrdersUseCase(orderAdmin)
+  const cancelAdminOrder = new CancelAdminOrderUseCase(orderAdmin, recordAdminAction)
+  const cancelAdminOrdersBatch = new CancelAdminOrdersBatchUseCase(orderAdmin, recordAdminAction)
   const getAdminOverview = new GetAdminOverviewUseCase(
     marketOverviewReader,
     schedulerAdmin,
@@ -540,6 +550,14 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
+  app.use(
+    createAdminOrdersRouter({
+      listAdminOrders,
+      cancelAdminOrder,
+      cancelAdminOrdersBatch,
+      authMiddleware,
+    }),
+  )
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))

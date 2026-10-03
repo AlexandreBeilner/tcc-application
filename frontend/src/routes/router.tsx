@@ -16,6 +16,7 @@ import { AdminAuditoria } from '../pages/AdminAuditoria'
 import { AdminEventosMacro } from '../pages/AdminEventosMacro'
 import { AdminMercado } from '../pages/AdminMercado'
 import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
+import { AdminOrdens } from '../pages/AdminOrdens'
 import { AdminTempo } from '../pages/AdminTempo'
 import { AdminVisaoGeral } from '../pages/AdminVisaoGeral'
 import { CriarEventoMacro } from '../pages/CriarEventoMacro'
@@ -150,6 +151,7 @@ export const router = createBrowserRouter([
                                     { path: '/admin/tempo', element: <AdminTempo /> },
                                     { path: '/admin/mercado', element: <AdminMercado /> },
                                     { path: '/admin/mercado/ativos/:id', element: <AdminMercadoAtivo /> },
+                                    { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
                                     { path: '/admin/auditoria', element: <AdminAuditoria /> },
                                     { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
                                 ],

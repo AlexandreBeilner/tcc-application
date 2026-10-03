@@ -86,12 +86,18 @@ export function AdminMercado() {
                 <div>
                     <h1 className={styles.title}>Mercado</h1>
                     <p className={styles.subtitle}>
-                        Monitor ao vivo, só leitura. O preço só muda por negociação; para criar condições, dispare um evento macro.
+                        Monitor ao vivo. O preço só muda por negociação; para criar condições, dispare um evento macro ou cancele ordens na
+                        tela de Ordens.
                     </p>
                 </div>
-                <Link to="/admin/eventos" className={styles.link}>
-                    Eventos macro
-                </Link>
+                <div className={styles.links}>
+                    <Link to="/admin/mercado/ordens" className={styles.link}>
+                        Ordens
+                    </Link>
+                    <Link to="/admin/eventos" className={styles.link}>
+                        Eventos macro
+                    </Link>
+                </div>
             </header>
 
             <section className={styles.section} aria-label="Ativos">

@@ -8,6 +8,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'tick.advance',
   'scheduler.pause',
   'scheduler.resume',
+  'order.cancel',
+  'order.cancel_batch',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]
