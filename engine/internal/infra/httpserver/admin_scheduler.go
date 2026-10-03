@@ -53,7 +53,7 @@ type Option func(*options)
 
 type options struct {
 	scheduler   *SchedulerAdminAPI
-	adminReader adminOverviewReader
+	adminReader adminReader
 }
 
 // WithSchedulerAdmin liga as rotas do painel de Tempo (N.6); sem ela respondem 503.

@@ -1,7 +1,11 @@
 import type { CSSProperties } from 'react'
 import { trackStatusFor } from '../../../features/lessons/trackGroups'
 import type { TrackStatus } from '../../../features/lessons/trackGroups'
-import { computeTrackHubSparkline, TRACK_HUB_SPARKLINE_HEIGHT, TRACK_HUB_SPARKLINE_WIDTH } from '../../../features/lessons/trackHubSparkline'
+import {
+    computeTrackHubSparkline,
+    TRACK_HUB_SPARKLINE_HEIGHT,
+    TRACK_HUB_SPARKLINE_WIDTH,
+} from '../../../features/lessons/trackHubSparkline'
 import { Locked } from '../../atoms/Locked'
 import { TRACKS } from '../../../utils/tracks'
 import type { TrackCardProps } from './types'

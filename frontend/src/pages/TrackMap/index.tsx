@@ -111,9 +111,7 @@ export function TrackMap() {
                             meta={statusLabel(trackLessons[0])}
                             onClick={() => handleNodeClick(trackLessons[0])}
                         />
-                        {expandedHintId === trackLessons[0].id && (
-                            <p className={styles.hint}>Conclua a lição anterior pra desbloquear.</p>
-                        )}
+                        {expandedHintId === trackLessons[0].id && <p className={styles.hint}>Conclua a lição anterior pra desbloquear.</p>}
                     </div>
                 )}
             </div>

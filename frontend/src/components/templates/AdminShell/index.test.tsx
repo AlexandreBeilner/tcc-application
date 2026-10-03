@@ -10,7 +10,7 @@ function renderShell(path = '/admin') {
                 element: <AdminShell />,
                 children: [
                     { path: '/admin', element: <div>conteúdo da visão geral</div> },
-                    { path: '/admin/eventos', element: <div>conteúdo dos eventos</div> },
+                    { path: '/admin/mercado', element: <div>conteúdo dos eventos</div> },
                 ],
             },
         ],

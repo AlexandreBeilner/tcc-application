@@ -13,14 +13,26 @@ import (
 
 type fakeAdminReader struct {
 	overview adminview.Overview
+	assets   []adminview.AssetRow
+	detail   adminview.AssetDetail
 	err      error
+	askedID  string
 }
 
 func (f *fakeAdminReader) Overview(context.Context) (adminview.Overview, error) {
 	return f.overview, f.err
 }
 
-func callAdminReader(t *testing.T, reader adminOverviewReader, path string) *httptest.ResponseRecorder {
+func (f *fakeAdminReader) MarketAssets(context.Context) ([]adminview.AssetRow, error) {
+	return f.assets, f.err
+}
+
+func (f *fakeAdminReader) AssetDetail(_ context.Context, id string) (adminview.AssetDetail, error) {
+	f.askedID = id
+	return f.detail, f.err
+}
+
+func callAdminReader(t *testing.T, reader adminReader, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	var opts []Option
 	if reader != nil {

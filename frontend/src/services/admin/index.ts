@@ -6,6 +6,8 @@ import type {
     ListAuditLogResult,
     ListMacroEventsResult,
     ListTicksResult,
+    MonitorAsset,
+    MonitorAssetDetail,
     SchedulerStatus,
     SystemHealth,
     TickResult,
@@ -19,6 +21,14 @@ export type {
     HealthComponentKey,
     HealthStatus,
     MarketOverview,
+    MonitorAsset,
+    MonitorAssetDetail,
+    MonitorAssetType,
+    MonitorBookLevel,
+    MonitorIndicator,
+    MonitorIndicatorKind,
+    MonitorNavPoint,
+    MonitorTrade,
     SystemHealth,
     UserStats,
     AdvanceTicksResult,
@@ -111,4 +121,13 @@ export function getSystemHealth(token: string): Promise<SystemHealth> {
 
 export function getAdminOverview(token: string): Promise<AdminOverview> {
     return apiRequest<AdminOverview>('/admin/overview', { token })
+}
+
+// Monitor do mercado ao vivo (N.8): só leitura.
+export function listMarketMonitor(token: string): Promise<{ assets: MonitorAsset[] }> {
+    return apiRequest<{ assets: MonitorAsset[] }>('/admin/market/assets', { token })
+}
+
+export function getMarketMonitorAsset(token: string, assetId: string): Promise<MonitorAssetDetail> {
+    return apiRequest<MonitorAssetDetail>(`/admin/market/assets/${assetId}`, { token })
 }

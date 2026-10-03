@@ -14,6 +14,8 @@ import { Configuracoes } from '../pages/Configuracoes'
 import { Conquistas } from '../pages/Conquistas'
 import { AdminAuditoria } from '../pages/AdminAuditoria'
 import { AdminEventosMacro } from '../pages/AdminEventosMacro'
+import { AdminMercado } from '../pages/AdminMercado'
+import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
 import { AdminTempo } from '../pages/AdminTempo'
 import { AdminVisaoGeral } from '../pages/AdminVisaoGeral'
 import { CriarEventoMacro } from '../pages/CriarEventoMacro'
@@ -44,7 +46,7 @@ import { TrilhasHub } from '../pages/TrilhasHub'
 // só aparece no menu do avatar pra `role=admin`, mas a rota em si precisa
 // ser protegida de verdade, não só escondida via CSS (critério de aceite da
 // tarefa 6.1). Dentro dela, `<AdminShell>` (N.3) dá a navegação por seções
-// do painel: `/admin` é a Visão geral (10.1), `/admin/eventos` o histórico de
+// do painel: `/admin` é a Visão geral (10.1), `/admin/mercado` o monitor ao vivo (N.8), `/admin/eventos` o histórico de
 // eventos macro e `/admin/eventos/novo` (10.2, tarefa 6.11) a criação — rotas
 // irmãs, mesmo padrão de nesting de `/amigos/*`.
 export const router = createBrowserRouter([
@@ -146,6 +148,8 @@ export const router = createBrowserRouter([
                                     { path: '/admin', element: <AdminVisaoGeral /> },
                                     { path: '/admin/eventos', element: <AdminEventosMacro /> },
                                     { path: '/admin/tempo', element: <AdminTempo /> },
+                                    { path: '/admin/mercado', element: <AdminMercado /> },
+                                    { path: '/admin/mercado/ativos/:id', element: <AdminMercadoAtivo /> },
                                     { path: '/admin/auditoria', element: <AdminAuditoria /> },
                                     { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
                                 ],

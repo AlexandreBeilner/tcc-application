@@ -113,3 +113,18 @@ Duas rotas de leitura da tela de entrada do painel. Exigem Bearer token + `role:
   - `users`: `{ total, signups_last_24h, signups_last_7d }`, só contas `role = user`.
   - `errors`: por seção que falhou (`market`, `scheduler`, `last_tick`, `users`), a mensagem do erro; vazio quando tudo respondeu.
 - **Erros:** nenhum próprio. Uma fonte fora vira `null` na seção dela e a mensagem em `errors`; as demais seguem. A tela de entrada precisa abrir justamente quando algo está quebrado.
+
+### Monitor do mercado ao vivo (tarefa N.8)
+
+Duas rotas de leitura que repassam o monitor do motor (ver `.docs/engine/admin.md`). Exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum). Só leitura: não passam pela auditoria (N.4). Proxy fino: `MarketMonitorReader` (porta) → `engineMarketMonitorReader`; os números (spread, variação, indicador por classe, posse de bots) são calculados no motor. Os indicadores macro (Selic/IPCA) e o calendário da tela reaproveitam as rotas públicas `GET /market/indicators` e `GET /market/calendar`, sem rota nova.
+
+#### `GET /admin/market/assets`
+
+- **Sucesso:** `200` → `{ assets: [...] }`, um item por ativo negociável (ação, ETF, FII), ordenado por ticker, no formato descrito em `.docs/engine/admin.md` (`last_price`, `daily_change_pct`, `best_bid`, `best_ask`, `spread_pct`, `resting_orders`, `bot_resting_orders`, `day_trades`, `day_volume`, `held_by_bots`, `held_by_users`, `covered`, `indicator`...).
+- **Erros:** falha do motor propaga como `500`.
+
+#### `GET /admin/market/assets/:id`
+
+- **Payload:** `:id` UUID (validado por `requireUuidParam`).
+- **Sucesso:** `200` → o item acima mais `bids`, `asks`, `trades`, `quotes` e `nav_history`.
+- **Erros:** `400` — `id` não é UUID (o motor não é chamado); `404` — ativo inexistente ou fora do universo negociável.

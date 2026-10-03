@@ -2885,7 +2885,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 
 #### Bloco 3 — Mercado
 
-### N.8 · Monitor do mercado ao vivo (somente leitura)
+### N.8 · Monitor do mercado ao vivo (somente leitura) ✅
 
 - **Descrição:** tela "Mercado" com a tabela de todos os ativos: último negócio, variação, melhor bid/ask e
   spread, volume do dia, nº de ordens em repouso, float em circulação vs. posse de bots/usuários, e, por
@@ -2897,6 +2897,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 - **Critérios de aceite:** a tabela ordena/filtra por classe e setor; ativo sem negócio aparece sem quebrar;
   números batem com o book público; responsiva (tabela vira cartões no mobile).
 - **Dependências:** N.3.
+- **Entregável (sessão 2026-10-03):** **Motor:** `GET /admin/market/assets` (uma consulta só, sem N+1: preço e variação, melhor compra/venda e spread, ordens abertas e parcela de bots, negócios e volume do dia simulado, cotas em circulação versus posse de bots e usuários, cobertura por Market Maker ativo, indicador por classe) e `GET /admin/market/assets/{id}` (book completo agregado por preço com a parcela de bots, últimos 30 negócios, 60 cotações e, pra ETF, 30 NAVs); fórmulas puras em `domain/adminview` (`SpreadPct`, `DailyChangePct`, `ClassIndicator`: P/L da ação, ágio do ETF, P/VP do FII, respeitando RF21); migration `000041` indexa `market_events (simulated_day, event_type)` pros negócios do dia. **Backend:** `MarketMonitorReader` (porta) → `engineMarketMonitorReader`, casos de uso de listar e detalhar, `GET /admin/market/assets[/:id]` (`400` UUID inválido sem chamar o motor, `404` ativo inexistente). **Frontend:** telas **10.6** (`/admin/mercado`: filtros, tabela que vira cartões no mobile, ordenação com sem-valor sempre no fim, indicadores macro e próximos eventos) e **10.7** (detalhe); a seção "Mercado" do shell aponta pra `/admin/mercado` e continua ativa nas rotas de eventos macro (`alsoActiveOn`). Documentado em `.docs/engine/admin.md` e `.docs/backend/admin.md`; inventário atualizado (34 telas). **Decisões declaradas:** (1) indicadores macro e calendário reaproveitam `GET /market/indicators` e `/market/calendar` em vez de rota admin nova; (2) o calendário público não tem o rebalanceamento de ETF, então "próximos eventos" cobre Copom, balanço, provento e eventos macro, não rebalanceamento (lacuna pequena, fora desta tarefa); (3) o book nunca expõe o dono de uma ordem, só quantidade por preço. **Validado ao vivo em `docker compose`:** 35 ativos, book e melhor compra/venda idênticos a `GET /market/assets/:id/book` público, `400` e `404` corretos, NAV do ETF, e as duas telas no navegador. **Testes:** motor (go test com banco descartável, integração do monitor, golangci-lint), backend (router, adapter), frontend (filtro/ordenação, tabela, book, páginas, nav).
 
 ### N.9 · Pausa de negociação (global e por ativo)
 
@@ -3198,7 +3199,7 @@ se o autor pedir.
 | PR | Estado | Tema | Tarefas (um commit cada, nessa ordem) | Camadas | Depende de | Como validar sozinho |
 |---|---|---|---|---|---|---|
 | **1** | ✅ feito, aguardando merge | Fundação | N.3 shell, N.4 auditoria, N.6 Tempo | engine, backend, frontend | nenhuma | branch `fase-n-painel-admin-shell-auditoria-tempo`, validada ao vivo |
-| **2** | ⬜ | Leituras | N.5 Visão geral e saúde, N.8 Monitor do mercado | engine, backend, frontend | PR 1 | cards e tabelas batem com o mercado público; derrubar o Redis mostra "fora" sem quebrar a tela |
+| **2** | ✅ feito, aguardando merge | Leituras | N.5 Visão geral e saúde, N.8 Monitor do mercado | engine, backend, frontend | PR 1 | cards e tabelas batem com o mercado público; derrubar o Redis mostra "fora" sem quebrar a tela |
 | **3** | ⬜ | Controle do book | N.10 Cancelar ordens como admin, N.9 Pausa de negociação | engine (caminho de ordem e rodadas de bot), backend, frontend (inclui o aviso ao usuário) | PR 2 | cancelar libera a reserva; ordem de usuário e de bot recusada na pausa e aceita depois |
 | **4** | ⬜ | Progressão de lições | N.24 Progressão com dispensa | backend (núcleo de lições) | nenhuma | **sozinho de propósito**: teste por contagem de 0 a 35, e2e e migração em banco com progresso real |
 | **5** | ⬜ | Bots | N.1 API de bots, N.2 Tela de bots | engine, backend, frontend | PR 3 | criar bot pela tela e vê-lo na rodada seguinte; reatribuir cobertura cancela ordens do Market Maker |

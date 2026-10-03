@@ -414,6 +414,19 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** carregando; backend fora do ar (aviso no lugar da faixa e do resumo); **fonte fora do ar** (o cartão daquela fonte mostra "Indisponível: motivo" e os demais seguem). Composição própria por breakpoint: 2 colunas de cartões a partir de 768 px, 5 chips lado a lado na faixa de saúde.
 - **Dados envolvidos:** `GET /admin/system/health` e `GET /admin/overview` (`.docs/backend/admin.md`), que agregam `GET /admin/overview` do motor (`.docs/engine/admin.md`), `GET /admin/scheduler`, o último item de `GET /admin/ticks` e a contagem de usuários.
 
+### 10.6 Mercado (monitor ao vivo)
+- **Objetivo:** ver o mercado simulado inteiro numa tela, só leitura (N.8). Seção "Mercado" do painel, rota `/admin/mercado`; o preço só se forma por negociação, então a tela não tem botão que o altere.
+- **Conteúdo:** filtros por classe (ação, ETF, FII), setor e texto; tabela de todos os ativos negociáveis com último preço, variação, melhor compra/venda e spread, ordens abertas (e quantas são de bots), negociado no dia, cotas em circulação versus posse de bots e usuários, e o indicador da classe (P/L da ação, ágio/deságio do ETF, P/VP do FII); aviso dos ativos sem Market Maker ativo; seção de indicadores macro (Selic, IPCA, próximo Copom e gráfico da Selic); coluna lateral "Próximos eventos" com os fatos globais futuros do calendário. Link "Eventos macro" para a 10.3.
+- **Ações:** ordenar pelos cabeçalhos; abrir um ativo (**10.7**).
+- **Estados especiais:** carregando; motor fora do ar (aviso no lugar da tabela); ativo sem cotação ou book (campos com traço, nunca quebra); lista filtrada vazia. Tabela no tablet/desktop e cartões no mobile; no desktop os indicadores ficam à esquerda e o calendário em coluna lateral.
+- **Dados envolvidos:** `GET /admin/market/assets`, `GET /market/indicators`, `GET /market/clock`, `GET /market/calendar` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
+### 10.7 Detalhe do Ativo no Monitor
+- **Objetivo:** inspecionar um ativo (N.8), rota `/admin/mercado/ativos/:id`.
+- **Conteúdo:** resumo (último negócio, melhor compra/venda, negociado no dia, ordens abertas, cotas com bots/usuários/livres, indicador da classe); book completo agregado por preço com a parcela de bots (nunca o dono de uma ordem); últimos 30 negócios; gráfico das cotações (30 e 60 dias); para ETF, tabela de NAV e ágio.
+- **Estados especiais:** ativo inexistente ou fora do universo negociável (mensagem e volta ao monitor); sem Market Maker (aviso); book e negócios vazios.
+- **Dados envolvidos:** `GET /admin/market/assets/:id`.
+
 ### 10.3 Histórico de Eventos Macro
 - **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
 - **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), paginada, botão "Novo evento".
@@ -481,8 +494,10 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.3 | Histórico de Eventos Macro | Admin |
 | 10.4 | Auditoria | Admin |
 | 10.5 | Tempo | Admin |
+| 10.6 | Mercado (monitor ao vivo) | Admin |
+| 10.7 | Detalhe do Ativo no Monitor | Admin |
 
-**Total: 32 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 34 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

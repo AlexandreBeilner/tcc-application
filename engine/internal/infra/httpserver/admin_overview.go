@@ -17,8 +17,8 @@ type adminOverviewReader interface {
 	Overview(ctx context.Context) (adminview.Overview, error)
 }
 
-// WithAdminReader liga as rotas de leitura do painel; sem ela respondem 503.
-func WithAdminReader(reader adminOverviewReader) Option {
+// WithAdminReader liga as rotas de leitura do painel (N.5/N.8); sem ela respondem 503.
+func WithAdminReader(reader adminReader) Option {
 	return func(o *options) { o.adminReader = reader }
 }
 

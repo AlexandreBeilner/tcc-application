@@ -30,6 +30,10 @@ import {
 import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
 import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
 import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
+import { createEngineMarketMonitorReader } from './modules/admin/infrastructure/engine/engineMarketMonitorReader'
+import { ListMarketMonitorUseCase } from './modules/admin/application/useCases/listMarketMonitor'
+import { GetMarketMonitorAssetUseCase } from './modules/admin/application/useCases/getMarketMonitorAsset'
+import { createAdminMarketRouter } from './modules/admin/interfaces/http/adminMarketRouter'
 import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
 import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
 import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
@@ -309,6 +313,10 @@ export function createApp(deps: AppDeps = {}): Express {
     market_db: createMarketDatabaseProbe(marketOverviewReader),
     redis: createRedisProbe(redisClient),
   })
+  // Monitor do mercado (N.8): só leitura.
+  const marketMonitorReader = createEngineMarketMonitorReader(engineUrl)
+  const listMarketMonitor = new ListMarketMonitorUseCase(marketMonitorReader)
+  const getMarketMonitorAsset = new GetMarketMonitorAssetUseCase(marketMonitorReader)
   const getAdminOverview = new GetAdminOverviewUseCase(
     marketOverviewReader,
     schedulerAdmin,
@@ -531,6 +539,7 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
+  app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))

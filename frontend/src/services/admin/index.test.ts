@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     advanceTicks,
     getAdminOverview,
+    getMarketMonitorAsset,
     getScheduler,
     getSystemHealth,
     listAuditLog,
     listMacroEvents,
+    listMarketMonitor,
     listTicks,
     pauseScheduler,
     resumeScheduler,
@@ -128,5 +130,19 @@ describe('services/admin', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/admin/overview')
         expect(init.headers.Authorization).toBe('Bearer token')
+    })
+
+    it('listMarketMonitor faz GET /admin/market/assets com o token', async () => {
+        const fetchMock = mockFetchOnce({ assets: [] })
+        await listMarketMonitor('token')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/market/assets')
+        expect(init.headers.Authorization).toBe('Bearer token')
+    })
+
+    it('getMarketMonitorAsset faz GET /admin/market/assets/:id', async () => {
+        const fetchMock = mockFetchOnce({ asset_id: 'a1' })
+        await getMarketMonitorAsset('token', 'a1')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/market/assets/a1')
     })
 })

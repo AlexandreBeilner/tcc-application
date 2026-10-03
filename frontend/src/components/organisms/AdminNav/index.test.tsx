@@ -24,7 +24,7 @@ describe('AdminNav (N.3)', () => {
     it('seção com rota vira link e seção sem tela aparece desabilitada com "Em breve"', () => {
         renderNav()
         expect(screen.getByRole('link', { name: 'Visão geral' })).toHaveAttribute('href', '/admin')
-        expect(screen.getByRole('link', { name: 'Mercado' })).toHaveAttribute('href', '/admin/eventos')
+        expect(screen.getByRole('link', { name: 'Mercado' })).toHaveAttribute('href', '/admin/mercado')
         expect(screen.queryByRole('link', { name: /Bots/ })).not.toBeInTheDocument()
         const bots = screen.getByText('Bots').closest('span[aria-disabled]')
         expect(bots).toHaveAttribute('aria-disabled', 'true')
@@ -35,6 +35,14 @@ describe('AdminNav (N.3)', () => {
         renderNav('/admin/eventos/novo')
         expect(screen.getByRole('link', { name: 'Visão geral' })).not.toHaveAttribute('aria-current')
         expect(screen.getByRole('link', { name: 'Mercado' })).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('Mercado fica ativa no monitor, no detalhe de um ativo e no histórico de eventos', () => {
+        for (const path of ['/admin/mercado', '/admin/mercado/ativos/a1', '/admin/eventos']) {
+            const { unmount } = renderNav(path)
+            expect(screen.getByRole('link', { name: 'Mercado' })).toHaveAttribute('aria-current', 'page')
+            unmount()
+        }
     })
 
     it('clicar numa seção disponível chama onNavigate', () => {

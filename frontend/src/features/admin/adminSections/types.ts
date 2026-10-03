@@ -9,6 +9,9 @@ export interface AdminSection {
     to?: string
     // Só a Visão geral (`/admin`) usa `end`, senão ficaria ativa em toda sub-rota.
     end?: boolean
+    // Rotas de outras telas que pertencem a esta seção (ex: o histórico de eventos macro
+    // pertence a Mercado): a seção fica ativa nelas também.
+    alsoActiveOn?: string[]
     // Tarefa do backlog que entrega a seção (mostrada na dica de "Em breve").
     task: string
 }

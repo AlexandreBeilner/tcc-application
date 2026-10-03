@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
-import { ADMIN_SECTIONS } from '../../../features/admin/adminSections'
+import { Link, useLocation } from 'react-router-dom'
+import { ADMIN_SECTIONS, isSectionActive } from '../../../features/admin/adminSections'
 import type { AdminNavProps } from './types'
 import styles from './index.module.css'
 
@@ -26,27 +26,31 @@ export function AdminNav({ onNavigate }: AdminNavProps) {
     return (
         <nav ref={navRef} className={styles.nav} aria-label="Seções do painel administrativo">
             <ul className={styles.list}>
-                {ADMIN_SECTIONS.map(({ key, label, Icon, to, end }) => (
-                    <li key={key}>
-                        {to ? (
-                            <NavLink
-                                to={to}
-                                end={end}
-                                onClick={onNavigate}
-                                className={({ isActive }) => (isActive ? `${styles.item} ${styles.active}` : styles.item)}
-                            >
-                                <Icon size={18} strokeWidth={2} aria-hidden="true" />
-                                <span>{label}</span>
-                            </NavLink>
-                        ) : (
-                            <span className={`${styles.item} ${styles.disabled}`} aria-disabled="true">
-                                <Icon size={18} strokeWidth={2} aria-hidden="true" />
-                                <span>{label}</span>
-                                <span className={styles.soon}>Em breve</span>
-                            </span>
-                        )}
-                    </li>
-                ))}
+                {ADMIN_SECTIONS.map((section) => {
+                    const { key, label, Icon, to } = section
+                    const active = to !== undefined && isSectionActive(section, pathname)
+                    return (
+                        <li key={key}>
+                            {to ? (
+                                <Link
+                                    to={to}
+                                    onClick={onNavigate}
+                                    aria-current={active ? 'page' : undefined}
+                                    className={active ? `${styles.item} ${styles.active}` : styles.item}
+                                >
+                                    <Icon size={18} strokeWidth={2} aria-hidden="true" />
+                                    <span>{label}</span>
+                                </Link>
+                            ) : (
+                                <span className={`${styles.item} ${styles.disabled}`} aria-disabled="true">
+                                    <Icon size={18} strokeWidth={2} aria-hidden="true" />
+                                    <span>{label}</span>
+                                    <span className={styles.soon}>Em breve</span>
+                                </span>
+                            )}
+                        </li>
+                    )
+                })}
             </ul>
         </nav>
     )

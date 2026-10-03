@@ -31,3 +31,8 @@ export class TickAdvanceFailedError extends Error {
     super(message)
   }
 }
+
+// AdminAssetNotFoundError é o 404 do motor no monitor de mercado (N.8): o ativo não
+// existe ou não é negociável (sandbox, renda fixa). Traduzido pelo adapter pro router
+// devolver 404.
+export class AdminAssetNotFoundError extends Error {}
