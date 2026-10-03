@@ -85,3 +85,35 @@ describe('apiRequest', () => {
         expect(onUnauthorized).toHaveBeenCalledOnce()
     })
 })
+
+describe('apiRequest, 401 que não encerra a sessão (N.22)', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        setUnauthorizedHandler(null)
+    })
+
+    function stub401(error: string) {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error }) }))
+    }
+
+    it('reauth_required não chama o handler de logout, mas lança ApiError 401', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        stub401('reauth_required')
+
+        await expect(apiRequest('/admin/tick', { method: 'POST', token: 'abc' })).rejects.toMatchObject({
+            status: 401,
+            message: 'reauth_required',
+        })
+        expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('keepSessionOn401 também não chama o handler', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        stub401('senha incorreta')
+
+        await expect(apiRequest('/auth/reauth', { method: 'POST', token: 'abc', keepSessionOn401: true })).rejects.toBeInstanceOf(ApiError)
+        expect(handler).not.toHaveBeenCalled()
+    })
+})

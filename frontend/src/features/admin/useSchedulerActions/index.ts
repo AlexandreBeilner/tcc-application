@@ -3,6 +3,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { advanceTicks, pauseScheduler, resumeScheduler, triggerTick } from '../../../services/admin'
 import type { AdvanceTicksResult, SchedulerStatus, TickResult } from '../../../services/admin'
+import { useAdminReauth } from '../AdminReauth'
 import { AUDIT_LOG_QUERY_KEY } from '../useAuditLogQuery'
 import { SCHEDULER_QUERY_KEY } from '../useSchedulerQuery'
 import { TICKS_QUERY_KEY } from '../useTicksQuery'
@@ -22,20 +23,22 @@ function useInvalidateTimeQueries() {
 
 export function useSetSchedulerPausedMutation(): UseMutationResult<SchedulerStatus, unknown, boolean> {
     const { token } = useAuth()
+    const { withReauth } = useAdminReauth()
     const invalidate = useInvalidateTimeQueries()
 
     return useMutation({
-        mutationFn: (paused: boolean) => (paused ? pauseScheduler(token as string) : resumeScheduler(token as string)),
+        // Só pausar é destrutivo (N.22): retomar nunca pede a senha de novo.
+        mutationFn: (paused: boolean) => (paused ? withReauth((t) => pauseScheduler(t)) : resumeScheduler(token as string)),
         onSuccess: invalidate,
     })
 }
 
 export function useTriggerTickMutation(): UseMutationResult<TickResult, unknown, void> {
-    const { token } = useAuth()
+    const { withReauth } = useAdminReauth()
     const invalidate = useInvalidateTimeQueries()
 
     return useMutation({
-        mutationFn: () => triggerTick(token as string),
+        mutationFn: () => withReauth((t) => triggerTick(t)),
         // Também invalida em erro: um 409 mostra "tick em andamento" e o painel
         // precisa refletir isso agora.
         onSettled: invalidate,
@@ -43,11 +46,11 @@ export function useTriggerTickMutation(): UseMutationResult<TickResult, unknown,
 }
 
 export function useAdvanceTicksMutation(): UseMutationResult<AdvanceTicksResult, unknown, number> {
-    const { token } = useAuth()
+    const { withReauth } = useAdminReauth()
     const invalidate = useInvalidateTimeQueries()
 
     return useMutation({
-        mutationFn: (days: number) => advanceTicks(token as string, days),
+        mutationFn: (days: number) => withReauth((t) => advanceTicks(t, days)),
         // Numa falha no meio, parte dos dias já rodou: o histórico mudou.
         onSettled: invalidate,
     })

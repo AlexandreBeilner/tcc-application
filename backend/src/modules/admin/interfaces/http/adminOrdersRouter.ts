@@ -25,6 +25,8 @@ export interface AdminOrdersRouterDeps {
 export function createAdminOrdersRouter(deps: AdminOrdersRouterDeps): Router {
   const router = Router()
   const adminOnly = [deps.authMiddleware.authenticate, deps.authMiddleware.requireRole('admin')]
+  // Ação destrutiva: exige senha conferida há pouco (N.22).
+  const recentAuth = deps.authMiddleware.requireRecentAuth()
   router.param('id', requireUuidParam)
 
   router.get('/admin/orders', ...adminOnly, async (req, res) => {
@@ -39,7 +41,7 @@ export function createAdminOrdersRouter(deps: AdminOrdersRouterDeps): Router {
   })
 
   // Registrada antes de /:id/cancel pra "cancel-batch" nunca ser lido como id.
-  router.post('/admin/orders/cancel-batch', ...adminOnly, async (req, res) => {
+  router.post('/admin/orders/cancel-batch', ...adminOnly, recentAuth, async (req, res) => {
     if (!req.auth) {
       res.status(401).json({ error: 'token ausente' })
       return

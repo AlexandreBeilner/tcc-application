@@ -43,7 +43,7 @@ describe('authMiddleware.authenticate', () => {
 
     authenticate(req, res, next)
 
-    expect(req.auth).toEqual({ userId: 'user-1', role: 'admin' })
+    expect(req.auth).toMatchObject({ userId: 'user-1', role: 'admin' })
     expect(next).toHaveBeenCalledOnce()
   })
 })
@@ -70,5 +70,44 @@ describe('authMiddleware.requireRole', () => {
     requireRole('admin')(req, res, next)
 
     expect(next).toHaveBeenCalledOnce()
+  })
+})
+
+describe('authMiddleware.requireRecentAuth', () => {
+  const nowSeconds = () => Math.floor(Date.now() / 1000)
+
+  it('chama next quando a senha foi conferida dentro da janela', () => {
+    const { requireRecentAuth } = createAuthMiddleware(createFakeTokenIssuer())
+    const req = { auth: { userId: 'a', role: 'admin', authTime: nowSeconds() - 60 } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+
+    requireRecentAuth()(req, res, next)
+
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it('devolve 401 reauth_required quando a conferência é antiga', () => {
+    const { requireRecentAuth } = createAuthMiddleware(createFakeTokenIssuer())
+    const req = { auth: { userId: 'a', role: 'admin', authTime: nowSeconds() - 6 * 60 } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+
+    requireRecentAuth()(req, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(401)
+    expect(res.json).toHaveBeenCalledWith({ error: 'reauth_required' })
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('respeita a janela customizada', () => {
+    const { requireRecentAuth } = createAuthMiddleware(createFakeTokenIssuer())
+    const req = { auth: { userId: 'a', role: 'admin', authTime: nowSeconds() - 30 } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+
+    requireRecentAuth(10)(req, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(401)
   })
 })

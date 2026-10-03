@@ -21,6 +21,11 @@ export function resolveMediaUrl(path: string | null): string | null {
     return path ? `${API_BASE_URL}${path}` : null
 }
 
+// Código que o backend devolve em `401 { error }` quando uma ação destrutiva do
+// painel exige senha conferida há pouco (N.22). Não é sessão inválida: quem
+// trata é `AdminReauthProvider`, que pede a senha e repete a ação.
+export const REAUTH_REQUIRED = 'reauth_required'
+
 export class ApiError extends Error {
     readonly status: number
     readonly details?: unknown
@@ -78,10 +83,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
         // com senha errada) — sem essa checagem, um usuário já logado que erra
         // a senha numa segunda conta em `/login` derrubava a própria sessão
         // válida, já que esse handler é global (linha 22 acima).
-        if (res.status === 401 && options.token) {
+        const errorBody = data as ErrorBody | undefined
+        if (res.status === 401 && options.token && !options.keepSessionOn401 && errorBody?.error !== REAUTH_REQUIRED) {
             onUnauthorized?.()
         }
-        const errorBody = data as ErrorBody | undefined
         // Convenção padrão (`.docs/backend/*.md`, ex: erro de validação Zod
         // em qualquer módulo): `details` = `errorBody.details`. Alguns
         // endpoints fogem dessa convenção e devolvem campos extras no nível

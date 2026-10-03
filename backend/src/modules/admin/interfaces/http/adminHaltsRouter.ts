@@ -25,13 +25,15 @@ export interface AdminHaltsRouterDeps {
 export function createAdminHaltsRouter(deps: AdminHaltsRouterDeps): Router {
   const router = Router()
   const adminOnly = [deps.authMiddleware.authenticate, deps.authMiddleware.requireRole('admin')]
+  // Ação destrutiva: exige senha conferida há pouco (N.22).
+  const recentAuth = deps.authMiddleware.requireRecentAuth()
   router.param('id', requireUuidParam)
 
   router.get('/admin/halts', ...adminOnly, async (_req, res) => {
     res.status(200).json(await deps.listTradingHalts.execute())
   })
 
-  router.post('/admin/halts', ...adminOnly, async (req, res) => {
+  router.post('/admin/halts', ...adminOnly, recentAuth, async (req, res) => {
     if (!req.auth) {
       res.status(401).json({ error: 'token ausente' })
       return

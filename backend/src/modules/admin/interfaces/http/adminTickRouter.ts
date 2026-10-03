@@ -20,6 +20,7 @@ export function createAdminTickRouter(deps: AdminTickRouterDeps): Router {
     '/admin/tick',
     deps.authMiddleware.authenticate,
     deps.authMiddleware.requireRole('admin'),
+    deps.authMiddleware.requireRecentAuth(),
     async (req, res) => {
       if (!req.auth) {
         res.status(401).json({ error: 'token ausente' })

@@ -31,7 +31,7 @@ describe('RegisterUserUseCase', () => {
 
     expect(result.user.role).toBe('user')
     expect(result.user.passwordHash).toBe('hashed:senha-forte-123')
-    expect(result.token).toBe(`fake-token:${result.user.id}:user`)
+    expect(result.token).toMatch(new RegExp(`^fake-token:${result.user.id}:user:\\d+$`))
   })
 
   it('abre conta no motor de simulação com capital inicial padronizado (RNF06)', async () => {

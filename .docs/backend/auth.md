@@ -31,7 +31,23 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Erros:**
   - `400` — `email`/`password` ausentes ou em formato inválido.
   - `401` — credenciais inválidas: e-mail não encontrado, senha incorreta, **ou** conta criada só via Google (sem `password_hash` local) tentando logar por senha. As três situações retornam a mesma mensagem genérica, de propósito (não vazar se um e-mail existe).
-- **Regra:** `LoginUserUseCase`.
+- **Regra:** `LoginUserUseCase`. O token carrega `authTime` (momento da conferência da senha) e expira em **7 dias** para `role: 'user'` e em **2 horas** para `role: 'admin'` (N.22). Login e tentativa falha de uma conta `admin` são gravados no `admin_audit_log` (`admin.login`, `admin.login_failed`).
+
+---
+
+### `POST /auth/reauth`
+
+*(N.22.)* Reautenticação: confere a senha de quem já está logado e devolve um token novo com `authTime` recém-atualizado. As ações destrutivas do painel admin exigem `authTime` de até **5 minutos** (`401 { error: "reauth_required" }` quando venceu) — o frontend pede a senha, chama esta rota, troca o token e repete a ação.
+
+- **Autenticação:** Bearer token.
+- **Payload (JSON):** `password` (não vazio).
+- **Sucesso:** `200` → `{ token }`.
+- **Erros:**
+  - `400` — `password` ausente.
+  - `401` — token ausente/inválido, **ou** senha incorreta (inclusive conta sem senha local, só Google).
+  - `404` — usuário do token não existe mais.
+  - `429` — mais de 10 tentativas em 5 minutos pelo mesmo IP.
+- **Regra:** `ReauthenticateUseCase`. Para `role: 'admin'`, grava `admin.reauth` / `admin.reauth_failed` no log de auditoria. Reautenticar não estende a expiração do token além da regra de 7 dias / 2 horas, que recomeça no token novo.
 
 ---
 

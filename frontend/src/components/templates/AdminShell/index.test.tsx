@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AdminShell } from '.'
+
+vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn(() => ({ token: 'tok', user: null, login: vi.fn() })) }))
 
 function renderShell(path = '/admin') {
     const router = createMemoryRouter(

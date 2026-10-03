@@ -210,6 +210,10 @@ import { createEngineOrderExecutor } from './modules/market/infrastructure/engin
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
+import { noStore } from './shared/http/noStore'
+import { createRateLimiter } from './shared/http/rateLimit'
+import { ReauthenticateUseCase } from './modules/auth/application/useCases/reauthenticate'
+import { createAuditLogAdminSessionAuditor } from './modules/admin/infrastructure/audit/auditLogAdminSessionAuditor'
 
 export interface AppDeps {
   userRepository?: UserRepository
@@ -313,7 +317,6 @@ export function createApp(deps: AppDeps = {}): Express {
     tokenIssuer,
     accountProvisioner,
   )
-  const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
   const loginWithGoogle = new LoginWithGoogleUseCase(
     userRepository,
@@ -323,6 +326,19 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const auditLogRepository = createDrizzleAuditLogRepository(db)
+  const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
+  const loginUser = new LoginUserUseCase(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+    adminSessionAuditor,
+  )
+  const reauthenticate = new ReauthenticateUseCase(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+    adminSessionAuditor,
+  )
   const recordAdminAction = new RecordAdminActionUseCase(auditLogRepository)
   const listAuditLog = new ListAuditLogUseCase(auditLogRepository)
   const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger, recordAdminAction)
@@ -555,6 +571,9 @@ export function createApp(deps: AppDeps = {}): Express {
   // observável rodando só `npm run dev` — só em `vite build && vite preview`.
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
   const app = express()
+  // Atrás do gateway nginx (um salto): sem isso `req.ip` seria sempre o IP do
+  // gateway e o limitador de taxa (N.22) trataria todo mundo como um cliente só.
+  app.set('trust proxy', 1)
   app.use(cors({ origin: frontendUrl }))
   app.use(express.json())
   app.use(healthRouter)
@@ -563,12 +582,15 @@ export function createApp(deps: AppDeps = {}): Express {
   // (tarefa 6.10.8) — mesma pasta do volume Docker, montado na raiz do
   // gateway (`location /` já faz proxy de tudo, `gateway/nginx.conf`).
   app.use('/avatars', express.static(avatarStorageDir))
+  // Conferência de senha é alvo de força bruta: teto bem menor que o do painel.
+  app.use('/auth/reauth', createRateLimiter({ windowMs: 5 * 60_000, max: 10 }))
   app.use(
     createAuthRouter({
       registerUser,
       loginUser,
       getCurrentUser,
       loginWithGoogle,
+      reauthenticate,
       googleIdentityProvider,
       authMiddleware,
     }),
@@ -584,6 +606,9 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  // N.22: respostas do painel nunca em cache e teto de requisições por IP
+  // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
+  app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))
   app.use(createAdminPingRouter(authMiddleware))
   app.use(
     createAdminMacroEventsRouter({

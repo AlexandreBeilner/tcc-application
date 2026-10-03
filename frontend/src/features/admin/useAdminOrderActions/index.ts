@@ -3,6 +3,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { cancelAdminOrder, cancelAdminOrdersBatch } from '../../../services/admin'
 import type { CancelOrdersBatchInput, CancelOrdersBatchResult } from '../../../services/admin'
+import { useAdminReauth } from '../AdminReauth'
 import { ADMIN_ORDERS_QUERY_KEY } from '../useAdminOrdersQuery'
 import { AUDIT_LOG_QUERY_KEY } from '../useAuditLogQuery'
 import { MARKET_MONITOR_QUERY_KEY } from '../useMarketMonitorQuery'
@@ -29,11 +30,11 @@ export function useCancelAdminOrderMutation(): UseMutationResult<void, unknown, 
 }
 
 export function useCancelAdminOrdersBatchMutation(): UseMutationResult<CancelOrdersBatchResult, unknown, CancelOrdersBatchInput> {
-    const { token } = useAuth()
+    const { withReauth } = useAdminReauth()
     const invalidate = useInvalidateOrderQueries()
 
     return useMutation({
-        mutationFn: (input: CancelOrdersBatchInput) => cancelAdminOrdersBatch(token as string, input),
+        mutationFn: (input: CancelOrdersBatchInput) => withReauth((t) => cancelAdminOrdersBatch(t, input)),
         onSettled: invalidate,
     })
 }

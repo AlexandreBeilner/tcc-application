@@ -92,6 +92,10 @@ export type AuditAction =
     | 'bot.fund'
     | 'settings.update'
     | 'settings.reset'
+    | 'admin.login'
+    | 'admin.login_failed'
+    | 'admin.reauth'
+    | 'admin.reauth_failed'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {

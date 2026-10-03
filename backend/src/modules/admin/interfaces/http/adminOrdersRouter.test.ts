@@ -158,3 +158,20 @@ describe('rotas admin de ordens (N.10)', () => {
     expect(res.body).toMatchObject({ code: 'batch_too_large', matched: 501, max: 500 })
   })
 })
+
+// N.22: ação destrutiva exige senha conferida há pouco (`authTime` recente).
+describe('reautenticação em ações destrutivas', () => {
+  it('POST /admin/orders/cancel-batch devolve 401 reauth_required com authTime antigo', async () => {
+    const { app, auditLog } = buildApp()
+    const staleToken = 'fake-token:admin-1:admin:1000'
+
+    const res = await request(app)
+      .post('/admin/orders/cancel-batch')
+      .set('Authorization', `Bearer ${staleToken}`)
+      .send({})
+
+    expect(res.status).toBe(401)
+    expect(res.body).toEqual({ error: 'reauth_required' })
+    expect((await auditLog.list({ limit: 10, offset: 0 })).entries).toHaveLength(0)
+  })
+})

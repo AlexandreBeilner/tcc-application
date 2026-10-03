@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
+import { AdminReauthProvider } from '../../../features/admin/AdminReauth'
 import { AdminNav } from '../../organisms/AdminNav'
 import styles from './index.module.css'
 
@@ -26,33 +27,35 @@ export function AdminShell() {
     }, [drawerOpen])
 
     return (
-        <div className={styles.shell}>
-            <button
-                type="button"
-                className={styles.menuButton}
-                aria-expanded={drawerOpen}
-                aria-controls="admin-sections"
-                onClick={() => setDrawerOpen((open) => !open)}
-            >
-                <Menu size={18} aria-hidden="true" />
-                Menu do painel
-            </button>
+        <AdminReauthProvider>
+            <div className={styles.shell}>
+                <button
+                    type="button"
+                    className={styles.menuButton}
+                    aria-expanded={drawerOpen}
+                    aria-controls="admin-sections"
+                    onClick={() => setDrawerOpen((open) => !open)}
+                >
+                    <Menu size={18} aria-hidden="true" />
+                    Menu do painel
+                </button>
 
-            {drawerOpen && <div className={styles.scrim} data-testid="admin-scrim" onClick={closeDrawer} />}
+                {drawerOpen && <div className={styles.scrim} data-testid="admin-scrim" onClick={closeDrawer} />}
 
-            <aside id="admin-sections" className={drawerOpen ? `${styles.sidebar} ${styles.open}` : styles.sidebar}>
-                <div className={styles.drawerHead}>
-                    <span className={styles.drawerTitle}>Painel administrativo</span>
-                    <button type="button" className={styles.closeButton} aria-label="Fechar menu do painel" onClick={closeDrawer}>
-                        <X size={18} aria-hidden="true" />
-                    </button>
+                <aside id="admin-sections" className={drawerOpen ? `${styles.sidebar} ${styles.open}` : styles.sidebar}>
+                    <div className={styles.drawerHead}>
+                        <span className={styles.drawerTitle}>Painel administrativo</span>
+                        <button type="button" className={styles.closeButton} aria-label="Fechar menu do painel" onClick={closeDrawer}>
+                            <X size={18} aria-hidden="true" />
+                        </button>
+                    </div>
+                    <AdminNav onNavigate={closeDrawer} />
+                </aside>
+
+                <div className={styles.content}>
+                    <Outlet />
                 </div>
-                <AdminNav onNavigate={closeDrawer} />
-            </aside>
-
-            <div className={styles.content}>
-                <Outlet />
             </div>
-        </div>
+        </AdminReauthProvider>
     )
 }

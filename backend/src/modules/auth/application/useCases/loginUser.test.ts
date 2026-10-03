@@ -4,6 +4,7 @@ import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
+import { createFakeAdminSessionAuditor } from '../../test/fakes/fakeAdminSessionAuditor'
 import { RegisterUserUseCase } from './registerUser'
 import { LoginUserUseCase } from './loginUser'
 
@@ -77,5 +78,51 @@ describe('LoginUserUseCase', () => {
     await expect(
       loginUser.execute({ email: 'oauth@example.com', password: 'qualquer-coisa' }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError)
+  })
+
+  describe('auditoria de sessão de administrador (N.22)', () => {
+    async function buildWithAdmin() {
+      const userRepository = createFakeUserRepository()
+      const passwordHasher = createFakePasswordHasher()
+      const sessionAuditor = createFakeAdminSessionAuditor()
+      const loginUser = new LoginUserUseCase(
+        userRepository,
+        passwordHasher,
+        createFakeTokenIssuer(),
+        sessionAuditor,
+      )
+      const admin = await userRepository.createUser({
+        name: 'Admin',
+        email: 'admin@example.com',
+        username: 'admin',
+        passwordHash: await passwordHasher.hash('senha-forte-123'),
+        role: 'admin',
+      })
+      const user = await userRepository.createUser({
+        name: 'Comum',
+        email: 'comum@example.com',
+        username: 'comum',
+        passwordHash: await passwordHasher.hash('senha-forte-123'),
+      })
+      return { loginUser, sessionAuditor, admin, user }
+    }
+
+    it('registra login e falha de admin', async () => {
+      const { loginUser, sessionAuditor, admin } = await buildWithAdmin()
+      await loginUser.execute({ email: 'admin@example.com', password: 'senha-forte-123' })
+      await expect(
+        loginUser.execute({ email: 'admin@example.com', password: 'errada' }),
+      ).rejects.toBeInstanceOf(InvalidCredentialsError)
+      expect(sessionAuditor.events).toEqual([
+        { adminId: admin.id, kind: 'login' },
+        { adminId: admin.id, kind: 'login_failed' },
+      ])
+    })
+
+    it('não registra login de usuário comum', async () => {
+      const { loginUser, sessionAuditor } = await buildWithAdmin()
+      await loginUser.execute({ email: 'comum@example.com', password: 'senha-forte-123' })
+      expect(sessionAuditor.events).toEqual([])
+    })
   })
 })

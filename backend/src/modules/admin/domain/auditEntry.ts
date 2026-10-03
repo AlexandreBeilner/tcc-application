@@ -18,6 +18,10 @@ export const ADMIN_AUDIT_ACTIONS = [
   'bot.fund',
   'settings.update',
   'settings.reset',
+  'admin.login',
+  'admin.login_failed',
+  'admin.reauth',
+  'admin.reauth_failed',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

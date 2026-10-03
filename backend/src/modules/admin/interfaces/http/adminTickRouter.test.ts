@@ -101,3 +101,20 @@ describe('POST /admin/tick', () => {
     })
   })
 })
+
+// N.22: ação destrutiva exige senha conferida há pouco (`authTime` recente).
+describe('reautenticação em ações destrutivas', () => {
+  it('POST /admin/tick devolve 401 reauth_required com authTime antigo', async () => {
+    const { app, auditLog } = buildApp()
+    const staleToken = 'fake-token:admin-1:admin:1000'
+
+    const res = await request(app)
+      .post('/admin/tick')
+      .set('Authorization', `Bearer ${staleToken}`)
+      .send({})
+
+    expect(res.status).toBe(401)
+    expect(res.body).toEqual({ error: 'reauth_required' })
+    expect((await auditLog.list({ limit: 10, offset: 0 })).entries).toHaveLength(0)
+  })
+})

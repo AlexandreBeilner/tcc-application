@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AdminReauthProvider } from '../../features/admin/AdminReauth'
 import { useAuth } from '../../features/auth/AuthContext'
 import { cancelAdminOrder, cancelAdminOrdersBatch, listAdminOrders, listMarketMonitor } from '../../services/admin'
 import type { AdminOrder } from '../../services/admin'
@@ -41,7 +42,9 @@ function renderPage(initialEntry = '/admin/mercado/ordens') {
     render(
         <QueryClientProvider client={client}>
             <MemoryRouter initialEntries={[initialEntry]}>
-                <AdminOrdens />
+                <AdminReauthProvider>
+                    <AdminOrdens />
+                </AdminReauthProvider>
             </MemoryRouter>
         </QueryClientProvider>,
     )

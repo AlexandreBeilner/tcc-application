@@ -52,12 +52,27 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
 - **Auditoria (N.4):** grava `tick.trigger` com `target_type = tick`, `target_id` = dia simulado e `payload = { day }`; `result = failed` com o motivo quando o motor recusa (ex: `409` de tick em andamento).
 - **Regra:** `TriggerTickUseCase` delega inteiramente pra `TickTrigger` (porta) → `engineTickTrigger` (adapter, chama `POST /admin/tick` via `ENGINE_URL`, sem body) — nenhuma regra de negócio própria, mesmo padrão de delegação fina das outras duas rotas deste módulo. Serve tanto demonstração ao vivo pra banca quanto a suíte `backend/test/e2e/` (avançar dias simulados sem esperar o job diário real).
 
+### Segurança do painel (tarefa N.22)
+
+Valem para todas as rotas `/admin/*`:
+
+- **Sem cache:** toda resposta leva `Cache-Control: no-store`.
+- **Limite de taxa:** 600 requisições por minuto por IP (`429` com `Retry-After`). O painel faz polling, então o teto é folgado; serve pra frear laço descontrolado. Janela fixa em memória (uma instância do backend); com réplicas, migrar o contador pro Redis.
+- **Token curto:** token de admin expira em 2 horas (ver `auth.md`).
+- **Reautenticação em ação destrutiva:** `POST /admin/tick`, `POST /admin/tick/advance`, `POST /admin/scheduler/pause`, `POST /admin/halts` (pausa de negociação) e `POST /admin/orders/cancel-batch` devolvem `401 { error: "reauth_required" }` se a senha não foi conferida nos últimos 5 minutos (login conta). A checagem vem **depois** do `403` de papel (usuário comum nunca vê `reauth_required`) e **antes** de qualquer efeito ou auditoria. Retomar o temporizador e levantar pausa não são destrutivos e não pedem. Fluxo: `POST /auth/reauth` → token novo → repetir a ação.
+- **Auditoria de sessão:** `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed` entram em `admin_audit_log` (`target_type = session`).
+- **2FA** fica de fora (Fase 2).
+
+#### Criar e revogar administrador (runbook)
+
+`role = admin` nunca nasce de autocadastro (RNF07). **Criar:** com a stack no ar, `docker compose exec -e ADMIN_EMAIL=... -e ADMIN_PASSWORD=... -e ADMIN_USERNAME=... backend node dist/db/seed.js` (idempotente: e-mail já existente não é alterado). **Revogar:** não há rota nem tela (o painel não promove nem rebaixa `role`, CLAUDE.md); direto no banco, `UPDATE users SET role = 'user' WHERE email = '...'`, e o token antigo morre sozinho em até 2 horas (a revogação imediata de sessão é o "forçar logout" da N.16). Toda ação do admin fica no `admin_audit_log`, que continua consultável depois da revogação.
+
 ### `GET /admin/audit-log`
 
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.

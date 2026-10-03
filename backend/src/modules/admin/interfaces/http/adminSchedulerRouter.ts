@@ -27,6 +27,8 @@ export interface AdminSchedulerRouterDeps {
 export function createAdminSchedulerRouter(deps: AdminSchedulerRouterDeps): Router {
   const router = Router()
   const adminOnly = [deps.authMiddleware.authenticate, deps.authMiddleware.requireRole('admin')]
+  // Ação destrutiva: exige senha conferida há pouco (N.22).
+  const recentAuth = deps.authMiddleware.requireRecentAuth()
 
   function setPaused(paused: boolean) {
     return async (req: Request, res: Response) => {
@@ -50,7 +52,7 @@ export function createAdminSchedulerRouter(deps: AdminSchedulerRouterDeps): Rout
     res.status(200).json(await deps.getSchedulerStatus.execute())
   })
 
-  router.post('/admin/scheduler/pause', ...adminOnly, setPaused(true))
+  router.post('/admin/scheduler/pause', ...adminOnly, recentAuth, setPaused(true))
   router.post('/admin/scheduler/resume', ...adminOnly, setPaused(false))
 
   router.get('/admin/ticks', ...adminOnly, async (req, res) => {
@@ -65,7 +67,7 @@ export function createAdminSchedulerRouter(deps: AdminSchedulerRouterDeps): Rout
     res.status(200).json(await deps.listTicks.execute(parsed.data))
   })
 
-  router.post('/admin/tick/advance', ...adminOnly, async (req, res) => {
+  router.post('/admin/tick/advance', ...adminOnly, recentAuth, async (req, res) => {
     if (!req.auth) {
       res.status(401).json({ error: 'token ausente' })
       return

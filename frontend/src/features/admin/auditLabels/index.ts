@@ -19,6 +19,10 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'bot.fund': 'Aporte em bot',
     'settings.update': 'Alteração de parâmetro',
     'settings.reset': 'Restauração de parâmetro',
+    'admin.login': 'Login de administrador',
+    'admin.login_failed': 'Tentativa de login de administrador',
+    'admin.reauth': 'Reautenticação de administrador',
+    'admin.reauth_failed': 'Reautenticação de administrador recusada',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

@@ -3,6 +3,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { liftTradingHalt, pauseTrading } from '../../../services/admin'
 import type { PauseTradingInput, TradingHalt } from '../../../services/admin'
+import { useAdminReauth } from '../AdminReauth'
 import { TRADING_HALTS_QUERY_KEY } from '../../market/useTradingHaltQuery'
 import { AUDIT_LOG_QUERY_KEY } from '../useAuditLogQuery'
 import { TRADING_HALTS_ADMIN_QUERY_KEY } from '../useTradingHaltsQuery'
@@ -19,11 +20,11 @@ function useInvalidateHaltQueries() {
 }
 
 export function usePauseTradingMutation(): UseMutationResult<TradingHalt, unknown, PauseTradingInput> {
-    const { token } = useAuth()
+    const { withReauth } = useAdminReauth()
     const invalidate = useInvalidateHaltQueries()
 
     return useMutation({
-        mutationFn: (input: PauseTradingInput) => pauseTrading(token as string, input),
+        mutationFn: (input: PauseTradingInput) => withReauth((t) => pauseTrading(t, input)),
         onSettled: invalidate,
     })
 }
