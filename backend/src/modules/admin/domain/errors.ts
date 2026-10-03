@@ -85,3 +85,10 @@ export class EngineSettingNotFoundError extends Error {}
 // EngineSettingRejectedError é o 422 do motor: o valor está fora da faixa permitida da
 // chave (N.7). A mensagem traz a faixa, vinda do domínio do motor.
 export class EngineSettingRejectedError extends Error {}
+
+// MacroEventNotFoundError é o 404 do motor: o evento macro não existe (N.11).
+export class MacroEventNotFoundError extends Error {}
+
+// MacroEventConflictError é o 409 do motor: o evento já foi aplicado ou cancelado, já
+// começou a produzir efeito, ou há um tick em andamento (N.11). A mensagem diz qual.
+export class MacroEventConflictError extends Error {}

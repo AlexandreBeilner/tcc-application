@@ -4,6 +4,7 @@
 // migration — o que não pode acontecer é gravar uma ação fora desta lista.
 export const ADMIN_AUDIT_ACTIONS = [
   'macro_event.trigger',
+  'macro_event.cancel',
   'tick.trigger',
   'tick.advance',
   'scheduler.pause',

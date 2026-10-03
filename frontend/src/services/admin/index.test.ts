@@ -8,7 +8,9 @@ import {
     listAdminBots,
     updateAdminBot,
     liftTradingHalt,
+    cancelMacroEvent,
     getEngineSettings,
+    getMacroEventDetail,
     listTradingHalts,
     resetEngineSetting,
     updateEngineSetting,
@@ -183,6 +185,33 @@ describe('services/admin', () => {
         expect(url).toBe('/admin/orders/cancel-batch')
         expect(JSON.parse(init.body)).toEqual({ asset_id: 'asset-1' })
         expect(result.cancelled_count).toBe(1)
+    })
+
+    it('listMacroEvents manda só os filtros preenchidos', async () => {
+        const fetchMock = mockFetchOnce({ events: [], total_entries: 0 })
+        await listMacroEvents('token', 20, 0, { status: 'cancelado', sector: 'Mineração', from_day: 10 })
+        const url = new URL(fetchMock.mock.calls[0][0] as string, 'http://x')
+        expect(Object.fromEntries(url.searchParams)).toEqual({
+            limit: '20',
+            offset: '0',
+            status: 'cancelado',
+            sector: 'Mineração',
+            from_day: '10',
+        })
+    })
+
+    it('getMacroEventDetail faz GET /admin/macro-events/:id com a janela', async () => {
+        const fetchMock = mockFetchOnce({})
+        await getMacroEventDetail('token', 'e1', 10)
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/macro-events/e1?window_days=10')
+    })
+
+    it('cancelMacroEvent faz DELETE /admin/macro-events/:id', async () => {
+        const fetchMock = mockFetchOnce({ event: {} })
+        await cancelMacroEvent('token', 'e1')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/macro-events/e1')
+        expect(init.method).toBe('DELETE')
     })
 
     it('getEngineSettings faz GET /admin/settings', async () => {

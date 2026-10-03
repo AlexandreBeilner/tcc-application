@@ -88,7 +88,7 @@ describe('AdminEventosMacro (tela 10.3)', () => {
         vi.mocked(listMacroEvents).mockResolvedValue({ events: [], total_entries: 0 })
         renderPage()
         await screen.findByText('Nenhum evento macro disparado ainda.')
-        expect(listMacroEvents).toHaveBeenCalledWith('token', 20, 0)
+        expect(listMacroEvents).toHaveBeenCalledWith('token', 20, 0, {})
     })
 
     it('erro ao carregar mostra mensagem, sem quebrar a tela', async () => {

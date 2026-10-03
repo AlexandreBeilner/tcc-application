@@ -11,6 +11,9 @@ import type {
     AdminOrdersFilters,
     AdvanceTicksResult,
     AuditLogFilters,
+    CancelMacroEventResult,
+    MacroEventDetail,
+    MacroEventFilters,
     CancelOrdersBatchInput,
     CancelOrdersBatchResult,
     EngineSettingKey,
@@ -32,6 +35,12 @@ import type {
 } from './types'
 
 export type {
+    CancelMacroEventResult,
+    MacroEventDetail,
+    MacroEventFilters,
+    MacroEventImpact,
+    MacroEventImpactAsset,
+    MacroEventImpactTarget,
     EditableSetting,
     EngineSettingKey,
     EngineSettings,
@@ -99,10 +108,19 @@ export type {
 
 // Tela 10.1 (`.docs/backend/admin.md#get-adminmacro-events`) — mesma
 // convenção limit/offset de `listNews`.
-export function listMacroEvents(token: string, limit?: number, offset?: number): Promise<ListMacroEventsResult> {
+export function listMacroEvents(
+    token: string,
+    limit?: number,
+    offset?: number,
+    filters: MacroEventFilters = {},
+): Promise<ListMacroEventsResult> {
     const params = new URLSearchParams()
     if (limit !== undefined) params.set('limit', String(limit))
     if (offset !== undefined) params.set('offset', String(offset))
+    // Filtros do painel (N.11): só os preenchidos entram na query string.
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
     const query = params.toString()
     return apiRequest<ListMacroEventsResult>(`/admin/macro-events${query ? `?${query}` : ''}`, { token })
 }
@@ -244,4 +262,16 @@ export function updateEngineSetting(token: string, key: EngineSettingKey, value:
 
 export function resetEngineSetting(token: string, key: EngineSettingKey): Promise<EngineSettings> {
     return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'DELETE' })
+}
+
+// Detalhe de um evento macro (N.11): estado de ciclo de vida, impacto realizado e a versão
+// que o usuário vê.
+export function getMacroEventDetail(token: string, id: string, windowDays?: number): Promise<MacroEventDetail> {
+    const query = windowDays === undefined ? '' : `?window_days=${windowDays}`
+    return apiRequest<MacroEventDetail>(`/admin/macro-events/${id}${query}`, { token })
+}
+
+// Cancela um evento pendente que ainda não produziu efeito (N.11).
+export function cancelMacroEvent(token: string, id: string): Promise<CancelMacroEventResult> {
+    return apiRequest<CancelMacroEventResult>(`/admin/macro-events/${id}`, { token, method: 'DELETE' })
 }

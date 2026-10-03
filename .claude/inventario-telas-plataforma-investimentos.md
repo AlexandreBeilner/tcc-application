@@ -450,17 +450,17 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ### 10.3 Histórico de Eventos Macro
 - **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
-- **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), paginada, botão "Novo evento".
-- **Ações:** "Novo evento" → **10.2 Criar/Disparar Evento**.
-- **Estados especiais:** nenhum evento disparado ainda.
+- **Conteúdo:** lista de eventos (histórico), paginada, com a situação de cada um (**agendado**, pendente, aplicado ou **cancelado**, N.11), filtros por status, alvo (setor, classe de risco ou ativo) e período em dias simulados, botão "Novo evento", e, no fim, o **catálogo de templates** em somente leitura (a edição segue via código, spec 3.3.3).
+- **Ações:** "Novo evento" → **10.2 Criar/Disparar Evento**; "Ver detalhe" em cada evento → **10.12 Detalhe do Evento Macro**; filtrar e limpar filtros.
+- **Estados especiais:** nenhum evento para o filtro; período inválido (aviso, filtro de período ignorado).
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`.
 
 ### 10.2 Criar/Disparar Evento Macro
 - **Objetivo:** formalizar RF13 — criação e disparo manual de evento.
 - **Acesso:** a partir de 10.3.
 - **Conteúdo:** seleção de template do catálogo (seção 3.3.2 da spec, 10 templates pré-definidos) OU criação avulsa (título, narrativa, setor/ativo-alvo, banda de magnitude — Leve/Moderado/Severo, tipo de efeito — preço/fundamentos/ambos).
-- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico com status "aplicado".
-- **Estados especiais:** validação de campos obrigatórios ao criar evento avulso.
+- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico. Com um **dia de aplicação** preenchido (N.11) o botão vira "Agendar evento": o evento nasce pendente, só começa a produzir efeito naquele dia simulado e só aparece pros jogadores na véspera; vazio, dispara já (efeito a partir do próximo tick).
+- **Estados especiais:** validação de campos obrigatórios ao criar evento avulso; dia de aplicação que não é posterior ao dia simulado atual (recusado na tela e no motor).
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`, `companies` (para segmentar por setor).
 
 ### 10.4 Auditoria
@@ -483,6 +483,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Ações:** salvar (valida a faixa na tela e no motor, confirma antes de enviar e avisa que afeta todos os usuários a partir do próximo tick agendado) e restaurar o padrão (só habilitado quando o valor foi alterado, com confirmação). Tudo na auditoria (`settings.update`, `settings.reset`).
 - **Estados especiais:** valor fora da faixa (mensagem da faixa), recusa do motor (mostra a mensagem dele), erro ao carregar.
 - **Dados envolvidos:** `engine_settings`.
+
+### 10.12 Detalhe do Evento Macro
+- **Objetivo:** olhar um evento macro de perto e, se ainda der tempo, cancelá-lo (N.11). Rota `/admin/eventos/:id`, dentro da seção "Mercado".
+- **Conteúdo:** situação (agendado, pendente, aplicado, cancelado) e data de criação; **ciclo de vida** (dia simulado agora, dia em que o efeito começa, duração, dia e data do relatório de fundamentos, se os jogadores já enxergam o evento); **o que foi sorteado** (narrativa, direção, magnitude, template, efeitos de preço e de fundamentos, alvos); **o que o jogador vê hoje** (a mesma versão redigida do feed: enquanto o evento está pendente, sem direção, magnitude, efeitos nem alvos); **impacto realizado no preço** por alvo e por ativo, entre o último dia antes do efeito e a janela escolhida (5, 10 ou 30 dias), que só aparece depois de o mercado chegar ao fim da janela.
+- **Ações:** trocar a janela do impacto; **cancelar evento** (confirmação; só enquanto o evento é pendente e o efeito ainda não começou; o evento não é apagado, deixa de produzir efeito e some do feed). O cancelamento fica na auditoria (`macro_event.cancel`).
+- **Estados especiais:** cancelar desabilitado com o motivo (já aplicado, já cancelado, efeito em andamento); impacto indisponível (cancelado, evento só de fundamentos, janela ainda aberta); recusa do motor ao cancelar (tick em andamento) mostra o motivo; evento inexistente; erro ao carregar.
+- **Dados envolvidos:** `macro_events`, `macro_event_targets`, `asset_quotes`.
 
 ---
 
@@ -528,8 +535,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.9 | Pausas de Negociação | Admin |
 | 10.10 | Bots | Admin |
 | 10.11 | Parâmetros de simulação | Admin |
+| 10.12 | Detalhe do Evento Macro | Admin |
 
-**Total: 38 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 39 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

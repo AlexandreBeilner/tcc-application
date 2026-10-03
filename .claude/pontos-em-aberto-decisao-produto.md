@@ -847,3 +847,11 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   (aparece no mapa como "nova, opcional"); (b) dispensa **não dá XP**; (c) pra "trilha concluída", dispensada conta
   como satisfeita (troféu já conquistado não regride). Os itens (b) e (c) foram aceitos como propostos.
 - **Status:** resolvido
+
+### 031 · Quando o jogador passa a ver um evento macro agendado (N.11)
+
+- **Local:** `engine/internal/domain/macroevent/lifecycle.go` (`IsPubliclyVisible`), `engine/internal/infra/db/macro_event_repository.go` (`listWhere`, visão pública) e `engine/internal/infra/db/calendar_repository.go` (`MacroEventsBetween`)
+- **Origem:** implementação da N.11 (agendar um evento pra um dia simulado futuro). O backlog diz que o agendado "aparece como pendente até lá", mas não diz **pra quem**: o feed de notícias e o calendário do jogador mostram título e narrativa de todo evento.
+- **O que é:** mostrar o evento ao jogador no instante em que o admin o agenda entregaria o evento com semanas de aviso, o que contraria a razão de existir do veredito redigido (RF16). **Decisão provisória tomada na implementação (a confirmar):** o evento agendado só aparece no feed e no calendário do jogador na **véspera** do primeiro dia de efeito (`triggered_on_day <= dia corrente + 1`), a mesma antecedência de um disparo imediato, que já aparece um tick antes de produzir efeito. Evento **cancelado** nunca aparece. O painel enxerga tudo.
+- **Opções:** (a) a regra atual (véspera, igual ao disparo imediato); (b) aparecer só quando o efeito começa (some a antecedência de um tick, e o disparo imediato teria de seguir a mesma regra); (c) o admin escolher a antecedência por evento.
+- **Status:** aberto (implementado com (a), reversível: é uma condição em duas consultas)

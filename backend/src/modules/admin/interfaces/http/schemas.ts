@@ -24,6 +24,7 @@ const macroEventFromTemplateSchema = z.object({
   template_key: z.string().trim().min(1),
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
+  apply_on_day: z.number().int().positive().optional(),
 })
 
 const macroEventAdHocSchema = z.object({
@@ -35,6 +36,7 @@ const macroEventAdHocSchema = z.object({
   affects_fundamentals: z.boolean(),
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
+  apply_on_day: z.number().int().positive().optional(),
 })
 
 export const triggerMacroEventBodySchema = z.union([
@@ -46,9 +48,29 @@ export const triggerMacroEventBodySchema = z.union([
 // chegam como string na query, coeridos pro tipo numérico esperado pelo
 // motor (GET /macro-events); ambos opcionais, o motor aplica o default
 // (20, máximo 100) quando ausentes.
-export const listMacroEventsQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+export const listMacroEventsQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    offset: z.coerce.number().int().min(0).optional(),
+    // Filtros do histórico do painel (N.11). O motor valida de novo; aqui só o formato.
+    status: z.enum(['pendente', 'aplicado', 'cancelado']).optional(),
+    sector: z.string().trim().min(1).optional(),
+    risk_class: z.string().trim().min(1).optional(),
+    asset_id: z.uuid().optional(),
+    from_day: z.coerce.number().int().min(0).optional(),
+    to_day: z.coerce.number().int().min(0).optional(),
+  })
+  .refine((q) => [q.sector, q.risk_class, q.asset_id].filter((v) => v !== undefined).length <= 1, {
+    message: 'use no máximo um filtro de alvo (sector, risk_class ou asset_id)',
+  })
+  .refine((q) => q.from_day === undefined || q.to_day === undefined || q.from_day <= q.to_day, {
+    message: 'from_day não pode ser maior que to_day',
+    path: ['from_day'],
+  })
+
+// GET /admin/macro-events/:id (N.11): janela do impacto realizado, em dias simulados.
+export const macroEventDetailQuerySchema = z.object({
+  window_days: z.coerce.number().int().min(1).max(90).optional(),
 })
 
 // GET /admin/audit-log (N.4) — filtros todos opcionais; datas ISO 8601. `limit`

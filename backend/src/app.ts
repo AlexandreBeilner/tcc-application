@@ -12,6 +12,10 @@ import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/t
 import { ListMacroEventsUseCase } from './modules/admin/application/useCases/listMacroEvents'
 import { TriggerTickUseCase } from './modules/admin/application/useCases/triggerTick'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
+import { createEngineMacroEventAdmin } from './modules/admin/infrastructure/engine/engineMacroEventAdmin'
+import { createNewsUserViewProjector } from './modules/admin/infrastructure/news/newsUserViewProjector'
+import { GetMacroEventDetailUseCase } from './modules/admin/application/useCases/getMacroEventDetail'
+import { CancelMacroEventUseCase } from './modules/admin/application/useCases/cancelMacroEvent'
 import { createAdminTickRouter } from './modules/admin/interfaces/http/adminTickRouter'
 import { createAdminSchedulerRouter } from './modules/admin/interfaces/http/adminSchedulerRouter'
 import { createEngineSchedulerAdmin } from './modules/admin/infrastructure/engine/engineSchedulerAdmin'
@@ -322,6 +326,12 @@ export function createApp(deps: AppDeps = {}): Express {
   const recordAdminAction = new RecordAdminActionUseCase(auditLogRepository)
   const listAuditLog = new ListAuditLogUseCase(auditLogRepository)
   const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger, recordAdminAction)
+  const macroEventAdmin = createEngineMacroEventAdmin(engineUrl)
+  const getMacroEventDetail = new GetMacroEventDetailUseCase(
+    macroEventAdmin,
+    createNewsUserViewProjector(),
+  )
+  const cancelMacroEvent = new CancelMacroEventUseCase(macroEventAdmin, recordAdminAction)
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
   const triggerTick = new TriggerTickUseCase(tickTrigger, recordAdminAction)
   const schedulerAdmin = createEngineSchedulerAdmin(engineUrl)
@@ -575,7 +585,15 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminPingRouter(authMiddleware))
-  app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
+  app.use(
+    createAdminMacroEventsRouter({
+      triggerMacroEvent,
+      listMacroEvents,
+      getMacroEventDetail,
+      cancelMacroEvent,
+      authMiddleware,
+    }),
+  )
   app.use(createAdminTickRouter({ triggerTick, authMiddleware }))
   app.use(
     createAdminSchedulerRouter({

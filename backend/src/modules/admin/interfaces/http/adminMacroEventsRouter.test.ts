@@ -3,13 +3,23 @@ import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
-import { InvalidMacroEventError } from '../../domain/errors'
+import {
+  InvalidMacroEventError,
+  MacroEventConflictError,
+  MacroEventNotFoundError,
+} from '../../domain/errors'
 import { TriggerMacroEventUseCase } from '../../application/useCases/triggerMacroEvent'
 import { ListMacroEventsUseCase } from '../../application/useCases/listMacroEvents'
+import { CancelMacroEventUseCase } from '../../application/useCases/cancelMacroEvent'
+import { GetMacroEventDetailUseCase } from '../../application/useCases/getMacroEventDetail'
 import { RecordAdminActionUseCase } from '../../application/useCases/recordAdminAction'
 import { createFakeAuditLogRepository } from '../../test/fakes/fakeAuditLogRepository'
 import { createFakeMacroEventTrigger } from '../../test/fakes/fakeMacroEventTrigger'
 import { createFakeMacroEventReader } from '../../test/fakes/fakeMacroEventReader'
+import {
+  createFakeMacroEventAdmin,
+  fakeUserViewProjector,
+} from '../../test/fakes/fakeMacroEventAdmin'
 import { createAdminMacroEventsRouter } from './adminMacroEventsRouter'
 
 const sampleResult = {
@@ -48,10 +58,24 @@ function buildApp(
     new RecordAdminActionUseCase(auditLog),
   )
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
+  const macroEventAdmin = createFakeMacroEventAdmin()
+  const getMacroEventDetail = new GetMacroEventDetailUseCase(macroEventAdmin, fakeUserViewProjector)
+  const cancelMacroEvent = new CancelMacroEventUseCase(
+    macroEventAdmin,
+    new RecordAdminActionUseCase(auditLog),
+  )
   const app = express()
   app.use(express.json())
-  app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
-  return { app, tokenIssuer, macroEventTrigger, macroEventReader, auditLog }
+  app.use(
+    createAdminMacroEventsRouter({
+      triggerMacroEvent,
+      listMacroEvents,
+      getMacroEventDetail,
+      cancelMacroEvent,
+      authMiddleware,
+    }),
+  )
+  return { app, tokenIssuer, macroEventTrigger, macroEventReader, macroEventAdmin, auditLog }
 }
 
 describe('POST /admin/macro-events', () => {
@@ -218,7 +242,7 @@ describe('GET /admin/macro-events', () => {
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ events: [sampleResult], total_entries: 1 })
-    expect(macroEventReader.calls).toEqual([{}])
+    expect(macroEventReader.calls).toEqual([{ view: 'admin' }])
   })
 
   it('repassa limit/offset da query pro motor', async () => {
@@ -230,7 +254,7 @@ describe('GET /admin/macro-events', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(macroEventReader.calls).toEqual([{ limit: 5, offset: 10 }])
+    expect(macroEventReader.calls).toEqual([{ limit: 5, offset: 10, view: 'admin' }])
   })
 
   it('retorna 400 para limit/offset inválidos', async () => {
@@ -242,5 +266,171 @@ describe('GET /admin/macro-events', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(400)
+  })
+})
+
+const EVENT_ID = '9d0b8f1e-3c1a-4a52-9b0e-2f6f5f0d1a99'
+
+describe('POST /admin/macro-events com apply_on_day (N.11)', () => {
+  it('repassa o dia agendado ao motor e o grava na auditoria', async () => {
+    const { app, tokenIssuer, macroEventTrigger, auditLog } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validTemplateBody, apply_on_day: 130 })
+
+    expect(res.status).toBe(201)
+    expect(macroEventTrigger.calls[0]).toMatchObject({ apply_on_day: 130 })
+    expect(auditLog.entries[0].payload).toMatchObject({ apply_on_day: 130 })
+  })
+
+  it.each([0, -3, 1.5, 'amanhã'])('apply_on_day %j retorna 400 sem chamar o motor', async (day) => {
+    const { app, tokenIssuer, macroEventTrigger } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validTemplateBody, apply_on_day: day })
+    expect(res.status).toBe(400)
+    expect(macroEventTrigger.calls).toHaveLength(0)
+  })
+})
+
+describe('GET /admin/macro-events com filtros (N.11)', () => {
+  it('pede a visão do painel ao motor e repassa os filtros', async () => {
+    const { app, tokenIssuer, macroEventReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app)
+      .get('/admin/macro-events?status=cancelado&sector=Mineração&from_day=10&to_day=50&limit=5')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(macroEventReader.calls[0]).toEqual({
+      view: 'admin',
+      limit: 5,
+      status: 'cancelado',
+      sector: 'Mineração',
+      from_day: 10,
+      to_day: 50,
+    })
+  })
+
+  it.each([
+    'status=feito',
+    'sector=A&risk_class=B',
+    'asset_id=nao-uuid',
+    'from_day=9&to_day=3',
+    'from_day=-1',
+  ])('filtro inválido (%s) retorna 400 sem chamar o motor', async (qs) => {
+    const { app, tokenIssuer, macroEventReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .get(`/admin/macro-events?${qs}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(400)
+    expect(macroEventReader.calls).toHaveLength(0)
+  })
+})
+
+describe('GET /admin/macro-events/:id (N.11)', () => {
+  it.each(['get', 'delete'] as const)(
+    '%s retorna 401 sem token e 403 para usuário',
+    async (method) => {
+      const { app, tokenIssuer, macroEventAdmin, auditLog } = buildApp()
+      expect((await request(app)[method](`/admin/macro-events/${EVENT_ID}`)).status).toBe(401)
+      const user = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+      const res = await request(app)
+        [method](`/admin/macro-events/${EVENT_ID}`)
+        .set('Authorization', `Bearer ${user}`)
+      expect(res.status).toBe(403)
+      expect(macroEventAdmin.calls).toHaveLength(0)
+      expect(auditLog.entries).toHaveLength(0)
+    },
+  )
+
+  it('devolve o detalhe com a versão que o usuário vê e repassa a janela', async () => {
+    const { app, tokenIssuer, macroEventAdmin } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .get(`/admin/macro-events/${EVENT_ID}?window_days=7`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+    expect(macroEventAdmin.detailCalls).toEqual([{ eventId: EVENT_ID, windowDays: 7 }])
+    expect(res.body).toMatchObject({
+      id: EVENT_ID,
+      direction: 'negativo',
+      publicly_visible: false,
+      user_view: { direction: '', targets: [] },
+    })
+  })
+
+  it.each([
+    '/admin/macro-events/nao-uuid',
+    `/admin/macro-events/${EVENT_ID}?window_days=0`,
+    `/admin/macro-events/${EVENT_ID}?window_days=91`,
+  ])('%s retorna 400 sem chamar o motor', async (path) => {
+    const { app, tokenIssuer, macroEventAdmin } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app).get(path).set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(400)
+    expect(macroEventAdmin.calls).toHaveLength(0)
+  })
+
+  it('evento inexistente retorna 404', async () => {
+    const { app, tokenIssuer, macroEventAdmin } = buildApp()
+    macroEventAdmin.errorToThrow = new MacroEventNotFoundError('evento macro não encontrado')
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .get(`/admin/macro-events/${EVENT_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('DELETE /admin/macro-events/:id (N.11)', () => {
+  it('cancela, devolve o evento cancelado e audita', async () => {
+    const { app, tokenIssuer, macroEventAdmin, auditLog } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .delete(`/admin/macro-events/${EVENT_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+    expect(res.body.event).toMatchObject({ id: EVENT_ID, status: 'cancelado' })
+    expect(macroEventAdmin.cancelled).toEqual([EVENT_ID])
+    expect(auditLog.entries[0]).toMatchObject({
+      adminId: 'admin-1',
+      action: 'macro_event.cancel',
+      targetId: EVENT_ID,
+      result: 'success',
+    })
+  })
+
+  it('id que não é UUID retorna 400 sem chamar o motor nem auditar', async () => {
+    const { app, tokenIssuer, macroEventAdmin, auditLog } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .delete('/admin/macro-events/x')
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(400)
+    expect(macroEventAdmin.calls).toHaveLength(0)
+    expect(auditLog.entries).toHaveLength(0)
+  })
+
+  it.each([
+    [new MacroEventConflictError('o evento já começou a produzir efeito'), 409],
+    [new MacroEventNotFoundError('evento macro não encontrado'), 404],
+  ])('mapeia %s para %i e audita a falha', async (error, status) => {
+    const { app, tokenIssuer, macroEventAdmin, auditLog } = buildApp()
+    macroEventAdmin.errorToThrow = error
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .delete(`/admin/macro-events/${EVENT_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(status)
+    expect(res.body.error).toBe(error.message)
+    expect(auditLog.entries[0]).toMatchObject({ result: 'failed' })
   })
 })

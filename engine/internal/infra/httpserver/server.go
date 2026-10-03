@@ -109,6 +109,8 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /fixed-income/tax-rate", handleFixedIncomeTaxRate())
 	mux.HandleFunc("POST /macro-events", handleTriggerMacroEvent(macroEvents))
 	mux.HandleFunc("GET /macro-events", handleListMacroEvents(macroEventReader))
+	mux.HandleFunc("GET /macro-events/{id}", handleAdminMacroEventDetail(cfg.macroEventAdmin))
+	mux.HandleFunc("DELETE /macro-events/{id}", handleAdminMacroEventCancel(cfg.macroEventAdmin))
 	mux.HandleFunc("GET /market/indicators/history", handleGetIndicatorHistory(indicatorHistory))
 	mux.HandleFunc("GET /market/clock", handleGetMarketClock(calendar))
 	mux.HandleFunc("GET /market/calendar", handleGetMarketCalendar(calendar))

@@ -4,7 +4,7 @@ export type { NewsEventTarget } from '../news'
 
 export type MacroEventDirection = 'positivo' | 'negativo' | 'misto'
 export type MacroEventMagnitudeBand = 'leve' | 'moderado' | 'severo'
-export type MacroEventStatus = 'pendente' | 'aplicado'
+export type MacroEventStatus = 'pendente' | 'aplicado' | 'cancelado'
 
 // Campos comuns às duas respostas do motor (`.docs/engine/macroevent.md`) —
 // `created_at` só existe na de `GET /macro-events` (repassada por `GET
@@ -26,6 +26,9 @@ export interface MacroEventBase {
     fundamentals_effect_pct?: number
     fundamentals_report_day?: number
     targets: NewsEventTarget[]
+    // Só na visão do painel (N.11): ainda sem efeito aplicado, e se o cancelamento ainda é possível.
+    scheduled?: boolean
+    cancellable?: boolean
 }
 
 // Item de `GET /admin/macro-events` (tela 10.1) — `status` reflete o
@@ -49,6 +52,8 @@ export interface ListMacroEventsResult {
 export interface TriggerMacroEventFromTemplateInput {
     template_key: string
     targets: NewsEventTarget[]
+    // Agenda o primeiro dia de efeito (dia simulado futuro, N.11); ausente dispara já.
+    apply_on_day?: number
 }
 
 export interface TriggerMacroEventAdHocInput {
@@ -59,6 +64,7 @@ export interface TriggerMacroEventAdHocInput {
     affects_price: boolean
     affects_fundamentals: boolean
     targets: NewsEventTarget[]
+    apply_on_day?: number
 }
 
 export type TriggerMacroEventInput = TriggerMacroEventFromTemplateInput | TriggerMacroEventAdHocInput
@@ -72,6 +78,7 @@ export interface TriggerMacroEventResult {
 // nova da Fase N que audite uma ação nova acrescenta aqui e em `auditLabels`.
 export type AuditAction =
     | 'macro_event.trigger'
+    | 'macro_event.cancel'
     | 'tick.trigger'
     | 'tick.advance'
     | 'scheduler.pause'
@@ -518,4 +525,59 @@ export interface ReadOnlySetting {
 export interface EngineSettings {
     editable: EditableSetting[]
     read_only: ReadOnlySetting[]
+}
+
+// Filtros do histórico de eventos macro (N.11): no máximo um filtro de alvo; o período é em
+// dias simulados do primeiro dia de efeito.
+export interface MacroEventFilters {
+    status?: MacroEventStatus
+    sector?: string
+    risk_class?: string
+    asset_id?: string
+    from_day?: number
+    to_day?: number
+}
+
+// `GET /admin/macro-events/:id` (N.11, `.docs/backend/admin.md#ciclo-de-vida-do-evento-macro-tarefa-n11`).
+export interface MacroEventImpactAsset {
+    asset_id: string
+    ticker: string
+    price_before: number
+    price_after: number
+    change_pct: number
+}
+
+export interface MacroEventImpactTarget extends NewsEventTarget {
+    assets: MacroEventImpactAsset[]
+    average_change_pct: number | null
+}
+
+export interface MacroEventImpact {
+    available: boolean
+    window_days: number
+    base_day: number
+    end_day: number
+    available_on_day: number
+    targets: MacroEventImpactTarget[]
+}
+
+// A versão redigida: direção e magnitude vêm vazias enquanto o evento está pendente (RF16).
+export interface MacroEventUserView extends Omit<MacroEventBase, 'direction' | 'magnitude_band'> {
+    direction: MacroEventDirection | ''
+    magnitude_band: MacroEventMagnitudeBand | ''
+}
+
+export interface MacroEventDetail extends MacroEventBase {
+    created_at: string
+    created_by: string | null
+    current_day: number
+    report_date?: string
+    publicly_visible: boolean
+    impact: MacroEventImpact
+    // O que o usuário vê hoje deste evento (veredito redigido enquanto pendente).
+    user_view: MacroEventUserView
+}
+
+export interface CancelMacroEventResult {
+    event: MacroEventBase
 }

@@ -13,6 +13,7 @@ import { CompanyProfile } from '../pages/CompanyProfile'
 import { Configuracoes } from '../pages/Configuracoes'
 import { Conquistas } from '../pages/Conquistas'
 import { AdminAuditoria } from '../pages/AdminAuditoria'
+import { AdminEventoMacroDetalhe } from '../pages/AdminEventoMacroDetalhe'
 import { AdminEventosMacro } from '../pages/AdminEventosMacro'
 import { AdminMercado } from '../pages/AdminMercado'
 import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
@@ -151,6 +152,7 @@ export const router = createBrowserRouter([
                                 children: [
                                     { path: '/admin', element: <AdminVisaoGeral /> },
                                     { path: '/admin/eventos', element: <AdminEventosMacro /> },
+                                    { path: '/admin/eventos/:id', element: <AdminEventoMacroDetalhe /> },
                                     { path: '/admin/tempo', element: <AdminTempo /> },
                                     { path: '/admin/tempo/parametros', element: <AdminParametros /> },
                                     { path: '/admin/mercado', element: <AdminMercado /> },

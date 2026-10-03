@@ -17,6 +17,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/ipca"
+	"tcc-investimentos/engine/internal/domain/macroeventadmin"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
 	"tcc-investimentos/engine/internal/domain/marketcalendar"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -227,7 +228,7 @@ func main() {
 	botAdminRepository := db.NewBotAdminRepository(pool)
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

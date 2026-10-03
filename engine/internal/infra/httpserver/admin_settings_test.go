@@ -13,7 +13,9 @@ import (
 
 // fakeSettings usa o Service real por cima de um repositório em memória, então a
 // validação de faixa testada aqui é a do domínio, não uma cópia.
-type memorySettingsRepo struct{ rows map[enginesetting.Key]enginesetting.Override }
+type memorySettingsRepo struct {
+	rows map[enginesetting.Key]enginesetting.Override
+}
 
 func (m *memorySettingsRepo) Overrides(context.Context) (map[enginesetting.Key]enginesetting.Override, error) {
 	return m.rows, nil

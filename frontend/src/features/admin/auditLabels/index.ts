@@ -5,6 +5,7 @@ import type { AuditAction, AuditResult } from '../../../services/admin'
 // se faltar uma).
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'macro_event.trigger': 'Disparo de evento macro',
+    'macro_event.cancel': 'Cancelamento de evento macro',
     'tick.trigger': 'Disparo de tick',
     'tick.advance': 'Avanço de dias do mercado',
     'scheduler.pause': 'Pausa do temporizador',

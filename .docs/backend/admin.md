@@ -17,20 +17,20 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
 ### `POST /admin/macro-events`
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** repassado praticamente sem tradução pro motor (mesmos nomes de campo, snake_case) — ver `.docs/engine/macroevent.md` pro formato completo (`template_key` opcional; evento avulso exige `title`/`narrative`/`direction`/`magnitude_band`/`affects_price`/`affects_fundamentals`; `targets`, mínimo 1, cada um com exatamente um entre `sector`/`risk_class`/`asset_id`). Validado com `interfaces/http/schemas.ts` (`triggerMacroEventBodySchema`, união de duas variantes — template ou avulso) antes de chamar o caso de uso.
+- **Payload:** repassado praticamente sem tradução pro motor (mesmos nomes de campo, snake_case) — ver `.docs/engine/macroevent.md` pro formato completo (`template_key` opcional; evento avulso exige `title`/`narrative`/`direction`/`magnitude_band`/`affects_price`/`affects_fundamentals`; `targets`, mínimo 1, cada um com exatamente um entre `sector`/`risk_class`/`asset_id`; `apply_on_day` opcional, inteiro positivo, **agenda** o primeiro dia de efeito pra um dia simulado futuro, N.11). Validado com `interfaces/http/schemas.ts` (`triggerMacroEventBodySchema`, união de duas variantes — template ou avulso) antes de chamar o caso de uso.
 - **Sucesso:** `201` → `{ event: {...} }`, corpo de `event` idêntico à resposta de `POST /macro-events` do motor (id, efeitos já amostrados, `fundamentals_report_day` se aplicável, `targets` — array de `{ sector? | risk_class? | asset_id? }` refletindo os alvos persistidos, exatamente um campo preenchido por item).
 - **Erros:**
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.
-  - `400` — corpo não bate com nenhuma das duas variantes do schema (campo obrigatório ausente, alvo com escopo ambíguo etc.) **ou** o motor rejeitou o evento por uma regra que só ele sabe validar (ex: `template_key` inexistente no catálogo, ou `asset_id` de alvo que não existe ou não é ação — FII, ETF e renda fixa são recusados) — dupla validação documentada (Zod na borda + `macroevent.NewEvent`/`NewTarget` no motor), não redundância acidental.
+  - `400` — corpo não bate com nenhuma das duas variantes do schema (campo obrigatório ausente, alvo com escopo ambíguo etc.) **ou** o motor rejeitou o evento por uma regra que só ele sabe validar (ex: `template_key` inexistente no catálogo, `asset_id` de alvo que não existe ou não é ação — FII, ETF e renda fixa são recusados — ou `apply_on_day` que não é posterior ao dia simulado corrente ou passa de 365 dias à frente) — dupla validação documentada (Zod na borda + `macroevent.NewEvent`/`NewTarget` no motor), não redundância acidental.
 - **Auditoria (N.4):** grava `macro_event.trigger` com `target_type = macro_event`, `target_id` = id do evento criado e `payload` = corpo recebido; `result = failed` com `error_message` quando o motor recusa (`400`). Corpo recusado pelo Zod (`400` antes do caso de uso) não gera linha.
 - **Regra:** `TriggerMacroEventUseCase` delega inteiramente pra `MacroEventTrigger` (porta) → `engineMacroEventTrigger` (adapter, chama `POST /macro-events` via `ENGINE_URL`) — a regra de negócio do disparo (sorteio de efeito por banda, defasagem preço↔fundamentos) vive toda no motor; este módulo só garante `role = admin` (RNF07) antes de repassar. Um `400` do motor é traduzido pelo adapter em `InvalidMacroEventError` (`domain/errors.ts`), mapeado de volta pra `400` pelo router — qualquer outra falha do motor (`500`+) propaga como erro genérico (`500`, tratamento padrão do Express).
 
 ### `GET /admin/macro-events`
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string — `limit` (opcional, inteiro 1–100) e `offset` (opcional, inteiro ≥ 0), validados por `interfaces/http/schemas.ts` (`listMacroEventsQuerySchema`, `z.coerce.number()` já que query chega como string). Ambos repassados como estão pro motor; ausentes, o motor aplica o próprio default (ver `.docs/engine/macroevent.md`).
-- **Sucesso:** `200` → `{ events: [...], total_entries }`, cada item idêntico à resposta de `POST /admin/macro-events` mais `created_at` (mesmo formato de `event`, `targets` incluído) — inclui `status` já atualizado (`pendente`/`aplicado`), não um valor congelado da criação (tarefa 4.5: o Temporizador atualiza a coluna a cada tick, ver `.docs/engine/macroevent.md#get-macro-events` e `.docs/engine/tick.md`). `created_at` (tarefa 6.6.1, RFC 3339) só aparece nesta resposta, nunca na de `POST /admin/macro-events` — é o timestamp real de criação, diferente de `triggered_on_day` (dia **simulado**). `total_entries` (tarefa 6.9.9) é o total de eventos macro sem paginação — o motor conta `macro_events` inteira (`SELECT COUNT(*)`) além de aplicar `LIMIT`/`OFFSET`, ver `.docs/engine/macroevent.md#get-macro-events`.
+- **Payload:** query string — `limit` (opcional, inteiro 1–100) e `offset` (opcional, inteiro ≥ 0), validados por `interfaces/http/schemas.ts` (`listMacroEventsQuerySchema`, `z.coerce.number()` já que query chega como string). Ambos repassados como estão pro motor; ausentes, o motor aplica o próprio default (ver `.docs/engine/macroevent.md`). **Filtros do painel (N.11), todos opcionais:** `status` (`pendente` | `aplicado` | `cancelado`), um só entre `sector`, `risk_class` e `asset_id` (UUID), e `from_day`/`to_day` (período em dias simulados do primeiro dia de efeito, `from_day <= to_day`). O router sempre pede ao motor a visão `admin` (enxerga cancelado e agendado); o feed do usuário (`GET /news`) não passa `view` e recebe a visão pública do motor.
+- **Sucesso:** `200` → `{ events: [...], total_entries }`, cada item idêntico à resposta de `POST /admin/macro-events` mais `created_at` (mesmo formato de `event`, `targets` incluído) — inclui `status` já atualizado (`pendente`/`aplicado`/`cancelado`), mais `scheduled` (ainda sem efeito aplicado) e `cancellable` (N.11), não um valor congelado da criação (tarefa 4.5: o Temporizador atualiza a coluna a cada tick, ver `.docs/engine/macroevent.md#get-macro-events` e `.docs/engine/tick.md`). `created_at` (tarefa 6.6.1, RFC 3339) só aparece nesta resposta, nunca na de `POST /admin/macro-events` — é o timestamp real de criação, diferente de `triggered_on_day` (dia **simulado**). `total_entries` (tarefa 6.9.9) é o total de eventos macro sem paginação — o motor conta `macro_events` inteira (`SELECT COUNT(*)`) além de aplicar `LIMIT`/`OFFSET`, ver `.docs/engine/macroevent.md#get-macro-events`.
 - **Erros:**
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.
@@ -197,6 +197,24 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Sucesso:** `200` → o mesmo corpo do `GET`, com a chave no padrão do ambiente.
 - **Erros:** `404` — `key` não é editável.
 - **Auditoria:** `settings.reset`, `target_id` = a chave, `payload = { key }`.
+
+### Ciclo de vida do evento macro (tarefa N.11)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/macroevent.md#ciclo-de-vida-do-evento-tarefa-n11`, que descreve os estados e as regras): `pendente → aplicado` ou `pendente → cancelado`. Agendar é o `apply_on_day` de `POST /admin/macro-events`; o filtro do histórico é o de `GET /admin/macro-events`.
+
+#### `GET /admin/macro-events/:id`
+
+- **Payload:** `id` UUID no caminho; `window_days` (query, opcional, inteiro 1–90, padrão 5), validado por `macroEventDetailQuerySchema`.
+- **Sucesso:** `200` → o evento no formato da lista mais `created_by`, `current_day`, `report_date` (AAAA-MM-DD do dia do relatório de fundamentos, só se afeta fundamentos), `publicly_visible` (se o usuário já enxerga o evento), `impact` (`{ available, window_days, base_day, end_day, available_on_day, targets: [{ sector | risk_class | asset_id, assets: [{ asset_id, ticker, price_before, price_after, change_pct }], average_change_pct | null }] }`, variação de preço por alvo; `available` só depois de o mercado chegar em `end_day`) e `user_view`, **a versão que o usuário vê hoje** (a regra `redactPending` do módulo de notícias: enquanto o evento está pendente o veredito, a magnitude, os efeitos e os alvos vêm redigidos). `user_view` só vale quando `publicly_visible` é verdadeiro.
+- **Erros:** `400` — `id` não é UUID ou `window_days` inválido (o motor não é chamado); `404` — evento inexistente.
+- **Auditoria:** leitura, não grava.
+
+#### `DELETE /admin/macro-events/:id`
+
+- **Payload:** nenhum (`id` UUID no caminho).
+- **Sucesso:** `200` → `{ event }`, o evento já `cancelado`.
+- **Erros:** `400` — `id` não é UUID; `404` — evento inexistente; `409` — o evento já foi aplicado ou cancelado, já começou a produzir efeito, ou há um tick em andamento (a mensagem do motor diz qual).
+- **Auditoria:** `macro_event.cancel`, `target_type = macro_event`, `target_id` = id do evento, `payload = { title, triggered_on_day }`; a recusa do motor grava `result = failed` com o motivo.
 
 ### Gestão de bots (tarefa N.1)
 
