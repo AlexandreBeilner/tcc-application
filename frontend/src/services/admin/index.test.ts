@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     advanceTicks,
+    createAdminBot,
+    listAdminBots,
+    updateAdminBot,
     liftTradingHalt,
     listTradingHalts,
     pauseTrading,
@@ -197,5 +200,40 @@ describe('services/admin', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/admin/halts/h1/lift')
         expect(init.method).toBe('POST')
+    })
+
+    it('listAdminBots faz GET /admin/bots com o token', async () => {
+        const fetchMock = mockFetchOnce({ bots: [], uncovered_assets: [] })
+        await listAdminBots('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/bots')
+        expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer token')
+    })
+
+    it('createAdminBot faz POST /admin/bots com o corpo', async () => {
+        const fetchMock = mockFetchOnce({ account_id: 'b1' })
+        await createAdminBot('token', {
+            archetype: 'chartista',
+            sectors: ['Varejo'],
+            risk_classes: [],
+            asset_classes: [],
+            within_scope_pct: 0.9,
+            max_position_size_pct: 0.3,
+            market_order_preference: 0.5,
+            spread_width_pct: 0,
+            initial_cash: 1000,
+        })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/bots')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toMatchObject({ archetype: 'chartista', initial_cash: 1000 })
+    })
+
+    it('updateAdminBot faz PATCH /admin/bots/:id só com os campos informados', async () => {
+        const fetchMock = mockFetchOnce({ account_id: 'b1' })
+        await updateAdminBot('token', 'b1', { is_active: false })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/bots/b1')
+        expect(init.method).toBe('PATCH')
+        expect(JSON.parse(init.body)).toEqual({ is_active: false })
     })
 })

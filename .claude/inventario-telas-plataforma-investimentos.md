@@ -441,6 +441,13 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** carregando; sem pausa vigente; pausa duplicada ou já retomada (409, mensagem e lista atualizada); mercado já pausado (botão desabilitado). Para o usuário, o detalhe do ativo (4.5) mostra "Negociação pausada" e desabilita a ordem.
 - **Dados envolvidos:** `GET/POST /admin/halts`, `POST /admin/halts/:id/lift`, `GET /market/halts`.
 
+### 10.10 Bots
+- **Objetivo:** operar os bots de liquidez (N.2). Rota `/admin/bots`, seção própria "Bots" do painel.
+- **Conteúdo:** resumo ("X de Y bots ativos"); aviso tracejado dos ativos negociáveis sem Market Maker ativo cobrindo; filtros de arquétipo e de status; tabela de bots com arquétipo e id curto (link pra tela de ordens filtrada pelo bot), escopo (setores, risco, classes de ativo e fatia da atividade), caixa, posições, cobertura (`N de teto` e os tickers, só Market Maker) e status; formulário de criação (arquétipo, escopo, atividade no escopo 85 a 90%, conhecimento só no Fundamentalista, posição máxima, preferência por ordem a mercado, spread, teto de cobertura só no Market Maker, caixa inicial; percentuais digitados em %).
+- **Ações:** ativar (direto) e desativar (confirmação: sai da próxima rodada, caixa e posição ficam; num Market Maker avisa que a cobertura deixa de valer); editar cobertura e teto de um Market Maker num diálogo (conjunto final de ativos; avisa que tirar um ativo cancela as ordens dele nele); criar bot. O bot novo nasce só com caixa (sem posição inicial) e entra na rodada seguinte; Market Maker novo nasce sem cobertura. Tudo na auditoria (`bot.create`, `bot.update`).
+- **Estados especiais:** carregando; falha ao carregar; sem bot com os filtros; sem ativo disponível pra cobrir; bot inexistente (404), ativo já coberto por outro Market Maker (409) ou ordens demais pra cancelar (422), todos com mensagem e lista atualizada; recusa do motor na criação aparece no formulário. Tabela no tablet/desktop e cartões no mobile; desktop: lista à esquerda e formulário fixo à direita, tablet/mobile: formulário abre pelo botão "Novo bot" acima da lista.
+- **Dados envolvidos:** `GET/POST /admin/bots`, `PATCH /admin/bots/:id` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
 ### 10.3 Histórico de Eventos Macro
 - **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
 - **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), paginada, botão "Novo evento".
@@ -512,8 +519,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.7 | Detalhe do Ativo no Monitor | Admin |
 | 10.8 | Ordens do Book | Admin |
 | 10.9 | Pausas de Negociação | Admin |
+| 10.10 | Bots | Admin |
 
-**Total: 36 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 37 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

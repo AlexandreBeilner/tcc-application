@@ -1,5 +1,9 @@
 import { apiRequest } from '../client'
 import type {
+    AdminBot,
+    AdminBotListing,
+    CreateBotInput,
+    UpdateBotInput,
     AdminOverview,
     AdminOrdersFilters,
     AdvanceTicksResult,
@@ -23,6 +27,13 @@ import type {
 } from './types'
 
 export type {
+    AdminBot,
+    AdminBotListing,
+    BotArchetype,
+    BotAssetRef,
+    BotHolding,
+    CreateBotInput,
+    UpdateBotInput,
     HaltScope,
     PauseTradingInput,
     TradingHalt,
@@ -179,4 +190,18 @@ export function pauseTrading(token: string, input: PauseTradingInput): Promise<T
 
 export function liftTradingHalt(token: string, haltId: string): Promise<TradingHalt> {
     return apiRequest<TradingHalt>(`/admin/halts/${haltId}/lift`, { token, method: 'POST' })
+}
+
+// Gestão de bots (N.1/N.2): lista com cobertura e posições, criação e alteração (interruptor,
+// teto e cobertura de Market Maker).
+export function listAdminBots(token: string): Promise<AdminBotListing> {
+    return apiRequest<AdminBotListing>('/admin/bots', { token })
+}
+
+export function createAdminBot(token: string, input: CreateBotInput): Promise<AdminBot> {
+    return apiRequest<AdminBot>('/admin/bots', { token, method: 'POST', body: input })
+}
+
+export function updateAdminBot(token: string, botId: string, input: UpdateBotInput): Promise<AdminBot> {
+    return apiRequest<AdminBot>(`/admin/bots/${botId}`, { token, method: 'PATCH', body: input })
 }

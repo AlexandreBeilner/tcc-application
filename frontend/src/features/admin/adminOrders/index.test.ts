@@ -31,6 +31,9 @@ describe('adminOrders', () => {
 
     it('descreve o dono: bot com arquétipo ou usuário com id curto', () => {
         expect(describeOwner({ ...base, is_bot: true, bot_archetype: 'market_maker' })).toBe('Bot (Market Maker)')
+        // O motor manda o arquétipo em português; o mapa antigo tinha as chaves em inglês e deixava passar cru.
+        expect(describeOwner({ ...base, is_bot: true, bot_archetype: 'fundamentalista' })).toBe('Bot (Fundamentalista)')
+        expect(describeOwner({ ...base, is_bot: true, bot_archetype: 'ruido' })).toBe('Bot (Ruído)')
         expect(describeOwner({ ...base, is_bot: true })).toBe('Bot')
         expect(describeOwner(base)).toBe('Usuário 1d0b8f1e')
     })

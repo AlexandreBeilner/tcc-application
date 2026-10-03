@@ -13,6 +13,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'order.cancel_batch': 'Cancelamento de ordens em lote',
     'trading.halt': 'Pausa de negociação',
     'trading.resume': 'Retomada da negociação',
+    'bot.create': 'Criação de bot',
+    'bot.update': 'Alteração de bot',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

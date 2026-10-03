@@ -1,5 +1,6 @@
 import { ApiError } from '../../../services/client'
 import type { AdminOrder, AdminOrderStatus } from '../../../services/admin'
+import { describeArchetype } from '../botLabels'
 
 export const STATUS_LABELS: Record<AdminOrderStatus, string> = {
     pending: 'Aberta',
@@ -17,13 +18,6 @@ const CANCEL_REASON_LABELS: Record<string, string> = {
     admin: 'por intervenção do admin',
 }
 
-const ARCHETYPE_LABELS: Record<string, string> = {
-    fundamentalist: 'Fundamentalista',
-    chartist: 'Chartista',
-    noise: 'Ruído',
-    market_maker: 'Market Maker',
-}
-
 // Só ordem em repouso (aberta ou parcial) pode ser cancelada.
 export function isCancellable(order: AdminOrder): boolean {
     return order.status === 'pending' || order.status === 'partially_filled'
@@ -38,8 +32,7 @@ export function describeCancelReason(reason: string | null): string | null {
 // bastante pra colar no filtro de dono sem poluir a linha).
 export function describeOwner(order: AdminOrder): string {
     if (order.is_bot) {
-        const archetype = order.bot_archetype ? (ARCHETYPE_LABELS[order.bot_archetype] ?? order.bot_archetype) : null
-        return archetype ? `Bot (${archetype})` : 'Bot'
+        return order.bot_archetype ? `Bot (${describeArchetype(order.bot_archetype)})` : 'Bot'
     }
     return `Usuário ${order.user_id.slice(0, 8)}`
 }

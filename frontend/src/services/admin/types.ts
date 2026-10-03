@@ -80,6 +80,8 @@ export type AuditAction =
     | 'order.cancel_batch'
     | 'trading.halt'
     | 'trading.resume'
+    | 'bot.create'
+    | 'bot.update'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -349,4 +351,68 @@ export interface PauseTradingInput {
     scope: HaltScope
     asset_id?: string
     reason: string
+}
+
+// Gestão de bots (N.1/N.2, `.docs/backend/admin.md#gestão-de-bots-tarefa-n1`).
+export type BotArchetype = 'ruido' | 'market_maker' | 'chartista' | 'fundamentalista'
+
+export interface BotAssetRef {
+    asset_id: string
+    ticker: string
+}
+
+export interface BotHolding extends BotAssetRef {
+    quantity: number
+    average_price: number
+}
+
+export interface AdminBot {
+    account_id: string
+    archetype: BotArchetype
+    is_active: boolean
+    cash: number
+    scope: {
+        sectors: string[]
+        risk_classes: string[]
+        asset_classes: string[]
+        within_scope_pct: number
+    }
+    knowledge_level: number | null
+    risk_profile: {
+        max_position_size_pct: number
+        market_order_preference: number
+        spread_width_pct: number
+    }
+    // Só o Market Maker tem teto e cobertura.
+    max_covered_assets: number | null
+    covered_assets: BotAssetRef[]
+    holdings: BotHolding[]
+}
+
+export interface AdminBotListing {
+    bots: AdminBot[]
+    // Ativos negociáveis sem Market Maker ativo cobrindo.
+    uncovered_assets: BotAssetRef[]
+}
+
+// Frações (0 a 1), como o motor guarda; a tela converte de e para porcentagem.
+export interface CreateBotInput {
+    archetype: BotArchetype
+    sectors: string[]
+    risk_classes: string[]
+    asset_classes: string[]
+    within_scope_pct: number
+    knowledge_level?: number
+    max_position_size_pct: number
+    market_order_preference: number
+    spread_width_pct: number
+    max_covered_assets?: number
+    initial_cash: number
+}
+
+export interface UpdateBotInput {
+    is_active?: boolean
+    max_covered_assets?: number
+    // Conjunto final de ativos do Market Maker; lista vazia tira toda a cobertura.
+    covered_asset_ids?: string[]
 }
