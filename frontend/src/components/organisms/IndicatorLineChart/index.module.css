@@ -31,6 +31,9 @@
 }
 
 .tab {
+    /* Alvo de toque de pelo menos 36px de altura (eram 26px) no mobile. */
+    min-height: 36px;
+    min-width: 44px;
     padding: 6px var(--space-3);
     border: none;
     border-radius: var(--radius-full);
