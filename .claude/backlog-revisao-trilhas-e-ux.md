@@ -277,13 +277,26 @@ colunas.
   badge de acerto/erro da Revelação não aparece (o veredito vem do servidor e a revisão não faz POST); a revisão
   stateless é escopo da RC.2.4. (b) Não rodei `docker compose up` nem o e2e `lessonJourney`.
 
-### RC.2.2 · Botão Voltar (P.2)
+### RC.2.2 · Botão Voltar (P.2) ✅ concluída (2026-10-04)
 
 - **Escopo:** reducer de navegação (`useLessonNavigation`), Voltar entre cartões e fases (exceto o primeiro
   cartão do Cenário), preserva escolha, veredito e revelações; reavançar fases já vistas não chama o POST (sem 422
   por intervalo de 5 s ou passo fora de ordem); teclado e leitor de tela.
 - **Aceite:** voltar e reavançar em qualquer ponto sem erro nem espera; estado preservado.
 - **Depende de:** RC.2.1.
+- **Entregável (2026-10-04):** `features/lessons/useLessonNavigation` (reducer + hook, com testes) guarda fase,
+  cartão, fase mais avançada já alcançada (`reached`) e cartões `[revelar]` já abertos (chave `fase:cartão`, não zera
+  ao avançar nem ao voltar). `pages/Lesson` troca os estados soltos (`localStep`, `subStep`, `revealedIndexes`) por
+  esse hook. Botão "Voltar" (secundário, à esquerda do CTA) em todos os cartões e fases, exceto o primeiro do Cenário;
+  do primeiro cartão de uma fase cai no último da anterior. Reavançar até `reached` (fase já gravada no servidor, ou
+  tudo em revisão) é só navegação local, sem `POST /progress`, então não há 422 de intervalo/ordem. Voltar à pergunta
+  já passada não pede escolha de novo e desabilita as alternativas (resposta aceita não troca). Teclado: setas
+  esquerda/direita clicam Voltar/Continuar (ignoradas com foco em input/slider ou modificador; herdam o `disabled`);
+  o botão tem `aria-label`. Validou: `vitest` (suíte completa), `tsc -b`, oxlint; 6 testes novos de página.
+  **Ressalvas:** (a) o veredito/badge da Revelação só existe na sessão em que a aposta foi enviada; voltar e
+  reavançar o preserva, mas após recarregar a página ele não volta (isso é da revisão stateless, RC.2.4). (b) Sem
+  conferência visual do botão nos 3 breakpoints nem `docker compose up`. (c) `CardDots` continua decorativo (o
+  "contador clicável" era opcional).
 
 ### RC.2.3 · Backend da pergunta que só avança ao acertar (P.3) ✅ concluída (2026-10-04)
 

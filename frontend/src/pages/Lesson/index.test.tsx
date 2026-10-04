@@ -571,4 +571,93 @@ describe('Lesson (tela 3.2)', () => {
             await screen.findByText('Não foi possível carregar esta lição agora. Ela pode estar bloqueada ou não existir.'),
         ).toBeInTheDocument()
     })
+
+    describe('botão Voltar (RC.2.2)', () => {
+        const voltar = () => screen.getByRole('button', { name: /^Voltar ao/ })
+
+        it('não aparece no primeiro cartão do Cenário', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+
+            renderLesson()
+
+            await screen.findByText('Cenário')
+            expect(screen.queryByRole('button', { name: /^Voltar ao/ })).not.toBeInTheDocument()
+        })
+
+        it('volta entre cartões da mesma fase', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+            })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+
+            fireEvent.click(voltar())
+            expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
+        })
+
+        it('volta pro último cartão da fase anterior e reavançar não chama o servidor de novo', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nÚltimo do cenário.' }),
+            })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(advanceLesson).toHaveBeenCalledTimes(1)
+
+            fireEvent.click(voltar())
+            expect(await screen.findByText('Último do cenário.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(advanceLesson).toHaveBeenCalledTimes(1)
+        })
+
+        it('seta esquerda volta e seta direita continua', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+            })
+
+            renderLesson()
+
+            await screen.findByText('Primeiro cartão.')
+            fireEvent.keyDown(window, { key: 'ArrowRight' })
+            expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+            fireEvent.keyDown(window, { key: 'ArrowLeft' })
+            expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
+        })
+
+        it('lição retomada no meio deixa voltar às fases anteriores e reavançar sem POST', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+
+            renderLesson()
+
+            await screen.findByText('Revelação')
+            fireEvent.click(voltar())
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Revelação')).toBeInTheDocument()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
+
+        it('voltar pra pergunta já respondida não pede escolha de novo nem deixa trocar a resposta', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2, microDecisionOptions: ['Sim', 'Não'] }) })
+
+            renderLesson()
+
+            await screen.findByText('Revelação')
+            fireEvent.click(voltar())
+
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Sim' })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+    })
 })

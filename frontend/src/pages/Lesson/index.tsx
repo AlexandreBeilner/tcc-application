@@ -1,10 +1,11 @@
-import { ArrowLeft, Check, Eye } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, Eye } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
+import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { Button } from '../../components/atoms/Button'
 import { GrowthCalculatorForm } from '../../components/organisms/GrowthCalculatorForm'
 import { FixedIncomeComparisonForm } from '../../components/organisms/FixedIncomeComparisonForm'
@@ -66,7 +67,6 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const advanceLesson = useAdvanceLesson(lessonId)
     const reviewLesson = useReviewLesson(lessonId)
 
-    const [localStep, setLocalStep] = useState<number | undefined>(undefined)
     // Aposta com acerto/erro real (backlog engajamento B.3) — índice
     // escolhido pelo usuário no widget de opções reais. Só sustenta a UI do
     // botão (`aria-pressed`) e habilita "Continuar"; o veredito em si vem do
@@ -78,16 +78,6 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // só na chamada que envia `selectedOption` — nunca lido de volta de
     // `GET /lessons`/`GET /lessons/:id` (mesma razão do comentário acima).
     const [microDecisionResult, setMicroDecisionResult] = useState<{ correct: boolean; correctOptionLabel: string } | undefined>(undefined)
-    // Navegação entre cartões (tarefa A.1) dentro da fase atual — estado
-    // local, não persistido (a persistência de progresso continua sendo só
-    // o `step` de fase, spec 5.2). Reseta pra 0 a cada avanço real de fase.
-    const [subStep, setSubStep] = useState(0)
-    // Cartões `[revelar]` (tarefa A.3) — índice (dentro da fase atual) já
-    // revelado pelo toque em "Ver resultado". Reseta junto com `subStep` a
-    // cada avanço real de fase, mesmo motivo: índice só faz sentido dentro
-    // do array de cartões da fase corrente.
-    const [revealedIndexes, setRevealedIndexes] = useState<Set<number>>(new Set())
-
     const lesson = lessonQuery.data?.lesson
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
     // `code` citado pro `id` real usando esta mesma lista, sem chamada nova.
@@ -101,7 +91,16 @@ function LessonView({ lessonId }: { lessonId: string }) {
     }
     // Lição concluída abre no Cenário (passo 0) e navega só no cliente, sem
     // `POST /progress`; lição em andamento retoma do passo gravado.
-    const step = localStep ?? (isReview ? 0 : (lesson?.currentStep ?? 0))
+    // Navegação (RC.2.2): fase + cartão, Voltar e cartões já revelados. Em
+    // revisão toda fase é "já alcançada" (nada vai ao servidor); fora dela,
+    // reavançar até a fase que o servidor já gravou também não chama o POST
+    // (evita 422 de intervalo/ordem ao voltar e seguir de novo).
+    const serverStep = lesson?.currentStep ?? 0
+    const navigation = useLessonNavigation({
+        initialStep: isReview ? 0 : serverStep,
+        initialReached: isReview ? TOTAL_STEPS - 1 : serverStep,
+    })
+    const { step, card: subStep, reached } = navigation
 
     // Backlog engajamento H.2 + decisão D2 (RC.2.1): a revisão conta quando o
     // usuário chega na Revelação da lição já concluída, não ao só abrir.
@@ -124,7 +123,10 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
     const hasRealOptions = (lesson?.microDecisionOptions?.length ?? 0) > 0
-    const canAdvanceMicroDecision = usesEmbeddedWidget || !hasRealOptions || selectedOption !== undefined
+    // Pergunta já passada (o aluno voltou pra ela): não pede escolha de novo e
+    // não deixa trocar a resposta já aceita.
+    const microDecisionPassed = !isReview && reached > 1
+    const canAdvanceMicroDecision = usesEmbeddedWidget || !hasRealOptions || selectedOption !== undefined || reached > 1
     // Badge de acerto/erro da Revelação (B.3) — só existe quando o servidor
     // já devolveu o veredito desta escolha (`handleAdvance` abaixo grava em
     // `microDecisionResult` no `onSuccess` do avanço que saiu do passo
@@ -145,17 +147,32 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const isMicroDecisionLastCard = subStep >= microDecisionCards.length - 1
     const isRevelationLastCard = subStep >= revelationCards.length - 1
 
+    // Setas esquerda/direita acionam Voltar/Continuar (RC.2.2), exceto com o
+    // foco num campo de entrada (slider, input) ou com modificador. Clica nos
+    // botões reais, então herdam o `disabled` e qualquer gate.
+    useEffect(() => {
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+            const target = event.target as HTMLElement | null
+            if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+            const selector = event.key === 'ArrowLeft' ? '[data-lesson-back]' : event.key === 'ArrowRight' ? '[data-lesson-continue]' : null
+            if (!selector) return
+            const button = document.querySelector<HTMLButtonElement>(selector)
+            if (button && !button.disabled) button.click()
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [])
+
     function goToTrack() {
         navigate('/trilha')
     }
 
     function handleAdvance() {
-        // Revisão de lição concluída é só leitura: navega entre as fases sem
-        // tocar o servidor (o backend também ignora a escrita, RC.2.1).
-        if (isReview) {
-            setLocalStep(step + 1)
-            setSubStep(0)
-            setRevealedIndexes(new Set())
+        // Fase já alcançada (revisão de lição concluída, ou o aluno voltou e
+        // está reavançando): só navega no cliente, sem tocar o servidor.
+        if (step + 1 <= reached) {
+            navigation.goToStep(step + 1)
             return
         }
         // `selectedOption` só viaja na chamada que sai do passo Micro-decisão
@@ -172,27 +189,32 @@ function LessonView({ lessonId }: { lessonId: string }) {
                             correctOptionLabel: data.correctOptionLabel ?? '',
                         })
                     }
-                    setLocalStep(step + 1)
-                    setSubStep(0)
-                    setRevealedIndexes(new Set())
+                    navigation.goToStep(step + 1)
                 },
             },
         )
     }
 
-    // Cartão intermediário: só avança o `subStep` local. Cartão final da
+    // Cartão intermediário: só avança o cartão local. Cartão final da
     // fase: avança a fase de verdade (`handleAdvance`), mesmo gate de
     // habilitação que já existia (`disabled` no botão continua cuidando disso).
     function handleCardContinue(cards: Card[]) {
         if (subStep < cards.length - 1) {
-            setSubStep((current) => current + 1)
+            navigation.nextCard()
         } else {
             handleAdvance()
         }
     }
 
+    // Quantos cartões tem cada fase, pro Voltar cair no último cartão da anterior.
+    const cardCounts = [scenarioCards.length, microDecisionCards.length, revelationCards.length, 1]
+
+    function handleBack() {
+        navigation.back(cardCounts)
+    }
+
     function handleReveal() {
-        setRevealedIndexes((current) => new Set(current).add(subStep))
+        navigation.reveal()
     }
 
     function handleFinish() {
@@ -231,15 +253,20 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <CardBody
-                        card={scenarioCards[subStep]}
-                        revealed={revealedIndexes.has(subStep)}
-                        onReveal={handleReveal}
-                        lessons={lessons}
-                    />
+                    <CardBody card={scenarioCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
                     {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
-                        <Button onClick={() => handleCardContinue(scenarioCards)} disabled={advanceLesson.isPending}>
+                        {navigation.canGoBack && (
+                            <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao cartão anterior">
+                                <ChevronLeft size={16} aria-hidden="true" />
+                                Voltar
+                            </Button>
+                        )}
+                        <Button
+                            onClick={() => handleCardContinue(scenarioCards)}
+                            disabled={advanceLesson.isPending}
+                            data-lesson-continue=""
+                        >
                             Continuar
                         </Button>
                     </div>
@@ -252,7 +279,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
                     <CardBody
                         card={microDecisionCards[subStep]}
-                        revealed={revealedIndexes.has(subStep)}
+                        revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
                     />
@@ -273,6 +300,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                                             className={[styles.optionButton, selectedOption === index && styles.optionSelected]
                                                 .filter(Boolean)
                                                 .join(' ')}
+                                            disabled={microDecisionPassed}
                                             onClick={() => setSelectedOption(index)}
                                         >
                                             {option}
@@ -284,7 +312,14 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     )}
 
                     <div className={styles.ctaRow}>
+                        {navigation.canGoBack && (
+                            <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao cartão anterior">
+                                <ChevronLeft size={16} aria-hidden="true" />
+                                Voltar
+                            </Button>
+                        )}
                         <Button
+                            data-lesson-continue=""
                             onClick={() => handleCardContinue(microDecisionCards)}
                             disabled={(isMicroDecisionLastCard && !canAdvanceMicroDecision) || advanceLesson.isPending}
                         >
@@ -304,12 +339,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         ) : (
                             <span className={styles.answerBadgeAlmost}>Quase. A resposta certa era: {correctOptionLabel}</span>
                         ))}
-                    <CardBody
-                        card={revelationCards[subStep]}
-                        revealed={revealedIndexes.has(subStep)}
-                        onReveal={handleReveal}
-                        lessons={lessons}
-                    />
+                    <CardBody card={revelationCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
                     {isRevelationLastCard &&
@@ -334,7 +364,17 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         ))}
 
                     <div className={styles.ctaRow}>
-                        <Button onClick={() => handleCardContinue(revelationCards)} disabled={advanceLesson.isPending}>
+                        {navigation.canGoBack && (
+                            <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao cartão anterior">
+                                <ChevronLeft size={16} aria-hidden="true" />
+                                Voltar
+                            </Button>
+                        )}
+                        <Button
+                            onClick={() => handleCardContinue(revelationCards)}
+                            disabled={advanceLesson.isPending}
+                            data-lesson-continue=""
+                        >
                             Continuar
                         </Button>
                     </div>
@@ -350,12 +390,18 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <h1 className={styles.heading}>Lição concluída</h1>
                     <p className={styles.body}>{lesson.unlocksDescription || 'Você avançou mais um passo na trilha.'}</p>
                     <div className={styles.ctaRow}>
+                        <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao passo anterior">
+                            <ChevronLeft size={16} aria-hidden="true" />
+                            Voltar
+                        </Button>
                         <Button variant="secondary" onClick={goToTrack}>
                             Voltar pra Trilha
                         </Button>
                         {unlockAssetPath && <Button onClick={() => navigate(unlockAssetPath)}>Comprar agora</Button>}
                         {featureUnlockCta && <Button onClick={() => navigate(featureUnlockCta.path)}>{featureUnlockCta.label}</Button>}
-                        <Button onClick={handleFinish}>Continuar</Button>
+                        <Button onClick={handleFinish} data-lesson-continue="">
+                            Continuar
+                        </Button>
                     </div>
                 </section>
             )}
