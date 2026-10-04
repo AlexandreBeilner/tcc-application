@@ -441,12 +441,24 @@ colunas.
   LGPD de progresso ainda não inclui as respostas dos checkpoints; (d) nenhuma lição do seed usa `check` ainda
   (Fase 5); (e) sem conferência visual nos 3 breakpoints.
 
-### RC.3.3 · Bloco "Na plataforma"
+### RC.3.3 · Bloco "Na plataforma" ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** componente `PlatformNote` com *No Brasil / Aqui / Por quê*, visual distinto (selo, cor de token),
   aceito pelo teste RC.1.1 como único lugar permitido para a palavra "plataforma".
 - **Aceite:** usado nas lições que divergem do real (Copom, Selic simulada, calendário, catálogo fictício).
 - **Depende de:** RC.3.1.
+- **Entregável (2026-10-04):** o bloco é o widget `platform-note` (props `brazil`, `here`, `why`, as três
+  obrigatórias e não vazias), registrado nos dois lados do contrato (`lessonBlocks.ts` do backend e `widgets/schema`
+  do frontend, mesmo exemplo de contrato com o bloco nos dois testes). Componente `components/organisms/PlatformNote`
+  (selo "Na plataforma" com ícone, borda tracejada na cor da marca, lista No Brasil / Aqui / Por quê; em >= 768px
+  rótulo e texto lado a lado), com `platformNoteSummary` como resumo textual no registro. *Teste de conteúdo:* a
+  pasta `PlatformNote` ficou fora da varredura do frontend e o backend passou a varrer os textos de `blocks`
+  (`blockTextFields` em `contentRules.ts`: markup, callout, check, caption), isentando só o `platform-note` das
+  regras `nesta-plataforma`, `simulado`, `sandbox` e `motor` (TCC, travessão etc. continuam valendo). `.docs/backend/
+  lessons.md` atualizado. Validou: backend lint/build/`npm test` (829) e frontend `tsc -b`/oxlint/`vitest` (895).
+  **Ressalvas:** (a) nenhuma lição do seed usa o bloco ainda (a Fase 5 o usa em Copom, Selic simulada, calendário);
+  (b) sem conferência visual nos 3 breakpoints nem `docker compose`; (c) o seed ainda não valida `blocks` contra o
+  schema além do teste de conteúdo.
 
 ### RC.3.4 · Biblioteca de widgets (agrupada em sessões)
 

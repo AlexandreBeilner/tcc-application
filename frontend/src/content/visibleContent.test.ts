@@ -10,7 +10,7 @@ import baselineJson from './contentViolationsBaseline.json'
 
 // Lê o fonte via bundler (sem tipos de node, o tsconfig do app não os inclui).
 const SOURCES = import.meta.glob(
-    ['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}', '!../**/{admin,PainelAdmin,CriarEventoMacro,test,content,storage}/**'],
+    ['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}', '!../**/{admin,PainelAdmin,CriarEventoMacro,test,content,storage,PlatformNote}/**'],
     {
         query: '?raw',
         import: 'default',

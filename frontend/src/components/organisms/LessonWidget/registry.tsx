@@ -7,6 +7,7 @@ import { GrowthCalculatorForm } from '../GrowthCalculatorForm'
 import { LessonCallout } from '../LessonCallout'
 import { LiveIndicatorWidget } from '../LiveIndicatorWidget'
 import { LiveMacroWidget } from '../LiveMacroWidget'
+import { PlatformNote, platformNoteSummary } from '../PlatformNote'
 
 export interface WidgetDefinition<Id extends WidgetId> {
     component: ComponentType<WidgetProps<Id>>
@@ -25,6 +26,11 @@ export const widgetRegistry: Registry = {
         component: LessonCallout,
         propsSchema: widgetPropsSchemas.callout,
         summary: (props) => `${props.title}. ${props.body}`,
+    },
+    'platform-note': {
+        component: PlatformNote,
+        propsSchema: widgetPropsSchemas['platform-note'],
+        summary: platformNoteSummary,
     },
     'growth-calculator': {
         component: GrowthCalculatorForm,

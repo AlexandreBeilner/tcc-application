@@ -18,6 +18,7 @@ export const MAX_CHECKPOINTS_PER_LESSON = 7
 
 export const WIDGET_IDS = [
   'callout',
+  'platform-note',
   'growth-calculator',
   'fixed-income-comparison',
   'live-indicator',
@@ -31,6 +32,15 @@ const calloutProps = z.object({
   formula: z.string().min(1).optional(),
 })
 
+// Bloco "Na plataforma" (RC.3.3): onde a plataforma difere do Brasil real, a
+// diferença vai aqui, sempre com as três linhas, nunca misturada ao texto
+// principal (diretrizes-redacao-licoes.md §3).
+const platformNoteProps = z.object({
+  brazil: z.string().min(1),
+  here: z.string().min(1),
+  why: z.string().min(1),
+})
+
 // Widgets sem configuração por lição hoje (a Calculadora e o comparador da 6.7
 // nascem vazios); o objeto vazio fica estrito para o editor da N.23 não
 // aceitar props que nenhum widget lê.
@@ -41,6 +51,7 @@ const liveMacroProps = z.object({ windowDays: z.number().int().min(7).max(365).o
 
 export const widgetPropsSchemas = {
   callout: calloutProps,
+  'platform-note': platformNoteProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,
   'live-indicator': liveIndicatorProps,

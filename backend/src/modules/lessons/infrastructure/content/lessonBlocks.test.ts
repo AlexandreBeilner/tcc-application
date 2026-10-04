@@ -60,6 +60,16 @@ export const CONTRACT_EXAMPLE = {
         caption: 'Indicadores de hoje',
       },
       { type: 'widget', id: 'macro', widget: 'live-macro', props: { windowDays: 90 } },
+      {
+        type: 'widget',
+        id: 'nota-copom',
+        widget: 'platform-note',
+        props: {
+          brazil: 'O Copom se reúne 8 vezes por ano.',
+          here: 'As reuniões acontecem a cada 45 dias simulados.',
+          why: 'O tempo corre mais rápido para você ver o efeito dos juros.',
+        },
+      },
     ],
   },
 }
@@ -67,6 +77,20 @@ export const CONTRACT_EXAMPLE = {
 describe('lessonBlocksSchema', () => {
   it('aceita o exemplo do contrato', () => {
     expect(lessonBlocksSchema.safeParse(CONTRACT_EXAMPLE).success).toBe(true)
+  })
+
+  it.each([
+    ['sem a linha Por quê', { brazil: 'a', here: 'b' }],
+    ['linha vazia', { brazil: 'a', here: '', why: 'c' }],
+  ])('platform-note %s é rejeitada', (_name, props) => {
+    const bad = {
+      ...CONTRACT_EXAMPLE,
+      phases: {
+        ...CONTRACT_EXAMPLE.phases,
+        scenario: [{ type: 'widget', id: 'n', widget: 'platform-note', props }],
+      },
+    }
+    expect(lessonBlocksSchema.safeParse(bad).success).toBe(false)
   })
 
   it.each([
@@ -208,6 +232,6 @@ describe('parseLessonBlocks', () => {
   })
 
   it('devolve o conteúdo validado', () => {
-    expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(2)
+    expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(3)
   })
 })

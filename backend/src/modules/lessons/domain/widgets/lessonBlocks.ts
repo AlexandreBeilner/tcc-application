@@ -3,7 +3,12 @@
 // não importa biblioteca externa. Cada fase vira uma lista de blocos tipados;
 // `lessons.blocks` nulo faz o player usar o texto legado.
 export type WidgetId =
-  'callout' | 'growth-calculator' | 'fixed-income-comparison' | 'live-indicator' | 'live-macro'
+  | 'callout'
+  | 'platform-note'
+  | 'growth-calculator'
+  | 'fixed-income-comparison'
+  | 'live-indicator'
+  | 'live-macro'
 
 // Pergunta intermediária (RC.3.2). `answer` e `explanation` são o gabarito e
 // nunca saem do servidor (`toPublicBlocks`): o gabarito só aparece junto do

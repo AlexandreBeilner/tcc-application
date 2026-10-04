@@ -24,13 +24,23 @@ const CONTRACT_EXAMPLE = {
         revelation: [
             { type: 'widget', id: 'ind', widget: 'live-indicator', props: { ticker: 'VALR3' }, caption: 'Indicadores de hoje' },
             { type: 'widget', id: 'macro', widget: 'live-macro', props: { windowDays: 90 } },
+            {
+                type: 'widget',
+                id: 'nota-copom',
+                widget: 'platform-note',
+                props: {
+                    brazil: 'O Copom se reúne 8 vezes por ano.',
+                    here: 'As reuniões acontecem a cada 45 dias simulados.',
+                    why: 'O tempo corre mais rápido para você ver o efeito dos juros.',
+                },
+            },
         ],
     },
 }
 
 describe('parseLessonBlocks', () => {
     it('aceita o exemplo do contrato', () => {
-        expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(2)
+        expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(3)
         expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.microDecision).toHaveLength(4)
     })
 
@@ -48,6 +58,11 @@ describe('parseLessonBlocks', () => {
 describe('widgetPropsSchemas', () => {
     it('callout assume o tom info', () => {
         expect(widgetPropsSchemas.callout.parse({ title: 'a', body: 'b' }).tone).toBe('info')
+    })
+
+    it('platform-note exige as três linhas', () => {
+        expect(widgetPropsSchemas['platform-note'].safeParse({ brazil: 'a', here: 'b', why: 'c' }).success).toBe(true)
+        expect(widgetPropsSchemas['platform-note'].safeParse({ brazil: 'a', here: 'b' }).success).toBe(false)
     })
 
     it('rejeita props inválidas', () => {

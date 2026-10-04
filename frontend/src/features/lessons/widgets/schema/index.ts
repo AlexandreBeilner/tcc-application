@@ -5,7 +5,14 @@ import { z } from 'zod'
 // O backend valida no seed e na leitura; o frontend valida de novo ao
 // renderizar (um `blocks` inválido ou widget desconhecido nunca derruba a
 // lição). Os dois testes de contrato usam o mesmo exemplo.
-export const WIDGET_IDS = ['callout', 'growth-calculator', 'fixed-income-comparison', 'live-indicator', 'live-macro'] as const
+export const WIDGET_IDS = [
+    'callout',
+    'platform-note',
+    'growth-calculator',
+    'fixed-income-comparison',
+    'live-indicator',
+    'live-macro',
+] as const
 export type WidgetId = (typeof WIDGET_IDS)[number]
 
 const emptyProps = z.object({}).strict()
@@ -16,6 +23,11 @@ export const widgetPropsSchemas = {
         title: z.string().min(1),
         body: z.string().min(1),
         formula: z.string().min(1).optional(),
+    }),
+    'platform-note': z.object({
+        brazil: z.string().min(1),
+        here: z.string().min(1),
+        why: z.string().min(1),
     }),
     'growth-calculator': emptyProps,
     'fixed-income-comparison': emptyProps,
