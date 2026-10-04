@@ -3,7 +3,9 @@ import { createDb, type Database } from './client'
 import { lessons } from './schema'
 import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
-import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6, legacyText } from './lessonContentTrilha1a'
+import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
+import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
+import { legacyText } from './lessonText'
 
 export interface LessonSeed {
   // Chave de upsert do seed (tarefa M.6, achado 010) — atribuída uma vez e
@@ -109,33 +111,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 1,
     title: 'O que é investir',
     centralConcept: 'Investir vs poupar; capital trabalhando para você',
-    scenarioText:
-      'Você recebe R$1.000 de bônus. Duas opções: deixar parado na conta corrente até precisar, ou aplicar ' +
-      'esse dinheiro em algo que devolve mais do que você colocou, com o tempo.' +
-      '\n\n' +
-      'Essa é a trilha que responde, na prática, por que o destino automático desse tipo de dinheiro (a ' +
-      'poupança, pra quase todo mundo) geralmente deixa valor na mesa, e deixa você pronto pra escolher ' +
-      'diferente assim que ela terminar.' +
-      '\n\n' +
-      'A diferença entre guardar e investir é justamente essa: guardar preserva o valor nominal; investir ' +
-      'coloca esse capital pra trabalhar, gerando um retorno que se soma a ele.',
-    microDecisionPrompt:
-      'Antes de continuar, pense: se você tivesse esse R$1.000 de bônus agora, deixaria parado ou aplicaria ' +
-      'em algo que rende? O que te faria escolher um ou outro?',
+    scenarioText: legacyText(BLOCKS_0_1, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_0_1, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: null,
     microDecisionCorrectOption: null,
-    revelationText:
-      'Investir é ceder o uso do seu capital, hoje, a alguém (governo, banco, empresa) em troca de uma ' +
-      'remuneração por esse tempo e esse risco.' +
-      '\n\n' +
-      'Nesta plataforma, cada trilha que você completa desbloqueia uma forma real de fazer isso: renda fixa ' +
-      'primeiro (Trilha 1), mais previsível; depois renda variável (Trilha 2), com risco e potencial de ' +
-      'retorno maiores.' +
-      '\n\n' +
-      'Completar esta lição libera seu Portfólio de verdade, com R$10.000 de capital inicial pra você aplicar ' +
-      'o que vai aprender.',
+    revelationText: legacyText(BLOCKS_0_1, 'revelation'),
+    blocks: BLOCKS_0_1,
     unlocksDescription: 'Acesso ao Portfólio',
     unlocksKeys: ['portfolio'],
     unlocksAssetTicker: null,
@@ -148,27 +131,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 2,
     title: 'Juros simples vs compostos',
     centralConcept: 'Crescimento linear vs exponencial',
-    scenarioText:
-      'R$1.000 aplicados a 10% ao ano, por 20 anos: quanto isso vira depende de uma escolha que parece só ' +
-      'técnica, mas muda tudo: o dinheiro rende sempre sobre o capital original (juros simples) ou sobre o ' +
-      'saldo já com os juros anteriores embutidos (juros compostos)?',
-    microDecisionPrompt:
-      'Use a calculadora abaixo com o mesmo capital e o mesmo aporte mensal, alternando entre os modos ' +
-      'Simples e Composto, e compare o total ao final do período antes de continuar.',
+    scenarioText: legacyText(BLOCKS_0_2, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_0_2, 'microDecision'),
     microDecisionType: 'growth_calculator',
     microDecisionAssetTicker: null,
     microDecisionOptions: null,
     microDecisionCorrectOption: null,
-    revelationText:
-      'No regime simples, o montante cresce de forma linear: M = C × (1 + i × n).' +
-      '\n\n' +
-      'No composto, cada período rende sobre o saldo já capitalizado: M = C × (1 + i)ⁿ.' +
-      '\n\n' +
-      'No curto prazo a diferença é pequena; em horizontes longos ela explode. É a mesma taxa produzindo ' +
-      'curvas completamente diferentes.' +
-      '\n\n' +
-      'É por isso que todo investimento real (Tesouro, CDB, ações) trabalha no regime composto, e por isso ' +
-      'quanto mais cedo você começa, maior o efeito.',
+    revelationText: legacyText(BLOCKS_0_2, 'revelation'),
+    blocks: BLOCKS_0_2,
     unlocksDescription: 'Calculadora Financeira',
     unlocksKeys: ['calculator'],
     unlocksAssetTicker: null,
@@ -181,23 +151,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 3,
     title: 'Inflação e poder de compra',
     centralConcept: 'Por que R$100 hoje ≠ R$100 amanhã',
-    scenarioText:
-      'Hoje, R$100 compram um certo cesto de compras. Daqui a um ano, com a inflação corroendo os preços, ' +
-      'esse mesmo cesto custa mais, e os mesmos R$100 já não compram tudo o que compravam antes.',
-    microDecisionPrompt:
-      'Se a inflação de um ano for 5%, quanto vai custar, no ano que vem, algo que custa R$100 hoje?',
+    scenarioText: legacyText(BLOCKS_0_3, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_0_3, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['R$95', 'R$100', 'R$105', 'R$110'],
-    microDecisionCorrectOption: 2,
-    revelationText:
-      'R$105: o valor nominal do seu dinheiro continua sendo R$100, mas o poder de compra desse dinheiro ' +
-      'caiu.' +
-      '\n\n' +
-      'Por isso todo retorno de investimento precisa ser lido junto com a inflação do período: um retorno ' +
-      'nominal positivo pode, na prática, significar perda de poder de compra se a inflação foi maior.' +
-      '\n\n' +
-      'Esse é o conceito que a próxima lição formaliza como rendimento real.',
+    microDecisionOptions: ['R$ 5', 'R$ 105', 'R$ 95', 'R$ 100'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_0_3, 'revelation'),
+    blocks: BLOCKS_0_3,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -210,25 +171,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 4,
     title: 'Rendimento nominal vs real',
     centralConcept: 'Descontar a inflação do retorno',
-    scenarioText:
-      'Um CDB rendeu 8% em um ano, parece um bom retorno. Mas nesse mesmo ano a inflação (IPCA) foi de 6%. ' +
-      'Quanto sobrou de fato desse 8%, depois de descontar a inflação?',
-    microDecisionPrompt:
-      'Rendimento real é, aproximadamente, rendimento nominal menos inflação. Nesse exemplo (8% nominal, 6% ' +
-      'de inflação), o rendimento real fica perto de quanto?',
+    scenarioText: legacyText(BLOCKS_0_4, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_0_4, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Perto de 2%', 'Exatamente 8%', 'Perto de 14%', 'Perto de 6%'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Perto de 2%.' +
-      '\n\n' +
-      'A aproximação nominal − inflação já dá uma boa noção, mas a conta exata (equação de Fisher) é ' +
-      '(1 + nominal) / (1 + inflação) − 1 = (1,08 / 1,06) − 1 ≈ 1,89%, sempre um pouco menor que a ' +
-      'aproximação simples.' +
-      '\n\n' +
-      'Quanto maior a inflação do período, maior essa diferença. Todo indicador de investimento nesta ' +
-      'plataforma é nominal; comparar dois produtos exige olhar a mesma inflação pros dois.',
+    microDecisionOptions: ['Perto de 14%', 'Perto de 2%', 'Exatamente 8%', 'Perto de 6%'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_0_4, 'revelation'),
+    blocks: BLOCKS_0_4,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,

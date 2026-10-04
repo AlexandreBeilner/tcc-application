@@ -622,7 +622,7 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
 
 | Tarefa | Lições | Principais correções (resumo; detalhe no anexo) | Esforço |
 |---|---|---|---|
-| RC.5.1 | 0.1-0.4 | tirar "TCC cap. 2.1.1" da 0.2; "regime composto" impreciso; "indicador nesta plataforma é nominal" (0.4) vira Na plataforma; IPCA definido ou movido | M |
+| RC.5.1 ✅ | 0.1-0.4 | tirar "TCC cap. 2.1.1" da 0.2; "regime composto" impreciso; "indicador nesta plataforma é nominal" (0.4) vira Na plataforma; IPCA definido ou movido | M |
 | RC.5.2 | 0.5 (poupança) | duas regras (Selic acima de 8,5%: 0,5% a.m. + TR; igual ou abaixo: 70% da Selic + TR), TR explicada, "sempre atrás" falso: comparação líquida; widget `real-return` | G |
 | RC.5.3 | 1.1, 1.2 | PU do Tesouro Selic sobe todo dia, a Selic muda a velocidade (pergunta corrigida); IOF 29 dias, custódia B3, IR; remover "spec do TCC" | M + G |
 | RC.5.4 | 1.3 (Copom) | 8 reuniões/ano de 2 dias, ~45 dias (nunca "21 dias simulados"); meta de inflação 3% ±1,5; meta x efetiva; Taylor vira Na plataforma; gangorra inflação x Selic; gráfico Selic x IPCA | G |
@@ -637,6 +637,26 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
 | RC.5.13 | 2.10 | FII: distribuição mensal (mínimo 95% do resultado semestral), isenção de IR para PF (requisitos), 20% sobre ganho de capital, P/VP, papel indexado a IPCA, "dividendo" x "rendimento", frase quebrada na revelação e `unlocksDescription` com erro ("com onde crescer") | G |
 | RC.5.14 | Todas | taxas citadas (CDB 12%, LCI 9,5%, LTN 11,75%, NTN-B 6%) alinhadas ao catálogo (% do CDI e spreads) ou apresentadas como exemplo didático explícito | M |
 
+- **RC.5.1 entregue (2026-10-04):** lições 0.1 a 0.4 reescritas em `blocks`
+  (`backend/src/db/lessonContentTrilha0a.ts`; `legacyText` foi para `lessonText.ts`). *0.1:* investir como
+  empréstimo ou sociedade (a definição "ceder capital a alguém" valia só para renda fixa), dinheiro parado perde
+  poder de compra, sem "de verdade" nem "geralmente deixa valor na mesa", capital de R$ 10.000 e desbloqueio das
+  trilhas vão para o bloco "Na plataforma"; 3 checkpoints; a micro-decisão segue aberta, sem gabarito. *0.2:* sem
+  "TCC cap. 2.1.1" (já limpo na RC.1.4), "todo investimento real (Tesouro, CDB, ações)" corrigido para "a renda fixa"
+  (ação não tem juros), diferença no curto prazo depende da taxa, calculadora no registro (`growth-calculator`),
+  R$ 3.000 contra cerca de R$ 6.727 em 20 anos, 3 checkpoints. *0.3:* define inflação e IPCA inline, meta de 3% com
+  tolerância de 1,5 ponto (fato `meta-inflacao`), distrator R$ 5 no lugar de R$ 95 e R$ 110, 2 checkpoints.
+  *0.4:* sem CDB antes da 1.4 (diz "aplicação"), IPCA definido, IR sobre o ganho nominal, "indicadores nominais"
+  no bloco "Na plataforma", 2 checkpoints. Alternativa certa fora da posição 0 onde há aposta. Baselines: saem
+  `nesta-plataforma` da 0.1 e da 0.4; `termPrerequisites.test.ts` agora espera sem aviso de IPCA na 0.3 e 0.4.
+  Validou: backend lint/build/`npm test` (832). **Ressalvas:** (a) sem `docker compose`, e2e nem conferência
+  visual; (b) a 0.4 ainda cita "Tesouro" e "CDB" apenas na 0.2/1.x, sem uso novo; (c) o "IPCA dá 1,5% a 4,5%" da
+  explicação é conta sobre o fato da meta, não fato novo; (d) as lições 0.1 a 0.4 usam `{{inflação}}` e `{{IPCA}}`
+  inline em vez de depender da RC.4.1.
+- **RC.4.1 bloqueada (2026-10-04):** inserir uma lição entre 0.4 e 0.5 muda o `sortOrder` das 30 seguintes, e a
+  progressão ainda é por contagem. A progressão com dispensa (N.24, commit `0f229c0`) só existe nas branches
+  `fase-n-pr4` em diante, não mescladas na linhagem destas branches `rc-*`. Mesclar a N.24 (ou partir de uma branch
+  que a contenha) é pré-requisito de RC.4.1, RC.4.2 e RC.4.4 a RC.4.9.
 - **RC.5.5 entregue (2026-10-04):** lições 1.4, 1.5 e 1.6 reescritas no contrato `blocks`, em
   `backend/src/db/lessonContentTrilha1a.ts` (os textos legados `scenarioText`/`microDecisionPrompt`/
   `revelationText` agora são derivados dos blocos de texto por `legacyText`, então o conteúdo existe uma vez só).
