@@ -474,6 +474,31 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
 
 ---
 
+## Como executar a próxima tarefa
+
+**Gatilho:** quando o autor pedir "próxima tarefa do backlog de revisão" (ou equivalente), a próxima é a **primeira
+tarefa sem ✅ na ordem da "Sequência sugerida"** abaixo, respeitando "Depende de" (se a primeira candidata estiver
+bloqueada por tarefa não concluída, pegar a primeira desbloqueada e dizer isso). Tarefas que a sequência marca "em
+paralelo" são uma por vez, salvo pedido do autor.
+
+**Passo a passo de cada sessão:**
+1. Ler este arquivo (Objetivo, Princípios, a tarefa, suas dependências e decisões D#) e o anexo de
+   `.claude/revisao-trilhas-anexos/` citado nela. Não redecidir o que está marcado DECIDIDO.
+2. Branch nova a partir da `main` atualizada: `rc-<número>-<tema>` (ex.: `rc-1-1-teste-conteudo-proibido`). Se
+   depender de tarefa ainda não mesclada, partir da branch dela e dizer isso ao autor.
+3. Implementar só essa tarefa, um commit por tarefa, seguindo o checklist do `CLAUDE.md` da camada tocada (testes junto,
+   lint/build, `.docs/` se mexer em rota, validação em `docker compose up`). Telas novas nos 3 breakpoints; sem
+   travessão como pontuação em texto de UI; mudança de padrão visual pede rascunho antes.
+4. Tarefa de conteúdo: seguir a regra de entrada da Fase 5 (validação RC.1.7, fonte primária pesquisada na web,
+   fato registrado em RC.1.3 antes do texto) e o Princípio 0 (leve, cartões curtos).
+5. Verificar os critérios de aceite. Ao concluir, marcar ✅ no título da tarefa e acrescentar um bullet
+   **Entregável** (o que foi feito, arquivos principais, como validou). Atualizar o `backlog-pendencias-consolidado.md`.
+6. Se achar gap que exige decisão de produto fora deste arquivo, registrar em `pontos-em-aberto-decisao-produto.md`.
+7. Fim: `git push`; abrir PR só se o autor pedir. Resumir ao autor o que foi feito, o que validou e qual é a próxima
+   tarefa da sequência.
+
+---
+
 ## Sequência sugerida
 
 1. **Fase 1** inteira (RC.1.1, RC.1.3 e RC.1.5 em paralelo; depois **RC.1.7, a validação das 35 lições, que bloqueia a Fase 5**, RC.1.4, RC.1.2 em modo aviso, RC.1.6): corrige
