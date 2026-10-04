@@ -14,6 +14,8 @@ export interface CategorySlice {
 
 export interface PositionLike {
     type: string
+    isSandbox: boolean
     quantity: number
     averagePrice: number
+    markPrice?: number
 }
