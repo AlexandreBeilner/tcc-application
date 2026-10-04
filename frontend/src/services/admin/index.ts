@@ -1,5 +1,9 @@
 import { apiRequest } from '../client'
 import type {
+    CorrectedProgression,
+    CreditUserInput,
+    CreditUserResult,
+    UserCorrectionContext,
     AdminUserDetail,
     AdminUsersFilters,
     ListAdminUsersResult,
@@ -38,6 +42,13 @@ import type {
 } from './types'
 
 export type {
+    CorrectedProgression,
+    CorrectionAchievement,
+    CorrectionLesson,
+    CorrectionLessonStatus,
+    CreditUserInput,
+    CreditUserResult,
+    UserCorrectionContext,
     AdminUserDetail,
     AdminUserRole,
     AdminUserStatus,
@@ -316,4 +327,43 @@ export function forceLogoutAdminUser(token: string, userId: string): Promise<voi
 
 export function deleteAdminUser(token: string, userId: string, confirmUsername: string): Promise<void> {
     return apiRequest<void>(`/admin/users/${userId}`, { token, method: 'DELETE', body: { confirm_username: confirmUsername } })
+}
+
+export function getUserCorrectionContext(token: string, userId: string): Promise<UserCorrectionContext> {
+    return apiRequest<UserCorrectionContext>(`/admin/users/${userId}/corrections`, { token })
+}
+
+export function creditAdminUser(token: string, userId: string, input: CreditUserInput): Promise<CreditUserResult> {
+    return apiRequest<CreditUserResult>(`/admin/users/${userId}/credit`, { token, method: 'POST', body: input })
+}
+
+export function adjustAdminUserXp(token: string, userId: string, delta: number, reason: string): Promise<CorrectedProgression> {
+    return apiRequest<CorrectedProgression>(`/admin/users/${userId}/xp`, { token, method: 'POST', body: { delta, reason } })
+}
+
+export function setAdminUserStreak(token: string, userId: string, value: number, reason: string): Promise<CorrectedProgression> {
+    return apiRequest<CorrectedProgression>(`/admin/users/${userId}/streak`, { token, method: 'POST', body: { value, reason } })
+}
+
+export type AchievementCorrection = 'grant' | 'revoke'
+export type LessonCorrection = 'complete' | 'reopen'
+
+export function correctAdminUserAchievement(
+    token: string,
+    userId: string,
+    achievementId: string,
+    action: AchievementCorrection,
+    reason: string,
+): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/${action}`, { token, method: 'POST', body: { reason } })
+}
+
+export function correctAdminUserLesson(
+    token: string,
+    userId: string,
+    lessonId: string,
+    action: LessonCorrection,
+    reason: string,
+): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/lessons/${lessonId}/${action}`, { token, method: 'POST', body: { reason } })
 }

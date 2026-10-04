@@ -4,7 +4,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminReauthProvider } from '../../features/admin/AdminReauth'
 import { useAuth } from '../../features/auth/AuthContext'
-import { deleteAdminUser, forceLogoutAdminUser, getAdminUser, reactivateAdminUser, suspendAdminUser } from '../../services/admin'
+import {
+    deleteAdminUser,
+    forceLogoutAdminUser,
+    getAdminUser,
+    getUserCorrectionContext,
+    reactivateAdminUser,
+    suspendAdminUser,
+} from '../../services/admin'
 import type { AdminUserDetail } from '../../services/admin'
 import { ApiError, REAUTH_REQUIRED } from '../../services/client'
 import { reauthenticate } from '../../services/auth'
@@ -18,6 +25,12 @@ vi.mock('../../services/admin', () => ({
     reactivateAdminUser: vi.fn(),
     forceLogoutAdminUser: vi.fn(),
     deleteAdminUser: vi.fn(),
+    getUserCorrectionContext: vi.fn(),
+    creditAdminUser: vi.fn(),
+    adjustAdminUserXp: vi.fn(),
+    setAdminUserStreak: vi.fn(),
+    correctAdminUserAchievement: vi.fn(),
+    correctAdminUserLesson: vi.fn(),
 }))
 
 const ID = '6f9619ff-8b86-d011-b42d-00c04fc964ff'
@@ -46,7 +59,7 @@ const detail: AdminUserDetail = {
 
 function renderPage() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-    render(
+    return render(
         <QueryClientProvider client={client}>
             <MemoryRouter initialEntries={[`/admin/usuarios/${ID}`]}>
                 <AdminReauthProvider>
@@ -64,6 +77,7 @@ beforeEach(() => {
     vi.resetAllMocks()
     vi.mocked(useAuth).mockReturnValue({ token: 'tok', user: null, login: vi.fn() } as unknown as ReturnType<typeof useAuth>)
     vi.mocked(getAdminUser).mockResolvedValue(detail)
+    vi.mocked(getUserCorrectionContext).mockResolvedValue({ achievements: [], lessons: [] })
 })
 
 describe('AdminUsuarioDetalhe', () => {
@@ -97,7 +111,9 @@ describe('AdminUsuarioDetalhe', () => {
         vi.mocked(reauthenticate).mockResolvedValue({ token: 'novo' })
         renderPage()
         fireEvent.click(await screen.findByRole('button', { name: 'Suspender conta' }))
-        fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: 'spam no feed' } })
+        fireEvent.change(within(screen.getByRole('dialog', { name: 'Suspender esta conta?' })).getByLabelText(/Motivo/), {
+            target: { value: 'spam no feed' },
+        })
         fireEvent.click(
             within(screen.getByRole('dialog', { name: 'Suspender esta conta?' })).getByRole('button', { name: 'Suspender conta' }),
         )
@@ -160,6 +176,20 @@ describe('AdminUsuarioDetalhe', () => {
         expect(screen.getByText(/Conta de administrador não é suspensa/)).toBeInTheDocument()
     })
 
+    it('mostra as correções de conta numa conta comum e esconde numa conta excluída', async () => {
+        const { unmount } = renderPage()
+        expect(await screen.findByRole('heading', { name: 'Correções de conta' })).toBeInTheDocument()
+        unmount()
+
+        vi.mocked(getAdminUser).mockResolvedValue({
+            ...detail,
+            account: { ...detail.account, username: 'usuario-removido-1a2b3c4d' },
+        })
+        renderPage()
+        await screen.findByRole('heading', { name: 'Conta excluída' })
+        expect(screen.queryByRole('heading', { name: 'Correções de conta' })).not.toBeInTheDocument()
+    })
+
     it('usuário inexistente mostra o 404 com link de volta', async () => {
         vi.mocked(getAdminUser).mockRejectedValue(new ApiError(404, 'usuário não encontrado'))
         renderPage()
@@ -171,7 +201,9 @@ describe('AdminUsuarioDetalhe', () => {
         vi.mocked(suspendAdminUser).mockRejectedValue(new ApiError(409, 'a conta já está suspensa'))
         renderPage()
         fireEvent.click(await screen.findByRole('button', { name: 'Suspender conta' }))
-        fireEvent.change(screen.getByLabelText(/Motivo/), { target: { value: 'spam no feed' } })
+        fireEvent.change(within(screen.getByRole('dialog', { name: 'Suspender esta conta?' })).getByLabelText(/Motivo/), {
+            target: { value: 'spam no feed' },
+        })
         fireEvent.click(
             within(screen.getByRole('dialog', { name: 'Suspender esta conta?' })).getByRole('button', { name: 'Suspender conta' }),
         )

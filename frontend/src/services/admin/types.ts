@@ -96,6 +96,13 @@ export type AuditAction =
     | 'user.reactivate'
     | 'user.force_logout'
     | 'user.delete'
+    | 'user.credit'
+    | 'user.adjust_xp'
+    | 'user.set_streak'
+    | 'user.grant_achievement'
+    | 'user.revoke_achievement'
+    | 'user.complete_lesson'
+    | 'user.reopen_lesson'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -667,4 +674,44 @@ export interface AdminUserDetail {
     portfolio: UserPortfolio | null
     open_orders: { total: number; orders: AdminOrder[] } | null
     timeline: AdminUserTimelineEntry[]
+}
+
+// Correções manuais de conta (N.17).
+export interface CorrectionAchievement {
+    id: string
+    name: string
+    description: string | null
+    unlocked: boolean
+}
+
+export type CorrectionLessonStatus = 'completed' | 'in_progress' | 'not_started'
+
+export interface CorrectionLesson {
+    id: string
+    code: string
+    title: string
+    track_number: number
+    status: CorrectionLessonStatus
+}
+
+export interface UserCorrectionContext {
+    achievements: CorrectionAchievement[]
+    lessons: CorrectionLesson[]
+}
+
+export interface CreditUserInput {
+    amount: number
+    reason?: string
+}
+
+export interface CreditUserResult {
+    user_id: string
+    credited: number
+}
+
+export interface CorrectedProgression {
+    xp: number
+    level: number
+    current_streak: number
+    longest_streak: number
 }

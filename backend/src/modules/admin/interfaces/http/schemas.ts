@@ -265,3 +265,30 @@ export const suspendUserBodySchema = z.object({
 export const deleteUserBodySchema = z.object({
   confirm_username: z.string().trim().min(1).max(30),
 })
+
+// Correções manuais de conta (N.17). `reason` obrigatório nos ajustes de gamificação e de
+// lição, opcional no crédito. Valor do crédito: positivo e finito (o zod já recusa NaN e
+// Infinity); sem teto de negócio, o motor guarda só o limite físico do saldo.
+const correctionReasonSchema = z.string().trim().min(3).max(500)
+
+export const creditUserBodySchema = z.object({
+  amount: z.number().positive(),
+  reason: z.string().trim().max(500).optional(),
+})
+
+export const adjustXpBodySchema = z.object({
+  delta: z
+    .number()
+    .int()
+    .refine((delta) => delta !== 0, { message: 'o ajuste não pode ser zero' }),
+  reason: correctionReasonSchema,
+})
+
+export const setStreakBodySchema = z.object({
+  value: z.number().int().min(0).max(36500),
+  reason: correctionReasonSchema,
+})
+
+export const correctionReasonBodySchema = z.object({
+  reason: correctionReasonSchema,
+})

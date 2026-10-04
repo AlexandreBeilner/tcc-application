@@ -26,6 +26,7 @@ type catalogReader interface {
 type accountWriter interface {
 	accountOpener
 	accountSalaryCrediter
+	accountAdminCrediter
 }
 
 // userMarketDataReader é o colaborador que os handlers de leitura de estado
@@ -66,6 +67,7 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
 	mux.HandleFunc("POST /accounts/{user_id}/salary", handleCreditSalary(accounts))
+	mux.HandleFunc("POST /admin/accounts/{user_id}/credit", handleAdminCredit(accounts))
 	mux.HandleFunc("GET /accounts/{user_id}", handleGetAccount(userData))
 	mux.HandleFunc("GET /accounts/{user_id}/events", handleListAccountEvents(userData))
 	mux.HandleFunc("GET /positions", handleListPositions(userData))

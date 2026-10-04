@@ -855,3 +855,11 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** mostrar o evento ao jogador no instante em que o admin o agenda entregaria o evento com semanas de aviso, o que contraria a razão de existir do veredito redigido (RF16). **Decisão provisória tomada na implementação (a confirmar):** o evento agendado só aparece no feed e no calendário do jogador na **véspera** do primeiro dia de efeito (`triggered_on_day <= dia corrente + 1`), a mesma antecedência de um disparo imediato, que já aparece um tick antes de produzir efeito. Evento **cancelado** nunca aparece. O painel enxerga tudo.
 - **Opções:** (a) a regra atual (véspera, igual ao disparo imediato); (b) aparecer só quando o efeito começa (some a antecedência de um tick, e o disparo imediato teria de seguir a mesma regra); (c) o admin escolher a antecedência por evento.
 - **Status:** aberto (implementado com (a), reversível: é uma condição em duas consultas)
+
+### 032 · Revogar uma conquista que o usuário ainda cumpre não "fica": a próxima checagem a concede de novo (N.17)
+
+- **Local:** `backend/src/modules/achievements/application/useCases/correctAchievements.ts` (`RevokeAchievementUseCase`) e `checkAndUnlockAchievements.ts`
+- **Origem:** implementação da N.17 (conceder ou revogar conquista manualmente).
+- **O que é:** revogar só apaga a linha de `user_achievements`. A conquista não tem noção de "revogada pelo suporte", então se o usuário ainda satisfaz o critério (streak, lições, patrimônio), o próximo `checkAndUnlock` (disparado por XP, streak ou lição) a concede de novo, em silêncio. Revogar só funciona de verdade quando a conquista foi dada **por engano** (concessão manual sem critério, ou bug). **Decisão provisória tomada na implementação (a confirmar):** manter assim e avisar o admin na tela e em `.docs/backend/admin.md`.
+- **Opções:** (a) manter (revogar desfaz concessão indevida; critério cumprido volta sozinho); (b) guardar uma marca de "revogada" por usuário e conquista, que a checagem automática respeita (precisa de coluna ou tabela nova, e um jeito de desfazer a marca); (c) tirar a ação "revogar" do painel e só permitir conceder.
+- **Status:** aberto (implementado com (a))

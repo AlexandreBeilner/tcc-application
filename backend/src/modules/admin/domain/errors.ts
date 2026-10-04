@@ -101,3 +101,15 @@ export class AdminAccountProtectedError extends Error {}
 export class UserStatusConflictError extends Error {}
 // Confirmação da exclusão não bate com o username atual.
 export class DeleteConfirmationMismatchError extends Error {}
+
+// Correções manuais de conta (N.17). Traduzidas pelo router: 404, 409, 422 e 400.
+// Conquista ou lição que não existe.
+export class AdminCorrectionNotFoundError extends Error {}
+// A correção não muda nada: conquista já concedida/ausente, lição já concluída/não concluída.
+export class AdminCorrectionConflictError extends Error {}
+// Ajuste que a regra de gamificação recusa (XP negativo no total, streak fracionado).
+export class InvalidAdminCorrectionError extends Error {}
+// O motor recusou o valor do crédito (zero, negativo, acima do limite físico).
+export class CashCreditRejectedError extends Error {}
+// O crédito faria o saldo passar do que a coluna do motor suporta.
+export class CashCreditOverflowError extends Error {}

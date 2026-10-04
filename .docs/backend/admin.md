@@ -117,6 +117,45 @@ Seis rotas. Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` 
 - **Sucesso:** `204`. Mesmo caminho do `DELETE /me` (`AnonymizeAccountUseCase`): anonimiza nome, e-mail, username e senha, desconecta os provedores, apaga a foto e **revoga as sessões**; a linha de `users` e o histórico imutável ficam. Auditoria: `user.delete` com **só o id** do alvo, nunca o username.
 - **Erros:** `400` sem `confirm_username`; `401 reauth_required`; `404`; `422 { code: "confirmation_mismatch" }` username não confere; `422 { code: "admin_account_protected" }` alvo é `admin`.
 
+### Correções manuais de conta (tarefa N.17)
+
+Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'admin'` e, as que **mudam estado**, senha conferida há menos de 5 minutos (`401 reauth_required`, N.22), e gravam `admin_audit_log` com `target_type = user` e `target_id` = id do usuário (aparecem na linha do tempo do detalhe, N.16). Os ajustes de gamificação e de lição exigem `reason` (3 a 500 caracteres); no crédito o motivo é opcional. Cada correção passa pelo caso de uso do módulo dono do dado (gamificação, conquistas, lições), nunca por update direto. **Resetar carteira fica fora** (apagaria histórico imutável e conflita com RNF06): a alternativa é suspender e criar conta nova.
+
+#### `POST /admin/users/:id/credit`
+
+- **Payload:** `{ amount, reason? }`. `amount` é um número positivo e finito (`NaN` e infinito nem existem em JSON); `reason` até 500 caracteres.
+- **Sucesso:** `200` → `{ user_id, credited }`, onde `credited` é o valor de fato creditado (o motor arredonda pra centavos). **Sem teto de negócio** (decisão do autor, achado 029 item 5); o único limite é físico (R$ 1 trilhão por crédito, e saldo final dentro de `numeric(15,2)`). O motor grava o evento imutável `admin_credit` antes de somar em `current_balance` (`POST /admin/accounts/{user_id}/credit`, `.docs/engine/account.md`). É caixa livre: não toca `total_invested` e companhia, então **não altera a rentabilidade do ranking**. No extrato aparece com `event_type = "admin_credit"`, nunca como salário. Auditoria: `user.credit` com `amount`, `reason` (se houver) e `credited`.
+- **Erros:** `400` valor inválido na borda (zero, negativo, texto, ausente); `401 reauth_required`; `404` usuário inexistente (ou sem conta no motor); `422 { code: "credit_rejected" }` o motor recusou o valor; `422 { code: "balance_overflow" }` o crédito estouraria o saldo.
+
+#### `POST /admin/users/:id/xp`
+
+- **Payload:** `{ delta, reason }`. `delta` é um inteiro diferente de zero, positivo ou negativo.
+- **Sucesso:** `200` → `{ xp, level, current_streak, longest_streak }`. O nível é recalculado do XP total (`levelForXp`), então pode subir ou descer mais de um nível, e as conquistas são reavaliadas (best-effort). O total nunca fica abaixo de zero. Auditoria: `user.adjust_xp` com `delta`, `reason` e o `xp`/`level` resultantes.
+- **Erros:** `400` payload inválido; `401 reauth_required`; `404`; `422 { code: "invalid_correction" }` tiraria mais XP do que o usuário tem.
+
+#### `POST /admin/users/:id/streak`
+
+- **Payload:** `{ value, reason }`. `value` é um inteiro de 0 a 36500: o novo streak atual.
+- **Sucesso:** `200` → mesmo corpo de `/xp`. `longest_streak` só sobe (é o máximo histórico). Um streak maior que zero conta como "vivo hoje" (`last_qualifying_activity_date` = hoje, UTC), senão o próximo toque o reiniciaria em 1; zero limpa essa data. Auditoria: `user.set_streak`.
+- **Erros:** `400`; `401 reauth_required`; `404`.
+
+#### `POST /admin/users/:id/achievements/:achievementId/grant` e `/revoke`
+
+- **Payload:** `{ reason }`.
+- **Sucesso:** `204`. `grant` concede a conquista **sem checar o critério**; `revoke` remove. Atenção: se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concede de novo; revogar só "fica" quando foi dada por engano. Auditoria: `user.grant_achievement` / `user.revoke_achievement` com `achievement_id`, `achievement_name` e `reason`.
+- **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista (`grant`) ou não a tem (`revoke`).
+
+#### `POST /admin/users/:id/lessons/:lessonId/complete` e `/reopen`
+
+- **Payload:** `{ reason }`.
+- **Sucesso:** `204`. `complete` grava a conclusão sem passar pelo gate de passos nem de desbloqueio, e **não dá XP**, não toca o streak, não conta pra missão e não vai pro feed (o XP, se devido, é um ajuste separado em `/xp`). `reopen` limpa a conclusão e volta pro passo 0, mantendo a escolha da micro-decisão e o XP já dado; como a progressão conta lições satisfeitas, reabrir uma lição no meio do currículo faz o usuário perder o acesso à última que ela liberou até concluí-la de novo. Auditoria: `user.complete_lesson` / `user.reopen_lesson` com `lesson_id`, `lesson_code` e `reason`.
+- **Erros:** `400`; `401 reauth_required`; `404` usuário ou lição inexistente; `409` a lição já está concluída (`complete`) ou não está concluída (`reopen`).
+
+#### `GET /admin/users/:id/corrections`
+
+- **Sucesso:** `200` → `{ achievements: [{ id, name, description, unlocked }], lessons: [{ id, code, title, track_number, status }] }`, o que a tela precisa pra montar os seletores. `status` da lição: `completed` | `in_progress` | `not_started`. Leitura: não audita.
+- **Erros:** `400` id que não é UUID; `404`.
+
 ### Painel de Tempo (tarefa N.6)
 
 Cinco rotas que repassam o controle do Temporizador do motor (ver `.docs/engine/tick.md#controle-do-temporizador-tarefa-n6-fase-n`). Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum, nada é chamado nem auditado nesses casos). Proxy fino: `SchedulerAdmin` (porta → `engineSchedulerAdmin`) chama o motor via `ENGINE_URL`; a regra (pausa só vale pro tick agendado, retomar não recupera o tempo parado, teto de dias) vive no motor.
