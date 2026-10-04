@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildPhaseCards } from '.'
+import { buildPhaseCards, termsSeenBeforeEachCard } from '.'
+import type { PlayerCard } from '.'
 
 describe('buildPhaseCards', () => {
     it('sem blocos usa o texto legado, igual a splitIntoCards', () => {
@@ -28,5 +29,20 @@ describe('buildPhaseCards', () => {
             { kind: 'text', text: 'a', hidden: false },
             { kind: 'check', block: check },
         ])
+    })
+})
+
+describe('termsSeenBeforeEachCard', () => {
+    const text = (t: string): PlayerCard => ({ kind: 'text', text: t, hidden: false })
+
+    it('cada cartão de texto sabe quais termos já apareceram antes, entre fases', () => {
+        const a = text('Veja o {{FGC}} e o {{Selic}}.')
+        const b = text('Sem termo.')
+        const c = text('De novo o {{FGC}} e o {{CDI}}.')
+        const seen = termsSeenBeforeEachCard([a, b, c])
+
+        expect([...(seen.get(a) ?? [])]).toEqual([])
+        expect([...(seen.get(b) ?? [])]).toEqual(['FGC', 'Selic'])
+        expect([...(seen.get(c) ?? [])]).toEqual(['FGC', 'Selic'])
     })
 })

@@ -14,7 +14,7 @@ import { LessonWidget } from '../../components/organisms/LessonWidget'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
-import { buildPhaseCards } from '../../features/lessons/playerCards'
+import { buildPhaseCards, termsSeenBeforeEachCard } from '../../features/lessons/playerCards'
 import type { PlayerCard } from '../../features/lessons/playerCards'
 import { parseLessonBlocks } from '../../features/lessons/widgets/schema'
 import type { CheckBlock, WidgetBlock } from '../../features/lessons/widgets/schema'
@@ -149,6 +149,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const scenarioCards = buildPhaseCards(blocks?.phases.scenario, lesson?.scenarioText ?? '')
     const microDecisionCards = buildPhaseCards(blocks?.phases.microDecision, lesson?.microDecisionPrompt ?? '')
     const revelationCards = buildPhaseCards(blocks?.phases.revelation, lesson?.revelationText ?? '')
+    const termsSeenBefore = termsSeenBeforeEachCard([...scenarioCards, ...microDecisionCards, ...revelationCards])
     const isMicroDecisionLastCard = subStep >= microDecisionCards.length - 1
     const isRevelationLastCard = subStep >= revelationCards.length - 1
 
@@ -294,6 +295,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
+                        termsSeen={termsSeenBefore.get(scenarioCards[subStep])}
                     />
                     {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
@@ -321,10 +323,10 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <CardBody
                         card={microDecisionCards[subStep]}
                         renderCheckpoint={renderCheckpoint}
-
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
+                        termsSeen={termsSeenBefore.get(microDecisionCards[subStep])}
                     />
                     {microDecisionCards.length > 1 && <CardDots total={microDecisionCards.length} current={subStep} />}
 
@@ -443,6 +445,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
+                        termsSeen={termsSeenBefore.get(revelationCards[subStep])}
                     />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
@@ -529,12 +532,14 @@ function CardBody({
     revealed,
     onReveal,
     lessons,
+    termsSeen,
 }: {
     renderCheckpoint: (block: CheckBlock) => React.ReactNode
     card: PlayerCard
     revealed: boolean
     onReveal: () => void
     lessons: LessonType[]
+    termsSeen?: Set<string>
 }) {
     if (card.kind === 'check') {
         return <>{renderCheckpoint(card.block)}</>
@@ -557,7 +562,7 @@ function CardBody({
         )
     }
 
-    return <p className={styles.body}>{renderLessonMarkup(card.text, lessons)}</p>
+    return <p className={styles.body}>{renderLessonMarkup(card.text, lessons, termsSeen)}</p>
 }
 
 // Convenção `{{Termo}}`/`{{ref:X.Y}}` das tarefas C.1/C.2 — termo resolvido
@@ -566,9 +571,15 @@ function CardBody({
 // `lessons` está disponível), e o resto do texto continua como nó de texto
 // puro (não `<span>`) pra não quebrar consultas de teste que buscam o texto
 // completo do cartão quando não há marcação nenhuma.
-function renderLessonMarkup(text: string, lessons: LessonType[]) {
+function renderLessonMarkup(text: string, lessons: LessonType[], termsSeen: Set<string> = new Set()) {
+    // Popover só no primeiro uso do termo na lição (RC.3.5); depois, texto puro.
+    const shown = new Set(termsSeen)
     return parseLessonMarkup(text).map((segment, index) => {
         if (segment.type === 'term') {
+            if (shown.has(segment.term)) {
+                return segment.term
+            }
+            shown.add(segment.term)
             return <GlossaryTerm key={index} term={segment.term} definition={segment.definition} />
         }
 

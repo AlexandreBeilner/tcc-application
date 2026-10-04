@@ -481,7 +481,7 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
   contextual); lint do seed barra "calcule" sem widget na mesma fase.
 - **Depende de:** RC.3.1 (e RC.3.2 quando o widget traz checkpoint).
 
-### RC.3.5 · Glossário ampliado e dicas inline
+### RC.3.5 · Glossário ampliado e dicas inline ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** glossário estruturado (hoje 6 termos) com cerca de 40 termos, cada um com a lição de origem,
   definição curta, exemplo; tooltip/toque no primeiro uso do termo em cada lição; página de glossário (consulta).
@@ -489,6 +489,20 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
   mercado, NAV, ágio/deságio, spread, liquidez, duration, conglomerado financeiro, securitizadora.
 - **Aceite:** RC.1.2 sem avisos; glossário acessível em todos os breakpoints.
 - **Depende de:** RC.3.1.
+- **Entregável (2026-10-04):** `features/lessons/glossary` virou catálogo estruturado (`{ definition, example?,
+  originLesson? }`) com 49 termos (os 6 antigos mais Selic, CDI, TR, IPCA, ticker, ON e PN, valor de face, VNA,
+  alavancagem, payout, JCP, ITR e DFP, valor de mercado, NAV, ágio, spread, liquidez, duration, conglomerado
+  financeiro, securitizadora e outros); `originLesson` fica vazio para os termos cuja lição ainda não existe
+  (Selic, CDI, TR, IPCA, ticker, ON e PN: RC.4.1/RC.4.2), para não haver link morto. *Primeiro uso:* o popover só
+  aparece no primeiro uso do termo na lição (entre as três fases); depois vira texto puro
+  (`termsSeenBeforeEachCard` em `playerCards`, derivado do conteúdo, sem estado, então Voltar e revisão não mudam).
+  *Página `/glossario`* (`pages/Glossario`): ordem alfabética, busca sem acento, exemplo, link para a lição de
+  origem; 1 coluna no mobile, 2 no tablet, 3 no desktop; link "Glossário" no cabeçalho do Hub de trilhas. Validou:
+  frontend `tsc -b`/oxlint/`vitest` (903) e backend `npm test` (829). **Ressalvas:** (a) o aceite "RC.1.2 sem
+  avisos" não é atingível aqui: o lint segue em modo aviso até as lições novas da Fase 4 existirem, e nenhuma lição
+  do seed usa `{{Selic}}` etc. ainda (Fase 5); (b) definições e exemplos não passaram pela validação factual
+  da RC.1.7 com fonte primária (são definições gerais; conferir TR, CDI e ON/PN na Fase 5); (c) sem conferência
+  visual nos 3 breakpoints nem `docker compose`; (d) o glossário mostra todos os termos, não só os já vistos.
 
 ### RC.3.6 · Compatibilidade com o editor do painel (P.10)
 

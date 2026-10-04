@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { groupLessonsByTrack } from '../../features/lessons/trackGroups'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
@@ -47,6 +47,9 @@ export function TrilhasHub() {
                                 {completedCount} de {lessons.length} lições concluídas no total
                             </span>
                         )}
+                        <Link to="/glossario" className={styles.glossaryLink}>
+                            Glossário
+                        </Link>
                     </header>
 
                     {lessonsQuery.isError && (

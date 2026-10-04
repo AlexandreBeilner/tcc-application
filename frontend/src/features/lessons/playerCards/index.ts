@@ -1,3 +1,4 @@
+import { termsInText } from '../parseLessonMarkup'
 import { splitIntoCards } from '../splitIntoCards'
 import type { CheckBlock, LessonBlock, WidgetBlock } from '../widgets/schema'
 
@@ -22,4 +23,18 @@ export function buildPhaseCards(blocks: LessonBlock[] | undefined, legacyText: s
               ? [{ kind: 'check', block }]
               : [{ kind: 'widget', block }],
     )
+}
+
+// Termos de glossário já usados em cartões anteriores da lição (na ordem do
+// player), por cartão de texto: derivado do conteúdo, sem estado, então Voltar
+// e revisão mostram sempre o mesmo cartão do mesmo jeito.
+export function termsSeenBeforeEachCard(cards: PlayerCard[]): Map<PlayerCard, Set<string>> {
+    const seen = new Set<string>()
+    const result = new Map<PlayerCard, Set<string>>()
+    for (const card of cards) {
+        if (card.kind !== 'text') continue
+        result.set(card, new Set(seen))
+        termsInText(card.text).forEach((term) => seen.add(term))
+    }
+    return result
 }
