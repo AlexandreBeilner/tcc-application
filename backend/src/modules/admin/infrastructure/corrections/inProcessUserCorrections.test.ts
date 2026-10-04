@@ -26,6 +26,7 @@ const achievement: Achievement = {
   description: 'Sete dias seguidos',
   criteriaType: 'streak_days',
   criteriaValue: 7,
+  isActive: true,
 }
 
 const lesson = {

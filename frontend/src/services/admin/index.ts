@@ -1,5 +1,13 @@
 import { apiRequest } from '../client'
 import type {
+    AchievementCatalog,
+    AdminRanking,
+    AdminRankingFilters,
+    CatalogAchievement,
+    CatalogMission,
+    CreateAchievementInput,
+    UpdateAchievementInput,
+    UpdateMissionInput,
     CorrectedProgression,
     CreditUserInput,
     CreditUserResult,
@@ -42,6 +50,20 @@ import type {
 } from './types'
 
 export type {
+    AchievementCatalog,
+    AchievementCriteriaType,
+    AchievementCriterionOption,
+    AdminRanking,
+    AdminRankingCriterion,
+    AdminRankingEntry,
+    AdminRankingFilters,
+    AdminRankingWindow,
+    CatalogAchievement,
+    CatalogMission,
+    CreateAchievementInput,
+    MissionVerification,
+    UpdateAchievementInput,
+    UpdateMissionInput,
     CorrectedProgression,
     CorrectionAchievement,
     CorrectionLesson,
@@ -366,4 +388,30 @@ export function correctAdminUserLesson(
     reason: string,
 ): Promise<void> {
     return apiRequest<void>(`/admin/users/${userId}/lessons/${lessonId}/${action}`, { token, method: 'POST', body: { reason } })
+}
+
+export function getAchievementCatalog(token: string): Promise<AchievementCatalog> {
+    return apiRequest<AchievementCatalog>('/admin/gamification/achievements', { token })
+}
+
+export function createAchievement(token: string, input: CreateAchievementInput): Promise<CatalogAchievement> {
+    return apiRequest<CatalogAchievement>('/admin/gamification/achievements', { token, method: 'POST', body: input })
+}
+
+export function updateAchievement(token: string, id: string, input: UpdateAchievementInput): Promise<CatalogAchievement> {
+    return apiRequest<CatalogAchievement>(`/admin/gamification/achievements/${id}`, { token, method: 'PATCH', body: input })
+}
+
+export function getMissionCatalog(token: string): Promise<{ missions: CatalogMission[] }> {
+    return apiRequest<{ missions: CatalogMission[] }>('/admin/gamification/missions', { token })
+}
+
+export function updateMission(token: string, id: string, input: UpdateMissionInput): Promise<CatalogMission> {
+    return apiRequest<CatalogMission>(`/admin/gamification/missions/${id}`, { token, method: 'PATCH', body: input })
+}
+
+export function getAdminRanking(token: string, filters: AdminRankingFilters): Promise<AdminRanking> {
+    const params = new URLSearchParams({ criterion: filters.criterion, page: String(filters.page) })
+    if (filters.window) params.set('window', filters.window)
+    return apiRequest<AdminRanking>(`/admin/gamification/ranking?${params.toString()}`, { token })
 }

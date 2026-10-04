@@ -292,3 +292,54 @@ export const setStreakBodySchema = z.object({
 export const correctionReasonBodySchema = z.object({
   reason: correctionReasonSchema,
 })
+
+// Catálogo de conquistas e missões (N.19). O critério é uma das regras fechadas que o código
+// avalia; a meta e os limites finos (inteira, centavos, teto) são da regra de domínio (422).
+const achievementCriteriaSchema = z.enum([
+  'net_worth',
+  'streak_days',
+  'lessons_completed',
+  'trades_executed',
+  'micro_decisions_streak',
+  'track_completed_no_errors',
+  'lesson_reviewed',
+])
+
+export const createAchievementBodySchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(255).nullish(),
+  criteria_type: achievementCriteriaSchema,
+  criteria_value: z.number().positive(),
+})
+
+export const updateAchievementBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+    description: z.string().trim().max(255).nullable().optional(),
+    criteria_type: achievementCriteriaSchema.optional(),
+    criteria_value: z.number().positive().optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, { message: 'informe ao menos um campo' })
+
+export const updateMissionBodySchema = z
+  .object({
+    title: z.string().trim().min(1).max(150).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    xp_reward: z.number().int().optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, { message: 'informe ao menos um campo' })
+
+// GET /admin/gamification/ranking (N.19): leitura da janela corrente. `window` só é opcional
+// no critério de nível, que é cumulativo.
+export const adminRankingQuerySchema = z
+  .object({
+    window: z.enum(['week', 'month']).optional(),
+    criterion: z.enum(['overall', 'fixedIncome', 'variableIncome', 'level']).default('overall'),
+    page: z.coerce.number().int().min(1).default(1),
+  })
+  .refine((query) => query.criterion === 'level' || query.window !== undefined, {
+    message: 'window é obrigatório exceto quando criterion=level',
+    path: ['window'],
+  })

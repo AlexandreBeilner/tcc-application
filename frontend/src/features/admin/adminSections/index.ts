@@ -14,7 +14,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     { key: 'bots', label: 'Bots', Icon: Bot, to: '/admin/bots', task: 'N.2' },
     { key: 'users', label: 'Usuários', Icon: Users, to: '/admin/usuarios', task: 'N.16' },
     { key: 'content', label: 'Conteúdo', Icon: FileText, task: 'N.18' },
-    { key: 'gamification', label: 'Gamificação', Icon: Trophy, task: 'N.19' },
+    { key: 'gamification', label: 'Gamificação', Icon: Trophy, to: '/admin/gamificacao', task: 'N.19' },
     { key: 'system', label: 'Sistema', Icon: Activity, task: 'N.20' },
     { key: 'audit', label: 'Auditoria', Icon: ScrollText, to: '/admin/auditoria', task: 'N.4' },
 ]

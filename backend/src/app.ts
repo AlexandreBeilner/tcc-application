@@ -87,6 +87,26 @@ import {
 } from './modules/admin/application/useCases/userCorrections'
 import { createEngineUserCashCreditor } from './modules/admin/infrastructure/engine/engineUserCashCreditor'
 import { createInProcessUserCorrections } from './modules/admin/infrastructure/corrections/inProcessUserCorrections'
+import { createAdminGamificationRouter } from './modules/admin/interfaces/http/adminGamificationRouter'
+import {
+  CreateAchievementAdminUseCase,
+  ListAchievementCatalogUseCase as ListAchievementCatalogAdminUseCase,
+  ListMissionCatalogUseCase as ListMissionCatalogAdminUseCase,
+  UpdateAchievementAdminUseCase,
+  UpdateMissionAdminUseCase,
+} from './modules/admin/application/useCases/gamificationCatalog'
+import { GetAdminRankingUseCase } from './modules/admin/application/useCases/getAdminRanking'
+import { createInProcessGamificationCatalogAdmin } from './modules/admin/infrastructure/gamification/inProcessGamificationCatalogAdmin'
+import { createInProcessAdminRankingReader } from './modules/admin/infrastructure/ranking/inProcessAdminRankingReader'
+import {
+  CreateAchievementUseCase,
+  ListAchievementCatalogUseCase,
+  UpdateAchievementUseCase,
+} from './modules/achievements/application/useCases/manageAchievementCatalog'
+import {
+  ListMissionCatalogUseCase,
+  UpdateMissionUseCase,
+} from './modules/missions/application/useCases/manageMissionCatalog'
 import { AdjustProgressionUseCase } from './modules/gamification/application/useCases/adjustProgression'
 import {
   GrantAchievementUseCase,
@@ -740,6 +760,32 @@ export function createApp(deps: AppDeps = {}): Express {
         recordAdminAction,
       ),
       getCorrectionContext: new GetUserCorrectionContextUseCase(userRepository, userCorrections),
+      authMiddleware,
+    }),
+  )
+  // Catálogo de conquistas e missões e ranking só leitura (N.19): editar passa pelos casos de
+  // uso dos módulos donos do dado; o ranking reaproveita o caso de uso que o jogador usa.
+  const gamificationCatalogAdmin = createInProcessGamificationCatalogAdmin({
+    listAchievementCatalog: new ListAchievementCatalogUseCase(achievementRepository),
+    createAchievement: new CreateAchievementUseCase(achievementRepository),
+    updateAchievement: new UpdateAchievementUseCase(achievementRepository),
+    listMissionCatalog: new ListMissionCatalogUseCase(missionRepository),
+    updateMission: new UpdateMissionUseCase(missionRepository),
+  })
+  app.use(
+    createAdminGamificationRouter({
+      listAchievementCatalog: new ListAchievementCatalogAdminUseCase(gamificationCatalogAdmin),
+      createAchievement: new CreateAchievementAdminUseCase(
+        gamificationCatalogAdmin,
+        recordAdminAction,
+      ),
+      updateAchievement: new UpdateAchievementAdminUseCase(
+        gamificationCatalogAdmin,
+        recordAdminAction,
+      ),
+      listMissionCatalog: new ListMissionCatalogAdminUseCase(gamificationCatalogAdmin),
+      updateMission: new UpdateMissionAdminUseCase(gamificationCatalogAdmin, recordAdminAction),
+      getAdminRanking: new GetAdminRankingUseCase(createInProcessAdminRankingReader(getRanking)),
       authMiddleware,
     }),
   )

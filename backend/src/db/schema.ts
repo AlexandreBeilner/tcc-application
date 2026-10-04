@@ -116,6 +116,13 @@ export const achievements = pgTable('achievements', {
   // coluna antiga nunca teve consumidor.
   criteriaType: achievementCriteriaType('criteria_type').notNull(),
   criteriaValue: numeric('criteria_value', { precision: 15, scale: 2 }).notNull(),
+  // Catálogo operável pelo painel (N.19). Conquista desativada para de ser
+  // concedida e some da lista de quem ainda não a tem; quem já ganhou não perde.
+  isActive: boolean('is_active').notNull().default(true),
+  // Chave estável do seed (N.19): `db:seed:achievements` casa por ela, não pelo
+  // nome, que o painel agora pode editar (casar por nome criaria duplicata a cada
+  // seed depois de um renomear). Nula nas conquistas criadas pelo painel.
+  seedKey: varchar('seed_key', { length: 50 }).unique(),
 })
 
 export const userAchievements = pgTable(
@@ -280,6 +287,9 @@ export const dailyMissions = pgTable('daily_missions', {
   // → `criteria_type`/`criteria_value`, tarefa 5.2). Só a missão "complete
   // uma lição" tem esse tratamento nesta fase (tarefa 5.4).
   requiresLessonCompletion: boolean('requires_lesson_completion').notNull().default(false),
+  // Catálogo operável pelo painel (N.19): missão desativada deixa de ser gerada
+  // pro dia e de poder ser concluída; o que já foi concluído fica como está.
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

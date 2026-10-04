@@ -36,6 +36,12 @@ import {
     creditAdminUser,
     getUserCorrectionContext,
     setAdminUserStreak,
+    createAchievement,
+    getAchievementCatalog,
+    getAdminRanking,
+    getMissionCatalog,
+    updateAchievement,
+    updateMission,
 } from '.'
 
 function mockFetchOnce(body: unknown, status = 200) {
@@ -366,5 +372,47 @@ describe('services/admin', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/admin/users/u1/achievements/a1/revoke')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/users/u1/lessons/l1/complete')
         expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ reason: 'lição travada' })
+    })
+
+    it('getAchievementCatalog e getMissionCatalog fazem GET no catálogo de gamificação', async () => {
+        const fetchMock = mockFetchOnce({ achievements: [], criteria: [], missions: [] })
+        await getAchievementCatalog('token')
+        await getMissionCatalog('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/achievements')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/gamification/missions')
+        expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer token')
+    })
+
+    it('createAchievement e updateAchievement mandam POST e PATCH com o corpo', async () => {
+        const fetchMock = mockFetchOnce({ id: 'a1' })
+        await createAchievement('token', { name: 'Fiel', description: null, criteria_type: 'streak_days', criteria_value: 30 })
+        await updateAchievement('token', 'a1', { is_active: false })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/achievements')
+        expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+            name: 'Fiel',
+            description: null,
+            criteria_type: 'streak_days',
+            criteria_value: 30,
+        })
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/gamification/achievements/a1')
+        expect(fetchMock.mock.calls[1][1].method).toBe('PATCH')
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ is_active: false })
+    })
+
+    it('updateMission faz PATCH só com os campos informados', async () => {
+        const fetchMock = mockFetchOnce({ id: 'm1' })
+        await updateMission('token', 'm1', { xp_reward: 45 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/missions/m1')
+        expect(fetchMock.mock.calls[0][1].method).toBe('PATCH')
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ xp_reward: 45 })
+    })
+
+    it('getAdminRanking monta a query e omite a janela no critério de nível', async () => {
+        const fetchMock = mockFetchOnce({ entries: [] })
+        await getAdminRanking('token', { window: 'month', criterion: 'overall', page: 2 })
+        await getAdminRanking('token', { criterion: 'level', page: 1 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/ranking?criterion=overall&page=2&window=month')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/gamification/ranking?criterion=level&page=1')
     })
 })

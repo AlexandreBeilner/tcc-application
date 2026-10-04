@@ -14,6 +14,7 @@ const streak7: Achievement = {
   description: null,
   criteriaType: 'streak_days',
   criteriaValue: 7,
+  isActive: true,
 }
 
 function build() {

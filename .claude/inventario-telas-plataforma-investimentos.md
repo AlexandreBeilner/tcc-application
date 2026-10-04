@@ -491,6 +491,27 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** cancelar desabilitado com o motivo (já aplicado, já cancelado, efeito em andamento); impacto indisponível (cancelado, evento só de fundamentos, janela ainda aberta); recusa do motor ao cancelar (tick em andamento) mostra o motivo; evento inexistente; erro ao carregar.
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`, `asset_quotes`.
 
+### 10.13 Usuários
+- **Objetivo:** achar uma conta e abrir o detalhe (N.16). Rota `/admin/usuarios`, seção "Usuários".
+- **Conteúdo:** busca por nome, e-mail, username ou id; filtros de papel, status, provedor de login e data de cadastro; lista paginada (tabela no tablet e no desktop, cartões no mobile).
+- **Ações:** abrir o detalhe de uma conta.
+- **Estados especiais:** conta suspensa com borda tracejada; conta excluída (LGPD) aparece como "Conta excluída"; lista vazia; erro ao carregar.
+- **Dados envolvidos:** `users`, `user_identities`.
+
+### 10.14 Detalhe do usuário
+- **Objetivo:** ver uma conta por inteiro e atuar sobre ela (N.16 e N.17). Rota `/admin/usuarios/:id`.
+- **Conteúdo:** cartões de conta, progressão, carteira (o administrador **vê o patrimônio absoluto**, exceção deliberada à RNF09), ordens abertas e linha do tempo de ações do painel sobre a conta; abaixo, **Correções de conta** (N.17): crédito de caixa sem teto, ajuste de XP, definir streak, conceder ou revogar conquista, concluir ou reabrir lição.
+- **Ações:** suspender (motivo obrigatório), reativar, encerrar sessões, excluir a pedido (LGPD, digitando o username) e cada correção, todas com senha recente (exceto reativar) e na auditoria. O crédito pede confirmação mostrando o valor formatado; concluir lição não dá XP e reabrir pode tirar o acesso à lição seguinte (avisado na tela). Resetar carteira não existe.
+- **Estados especiais:** conta de administrador não é suspensa nem excluída pelo painel; motor fora do ar (carteira e ordens vêm vazias, o resto segue); recusa do backend aparece no formulário; conta excluída não mostra as correções.
+- **Dados envolvidos:** `users`, `user_progression`, `user_achievements`, `user_lesson_progress`, `admin_audit_log`, e `accounts`/`market_events` (via motor).
+
+### 10.15 Gamificação
+- **Objetivo:** operar o catálogo de conquistas e de missões diárias e olhar o ranking (N.19). Rota `/admin/gamificacao`, seção "Gamificação". Três abas; cada uma só consulta quando aberta.
+- **Conteúdo:** **Conquistas**: nome, regra e meta, quantos usuários ganharam, status. **Missões diárias**: título, tipo de conferência (só leitura), XP, quantos concluíram (no total e hoje), status. **Ranking**: ranking global da janela corrente (semana ou mês, em UTC, com início e fim), por critério (geral, renda fixa, renda variável, nível), paginado, só nível, XP e rentabilidade percentual.
+- **Ações:** criar e editar conquista (a regra vem de uma lista fechada, nunca expressão livre), ativar e desativar conquista e missão (desativar pede confirmação e explica que ninguém perde o que já ganhou), editar título, descrição e XP da missão. Tudo na auditoria (`achievement.create`, `achievement.update`, `mission.update`). O ranking é somente leitura: é calculado na hora, sem janela gravada, então não há fechar nem recalcular. Não existe criar missão nova.
+- **Estados especiais:** desativada com borda tracejada; meta inválida (inteiro nos critérios de contagem, reais no patrimônio); nome de conquista repetido (409) mostrado no formulário; ranking vazio; erro ao carregar.
+- **Dados envolvidos:** `achievements`, `user_achievements`, `daily_missions`, `user_mission_progress`.
+
 ---
 
 ## 11. Resumo — todas as telas numeradas
@@ -536,6 +557,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.10 | Bots | Admin |
 | 10.11 | Parâmetros de simulação | Admin |
 | 10.12 | Detalhe do Evento Macro | Admin |
+| 10.13 | Usuários | Admin |
+| 10.14 | Detalhe do usuário | Admin |
+| 10.15 | Gamificação | Admin |
 
 **Total: 39 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 

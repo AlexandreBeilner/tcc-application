@@ -15,6 +15,7 @@ import { Conquistas } from '../pages/Conquistas'
 import { AdminAuditoria } from '../pages/AdminAuditoria'
 import { AdminEventoMacroDetalhe } from '../pages/AdminEventoMacroDetalhe'
 import { AdminEventosMacro } from '../pages/AdminEventosMacro'
+import { AdminGamificacao } from '../pages/AdminGamificacao'
 import { AdminMercado } from '../pages/AdminMercado'
 import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
 import { AdminOrdens } from '../pages/AdminOrdens'
@@ -162,6 +163,7 @@ export const router = createBrowserRouter([
                                     { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
                                     { path: '/admin/mercado/pausas', element: <AdminPausas /> },
                                     { path: '/admin/bots', element: <AdminBots /> },
+                                    { path: '/admin/gamificacao', element: <AdminGamificacao /> },
                                     { path: '/admin/usuarios', element: <AdminUsuarios /> },
                                     { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },
                                     { path: '/admin/auditoria', element: <AdminAuditoria /> },

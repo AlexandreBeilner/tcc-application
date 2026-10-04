@@ -113,3 +113,10 @@ export class InvalidAdminCorrectionError extends Error {}
 export class CashCreditRejectedError extends Error {}
 // O crédito faria o saldo passar do que a coluna do motor suporta.
 export class CashCreditOverflowError extends Error {}
+
+// Catálogo de conquistas e missões (N.19). Traduzidas pelo router: 404, 409 e 422.
+export class AdminCatalogNotFoundError extends Error {}
+// Nome de conquista já usado por outra.
+export class AdminCatalogConflictError extends Error {}
+// Dado que a regra de domínio recusa (meta, nome, XP, critério fora da lista fechada).
+export class InvalidAdminCatalogError extends Error {}

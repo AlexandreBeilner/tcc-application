@@ -156,6 +156,42 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 - **Sucesso:** `200` → `{ achievements: [{ id, name, description, unlocked }], lessons: [{ id, code, title, track_number, status }] }`, o que a tela precisa pra montar os seletores. `status` da lição: `completed` | `in_progress` | `not_started`. Leitura: não audita.
 - **Erros:** `400` id que não é UUID; `404`.
 
+### Gamificação: conquistas, missões e ranking (tarefa N.19)
+
+Seis rotas, todas só para `role: 'admin'` (`401` sem token, `403` para usuário comum). Editar o catálogo é **auditado** (`achievement.create`, `achievement.update`, `mission.update`, com o que foi pedido) mas **não pede senha recente**: não apaga dado de ninguém. Cada edição passa pelos casos de uso dos módulos donos do dado (conquistas, missões); o ranking reaproveita o caso de uso do jogador. `404` para id inexistente, `400` para id que não é UUID ou corpo inválido na borda, `409` para nome de conquista repetido, `422 { code: "invalid_catalog_entry" }` para o que a regra de domínio recusa (meta, nome, XP).
+
+#### `GET /admin/gamification/achievements`
+
+- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteria_type, criteria_value, is_active, unlocked_count }], criteria: [{ type, label, value_kind }] }`. `unlocked_count` é quantos usuários já ganharam. `criteria` é a **lista fechada** de regras que o código sabe avaliar (`net_worth`, `streak_days`, `lessons_completed`, `trades_executed`, `micro_decisions_streak`, `track_completed_no_errors`, `lesson_reviewed`), com `value_kind` `integer` ou `currency`: o painel escolhe uma, nunca digita expressão.
+
+#### `POST /admin/gamification/achievements`
+
+- **Payload:** `{ name, description?, criteria_type, criteria_value }`. `name` de 1 a 100 caracteres, `description` até 255, `criteria_value` positivo (inteiro nos critérios `integer`, até duas casas em `currency`, no máximo R$ 1 trilhão).
+- **Sucesso:** `201` → a conquista criada (mesmo formato da lista, `unlocked_count: 0`). Nasce **ativa**, sem `seed_key`. Auditoria: `achievement.create` com o que foi pedido e o id criado.
+- **Erros:** `400`; `409` nome já usado (sem diferenciar caixa); `422`.
+
+#### `PATCH /admin/gamification/achievements/:id`
+
+- **Payload:** qualquer subconjunto, ao menos um campo: `name`, `description` (`null` limpa), `criteria_type`, `criteria_value`, `is_active`.
+- **Sucesso:** `200` → a conquista atualizada. O estado final é validado (trocar só o tipo de critério de uma meta em reais por um de contagem é recusado se a meta não for inteira). **Desativar nunca remove o que o usuário já ganhou**: a conquista deixa de ser concedida e some pra quem ainda não a tem; mudar meta ou regra só vale pras próximas concessões, ninguém é revogado. Auditoria: `achievement.update` só com os campos pedidos.
+- **Erros:** `400`; `404`; `409`; `422`.
+
+#### `GET /admin/gamification/missions`
+
+- **Sucesso:** `200` → `{ missions: [{ id, key, title, description, completion_criteria, xp_reward, is_active, verification, completed_users, completed_today }] }`. `verification`: `lesson_completion`, `server_check` ou `client_reported` (como a conclusão é conferida, só leitura). `completed_users` conta usuários distintos que concluíram a missão em qualquer dia; `completed_today`, no dia corrente (UTC).
+
+#### `PATCH /admin/gamification/missions/:id`
+
+- **Payload:** qualquer subconjunto, ao menos um campo: `title` (1 a 150), `description` (até 500, `null` limpa), `xp_reward` (inteiro de 1 a 500), `is_active`. Não existe rota pra criar missão nem pra mudar o tipo de conferência (é código; uma missão nova sem conferência seria XP de graça).
+- **Sucesso:** `200` → a missão atualizada. **Missão desativada não é sorteada pro dia** (nem ganha linha de progresso nova) e não pode mais ser concluída (`404` em `POST /missions/:id/complete`); o que já foi concluído e o XP dado ficam como estão. O XP novo vale pra quem concluir a partir de agora. Auditoria: `mission.update` com os campos pedidos e a `key`.
+- **Erros:** `400`; `404`; `422` (XP fora da faixa, título vazio).
+
+#### `GET /admin/gamification/ranking`
+
+- **Payload:** query `window` (`week` | `month`, obrigatório exceto com `criterion=level`), `criterion` (`overall` padrão | `fixedIncome` | `variableIncome` | `level`), `page` (1-based, padrão 1; páginas de 25).
+- **Sucesso:** `200` → `{ window, window_start, window_end, criterion, entries: [{ position, user_id, username, level, xp, profitability_pct }], page, page_size, total_entries, total_pages }`. **Somente leitura**: é o ranking global da janela corrente (UTC, mesmo cálculo do `GET /ranking`), calculado na hora, sem janela gravada, então não há o que fechar nem recalcular. `window_start`/`window_end` mostram o período (`null` no critério de nível, que é cumulativo). Só nível, XP e rentabilidade percentual: nunca patrimônio absoluto (RNF09). Custa chamadas ao motor por usuário, por isso a tela só consulta quando a aba está aberta.
+- **Erros:** `400` parâmetros inválidos.
+
 ### Painel de Tempo (tarefa N.6)
 
 Cinco rotas que repassam o controle do Temporizador do motor (ver `.docs/engine/tick.md#controle-do-temporizador-tarefa-n6-fase-n`). Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum, nada é chamado nem auditado nesses casos). Proxy fino: `SchedulerAdmin` (porta → `engineSchedulerAdmin`) chama o motor via `ENGINE_URL`; a regra (pausa só vale pro tick agendado, retomar não recupera o tempo parado, teto de dias) vive no motor.

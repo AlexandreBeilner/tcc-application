@@ -103,6 +103,9 @@ export type AuditAction =
     | 'user.revoke_achievement'
     | 'user.complete_lesson'
     | 'user.reopen_lesson'
+    | 'achievement.create'
+    | 'achievement.update'
+    | 'mission.update'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -714,4 +717,99 @@ export interface CorrectedProgression {
     level: number
     current_streak: number
     longest_streak: number
+}
+
+// Catálogo de conquistas e missões e leitura do ranking (N.19).
+export type AchievementCriteriaType =
+    | 'net_worth'
+    | 'streak_days'
+    | 'lessons_completed'
+    | 'trades_executed'
+    | 'micro_decisions_streak'
+    | 'track_completed_no_errors'
+    | 'lesson_reviewed'
+
+export interface AchievementCriterionOption {
+    type: AchievementCriteriaType
+    label: string
+    // 'currency' aceita centavos; 'integer' só contagem.
+    value_kind: 'integer' | 'currency'
+}
+
+export interface CatalogAchievement {
+    id: string
+    name: string
+    description: string | null
+    criteria_type: AchievementCriteriaType
+    criteria_value: number
+    is_active: boolean
+    // Quantos usuários já ganharam.
+    unlocked_count: number
+}
+
+export interface AchievementCatalog {
+    achievements: CatalogAchievement[]
+    criteria: AchievementCriterionOption[]
+}
+
+export interface CreateAchievementInput {
+    name: string
+    description: string | null
+    criteria_type: AchievementCriteriaType
+    criteria_value: number
+}
+
+export type UpdateAchievementInput = Partial<CreateAchievementInput> & { is_active?: boolean }
+
+export type MissionVerification = 'lesson_completion' | 'server_check' | 'client_reported'
+
+export interface CatalogMission {
+    id: string
+    key: string
+    title: string
+    description: string | null
+    completion_criteria: string
+    xp_reward: number
+    is_active: boolean
+    verification: MissionVerification
+    completed_users: number
+    completed_today: number
+}
+
+export interface UpdateMissionInput {
+    title?: string
+    description?: string | null
+    xp_reward?: number
+    is_active?: boolean
+}
+
+export type AdminRankingWindow = 'week' | 'month'
+export type AdminRankingCriterion = 'overall' | 'fixedIncome' | 'variableIncome' | 'level'
+
+export interface AdminRankingEntry {
+    position: number
+    user_id: string
+    username: string
+    level: number
+    xp: number
+    // Só rentabilidade percentual: nunca patrimônio absoluto (RNF09).
+    profitability_pct: number | null
+}
+
+export interface AdminRanking {
+    window: AdminRankingWindow | null
+    window_start: string | null
+    window_end: string | null
+    criterion: AdminRankingCriterion
+    entries: AdminRankingEntry[]
+    page: number
+    page_size: number
+    total_entries: number
+    total_pages: number
+}
+
+export interface AdminRankingFilters {
+    window?: AdminRankingWindow
+    criterion: AdminRankingCriterion
+    page: number
 }
