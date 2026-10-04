@@ -171,7 +171,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
 - **Aceite:** RC.1.1 verde; usuário logado continua logado após a troca de chave de storage.
 - **Depende de:** RC.1.1.
 
-### RC.1.5 · Erros do engine com código, nunca `err.message` cru na UI
+### RC.1.5 · Erros do engine com código, nunca `err.message` cru na UI ✅ concluída (2026-10-04)
 
 - **Escopo:** contrato de erro `{ code, message }` com mensagem em português para o usuário, mapeamento no
   backend (proxy) e no frontend (um único `formatApiError`). Sem expor `outstanding_shares`, `user_id e asset_id
@@ -179,6 +179,18 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
 - **Aceite:** teste varrendo todos os call sites de `err.message` em `pages/`/`components/`; erro novo sem
   mapeamento cai numa mensagem genérica, nunca no texto interno.
 - **Depende de:** nada.
+- **Entregável (2026-10-04):** o mapeamento fica no ponto único do proxy: `backend/src/modules/market/interfaces/http/
+  engineErrorTranslator.ts` (+ teste) devolve `{ code, error }` com texto em português; mensagem fora da tabela cai
+  num genérico pelo status e nunca vaza (`outstanding_shares`, "temporizador", "tick"). Erro com `code` próprio do
+  motor (`market_closed`) passa 1:1. Frontend: `utils/formatApiError` (`formatApiError` com fallback por tela e
+  `apiErrorCode`); `Login`, `Onboarding`, `Configuracoes`, `PrivacidadeLgpd`, `OrderConfirmationDialog` e
+  `MacroEventTriggerForm` trocaram `err.message` por ele; `orderRejection` agora decide por `code`, não por trecho
+  de texto. Teste `frontend/src/content/apiErrorMessages.test.ts` varre `pages/`, `components/` e `features/` e falha
+  em qualquer `err.message` novo. Documentado em `.docs/backend/market.md`. **Decisão de escopo:** o engine em Go
+  não foi alterado (centenas de call sites de texto livre); o contrato `{ code, message }` vale entre backend e
+  frontend, e as mensagens internas do engine só aparecem em log. Se o autor quiser códigos nativos no engine,
+  é tarefa separada. Validou: `vitest`, `lint`, `build` do backend (756 testes) e `vitest`, `lint`, `tsc -b` do
+  frontend (832). **Não rodei `docker compose up`** (cobertura por supertest).
 
 ### RC.1.6 · Guia de redação de conteúdo educacional
 

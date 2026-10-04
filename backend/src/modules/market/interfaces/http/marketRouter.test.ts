@@ -244,7 +244,7 @@ describe('GET /market/assets/:id', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'ativo não encontrado' })
+    expect(res.body).toEqual({ code: 'asset_not_found', error: 'Ativo não encontrado.' })
   })
 })
 
@@ -304,7 +304,7 @@ describe('GET /market/assets/:id/book', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'ativo não encontrado' })
+    expect(res.body).toEqual({ code: 'asset_not_found', error: 'Ativo não encontrado.' })
   })
 })
 
@@ -364,7 +364,7 @@ describe('GET /market/indicators', () => {
     expect(res.status).toBe(400)
   })
 
-  it('traduz um EngineRequestError do motor 1:1 pro cliente', async () => {
+  it('traduz um EngineRequestError do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, indicatorHistoryReader } = buildApp()
     indicatorHistoryReader.errorToThrow = new EngineRequestError(503, 'motor indisponível')
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
@@ -372,7 +372,10 @@ describe('GET /market/indicators', () => {
     const res = await request(app).get('/market/indicators').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(503)
-    expect(res.body).toEqual({ error: 'motor indisponível' })
+    expect(res.body).toEqual({
+      code: 'service_unavailable',
+      error: 'O mercado está indisponível no momento. Tente novamente em instantes.',
+    })
   })
 })
 
@@ -424,7 +427,7 @@ describe('GET /market/calendar', () => {
     expect(res.status).toBe(400)
   })
 
-  it('traduz um EngineRequestError do motor 1:1 pro cliente', async () => {
+  it('traduz um EngineRequestError do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, marketCalendarReader } = buildApp()
     marketCalendarReader.errorToThrow = new EngineRequestError(400, 'janela inválida')
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
@@ -432,7 +435,10 @@ describe('GET /market/calendar', () => {
     const res = await request(app).get('/market/calendar').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'janela inválida' })
+    expect(res.body).toEqual({
+      code: 'invalid_request',
+      error: 'Pedido inválido. Confira os dados e tente de novo.',
+    })
   })
 })
 
@@ -577,7 +583,7 @@ describe('POST /market/orders', () => {
     expect(res.status).toBe(400)
   })
 
-  it('traduz 422 (saldo insuficiente) do motor 1:1 pro cliente', async () => {
+  it('traduz 422 (saldo insuficiente) do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, orderExecutor } = buildApp()
     orderExecutor.errorToThrow = new EngineRequestError(422, 'saldo insuficiente')
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
@@ -593,7 +599,10 @@ describe('POST /market/orders', () => {
       })
 
     expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'saldo insuficiente' })
+    expect(res.body).toEqual({
+      code: 'insufficient_balance',
+      error: 'Saldo insuficiente para essa operação.',
+    })
   })
 
   it('retorna 403 (produto travado pela trilha) quando o usuário não desbloqueou o tipo do ativo (tarefa 7.0.1)', async () => {
@@ -642,7 +651,7 @@ describe('POST /market/orders/:id/cancel', () => {
     ])
   })
 
-  it('traduz 404 (ordem não encontrada ou de outro usuário) do motor 1:1 pro cliente', async () => {
+  it('traduz 404 (ordem não encontrada ou de outro usuário) do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, orderExecutor } = buildApp()
     orderExecutor.errorToThrow = new EngineRequestError(404, 'ordem não encontrada')
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
@@ -652,10 +661,10 @@ describe('POST /market/orders/:id/cancel', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'ordem não encontrada' })
+    expect(res.body).toEqual({ code: 'order_not_found', error: 'Ordem não encontrada.' })
   })
 
-  it('traduz 409 (ordem já filled/cancelled) do motor 1:1 pro cliente', async () => {
+  it('traduz 409 (ordem já filled/cancelled) do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, orderExecutor } = buildApp()
     orderExecutor.errorToThrow = new EngineRequestError(
       409,
@@ -668,7 +677,10 @@ describe('POST /market/orders/:id/cancel', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(409)
-    expect(res.body).toEqual({ error: 'ordem não pode ser cancelada neste status' })
+    expect(res.body).toEqual({
+      code: 'order_not_cancellable',
+      error: 'Essa ordem não pode mais ser cancelada.',
+    })
   })
 })
 
@@ -718,7 +730,7 @@ describe('POST /market/fixed-income/redemptions', () => {
     expect(fixedIncomeExecutor.redeemCalls[0].user_id).toBe('user-1')
   })
 
-  it('traduz 404 (sem posição) do motor 1:1 pro cliente', async () => {
+  it('traduz 404 (sem posição) do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, fixedIncomeExecutor } = buildApp()
     fixedIncomeExecutor.errorToThrow = new EngineRequestError(
       404,
@@ -732,7 +744,10 @@ describe('POST /market/fixed-income/redemptions', () => {
       .send({ asset_id: '11111111-1111-4111-8111-111111111111' })
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'usuário sem posição nesse título' })
+    expect(res.body).toEqual({
+      code: 'position_not_found',
+      error: 'Você não tem posição neste título para resgatar.',
+    })
   })
 })
 
@@ -781,7 +796,7 @@ describe('GET /market/fixed-income/simulate', () => {
     expect(res.status).toBe(400)
   })
 
-  it('traduz 400 (ativo não é renda fixa) do motor 1:1 pro cliente', async () => {
+  it('traduz 400 (ativo não é renda fixa) do motor para código e mensagem em português', async () => {
     const { app, tokenIssuer, fixedIncomeExecutor } = buildApp()
     fixedIncomeExecutor.errorToThrow = new EngineRequestError(
       400,
@@ -796,7 +811,10 @@ describe('GET /market/fixed-income/simulate', () => {
       .set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'simulação só é suportada pra ativo de renda fixa' })
+    expect(res.body).toEqual({
+      code: 'asset_class_mismatch',
+      error: 'Essa operação não está disponível para este tipo de ativo.',
+    })
   })
 })
 

@@ -3,10 +3,10 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { FastForward, Wallet, Target, Users, HandCoins } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
 import { completeOnboarding } from '../../services/auth'
-import { ApiError } from '../../services/client'
 import { Button } from '../../components/atoms/Button'
 import { formatCurrency } from '../../features/portfolio/format'
 import styles from './index.module.css'
+import { formatApiError } from '../../utils/formatApiError'
 
 // Tela 1.2 (tarefa 6.2) — carrossel de 3 telas curtas (inventário 1.2),
 // só na primeira sessão após cadastro. CTA final "Começar" e "pular"
@@ -151,7 +151,7 @@ export function Onboarding() {
             setUser(result.user)
             navigate('/trilha', { replace: true })
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Não foi possível continuar. Tente novamente.')
+            setError(formatApiError(err, 'Não foi possível continuar. Tente novamente.'))
             setIsSubmitting(false)
         }
     }

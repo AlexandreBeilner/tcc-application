@@ -3,11 +3,11 @@ import type { SubmitEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
-import { ApiError } from '../../services/client'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
 import { Button } from '../../components/atoms/Button'
 import type { Mode } from './types'
 import styles from './index.module.css'
+import { formatApiError } from '../../utils/formatApiError'
 
 const STRENGTH_LABEL: Record<'weak' | 'medium' | 'strong', string> = {
     weak: 'Fraca',
@@ -63,9 +63,9 @@ export function Login() {
             navigate('/', { replace: true })
         } catch (err) {
             // 401 (login) e 409 (cadastro, e-mail/username) já chegam com
-            // mensagens distintas do backend (.docs/backend/auth.md) — exibir
-            // `err.message` direto satisfaz os dois casos sem remapear nada aqui.
-            setError(err instanceof ApiError ? err.message : 'Não foi possível completar a operação.')
+            // mensagens distintas do backend (.docs/backend/auth.md) — o
+            // `formatApiError` repassa as duas sem remapear nada aqui.
+            setError(formatApiError(err, 'Não foi possível completar a operação.'))
             setIsSubmitting(false)
         }
     }

@@ -2,6 +2,7 @@ import type { Response } from 'express'
 import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
+import { translateEngineError } from './engineErrorTranslator'
 import { requireUuidParam } from '../../../../shared/http/uuidParam'
 import { EngineRequestError, ProductLockedError } from '../../domain/errors'
 import type { GetAssetBookUseCase } from '../../application/useCases/getAssetBook'
@@ -69,7 +70,8 @@ function sendEngineError(err: unknown, res: Response): void {
     return
   }
   if (err instanceof EngineRequestError) {
-    res.status(err.status).json({ ...err.details, error: err.message })
+    const translated = translateEngineError(err)
+    res.status(translated.status).json(translated.body)
     return
   }
   throw err

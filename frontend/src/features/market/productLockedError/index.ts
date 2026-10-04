@@ -15,5 +15,9 @@ export function asProductLockedError(err: unknown): ProductLockedErrorBody | nul
     const body = err.details as Partial<ProductLockedErrorBody> | undefined
     if (typeof body?.key !== 'string') return null
 
-    return { error: body.error ?? err.message, key: body.key, unlockingLesson: body.unlockingLesson ?? null }
+    return {
+        error: body.error ?? 'Complete a lição correspondente na trilha para desbloquear este produto.',
+        key: body.key,
+        unlockingLesson: body.unlockingLesson ?? null,
+    }
 }

@@ -3,9 +3,9 @@ import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { useAuth } from '../../features/auth/AuthContext'
-import { ApiError } from '../../services/client'
 import { deleteAccount, exportAccountData } from '../../services/auth'
 import styles from './index.module.css'
+import { formatApiError } from '../../utils/formatApiError'
 
 // Tela 9.3 (tarefa 6.10, RNF04) — restrita à gestão de dados pessoais
 // (spec v0.4 §8.2: não há visibilidade de perfil configurável nesta
@@ -52,7 +52,7 @@ export function PrivacidadeLgpd() {
             link.remove()
             URL.revokeObjectURL(url)
         } catch (err) {
-            setExportError(err instanceof ApiError ? err.message : 'Não foi possível exportar seus dados agora. Tente novamente.')
+            setExportError(formatApiError(err, 'Não foi possível exportar seus dados agora. Tente novamente.'))
         } finally {
             setIsExporting(false)
         }
@@ -66,7 +66,7 @@ export function PrivacidadeLgpd() {
             logout()
             navigate('/login', { replace: true })
         } catch (err) {
-            setDeleteError(err instanceof ApiError ? err.message : 'Não foi possível excluir sua conta agora. Tente novamente.')
+            setDeleteError(formatApiError(err, 'Não foi possível excluir sua conta agora. Tente novamente.'))
             setIsDeleting(false)
             setConfirmingDelete(false)
             setDeleteConfirmText('')

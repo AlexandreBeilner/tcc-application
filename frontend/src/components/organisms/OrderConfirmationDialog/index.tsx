@@ -10,6 +10,7 @@ import { useAssetQuery } from '../../../features/market/useAssetQuery'
 import { useAssetBookQuery } from '../../../features/market/useAssetBookQuery'
 import { usePlaceOrderMutation } from '../../../features/market/usePlaceOrderMutation'
 import { asProductLockedError } from '../../../features/market/productLockedError'
+import { formatApiError } from '../../../utils/formatApiError'
 import { classifyOrderRejection, describeOrderRejection } from '../../../features/market/orderRejection'
 import { averageFillPrice } from '../../../features/market/orderBook'
 import type { ProductLockedErrorBody } from '../../../services/market'
@@ -17,7 +18,6 @@ import { usePurchaseFixedIncomeMutation } from '../../../features/market/usePurc
 import { useRedeemFixedIncomeMutation } from '../../../features/market/useRedeemFixedIncomeMutation'
 import { useMyAccountQuery } from '../../../features/portfolio/useMyAccountQuery'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
-import { ApiError } from '../../../services/client'
 import type { OrderConfirmationDialogProps, OrderDraft } from './types'
 import styles from './index.module.css'
 
@@ -118,7 +118,7 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                 setError(describeOrderRejection(rejection, draft.ticker, bookQuery.data?.book, cashBalance, ownedQuantity))
                 return
             }
-            setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
+            setError(formatApiError(err, 'Não foi possível concluir a operação agora.'))
         }
     }
 

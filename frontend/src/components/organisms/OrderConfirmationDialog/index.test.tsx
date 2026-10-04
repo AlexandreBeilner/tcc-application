@@ -214,7 +214,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
             },
         })
         vi.mocked(placeOrder).mockRejectedValue(
-            new ApiError(422, 'saldo insuficiente para executar a ordem', { error: 'saldo insuficiente para executar a ordem' }),
+            new ApiError(422, 'Saldo insuficiente para essa operação.', { code: 'insufficient_balance' }),
         )
 
         renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 1000, unitPrice: 30 })
@@ -255,8 +255,8 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
             ],
         })
         vi.mocked(placeOrder).mockRejectedValue(
-            new ApiError(422, 'quantidade em posição insuficiente para a venda', {
-                error: 'quantidade em posição insuficiente para a venda',
+            new ApiError(422, 'Você não tem quantidade suficiente em carteira para essa venda.', {
+                code: 'insufficient_position',
             }),
         )
 

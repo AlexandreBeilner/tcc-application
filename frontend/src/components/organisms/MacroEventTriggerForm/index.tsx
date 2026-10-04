@@ -17,7 +17,7 @@ import {
 } from '../../../features/admin/macroEventDraft'
 import type { MacroEventDraft, MacroEventTargetDraft, MacroEventTargetKind } from '../../../features/admin/macroEventDraft'
 import { useTriggerMacroEventMutation } from '../../../features/admin/useTriggerMacroEventMutation'
-import { ApiError } from '../../../services/client'
+import { formatApiError } from '../../../utils/formatApiError'
 import type { MacroEventTriggerFormProps } from './types'
 import styles from './index.module.css'
 
@@ -125,12 +125,9 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
     }
 
     const summaryRows = buildMacroEventSummaryRows(draft, assetLabels)
-    const triggerErrorMessage =
-        triggerMutation.error instanceof ApiError
-            ? triggerMutation.error.message
-            : triggerMutation.isError
-              ? 'Não foi possível disparar o evento agora. Tente novamente.'
-              : null
+    const triggerErrorMessage = triggerMutation.isError
+        ? formatApiError(triggerMutation.error, 'Não foi possível disparar o evento agora. Tente novamente.')
+        : null
 
     return (
         <div className={styles.layout}>
