@@ -24,7 +24,7 @@ A lição ensina **como as coisas funcionam no Brasil** e é **leve**. Profundid
 ## 3. O Brasil real e o bloco "Na plataforma"
 
 - O texto da lição descreve o **mundo real**: Copom, B3, Tesouro Direto, FGC como existem.
-- Quando a plataforma difere do real, a diferença vai **num bloco padronizado "Na plataforma"** com três linhas: **No Brasil**, **Aqui**, **Por quê**. Ssempre separado, nunca misturado ao texto principal.
+- Quando a plataforma difere do real, a diferença vai **num bloco padronizado "Na plataforma"** com três linhas: **No Brasil**, **Aqui**, **Por quê**. Sempre separado, nunca misturado ao texto principal.
 - Proibido o texto do tipo "na reunião X isso acontece" como se fosse o conteúdo. Exemplo real: a 1.3 diz que o Copom se reúne a cada 21 dias; no Brasil são 8 reuniões por ano e na plataforma o intervalo é de 45 dias simulados. O certo é ensinar as 8 reuniões e mandar os 45 dias para o bloco.
 - Os números do catálogo (taxas, composição de ETF, intervalos do motor) não entram no texto principal. Ou viram "% do CDI", ou aparecem num widget com o valor vivo. Número solto que não bate com o catálogo é erro, não simplificação.
 
