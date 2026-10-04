@@ -297,7 +297,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
     })
 
     // Regressão da tarefa N.2: o 403 nunca traz `id`, só `code`/`title` —
-    // `LockedAssetPanel` já cai no Mapa da Trilha por omissão de `lessonId`,
+    // `LockedGate` já cai no Mapa da Trilha por omissão de `lessonId`,
     // continua assim mesmo com o campo `reachable` novo (nunca passado aqui).
     it('CTA do banner de trava continua caindo no Mapa da Trilha (403 nunca traz id da lição)', async () => {
         vi.mocked(getAsset).mockResolvedValue({

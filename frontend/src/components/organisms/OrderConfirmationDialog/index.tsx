@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../atoms/Button'
-import { LockedAssetPanel } from '../../molecules/LockedAssetPanel'
+import { LockedGate } from '../LockedGate'
 import { OrderSummaryList } from '../OrderSummaryList'
 import type { OrderSummaryRow } from '../OrderSummaryList'
 import { OrderSuccessOverlay } from '../OrderSuccessOverlay'
@@ -152,7 +152,7 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                         Confirmar ordem
                     </h1>
 
-                    <LockedAssetPanel lessonTitle={lockedError.unlockingLesson?.title} />
+                    <LockedGate variant="inline" lessonTitle={lockedError.unlockingLesson?.title} />
 
                     <div className={styles.actions}>
                         <Button variant="secondary" onClick={onClose}>

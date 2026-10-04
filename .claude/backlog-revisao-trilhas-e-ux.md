@@ -322,7 +322,7 @@ colunas.
 - **Aceite:** errar nunca avança; tentativas ilimitadas; jornadas e2e existentes verdes.
 - **Depende de:** RC.2.2, RC.2.3.
 
-### RC.2.5 · `LockedGate` unificado (P.5)
+### RC.2.5 · `LockedGate` unificado (P.5) ✅ concluída (2026-10-04)
 
 - **Escopo:** rascunho/mockup primeiro. Componente único com variantes `screen`, `section`, `inline`, mesmo
   tamanho e estilo por variante, cadeado inequívoco, textos sem código de lição, claro/escuro, 3 breakpoints.
@@ -331,6 +331,17 @@ colunas.
   engajamento).
 - **Aceite:** o card tem a mesma largura/altura relativa em todas as telas da mesma variante.
 - **Depende de:** nada (paralelizável).
+- **Entregável (2026-10-04):** `components/organisms/LockedGate` (variantes `screen`, `section`, `inline`) substitui
+  `LockedAssetPanel` e `LockedScreen` (removidos, com testes portados). Largura máxima, selo e padding fixados pela
+  variante (screen 640px/selo 96px, section 560px/64px, inline 420px/36px), nunca pelo contêiner; borda tracejada e
+  selo âmbar (`--color-gamify-*`, ícone de cadeado grande); no desktop (>= 1024px) a `screen` vira selo à esquerda e
+  texto/CTA à direita; no mobile o CTA ocupa a largura toda; título em `h2`, `role="status"` na `screen` e
+  `role="note"` nas demais. Migrados `RequiresUnlock` (screen), `AssetDetail`/`FixedIncomeDetail` (section, sem o
+  `<main>` duplicado dentro do `main` do AppShell) e `OrderConfirmationDialog` (inline). Texto e regra do CTA
+  (nunca código de lição, `reachable: false` cai no Mapa) preservados. Validou: `vitest` (845), `tsc -b`, oxlint.
+  **Ressalvas:** (a) não houve mockup separado nem conferência visual em 360/768/1280px, nos dois temas (sem
+  `docker compose up` nesta sessão); a composição foi definida só em CSS e precisa de uma olhada no navegador antes
+  de fechar. (b) Não apliquei a linha "Faltam N lições" opcional da proposta.
 
 ### RC.2.6 · Limpeza de comentários e tipos obsoletos
 

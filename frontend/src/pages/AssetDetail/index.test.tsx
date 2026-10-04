@@ -268,7 +268,7 @@ describe('AssetDetail (tela 4.5)', () => {
 // Fase Q (reversão da J.3 "prévia, não parede") — o Detalhe é sempre
 // alcançável (EquityList não redireciona mais pra lição, `useLockedAssetGate`),
 // mas quando o ativo ainda está travado a tela inteira vira parede: só o
-// card `LockedAssetPanel`, nada de ticker/preço/gráfico/indicadores.
+// card `LockedGate`, nada de ticker/preço/gráfico/indicadores.
 describe('AssetDetail — ativo travado pela trilha (Fase Q)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({

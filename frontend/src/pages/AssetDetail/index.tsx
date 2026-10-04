@@ -7,7 +7,7 @@ import { FiiIndicatorsPanel } from '../../components/organisms/FiiIndicatorsPane
 import { DividendHistoryList } from '../../components/organisms/DividendHistoryList'
 import { PositionSummaryCard } from '../../components/organisms/PositionSummaryCard'
 import { EquityOrderTicket } from '../../components/organisms/EquityOrderTicket'
-import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
+import { LockedGate } from '../../components/organisms/LockedGate'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
@@ -33,7 +33,7 @@ const RANGES = [
 // nunca reaproveitar o layout de indicadores de Ações pra ETF/FII).
 // Ativo travado (Fase Q, reversão da J.3 "prévia, não parede") chega aqui
 // pelo clique na linha de `EquityList` — mas a tela inteira vira parede:
-// nada de ticker/preço/gráfico/indicadores, só o card `LockedAssetPanel`
+// nada de ticker/preço/gráfico/indicadores, só o card `LockedGate`
 // explicando o que falta pra liberar. A versão original da J.3 mantinha
 // tudo visível (só leitura) e trocava apenas o painel de compra — decisão
 // revertida pelo autor (2026-09-12): "a única coisa que aparece na tela é
@@ -82,13 +82,12 @@ export function AssetDetail() {
 
     if (locked) {
         return (
-            <main className={styles.page}>
-                <LockedAssetPanel
-                    lessonId={unlockingLesson?.id}
-                    lessonTitle={unlockingLesson?.title}
-                    reachable={unlockingLesson?.reachable}
-                />
-            </main>
+            <LockedGate
+                variant="section"
+                lessonId={unlockingLesson?.id}
+                lessonTitle={unlockingLesson?.title}
+                reachable={unlockingLesson?.reachable}
+            />
         )
     }
 

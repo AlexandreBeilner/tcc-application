@@ -62,7 +62,7 @@ export const router = createBrowserRouter([
                 children: [
                     // Portfólio/Calculadora só desbloqueiam de verdade depois de
                     // 0.1/0.2 (tarefa 7.0.1, achado 5) — `RequiresUnlock` renderiza
-                    // `LockedScreen` no lugar do conteúdo antes disso (Fase Q,
+                    // `LockedGate` no lugar do conteúdo antes disso (Fase Q,
                     // "bloqueio é parede", nunca mais um redirect pra `/trilha`),
                     // mesmo padrão de nesting de `<ProtectedRoute requireRole="admin">`
                     // abaixo.
