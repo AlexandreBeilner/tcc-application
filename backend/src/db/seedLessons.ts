@@ -95,7 +95,7 @@ export interface LessonSeed {
 // dois), 3.4 (efeito nos fundamentos + o que acontece com o Tesouro Selic,
 // desafio final da trilha sintetizando 2.8+3.2 — 4 combinações possíveis,
 // só uma bate com o texto de `revelationText`).
-const LESSON_SEEDS: LessonSeed[] = [
+export const LESSON_SEEDS: LessonSeed[] = [
   {
     stableKey: '0.1',
     code: '0.1',

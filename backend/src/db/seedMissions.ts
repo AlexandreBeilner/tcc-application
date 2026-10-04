@@ -6,7 +6,7 @@ import {
 import { createDb } from './client'
 import { dailyMissions } from './schema'
 
-interface MissionSeed {
+export interface MissionSeed {
   key: string
   title: string
   description: string
@@ -21,7 +21,7 @@ interface MissionSeed {
 // identificador estável que código cliente usa pra achar uma missão
 // específica — `title` pode mudar (correção de texto, tradução) sem quebrar
 // esse casamento.
-const MISSION_SEEDS: MissionSeed[] = [
+export const MISSION_SEEDS: MissionSeed[] = [
   {
     key: 'lesson_complete',
     title: 'Complete uma lição da trilha',
@@ -98,7 +98,9 @@ async function main() {
   process.exit(0)
 }
 
-main().catch((err) => {
-  console.error('erro ao rodar seed de missões:', err)
-  process.exit(1)
-})
+if (process.env.VITEST === undefined) {
+  main().catch((err) => {
+    console.error('erro ao rodar seed de missões:', err)
+    process.exit(1)
+  })
+}

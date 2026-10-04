@@ -1,0 +1,18 @@
+{
+    "chave-tcc|features/auth/AuthContext/index.tsx": 1,
+    "chave-tcc|features/shell/unreadNews/index.ts": 1,
+    "chave-tcc|features/theme/ThemeContext/index.tsx": 1,
+    "jargao-tecnico|components/organisms/IndicatorSummaryCards/index.tsx": 3,
+    "motor|components/organisms/OrdersList/index.tsx": 1,
+    "nesta-plataforma|pages/PrivacidadeLgpd/index.tsx": 1,
+    "sandbox|components/organisms/NetWorthCards/index.tsx": 1,
+    "sandbox|pages/Classificacao/index.tsx": 1,
+    "simulado|components/organisms/IndicatorSummaryCards/index.tsx": 1,
+    "simulado|components/organisms/MacroEventHistoryList/index.tsx": 1,
+    "simulado|features/market/marketClosedReason/index.ts": 1,
+    "simulado|pages/IndicadoresEconomicos/index.tsx": 1,
+    "simulado|pages/Market/index.tsx": 1,
+    "simulado|pages/Onboarding/index.tsx": 3,
+    "travessao|components/organisms/OrderConfirmationDialog/index.tsx": 2,
+    "travessao|pages/IndicadoresEconomicos/index.tsx": 1
+}

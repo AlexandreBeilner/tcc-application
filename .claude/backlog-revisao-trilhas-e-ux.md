@@ -74,7 +74,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
 
 ## Fase 1: Higiene e prevenção (primeiro; barata e desbloqueia o resto)
 
-### RC.1.1 · Teste de conteúdo proibido nos seeds e strings de UI
+### RC.1.1 · Teste de conteúdo proibido nos seeds e strings de UI ✅ concluída (2026-10-04)
 
 - **Escopo:** teste vitest sobre `seedLessons`, `seedAchievements`, `seedMissions` e `centralConcept`/revelações, com
   regex para: `TCC`, `spec`, `cap\.\s*\d`, `backlog`, `motor`, `nesta plataforma` (permitido só dentro do bloco
@@ -84,6 +84,21 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   nomes de ativo) e mensagens de erro de domínio. Teste/regra no frontend para strings JSX.
 - **Aceite:** falha com a string e o arquivo:linha; passa no estado limpo; entra no `npm test`/`go test`.
 - **Depende de:** nada. **Faz antes de RC.1.4** para a limpeza ser guiada pelo teste (red, depois green).
+- **Entregável (2026-10-04):** três varreduras com as mesmas 12 regras (tcc, spec, capitulo, backlog, motor,
+  nesta-plataforma, simulado, travessao, snake-case, numero-de-licao, sandbox, jargao-tecnico).
+  Backend: `backend/src/content/contentRules.ts` + `visibleContent.test.ts` varrem `LESSON_SEEDS`,
+  `ACHIEVEMENT_SEEDS`, `MISSION_SEEDS` (agora exportados; os dois seeds ganharam o guard `VITEST` do de lições) e o
+  teto duro de 420 caracteres por cartão (alvo 280). Engine: `engine/internal/contentcheck` varre
+  `macroevent.Templates`, literais de `cmd/seed/main.go` (por AST) e `errors.New`/`fmt.Errorf` dos domínios
+  orderexecution, fixedincomeexecution, position e account. Frontend: `frontend/src/content/visibleContent.test.ts`
+  (compilador TS: JSX, atributos e literais de prosa, fora de admin/testes, mais chaves `tcc.*`).
+  **Decisão de execução:** como o estado atual tem violações conhecidas e o teste precisa passar, cada camada tem um
+  **baseline em catraca** (`contentViolationsBaseline.json` no backend e no frontend; mapa `knownViolations` no Go):
+  violação nova falha, violação resolvida também falha até o baseline encolher. **A RC.1.4 zera os baselines.**
+  **Fica para depois (não existe ainda):** proporção mínima de blocos visuais por lição e exceção do bloco "Na
+  plataforma" (dependem do contrato `blocks` da RC.3.1/RC.3.3); varredura de mensagens HTTP do engine (RC.1.5).
+  Validou: `npm test`/`lint`/`build` do backend, `npm test`/`lint`/`tsc -b` do frontend, `go test ./...` e
+  `golangci-lint` do engine.
 
 ### RC.1.2 · Lint de pré-requisitos de termos
 

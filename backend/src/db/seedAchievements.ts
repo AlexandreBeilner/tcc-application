@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { createDb } from './client'
 import { achievementCriteriaType, achievements } from './schema'
 
-interface AchievementSeed {
+export interface AchievementSeed {
   name: string
   description: string
   criteriaType: (typeof achievementCriteriaType.enumValues)[number]
@@ -13,7 +13,7 @@ interface AchievementSeed {
 // tipos de critério (spec, tela 7.2). Valores sujeitos à calibração/autoria
 // de conteúdo da semana 7/8.1, mesmo precedente de `macroevent.Templates`
 // (4.3) e `MISSION_SEEDS` (5.4).
-const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
+export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
   {
     name: 'Primeira Semana',
     description: 'Mantenha um streak de 7 dias consecutivos.',
@@ -111,7 +111,9 @@ async function main() {
   process.exit(0)
 }
 
-main().catch((err) => {
-  console.error('erro ao rodar seed de conquistas:', err)
-  process.exit(1)
-})
+if (process.env.VITEST === undefined) {
+  main().catch((err) => {
+    console.error('erro ao rodar seed de conquistas:', err)
+    process.exit(1)
+  })
+}
