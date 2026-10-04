@@ -178,7 +178,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   Direto devolve 403 a clientes automatizados; reabrir no navegador na RC.5.3 e na RC.8.1. Validou:
   `vitest`, `lint` e `build` do backend.
 
-### RC.1.4 · Limpar vazamentos de desenvolvimento (correção mecânica)
+### RC.1.4 · Limpar vazamentos de desenvolvimento (correção mecânica) ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** remover/reescrever tudo que a varredura achou: `centralConcept` da 0.2 e 2.4/2.5 ("TCC cap. ..."),
   1.2 ("spec do TCC"), 2.6.5 e 2.7 ("spec 3.2.2"); metodologia dos ETFs no `engine/cmd/seed` (nomes de coluna,
@@ -188,6 +188,24 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   `seedMissions`.
 - **Aceite:** RC.1.1 verde; usuário logado continua logado após a troca de chave de storage.
 - **Depende de:** RC.1.1.
+- **Entregável (2026-10-04):** *Backend:* `centralConcept` da 0.2 e 2.5, "spec do TCC (cap. 3)" da 1.2 e "(spec 3.2.2)"
+  da 2.6.5 reescritos sem a referência; `completionCriteria` das missões sem travessão. *Engine:* nomes dos ativos
+  de treino viraram "Ação de Treino" e "Tesouro Prefixado de Treino"; metodologia dos ETFs sem nome de coluna,
+  `SINT11` nem "do catálogo"; travessões dos 4 templates de macroevento trocados por pontuação. Como o seed pula
+  ativo que já existe, a migration `000040_clean_visible_catalog_text` aplica a mesma correção em bancos já
+  semeados (idempotente, testada num Postgres descartável). *Frontend:* "Aguardando a primeira atualização" no lugar
+  de "primeiro tick", "Recotada pelo mercado", travessões do `OrderConfirmationDialog` e da tela de Indicadores;
+  chaves de storage `tcc.*` viraram `app.*` via `utils/storage`, que lê a chave antiga uma vez e migra (usuário
+  logado continua logado; teste cobre). Baselines encolhidos nas três camadas. Validou: `npm test`/`lint`/`build`
+  do backend (756), `vitest` (836)/`tsc -b` do frontend, `go test ./...` e `golangci-lint` v2 do engine.
+  **Ressalva (aceite "zera os baselines" não 100% atendido):** o que sobra nos baselines é decisão de outra tarefa,
+  não limpeza mecânica. (a) Nas lições, `nesta-plataforma`, `simulado`, `numero-de-licao`, `sandbox`, `motor` e
+  `cartao-longo` só se resolvem reescrevendo o texto com o bloco "Na plataforma" (RC.3.3 e Fase 5); trocar agora
+  seria reescrever conteúdo antes da validação por lição. (b) No frontend, "simulado"/"Sandbox"/"Modo Aprendizado"
+  são nomes de produto da tela (Onboarding, Mercado, Classificação, `NetWorthCards`, que a D5/RC.7.4 decide).
+  (c) No engine, as 5 mensagens de erro de domínio restantes (`temporizador...`, `outstanding_shares`) são texto
+  interno que o tradutor da RC.1.5 mapeia por regex e nunca chega ao usuário; mudar o texto exigiria mudar o
+  tradutor junto, sem ganho. Cada baseline restante é a lista de trabalho da tarefa dona.
 
 ### RC.1.5 · Erros do engine com código, nunca `err.message` cru na UI ✅ concluída (2026-10-04)
 

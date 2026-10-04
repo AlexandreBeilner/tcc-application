@@ -251,7 +251,7 @@ function successMessage(
         // (que já refletia a quantidade real desde antes desta tarefa, mas
         // sem explicar por que ficou menor que o pedido).
         if (remaining > 0 && filled === 0) {
-            return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora — nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
+            return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora. Nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
         }
         // Tarefa S.7 (achado 021): preço médio executado, não o preço
         // unitário estático de antes da confirmação — a ordem a mercado
@@ -259,7 +259,7 @@ function successMessage(
         const avgPrice = averageFillPrice(fills)
         const priceSuffix = avgPrice !== null ? ` a preço médio de ${formatCurrency(avgPrice)}` : ''
         if (remaining > 0) {
-            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker}${priceSuffix} — o restante não achou liquidez suficiente e não foi executado.`
+            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker}${priceSuffix}. O restante não achou liquidez suficiente e não foi executado.`
         }
         return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}${priceSuffix}.`
     }

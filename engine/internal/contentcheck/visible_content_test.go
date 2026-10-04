@@ -16,23 +16,10 @@ import (
 // Gerar o estado atual: UPDATE_BASELINE=1 go test ./internal/contentcheck/
 var knownViolations = map[string]int{
 	"jargao-tecnico|errors.New:fixedincomeexecution.go:\"temporizador ainda não rodou nenhum tick\"": 1,
-	"numero-de-licao|ensureAsset:main.go:\"Ação Sandbox — Lição 2.3\"":                               1,
-	"numero-de-licao|seedFixedIncome:main.go:\"Tesouro Prefixado Sandbox — Lição 1.7\"":              1,
-	"sandbox|ensureAsset:main.go:\"Ação Sandbox — Lição 2.3\"":                                       1,
-	"sandbox|seedFixedIncome:main.go:\"Tesouro Prefixado Sandbox — Lição 1.7\"":                      1,
 	"simulado|errors.New:fixedincomeexecution.go:\"dias de permanência simulados devem ser \"":       1,
 	"simulado|errors.New:fixedincomeexecution.go:\"temporizador ainda não rodou nenhum tick\"":       1,
 	"snake-case|errors.New:position.go:\"soma das posições excede outstanding_sha\"":                 1,
-	"snake-case|seedETFAsset:main.go:\"Réplica por amostragem das empresas de m\"":                   1,
-	"travessao|ensureAsset:main.go:\"Ação Sandbox — Lição 2.3\"":                                     1,
 	"travessao|errors.New:fixedincomeexecution.go:\"temporizador ainda não rodou nenhum tick\"":      1,
-	"travessao|macroevent:desvalorizacao-real:Narrative":                                             1,
-	"travessao|macroevent:expansao-parceria-corporativa:Narrative":                                   1,
-	"travessao|macroevent:inadimplencia-bancos:Narrative":                                            1,
-	"travessao|macroevent:quebra-safra-agronegocio:Narrative":                                        1,
-	"travessao|seedETFAsset:main.go:\"Réplica por amostragem das empresas de m\"":                    1,
-	"travessao|seedETFAsset:main.go:\"Réplica por amostragem de ativos histori\"":                    1,
-	"travessao|seedFixedIncome:main.go:\"Tesouro Prefixado Sandbox — Lição 1.7\"":                    1,
 }
 
 // domainErrorFiles são os pacotes de domínio cujas mensagens de erro chegam

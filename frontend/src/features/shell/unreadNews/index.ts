@@ -1,4 +1,5 @@
 import type { NewsEvent } from '../../../services/news'
+import { readStored, STORAGE_KEYS, writeStored } from '../../../utils/storage'
 import type { Listener } from './types'
 
 // Sem timestamp exposto por `GET /news` — só a ordem da lista garante
@@ -19,10 +20,8 @@ export function hasUnreadPendingEvent(events: NewsEvent[], lastSeenId: string | 
     return false
 }
 
-const LAST_SEEN_NEWS_ID_KEY = 'tcc.news.lastSeenId'
-
 export function getLastSeenNewsId(): string | null {
-    return localStorage.getItem(LAST_SEEN_NEWS_ID_KEY)
+    return readStored(STORAGE_KEYS.lastSeenNewsId)
 }
 
 // `storage` (evento nativo do browser) só dispara em *outras* abas, nunca
@@ -46,6 +45,6 @@ export function markNewsAsSeen(events: NewsEvent[]): void {
     if (!mostRecent) {
         return
     }
-    localStorage.setItem(LAST_SEEN_NEWS_ID_KEY, mostRecent.id)
+    writeStored(STORAGE_KEYS.lastSeenNewsId, mostRecent.id)
     listeners.forEach((listener) => listener())
 }

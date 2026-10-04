@@ -54,7 +54,7 @@ export function IndicadoresEconomicos() {
             <header className={styles.header}>
                 <h1 className={styles.title}>Indicadores Econômicos</h1>
                 <p className={styles.subtitle}>
-                    Selic e IPCA simulados — os dois indicadores por trás do rendimento e do preço dos ativos.
+                    Selic e IPCA simulados: os dois indicadores por trás do rendimento e do preço dos ativos.
                 </p>
             </header>
 

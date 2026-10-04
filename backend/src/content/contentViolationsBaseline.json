@@ -1,7 +1,4 @@
 {
-  "capitulo|lesson:0.2|centralConcept": 1,
-  "capitulo|lesson:1.2|revelationText": 1,
-  "capitulo|lesson:2.5|centralConcept": 1,
   "cartao-longo|lesson:2.3|revelationText": 1,
   "motor|lesson:2.5|revelationText": 1,
   "motor|lesson:2.6.1|scenarioText": 1,
@@ -48,12 +45,5 @@
   "simulado|lesson:2.7|revelationText": 1,
   "simulado|lesson:2.7|scenarioText": 1,
   "simulado|lesson:2.8|scenarioText": 1,
-  "spec|lesson:1.2|revelationText": 1,
-  "spec|lesson:2.6.5|revelationText": 1,
-  "tcc|lesson:0.2|centralConcept": 1,
-  "tcc|lesson:1.2|revelationText": 1,
-  "tcc|lesson:2.5|centralConcept": 1,
-  "travessao|lesson:1.3|scenarioText": 1,
-  "travessao|mission:calculator_compare|completionCriteria": 1,
-  "travessao|mission:feed_read|completionCriteria": 1
+  "travessao|lesson:1.3|scenarioText": 1
 }

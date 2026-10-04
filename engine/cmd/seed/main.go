@@ -150,7 +150,7 @@ func main() {
 	// Ação/FII (R.1), precisa rodar depois de newCompanyAssets/FIIs novos
 	// já seedados (ver ordem acima).
 	seedETFAsset(ctx, repo, accountRepo, "SMLC11", "ETF Small Caps Crescimento", "Índice Small Caps Crescimento",
-		"Réplica por amostragem das empresas de maior crescimento esperado (companies.base_growth_pct) entre os 6 setores fixos — uma por setor.",
+		"Réplica por amostragem das empresas de maior crescimento esperado entre os 6 setores, uma por setor.",
 		[]etfHoldingSpec{
 			{Name: "Mineração Serra Alta ON (MSAL3)", Ticker: "MSAL3", WeightPct: 16.67},
 			{Name: "AgroPampa Grãos ON (AGPP3)", Ticker: "AGPP3", WeightPct: 16.67},
@@ -160,7 +160,7 @@ func main() {
 			{Name: "TechNova Software ON (TNVA3)", Ticker: "TNVA3", WeightPct: 16.66},
 		})
 	seedETFAsset(ctx, repo, accountRepo, "FINX11", "ETF Financeiro", "Índice Setorial Financeiro",
-		"Réplica setorial concentrada nas ações do setor Bancário/Financeiro do catálogo.",
+		"Réplica setorial concentrada nas ações do setor Bancário/Financeiro.",
 		[]etfHoldingSpec{
 			{Name: "Banco Nordeste Digital ON (BNDD3)", Ticker: "BNDD3", WeightPct: 25},
 			{Name: "Banco Nordeste Digital PN (BNDD4)", Ticker: "BNDD4", WeightPct: 20},
@@ -169,7 +169,7 @@ func main() {
 			{Name: "Crediseg Financeira ON (CDSG3)", Ticker: "CDSG3", WeightPct: 10},
 		})
 	seedETFAsset(ctx, repo, accountRepo, "DIVI11", "ETF Dividendos", "Índice de Dividendos",
-		"Réplica por amostragem de ativos historicamente pagadores de proventos consistentes — FIIs e ações de setores de fluxo de caixa estável.",
+		"Réplica por amostragem de ativos historicamente pagadores de proventos consistentes: FIIs e ações de setores de fluxo de caixa estável.",
 		[]etfHoldingSpec{
 			{Name: "FII Tijolo Corporativo (TJLO11)", Ticker: "TJLO11", WeightPct: 25},
 			{Name: "FII Papel Recebíveis (PAPL11)", Ticker: "PAPL11", WeightPct: 20},
@@ -178,7 +178,7 @@ func main() {
 			{Name: "Banco Nordeste Digital PN (BNDD4)", Ticker: "BNDD4", WeightPct: 15},
 		})
 	seedETFAsset(ctx, repo, accountRepo, "AMPL11", "ETF Amplo Mercado", "Índice Amplo de Mercado",
-		"Réplica total (full replication): mais constituintes e pesos mais pulverizados entre os 6 setores, em contraste com a amostragem representativa do SINT11.",
+		"Réplica total (full replication): mais constituintes e pesos mais pulverizados entre os 6 setores, em contraste com a amostragem representativa do ETF Índice Sintético.",
 		[]etfHoldingSpec{
 			{Name: "Mineradora Vale do Rio ON (VALR3)", Ticker: "VALR3", WeightPct: 10},
 			{Name: "Metais do Cerrado ON (MTCE3)", Ticker: "MTCE3", WeightPct: 10},
@@ -773,7 +773,7 @@ func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, na
 // orderexecution não usa nada de variable_income_assets além do asset_id.
 func seedSandboxEquity(ctx context.Context, repo *db.CatalogRepository) {
 	const ticker = "SAND3"
-	id, existed := ensureAsset(ctx, repo, ticker, "Ação Sandbox — Lição 2.3", catalog.AssetAcao, nil, true)
+	id, existed := ensureAsset(ctx, repo, ticker, "Ação de Treino", catalog.AssetAcao, nil, true)
 	if existed {
 		return
 	}
@@ -796,7 +796,7 @@ func seedSandboxEquity(ctx context.Context, repo *db.CatalogRepository) {
 // compra (fixed_income_execution_repository.go), então o valor aqui não
 // precisa ser o mesmo do dia 0 do roteiro (é só o que aparece na vitrine).
 func seedSandboxFixedIncome(ctx context.Context, repo *db.CatalogRepository) {
-	seedFixedIncome(ctx, repo, "SANDPRE", "Tesouro Prefixado Sandbox — Lição 1.7", fixedincome.ProductTesouroPrefixado, "", 10.0, 30.00, true)
+	seedFixedIncome(ctx, repo, "SANDPRE", "Tesouro Prefixado de Treino", fixedincome.ProductTesouroPrefixado, "", 10.0, 30.00, true)
 }
 
 // Configuração fixa do pool de bots de liquidez desta sessão (tarefa B.2

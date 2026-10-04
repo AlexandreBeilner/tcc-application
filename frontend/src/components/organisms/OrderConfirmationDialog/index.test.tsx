@@ -94,7 +94,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
 
         await waitFor(() => expect(screen.getByText('Ordem executada')).toBeInTheDocument())
         expect(
-            screen.getByText('Você comprou 4 de 10 PETR4 — o restante não achou liquidez suficiente e não foi executado.'),
+            screen.getByText('Você comprou 4 de 10 PETR4. O restante não achou liquidez suficiente e não foi executado.'),
         ).toBeInTheDocument()
     })
 
@@ -112,7 +112,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         await waitFor(() => expect(screen.getByText('Ordem executada')).toBeInTheDocument())
         expect(
             screen.getByText(
-                'Não havia liquidez suficiente pra negociar PETR4 agora — nenhuma unidade foi comprada. Tente novamente mais tarde.',
+                'Não havia liquidez suficiente pra negociar PETR4 agora. Nenhuma unidade foi comprada. Tente novamente mais tarde.',
             ),
         ).toBeInTheDocument()
     })

@@ -142,7 +142,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 0: Fundamentos',
     sortOrder: 2,
     title: 'Juros simples vs compostos',
-    centralConcept: 'Crescimento linear vs exponencial (TCC cap. 2.1.1)',
+    centralConcept: 'Crescimento linear vs exponencial',
     scenarioText:
       'R$1.000 aplicados a 10% ao ano, por 20 anos: quanto isso vira depende de uma escolha que parece só ' +
       'técnica, mas muda tudo: o dinheiro rende sempre sobre o capital original (juros simples) ou sobre o ' +
@@ -339,7 +339,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
       'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre {{marcação a mercado}} negativa ' +
       'com mais frequência.' +
       '\n\n' +
-      'É por isso que a spec do TCC (cap. 3) o trata como o "porto seguro" da renda fixa: ' +
+      'É por isso que ele é visto como o "porto seguro" da renda fixa: ' +
       'baixíssima volatilidade, resgate diário sem perda relevante de valor.',
     unlocksDescription: 'Compra real de Tesouro Selic (LFT2029) no Mercado',
     unlocksKeys: ['asset:tesouro_selic'],
@@ -851,7 +851,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 21,
     title: 'Oferta e demanda',
-    centralConcept: 'Formação de preço no livro de ofertas (TCC cap. 2.3.3)',
+    centralConcept: 'Formação de preço no livro de ofertas',
     scenarioText:
       'O preço de VALR3 que você vê no Mercado não é definido por ninguém em particular.' +
       '\n\n' +
@@ -1053,7 +1053,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
       'dívida líquida se todo o resultado operacional fosse usado só pra isso.' +
       '\n\n' +
       'Esse indicador pesa ainda mais numa empresa de perfil sofisticado como o Banco Nordeste Digital ' +
-      '(BNDD4), mais sensível a mudanças na Selic (spec 3.2.2), já que juros mais altos encarecem ' +
+      '(BNDD4), mais sensível a mudanças na Selic, já que juros mais altos encarecem ' +
       'justamente a dívida que entra nessa conta.' +
       '\n\n' +
       'Veja abaixo a Dívida Líquida/EBIT calculada ao vivo pra VALR3.',
