@@ -467,7 +467,7 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 
 | Sessão | Widgets | Lições que consomem |
 |---|---|---|
-| RC.3.4a Cálculo de renda fixa | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
+| RC.3.4a Cálculo de renda fixa ✅ | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
 | RC.3.4b Risco e proteção | `mtm-seesaw` (gangorra de marcação a mercado: taxa x preço, prazo, Prefixado/IPCA+/Selic, choques), `fgc-coverage-bar` (R$ 250 mil por conglomerado, teto R$ 1 milhão em 4 anos, guarda-chuva), `rating-ruler` | 1.4, 1.8, 1.11 |
 | RC.3.4c Juros e inflação | `compound-growth` (substitui `growth_calculator`), `real-return`, `selic-ipca-chart` (série com faixa da meta), `copom-timeline` (8 reuniões/ano) | 0.2-0.5, 1.2, 1.3, 1.9, 1.10 |
 | RC.3.4d Títulos | `bond-price-calculator` (preço/deságio, IR e custódia, LTN x NTN-F), `ipca-plus-simulator` (VNA, ano a ano), `breakeven-inflation` | 1.7, 1.10 |
@@ -477,6 +477,21 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 | RC.3.4i Vida real | `budget-split`, `debt-snowball`, `pay-or-invest`, `emergency-fund-calculator`, `where-to-keep`, `equity-tax-calculator`, `tax-decision-tree`, `fee-drag`, `behavior-bias-quiz` | RC.4.4 a RC.4.9 |
 | RC.3.4h Planejamento | `risk-return-scatter`, `allocation-donut`, `risk-profile-quiz` | 3.1, 3.2, 3.4 |
 
+- **RC.3.4a entregue (2026-10-04):** três widgets registrados nos dois lados do contrato (props todas com
+  default): `equivalent-rate` (`exemptRatePct`, `cdbRatePct`, `daysPresets`: presets de prazo + campos livres,
+  mostra IR do prazo, taxa bruta equivalente, taxa líquida do CDB e o vencedor), `ir-regressive-table` (`grossYield`,
+  `initialDays`: controle deslizante de prazo, faixa atual marcada com "▶" e `aria-current`, IR e líquido em R$) e
+  `product-comparator` (`products` 2 a 3 com `liquidity`/`fgc` opcionais, `amount`, `days`: líquido de cada um e
+  vencedor com "★"). Contas em funções puras `features/lessons/widgets/fixedIncomeMath` (tabela regressiva
+  espelha o fato `ir-renda-fixa-regressivo` de `regulatoryFacts.ts`; capitalização anual `(1+i)^(dias/365)`), com
+  teste table-driven; cada componente com teste de interação e `aria-live` no resultado, resumo textual no registro
+  e CSS compartilhado `LessonWidget/widgetControls.module.css` (campos em 3 colunas só a partir de 768px).
+  `.docs/backend/lessons.md` atualizado. Validou: frontend `tsc -b`/oxlint/`vitest` (931), backend
+  lint/build/`npm test` (831). **Ressalvas:** (a) nenhuma lição usa os widgets ainda (a RC.5.5 reescreve a 1.6 e
+  1.4/1.5 com eles); (b) a taxa equivalente é a razão simples sobre a taxa anual, a aproximação padrão, enquanto o
+  comparador usa capitalização composta, então os dois podem divergir em frações de ponto percentual em prazos
+  curtos; (c) a tabela de IR está duplicada entre backend (fato) e frontend (constante), sem teste que as cruze;
+  (d) sem conferência visual nos 3 breakpoints nem `docker compose`; (e) não incluem o IOF dos primeiros 30 dias.
 - **Aceite geral:** nenhum texto manda calcular fora; nenhum botão "Ver resultado" solto (se sobrar, rótulo
   contextual); lint do seed barra "calcule" sem widget na mesma fase.
 - **Depende de:** RC.3.1 (e RC.3.2 quando o widget traz checkpoint).

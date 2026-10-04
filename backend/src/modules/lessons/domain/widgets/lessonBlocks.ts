@@ -5,6 +5,9 @@
 export type WidgetId =
   | 'callout'
   | 'platform-note'
+  | 'equivalent-rate'
+  | 'ir-regressive-table'
+  | 'product-comparator'
   | 'growth-calculator'
   | 'fixed-income-comparison'
   | 'live-indicator'

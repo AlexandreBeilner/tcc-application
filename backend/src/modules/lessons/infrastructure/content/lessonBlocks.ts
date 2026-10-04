@@ -19,6 +19,9 @@ export const MAX_CHECKPOINTS_PER_LESSON = 7
 export const WIDGET_IDS = [
   'callout',
   'platform-note',
+  'equivalent-rate',
+  'ir-regressive-table',
+  'product-comparator',
   'growth-calculator',
   'fixed-income-comparison',
   'live-indicator',
@@ -41,6 +44,36 @@ const platformNoteProps = z.object({
   why: z.string().min(1),
 })
 
+// Widgets de cálculo de renda fixa (RC.3.4a): as props só configuram o ponto de
+// partida (taxas, prazos, valor); a conta e a tabela de IR vivem no frontend.
+const equivalentRateProps = z.object({
+  exemptRatePct: z.number().positive().max(100).default(9.5),
+  cdbRatePct: z.number().positive().max(100).default(12),
+  daysPresets: z.array(z.number().int().min(1).max(3650)).min(1).max(4).default([60, 720]),
+})
+
+const irRegressiveTableProps = z.object({
+  grossYield: z.number().positive().default(1000),
+  initialDays: z.number().int().min(1).max(1000).default(90),
+})
+
+const productComparatorProps = z.object({
+  products: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        annualRatePct: z.number().positive().max(100),
+        taxExempt: z.boolean(),
+        liquidity: z.string().min(1).optional(),
+        fgc: z.string().min(1).optional(),
+      }),
+    )
+    .min(2)
+    .max(3),
+  amount: z.number().positive().default(10000),
+  days: z.number().int().min(1).max(3650).default(180),
+})
+
 // Widgets sem configuração por lição hoje (a Calculadora e o comparador da 6.7
 // nascem vazios); o objeto vazio fica estrito para o editor da N.23 não
 // aceitar props que nenhum widget lê.
@@ -52,6 +85,9 @@ const liveMacroProps = z.object({ windowDays: z.number().int().min(7).max(365).o
 export const widgetPropsSchemas = {
   callout: calloutProps,
   'platform-note': platformNoteProps,
+  'equivalent-rate': equivalentRateProps,
+  'ir-regressive-table': irRegressiveTableProps,
+  'product-comparator': productComparatorProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,
   'live-indicator': liveIndicatorProps,

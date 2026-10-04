@@ -79,6 +79,43 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse(CONTRACT_EXAMPLE).success).toBe(true)
   })
 
+  it('aceita os widgets de renda fixa com defaults', () => {
+    const phases = {
+      ...CONTRACT_EXAMPLE.phases,
+      scenario: [
+        { type: 'widget', id: 'a', widget: 'equivalent-rate', props: {} },
+        { type: 'widget', id: 'b', widget: 'ir-regressive-table', props: { grossYield: 500 } },
+        {
+          type: 'widget',
+          id: 'c',
+          widget: 'product-comparator',
+          props: {
+            products: [
+              { name: 'CDB', annualRatePct: 12, taxExempt: false },
+              { name: 'LCI', annualRatePct: 9.5, taxExempt: true },
+            ],
+          },
+        },
+      ],
+    }
+    expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
+  })
+
+  it('comparador com um produto só é rejeitado', () => {
+    const phases = {
+      ...CONTRACT_EXAMPLE.phases,
+      scenario: [
+        {
+          type: 'widget',
+          id: 'c',
+          widget: 'product-comparator',
+          props: { products: [{ name: 'CDB', annualRatePct: 12, taxExempt: false }] },
+        },
+      ],
+    }
+    expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(false)
+  })
+
   it.each([
     ['sem a linha Por quê', { brazil: 'a', here: 'b' }],
     ['linha vazia', { brazil: 'a', here: '', why: 'c' }],

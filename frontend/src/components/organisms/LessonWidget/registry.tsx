@@ -2,6 +2,9 @@ import type { ComponentType } from 'react'
 import type { ZodType } from 'zod'
 import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
 import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
+import { EquivalentRateWidget, equivalentRateSummary } from '../EquivalentRateWidget'
+import { IrRegressiveTableWidget, irRegressiveTableSummary } from '../IrRegressiveTableWidget'
+import { ProductComparatorWidget, productComparatorSummary } from '../ProductComparatorWidget'
 import { FixedIncomeComparisonForm } from '../FixedIncomeComparisonForm'
 import { GrowthCalculatorForm } from '../GrowthCalculatorForm'
 import { LessonCallout } from '../LessonCallout'
@@ -31,6 +34,21 @@ export const widgetRegistry: Registry = {
         component: PlatformNote,
         propsSchema: widgetPropsSchemas['platform-note'],
         summary: platformNoteSummary,
+    },
+    'equivalent-rate': {
+        component: EquivalentRateWidget,
+        propsSchema: widgetPropsSchemas['equivalent-rate'],
+        summary: equivalentRateSummary,
+    },
+    'ir-regressive-table': {
+        component: IrRegressiveTableWidget,
+        propsSchema: widgetPropsSchemas['ir-regressive-table'],
+        summary: irRegressiveTableSummary,
+    },
+    'product-comparator': {
+        component: ProductComparatorWidget,
+        propsSchema: widgetPropsSchemas['product-comparator'],
+        summary: productComparatorSummary,
     },
     'growth-calculator': {
         component: GrowthCalculatorForm,

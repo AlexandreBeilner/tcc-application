@@ -8,6 +8,9 @@ import { z } from 'zod'
 export const WIDGET_IDS = [
     'callout',
     'platform-note',
+    'equivalent-rate',
+    'ir-regressive-table',
+    'product-comparator',
     'growth-calculator',
     'fixed-income-comparison',
     'live-indicator',
@@ -28,6 +31,31 @@ export const widgetPropsSchemas = {
         brazil: z.string().min(1),
         here: z.string().min(1),
         why: z.string().min(1),
+    }),
+    'equivalent-rate': z.object({
+        exemptRatePct: z.number().positive().max(100).default(9.5),
+        cdbRatePct: z.number().positive().max(100).default(12),
+        daysPresets: z.array(z.number().int().min(1).max(3650)).min(1).max(4).default([60, 720]),
+    }),
+    'ir-regressive-table': z.object({
+        grossYield: z.number().positive().default(1000),
+        initialDays: z.number().int().min(1).max(1000).default(90),
+    }),
+    'product-comparator': z.object({
+        products: z
+            .array(
+                z.object({
+                    name: z.string().min(1),
+                    annualRatePct: z.number().positive().max(100),
+                    taxExempt: z.boolean(),
+                    liquidity: z.string().min(1).optional(),
+                    fgc: z.string().min(1).optional(),
+                }),
+            )
+            .min(2)
+            .max(3),
+        amount: z.number().positive().default(10000),
+        days: z.number().int().min(1).max(3650).default(180),
     }),
     'growth-calculator': emptyProps,
     'fixed-income-comparison': emptyProps,
