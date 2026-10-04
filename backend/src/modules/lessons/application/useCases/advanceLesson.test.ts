@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CheckpointUnsolvedError,
   MicroDecisionUnsolvedError,
   LessonLockedError,
   LessonNotFoundError,
@@ -446,5 +447,91 @@ describe('AdvanceLessonUseCase — pergunta que só avança ao acertar (RC.2.3)'
     })
 
     expect(result).toEqual({ currentStep: 1, completed: false })
+  })
+})
+
+describe('AdvanceLessonUseCase: perguntas intermediárias (RC.3.2)', () => {
+  const withChecks = {
+    ...lessons[0],
+    id: 'lc1',
+    sortOrder: 1,
+    blocks: {
+      schemaVersion: 1 as const,
+      phases: {
+        scenario: [
+          {
+            type: 'check' as const,
+            id: 'c1',
+            kind: 'true_false' as const,
+            prompt: 'p',
+            answer: true,
+            explanation: 'e',
+          },
+        ],
+        microDecision: [],
+        revelation: [],
+      },
+    },
+  }
+
+  function buildWithChecks() {
+    const clock = createClock()
+    const lessonRepository = createFakeLessonRepository([withChecks], clock.now)
+    const useCase = new AdvanceLessonUseCase(
+      lessonRepository,
+      createFakeXpAwarder(),
+      createFakeStreakTracker(),
+      createFakeSocialFeedRecorder(),
+      { clock: clock.now },
+    )
+    return { clock, lessonRepository, useCase }
+  }
+
+  it('sair da fase com checkpoint sem resolver devolve CheckpointUnsolvedError e não grava', async () => {
+    const { lessonRepository, clock, useCase } = buildWithChecks()
+    clock.tick(STEP_INTERVAL_MS)
+
+    await expect(
+      useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 }),
+    ).rejects.toBeInstanceOf(CheckpointUnsolvedError)
+    expect(await lessonRepository.listProgressForUser('u1')).toEqual([])
+
+    await lessonRepository.recordCheckpointAnswer('u1', 'lc1', 'c1', {
+      choice: 1,
+      correct: false,
+      answeredAt: clock.now(),
+    })
+    await expect(
+      useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 }),
+    ).rejects.toBeInstanceOf(CheckpointUnsolvedError)
+  })
+
+  it('resolvido o checkpoint, o avanço passa', async () => {
+    const { lessonRepository, clock, useCase } = buildWithChecks()
+    await lessonRepository.recordCheckpointAnswer('u1', 'lc1', 'c1', {
+      choice: 0,
+      correct: true,
+      answeredAt: clock.now(),
+    })
+    clock.tick(STEP_INTERVAL_MS)
+
+    expect(await useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 })).toEqual({
+      currentStep: 1,
+      completed: false,
+    })
+  })
+
+  it('quem já passou da fase (antes do deploy) não é afetado, e reenviar o passo gravado também não', async () => {
+    const { lessonRepository, clock, useCase } = buildWithChecks()
+    await lessonRepository.upsertProgress('u1', 'lc1', { currentStep: 1, completedAt: null })
+    clock.tick(STEP_INTERVAL_MS)
+
+    expect(await useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 })).toMatchObject({
+      currentStep: 1,
+    })
+    clock.tick(STEP_INTERVAL_MS)
+    expect(await useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 2 })).toMatchObject({
+      currentStep: 2,
+    })
   })
 })

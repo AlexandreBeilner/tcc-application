@@ -16,6 +16,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -360,3 +361,28 @@ export const payrollState = pgTable('payroll_state', {
   lastPaidMonth: varchar('last_paid_month', { length: 7 }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Resposta às perguntas intermediárias (`check`, RC.3.2) de uma lição: uma
+// linha por (usuário, lição, checkpoint). `wrong_options` guarda as
+// alternativas erradas já tentadas (a UI as desativa); numérica só conta
+// tentativas. "Acertou de primeira" = resolvida com `attempts = 1`.
+export const userLessonCheckpoints = pgTable(
+  'user_lesson_checkpoints',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    checkpointId: varchar('checkpoint_id', { length: 64 }).notNull(),
+    attempts: smallint('attempts').notNull().default(0),
+    wrongOptions: smallint('wrong_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::smallint[]`),
+    solvedAt: timestamp('solved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.lessonId, table.checkpointId] })],
+)

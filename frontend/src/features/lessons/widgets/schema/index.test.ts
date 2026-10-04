@@ -15,7 +15,12 @@ const CONTRACT_EXAMPLE = {
                 props: { tone: 'tip', title: 'Juros compostos', body: 'Juros sobre juros.', formula: 'M = C x (1 + i)^n' },
             },
         ],
-        microDecision: [{ type: 'widget', id: 'calc', widget: 'growth-calculator', props: {} }],
+        microDecision: [
+            { type: 'widget', id: 'calc', widget: 'growth-calculator', props: {} },
+            { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] },
+            { type: 'check', id: 'q2', kind: 'true_false', prompt: 'LCI paga IR?', options: ['Verdadeiro', 'Falso'] },
+            { type: 'check', id: 'q3', kind: 'numeric', prompt: 'Taxa bruta equivalente?', unit: '%' },
+        ],
         revelation: [
             { type: 'widget', id: 'ind', widget: 'live-indicator', props: { ticker: 'VALR3' }, caption: 'Indicadores de hoje' },
             { type: 'widget', id: 'macro', widget: 'live-macro', props: { windowDays: 90 } },
@@ -26,6 +31,7 @@ const CONTRACT_EXAMPLE = {
 describe('parseLessonBlocks', () => {
     it('aceita o exemplo do contrato', () => {
         expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(2)
+        expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.microDecision).toHaveLength(4)
     })
 
     it.each([

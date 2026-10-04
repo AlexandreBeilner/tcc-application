@@ -20,4 +20,13 @@ describe('buildPhaseCards', () => {
             { kind: 'text', text: 'c', hidden: false },
         ])
     })
+
+    it('pergunta intermediária é um cartão próprio', () => {
+        const check = { type: 'check' as const, id: 'q', kind: 'true_false' as const, prompt: 'p' }
+
+        expect(buildPhaseCards([{ type: 'text', markup: 'a' }, check], '')).toEqual([
+            { kind: 'text', text: 'a', hidden: false },
+            { kind: 'check', block: check },
+        ])
+    })
 })

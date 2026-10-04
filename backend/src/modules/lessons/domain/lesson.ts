@@ -1,4 +1,5 @@
-import type { LessonBlocks } from './widgets/lessonBlocks'
+import { toPublicBlocks } from './widgets/lessonBlocks'
+import type { LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -123,8 +124,30 @@ export function isCorrectOption(
 // a aba de rede. `AdvanceLessonUseCase` devolve o resultado (`correct`/
 // `correctOptionLabel`, via `microDecisionResultFor` abaixo) só na resposta
 // do `POST` que de fato inclui a escolha do usuário.
+// Estado gravado de uma pergunta intermediária (`check`, RC.3.2) pro usuário.
+export interface CheckpointRecord {
+  checkpointId: string
+  attempts: number
+  wrongOptions: number[]
+  solvedAt: Date | null
+}
+
+// Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
+// o gabarito nunca vai aqui.
+export interface CheckpointState {
+  checkpointId: string
+  solved: boolean
+  attempts: number
+  wrongOptions: number[]
+  firstTry: boolean
+}
+
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
-  blocks: LessonBlocks | null
+  // Sem gabarito nem explicação das perguntas intermediárias (`toPublicBlocks`).
+  blocks: PublicLessonBlocks | null
+  checkpoints: CheckpointState[]
+  // Quantas perguntas intermediárias o aluno acertou de primeira nesta lição.
+  checkpointsFirstTry: number
   status: LessonStatus
   currentStep: number
   // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
@@ -137,12 +160,21 @@ export function buildLessonView(
   lesson: LessonSummary,
   progress: LessonProgressSnapshot | undefined,
   completedCount: number,
+  checkpointRecords: CheckpointRecord[] = [],
 ): LessonView {
   const status = lessonStatus({
     sortOrder: lesson.sortOrder,
     completedCount,
     completedByUser: progress?.completedAt != null,
   })
+
+  const checkpoints: CheckpointState[] = checkpointRecords.map((record) => ({
+    checkpointId: record.checkpointId,
+    solved: record.solvedAt !== null,
+    attempts: record.attempts,
+    wrongOptions: record.wrongOptions,
+    firstTry: record.solvedAt !== null && record.attempts === 1,
+  }))
 
   return {
     id: lesson.id,
@@ -161,7 +193,9 @@ export function buildLessonView(
     unlocksKeys: lesson.unlocksKeys,
     unlocksAssetTicker: lesson.unlocksAssetTicker,
     microDecisionOptions: lesson.microDecisionOptions,
-    blocks: lesson.blocks ?? null,
+    blocks: toPublicBlocks(lesson.blocks),
+    checkpoints,
+    checkpointsFirstTry: checkpoints.filter((c) => c.firstTry).length,
     status,
     currentStep: progress?.currentStep ?? 0,
     microDecisionSolved: progress?.microDecisionSolvedAt != null,

@@ -4,7 +4,7 @@ import type {
   LessonRepository,
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
-import type { LessonSummary } from '../../domain/lesson'
+import type { CheckpointRecord, LessonSummary } from '../../domain/lesson'
 
 export function createFakeLessonRepository(
   seedLessons: LessonSummary[] = [],
@@ -12,6 +12,9 @@ export function createFakeLessonRepository(
 ): LessonRepository {
   const lessons = [...seedLessons]
   const progressByUser = new Map<string, Map<string, LessonProgressRecord>>()
+  const checkpoints = new Map<string, CheckpointRecord>()
+  const checkpointKey = (userId: string, lessonId: string, checkpointId: string) =>
+    `${userId}|${lessonId}|${checkpointId}`
 
   return {
     async listAll() {
@@ -98,6 +101,32 @@ export function createFakeLessonRepository(
         microDecisionSolvedAt: answer.correct ? answer.answeredAt : null,
       }
       progressByUser.get(userId)?.set(lessonId, record)
+      return record
+    },
+
+    async listCheckpointsForUser(userId, lessonId) {
+      return [...checkpoints.entries()]
+        .filter(([key]) => key.startsWith(`${userId}|${lessonId}|`))
+        .map(([, record]) => record)
+    },
+
+    async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
+      const key = checkpointKey(userId, lessonId, checkpointId)
+      const existing = checkpoints.get(key)
+      if (existing?.solvedAt) {
+        return existing
+      }
+      const wrongOptions = existing?.wrongOptions ?? []
+      const record: CheckpointRecord = {
+        checkpointId,
+        attempts: (existing?.attempts ?? 0) + 1,
+        wrongOptions:
+          answer.correct || answer.choice === null || wrongOptions.includes(answer.choice)
+            ? wrongOptions
+            : [...wrongOptions, answer.choice],
+        solvedAt: answer.correct ? answer.answeredAt : null,
+      }
+      checkpoints.set(key, record)
       return record
     },
 

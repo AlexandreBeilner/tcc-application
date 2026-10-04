@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
-import { advanceLesson, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
+import { advanceLesson, answerCheckpoint, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
 import type { AssetDetail, AssetSummary, IndicatorHistoryEntry } from '../../services/market'
@@ -17,6 +17,7 @@ vi.mock('../../services/lessons', () => ({
     listLessons: vi.fn(),
     advanceLesson: vi.fn(),
     answerMicroDecision: vi.fn(),
+    answerCheckpoint: vi.fn(),
     reviewLesson: vi.fn(),
 }))
 vi.mock('../../services/market', () => ({
@@ -812,6 +813,154 @@ describe('Lesson (tela 3.2)', () => {
 
             expect(await screen.findByRole('group', { name: /Calculadora de juros/ })).toBeInTheDocument()
             expect(screen.getAllByRole('group', { name: /Calculadora de juros/ })).toHaveLength(1)
+        })
+    })
+
+    describe('perguntas intermediárias (RC.3.2)', () => {
+        const check = { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] }
+        const numeric = { type: 'check', id: 'q2', kind: 'numeric', prompt: 'Qual a taxa equivalente?', unit: '%' }
+        const withChecks = (scenario: unknown[], overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                blocks: { schemaVersion: 1, phases: { scenario, microDecision: [], revelation: [] } },
+                ...overrides,
+            })
+
+        it('Continuar fica travado até acertar; errar desativa a alternativa e não avança', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([check]) })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [0] })
+
+            renderLesson()
+
+            expect(await screen.findByText('Qual rende mais?')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+            fireEvent.click(screen.getByRole('button', { name: 'LCI' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Ainda não')
+            expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'q1', { selectedOption: 0 })
+            expect(screen.getByRole('button', { name: /LCI/ })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
+
+        it('acertar mostra a explicação, libera o Continuar e avança a fase', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([check]) })
+            vi.mocked(answerCheckpoint).mockResolvedValue({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'O CDB líquido vence.',
+            })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'CDB' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Acertou de primeira.')).toBeInTheDocument()
+            expect(screen.getByText('O CDB líquido vence.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
+        })
+
+        it('numérica envia o valor (aceita vírgula) e mostra a tentativa', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([numeric]) })
+            vi.mocked(answerCheckpoint)
+                .mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [] })
+                .mockResolvedValueOnce({ correct: true, attempts: 2, firstTry: false, wrongOptions: [], explanation: '9,50 / 0,775.' })
+
+            renderLesson()
+
+            const input = await screen.findByLabelText(/Sua resposta/)
+            fireEvent.change(input, { target: { value: '9,5' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            expect(await screen.findByRole('alert')).toHaveTextContent('Confira a conta')
+            expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'q2', { value: 9.5 })
+
+            fireEvent.change(input, { target: { value: '12,26' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withChecks([check], {
+                    checkpoints: [{ checkpointId: 'q1', solved: false, attempts: 1, wrongOptions: [0], firstTry: false }],
+                }),
+            })
+
+            const { unmount } = renderLesson()
+            expect(await screen.findByRole('button', { name: /LCI/ })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'CDB' })).not.toBeDisabled()
+            unmount()
+
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withChecks([check], {
+                    checkpoints: [{ checkpointId: 'q1', solved: true, attempts: 2, wrongOptions: [0], firstTry: false }],
+                }),
+            })
+            renderLesson()
+
+            expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('revisão de lição concluída não trava o Continuar na pergunta', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withChecks([check], {
+                    status: 'completed',
+                    currentStep: 3,
+                    checkpoints: [{ checkpointId: 'q1', solved: true, attempts: 1, wrongOptions: [], firstTry: true }],
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByText('Qual rende mais?')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'LCI' })).not.toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('falha de rede mostra o erro e mantém a pergunta como estava', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([check]) })
+            vi.mocked(answerCheckpoint).mockRejectedValue(new Error('rede'))
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'LCI' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Não foi possível enviar sua resposta agora. Tente de novo.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: /LCI/ })).not.toBeDisabled()
+        })
+
+        it('suporta 7 perguntas na mesma fase, cada uma num cartão', async () => {
+            const seven = Array.from({ length: 7 }, (_, i) => ({ type: 'check', id: `q${i}`, kind: 'true_false', prompt: `Pergunta ${i}` }))
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks(seven) })
+            vi.mocked(answerCheckpoint).mockResolvedValue({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'ok',
+            })
+
+            renderLesson()
+
+            for (let i = 0; i < 7; i++) {
+                expect(await screen.findByText(`Pergunta ${i}`)).toBeInTheDocument()
+                fireEvent.click(screen.getByRole('button', { name: 'Verdadeiro' }))
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+                await screen.findByText('Acertou de primeira.')
+                if (i < 6) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            }
+            expect(advanceLesson).not.toHaveBeenCalled()
         })
     })
 })

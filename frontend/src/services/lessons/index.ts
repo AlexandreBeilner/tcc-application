@@ -1,12 +1,21 @@
 import { apiRequest } from '../client'
-import type { AdvanceLessonResult, AnswerMicroDecisionResult, GetLessonResult, ListLessonsResult, ReviewLessonResult } from './types'
+import type {
+    AdvanceLessonResult,
+    AnswerCheckpointResult,
+    AnswerMicroDecisionResult,
+    GetLessonResult,
+    ListLessonsResult,
+    ReviewLessonResult,
+} from './types'
 
 export type {
     Lesson,
     ListLessonsResult,
     GetLessonResult,
     AdvanceLessonResult,
+    AnswerCheckpointResult,
     AnswerMicroDecisionResult,
+    CheckpointState,
     ReviewLessonResult,
     MicroDecisionType,
     UnlockedAchievement,
@@ -30,6 +39,21 @@ export function advanceLesson(token: string, id: string, step: number): Promise<
 // o gabarito (`correctOptionLabel`) só vem quando `correct` é verdadeiro.
 export function answerMicroDecision(token: string, id: string, selectedOption: number): Promise<AnswerMicroDecisionResult> {
     return apiRequest<AnswerMicroDecisionResult>(`/lessons/${id}/answer`, { token, method: 'POST', body: { selectedOption } })
+}
+
+// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2): `selectedOption`
+// (única escolha, verdadeiro/falso) ou `value` (numérica). A explicação só vem no acerto.
+export function answerCheckpoint(
+    token: string,
+    id: string,
+    checkpointId: string,
+    response: { selectedOption: number } | { value: number },
+): Promise<AnswerCheckpointResult> {
+    return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
+        token,
+        method: 'POST',
+        body: response,
+    })
 }
 
 export function reviewLesson(token: string, id: string): Promise<ReviewLessonResult> {

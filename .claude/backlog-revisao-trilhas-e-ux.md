@@ -414,12 +414,32 @@ colunas.
   (c) `aria-live` está nos estados de carregamento dos widgets ao vivo; os widgets de cálculo existentes mantêm o
   próprio markup, sem região `aria-live` nova; (d) `requiresInteraction` do desenho original ficou fora.
 
-### RC.3.2 · Pergunta intermediária como bloco
+### RC.3.2 · Pergunta intermediária como bloco ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** bloco `checkpoint` (single, V/F, numérica com tolerância) com explicação mostrada após o acerto, erro desativa a alternativa escolhida
   (sem dicas) e tentativas ilimitadas; contagem de acertos de primeira por lição; reaproveita o endpoint de RC.2.3.
 - **Aceite:** 3 a 7 checkpoints por lição suportados sem mudar o XP total (D1); progresso salvo ao sair e voltar.
 - **Depende de:** RC.2.3, RC.3.1.
+- **Entregável (2026-10-04):** *Modelagem (decidida aqui):* o gabarito mora no próprio bloco `check` de
+  `lessons.blocks` (servidor), `toPublicBlocks` o remove de `GET /lessons` e `/:id` (sem `answer`, `tolerance`,
+  `explanation`); o estado do aluno fica em tabela nova `user_lesson_checkpoints` (migration `0024`, uma linha por
+  usuário, lição e checkpoint: tentativas, alternativas erradas, `solved_at`), em vez de colunas na linha de progresso.
+  *Backend:* tipos `single` (2 a 4 alternativas), `true_false` e `numeric` (tolerância e unidade), até 7 por lição,
+  `id` único junto com os widgets (Zod); `AnswerCheckpointUseCase` + `POST /lessons/:id/checkpoints/:checkpointId/
+  answer` (mesmas regras da RC.2.3: erro só desativa a alternativa, explicação só no acerto, tentativas ilimitadas,
+  lição concluída ou checkpoint resolvido responde sem gravar, upsert atômico); `GET /lessons/:id` devolve
+  `checkpoints` e `checkpointsFirstTry`; gate no `/progress`: sair de uma fase sem resolver as `check` dela dá
+  `422 checkpoint_unsolved` (só na transição, quem já passou não é afetado); XP inalterado (D1). `.docs/backend/
+  lessons.md` atualizado. *Frontend:* contrato espelhado, `PlayerCard` ganha `check`, hook `useCheckpoints` (estado do
+  servidor + sessão; em revisão ignora o servidor e nada trava), `LessonCheckpoint` (alternativas ou campo numérico
+  com vírgula, aviso `role="alert"` com foco, `aria-invalid`, selo "de primeira"/"Nª tentativa", explicação no acerto),
+  Continuar travado no cartão da pergunta até acertar. Validou: backend lint/build/`npm test` (826) e frontend
+  `vitest`/`tsc -b`/oxlint, com testes de caso de uso, rota, gate, schema e página (inclui 7 perguntas na mesma
+  fase e restauração ao reabrir). **Ressalvas:** (a) migration `0024` só escrita, não aplicada num Postgres, e sem
+  `docker compose`/e2e (o ambiente local está num volume de outra branch); (b) ao reabrir uma pergunta já resolvida
+  o servidor não devolve a explicação (só no acerto), então aparece "Você já resolveu esta pergunta."; (c) o export
+  LGPD de progresso ainda não inclui as respostas dos checkpoints; (d) nenhuma lição do seed usa `check` ainda
+  (Fase 5); (e) sem conferência visual nos 3 breakpoints.
 
 ### RC.3.3 · Bloco "Na plataforma"
 

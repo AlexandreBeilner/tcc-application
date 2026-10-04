@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
+import { AnswerCheckpointUseCase } from '../../application/useCases/answerCheckpoint'
 import { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMicroDecision'
 import { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import { GetLessonUseCase } from '../../application/useCases/getLesson'
@@ -39,10 +40,37 @@ const lessons = [1, 2].map((n) => ({
   microDecisionCorrectOption: n === 1 ? 0 : null,
 }))
 
+// Variante de `lessons` com uma pergunta intermediária no Cenário de l1 (RC.3.2).
+const lessonsWithCheck = lessons.map((lesson) =>
+  lesson.id === 'l1'
+    ? {
+        ...lesson,
+        blocks: {
+          schemaVersion: 1 as const,
+          phases: {
+            scenario: [
+              {
+                type: 'check' as const,
+                id: 'c1',
+                kind: 'single' as const,
+                prompt: 'Qual?',
+                options: ['a', 'b', 'c'],
+                answer: 2,
+                explanation: 'Porque c.',
+              },
+            ],
+            microDecision: [],
+            revelation: [],
+          },
+        },
+      }
+    : lesson,
+)
+
 // `minStepIntervalMs` 0 por padrão: os testes de rota não são sobre o tempo
 // mínimo entre passos (S.4, coberto no caso de uso e no teste dedicado abaixo).
-function buildApp(minStepIntervalMs = 0) {
-  const lessonRepository = createFakeLessonRepository(lessons)
+function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
+  const lessonRepository = createFakeLessonRepository(lessonSet)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
@@ -55,6 +83,7 @@ function buildApp(minStepIntervalMs = 0) {
     { minStepIntervalMs },
   )
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
+  const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   const reviewLesson = new ReviewLessonUseCase(lessonRepository, createFakeAchievementChecker())
 
   const app = express()
@@ -65,6 +94,7 @@ function buildApp(minStepIntervalMs = 0) {
       getLesson,
       advanceLesson,
       answerMicroDecision,
+      answerCheckpoint,
       reviewLesson,
       authMiddleware,
     }),
@@ -378,5 +408,116 @@ describe('lessons routes', () => {
     expect(res.body).toEqual({ status: 'reviewed', unlockedAchievements: [] })
     const [progress] = await lessonRepository.listProgressForUser('u1')
     expect(progress.lastReviewedAt).not.toBeNull()
+  })
+
+  describe('perguntas intermediárias (RC.3.2)', () => {
+    const url = '/lessons/l1/checkpoints/c1/answer'
+
+    it('GET /lessons/:id devolve o bloco sem gabarito nem explicação, com o estado de cada checkpoint', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+      await request(app).post(url).set('Authorization', auth).send({ selectedOption: 0 })
+
+      const res = await request(app).get('/lessons/l1').set('Authorization', auth)
+
+      expect(res.body.lesson.blocks.phases.scenario[0]).toEqual({
+        type: 'check',
+        id: 'c1',
+        kind: 'single',
+        prompt: 'Qual?',
+        options: ['a', 'b', 'c'],
+      })
+      expect(JSON.stringify(res.body)).not.toContain('Porque c.')
+      expect(res.body.lesson.checkpoints).toEqual([
+        { checkpointId: 'c1', solved: false, attempts: 1, wrongOptions: [0], firstTry: false },
+      ])
+      expect(res.body.lesson.checkpointsFirstTry).toBe(0)
+    })
+
+    it('errar não entrega a explicação; acertar entrega e conta de primeira', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+
+      const wrong = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ selectedOption: 0 })
+      expect(wrong.status).toBe(200)
+      expect(wrong.body).toEqual({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        wrongOptions: [0],
+      })
+
+      const right = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ selectedOption: 2 })
+      expect(right.body).toMatchObject({
+        correct: true,
+        attempts: 2,
+        firstTry: false,
+        explanation: 'Porque c.',
+      })
+    })
+
+    it('POST /progress devolve 422 checkpoint_unsolved até resolver a pergunta da fase', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+
+      const blocked = await request(app)
+        .post('/lessons/l1/progress')
+        .set('Authorization', auth)
+        .send({ step: 1 })
+      expect(blocked.status).toBe(422)
+      expect(blocked.body.code).toBe('checkpoint_unsolved')
+
+      await request(app).post(url).set('Authorization', auth).send({ selectedOption: 2 })
+      const ok = await request(app)
+        .post('/lessons/l1/progress')
+        .set('Authorization', auth)
+        .send({ step: 1 })
+      expect(ok.status).toBe(200)
+    })
+
+    it('valida payload (400), formato (400), lição/checkpoint (404) e exige autenticação (401)', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+
+      expect((await request(app).post(url).set('Authorization', auth).send({})).status).toBe(400)
+      expect(
+        (
+          await request(app)
+            .post(url)
+            .set('Authorization', auth)
+            .send({ selectedOption: 1, value: 1 })
+        ).status,
+      ).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ selectedOption: 9 }))
+          .status,
+      ).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ value: 3 })).status,
+      ).toBe(400)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/l1/checkpoints/nope/answer')
+            .set('Authorization', auth)
+            .send({ selectedOption: 0 })
+        ).status,
+      ).toBe(404)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/nope/checkpoints/c1/answer')
+            .set('Authorization', auth)
+            .send({ selectedOption: 0 })
+        ).status,
+      ).toBe(404)
+      expect((await request(app).post(url).send({ selectedOption: 0 })).status).toBe(401)
+    })
   })
 })

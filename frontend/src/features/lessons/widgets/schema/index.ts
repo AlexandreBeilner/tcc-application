@@ -38,18 +38,30 @@ const widgetBlock = z.object({
     caption: z.string().min(1).optional(),
 })
 
+// Pergunta intermediária (RC.3.2), como o servidor a entrega: sem gabarito nem
+// explicação (`answer`/`tolerance`/`explanation` ficam só no servidor).
+const checkBlock = z.object({
+    type: z.literal('check'),
+    id: z.string().min(1),
+    kind: z.enum(['single', 'true_false', 'numeric']),
+    prompt: z.string().min(1),
+    options: z.array(z.string().min(1)).min(2).max(4).optional(),
+    unit: z.string().min(1).optional(),
+})
+
 const lessonBlocksSchema = z.object({
     schemaVersion: z.literal(1),
     phases: z.object({
-        scenario: z.array(z.union([textBlock, widgetBlock])),
-        microDecision: z.array(z.union([textBlock, widgetBlock])),
-        revelation: z.array(z.union([textBlock, widgetBlock])),
+        scenario: z.array(z.union([textBlock, widgetBlock, checkBlock])),
+        microDecision: z.array(z.union([textBlock, widgetBlock, checkBlock])),
+        revelation: z.array(z.union([textBlock, widgetBlock, checkBlock])),
     }),
 })
 
 export type LessonBlocks = z.infer<typeof lessonBlocksSchema>
 export type LessonBlock = LessonBlocks['phases']['scenario'][number]
 export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
+export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {

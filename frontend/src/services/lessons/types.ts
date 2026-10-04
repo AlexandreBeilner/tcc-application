@@ -48,6 +48,10 @@ export interface Lesson {
     // resolvida e as alternativas erradas já tentadas. Ausentes na listagem.
     microDecisionSolved?: boolean
     microDecisionWrongOptions?: number[]
+    // Só em `GET /lessons/:id` (RC.3.2): estado de cada pergunta intermediária
+    // que o usuário já tentou, e quantas acertou de primeira.
+    checkpoints?: CheckpointState[]
+    checkpointsFirstTry?: number
 }
 
 export interface ListLessonsResult {
@@ -63,6 +67,24 @@ export interface UnlockedAchievement {
     id: string
     name: string
     description: string | null
+}
+
+export interface CheckpointState {
+    checkpointId: string
+    solved: boolean
+    attempts: number
+    wrongOptions: number[]
+    firstTry: boolean
+}
+
+// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, `.docs/backend/lessons.md`).
+export interface AnswerCheckpointResult {
+    correct: boolean
+    attempts: number
+    firstTry: boolean
+    wrongOptions: number[]
+    // Só em acerto.
+    explanation?: string
 }
 
 // `POST /lessons/:id/answer` (RC.2.3, `.docs/backend/lessons.md`).

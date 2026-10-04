@@ -4,10 +4,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
+import { useCheckpoints } from '../../features/lessons/useCheckpoints'
 import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { Button } from '../../components/atoms/Button'
+import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
@@ -15,7 +17,7 @@ import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import { buildPhaseCards } from '../../features/lessons/playerCards'
 import type { PlayerCard } from '../../features/lessons/playerCards'
 import { parseLessonBlocks } from '../../features/lessons/widgets/schema'
-import type { WidgetBlock } from '../../features/lessons/widgets/schema'
+import type { CheckBlock, WidgetBlock } from '../../features/lessons/widgets/schema'
 import { parseLessonMarkup } from '../../features/lessons/parseLessonMarkup'
 import { GlossaryTerm } from '../../components/molecules/GlossaryTerm'
 import type { AnswerMicroDecisionResult, Lesson as LessonType } from '../../services/lessons'
@@ -119,6 +121,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Conteúdo por blocos (RC.3.1): fase sem blocos usa o texto legado e os
     // widgets legados por `microDecisionType`, igual a antes.
     const blocks = useMemo(() => parseLessonBlocks(lesson?.blocks), [lesson?.blocks])
+    // Perguntas intermediárias (RC.3.2): estado restaurado do servidor + sessão.
+    const checkpoints = useCheckpoints(lessonId, lesson?.checkpoints, isReview === true)
     const microDecisionHasBlocks = (blocks?.phases.microDecision.length ?? 0) > 0
     const revelationHasBlocks = (blocks?.phases.revelation.length ?? 0) > 0
     const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
@@ -224,6 +228,26 @@ function LessonView({ lessonId }: { lessonId: string }) {
         navigation.back(cardCounts)
     }
 
+    // Pergunta intermediária ainda não resolvida segura o Continuar do cartão
+    // dela (RC.3.2); em revisão de lição concluída nada trava.
+    function checkpointBlocking(card: PlayerCard | undefined): boolean {
+        return !isReview && card?.kind === 'check' && !checkpoints.viewFor(card.block.id).solved
+    }
+
+    function renderCheckpoint(block: CheckBlock) {
+        return (
+            <LessonCheckpoint
+                key={block.id}
+                block={block}
+                view={checkpoints.viewFor(block.id)}
+                pending={checkpoints.isPending}
+                error={checkpoints.isError}
+                isReview={isReview === true}
+                onSubmit={(response) => checkpoints.submit(block, response)}
+            />
+        )
+    }
+
     function handleReveal() {
         navigation.reveal()
     }
@@ -264,7 +288,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={cardClassName(scenarioCards[subStep])}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <CardBody card={scenarioCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
+                    <CardBody
+                        card={scenarioCards[subStep]}
+                        renderCheckpoint={renderCheckpoint}
+                        revealed={navigation.isRevealed}
+                        onReveal={handleReveal}
+                        lessons={lessons}
+                    />
                     {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
                         {navigation.canGoBack && (
@@ -275,7 +305,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         )}
                         <Button
                             onClick={() => handleCardContinue(scenarioCards)}
-                            disabled={advanceLesson.isPending}
+                            disabled={advanceLesson.isPending || checkpointBlocking(scenarioCards[subStep])}
                             data-lesson-continue=""
                         >
                             Continuar
@@ -290,6 +320,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
                     <CardBody
                         card={microDecisionCards[subStep]}
+                        renderCheckpoint={renderCheckpoint}
+
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
@@ -380,7 +412,11 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         <Button
                             data-lesson-continue=""
                             onClick={() => handleCardContinue(microDecisionCards)}
-                            disabled={(isMicroDecisionLastCard && !canAdvanceMicroDecision) || advanceLesson.isPending}
+                            disabled={
+                                (isMicroDecisionLastCard && !canAdvanceMicroDecision) ||
+                                advanceLesson.isPending ||
+                                checkpointBlocking(microDecisionCards[subStep])
+                            }
                         >
                             Continuar
                         </Button>
@@ -401,7 +437,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
                                 : `Você acertou na ${answer.attempts}ª tentativa`}
                         </span>
                     )}
-                    <CardBody card={revelationCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
+                    <CardBody
+                        card={revelationCards[subStep]}
+                        renderCheckpoint={renderCheckpoint}
+                        revealed={navigation.isRevealed}
+                        onReveal={handleReveal}
+                        lessons={lessons}
+                    />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
                     {isRevelationLastCard && !revelationHasBlocks && isLiveIndicator && lesson.microDecisionAssetTicker && (
@@ -428,7 +470,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         )}
                         <Button
                             onClick={() => handleCardContinue(revelationCards)}
-                            disabled={advanceLesson.isPending}
+                            disabled={advanceLesson.isPending || checkpointBlocking(revelationCards[subStep])}
                             data-lesson-continue=""
                         >
                             Continuar
@@ -482,16 +524,22 @@ function cardClassName(card: PlayerCard | undefined): string {
 // verdade preserva a navegação por teclado (Tab alcança, Enter/Espaço
 // ativa), sem precisar de nenhum tratamento especial.
 function CardBody({
+    renderCheckpoint,
     card,
     revealed,
     onReveal,
     lessons,
 }: {
+    renderCheckpoint: (block: CheckBlock) => React.ReactNode
     card: PlayerCard
     revealed: boolean
     onReveal: () => void
     lessons: LessonType[]
 }) {
+    if (card.kind === 'check') {
+        return <>{renderCheckpoint(card.block)}</>
+    }
+
     if (card.kind === 'widget') {
         return (
             <div className={styles.widgetStage}>

@@ -26,3 +26,9 @@ export class LessonStepTooFastError extends Error {
     super(message)
   }
 }
+// Pergunta intermediária (`check`, RC.3.2): checkpoint inexistente na lição.
+export class CheckpointNotFoundError extends Error {}
+// Resposta fora do formato do bloco (índice inválido, valor não numérico).
+export class InvalidCheckpointResponseError extends Error {}
+// Avanço de fase sem ter resolvido as perguntas intermediárias dela (RC.3.2).
+export class CheckpointUnsolvedError extends Error {}

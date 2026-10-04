@@ -13,6 +13,9 @@ import type { LessonBlocks, WidgetId } from '../../domain/widgets/lessonBlocks'
 //
 // Regras do contrato de widget: props só de configuração (valores iniciais,
 // limites, presets, rótulos); saída só visual; sem estado no servidor.
+// Perguntas intermediárias por lição (RC.3.2: 3 a 7 suportadas; o piso é de autoria).
+export const MAX_CHECKPOINTS_PER_LESSON = 7
+
 export const WIDGET_IDS = [
   'callout',
   'growth-calculator',
@@ -44,6 +47,36 @@ export const widgetPropsSchemas = {
   'live-macro': liveMacroProps,
 } as const satisfies Record<WidgetId, z.ZodType>
 
+const checkBase = {
+  type: z.literal('check'),
+  id: z.string().min(1).max(64),
+  prompt: z.string().min(1),
+  explanation: z.string().min(1),
+}
+
+// Pergunta intermediária (RC.3.2): gabarito e explicação ficam só no servidor.
+const checkBlock = z.discriminatedUnion('kind', [
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('single'),
+      options: z.array(z.string().min(1)).min(2).max(4),
+      answer: z.number().int().min(0),
+    })
+    .refine((b) => b.answer < b.options.length, {
+      path: ['answer'],
+      message: 'answer fora das options',
+    }),
+  z.object({ ...checkBase, kind: z.literal('true_false'), answer: z.boolean() }),
+  z.object({
+    ...checkBase,
+    kind: z.literal('numeric'),
+    answer: z.number().finite(),
+    tolerance: z.number().finite().min(0),
+    unit: z.string().min(1).max(20).optional(),
+  }),
+])
+
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })
 
 const widgetBlock = z
@@ -65,7 +98,7 @@ const widgetBlock = z
     }
   })
 
-export const blockSchema = z.union([textBlock, widgetBlock])
+export const blockSchema = z.union([textBlock, widgetBlock, checkBlock])
 
 export const lessonBlocksSchema = z
   .object({
@@ -77,11 +110,21 @@ export const lessonBlocksSchema = z
     }),
   })
   .superRefine((blocks, ctx) => {
-    const ids = Object.values(blocks.phases)
-      .flat()
-      .flatMap((block) => (block.type === 'widget' ? [block.id] : []))
+    const all = Object.values(blocks.phases).flat()
+    const ids = all.flatMap((block) => (block.type === 'text' ? [] : [block.id]))
     if (new Set(ids).size !== ids.length) {
-      ctx.addIssue({ code: 'custom', path: ['phases'], message: 'id de widget repetido na lição' })
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phases'],
+        message: 'id de widget ou checkpoint repetido na lição',
+      })
+    }
+    if (all.filter((block) => block.type === 'check').length > MAX_CHECKPOINTS_PER_LESSON) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phases'],
+        message: `no máximo ${MAX_CHECKPOINTS_PER_LESSON} checkpoints por lição`,
+      })
     }
   })
 

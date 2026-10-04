@@ -21,7 +21,36 @@ export const CONTRACT_EXAMPLE = {
         },
       },
     ],
-    microDecision: [{ type: 'widget', id: 'calc', widget: 'growth-calculator', props: {} }],
+    microDecision: [
+      { type: 'widget', id: 'calc', widget: 'growth-calculator', props: {} },
+      {
+        type: 'check',
+        id: 'q1',
+        kind: 'single',
+        prompt: 'Qual rende mais?',
+        options: ['LCI', 'CDB'],
+        answer: 1,
+        explanation: 'O CDB líquido vence.',
+      },
+      {
+        type: 'check',
+        id: 'q2',
+        kind: 'true_false',
+        prompt: 'LCI paga IR?',
+        answer: false,
+        explanation: 'Isenta.',
+      },
+      {
+        type: 'check',
+        id: 'q3',
+        kind: 'numeric',
+        prompt: 'Taxa bruta equivalente?',
+        answer: 12.26,
+        tolerance: 0.05,
+        unit: '%',
+        explanation: '9,50 / 0,775.',
+      },
+    ],
     revelation: [
       {
         type: 'widget',
@@ -38,6 +67,78 @@ export const CONTRACT_EXAMPLE = {
 describe('lessonBlocksSchema', () => {
   it('aceita o exemplo do contrato', () => {
     expect(lessonBlocksSchema.safeParse(CONTRACT_EXAMPLE).success).toBe(true)
+  })
+
+  it.each([
+    [
+      'single com answer fora das options',
+      {
+        type: 'check',
+        id: 'x',
+        kind: 'single',
+        prompt: 'p',
+        options: ['a', 'b'],
+        answer: 2,
+        explanation: 'e',
+      },
+    ],
+    [
+      'single com uma alternativa só',
+      {
+        type: 'check',
+        id: 'x',
+        kind: 'single',
+        prompt: 'p',
+        options: ['a'],
+        answer: 0,
+        explanation: 'e',
+      },
+    ],
+    [
+      'check sem explicação',
+      { type: 'check', id: 'x', kind: 'true_false', prompt: 'p', answer: true },
+    ],
+    [
+      'numérica com tolerância negativa',
+      {
+        type: 'check',
+        id: 'x',
+        kind: 'numeric',
+        prompt: 'p',
+        answer: 1,
+        tolerance: -1,
+        explanation: 'e',
+      },
+    ],
+  ])('rejeita check inválido: %s', (_name, check) => {
+    const blocks = {
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    }
+    expect(lessonBlocksSchema.safeParse(blocks).success).toBe(false)
+  })
+
+  it('rejeita mais de 7 checkpoints por lição', () => {
+    const checks = Array.from({ length: 8 }, (_, i) => ({
+      type: 'check',
+      id: `q${i}`,
+      kind: 'true_false',
+      prompt: 'p',
+      answer: true,
+      explanation: 'e',
+    }))
+    expect(
+      lessonBlocksSchema.safeParse({
+        schemaVersion: 1,
+        phases: { scenario: checks, microDecision: [], revelation: [] },
+      }).success,
+    ).toBe(false)
+    expect(
+      lessonBlocksSchema.safeParse({
+        schemaVersion: 1,
+        phases: { scenario: checks.slice(0, 7), microDecision: [], revelation: [] },
+      }).success,
+    ).toBe(true)
   })
 
   it.each([

@@ -1,4 +1,4 @@
-import type { LessonProgressSnapshot, LessonSummary } from '../../domain/lesson'
+import type { CheckpointRecord, LessonProgressSnapshot, LessonSummary } from '../../domain/lesson'
 
 export interface LessonProgressRecord extends LessonProgressSnapshot {
   lessonId: string
@@ -70,4 +70,16 @@ export interface LessonRepository {
     lessonId: string,
     answer: { selectedOption: number; correct: boolean; answeredAt: Date },
   ): Promise<LessonProgressRecord | undefined>
+  listCheckpointsForUser(userId: string, lessonId: string): Promise<CheckpointRecord[]>
+  // Registra uma tentativa de pergunta intermediária (RC.3.2), atomicamente:
+  // cria a linha na primeira tentativa, incrementa `attempts`, acrescenta
+  // `choice` (alternativa errada; `null` em erro numérico) a `wrongOptions` e
+  // grava `solvedAt` no acerto. Só age em checkpoint ainda não resolvido:
+  // resolvido, devolve o estado atual sem escrever.
+  recordCheckpointAnswer(
+    userId: string,
+    lessonId: string,
+    checkpointId: string,
+    answer: { choice: number | null; correct: boolean; answeredAt: Date },
+  ): Promise<CheckpointRecord>
 }

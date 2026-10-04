@@ -48,6 +48,18 @@ Pergunta da Micro-decisão que só avança ao acertar (RC.2.3, decisões D1/D3/D
 - **Regra:** `AnswerMicroDecisionUseCase`. Tentativas ilimitadas. A **primeira** escolha é gravada em `user_lesson_progress.micro_decision_selected_option` e nunca muda, então conquistas e missões de "acerto de primeira" continuam lendo o mesmo campo. Cada resposta incrementa `micro_decision_attempts`; erro acrescenta a alternativa a `micro_decision_wrong_options`; acerto grava `micro_decision_solved_at`. A escrita é um único `UPDATE` atômico que **não toca `updated_at`** (não reinicia o intervalo mínimo entre passos). Lição já concluída, ou pergunta já resolvida, responde **sem gravar nada** (revisão sem estado). XP continua fixo (50), D1.
 - `GET /lessons/:id` passa a devolver `microDecisionSolved` e `microDecisionWrongOptions` (só o que o próprio usuário tentou) para o player restaurar a tela; o gabarito nunca vai no `GET`.
 
+### `POST /lessons/:id/checkpoints/:checkpointId/answer`
+
+Pergunta intermediária da lição (bloco `check` de `lessons.blocks`, RC.3.2). **Auth:** Bearer. Mesmas regras da pergunta da Micro-decisão (RC.2.3): errar não avança, tentativas ilimitadas, XP fixo (D1).
+
+- **Blocos `check`:** `kind: 'single'` (2 a 4 `options`, `answer` índice), `'true_false'` (`answer` boolean; alternativas fixas `[Verdadeiro, Falso]`, índices 0 e 1) e `'numeric'` (`answer`, `tolerance`, `unit?`). Todos têm `prompt` e `explanation`; `id` único na lição; no máximo 7 por lição. `answer`, `tolerance` e `explanation` ficam só no servidor: `GET /lessons` e `/:id` devolvem o bloco sem eles.
+- **Payload:** `{ selectedOption: number }` (single e verdadeiro/falso) ou `{ value: number }` (numérica); exatamente um dos dois.
+- **Sucesso `200`:** `{ correct, attempts, firstTry, wrongOptions: number[], explanation? }`. `explanation` só vem em acerto. `wrongOptions` são as alternativas erradas já tentadas (a UI as desativa; vazio em numérica e em revisão).
+- **Erros:** `400` payload inválido ou resposta fora do formato do bloco (índice fora das alternativas, `value` num bloco de alternativas); `401`; `404` lição inexistente/bloqueada ou checkpoint inexistente.
+- **Regra:** `AnswerCheckpointUseCase`. Estado em `user_lesson_checkpoints` (migration `0024`, uma linha por usuário, lição e checkpoint: `attempts`, `wrong_options`, `solved_at`); upsert atômico, só escreve em checkpoint ainda não resolvido. Lição concluída ou checkpoint já resolvido responde sem gravar (revisão sem estado). "Acertou de primeira" = resolvido com `attempts = 1`.
+- `GET /lessons/:id` devolve `checkpoints: [{ checkpointId, solved, attempts, wrongOptions, firstTry }]` (só o que o próprio usuário tentou) e `checkpointsFirstTry` (quantos acertou de primeira) para o player restaurar a tela.
+- **Gate:** `POST /lessons/:id/progress` ao sair de uma fase (passo `s` para `s+1`) exige as `check` dessa fase resolvidas: `422 { code: 'checkpoint_unsolved' }`. Só dispara na transição (quem já passou da fase ou reenvia o passo gravado não é afetado); lição sem `blocks` não tem checkpoint.
+
 ### `POST /lessons/:id/progress`
 
 - **Autenticação:** Bearer token.

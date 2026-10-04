@@ -1,5 +1,6 @@
 import {
   LessonLockedError,
+  CheckpointUnsolvedError,
   MicroDecisionUnsolvedError,
   LessonNotFoundError,
   LessonStepOutOfOrderError,
@@ -12,6 +13,7 @@ import {
   completedTrackNumbers,
   isUnlocked,
 } from '../../domain/lesson'
+import { checkpointIdsForStep } from '../../domain/widgets/lessonBlocks'
 import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
 import type { SocialFeedRecorder } from '../ports/socialFeedRecorder'
 import type { StreakTracker } from '../ports/streakTracker'
@@ -108,6 +110,25 @@ export class AdvanceLessonUseCase {
       !own?.microDecisionSolvedAt
     ) {
       throw new MicroDecisionUnsolvedError('responda a pergunta corretamente pra continuar')
+    }
+
+    // Perguntas intermediárias (RC.3.2): sair de uma fase exige resolver as
+    // `check` dela. Mesmo critério do gate acima: só na transição de fato
+    // (quem já passou da fase, ou reenvia o passo gravado, não é afetado).
+    if ((own?.currentStep ?? 0) < input.step) {
+      const required = checkpointIdsForStep(lesson.blocks, input.step - 1)
+      if (required.length > 0) {
+        const records = await this.lessonRepository.listCheckpointsForUser(
+          input.userId,
+          input.lessonId,
+        )
+        const solved = new Set(
+          records.filter((r) => r.solvedAt !== null).map((r) => r.checkpointId),
+        )
+        if (required.some((id) => !solved.has(id))) {
+          throw new CheckpointUnsolvedError('responda as perguntas corretamente pra continuar')
+        }
+      }
     }
 
     const attemptingCompletion = !alreadyCompleted && input.step >= LESSON_UNLOCK_STEP

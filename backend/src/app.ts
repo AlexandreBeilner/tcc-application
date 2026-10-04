@@ -36,6 +36,7 @@ import { createProgressionRouter } from './modules/gamification/interfaces/http/
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { LESSON_MIN_STEP_INTERVAL_MS } from './modules/lessons/domain/lesson'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
+import { AnswerCheckpointUseCase } from './modules/lessons/application/useCases/answerCheckpoint'
 import { AnswerMicroDecisionUseCase } from './modules/lessons/application/useCases/answerMicroDecision'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/application/useCases/getCurrentMicroDecisionStreak'
@@ -351,6 +352,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
+  const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     xpAwarder,
@@ -489,6 +491,7 @@ export function createApp(deps: AppDeps = {}): Express {
       getLesson,
       advanceLesson,
       answerMicroDecision,
+      answerCheckpoint,
       reviewLesson,
       authMiddleware,
     }),

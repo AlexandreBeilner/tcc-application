@@ -1,13 +1,13 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
-import { lessons, userLessonProgress } from '../../../../db/schema'
+import { lessons, userLessonCheckpoints, userLessonProgress } from '../../../../db/schema'
 import type {
   CompletionAttemptResult,
   LessonProgressRecord,
   LessonRepository,
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
-import type { LessonSummary } from '../../domain/lesson'
+import type { CheckpointRecord, LessonSummary } from '../../domain/lesson'
 import { parseLessonBlocks } from '../content/lessonBlocks'
 
 function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
@@ -45,6 +45,15 @@ function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonPr
     microDecisionAttempts: row.microDecisionAttempts,
     microDecisionWrongOptions: row.microDecisionWrongOptions,
     microDecisionSolvedAt: row.microDecisionSolvedAt,
+  }
+}
+
+function toCheckpointRecord(row: typeof userLessonCheckpoints.$inferSelect): CheckpointRecord {
+  return {
+    checkpointId: row.checkpointId,
+    attempts: row.attempts,
+    wrongOptions: row.wrongOptions,
+    solvedAt: row.solvedAt,
   }
 }
 
@@ -164,6 +173,62 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
         )
         .returning()
       return row ? toProgressRecord(row) : undefined
+    },
+
+    async listCheckpointsForUser(userId, lessonId) {
+      const rows = await db
+        .select()
+        .from(userLessonCheckpoints)
+        .where(
+          and(
+            eq(userLessonCheckpoints.userId, userId),
+            eq(userLessonCheckpoints.lessonId, lessonId),
+          ),
+        )
+      return rows.map(toCheckpointRecord)
+    },
+
+    async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
+      const t = userLessonCheckpoints
+      const initialWrong =
+        answer.correct || answer.choice === null
+          ? sql`'{}'::smallint[]`
+          : sql`ARRAY[${answer.choice}]::smallint[]`
+      const [row] = await db
+        .insert(t)
+        .values({
+          userId,
+          lessonId,
+          checkpointId,
+          attempts: 1,
+          wrongOptions: initialWrong,
+          solvedAt: answer.correct ? answer.answeredAt : null,
+        })
+        .onConflictDoUpdate({
+          target: [t.userId, t.lessonId, t.checkpointId],
+          set: {
+            attempts: sql`${t.attempts} + 1`,
+            wrongOptions:
+              answer.correct || answer.choice === null
+                ? sql`${t.wrongOptions}`
+                : sql`CASE WHEN ${answer.choice} = ANY(${t.wrongOptions}) THEN ${t.wrongOptions} ELSE array_append(${t.wrongOptions}, ${answer.choice}::smallint) END`,
+            solvedAt: answer.correct ? answer.answeredAt : null,
+          },
+          // Já resolvido: não escreve (a resposta vira leitura).
+          setWhere: isNull(t.solvedAt),
+        })
+        .returning()
+      if (row) {
+        return toCheckpointRecord(row)
+      }
+      const [existing] = await db
+        .select()
+        .from(t)
+        .where(
+          and(eq(t.userId, userId), eq(t.lessonId, lessonId), eq(t.checkpointId, checkpointId)),
+        )
+        .limit(1)
+      return toCheckpointRecord(existing)
     },
 
     async markReviewed(userId: string, lessonId: string, reviewedAt: Date) {
