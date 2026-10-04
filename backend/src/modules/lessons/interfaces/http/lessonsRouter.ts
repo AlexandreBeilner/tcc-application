@@ -8,17 +8,21 @@ import {
   LessonNotFoundError,
   LessonStepOutOfOrderError,
   LessonStepTooFastError,
+  MicroDecisionUnsolvedError,
+  NoMicroDecisionError,
 } from '../../domain/errors'
+import type { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMicroDecision'
 import type { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import type { GetLessonUseCase } from '../../application/useCases/getLesson'
 import type { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
 import type { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
-import { advanceLessonBodySchema } from './schemas'
+import { advanceLessonBodySchema, answerMicroDecisionBodySchema } from './schemas'
 
 export interface LessonsRouterDeps {
   getTrackMap: GetTrackMapUseCase
   getLesson: GetLessonUseCase
   advanceLesson: AdvanceLessonUseCase
+  answerMicroDecision: AnswerMicroDecisionUseCase
   reviewLesson: ReviewLessonUseCase
   authMiddleware: AuthMiddleware
 }
@@ -78,7 +82,6 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
         userId: req.auth.userId,
         lessonId: req.params.id as string,
         step: parsed.data.step,
-        selectedOption: parsed.data.selectedOption,
       })
       res.status(200).json(result)
     } catch (err) {
@@ -86,8 +89,8 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
         res.status(404).json({ error: err.message })
         return
       }
-      if (err instanceof InvalidMicroDecisionOptionError) {
-        res.status(400).json({ error: err.message })
+      if (err instanceof MicroDecisionUnsolvedError) {
+        res.status(422).json({ error: err.message, code: 'micro_decision_unsolved' })
         return
       }
       if (err instanceof LessonStepOutOfOrderError) {
@@ -100,6 +103,46 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
           code: 'step_too_fast',
           retryAfterMs: err.retryAfterMs,
         })
+        return
+      }
+      throw err
+    }
+  })
+
+  router.post('/lessons/:id/answer', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    const parsed = answerMicroDecisionBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      const result = await deps.answerMicroDecision.execute({
+        userId: req.auth.userId,
+        lessonId: req.params.id as string,
+        selectedOption: parsed.data.selectedOption,
+      })
+      res.status(200).json(result)
+    } catch (err) {
+      if (err instanceof LessonNotFoundError || err instanceof LessonLockedError) {
+        res.status(404).json({ error: err.message })
+        return
+      }
+      if (err instanceof InvalidMicroDecisionOptionError) {
+        res.status(400).json({ error: err.message })
+        return
+      }
+      if (err instanceof NoMicroDecisionError) {
+        res.status(422).json({ error: err.message, code: 'no_micro_decision' })
+        return
+      }
+      if (err instanceof LessonStepOutOfOrderError) {
+        res.status(422).json({ error: err.message, code: 'step_out_of_order' })
         return
       }
       throw err

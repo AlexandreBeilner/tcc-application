@@ -285,7 +285,7 @@ colunas.
 - **Aceite:** voltar e reavançar em qualquer ponto sem erro nem espera; estado preservado.
 - **Depende de:** RC.2.1.
 
-### RC.2.3 · Backend da pergunta que só avança ao acertar (P.3)
+### RC.2.3 · Backend da pergunta que só avança ao acertar (P.3) ✅ concluída (2026-10-04)
 
 - **Escopo:** migration aditiva (`attempts`, `solved_at`, `hints`, backfill), `AnswerMicroDecisionUseCase`,
   `POST /lessons/:id/answer` (Zod), primeira escolha imutável, gabarito só em acerto (D3), gate 1->2 exige aposta
@@ -294,6 +294,24 @@ colunas.
 - **Aceite:** testes de caso de uso (fakes), router (supertest) e adapter (Postgres descartável); migration
   testada com progresso real; conquistas/missões H.1/H.3 inalteradas para dados antigos.
 - **Depende de:** D1, D3, D4.
+- **Entregável (2026-10-04):** migration `0022_add_lesson_micro_decision_attempts` (colunas `micro_decision_attempts`,
+  `micro_decision_wrong_options smallint[]` e `micro_decision_solved_at`, com backfill de quem já passou da pergunta;
+  `when` 1791400000000, acima da 0021 da branch da Fase N, que ainda não está na `main`, então o número 0022 evita
+  colisão no merge; snapshot escrito à mão). `AnswerMicroDecisionUseCase` + `POST /lessons/:id/answer` (Zod): primeira
+  escolha imutável, tentativas ilimitadas, erro devolve só as alternativas erradas já tentadas (a UI as desativa),
+  gabarito só no acerto, lição concluída ou pergunta resolvida respondem sem gravar, `UPDATE` atômico que preserva
+  `updated_at`. `AdvanceLessonUseCase`: gate 1->2 (`422 micro_decision_unsolved`, só nessa transição, quem já passou
+  não é afetado); `selectedOption` em `/progress` virou deprecado e ignorado, e o veredito saiu dessa resposta
+  (entregaria o gabarito). `GET /lessons/:id` devolve `microDecisionSolved` e `microDecisionWrongOptions`. Export LGPD
+  inclui `microDecisionAttempts`. `.docs/backend/lessons.md` atualizado e helper e2e `support/lessons.ts` resolve a
+  pergunta antes de avançar. Validou: `npm test`/`lint`/`build` (775) e, num Postgres descartável, migration com
+  progresso real (backfill), as três respostas em sequência e `updated_at` intacto.
+  **Atenção:** o frontend ainda envia a escolha em `/progress`, então **numa lição com pergunta o player fica preso no
+  passo 1 até a RC.2.4 sair; as duas precisam ir juntas para a `main`.** **Ressalvas:** (a) múltiplas perguntas por
+  lição (RC.3.2) não entraram: hoje há uma pergunta por lição, em colunas da linha de progresso; o desenho por
+  pergunta fica para quando o contrato `blocks` existir. (b) Limite de taxa em `/answer` não implementado (tentativas
+  são ilimitadas por decisão; com 2 a 4 alternativas não há o que proteger). (c) Não rodei `docker compose up` nem
+  o e2e (só ajustei o helper).
 
 ### RC.2.4 · Frontend da pergunta (P.4)
 

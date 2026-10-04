@@ -36,8 +36,31 @@ async function advanceStep(userToken: string, lessonId: string, step: number): P
   }
 }
 
+// Resolve a pergunta da Micro-decisão (RC.2.3: errar não avança). O helper não
+// conhece o gabarito, então tenta as alternativas em ordem até acertar; lição
+// sem pergunta com alternativas responde 422 `no_micro_decision` e segue.
+async function solveMicroDecision(userToken: string, lessonId: string): Promise<void> {
+  for (let option = 0; option < 6; option++) {
+    const res = await authed(userToken).post(`/lessons/${lessonId}/answer`).send({ selectedOption: option })
+    if (res.status === 422 && res.body.code === 'no_micro_decision') {
+      return
+    }
+    if (res.status === 400) {
+      break
+    }
+    if (res.status !== 200) {
+      throw new Error(`falha ao responder a lição ${lessonId}: ${res.status} ${JSON.stringify(res.body)}`)
+    }
+    if (res.body.correct === true) {
+      return
+    }
+  }
+  throw new Error(`nenhuma alternativa acertou a pergunta da lição ${lessonId}`)
+}
+
 async function completeLesson(userToken: string, lessonId: string): Promise<void> {
   await advanceStep(userToken, lessonId, 1)
+  await solveMicroDecision(userToken, lessonId)
   await advanceStep(userToken, lessonId, 2)
   await advanceStep(userToken, lessonId, 3)
 }

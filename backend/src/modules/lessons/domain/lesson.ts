@@ -90,6 +90,12 @@ export interface LessonProgressSnapshot {
   // Índice escolhido pelo usuário na Micro-decisão (B.1) — `null` até a
   // escolha ser gravada (B.2) ou pra lição sem aposta real.
   microDecisionSelectedOption: number | null
+  // Pergunta que só avança ao acertar (RC.2.3): nº de respostas dadas,
+  // alternativas erradas já tentadas e instante do acerto (`null` = ainda não
+  // resolvida). `microDecisionSelectedOption` acima é a PRIMEIRA escolha.
+  microDecisionAttempts: number
+  microDecisionWrongOptions: number[]
+  microDecisionSolvedAt: Date | null
 }
 
 // Três estados, não booleano: `null` cobre tanto "lição sem aposta real
@@ -116,6 +122,10 @@ export function isCorrectOption(
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption'> {
   status: LessonStatus
   currentStep: number
+  // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
+  // e voltar: o gabarito nunca vai aqui, só o que o próprio usuário já tentou.
+  microDecisionSolved: boolean
+  microDecisionWrongOptions: number[]
 }
 
 export function buildLessonView(
@@ -148,6 +158,8 @@ export function buildLessonView(
     microDecisionOptions: lesson.microDecisionOptions,
     status,
     currentStep: progress?.currentStep ?? 0,
+    microDecisionSolved: progress?.microDecisionSolvedAt != null,
+    microDecisionWrongOptions: progress?.microDecisionWrongOptions ?? [],
   }
 }
 

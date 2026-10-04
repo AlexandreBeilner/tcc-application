@@ -1,6 +1,11 @@
 export class LessonNotFoundError extends Error {}
 export class LessonLockedError extends Error {}
 export class LessonNotCompletedError extends Error {}
+// `POST /lessons/:id/answer` numa lição sem pergunta com alternativas reais.
+export class NoMicroDecisionError extends Error {}
+// Avanço do passo Micro-decisão pro Revelação sem ter acertado a pergunta
+// (RC.2.3): errar não avança.
+export class MicroDecisionUnsolvedError extends Error {}
 // Aposta com acerto/erro real (backlog engajamento B.2) — `selectedOption`
 // fora do intervalo de `lesson.microDecisionOptions.length`. Nunca lançado
 // pra lição sem opções reais (checkbox de hoje) — nesse caso o campo é só

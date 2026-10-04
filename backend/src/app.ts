@@ -36,6 +36,7 @@ import { createProgressionRouter } from './modules/gamification/interfaces/http/
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { LESSON_MIN_STEP_INTERVAL_MS } from './modules/lessons/domain/lesson'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
+import { AnswerMicroDecisionUseCase } from './modules/lessons/application/useCases/answerMicroDecision'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/application/useCases/getCurrentMicroDecisionStreak'
 import { GetTracksCompletedWithoutErrorsCountUseCase } from './modules/lessons/application/useCases/getTracksCompletedWithoutErrorsCount'
@@ -349,6 +350,7 @@ export function createApp(deps: AppDeps = {}): Express {
       : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
+  const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     xpAwarder,
@@ -482,7 +484,14 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(
-    createLessonsRouter({ getTrackMap, getLesson, advanceLesson, reviewLesson, authMiddleware }),
+    createLessonsRouter({
+      getTrackMap,
+      getLesson,
+      advanceLesson,
+      answerMicroDecision,
+      reviewLesson,
+      authMiddleware,
+    }),
   )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))

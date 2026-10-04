@@ -58,4 +58,16 @@ export interface LessonRepository {
   // que a linha já exista (`ReviewLessonUseCase` garante isso checando
   // `completedAt !== null` antes de chamar).
   markReviewed(userId: string, lessonId: string, reviewedAt: Date): Promise<void>
+  // Registra uma resposta da pergunta (RC.2.3), atomicamente e sem tocar
+  // `updatedAt` (senão reiniciaria o intervalo mínimo entre passos). Primeira
+  // resposta fixa `microDecisionSelectedOption` (imutável depois); toda
+  // resposta incrementa `microDecisionAttempts`; erro acrescenta a alternativa
+  // a `microDecisionWrongOptions`; acerto grava `microDecisionSolvedAt`. Só
+  // age em linha ainda não resolvida: se já estava resolvida (ou a linha não
+  // existe) devolve o estado atual sem escrever.
+  recordMicroDecisionAnswer(
+    userId: string,
+    lessonId: string,
+    answer: { selectedOption: number; correct: boolean; answeredAt: Date },
+  ): Promise<LessonProgressRecord | undefined>
 }

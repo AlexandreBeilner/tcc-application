@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { lessons, userLessonProgress } from '../../../../db/schema'
 import type {
@@ -39,6 +39,9 @@ function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonPr
     updatedAt: row.updatedAt,
     lastReviewedAt: row.lastReviewedAt,
     microDecisionSelectedOption: row.microDecisionSelectedOption,
+    microDecisionAttempts: row.microDecisionAttempts,
+    microDecisionWrongOptions: row.microDecisionWrongOptions,
+    microDecisionSolvedAt: row.microDecisionSolvedAt,
   }
 }
 
@@ -132,6 +135,32 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
         )
         .limit(1)
       return { record: toProgressRecord(existing), wonRace: false }
+    },
+
+    async recordMicroDecisionAnswer(userId, lessonId, answer) {
+      const t = userLessonProgress
+      const [row] = await db
+        .update(t)
+        .set({
+          microDecisionSelectedOption: sql`COALESCE(${t.microDecisionSelectedOption}, ${answer.selectedOption})`,
+          microDecisionAttempts: sql`${t.microDecisionAttempts} + 1`,
+          microDecisionWrongOptions: answer.correct
+            ? sql`${t.microDecisionWrongOptions}`
+            : sql`CASE WHEN ${answer.selectedOption} = ANY(${t.microDecisionWrongOptions}) THEN ${t.microDecisionWrongOptions} ELSE array_append(${t.microDecisionWrongOptions}, ${answer.selectedOption}::smallint) END`,
+          microDecisionSolvedAt: answer.correct ? answer.answeredAt : null,
+          // Preserva `updated_at` (intervalo mínimo entre passos, S.4).
+          updatedAt: sql`${t.updatedAt}`,
+        })
+        .where(
+          and(
+            eq(t.userId, userId),
+            eq(t.lessonId, lessonId),
+            isNull(t.microDecisionSolvedAt),
+            isNull(t.completedAt),
+          ),
+        )
+        .returning()
+      return row ? toProgressRecord(row) : undefined
     },
 
     async markReviewed(userId: string, lessonId: string, reviewedAt: Date) {

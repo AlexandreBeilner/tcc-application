@@ -215,6 +215,17 @@ export const userLessonProgress = pgTable(
     // (conquista/missão de sequência de acertos) poder consultar o
     // histórico depois, não só o momento da escolha.
     microDecisionSelectedOption: smallint('micro_decision_selected_option'),
+    // Pergunta que só avança ao acertar (RC.2.3): `microDecisionSelectedOption`
+    // passa a ser a PRIMEIRA escolha (imutável), então "acertou de primeira"
+    // continua sendo `isCorrectOption` sobre ela. As colunas abaixo guardam o
+    // resto: nº de respostas, as alternativas erradas já tentadas (desativadas
+    // na UI) e o instante do acerto (libera o avanço do passo 1 pro 2).
+    microDecisionAttempts: smallint('micro_decision_attempts').notNull().default(0),
+    microDecisionWrongOptions: smallint('micro_decision_wrong_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::smallint[]`),
+    microDecisionSolvedAt: timestamp('micro_decision_solved_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],
