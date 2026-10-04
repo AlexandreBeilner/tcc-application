@@ -238,12 +238,17 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   é tarefa separada. Validou: `vitest`, `lint`, `build` do backend (756 testes) e `vitest`, `lint`, `tsc -b` do
   frontend (832). **Não rodei `docker compose up`** (cobertura por supertest).
 
-### RC.1.6 · Guia de redação de conteúdo educacional
+### RC.1.6 · Guia de redação de conteúdo educacional ✅ concluída (2026-10-04)
 
 - **Escopo:** `.claude/diretrizes-redacao-licoes.md` (no molde de `diretrizes-redacao-eventos-macro.md`): bloco "Na
   plataforma", regra de termos, tom, uso de fatos regulatórios, checklist de revisão de lição, exemplos bom/ruim.
 - **Aceite:** linkado no `CLAUDE.md`; usado como checklist nas tarefas da Fase 5.
 - **Depende de:** nada.
+- **Entregável (2026-10-04):** `.claude/diretrizes-redacao-licoes.md` (10 seções: leveza e teto de cartão, Brasil real e
+  bloco "Na plataforma", termos, fatos regulatórios com fonte, contas por widget, checkpoints, tom e texto de UI,
+  testes que já barram, checklist de 10 itens), com exemplos bom/ruim tirados dos achados reais (Copom 21 dias,
+  taxas fora do catálogo, correções da própria auditoria). Linkado na tabela do `CLAUDE.md`. Só documentação, sem
+  código. **Fecha a Fase 1.**
 
 ---
 
