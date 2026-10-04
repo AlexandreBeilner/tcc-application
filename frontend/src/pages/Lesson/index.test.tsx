@@ -734,4 +734,84 @@ describe('Lesson (tela 3.2)', () => {
             expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
         })
     })
+
+    describe('conteúdo por blocos (RC.3.1)', () => {
+        const blocks = (overrides: Record<string, unknown> = {}) => ({
+            schemaVersion: 1,
+            phases: {
+                scenario: [
+                    { type: 'text', markup: 'Texto do bloco.' },
+                    {
+                        type: 'widget',
+                        id: 'dica',
+                        widget: 'callout',
+                        props: { tone: 'tip', title: 'Dica de bloco', body: 'Corpo da dica' },
+                    },
+                ],
+                microDecision: [],
+                revelation: [],
+                ...overrides,
+            },
+        })
+
+        it('lição com blocks mostra texto e widget como cartões, no lugar do texto legado', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0, blocks: blocks() }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Texto do bloco.')).toBeInTheDocument()
+            expect(screen.queryByText('Espalhar capital reduz risco')).not.toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Dica de bloco')).toBeInTheDocument()
+            expect(screen.getByText('Corpo da dica')).toBeInTheDocument()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
+
+        it('fase sem blocos continua no texto legado, mesmo com blocks nas outras', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2, blocks: blocks() }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Diversificar reduz o risco não sistemático')).toBeInTheDocument()
+        })
+
+        it('blocks fora do contrato cai no texto legado', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0, blocks: { schemaVersion: 9 } }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Espalhar capital reduz risco')).toBeInTheDocument()
+        })
+
+        it('widget desconhecido num bloco não derruba a lição: mostra o fallback e segue', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 0,
+                    blocks: blocks({
+                        scenario: [{ type: 'widget', id: 'x', widget: 'nao-existe', props: {}, caption: 'Texto de reserva' }],
+                    }),
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByText('Texto de reserva')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument()
+        })
+
+        it('widget do registro na Micro-decisão (growth-calculator) substitui o legado, sem duplicar', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 1,
+                    blocks: blocks({ microDecision: [{ type: 'widget', id: 'calc', widget: 'growth-calculator', props: {} }] }),
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByRole('group', { name: /Calculadora de juros/ })).toBeInTheDocument()
+            expect(screen.getAllByRole('group', { name: /Calculadora de juros/ })).toHaveLength(1)
+        })
+    })
 })

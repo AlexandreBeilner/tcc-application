@@ -8,6 +8,7 @@ import type {
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
 import type { LessonSummary } from '../../domain/lesson'
+import { parseLessonBlocks } from '../content/lessonBlocks'
 
 function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
   return {
@@ -28,6 +29,8 @@ function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
     unlocksAssetTicker: row.unlocksAssetTicker,
     microDecisionOptions: row.microDecisionOptions,
     microDecisionCorrectOption: row.microDecisionCorrectOption,
+    // Fora do contrato vira `null`: o player cai no texto legado em vez de quebrar.
+    blocks: parseLessonBlocks(row.blocks),
   }
 }
 

@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, ChevronLeft, Eye } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
@@ -8,29 +8,20 @@ import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDec
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { Button } from '../../components/atoms/Button'
-import { GrowthCalculatorForm } from '../../components/organisms/GrowthCalculatorForm'
-import { FixedIncomeComparisonForm } from '../../components/organisms/FixedIncomeComparisonForm'
-import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicatorsPanel'
-import { IndicatorSummaryCards } from '../../components/organisms/IndicatorSummaryCards'
+import { LessonWidget } from '../../components/organisms/LessonWidget'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
-import { useIndicatorHistoryQuery } from '../../features/market/useIndicatorHistoryQuery'
-import { nextCopomSimulatedDay } from '../../features/market/nextCopomDay'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
-import { splitIntoCards } from '../../features/lessons/splitIntoCards'
-import type { Card } from '../../features/lessons/splitIntoCards'
+import { buildPhaseCards } from '../../features/lessons/playerCards'
+import type { PlayerCard } from '../../features/lessons/playerCards'
+import { parseLessonBlocks } from '../../features/lessons/widgets/schema'
+import type { WidgetBlock } from '../../features/lessons/widgets/schema'
 import { parseLessonMarkup } from '../../features/lessons/parseLessonMarkup'
 import { GlossaryTerm } from '../../components/molecules/GlossaryTerm'
 import type { AnswerMicroDecisionResult, Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
 const TOTAL_STEPS = 4
-
-// Janela de busca do indicador macro ao vivo (tarefa M.5, `live_macro_indicator`)
-// — só precisa do valor mais recente pros cards de resumo, mesma fonte de
-// `GET /market/indicators` (M.3) da tela Indicadores Econômicos (M.4), sem
-// endpoint próprio.
-const LIVE_MACRO_INDICATOR_WINDOW_DAYS = 90
 
 // Widget do passo Micro-decisão que não precisa do checkbox "já pensei" —
 // os dois embutem um componente já existente (tarefa 6.7) que já traz sua
@@ -39,6 +30,14 @@ const LIVE_MACRO_INDICATOR_WINDOW_DAYS = 90
 // revelação desses dois últimos busca o indicador ao vivo, mas a
 // micro-decisão em si continua sendo reflexão).
 const EMBEDDED_WIDGET_TYPES = new Set<LessonType['microDecisionType']>(['growth_calculator', 'fixed_income_comparison'])
+
+// Widgets legados por `microDecisionType` (lição sem `blocks`) passam pelo
+// mesmo registro dos blocos novos (RC.3.1).
+const LEGACY_WIDGET_BLOCKS: Record<string, WidgetBlock> = {
+    growth_calculator: { type: 'widget', id: 'legacy-growth-calculator', widget: 'growth-calculator', props: {} },
+    fixed_income_comparison: { type: 'widget', id: 'legacy-fixed-income-comparison', widget: 'fixed-income-comparison', props: {} },
+    live_macro_indicator: { type: 'widget', id: 'legacy-live-macro', widget: 'live-macro', props: {} },
+}
 
 // Tela 3.2 (tarefa 6.4/7.0.2) — máquina de estado de 4 passos, mockup em
 // https://claude.ai/code/artifact/50892817-9878-430c-8332-ee5e94b90b43.
@@ -117,10 +116,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
         }
     }, [isReview, step, reviewLesson])
 
+    // Conteúdo por blocos (RC.3.1): fase sem blocos usa o texto legado e os
+    // widgets legados por `microDecisionType`, igual a antes.
+    const blocks = useMemo(() => parseLessonBlocks(lesson?.blocks), [lesson?.blocks])
+    const microDecisionHasBlocks = (blocks?.phases.microDecision.length ?? 0) > 0
+    const revelationHasBlocks = (blocks?.phases.revelation.length ?? 0) > 0
     const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
-    const indicatorAsset = useAssetByTicker(isLiveIndicator ? (lesson?.microDecisionAssetTicker ?? null) : null)
     const isLiveMacroIndicator = lesson?.microDecisionType === 'live_macro_indicator'
-    const macroIndicatorHistory = useIndicatorHistoryQuery(LIVE_MACRO_INDICATOR_WINDOW_DAYS, { enabled: isLiveMacroIndicator })
     const unlockAsset = useAssetByTicker(lesson?.unlocksAssetTicker ?? null)
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
@@ -140,9 +142,9 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // prática: nenhuma lição autorada até aqui tem os dois.
     const featureUnlockCta = lesson && !lesson.unlocksAssetTicker ? featureUnlockCtaFor(lesson.unlocksKeys) : null
 
-    const scenarioCards = lesson ? splitIntoCards(lesson.scenarioText) : [{ text: '', hidden: false }]
-    const microDecisionCards = lesson ? splitIntoCards(lesson.microDecisionPrompt) : [{ text: '', hidden: false }]
-    const revelationCards = lesson ? splitIntoCards(lesson.revelationText) : [{ text: '', hidden: false }]
+    const scenarioCards = buildPhaseCards(blocks?.phases.scenario, lesson?.scenarioText ?? '')
+    const microDecisionCards = buildPhaseCards(blocks?.phases.microDecision, lesson?.microDecisionPrompt ?? '')
+    const revelationCards = buildPhaseCards(blocks?.phases.revelation, lesson?.revelationText ?? '')
     const isMicroDecisionLastCard = subStep >= microDecisionCards.length - 1
     const isRevelationLastCard = subStep >= revelationCards.length - 1
 
@@ -207,7 +209,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Cartão intermediário: só avança o cartão local. Cartão final da
     // fase: avança a fase de verdade (`handleAdvance`), mesmo gate de
     // habilitação que já existia (`disabled` no botão continua cuidando disso).
-    function handleCardContinue(cards: Card[]) {
+    function handleCardContinue(cards: PlayerCard[]) {
         if (subStep < cards.length - 1) {
             navigation.nextCard()
         } else {
@@ -259,7 +261,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
             {!lesson && !lessonQuery.isError && <p className={styles.loading}>Carregando lição…</p>}
 
             {lesson && step === 0 && (
-                <section className={styles.card}>
+                <section className={cardClassName(scenarioCards[subStep])}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
                     <CardBody card={scenarioCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
@@ -283,7 +285,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
             )}
 
             {lesson && step === 1 && (
-                <section className={styles.card}>
+                <section className={cardClassName(microDecisionCards[subStep])}>
                     <span className={styles.eyebrow}>Micro-decisão</span>
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
                     <CardBody
@@ -296,8 +298,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
                     {isMicroDecisionLastCard && (
                         <>
-                            {lesson.microDecisionType === 'growth_calculator' && <GrowthCalculatorForm />}
-                            {lesson.microDecisionType === 'fixed_income_comparison' && <FixedIncomeComparisonForm />}
+                            {!microDecisionHasBlocks && lesson.microDecisionType === 'growth_calculator' && (
+                                <LessonWidget block={LEGACY_WIDGET_BLOCKS.growth_calculator} />
+                            )}
+                            {!microDecisionHasBlocks && lesson.microDecisionType === 'fixed_income_comparison' && (
+                                <LessonWidget block={LEGACY_WIDGET_BLOCKS.fixed_income_comparison} />
+                            )}
 
                             {hasQuestionGate && (
                                 <>
@@ -383,7 +389,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
             )}
 
             {lesson && step === 2 && (
-                <section className={styles.card}>
+                <section className={cardClassName(revelationCards[subStep])}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
                     {answerSolved && (
@@ -398,26 +404,20 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <CardBody card={revelationCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
-                    {isRevelationLastCard &&
-                        isLiveIndicator &&
-                        (indicatorAsset.isLoading ? (
-                            <p className={styles.loading}>Carregando indicador ao vivo…</p>
-                        ) : (
-                            <EquityIndicatorsPanel indicators={indicatorAsset.asset?.equity?.indicators} />
-                        ))}
+                    {isRevelationLastCard && !revelationHasBlocks && isLiveIndicator && lesson.microDecisionAssetTicker && (
+                        <LessonWidget
+                            block={{
+                                type: 'widget',
+                                id: 'legacy-live-indicator',
+                                widget: 'live-indicator',
+                                props: { ticker: lesson.microDecisionAssetTicker },
+                            }}
+                        />
+                    )}
 
-                    {isRevelationLastCard &&
-                        isLiveMacroIndicator &&
-                        (macroIndicatorHistory.isLoading ? (
-                            <p className={styles.loading}>Carregando indicador ao vivo…</p>
-                        ) : (
-                            <IndicatorSummaryCards
-                                latest={macroIndicatorHistory.data?.indicators.at(-1)}
-                                nextCopomSimulatedDay={nextCopomSimulatedDay(
-                                    macroIndicatorHistory.data?.indicators.at(-1)?.simulated_day ?? 0,
-                                )}
-                            />
-                        ))}
+                    {isRevelationLastCard && !revelationHasBlocks && isLiveMacroIndicator && (
+                        <LessonWidget block={LEGACY_WIDGET_BLOCKS.live_macro_indicator} />
+                    )}
 
                     <div className={styles.ctaRow}>
                         {navigation.canGoBack && (
@@ -471,11 +471,35 @@ function LessonView({ lessonId }: { lessonId: string }) {
     )
 }
 
+// Cartão de widget ganha composição própria no desktop (texto à esquerda,
+// widget à direita, ver `.hasWidget` no CSS); os demais seguem a coluna única.
+function cardClassName(card: PlayerCard | undefined): string {
+    return card?.kind === 'widget' ? `${styles.card} ${styles.hasWidget}` : styles.card
+}
+
 // Revelação progressiva (tarefa A.3) — cartão marcado `[revelar]` esconde o
 // texto atrás de um botão "Ver resultado" até o toque; um `<button>` de
 // verdade preserva a navegação por teclado (Tab alcança, Enter/Espaço
 // ativa), sem precisar de nenhum tratamento especial.
-function CardBody({ card, revealed, onReveal, lessons }: { card: Card; revealed: boolean; onReveal: () => void; lessons: LessonType[] }) {
+function CardBody({
+    card,
+    revealed,
+    onReveal,
+    lessons,
+}: {
+    card: PlayerCard
+    revealed: boolean
+    onReveal: () => void
+    lessons: LessonType[]
+}) {
+    if (card.kind === 'widget') {
+        return (
+            <div className={styles.widgetStage}>
+                <LessonWidget block={card.block} />
+            </div>
+        )
+    }
+
     if (card.hidden && !revealed) {
         return (
             <button type="button" className={styles.revealButton} onClick={onReveal}>

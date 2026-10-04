@@ -1,0 +1,49 @@
+import type { ComponentType } from 'react'
+import type { ZodType } from 'zod'
+import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
+import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
+import { FixedIncomeComparisonForm } from '../FixedIncomeComparisonForm'
+import { GrowthCalculatorForm } from '../GrowthCalculatorForm'
+import { LessonCallout } from '../LessonCallout'
+import { LiveIndicatorWidget } from '../LiveIndicatorWidget'
+import { LiveMacroWidget } from '../LiveMacroWidget'
+
+export interface WidgetDefinition<Id extends WidgetId> {
+    component: ComponentType<WidgetProps<Id>>
+    propsSchema: ZodType<WidgetProps<Id>>
+    // Resumo textual (leitor de tela e fallback): todo widget tem um.
+    summary: (props: WidgetProps<Id>) => string
+}
+
+type Registry = { [Id in WidgetId]: WidgetDefinition<Id> }
+
+// Registro único de widgets de lição (RC.3.1): adicionar um widget = uma
+// entrada aqui + o schema em `widgets/schema` (e o espelho no backend),
+// sem tocar no player. Props são só configuração; a saída é só visual.
+export const widgetRegistry: Registry = {
+    callout: {
+        component: LessonCallout,
+        propsSchema: widgetPropsSchemas.callout,
+        summary: (props) => `${props.title}. ${props.body}`,
+    },
+    'growth-calculator': {
+        component: GrowthCalculatorForm,
+        propsSchema: widgetPropsSchemas['growth-calculator'],
+        summary: () => 'Calculadora de juros: capital inicial, aporte mensal, taxa e prazo.',
+    },
+    'fixed-income-comparison': {
+        component: FixedIncomeComparisonForm,
+        propsSchema: widgetPropsSchemas['fixed-income-comparison'],
+        summary: () => 'Comparador de renda fixa com e sem imposto de renda.',
+    },
+    'live-indicator': {
+        component: LiveIndicatorWidget,
+        propsSchema: widgetPropsSchemas['live-indicator'],
+        summary: (props) => `Indicadores ao vivo de ${props.ticker}.`,
+    },
+    'live-macro': {
+        component: LiveMacroWidget,
+        propsSchema: widgetPropsSchemas['live-macro'],
+        summary: () => 'Selic e IPCA mais recentes.',
+    },
+}

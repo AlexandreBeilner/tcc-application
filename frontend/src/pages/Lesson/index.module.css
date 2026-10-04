@@ -242,3 +242,33 @@
 .error {
     color: var(--color-feedback-error-500);
 }
+
+/* Cartão de widget (RC.3.1). Mobile/tablet: tudo empilhado, widget em largura
+   total. Desktop (>= 1024px): composição própria, texto/CTA numa coluna e o
+   widget numa coluna maior ao lado, em vez de widget empilhado abaixo de um
+   texto estreito com laterais mortas. */
+.widgetStage {
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .page:has(.hasWidget) {
+        max-width: 1040px;
+    }
+
+    .hasWidget {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        column-gap: var(--space-8);
+        align-content: start;
+    }
+
+    .hasWidget > * {
+        grid-column: 1;
+    }
+
+    .hasWidget > .widgetStage {
+        grid-column: 2;
+        grid-row: 1 / span 6;
+    }
+}

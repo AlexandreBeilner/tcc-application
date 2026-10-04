@@ -383,7 +383,7 @@ colunas.
 
 ## Fase 3: Infraestrutura de conteúdo visual
 
-### RC.3.1 · Contrato `blocks` e registro de widgets (P.6)
+### RC.3.1 · Contrato `blocks` e registro de widgets (P.6) ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** coluna `blocks` jsonb aditiva com fallback ao texto legado; registro de widgets no frontend com Zod
   por widget; `WidgetBoundary` (erro num widget não derruba a lição); `aria-live` e resumo textual por widget;
@@ -392,6 +392,27 @@ colunas.
 - **Aceite:** lição sem `blocks` renderiza igual a hoje; `blocks` inválido cai no legado; contrato testado no
   front e no back.
 - **Depende de:** RC.2.2. **Entrega antes do editor da N.23** (o editor já nasce sobre o contrato).
+- **Entregável (2026-10-04):** *Backend:* migration `0023_add_lesson_blocks` (`lessons.blocks jsonb`, nulo = texto
+  legado; `when` 1791500000000, snapshot escrito à mão); contrato Zod em `modules/lessons/infrastructure/content/
+  lessonBlocks.ts` (o domínio não importa lib externa, então os tipos ficam em `domain/widgets/lessonBlocks.ts`):
+  `{ schemaVersion: 1, phases: { scenario, microDecision, revelation } }` de blocos `text` ou `widget` (`id` único,
+  props validadas por widget), leitura tolerante (fora do contrato vira `null`), `GET /lessons` e `/:id` devolvem
+  `blocks`, seed aceita `blocks` e o inclui no `set` do upsert; `.docs/backend/lessons.md` atualizado. *Frontend:*
+  `zod` adicionado; espelho do contrato em `features/lessons/widgets/schema`, `features/lessons/playerCards`
+  (blocos viram cartões; widget = cartão próprio; fase sem blocos usa o texto legado), registro único em
+  `components/organisms/LessonWidget` (componente + schema + resumo textual por widget, `role="group"` com o resumo),
+  `WidgetBoundary` (erro de render vira fallback só do widget), widget desconhecido ou props inválidas viram
+  fallback (legenda ou aviso discreto), `LessonCallout` (tom info/dica/aviso por ícone e borda, nunca ganho/perda),
+  `prefers-reduced-motion` no contêiner. Os 4 widgets existentes passaram pelo registro (`growth-calculator`,
+  `fixed-income-comparison`, `live-indicator`, `live-macro`); os tipos legados `microDecisionType` renderizam pelo
+  mesmo registro quando a fase não tem blocos. Desktop (>= 1024px): cartão de widget em duas colunas (texto/CTA à
+  esquerda, widget à direita, página até 1040px via `:has`). Validou: backend lint/build/`npm test` (788), frontend
+  `vitest` (884)/`tsc -b`/oxlint; contrato testado nos dois lados com o mesmo exemplo. **Ressalvas:** (a) sem
+  rascunho/mockup do desktop em duas colunas e sem conferência visual nos 3 breakpoints nem `docker compose`
+  (a migration só foi escrita, não aplicada num Postgres; o ambiente local está num volume de outra branch);
+  (b) nenhuma lição do seed usa `blocks` ainda (fica para a Fase 5), então o caminho novo só é exercitado por testes;
+  (c) `aria-live` está nos estados de carregamento dos widgets ao vivo; os widgets de cálculo existentes mantêm o
+  próprio markup, sem região `aria-live` nova; (d) `requiresInteraction` do desenho original ficou fora.
 
 ### RC.3.2 · Pergunta intermediária como bloco
 

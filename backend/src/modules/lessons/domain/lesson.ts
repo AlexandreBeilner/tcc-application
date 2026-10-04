@@ -1,3 +1,4 @@
+import type { LessonBlocks } from './widgets/lessonBlocks'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -79,6 +80,9 @@ export interface LessonSummary {
   // a B.4) troca pro widget de escolha real (B.3).
   microDecisionOptions: string[] | null
   microDecisionCorrectOption: number | null
+  // Conteúdo visual por fase (RC.3.1). Ausente/`null` = player usa os textos
+  // legados acima. Já validado: valor fora do contrato chega aqui como `null`.
+  blocks?: LessonBlocks | null
 }
 
 export interface LessonProgressSnapshot {
@@ -119,7 +123,8 @@ export function isCorrectOption(
 // a aba de rede. `AdvanceLessonUseCase` devolve o resultado (`correct`/
 // `correctOptionLabel`, via `microDecisionResultFor` abaixo) só na resposta
 // do `POST` que de fato inclui a escolha do usuário.
-export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption'> {
+export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
+  blocks: LessonBlocks | null
   status: LessonStatus
   currentStep: number
   // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
@@ -156,6 +161,7 @@ export function buildLessonView(
     unlocksKeys: lesson.unlocksKeys,
     unlocksAssetTicker: lesson.unlocksAssetTicker,
     microDecisionOptions: lesson.microDecisionOptions,
+    blocks: lesson.blocks ?? null,
     status,
     currentStep: progress?.currentStep ?? 0,
     microDecisionSolved: progress?.microDecisionSolvedAt != null,

@@ -39,6 +39,9 @@ export interface Lesson {
     // do usuário escolher); o veredito vem só de `POST /lessons/:id/answer`
     // (`AnswerMicroDecisionResult`), e o gabarito só no acerto.
     microDecisionOptions: string[] | null
+    // Conteúdo visual por fase (RC.3.1), validado no frontend por
+    // `features/lessons/widgets/schema`; ausente/nulo = texto legado.
+    blocks?: unknown
     status: 'completed' | 'available' | 'locked'
     currentStep: number
     // Só em `GET /lessons/:id` (RC.2.3): o player restaura a pergunta já

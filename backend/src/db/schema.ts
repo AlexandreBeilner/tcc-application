@@ -12,6 +12,7 @@ import {
   check,
   date,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -179,6 +180,12 @@ export const lessons = pgTable(
     // conteúdo aqui, isso é a B.4).
     microDecisionOptions: text('micro_decision_options').array(),
     microDecisionCorrectOption: smallint('micro_decision_correct_option'),
+    // Conteúdo visual por fase (RC.3.1): `{ schemaVersion, phases: { scenario,
+    // microDecision, revelation } }` de blocos tipados (texto, widgets).
+    // Nulo é o estado normal e faz o player usar `scenarioText`/
+    // `microDecisionPrompt`/`revelationText`; o contrato (Zod) vive em
+    // `modules/lessons/domain/widgets/lessonBlocks.ts`.
+    blocks: jsonb('blocks'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { createDb, type Database } from './client'
 import { lessons } from './schema'
 import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
+import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 
 export interface LessonSeed {
   // Chave de upsert do seed (tarefa M.6, achado 010) — atribuída uma vez e
@@ -34,6 +35,9 @@ export interface LessonSeed {
   unlocksDescription: string | null
   unlocksKeys: string[]
   unlocksAssetTicker: string | null
+  // Conteúdo visual por fase (RC.3.1), validado por `lessonBlocksSchema` em
+  // `seedLessons.test.ts`. Omitido = player usa os textos acima.
+  blocks?: LessonBlocks | null
 }
 
 // Currículo (tarefa 7.1, spec seção 5.1) — 35 lições no total (33 originais
@@ -1456,7 +1460,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
 export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
   const [row] = await db
     .insert(lessons)
-    .values({ id: randomUUID(), ...seed })
+    .values({ id: randomUUID(), ...seed, blocks: seed.blocks ?? null })
     .onConflictDoUpdate({
       target: lessons.stableKey,
       set: {
@@ -1476,6 +1480,7 @@ export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
         unlocksDescription: seed.unlocksDescription,
         unlocksKeys: seed.unlocksKeys,
         unlocksAssetTicker: seed.unlocksAssetTicker,
+        blocks: seed.blocks ?? null,
       },
     })
     .returning()

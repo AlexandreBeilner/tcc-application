@@ -134,6 +134,13 @@
       "when": 1791400000000,
       "tag": "0022_add_lesson_micro_decision_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0023_add_lesson_blocks",
+      "breakpoints": true
     }
   ]
 }
