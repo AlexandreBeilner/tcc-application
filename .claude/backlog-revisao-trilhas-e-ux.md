@@ -110,7 +110,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   ON/PN na 2.3) e fica verde quando a Fase 4 termina.
 - **Depende de:** RC.3.5 (estrutura do glossário) pode ser feita em paralelo; o lint começa em modo aviso.
 
-### RC.1.3 · Módulo de fatos regulatórios versionado
+### RC.1.3 · Módulo de fatos regulatórios versionado ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** `backend/src/modules/lessons/domain/regulatoryFacts.ts` (e espelho consumido pelo frontend via
   conteúdo do seed): FGC (R$ 250 mil por CPF por conglomerado, teto global R$ 1 milhão em 4 anos), tabela
@@ -125,6 +125,21 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
 - **Depende de:** nada. Itens a reconferir: IOF regressivo, custódia B3 0,20%, carência exata de LCI/LCA,
   Selic/IPCA/VNA atuais, pesos e abrangência do IPCA, regra do VNA em deflação, retenção de dividendos 2026,
   JCP 15%, isenção e requisitos de FII, resoluções CVM citadas, circuit breaker.
+- **Entregável (2026-10-04):** `backend/src/modules/lessons/domain/regulatoryFacts.ts` (+ teste) com 16 fatos:
+  FGC (limite por CPF, teto global, produtos), IR regressivo, IOF de 30 dias, custódia B3 do Tesouro, poupança,
+  isenção LCI/LCA/CRI/CRA, prazo mínimo de LCI (12 meses) e LCA (9 meses), Copom, meta de inflação, retenção de
+  dividendos (Lei 15.270), JCP, isenção de FII, IR de ETF e isenção de R$ 20 mil em ações. Cada fato tem `value`,
+  `data` estruturado, `source` (teste exige https e domínio oficial), `verifiedAt` (teste falha após 12 meses) e
+  `check`. Achados que mudam o conteúdo das lições: **JCP é 17,5%** desde a LC 224/2025 (o backlog dizia 15%);
+  **LCI/LCA têm prazo mínimo de 12/9 meses** (os exemplos de resgate em 60 dias das lições 1.5/1.6 são irreais
+  para emissão nova); FGC não cobre CRI/CRA.
+  **Ressalva (aceite não 100% atendido):** o Planalto derrubou a conexão (ECONNRESET) em todos os fetches, então
+  11 dos 16 fatos estão com `check: 'trecho-de-busca'` (o órgão oficial aparece no resultado, mas a página não
+  abriu para leitura integral). Cada `note` diz o que reabrir. **Reabrir esses textos é entrada obrigatória da
+  RC.1.7**, antes de qualquer fato virar texto de lição. Ficam fora deste módulo, por serem fatos de lições novas:
+  Selic/IPCA/VNA vigentes, pesos do IPCA, regra do VNA em deflação, resoluções CVM e circuit breaker (entram com
+  as tarefas que os usam). Ainda não há teste "todo número de lição vem de um fato" (depende do conteúdo em
+  blocos da RC.3.1).
 
 ### RC.1.7 · Validação de todas as lições existentes (auditoria factual com pesquisa na web)
 
