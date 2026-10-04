@@ -103,6 +103,19 @@ describe('TrackPath', () => {
         expect(screen.queryByText('Você está aqui')).not.toBeInTheDocument()
     })
 
+    it('lição concluída mostra o rótulo Rever', () => {
+        render(
+            <TrackPath
+                lessons={[lesson({ id: '1', status: 'completed' }), lesson({ id: '2', status: 'available' })]}
+                accentColor="var(--color-track-0)"
+                expandedHintId={null}
+                onNodeClick={vi.fn()}
+            />,
+        )
+
+        expect(screen.getAllByText('Rever')).toHaveLength(1)
+    })
+
     it('lição com unlocksDescription ganha a bandeira de marco', () => {
         render(
             <TrackPath

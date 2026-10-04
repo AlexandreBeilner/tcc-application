@@ -117,9 +117,19 @@ export class AdvanceLessonUseCase {
       throw new LessonLockedError('lição bloqueada')
     }
 
-    if (!alreadyCompleted) {
-      this.assertStepAllowed(input.step, own)
+    // Lição já concluída é só leitura (modo revisão, RC.2.1): nenhuma escrita em
+    // `current_step`/`microDecisionSelectedOption`, que corromperia conquistas e
+    // missões de acerto. O veredito da escolha ainda é devolvido (função pura,
+    // sem estado) pra quem quiser conferir, mas nada é gravado nem creditado.
+    if (alreadyCompleted && own) {
+      return {
+        currentStep: own.currentStep,
+        completed: true,
+        ...microDecisionFields,
+      }
     }
+
+    this.assertStepAllowed(input.step, own)
 
     const attemptingCompletion = !alreadyCompleted && input.step >= LESSON_UNLOCK_STEP
 

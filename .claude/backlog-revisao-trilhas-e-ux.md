@@ -258,7 +258,7 @@ Fonte: `analise-player-licao.md` (tarefas P.1-P.5 e P.10 lá). A migration nova 
 do Drizzle (`when` maior que o último aplicado; ver memória do projeto), e o upsert do seed continua sem remover
 colunas.
 
-### RC.2.1 · Revisar lições concluídas (P.1)
+### RC.2.1 · Revisar lições concluídas (P.1) ✅ concluída (2026-10-04)
 
 - **Escopo:** player de lição `completed` abre no passo 0 em modo revisão, navega sem chamar `POST /progress`;
   endurecer o backend para `/progress` em lição concluída não escrever (hoje reescreve `current_step` e
@@ -267,6 +267,15 @@ colunas.
 - **Aceite:** abrir lição concluída mostra o Cenário; nenhum POST em revisão; XP, streak, missões e conquistas
   inalterados (testes de backend e frontend).
 - **Depende de:** D2.
+- **Entregável (2026-10-04):** *Backend:* `AdvanceLessonUseCase` trata lição já concluída como só leitura (não grava
+  passo nem escolha, não passa pelo gate; devolve passo gravado, `completed: true` e o veredito); teste novo prova que
+  o progresso fica idêntico. *Frontend:* `pages/Lesson` decide o modo revisão uma vez, ao carregar (para concluir a
+  lição agora não trocar o fluxo no meio), abre no Cenário, navega só no cliente sem `POST /progress`, e `reviewLesson`
+  dispara ao chegar na Revelação (D2). `TrackPath` mostra o rótulo "Rever" nos nós concluídos. Testes antigos de
+  `Lesson/index.test.tsx` reescritos; `.docs/backend/lessons.md` atualizado. Validou: `npm test`/`lint`/`build` do
+  backend (764), `vitest` (846)/`tsc -b`/lint do frontend. **Ressalvas:** (a) em revisão de lição com aposta real, o
+  badge de acerto/erro da Revelação não aparece (o veredito vem do servidor e a revisão não faz POST); a revisão
+  stateless é escopo da RC.2.4. (b) Não rodei `docker compose up` nem o e2e `lessonJourney`.
 
 ### RC.2.2 · Botão Voltar (P.2)
 

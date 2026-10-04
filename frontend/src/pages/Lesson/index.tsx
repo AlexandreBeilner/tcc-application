@@ -92,21 +92,29 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
     // `code` citado pro `id` real usando esta mesma lista, sem chamada nova.
     const lessons = lessonsQuery.data?.lessons ?? []
-    const step = localStep ?? lesson?.currentStep ?? 0
+    // Modo revisão (RC.2.1): decidido uma vez, quando a lição carrega. Guardar
+    // o valor inicial evita que concluir a lição agora (a query refaz o fetch
+    // e `status` vira `completed`) troque o fluxo no meio do caminho.
+    const [isReview, setIsReview] = useState<boolean | undefined>(undefined)
+    if (lesson && isReview === undefined) {
+        setIsReview(lesson.status === 'completed')
+    }
+    // Lição concluída abre no Cenário (passo 0) e navega só no cliente, sem
+    // `POST /progress`; lição em andamento retoma do passo gravado.
+    const step = localStep ?? (isReview ? 0 : (lesson?.currentStep ?? 0))
 
-    // Backlog engajamento H.2 — reabrir uma lição já concluída (modo
-    // revisão acima, jump direto pro Desbloqueio) é, por si só, o "revisar"
-    // que a missão espera: registra uma vez por montagem (`key={lessonId}`
-    // no componente pai já garante um `reviewedRef` novo por lição
-    // reaberta), sem precisar de nenhuma ação extra do usuário. Backend
-    // decide se a lição é antiga o bastante pra valer pra missão.
+    // Backlog engajamento H.2 + decisão D2 (RC.2.1): a revisão conta quando o
+    // usuário chega na Revelação da lição já concluída, não ao só abrir.
+    // Registra uma vez por montagem (`key={lessonId}` no componente pai dá um
+    // `reviewedRef` novo por lição reaberta). Backend decide se a lição é
+    // antiga o bastante pra valer pra missão.
     const reviewedRef = useRef(false)
     useEffect(() => {
-        if (lesson?.status === 'completed' && !reviewedRef.current) {
+        if (isReview && step >= 2 && !reviewedRef.current) {
             reviewedRef.current = true
             reviewLesson.mutate()
         }
-    }, [lesson?.status, reviewLesson])
+    }, [isReview, step, reviewLesson])
 
     const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
     const indicatorAsset = useAssetByTicker(isLiveIndicator ? (lesson?.microDecisionAssetTicker ?? null) : null)
@@ -142,6 +150,14 @@ function LessonView({ lessonId }: { lessonId: string }) {
     }
 
     function handleAdvance() {
+        // Revisão de lição concluída é só leitura: navega entre as fases sem
+        // tocar o servidor (o backend também ignora a escrita, RC.2.1).
+        if (isReview) {
+            setLocalStep(step + 1)
+            setSubStep(0)
+            setRevealedIndexes(new Set())
+            return
+        }
         // `selectedOption` só viaja na chamada que sai do passo Micro-decisão
         // (step 1) de uma lição com aposta real — nas demais transições o
         // campo nem existe no payload (`useAdvanceLesson`/`services/lessons`).

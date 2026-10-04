@@ -354,22 +354,31 @@ describe('Lesson (tela 3.2)', () => {
         expect(await screen.findByText('tela de calculadora')).toBeInTheDocument()
     })
 
-    it('lição já concluída reabre direto no desbloqueio (modo revisão), sem recreditar', async () => {
+    it('lição já concluída reabre no Cenário (modo revisão) e navega sem chamar o servidor', async () => {
         vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3, status: 'completed' }) })
 
         renderLesson()
 
-        expect(await screen.findByText('Desbloqueio')).toBeInTheDocument()
+        expect(await screen.findByText('Cenário')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
         expect(advanceLesson).not.toHaveBeenCalled()
     })
 
-    it('lição já concluída reabre e registra a revisão (missão "revise uma lição antiga")', async () => {
+    it('revisão só é registrada ao chegar na Revelação, não ao abrir a lição', async () => {
         vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3, status: 'completed' }) })
 
         renderLesson()
 
-        await screen.findByText('Desbloqueio')
+        await screen.findByText('Cenário')
+        expect(reviewLesson).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        await screen.findByText('Micro-decisão')
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        await screen.findByText('Revelação')
         await waitFor(() => expect(reviewLesson).toHaveBeenCalledExactlyOnceWith('token-valido', 'lesson-1'))
+        expect(advanceLesson).not.toHaveBeenCalled()
     })
 
     it('lição em andamento, não concluída, não registra revisão nenhuma', async () => {

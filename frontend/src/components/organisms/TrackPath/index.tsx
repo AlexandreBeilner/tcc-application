@@ -145,6 +145,7 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                                 >
                                     {point.lesson.title}
                                 </span>
+                                {point.lesson.status === 'completed' && <span className={styles.reviewTag}>Rever</span>}
                                 {/* Aviso inline no próprio nó clicado (não uma única
                                     mensagem no fim da página, como o gráfico
                                     horizontal antigo fazia) — um mapa de 15 lições é alto

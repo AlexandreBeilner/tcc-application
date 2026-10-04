@@ -190,9 +190,20 @@ describe('AdvanceLessonUseCase', () => {
     // Sem passar tempo nenhum: lição concluída não passa pelo gate (S.4).
     const result = await useCase.execute({ userId: 'u1', lessonId: 'l1', step: 1 })
 
-    expect(result).toEqual({ currentStep: 1, completed: true })
+    expect(result).toEqual({ currentStep: LESSON_UNLOCK_STEP, completed: true })
     expect(xpAwarder.awarded).toHaveLength(1)
     expect(streakTracker.touchedUserIds).toHaveLength(1)
+  })
+
+  it('/progress em lição já concluída não escreve nada (RC.2.1): passo e conclusão ficam intactos', async () => {
+    const { lessonRepository, useCase, ...rest } = build()
+    await walk({ lessonRepository, useCase, ...rest }, 'u1', 'l1', LESSON_UNLOCK_STEP)
+    const before = await lessonRepository.listProgressForUser('u1')
+
+    await useCase.execute({ userId: 'u1', lessonId: 'l1', step: 0 })
+    await useCase.execute({ userId: 'u1', lessonId: 'l1', step: 2 })
+
+    expect(await lessonRepository.listProgressForUser('u1')).toEqual(before)
   })
 
   it('reenviar o step de desbloqueio de novo (mesma lição) não credita xp duas vezes', async () => {
