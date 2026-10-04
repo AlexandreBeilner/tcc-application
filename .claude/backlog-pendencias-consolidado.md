@@ -176,6 +176,17 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 
 ---
 
+## Prioridade 7 — Revisão das trilhas e melhorias de UX (2026-10-03)
+
+- **Local:** `.claude/backlog-revisao-trilhas-e-ux.md` (8 fases, tarefas RC.1.1 a RC.8.2) e anexos em
+  `.claude/revisao-trilhas-anexos/`.
+- **Resumo:** conteúdo das lições para o Brasil real, remoção de qualquer menção a TCC/spec, widgets
+  interativos, player (rever lição, voltar, errar não avança), `LockedGate`, calendário "Para você" e
+  escalonamento de proventos, mapa/donut/Sandbox. Currículo vai de 35 para 43 lições. Decisões D1-D13 do autor (várias já tomadas) na tabela do backlog.
+- **Começar por:** Fase 1 (RC.1.1, RC.1.3, RC.1.5, depois RC.1.4).
+
+---
+
 ## Housekeeping (não é backlog de produto, mas vale resolver de passagem)
 
 ### H.1 · `main` local desatualizada em relação a `origin/main`
