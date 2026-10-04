@@ -12,6 +12,7 @@ const OFFICIAL_HOSTS = [
   'ibge.gov.br',
   'anbima.com.br',
   'congressonacional.leg.br',
+  'in.gov.br',
 ]
 
 describe('fatos regulatórios (RC.1.3)', () => {
@@ -58,6 +59,14 @@ describe('fatos regulatórios (RC.1.3)', () => {
       'jcp-aliquota',
       'fii-isencao-rendimentos',
       'etf-ir',
+      'fii-distribuicao-minima',
+      'acoes-preferenciais-lei-6404',
+      'dividendo-obrigatorio',
+      'b3-ticker-sufixos',
+      'b3-liquidacao-acoes',
+      'cvm-itr-dfp-prazos',
+      'tesouro-vna-ipca',
+      'ipca-abrangencia',
     ] as const) {
       expect(ids, required).toContain(required)
     }

@@ -141,7 +141,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   as tarefas que os usam). Ainda não há teste "todo número de lição vem de um fato" (depende do conteúdo em
   blocos da RC.3.1).
 
-### RC.1.7 · Validação de todas as lições existentes (auditoria factual com pesquisa na web)
+### RC.1.7 · Validação de todas as lições existentes (auditoria factual com pesquisa na web) ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** validar **cada uma das 35 lições atuais**, afirmação por afirmação (texto, número, exemplo, gabarito
   de pergunta, revelação, `centralConcept`, `unlocksDescription`), contra fonte primária pesquisada na web. Os
@@ -159,6 +159,24 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   RC.1.3; lista de correções vira checklist de entrada de cada tarefa da Fase 5.
 - **Depende de:** RC.1.3 (estrutura do módulo). **Bloqueia a Fase 5.**
 - **Repetição:** ao fim da Fase 5, RC.8.1 repete a validação sobre o conteúdo novo (43 lições).
+- **Entregável (2026-10-04):** `.claude/revisao-trilhas-anexos/validacao-licoes.md` com as 35 lições (afirmação,
+  veredito, evidência, correção), 11 achados transversais (T1 a T11), tabela de itens sem fonte primária com a
+  decisão de cada um e checklist de entrada por tarefa da Fase 5. `regulatoryFacts.ts` foi de 17 para 24 fatos:
+  texto de lei **lido** no Planalto (por `curl`; o `WebFetch` falhava) para IR regressivo, IOF, poupança,
+  isenção de LCI/LCA/CRI/CRA, isenção de FII, isenção de R$ 20 mil, retenção de dividendos, JCP, 95% de FII,
+  PN e dividendo obrigatório; meta de inflação lida no Relatório de Política Monetária do Banco Central; prazo
+  mínimo de LCI lido no consolidado da Res. CMN 4.410. **Correções importantes:** (a) Copom do motor é a cada
+  **45** dias simulados e as lições dizem 21; (b) ciclo de relatório do motor é 91 dias e a 2.7 diz 14;
+  (c) SINT11 tem banco a 20%, a 2.9 diz 35%; (d) taxas das lições não batem com o catálogo; (e) **corrigem a
+  auditoria**: dividendo obrigatório (metade do lucro, não 25%), liquidação D+2 (não D+1), 5 anos de LTN
+  (573,80, não 575,77); (f) **corrigem a RC.1.3**: prazo mínimo de LCI é 6 meses/36 meses (os 12/9 meses eram de
+  02/2024) e JCP é 17,5% desde 01/01/2026.
+  **Ressalva (aceite não 100% atendido):** o aceite pedia "zero itens reconferir". Ficaram 7 fatos com
+  `trecho-de-busca` (Copom/horário, IR de ETF, ticker/liquidação da B3, ITR/DFP, VNA, IPCA, e o prazo de LCA
+  não confirmado no consolidado). A tabela "Itens sem fonte primária" dá a decisão de cada um: ou a lição não
+  afirma, ou reabre a fonte antes. A página do Banco Central e do IBGE só abrem com JavaScript e a do Tesouro
+  Direto devolve 403 a clientes automatizados; reabrir no navegador na RC.5.3 e na RC.8.1. Validou:
+  `vitest`, `lint` e `build` do backend.
 
 ### RC.1.4 · Limpar vazamentos de desenvolvimento (correção mecânica)
 
