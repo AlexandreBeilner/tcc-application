@@ -100,7 +100,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   Validou: `npm test`/`lint`/`build` do backend, `npm test`/`lint`/`tsc -b` do frontend, `go test ./...` e
   `golangci-lint` do engine.
 
-### RC.1.2 · Lint de pré-requisitos de termos
+### RC.1.2 · Lint de pré-requisitos de termos ✅ concluída (2026-10-04, em modo aviso)
 
 - **Escopo:** tabela `termo -> lição que o define` (glossário estruturado, ver RC.3.5) e teste que falha se uma
   lição usa um termo cuja lição de definição vem depois na ordem da trilha e que não tem definição inline.
@@ -109,6 +109,16 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
 - **Aceite:** o teste acusa hoje os casos conhecidos (Selic na 0.5, CDI na 0.5, IPCA na 0.4/1.3, ticker na 2.2,
   ON/PN na 2.3) e fica verde quando a Fase 4 termina.
 - **Depende de:** RC.3.5 (estrutura do glossário) pode ser feita em paralelo; o lint começa em modo aviso.
+- **Entregável (2026-10-04):** `backend/src/modules/lessons/domain/termPrerequisites.ts` (+ teste): tabela de 19 termos
+  (`id`, padrão, lição que define, `plannedIn`, chaves de glossário que contam como definição inline `{{termo}}`) e
+  `findTermViolations`, que compara a ordem global de `sortOrder`. Termo cuja lição definidora ainda não existe
+  (Selic, CDI, TR, IPCA: RC.4.1; ticker, ON/PN: RC.4.2) tem `definedIn: null` e acusa todo uso sem definição inline,
+  por isso o lint só fica limpo quando a Fase 4 termina. `src/content/termPrerequisites.test.ts` roda sobre
+  `LESSON_SEEDS`, exige os casos conhecidos (Selic e CDI na 0.5, IPCA na 0.4 e 1.3, ticker e ON/PN na 2.3) e imprime
+  o relatório com `console.warn`; a constante `STRICT` vira `true` quando a Fase 4 fechar. Os códigos de
+  `definedIn` dos termos que hoje nenhuma lição usa (payout, JCP, ITR/DFP, spread, liquidez etc.) são palpite
+  inicial: confirmar na Fase 5 ao escrever a lição que define cada um. A tabela vive no backend; quando a RC.3.5
+  criar o glossário estruturado, `glossaryKeys` passa a vir dele. Validou: `npm test`, `lint` e `build` do backend.
 
 ### RC.1.3 · Módulo de fatos regulatórios versionado ✅ concluída com ressalva (2026-10-04)
 
