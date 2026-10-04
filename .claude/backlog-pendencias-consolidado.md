@@ -183,7 +183,7 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 - **Resumo:** conteúdo das lições para o Brasil real, remoção de qualquer menção a TCC/spec, widgets
   interativos, player (rever lição, voltar, errar não avança), `LockedGate`, calendário "Para você" e
   escalonamento de proventos, mapa/donut/Sandbox. Currículo vai de 35 para 43 lições. Decisões D1-D13 do autor (várias já tomadas) na tabela do backlog.
-- **Começar por:** Fase 1 (RC.1.1 ✅ e RC.1.3 ✅ com ressalva (2026-10-04); RC.1.5 ✅ e RC.1.7 ✅ com ressalva; RC.1.4 ✅ com ressalva (2026-10-04: o que sobra nos baselines é da RC.3.3/Fase 5/RC.7.4); RC.1.2 ✅ em modo aviso (2026-10-04); RC.1.6 ✅, Fase 1 fechada; RC.2.5 ✅ e RC.2.2 ✅ 2026-10-04).
+- **Começar por:** Fase 1 (RC.1.1 ✅ e RC.1.3 ✅ com ressalva (2026-10-04); RC.1.5 ✅ e RC.1.7 ✅ com ressalva; RC.1.4 ✅ com ressalva (2026-10-04: o que sobra nos baselines é da RC.3.3/Fase 5/RC.7.4); RC.1.2 ✅ em modo aviso (2026-10-04); RC.1.6 ✅, Fase 1 fechada; RC.2.5 ✅, RC.2.2 ✅ e RC.2.4 ✅ com ressalva 2026-10-04; RC.2.3+RC.2.4 vão juntas pra `main`).
 
 ---
 

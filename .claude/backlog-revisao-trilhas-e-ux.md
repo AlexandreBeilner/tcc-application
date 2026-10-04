@@ -326,7 +326,7 @@ colunas.
   são ilimitadas por decisão; com 2 a 4 alternativas não há o que proteger). (c) Não rodei `docker compose up` nem
   o e2e (só ajustei o helper).
 
-### RC.2.4 · Frontend da pergunta (P.4)
+### RC.2.4 · Frontend da pergunta (P.4) ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** botão Responder, erro desativa a alternativa escolhida (sem dicas), travar após acerto, "acertou de primeira"/"na Nª
   tentativa", revisão stateless, adaptar `useAdvanceLesson`/serviços, atualizar `backend/test/e2e/support/lessons.ts`
@@ -334,6 +334,24 @@ colunas.
   `aria-invalid`, `role=alert`, foco.
 - **Aceite:** errar nunca avança; tentativas ilimitadas; jornadas e2e existentes verdes.
 - **Depende de:** RC.2.2, RC.2.3.
+- **Entregável (2026-10-04):** *Serviços:* `answerMicroDecision` (`POST /lessons/:id/answer`) e hook
+  `useAnswerMicroDecision`; `advanceLesson`/`useAdvanceLesson` não enviam mais `selectedOption`; tipos ganham
+  `AnswerMicroDecisionResult`, `microDecisionSolved` e `microDecisionWrongOptions` e perdem o veredito de
+  `AdvanceLessonResult`. *Player:* botão Responder; erro descarta a alternativa (desativada, riscada, com texto para
+  leitor de tela), mostra aviso `role="alert"` que recebe o foco, sem dica nem gabarito; acerto trava as alternativas,
+  mostra "Acertou de primeira"/"Acertou na Nª tentativa" (`role="status"`) e só então libera Continuar; a Revelação
+  mostra o mesmo selo. Ao recarregar, restaura erros gravados e pergunta resolvida ("Você já resolveu esta pergunta").
+  Revisão de lição concluída é sem estado: pergunta respondível de novo, Continuar nunca travado. Falha de rede mostra
+  erro sem descartar a alternativa. O selo "Quase" saiu (errar não avança mais). Testes: 7 novos do player,
+  `lessonJourney.e2e.test.ts` novo (erra, tenta de novo, acerta, 422 sem acertar, `selectedOption` antigo ignorado,
+  revisão sem mudar XP/streak/progresso); o helper e2e `support/lessons.ts` já tinha sido ajustado na RC.2.3.
+  Validou: `vitest` (suíte completa), `tsc -b`, oxlint. **Ressalvas:** (a) **a jornada e2e nova não foi executada**:
+  a stack do `docker compose` não sobe nesta máquina porque o volume do Postgres está numa migration do engine
+  (versão 46) que esta árvore não tem (`no migration found for version 46`), então o cadastro (que cria a conta de
+  mercado no engine) falha; só passou `tsc`/prettier. Rodar com a stack da branch da Fase N ou um volume limpo.
+  (b) Sem conferência visual nos 3 breakpoints. (c) Após recarregar, o selo "acertou de primeira" da Revelação não
+  volta (o `GET` não devolve tentativas); só "Você já resolveu esta pergunta". (d) Em lição só leitura o servidor não
+  devolve erros, então os descartados em revisão valem só na sessão.
 
 ### RC.2.5 · `LockedGate` unificado (P.5) ✅ concluída (2026-10-04)
 

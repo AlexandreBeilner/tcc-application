@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
+import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { Button } from '../../components/atoms/Button'
@@ -20,7 +21,7 @@ import { splitIntoCards } from '../../features/lessons/splitIntoCards'
 import type { Card } from '../../features/lessons/splitIntoCards'
 import { parseLessonMarkup } from '../../features/lessons/parseLessonMarkup'
 import { GlossaryTerm } from '../../components/molecules/GlossaryTerm'
-import type { Lesson as LessonType } from '../../services/lessons'
+import type { AnswerMicroDecisionResult, Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
 const TOTAL_STEPS = 4
@@ -66,18 +67,19 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const lessonsQuery = useLessonsQuery()
     const advanceLesson = useAdvanceLesson(lessonId)
     const reviewLesson = useReviewLesson(lessonId)
+    const answerMicroDecision = useAnswerMicroDecision(lessonId)
 
-    // Aposta com acerto/erro real (backlog engajamento B.3) — índice
-    // escolhido pelo usuário no widget de opções reais. Só sustenta a UI do
-    // botão (`aria-pressed`) e habilita "Continuar"; o veredito em si vem do
-    // servidor (`microDecisionResult` abaixo, correção da revisão da PR 18 —
-    // `Lesson.microDecisionCorrectOption` não existe mais, comparar aqui
-    // vazaria a resposta certa via `GET /lessons` antes de qualquer escolha).
+    // Pergunta da Micro-decisão (RC.2.4): `selectedOption` é a alternativa
+    // marcada e ainda não enviada; `answer` é o último acerto desta sessão;
+    // `localWrongOptions` são os erros desta sessão (o servidor só devolve os
+    // erros gravados, e em revisão não grava nada). O gabarito só chega com o
+    // acerto (D3), por isso nada aqui compara índice no cliente.
     const [selectedOption, setSelectedOption] = useState<number | undefined>(undefined)
-    // Veredito da aposta (B.3), devolvido por `POST /lessons/:id/progress`
-    // só na chamada que envia `selectedOption` — nunca lido de volta de
-    // `GET /lessons`/`GET /lessons/:id` (mesma razão do comentário acima).
-    const [microDecisionResult, setMicroDecisionResult] = useState<{ correct: boolean; correctOptionLabel: string } | undefined>(undefined)
+    const [answer, setAnswer] = useState<AnswerMicroDecisionResult | undefined>(undefined)
+    const [localWrongOptions, setLocalWrongOptions] = useState<number[]>([])
+    const [lastAttemptWrong, setLastAttemptWrong] = useState(false)
+    const feedbackRef = useRef<HTMLParagraphElement>(null)
+
     const lesson = lessonQuery.data?.lesson
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
     // `code` citado pro `id` real usando esta mesma lista, sem chamada nova.
@@ -123,17 +125,14 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     const usesEmbeddedWidget = lesson ? EMBEDDED_WIDGET_TYPES.has(lesson.microDecisionType) : false
     const hasRealOptions = (lesson?.microDecisionOptions?.length ?? 0) > 0
-    // Pergunta já passada (o aluno voltou pra ela): não pede escolha de novo e
-    // não deixa trocar a resposta já aceita.
-    const microDecisionPassed = !isReview && reached > 1
-    const canAdvanceMicroDecision = usesEmbeddedWidget || !hasRealOptions || selectedOption !== undefined || reached > 1
-    // Badge de acerto/erro da Revelação (B.3) — só existe quando o servidor
-    // já devolveu o veredito desta escolha (`handleAdvance` abaixo grava em
-    // `microDecisionResult` no `onSuccess` do avanço que saiu do passo
-    // Micro-decisão com `selectedOption`).
-    const microDecisionAnswered = microDecisionResult !== undefined
-    const microDecisionCorrect = microDecisionResult?.correct ?? false
-    const correctOptionLabel = microDecisionResult?.correctOptionLabel
+    // Em revisão a pergunta é sem estado: pode ser respondida de novo, mas não
+    // trava nada (o servidor responde sem gravar). Fora dela, só avança quem
+    // acertou, ou quem já passou da pergunta (`reached > 1`).
+    const answerSolved = answer?.correct === true
+    const questionSolved = answerSolved || (!isReview && (lesson?.microDecisionSolved === true || reached > 1))
+    const wrongOptions = new Set([...(lesson?.microDecisionWrongOptions ?? []), ...localWrongOptions])
+    const hasQuestionGate = hasRealOptions && !usesEmbeddedWidget
+    const canAdvanceMicroDecision = !hasQuestionGate || isReview || questionSolved
     const unlockAssetPath = lesson?.unlocksAssetTicker && unlockAsset.asset ? assetDetailPath(unlockAsset.asset) : null
     // Chave de feature (`portfolio`/`calculator`, ex: 0.1/0.2) em vez de
     // produto real — mesmo mecanismo de CTA do Desbloqueio, generalizado pra
@@ -164,6 +163,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [])
 
+    // Depois de um erro o aviso (`role="alert"`) recebe o foco: o botão que
+    // estava focado acabou de ficar desativado.
+    const wrongCount = localWrongOptions.length
+    useEffect(() => {
+        if (wrongCount > 0) feedbackRef.current?.focus()
+    }, [wrongCount])
+
     function goToTrack() {
         navigate('/trilha')
     }
@@ -175,24 +181,27 @@ function LessonView({ lessonId }: { lessonId: string }) {
             navigation.goToStep(step + 1)
             return
         }
-        // `selectedOption` só viaja na chamada que sai do passo Micro-decisão
-        // (step 1) de uma lição com aposta real — nas demais transições o
-        // campo nem existe no payload (`useAdvanceLesson`/`services/lessons`).
-        const optionToSend = step === 1 && hasRealOptions ? selectedOption : undefined
-        advanceLesson.mutate(
-            { step: step + 1, selectedOption: optionToSend },
-            {
-                onSuccess: (data) => {
-                    if (data.microDecisionCorrect !== undefined) {
-                        setMicroDecisionResult({
-                            correct: data.microDecisionCorrect,
-                            correctOptionLabel: data.correctOptionLabel ?? '',
-                        })
-                    }
-                    navigation.goToStep(step + 1)
-                },
+        advanceLesson.mutate({ step: step + 1 }, { onSuccess: () => navigation.goToStep(step + 1) })
+    }
+
+    // Uma tentativa da pergunta (RC.2.4): o erro só descarta a alternativa
+    // (sem dica, sem gabarito) e devolve o foco ao aviso; o acerto trava a
+    // pergunta e libera o Continuar.
+    function handleAnswer() {
+        if (selectedOption === undefined) return
+        const tried = selectedOption
+        answerMicroDecision.mutate(tried, {
+            onSuccess: (data) => {
+                if (data.correct) {
+                    setAnswer(data)
+                    setLastAttemptWrong(false)
+                    return
+                }
+                setLocalWrongOptions((current) => (current.includes(tried) ? current : [...current, tried]))
+                setSelectedOption(undefined)
+                setLastAttemptWrong(true)
             },
-        )
+        })
     }
 
     // Cartão intermediário: só avança o cartão local. Cartão final da
@@ -290,23 +299,67 @@ function LessonView({ lessonId }: { lessonId: string }) {
                             {lesson.microDecisionType === 'growth_calculator' && <GrowthCalculatorForm />}
                             {lesson.microDecisionType === 'fixed_income_comparison' && <FixedIncomeComparisonForm />}
 
-                            {!usesEmbeddedWidget && hasRealOptions && (
-                                <div className={styles.optionsList} role="group" aria-label="Escolha uma opção">
-                                    {lesson.microDecisionOptions?.map((option, index) => (
-                                        <button
-                                            key={option}
-                                            type="button"
-                                            aria-pressed={selectedOption === index}
-                                            className={[styles.optionButton, selectedOption === index && styles.optionSelected]
-                                                .filter(Boolean)
-                                                .join(' ')}
-                                            disabled={microDecisionPassed}
-                                            onClick={() => setSelectedOption(index)}
-                                        >
-                                            {option}
-                                        </button>
-                                    ))}
-                                </div>
+                            {hasQuestionGate && (
+                                <>
+                                    <div className={styles.optionsList} role="group" aria-label="Escolha uma opção">
+                                        {lesson.microDecisionOptions?.map((option, index) => {
+                                            const isWrong = wrongOptions.has(index)
+                                            return (
+                                                <button
+                                                    key={option}
+                                                    type="button"
+                                                    aria-pressed={selectedOption === index}
+                                                    className={[
+                                                        styles.optionButton,
+                                                        selectedOption === index && styles.optionSelected,
+                                                        isWrong && styles.optionWrong,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(' ')}
+                                                    disabled={isWrong || questionSolved}
+                                                    onClick={() => setSelectedOption(index)}
+                                                >
+                                                    {option}
+                                                    {isWrong && <span className={styles.srOnly}> (alternativa descartada)</span>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+
+                                    {lastAttemptWrong && !answerSolved && (
+                                        <p ref={feedbackRef} tabIndex={-1} role="alert" className={styles.answerFeedback}>
+                                            Ainda não. Essa alternativa foi descartada, escolha outra.
+                                        </p>
+                                    )}
+                                    {answerSolved && (
+                                        <p role="status" className={`${styles.answerFeedback} ${styles.answerFeedbackCorrect}`}>
+                                            {isReview
+                                                ? 'Resposta certa.'
+                                                : answer.firstTry
+                                                  ? 'Acertou de primeira.'
+                                                  : `Acertou na ${answer.attempts}ª tentativa.`}
+                                        </p>
+                                    )}
+                                    {!answerSolved && questionSolved && (
+                                        <p className={styles.answerFeedback}>Você já resolveu esta pergunta.</p>
+                                    )}
+                                    {answerMicroDecision.isError && (
+                                        <p role="alert" className={styles.error}>
+                                            Não foi possível enviar sua resposta agora. Tente de novo.
+                                        </p>
+                                    )}
+
+                                    {!questionSolved && (
+                                        <div className={styles.ctaRow}>
+                                            <Button
+                                                onClick={handleAnswer}
+                                                disabled={selectedOption === undefined || answerMicroDecision.isPending}
+                                            >
+                                                Responder
+                                            </Button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </>
                     )}
@@ -333,12 +386,15 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Revelação</span>
                     <h1 className={styles.heading}>Por que isso importa</h1>
-                    {microDecisionAnswered &&
-                        (microDecisionCorrect ? (
-                            <span className={styles.answerBadgeCorrect}>Você acertou</span>
-                        ) : (
-                            <span className={styles.answerBadgeAlmost}>Quase. A resposta certa era: {correctOptionLabel}</span>
-                        ))}
+                    {answerSolved && (
+                        <span className={styles.answerBadgeCorrect}>
+                            {isReview || answer.firstTry
+                                ? isReview
+                                    ? 'Você acertou'
+                                    : 'Você acertou de primeira'
+                                : `Você acertou na ${answer.attempts}ª tentativa`}
+                        </span>
+                    )}
                     <CardBody card={revelationCards[subStep]} revealed={navigation.isRevealed} onReveal={handleReveal} lessons={lessons} />
                     {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
 
