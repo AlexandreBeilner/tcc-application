@@ -35,6 +35,7 @@ Azul cobalto elétrico — mais saturado que o azul de banco tradicional (Banco 
 | `--color-bg-surface-elevated` | `#1E2129` | `#FFFFFF` | Modais, dropdowns, elementos "acima" da superfície |
 | `--color-border` | `#2A2E38` | `#E4E5EA` | Bordas, divisores |
 | `--color-border-strong` | `#3A3F4C` | `#CBCDD6` | Bordas com mais ênfase (inputs em foco, cards selecionados) |
+| `--grid-line` | `rgba(255,255,255,0.05)` | `rgba(0,0,0,0.06)` | Linhas da grade quadriculada do fundo do Mapa da Trilha (CSS `background-image`, 28px) |
 | `--color-text-primary` | `#F5F6F8` | `#14161B` | Texto principal |
 | `--color-text-secondary` | `#9BA1AE` | `#5B6270` | Texto de apoio, labels |
 | `--color-text-muted` | `#6B7280` | `#8A8F9A` | Texto desabilitado, metadados de baixa prioridade |
@@ -146,6 +147,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --color-bg-surface-elevated: #1E2129;
   --color-border: #2A2E38;
   --color-border-strong: #3A3F4C;
+  --grid-line: rgba(255, 255, 255, 0.05);
   --color-text-primary: #F5F6F8;
   --color-text-secondary: #9BA1AE;
   --color-text-muted: #6B7280;
@@ -178,6 +180,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --color-bg-surface-elevated: #FFFFFF;
   --color-border: #E4E5EA;
   --color-border-strong: #CBCDD6;
+  --grid-line: rgba(0, 0, 0, 0.06);
   --color-text-primary: #14161B;
   --color-text-secondary: #5B6270;
   --color-text-muted: #8A8F9A;

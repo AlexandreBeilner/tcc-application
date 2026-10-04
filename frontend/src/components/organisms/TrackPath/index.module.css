@@ -13,6 +13,11 @@
 .canvas {
     position: relative;
     width: 100%;
+    /* Grade quadrada em CSS (não mais um <pattern> no SVG, que o
+       `preserveAspectRatio="none"` esticava só em X): cobre sempre a altura
+       inteira do canvas, em qualquer tema, via token `--grid-line`. */
+    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 28px 28px;
 }
 
 .svg {
@@ -24,21 +29,31 @@
     position: absolute;
     left: 0;
     right: 0;
+    z-index: 0;
     border-top: 1.5px dashed var(--color-brand-500);
-    display: flex;
-    justify-content: flex-end;
     pointer-events: none;
 }
 
+/* Filha do `.nodeWrap` do nó atual: centrada acima do círculo (meia altura
+   do nó + folga pro anel pulsante), com z-index acima dos demais nós. */
 .hereTag {
-    transform: translateY(-50%);
+    position: absolute;
+    bottom: 34px;
+    left: 0;
+    transform: translateX(-50%);
+    z-index: 2;
+    pointer-events: none;
     background: var(--color-brand-500);
     color: #fff;
     font-size: var(--font-size-xs);
     font-weight: 700;
     padding: 3px var(--space-2);
-    border-radius: var(--radius-sm) 0 var(--radius-sm) var(--radius-sm);
+    border-radius: var(--radius-sm);
     white-space: nowrap;
+}
+
+.nodeWrapCurrent {
+    z-index: 3;
 }
 
 /* Âncora de tamanho zero na coordenada exata do path — nó, título e
@@ -219,6 +234,10 @@
 }
 
 @media (min-width: 1024px) {
+    .hereTag {
+        bottom: 40px;
+    }
+
     .node {
         width: 48px;
         height: 48px;

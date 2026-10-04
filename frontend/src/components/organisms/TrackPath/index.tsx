@@ -75,12 +75,6 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                     preserveAspectRatio="none"
                     aria-hidden="true"
                 >
-                    <defs>
-                        <pattern id="trackPathGrid" width="28" height="28" patternUnits="userSpaceOnUse">
-                            <path d="M28 0 L0 0 0 28" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth={1} />
-                        </pattern>
-                    </defs>
-                    <rect x={0} y={0} width={TRACK_PATH_WIDTH} height={layout.height} fill="url(#trackPathGrid)" />
                     {layout.solidPath && (
                         <path
                             d={layout.solidPath}
@@ -105,27 +99,26 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                 </svg>
 
                 {/* "Você está aqui" (identidade-visual-padroes.md §2) — linha-guia
-                    tracejada + etiqueta na altura da lição `available`, mesmo motivo
-                    já usado no gráfico horizontal, agora persistente (não só hover). */}
-                {layout.currentPoint && (
-                    <div className={styles.hereMarker} style={{ top: layout.currentPoint.y }}>
-                        <span className={styles.hereTag}>Você está aqui</span>
-                    </div>
-                )}
+                    tracejada na altura da lição `available`; a etiqueta em si
+                    mora dentro do `.nodeWrap` do nó atual (abaixo), centrada
+                    acima dele, pra nunca ficar sob outro nó nem sob o título. */}
+                {layout.currentPoint && <div className={styles.hereMarker} style={{ top: layout.currentPoint.y }} />}
 
                 {layout.points.map((point) => {
                     const StatusIcon = point.lesson.status === 'locked' ? null : STATUS_ICON[point.lesson.status]
                     // Título ancora pro lado do centro do canvas — nunca corre risco
                     // de sair da borda do card, seja qual for o lado do zigue-zague.
+                    const isCurrent = layout.currentPoint?.lesson.id === point.lesson.id
                     const metaSide = point.x < centerX ? styles.metaRight : styles.metaLeft
 
                     return (
                         <div
                             key={point.lesson.id}
                             ref={point.lesson.id === target.lesson.id ? currentNodeRef : undefined}
-                            className={styles.nodeWrap}
+                            className={[styles.nodeWrap, isCurrent && styles.nodeWrapCurrent].filter(Boolean).join(' ')}
                             style={{ top: point.y, left: toPercent(point.x) }}
                         >
+                            {isCurrent && <span className={styles.hereTag}>Você está aqui</span>}
                             <button
                                 type="button"
                                 className={[styles.node, styles[point.lesson.status]].join(' ')}
@@ -185,11 +178,7 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                                     >
                                         <Flag size={11} strokeWidth={2.4} aria-hidden="true" />
                                         <span
-                                            className={
-                                                expandedFlagId === point.lesson.id
-                                                    ? styles.flagTextExpanded
-                                                    : styles.flagText
-                                            }
+                                            className={expandedFlagId === point.lesson.id ? styles.flagTextExpanded : styles.flagText}
                                             aria-hidden="true"
                                         >
                                             Libera {point.lesson.unlocksDescription}
