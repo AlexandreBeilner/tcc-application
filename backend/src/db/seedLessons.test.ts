@@ -126,6 +126,26 @@ describe('blocks no seed (RC.3.1)', () => {
     }
   })
 
+  // RC.3.4: nenhum texto manda calcular fora; quem pede conta precisa ter um
+  // widget na mesma fase. Pergunta numérica (check) conta como pedido de conta
+  // e também exige widget na fase quando o texto diz "calcule".
+  it('fase com blocks que manda calcular tem widget na mesma fase', () => {
+    for (const seed of LESSON_SEEDS) {
+      for (const [phase, blocks] of Object.entries(seed.blocks?.phases ?? {})) {
+        const asksToCalculate = blocks.some(
+          (b) => b.type === 'text' && /\bcalcul(e|ar|em)\b/i.test(b.markup),
+        )
+        const hasWidget = blocks.some(
+          (b) => b.type === 'widget' && b.widget !== 'callout' && b.widget !== 'platform-note',
+        )
+        expect(
+          !asksToCalculate || hasWidget,
+          `${seed.code} (${phase}) manda calcular sem widget`,
+        ).toBe(true)
+      }
+    }
+  })
+
   it('o upsert grava blocks e um reseed sem blocks volta a null (texto legado)', async () => {
     const { db, rows } = createFakeLessonsDb()
     const blocks = {

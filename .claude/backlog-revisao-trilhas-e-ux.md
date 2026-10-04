@@ -626,7 +626,7 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
 | RC.5.2 | 0.5 (poupança) | duas regras (Selic acima de 8,5%: 0,5% a.m. + TR; igual ou abaixo: 70% da Selic + TR), TR explicada, "sempre atrás" falso: comparação líquida; widget `real-return` | G |
 | RC.5.3 | 1.1, 1.2 | PU do Tesouro Selic sobe todo dia, a Selic muda a velocidade (pergunta corrigida); IOF 29 dias, custódia B3, IR; remover "spec do TCC" | M + G |
 | RC.5.4 | 1.3 (Copom) | 8 reuniões/ano de 2 dias, ~45 dias (nunca "21 dias simulados"); meta de inflação 3% ±1,5; meta x efetiva; Taylor vira Na plataforma; gangorra inflação x Selic; gráfico Selic x IPCA | G |
-| RC.5.5 | 1.4-1.6 | FGC completo (conglomerado, R$ 1 milhão em 4 anos, o que não cobre, sem "tão seguro quanto o Tesouro"); CDI com exemplo coerente (% do CDI); IR com IOF e retenção, isenção só PF; LCI/LCA com carência real e `equivalent-rate`; remover `[revelar]` | G |
+| RC.5.5 ✅ | 1.4-1.6 | FGC completo (conglomerado, R$ 1 milhão em 4 anos, o que não cobre, sem "tão seguro quanto o Tesouro"); CDI com exemplo coerente (% do CDI); IR com IOF e retenção, isenção só PF; LCI/LCA com carência real e `equivalent-rate`; remover `[revelar]` | G |
 | RC.5.6 | 1.7-1.8 | Prefixado: R$ 199,24 é bruto, LTN x NTN-F, vencimento coerente; marcação a mercado com gangorra e duration, vale também para IPCA+, Copom x taxa de mercado do título; remover "Copom simulado a cada 21 dias reais" e "Sandbox" | M + G |
 | RC.5.7 | 1.9-1.11 | IPCA: cesta e abrangência reais, meta 3% ±1,5, números atuais verificados; IPCA+: marcação a mercado, IR sobre o ganho nominal, VNA e defasagem, taxa realista; CRI/CRA: não vendê-los como reserva de emergência, risco nos devedores e garantias (patrimônio separado), FGC não cobre, isenção e risco regulatório | M-G + G + G |
 | RC.5.8 | 3.1-3.4 | trilha 3 vira planejamento real: diversificação, perfil de investidor real (conservador/moderado/arrojado, questionário de suitability; "Sofisticado" removido), comparação de produtos líquida (252 dias úteis, CDI explícito), desafio final; prática no simulador como etapa separada e rotulada; 3.4 sem "evento real" para evento simulado (D12) | G x4 |
@@ -637,6 +637,26 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
 | RC.5.13 | 2.10 | FII: distribuição mensal (mínimo 95% do resultado semestral), isenção de IR para PF (requisitos), 20% sobre ganho de capital, P/VP, papel indexado a IPCA, "dividendo" x "rendimento", frase quebrada na revelação e `unlocksDescription` com erro ("com onde crescer") | G |
 | RC.5.14 | Todas | taxas citadas (CDB 12%, LCI 9,5%, LTN 11,75%, NTN-B 6%) alinhadas ao catálogo (% do CDI e spreads) ou apresentadas como exemplo didático explícito | M |
 
+- **RC.5.5 entregue (2026-10-04):** lições 1.4, 1.5 e 1.6 reescritas no contrato `blocks`, em
+  `backend/src/db/lessonContentTrilha1a.ts` (os textos legados `scenarioText`/`microDecisionPrompt`/
+  `revelationText` agora são derivados dos blocos de texto por `legacyText`, então o conteúdo existe uma vez só).
+  *1.4:* CDB como empréstimo ao banco, % do CDI, FGC completo (R$ 250 mil por CPF e por conglomerado, teto de R$ 1
+  milhão em 4 anos, títulos públicos fora, "entra se o banco for liquidado"), sem "tão seguro quanto o Tesouro",
+  3 perguntas (1 na aposta de 3 alternativas e 3 checkpoints), bloco "Na plataforma" (CDB fictício a 110% do CDI).
+  *1.5:* IR retido na fonte, só sobre o lucro, `ir-regressive-table` na abertura, IOF de 96% a 0% em 30 dias, 3
+  checkpoints. *1.6:* isenção só para pessoa física, prazo mínimo de 6 meses da LCI (o exemplo de 60 dias, que não
+  existe, saiu), `equivalent-rate` na micro-decisão e `product-comparator` na revelação, exemplo didático declarado
+  (CDI a 10%: CDB 11% e LCI 9%, proporções do catálogo), faixa de 720 dias corrigida (17,5% até 720, 15% acima), 4
+  checkpoints; os dois `[revelar]` ("Ver resultado") saíram; `unlocksDescription` sem "real". Alternativa certa da
+  aposta fora da posição 0 nas três. Novo teste de seed: fase com `blocks` que diz "calcule" exige widget na fase.
+  Baseline de conteúdo encolheu 1 (número de lição na 1.6). Validou: backend lint/build/`npm test` (831). Nenhum
+  fato novo foi introduzido: todos já estavam em `regulatoryFacts.ts` com `verifiedAt` de 2026-10-04.
+  **Ressalvas:** (a) sem `docker compose`, sem conferência visual e sem rodar o e2e das lições; (b) o
+  `fgc-coverage-bar` (RC.3.4b) não existe ainda, então o FGC usa texto e pergunta numérica; (c) os fatos de FGC
+  "entra na liquidação" e "CRA fora" ficaram simplificados/omitidos por falta de fonte lida (a 1.11 deve tratar);
+  (d) as lições 1.4 a 1.6 ainda usam CDI e carência sem lição própria (RC.4.1), cobertos por `{{termo}}` inline;
+  (e) quem já concluiu essas lições não é afetado (seed só substitui conteúdo, progresso fica); (f) a revisão
+  `/code-review` e a leitura contra o guia RC.1.6 não foram feitas por outra sessão.
 - **Nota de esforço:** a Fase 5 reescreve as 35 lições atuais (as 8 novas são RC.4.1, RC.4.2 e RC.4.4 a RC.4.9), com margem de crescimento
   para o autor ("muita margem para adição de coisas"). Cada tarefa pode se dividir em duas sessões se passar de 4
   lições com widget novo.
