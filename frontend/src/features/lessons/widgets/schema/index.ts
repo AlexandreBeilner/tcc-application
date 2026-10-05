@@ -15,6 +15,7 @@ export const WIDGET_IDS = [
     'real-return',
     'selic-ipca-chart',
     'copom-timeline',
+    'inflation-selic-seesaw',
     'savings-vs-selic',
     'growth-calculator',
     'fixed-income-comparison',
@@ -77,6 +78,7 @@ export const widgetPropsSchemas = {
     }),
     'selic-ipca-chart': z.object({ windowDays: z.number().int().min(7).max(365).default(365) }),
     'copom-timeline': emptyProps,
+    'inflation-selic-seesaw': z.object({ inflationPct: z.number().min(0).max(15).default(6) }),
     'savings-vs-selic': z.object({
         selicPct: z.number().min(2).max(16).default(14),
         trMonthlyPct: z.number().min(0).max(0.3).default(0.15),

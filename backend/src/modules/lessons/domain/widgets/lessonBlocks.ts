@@ -12,6 +12,7 @@ export type WidgetId =
   | 'real-return'
   | 'selic-ipca-chart'
   | 'copom-timeline'
+  | 'inflation-selic-seesaw'
   | 'savings-vs-selic'
   | 'growth-calculator'
   | 'fixed-income-comparison'

@@ -120,7 +120,7 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
         props: {
           brazil:
             'O Copom decide a meta da Selic em 8 reuniões por ano, e o IBGE divulga o IPCA todo mês.',
-          here: 'O Copom da plataforma decide a cada 21 dias simulados, e a Selic e o IPCA do gráfico são gerados pela simulação.',
+          here: 'O Copom da plataforma decide a cada 45 dias simulados, e a Selic e o IPCA do gráfico são gerados pela simulação.',
           why: 'Assim você vê o efeito de uma decisão de juros em poucos dias, sem esperar meses.',
         },
       },

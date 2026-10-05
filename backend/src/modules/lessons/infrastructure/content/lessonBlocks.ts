@@ -26,6 +26,7 @@ export const WIDGET_IDS = [
   'real-return',
   'selic-ipca-chart',
   'copom-timeline',
+  'inflation-selic-seesaw',
   'savings-vs-selic',
   'growth-calculator',
   'fixed-income-comparison',
@@ -99,6 +100,10 @@ const realReturnProps = z.object({
 
 const selicIpcaChartProps = z.object({ windowDays: z.number().int().min(7).max(365).default(365) })
 
+// Gangorra inflação x Selic (RC.5.4): a leitura de pressão vive no frontend; a
+// prop só escolhe o ponto de partida do controle.
+const inflationSelicSeesawProps = z.object({ inflationPct: z.number().min(0).max(15).default(6) })
+
 // Poupança contra Tesouro Selic (RC.5.2): a conta vive no frontend; as props só
 // escolhem o ponto de partida dentro dos limites dos controles.
 const savingsVsSelicProps = z.object({
@@ -126,6 +131,7 @@ export const widgetPropsSchemas = {
   'real-return': realReturnProps,
   'selic-ipca-chart': selicIpcaChartProps,
   'savings-vs-selic': savingsVsSelicProps,
+  'inflation-selic-seesaw': inflationSelicSeesawProps,
   'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,

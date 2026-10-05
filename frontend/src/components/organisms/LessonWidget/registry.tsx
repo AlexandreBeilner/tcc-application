@@ -4,6 +4,7 @@ import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
 import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
 import { CompoundGrowthWidget, compoundGrowthSummary } from '../CompoundGrowthWidget'
 import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidget'
+import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
 import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
 import { SavingsVsSelicWidget, savingsVsSelicSummary } from '../SavingsVsSelicWidget'
 import { SelicIpcaChartWidget, selicIpcaChartSummary } from '../SelicIpcaChartWidget'
@@ -74,6 +75,11 @@ export const widgetRegistry: Registry = {
         component: CopomTimelineWidget,
         propsSchema: widgetPropsSchemas['copom-timeline'],
         summary: copomTimelineSummary,
+    },
+    'inflation-selic-seesaw': {
+        component: InflationSelicSeesawWidget,
+        propsSchema: widgetPropsSchemas['inflation-selic-seesaw'],
+        summary: inflationSelicSeesawSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,

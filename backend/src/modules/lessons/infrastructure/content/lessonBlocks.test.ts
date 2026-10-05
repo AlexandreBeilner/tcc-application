@@ -109,6 +109,7 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'b', widget: 'real-return', props: { inflationPct: 6 } },
         { type: 'widget', id: 'c', widget: 'selic-ipca-chart', props: { windowDays: 180 } },
         { type: 'widget', id: 'd', widget: 'copom-timeline', props: {} },
+        { type: 'widget', id: 'e', widget: 'inflation-selic-seesaw', props: { inflationPct: 7 } },
       ],
     }
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
@@ -119,6 +120,7 @@ describe('lessonBlocksSchema', () => {
     ['compound-growth', { rateUnit: 'day' }],
     ['real-return', { inflationPct: 50 }],
     ['selic-ipca-chart', { windowDays: 3 }],
+    ['inflation-selic-seesaw', { inflationPct: 40 }],
   ])('%s com props fora do limite é rejeitado', (widget, props) => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

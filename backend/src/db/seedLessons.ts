@@ -6,7 +6,7 @@ import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
 import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
-import { BLOCKS_1_1, BLOCKS_1_2 } from './lessonContentTrilha1b'
+import { BLOCKS_1_1, BLOCKS_1_2, BLOCKS_1_3 } from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
 import { legacyText } from './lessonText'
 
@@ -285,34 +285,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 1: Renda Fixa',
     sortOrder: 9,
     title: 'Como a Selic é formada',
-    centralConcept: 'Reunião periódica do Copom reagindo ao desvio do IPCA frente à meta',
-    scenarioText:
-      'A lição anterior mostrou que o Tesouro Selic rende acompanhando a taxa Selic, mas essa taxa não ' +
-      'sai do nada: ela é decidida periodicamente pelo Copom (Comitê de Política Monetária do Banco ' +
-      'Central), reunido a cada 21 dias simulados nesta plataforma.' +
-      '\n\n' +
-      'Em cada reunião, a taxa não muda de qualquer jeito: ela reage principalmente a uma pergunta — a ' +
-      'inflação (IPCA) está rodando acima ou abaixo da meta?',
-    microDecisionPrompt:
-      'Se o IPCA acumulado em 12 meses estiver rodando acima da meta numa reunião do Copom simulado, ' +
-      'você espera que a Selic suba, desça ou fique igual nessa reunião?',
-    microDecisionType: 'live_macro_indicator',
+    centralConcept: 'Copom reagindo à inflação frente à meta',
+    scenarioText: legacyText(BLOCKS_1_3, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_3, 'microDecision'),
+    microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Sobe. A regra de reação simulada (uma versão simplificada da regra de Taylor) soma três forças: ' +
-      'uma reversão à taxa neutra de longo prazo, um termo proporcional ao desvio do IPCA acumulado ' +
-      'frente à meta, e um ruído aleatório pequeno.' +
-      '\n\n' +
-      'Quanto mais a inflação passa da meta, maior a pressão pra subir a taxa; abaixo da meta, a pressão ' +
-      'vai na direção contrária.' +
-      '\n\n' +
-      'O resultado é sempre arredondado pro múltiplo mais próximo de 0,25 ponto percentual (o mesmo passo ' +
-      'do Copom real, nunca uma casa decimal solta), e a Selic simulada nunca fica negativa.' +
-      '\n\n' +
-      'É por isso que a taxa fica parada entre uma reunião e outra: ela só muda nesses dias específicos, ' +
-      'não dia a dia. Veja abaixo o valor atual da Selic simulada e em quantos dias sai a próxima decisão.',
+    microDecisionOptions: ['Reduzir', 'Elevar', 'Manter'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_1_3, 'revelation'),
+    blocks: BLOCKS_1_3,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
