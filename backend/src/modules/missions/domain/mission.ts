@@ -14,6 +14,9 @@ export interface Mission {
   // fase — `completionCriteria` é texto livre, não sustenta uma verificação
   // cruzada real (ver schema.ts, tarefa 5.4).
   requiresLessonCompletion: boolean
+  // Desativada pelo painel (N.19): não é gerada pro dia nem pode ser concluída. O que
+  // já foi concluído fica como está (XP e streak não são tirados).
+  isActive: boolean
 }
 
 // Única missão com verificação cruzada dispatchada por `key` em vez de uma

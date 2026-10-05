@@ -74,6 +74,10 @@ type Request struct {
 	AffectsFundamentals *bool
 	Targets             []TargetInput
 	CreatedBy           *string
+	// ApplyOnDay (tarefa N.11) agenda o primeiro dia de efeito pra um dia simulado
+	// futuro (macroevent.ValidateApplyDay). nil dispara já: o efeito começa no
+	// próximo tick (currentDay+1). O evento fica pendente até lá.
+	ApplyOnDay *int
 }
 
 // Repository é o colaborador que Service precisa pra ler o dia simulado
@@ -188,6 +192,12 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 	// evento BandLeve (duração 1) e cortava 1 dia do efeito de Moderado/
 	// Severo.
 	event.TriggeredOnDay = currentDay + 1
+	if req.ApplyOnDay != nil {
+		if err := macroevent.ValidateApplyDay(*req.ApplyOnDay, currentDay); err != nil {
+			return "", macroevent.Event{}, err
+		}
+		event.TriggeredOnDay = *req.ApplyOnDay
+	}
 
 	durationDays, err := macroevent.DurationDays(event.MagnitudeBand)
 	if err != nil {
@@ -195,7 +205,11 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 	}
 	event.DurationDays = durationDays
 
-	if err := s.sampleEffects(&event, currentDay); err != nil {
+	// O dia de referência do relatório de fundamentos é o último dia antes do
+	// efeito começar: o dia corrente num disparo imediato, a véspera do dia
+	// agendado num evento agendado (a janela de corte de 2 dias conta a partir
+	// do início real do efeito, não de quando o admin cadastrou).
+	if err := s.sampleEffects(&event, event.TriggeredOnDay-1); err != nil {
 		return "", macroevent.Event{}, err
 	}
 

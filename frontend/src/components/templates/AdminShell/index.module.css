@@ -1,0 +1,117 @@
+.shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.content {
+    flex: 1;
+    min-width: 0;
+}
+
+.menuButton,
+.closeButton {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.menuButton {
+    align-self: flex-start;
+}
+
+.drawerHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.drawerTitle {
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: rgba(6, 10, 20, 0.6);
+}
+
+/* Mobile: gaveta pela esquerda, acima do `TabBar` fixo e do scrim. Fechada,
+   `visibility: hidden` tira os links da ordem de tabulação. */
+@media (max-width: 767px) {
+    .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 60;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        width: min(300px, 85vw);
+        padding: var(--space-4);
+        background: var(--color-bg-surface);
+        border-right: 1px solid var(--color-border-strong);
+        overflow-y: auto;
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition:
+            transform 0.2s ease,
+            visibility 0.2s;
+    }
+
+    .open {
+        transform: translateX(0);
+        visibility: visible;
+    }
+}
+
+/* Tablet e desktop: sem botão nem cabeçalho de gaveta. */
+@media (min-width: 768px) {
+    .menuButton,
+    .drawerHead,
+    .scrim {
+        display: none;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .sidebar {
+        margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) 0;
+        padding: 0 var(--space-6);
+        background: var(--color-bg-surface);
+    }
+}
+
+/* Desktop: barra lateral própria, fixa enquanto o conteúdo rola (o rolável é
+   o `.content` do `AppShell`, então `sticky` ancora nele). */
+@media (min-width: 1024px) {
+    .shell {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--space-6);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: 0;
+        flex: none;
+        width: 252px;
+        padding-right: var(--space-4);
+        border-right: 1px solid var(--color-border);
+    }
+}

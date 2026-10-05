@@ -41,6 +41,8 @@ export class AnonymizeAccountUseCase {
       avatarPath: null,
     })
     await this.userRepository.deleteIdentitiesForUser(input.userId)
+    // Encerra as sessões abertas (N.16): token emitido antes da exclusão não vale mais.
+    await this.userRepository.revokeSessions(input.userId)
 
     if (user.avatarPath) {
       await this.avatarStorage.delete(user.avatarPath)

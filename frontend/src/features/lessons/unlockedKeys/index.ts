@@ -5,17 +5,17 @@ export type { LessonUnlockHint } from './types'
 
 // Espelha em TS puro `backend/src/modules/lessons/domain/lesson.ts#unlockedKeysFor`
 // (tarefa 7.0.1) a partir dos mesmos dados de `GET /lessons` — sem endpoint
-// novo. `completedCount` vem de `status === 'completed'` (já calculado pelo
-// backend, ver `.docs/backend/lessons.md`), nunca recalculado aqui — só a
-// união de `unlocksKeys` é responsabilidade deste módulo.
+// novo. As lições "satisfeitas" vêm de `status === 'completed'` ou `waived`
+// (dispensa, N.24; já calculados pelo backend, ver `.docs/backend/lessons.md`),
+// nunca recalculadas aqui. `GET /lessons` devolve só as publicadas, ordenadas
+// por `sortOrder`, então a posição é o índice na lista: as chaves valem pras
+// primeiras `satisfiedCount` lições.
 export function unlockedKeysFor(lessons: Lesson[]): Set<string> {
-    const completedCount = lessons.filter((lesson) => lesson.status === 'completed').length
+    const satisfiedCount = lessons.filter((lesson) => lesson.status === 'completed' || lesson.waived).length
     const keys = new Set<string>()
 
-    for (const lesson of lessons) {
-        if (lesson.sortOrder <= completedCount) {
-            for (const key of lesson.unlocksKeys) keys.add(key)
-        }
+    for (const lesson of lessons.slice(0, satisfiedCount)) {
+        for (const key of lesson.unlocksKeys) keys.add(key)
     }
 
     return keys

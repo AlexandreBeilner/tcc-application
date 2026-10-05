@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
-import { getAsset, getAssetBook, getAssetQuotes, getMyAccount } from '../../services/market'
+import { getAsset, getAssetBook, getAssetQuotes, getMyAccount, getTradingHalts } from '../../services/market'
 import { AssetDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -14,6 +14,7 @@ vi.mock('../../services/market', () => ({
     getAssetBook: vi.fn(),
     getAssetQuotes: vi.fn(),
     getMyAccount: vi.fn(),
+    getTradingHalts: vi.fn(),
     placeOrder: vi.fn(),
     purchaseFixedIncome: vi.fn(),
     redeemFixedIncome: vi.fn(),
@@ -52,6 +53,7 @@ describe('AssetDetail (tela 4.5)', () => {
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
         vi.mocked(getAssetBook).mockResolvedValue(emptyBook)
+        vi.mocked(getTradingHalts).mockResolvedValue({ global: false, asset_ids: [] })
         // Ação/ETF/FII já desbloqueados por padrão — os testes deste arquivo
         // não são sobre o gate da tarefa 7.0.1, ver describe dedicado da J.3
         // abaixo pro estado travado.
@@ -237,6 +239,50 @@ describe('AssetDetail (tela 4.5)', () => {
         renderPage()
 
         await waitFor(() => expect(screen.getByText('Aguardando primeira cotação')).toBeInTheDocument())
+    })
+
+    it.each([
+        ['pausa do ativo', { global: false, asset_ids: ['a1'] }, 'neste ativo'],
+        ['pausa global', { global: true, asset_ids: [] }, 'todo o mercado'],
+    ])('%s (tarefa N.9): avisa em texto e desabilita a ordem', async (_name, halts, expected) => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getTradingHalts).mockResolvedValue(halts)
+
+        renderPage()
+
+        expect(await screen.findByText(new RegExp(`Negociação pausada .*${expected}`))).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Revisar ordem' })).toBeDisabled()
+    })
+
+    it('ativo sandbox nunca é pausado (N.9): a ordem segue habilitada', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'SBX3',
+                name: 'Sandbox',
+                type: 'acao',
+                is_sandbox: true,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Sandbox S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(getTradingHalts).mockResolvedValue({ global: true, asset_ids: [] })
+
+        renderPage()
+        await waitFor(() => expect(screen.getByText('SBX3')).toBeInTheDocument())
+
+        expect(screen.queryByText(/Negociação pausada/)).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Revisar ordem' })).toBeEnabled()
     })
 
     it('"Revisar ordem" abre a confirmação como overlay sobre a própria tela, sem navegar', async () => {

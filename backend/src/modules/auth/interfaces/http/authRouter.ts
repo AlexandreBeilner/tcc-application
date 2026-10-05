@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
+  AccountSuspendedError,
   EmailAlreadyInUseError,
   InvalidCredentialsError,
   UsernameAlreadyInUseError,
@@ -12,8 +13,9 @@ import type { GoogleIdentityProvider } from '../../application/ports/googleIdent
 import type { GetCurrentUserUseCase } from '../../application/useCases/getCurrentUser'
 import type { LoginUserUseCase } from '../../application/useCases/loginUser'
 import type { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
+import type { ReauthenticateUseCase } from '../../application/useCases/reauthenticate'
 import type { RegisterUserUseCase } from '../../application/useCases/registerUser'
-import { loginBodySchema, registerBodySchema } from './schemas'
+import { loginBodySchema, reauthBodySchema, registerBodySchema } from './schemas'
 import { toPublicUser } from './userSerializer'
 
 export interface AuthRouterDeps {
@@ -21,6 +23,7 @@ export interface AuthRouterDeps {
   loginUser: LoginUserUseCase
   getCurrentUser: GetCurrentUserUseCase
   loginWithGoogle: LoginWithGoogleUseCase
+  reauthenticate: ReauthenticateUseCase
   googleIdentityProvider: GoogleIdentityProvider
   authMiddleware: AuthMiddleware
 }
@@ -64,6 +67,43 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         res.status(401).json({ error: err.message })
         return
       }
+      if (err instanceof AccountSuspendedError) {
+        res.status(403).json({ error: 'account_suspended' })
+        return
+      }
+      throw err
+    }
+  })
+
+  // N.22: confere a senha de quem já está logado e devolve token novo com
+  // `authTime` fresco — libera as ações destrutivas do painel (`401
+  // reauth_required` nelas). 401 aqui significa senha errada, não token ruim.
+  router.post('/auth/reauth', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+    const parsed = reauthBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'senha obrigatória' })
+      return
+    }
+
+    try {
+      const result = await deps.reauthenticate.execute({
+        userId: req.auth.userId,
+        password: parsed.data.password,
+      })
+      res.status(200).json({ token: result.token })
+    } catch (err) {
+      if (err instanceof InvalidCredentialsError) {
+        res.status(401).json({ error: err.message })
+        return
+      }
+      if (err instanceof UserNotFoundError) {
+        res.status(404).json({ error: err.message })
+        return
+      }
       throw err
     }
   })
@@ -87,6 +127,11 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
       res.redirect(`${frontendUrl}/auth/callback#token=${result.token}`)
     } catch (err) {
+      if (err instanceof AccountSuspendedError) {
+        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
+        res.redirect(`${frontendUrl}/auth/callback#error=account_suspended`)
+        return
+      }
       console.error('falha na troca de código OAuth do Google:', err)
       res.status(502).json({ error: 'falha ao autenticar com o Google' })
     }

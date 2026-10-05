@@ -47,6 +47,24 @@ describe('AuthCallback', () => {
         await waitFor(() => expect(screen.getByText('tela protegida')).toBeInTheDocument())
     })
 
+    it('login com Google de conta suspensa mostra a mensagem própria e não chama login', async () => {
+        window.location.hash = '#error=account_suspended'
+        const authLogin = vi.fn()
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: authLogin,
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderCallback()
+
+        expect(await screen.findByText(/Sua conta está suspensa/)).toBeInTheDocument()
+        expect(authLogin).not.toHaveBeenCalled()
+    })
+
     it('sem token no fragment, mostra erro e não chama login', async () => {
         const authLogin = vi.fn()
         vi.mocked(useAuth).mockReturnValue({
