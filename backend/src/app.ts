@@ -48,6 +48,10 @@ import { ListTradingHaltsUseCase } from './modules/admin/application/useCases/li
 import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseTrading'
 import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
+import { createCatalogAdmin } from './modules/admin/infrastructure/engine/catalogAdmin'
+import { ListAdminCatalogUseCase } from './modules/admin/application/useCases/listAdminCatalog'
+import { UpdateCatalogAssetUseCase } from './modules/admin/application/useCases/updateCatalogAsset'
+import { createAdminCatalogRouter } from './modules/admin/interfaces/http/adminCatalogRouter'
 import { createEngineSettingsAdmin } from './modules/admin/infrastructure/engine/engineSettingsAdmin'
 import { ListEngineSettingsUseCase } from './modules/admin/application/useCases/listEngineSettings'
 import { UpdateEngineSettingUseCase } from './modules/admin/application/useCases/updateEngineSetting'
@@ -459,6 +463,9 @@ export function createApp(deps: AppDeps = {}): Express {
   const listEngineSettings = new ListEngineSettingsUseCase(engineSettingsAdmin)
   const updateEngineSetting = new UpdateEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
   const resetEngineSetting = new ResetEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
+  const catalogAdmin = createCatalogAdmin(engineUrl)
+  const listAdminCatalog = new ListAdminCatalogUseCase(catalogAdmin)
+  const updateCatalogAsset = new UpdateCatalogAssetUseCase(catalogAdmin, recordAdminAction)
   // Gestão de bots (N.1).
   const botAdmin = createEngineBotAdmin(engineUrl)
   const listAdminBots = new ListAdminBotsUseCase(botAdmin)
@@ -713,6 +720,7 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  app.use(createAdminCatalogRouter({ listAdminCatalog, updateCatalogAsset, authMiddleware }))
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(

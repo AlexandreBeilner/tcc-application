@@ -379,3 +379,19 @@ export const createLessonBodySchema = z.object({
   ...lessonContentShape,
   after_lesson_id: z.guid().nullable(),
 })
+
+// PATCH /admin/catalog/:id (N.12). Só os quatro campos da lista fechada; qualquer outro
+// (ticker, setor, float...) é 400 aqui e nunca chega ao motor. Os limites de cada campo são
+// do domínio do motor (422); aqui só o formato e o tamanho máximo.
+export const assetIdParamSchema = z.object({ id: z.uuid() })
+
+export const updateCatalogAssetBodySchema = z
+  .strictObject({
+    name: z.string().max(200).optional(),
+    base_growth_pct: z.number().finite().optional(),
+    quality_multiplier: z.number().finite().optional(),
+    methodology_summary: z.string().max(2000).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: 'informe pelo menos um campo a alterar',
+  })

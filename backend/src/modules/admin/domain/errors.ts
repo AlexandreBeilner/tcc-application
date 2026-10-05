@@ -127,3 +127,10 @@ export class AdminLessonNotFoundError extends Error {}
 export class AdminLessonConflictError extends Error {}
 // Conteúdo que a regra de domínio da lição recusa (aposta, chaves de desbloqueio, ticker, tamanho).
 export class InvalidAdminLessonError extends Error {}
+
+// CatalogAssetNotFoundError é o 404 do motor: o ativo não existe no catálogo (N.12).
+export class CatalogAssetNotFoundError extends Error {}
+
+// CatalogAssetRejectedError é o 422 do motor: campo somente leitura ou fora da regra de
+// domínio, ativo do sandbox ou patch vazio (N.12). A mensagem vem do domínio do motor.
+export class CatalogAssetRejectedError extends Error {}

@@ -376,6 +376,21 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Erros:** `404` — `key` não é editável.
 - **Auditoria:** `settings.reset`, `target_id` = a chave, `payload = { key }`.
 
+### Catálogo de ativos (tarefa N.12)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md#catálogo-de-ativos-tarefa-n12`, que descreve os campos por classe e as regras).
+
+#### `GET /admin/catalog`
+
+- **Sucesso:** `200` → `{ assets: [{ asset_id, ticker, name, type, risk_class, is_sandbox, share_class, outstanding_shares, editable: [campos], company, etf, fii, fixed_income }] }`. Só o bloco da classe vem preenchido; `editable` é vazio pra ativo do sandbox.
+
+#### `PATCH /admin/catalog/:id`
+
+- **Payload (JSON):** qualquer subconjunto de `name`, `base_growth_pct`, `quality_multiplier`, `methodology_summary`, validado por `updateCatalogAssetBodySchema` (estrito: outro campo, como `ticker` ou `outstanding_shares`, é recusado). O `admin_id` vem do token.
+- **Sucesso:** `200` → o ativo já alterado (mesmo formato de um item do `GET`).
+- **Erros:** `400` — `id` não é UUID, corpo vazio, campo desconhecido ou tipo errado (o motor não é chamado); `404` — ativo inexistente; `422` — regra de domínio do motor (faixa, campo que não se aplica à classe, sandbox), com a mensagem dele.
+- **Auditoria:** `catalog.update`, `target_type = asset`, `target_id` = id do ativo, `payload` = o patch; a recusa do motor grava `result = failed` com o motivo.
+
 ### Ciclo de vida do evento macro (tarefa N.11)
 
 Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/macroevent.md#ciclo-de-vida-do-evento-tarefa-n11`, que descreve os estados e as regras): `pendente → aplicado` ou `pendente → cancelado`. Agendar é o `apply_on_day` de `POST /admin/macro-events`; o filtro do histórico é o de `GET /admin/macro-events`.

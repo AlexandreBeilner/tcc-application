@@ -167,3 +167,23 @@ Modelos e fórmulas puras em `engine/internal/domain/adminview/bots.go`; consult
 - **Sucesso:** `200` → `{ simulated_day, idle_days, active_bots, idle_bots: [{ account_id, archetype, last_order_day | null }], low_cash_bots: [{ account_id, archetype, cash, capital }], empty_inventory: [{ account_id, asset_id, ticker }], liquidity: [{ asset_id, ticker, resting_by_provider: { <arquétipo | "usuario">: quantidade } }], float_concentration: [{ asset_id, ticker, top_bot_id, top_bot_archetype, top_bot_pct, all_bots_pct, outstanding_shares }] }`.
 - **Erros:** `400` — `idle_days` inválido; `503`, `500`.
 - **Regra:** só bots **ativos** entram em `idle_bots` e `low_cash_bots`; "rodadas" do texto da tarefa viraram **dias simulados** (a rodada não é gravada; a ordem tem o dia). `idle_bots` é quem não tem ordem criada nos últimos `idle_days` dias (inclusive o corrente), com `last_order_day` nulo pra quem nunca ordenou. `low_cash_bots` é o caixa abaixo de 1% do capital aportado (`LowCashRatio`, valor ilustrativo). `empty_inventory` lista Market Maker ativo sem nenhuma ação de um ativo que cobre. `liquidity` soma a quantidade **ainda aberta** (`quantidade − executada`) das ordens a limite em repouso, por arquétipo de bot e `usuario`. `float_concentration` traz o maior bot detentor de cada ativo e a fatia de todos os bots, em % das cotas em circulação, ordenado pela maior concentração. Ativos sem cobertura continuam em `uncovered_assets` de `GET /admin/bots`.
+
+---
+
+### Catálogo de ativos (tarefa N.12)
+
+Pacote de domínio: `engine/internal/domain/catalogadmin/` (`Service`, `Patch.Validate`, `EditableFields`); leitura e gravação em `db.CatalogAdminRepository`. O catálogo é dado cadastral (não Event Sourcing), então a edição é um `UPDATE` direto, mas só numa **lista fechada de campos**, validada pelas mesmas regras do cadastro (`catalog.ValidateBaseGrowthPct`, `ValidateQualityMultiplier`). Mudar `base_growth_pct` ou `quality_multiplier` vale a partir do próximo relatório (o tick lê a empresa todo dia). Respondem `503` sem `httpserver.WithCatalogAdmin`.
+
+Editável por classe: **ação** `name`, `base_growth_pct`, `quality_multiplier` (os dois últimos são da **empresa emissora**, então valem pra ON e PN juntas); **ETF** `name`, `methodology_summary`; **FII** e **renda fixa** `name`. **Somente leitura**, por decisão: ticker, tipo, classe de risco, setor, float em circulação (`outstanding_shares`, mexer reescreve a distribuição dos bots), `report_frequency_days` (a spec 3.3.1 fixa um ciclo global de 91 dias e o gatilho de evento macro, o FII e o ETF dependem dele), cesta do ETF e parâmetros de FII/renda fixa. Ativo do sandbox aparece marcado e nunca é editável (achado 023).
+
+#### `GET /admin/catalog`
+
+- **Sucesso:** `200` → `{ assets: [...] }`, todos os ativos (inclusive sandbox) ordenados por tipo e ticker. Cada item: `{ asset_id, ticker, name, type, risk_class | null, is_sandbox, share_class | null, outstanding_shares | null, editable: [campos], company | null, etf | null, fii | null, fixed_income | null }`. Só o bloco da classe vem preenchido (RF21). `company`: `{ company_id, name, sector, report_frequency_days, base_growth_pct, quality_multiplier }`. `etf`: `{ benchmark_index, methodology_summary | null, expense_ratio_pct, rebalance_frequency_days, holdings: [{ name, weight_pct }], holdings_total_weight_pct }`. `fii`: `{ fii_type, segment | null, vacancy_rate | null, indexador | null }`. `fixed_income`: `{ interest_rate | null, maturity_date | null, issuer_type, tax_exempt, credit_risk_rating | null, minimum_investment }`.
+- **Erros:** `503`, `500`.
+
+#### `PATCH /admin/catalog/{id}`
+
+- **Payload (JSON):** qualquer subconjunto de `name` (1 a 100 caracteres), `base_growth_pct` (maior que -100), `quality_multiplier` (em (0, 2]), `methodology_summary` (até 1000 caracteres, vazio limpa), mais `admin_id` (UUID, informado pelo backend).
+- **Sucesso:** `200` → o ativo já alterado, no mesmo formato de um item do `GET`.
+- **Erros:** `400` — `id`/`admin_id` inválido, corpo que não é JSON ou campo com tipo errado; `404` — ativo inexistente; `422` — valor fora da regra (mensagem do domínio), campo somente leitura (`ticker`, `outstanding_shares`, `report_frequency_days`...), campo que não se aplica à classe, ativo do sandbox ou nenhum campo informado; `503`, `500`.
+- **Regra:** a gravação trava a linha do ativo e valida de novo dentro da transação; nada é gravado se a validação falha.
