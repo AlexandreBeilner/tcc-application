@@ -384,6 +384,16 @@ export const REGULATORY_FACTS = [
     note: 'Resolução CVM 80/2022 (resultado de busca no domínio da CVM). Texto consolidado não aberto.',
   },
   {
+    id: 'securitizacao-patrimonio-separado',
+    label: 'Securitização: regime fiduciário e patrimônio separado',
+    value:
+      'A companhia securitizadora pode instituir regime fiduciário sobre os recebíveis que lastreiam os certificados (CRI e CRA entre eles). Eles formam um patrimônio separado, que não responde perante os credores da securitizadora e só paga os titulares daquela emissão. Em emissões públicas há agente fiduciário, que atua em nome dos investidores.',
+    source: 'https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2022/lei/l14430.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Lei 14.430/2022, arts. 25 a 27 (texto lido): art. 26, II e III (patrimônio separado e agente fiduciário em emissões públicas); art. 27, I, IV e VI (patrimônio que não se confunde com o comum, não responde por obrigações da securitizadora e responde só pelos certificados vinculados).',
+  },
+  {
     id: 'tesouro-vna-ipca',
     label: 'Tesouro IPCA+: Valor Nominal Atualizado',
     value:

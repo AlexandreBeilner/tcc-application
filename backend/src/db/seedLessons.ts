@@ -12,6 +12,9 @@ import {
   BLOCKS_1_3,
   BLOCKS_1_7,
   BLOCKS_1_8,
+  BLOCKS_1_9,
+  BLOCKS_1_10,
+  BLOCKS_1_11,
   BLOCKS_RESERVA,
 } from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
@@ -442,32 +445,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 16,
     title: 'O que é o IPCA',
     centralConcept: 'Índice de preços ao consumidor (IBGE), referência da meta de inflação',
-    scenarioText:
-      'O IPCA (Índice de Preços ao Consumidor Amplo) é calculado todo mês pelo IBGE a partir do preço de ' +
-      'uma cesta de bens e serviços representativa do consumo das famílias brasileiras: é o termômetro ' +
-      'oficial da inflação no Brasil e a referência que o Banco Central usa pra decidir a Selic (lição 1.3).' +
-      '\n\n' +
-      'Nesta plataforma, o IPCA mensal simulado varia pouco em torno de uma meta, mês a mês, sem depender ' +
-      'do valor do mês anterior.',
-    microDecisionPrompt:
-      'O IPCA acumulado em 12 meses (o número que costuma aparecer no noticiário) é a soma simples dos 12 ' +
-      'valores mensais, ou o produto composto deles, um mês sobre o outro?',
-    microDecisionType: 'live_macro_indicator',
+    scenarioText: legacyText(BLOCKS_1_9, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_9, 'microDecision'),
+    microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: [
-      'Soma simples dos 12 valores mensais',
-      'Produto composto, mês sobre mês',
-    ],
+    microDecisionOptions: ['Menos de 2%', 'Mais de 2%', 'Exatamente 2%'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Produto composto: acumulado 12m = (1 + IPCA₁) × (1 + IPCA₂) × ... × (1 + IPCA₁₂) − 1, a mesma lógica ' +
-      'de juros compostos da lição 0.2, aplicada a uma sequência de taxas mensais em vez de uma taxa só.' +
-      '\n\n' +
-      'É esse acumulado, comparado com a meta composta pelo mesmo número de meses, que alimenta duas coisas ' +
-      'nesta plataforma: a reação da Selic simulada a cada reunião do Copom (lição 1.3) e a correção do ' +
-      'Valor Nominal Atualizado do Tesouro IPCA+ (próxima lição).' +
-      '\n\n' +
-      'Veja abaixo o IPCA mensal e o acumulado em 12 meses simulados até agora.',
+    revelationText: legacyText(BLOCKS_1_9, 'revelation'),
+    blocks: BLOCKS_1_9,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -480,31 +465,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 17,
     title: 'Tesouro IPCA+',
     centralConcept: 'Proteção contra inflação: rendimento real garantido acima do IPCA',
-    scenarioText:
-      'O Tesouro IPCA+ 2035 (NTNB2035) promete um retorno real de 6,00% ao ano, isto é, 6,00% ' +
-      'acima da inflação, o que quer que ela seja no período.' +
-      '\n\n' +
-      'Isso é possível porque o Valor Nominal Atualizado (VNA) do título é corrigido mês a mês ' +
-      'pelo IPCA simulado (lição anterior), e só depois disso a taxa de 6,00% incide sobre esse valor já ' +
-      'atualizado.',
-    microDecisionPrompt:
-      'Se a inflação simulada nesta plataforma rodar mais alta que o previsto ao longo dos anos ' +
-      'até o vencimento, o valor final recebido no NTNB2035 aumenta, diminui ou fica igual?',
+    scenarioText: legacyText(BLOCKS_1_10, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_10, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Aumenta', 'Diminui', 'Fica igual'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Aumenta. Diferente do Tesouro Prefixado (lição 1.7), cujo valor final é sempre R$1.000,00 ' +
-      'fixo, o Tesouro IPCA+ tem seu Valor Nominal corrigido mensalmente pela inflação acumulada.' +
-      '\n\n' +
-      'Quanto maior o IPCA no período, maior o VNA no vencimento, e os 6,00% ao ano incidem sobre ' +
-      'esse valor já corrigido, não sobre o valor original.' +
-      '\n\n' +
-      'É a lição 0.4 (rendimento nominal vs real) aplicada na prática: aqui o rendimento real já ' +
-      'vem garantido por contrato, em vez de precisar ser calculado depois de descontar a ' +
-      'inflação.',
-    unlocksDescription: 'Compra real de Tesouro IPCA+ (NTNB2035) no Mercado',
+    microDecisionOptions: ['Diminui', 'Aumenta', 'Fica igual'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_1_10, 'revelation'),
+    blocks: BLOCKS_1_10,
+    unlocksDescription: 'Compra de Tesouro IPCA+ (NTNB2035) no Mercado',
     unlocksKeys: ['asset:tesouro_ipca'],
     unlocksAssetTicker: 'NTNB2035',
   },
@@ -516,35 +485,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 18,
     title: 'CRI e CRA',
     centralConcept: 'Risco de crédito privado sem FGC, compensado por maior remuneração',
-    scenarioText:
-      'CRI (Certificado de Recebíveis Imobiliários) e CRA (Certificado de Recebíveis do ' +
-      'Agronegócio) são emitidos por securitizadoras, empresas privadas que compram recebíveis ' +
-      '(dívidas de terceiros) e os transformam em título negociável.' +
-      '\n\n' +
-      'O CRI Securitizadora X 2028 (CRI2028) paga 11,00% ao ano, com classificação de risco AA; o ' +
-      'CRA Securitizadora X 2028 (CRA2028) paga 10,50% ao ano, com classificação A.',
-    microDecisionPrompt:
-      'CDB, LCI e LCA têm garantia do {{FGC}} até R$250.000,00 se o emissor quebrar.' +
-      '\n\n' +
-      'CRI e CRA, emitidos por uma securitizadora e não por um banco, têm essa mesma garantia?',
+    scenarioText: legacyText(BLOCKS_1_11, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_11, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: ['Sim', 'Não'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Não. CRI e CRA não têm cobertura do {{FGC}}, então o risco de crédito recai inteiramente ' +
-      'sobre a capacidade de pagamento da securitizadora emissora.' +
-      '\n\n' +
-      'É por isso que pagam mais (11,00% e 10,50% ao ano, acima da maioria dos CDBs) e trazem uma ' +
-      'classificação de risco de crédito (AA pro CRI2028, A pro CRA2028) pro investidor avaliar ' +
-      'antes de comprar.' +
-      '\n\n' +
-      'Igual ao LCI e LCA, ambos são isentos de Imposto de Renda. Completar esta lição libera a ' +
-      'compra real de CRI e CRA e conclui a Trilha 1: a Trilha 2 (Renda Variável) já abre na ' +
-      'sequência.',
-    unlocksDescription:
-      'Sua reserva de emergência com todas as opções na mesa (Tesouro Selic, CDB/LCI/LCA, CRI/CRA), ' +
-      'compra real de CRI/CRA no Mercado, acesso à Trilha 2 (Renda Variável)',
+    revelationText: legacyText(BLOCKS_1_11, 'revelation'),
+    blocks: BLOCKS_1_11,
+    unlocksDescription: 'Compra de CRI e CRA no Mercado, acesso à Trilha 2 (Renda Variável)',
     unlocksKeys: ['asset:cri', 'asset:cra'],
     unlocksAssetTicker: 'CRI2028',
   },

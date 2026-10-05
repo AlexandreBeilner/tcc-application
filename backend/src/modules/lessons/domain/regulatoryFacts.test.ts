@@ -75,6 +75,7 @@ describe('fatos regulatórios (RC.1.3)', () => {
       'b3-liquidacao-acoes',
       'cvm-itr-dfp-prazos',
       'tesouro-vna-ipca',
+      'securitizacao-patrimonio-separado',
       'ipca-abrangencia',
     ] as const) {
       expect(ids, required).toContain(required)
