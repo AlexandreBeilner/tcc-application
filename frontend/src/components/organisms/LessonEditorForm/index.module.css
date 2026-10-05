@@ -1,0 +1,117 @@
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.label,
+.legend {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+}
+
+textarea.input {
+    resize: vertical;
+}
+
+.input:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 1px;
+}
+
+.hint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.note {
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+/* Duas colunas a partir do tablet pras chaves; uma no mobile. */
+.checks {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+}
+
+@media (min-width: 768px) {
+    .checks {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.optionRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.link {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-brand-500);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.link:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+.link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

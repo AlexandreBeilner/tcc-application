@@ -1,6 +1,6 @@
-import { ArrowLeft, Check, Eye } from 'lucide-react'
+import { ArrowLeft, Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
@@ -17,8 +17,7 @@ import { nextCopomSimulatedDay } from '../../features/market/nextCopomDay'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import { splitIntoCards } from '../../features/lessons/splitIntoCards'
 import type { Card } from '../../features/lessons/splitIntoCards'
-import { parseLessonMarkup } from '../../features/lessons/parseLessonMarkup'
-import { GlossaryTerm } from '../../components/molecules/GlossaryTerm'
+import { LessonCardBody, LessonCardDots } from '../../components/molecules/LessonCardText'
 import type { Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -215,13 +214,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
-                    <CardBody
+                    <LessonCardBody
                         card={scenarioCards[subStep]}
                         revealed={revealedIndexes.has(subStep)}
                         onReveal={handleReveal}
                         lessons={lessons}
                     />
-                    {scenarioCards.length > 1 && <CardDots total={scenarioCards.length} current={subStep} />}
+                    {scenarioCards.length > 1 && <LessonCardDots total={scenarioCards.length} current={subStep} />}
                     <div className={styles.ctaRow}>
                         <Button onClick={() => handleCardContinue(scenarioCards)} disabled={advanceLesson.isPending}>
                             Continuar
@@ -234,13 +233,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={styles.card}>
                     <span className={styles.eyebrow}>Micro-decisão</span>
                     <h1 className={styles.heading}>Pense antes de continuar</h1>
-                    <CardBody
+                    <LessonCardBody
                         card={microDecisionCards[subStep]}
                         revealed={revealedIndexes.has(subStep)}
                         onReveal={handleReveal}
                         lessons={lessons}
                     />
-                    {microDecisionCards.length > 1 && <CardDots total={microDecisionCards.length} current={subStep} />}
+                    {microDecisionCards.length > 1 && <LessonCardDots total={microDecisionCards.length} current={subStep} />}
 
                     {isMicroDecisionLastCard && (
                         <>
@@ -288,13 +287,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         ) : (
                             <span className={styles.answerBadgeAlmost}>Quase. A resposta certa era: {correctOptionLabel}</span>
                         ))}
-                    <CardBody
+                    <LessonCardBody
                         card={revelationCards[subStep]}
                         revealed={revealedIndexes.has(subStep)}
                         onReveal={handleReveal}
                         lessons={lessons}
                     />
-                    {revelationCards.length > 1 && <CardDots total={revelationCards.length} current={subStep} />}
+                    {revelationCards.length > 1 && <LessonCardDots total={revelationCards.length} current={subStep} />}
 
                     {isRevelationLastCard &&
                         isLiveIndicator &&
@@ -350,70 +349,5 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 </p>
             )}
         </main>
-    )
-}
-
-// Revelação progressiva (tarefa A.3) — cartão marcado `[revelar]` esconde o
-// texto atrás de um botão "Ver resultado" até o toque; um `<button>` de
-// verdade preserva a navegação por teclado (Tab alcança, Enter/Espaço
-// ativa), sem precisar de nenhum tratamento especial.
-function CardBody({ card, revealed, onReveal, lessons }: { card: Card; revealed: boolean; onReveal: () => void; lessons: LessonType[] }) {
-    if (card.hidden && !revealed) {
-        return (
-            <button type="button" className={styles.revealButton} onClick={onReveal}>
-                <Eye size={16} aria-hidden="true" />
-                Ver resultado
-            </button>
-        )
-    }
-
-    return <p className={styles.body}>{renderLessonMarkup(card.text, lessons)}</p>
-}
-
-// Convenção `{{Termo}}`/`{{ref:X.Y}}` das tarefas C.1/C.2 — termo resolvido
-// no catálogo vira popover (`GlossaryTerm`), referência de lição vira link
-// pra ela (`ref` resolvido pro `id` real aqui, já que é aqui que a lista de
-// `lessons` está disponível), e o resto do texto continua como nó de texto
-// puro (não `<span>`) pra não quebrar consultas de teste que buscam o texto
-// completo do cartão quando não há marcação nenhuma.
-function renderLessonMarkup(text: string, lessons: LessonType[]) {
-    return parseLessonMarkup(text).map((segment, index) => {
-        if (segment.type === 'term') {
-            return <GlossaryTerm key={index} term={segment.term} definition={segment.definition} />
-        }
-
-        if (segment.type === 'ref') {
-            const referencedLesson = lessons.find((candidate) => candidate.code === segment.code)
-            const label = `já visto na lição ${segment.code}`
-
-            return referencedLesson ? (
-                <Link key={index} to={`/trilha/${referencedLesson.id}`} className={styles.refLink}>
-                    {label}
-                </Link>
-            ) : (
-                label
-            )
-        }
-
-        return segment.value
-    })
-}
-
-// Barra de progresso fina interna à fase (tarefa A.1) — pontinhos menores
-// que a barra de 4 segmentos, só aparece quando a fase tem mais de 1
-// cartão. Decorativa: o único controle interativo continua sendo o botão
-// "Continuar", então não interfere na navegação por teclado.
-function CardDots({ total, current }: { total: number; current: number }) {
-    return (
-        <div className={styles.cardDots} aria-hidden="true">
-            {Array.from({ length: total }, (_, index) => (
-                <span
-                    key={index}
-                    className={[styles.cardDot, index < current && styles.done, index === current && styles.current]
-                        .filter(Boolean)
-                        .join(' ')}
-                />
-            ))}
-        </div>
     )
 }

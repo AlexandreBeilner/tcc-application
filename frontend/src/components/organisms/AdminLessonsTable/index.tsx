@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
     describeLessonError,
     formatDuration,
@@ -67,19 +68,31 @@ export function AdminLessonsTable() {
             {lesson.published ? 'Publicada' : 'Despublicada'}
         </span>
     )
-    const action = (lesson: AdminLesson) =>
-        lesson.published ? (
-            <button type="button" className={styles.link} disabled={setPublished.isPending} onClick={() => setConfirming(lesson)}>
-                Despublicar
-            </button>
-        ) : (
-            <button type="button" className={styles.link} disabled={setPublished.isPending} onClick={() => run(lesson, true)}>
-                Publicar
-            </button>
-        )
+    const action = (lesson: AdminLesson) => (
+        <div className={styles.rowActions}>
+            <Link to={`/admin/conteudo/${lesson.id}`} className={styles.link}>
+                Editar
+            </Link>
+            {lesson.published ? (
+                <button type="button" className={styles.link} disabled={setPublished.isPending} onClick={() => setConfirming(lesson)}>
+                    Despublicar
+                </button>
+            ) : (
+                <button type="button" className={styles.link} disabled={setPublished.isPending} onClick={() => run(lesson, true)}>
+                    Publicar
+                </button>
+            )}
+        </div>
+    )
 
     return (
         <section className={styles.root} aria-label="Lições da trilha">
+            <div className={styles.toolbar}>
+                <Link to="/admin/conteudo/nova" className={styles.newLink}>
+                    Nova lição
+                </Link>
+            </div>
+
             <p className={styles.intro}>
                 Os números vêm do progresso real dos usuários. O tempo típico inclui pausas e usa a mediana. Despublicar uma lição a tira da
                 trilha de todos sem apagar progresso e sem travar ninguém.

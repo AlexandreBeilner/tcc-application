@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { getAdminLessons } from '../../services/admin'
@@ -19,7 +20,9 @@ describe('AdminConteudo', () => {
         const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
         render(
             <QueryClientProvider client={client}>
-                <AdminConteudo />
+                <MemoryRouter>
+                    <AdminConteudo />
+                </MemoryRouter>
             </QueryClientProvider>,
         )
 

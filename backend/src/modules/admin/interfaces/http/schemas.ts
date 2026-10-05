@@ -346,3 +346,36 @@ export const adminRankingQuerySchema = z
 
 // PATCH /admin/lessons/:id/published (N.18).
 export const setLessonPublishedBodySchema = z.object({ published: z.boolean() })
+
+// Conteúdo de uma lição (N.23), em snake_case como o resto da API. Só formato e tamanho de transporte:
+// as regras de negócio (aposta, chaves, ticker no catálogo) são do domínio da lição, que devolve 422 com
+// a mensagem. Os limites daqui são folgados de propósito (impedem corpo absurdo, não duplicam a regra).
+const lessonContentShape = {
+  title: z.string().max(1000),
+  central_concept: z.string().max(10000),
+  scenario_text: z.string().max(100000),
+  micro_decision_prompt: z.string().max(100000),
+  micro_decision_type: z.enum([
+    'reflection',
+    'growth_calculator',
+    'fixed_income_comparison',
+    'live_indicator',
+    'live_macro_indicator',
+  ]),
+  micro_decision_asset_ticker: z.string().trim().max(100).nullable(),
+  micro_decision_options: z.array(z.string().max(1000)).max(50).nullable(),
+  micro_decision_correct_option: z.number().int().nullable(),
+  revelation_text: z.string().max(100000),
+  unlocks_description: z.string().max(10000).nullable(),
+  unlocks_keys: z.array(z.string().max(100)).max(50),
+  unlocks_asset_ticker: z.string().trim().max(100).nullable(),
+}
+
+// PUT /admin/lessons/:id (N.23): o conteúdo inteiro (substitui, não mescla).
+export const lessonContentBodySchema = z.object(lessonContentShape)
+
+// POST /admin/lessons (N.23): o conteúdo mais onde a lição entra (depois de qual lição; `null` = início).
+export const createLessonBodySchema = z.object({
+  ...lessonContentShape,
+  after_lesson_id: z.guid().nullable(),
+})

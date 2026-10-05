@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
@@ -171,5 +171,167 @@ describe.skipIf(!databaseUrl)('drizzleLessonCatalogRepository (banco real)', () 
     expect(
       await catalog().setPublished('6f9619ff-8b86-d011-b42d-00c04fc964ff', false),
     ).toBeUndefined()
+  })
+
+  describe('conteúdo e revisões (N.23)', () => {
+    const content = (title: string) => ({
+      title,
+      centralConcept: 'conceito',
+      scenarioText: 'cenário',
+      microDecisionPrompt: 'prompt',
+      microDecisionType: 'reflection' as const,
+      microDecisionAssetTicker: null,
+      microDecisionOptions: ['a', 'b'],
+      microDecisionCorrectOption: 0,
+      revelationText: 'revelação',
+      unlocksDescription: null,
+      unlocksKeys: ['portfolio'],
+      unlocksAssetTicker: null,
+    })
+
+    it('a primeira edição guarda o baseline com o conteúdo original e depois a revisão; a segunda não repete o baseline', async () => {
+      const l0 = lessonIds[0]
+
+      const updated = await catalog().updateContent(
+        l0,
+        content('Título editado'),
+        userIds[0],
+        'update',
+      )
+      await catalog().updateContent(l0, content('Título editado de novo'), userIds[0], 'update')
+
+      expect(updated).toMatchObject({
+        id: l0,
+        title: 'Título editado',
+        microDecisionOptions: ['a', 'b'],
+        unlocksKeys: ['portfolio'],
+      })
+      const history = await catalog().listRevisions(l0)
+      expect(history.map((r) => r.action)).toEqual(['update', 'update', 'baseline'])
+      expect(history[0].adminUsername).toBe(`u1${suffix}`)
+      expect(history[2].adminId).toBeNull()
+      const baseline = await catalog().findRevision(l0, history[2].id)
+      expect(baseline?.content.title).toBe('Lição 0')
+      expect(baseline?.content.microDecisionOptions).toBeNull()
+    })
+
+    it('revisão de outra lição não é encontrada, e lição inexistente devolve undefined', async () => {
+      const [l0, l1] = lessonIds
+      const [first] = await catalog().listRevisions(l0)
+
+      expect(await catalog().findRevision(l1, first.id)).toBeUndefined()
+      expect(
+        await catalog().updateContent(
+          '6f9619ff-8b86-d011-b42d-00c04fc964ff',
+          content('x'),
+          userIds[0],
+          'update',
+        ),
+      ).toBeUndefined()
+    })
+
+    it('lesson_revisions é append-only: UPDATE e DELETE são recusados pelo banco', async () => {
+      const [first] = await catalog().listRevisions(lessonIds[0])
+
+      await expect(
+        db.execute(sql`UPDATE lesson_revisions SET action = 'create' WHERE id = ${first.id}::uuid`),
+      ).rejects.toMatchObject({ cause: { message: expect.stringContaining('append-only') } })
+      await expect(
+        db.execute(sql`DELETE FROM lesson_revisions WHERE id = ${first.id}::uuid`),
+      ).rejects.toMatchObject({ cause: { message: expect.stringContaining('append-only') } })
+    })
+
+    it('criar no meio: renumera as seguintes sem colisão, gera code e stable_key, dispensa só quem já passou do ponto e grava a revisão create', async () => {
+      const [l0] = lessonIds
+      await db
+        .delete(schema.userLessonProgress)
+        .where(inArray(schema.userLessonProgress.userId, userIds))
+      const [anchor] = await db
+        .select()
+        .from(schema.lessons)
+        .where(sql`id = ${l0}::uuid`)
+      const before = await db
+        .select({ id: schema.lessons.id, sortOrder: schema.lessons.sortOrder })
+        .from(schema.lessons)
+      const pubBefore = await db.execute<{ id: string }>(
+        sql`SELECT id FROM lessons WHERE published ORDER BY sort_order`,
+      )
+      const posResult = await db.execute<{ n: number }>(
+        sql`SELECT (COUNT(*) + 1)::int AS n FROM lessons WHERE published AND sort_order <= ${anchor.sortOrder}`,
+      )
+      const pos = posResult.rows[0].n
+      const published = pubBefore.rows.map((r) => r.id)
+      const now = new Date()
+      const satisfy = (userId: string, ids: string[]) =>
+        db
+          .insert(schema.userLessonProgress)
+          .values(ids.map((lessonId) => ({ userId, lessonId, currentStep: 3, completedAt: now })))
+      // u1 já satisfez `pos` lições (passou do ponto de inserção); u2 satisfez `pos - 1` (a próxima a fazer seria a nova).
+      await satisfy(userIds[0], published.slice(0, pos))
+      await satisfy(userIds[1], published.slice(0, pos - 1))
+
+      const created = await catalog().create(
+        { content: content('Lição nova no meio'), afterLessonId: l0 },
+        userIds[2],
+      )
+
+      expect(created?.lesson).toMatchObject({
+        title: 'Lição nova no meio',
+        sortOrder: anchor.sortOrder + 1,
+        trackNumber: 99,
+        trackName: 'Trilha de teste',
+        published: true,
+      })
+      expect(created?.lesson.code).toMatch(/^99\.\d+$/)
+      // As seguintes foram empurradas em um degrau, e a ordem continua única.
+      const after = await db
+        .select({ id: schema.lessons.id, sortOrder: schema.lessons.sortOrder })
+        .from(schema.lessons)
+      for (const row of before.filter((r) => r.sortOrder > anchor.sortOrder)) {
+        expect(after.find((r) => r.id === row.id)?.sortOrder).toBe(row.sortOrder + 1)
+      }
+      expect(new Set(after.map((r) => r.sortOrder)).size).toBe(after.length)
+      // Dispensa: dos usuários desta suíte, só u1 (o banco pode ter sobra de execuções anteriores).
+      const newRows = await db
+        .select()
+        .from(schema.userLessonProgress)
+        .where(
+          and(
+            eq(schema.userLessonProgress.lessonId, created!.lesson.id),
+            inArray(schema.userLessonProgress.userId, userIds),
+          ),
+        )
+      expect(newRows.map((r) => r.userId)).toEqual([userIds[0]])
+      expect(newRows[0].waivedAt).not.toBeNull()
+      expect(created?.waivedUsers).toBeGreaterThanOrEqual(1)
+      const history = await catalog().listRevisions(created!.lesson.id)
+      expect(history.map((r) => r.action)).toEqual(['create'])
+      const [stable] = await db
+        .select({ k: schema.lessons.stableKey })
+        .from(schema.lessons)
+        .where(sql`id = ${created!.lesson.id}::uuid`)
+      expect(stable.k).toMatch(/^adm-[0-9a-f]{12}$/)
+    })
+
+    it('criar sem lição de referência entra no início; referência inexistente devolve undefined e não muda nada', async () => {
+      const [{ min: minBefore }] = (
+        await db.execute<{ min: number }>(sql`SELECT MIN(sort_order)::int AS min FROM lessons`)
+      ).rows
+      const count = (await db.select().from(schema.lessons)).length
+
+      expect(
+        await catalog().create(
+          { content: content('x'), afterLessonId: '6f9619ff-8b86-d011-b42d-00c04fc964ff' },
+          userIds[0],
+        ),
+      ).toBeUndefined()
+      expect((await db.select().from(schema.lessons)).length).toBe(count)
+
+      const first = await catalog().create(
+        { content: content('No início'), afterLessonId: null },
+        userIds[0],
+      )
+      expect(first?.lesson.sortOrder).toBe(minBefore)
+    })
   })
 })

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { getAdminLessons, setLessonPublished } from '../../../services/admin'
@@ -69,7 +70,9 @@ function renderTable() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     render(
         <QueryClientProvider client={client}>
-            <AdminLessonsTable />
+            <MemoryRouter>
+                <AdminLessonsTable />
+            </MemoryRouter>
         </QueryClientProvider>,
     )
 }
@@ -146,6 +149,14 @@ describe('AdminLessonsTable', () => {
         fireEvent.click(t1.getByRole('button', { name: 'Publicar' }))
 
         expect(await screen.findByRole('alert')).toHaveTextContent('a lição já está publicada')
+    })
+
+    it('cada lição tem link pra edição e há um atalho pra criar lição', async () => {
+        renderTable()
+        const [t0] = await tables()
+
+        expect(t0.getByRole('link', { name: 'Editar' })).toHaveAttribute('href', '/admin/conteudo/l1')
+        expect(screen.getByRole('link', { name: 'Nova lição' })).toHaveAttribute('href', '/admin/conteudo/nova')
     })
 
     it('avisa quando a lista não carrega', async () => {

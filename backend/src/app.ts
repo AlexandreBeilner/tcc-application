@@ -90,14 +90,28 @@ import { createInProcessUserCorrections } from './modules/admin/infrastructure/c
 import { createAdminGamificationRouter } from './modules/admin/interfaces/http/adminGamificationRouter'
 import { createAdminLessonsRouter } from './modules/admin/interfaces/http/adminLessonsRouter'
 import {
+  CreateLessonAdminUseCase,
+  GetLessonForEditAdminUseCase,
+  GetLessonRevisionAdminUseCase,
   ListLessonCatalogAdminUseCase,
+  RestoreLessonRevisionAdminUseCase,
   SetLessonPublishedAdminUseCase,
+  UpdateLessonContentAdminUseCase,
 } from './modules/admin/application/useCases/lessonCatalog'
 import { createInProcessLessonCatalogAdmin } from './modules/admin/infrastructure/lessons/inProcessLessonCatalogAdmin'
 import {
   ListLessonCatalogUseCase,
   SetLessonPublishedUseCase,
 } from './modules/lessons/application/useCases/manageLessonCatalog'
+import {
+  CreateLessonUseCase,
+  GetLessonForEditUseCase,
+  GetLessonRevisionUseCase,
+  LessonContentValidator,
+  RestoreLessonRevisionUseCase,
+  UpdateLessonContentUseCase,
+} from './modules/lessons/application/useCases/manageLessonContent'
+import { createEngineAssetTypeLookup } from './modules/lessons/infrastructure/engine/engineAssetTypeLookup'
 import { createDrizzleLessonCatalogRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCatalogRepository'
 import {
   CreateAchievementAdminUseCase,
@@ -803,14 +817,37 @@ export function createApp(deps: AppDeps = {}): Express {
   // Conteúdo das lições (N.18): o painel só orquestra e audita; o funil e a regra de publicação
   // (dispensa ao publicar de volta) vivem no módulo `lessons`.
   const lessonCatalogRepository = createDrizzleLessonCatalogRepository(db)
+  const lessonContentValidator = new LessonContentValidator(createEngineAssetTypeLookup(engineUrl))
   const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
     listLessonCatalog: new ListLessonCatalogUseCase(lessonCatalogRepository),
     setLessonPublished: new SetLessonPublishedUseCase(lessonCatalogRepository),
+    getLessonForEdit: new GetLessonForEditUseCase(lessonCatalogRepository),
+    updateLessonContent: new UpdateLessonContentUseCase(
+      lessonCatalogRepository,
+      lessonContentValidator,
+    ),
+    createLesson: new CreateLessonUseCase(lessonCatalogRepository, lessonContentValidator),
+    getLessonRevision: new GetLessonRevisionUseCase(lessonCatalogRepository),
+    restoreLessonRevision: new RestoreLessonRevisionUseCase(
+      lessonCatalogRepository,
+      lessonContentValidator,
+    ),
   })
   app.use(
     createAdminLessonsRouter({
       listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
       setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonForEdit: new GetLessonForEditAdminUseCase(lessonCatalogAdmin),
+      updateLessonContent: new UpdateLessonContentAdminUseCase(
+        lessonCatalogAdmin,
+        recordAdminAction,
+      ),
+      createLesson: new CreateLessonAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonRevision: new GetLessonRevisionAdminUseCase(lessonCatalogAdmin),
+      restoreLessonRevision: new RestoreLessonRevisionAdminUseCase(
+        lessonCatalogAdmin,
+        recordAdminAction,
+      ),
       authMiddleware,
     }),
   )

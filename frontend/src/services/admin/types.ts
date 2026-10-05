@@ -108,6 +108,9 @@ export type AuditAction =
     | 'mission.update'
     | 'lesson.publish'
     | 'lesson.unpublish'
+    | 'lesson.update'
+    | 'lesson.create'
+    | 'lesson.restore'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -855,3 +858,58 @@ export interface LessonPublicationResult {
     published: boolean
     waived_users: number
 }
+
+// Conteúdo editável de uma lição (N.23), como a API devolve e recebe.
+export interface AdminLessonContent {
+    title: string
+    central_concept: string
+    scenario_text: string
+    micro_decision_prompt: string
+    micro_decision_type: LessonMicroDecisionType
+    micro_decision_asset_ticker: string | null
+    micro_decision_options: string[] | null
+    micro_decision_correct_option: number | null
+    revelation_text: string
+    unlocks_description: string | null
+    unlocks_keys: string[]
+    unlocks_asset_ticker: string | null
+}
+
+export interface AdminLessonDetail extends AdminLessonContent {
+    id: string
+    code: string
+    track_number: number
+    track_name: string
+    sort_order: number
+    published: boolean
+}
+
+export type LessonRevisionAction = 'baseline' | 'create' | 'update' | 'restore'
+
+export interface LessonRevisionItem {
+    id: string
+    action: LessonRevisionAction
+    admin_id: string | null
+    admin_username: string | null
+    created_at: string
+}
+
+export interface AdminLessonForEdit {
+    lesson: AdminLessonDetail
+    revisions: LessonRevisionItem[]
+}
+
+export interface LessonSaveResult {
+    lesson: AdminLessonDetail
+    warnings: string[]
+}
+
+export interface LessonCreateInput extends AdminLessonContent {
+    after_lesson_id: string | null
+}
+
+export interface LessonCreateResult extends LessonSaveResult {
+    waived_users: number
+}
+
+export type LessonRevisionContent = LessonRevisionItem & AdminLessonContent

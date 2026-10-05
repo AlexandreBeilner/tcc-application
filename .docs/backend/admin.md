@@ -208,6 +208,41 @@ Exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comu
 - **Erros:** `400` corpo inválido ou `id` que não é UUID; `404` lição inexistente; `409` a lição já está no estado pedido.
 - **Auditoria:** `lesson.publish` / `lesson.unpublish`, `target_type = lesson`, `payload = { code, waived_users }`; a recusa grava `result = failed`.
 
+### Editor de lições: conteúdo, criação e histórico (tarefa N.23)
+
+O banco é a fonte da verdade do conteúdo das lições (o seed só importa, ver `.docs/backend/lessons.md`). Todas exigem Bearer token + `role: 'admin'` (`401`/`403`). Editar, criar e restaurar são auditados mas **não pedem senha recente**: não apagam dado de ninguém e cada mudança vira uma revisão restaurável. Conteúdo = `title`, `central_concept`, `scenario_text`, `micro_decision_prompt`, `micro_decision_type`, `micro_decision_asset_ticker`, `micro_decision_options`, `micro_decision_correct_option`, `revelation_text`, `unlocks_description`, `unlocks_keys`, `unlocks_asset_ticker`. `stable_key`, `code`, `track_number`, `sort_order` de lição existente **não são editáveis**. Não há exclusão de lição (só despublicar, N.18).
+
+**Regras de domínio (as mesmas na edição, na criação e na restauração; `422` com todas as recusas juntas):** título e conceito central obrigatórios; limites de tamanho (título 150, conceito 500, cenário/micro-decisão/revelação 5000, descrição do desbloqueio 500); aposta = 2 a 6 opções (texto, até 200 caracteres, sem repetir) mais a opção correta dentro da faixa, as duas juntas ou nenhuma, e nunca nos tipos `growth_calculator`/`fixed_income_comparison` (o widget já é a interação); `live_indicator` exige `micro_decision_asset_ticker` e os outros tipos não aceitam; `unlocks_keys` só do vocabulário fechado (`portfolio`, `calculator`, `news_feed`, `asset:<AssetType>`), sem repetir; chave `asset:*` exige `unlocks_asset_ticker` e vice-versa; todo ticker precisa **existir no catálogo do motor** (`GET {ENGINE_URL}/assets`) e o do produto desbloqueado precisa ser de um tipo presente nas chaves `asset:*`. **Aviso, não bloqueio:** travessão (`—`) em texto do produto vai em `warnings` (regra de copy).
+
+#### `GET /admin/lessons/:id`
+
+- **Sucesso:** `200` → `{ lesson: { id, code, track_number, track_name, sort_order, published, ...conteúdo }, revisions: [{ id, action, admin_id, admin_username, created_at }] }`, revisões da mais recente à mais antiga. Devolve a opção correta da aposta (o painel precisa dela pra editar; o jogador nunca a vê em `GET /lessons`). `action`: `baseline` (retrato do original, gravado antes da primeira edição de uma lição vinda do seed, sem admin), `create`, `update`, `restore`.
+- **Erros:** `400` id que não é UUID; `404`.
+
+#### `PUT /admin/lessons/:id`
+
+- **Payload:** o conteúdo **inteiro** (substitui, não mescla), em snake_case.
+- **Sucesso:** `200` → `{ lesson, warnings }`. Grava o conteúdo e a revisão `update` numa transação.
+- **Erros:** `400` formato; `404`; `409` nenhuma mudança em relação ao conteúdo atual (não gera revisão vazia); `422` regra de domínio (`{ error, code: 'invalid_lesson' }`).
+- **Auditoria:** `lesson.update`, `target_type = lesson`, `payload = { code, changed_fields: [nomes dos campos] }` (nunca o texto); a recusa grava `result = failed` com a mensagem. Quem já respondeu a aposta mantém a escolha gravada: mudar as opções de uma lição com respostas não reescreve o histórico, e o acerto passa a ser calculado contra a opção correta nova.
+
+#### `POST /admin/lessons`
+
+- **Payload:** o conteúdo mais `after_lesson_id` (UUID da lição depois da qual a nova entra, na trilha dela; `null` = início do currículo).
+- **Sucesso:** `201` → `{ lesson, warnings, waived_users }`. Numa transação serializada por lock: desloca o `sort_order` das seguintes (em duas passadas, pelo negativo, por causa do `UNIQUE`), insere a lição **publicada** com `stable_key` (`adm-` + 12 hex) e `code` (`<trilha>.<próximo número livre>`) gerados, concede **dispensa** (N.24) a quem já tinha passado daquele ponto (`waived_users`) e grava a revisão `create`. Quem estava na posição ou antes é bloqueado por ela normalmente; ninguém que já passou perde acesso. O `code` é só rótulo de posição didática e não é renumerado nas outras lições, então pode não seguir a ordem.
+- **Erros:** `400`; `404` lição de referência inexistente; `422`.
+- **Auditoria:** `lesson.create`, `target_id` = id criado, `payload = { after_lesson_id, title, code, waived_users }`.
+
+#### `GET /admin/lessons/:id/revisions/:revisionId`
+
+- **Sucesso:** `200` → `{ id, action, admin_id, admin_username, created_at, ...conteúdo }` (o retrato daquela revisão). **Erros:** `400`; `404` revisão inexistente ou de outra lição.
+
+#### `POST /admin/lessons/:id/revisions/:revisionId/restore`
+
+- **Sucesso:** `200` → `{ lesson, warnings }`. Volta o conteúdo ao retrato daquela revisão e grava uma revisão nova `restore` (o histórico só cresce; `lesson_revisions` é append-only por trigger no banco). O conteúdo restaurado passa pela mesma validação (o catálogo pode ter mudado desde então).
+- **Erros:** `404`; `409` o conteúdo atual já é igual ao da revisão; `422`.
+- **Auditoria:** `lesson.restore`, `payload = { revision_id, code, changed_fields }`.
+
 ### Painel de Tempo (tarefa N.6)
 
 Cinco rotas que repassam o controle do Temporizador do motor (ver `.docs/engine/tick.md#controle-do-temporizador-tarefa-n6-fase-n`). Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum, nada é chamado nem auditado nesses casos). Proxy fino: `SchedulerAdmin` (porta → `engineSchedulerAdmin`) chama o motor via `ENGINE_URL`; a regra (pausa só vale pro tick agendado, retomar não recupera o tempo parado, teto de dias) vive no motor.

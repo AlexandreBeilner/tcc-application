@@ -38,8 +38,9 @@ export interface LessonSeed {
 
 // Currículo (tarefa 7.1, spec seção 5.1) — 35 lições no total (33 originais
 // + as 2 da tarefa M.5, `1.3`/`1.9` abaixo), autoradas bloco a bloco (7.1.1
-// a 7.1.6, depois M.5). `onConflictDoUpdate` abaixo garante que completar um
-// bloco novo também *atualiza* o conteúdo de lições já seedadas em sessões
+// a 7.1.6, depois M.5). Desde a N.23 o seed só importa as lições que
+// faltam (ver `importLessonSeed` no fim do arquivo); até lá, o upsert
+// garantia que completar um bloco novo também *atualiza* o conteúdo de lições já seedadas em sessões
 // anteriores (ex: 0.1–0.5/1.1 vinham só com `centralConcept`/
 // `unlocksDescription` da 5.6), não só insere as que faltam. `1.2` (Tesouro
 // Selic) foi a exceção deliberada da tarefa 7.0.2: conteúdo pedagógico
@@ -95,7 +96,7 @@ export interface LessonSeed {
 // dois), 3.4 (efeito nos fundamentos + o que acontece com o Tesouro Selic,
 // desafio final da trilha sintetizando 2.8+3.2 — 4 combinações possíveis,
 // só uma bate com o texto de `revelationText`).
-const LESSON_SEEDS: LessonSeed[] = [
+export const LESSON_SEEDS: LessonSeed[] = [
   {
     stableKey: '0.1',
     code: '0.1',
@@ -1445,44 +1446,23 @@ const LESSON_SEEDS: LessonSeed[] = [
   },
 ]
 
-// `onConflictDoUpdate` (não só `onConflictDoNothing`): a autoria de conteúdo
-// por bloco (7.1.1–7.1.6) precisa *atualizar* lições já seedadas em sessões
-// anteriores com o conteúdo pedagógico novo, não só inserir as que ainda não
-// existem — decisão da introdução da 7.1. `target: lessons.stableKey` (não
-// `code`, desde a M.6/achado 010): `stableKey` é a única coluna garantida
-// imutável por lição, então é a única que casa a linha física certa numa
-// renumeração de `code`. `id`/`stableKey` nunca mudam num conflito — `code`
-// agora entra no `set` de propósito, já que ele passou a ser mutável.
-export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
+// Importação inicial (N.23): o banco é a fonte da verdade do conteúdo das lições, editado e criado
+// pelo painel admin (com histórico em `lesson_revisions`). Este seed só insere o que falta, casando por
+// `stableKey` (a única coluna imutável por lição, achado 010/M.6): uma lição que já existe NUNCA é
+// sobrescrita, nem o conteúdo, nem o `code`, nem a posição, senão reexecutar o seed desfaria edição
+// feita pelo painel. Antes da N.23 era `onConflictDoUpdate`, pra a autoria em blocos (7.1.1 a 7.1.6)
+// atualizar lições já seedadas; a partir daqui, mudar uma lição existente é pelo painel, e este arquivo
+// só ganha lição nova pra instalações novas. Devolve a linha criada, ou `undefined` se já existia.
+export async function importLessonSeed(db: Database, seed: LessonSeed) {
   const [row] = await db
     .insert(lessons)
     .values({ id: randomUUID(), ...seed })
-    .onConflictDoUpdate({
-      target: lessons.stableKey,
-      set: {
-        code: seed.code,
-        trackNumber: seed.trackNumber,
-        trackName: seed.trackName,
-        sortOrder: seed.sortOrder,
-        title: seed.title,
-        centralConcept: seed.centralConcept,
-        scenarioText: seed.scenarioText,
-        microDecisionPrompt: seed.microDecisionPrompt,
-        microDecisionType: seed.microDecisionType,
-        microDecisionAssetTicker: seed.microDecisionAssetTicker,
-        microDecisionOptions: seed.microDecisionOptions,
-        microDecisionCorrectOption: seed.microDecisionCorrectOption,
-        revelationText: seed.revelationText,
-        unlocksDescription: seed.unlocksDescription,
-        unlocksKeys: seed.unlocksKeys,
-        unlocksAssetTicker: seed.unlocksAssetTicker,
-      },
-    })
+    .onConflictDoNothing({ target: lessons.stableKey })
     .returning()
   return row
 }
 
-// Idempotente: DATABASE_URL=... npm run db:seed:lessons
+// Idempotente e não destrutivo: DATABASE_URL=... npm run db:seed:lessons
 async function main() {
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
@@ -1492,8 +1472,10 @@ async function main() {
 
   const db = createDb(databaseUrl)
   for (const seed of LESSON_SEEDS) {
-    const row = await upsertLessonSeed(db, seed)
-    console.log(row ? `lição ${seed.code} criada/atualizada` : `lição ${seed.code} sem alteração`)
+    const row = await importLessonSeed(db, seed)
+    console.log(
+      row ? `lição ${seed.code} importada` : `lição ${seed.code} já existe, mantida como está`,
+    )
   }
   process.exit(0)
 }

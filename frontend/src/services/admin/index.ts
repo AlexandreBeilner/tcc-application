@@ -6,6 +6,12 @@ import type {
     CatalogAchievement,
     CatalogMission,
     AdminLesson,
+    AdminLessonContent,
+    AdminLessonForEdit,
+    LessonCreateInput,
+    LessonCreateResult,
+    LessonRevisionContent,
+    LessonSaveResult,
     LessonPublicationResult,
     CreateAchievementInput,
     UpdateAchievementInput,
@@ -53,6 +59,15 @@ import type {
 
 export type {
     AdminLesson,
+    AdminLessonContent,
+    AdminLessonDetail,
+    AdminLessonForEdit,
+    LessonCreateInput,
+    LessonCreateResult,
+    LessonRevisionAction,
+    LessonRevisionContent,
+    LessonRevisionItem,
+    LessonSaveResult,
     LessonFunnel,
     LessonMicroDecisionType,
     LessonPublicationResult,
@@ -428,4 +443,24 @@ export function getAdminLessons(token: string) {
 
 export function setLessonPublished(token: string, id: string, published: boolean) {
     return apiRequest<LessonPublicationResult>(`/admin/lessons/${id}/published`, { token, method: 'PATCH', body: { published } })
+}
+
+export function getAdminLesson(token: string, id: string) {
+    return apiRequest<AdminLessonForEdit>(`/admin/lessons/${id}`, { token })
+}
+
+export function updateAdminLesson(token: string, id: string, content: AdminLessonContent) {
+    return apiRequest<LessonSaveResult>(`/admin/lessons/${id}`, { token, method: 'PUT', body: content })
+}
+
+export function createAdminLesson(token: string, input: LessonCreateInput) {
+    return apiRequest<LessonCreateResult>('/admin/lessons', { token, method: 'POST', body: input })
+}
+
+export function getLessonRevision(token: string, lessonId: string, revisionId: string) {
+    return apiRequest<LessonRevisionContent>(`/admin/lessons/${lessonId}/revisions/${revisionId}`, { token })
+}
+
+export function restoreLessonRevision(token: string, lessonId: string, revisionId: string) {
+    return apiRequest<LessonSaveResult>(`/admin/lessons/${lessonId}/revisions/${revisionId}/restore`, { token, method: 'POST' })
 }

@@ -287,6 +287,8 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 
 **Total: 35 lições** (5 + 11 + 15 + 4 — Trilha 1 ganhou 2 lições na tarefa M.5, backlog-motor-mercado-realista, sobre o mecanismo real por trás de Selic/IPCA), todas reaproveitando o mesmo componente de UI (5.2).
 
+**Fonte da verdade do conteúdo (N.23, decisão do autor de 2026-10-03):** o conteúdo das lições vive no **banco**, não em arquivo. O `seedLessons.ts` é só a importação inicial (insere o que falta, por `stable_key`, e nunca sobrescreve uma lição existente); a edição e a criação de lições são feitas no painel administrativo (`/admin/conteudo`), com histórico de revisões (`lesson_revisions`) e a regra de dispensa da N.24 pra lição criada no meio do currículo.
+
 ### 5.2 Padrão de lição ("aprender fazendo")
 
 Toda lição segue o mesmo formato, reaproveitável entre produtos parecidos (CDB, LCI, LCA, CRI, CRA compartilham estrutura de tela e mecânica):

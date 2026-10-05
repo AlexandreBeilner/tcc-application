@@ -1,35 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { upsertLessonSeed, type LessonSeed } from './seedLessons'
+import { importLessonSeed, LESSON_SEEDS, type LessonSeed } from './seedLessons'
 import { lessons } from './schema'
 import type { Database } from './client'
+import { checkLessonContent, contentOf } from '../modules/lessons/domain/lessonContent'
 
-// Fake mínimo do subconjunto de `Database` que `upsertLessonSeed` usa
-// (`insert(lessons).values(v).onConflictDoUpdate({ target, set }).returning()`),
-// reimplementando a semântica de `ON CONFLICT (<target>) DO UPDATE` do
-// Postgres o suficiente pra provar o cenário do achado 010: casar por
-// `stableKey` (não `code`) atualiza a linha física existente em vez de criar
-// uma nova, preservando `id`.
+// Fake mínimo do subconjunto de `Database` que `importLessonSeed` usa
+// (`insert(lessons).values(v).onConflictDoNothing({ target }).returning()`), reimplementando a
+// semântica de `ON CONFLICT (<target>) DO NOTHING` do Postgres o suficiente pra provar o contrato da
+// N.23: casar por `stableKey` e nunca sobrescrever uma lição existente.
 function createFakeLessonsDb() {
   const rows: Array<Record<string, unknown>> = []
 
   const db = {
     insert: () => ({
       values: (value: Record<string, unknown>) => ({
-        onConflictDoUpdate: ({
-          target,
-          set,
-        }: {
-          target: unknown
-          set: Record<string, unknown>
-        }) => ({
+        onConflictDoNothing: ({ target }: { target: unknown }) => ({
           returning: async () => {
             if (target !== lessons.stableKey) {
-              throw new Error('fake só reproduz onConflictDoUpdate com target: lessons.stableKey')
+              throw new Error('fake só reproduz onConflictDoNothing com target: lessons.stableKey')
             }
-            const existing = rows.find((row) => row.stableKey === value.stableKey)
-            if (existing) {
-              Object.assign(existing, set)
-              return [existing]
+            if (rows.some((row) => row.stableKey === value.stableKey)) {
+              return []
             }
             const inserted = { ...value }
             rows.push(inserted)
@@ -66,51 +57,67 @@ function buildSeed(overrides: Partial<LessonSeed> = {}): LessonSeed {
   }
 }
 
-describe('upsertLessonSeed', () => {
+describe('importLessonSeed', () => {
   it('primeira execução insere uma linha nova', async () => {
     const { db, rows } = createFakeLessonsDb()
 
-    await upsertLessonSeed(db, buildSeed())
+    const created = await importLessonSeed(db, buildSeed())
 
+    expect(created).toBeDefined()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ stableKey: '1.3', code: '1.3' })
   })
 
-  it('achado 010: renumerar `code` mantendo o mesmo `stableKey` atualiza a linha existente, não cria uma nova, e preserva `id`', async () => {
+  it('N.23: reexecutar o seed não desfaz edição feita pelo painel (conteúdo, code e posição ficam como estão)', async () => {
     const { db, rows } = createFakeLessonsDb()
-
-    await upsertLessonSeed(db, buildSeed({ stableKey: '1.3', code: '1.3', title: 'CDB e o CDI' }))
+    await importLessonSeed(db, buildSeed())
     const originalId = rows[0].id
+    // O painel edita o conteúdo e a lição segue a vida.
+    Object.assign(rows[0], {
+      title: 'CDB e o CDI (editada no painel)',
+      scenarioText: 'texto novo',
+      code: '1.9',
+      sortOrder: 20,
+    })
 
-    // Simula a renumeração da M.5: o `code` avança um degrau, mas o
-    // `stableKey` (imutável) continua o mesmo — é a mesma lição de sempre.
-    await upsertLessonSeed(
-      db,
-      buildSeed({ stableKey: '1.3', code: '1.4', title: 'CDB e o CDI (renumerada)' }),
-    )
+    const second = await importLessonSeed(db, buildSeed())
 
+    expect(second).toBeUndefined()
     expect(rows).toHaveLength(1)
-    expect(rows[0].id).toBe(originalId)
-    expect(rows[0].code).toBe('1.4')
-    expect(rows[0].title).toBe('CDB e o CDI (renumerada)')
+    expect(rows[0]).toMatchObject({
+      id: originalId,
+      title: 'CDB e o CDI (editada no painel)',
+      scenarioText: 'texto novo',
+      code: '1.9',
+      sortOrder: 20,
+    })
   })
 
-  it('duas lições com `stableKey` diferentes nunca colidem, mesmo que uma passe a ocupar o `code` que a outra vacou', async () => {
+  it('lição nova (stableKey novo) é inserida ao lado das existentes', async () => {
     const { db, rows } = createFakeLessonsDb()
 
-    await upsertLessonSeed(db, buildSeed({ stableKey: '1.3', code: '1.3' }))
-    // Renumeração (mesmo efeito da M.5): a lição acima vaca o `code` '1.3'
-    // ao avançar pro seu novo degrau.
-    await upsertLessonSeed(db, buildSeed({ stableKey: '1.3', code: '1.4' }))
-    // Lição nova: nasce ocupando o `code` que acabou de ser vacado, mas é
-    // conteúdo diferente (`stableKey` próprio) — vira linha própria, não
-    // sobrescreve a outra.
-    await upsertLessonSeed(
+    await importLessonSeed(db, buildSeed({ stableKey: '1.3', code: '1.3' }))
+    await importLessonSeed(
       db,
-      buildSeed({ stableKey: 'selic-formacao', code: '1.3', title: 'Como a Selic é formada' }),
+      buildSeed({ stableKey: 'selic-formacao', code: '1.4', title: 'Como a Selic é formada' }),
     )
 
-    expect(rows).toHaveLength(2)
-    expect(rows.map((row) => row.code).sort()).toEqual(['1.3', '1.4'])
+    expect(rows.map((row) => row.stableKey)).toEqual(['1.3', 'selic-formacao'])
+  })
+})
+
+describe('LESSON_SEEDS', () => {
+  it('todas as 35 lições do seed passam na validação de conteúdo do domínio (o painel não recusa o que o seed importa)', () => {
+    expect(LESSON_SEEDS).toHaveLength(35)
+    for (const seed of LESSON_SEEDS) {
+      const { errors } = checkLessonContent(contentOf(seed))
+      expect({ code: seed.code, errors }).toEqual({ code: seed.code, errors: [] })
+    }
+  })
+
+  it('stableKey, code e sortOrder são únicos', () => {
+    for (const key of ['stableKey', 'code', 'sortOrder'] as const) {
+      expect(new Set(LESSON_SEEDS.map((s) => s[key])).size).toBe(LESSON_SEEDS.length)
+    }
   })
 })

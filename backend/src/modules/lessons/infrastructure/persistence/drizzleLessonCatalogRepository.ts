@@ -1,11 +1,16 @@
-import { asc, eq, sql } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
-import { lessons } from '../../../../db/schema'
+import { lessonRevisions, lessons, users } from '../../../../db/schema'
 import type {
   CatalogRow,
   LessonCatalogRepository,
+  LessonRevision,
+  LessonRevisionSummary,
+  RevisionAction,
 } from '../../application/ports/lessonCatalogRepository'
 import type { CatalogLesson, LessonFunnelCounts } from '../../domain/lessonCatalog'
+import { contentOf, type LessonContent } from '../../domain/lessonContent'
 
 export function toCatalogLesson(row: typeof lessons.$inferSelect): CatalogLesson {
   return {
@@ -62,6 +67,62 @@ function emptyCounts(): LessonFunnelCounts {
     betCorrect: 0,
     abandonedByStep: [0, 0, 0, 0],
   }
+}
+
+// Colunas de conteúdo de uma lição (as mesmas do `LessonContent`), pra INSERT e UPDATE.
+function contentColumns(content: LessonContent) {
+  return {
+    title: content.title,
+    centralConcept: content.centralConcept,
+    scenarioText: content.scenarioText,
+    microDecisionPrompt: content.microDecisionPrompt,
+    microDecisionType: content.microDecisionType,
+    microDecisionAssetTicker: content.microDecisionAssetTicker,
+    microDecisionOptions: content.microDecisionOptions,
+    microDecisionCorrectOption: content.microDecisionCorrectOption,
+    revelationText: content.revelationText,
+    unlocksDescription: content.unlocksDescription,
+    unlocksKeys: content.unlocksKeys,
+    unlocksAssetTicker: content.unlocksAssetTicker,
+  }
+}
+
+// Serializa criação de lição e publicação (renumeração de `sort_order` e dispensa não podem
+// intercalar). Lock de transação: solta sozinho no commit ou rollback.
+const LESSON_ORDER_LOCK = 7231001
+
+function toSummary(row: {
+  id: string
+  action: string
+  adminId: string | null
+  adminUsername: string | null
+  createdAt: Date
+}): LessonRevisionSummary {
+  return {
+    id: row.id,
+    action: row.action as RevisionAction,
+    adminId: row.adminId,
+    adminUsername: row.adminUsername,
+    createdAt: row.createdAt,
+  }
+}
+
+// Próximo código livre da trilha ("N.k", com k acima de todos os segundos segmentos já usados nela).
+// O `code` é só rótulo de posição didática (a ordem real é `sort_order`), então a lição nova pode
+// ter um código que não segue a ordem; renumerar as outras é fora do escopo (identidade imutável).
+async function nextCode(tx: Tx, trackNumber: number): Promise<string> {
+  const rows = await tx.select({ code: lessons.code }).from(lessons)
+  const used = new Set(rows.map((r) => r.code))
+  let highest = 0
+  for (const code of used) {
+    const [track, second] = code.split('.')
+    if (Number(track) === trackNumber && /^\d+$/.test(second ?? '')) {
+      highest = Math.max(highest, Number(second))
+    }
+  }
+  let candidate = highest + 1
+  while (used.has(`${trackNumber}.${candidate}`)) candidate++
+  return `${trackNumber}.${candidate}`
 }
 
 export function createDrizzleLessonCatalogRepository(db: Database): LessonCatalogRepository {
@@ -139,6 +200,123 @@ export function createDrizzleLessonCatalogRepository(db: Database): LessonCatalo
         const waivedUsers = published ? await waiveForPublishedLesson(tx, updated.id) : 0
         return { lesson: toCatalogLesson(updated), waivedUsers }
       })
+    },
+
+    async updateContent(id, content, actorId, action) {
+      return db.transaction(async (tx) => {
+        const [current] = await tx.select().from(lessons).where(eq(lessons.id, id)).for('update')
+        if (!current) {
+          return undefined
+        }
+        const [existing] = await tx
+          .select({ id: lessonRevisions.id })
+          .from(lessonRevisions)
+          .where(eq(lessonRevisions.lessonId, id))
+          .limit(1)
+        if (!existing) {
+          // Lição vinda do seed, editada pela primeira vez: guarda o original antes de mudar, com
+          // a data de criação da lição (distinta da edição, que vem a seguir na mesma transação).
+          await tx.insert(lessonRevisions).values({
+            lessonId: id,
+            adminId: null,
+            action: 'baseline',
+            snapshot: contentOf(toCatalogLesson(current)) as unknown as Record<string, unknown>,
+            createdAt: current.createdAt,
+          })
+        }
+        const [updated] = await tx
+          .update(lessons)
+          .set(contentColumns(content))
+          .where(eq(lessons.id, id))
+          .returning()
+        await tx.insert(lessonRevisions).values({
+          lessonId: id,
+          adminId: actorId,
+          action,
+          snapshot: content as unknown as Record<string, unknown>,
+        })
+        return toCatalogLesson(updated)
+      })
+    },
+
+    async create(input, actorId) {
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${LESSON_ORDER_LOCK})`)
+
+        const [anchor] = input.afterLessonId
+          ? await tx.select().from(lessons).where(eq(lessons.id, input.afterLessonId))
+          : await tx.select().from(lessons).orderBy(asc(lessons.sortOrder)).limit(1)
+        if (!anchor) {
+          return undefined
+        }
+        // Depois de `anchor`, na trilha dele; sem referência, antes de todas (posição da primeira).
+        const sortOrder = input.afterLessonId ? anchor.sortOrder + 1 : anchor.sortOrder
+
+        // `sort_order` é UNIQUE e a coluna única: desloca as seguintes em duas passadas (pelo
+        // negativo), senão a primeira linha movida colidiria com a vizinha.
+        await tx.execute(
+          sql`UPDATE lessons SET sort_order = -(sort_order + 1) WHERE sort_order >= ${sortOrder}`,
+        )
+        await tx.execute(sql`UPDATE lessons SET sort_order = -sort_order WHERE sort_order < 0`)
+
+        const code = await nextCode(tx, anchor.trackNumber)
+        const [created] = await tx
+          .insert(lessons)
+          .values({
+            // 'adm-' + 12 hex: não colide com as chaves do seed (que são o próprio código).
+            stableKey: `adm-${randomUUID().replaceAll('-', '').slice(0, 12)}`,
+            code,
+            trackNumber: anchor.trackNumber,
+            trackName: anchor.trackName,
+            sortOrder,
+            published: true,
+            ...contentColumns(input.content),
+          })
+          .returning()
+
+        const waivedUsers = await waiveForPublishedLesson(tx, created.id)
+        await tx.insert(lessonRevisions).values({
+          lessonId: created.id,
+          adminId: actorId,
+          action: 'create',
+          snapshot: input.content as unknown as Record<string, unknown>,
+        })
+        return { lesson: toCatalogLesson(created), waivedUsers }
+      })
+    },
+
+    async listRevisions(lessonId) {
+      const rows = await db
+        .select({
+          id: lessonRevisions.id,
+          action: lessonRevisions.action,
+          adminId: lessonRevisions.adminId,
+          adminUsername: users.username,
+          createdAt: lessonRevisions.createdAt,
+        })
+        .from(lessonRevisions)
+        .leftJoin(users, eq(users.id, lessonRevisions.adminId))
+        .where(eq(lessonRevisions.lessonId, lessonId))
+        .orderBy(desc(lessonRevisions.createdAt))
+      return rows.map(toSummary)
+    },
+
+    async findRevision(lessonId, revisionId): Promise<LessonRevision | undefined> {
+      const [row] = await db
+        .select({
+          id: lessonRevisions.id,
+          action: lessonRevisions.action,
+          adminId: lessonRevisions.adminId,
+          adminUsername: users.username,
+          createdAt: lessonRevisions.createdAt,
+          snapshot: lessonRevisions.snapshot,
+        })
+        .from(lessonRevisions)
+        .leftJoin(users, eq(users.id, lessonRevisions.adminId))
+        .where(and(eq(lessonRevisions.id, revisionId), eq(lessonRevisions.lessonId, lessonId)))
+      return row
+        ? { ...toSummary(row), content: row.snapshot as unknown as LessonContent }
+        : undefined
     },
   }
 }

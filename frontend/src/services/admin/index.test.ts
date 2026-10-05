@@ -38,7 +38,12 @@ import {
     setAdminUserStreak,
     createAchievement,
     getAchievementCatalog,
+    createAdminLesson,
+    getAdminLesson,
     getAdminLessons,
+    getLessonRevision,
+    restoreLessonRevision,
+    updateAdminLesson,
     getAdminRanking,
     getMissionCatalog,
     setLessonPublished,
@@ -418,6 +423,26 @@ describe('services/admin', () => {
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/lessons/l1/published')
         expect(fetchMock.mock.calls[1][1].method).toBe('PATCH')
         expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ published: false })
+    })
+
+    it('editor de lições: GET, PUT com o conteúdo, POST de criação e revisões', async () => {
+        const fetchMock = mockFetchOnce({})
+        const content = { title: 'x' } as never
+        await getAdminLesson('token', 'l1')
+        await updateAdminLesson('token', 'l1', content)
+        await createAdminLesson('token', { ...(content as object), after_lesson_id: null } as never)
+        await getLessonRevision('token', 'l1', 'r1')
+        await restoreLessonRevision('token', 'l1', 'r1')
+        const calls = fetchMock.mock.calls.map((c) => [c[0], c[1]?.method ?? 'GET'])
+        expect(calls).toEqual([
+            ['/admin/lessons/l1', 'GET'],
+            ['/admin/lessons/l1', 'PUT'],
+            ['/admin/lessons', 'POST'],
+            ['/admin/lessons/l1/revisions/r1', 'GET'],
+            ['/admin/lessons/l1/revisions/r1/restore', 'POST'],
+        ])
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ title: 'x' })
+        expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ title: 'x', after_lesson_id: null })
     })
 
     it('getAdminRanking monta a query e omite a janela no critério de nível', async () => {

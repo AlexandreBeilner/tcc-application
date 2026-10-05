@@ -1,0 +1,52 @@
+/* Progresso fino interno à fase (tarefa A.1) — pontinhos menores que os
+   segmentos da barra de 4 fases, marcando a posição entre cartões. */
+.cardDots {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.cardDot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+}
+
+.cardDot.done {
+    background: var(--color-gamify-500);
+}
+
+.cardDot.current {
+    background: var(--color-brand-500);
+}
+
+.body {
+    margin: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+
+/* Elenco recorrente (tarefa C.2) — sublinhado sólido (navega de verdade),
+   diferente do tracejado do `GlossaryTerm` (só mostra um popover no lugar). */
+.refLink {
+    color: var(--color-brand-300);
+    text-decoration: underline;
+}
+
+/* Revelação progressiva (tarefa A.3) — mesma altura/alinhamento do `.body`
+   que substitui, pra não pular layout quando o texto aparece no lugar. */
+.revealButton {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-brand-300);
+    background: none;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+}
