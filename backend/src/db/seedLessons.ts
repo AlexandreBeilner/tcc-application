@@ -26,6 +26,14 @@ import {
   BLOCKS_2_5,
   BLOCKS_B3_CORRETORA_ORDENS,
 } from './lessonContentTrilha2'
+import {
+  BLOCKS_2_7_1,
+  BLOCKS_2_7_2,
+  BLOCKS_2_7_3,
+  BLOCKS_2_7_4,
+  BLOCKS_2_7_5,
+  BLOCKS_2_7_7,
+} from './lessonContentTrilha2Empresa'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -650,32 +658,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     title: 'Lendo um balanço',
     centralConcept:
       'Peças básicas: Receita, EBIT, Lucro Líquido, Patrimônio Líquido, Dívida Bruta, Caixa',
-    scenarioText:
-      'Por trás de VALR3 existe uma empresa de verdade, a Mineradora Vale do Rio, e o motor de simulação ' +
-      'gera um relatório financeiro dela a cada ciclo, com seis números.' +
-      '\n\n' +
-      'Receita Líquida (o que ela faturou), EBIT (lucro operacional, antes de juros e impostos), Lucro ' +
-      'Líquido (o que sobra depois de tudo), Patrimônio Líquido (o que a empresa vale, descontadas as ' +
-      'dívidas), Dívida Bruta e Caixa.',
-    microDecisionPrompt:
-      'Entre EBIT e Lucro Líquido, um deles é calculado primeiro, antes de descontar juros e impostos. Você ' +
-      'acha que esse é sempre maior ou sempre menor que o Lucro Líquido final?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
-    microDecisionOptions: ['Maior', 'Menor'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'EBIT vem primeiro e costuma ser maior que o Lucro Líquido, já que ainda falta descontar juros da ' +
-      'dívida e impostos antes de chegar ao resultado final.' +
-      '\n\n' +
-      'Patrimônio Líquido não é caixa: é a diferença entre tudo que a empresa tem e tudo que ela deve, ' +
-      'acumulada ao longo do tempo.' +
-      '\n\n' +
-      'Dívida Bruta e Caixa, sozinhos, ainda não dizem se a empresa está endividada de verdade: isso só ' +
-      'aparece juntando os dois, na lição 2.6.5.' +
-      '\n\n' +
-      'Esses seis números são a base de todo indicador que você vai calcular daqui pra frente; veja abaixo ' +
-      'o painel calculado ao vivo pra VALR3 a partir do relatório mais recente dela.',
+    scenarioText: legacyText(BLOCKS_2_7_1, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_1, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim, é o valor de mercado', 'Não, é o valor contábil', 'Só se a empresa não tiver dívida'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_7_1, 'revelation'),
+    blocks: BLOCKS_2_7_1,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -688,30 +678,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 26,
     title: 'Margens de rentabilidade',
     centralConcept: 'O que é EBIT na prática, diferença para lucro líquido',
-    scenarioText:
-      'Duas empresas podem faturar o mesmo e sobrar valores bem diferentes no fim: o que importa não é só ' +
-      'quanto a Mineradora Vale do Rio (VALR3) fatura, mas que fração desse faturamento ela mantém como ' +
-      'lucro, em cada etapa do resultado.' +
-      '\n\n' +
-      'É isso que uma margem mede: um lucro dividido pela receita que o gerou.',
-    microDecisionPrompt:
-      'Margem EBIT usa o lucro operacional (antes de juros e impostos); Margem Líquida usa o que sobra no ' +
-      'fim, depois de tudo descontado. Pra VALR3, você espera que a Margem Líquida seja maior ou menor que a ' +
-      'Margem EBIT?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
-    microDecisionOptions: ['Maior', 'Menor'],
+    scenarioText: legacyText(BLOCKS_2_7_2, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_2, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Empresa A', 'Empresa B', 'Empatam'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Margem EBIT = EBIT / Receita Líquida; Margem Líquida = Lucro Líquido / Receita Líquida.' +
-      '\n\n' +
-      'Como o Lucro Líquido já descontou juros e impostos que o EBIT ainda não descontou, a Margem Líquida ' +
-      'costuma ser menor que a Margem EBIT.' +
-      '\n\n' +
-      'A diferença entre as duas mostra quanto do resultado operacional a empresa perde pra dívida e ' +
-      'impostos antes de chegar ao lucro final.' +
-      '\n\n' +
-      'Veja abaixo as duas margens calculadas ao vivo pra VALR3, a partir do relatório mais recente.',
+    revelationText: legacyText(BLOCKS_2_7_2, 'revelation'),
+    blocks: BLOCKS_2_7_2,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -724,30 +698,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 27,
     title: 'Endividamento',
     centralConcept: 'Risco de alavancagem',
-    scenarioText:
-      'Dívida Bruta alta assusta à primeira vista, mas sozinha não conta a história inteira: uma empresa com ' +
-      'muita dívida e ainda mais Caixa parado pode estar bem mais segura que uma com pouca dívida e nenhum ' +
-      'Caixa de reserva.',
-    microDecisionPrompt:
-      'Se a Dívida Bruta de uma empresa é alta, mas o Caixa dela é ainda mais alto, a Dívida Líquida ' +
-      '(Dívida Bruta menos Caixa) dessa empresa é alta ou baixa?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
+    scenarioText: legacyText(BLOCKS_2_7_3, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_3, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
     microDecisionOptions: ['Alta', 'Baixa'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Baixa, podendo até ser negativa: Dívida Líquida = Dívida Bruta − Caixa, então quando o Caixa supera a ' +
-      'Dívida Bruta, a empresa tem, na prática, mais dinheiro guardado do que deve.' +
-      '\n\n' +
-      'O indicador Dívida Líquida/EBIT vai além, comparando essa dívida líquida com a capacidade de geração ' +
-      'de caixa operacional da empresa. O resultado é, em anos de {{EBIT}}, quanto tempo levaria pra quitar a ' +
-      'dívida líquida se todo o resultado operacional fosse usado só pra isso.' +
-      '\n\n' +
-      'Esse indicador pesa ainda mais numa empresa de perfil sofisticado como o Banco Nordeste Digital ' +
-      '(BNDD4), mais sensível a mudanças na Selic, já que juros mais altos encarecem ' +
-      'justamente a dívida que entra nessa conta.' +
-      '\n\n' +
-      'Veja abaixo a Dívida Líquida/EBIT calculada ao vivo pra VALR3.',
+    revelationText: legacyText(BLOCKS_2_7_3, 'revelation'),
+    blocks: BLOCKS_2_7_3,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -760,27 +718,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 28,
     title: 'Retorno sobre patrimônio (ROE)',
     centralConcept: 'Quão bem a empresa usa o capital dos sócios',
-    scenarioText:
-      'Imagine duas empresas com o mesmo Lucro Líquido, mas uma precisou de um Patrimônio Líquido bem maior ' +
-      'que a outra pra chegar nesse resultado. As duas lucraram igual, mas usaram o capital dos sócios com a ' +
-      'mesma eficiência?',
-    microDecisionPrompt:
-      'Se a Mineradora Vale do Rio (VALR3, {{ref:2.1}}) e o Banco Nordeste Digital (BNDD4, {{ref:2.2}}) tivessem o mesmo Lucro ' +
-      'Líquido, mas a VALR3 precisasse de um Patrimônio Líquido menor pra chegar lá, qual das duas estaria ' +
-      'usando melhor o capital dos seus sócios?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
-    microDecisionOptions: ['VALR3 (Mineradora)', 'BNDD4 (Banco)'],
+    scenarioText: legacyText(BLOCKS_2_7_4, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_4, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Empresa A', 'Empresa B', 'Empatam'],
     microDecisionCorrectOption: 0,
-    revelationText:
-      'A VALR3 estaria usando melhor: ROE = Lucro Líquido / Patrimônio Líquido mede quanto lucro a empresa ' +
-      'gera pra cada real de capital que os sócios colocaram nela.' +
-      '\n\n' +
-      'Então, pra um mesmo lucro, menos patrimônio empregado significa ROE mais alto e capital mais bem ' +
-      'aproveitado. É por isso que ROE alto é lido como sinal de boa gestão do capital próprio, não só de ' +
-      'lucro alto em valor absoluto.' +
-      '\n\n' +
-      'Veja abaixo o ROE calculado ao vivo pra VALR3.',
+    revelationText: legacyText(BLOCKS_2_7_4, 'revelation'),
+    blocks: BLOCKS_2_7_4,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -793,28 +738,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 29,
     title: 'Indicadores de preço (P/L e P/VP)',
     centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
-    scenarioText:
-      'O preço de VALR3 sozinho não diz se a ação está cara ou barata: R$20 pode ser caro pra uma empresa ' +
-      'que lucra pouco por ação e barato pra uma que lucra muito.' +
-      '\n\n' +
-      'Pra comparar preço com o que a empresa de fato entrega, primeiro é preciso trazer Lucro Líquido e ' +
-      'Patrimônio Líquido pra base "por ação".',
-    microDecisionPrompt:
-      'Se o preço de VALR3 triplicar de um dia pro outro, mas o Lucro Líquido por ação dela continuar o ' +
-      'mesmo, o P/L (Preço / Lucro por ação) sobe, desce ou fica igual?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
+    scenarioText: legacyText(BLOCKS_2_7_5, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_5, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
     microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
     microDecisionCorrectOption: 0,
-    revelationText:
-      'LPA (lucro por ação) = Lucro Líquido / número de ações; P/L = Preço / LPA.' +
-      '\n\n' +
-      'Com o LPA parado e o preço triplicando, o P/L também triplica: o mercado passa a pagar três vezes ' +
-      'mais por cada real de lucro que a empresa gera, ou seja, a ação fica mais "cara" nesse critério.' +
-      '\n\n' +
-      'O mesmo raciocínio vale pro par VPA (Patrimônio Líquido / número de ações) e P/VP (Preço / VPA), só ' +
-      'que comparando preço ao patrimônio da empresa em vez de ao lucro. Veja abaixo os quatro calculados ao ' +
-      'vivo pra VALR3.',
+    revelationText: legacyText(BLOCKS_2_7_5, 'revelation'),
+    blocks: BLOCKS_2_7_5,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -864,31 +795,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 31,
     title: 'Dividend Yield',
     centralConcept: 'Quanto a ação "paga" em relação ao preço',
-    scenarioText:
-      'Além de poder valorizar de preço, VALR3 pode distribuir parte do lucro da Mineradora Vale do Rio ' +
-      'direto pros seus acionistas, em dinheiro, os dividendos (ou proventos).' +
-      '\n\n' +
-      'O Dividend Yield resume, num só número, quanto isso representa frente ao preço atual da ação.',
-    microDecisionPrompt:
-      'Se o preço de VALR3 dobrar de um dia pro outro, mas os dividendos pagos por ação nos últimos 12 ' +
-      'meses continuarem os mesmos, o Dividend Yield sobe, desce ou fica igual?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
+    scenarioText: legacyText(BLOCKS_2_7_7, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_7, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
     microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Desce: Dividend Yield = soma dos dividendos pagos por ação nos últimos 12 meses / Preço atual, então, ' +
-      'com o numerador parado, dobrar o preço corta o Dividend Yield pela metade.' +
-      '\n\n' +
-      'É por isso que um Dividend Yield alto pode significar tanto uma empresa boa pagadora de dividendos ' +
-      'quanto uma ação com o preço em queda, sem que os dividendos tenham mudado.' +
-      '\n\n' +
-      'Nunca leia esse número sozinho, sem olhar o preço e o histórico de pagamentos por trás dele. Você ' +
-      'encontra esse histórico completo, com cada valor e cada data de pagamento, na tela de Detalhe do ' +
-      'Ativo de qualquer ação.' +
-      '\n\n' +
-      'Veja abaixo o Dividend Yield calculado ao vivo pra VALR3, o último dos 9 indicadores ' +
-      'fundamentalistas do currículo; a próxima lição explica como e quando esse pagamento chega até você.',
+    revelationText: legacyText(BLOCKS_2_7_7, 'revelation'),
+    blocks: BLOCKS_2_7_7,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,

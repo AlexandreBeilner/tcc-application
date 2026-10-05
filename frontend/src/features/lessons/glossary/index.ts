@@ -34,7 +34,37 @@ export const glossary: Record<string, GlossaryEntry> = {
         example: 'Uma LCI isenta de 9% ao ano equivale a um CDB tributado a 15% de IR pagando 9 / 0,85, cerca de 10,59% ao ano.',
         originLesson: '1.7',
     },
-    EBIT: { definition: 'Lucro operacional da empresa, antes de descontar juros e impostos.', originLesson: '2.7.2' },
+    EBIT: { definition: 'Lucro operacional da empresa, antes de descontar juros e impostos.', originLesson: '2.7.1' },
+    'receita líquida': {
+        definition: 'Tudo o que a empresa vendeu no período, já sem os impostos sobre a venda.',
+        originLesson: '2.7.1',
+    },
+    'lucro líquido': {
+        definition: 'O que sobra da receita depois de descontar custos, despesas, juros e impostos.',
+        originLesson: '2.7.1',
+    },
+    'patrimônio líquido': {
+        definition: 'Valor contábil dos sócios: o que a empresa tem menos o que ela deve. Não é o valor dela na bolsa.',
+        example: 'Bens e direitos de R$900 milhões e dívidas de R$600 milhões dão patrimônio líquido de R$300 milhões.',
+        originLesson: '2.7.1',
+    },
+    margem: {
+        definition: 'Lucro de uma etapa do resultado dividido pela receita líquida. Mostra quanto de cada real vendido vira lucro.',
+        example: 'Receita de R$800 milhões e EBIT de R$120 milhões dão margem EBIT de 15%.',
+        originLesson: '2.7.2',
+    },
+    'dívida líquida': {
+        definition: 'Dívida bruta menos o caixa. Pode ser negativa quando a empresa tem mais dinheiro guardado do que deve.',
+        originLesson: '2.7.3',
+    },
+    LPA: {
+        definition: 'Lucro por ação: lucro líquido dividido pelo número de ações da empresa.',
+        originLesson: '2.7.5',
+    },
+    VPA: {
+        definition: 'Valor patrimonial por ação: patrimônio líquido dividido pelo número de ações da empresa.',
+        originLesson: '2.7.5',
+    },
     'Dividend Yield': {
         definition: 'Soma dos dividendos pagos por ação ou cota nos últimos 12 meses, dividida pelo preço atual.',
         example: 'R$3,00 de dividendos em 12 meses sobre uma ação de R$50,00 dá Dividend Yield de 6%.',
