@@ -51,17 +51,15 @@ export const TERM_RULES: TermRule[] = [
     id: 'ticker',
     label: 'ticker',
     pattern: /\bticker/i,
-    definedIn: null,
-    plannedIn: 'RC.4.2',
+    definedIn: '2.1',
     glossaryKeys: ['ticker'],
   },
   {
     id: 'on-pn',
     label: 'ON/PN',
     pattern: /\b(ON|PN)\b/,
-    definedIn: null,
-    plannedIn: 'RC.4.2',
-    glossaryKeys: ['ON', 'PN'],
+    definedIn: '2.3',
+    glossaryKeys: ['ON e PN', 'ação ordinária', 'ação preferencial'],
   },
   {
     id: 'valor-de-face',
@@ -102,8 +100,11 @@ export const TERM_RULES: TermRule[] = [
   {
     id: 'valor-de-mercado',
     label: 'valor de mercado',
-    pattern: /valor de mercado/i,
-    definedIn: '2.2',
+    // Só o valor de mercado da empresa (preço x ações). O "valor de mercado" de um
+    // título público (o preço de recompra do dia) é outro conceito, da lição de
+    // marcação a mercado, e não é o que a 2.1 define.
+    pattern: /valor de mercado d[ao]s? (empresa|companhia)|market cap/i,
+    definedIn: '2.1',
     glossaryKeys: ['valor de mercado'],
   },
   { id: 'nav', label: 'NAV', pattern: /\bNAV\b/, definedIn: '2.10', glossaryKeys: ['NAV'] },
@@ -126,7 +127,8 @@ export const TERM_RULES: TermRule[] = [
     id: 'liquidez',
     label: 'liquidez',
     pattern: /liquidez/i,
-    definedIn: '2.5',
+    // A reserva de emergência (1.3) define inline; a 2.5 volta ao termo no livro de ofertas.
+    definedIn: '1.3',
     glossaryKeys: ['liquidez'],
   },
   {

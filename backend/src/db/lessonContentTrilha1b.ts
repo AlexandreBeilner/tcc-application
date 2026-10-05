@@ -73,7 +73,7 @@ export const BLOCKS_1_2: LessonBlocks = {
         markup:
           'Você tem R$ 1.000 e empresta ao Tesouro Nacional, que devolve o valor corrigido pela Selic a cada dia útil.' +
           '\n\n' +
-          'É o Tesouro Selic (também chamado LFT): um título público pós-fixado, de alta liquidez e baixa oscilação de preço.',
+          'É o Tesouro Selic (também chamado LFT): um título público pós-fixado, de alta {{liquidez}} e baixa oscilação de preço.',
       },
       {
         type: 'check',

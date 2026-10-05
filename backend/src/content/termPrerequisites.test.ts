@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { LESSON_SEEDS } from '../db/seedLessons'
 import { findTermViolations, TERM_RULES } from '../modules/lessons/domain/termPrerequisites'
 
-// Modo aviso (RC.1.2): lista os usos de termo antes da definição, sem falhar o
-// build. Vira `true` quando a Fase 4 termina e as lições novas passam a definir
-// Selic, CDI, TR, IPCA, ticker e ON/PN; daí a violação nova quebra o teste.
-const STRICT = false
+// Modo estrito (RC.1.2): uso de termo antes da definição quebra o teste. Ligado
+// na RC.5.9, quando as lições 2.1 e 2.3 passaram a definir ticker e ON/PN e não
+// sobrou nenhum uso antecipado.
+const STRICT = true
 
 const lessons = LESSON_SEEDS.map((l) => ({
   code: l.code,
@@ -41,8 +41,10 @@ describe('pré-requisitos de termos nas lições (RC.1.2)', () => {
     expect(has('ipca', '0.4')).toBe(false)
     expect(has('ipca', '0.3')).toBe(false)
     expect(has('ipca', '1.4')).toBe(false)
-    expect(has('on-pn', '2.3')).toBe(true)
-    expect(has('ticker', '2.3')).toBe(true)
+    // 2.1 define o ticker e 2.3 define ON/PN (RC.5.9): nenhum aviso nas lições 2.x.
+    expect(has('ticker', '2.2')).toBe(false)
+    expect(has('ticker', '2.3')).toBe(false)
+    expect(has('on-pn', '2.3')).toBe(false)
   })
 
   it('relata (aviso) ou falha (estrito) os usos antes da definição', () => {

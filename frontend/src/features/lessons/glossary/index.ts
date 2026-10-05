@@ -62,10 +62,45 @@ export const glossary: Record<string, GlossaryEntry> = {
     ticker: {
         definition: 'Código de negociação de um ativo na bolsa, formado por letras e número.',
         example: 'No ticker VALR3, as letras identificam a empresa e o número, o tipo de papel.',
+        originLesson: '2.1',
     },
     'ON e PN': {
         definition:
-            'Ações ordinárias (ON, terminam em 3) dão direito a voto. Preferenciais (PN, terminam em 4) têm prioridade no recebimento de dividendos.',
+            'Ações ordinárias (ON, terminam em 3) dão direito a voto. Preferenciais (PN, terminam em 4) podem ter preferência no recebimento de dividendos e, em geral, não votam.',
+        originLesson: '2.3',
+    },
+    'ação ordinária': {
+        definition: 'Ação ON, com ticker terminado em 3. Dá direito a voto nas decisões da empresa.',
+        originLesson: '2.3',
+    },
+    'ação preferencial': {
+        definition: 'Ação PN, com ticker terminado em 4. Pode ter preferência no dividendo e, em geral, não dá direito a voto.',
+        originLesson: '2.3',
+    },
+    IPO: {
+        definition: 'Oferta pública inicial: a primeira vez que uma empresa oferece ações ao público e passa a ser de capital aberto.',
+        originLesson: '2.2',
+    },
+    'oferta primária': {
+        definition: 'Oferta de ações novas, emitidas pela empresa. O dinheiro entra no caixa dela.',
+        originLesson: '2.2',
+    },
+    'oferta secundária': {
+        definition: 'Oferta de ações que já existiam, vendidas por sócios. O dinheiro vai para quem vende, e não para a empresa.',
+        originLesson: '2.2',
+    },
+    bookbuilding: {
+        definition: 'Processo que forma o preço de uma oferta: investidores dizem quantas ações querem e o preço máximo que aceitam.',
+        originLesson: '2.2',
+    },
+    'mercado primário': {
+        definition: 'Onde as empresas vendem ações novas ao público pela primeira vez e captam recursos para o próprio caixa.',
+        originLesson: '2.2',
+    },
+    'mercado secundário': {
+        definition:
+            'Onde os investidores compram e vendem entre si ações que já existem. O dinheiro vai para quem vende, e não para a empresa.',
+        originLesson: '2.2',
     },
     'valor de face': {
         definition: 'Valor que o título paga no vencimento, também chamado de valor nominal.',
@@ -112,7 +147,7 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     liquidez: {
         definition: 'Facilidade de transformar um ativo em dinheiro rapidamente, sem precisar vender com desconto.',
-        originLesson: '2.5',
+        originLesson: '1.3',
     },
     'ordem a mercado': {
         definition: 'Ordem para comprar ou vender já, ao preço que estiver sendo praticado no mercado naquele momento.',
@@ -211,10 +246,6 @@ export const glossary: Record<string, GlossaryEntry> = {
         definition:
             'Fundo de investimento imobiliário: reúne dinheiro de cotistas para investir em imóveis ou títulos imobiliários e distribui rendimentos.',
         originLesson: '2.11',
-    },
-    IPO: {
-        definition: 'Oferta pública inicial: a primeira vez que uma empresa vende ações ao público na bolsa.',
-        originLesson: '2.2',
     },
     dividendo: {
         definition: 'Parte do lucro que a empresa paga em dinheiro aos acionistas.',

@@ -450,6 +450,38 @@ export const REGULATORY_FACTS = [
     verifiedAt: '2026-10-04',
     note: 'Resultado de busca no domínio do IBGE (estrutura de ponderação baseada na POF 2017-2018). A página bloqueou o acesso direto.',
   },
+  {
+    id: 'acao-responsabilidade-limitada',
+    label: 'Ação: responsabilidade limitada do acionista',
+    value:
+      'A companhia tem o capital dividido em ações, e a responsabilidade dos acionistas é limitada ao preço de emissão das ações que subscreveram ou adquiriram (Lei 6.404/1976, art. 1º).',
+    source: 'https://www.planalto.gov.br/ccivil_03/leis/l6404consol.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Texto consolidado lido (art. 1º). A lição diz que o acionista pode perder o que investiu e não responde pelas dívidas da empresa com outros bens.',
+  },
+  {
+    id: 'b3-ipo-ofertas',
+    label: 'B3: IPO, oferta primária e secundária, mercado primário',
+    value:
+      'IPO é o processo em que uma empresa privada oferece ações ao público pela primeira vez e passa a ser de capital aberto; sócios antigos, como fundadores, podem vender parte das ações na oferta. Oferta primária é a emissão de ações novas, com o dinheiro entrando no próprio emissor; oferta secundária é a venda de ações já existentes, com o dinheiro indo para os acionistas vendedores. Mercado primário é onde ocorrem os lançamentos de novas ações e títulos para a primeira aquisição.',
+    source: 'https://borainvestir.b3.com.br/glossario/ipo/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Glossário do Bora Investir (B3), páginas "IPO", "Oferta Primária", "Oferta Secundária", "Mercado Primário" e "Bookbuilding" lidas. O bookbuilding aparece só como "processo de formação de preços"; a explicação de como o preço de corte sai das ordens é didática, do widget. Lock-up, roadshow e norma da CVM não foram abertos e não entram na lição.',
+  },
+  {
+    id: 'b3-ticker-estrutura',
+    label: 'B3: estrutura do ticker (letras, 3, 4, 11 e BDR)',
+    value:
+      'O ticker tem quatro letras que remetem ao nome da empresa e um número que identifica o tipo de ação: 3 para ordinárias (ON) e 4 para preferenciais (PN). O número 11 é o mais abrangente e pode caracterizar fundos de investimento, ETFs e BDRs patrocinados nível I. BDRs são recibos de ações de empresas estrangeiras, com final 32 (patrocinado nível II), 33 (nível III), 34 ou 35 (não patrocinados). A empresa escolhe as letras; o número segue o padrão do tipo.',
+    data: { onSuffix: 3, pnSuffix: 4, fundSuffix: 11 },
+    source:
+      'https://borainvestir.b3.com.br/noticias/empresas/ticker-como-nasce-o-codigo-das-empresas-listadas-na-b3/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Matéria do Bora Investir (B3 Educação) aberta e lida. Ela não menciona unit, as classes 5 a 8 nem o F do fracionário (esses seguem em `b3-ticker-sufixos`, como trecho de busca); por isso a lição não cita unit nem as classes 5 a 8.',
+  },
 ] as const satisfies readonly RegulatoryFact[]
 
 export type RegulatoryFactId = (typeof REGULATORY_FACTS)[number]['id']

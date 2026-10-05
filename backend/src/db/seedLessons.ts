@@ -18,7 +18,14 @@ import {
   BLOCKS_RESERVA,
 } from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
-import { BLOCKS_B3_CORRETORA_ORDENS } from './lessonContentTrilha2'
+import {
+  BLOCKS_2_1,
+  BLOCKS_2_2,
+  BLOCKS_2_3,
+  BLOCKS_2_4,
+  BLOCKS_2_5,
+  BLOCKS_B3_CORRETORA_ORDENS,
+} from './lessonContentTrilha2'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -506,31 +513,18 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 19,
     title: 'O que é uma ação',
     centralConcept: 'Comprar uma ação é se tornar sócio de uma empresa',
-    scenarioText:
-      'Comprar uma ação da Mineradora Vale do Rio (VALR3) não é emprestar dinheiro a ela, como você fez a ' +
-      'trilha inteira com Tesouro, CDB e CRI.' +
-      '\n\n' +
-      'É comprar uma fração da empresa: você passa a ser sócio, dono de uma parte proporcional do que ela ' +
-      'vale e do que ela lucra, junto com todos os outros acionistas.' +
-      '\n\n' +
-      'Com a reserva de emergência da Trilha 1 já resolvida, esta trilha é sobre o resto do patrimônio: ' +
-      'quanto vale aceitar essa incerteza em troca de um potencial de retorno maior, e onde exatamente.',
-    microDecisionPrompt:
-      'Na renda fixa (Trilhas 0 e 1), a taxa contratada na compra já diz quanto você vai receber. Comprando ' +
-      'uma ação, esse retorno já é conhecido de antemão, do mesmo jeito?',
+    scenarioText: legacyText(BLOCKS_2_1, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_1, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionOptions: [
+      'Sim, 1% do lucro sempre é seu',
+      'Só se a empresa distribuir parte do lucro',
+      'Nunca recebe nada',
+    ],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Não. Como sócio, seu retorno depende do desempenho da empresa e do preço que o mercado está disposto ' +
-      'a pagar pela ação a cada momento.' +
-      '\n\n' +
-      'Você pode ganhar com a valorização do preço e com dividendos (parte do lucro distribuída aos ' +
-      'sócios), mas também pode perder se o preço cair, sem nenhuma garantia de capital ou prazo de ' +
-      'vencimento como na renda fixa.' +
-      '\n\n' +
-      'É essa incerteza, junto do potencial de retorno maior, que dá nome à renda variável.',
+    revelationText: legacyText(BLOCKS_2_1, 'revelation'),
+    blocks: BLOCKS_2_1,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -543,25 +537,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 20,
     title: 'IPO',
     centralConcept: 'Como uma empresa vai à bolsa',
-    scenarioText:
-      'Antes de você poder comprar VALR3 ou BNDD4 no Mercado, cada uma dessas empresas precisou abrir seu ' +
-      'capital: deixar de ser propriedade de um grupo fechado de donos e passar a vender fatias de si mesma ' +
-      'ao público em geral, pela primeira vez, num IPO (Initial Public Offering, oferta pública inicial).',
-    microDecisionPrompt:
-      'No dia do IPO, a empresa vende ações novas e recebe o dinheiro dessa venda direto no caixa dela. ' +
-      'Quando você compra essa mesma ação meses depois, de outro investidor, esse dinheiro também vai para ' +
-      'o caixa da empresa?',
+    scenarioText: legacyText(BLOCKS_2_2, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_2, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim', 'Não'],
+    microDecisionOptions: ['Sim, sempre', 'Só o das ações novas', 'Nunca'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Não. O IPO acontece no mercado primário: a empresa emite ações novas e capitaliza o caixa dela com o ' +
-      'dinheiro dos investidores.' +
-      '\n\n' +
-      'Depois disso, toda negociação acontece no mercado secundário, entre investidores, sem passar um ' +
-      'centavo pro caixa da empresa; é esse mercado secundário que o Mercado ao vivo desta plataforma ' +
-      'simula, com o preço se formando a cada negociação, como você vai ver na lição de oferta e demanda.',
+    revelationText: legacyText(BLOCKS_2_2, 'revelation'),
+    blocks: BLOCKS_2_2,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -573,39 +556,16 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 21,
     title: 'Nomenclatura de tickers',
-    centralConcept:
-      'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 pode ser ETF, FII ou unit',
-    scenarioText:
-      'BNDD3 e BNDD4 parecem códigos aleatórios, mas seguem uma convenção: quatro letras identificando o ' +
-      'emissor, seguidas de um número que diz que tipo de ação é essa.' +
-      '\n\n' +
-      'As duas são do mesmo emissor, o Banco Nordeste Digital: BNDD3 termina em 3, BNDD4 termina em 4.',
-    microDecisionPrompt:
-      'BNDD3 dá direito a voto nas decisões do Banco Nordeste Digital; BNDD4 geralmente tem prioridade no ' +
-      'recebimento de dividendos, mas sem voto.' +
-      '\n\n' +
-      'Qual delas você acha que é a ação ordinária (ON) e qual é a preferencial (PN)?',
+    centralConcept: 'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 é fundo ou ETF',
+    scenarioText: legacyText(BLOCKS_2_3, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_3, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: [
-      'BNDD3 é ON (com voto), BNDD4 é PN (sem voto)',
-      'BNDD3 é PN (sem voto), BNDD4 é ON (com voto)',
-    ],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'BNDD3 (final 3) é ordinária (ON), com direito a voto; BNDD4 (final 4) é preferencial (PN), sem voto ' +
-      'mas com prioridade em dividendos e no recebimento de capital numa eventual liquidação da empresa. ' +
-      'Repare que as duas são do mesmo emissor, o Banco Nordeste Digital: um ticker por classe de ação, não ' +
-      'duas empresas diferentes.' +
-      '\n\n' +
-      'Já o final 11 não é exclusivo de um tipo de ativo: identifica cotas de fundos, como o ETF SINT11 (lição ' +
-      '2.9) e os FIIs da lição 2.10, mas no mercado real também identifica units, que empacotam a ON e a PN da ' +
-      'mesma empresa numa cota só (ex: SANB11 na B3 de verdade). O que diferencia os três não é o número final, ' +
-      'que os três compartilham, é o tipo de instrumento por trás do ticker. Esta plataforma não tem unit ' +
-      'negociável no catálogo, só ETF e FII terminam em 11 aqui.' +
-      '\n\n' +
-      'Completar esta lição libera sua primeira operação real de ações no Mercado.',
-    unlocksDescription: 'Primeira compra real de ações (VALR3) no Mercado',
+    microDecisionOptions: ['BNDD4', 'BNDD3', 'Tanto faz, as duas votam igual'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_3, 'revelation'),
+    blocks: BLOCKS_2_3,
+    unlocksDescription: 'Primeira compra de ações (VALR3) no Mercado',
     unlocksKeys: ['asset:acao'],
     unlocksAssetTicker: 'VALR3',
   },
@@ -617,32 +577,19 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 22,
     title: 'Lendo notícias de mercado',
     centralConcept: 'Como interpretar um evento macro e decidir',
-    scenarioText:
-      'Agora que você já pode comprar ações de verdade, o preço delas pode se mover por causa de eventos ' +
-      'que não têm nada a ver com você.' +
-      '\n\n' +
-      'Uma notícia sobre a Selic, um evento específico do setor de mineração ou bancário, algo que muda de ' +
-      'uma vez as perspectivas de uma empresa ou de um grupo delas.',
-    microDecisionPrompt:
-      'Uma notícia dizendo "quebra de safra afeta o Agronegócio" chega no feed.' +
-      '\n\n' +
-      'Se você tem ações de uma mineradora (VALR3, {{ref:2.1}}) e de um banco (BNDD4, {{ref:2.3}}), essa ' +
-      'notícia deveria pesar do mesmo jeito na sua decisão sobre as duas?',
+    scenarioText: legacyText(BLOCKS_2_4, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_4, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim, do mesmo jeito', 'Não, depende de quem o evento afeta'],
+    microDecisionOptions: [
+      'Subir, porque houve lucro',
+      'Cair, porque ficou abaixo do esperado',
+      'Ficar igual',
+    ],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Não necessariamente: o feed de notícias reporta eventos macro, alguns afetam o mercado inteiro (uma ' +
-      'mudança na Selic), outros miram um setor específico (como Agronegócio), sem impactar diretamente uma ' +
-      'mineradora ou um banco.' +
-      '\n\n' +
-      'Ler cada notícia significa identificar quem ela afeta antes de reagir. Por isso esta lição vem logo ' +
-      'depois de você já poder operar de verdade (lição 2.3): a partir de agora, esses eventos passam a ' +
-      'valer pra você.' +
-      '\n\n' +
-      'Completar esta lição libera o painel de notícias.',
-    unlocksDescription: 'Painel de notícias/feed de eventos',
+    revelationText: legacyText(BLOCKS_2_4, 'revelation'),
+    blocks: BLOCKS_2_4,
+    unlocksDescription: 'Área de notícias do mercado',
     unlocksKeys: ['news_feed'],
     unlocksAssetTicker: null,
   },
@@ -683,33 +630,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 24,
     title: 'Oferta e demanda',
     centralConcept: 'Formação de preço no livro de ofertas',
-    scenarioText:
-      'O preço de VALR3 que você vê no Mercado não é definido por ninguém em particular.' +
-      '\n\n' +
-      'Ele nasce do livro de ofertas (order book), uma lista de ordens de compra (pedindo o preço mais alto ' +
-      'que estão dispostos a pagar) e de venda (pedindo o preço mais baixo que estão dispostos a aceitar) ' +
-      'pra esse ativo.',
-    microDecisionPrompt:
-      'Se chegam muito mais ordens de compra do que de venda pra VALR3, todas dispostas a pagar cada vez ' +
-      'mais caro pra conseguir comprar, o preço de VALR3 tende a subir, cair ou ficar igual?',
+    scenarioText: legacyText(BLOCKS_2_5, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_5, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Tende a subir', 'Tende a cair', 'Fica igual'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Tende a subir: o motor de pareamento organiza as ofertas de compra da mais alta pra mais baixa e as ' +
-      'de venda da mais baixa pra mais alta, e cada negociação executa no preço de quem já estava no livro ' +
-      '(a ordem passiva).' +
-      '\n\n' +
-      'Com mais compradores dispostos a pagar mais do que vendedores dispostos a vender, as ofertas de ' +
-      'venda mais baratas se esgotam primeiro, e os próximos negócios só fecham em preços mais altos, ' +
-      'empurrando o preço pra cima; excesso de venda faz o caminho inverso.' +
-      '\n\n' +
-      'É esse mecanismo, e não uma decisão de alguém, que forma o preço em tempo real de toda ação, ETF e ' +
-      'FII desta plataforma.' +
-      '\n\n' +
-      'A partir da próxima lição, você vai aprender a ler os indicadores fundamentalistas que ajudam a ' +
-      'decidir se um preço formado assim está caro ou barato.',
+    microDecisionOptions: ['Cair', 'Subir', 'Ficar igual, porque o valor da empresa não mudou'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_5, 'revelation'),
+    blocks: BLOCKS_2_5,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
