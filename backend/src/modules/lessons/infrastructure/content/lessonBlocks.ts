@@ -26,6 +26,7 @@ export const WIDGET_IDS = [
   'real-return',
   'selic-ipca-chart',
   'copom-timeline',
+  'savings-vs-selic',
   'growth-calculator',
   'fixed-income-comparison',
   'live-indicator',
@@ -98,6 +99,15 @@ const realReturnProps = z.object({
 
 const selicIpcaChartProps = z.object({ windowDays: z.number().int().min(7).max(365).default(365) })
 
+// Poupança contra Tesouro Selic (RC.5.2): a conta vive no frontend; as props só
+// escolhem o ponto de partida dentro dos limites dos controles.
+const savingsVsSelicProps = z.object({
+  selicPct: z.number().min(2).max(16).default(14),
+  trMonthlyPct: z.number().min(0).max(0.3).default(0.15),
+  amount: z.number().positive().default(10000),
+  months: z.number().int().min(1).max(36).default(12),
+})
+
 // Widgets sem configuração por lição hoje (a Calculadora e o comparador da 6.7
 // nascem vazios); o objeto vazio fica estrito para o editor da N.23 não
 // aceitar props que nenhum widget lê.
@@ -115,6 +125,7 @@ export const widgetPropsSchemas = {
   'compound-growth': compoundGrowthProps,
   'real-return': realReturnProps,
   'selic-ipca-chart': selicIpcaChartProps,
+  'savings-vs-selic': savingsVsSelicProps,
   'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,

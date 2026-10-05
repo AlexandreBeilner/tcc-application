@@ -5,7 +5,7 @@ import { lessons, userLessonProgress } from './schema'
 import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
-import { BLOCKS_JUROS_SELIC_CDI_TR } from './lessonContentTrilha0b'
+import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
 import { legacyText } from './lessonText'
 
@@ -215,34 +215,17 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackNumber: 0,
     trackName: 'Trilha 0: Fundamentos',
     sortOrder: 6,
-    title: 'Por que a poupança geralmente perde',
-    centralConcept: 'Comparação direta poupança vs Selic/CDI',
-    scenarioText:
-      'A poupança é o investimento mais popular do Brasil, mas quase sempre perde da Selic (e do CDI, que a ' +
-      'acompanha de perto).' +
-      '\n\n' +
-      'A regra da poupança é fixa: com a Selic acima de 8,5% ao ano, ela rende 0,5% ao mês + TR; abaixo ' +
-      'disso, rende 70% da Selic + TR.',
-    microDecisionPrompt:
-      'Com a Selic simulada nesta plataforma rodando acima de 8,5% ao ano, a poupança rende 0,5% ao mês, ' +
-      'cerca de 6,17% ao ano em juros compostos.' +
-      '\n\n' +
-      'Isso é maior, menor ou igual ao que rende um Tesouro Selic, que acompanha ~100% da Selic?',
+    title: 'Poupança: quando ela perde e quando não',
+    centralConcept: 'Comparar a poupança com a renda fixa pelo rendimento líquido',
+    scenarioText: legacyText(BLOCKS_POUPANCA, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_POUPANCA, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: ['Maior', 'Menor', 'Igual'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Menor: sempre que a Selic está acima de 8,5% a.a. (o cenário mais comum), a poupança rende uma ' +
-      'fração fixa (0,5% a.m.) que fica abaixo dos 100% da Selic que o Tesouro Selic paga.' +
-      '\n\n' +
-      'É por isso que a poupança "geralmente perde": ela não acompanha a taxa básica de juros, só uma regra ' +
-      'fixa desenhada pra ficar sempre um pouco atrás dela.' +
-      '\n\n' +
-      'A partir de agora, a Trilha 1 (Renda Fixa) está liberada. É lá que você vai aplicar de verdade os ' +
-      'produtos que substituem a poupança.',
-    unlocksDescription:
-      'Confirmação de que a poupança perde da Selic, e acesso à Trilha 1 (Renda Fixa)',
+    revelationText: legacyText(BLOCKS_POUPANCA, 'revelation'),
+    blocks: BLOCKS_POUPANCA,
+    unlocksDescription: 'Acesso à Trilha 1 (Renda Fixa)',
     // Chave vazia de propósito: o acesso à Trilha 1 já funciona via
     // sortOrder (5.6), não é uma chave de unlocksKeys — ver vocabulário
     // fixo da 7.0.1 (só feature/produto, não lição/trilha).

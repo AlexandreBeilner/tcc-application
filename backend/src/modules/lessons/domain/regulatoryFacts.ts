@@ -98,7 +98,18 @@ export const REGULATORY_FACTS = [
     source: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/lei/l12703.htm',
     check: 'pagina-oficial',
     verifiedAt: '2026-10-04',
-    note: 'Lei 12.703/2012 (texto lido). Vale para depósitos a partir da MP 567/2012 (04/05/2012); saldos anteriores mantêm a regra antiga. 0,5% ao mês equivale a 6,168% ao ano composto. A isenção de IR da poupança para pessoa física aparece de forma indireta na Lei 9.250/1995, art. 16-A (rendimentos de poupança deduzidos da base do imposto mínimo); a norma específica de isenção não foi aberta.',
+    note: 'Lei 12.703/2012 (texto lido de novo em 2026-10-04: art. 1º, inciso II, alíneas a e b; art. 2º mantém TR mais 0,5% ao mês para saldos até 3 de maio de 2012, data da MP 567; a remuneração é da TR relativa ao aniversário do depósito mais a remuneração adicional). Vale para depósitos a partir da MP 567/2012 (04/05/2012); saldos anteriores mantêm a regra antiga. 0,5% ao mês equivale a 6,168% ao ano composto. A isenção de IR da poupança para pessoa física aparece de forma indireta na Lei 9.250/1995, art. 16-A (rendimentos de poupança deduzidos da base do imposto mínimo); a norma específica de isenção não foi aberta.',
+  },
+  {
+    id: 'poupanca-isencao-ir-pf',
+    label: 'Poupança: rendimento isento de IR para pessoa física',
+    value:
+      'Rendimentos de caderneta de poupança são isentos e não tributáveis na declaração de imposto de renda da pessoa física.',
+    source:
+      'https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/preenchimento/manual-mir/rendimentos/rendimentos-do-capital',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Manual do Meu Imposto de Renda, Receita Federal (página lida): lista poupança, LCI, LCA, CRI e CRA como rendimentos isentos e não tributáveis, "que só podem ser recebidos de Pessoa Jurídica" (ou seja, pagos pela instituição). Complementa o fato poupanca-regra, que só tinha a referência indireta da Lei 9.250.',
   },
   {
     id: 'lci-lca-isencao-pf',

@@ -127,3 +127,108 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
     ],
   },
 }
+
+// Lição da poupança (RC.5.2, `code` 0.6). Regra de rendimento e saldo anterior a
+// 2012 do fato `poupanca-regra` (Lei 12.703/2012, texto lido de novo em
+// 2026-10-04); isenção de IR do fato `poupanca-isencao-ir-pf` (Receita Federal).
+// Os números dos exemplos (Selic de 14%, TR de 0,15% ao mês) são hipotéticos.
+export const BLOCKS_POUPANCA: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'A poupança é o investimento mais popular do Brasil: o dinheiro fica à mão, e o rendimento cai uma vez por mês, no aniversário do depósito.',
+      },
+      {
+        type: 'text',
+        markup:
+          'A regra de rendimento depende da meta da {{Selic}}. Acima de 8,5% ao ano, ela rende 0,5% ao mês mais a {{TR}}. Com a meta em 8,5% ou menos, rende 70% da meta ao ano, mais a TR.',
+      },
+      {
+        type: 'check',
+        id: 'regra-selic-10',
+        kind: 'single',
+        prompt: 'Com a meta da Selic em 10% ao ano, qual regra a poupança usa?',
+        options: ['0,5% ao mês mais a TR', '70% da Selic mais a TR', 'Só a TR', '100% da Selic'],
+        answer: 0,
+        explanation:
+          '10% está acima de 8,5%, então vale a regra de 0,5% ao mês mais a TR. A regra de 70% da meta só entra quando a meta fica em 8,5% ou menos.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Considere uma Selic de 14% ao ano (um exemplo) e uma TR de 0,15% ao mês. Em 1 ano, a poupança rende mais, menos ou igual ao Tesouro Selic, já descontado o imposto de renda do Tesouro?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Menos. Com a Selic alta, a poupança paga uma fração do que o Tesouro Selic rende, mesmo depois de ele pagar imposto de renda.',
+      },
+      {
+        type: 'widget',
+        id: 'poupanca-vs-tesouro',
+        widget: 'savings-vs-selic',
+        props: { selicPct: 14, trMonthlyPct: 0.15, amount: 10000, months: 12 },
+        caption: 'Mexa na Selic, na TR e no prazo e compare',
+      },
+      {
+        type: 'check',
+        id: 'regra-selic-7',
+        kind: 'single',
+        prompt: 'Com a meta da Selic em 7% ao ano, qual regra a poupança usa?',
+        options: [
+          '0,5% ao mês mais a TR',
+          '70% da meta ao ano mais a TR',
+          'Só a TR',
+          '100% da meta',
+        ],
+        answer: 1,
+        explanation:
+          '7% está abaixo de 8,5%, então vale a regra de 70% da meta ao ano, mais a TR. Foi o que você viu no widget ao baixar a Selic.',
+      },
+      {
+        type: 'text',
+        markup:
+          'A poupança não paga imposto de renda para pessoa física. O Tesouro Selic paga, e a alíquota cai com o prazo. Por isso, com juros baixos, a diferença entre os dois se aproxima.',
+      },
+      {
+        type: 'check',
+        id: 'isenta-sempre-vence',
+        kind: 'true_false',
+        prompt:
+          'Por ser isenta de imposto de renda, a poupança sempre rende mais, líquida, que uma renda fixa tributada.',
+        answer: false,
+        explanation:
+          'Depende da Selic e do prazo. Com juros altos, o Tesouro Selic rende mais mesmo pagando imposto. Com juros baixos, os dois ficam próximos.',
+      },
+      {
+        type: 'widget',
+        id: 'poupanca-real',
+        widget: 'real-return',
+        props: { nominalPct: 8, inflationPct: 5, amount: 10000 },
+        caption: 'Exemplo hipotético: poupança a 8% ao ano com inflação de 5%',
+      },
+      {
+        type: 'text',
+        markup:
+          'Quem depositou até 3 de maio de 2012 mantém a regra antiga nesse saldo: TR mais 0,5% ao mês, qualquer que seja a Selic.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-poupanca',
+        widget: 'platform-note',
+        props: {
+          brazil: 'A poupança existe em qualquer banco, e a regra de rendimento é a da lei.',
+          here: 'A poupança não é um produto da plataforma. O Tesouro Selic é o ponto de comparação.',
+          why: 'Assim você compara, com o mesmo dinheiro, o que a poupança rende e o que a renda fixa rende.',
+        },
+      },
+    ],
+  },
+}

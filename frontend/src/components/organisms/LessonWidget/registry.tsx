@@ -5,6 +5,7 @@ import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/sc
 import { CompoundGrowthWidget, compoundGrowthSummary } from '../CompoundGrowthWidget'
 import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidget'
 import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
+import { SavingsVsSelicWidget, savingsVsSelicSummary } from '../SavingsVsSelicWidget'
 import { SelicIpcaChartWidget, selicIpcaChartSummary } from '../SelicIpcaChartWidget'
 import { EquivalentRateWidget, equivalentRateSummary } from '../EquivalentRateWidget'
 import { IrRegressiveTableWidget, irRegressiveTableSummary } from '../IrRegressiveTableWidget'
@@ -73,6 +74,11 @@ export const widgetRegistry: Registry = {
         component: CopomTimelineWidget,
         propsSchema: widgetPropsSchemas['copom-timeline'],
         summary: copomTimelineSummary,
+    },
+    'savings-vs-selic': {
+        component: SavingsVsSelicWidget,
+        propsSchema: widgetPropsSchemas['savings-vs-selic'],
+        summary: savingsVsSelicSummary,
     },
     'growth-calculator': {
         component: GrowthCalculatorForm,
