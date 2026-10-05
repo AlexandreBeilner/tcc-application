@@ -13,6 +13,7 @@ import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmati
 import { useAssetQuery } from '../../features/market/useAssetQuery'
 import { useAssetBookQuery } from '../../features/market/useAssetBookQuery'
 import { useMarketClosedReason } from '../../features/market/useMarketClosedReason'
+import { useTradingHaltReason } from '../../features/market/useTradingHaltQuery'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
@@ -52,7 +53,11 @@ export function AssetDetail() {
     const gate = useLockedAssetGate()
 
     const asset = assetQuery.data?.asset
-    const closedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
+    // Mercado fechado (fim de semana) ou negociação pausada pela administração: os dois
+    // desabilitam a ordem com o motivo em texto, o de calendário primeiro.
+    const marketClosedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
+    const haltReason = useTradingHaltReason(assetId, asset?.is_sandbox ?? false)
+    const closedReason = marketClosedReason ?? haltReason
     // Book real (tarefa S.5/S.7) — insumo do custo estimado e de "Usar o
     // máximo" do `EquityOrderTicket`; ausente/sandbox cai no fallback de
     // sempre (último negócio), já tratado no próprio componente.

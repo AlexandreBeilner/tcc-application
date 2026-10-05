@@ -3,16 +3,19 @@ import type {
   MarketCalendarQuery,
   MarketCalendarReader,
   MarketClock,
+  TradingHaltStatus,
 } from '../../application/ports/marketCalendarReader'
 
 export interface FakeMarketCalendarReader extends MarketCalendarReader {
   getCalendarCalls: Array<{ userId: string; query: MarketCalendarQuery }>
+  halts?: TradingHaltStatus
   errorToThrow?: Error
 }
 
 export function createFakeMarketCalendarReader(results: {
   clock?: MarketClock
   calendar?: MarketCalendar
+  halts?: TradingHaltStatus
 }): FakeMarketCalendarReader {
   const fake: FakeMarketCalendarReader = {
     getCalendarCalls: [],
@@ -37,6 +40,10 @@ export function createFakeMarketCalendarReader(results: {
       fake.getCalendarCalls.push({ userId, query })
       if (fake.errorToThrow) throw fake.errorToThrow
       return results.calendar ?? { from_day: 0, to_day: 0, days: [] }
+    },
+    async getTradingHalts() {
+      if (fake.errorToThrow) throw fake.errorToThrow
+      return fake.halts ?? results.halts ?? { global: false, asset_ids: [] }
     },
   }
   return fake

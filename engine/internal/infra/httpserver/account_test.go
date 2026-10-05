@@ -21,6 +21,10 @@ type fakeAccountOpener struct {
 	creditedUserID string
 	creditedAmount float64
 	creditedMonth  string
+
+	adminCreditErr      error
+	adminCreditedUserID string
+	adminCreditedAmount float64
 }
 
 func (f *fakeAccountOpener) Open(_ context.Context, userID string) (account.Account, error) {
@@ -36,6 +40,14 @@ func (f *fakeAccountOpener) CreditSalary(_ context.Context, userID string, amoun
 	}
 	f.creditedUserID, f.creditedAmount, f.creditedMonth = userID, amount, referenceMonth
 	return nil
+}
+
+func (f *fakeAccountOpener) AdminCredit(_ context.Context, userID string, amount float64) (float64, error) {
+	if f.adminCreditErr != nil {
+		return 0, f.adminCreditErr
+	}
+	f.adminCreditedUserID, f.adminCreditedAmount = userID, amount
+	return amount, nil
 }
 
 const validUserID = "8f14e45f-ceea-4a5c-8d1a-9f1d3e1c1234"
@@ -180,6 +192,65 @@ func TestHandleCreditSalary_ErroInterno(t *testing.T) {
 
 func TestHandleCreditSalary_SemAccountSalaryCrediter(t *testing.T) {
 	rec := postSalary(t, nil, validUserID, `{"amount":1000,"reference_month":"2026-01"}`)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func postAdminCredit(t *testing.T, crediter accountWriter, userID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/admin/accounts/"+userID+"/credit", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	New("", crediter, nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestHandleAdminCredit(t *testing.T) {
+	fake := &fakeAccountOpener{}
+	rec := postAdminCredit(t, fake, validUserID, `{"amount":2500.5}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if fake.adminCreditedUserID != validUserID || fake.adminCreditedAmount != 2500.5 {
+		t.Errorf("creditado = (%q, %v), want (%q, 2500.5)", fake.adminCreditedUserID, fake.adminCreditedAmount, validUserID)
+	}
+	var body adminCreditResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.UserID != validUserID || body.Credited != 2500.5 {
+		t.Errorf("body = %+v, want user_id e credited 2500.5", body)
+	}
+}
+
+func TestHandleAdminCredit_Erros(t *testing.T) {
+	tests := []struct {
+		name   string
+		userID string
+		body   string
+		fake   *fakeAccountOpener
+		want   int
+	}{
+		{"user_id inválido", "nao-e-uuid", `{"amount":10}`, &fakeAccountOpener{}, http.StatusBadRequest},
+		{"json quebrado", validUserID, `{`, &fakeAccountOpener{}, http.StatusBadRequest},
+		{"valor recusado pelo domínio", validUserID, `{"amount":0}`, &fakeAccountOpener{adminCreditErr: account.ErrInvalidCreditAmount}, http.StatusBadRequest},
+		{"conta inexistente", validUserID, `{"amount":10}`, &fakeAccountOpener{adminCreditErr: account.ErrNotFound}, http.StatusNotFound},
+		{"estouro de saldo", validUserID, `{"amount":10}`, &fakeAccountOpener{adminCreditErr: account.ErrBalanceOverflow}, http.StatusUnprocessableEntity},
+		{"erro interno", validUserID, `{"amount":10}`, &fakeAccountOpener{adminCreditErr: context.DeadlineExceeded}, http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := postAdminCredit(t, tt.fake, tt.userID, tt.body)
+			if rec.Code != tt.want {
+				t.Errorf("status = %d, want %d, body = %s", rec.Code, tt.want, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandleAdminCredit_SemServicoDeContas(t *testing.T) {
+	rec := postAdminCredit(t, nil, validUserID, `{"amount":10}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}

@@ -43,7 +43,7 @@ describe('authMiddleware.authenticate', () => {
 
     authenticate(req, res, next)
 
-    expect(req.auth).toEqual({ userId: 'user-1', role: 'admin' })
+    expect(req.auth).toMatchObject({ userId: 'user-1', role: 'admin' })
     expect(next).toHaveBeenCalledOnce()
   })
 })
@@ -70,5 +70,92 @@ describe('authMiddleware.requireRole', () => {
     requireRole('admin')(req, res, next)
 
     expect(next).toHaveBeenCalledOnce()
+  })
+})
+
+describe('authMiddleware.requireRecentAuth', () => {
+  const nowSeconds = () => Math.floor(Date.now() / 1000)
+
+  it('chama next quando a senha foi conferida dentro da janela', () => {
+    const { requireRecentAuth } = createAuthMiddleware(createFakeTokenIssuer())
+    const req = { auth: { userId: 'a', role: 'admin', authTime: nowSeconds() - 60 } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+
+    requireRecentAuth()(req, res, next)
+
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it('devolve 401 reauth_required quando a conferência é antiga', () => {
+    const { requireRecentAuth } = createAuthMiddleware(createFakeTokenIssuer())
+    const req = { auth: { userId: 'a', role: 'admin', authTime: nowSeconds() - 6 * 60 } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+
+    requireRecentAuth()(req, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(401)
+    expect(res.json).toHaveBeenCalledWith({ error: 'reauth_required' })
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('respeita a janela customizada', () => {
+    const { requireRecentAuth } = createAuthMiddleware(createFakeTokenIssuer())
+    const req = { auth: { userId: 'a', role: 'admin', authTime: nowSeconds() - 30 } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+
+    requireRecentAuth(10)(req, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(401)
+  })
+})
+
+describe('authMiddleware.authenticate com guarda de sessão (N.16)', () => {
+  async function run(verdict: 'ok' | 'suspended' | 'revoked') {
+    const tokenIssuer = createFakeTokenIssuer()
+    const guard = { check: vi.fn().mockResolvedValue(verdict) }
+    const { authenticate } = createAuthMiddleware(tokenIssuer, guard)
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user', tokenVersion: 3 })
+    const req = { headers: { authorization: `Bearer ${token}` } } as Request
+    const res = mockRes()
+    const next = vi.fn()
+    authenticate(req, res, next)
+    await vi.waitFor(() => expect(res.status.mock.calls.length + next.mock.calls.length).toBe(1))
+    return { guard, res, next }
+  }
+
+  it('consulta a guarda com o usuário e a versão do token e segue quando ok', async () => {
+    const { guard, next } = await run('ok')
+    expect(guard.check).toHaveBeenCalledWith('user-1', 3)
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it('devolve 403 account_suspended para conta suspensa', async () => {
+    const { res, next } = await run('suspended')
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(res.json).toHaveBeenCalledWith({ error: 'account_suspended' })
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('devolve 401 para sessão revogada', async () => {
+    const { res, next } = await run('revoked')
+    expect(res.status).toHaveBeenCalledWith(401)
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('repassa erro da guarda ao tratador do Express', async () => {
+    const tokenIssuer = createFakeTokenIssuer()
+    const boom = new Error('banco fora')
+    const { authenticate } = createAuthMiddleware(tokenIssuer, {
+      check: vi.fn().mockRejectedValue(boom),
+    })
+    const req = {
+      headers: { authorization: `Bearer ${tokenIssuer.issue({ sub: 'u', role: 'user' })}` },
+    } as Request
+    const next = vi.fn()
+    authenticate(req, mockRes(), next)
+    await vi.waitFor(() => expect(next).toHaveBeenCalledWith(boom))
   })
 })

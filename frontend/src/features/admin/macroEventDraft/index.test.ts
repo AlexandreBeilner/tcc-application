@@ -115,6 +115,7 @@ describe('buildMacroEventSummaryRows', () => {
             { label: 'Magnitude', value: 'Moderado' },
             { label: 'Efeitos', value: 'Preço + Fundamentos' },
             { label: 'Alvos', value: 'Setor: Mineração' },
+            { label: 'Efeito começa', value: 'No próximo tick (já)' },
         ])
     })
 
@@ -138,6 +139,7 @@ describe('buildMacroEventSummaryRows', () => {
             { label: 'Magnitude', value: 'Severo' },
             { label: 'Efeitos', value: 'Fundamentos' },
             { label: 'Alvos', value: 'Setor: Mineração' },
+            { label: 'Efeito começa', value: 'No próximo tick (já)' },
         ])
     })
 
@@ -158,5 +160,36 @@ describe('buildMacroEventSummaryRows', () => {
             targets: [{ id: 't1', kind: 'sector', value: '' }],
         })
         expect(buildMacroEventSummaryRows(draft).find((row) => row.label === 'Alvos')).toEqual({ label: 'Alvos', value: '(nenhum)' })
+    })
+})
+
+describe('agendamento (N.11)', () => {
+    it('sem dia de aplicação não manda apply_on_day e a prévia diz que dispara já', () => {
+        const draft = draftWithTarget({ mode: 'template', templateKey: 'alta-minerio-ferro' })
+        expect(buildTriggerMacroEventInput(draft)).not.toHaveProperty('apply_on_day')
+    })
+
+    it('com dia de aplicação manda apply_on_day nas duas variantes e a prévia mostra o agendamento', () => {
+        const template = draftWithTarget({ mode: 'template', templateKey: 'alta-minerio-ferro', applyOnDay: ' 130 ' })
+        expect(buildTriggerMacroEventInput(template)).toMatchObject({ apply_on_day: 130 })
+        const adhoc = draftWithTarget({ mode: 'adhoc', title: 't', narrative: 'n', applyOnDay: '130' })
+        expect(buildTriggerMacroEventInput(adhoc)).toMatchObject({ apply_on_day: 130 })
+        expect(buildMacroEventSummaryRows(template).at(-1)).toEqual({
+            label: 'Efeito começa',
+            value: 'No dia simulado 130 (agendado)',
+        })
+    })
+
+    it('valida o dia: inteiro e posterior ao dia simulado atual quando o relógio é conhecido', () => {
+        const base = { mode: 'template' as const, templateKey: 'alta-minerio-ferro' }
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: 'amanhã' }), 100)).toContain(
+            'O dia de aplicação precisa ser um número inteiro.',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '100' }), 100)).toContain(
+            'O dia de aplicação precisa ser posterior ao dia simulado atual (100).',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '101' }), 100)).toEqual([])
+        // Sem o relógio carregado, só o formato é conferido; o motor recusa o resto (400).
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '5' }))).toEqual([])
     })
 })
