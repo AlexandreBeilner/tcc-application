@@ -9,6 +9,7 @@ const mission = {
   completionCriteria: 'Concluir qualquer lição da trilha hoje',
   xpReward: 30,
   requiresLessonCompletion: true,
+  isActive: true,
 }
 
 describe('buildMissionView', () => {

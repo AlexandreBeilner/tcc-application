@@ -149,7 +149,7 @@ func handleSubmitOrder(catalogReader assetCatalogReader, orders orderSubmitter) 
 }
 
 func writeOrderExecutionError(w http.ResponseWriter, err error) {
-	if writeMarketClosedIfClosed(w, err) {
+	if writeMarketClosedIfClosed(w, err) || writeTradingHaltedIfHalted(w, err) {
 		return
 	}
 	switch {

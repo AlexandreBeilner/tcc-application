@@ -77,4 +77,19 @@ describe('GetTrackMapUseCase', () => {
 
     expect(map[0]).toMatchObject({ status: 'completed', currentStep: 3 })
   })
+
+  it('lição dispensada aparece como available e waived, e quem a pula segue sem bloqueio (N.24)', async () => {
+    // Currículo atual: 0.1, 0.2(nova, dispensada), 0.3, 0.4. Usuário já tinha concluído
+    // 0.1 e (antiga) 0.2, hoje 0.3.
+    const repository = createFakeLessonRepository(track0.slice(0, 4))
+    await repository.upsertProgress('u1', track0[0].id, { currentStep: 3, completedAt: new Date() })
+    await repository.upsertProgress('u1', track0[2].id, { currentStep: 3, completedAt: new Date() })
+    repository.waive('u1', track0[1].id)
+    const useCase = new GetTrackMapUseCase(repository)
+
+    const map = await useCase.execute({ userId: 'u1' })
+
+    expect(map.map((l) => l.status)).toEqual(['completed', 'available', 'completed', 'available'])
+    expect(map.map((l) => l.waived)).toEqual([false, true, false, false])
+  })
 })

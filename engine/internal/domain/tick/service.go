@@ -19,6 +19,10 @@ import (
 // momento vira 409 em vez de duplicar o dia simulado.
 var ErrTickInProgress = errors.New("já existe um tick em andamento")
 
+// ErrInvalidAdvanceDays é devolvido por RunMany quando days está fora de
+// 1..MaxAdvanceDays.
+var ErrInvalidAdvanceDays = errors.New("dias a avançar fora do intervalo permitido")
+
 // Guard é o colaborador que protege o tick entre processos/instâncias (tarefa
 // S.3): uma trava consultiva no Postgres e o instante do último tick gravado
 // (market_calendar.updated_at), que a agenda usa pra saber quantos dias
@@ -59,14 +63,22 @@ type Service struct {
 	ipcaCfg        ipca.Config
 	seed           int64
 	// etf (R.3/R.4) fica zerado até WithETF.
-	etf   ETFDeps
-	guard Guard
-	mu    sync.Mutex
+	etf      ETFDeps
+	guard    Guard
+	recorder RunRecorder
+	mu       sync.Mutex
 }
 
 // WithGuard liga a trava entre processos e a leitura do último tick (S.3).
 func (s *Service) WithGuard(g Guard) *Service {
 	s.guard = g
+	return s
+}
+
+// WithRunRecorder liga o histórico de ticks (N.6): cada tick executado, com
+// sucesso ou falha, vira uma linha em tick_runs.
+func (s *Service) WithRunRecorder(r RunRecorder) *Service {
+	s.recorder = r
 	return s
 }
 
@@ -114,17 +126,69 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 	defer release()
 
-	return s.execute(ctx)
+	return s.runOne(ctx, TriggerManual, 0)
+}
+
+// RunMany roda `days` ticks manuais em sequência sob uma única trava (N.6,
+// "avançar N dias"): o agendador não se intercala no meio. Devolve os resultados
+// dos ticks concluídos; na primeira falha para e devolve o que já rodou junto do
+// erro. days fora de 1..MaxAdvanceDays é erro de chamada, nada roda.
+func (s *Service) RunMany(ctx context.Context, days int) ([]Result, error) {
+	if days < 1 || days > MaxAdvanceDays {
+		return nil, ErrInvalidAdvanceDays
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	release, err := s.lockTick(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	results := make([]Result, 0, days)
+	for i := 0; i < days; i++ {
+		result, err := s.runOne(ctx, TriggerManual, 0)
+		if err != nil {
+			return results, err
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
+// runOne executa um tick e grava o histórico. Falha ao gravar o histórico é logada
+// e nunca troca o desfecho de um tick que já foi persistido.
+func (s *Service) runOne(ctx context.Context, trigger Trigger, discarded int) (Result, error) {
+	started := time.Now()
+	result, err := s.execute(ctx)
+	if s.recorder != nil {
+		record := RunRecord{Trigger: trigger, StartedAt: started, Duration: time.Since(started), CatchUpDiscarded: discarded}
+		if err != nil {
+			record.Status = RunFailed
+			record.ErrorMessage = err.Error()
+		} else {
+			record.Status = RunSuccess
+			record.Day = result.State.Day
+			record.Counters = countersOf(result)
+		}
+		if recErr := s.recorder.RecordRun(ctx, record); recErr != nil {
+			log.Printf("tick: falha ao gravar o histórico do tick: %v", recErr)
+		}
+	}
+	return result, err
 }
 
 // RunScheduled é o caminho do agendador (tarefa S.3): sob a mesma trava do Run,
-// pergunta a plan quantos ticks devem rodar agora dado o instante do último
+// pergunta a plan quantos ticks devem rodar agora (e quantos atrasados foram
+// descartados, pro histórico) dado o instante do último
 // tick gravado (found = false se nunca rodou) e roda essa quantidade em
 // sequência. Decidir dentro da trava é o que impede duas instâncias (ou um
 // deploy repetido) de duplicar o mesmo dia. Devolve quantos ticks rodaram;
 // trava ocupada por outro processo não é erro (0, nil), o outro já está
 // cuidando desse dia.
-func (s *Service) RunScheduled(ctx context.Context, plan func(lastTickAt time.Time, found bool) int) (int, error) {
+func (s *Service) RunScheduled(ctx context.Context, plan func(lastTickAt time.Time, found bool) (run, discarded int)) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -137,16 +201,27 @@ func (s *Service) RunScheduled(ctx context.Context, plan func(lastTickAt time.Ti
 	}
 	defer release()
 
-	count := 1
+	count, discarded := 1, 0
 	if s.guard != nil {
 		last, found, err := s.guard.LastTickAt(ctx)
 		if err != nil {
 			return 0, err
 		}
-		count = plan(last, found)
+		count, discarded = plan(last, found)
 	}
 	for i := 0; i < count; i++ {
-		if _, err := s.execute(ctx); err != nil {
+		// Mais de um tick devido: os primeiros são recuperação de slots perdidos
+		// e só o último é o slot de agora. O descarte do MaxCatchUp fica na
+		// primeira linha da recuperação.
+		trigger := TriggerScheduled
+		if i < count-1 {
+			trigger = TriggerCatchUp
+		}
+		recorded := 0
+		if i == 0 {
+			recorded = discarded
+		}
+		if _, err := s.runOne(ctx, trigger, recorded); err != nil {
 			return i, err
 		}
 	}
