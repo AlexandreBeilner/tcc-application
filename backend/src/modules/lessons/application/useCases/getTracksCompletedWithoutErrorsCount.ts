@@ -26,6 +26,7 @@ export class GetTracksCompletedWithoutErrorsCountUseCase {
         return {
           trackNumber: lesson.trackNumber,
           completedAt: own?.completedAt ?? null,
+          waivedAt: own?.waivedAt ?? null,
           microDecisionCorrectOption: lesson.microDecisionCorrectOption,
           microDecisionSelectedOption: own?.microDecisionSelectedOption ?? null,
         }

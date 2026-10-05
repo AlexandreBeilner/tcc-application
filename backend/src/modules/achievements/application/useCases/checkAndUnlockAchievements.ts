@@ -27,7 +27,8 @@ export class CheckAndUnlockAchievementsUseCase {
 
     const newlyUnlocked: Achievement[] = []
     for (const achievement of catalog) {
-      if (unlockedIds.has(achievement.id)) {
+      // Conquista desativada pelo painel (N.19) não é mais concedida; quem já a tem fica com ela.
+      if (!achievement.isActive || unlockedIds.has(achievement.id)) {
         continue
       }
       if (isSatisfied(achievement.criteriaType, achievement.criteriaValue, snapshot)) {
