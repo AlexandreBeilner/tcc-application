@@ -34,11 +34,11 @@ export const glossary: Record<string, GlossaryEntry> = {
         example: 'Uma LCI isenta de 9% ao ano equivale a um CDB tributado a 15% de IR pagando 9 / 0,85, cerca de 10,59% ao ano.',
         originLesson: '1.7',
     },
-    EBIT: { definition: 'Lucro operacional da empresa, antes de descontar juros e impostos.', originLesson: '2.6.2' },
+    EBIT: { definition: 'Lucro operacional da empresa, antes de descontar juros e impostos.', originLesson: '2.7.2' },
     'Dividend Yield': {
         definition: 'Soma dos dividendos pagos por ação ou cota nos últimos 12 meses, dividida pelo preço atual.',
         example: 'R$3,00 de dividendos em 12 meses sobre uma ação de R$50,00 dá Dividend Yield de 6%.',
-        originLesson: '2.6.6',
+        originLesson: '2.7.6',
     },
     Selic: {
         definition:
@@ -78,20 +78,20 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     alavancagem: {
         definition: 'Uso de dívida para financiar a operação. Aumenta o retorno quando tudo vai bem e amplia o prejuízo quando não vai.',
-        originLesson: '2.6.5',
+        originLesson: '2.7.5',
     },
     payout: {
         definition: 'Parte do lucro da empresa distribuída aos acionistas como dividendos.',
         example: 'Lucro de R$100 milhões e R$40 milhões distribuídos dão payout de 40%.',
-        originLesson: '2.7',
+        originLesson: '2.8',
     },
     JCP: {
         definition: 'Juros sobre Capital Próprio: forma de a empresa remunerar o acionista, com imposto retido na fonte.',
-        originLesson: '2.7',
+        originLesson: '2.8',
     },
     'ITR e DFP': {
         definition: 'Demonstrações financeiras que a empresa de capital aberto publica: o ITR é trimestral e a DFP é anual.',
-        originLesson: '2.6.1',
+        originLesson: '2.7.1',
     },
     'valor de mercado': {
         definition: 'Preço da ação multiplicado pelo número de ações da empresa: quanto o mercado diz que ela vale hoje.',
@@ -100,11 +100,11 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     NAV: {
         definition: 'Valor patrimonial por cota de um fundo ou ETF: o valor dos ativos da carteira dividido pelo número de cotas.',
-        originLesson: '2.9',
+        originLesson: '2.10',
     },
     ágio: {
         definition: 'Quando o preço de negociação fica acima do valor de referência. O contrário é o deságio.',
-        originLesson: '2.10',
+        originLesson: '2.11',
     },
     spread: {
         definition: 'Diferença entre dois preços ou taxas. Na bolsa, é a distância entre a melhor oferta de compra e a de venda.',
@@ -112,7 +112,17 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     liquidez: {
         definition: 'Facilidade de transformar um ativo em dinheiro rapidamente, sem precisar vender com desconto.',
-        originLesson: '1.1',
+        originLesson: '2.5',
+    },
+    'ordem a mercado': {
+        definition: 'Ordem para comprar ou vender já, ao preço que estiver sendo praticado no mercado naquele momento.',
+        example: 'Uma compra a mercado de 500 ações pode passar por mais de um nível de preço do livro de ofertas.',
+        originLesson: '2.5',
+    },
+    'ordem limite': {
+        definition: 'Ordem que só executa no preço que você definir ou melhor. Se ninguém aceita esse preço, ela espera na fila.',
+        example: 'Uma compra limite a R$ 9,50 nunca paga mais que R$ 9,50 por ação.',
+        originLesson: '2.5',
     },
     duration: {
         definition: 'Prazo médio ponderado em que o título devolve o dinheiro. Quanto maior, mais o preço oscila quando os juros mudam.',
@@ -175,32 +185,32 @@ export const glossary: Record<string, GlossaryEntry> = {
     ROE: {
         definition:
             'Retorno sobre o patrimônio: lucro líquido dividido pelo patrimônio líquido. Mede o quanto a empresa rende ao dinheiro dos sócios.',
-        originLesson: '2.6.3',
+        originLesson: '2.7.3',
     },
     'P/L': {
         definition: 'Preço da ação dividido pelo lucro por ação. Indica quantos anos de lucro o preço atual representa.',
-        originLesson: '2.6.4',
+        originLesson: '2.7.4',
     },
     'P/VP': {
         definition: 'Preço da ação dividido pelo patrimônio líquido por ação. Abaixo de 1, o mercado paga menos que o patrimônio contábil.',
-        originLesson: '2.6.4',
+        originLesson: '2.7.4',
     },
     'data com': {
         definition: 'Último dia em que comprar a ação ainda garante o direito ao provento anunciado.',
-        originLesson: '2.7',
+        originLesson: '2.8',
     },
     'data ex': {
         definition: 'Primeiro dia em que a ação é negociada sem o direito ao provento. O preço costuma cair o valor do dividendo.',
-        originLesson: '2.7',
+        originLesson: '2.8',
     },
     ETF: {
         definition: 'Fundo de índice negociado em bolsa como uma ação, que reproduz a carteira de um índice de referência.',
-        originLesson: '2.9',
+        originLesson: '2.10',
     },
     FII: {
         definition:
             'Fundo de investimento imobiliário: reúne dinheiro de cotistas para investir em imóveis ou títulos imobiliários e distribui rendimentos.',
-        originLesson: '2.10',
+        originLesson: '2.11',
     },
     IPO: {
         definition: 'Oferta pública inicial: a primeira vez que uma empresa vende ações ao público na bolsa.',
@@ -208,7 +218,7 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     dividendo: {
         definition: 'Parte do lucro que a empresa paga em dinheiro aos acionistas.',
-        originLesson: '2.7',
+        originLesson: '2.8',
     },
     diversificação: {
         definition: 'Dividir o dinheiro entre ativos diferentes para que o problema de um não derrube toda a carteira.',

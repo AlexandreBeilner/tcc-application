@@ -18,6 +18,7 @@ import {
   BLOCKS_RESERVA,
 } from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
+import { BLOCKS_B3_CORRETORA_ORDENS } from './lessonContentTrilha2'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -646,11 +647,40 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    stableKey: '2.5',
+    // Lição inserida no meio da Trilha 2 (RC.4.2), antes de "Oferta e demanda":
+    // `stableKey` próprio e `code` 2.5. As lições seguintes da trilha ganharam um
+    // `code` a mais (2.5 passou a 2.6, o grupo 2.6.x a 2.7.x e assim por diante, o
+    // `stableKey` de cada uma não muda, então o progresso fica). Quem já tinha
+    // passado da posição recebe a dispensa na hora do seed.
+    stableKey: 'b3-corretora-ordens',
     code: '2.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 23,
+    title: 'Como a ação é negociada: B3, corretora e ordens',
+    centralConcept: 'Corretora, B3, ordem a mercado e limite, spread e liquidez',
+    scenarioText: legacyText(BLOCKS_B3_CORRETORA_ORDENS, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_B3_CORRETORA_ORDENS, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'Sim, sempre o melhor preço',
+      'Não, pode pagar mais',
+      'Paga menos que o melhor preço',
+    ],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_B3_CORRETORA_ORDENS, 'revelation'),
+    blocks: BLOCKS_B3_CORRETORA_ORDENS,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: '2.5',
+    code: '2.6',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 24,
     title: 'Oferta e demanda',
     centralConcept: 'Formação de preço no livro de ofertas',
     scenarioText:
@@ -686,10 +716,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.6.1',
-    code: '2.6.1',
+    code: '2.7.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 24,
+    sortOrder: 25,
     title: 'Lendo um balanço',
     centralConcept:
       'Peças básicas: Receita, EBIT, Lucro Líquido, Patrimônio Líquido, Dívida Bruta, Caixa',
@@ -725,10 +755,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.6.2',
-    code: '2.6.2',
+    code: '2.7.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 25,
+    sortOrder: 26,
     title: 'Margens de rentabilidade',
     centralConcept: 'O que é EBIT na prática, diferença para lucro líquido',
     scenarioText:
@@ -761,10 +791,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.6.3',
-    code: '2.6.3',
+    code: '2.7.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 26,
+    sortOrder: 27,
     title: 'Retorno sobre patrimônio (ROE)',
     centralConcept: 'Quão bem a empresa usa o capital dos sócios',
     scenarioText:
@@ -794,10 +824,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.6.4',
-    code: '2.6.4',
+    code: '2.7.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 27,
+    sortOrder: 28,
     title: 'Indicadores de preço (P/L e P/VP)',
     centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
     scenarioText:
@@ -828,10 +858,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.6.5',
-    code: '2.6.5',
+    code: '2.7.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 28,
+    sortOrder: 29,
     title: 'Endividamento',
     centralConcept: 'Risco de alavancagem',
     scenarioText:
@@ -864,10 +894,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.6.6',
-    code: '2.6.6',
+    code: '2.7.6',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 29,
+    sortOrder: 30,
     title: 'Dividend Yield',
     centralConcept: 'Quanto a ação "paga" em relação ao preço',
     scenarioText:
@@ -901,10 +931,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.7',
-    code: '2.7',
+    code: '2.8',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 30,
+    sortOrder: 31,
     title: 'Dividendos e data ex',
     centralConcept: 'Como e quando o acionista recebe',
     scenarioText:
@@ -938,10 +968,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.8',
-    code: '2.8',
+    code: '2.9',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 31,
+    sortOrder: 32,
     title: 'Setores e ciclicidade',
     centralConcept: 'Conecta com Selic afetando fundamentos (3.2.2), defensivo vs cíclico',
     scenarioText:
@@ -978,10 +1008,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.9',
-    code: '2.9',
+    code: '2.10',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 32,
+    sortOrder: 33,
     title: 'ETFs',
     centralConcept: 'Diversificação automática via índice',
     scenarioText:
@@ -1024,10 +1054,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.10',
-    code: '2.10',
+    code: '2.11',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 33,
+    sortOrder: 34,
     title: 'FIIs',
     centralConcept: 'Fundos imobiliários, tickers final 11',
     scenarioText:
@@ -1071,7 +1101,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 34,
+    sortOrder: 35,
     title: 'Diversificação',
     centralConcept: 'Por que não concentrar tudo num ativo',
     scenarioText:
@@ -1118,7 +1148,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 35,
+    sortOrder: 36,
     title: 'Perfil de risco',
     centralConcept: 'Conservador vs Sofisticado, risco x retorno',
     scenarioText:
@@ -1158,7 +1188,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 36,
+    sortOrder: 37,
     title: 'Comparando produtos na prática',
     centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
     scenarioText:
@@ -1198,7 +1228,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 37,
+    sortOrder: 38,
     title: 'Desafio final da trilha',
     centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
     scenarioText:

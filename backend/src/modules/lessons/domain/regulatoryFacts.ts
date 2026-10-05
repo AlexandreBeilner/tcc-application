@@ -361,6 +361,39 @@ export const REGULATORY_FACTS = [
     note: 'Material educacional da B3 (Bora Investir), resultado de busca. Os números de BDR (32 a 35, 39) não foram confirmados e não entram na lição.',
   },
   {
+    id: 'b3-ordens-tipos',
+    label: 'B3: ordem a mercado e ordem limitada',
+    value:
+      'Na ordem a mercado, o investidor indica à instituição intermediária que quer comprar ou vender ao preço que estiver sendo praticado no mercado naquele momento. Na ordem limitada, comunica que quer negociar e estabelece os valores limites da negociação.',
+    source: 'https://borainvestir.b3.com.br/glossario/ordem-a-mercado/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Glossário do Bora Investir (B3), páginas "Ordem a Mercado" e "Ordem Limitada" lidas. O glossário da B3 define "spread" como diferença entre taxas de aplicação e captação (crédito), não como a distância entre melhor compra e melhor venda: a lição define o spread do livro de ofertas por conta própria, como conceito geral de mercado, sem citar a B3.',
+  },
+  {
+    id: 'b3-horario-pregao',
+    label: 'B3: fases do pregão de ações',
+    value:
+      'O mercado à vista de ações tem fases em dias úteis: cancelamento de ofertas, pré-abertura (leilão antes de abrir), negociação, call de fechamento e after-market. Em 05/10/2026: pré-abertura de 9h45 a 10h, negociação de 10h a 16h55, call de fechamento de 16h55 a 17h.',
+    data: { openingHour: 10, closeMinuteOfDay: 1015 },
+    source:
+      'https://www.b3.com.br/pt_br/solucoes/plataformas/puma-trading-system/para-participantes-e-traders/horario-de-negociacao/acoes/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Tabela de horários da B3 aberta. Os horários mudam ao longo do ano (resultados de busca da B3 mostram ajustes ligados ao horário de verão nos EUA), então a lição não cita horário: só as fases.',
+  },
+  {
+    id: 'investidor-custos-acoes',
+    label: 'Portal do Investidor (CVM): custos de investir em bolsa',
+    value:
+      'Os principais custos por negócio são a taxa de corretagem, a taxa de custódia, os emolumentos e a taxa de liquidação. A corretagem é livremente pactuada com a corretora (valor fixo, percentual ou misto) e algumas corretoras não repassam a custódia. Emolumentos e taxa de liquidação são cobrados pela bolsa sobre o volume.',
+    source:
+      'https://www.gov.br/investidor/pt-br/investir/como-investir/como-funciona-a-bolsa/taxas-e-custos',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Página do Portal do Investidor lida (publicada em 2022). Valores de tarifas e faixas de isenção da B3 mudam e não foram registrados; a lição não cita número de custo.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:
