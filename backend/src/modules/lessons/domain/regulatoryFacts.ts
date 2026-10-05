@@ -90,6 +90,17 @@ export const REGULATORY_FACTS = [
     verifiedAt: '2026-10-04',
   },
   {
+    id: 'tesouro-resgate-liquidez',
+    label: 'Tesouro Direto: prazo de liquidação do resgate',
+    value:
+      'O resgate de qualquer título pode ser creditado no mesmo dia útil, se pedido até cerca das 13h, ou no dia útil seguinte (D+1), se pedido depois disso. Só em dia útil.',
+    data: { sameDayCutoffHour: 13 },
+    source: 'https://www.tesourodireto.com.br/en/regras-e-regulamento',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-04',
+    note: 'Resultado de busca no domínio do Tesouro Direto e do gov.br (notícia "Tesouro Direto passa a ter liquidação de resgate no mesmo dia"); as páginas retornaram 401/403 à leitura automática. A auditoria da RC.1.7 dizia só D+1: está desatualizada. Na lição, dizer "no mesmo dia útil ou no seguinte, conforme o horário" sem citar o horário exato; reabrir no navegador na RC.8.1.',
+  },
+  {
     id: 'poupanca-regra',
     label: 'Poupança: regra de rendimento',
     value:

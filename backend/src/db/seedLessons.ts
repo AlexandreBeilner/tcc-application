@@ -6,6 +6,7 @@ import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
 import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
+import { BLOCKS_1_1, BLOCKS_1_2 } from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
 import { legacyText } from './lessonText'
 
@@ -240,36 +241,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 7,
     title: 'O que é renda fixa',
     centralConcept: 'Emprestar dinheiro a um emissor',
-    scenarioText:
-      'Imagine emprestar R$1.000 a um amigo, sabendo desde o início a taxa e o prazo em que ele ' +
-      'devolve o dinheiro, com juros.' +
-      '\n\n' +
-      'É exatamente essa lógica que sustenta toda a renda fixa: o investidor empresta dinheiro a um ' +
-      'emissor (governo, banco ou empresa) e recebe de volta o capital mais uma remuneração, ' +
-      'seguindo uma regra combinada no momento da aplicação.' +
-      '\n\n' +
-      'É a ferramenta certa pra um objetivo bem concreto.' +
-      '\n\n' +
-      'Ao longo desta trilha, você vai montar uma reserva de emergência de verdade (o dinheiro que ' +
-      'precisa estar seguro e disponível antes de qualquer imprevisto, o mesmo tipo de bônus da ' +
-      'lição 0.1, agora com destino definido) e vai sair dela sabendo em qual produto colocá-la.',
-    microDecisionPrompt:
-      '"Renda fixa" não significa necessariamente "taxa fixa". Pense: um título cuja remuneração ' +
-      'acompanha a Selic todo dia, sem taxa travada na compra, ainda é considerado renda fixa?',
+    scenarioText: legacyText(BLOCKS_1_1, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_1, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim', 'Não'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Sim. O nome "renda fixa" se refere à regra de remuneração ser conhecida com antecedência ' +
-      '(pós-fixada, acompanhando um indexador como a Selic ou o CDI, ou prefixada, com taxa ' +
-      'travada na compra), não ao valor final recebido ser fixo.' +
-      '\n\n' +
-      'É essa regra combinada de antemão que diferencia a renda fixa da renda variável (Trilha 2), ' +
-      'onde o retorno depende do preço de mercado do ativo e não é conhecido com antecedência.' +
-      '\n\n' +
-      'Ao longo desta trilha você vai conhecer os três emissores possíveis (governo via Tesouro ' +
-      'Direto, bancos via CDB/LCI/LCA, empresas via CRI/CRA) e a taxa real de cada produto.',
+    microDecisionOptions: ['Não', 'Sim'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_1_1, 'revelation'),
+    blocks: BLOCKS_1_1,
     unlocksDescription: 'Tesouro Selic',
     // `asset:tesouro_selic` pertence de fato à lição 1.2 (spec 5.1, ver
     // backlog 7.0.1). 1.1 é só conceitual, unlocksDescription acima é
@@ -284,27 +263,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 1: Renda Fixa',
     sortOrder: 8,
     title: 'Tesouro Selic',
-    centralConcept: 'Emprestar dinheiro ao governo, com liquidez diária e risco de crédito mínimo',
-    scenarioText:
-      'Você tem R$1.000 parados e quer emprestar esse dinheiro para o Tesouro Nacional, ' +
-      'recebendo de volta o valor corrigido pela taxa Selic todo dia útil.' +
-      '\n\n' +
-      'É exatamente isso que o Tesouro Selic (LFT) faz: um título público pós-fixado, o mais ' +
-      'líquido e o mais indicado para reserva de emergência.',
-    microDecisionPrompt:
-      'Antes de ver o preço de hoje, pense: se a Selic sobe, o que acontece com o preço ' +
-      'unitário do Tesouro Selic: ele sobe, cai ou fica igual?',
+    centralConcept: 'Emprestar dinheiro ao governo, com alta liquidez e baixa oscilação de preço',
+    scenarioText: legacyText(BLOCKS_1_2, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_2, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sobe', 'Cai', 'Fica igual'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'O preço unitário do Tesouro Selic sobe (quase) todo dia útil, acompanhando de perto a ' +
-      'taxa Selic, diferente do Tesouro Prefixado/IPCA+, que sofre {{marcação a mercado}} negativa ' +
-      'com mais frequência.' +
-      '\n\n' +
-      'É por isso que ele é visto como o "porto seguro" da renda fixa: ' +
-      'baixíssima volatilidade, resgate diário sem perda relevante de valor.',
+    microDecisionOptions: ['Rende menos por dia', 'Rende mais por dia', 'Rende igual'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_1_2, 'revelation'),
+    blocks: BLOCKS_1_2,
     unlocksDescription: 'Compra real de Tesouro Selic (LFT2029) no Mercado',
     unlocksKeys: ['asset:tesouro_selic'],
     // Ticker canônico real do catálogo (engine/cmd/seed/main.go, tarefa 3.9)
