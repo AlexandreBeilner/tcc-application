@@ -1,0 +1,114 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.healthy {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.alerts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 1024px) {
+    .alerts {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Alerta: borda tracejada (atenção, não perda), nunca só cor. */
+.alert {
+    padding: var(--space-3);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+}
+
+.alertTitle {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+}
+
+.alertHint {
+    margin: var(--space-1) 0 var(--space-2);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.botLink {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-brand-500);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.botLink:hover {
+    text-decoration: underline;
+}
+
+.sub {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.details {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-3);
+}
+
+.summary {
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.columns {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .columns {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.subtitle {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}

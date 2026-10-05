@@ -264,7 +264,10 @@ func businessRejection(err error) bool {
 		// usuário no meio da janela em que POST /orders/:id/cancel (tarefa
 		// O.1) está cancelando essa mesma ordem — mesma rejeição de negócio
 		// normal das três acima, não uma falha de infraestrutura.
-		errors.Is(err, orderexecution.ErrRestingOrderNoLongerAvailable)
+		errors.Is(err, orderexecution.ErrRestingOrderNoLongerAvailable) ||
+		// Pausa de negociação (N.9) vigente no ativo: a ordem do bot (ou do ETF) é só
+		// descartada, o tick segue (a pausa nunca suspende o tick).
+		errors.Is(err, orderexecution.ErrTradingHalted)
 }
 
 // equityRoundState é o estado mutável (em memória, só durante esta chamada
@@ -1045,6 +1048,11 @@ func (s *Service) runBotOnAsset(ctx context.Context, run *roundRun, round Intrad
 		return 0, err
 	}
 
+	// Ativo com negociação pausada (N.9): o bot nem decide, não há o que enviar.
+	if execCtx.Halt != nil {
+		return 0, nil
+	}
+
 	decisionSeed := roundSeed(s.seed, run.dayIndex, round.SequenceIndex, b.UserID, "decision:"+purpose)
 	input, ok, err := s.decisionInputFor(ctx, b.Personality, state, execCtx, assetID, run.contexts, run.selicRate, run.selicNeutral, decisionSeed, run.priceHistoryCache, run.volumeCache, run.directionalCeilingPct(assetID))
 	if err != nil {
@@ -1157,6 +1165,16 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 		return false, nil
 	}
 
+	// O contexto é lido antes de cancelar a cotação velha: com a negociação pausada
+	// (N.9) o Market Maker não recota, e cancelar sem poder repor esvaziaria o book à toa.
+	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
+	if err != nil {
+		return true, err
+	}
+	if execCtx.Halt != nil {
+		return false, nil
+	}
+
 	var staleIDs []string
 	for _, q := range resting {
 		if (q.Side == orderbook.SideBuy && requoteBuy) || (q.Side == orderbook.SideSell && requoteSell) {
@@ -1167,11 +1185,6 @@ func (s *Service) maintainQuote(ctx context.Context, run *roundRun, b BotForRoun
 		if err := s.orderLifecycle.CancelRestingOrders(ctx, staleIDs); err != nil {
 			return true, err
 		}
-	}
-
-	execCtx, err := s.orderContext.LoadContext(ctx, assetID, b.UserID)
-	if err != nil {
-		return true, err
 	}
 	// O Market Maker é determinístico (sem seed) e não usa insumos além do
 	// preço, do caixa, da posição e do teto de ordem.

@@ -46,10 +46,18 @@ export interface MarketCalendarQuery {
   to?: string
 }
 
+// Pausa de negociação vigente (N.9), só o que o usuário pode saber: se é global e em
+// quais ativos. Nunca o motivo interno nem quem pausou.
+export interface TradingHaltStatus {
+  global: boolean
+  asset_ids: string[]
+}
+
 // Relógio e linha do tempo do mercado simulado. `userId` junta os fatos do
 // próprio usuário na linha do tempo; o backend sempre passa o id do token,
 // nunca um id vindo da requisição.
 export interface MarketCalendarReader {
   getClock(): Promise<MarketClock>
   getCalendar(userId: string, query: MarketCalendarQuery): Promise<MarketCalendar>
+  getTradingHalts(): Promise<TradingHaltStatus>
 }

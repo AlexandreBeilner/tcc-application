@@ -570,3 +570,70 @@ func (f *concurrentFakeRepository) AssetsWithCompany(_ context.Context, ids []st
 	}
 	return out, nil
 }
+
+// Agendar (N.11): ApplyOnDay move o primeiro dia de efeito, o evento continua pendente
+// e a janela de corte do relatório conta a partir da véspera do efeito.
+func TestTrigger_AgendadoComecaNoDiaEscolhido(t *testing.T) {
+	repo := &fakeRepository{currentDay: 3}
+	svc := NewService(repo)
+	direction := macroevent.DirectionPositivo
+	band := macroevent.BandSevero
+	apply := 40
+
+	_, event, err := svc.Trigger(context.Background(), Request{
+		Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+		AffectsPrice: ptr(true), AffectsFundamentals: ptr(true),
+		Targets:    []TargetInput{{AssetID: ptr("asset-1")}},
+		ApplyOnDay: &apply,
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if event.TriggeredOnDay != 40 || event.Status != macroevent.StatusPendente {
+		t.Errorf("TriggeredOnDay = %d, status = %s, want 40 e pendente", event.TriggeredOnDay, event.Status)
+	}
+	// Com o efeito começando no dia 40, o relatório de referência é o ciclo que fecha
+	// depois de 39, não o que já passou quando o evento foi cadastrado no dia 3.
+	immediate, _ := func() (macroevent.Event, error) {
+		_, e, err := NewService(&fakeRepository{currentDay: 39}).Trigger(context.Background(), Request{
+			Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+			AffectsPrice: ptr(true), AffectsFundamentals: ptr(true), Targets: []TargetInput{{AssetID: ptr("asset-1")}},
+		})
+		return e, err
+	}()
+	if *event.FundamentalsReportDay != *immediate.FundamentalsReportDay {
+		t.Errorf("report day agendado = %d, disparo imediato no dia 39 = %d, want iguais", *event.FundamentalsReportDay, *immediate.FundamentalsReportDay)
+	}
+}
+
+func TestTrigger_ApplyOnDayInvalidoNaoPersiste(t *testing.T) {
+	tests := []struct {
+		name  string
+		apply int
+		want  error
+	}{
+		{"hoje", 3, macroevent.ErrApplyDayInPast},
+		{"passado", 1, macroevent.ErrApplyDayInPast},
+		{"além do teto", 3 + macroevent.MaxScheduleAheadDays + 1, macroevent.ErrApplyDayTooFar},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{currentDay: 3}
+			direction := macroevent.DirectionPositivo
+			band := macroevent.BandLeve
+			apply := tt.apply
+			_, _, err := NewService(repo).Trigger(context.Background(), Request{
+				Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+				AffectsPrice: ptr(true), AffectsFundamentals: ptr(false),
+				Targets:    []TargetInput{{AssetID: ptr("asset-1")}},
+				ApplyOnDay: &apply,
+			})
+			if !errors.Is(err, tt.want) {
+				t.Errorf("err = %v, want %v", err, tt.want)
+			}
+			if repo.persistCalled {
+				t.Error("Persist chamado com dia inválido")
+			}
+		})
+	}
+}

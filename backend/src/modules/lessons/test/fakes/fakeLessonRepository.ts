@@ -9,11 +9,29 @@ import type { LessonSummary } from '../../domain/lesson'
 export function createFakeLessonRepository(
   seedLessons: LessonSummary[] = [],
   clock: () => Date = () => new Date(),
-): LessonRepository {
+): LessonRepository & { waive(userId: string, lessonId: string, waivedAt?: Date): void } {
   const lessons = [...seedLessons]
   const progressByUser = new Map<string, Map<string, LessonProgressRecord>>()
 
   return {
+    // Só de teste (não faz parte da porta): planta uma dispensa (N.24) sem
+    // simular a criação de lição, que é da N.23.
+    waive(userId: string, lessonId: string, waivedAt: Date = clock()) {
+      if (!progressByUser.has(userId)) {
+        progressByUser.set(userId, new Map())
+      }
+      const existing = progressByUser.get(userId)?.get(lessonId)
+      progressByUser.get(userId)?.set(lessonId, {
+        lessonId,
+        currentStep: existing?.currentStep ?? 0,
+        completedAt: existing?.completedAt ?? null,
+        updatedAt: existing?.updatedAt ?? waivedAt,
+        lastReviewedAt: existing?.lastReviewedAt ?? null,
+        microDecisionSelectedOption: existing?.microDecisionSelectedOption ?? null,
+        waivedAt,
+      })
+    },
+
     async listAll() {
       return [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
     },
@@ -34,6 +52,7 @@ export function createFakeLessonRepository(
         completedAt: input.completedAt,
         updatedAt: clock(),
         lastReviewedAt: existing?.lastReviewedAt ?? null,
+        waivedAt: existing?.waivedAt ?? null,
         microDecisionSelectedOption:
           input.microDecisionSelectedOption !== undefined
             ? input.microDecisionSelectedOption
@@ -70,6 +89,7 @@ export function createFakeLessonRepository(
         completedAt,
         updatedAt: clock(),
         lastReviewedAt: existing?.lastReviewedAt ?? null,
+        waivedAt: existing?.waivedAt ?? null,
         microDecisionSelectedOption:
           microDecisionSelectedOption !== undefined
             ? microDecisionSelectedOption

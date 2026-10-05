@@ -26,3 +26,6 @@ export class LessonStepTooFastError extends Error {
     super(message)
   }
 }
+// Correção manual de lição pelo painel (N.17).
+export class LessonAlreadyCompletedError extends Error {}
+export class LessonNotReopenableError extends Error {}
