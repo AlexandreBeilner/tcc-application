@@ -65,4 +65,18 @@ describe('GetUnlockedProductKeysUseCase', () => {
 
     expect(await useCase.execute({ userId: 'u2' })).toEqual(new Set())
   })
+  it('lição dispensada (N.24) mantém as chaves de produto liberadas, sem ter sido feita', async () => {
+    const repository = createFakeLessonRepository([lesson01, lesson02])
+    repository.waive('u1', lesson01.id)
+    const useCase = new GetUnlockedProductKeysUseCase(repository)
+
+    expect(await useCase.execute({ userId: 'u1' })).toEqual(new Set(['portfolio']))
+  })
+
+  it('lição despublicada sai da lista e não trava nem libera chave de quem não a fez (N.24)', async () => {
+    const repository = createFakeLessonRepository([lesson02])
+    const useCase = new GetUnlockedProductKeysUseCase(repository)
+
+    expect(await useCase.execute({ userId: 'u1' })).toEqual(new Set())
+  })
 })

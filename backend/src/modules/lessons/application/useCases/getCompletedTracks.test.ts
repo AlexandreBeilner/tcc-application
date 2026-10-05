@@ -58,4 +58,12 @@ describe('GetCompletedTracksUseCase', () => {
 
     expect(await useCase.execute({ userId: 'u2' })).toEqual([])
   })
+  it('lição dispensada conta como satisfeita: troféu não regride com lição nova no meio (N.24)', async () => {
+    const repository = createFakeLessonRepository([lesson01, lesson02])
+    await repository.upsertProgress('u1', lesson01.id, { currentStep: 3, completedAt: new Date() })
+    repository.waive('u1', lesson02.id)
+    const useCase = new GetCompletedTracksUseCase(repository)
+
+    expect(await useCase.execute({ userId: 'u1' })).toEqual([0])
+  })
 })

@@ -8,7 +8,7 @@ const SOURCES = import.meta.glob(
         '../{pages,components,features}/**/*.{ts,tsx}',
         '!../**/*.test.{ts,tsx}',
         '!../**/admin/**',
-        '!../pages/{PainelAdmin,CriarEventoMacro}/**',
+        '!../pages/{PainelAdmin,CriarEventoMacro,Admin*}/**',
     ],
     { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>

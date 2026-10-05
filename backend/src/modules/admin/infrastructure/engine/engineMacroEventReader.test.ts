@@ -49,6 +49,27 @@ describe('engineMacroEventReader', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://engine:8080/macro-events?limit=5&offset=10')
   })
 
+  it('repassa a visão e os filtros do painel (N.11)', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => sampleResult })
+    const reader = createEngineMacroEventReader('http://engine:8080')
+
+    await reader.list({ view: 'admin', status: 'cancelado', from_day: 10, to_day: 50 })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      view: 'admin',
+      status: 'cancelado',
+      from_day: '10',
+      to_day: '50',
+    })
+  })
+
+  it('o feed do usuário não manda view (o motor assume a visão pública)', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => sampleResult })
+    await createEngineMacroEventReader('http://engine:8080').list({ limit: 20, offset: 0 })
+    expect(fetchMock.mock.calls[0][0]).not.toContain('view')
+  })
+
   it('lança erro em qualquer falha do motor', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
     const reader = createEngineMacroEventReader('http://engine:8080')

@@ -34,6 +34,21 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 
 ---
 
+### `POST /admin/accounts/{user_id}/credit`
+
+- **Autenticação:** interno, mesmo trust boundary das demais rotas `/admin` (o backend valida `role = admin`, senha recente e audita antes de repassar).
+- **Payload:** `user_id` no path (UUID). Corpo (JSON): `amount` — número, obrigatório.
+- **Sucesso:** `200` → `{ user_id, credited }`, onde `credited` é o valor de fato creditado (arredondado pra centavos).
+- **Erros:**
+  - `400` — `user_id` não é UUID, JSON inválido, ou `amount` que o domínio recusa (zero, negativo, abaixo de meio centavo, acima de R$ 1 trilhão).
+  - `404` — nenhuma conta com esse `user_id`.
+  - `422` — saldo + crédito não cabe em `accounts.current_balance` (`numeric(15,2)`).
+  - `503` — motor subiu sem `DATABASE_URL`.
+  - `500` — falha inesperada de persistência.
+- **Regra:** `account.Service.AdminCredit` (tarefa N.17). Crédito de caixa administrativo **sem teto de negócio** (decisão do autor, achado 029 item 5): o único limite, `account.MaxAdminCredit` = R$ 1 trilhão, é físico (folga pra coluna `numeric(15,2)`). Grava o evento imutável `admin_credit` em `market_events` (migration `000047`) **antes** de somar em `accounts.current_balance`, na mesma transação (Event Sourcing, CLAUDE.md). É caixa livre como o salário: **nunca** incrementa `total_invested`/`total_disinvested`/`total_dividends_received`, então não altera a rentabilidade (T.1). Aparece no extrato (`GET /accounts/{user_id}/events`) com `event_type = "admin_credit"`, nunca confundido com `salary_payment` nem `initial_deposit`. O motivo do crédito não vai pro motor: fica no log de auditoria do backend.
+
+---
+
 ### `GET /accounts/{user_id}`
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.

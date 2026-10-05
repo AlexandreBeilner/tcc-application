@@ -5,6 +5,10 @@ export type MarketEventType =
   | 'fixed_income_purchase'
   | 'fixed_income_redemption'
   | 'dividend_payment'
+  // Créditos de caixa livre (folha mensal T.2, correção administrativa N.17): o replay
+  // os ignora de propósito, ver o comentário em `replay`.
+  | 'salary_payment'
+  | 'admin_credit'
 
 export interface MarketEventRecord {
   id: string
@@ -131,6 +135,14 @@ export function replay(
         dividendsReceived += total
         break
       }
+
+      // Caixa livre que nunca foi capital de risco: não entra em `investedCost`, então
+      // não altera a rentabilidade do ranking (T.1). O `cash` deste replay também não
+      // os soma (já era assim com `salary_payment`): o patrimônio mostrado ao admin
+      // vem do saldo atual do motor (`engineUserPortfolioReader`), não daqui.
+      case 'salary_payment':
+      case 'admin_credit':
+        break
     }
   }
 

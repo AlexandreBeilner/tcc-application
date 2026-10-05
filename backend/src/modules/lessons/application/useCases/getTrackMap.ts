@@ -1,4 +1,4 @@
-import { buildLessonView, type LessonView } from '../../domain/lesson'
+import { buildLessonView, buildProgression, type LessonView } from '../../domain/lesson'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface GetTrackMapInput {
@@ -14,11 +14,11 @@ export class GetTrackMapUseCase {
       this.lessonRepository.listProgressForUser(input.userId),
     ])
 
-    const completedCount = progress.filter((p) => p.completedAt !== null).length
+    const progression = buildProgression(lessons, progress)
     const progressByLessonId = new Map(progress.map((p) => [p.lessonId, p]))
 
     return lessons.map((lesson) =>
-      buildLessonView(lesson, progressByLessonId.get(lesson.id), completedCount),
+      buildLessonView(lesson, progressByLessonId.get(lesson.id), progression),
     )
   }
 }

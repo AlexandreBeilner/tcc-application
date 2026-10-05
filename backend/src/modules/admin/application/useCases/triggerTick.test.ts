@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createFakeTickTrigger } from '../../test/fakes/fakeTickTrigger'
+import { createFakeAuditLogRepository } from '../../test/fakes/fakeAuditLogRepository'
+import { RecordAdminActionUseCase } from './recordAdminAction'
 import { TriggerTickUseCase } from './triggerTick'
 
 const sampleResult = {
@@ -17,22 +19,43 @@ const sampleResult = {
   intraday_rounds_count: 2,
 }
 
-describe('TriggerTickUseCase', () => {
-  it('chama a port e devolve o resultado', async () => {
-    const tickTrigger = createFakeTickTrigger(sampleResult)
-    const useCase = new TriggerTickUseCase(tickTrigger)
+function build(tickTrigger = createFakeTickTrigger(sampleResult)) {
+  const auditLog = createFakeAuditLogRepository()
+  const useCase = new TriggerTickUseCase(tickTrigger, new RecordAdminActionUseCase(auditLog))
+  return { useCase, tickTrigger, auditLog }
+}
 
-    const result = await useCase.execute()
+describe('TriggerTickUseCase', () => {
+  it('chama a port, devolve o resultado e audita o disparo como sucesso', async () => {
+    const { useCase, tickTrigger, auditLog } = build()
+
+    const result = await useCase.execute('admin-1')
 
     expect(result).toEqual(sampleResult)
     expect(tickTrigger.calls).toBe(1)
+    expect(auditLog.entries).toHaveLength(1)
+    expect(auditLog.entries[0]).toMatchObject({
+      adminId: 'admin-1',
+      action: 'tick.trigger',
+      targetType: 'tick',
+      targetId: '10',
+      payload: { day: 10 },
+      result: 'success',
+    })
   })
 
-  it('propaga erro lançado pela port (ex: TickInProgressError)', async () => {
+  it('propaga erro da port (ex: TickInProgressError) e audita como falha com o motivo', async () => {
     const tickTrigger = createFakeTickTrigger(sampleResult)
     tickTrigger.errorToThrow = new Error('já existe um tick em andamento')
-    const useCase = new TriggerTickUseCase(tickTrigger)
+    const { useCase, auditLog } = build(tickTrigger)
 
-    await expect(useCase.execute()).rejects.toThrow('já existe um tick em andamento')
+    await expect(useCase.execute('admin-1')).rejects.toThrow('já existe um tick em andamento')
+
+    expect(auditLog.entries).toHaveLength(1)
+    expect(auditLog.entries[0]).toMatchObject({
+      action: 'tick.trigger',
+      result: 'failed',
+      errorMessage: 'já existe um tick em andamento',
+    })
   })
 })

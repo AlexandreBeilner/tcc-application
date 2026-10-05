@@ -28,6 +28,8 @@ export interface CompletionAttemptResult {
 }
 
 export interface LessonRepository {
+  // Lições publicadas, em ordem de `sortOrder` — a progressão (N.24) é
+  // calculada sobre esta lista, então despublicar (N.18) é só filtrar aqui.
   listAll(): Promise<LessonSummary[]>
   findById(id: string): Promise<LessonSummary | undefined>
   listProgressForUser(userId: string): Promise<LessonProgressRecord[]>
