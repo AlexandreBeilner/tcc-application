@@ -517,9 +517,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 ### 10.16 Catálogo de ativos
 - **Objetivo:** consultar os parâmetros de todos os ativos e ajustar uma lista fechada de campos (N.12). Rota `/admin/mercado/catalogo`, dentro da seção "Mercado"; link na 10.6.
 - **Conteúdo:** filtros de classe (ações, FIIs, ETFs, renda fixa) e busca por ticker ou nome; um cartão por ativo com o bloco da classe (RF21: ação com empresa, setor, crescimento base e multiplicador de qualidade; ETF com índice, taxa, rebalanceamento, cesta e metodologia; FII com tipo, segmento, indexador ou vacância; renda fixa com emissor, taxa, vencimento e aplicação mínima). Os campos estruturais (ticker, setor, cotas em circulação, ciclo de relatório) aparecem separados por borda tracejada, sem controle de edição. Ativo do sandbox vem marcado e travado.
-- **Ações:** editar nome (todos), crescimento base e multiplicador de qualidade (ação; valem pra empresa emissora, ou seja, ON e PN), metodologia (ETF). Confirmação com o de/para antes de gravar, e a alteração vai pra auditoria.
+- **Ações:** editar nome (todos), crescimento base e multiplicador de qualidade (ação; valem pra empresa emissora, ou seja, ON e PN), metodologia (ETF). Confirmação com o de/para antes de gravar, e a alteração vai pra auditoria. **Cadastrar ativo novo (N.13):** formulário por classe (ação com empresa, CNPJ, setor, float, crescimento e qualidade; FII de tijolo com segmento e vacância; FII de papel com indexador; ETF com índice, metodologia e cesta de ações/FIIs já cadastrados), preview do que será criado (bots novos, Market Maker que cobre, float distribuído) e confirmação digitando o ticker. Não há exclusão de ativo.
 - **Estados especiais:** carregando; erro de carga; filtro sem resultado; valor fora da regra (recusado na tela e, se passar, com a mensagem do motor); ativo removido no meio do caminho. Cartões em 1, 2 ou 3 colunas conforme o breakpoint.
-- **Dados envolvidos:** `GET /admin/catalog`, `PATCH /admin/catalog/:id` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+- **Dados envolvidos:** `GET /admin/catalog`, `PATCH /admin/catalog/:id`, `POST /admin/catalog/preview`, `POST /admin/catalog` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
 
 ## 11. Resumo — todas as telas numeradas
 

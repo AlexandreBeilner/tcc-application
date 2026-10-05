@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { Select } from '../../components/atoms/Select'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
+import { NewAssetForm } from '../../components/organisms/NewAssetForm'
 import {
     buildCatalogPatch,
     catalogTypeLabel,
@@ -18,7 +19,11 @@ import {
 } from '../../features/admin/catalog'
 import type { CatalogClass, CatalogDraft, CatalogFilters } from '../../features/admin/catalog'
 import { useAdminCatalogQuery } from '../../features/admin/useAdminCatalogQuery'
-import { useUpdateCatalogAssetMutation } from '../../features/admin/useCatalogActions'
+import {
+    useCreateCatalogAssetMutation,
+    usePreviewCatalogAssetMutation,
+    useUpdateCatalogAssetMutation,
+} from '../../features/admin/useCatalogActions'
 import type { CatalogAsset, CatalogEditableField, CatalogPatch } from '../../services/admin'
 import styles from './index.module.css'
 
@@ -74,6 +79,9 @@ export function AdminCatalogo() {
 
     const catalogQuery = useAdminCatalogQuery()
     const update = useUpdateCatalogAssetMutation()
+    const previewAsset = usePreviewCatalogAssetMutation()
+    const createAsset = useCreateCatalogAssetMutation()
+    const [creating, setCreating] = useState(false)
     const visible = useMemo(() => (catalogQuery.data ? filterCatalog(catalogQuery.data, filters) : []), [catalogQuery.data, filters])
 
     function startEditing(asset: CatalogAsset) {
@@ -125,14 +133,38 @@ export function AdminCatalogo() {
                     <h1 className={styles.title}>Catálogo de ativos</h1>
                     <p className={styles.subtitle}>
                         Parâmetros de cada ativo. Só nome, crescimento base, multiplicador de qualidade e metodologia do ETF podem ser
-                        ajustados. O resto é estrutural: mudar ticker, setor ou cotas em circulação reescreve a distribuição dos bots e os
-                        eventos macro que atingem a empresa.
+                        ajustados, e ativos novos podem ser cadastrados abaixo. O resto é estrutural: mudar ticker, setor ou cotas em
+                        circulação reescreve a distribuição dos bots e os eventos macro que atingem a empresa.
                     </p>
                 </div>
                 <Link to="/admin/mercado" className={styles.link}>
                     Voltar ao Mercado
                 </Link>
             </header>
+
+            {creating ? (
+                <NewAssetForm
+                    onPreview={previewAsset.mutateAsync}
+                    onCreate={createAsset.mutateAsync}
+                    onCreated={(created) => {
+                        setNotice(`${created.preview.ticker} cadastrado. Entra no mercado na rodada seguinte, com cotação de Market Maker.`)
+                        setError(null)
+                        setCreating(false)
+                    }}
+                    onCancel={() => setCreating(false)}
+                />
+            ) : (
+                <div className={styles.actions}>
+                    <Button
+                        onClick={() => {
+                            setNotice(null)
+                            setCreating(true)
+                        }}
+                    >
+                        Cadastrar ativo novo
+                    </Button>
+                </div>
+            )}
 
             <div className={styles.filters}>
                 <label className={styles.filterField}>

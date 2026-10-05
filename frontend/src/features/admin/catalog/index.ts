@@ -81,7 +81,7 @@ export function draftFromAsset(asset: CatalogAsset): CatalogDraft {
     }
 }
 
-function parseNumber(raw: string): number | null {
+export function parseDecimal(raw: string): number | null {
     const text = raw.trim()
     if (!/^-?\d+([.,]\d+)?$/.test(text)) return null
     return Number(text.replace(',', '.'))
@@ -106,12 +106,12 @@ export function buildCatalogPatch(
             if (name === '' || name.length > MAX_NAME_LENGTH) errors.name = `Use de 1 a ${MAX_NAME_LENGTH} caracteres.`
             else if (name !== asset.name) patch.name = name
         } else if (field === 'base_growth_pct') {
-            const value = parseNumber(draft.base_growth_pct)
+            const value = parseDecimal(draft.base_growth_pct)
             if (value === null) errors.base_growth_pct = 'Digite um número, como 3 ou 6,5.'
             else if (value <= -100) errors.base_growth_pct = 'Precisa ser maior que -100%, senão o fator de crescimento zera.'
             else if (value !== asset.company?.base_growth_pct) patch.base_growth_pct = value
         } else if (field === 'quality_multiplier') {
-            const value = parseNumber(draft.quality_multiplier)
+            const value = parseDecimal(draft.quality_multiplier)
             if (value === null) errors.quality_multiplier = 'Digite um número, como 1 ou 1,2.'
             else if (value <= 0 || value > 2) errors.quality_multiplier = 'Use um valor maior que 0 e até 2.'
             else if (value !== asset.company?.quality_multiplier) patch.quality_multiplier = value

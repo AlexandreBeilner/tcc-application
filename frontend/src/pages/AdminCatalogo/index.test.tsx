@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { listAdminCatalog, updateCatalogAsset } from '../../services/admin'
+import { createCatalogAsset, listAdminCatalog, previewCatalogAsset, updateCatalogAsset } from '../../services/admin'
 import type { CatalogAsset } from '../../services/admin'
 import { ApiError } from '../../services/client'
 import { AdminCatalogo } from '.'
@@ -12,6 +12,8 @@ vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/admin', () => ({
     listAdminCatalog: vi.fn(),
     updateCatalogAsset: vi.fn(),
+    previewCatalogAsset: vi.fn(),
+    createCatalogAsset: vi.fn(),
 }))
 
 const base: CatalogAsset = {
@@ -172,5 +174,49 @@ describe('AdminCatalogo', () => {
         vi.mocked(listAdminCatalog).mockRejectedValue(new Error('boom'))
         renderPage()
         expect(await screen.findByText(/Não foi possível carregar o catálogo/)).toBeInTheDocument()
+    })
+
+    it('cadastra um ativo novo: preview, confirmação com o ticker e aviso de sucesso', async () => {
+        const preview = {
+            kind: 'fii_papel',
+            ticker: 'NOVP11',
+            name: 'FII Novo',
+            outstanding_shares: 1_000_000,
+            pool: {
+                pool_before: 60,
+                pool_after: 60,
+                new_bots: 0,
+                market_maker_shares: 500_000,
+                bot_shares: 500_000,
+                market_maker_id: 'mm-1',
+                creates_market_maker: false,
+            },
+        }
+        vi.mocked(previewCatalogAsset).mockResolvedValue(preview)
+        vi.mocked(createCatalogAsset).mockResolvedValue({ asset_id: 'a9', preview })
+        renderPage()
+        await card('ACME3')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cadastrar ativo novo' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Classe do ativo novo' }))
+        fireEvent.click(screen.getByRole('option', { name: 'FII de papel' }))
+        fireEvent.change(screen.getByLabelText(/^Ticker(Ação|FII)/), { target: { value: 'NOVP11' } })
+        fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: 'FII Novo' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Ver o que será criado' }))
+        await screen.findByRole('region', { name: 'O que será criado' })
+        fireEvent.click(screen.getByRole('button', { name: 'Cadastrar ativo' }))
+        fireEvent.change(screen.getByLabelText(/Para confirmar/), { target: { value: 'NOVP11' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Cadastrar' }))
+
+        await waitFor(() =>
+            expect(createCatalogAsset).toHaveBeenCalledWith('tok', {
+                kind: 'fii_papel',
+                ticker: 'NOVP11',
+                name: 'FII Novo',
+                indexador: 'CDI',
+            }),
+        )
+        expect(await screen.findByRole('status')).toHaveTextContent('NOVP11 cadastrado')
+        expect(screen.queryByRole('form', { name: 'Cadastrar ativo novo' })).not.toBeInTheDocument()
     })
 })

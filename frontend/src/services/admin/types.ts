@@ -93,6 +93,7 @@ export type AuditAction =
     | 'settings.update'
     | 'settings.reset'
     | 'catalog.update'
+    | 'catalog.create'
     | 'user.suspend'
     | 'user.reactivate'
     | 'user.force_logout'
@@ -974,4 +975,54 @@ export interface CatalogPatch {
     base_growth_pct?: number
     quality_multiplier?: number
     methodology_summary?: string
+}
+
+// Cadastro de ativo novo (N.13): um formato por classe, o mesmo do motor.
+export type NewCatalogAsset =
+    | {
+          kind: 'acao'
+          ticker: string
+          name: string
+          company_name: string
+          cnpj: string
+          sector: string
+          outstanding_shares: number
+          base_growth_pct: number
+          quality_multiplier: number
+      }
+    | { kind: 'fii_tijolo'; ticker: string; name: string; segment: string; vacancy_rate: number }
+    | { kind: 'fii_papel'; ticker: string; name: string; indexador: 'CDI' | 'IPCA+' }
+    | {
+          kind: 'etf'
+          ticker: string
+          name: string
+          benchmark_index: string
+          methodology?: string
+          holdings: Array<{ ticker: string; weight_pct: number }>
+      }
+
+export type NewCatalogAssetKind = NewCatalogAsset['kind']
+
+export interface CatalogPoolPreview {
+    pool_before: number
+    pool_after: number
+    new_bots: number
+    market_maker_shares: number
+    bot_shares: number
+    market_maker_id: string
+    creates_market_maker: boolean
+}
+
+// O que o cadastro criaria (ou criou). `pool` é nulo em ETF (sem float de bots nem Market Maker).
+export interface NewCatalogAssetPreview {
+    kind: string
+    ticker: string
+    name: string
+    outstanding_shares: number | null
+    pool: CatalogPoolPreview | null
+}
+
+export interface CreatedCatalogAsset {
+    asset_id: string
+    preview: NewCatalogAssetPreview
 }

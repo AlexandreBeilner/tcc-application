@@ -20,6 +20,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'settings.update': 'Alteração de parâmetro',
     'settings.reset': 'Restauração de parâmetro',
     'catalog.update': 'Alteração de ativo do catálogo',
+    'catalog.create': 'Cadastro de ativo novo',
     'user.suspend': 'Suspensão de conta',
     'user.reactivate': 'Reativação de conta',
     'user.force_logout': 'Logout forçado de conta',
