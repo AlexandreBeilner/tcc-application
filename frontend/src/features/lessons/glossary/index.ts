@@ -38,7 +38,7 @@ export const glossary: Record<string, GlossaryEntry> = {
     'Dividend Yield': {
         definition: 'Soma dos dividendos pagos por ação ou cota nos últimos 12 meses, dividida pelo preço atual.',
         example: 'R$3,00 de dividendos em 12 meses sobre uma ação de R$50,00 dá Dividend Yield de 6%.',
-        originLesson: '2.7.6',
+        originLesson: '2.7.7',
     },
     Selic: {
         definition:
@@ -67,40 +67,40 @@ export const glossary: Record<string, GlossaryEntry> = {
     'ON e PN': {
         definition:
             'Ações ordinárias (ON, terminam em 3) dão direito a voto. Preferenciais (PN, terminam em 4) podem ter preferência no recebimento de dividendos e, em geral, não votam.',
-        originLesson: '2.3',
+        originLesson: '2.2',
     },
     'ação ordinária': {
         definition: 'Ação ON, com ticker terminado em 3. Dá direito a voto nas decisões da empresa.',
-        originLesson: '2.3',
+        originLesson: '2.2',
     },
     'ação preferencial': {
         definition: 'Ação PN, com ticker terminado em 4. Pode ter preferência no dividendo e, em geral, não dá direito a voto.',
-        originLesson: '2.3',
+        originLesson: '2.2',
     },
     IPO: {
         definition: 'Oferta pública inicial: a primeira vez que uma empresa oferece ações ao público e passa a ser de capital aberto.',
-        originLesson: '2.2',
+        originLesson: '2.3',
     },
     'oferta primária': {
         definition: 'Oferta de ações novas, emitidas pela empresa. O dinheiro entra no caixa dela.',
-        originLesson: '2.2',
+        originLesson: '2.3',
     },
     'oferta secundária': {
         definition: 'Oferta de ações que já existiam, vendidas por sócios. O dinheiro vai para quem vende, e não para a empresa.',
-        originLesson: '2.2',
+        originLesson: '2.3',
     },
     bookbuilding: {
         definition: 'Processo que forma o preço de uma oferta: investidores dizem quantas ações querem e o preço máximo que aceitam.',
-        originLesson: '2.2',
+        originLesson: '2.3',
     },
     'mercado primário': {
         definition: 'Onde as empresas vendem ações novas ao público pela primeira vez e captam recursos para o próprio caixa.',
-        originLesson: '2.2',
+        originLesson: '2.3',
     },
     'mercado secundário': {
         definition:
             'Onde os investidores compram e vendem entre si ações que já existem. O dinheiro vai para quem vende, e não para a empresa.',
-        originLesson: '2.2',
+        originLesson: '2.3',
     },
     'valor de face': {
         definition: 'Valor que o título paga no vencimento, também chamado de valor nominal.',
@@ -113,16 +113,16 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     alavancagem: {
         definition: 'Uso de dívida para financiar a operação. Aumenta o retorno quando tudo vai bem e amplia o prejuízo quando não vai.',
-        originLesson: '2.7.5',
+        originLesson: '2.7.3',
     },
     payout: {
         definition: 'Parte do lucro da empresa distribuída aos acionistas como dividendos.',
         example: 'Lucro de R$100 milhões e R$40 milhões distribuídos dão payout de 40%.',
-        originLesson: '2.8',
+        originLesson: '2.7.6',
     },
     JCP: {
         definition: 'Juros sobre Capital Próprio: forma de a empresa remunerar o acionista, com imposto retido na fonte.',
-        originLesson: '2.8',
+        originLesson: '2.7.6',
     },
     'ITR e DFP': {
         definition: 'Demonstrações financeiras que a empresa de capital aberto publica: o ITR é trimestral e a DFP é anual.',
@@ -135,15 +135,15 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     NAV: {
         definition: 'Valor patrimonial por cota de um fundo ou ETF: o valor dos ativos da carteira dividido pelo número de cotas.',
-        originLesson: '2.10',
+        originLesson: '2.9',
     },
     ágio: {
         definition: 'Quando o preço de negociação fica acima do valor de referência. O contrário é o deságio.',
-        originLesson: '2.11',
+        originLesson: '2.10',
     },
     spread: {
         definition: 'Diferença entre dois preços ou taxas. Na bolsa, é a distância entre a melhor oferta de compra e a de venda.',
-        originLesson: '2.5',
+        originLesson: '2.4',
     },
     liquidez: {
         definition: 'Facilidade de transformar um ativo em dinheiro rapidamente, sem precisar vender com desconto.',
@@ -152,12 +152,12 @@ export const glossary: Record<string, GlossaryEntry> = {
     'ordem a mercado': {
         definition: 'Ordem para comprar ou vender já, ao preço que estiver sendo praticado no mercado naquele momento.',
         example: 'Uma compra a mercado de 500 ações pode passar por mais de um nível de preço do livro de ofertas.',
-        originLesson: '2.5',
+        originLesson: '2.4',
     },
     'ordem limite': {
         definition: 'Ordem que só executa no preço que você definir ou melhor. Se ninguém aceita esse preço, ela espera na fila.',
         example: 'Uma compra limite a R$ 9,50 nunca paga mais que R$ 9,50 por ação.',
-        originLesson: '2.5',
+        originLesson: '2.4',
     },
     duration: {
         definition: 'Prazo médio ponderado em que o título devolve o dinheiro. Quanto maior, mais o preço oscila quando os juros mudam.',
@@ -220,36 +220,36 @@ export const glossary: Record<string, GlossaryEntry> = {
     ROE: {
         definition:
             'Retorno sobre o patrimônio: lucro líquido dividido pelo patrimônio líquido. Mede o quanto a empresa rende ao dinheiro dos sócios.',
-        originLesson: '2.7.3',
+        originLesson: '2.7.4',
     },
     'P/L': {
         definition: 'Preço da ação dividido pelo lucro por ação. Indica quantos anos de lucro o preço atual representa.',
-        originLesson: '2.7.4',
+        originLesson: '2.7.5',
     },
     'P/VP': {
         definition: 'Preço da ação dividido pelo patrimônio líquido por ação. Abaixo de 1, o mercado paga menos que o patrimônio contábil.',
-        originLesson: '2.7.4',
+        originLesson: '2.7.5',
     },
     'data com': {
         definition: 'Último dia em que comprar a ação ainda garante o direito ao provento anunciado.',
-        originLesson: '2.8',
+        originLesson: '2.7.6',
     },
     'data ex': {
         definition: 'Primeiro dia em que a ação é negociada sem o direito ao provento. O preço costuma cair o valor do dividendo.',
-        originLesson: '2.8',
+        originLesson: '2.7.6',
     },
     ETF: {
         definition: 'Fundo de índice negociado em bolsa como uma ação, que reproduz a carteira de um índice de referência.',
-        originLesson: '2.10',
+        originLesson: '2.9',
     },
     FII: {
         definition:
             'Fundo de investimento imobiliário: reúne dinheiro de cotistas para investir em imóveis ou títulos imobiliários e distribui rendimentos.',
-        originLesson: '2.11',
+        originLesson: '2.10',
     },
     dividendo: {
         definition: 'Parte do lucro que a empresa paga em dinheiro aos acionistas.',
-        originLesson: '2.8',
+        originLesson: '2.7.6',
     },
     diversificação: {
         definition: 'Dividir o dinheiro entre ativos diferentes para que o problema de um não derrube toda a carteira.',

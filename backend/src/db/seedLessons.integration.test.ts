@@ -9,6 +9,7 @@ import type { Database } from './client'
 import {
   findMiddleInsertions,
   insertLessonInMiddle,
+  reorderExistingLessons,
   LESSON_SEEDS,
   upsertLessonSeed,
 } from './seedLessons'
@@ -48,9 +49,33 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
     // antigos (o `code` de toda lição antiga era o próprio `stableKey`).
     const insertedBefore = (order: number) =>
       LESSON_SEEDS.filter((s) => NEW_KEYS.has(s.stableKey) && s.sortOrder < order).length
+    // A Trilha 2 antiga tinha outra ordem (RC.4.3 a reordenou): IPO antes do ticker,
+    // notícias antes de oferta e demanda, ROE antes de endividamento, DY antes de dividendos.
+    const oldTrilha2 = [
+      '2.1',
+      '2.2',
+      '2.3',
+      '2.4',
+      '2.5',
+      '2.6.1',
+      '2.6.2',
+      '2.6.3',
+      '2.6.4',
+      '2.6.5',
+      '2.6.6',
+      '2.7',
+      '2.8',
+      '2.9',
+      '2.10',
+    ]
+    const firstTrilha2 = Math.min(
+      ...oldTrilha2.map((k) => LESSON_SEEDS.find((s) => s.stableKey === k)!.sortOrder),
+    )
     const before = LESSON_SEEDS.filter((s) => !NEW_KEYS.has(s.stableKey)).map((s) => ({
       ...s,
-      sortOrder: s.sortOrder - insertedBefore(s.sortOrder),
+      sortOrder: oldTrilha2.includes(s.stableKey)
+        ? firstTrilha2 - 2 + oldTrilha2.indexOf(s.stableKey)
+        : s.sortOrder - insertedBefore(s.sortOrder),
       code: s.stableKey,
     }))
     for (const seed of before) await upsertLessonSeed(database, seed)
@@ -88,6 +113,9 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
     const toInsert = await findMiddleInsertions(database, LESSON_SEEDS)
     expect(toInsert.map((s) => s.stableKey)).toEqual([JUROS_KEY, RESERVA_KEY, B3_KEY])
     for (const seed of toInsert) await insertLessonInMiddle(database, seed, LESSON_SEEDS)
+    // RC.4.3: a Trilha 2 foi reordenada (ticker antes de IPO, notícias depois de
+    // oferta e demanda...), o que o `upsert` simples não consegue por causa da unicidade.
+    expect(await reorderExistingLessons(database, LESSON_SEEDS)).toBeGreaterThan(0)
     for (const seed of LESSON_SEEDS) await upsertLessonSeed(database, seed)
 
     const after = await db.select().from(schema.lessons)
@@ -104,9 +132,12 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
     expect(after.find((l) => l.stableKey === '0.5')!.code).toBe('0.6')
     expect(after.find((l) => l.stableKey === '1.3')!.code).toBe('1.4')
     expect(after.find((l) => l.stableKey === '1.11')!.code).toBe('1.12')
-    expect(after.find((l) => l.stableKey === '2.5')!.code).toBe('2.6')
-    expect(after.find((l) => l.stableKey === '2.6.3')!.code).toBe('2.7.3')
-    expect(after.find((l) => l.stableKey === '2.10')!.code).toBe('2.11')
+    expect(after.find((l) => l.stableKey === '2.3')!.code).toBe('2.2')
+    expect(after.find((l) => l.stableKey === '2.2')!.code).toBe('2.3')
+    expect(after.find((l) => l.stableKey === '2.4')!.code).toBe('2.6')
+    expect(after.find((l) => l.stableKey === '2.6.3')!.code).toBe('2.7.4')
+    expect(after.find((l) => l.stableKey === '2.6.6')!.code).toBe('2.7.7')
+    expect(after.find((l) => l.stableKey === '2.10')!.code).toBe('2.10')
 
     const waivedFor = async (key: string) => {
       const lessonId = after.find((l) => l.stableKey === key)!.id
@@ -126,5 +157,6 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
 
     // Idempotente: rodar de novo não insere nem dispensa de novo.
     expect(await findMiddleInsertions(database, LESSON_SEEDS)).toEqual([])
+    expect(await reorderExistingLessons(database, LESSON_SEEDS)).toBe(0)
   })
 })

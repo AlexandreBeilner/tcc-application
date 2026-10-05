@@ -58,7 +58,7 @@ export const TERM_RULES: TermRule[] = [
     id: 'on-pn',
     label: 'ON/PN',
     pattern: /\b(ON|PN)\b/,
-    definedIn: '2.3',
+    definedIn: '2.2',
     glossaryKeys: ['ON e PN', 'ação ordinária', 'ação preferencial'],
   },
   {
@@ -73,7 +73,7 @@ export const TERM_RULES: TermRule[] = [
     id: 'alavancagem',
     label: 'alavancagem',
     pattern: /alavanca/i,
-    definedIn: '2.9',
+    definedIn: '2.7.3',
     glossaryKeys: ['alavancagem'],
   },
   {
@@ -94,7 +94,7 @@ export const TERM_RULES: TermRule[] = [
     id: 'itr-dfp',
     label: 'ITR/DFP',
     pattern: /\b(ITR|DFP)\b/,
-    definedIn: '2.8',
+    definedIn: '2.7.1',
     glossaryKeys: ['ITR', 'DFP'],
   },
   {
@@ -107,7 +107,7 @@ export const TERM_RULES: TermRule[] = [
     definedIn: '2.1',
     glossaryKeys: ['valor de mercado'],
   },
-  { id: 'nav', label: 'NAV', pattern: /\bNAV\b/, definedIn: '2.10', glossaryKeys: ['NAV'] },
+  { id: 'nav', label: 'NAV', pattern: /\bNAV\b/, definedIn: '2.9', glossaryKeys: ['NAV'] },
   {
     id: 'agio-desagio',
     label: 'ágio/deságio',
@@ -119,10 +119,10 @@ export const TERM_RULES: TermRule[] = [
     id: 'ordem-mercado-limite',
     label: 'ordem a mercado/limite',
     pattern: /ordem a mercado|ordem (a )?limite/i,
-    definedIn: '2.5',
+    definedIn: '2.4',
     glossaryKeys: ['ordem a mercado', 'ordem limite'],
   },
-  { id: 'spread', label: 'spread', pattern: /spread/i, definedIn: '2.5', glossaryKeys: ['spread'] },
+  { id: 'spread', label: 'spread', pattern: /spread/i, definedIn: '2.4', glossaryKeys: ['spread'] },
   {
     id: 'liquidez',
     label: 'liquidez',
@@ -135,7 +135,7 @@ export const TERM_RULES: TermRule[] = [
     id: 'ciclico-defensivo',
     label: 'cíclico/defensivo',
     pattern: /cíclic|defensiv/i,
-    definedIn: '2.9',
+    definedIn: '2.8',
     glossaryKeys: ['cíclico', 'defensivo'],
   },
 ]

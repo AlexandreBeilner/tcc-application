@@ -163,4 +163,47 @@ describe('blocks no seed (RC.3.1)', () => {
     await upsertLessonSeed(db, buildSeed({ stableKey: 'x' }))
     expect(rows[0].blocks).toBeNull()
   })
+
+  it('Trilha 2 na ordem da RC.4.3, com códigos e posições contíguos e sem repetição', () => {
+    const trilha2 = LESSON_SEEDS.filter((l) => l.trackNumber === 2)
+    expect(trilha2.map((l) => l.stableKey)).toEqual([
+      '2.1',
+      '2.3',
+      '2.2',
+      'b3-corretora-ordens',
+      '2.5',
+      '2.4',
+      '2.6.1',
+      '2.6.2',
+      '2.6.5',
+      '2.6.3',
+      '2.6.4',
+      '2.7',
+      '2.6.6',
+      '2.8',
+      '2.9',
+      '2.10',
+    ])
+    expect(trilha2.map((l) => l.code)).toEqual([
+      '2.1',
+      '2.2',
+      '2.3',
+      '2.4',
+      '2.5',
+      '2.6',
+      '2.7.1',
+      '2.7.2',
+      '2.7.3',
+      '2.7.4',
+      '2.7.5',
+      '2.7.6',
+      '2.7.7',
+      '2.8',
+      '2.9',
+      '2.10',
+    ])
+    const orders = LESSON_SEEDS.map((l) => l.sortOrder)
+    expect(orders).toEqual(orders.map((_, i) => i + 1))
+    expect(new Set(LESSON_SEEDS.map((l) => l.code)).size).toBe(LESSON_SEEDS.length)
+  })
 })

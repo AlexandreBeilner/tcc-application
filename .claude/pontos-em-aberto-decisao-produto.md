@@ -871,3 +871,11 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** entregar "ícone" e "XP por conquista" não é só uma coluna: XP ao desbloquear muda a economia de XP do jogo (nível, salário por nível, ranking de nível) e cria um laço (`AwardXpUseCase` chama a checagem de conquistas, que concederia XP de novo); ícone exige o frontend passar a renderizar um ícone por conquista (hoje não renderiza). Criar missão nova pelo painel entregaria XP de graça (sem verificação cruzada). **Decisão provisória tomada na implementação (a confirmar):** o painel opera o que existe (conquista: nome, descrição, regra da lista fechada, meta, ativa; missão: título, descrição, XP de 1 a 500, ativa, tipo só leitura), sem ícone, sem XP por conquista, sem criar missão.
 - **Opções:** (a) manter assim; (b) ícone por chave de uma lista fechada (coluna `icon` e o frontend renderizando); (c) XP por conquista, concedido uma vez ao desbloquear (decidir a curva e quebrar o laço da checagem); (d) tipos de missão genéricos com meta (ex: "ler N eventos no feed"), o que é uma refatoração do despacho por `key`.
 - **Status:** aberto (implementado com (a))
+
+### 034 · A compra de ações libera na lição do ticker, antes de a trilha ensinar ordens, corretora e custos (RC.4.3)
+
+- **Local:** `backend/src/db/seedLessons.ts` (lição `stableKey` `2.3`, `unlocksKeys: ['asset:acao']`)
+- **Origem:** reordenação da Trilha 2 (RC.4.3). O ticker passou a ser a 2ª lição (antes do IPO), e a lição "B3, corretora e ordens" a 4ª; o desbloqueio de `asset:acao` continuou na lição do ticker.
+- **O que é:** o jogador pode comprar ações depois de aprender só o que é ação e o ticker, sem ainda ter visto ordem a mercado x limite, spread, liquidez e custos. Mover o desbloqueio para a lição de ordens faria quem já concluiu o ticker perder o acesso até concluir a nova (regressão para quem já está na trilha).
+- **Opções:** (a) manter (a compra libera cedo, as ordens vêm logo depois); (b) mover o desbloqueio para a lição de B3 e ordens, e dispensar dela quem já concluiu a do ticker (migração com N.24); (c) manter na lição do ticker, mas mostrar um aviso curto de ordem a mercado x limite na tela de compra.
+- **Status:** aberto (implementado com (a))

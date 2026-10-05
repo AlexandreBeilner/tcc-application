@@ -530,31 +530,11 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    stableKey: '2.2',
+    stableKey: '2.3',
     code: '2.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 20,
-    title: 'IPO',
-    centralConcept: 'Como uma empresa vai à bolsa',
-    scenarioText: legacyText(BLOCKS_2_2, 'scenario'),
-    microDecisionPrompt: legacyText(BLOCKS_2_2, 'microDecision'),
-    microDecisionType: 'reflection',
-    microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim, sempre', 'Só o das ações novas', 'Nunca'],
-    microDecisionCorrectOption: 1,
-    revelationText: legacyText(BLOCKS_2_2, 'revelation'),
-    blocks: BLOCKS_2_2,
-    unlocksDescription: null,
-    unlocksKeys: [],
-    unlocksAssetTicker: null,
-  },
-  {
-    stableKey: '2.3',
-    code: '2.3',
-    trackNumber: 2,
-    trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 21,
     title: 'Nomenclatura de tickers',
     centralConcept: 'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 é fundo ou ETF',
     scenarioText: legacyText(BLOCKS_2_3, 'scenario'),
@@ -570,40 +550,35 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'VALR3',
   },
   {
-    stableKey: '2.4',
+    stableKey: '2.2',
+    code: '2.3',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 21,
+    title: 'IPO',
+    centralConcept: 'Como uma empresa vai à bolsa',
+    scenarioText: legacyText(BLOCKS_2_2, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_2, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Sim, sempre', 'Só o das ações novas', 'Nunca'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_2, 'revelation'),
+    blocks: BLOCKS_2_2,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    // Lição inserida no meio da Trilha 2 (RC.4.2), depois de IPO e ticker e antes
+    // de "Oferta e demanda"; a RC.4.3 reordenou a trilha e ela é a 2.4. O `stableKey`
+    // de cada lição não muda, então o progresso fica. Quem já tinha passado da
+    // posição recebe a dispensa na hora do seed.
+    stableKey: 'b3-corretora-ordens',
     code: '2.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 22,
-    title: 'Lendo notícias de mercado',
-    centralConcept: 'Como interpretar um evento macro e decidir',
-    scenarioText: legacyText(BLOCKS_2_4, 'scenario'),
-    microDecisionPrompt: legacyText(BLOCKS_2_4, 'microDecision'),
-    microDecisionType: 'reflection',
-    microDecisionAssetTicker: null,
-    microDecisionOptions: [
-      'Subir, porque houve lucro',
-      'Cair, porque ficou abaixo do esperado',
-      'Ficar igual',
-    ],
-    microDecisionCorrectOption: 1,
-    revelationText: legacyText(BLOCKS_2_4, 'revelation'),
-    blocks: BLOCKS_2_4,
-    unlocksDescription: 'Área de notícias do mercado',
-    unlocksKeys: ['news_feed'],
-    unlocksAssetTicker: null,
-  },
-  {
-    // Lição inserida no meio da Trilha 2 (RC.4.2), antes de "Oferta e demanda":
-    // `stableKey` próprio e `code` 2.5. As lições seguintes da trilha ganharam um
-    // `code` a mais (2.5 passou a 2.6, o grupo 2.6.x a 2.7.x e assim por diante, o
-    // `stableKey` de cada uma não muda, então o progresso fica). Quem já tinha
-    // passado da posição recebe a dispensa na hora do seed.
-    stableKey: 'b3-corretora-ordens',
-    code: '2.5',
-    trackNumber: 2,
-    trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 23,
     title: 'Como a ação é negociada: B3, corretora e ordens',
     centralConcept: 'Corretora, B3, ordem a mercado e limite, spread e liquidez',
     scenarioText: legacyText(BLOCKS_B3_CORRETORA_ORDENS, 'scenario'),
@@ -624,10 +599,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.5',
-    code: '2.6',
+    code: '2.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 24,
+    sortOrder: 23,
     title: 'Oferta e demanda',
     centralConcept: 'Formação de preço no livro de ofertas',
     scenarioText: legacyText(BLOCKS_2_5, 'scenario'),
@@ -640,6 +615,30 @@ export const LESSON_SEEDS: LessonSeed[] = [
     blocks: BLOCKS_2_5,
     unlocksDescription: null,
     unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: '2.4',
+    code: '2.6',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 24,
+    title: 'Lendo notícias de mercado',
+    centralConcept: 'Como interpretar um evento macro e decidir',
+    scenarioText: legacyText(BLOCKS_2_4, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_4, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'Subir, porque houve lucro',
+      'Cair, porque ficou abaixo do esperado',
+      'Ficar igual',
+    ],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_4, 'revelation'),
+    blocks: BLOCKS_2_4,
+    unlocksDescription: 'Área de notícias do mercado',
+    unlocksKeys: ['news_feed'],
     unlocksAssetTicker: null,
   },
   {
@@ -718,78 +717,11 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    stableKey: '2.6.3',
+    stableKey: '2.6.5',
     code: '2.7.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 27,
-    title: 'Retorno sobre patrimônio (ROE)',
-    centralConcept: 'Quão bem a empresa usa o capital dos sócios',
-    scenarioText:
-      'Imagine duas empresas com o mesmo Lucro Líquido, mas uma precisou de um Patrimônio Líquido bem maior ' +
-      'que a outra pra chegar nesse resultado. As duas lucraram igual, mas usaram o capital dos sócios com a ' +
-      'mesma eficiência?',
-    microDecisionPrompt:
-      'Se a Mineradora Vale do Rio (VALR3, {{ref:2.1}}) e o Banco Nordeste Digital (BNDD4, {{ref:2.3}}) tivessem o mesmo Lucro ' +
-      'Líquido, mas a VALR3 precisasse de um Patrimônio Líquido menor pra chegar lá, qual das duas estaria ' +
-      'usando melhor o capital dos seus sócios?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
-    microDecisionOptions: ['VALR3 (Mineradora)', 'BNDD4 (Banco)'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'A VALR3 estaria usando melhor: ROE = Lucro Líquido / Patrimônio Líquido mede quanto lucro a empresa ' +
-      'gera pra cada real de capital que os sócios colocaram nela.' +
-      '\n\n' +
-      'Então, pra um mesmo lucro, menos patrimônio empregado significa ROE mais alto e capital mais bem ' +
-      'aproveitado. É por isso que ROE alto é lido como sinal de boa gestão do capital próprio, não só de ' +
-      'lucro alto em valor absoluto.' +
-      '\n\n' +
-      'Veja abaixo o ROE calculado ao vivo pra VALR3.',
-    unlocksDescription: null,
-    unlocksKeys: [],
-    unlocksAssetTicker: null,
-  },
-  {
-    stableKey: '2.6.4',
-    code: '2.7.4',
-    trackNumber: 2,
-    trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 28,
-    title: 'Indicadores de preço (P/L e P/VP)',
-    centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
-    scenarioText:
-      'O preço de VALR3 sozinho não diz se a ação está cara ou barata: R$20 pode ser caro pra uma empresa ' +
-      'que lucra pouco por ação e barato pra uma que lucra muito.' +
-      '\n\n' +
-      'Pra comparar preço com o que a empresa de fato entrega, primeiro é preciso trazer Lucro Líquido e ' +
-      'Patrimônio Líquido pra base "por ação".',
-    microDecisionPrompt:
-      'Se o preço de VALR3 triplicar de um dia pro outro, mas o Lucro Líquido por ação dela continuar o ' +
-      'mesmo, o P/L (Preço / Lucro por ação) sobe, desce ou fica igual?',
-    microDecisionType: 'live_indicator',
-    microDecisionAssetTicker: 'VALR3',
-    microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'LPA (lucro por ação) = Lucro Líquido / número de ações; P/L = Preço / LPA.' +
-      '\n\n' +
-      'Com o LPA parado e o preço triplicando, o P/L também triplica: o mercado passa a pagar três vezes ' +
-      'mais por cada real de lucro que a empresa gera, ou seja, a ação fica mais "cara" nesse critério.' +
-      '\n\n' +
-      'O mesmo raciocínio vale pro par VPA (Patrimônio Líquido / número de ações) e P/VP (Preço / VPA), só ' +
-      'que comparando preço ao patrimônio da empresa em vez de ao lucro. Veja abaixo os quatro calculados ao ' +
-      'vivo pra VALR3.',
-    unlocksDescription: null,
-    unlocksKeys: [],
-    unlocksAssetTicker: null,
-  },
-  {
-    stableKey: '2.6.5',
-    code: '2.7.5',
-    trackNumber: 2,
-    trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 29,
     title: 'Endividamento',
     centralConcept: 'Risco de alavancagem',
     scenarioText:
@@ -821,48 +753,78 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    stableKey: '2.6.6',
-    code: '2.7.6',
+    stableKey: '2.6.3',
+    code: '2.7.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 30,
-    title: 'Dividend Yield',
-    centralConcept: 'Quanto a ação "paga" em relação ao preço',
+    sortOrder: 28,
+    title: 'Retorno sobre patrimônio (ROE)',
+    centralConcept: 'Quão bem a empresa usa o capital dos sócios',
     scenarioText:
-      'Além de poder valorizar de preço, VALR3 pode distribuir parte do lucro da Mineradora Vale do Rio ' +
-      'direto pros seus acionistas, em dinheiro, os dividendos (ou proventos).' +
-      '\n\n' +
-      'O Dividend Yield resume, num só número, quanto isso representa frente ao preço atual da ação.',
+      'Imagine duas empresas com o mesmo Lucro Líquido, mas uma precisou de um Patrimônio Líquido bem maior ' +
+      'que a outra pra chegar nesse resultado. As duas lucraram igual, mas usaram o capital dos sócios com a ' +
+      'mesma eficiência?',
     microDecisionPrompt:
-      'Se o preço de VALR3 dobrar de um dia pro outro, mas os dividendos pagos por ação nos últimos 12 ' +
-      'meses continuarem os mesmos, o Dividend Yield sobe, desce ou fica igual?',
+      'Se a Mineradora Vale do Rio (VALR3, {{ref:2.1}}) e o Banco Nordeste Digital (BNDD4, {{ref:2.2}}) tivessem o mesmo Lucro ' +
+      'Líquido, mas a VALR3 precisasse de um Patrimônio Líquido menor pra chegar lá, qual das duas estaria ' +
+      'usando melhor o capital dos seus sócios?',
+    microDecisionType: 'live_indicator',
+    microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['VALR3 (Mineradora)', 'BNDD4 (Banco)'],
+    microDecisionCorrectOption: 0,
+    revelationText:
+      'A VALR3 estaria usando melhor: ROE = Lucro Líquido / Patrimônio Líquido mede quanto lucro a empresa ' +
+      'gera pra cada real de capital que os sócios colocaram nela.' +
+      '\n\n' +
+      'Então, pra um mesmo lucro, menos patrimônio empregado significa ROE mais alto e capital mais bem ' +
+      'aproveitado. É por isso que ROE alto é lido como sinal de boa gestão do capital próprio, não só de ' +
+      'lucro alto em valor absoluto.' +
+      '\n\n' +
+      'Veja abaixo o ROE calculado ao vivo pra VALR3.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: '2.6.4',
+    code: '2.7.5',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 29,
+    title: 'Indicadores de preço (P/L e P/VP)',
+    centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
+    scenarioText:
+      'O preço de VALR3 sozinho não diz se a ação está cara ou barata: R$20 pode ser caro pra uma empresa ' +
+      'que lucra pouco por ação e barato pra uma que lucra muito.' +
+      '\n\n' +
+      'Pra comparar preço com o que a empresa de fato entrega, primeiro é preciso trazer Lucro Líquido e ' +
+      'Patrimônio Líquido pra base "por ação".',
+    microDecisionPrompt:
+      'Se o preço de VALR3 triplicar de um dia pro outro, mas o Lucro Líquido por ação dela continuar o ' +
+      'mesmo, o P/L (Preço / Lucro por ação) sobe, desce ou fica igual?',
     microDecisionType: 'live_indicator',
     microDecisionAssetTicker: 'VALR3',
     microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
-    microDecisionCorrectOption: 1,
+    microDecisionCorrectOption: 0,
     revelationText:
-      'Desce: Dividend Yield = soma dos dividendos pagos por ação nos últimos 12 meses / Preço atual, então, ' +
-      'com o numerador parado, dobrar o preço corta o Dividend Yield pela metade.' +
+      'LPA (lucro por ação) = Lucro Líquido / número de ações; P/L = Preço / LPA.' +
       '\n\n' +
-      'É por isso que um Dividend Yield alto pode significar tanto uma empresa boa pagadora de dividendos ' +
-      'quanto uma ação com o preço em queda, sem que os dividendos tenham mudado.' +
+      'Com o LPA parado e o preço triplicando, o P/L também triplica: o mercado passa a pagar três vezes ' +
+      'mais por cada real de lucro que a empresa gera, ou seja, a ação fica mais "cara" nesse critério.' +
       '\n\n' +
-      'Nunca leia esse número sozinho, sem olhar o preço e o histórico de pagamentos por trás dele. Você ' +
-      'encontra esse histórico completo, com cada valor e cada data de pagamento, na tela de Detalhe do ' +
-      'Ativo de qualquer ação.' +
-      '\n\n' +
-      'Veja abaixo o Dividend Yield calculado ao vivo pra VALR3, o último dos 9 indicadores ' +
-      'fundamentalistas do currículo; a próxima lição explica como e quando esse pagamento chega até você.',
+      'O mesmo raciocínio vale pro par VPA (Patrimônio Líquido / número de ações) e P/VP (Preço / VPA), só ' +
+      'que comparando preço ao patrimônio da empresa em vez de ao lucro. Veja abaixo os quatro calculados ao ' +
+      'vivo pra VALR3.',
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },
   {
     stableKey: '2.7',
-    code: '2.8',
+    code: '2.7.6',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 31,
+    sortOrder: 30,
     title: 'Dividendos e data ex',
     centralConcept: 'Como e quando o acionista recebe',
     scenarioText:
@@ -895,8 +857,45 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: '2.6.6',
+    code: '2.7.7',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 31,
+    title: 'Dividend Yield',
+    centralConcept: 'Quanto a ação "paga" em relação ao preço',
+    scenarioText:
+      'Além de poder valorizar de preço, VALR3 pode distribuir parte do lucro da Mineradora Vale do Rio ' +
+      'direto pros seus acionistas, em dinheiro, os dividendos (ou proventos).' +
+      '\n\n' +
+      'O Dividend Yield resume, num só número, quanto isso representa frente ao preço atual da ação.',
+    microDecisionPrompt:
+      'Se o preço de VALR3 dobrar de um dia pro outro, mas os dividendos pagos por ação nos últimos 12 ' +
+      'meses continuarem os mesmos, o Dividend Yield sobe, desce ou fica igual?',
+    microDecisionType: 'live_indicator',
+    microDecisionAssetTicker: 'VALR3',
+    microDecisionOptions: ['Sobe', 'Desce', 'Fica igual'],
+    microDecisionCorrectOption: 1,
+    revelationText:
+      'Desce: Dividend Yield = soma dos dividendos pagos por ação nos últimos 12 meses / Preço atual, então, ' +
+      'com o numerador parado, dobrar o preço corta o Dividend Yield pela metade.' +
+      '\n\n' +
+      'É por isso que um Dividend Yield alto pode significar tanto uma empresa boa pagadora de dividendos ' +
+      'quanto uma ação com o preço em queda, sem que os dividendos tenham mudado.' +
+      '\n\n' +
+      'Nunca leia esse número sozinho, sem olhar o preço e o histórico de pagamentos por trás dele. Você ' +
+      'encontra esse histórico completo, com cada valor e cada data de pagamento, na tela de Detalhe do ' +
+      'Ativo de qualquer ação.' +
+      '\n\n' +
+      'Veja abaixo o Dividend Yield calculado ao vivo pra VALR3, o último dos 9 indicadores ' +
+      'fundamentalistas do currículo; a próxima lição explica como e quando esse pagamento chega até você.',
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
     stableKey: '2.8',
-    code: '2.9',
+    code: '2.8',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 32,
@@ -907,7 +906,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
       'listada, e não afeta todas do mesmo jeito.' +
       '\n\n' +
       'A Mineradora Vale do Rio (VALR3, setor Mineração, perfil Conservador, {{ref:2.1}}) e o Banco Nordeste ' +
-      'Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado, {{ref:2.3}}) reagem de forma diferente ' +
+      'Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado, {{ref:2.2}}) reagem de forma diferente ' +
       'quando a Selic simulada sobe.',
     microDecisionPrompt:
       'Perfil Sofisticado (setores mais cíclicos e alavancados) é mais sensível a juros altos do que perfil ' +
@@ -936,7 +935,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.9',
-    code: '2.10',
+    code: '2.9',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 33,
@@ -982,7 +981,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '2.10',
-    code: '2.11',
+    code: '2.10',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 34,
@@ -1310,6 +1309,49 @@ export async function insertLessonInMiddle(
   })
 }
 
+// Reordenação de lições existentes (RC.4.3): `code` e `sortOrder` são únicos,
+// então trocar a ordem com o `upsert` simples bate na restrição no meio do
+// caminho. Numa transação, toda lição já existente cuja posição ou código difere
+// do seed vai para valores provisórios (`tmp-` e `sortOrder` negativo, que não
+// colidem com nenhuma posição real) e depois recebe os definitivos. `id`,
+// `stableKey` e o progresso de ninguém mudam. Não precisa de dispensa (N.24): as
+// lições que sobem de posição (ticker antes de IPO, endividamento antes de ROE)
+// só exigem algo que o usuário já teria feito ou que continua disponível, e as
+// que descem (notícias depois de oferta e demanda, DY depois de dividendos) só
+// adiam o que ele já concluiu. Devolve quantas lições mudaram de lugar.
+export async function reorderExistingLessons(db: Database, seeds: LessonSeed[]) {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ stableKey: lessons.stableKey, code: lessons.code, sortOrder: lessons.sortOrder })
+      .from(lessons)
+      .where(
+        inArray(
+          lessons.stableKey,
+          seeds.map((seed) => seed.stableKey),
+        ),
+      )
+    const bySeed = new Map(seeds.map((seed) => [seed.stableKey, seed]))
+    const moved = rows.filter((row) => {
+      const seed = bySeed.get(row.stableKey)
+      return seed !== undefined && (seed.code !== row.code || seed.sortOrder !== row.sortOrder)
+    })
+    for (const row of moved) {
+      await tx
+        .update(lessons)
+        .set({ code: `tmp-${row.stableKey}`, sortOrder: -(row.sortOrder + 1) })
+        .where(sql`${lessons.stableKey} = ${row.stableKey}`)
+    }
+    for (const row of moved) {
+      const seed = bySeed.get(row.stableKey)!
+      await tx
+        .update(lessons)
+        .set({ code: seed.code, sortOrder: seed.sortOrder })
+        .where(sql`${lessons.stableKey} = ${row.stableKey}`)
+    }
+    return moved.length
+  })
+}
+
 // Seeds que ainda não existem no banco e entram antes de alguma lição que já
 // existe (no fim da trilha o `upsert` simples basta). Em ordem de posição, para
 // que cada inserção veja o resultado da anterior.
@@ -1348,6 +1390,8 @@ async function main() {
       `lição ${seed.code} inserida no meio da trilha (${waivedUsers} usuário(s) dispensado(s))`,
     )
   }
+  const reordered = await reorderExistingLessons(db, LESSON_SEEDS)
+  if (reordered > 0) console.log(`${reordered} lição(ões) reordenada(s) ou renumerada(s)`)
   for (const seed of LESSON_SEEDS) {
     const row = await upsertLessonSeed(db, seed)
     console.log(row ? `lição ${seed.code} criada/atualizada` : `lição ${seed.code} sem alteração`)
