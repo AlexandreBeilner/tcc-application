@@ -2,14 +2,27 @@ import { Router } from 'express'
 import type { Response } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
-import { CatalogAssetNotFoundError, CatalogAssetRejectedError } from '../../domain/errors'
+import {
+  CatalogAssetConflictError,
+  CatalogAssetNotFoundError,
+  CatalogAssetPartialError,
+  CatalogAssetRejectedError,
+} from '../../domain/errors'
+import type { CreateCatalogAssetUseCase } from '../../application/useCases/createCatalogAsset'
+import type { PreviewCatalogAssetUseCase } from '../../application/useCases/previewCatalogAsset'
 import type { ListAdminCatalogUseCase } from '../../application/useCases/listAdminCatalog'
 import type { UpdateCatalogAssetUseCase } from '../../application/useCases/updateCatalogAsset'
-import { assetIdParamSchema, updateCatalogAssetBodySchema } from './schemas'
+import {
+  assetIdParamSchema,
+  newCatalogAssetBodySchema,
+  updateCatalogAssetBodySchema,
+} from './schemas'
 
 export interface AdminCatalogRouterDeps {
   listAdminCatalog: ListAdminCatalogUseCase
   updateCatalogAsset: UpdateCatalogAssetUseCase
+  previewCatalogAsset: PreviewCatalogAssetUseCase
+  createCatalogAsset: CreateCatalogAssetUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -22,6 +35,41 @@ export function createAdminCatalogRouter(deps: AdminCatalogRouterDeps): Router {
 
   router.get('/admin/catalog', ...adminOnly, async (_req, res) => {
     res.status(200).json({ assets: await deps.listAdminCatalog.execute() })
+  })
+
+  // Cadastro de ativo novo (N.13): preview não grava nem audita; o cadastro audita.
+  router.post('/admin/catalog/preview', ...adminOnly, async (req, res) => {
+    const body = newCatalogAssetBodySchema.safeParse(req.body)
+    if (!body.success) {
+      res
+        .status(400)
+        .json({ error: 'pedido de cadastro inválido', details: z.flattenError(body.error) })
+      return
+    }
+    try {
+      res.status(200).json(await deps.previewCatalogAsset.execute(body.data))
+    } catch (err) {
+      sendCatalogError(err, res)
+    }
+  })
+
+  router.post('/admin/catalog', ...adminOnly, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+    const body = newCatalogAssetBodySchema.safeParse(req.body)
+    if (!body.success) {
+      res
+        .status(400)
+        .json({ error: 'pedido de cadastro inválido', details: z.flattenError(body.error) })
+      return
+    }
+    try {
+      res.status(201).json(await deps.createCatalogAsset.execute(req.auth.userId, body.data))
+    } catch (err) {
+      sendCatalogError(err, res)
+    }
   })
 
   router.patch('/admin/catalog/:id', ...adminOnly, async (req, res) => {
@@ -61,7 +109,15 @@ function sendCatalogError(err: unknown, res: Response): void {
     return
   }
   if (err instanceof CatalogAssetRejectedError) {
-    res.status(422).json({ error: err.message })
+    res.status(422).json({ error: err.message, field: err.field })
+    return
+  }
+  if (err instanceof CatalogAssetConflictError) {
+    res.status(409).json({ error: err.message })
+    return
+  }
+  if (err instanceof CatalogAssetPartialError) {
+    res.status(500).json({ error: err.message, asset_id: err.assetId })
     return
   }
   throw err

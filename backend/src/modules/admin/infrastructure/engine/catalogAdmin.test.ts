@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CatalogAssetNotFoundError, CatalogAssetRejectedError } from '../../domain/errors'
-import { sampleCatalogAsset } from '../../test/fakes/fakeCatalogAdmin'
+import {
+  CatalogAssetConflictError,
+  CatalogAssetNotFoundError,
+  CatalogAssetPartialError,
+  CatalogAssetRejectedError,
+} from '../../domain/errors'
+import { sampleCatalogAsset, samplePreview } from '../../test/fakes/fakeCatalogAdmin'
 import { createCatalogAdmin } from './catalogAdmin'
 
 const fetchMock = vi.fn()
@@ -55,5 +60,49 @@ describe('catalogAdmin', () => {
     respond(500, {})
     await expect(engine().list()).rejects.toThrow('status 500')
     await expect(engine().update('x', { name: 'a' }, 'admin-1')).rejects.toThrow('status 500')
+  })
+
+  describe('cadastro de ativo novo (N.13)', () => {
+    const asset = { kind: 'fii_papel', ticker: 'NOVP11', name: 'Fii', indexador: 'CDI' } as const
+
+    it('preview envia POST /admin/catalog/preview sem admin_id', async () => {
+      respond(200, samplePreview)
+      expect(await engine().preview(asset)).toEqual(samplePreview)
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe('http://engine:8080/admin/catalog/preview')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body)).toEqual(asset)
+    })
+
+    it('create envia POST /admin/catalog com o admin_id', async () => {
+      respond(201, { asset_id: 'a1', preview: samplePreview })
+      expect((await engine().create(asset, 'admin-1')).asset_id).toBe('a1')
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe('http://engine:8080/admin/catalog')
+      expect(JSON.parse(init.body)).toEqual({ ...asset, admin_id: 'admin-1' })
+    })
+
+    it('traduz 409, 422 (com o campo) e 500 com asset_id', async () => {
+      respond(409, { error: 'ticker em uso' })
+      await expect(engine().create(asset, 'a')).rejects.toThrow(CatalogAssetConflictError)
+
+      respond(422, { error: 'CNPJ deve ter 14 dígitos', field: 'cnpj' })
+      await expect(engine().preview(asset)).rejects.toMatchObject({
+        message: 'CNPJ deve ter 14 dígitos',
+        field: 'cnpj',
+      })
+
+      respond(500, { error: 'cobertura falhou', asset_id: 'a1' })
+      await expect(engine().create(asset, 'a')).rejects.toMatchObject({
+        assetId: 'a1',
+        message: 'cobertura falhou',
+      })
+      await expect(engine().create(asset, 'a')).rejects.toThrow(CatalogAssetPartialError)
+    })
+
+    it('500 sem asset_id vira erro genérico', async () => {
+      respond(500, { error: 'banco fora' })
+      await expect(engine().create(asset, 'a')).rejects.toThrow('status 500')
+    })
   })
 })

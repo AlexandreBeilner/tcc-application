@@ -50,6 +50,8 @@ import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/lif
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
 import { createCatalogAdmin } from './modules/admin/infrastructure/engine/catalogAdmin'
 import { ListAdminCatalogUseCase } from './modules/admin/application/useCases/listAdminCatalog'
+import { PreviewCatalogAssetUseCase } from './modules/admin/application/useCases/previewCatalogAsset'
+import { CreateCatalogAssetUseCase } from './modules/admin/application/useCases/createCatalogAsset'
 import { UpdateCatalogAssetUseCase } from './modules/admin/application/useCases/updateCatalogAsset'
 import { createAdminCatalogRouter } from './modules/admin/interfaces/http/adminCatalogRouter'
 import { createEngineSettingsAdmin } from './modules/admin/infrastructure/engine/engineSettingsAdmin'
@@ -466,6 +468,8 @@ export function createApp(deps: AppDeps = {}): Express {
   const catalogAdmin = createCatalogAdmin(engineUrl)
   const listAdminCatalog = new ListAdminCatalogUseCase(catalogAdmin)
   const updateCatalogAsset = new UpdateCatalogAssetUseCase(catalogAdmin, recordAdminAction)
+  const previewCatalogAsset = new PreviewCatalogAssetUseCase(catalogAdmin)
+  const createCatalogAsset = new CreateCatalogAssetUseCase(catalogAdmin, recordAdminAction)
   // Gestão de bots (N.1).
   const botAdmin = createEngineBotAdmin(engineUrl)
   const listAdminBots = new ListAdminBotsUseCase(botAdmin)
@@ -720,7 +724,15 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
-  app.use(createAdminCatalogRouter({ listAdminCatalog, updateCatalogAsset, authMiddleware }))
+  app.use(
+    createAdminCatalogRouter({
+      listAdminCatalog,
+      updateCatalogAsset,
+      previewCatalogAsset,
+      createCatalogAsset,
+      authMiddleware,
+    }),
+  )
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(

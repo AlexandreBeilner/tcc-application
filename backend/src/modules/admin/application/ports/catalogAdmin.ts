@@ -61,9 +61,61 @@ export interface CatalogPatch {
   methodology_summary?: string
 }
 
+// Pedido de cadastro de ativo novo (N.13), um formato por classe (RF21). Espelha
+// POST /admin/catalog do motor.
+export type NewCatalogAsset =
+  | {
+      kind: 'acao'
+      ticker: string
+      name: string
+      company_name: string
+      cnpj: string
+      sector: string
+      outstanding_shares: number
+      base_growth_pct: number
+      quality_multiplier: number
+    }
+  | { kind: 'fii_tijolo'; ticker: string; name: string; segment: string; vacancy_rate: number }
+  | { kind: 'fii_papel'; ticker: string; name: string; indexador: 'CDI' | 'IPCA+' }
+  | {
+      kind: 'etf'
+      ticker: string
+      name: string
+      benchmark_index: string
+      methodology?: string
+      holdings: Array<{ ticker: string; weight_pct: number }>
+    }
+
+export interface CatalogPoolPreview {
+  pool_before: number
+  pool_after: number
+  new_bots: number
+  market_maker_shares: number
+  bot_shares: number
+  market_maker_id: string
+  creates_market_maker: boolean
+}
+
+// O que o cadastro criaria (ou criou). `pool` é nulo em ETF (sem float de bots nem Market Maker).
+export interface NewCatalogAssetPreview {
+  kind: string
+  ticker: string
+  name: string
+  outstanding_shares: number | null
+  pool: CatalogPoolPreview | null
+}
+
+export interface CreatedCatalogAsset {
+  asset_id: string
+  preview: NewCatalogAssetPreview
+}
+
 // Catálogo de ativos no banco "market" (dono é o motor). A lista de campos editáveis e a
 // validação de cada um são do domínio do motor; `adminId` vai pra ele registrar quem pediu.
 export interface CatalogAdmin {
   list(): Promise<CatalogAsset[]>
   update(assetId: string, patch: CatalogPatch, adminId: string): Promise<CatalogAsset>
+  // Valida o pedido e mostra o que seria criado, sem gravar nada (N.13).
+  preview(asset: NewCatalogAsset): Promise<NewCatalogAssetPreview>
+  create(asset: NewCatalogAsset, adminId: string): Promise<CreatedCatalogAsset>
 }

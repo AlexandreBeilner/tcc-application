@@ -19,6 +19,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'settings.update',
   'settings.reset',
   'catalog.update',
+  'catalog.create',
   'user.suspend',
   'user.reactivate',
   'user.force_logout',

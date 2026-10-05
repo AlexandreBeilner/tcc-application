@@ -454,3 +454,20 @@ Duas leituras que repassam o motor (formato e regras em `.docs/engine/admin.md`)
 - **Sucesso:** `200` → `{ simulated_day, idle_days, active_bots, idle_bots, low_cash_bots, empty_inventory, liquidity, float_concentration }`.
 - **Erros:** `400` — `idle_days` inválido.
 - **Rota fixa:** declarada antes de qualquer `/admin/bots/:id` no router, pra `summary` não ser lido como id.
+
+#### Cadastro de ativo novo (tarefa N.13)
+
+Todas exigem `role = admin`. Proxy do motor (ver `.docs/engine/admin.md#cadastro-de-ativo-novo-tarefa-n13`, que descreve as quatro etapas, as classes e as faixas).
+
+##### `POST /admin/catalog/preview`
+
+- **Payload (JSON):** um formato por `kind`, validado por `newCatalogAssetBodySchema` (estrito, só formato): `acao` (`ticker`, `name`, `company_name`, `cnpj`, `sector`, `outstanding_shares`, `base_growth_pct`, `quality_multiplier`), `fii_tijolo` (`ticker`, `name`, `segment`, `vacancy_rate`), `fii_papel` (`ticker`, `name`, `indexador` `CDI` ou `IPCA+`), `etf` (`ticker`, `name`, `benchmark_index`, `methodology` opcional, `holdings: [{ ticker, weight_pct }]`).
+- **Sucesso:** `200` → `{ kind, ticker, name, outstanding_shares | null, pool | null }`, com `pool = { pool_before, pool_after, new_bots, market_maker_shares, bot_shares, market_maker_id, creates_market_maker }` (nulo em ETF). Não grava nem audita.
+- **Erros:** `400` — corpo fora do formato (o motor não é chamado); `409` — ticker ou CNPJ em uso; `422` — `{ error, field }` regra de domínio do motor.
+
+##### `POST /admin/catalog`
+
+- **Payload:** o mesmo do preview. O `admin_id` vem do token.
+- **Sucesso:** `201` → `{ asset_id, preview }`.
+- **Erros:** os do preview; `500` — `{ error, asset_id }` quando o catálogo gravou e a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots).
+- **Auditoria:** `catalog.create`, `target_type = asset`, `target_id` = o ticker, `payload` = o pedido; recusa ou falha grava `result = failed` com o motivo.

@@ -133,4 +133,25 @@ export class CatalogAssetNotFoundError extends Error {}
 
 // CatalogAssetRejectedError é o 422 do motor: campo somente leitura ou fora da regra de
 // domínio, ativo do sandbox ou patch vazio (N.12). A mensagem vem do domínio do motor.
-export class CatalogAssetRejectedError extends Error {}
+export class CatalogAssetRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly field?: string,
+  ) {
+    super(message)
+  }
+}
+
+// CatalogAssetConflictError é o 409 do motor: ticker ou CNPJ já em uso (N.13).
+export class CatalogAssetConflictError extends Error {}
+
+// CatalogAssetPartialError é o 500 do motor depois de o catálogo gravar: o ativo existe, mas a
+// etapa dos bots ou da cobertura falhou (N.13). Leva o id pra o painel apontar o ativo.
+export class CatalogAssetPartialError extends Error {
+  constructor(
+    message: string,
+    readonly assetId: string,
+  ) {
+    super(message)
+  }
+}
