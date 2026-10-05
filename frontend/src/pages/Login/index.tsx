@@ -3,13 +3,12 @@ import type { SubmitEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
-import { ACCOUNT_SUSPENDED, ApiError } from '../../services/client'
+import { isAccountSuspendedError } from '../../services/client'
 import { formatApiError } from '../../utils/formatApiError'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
 import { Button } from '../../components/atoms/Button'
 import type { Mode } from './types'
 import styles from './index.module.css'
-import { formatApiError } from '../../utils/formatApiError'
 
 const STRENGTH_LABEL: Record<'weak' | 'medium' | 'strong', string> = {
     weak: 'Fraca',
@@ -69,7 +68,7 @@ export function Login() {
         } catch (err) {
             // 401 (login) e 409 (cadastro) chegam com mensagens distintas do backend
             // (.docs/backend/auth.md); `formatApiError` repassa as duas.
-            if (err instanceof ApiError && err.status === 403 && err.message === ACCOUNT_SUSPENDED) {
+            if (isAccountSuspendedError(err)) {
                 setError(SUSPENDED_MESSAGE)
             } else {
                 setError(formatApiError(err, 'Não foi possível completar a operação.'))

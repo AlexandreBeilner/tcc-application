@@ -30,6 +30,11 @@ export const REAUTH_REQUIRED = 'reauth_required'
 // rota autenticada.
 export const ACCOUNT_SUSPENDED = 'account_suspended'
 
+// Conta suspensa? Telas usam isto em vez de comparar a mensagem do erro.
+export function isAccountSuspendedError(err: unknown): boolean {
+    return err instanceof ApiError && err.status === 403 && err.message === ACCOUNT_SUSPENDED
+}
+
 export class ApiError extends Error {
     readonly status: number
     readonly details?: unknown
