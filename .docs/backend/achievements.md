@@ -18,9 +18,17 @@ Desbloqueio é sempre automático, nunca por rota — `CheckAndUnlockAchievement
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteriaType, criteriaValue, unlocked, unlockedAt, progress }] }`. `progress` é o valor atual do usuário pro critério da conquista (ex: streak atual pra uma conquista `streak_days`), presente mesmo em conquistas bloqueadas — sustenta "streak 3/7 dias" (tela 7.2). Sem rota de desbloqueio manual.
+- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteriaType, criteriaValue, isActive, unlocked, unlockedAt, progress }] }`. Conquista **desativada** pelo painel (N.19) só aparece pra quem já a ganhou (e no perfil público dessa pessoa); some pra quem ainda não a tem. `progress` é o valor atual do usuário pro critério da conquista (ex: streak atual pra uma conquista `streak_days`), presente mesmo em conquistas bloqueadas — sustenta "streak 3/7 dias" (tela 7.2). Sem rota de desbloqueio manual.
 - **Erros:** `401` — token ausente ou inválido/expirado.
 - **Regra:** `ListAchievementsUseCase`.
+
+---
+
+## Catálogo operável pelo painel (N.19)
+
+`achievements.is_active` (default `true`) e `achievements.seed_key` (chave estável do seed, única, nula nas criadas pelo painel), migration `0021`, que também preenche `seed_key` das 11 conquistas do seed pelo nome. O painel (`GET/POST/PATCH /admin/gamification/achievements`, `.docs/backend/admin.md`) cria, edita nome, descrição, regra e meta, e liga/desliga. **A regra é uma das 7 fixas que o código sabe avaliar** (`ACHIEVEMENT_CRITERIA` em `domain/catalog.ts`, a mesma lista do enum), nunca uma expressão livre; regra nova exige código (um campo em `ProgressSnapshot` e um `case` em `progressValueFor`). Meta positiva: inteira nos critérios de contagem, com no máximo duas casas no patrimônio. Nome único, sem diferenciar caixa.
+
+**Desativada** (`is_active = false`): `CheckAndUnlockAchievementsUseCase` a ignora (nunca mais concedida, mesmo com o critério cumprido) e `ListAchievementsUseCase` a esconde de quem não a tem; **nunca remove o que o usuário já ganhou**, e mudar a meta ou a regra de uma conquista ativa também não revoga ninguém, só vale pras próximas concessões.
 
 ---
 
@@ -30,4 +38,4 @@ Desbloqueio é sempre automático, nunca por rota — `CheckAndUnlockAchievement
 
 ## Seed mínimo (não é o currículo completo de conteúdo)
 
-`npm run db:seed:achievements` (idempotente por nome) — 11 conquistas ilustrativas cobrindo os 7 critérios (spec, tela 7.2): "Primeira Semana"/"Fiel" (`streak_days` 7/30), "Estudioso"/"Formado na Trilha" (`lessons_completed` 10/33), "Primeiro Patrimônio"/"Grande Investidor" (`net_worth` 12000/25000), "Primeira Operação"/"Trader Ativo" (`trades_executed` 1/20), "Olho Clínico" (`micro_decisions_streak` 5), "Trilha Impecável" (`track_completed_no_errors` 1), "Voltou pra Revisar" (`lesson_reviewed` 1) — valores ilustrativos, sujeitos à calibração/autoria de conteúdo da semana 7/8.1, mesmo precedente de `macroevent.Templates` (4.3) e `MISSION_SEEDS` (5.4).
+`npm run db:seed:achievements` (idempotente por `seed_key`, desde a N.19, e só insere: renomear uma conquista no painel não gera duplicata na próxima execução, nem o seed desfaz uma edição) — 11 conquistas ilustrativas cobrindo os 7 critérios (spec, tela 7.2): "Primeira Semana"/"Fiel" (`streak_days` 7/30), "Estudioso"/"Formado na Trilha" (`lessons_completed` 10/33), "Primeiro Patrimônio"/"Grande Investidor" (`net_worth` 12000/25000), "Primeira Operação"/"Trader Ativo" (`trades_executed` 1/20), "Olho Clínico" (`micro_decisions_streak` 5), "Trilha Impecável" (`track_completed_no_errors` 1), "Voltou pra Revisar" (`lesson_reviewed` 1) — valores ilustrativos, sujeitos à calibração/autoria de conteúdo da semana 7/8.1, mesmo precedente de `macroevent.Templates` (4.3) e `MISSION_SEEDS` (5.4).

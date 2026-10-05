@@ -1,4 +1,7 @@
-import type { MissionRepository } from '../../application/ports/missionRepository'
+import type {
+  MissionCompletionCount,
+  MissionRepository,
+} from '../../application/ports/missionRepository'
 import type { Mission, MissionProgressSnapshot } from '../../domain/mission'
 
 export function createFakeMissionRepository(seedCatalog: Mission[] = []): MissionRepository {
@@ -8,7 +11,42 @@ export function createFakeMissionRepository(seedCatalog: Mission[] = []): Missio
 
   return {
     async listCatalog() {
+      return catalog.filter((mission) => mission.isActive)
+    },
+
+    async listAll() {
       return [...catalog]
+    },
+
+    async update(id, patch) {
+      const index = catalog.findIndex((mission) => mission.id === id)
+      if (index < 0) return undefined
+      const merged = { ...catalog[index] }
+      for (const [key, value] of Object.entries(patch)) {
+        if (value !== undefined) Object.assign(merged, { [key]: value })
+      }
+      catalog[index] = merged
+      return merged
+    },
+
+    async countCompletions(today: string) {
+      const users = new Map<string, Set<string>>()
+      const usersToday = new Map<string, Set<string>>()
+      for (const [key, snapshot] of progress.entries()) {
+        if (snapshot.status !== 'completed') continue
+        const [userId, missionId, missionDate] = key.split('|')
+        if (!users.has(missionId)) users.set(missionId, new Set())
+        users.get(missionId)?.add(userId)
+        if (missionDate === today) {
+          if (!usersToday.has(missionId)) usersToday.set(missionId, new Set())
+          usersToday.get(missionId)?.add(userId)
+        }
+      }
+      const counts = new Map<string, MissionCompletionCount>()
+      for (const [missionId, set] of users.entries()) {
+        counts.set(missionId, { users: set.size, today: usersToday.get(missionId)?.size ?? 0 })
+      }
+      return counts
     },
 
     async findById(id) {

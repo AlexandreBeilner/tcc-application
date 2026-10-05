@@ -49,6 +49,17 @@ const BACKEND_ROUTE_NAMESPACES = [
 // proxiados normalmente.
 const FRONTEND_ROUTES_SHADOWING_BACKEND = new Set(['/auth/callback', '/admin'])
 
+// Desde a N.3 o painel admin tem várias rotas de página sob `/admin/*`
+// (`/admin/eventos`, `/admin/eventos/novo`, e mais a cada tarefa da Fase N),
+// todas colidindo com o namespace `admin` do backend. Listar uma a uma não
+// escala, então no namespace `/admin` a decisão é pelo tipo de requisição:
+// navegação do navegador (`Accept: text/html`, ex: F5 numa tela do painel) é
+// servida pela SPA; chamada de API (`fetch`, `Accept: application/json` ou
+// `*/*`) segue pro gateway.
+function isAdminPageNavigation(path: string, accept: string | undefined) {
+    return (path === '/admin' || path.startsWith('/admin/')) && (accept?.includes('text/html') ?? false)
+}
+
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [react()],
@@ -67,7 +78,7 @@ export default defineConfig({
                 changeOrigin: true,
                 bypass(req) {
                     const path = req.url?.split('?')[0] ?? ''
-                    if (FRONTEND_ROUTES_SHADOWING_BACKEND.has(path)) {
+                    if (FRONTEND_ROUTES_SHADOWING_BACKEND.has(path) || isAdminPageNavigation(path, req.headers.accept)) {
                         return req.url
                     }
                 },
