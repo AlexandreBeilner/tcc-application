@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, countDistinct, eq, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { dailyMissions, userMissionProgress } from '../../../../db/schema'
 import type { MissionRepository } from '../../application/ports/missionRepository'
@@ -13,14 +13,57 @@ function toMission(row: typeof dailyMissions.$inferSelect): Mission {
     completionCriteria: row.completionCriteria,
     xpReward: row.xpReward,
     requiresLessonCompletion: row.requiresLessonCompletion,
+    isActive: row.isActive,
   }
 }
 
 export function createDrizzleMissionRepository(db: Database): MissionRepository {
   return {
     async listCatalog() {
+      const rows = await db.select().from(dailyMissions).where(eq(dailyMissions.isActive, true))
+      return rows.map(toMission)
+    },
+
+    async listAll() {
       const rows = await db.select().from(dailyMissions)
       return rows.map(toMission)
+    },
+
+    async update(id, patch) {
+      const set: Partial<typeof dailyMissions.$inferInsert> = {}
+      if (patch.title !== undefined) set.title = patch.title
+      if (patch.description !== undefined) set.description = patch.description
+      if (patch.xpReward !== undefined) set.xpReward = patch.xpReward
+      if (patch.isActive !== undefined) set.isActive = patch.isActive
+      if (Object.keys(set).length === 0) {
+        const [current] = await db
+          .select()
+          .from(dailyMissions)
+          .where(eq(dailyMissions.id, id))
+          .limit(1)
+        return current ? toMission(current) : undefined
+      }
+      const [row] = await db
+        .update(dailyMissions)
+        .set(set)
+        .where(eq(dailyMissions.id, id))
+        .returning()
+      return row ? toMission(row) : undefined
+    },
+
+    async countCompletions(today) {
+      const rows = await db
+        .select({
+          missionId: userMissionProgress.missionId,
+          users: countDistinct(userMissionProgress.userId),
+          today: sql<number>`count(distinct ${userMissionProgress.userId}) filter (where ${userMissionProgress.missionDate} = ${today})`,
+        })
+        .from(userMissionProgress)
+        .where(eq(userMissionProgress.status, 'completed'))
+        .groupBy(userMissionProgress.missionId)
+      return new Map(
+        rows.map((row) => [row.missionId, { users: Number(row.users), today: Number(row.today) }]),
+      )
     },
 
     async findById(id) {

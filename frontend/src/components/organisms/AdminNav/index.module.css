@@ -1,0 +1,82 @@
+.nav {
+    min-width: 0;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.item svg {
+    flex: none;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+a.item:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface-elevated);
+}
+
+.active {
+    color: var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
+.disabled {
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+}
+
+.soon {
+    margin-left: auto;
+    padding: 1px var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+}
+
+/* Tablet (768-1023px): faixa horizontal rolável logo acima do conteúdo, no
+   mesmo molde da `TabBar`; o item ativo ganha o sublinhado em vez do fundo. */
+@media (min-width: 768px) and (max-width: 1023px) {
+    .nav {
+        overflow-x: auto;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .list {
+        flex-direction: row;
+        gap: var(--space-2);
+    }
+
+    .item {
+        border-radius: 0;
+        border-bottom: 2px solid transparent;
+    }
+
+    .active {
+        background: none;
+        border-bottom-color: var(--color-brand-500);
+    }
+
+    .soon {
+        display: none;
+    }
+}

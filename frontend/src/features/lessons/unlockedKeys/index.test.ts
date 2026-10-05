@@ -23,10 +23,22 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         microDecisionOptions: overrides.microDecisionOptions ?? null,
         status: overrides.status ?? 'locked',
         currentStep: overrides.currentStep ?? 0,
+        waived: overrides.waived ?? false,
     }
 }
 
 describe('unlockedKeysFor', () => {
+    it('lição dispensada conta como satisfeita e mantém as chaves dela (N.24)', () => {
+        const lessons = [
+            lesson({ sortOrder: 1, unlocksKeys: ['portfolio'], status: 'completed' }),
+            lesson({ sortOrder: 2, unlocksKeys: ['calculator'], status: 'available', waived: true }),
+            lesson({ sortOrder: 3, unlocksKeys: ['news_feed'], status: 'completed' }),
+            lesson({ sortOrder: 4, unlocksKeys: ['asset:acao'], status: 'available' }),
+        ]
+
+        expect(unlockedKeysFor(lessons)).toEqual(new Set(['portfolio', 'calculator', 'news_feed']))
+    })
+
     it('nenhuma lição completed → nenhuma chave desbloqueada', () => {
         const lessons = [
             lesson({ sortOrder: 1, unlocksKeys: ['portfolio'], status: 'available' }),

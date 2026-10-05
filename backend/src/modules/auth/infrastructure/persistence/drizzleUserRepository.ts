@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { userIdentities, users } from '../../../../db/schema'
 import type {
@@ -22,6 +22,10 @@ function toDomainUser(row: typeof users.$inferSelect): User {
     role: row.role,
     onboardingCompleted: row.onboardingCompleted,
     avatarPath: row.avatarPath,
+    status: row.status as User['status'],
+    suspendedReason: row.suspendedReason,
+    suspendedAt: row.suspendedAt,
+    tokenVersion: row.tokenVersion,
     createdAt: row.createdAt,
   }
 }
@@ -105,6 +109,15 @@ export function createDrizzleUserRepository(db: Database): UserRepository {
 
     async deleteIdentitiesForUser(userId: string) {
       await db.delete(userIdentities).where(eq(userIdentities.userId, userId))
+    },
+
+    async revokeSessions(userId: string) {
+      const [row] = await db
+        .update(users)
+        .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
+        .where(eq(users.id, userId))
+        .returning({ tokenVersion: users.tokenVersion })
+      return row.tokenVersion
     },
   }
 }
