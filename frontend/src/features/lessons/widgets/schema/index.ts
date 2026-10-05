@@ -21,6 +21,9 @@ export const WIDGET_IDS = [
     'mtm-seesaw',
     'fgc-coverage-bar',
     'rating-ruler',
+    'bond-price-calculator',
+    'ipca-plus-simulator',
+    'breakeven-inflation',
     'savings-vs-selic',
     'growth-calculator',
     'fixed-income-comparison',
@@ -99,6 +102,22 @@ export const widgetPropsSchemas = {
         amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
         institutions: z.number().int().min(1).max(6).default(1),
         sameConglomerate: z.boolean().default(false),
+    }),
+    'bond-price-calculator': z.object({
+        ratePct: z.number().min(6).max(18).default(11.75),
+        years: z.number().min(0.25).max(10).default(2),
+        amount: z.number().min(30).max(10_000_000).default(10_000),
+    }),
+    'ipca-plus-simulator': z.object({
+        amount: z.number().positive().max(10_000_000).default(10_000),
+        realRatePct: z.number().min(3).max(9).default(6),
+        years: z.number().int().min(1).max(20).default(5),
+        ipcaPct: z.number().min(0).max(12).default(5),
+    }),
+    'breakeven-inflation': z.object({
+        prefixedPct: z.number().min(6).max(18).default(12.5),
+        realPct: z.number().min(3).max(10).default(7.5),
+        expectedInflationPct: z.number().min(0).max(12).default(5),
     }),
     'rating-ruler': z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') }),
     'savings-vs-selic': z.object({

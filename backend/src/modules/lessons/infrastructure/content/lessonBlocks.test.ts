@@ -120,6 +120,9 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'h', widget: 'mtm-seesaw', props: { indexer: 'ipca-plus', yearsToMaturity: 5 } },
         { type: 'widget', id: 'i', widget: 'fgc-coverage-bar', props: { institutions: 3, sameConglomerate: true } },
         { type: 'widget', id: 'j', widget: 'rating-ruler', props: { highlight: 'BBB' } },
+        { type: 'widget', id: 'k', widget: 'bond-price-calculator', props: { ratePct: 10, years: 1 } },
+        { type: 'widget', id: 'l', widget: 'ipca-plus-simulator', props: { years: 10, ipcaPct: 4 } },
+        { type: 'widget', id: 'm', widget: 'breakeven-inflation', props: { prefixedPct: 13, realPct: 7 } },
       ],
     }
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
@@ -135,6 +138,9 @@ describe('lessonBlocksSchema', () => {
     ['mtm-seesaw', { indexer: 'cdi' }],
     ['fgc-coverage-bar', { institutions: 9 }],
     ['rating-ruler', { highlight: 'ZZ' }],
+    ['bond-price-calculator', { ratePct: 40 }],
+    ['ipca-plus-simulator', { years: 2.5 }],
+    ['breakeven-inflation', { realPct: 1 }],
   ])('%s com props fora do limite é rejeitado', (widget, props) => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

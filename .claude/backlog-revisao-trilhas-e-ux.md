@@ -471,7 +471,7 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 | RC.3.4a Cálculo de renda fixa ✅ | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
 | RC.3.4b Risco e proteção ✅ | `mtm-seesaw` (gangorra de marcação a mercado: taxa x preço, prazo, Prefixado/IPCA+/Selic, choques), `fgc-coverage-bar` (R$ 250 mil por conglomerado, teto R$ 1 milhão em 4 anos, guarda-chuva), `rating-ruler` | 1.4, 1.8, 1.11 |
 | RC.3.4c Juros e inflação ✅ | `compound-growth` (substitui `growth_calculator`), `real-return`, `selic-ipca-chart` (série com faixa da meta), `copom-timeline` (8 reuniões/ano) | 0.2-0.5, 1.2, 1.3, 1.9, 1.10 |
-| RC.3.4d Títulos | `bond-price-calculator` (preço/deságio, IR e custódia, LTN x NTN-F), `ipca-plus-simulator` (VNA, ano a ano), `breakeven-inflation` | 1.7, 1.10 |
+| RC.3.4d Títulos ✅ | `bond-price-calculator` (preço/deságio, IR e custódia, LTN x NTN-F), `ipca-plus-simulator` (VNA, ano a ano), `breakeven-inflation` | 1.7, 1.10 |
 | RC.3.4e Ações, parte 1 | `ownership-calculator`, `bookbuilding-simulator`, `ticker-decoder` (arrastar), `headline-triage`, `order-book` (livro de ofertas interativo; G) | 2.1-2.5 |
 | RC.3.4f Ações, parte 2 | `interactive-balance` (DRE em cascata + Ativo = Passivo + PL; G), `margin-comparator`, `roe-lab` (DuPont), `multiples-calculator`, `debt-thermometer` (choque de Selic) | 2.6.1-2.6.5 |
 | RC.3.4g Proventos e fundos | `dividend-timeline` (data com, ex, pagamento), `dividend-net-calculator` (dividendo/JCP líquido, regra de 2026), `etf-shock-simulator`, `fii-monthly-calendar` | 2.6.6, 2.7, 2.9, 2.10 |
@@ -530,6 +530,24 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
   não citar norma; (c) a gangorra mostra preço bruto, sem IR, custódia nem o spread de compra e venda do Tesouro, e
   o IPCA+ usa a mesma conta sobre a taxa real (preço em % do valor atualizado, não em reais); (d) sem conferência
   visual nos 3 breakpoints nem `docker compose`; (e) `bond-price-calculator` e `ipca-plus-simulator` ficam na RC.3.4d.
+- **RC.3.4d entregue (2026-10-05):** três widgets registrados nos dois lados do contrato (props todas com default):
+  `bond-price-calculator` (taxa, prazo e valor: preço unitário, deságio em R$ e %, quantidade de títulos, bruto no
+  vencimento, IR pela tabela regressiva pelo prazo em dias corridos e custódia da B3 de 0,20% ao ano, ganho líquido
+  e taxa líquida anual; barra com o preço de hoje sólido e o deságio listrado), `ipca-plus-simulator` (tabela ano a
+  ano de principal, correção da inflação e juros reais com IPCA constante, presets na meta 3%, no teto 4,5% e
+  inflação alta 8%; líquido de IR e rendimento real líquido por Fisher, abaixo da taxa real anunciada) e
+  `breakeven-inflation` (inflação de equilíbrio `(1+pre)/(1+real)-1` e quem rende mais para a inflação esperada).
+  Contas em `features/lessons/widgets/treasuryMath` (puras, table-driven; reusa `bondPrice` e `irRatePctForDays`;
+  a custódia espelha o fato `tesouro-custodia-b3`). `.docs/backend/lessons.md` atualizado. Validou: frontend
+  `tsc -b`/oxlint/`vitest` (1472), backend lint/build/`npm test` (2702). **Correção a um anexo:** `audit-licoes-1b.md`
+  dava R$ 1.215,2 para R$ 1.000 em 2 anos com IPCA 4% e taxa real 6%; o correto é **R$ 1.215,29** (e 10.000 a
+  11,75% por 2 anos dá R$ 12.488,06 bruto). **Ressalvas:** (a) nenhuma lição usa os widgets ainda (RC.5.6 e RC.5.7 são
+  as consumidoras); (b) o desenho previa "LTN x NTN-F", mas o cupom da NTN-F não tem fato verificado em
+  `regulatoryFacts.ts`, então o widget cobre só o prefixado sem cupom, e a diferença para o título com juros
+  semestrais fica como texto da lição depois de registrar o fato; (c) a custódia é aproximada (taxa x anos x valor
+  investido, sem acompanhar o saldo diário) e o IOF dos primeiros 30 dias não entra (prazo mínimo do controle é 3
+  meses); (d) o IPCA+ simulado não modela o VNA em reais nem a defasagem do IPCA, só o saldo relativo ao valor
+  investido, e usa inflação constante (dito na tela); (e) sem conferência visual nos 3 breakpoints nem `docker compose`.
 - **Aceite geral:** nenhum texto manda calcular fora; nenhum botão "Ver resultado" solto (se sobrar, rótulo
   contextual); lint do seed barra "calcule" sem widget na mesma fase.
 - **Depende de:** RC.3.1 (e RC.3.2 quando o widget traz checkpoint).

@@ -7,7 +7,10 @@ import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidge
 import { EmergencyFundCalculatorWidget, emergencyFundCalculatorSummary } from '../EmergencyFundCalculatorWidget'
 import { WhereToKeepWidget, whereToKeepSummary } from '../WhereToKeepWidget'
 import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
+import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
+import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
 import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
+import { IpcaPlusSimulatorWidget, ipcaPlusSimulatorSummary } from '../IpcaPlusSimulatorWidget'
 import { MtmSeesawWidget, mtmSeesawSummary } from '../MtmSeesawWidget'
 import { RatingRulerWidget, ratingRulerSummary } from '../RatingRulerWidget'
 import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
@@ -110,6 +113,21 @@ export const widgetRegistry: Registry = {
         component: RatingRulerWidget,
         propsSchema: widgetPropsSchemas['rating-ruler'],
         summary: ratingRulerSummary,
+    },
+    'bond-price-calculator': {
+        component: BondPriceCalculatorWidget,
+        propsSchema: widgetPropsSchemas['bond-price-calculator'],
+        summary: bondPriceCalculatorSummary,
+    },
+    'ipca-plus-simulator': {
+        component: IpcaPlusSimulatorWidget,
+        propsSchema: widgetPropsSchemas['ipca-plus-simulator'],
+        summary: ipcaPlusSimulatorSummary,
+    },
+    'breakeven-inflation': {
+        component: BreakevenInflationWidget,
+        propsSchema: widgetPropsSchemas['breakeven-inflation'],
+        summary: breakevenInflationSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,
