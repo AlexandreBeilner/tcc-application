@@ -138,6 +138,64 @@ export const REGULATORY_FACTS = [
     note: 'Regra do regulamento do Copom (resultado de busca no domínio do Banco Central). A página oficial só abre com JavaScript; reabrir pelo navegador antes de citar horário. Intervalo de cerca de 45 dias é consequência de 8 reuniões por ano.',
   },
   {
+    id: 'selic-definicao',
+    label: 'Selic: meta do Copom e taxa efetiva',
+    value:
+      'O Copom define a meta da Selic, que vigora por todo o período entre reuniões ordinárias. A taxa Selic efetiva é a média ponderada, pelo volume, das taxas das operações compromissadas de um dia útil com títulos públicos federais registrados no Selic.',
+    source: 'https://www.bcb.gov.br/htms/copom_normas/a-hist.asp?frame=1',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Página do Copom lida (meta e vigência entre reuniões). A definição da taxa efetiva vem do material do Banco Central sobre a taxa Selic (resultado de busca no domínio bcb.gov.br).',
+  },
+  {
+    id: 'cdi-taxa-di',
+    label: 'CDI e taxa DI',
+    value:
+      'O CDI é o título que bancos usam para empréstimos de um dia útil entre si. A taxa DI, apurada pela B3, é a média ponderada dessas taxas, expressa ao ano com base em 252 dias úteis, e acompanha de perto a Selic. Rentabilidade de 100% do CDI é igual à taxa DI do período.',
+    data: { businessDaysPerYear: 252 },
+    source: 'https://borainvestir.b3.com.br/glossario/taxa-di/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Glossário educacional da B3 (Bora Investir), páginas de CDI e de taxa DI lidas. Série diária da taxa DI no SGS do Banco Central (série 4389).',
+  },
+  {
+    id: 'tr-metodologia',
+    label: 'TR: como é calculada',
+    value:
+      'A Taxa Referencial é calculada pelo Banco Central a partir da TBF, que sai de taxas negociadas no mercado secundário de Letras do Tesouro Nacional (LTN), com um redutor R e piso de zero: TR = max {0; (1 + TBF) / R - 1}.',
+    source: 'https://www.bcb.gov.br/htms/normativ/Resolucao4624.pdf?r=1',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Resolução CMN 4.624/2018 (texto lido: arts. 1º a 5º sobre TBF e LTN; o redutor R e o piso zero constam em resultado de busca no domínio bcb.gov.br sobre a norma anterior da metodologia, a Res. 3.354/2006; reabrir a 4.624 inteira antes de citar a fórmula do redutor em texto).',
+  },
+  {
+    id: 'tr-historico-zero',
+    label: 'TR: período em que ficou zerada',
+    value:
+      'A TR ficou zerada em grande parte do período entre fevereiro de 2017 e fevereiro de 2022, enquanto a Selic esteve baixa, e voltou a ser positiva com a alta dos juros. Em outubro de 2026 estava em cerca de 0,16% ao mês.',
+    data: {
+      zeroFrom: '2017-02-15',
+      zeroUntil: '2022-02-28',
+      recentMonthlyPct: 0.16,
+      recentRefDate: '2026-10-01',
+    },
+    source: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.226/dados/ultimos/3?formato=json',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Série 226 (TR diária) do SGS consultada direto na API: 1.623 de 2.232 observações de 2017 a 2022 com valor zero, a última em 28/02/2022; 0,1616% ao mês em 01/10/2026. Corrige o texto de apoio que dizia a TR "hoje ~zero": com a Selic acima de 8,5% ela é positiva e entra na conta da poupança.',
+  },
+  {
+    id: 'selic-cdi-valores-recentes',
+    label: 'Selic e CDI: valores recentes (exemplo datado)',
+    value:
+      'Em outubro de 2026, a meta da Selic estava em 13,75% ao ano e a Selic efetiva e o CDI em 13,65% ao ano, cerca de 0,10 ponto percentual abaixo da meta.',
+    data: { targetPct: 13.75, effectivePct: 13.65, cdiPct: 13.65, refDate: '2026-10-02' },
+    source: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/3?formato=json',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'SGS: série 432 (meta), 1178 (Selic efetiva) e 4389 (CDI). Número com data de validade: só entra em lição rotulado como exemplo datado, nunca como valor atual.',
+  },
+  {
     id: 'meta-inflacao',
     label: 'Meta de inflação',
     value:

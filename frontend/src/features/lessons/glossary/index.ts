@@ -42,17 +42,22 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     Selic: {
         definition:
-            'Taxa básica de juros da economia brasileira, definida pelo Copom. Serve de referência para o rendimento da renda fixa e o custo do crédito.',
+            'Taxa básica de juros da economia brasileira. O Copom, do Banco Central, define a meta, e a Selic efetiva é a média das operações de um dia com títulos públicos. Serve de referência para a renda fixa e o crédito.',
+        originLesson: '0.5',
     },
     CDI: {
         definition: 'Taxa média dos empréstimos entre bancos por um dia. Anda colada na Selic e é o benchmark da maior parte dos CDBs.',
         example: 'Um CDB que paga 100% do CDI rende o mesmo que a taxa CDI do período.',
+        originLesson: '0.5',
     },
     TR: {
-        definition: 'Taxa Referencial: índice calculado pelo Banco Central, hoje próximo de zero, usado em poupança e financiamentos.',
+        definition:
+            'Taxa Referencial: calculada pelo Banco Central a partir dos juros dos títulos públicos prefixados. Fica perto de zero quando os juros estão baixos e sobe com eles. Entra na poupança e em financiamentos.',
+        originLesson: '0.5',
     },
     IPCA: {
         definition: 'Índice oficial de inflação do Brasil, medido pelo IBGE. Mostra quanto os preços subiram em um período.',
+        originLesson: '0.3',
     },
     ticker: {
         definition: 'Código de negociação de um ativo na bolsa, formado por letras e número.',
