@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 )
 
@@ -139,6 +140,10 @@ type fakeRepository struct {
 	creditedAmount float64
 	creditedMonth  string
 	creditErr      error
+
+	adminCreditedUserID string
+	adminCreditedAmount float64
+	adminCreditErr      error
 }
 
 func (f *fakeRepository) Create(_ context.Context, acc Account) error {
@@ -154,6 +159,14 @@ func (f *fakeRepository) CreditSalary(_ context.Context, userID string, amount f
 		return f.creditErr
 	}
 	f.creditedUserID, f.creditedAmount, f.creditedMonth = userID, amount, referenceMonth
+	return nil
+}
+
+func (f *fakeRepository) AdminCredit(_ context.Context, userID string, amount float64) error {
+	if f.adminCreditErr != nil {
+		return f.adminCreditErr
+	}
+	f.adminCreditedUserID, f.adminCreditedAmount = userID, amount
 	return nil
 }
 
@@ -240,5 +253,67 @@ func TestService_CreditSalary_PropagaErroDoRepositorio(t *testing.T) {
 	err := svc.CreditSalary(context.Background(), "user-1", 1000, "2026-01")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestService_AdminCredit(t *testing.T) {
+	tests := []struct {
+		name       string
+		amount     float64
+		wantAmount float64
+	}{
+		{"valor inteiro", 5000, 5000},
+		{"arredonda pra centavos", 10.005, 10.01},
+		{"um centavo", 0.01, 0.01},
+		{"no limite físico", MaxAdminCredit, MaxAdminCredit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{}
+			got, err := NewService(repo).AdminCredit(context.Background(), "user-1", tt.amount)
+			if err != nil {
+				t.Fatalf("AdminCredit() erro inesperado: %v", err)
+			}
+			if got != tt.wantAmount || repo.adminCreditedAmount != tt.wantAmount || repo.adminCreditedUserID != "user-1" {
+				t.Errorf("creditado = (%v, repo %q/%v), want %v pra user-1", got, repo.adminCreditedUserID, repo.adminCreditedAmount, tt.wantAmount)
+			}
+		})
+	}
+}
+
+func TestService_AdminCredit_RejeitaValorInvalido(t *testing.T) {
+	tests := []struct {
+		name   string
+		amount float64
+	}{
+		{"zero", 0},
+		{"negativo", -5},
+		{"NaN", math.NaN()},
+		{"+Inf", math.Inf(1)},
+		{"-Inf", math.Inf(-1)},
+		{"abaixo de meio centavo", 0.004},
+		{"acima do limite físico", MaxAdminCredit + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{}
+			_, err := NewService(repo).AdminCredit(context.Background(), "user-1", tt.amount)
+			if !errors.Is(err, ErrInvalidCreditAmount) {
+				t.Errorf("err = %v, want ErrInvalidCreditAmount", err)
+			}
+			if repo.adminCreditedUserID != "" {
+				t.Error("repo.AdminCredit não deveria ser chamado")
+			}
+		})
+	}
+}
+
+func TestService_AdminCredit_PropagaErroDoRepositorio(t *testing.T) {
+	for _, repoErr := range []error{ErrNotFound, ErrBalanceOverflow} {
+		repo := &fakeRepository{adminCreditErr: repoErr}
+		_, err := NewService(repo).AdminCredit(context.Background(), "user-1", 100)
+		if !errors.Is(err, repoErr) {
+			t.Errorf("err = %v, want %v", err, repoErr)
+		}
 	}
 }
