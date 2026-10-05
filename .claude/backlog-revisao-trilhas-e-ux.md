@@ -781,7 +781,7 @@ sessão, salvo pedido do autor.
 1. Ler este arquivo (Objetivo, Princípios, a tarefa, suas dependências e decisões D#) e o anexo de
    `.claude/revisao-trilhas-anexos/` citado nela. Não redecidir o que está marcado DECIDIDO.
 2. Branch do **pacote** (`rc-p<n>-<tema>`, ex.: `rc-p1-trilha-0`), criada a partir da `main` atualizada na primeira
-   tarefa do pacote e reaproveitada nas seguintes. Se o pacote depender de outro ainda não mesclado, dizer ao autor.
+   tarefa do pacote e reaproveitada nas seguintes. **Base atual (decisão do autor, 2026-10-04): enquanto a pilha RC (PR #86) não for mesclada, a branch base é `rc-2-1-revisar-licoes`, não a `main`**; o PR do pacote abre contra ela. Depois do merge do #86, volta a valer a `main`. Se o pacote depender de outro ainda não mesclado, dizer ao autor.
 3. Implementar só essa tarefa, um commit por tarefa, seguindo o checklist do `CLAUDE.md` da camada tocada (testes junto,
    lint/build, `.docs/` se mexer em rota, validação em `docker compose up`). Telas novas nos 3 breakpoints; sem
    travessão como pontuação em texto de UI; mudança de padrão visual pede rascunho antes.
@@ -809,7 +809,7 @@ pacote é a da lista.
 **Pacotes já entregues:** Fases 1 e 2 (menos RC.2.6), RC.3.1 a RC.3.3, RC.3.4a, RC.3.5, RC.5.1, RC.5.5, RC.7.1 e
 RC.7.2, hoje na pilha #62 a #83 (mesclar em ordem; ela também traz a integração com a Fase N).
 
-**Pré-requisito de tudo abaixo:** pilha #62 a #83 mesclada na `main`. A progressão com dispensa (N.24) já está nela.
+**Pré-requisito de tudo abaixo:** pilha #62 a #83 mesclada na `main`. **Exceção vigente:** até esse merge, os pacotes partem de `rc-2-1-revisar-licoes` (PR #86) e o PR de cada um tem essa branch como base. A progressão com dispensa (N.24) já está nela.
 
 | Pacote | Tarefas (na ordem) | Por que juntas | Notas |
 |---|---|---|---|
