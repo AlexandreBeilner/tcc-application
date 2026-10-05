@@ -772,15 +772,15 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
 ## Como executar a próxima tarefa
 
 **Gatilho:** quando o autor pedir "próxima tarefa do backlog de revisão" (ou equivalente), a próxima é a **primeira
-tarefa sem ✅ na ordem da "Sequência sugerida"** abaixo, respeitando "Depende de" (se a primeira candidata estiver
-bloqueada por tarefa não concluída, pegar a primeira desbloqueada e dizer isso). Tarefas que a sequência marca "em
-paralelo" são uma por vez, salvo pedido do autor.
+tarefa sem ✅ do primeiro pacote aberto** da "Sequência sugerida" abaixo, respeitando "Depende de" (se a primeira
+candidata estiver bloqueada por tarefa não concluída, pegar a primeira desbloqueada e dizer isso). Uma tarefa por
+sessão, salvo pedido do autor.
 
 **Passo a passo de cada sessão:**
 1. Ler este arquivo (Objetivo, Princípios, a tarefa, suas dependências e decisões D#) e o anexo de
    `.claude/revisao-trilhas-anexos/` citado nela. Não redecidir o que está marcado DECIDIDO.
-2. Branch nova a partir da `main` atualizada: `rc-<número>-<tema>` (ex.: `rc-1-1-teste-conteudo-proibido`). Se
-   depender de tarefa ainda não mesclada, partir da branch dela e dizer isso ao autor.
+2. Branch do **pacote** (`rc-p<n>-<tema>`, ex.: `rc-p1-trilha-0`), criada a partir da `main` atualizada na primeira
+   tarefa do pacote e reaproveitada nas seguintes. Se o pacote depender de outro ainda não mesclado, dizer ao autor.
 3. Implementar só essa tarefa, um commit por tarefa, seguindo o checklist do `CLAUDE.md` da camada tocada (testes junto,
    lint/build, `.docs/` se mexer em rota, validação em `docker compose up`). Telas novas nos 3 breakpoints; sem
    travessão como pontuação em texto de UI; mudança de padrão visual pede rascunho antes.
@@ -789,28 +789,52 @@ paralelo" são uma por vez, salvo pedido do autor.
 5. Verificar os critérios de aceite. Ao concluir, marcar ✅ no título da tarefa e acrescentar um bullet
    **Entregável** (o que foi feito, arquivos principais, como validou). Atualizar o `backlog-pendencias-consolidado.md`.
 6. Se achar gap que exige decisão de produto fora deste arquivo, registrar em `pontos-em-aberto-decisao-produto.md`.
-7. Fim: `git push`; abrir PR só se o autor pedir. Resumir ao autor o que foi feito, o que validou e qual é a próxima
-   tarefa da sequência.
+7. Fim: um commit por tarefa e `git push` da branch do pacote. **O PR abre quando o pacote fecha** (todas as tarefas
+   dele ✅), com o autor avisado; um PR por pacote, nunca um por tarefa. Resumir ao autor o que foi feito, o que
+   validou e qual é a próxima tarefa do pacote.
 
 ---
 
-## Sequência sugerida
+## Sequência sugerida (agrupada em pacotes, um PR por pacote)
 
-1. **Fase 1** inteira (RC.1.1, RC.1.3 e RC.1.5 em paralelo; depois **RC.1.7, a validação das 35 lições, que bloqueia a Fase 5**, RC.1.4, RC.1.2 em modo aviso, RC.1.6): corrige
-   o que o autor marcou como inaceitável (TCC visível) e instala a rede de proteção.
-2. **RC.7.2, RC.7.1** (correções mecânicas e visuais pequenas, independentes) e **RC.2.5** em paralelo.
-3. **RC.2.1, RC.2.3** (paralelos), depois **RC.2.2, RC.2.4**: rever lições, voltar, errar não avança.
-4. **RC.3.1, RC.3.2, RC.3.3, RC.3.5**: infraestrutura de conteúdo.
-5. **RC.3.4a** + **RC.5.5** (corrige a lição 1.6 e o "Ver resultado", o ponto mais criticado).
-6. **RC.4.1** + **RC.5.1-RC.5.4** (trilhas 0 e início da 1, incluindo poupança e Copom).
-7. **RC.3.4b-d** + **RC.5.6-RC.5.7**, depois **RC.4.2-RC.4.3** + **RC.3.4e-g** + **RC.5.9-RC.5.13**, depois
-   **RC.3.4h** + **RC.5.8**, e **RC.5.14** ao final.
-8. **RC.4.0** já entregue (mapa); escolher posição (D13) e fazer **RC.4.6** (reserva, cumpre promessa da 1.1/1.2) junto de RC.4.1; **RC.4.4, RC.4.5** depois; **RC.4.7, RC.4.8** após RC.4.2; **RC.4.9** na trilha 3.
-9. **Fase 6, Trilha B** (RC.6.1 a RC.6.5), podendo rodar em paralelo a qualquer passo a partir do 2;
-   **Trilha A** depois, após D8.
-10. **RC.7.3 a RC.7.6** conforme D5/D6/D7.
-11. **Fase 8.**
-12. **RC.3.6** quando a N.23 for implementada.
+**Regra de PR (2026-10-04):** a revisão gerou 22 PRs encadeados (#62 a #83), pequenos demais para revisar. Daqui em
+diante **um PR por pacote**, abaixo. Dentro do pacote continua valendo **uma sessão por tarefa e um commit por
+tarefa** (rollback e revisão por commit), mas a branch e o PR são do pacote: `rc-p<n>-<tema>`, partindo da `main`
+atualizada, com PR aberto **quando o pacote fecha** (todas as tarefas ✅), não a cada tarefa. O critério de
+agrupamento foi: (a) **widget entra no mesmo PR da lição que o usa**, para não nascer código sem consumidor; (b)
+mesma camada e mesmos arquivos; (c) a mesma verificação de ponta a ponta; (d) a ordem de dependência dentro do
+pacote é a da lista.
+
+**Pacotes já entregues:** Fases 1 e 2 (menos RC.2.6), RC.3.1 a RC.3.3, RC.3.4a, RC.3.5, RC.5.1, RC.5.5, RC.7.1 e
+RC.7.2, hoje na pilha #62 a #83 (mesclar em ordem; ela também traz a integração com a Fase N).
+
+**Pré-requisito de tudo abaixo:** pilha #62 a #83 mesclada na `main`. A progressão com dispensa (N.24) já está nela.
+
+| Pacote | Tarefas (na ordem) | Por que juntas | Notas |
+|---|---|---|---|
+| **P1. Trilha 0 completa** | RC.2.6, RC.3.4c, RC.4.1, RC.5.2 | RC.4.1 cria a lição que define Selic, CDI, TR e IPCA; a poupança (RC.5.2) usa TR e o widget `real-return`; os widgets de juros e inflação (3.4c) alimentam as duas | Primeira lição nova no meio da trilha: testar a dispensa (N.24) com progresso real. RC.2.6 é a limpeza do `Lesson/index.tsx`, que este pacote já toca |
+| **P2. Trilha 1: Selic, Copom e reserva** | RC.5.3, RC.5.4, RC.4.6 | Mesmo trecho (1.1 a 1.3 e a reserva logo após a 1.2); Copom usa `copom-timeline` e `selic-ipca-chart` do P1; a reserva cumpre a promessa das lições 1.1/1.2 | Widgets `emergency-fund-calculator` e `where-to-keep` (parte da RC.3.4i) nascem aqui |
+| **P3. Trilha 1: títulos, risco e crédito** | RC.3.4b, RC.3.4d, RC.5.6, RC.5.7 | `mtm-seesaw`, `fgc-coverage-bar`, `rating-ruler`, `bond-price-calculator`, `ipca-plus-simulator` e `breakeven-inflation` são consumidos só pelas lições 1.7 a 1.11 | Aproveitar para pôr o `fgc-coverage-bar` na 1.4 (ressalva (b) da RC.5.5) |
+| **P4. Trilha 2: abertura (bolsa e ações)** | RC.4.2, RC.3.4e, RC.5.9, RC.4.3 | Lição "B3, corretora e ordens" e a reordenação da trilha 2 mudam a mesma sequência (2.1 a 2.5); widgets `order-book`, `ticker-decoder` etc. | **Ligar o `STRICT` do lint de termos (RC.1.2)** aqui, porque ticker e ON/PN passam a ter lição definidora. Segunda inserção no meio da trilha: testar dispensa |
+| **P5. Trilha 2: ler uma empresa** | RC.3.4f, RC.5.10 | As lições 2.6.1 a 2.6.6 (balanço, margens, ROE, múltiplos, endividamento, DY) e os widgets de balanço e múltiplos são um bloco só | Esforço G: pode dividir em 2 sessões, mas é um PR |
+| **P6. Trilha 2: setores, ETFs e custos** | RC.5.12, RC.4.8 | 2.8 e 2.9 e a lição de custos (`fee-drag`, reaproveita `compound-growth` do P1) falam de ETF, taxa e carteira | RC.4.8 depende de RC.4.2 e 2.9 |
+| **P7. Calendário "Para você"** | RC.6.1, RC.6.2, RC.6.3, RC.6.4, RC.6.5 | Trilha B inteira, ponta a ponta (engine, backend, frontend, decisões) | **Independente do conteúdo**: pode rodar em paralelo a qualquer pacote. Rascunho de layout antes da RC.6.4 |
+| **P8. Calendário: escalonamento, base e balanço** | RC.6.5b, RC.6.6, RC.6.7, RC.6.8 | Calibração, pacote puro `paymentschedule`, migrations aditivas e balanço escalonado são a fundação do motor | Só `engine/`; migrations aditivas, validar com `docker compose up`. Após P7 para a UI refletir |
+| **P9. Calendário: escalonamento, proventos** | RC.6.9, RC.6.10, RC.6.11 | Proventos de ações por política, FIIs no mês real e snapshot na data ex dependem do P8 e entre si | Cria o fato novo que as lições de proventos (P10) precisam |
+| **P10. Trilha 2: proventos, FIIs e imposto** | RC.3.4g, RC.5.11, RC.5.13, RC.4.7 | Lições 2.7 e 2.10 só podem descrever o calendário depois do P9; imposto de renda variável (RC.4.7) fecha o bloco; `dividend-timeline`, `fii-monthly-calendar`, `equity-tax-calculator`, `tax-decision-tree` | Os blocos "Na plataforma" desse pacote dependem do que o P9 entregou |
+| **P11. Trilha F: finanças do dia a dia** | RC.4.4, RC.4.5 | Trilha nova (D13), paralela, sem desbloqueio de ativo: orçamento e dívida, com `budget-split`, `debt-snowball`, `pay-or-invest` | RC.4.5 depende de RC.4.1 (P1). Mapa e hub de trilhas ganham a trilha nova nos 3 breakpoints |
+| **P12. Trilha 3: planejamento** | RC.3.4h, RC.5.8, RC.4.9 | Reescrita da trilha 3 (D12), widgets de risco e alocação e a lição de vieses antes do desafio final | Depois de P3 a P6 para os exemplos reusarem os widgets |
+| **P13. Portfólio e Mercado Ao Vivo** | RC.7.3, RC.7.4, RC.7.5 | Donut interativo, cards Ao Vivo/Sandbox e composição desktop são a mesma tela (`pages/Portfolio`) | **Independente do conteúdo**: pode rodar em paralelo. Seguir D5/D6/D7 |
+| **P14. Fechamento** | RC.5.14, RC.7.6, RC.8.1, RC.8.2 | Alinhar as taxas citadas ao catálogo, varredura visual com o app logado, auditoria final do conteúdo (43 lições) e documentação de referência | Só depois de todos os pacotes de conteúdo e de UI |
+| **P15. Editor do painel** (bloqueado) | RC.3.6 | Compatibilidade do contrato `blocks` com o editor | Só quando a N.23 for implementada |
+
+**Opcional, fora dos pacotes:** RC.6.12 (ETFs e evento macro por empresa), só se o autor pedir.
+
+**Ordem sugerida de merge:** P1, P2, P3, P4, P5, P6 (conteúdo, nessa ordem) em paralelo com **P7 e P13** (UI sem
+dependência de conteúdo); depois P8, P9, P10; então P11 e P12; **P14 por último**. P15 quando a N.23 existir.
+
+**Resumo:** 49 sessões restantes viram **15 PRs** (14 mais o bloqueado), 3 deles independentes e livres para
+paralelizar (P7, P13 e, no motor, o P8 após o P7).
 
 ---
 
