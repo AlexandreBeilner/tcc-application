@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"tcc-investimentos/engine/internal/domain/botpool"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/etf"
@@ -46,7 +47,7 @@ func syntheticEquities(n int) []syntheticEquity {
 			Ticker:            fmt.Sprintf("SYN%03d3", i+1),
 			Name:              fmt.Sprintf("Sintética %03d ON", i+1),
 			CNPJ:              fmt.Sprintf("99%012d", i+1),
-			Sector:            sixFixedSectors[i%len(sixFixedSectors)],
+			Sector:            botpool.SixFixedSectors[i%len(botpool.SixFixedSectors)],
 			RiskClass:         riskClass,
 			OutstandingShares: syntheticFloats[(i*7)%len(syntheticFloats)],
 		}

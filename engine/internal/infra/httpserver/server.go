@@ -90,6 +90,8 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /admin/market/assets", handleAdminMarketAssets(cfg.adminReader))
 	mux.HandleFunc("GET /admin/market/assets/{id}", handleAdminMarketAssetDetail(cfg.adminReader))
 	mux.HandleFunc("GET /admin/catalog", handleAdminCatalog(cfg.catalogAdmin))
+	mux.HandleFunc("POST /admin/catalog/preview", handleAdminCatalogPreview(cfg.assetProvision))
+	mux.HandleFunc("POST /admin/catalog", handleAdminCatalogCreate(cfg.assetProvision))
 	mux.HandleFunc("PATCH /admin/catalog/{id}", handleAdminCatalogPatch(cfg.catalogAdmin))
 	mux.HandleFunc("GET /admin/orders", handleAdminOrders(cfg.adminReader))
 	mux.HandleFunc("POST /admin/orders/cancel-batch", handleAdminCancelBatch(cfg.orderCanceller))

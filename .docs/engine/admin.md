@@ -187,3 +187,23 @@ Editável por classe: **ação** `name`, `base_growth_pct`, `quality_multiplier`
 - **Sucesso:** `200` → o ativo já alterado, no mesmo formato de um item do `GET`.
 - **Erros:** `400` — `id`/`admin_id` inválido, corpo que não é JSON ou campo com tipo errado; `404` — ativo inexistente; `422` — valor fora da regra (mensagem do domínio), campo somente leitura (`ticker`, `outstanding_shares`, `report_frequency_days`...), campo que não se aplica à classe, ativo do sandbox ou nenhum campo informado; `503`, `500`.
 - **Regra:** a gravação trava a linha do ativo e valida de novo dentro da transação; nada é gravado se a validação falha.
+
+#### Cadastro de ativo novo (tarefa N.13)
+
+Pacotes: `engine/internal/domain/assetprovision/` (`Spec.Validate`, `Service.Preview`/`Create`) e `engine/internal/domain/botpool/` (id e personalidade dos bots direcionais, **compartilhados com o seed**: crescer o pool pelo painel gera exatamente os bots que o seed geraria). Adapter `db.AssetProvisionRepository`. Respondem `503` sem `httpserver.WithAssetProvision`.
+
+O cadastro percorre o mesmo caminho do seed: (1) **catálogo numa transação só** (empresa, ativo, especialização e fundamentos iniciais calibrados pra o preço justo nascer em R$ 10, ou detalhes de FII/ETF; o ETF ganha a conta de fundo); (2) **pool de bots** cresce até `bot.PoolSize(nº de ativos negociáveis)` (nunca encolhe), com caixa e personalidade pros bots novos; (3) o float do ativo novo é distribuído entre o pool inteiro (`bot.InitialAllocation`, 50% pro grupo Market Maker); (4) **cobertura de Market Maker** por `coverage.Ensurer` (um Market Maker novo nasce se nenhum tem folga). **Nenhuma posição de ativo antigo é alterada**: bot antigo só ganha posição no ativo novo e bot novo só recebe posição no ativo novo. Ação e FII passam pelas quatro etapas; **ETF só pela primeira** (não tem float de bots nem Market Maker, a liquidez vem da criação de cotas pelo Participante Autorizado, igual ao seed).
+
+Classes (`kind`): `acao` (cria a empresa emissora junto, uma ação ON; classe de risco derivada do setor: Mineração e Energia Conservador, o resto Sofisticado), `fii_tijolo`, `fii_papel`, `etf`. Ticker: ação `ABCD3` ou `ABCD4`, FII e ETF `ABCD11`. Não há exclusão de ativo (pode ter posição e histórico imutável).
+
+#### `POST /admin/catalog/preview`
+
+- **Payload (JSON):** `kind`, `ticker`, `name`, e os campos da classe. Ação: `company_name`, `cnpj` (14 dígitos), `sector` (um dos 6 fixos), `outstanding_shares` (1.000.000 a 2.000.000.000), `base_growth_pct` (maior que -100), `quality_multiplier` (em (0, 2]). FII de tijolo: `segment`, `vacancy_rate` (0 a 100). FII de papel: `indexador` (`CDI` ou `IPCA+`). ETF: `benchmark_index`, `methodology` (opcional), `holdings: [{ ticker, weight_pct }]` (1 a 30 ações ou FIIs já cadastrados, pesos somando 100).
+- **Sucesso:** `200` → `{ kind, ticker, name, outstanding_shares | null, pool | null }`. `pool` (nulo em ETF): `{ pool_before, pool_after, new_bots, market_maker_shares, bot_shares, market_maker_id, creates_market_maker }`. Não grava nada.
+- **Erros:** `400` corpo inválido; `409` ticker ou CNPJ já em uso; `422` `{ error, field }` regra de domínio (faixa, formato, constituinte inexistente ou de renda fixa, pesos); `503`, `500`.
+
+#### `POST /admin/catalog`
+
+- **Payload:** o mesmo do preview, mais `admin_id` (UUID, informado pelo backend).
+- **Sucesso:** `201` → `{ asset_id, preview }`.
+- **Erros:** os do preview (`400` também sem `admin_id`); `500` com `{ error, asset_id }` quando o catálogo gravou mas a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots, que reatribui; a ordem das etapas é a do seed: bots antes da cobertura).

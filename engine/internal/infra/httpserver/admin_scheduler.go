@@ -64,6 +64,7 @@ type options struct {
 	settings        *SettingsAPI
 	macroEventAdmin macroEventAdmin
 	catalogAdmin    catalogAdminManager
+	assetProvision  assetProvisioner
 }
 
 // WithSchedulerAdmin liga as rotas do painel de Tempo (N.6); sem ela respondem 503.
