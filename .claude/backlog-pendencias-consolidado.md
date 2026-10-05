@@ -122,6 +122,16 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 - **Local:** `.claude/backlog-motor-mercado-realista.md`, tarefa **N.2** (linha ~2754)
 - **Depende de:** P4.1.
 
+### P4.3 · N.3 a N.24 — Painel Admin completo (ampliação de 2026-10-03)
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase N, seção "Ampliação da Fase N" (24 tarefas
+  em 8 blocos) com **plano de 12 PRs em ordem linear** no final da seção (o próximo é o primeiro sem ✅ na coluna Estado).
+- **Decisões (2026-10-03):** **todas as que travavam a Fase N estão tomadas** (achados 029, 030 e 001 resolvidos). Lição
+  nova pode entrar no meio do currículo com dispensa de quem já passou (tarefa **N.24**, que concede os produtos da
+  lição dispensada); a N.23 (editor de lições) depende da N.24 pra criar lição.
+- **Andamento:** N.3, N.4 e N.6 ✅ concluídas (2026-10-03); próximas sem bloqueio: N.5 (visão geral), N.8 (monitor de
+  mercado) e N.10/N.1 (bots).
+
 ---
 
 ## Prioridade 5 — Engajamento/gamificação (só um item realmente acionável agora)

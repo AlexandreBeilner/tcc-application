@@ -35,6 +35,10 @@ export function createFakeUserRepository(): UserRepository {
         role: input.role ?? 'user',
         onboardingCompleted: false,
         avatarPath: null,
+        status: 'active',
+        suspendedReason: null,
+        suspendedAt: null,
+        tokenVersion: 0,
         createdAt: new Date(),
       }
       usersById.set(user.id, user)
@@ -56,6 +60,9 @@ export function createFakeUserRepository(): UserRepository {
           onboardingCompleted: input.onboardingCompleted,
         }),
         ...(input.avatarPath !== undefined && { avatarPath: input.avatarPath }),
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.suspendedReason !== undefined && { suspendedReason: input.suspendedReason }),
+        ...(input.suspendedAt !== undefined && { suspendedAt: input.suspendedAt }),
       }
       usersById.set(id, updated)
       return updated
@@ -77,6 +84,16 @@ export function createFakeUserRepository(): UserRepository {
 
     async listIdentitiesForUser(userId: string) {
       return [...identities.values()].filter((identity) => identity.userId === userId)
+    },
+
+    async revokeSessions(userId: string) {
+      const current = usersById.get(userId)
+      if (!current) {
+        throw new Error(`fake: usuário ${userId} não encontrado`)
+      }
+      const updated = { ...current, tokenVersion: current.tokenVersion + 1 }
+      usersById.set(userId, updated)
+      return updated.tokenVersion
     },
 
     async deleteIdentitiesForUser(userId: string) {

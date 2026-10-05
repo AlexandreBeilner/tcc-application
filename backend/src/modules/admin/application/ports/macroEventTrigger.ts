@@ -12,6 +12,8 @@ export interface MacroEventFromTemplateInput {
   template_key: string
   targets: MacroEventTargetInput[]
   created_by?: string
+  // Agenda o primeiro dia de efeito (dia simulado futuro, N.11); ausente dispara já.
+  apply_on_day?: number
 }
 
 export interface MacroEventAdHocInput {
@@ -23,6 +25,7 @@ export interface MacroEventAdHocInput {
   affects_fundamentals: boolean
   targets: MacroEventTargetInput[]
   created_by?: string
+  apply_on_day?: number
 }
 
 export type TriggerMacroEventInput = MacroEventFromTemplateInput | MacroEventAdHocInput
@@ -51,6 +54,10 @@ export interface MacroEventResult {
   // .docs/engine/macroevent.md). Timestamp real (RFC 3339), diferente de
   // triggered_on_day (dia simulado).
   created_at?: string
+  // Só na visão do painel de GET /macro-events (N.11): o evento ainda não produziu
+  // efeito, e se o cancelamento ainda é possível.
+  scheduled?: boolean
+  cancellable?: boolean
 }
 
 // Abre um evento macro no motor de simulação — accounts/macro_events vivem

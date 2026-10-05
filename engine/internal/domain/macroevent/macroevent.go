@@ -43,8 +43,9 @@ const (
 type Status string
 
 const (
-	StatusPendente Status = "pendente"
-	StatusAplicado Status = "aplicado"
+	StatusPendente  Status = "pendente"
+	StatusAplicado  Status = "aplicado"
+	StatusCancelado Status = "cancelado"
 )
 
 // Metric espelha o enum Postgres macro_target_metric — qual indicador um
