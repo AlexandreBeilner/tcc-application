@@ -123,6 +123,11 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'k', widget: 'bond-price-calculator', props: { ratePct: 10, years: 1 } },
         { type: 'widget', id: 'l', widget: 'ipca-plus-simulator', props: { years: 10, ipcaPct: 4 } },
         { type: 'widget', id: 'm', widget: 'breakeven-inflation', props: { prefixedPct: 13, realPct: 7 } },
+        { type: 'widget', id: 'n', widget: 'ownership-calculator', props: { yourShares: 50, payoutPct: 40 } },
+        { type: 'widget', id: 'o', widget: 'bookbuilding-simulator', props: { offeredShares: 500000, primaryPct: 100 } },
+        { type: 'widget', id: 'p', widget: 'ticker-decoder', props: {} },
+        { type: 'widget', id: 'q', widget: 'headline-triage', props: {} },
+        { type: 'widget', id: 'r', widget: 'order-book', props: {} },
       ],
     }
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
@@ -141,6 +146,9 @@ describe('lessonBlocksSchema', () => {
     ['bond-price-calculator', { ratePct: 40 }],
     ['ipca-plus-simulator', { years: 2.5 }],
     ['breakeven-inflation', { realPct: 1 }],
+    ['ownership-calculator', { payoutPct: 150 }],
+    ['bookbuilding-simulator', { primaryPct: -1 }],
+    ['order-book', { levels: 3 }],
   ])('%s com props fora do limite é rejeitado', (widget, props) => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

@@ -7,6 +7,11 @@ import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidge
 import { EmergencyFundCalculatorWidget, emergencyFundCalculatorSummary } from '../EmergencyFundCalculatorWidget'
 import { WhereToKeepWidget, whereToKeepSummary } from '../WhereToKeepWidget'
 import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
+import { BookbuildingSimulatorWidget, bookbuildingSimulatorSummary } from '../BookbuildingSimulatorWidget'
+import { HeadlineTriageWidget, headlineTriageSummary } from '../HeadlineTriageWidget'
+import { OrderBookWidget, orderBookSummary } from '../OrderBookWidget'
+import { OwnershipCalculatorWidget, ownershipCalculatorSummary } from '../OwnershipCalculatorWidget'
+import { TickerDecoderWidget, tickerDecoderSummary } from '../TickerDecoderWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
 import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
 import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
@@ -128,6 +133,31 @@ export const widgetRegistry: Registry = {
         component: BreakevenInflationWidget,
         propsSchema: widgetPropsSchemas['breakeven-inflation'],
         summary: breakevenInflationSummary,
+    },
+    'ownership-calculator': {
+        component: OwnershipCalculatorWidget,
+        propsSchema: widgetPropsSchemas['ownership-calculator'],
+        summary: ownershipCalculatorSummary,
+    },
+    'bookbuilding-simulator': {
+        component: BookbuildingSimulatorWidget,
+        propsSchema: widgetPropsSchemas['bookbuilding-simulator'],
+        summary: bookbuildingSimulatorSummary,
+    },
+    'ticker-decoder': {
+        component: TickerDecoderWidget,
+        propsSchema: widgetPropsSchemas['ticker-decoder'],
+        summary: tickerDecoderSummary,
+    },
+    'headline-triage': {
+        component: HeadlineTriageWidget,
+        propsSchema: widgetPropsSchemas['headline-triage'],
+        summary: headlineTriageSummary,
+    },
+    'order-book': {
+        component: OrderBookWidget,
+        propsSchema: widgetPropsSchemas['order-book'],
+        summary: orderBookSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,

@@ -35,6 +35,11 @@ export const WIDGET_IDS = [
   'bond-price-calculator',
   'ipca-plus-simulator',
   'breakeven-inflation',
+  'ownership-calculator',
+  'bookbuilding-simulator',
+  'ticker-decoder',
+  'headline-triage',
+  'order-book',
   'savings-vs-selic',
   'growth-calculator',
   'fixed-income-comparison',
@@ -162,6 +167,23 @@ const breakevenInflationProps = z.object({
   expectedInflationPct: z.number().min(0).max(12).default(5),
 })
 
+// Ações, abertura da Trilha 2 (RC.3.4e): as contas e o conteúdo (tickers,
+// manchetes, ordens de exemplo do bookbuilding, livro de ofertas) vivem no
+// frontend; as props só escolhem o ponto de partida.
+const ownershipCalculatorProps = z.object({
+  price: z.number().positive().max(100_000).default(20),
+  totalShares: z.number().int().positive().max(100_000_000_000).default(1_000_000),
+  yourShares: z.number().int().min(0).max(100_000_000_000).default(100),
+  profit: z.number().min(0).max(100_000_000_000).default(5_000_000),
+  payoutPct: z.number().min(0).max(100).default(30),
+})
+
+const bookbuildingSimulatorProps = z.object({
+  offeredShares: z.number().int().min(250_000).max(2_000_000).default(1_000_000),
+  primaryPct: z.number().min(0).max(100).default(60),
+  existingShares: z.number().int().positive().max(100_000_000_000).default(4_000_000),
+})
+
 // Poupança contra Tesouro Selic (RC.5.2): a conta vive no frontend; as props só
 // escolhem o ponto de partida dentro dos limites dos controles.
 const savingsVsSelicProps = z.object({
@@ -198,6 +220,11 @@ export const widgetPropsSchemas = {
   'bond-price-calculator': bondPriceCalculatorProps,
   'ipca-plus-simulator': ipcaPlusSimulatorProps,
   'breakeven-inflation': breakevenInflationProps,
+  'ownership-calculator': ownershipCalculatorProps,
+  'bookbuilding-simulator': bookbuildingSimulatorProps,
+  'ticker-decoder': emptyProps,
+  'headline-triage': emptyProps,
+  'order-book': emptyProps,
   'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,
