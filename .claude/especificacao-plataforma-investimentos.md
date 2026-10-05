@@ -159,6 +159,8 @@ Escopo enxuto para esta fase, focado apenas no requisito da banca (evitar que o 
 
 Essa divisão é uma decisão de fase, não definitiva: cadastro de empresas/ativos, gestão de usuários e edição do catálogo de templates são candidatos naturais a ganhar interface própria numa evolução futura da plataforma, quando o volume de conteúdo justificar sair do script para uma tela de administração.
 
+**Revisão (2026-10-03):** o autor ampliou o escopo do painel para centro de controle geral da aplicação (tempo, mercado, bots, catálogo, usuários, conteúdo, gamificação, sistema). As tarefas estão na Fase N de `backlog-motor-mercado-realista.md` (N.3 a N.22); as decisões ainda abertas estão no achado 029 de `pontos-em-aberto-decisao-produto.md`.
+
 ### 3.4 Event Sourcing / CQRS
 
 Mantido do TCC original, mas com escopo de implementação simplificado no MVP: log de eventos append-only real desde o início; separação plena de read models (CQRS completo) pode entrar de forma incremental, não precisa estar pronta no dia 1.
