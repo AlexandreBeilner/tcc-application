@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLessonView,
+  buildProgression,
   buildMicroDecisionAttemptsChronological,
   completedTrackNumbers,
   countCompleted,
@@ -8,9 +9,11 @@ import {
   currentMicroDecisionStreak,
   isCorrectOption,
   isEligibleForReview,
+  isSatisfied,
   isUnlocked,
   lessonStatus,
   microDecisionResultFor,
+  shouldWaiveInsertedLesson,
   tracksCompletedWithoutErrors,
   unlockedKeysFor,
   utcDateString,
@@ -18,32 +21,146 @@ import {
 
 describe('isUnlocked', () => {
   it.each([
-    [1, 0, true], // primeira lição sempre disponível, ninguém concluiu nada
+    [1, 0, true], // primeira lição sempre disponível, ninguém satisfez nada
     [2, 0, false],
     [2, 1, true],
-    [5, 4, true], // última lição da Trilha 0 (0.5), as 4 anteriores concluídas
+    [5, 4, true], // última lição da Trilha 0 (0.5), as 4 anteriores satisfeitas
     [6, 4, false], // 1.1 ainda bloqueada — Trilha 0 não terminou
-    [6, 5, true], // 1.1 desbloqueia só depois de concluir 0.5 (0.5 → Trilha 1)
-  ])('sortOrder=%i, completedCount=%i → %s', (sortOrder, completedCount, expected) => {
-    expect(isUnlocked(sortOrder, completedCount)).toBe(expected)
+    [6, 5, true], // 1.1 desbloqueia só depois de satisfazer 0.5 (0.5 → Trilha 1)
+  ])('position=%i, satisfiedCount=%i → %s', (position, satisfiedCount, expected) => {
+    expect(isUnlocked(position, satisfiedCount)).toBe(expected)
   })
 })
 
 describe('lessonStatus', () => {
-  it('completed quando o usuário já concluiu, mesmo se a contagem global não sustentaria mais', () => {
-    expect(lessonStatus({ sortOrder: 1, completedCount: 0, completedByUser: true })).toBe(
-      'completed',
-    )
+  it('completed quando o usuário já concluiu, mesmo se a progressão não sustentaria mais', () => {
+    expect(lessonStatus({ unlocked: false, completedByUser: true })).toBe('completed')
   })
 
   it('available quando desbloqueada e ainda não concluída', () => {
-    expect(lessonStatus({ sortOrder: 2, completedCount: 1, completedByUser: false })).toBe(
-      'available',
-    )
+    expect(lessonStatus({ unlocked: true, completedByUser: false })).toBe('available')
   })
 
   it('locked quando ainda não desbloqueada', () => {
-    expect(lessonStatus({ sortOrder: 3, completedCount: 1, completedByUser: false })).toBe('locked')
+    expect(lessonStatus({ unlocked: false, completedByUser: false })).toBe('locked')
+  })
+})
+
+const NOT_STARTED = { completedAt: null, waivedAt: null }
+
+describe('isSatisfied', () => {
+  it('concluída ou dispensada conta; sem nenhum dos dois não', () => {
+    expect(isSatisfied({ completedAt: new Date(), waivedAt: null })).toBe(true)
+    expect(isSatisfied({ completedAt: null, waivedAt: new Date() })).toBe(true)
+    expect(isSatisfied(NOT_STARTED)).toBe(false)
+  })
+})
+
+describe('buildProgression', () => {
+  const lessons = [1, 2, 3, 4].map((n) => ({ id: `l${n}`, sortOrder: n }))
+  const done = (lessonId: string) => ({ lessonId, completedAt: new Date(), waivedAt: null })
+  const waived = (lessonId: string) => ({ lessonId, completedAt: null, waivedAt: new Date() })
+
+  it('sem progresso só a primeira lição está desbloqueada', () => {
+    const progression = buildProgression(lessons, [])
+
+    expect(progression.satisfiedCount).toBe(0)
+    expect(lessons.map((l) => progression.isUnlocked(l.id))).toEqual([true, false, false, false])
+  })
+
+  it('dispensada conta como satisfeita e libera a próxima', () => {
+    const progression = buildProgression(lessons, [done('l1'), waived('l2')])
+
+    expect(progression.satisfiedCount).toBe(2)
+    expect(lessons.map((l) => progression.isUnlocked(l.id))).toEqual([true, true, true, false])
+  })
+
+  it('lição concluída depois de dispensada não conta duas vezes', () => {
+    const both = { lessonId: 'l2', completedAt: new Date(), waivedAt: new Date() }
+
+    expect(buildProgression(lessons, [done('l1'), both]).satisfiedCount).toBe(2)
+  })
+
+  it('posição é o índice na lista recebida, não o sortOrder: lacuna (despublicada) não trava', () => {
+    // l2 despublicada: a lista publicada tem lacuna em sortOrder.
+    const published = [lessons[0], lessons[2], lessons[3]]
+    const progression = buildProgression(published, [done('l1')])
+
+    expect(published.map((l) => progression.isUnlocked(l.id))).toEqual([true, true, false])
+  })
+
+  it('progresso de lição fora da lista (despublicada) sai da conta, sem fazer pular ninguém', () => {
+    // Quem concluiu l1 e l2, com l2 despublicada: continua na próxima a fazer (l3).
+    const published = [lessons[0], lessons[2], lessons[3]]
+    const progression = buildProgression(published, [done('l1'), done('l2')])
+
+    expect(progression.satisfiedCount).toBe(1)
+    expect(published.map((l) => progression.isUnlocked(l.id))).toEqual([true, true, false])
+  })
+
+  it('lição fora da lista nunca está desbloqueada', () => {
+    expect(buildProgression(lessons, [done('l1')]).isUnlocked('inexistente')).toBe(false)
+  })
+
+  it('ignora a ordem em que as lições chegam', () => {
+    const progression = buildProgression([...lessons].reverse(), [done('l1')])
+
+    expect(lessons.map((l) => progression.isUnlocked(l.id))).toEqual([true, true, false, false])
+  })
+})
+
+// Prova do critério de aceite da N.24: pra qualquer quantidade de lições
+// satisfeitas (0 a 35) e qualquer posição de inserção k, quem já passou de k
+// mantém exatamente o mesmo acesso de antes, e quem estava em k ou antes é
+// bloqueado pela lição nova.
+describe('shouldWaiveInsertedLesson (inserir lição no meio da trilha)', () => {
+  const TOTAL = 35
+  const before = Array.from({ length: TOTAL }, (_, i) => ({ id: `l${i + 1}`, sortOrder: i + 1 }))
+
+  function userWithSatisfied(count: number) {
+    return before
+      .slice(0, count)
+      .map((l) => ({ lessonId: l.id, completedAt: new Date(), waivedAt: null }))
+  }
+
+  const cases: [number, number][] = []
+  for (let satisfied = 0; satisfied <= TOTAL; satisfied++) {
+    for (let k = 1; k <= TOTAL + 1; k++) {
+      cases.push([satisfied, k])
+    }
+  }
+
+  it.each(cases)('satisfeitas=%i, inserção na posição %i', (satisfied, k) => {
+    const progress = userWithSatisfied(satisfied)
+    const accessBefore = buildProgression(before, progress)
+
+    // Insere a lição nova na posição k: as de posição >= k descem um lugar.
+    const inserted = { id: 'nova', sortOrder: k - 0.5 }
+    const after = [...before, inserted]
+    const progressAfter = shouldWaiveInsertedLesson(satisfied, k)
+      ? [...progress, { lessonId: 'nova', completedAt: null, waivedAt: new Date() }]
+      : progress
+    const accessAfter = buildProgression(after, progressAfter)
+
+    if (satisfied >= k) {
+      // Já passou do ponto: nada do que estava liberado se perde...
+      for (const lesson of before) {
+        expect(accessAfter.isUnlocked(lesson.id)).toBe(accessBefore.isUnlocked(lesson.id))
+      }
+      // ...e a lição nova fica disponível (opcional), sem bloquear.
+      expect(accessAfter.isUnlocked('nova')).toBe(true)
+    } else {
+      // Estava em k ou antes: as lições antes de k seguem como estavam...
+      for (const lesson of before.filter((l) => l.sortOrder < k)) {
+        expect(accessAfter.isUnlocked(lesson.id)).toBe(accessBefore.isUnlocked(lesson.id))
+      }
+      // ...tudo de k em diante fica bloqueado até a lição nova ser feita...
+      for (const lesson of before.filter((l) => l.sortOrder >= k)) {
+        expect(accessAfter.isUnlocked(lesson.id)).toBe(false)
+      }
+      // ...e a nova só está disponível pra quem chegou exatamente nela.
+      expect(accessAfter.isUnlocked('nova')).toBe(satisfied === k - 1)
+    }
   })
 })
 
@@ -67,33 +184,61 @@ describe('buildLessonView', () => {
     microDecisionOptions: null,
     microDecisionCorrectOption: null,
   }
+  const progression = buildProgression([lesson], [])
+  const snapshot = {
+    currentStep: 0,
+    completedAt: null,
+    updatedAt: new Date(),
+    microDecisionSelectedOption: null,
+    waivedAt: null,
+  }
 
   it('sem progresso: primeira lição available, currentStep=0', () => {
-    const view = buildLessonView(lesson, undefined, 0)
+    const view = buildLessonView(lesson, undefined, progression)
 
     expect(view.status).toBe('available')
     expect(view.currentStep).toBe(0)
+    expect(view.waived).toBe(false)
   })
 
   it('com progresso em andamento: status calculado normalmente, currentStep persistido', () => {
-    const view = buildLessonView(
-      lesson,
-      { currentStep: 1, completedAt: null, microDecisionSelectedOption: null },
-      0,
-    )
+    const view = buildLessonView(lesson, { ...snapshot, currentStep: 1 }, progression)
 
     expect(view.status).toBe('available')
     expect(view.currentStep).toBe(1)
   })
 
-  it('com completedAt preenchido: completed, independente do sortOrder', () => {
+  it('com completedAt preenchido: completed, independente da posição', () => {
     const view = buildLessonView(
       lesson,
-      { currentStep: 3, completedAt: new Date(), microDecisionSelectedOption: null },
-      0,
+      { ...snapshot, currentStep: 3, completedAt: new Date() },
+      buildProgression([], []),
     )
 
     expect(view.status).toBe('completed')
+  })
+
+  it('dispensada e não feita: available e marcada como waived (nova, opcional)', () => {
+    const waivedProgress = { ...snapshot, waivedAt: new Date() }
+    const view = buildLessonView(
+      lesson,
+      waivedProgress,
+      buildProgression([lesson], [{ lessonId: lesson.id, ...waivedProgress }]),
+    )
+
+    expect(view.status).toBe('available')
+    expect(view.waived).toBe(true)
+  })
+
+  it('dispensada e depois concluída: completed, deixa de ser waived', () => {
+    const view = buildLessonView(
+      lesson,
+      { ...snapshot, currentStep: 3, completedAt: new Date(), waivedAt: new Date() },
+      progression,
+    )
+
+    expect(view.status).toBe('completed')
+    expect(view.waived).toBe(false)
   })
 
   it('correção da revisão da PR 18: nunca devolve microDecisionCorrectOption, mesmo pra lição com aposta real', () => {
@@ -103,7 +248,7 @@ describe('buildLessonView', () => {
       microDecisionCorrectOption: 0,
     }
 
-    const view = buildLessonView(lessonWithOptions, undefined, 0)
+    const view = buildLessonView(lessonWithOptions, undefined, progression)
 
     expect(Object.keys(view)).not.toContain('microDecisionCorrectOption')
   })
@@ -157,10 +302,10 @@ describe('completedTrackNumbers', () => {
   it('trilha só entra no resultado se todas as lições dela estiverem concluídas', () => {
     expect(
       completedTrackNumbers([
-        { trackNumber: 0, completedAt: new Date() },
-        { trackNumber: 0, completedAt: new Date() },
-        { trackNumber: 1, completedAt: new Date() },
-        { trackNumber: 1, completedAt: null },
+        { trackNumber: 0, completedAt: new Date(), waivedAt: null },
+        { trackNumber: 0, completedAt: new Date(), waivedAt: null },
+        { trackNumber: 1, completedAt: new Date(), waivedAt: null },
+        { trackNumber: 1, completedAt: null, waivedAt: null },
       ]),
     ).toEqual([0])
   })
@@ -172,8 +317,8 @@ describe('completedTrackNumbers', () => {
   it('nenhuma lição concluída → nenhuma trilha completa', () => {
     expect(
       completedTrackNumbers([
-        { trackNumber: 0, completedAt: null },
-        { trackNumber: 1, completedAt: null },
+        { trackNumber: 0, completedAt: null, waivedAt: null },
+        { trackNumber: 1, completedAt: null, waivedAt: null },
       ]),
     ).toEqual([])
   })
@@ -181,10 +326,10 @@ describe('completedTrackNumbers', () => {
   it('várias trilhas completas voltam ordenadas por número', () => {
     expect(
       completedTrackNumbers([
-        { trackNumber: 3, completedAt: new Date() },
-        { trackNumber: 0, completedAt: new Date() },
-        { trackNumber: 1, completedAt: new Date() },
-        { trackNumber: 2, completedAt: null },
+        { trackNumber: 3, completedAt: new Date(), waivedAt: null },
+        { trackNumber: 0, completedAt: new Date(), waivedAt: null },
+        { trackNumber: 1, completedAt: new Date(), waivedAt: null },
+        { trackNumber: 2, completedAt: null, waivedAt: null },
       ]),
     ).toEqual([0, 1, 3])
   })
@@ -322,12 +467,14 @@ describe('tracksCompletedWithoutErrors', () => {
         {
           trackNumber: 0,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: 1,
           microDecisionSelectedOption: 1,
         },
         {
           trackNumber: 0,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: null,
           microDecisionSelectedOption: null,
         },
@@ -341,12 +488,14 @@ describe('tracksCompletedWithoutErrors', () => {
         {
           trackNumber: 0,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: 1,
           microDecisionSelectedOption: 1,
         },
         {
           trackNumber: 0,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: 1,
           microDecisionSelectedOption: 0,
         },
@@ -360,6 +509,7 @@ describe('tracksCompletedWithoutErrors', () => {
         {
           trackNumber: 0,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: 1,
           microDecisionSelectedOption: null,
         },
@@ -373,6 +523,7 @@ describe('tracksCompletedWithoutErrors', () => {
         {
           trackNumber: 0,
           completedAt: null,
+          waivedAt: null,
           microDecisionCorrectOption: 1,
           microDecisionSelectedOption: null,
         },
@@ -386,17 +537,40 @@ describe('tracksCompletedWithoutErrors', () => {
         {
           trackNumber: 2,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: null,
           microDecisionSelectedOption: null,
         },
         {
           trackNumber: 0,
           completedAt: new Date(),
+          waivedAt: null,
           microDecisionCorrectOption: null,
           microDecisionSelectedOption: null,
         },
       ]),
     ).toEqual([0, 2])
+  })
+
+  it('lição dispensada (N.24) não conta como erro nem como pendência: trilha segue sem erros', () => {
+    expect(
+      tracksCompletedWithoutErrors([
+        {
+          trackNumber: 0,
+          completedAt: new Date(),
+          waivedAt: null,
+          microDecisionCorrectOption: 0,
+          microDecisionSelectedOption: 0,
+        },
+        {
+          trackNumber: 0,
+          completedAt: null,
+          waivedAt: new Date(),
+          microDecisionCorrectOption: 1,
+          microDecisionSelectedOption: null,
+        },
+      ]),
+    ).toEqual([0])
   })
 })
 

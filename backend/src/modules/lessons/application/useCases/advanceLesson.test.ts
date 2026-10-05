@@ -432,4 +432,46 @@ describe('AdvanceLessonUseCase — aposta com acerto/erro real (B.2)', () => {
 
     expect(result).toEqual({ currentStep: 1, completed: false })
   })
+  describe('lição dispensada (N.24)', () => {
+    it('concluir a lição dispensada credita XP normalmente, uma única vez', async () => {
+      const { lessonRepository, xpAwarder, ...harness } = build()
+      lessonRepository.waive('u1', 'l1')
+      await lessonRepository.upsertProgress('u1', 'l2', { currentStep: 3, completedAt: new Date() })
+
+      const result = await walk(harness, 'u1', 'l1', LESSON_UNLOCK_STEP)
+
+      expect(result).toMatchObject({ completed: true, xpAwarded: LESSON_XP_REWARD })
+      expect(xpAwarder.awarded).toEqual([
+        { userId: 'u1', amount: LESSON_XP_REWARD, reason: 'licao:l1' },
+      ])
+    })
+
+    it('a dispensa em si não credita XP nem toca streak', async () => {
+      const { lessonRepository, xpAwarder, streakTracker } = build()
+
+      lessonRepository.waive('u1', 'l1')
+
+      expect(xpAwarder.awarded).toEqual([])
+      expect(streakTracker.touchedUserIds).toEqual([])
+    })
+
+    it('lição dispensada libera a seguinte mesmo sem ter sido feita', async () => {
+      const { lessonRepository, useCase } = build()
+      lessonRepository.waive('u1', 'l1')
+
+      await expect(useCase.execute({ userId: 'u1', lessonId: 'l2', step: 0 })).resolves.toEqual({
+        currentStep: 0,
+        completed: false,
+      })
+    })
+
+    it('terminar a trilha só com dispensa + conclusão ainda registra o evento de trilha concluída', async () => {
+      const { lessonRepository, socialFeedRecorder, ...harness } = build()
+      lessonRepository.waive('u1', 'l1')
+
+      await walk(harness, 'u1', 'l2', LESSON_UNLOCK_STEP)
+
+      expect(socialFeedRecorder.recorded).toHaveLength(1)
+    })
+  })
 })

@@ -32,23 +32,13 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
-### 001 · `RiskProfile.MarketOrderPreference` nunca é lido
+### 031 · Painel de bots: histórico de tempo de cotação e origem de uma posição aportada
 
-- **Local:** `engine/internal/domain/bot/personality.go:156` (campo), consumido por nenhuma das 4
-  `Decide*` (`noise.go`, `marketmaker.go`, `chartist.go`, `fundamentalist.go`)
-- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
-- **O que é:** o campo é validado (`NewRiskProfile`), semeado (0.50 pra todo bot) e persistido em
-  `bot_personalities.market_order_preference`, mas nenhuma função de decisão de arquétipo o consulta —
-  todas geram sempre `orderbook.TypeLimit`. Um dado totalmente modelado (validação própria, seed,
-  coluna no banco) sem efeito nenhum no comportamento do motor.
-- **Por que não foi corrigido:** usar o campo significa decidir *como* um bot escolhe entre ordem a
-  mercado e limitada (probabilidade sorteada por rodada? só alguns arquétipos? só em certas
-  condições de mercado?) — nenhuma dessas opções está fechada na proposta 2.3.2. As descrições de
-  aceite de C.2-C.5 já documentam "ordem sempre limitada", o que sugere adiamento deliberado pra Fase D
-  (orquestração da rodada), não descuido — mas isso não está confirmado.
-- **Opções:** (a) confirmar que é adiado pra Fase D e documentar isso explicitamente no comentário do
-  pacote `bot`, ou (b) desenhar agora a regra de uso (ex: `Decide*` sorteia o tipo com probabilidade
-  `MarketOrderPreference` antes de montar a `Decision`).
+- **Local:** `engine/internal/infra/db/admin_bots_read_repository.go` (`marketMakerQuotes`) e `engine/internal/infra/db/bot_admin_repository.go` (`FundBot`)
+- **Origem:** N.14 e N.15 (PR 6 da Fase N), 2026-10-03
+- **O que é:** dois gaps entre o texto das tarefas e o que o dado permite. (1) A N.14 pede "tempo de cotação por ativo (% dos dias com bid+ask)" do Market Maker, mas o `order_book` não guarda quando uma ordem terminou (só `created_at`, `status` e `cancel_reason`), então esse histórico não é reconstruível; a tela mostra só a **situação atual** da cotação (melhor compra e venda do próprio Market Maker, spread e inventário contra o alvo). (2) A N.15 pede aporte de caixa **ou posição** "respeitando o teto de float", mas o float de todo ativo já está 100% distribuído (B.1/P.2), então o aporte de **posição** é recusado (`409`) em quase todo ativo; só o aporte de caixa funciona na prática. Mesmo ponto já registrado na N.1 ("de quem sai a posição?").
+- **Por que não foi corrigido:** (1) exige gravar um dado novo (um snapshot de cotação por dia e por Market Maker, ou o instante de encerramento da ordem), o que muda o motor e o custo por tick; (2) exige escolher de onde a posição aportada sai (de outro detentor, de uma criação de cotas, ou aumentando `outstanding_shares`), e cada uma tem efeito diferente na economia do ativo.
+- **Opções:** (1) tabela `market_maker_quote_days (mm_account_id, asset_id, simulated_day, had_bid, had_ask)` gravada pelo tick, ou coluna `closed_at` em `order_book`; ou aceitar a foto atual como suficiente. (2) aporte de posição como transferência explícita de outro bot (com contrapartida em evento), ou aceitar só caixa e retirar o campo de posição da tela.
 - **Status:** aberto
 
 ## Resolvidos
@@ -792,3 +782,92 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   inconsistência. Só comentários mudaram (`fundamentals.go`, `tick.go`, `bot/fundamentalist.go`), sem
   alteração de comportamento; `go build`/`go vet` verdes.
 - **Status:** resolvido
+
+### 001 · `RiskProfile.MarketOrderPreference` nunca é lido
+
+- **Local:** `engine/internal/domain/bot/personality.go:156` (campo), consumido por nenhuma das 4
+  `Decide*` (`noise.go`, `marketmaker.go`, `chartist.go`, `fundamentalist.go`)
+- **Origem:** review do PR #25 (Fase C do backlog-motor-mercado-realista), 2026-09-13
+- **O que é:** o campo é validado (`NewRiskProfile`), semeado (0.50 pra todo bot) e persistido em
+  `bot_personalities.market_order_preference`, mas nenhuma função de decisão de arquétipo o consulta —
+  todas geram sempre `orderbook.TypeLimit`. Um dado totalmente modelado (validação própria, seed,
+  coluna no banco) sem efeito nenhum no comportamento do motor.
+- **Por que não foi corrigido:** usar o campo significa decidir *como* um bot escolhe entre ordem a
+  mercado e limitada (probabilidade sorteada por rodada? só alguns arquétipos? só em certas
+  condições de mercado?) — nenhuma dessas opções está fechada na proposta 2.3.2. As descrições de
+  aceite de C.2-C.5 já documentam "ordem sempre limitada", o que sugere adiamento deliberado pra Fase D
+  (orquestração da rodada), não descuido — mas isso não está confirmado.
+- **Opções:** (a) confirmar que é adiado pra Fase D e documentar isso explicitamente no comentário do
+  pacote `bot`, ou (b) desenhar agora a regra de uso (ex: `Decide*` sorteia o tipo com probabilidade
+  `MarketOrderPreference` antes de montar a `Decision`).
+- **Decisão (2026-10-03, autor): opção (a), mantida como está.** O campo continua **reservado e sem efeito**: todo
+  bot segue enviando só ordem limitada, a mesma decisão já tomada nas Fases C e D (já discutida e confirmada pelo
+  autor), podendo ser revista no futuro. Consequência prática: o painel de bots (N.15) **não expõe** esse campo,
+  pra não oferecer um botão que não faz nada. Se um dia a regra for desenhada, os candidatos naturais por realismo
+  são os arquétipos Chartista e Ruído; ordem a mercado de bot consome o book fino e exigiria recalibração.
+- **Status:** resolvido
+
+### 029 · Escopo do painel admin ampliado (Fase N, N.3 a N.24): decisões que travavam tarefas
+
+- **Local:** `.claude/backlog-motor-mercado-realista.md`, Fase N (N.7, N.9, N.16, N.17, N.18, N.23)
+- **Origem:** ampliação da Fase N pedida pelo autor ("controle geral da aplicação"), 2026-10-03
+- **O que é:** a spec 3.3.3 limitava o painel a eventos macro; as tarefas novas cobrem tempo, mercado, bots,
+  usuários, conteúdo e gamificação, e seis pontos dependiam de escolha do autor.
+- **Decisões (2026-10-03, autor):**
+  1. **Parâmetros editáveis (N.7):** só o ritmo do relógio (ticks por dia real e recuperação máxima); o resto fica
+     só leitura.
+  2. **Pausa de negociação (N.9):** não suspende o tick; relógio e negociação têm interruptores independentes. O
+     book fica vazio se a pausa atravessar um tick, e retomar não força rodada.
+  3. **Patrimônio absoluto (N.16):** o admin vê o de qualquer usuário, sem auditar a leitura ("o administrador pode
+     fazer o que quiser"). Exceção escrita no CLAUDE.md.
+  4. **Suspensão de conta (N.16):** entra, na forma reversível (bloqueia login e tokens, tira do ranking e da
+     busca, nunca apaga progresso), como subtarefa separável; não cancela as ordens do usuário.
+  5. **Crédito de caixa (N.17):** o admin adiciona dinheiro simulado na conta de qualquer usuário, **sem teto**,
+     pra uso excepcional (evento imutável `admin_credit`). Não afeta o ranking, que mede só capital de risco.
+  6. **Conteúdo das lições (N.23):** o banco é a fonte da verdade; o admin edita e cria lições pelo painel; o seed
+     vira só importação inicial.
+- **Status:** resolvido
+
+### 030 · Onde uma lição criada pelo painel pode entrar na ordem (progressão por contagem)
+
+- **Local:** `backend/src/modules/lessons/domain/lesson.ts:38` (`isUnlocked`: `sortOrder <= completedCount + 1`) e
+  `:193` (`unlockedKeysFor`: chave vale se existe lição com `sortOrder <= completedCount` que a desbloqueia)
+- **Origem:** decisão do autor de 2026-10-03 de ter o banco como fonte das lições e criar lições pelo painel (N.23)
+- **O que é:** a progressão é linear e por **contagem**, não por lição específica: quem concluiu N lições tem
+  liberadas as de `sort_order` até N+1, e os produtos vêm das lições de `sort_order` até N. Inserir uma lição **no
+  meio** desloca o `sort_order` das seguintes: um usuário com 5 concluídas passa a ser tratado como se tivesse feito
+  a lição nova sem tê-la feito, e a antiga 5ª (agora 6ª) deixa de contar, podendo **tirar de volta um produto já
+  desbloqueado**. Mesmo tipo de problema do achado 010. O mesmo vale pra **despublicar** (N.18): despublicar uma
+  lição que o usuário não fez trava a trilha dele, e despublicar uma que fez o faz pular uma.
+- **Decisão (2026-10-03, autor): permitir inserir no meio, com dispensa.** Lição nova no meio **não bloqueia quem já
+  passou daquele ponto**; só bloqueia quem ainda não chegou. Implementação na tarefa **N.24** (dispensa por usuário,
+  progressão calculada sobre as lições publicadas), que também resolve o despublicar.
+- **Regras de detalhe (2026-10-03, autor):** (a) lição dispensada **concede as chaves de produto** dela mesmo sem
+  ter sido feita, porque quem já passou daquele ponto provavelmente já viu o conteúdo e a lição é só um complemento
+  (aparece no mapa como "nova, opcional"); (b) dispensa **não dá XP**; (c) pra "trilha concluída", dispensada conta
+  como satisfeita (troféu já conquistado não regride). Os itens (b) e (c) foram aceitos como propostos.
+- **Status:** resolvido
+
+### 031 · Quando o jogador passa a ver um evento macro agendado (N.11)
+
+- **Local:** `engine/internal/domain/macroevent/lifecycle.go` (`IsPubliclyVisible`), `engine/internal/infra/db/macro_event_repository.go` (`listWhere`, visão pública) e `engine/internal/infra/db/calendar_repository.go` (`MacroEventsBetween`)
+- **Origem:** implementação da N.11 (agendar um evento pra um dia simulado futuro). O backlog diz que o agendado "aparece como pendente até lá", mas não diz **pra quem**: o feed de notícias e o calendário do jogador mostram título e narrativa de todo evento.
+- **O que é:** mostrar o evento ao jogador no instante em que o admin o agenda entregaria o evento com semanas de aviso, o que contraria a razão de existir do veredito redigido (RF16). **Decisão provisória tomada na implementação (a confirmar):** o evento agendado só aparece no feed e no calendário do jogador na **véspera** do primeiro dia de efeito (`triggered_on_day <= dia corrente + 1`), a mesma antecedência de um disparo imediato, que já aparece um tick antes de produzir efeito. Evento **cancelado** nunca aparece. O painel enxerga tudo.
+- **Opções:** (a) a regra atual (véspera, igual ao disparo imediato); (b) aparecer só quando o efeito começa (some a antecedência de um tick, e o disparo imediato teria de seguir a mesma regra); (c) o admin escolher a antecedência por evento.
+- **Status:** aberto (implementado com (a), reversível: é uma condição em duas consultas)
+
+### 032 · Revogar uma conquista que o usuário ainda cumpre não "fica": a próxima checagem a concede de novo (N.17)
+
+- **Local:** `backend/src/modules/achievements/application/useCases/correctAchievements.ts` (`RevokeAchievementUseCase`) e `checkAndUnlockAchievements.ts`
+- **Origem:** implementação da N.17 (conceder ou revogar conquista manualmente).
+- **O que é:** revogar só apaga a linha de `user_achievements`. A conquista não tem noção de "revogada pelo suporte", então se o usuário ainda satisfaz o critério (streak, lições, patrimônio), o próximo `checkAndUnlock` (disparado por XP, streak ou lição) a concede de novo, em silêncio. Revogar só funciona de verdade quando a conquista foi dada **por engano** (concessão manual sem critério, ou bug). **Decisão provisória tomada na implementação (a confirmar):** manter assim e avisar o admin na tela e em `.docs/backend/admin.md`.
+- **Opções:** (a) manter (revogar desfaz concessão indevida; critério cumprido volta sozinho); (b) guardar uma marca de "revogada" por usuário e conquista, que a checagem automática respeita (precisa de coluna ou tabela nova, e um jeito de desfazer a marca); (c) tirar a ação "revogar" do painel e só permitir conceder.
+- **Status:** aberto (implementado com (a))
+
+### 033 · Conquistas sem ícone nem XP, missões sem "tipo" e "meta" editáveis: o painel de gamificação cobre só o que o modelo já tem (N.19)
+
+- **Local:** `backend/src/db/schema.ts` (`achievements`, `daily_missions`) e o texto da tarefa N.19
+- **Origem:** implementação da N.19. A descrição pede **editar nome, descrição, ícone e XP** da conquista e, na missão, **texto, tipo, meta, XP**. O modelo não tem nada disso: `achievements` só tem nome, descrição, regra e meta de desbloqueio (sem coluna de ícone nem de XP, e o frontend não renderiza ícone por conquista); `daily_missions` tem texto, XP e um "tipo" que na verdade é **código** (`requiresLessonCompletion` e duas `key`s despachadas em `CompleteMissionUseCase`), sem meta numérica parametrizável.
+- **O que é:** entregar "ícone" e "XP por conquista" não é só uma coluna: XP ao desbloquear muda a economia de XP do jogo (nível, salário por nível, ranking de nível) e cria um laço (`AwardXpUseCase` chama a checagem de conquistas, que concederia XP de novo); ícone exige o frontend passar a renderizar um ícone por conquista (hoje não renderiza). Criar missão nova pelo painel entregaria XP de graça (sem verificação cruzada). **Decisão provisória tomada na implementação (a confirmar):** o painel opera o que existe (conquista: nome, descrição, regra da lista fechada, meta, ativa; missão: título, descrição, XP de 1 a 500, ativa, tipo só leitura), sem ícone, sem XP por conquista, sem criar missão.
+- **Opções:** (a) manter assim; (b) ícone por chave de uma lista fechada (coluna `icon` e o frontend renderizando); (c) XP por conquista, concedido uma vez ao desbloquear (decidir a curva e quebrar o laço da checagem); (d) tipos de missão genéricos com meta (ex: "ler N eventos no feed"), o que é uma refatoração do despacho por `key`.
+- **Status:** aberto (implementado com (a))

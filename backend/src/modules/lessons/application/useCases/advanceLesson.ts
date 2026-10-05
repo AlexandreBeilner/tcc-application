@@ -9,9 +9,10 @@ import {
   LESSON_MIN_STEP_INTERVAL_MS,
   LESSON_UNLOCK_STEP,
   LESSON_XP_REWARD,
+  buildProgression,
   completedTrackNumbers,
-  isUnlocked,
   microDecisionResultFor,
+  type LessonSummary,
 } from '../../domain/lesson'
 import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
 import type { SocialFeedRecorder } from '../ports/socialFeedRecorder'
@@ -104,16 +105,19 @@ export class AdvanceLessonUseCase {
         }
       : {}
 
-    const progress = await this.lessonRepository.listProgressForUser(input.userId)
-    const completedCount = progress.filter((p) => p.completedAt !== null).length
+    const [allLessons, progress] = await Promise.all([
+      this.lessonRepository.listAll(),
+      this.lessonRepository.listProgressForUser(input.userId),
+    ])
     const own = progress.find((p) => p.lessonId === input.lessonId)
     const alreadyCompleted = own?.completedAt != null
 
     // Reabrir uma lição já concluída (modo revisão, tela 3.2) sempre é
-    // permitido, mesmo que a contagem global de concluídas hoje não a
-    // sustentaria mais desbloqueada — só lição nunca antes concluída passa
-    // pelo gate de desbloqueio.
-    if (!alreadyCompleted && !isUnlocked(lesson.sortOrder, completedCount)) {
+    // permitido, mesmo que a progressão de hoje não a sustentaria mais
+    // desbloqueada — só lição nunca antes concluída passa pelo gate de
+    // desbloqueio. Lição dispensada (N.24) não é concluída: passa pelo gate
+    // normalmente, e como o usuário já está além dela, sempre passa.
+    if (!alreadyCompleted && !buildProgression(allLessons, progress).isUnlocked(lesson.id)) {
       throw new LessonLockedError('lição bloqueada')
     }
 
@@ -199,6 +203,7 @@ export class AdvanceLessonUseCase {
     const streakResult = await this.streakTracker.touch(input.userId)
     await this.recordTrackCompletionIfJustFinished(
       input.userId,
+      allLessons,
       lesson.id,
       lesson.trackNumber,
       progress,
@@ -247,12 +252,13 @@ export class AdvanceLessonUseCase {
   // reaproveitada por `GetCompletedTracksUseCase`/F.2).
   private async recordTrackCompletionIfJustFinished(
     userId: string,
+    allLessons: LessonSummary[],
     lessonId: string,
     trackNumber: number,
     progressBeforeWrite: LessonProgressRecord[],
     newCompletedAt: Date | null,
   ): Promise<void> {
-    const allLessons = await this.lessonRepository.listAll()
+    const waivedAtByLessonId = new Map(progressBeforeWrite.map((p) => [p.lessonId, p.waivedAt]))
     const completedAtByLessonIdBefore = new Map(
       progressBeforeWrite.map((p) => [p.lessonId, p.completedAt]),
     )
@@ -269,6 +275,7 @@ export class AdvanceLessonUseCase {
       allLessons.map((l) => ({
         trackNumber: l.trackNumber,
         completedAt: completedAtByLessonId.get(l.id) ?? null,
+        waivedAt: waivedAtByLessonId.get(l.id) ?? null,
       }))
 
     const tracksBefore = new Set(

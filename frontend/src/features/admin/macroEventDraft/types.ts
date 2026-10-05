@@ -26,4 +26,6 @@ export interface MacroEventDraft {
     affectsPrice: boolean
     affectsFundamentals: boolean
     targets: MacroEventTargetDraft[]
+    // Dia simulado em que o efeito começa (N.11); vazio dispara já.
+    applyOnDay: string
 }

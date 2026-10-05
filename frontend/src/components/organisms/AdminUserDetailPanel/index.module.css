@@ -1,0 +1,123 @@
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .wide {
+        grid-column: 1 / -1;
+    }
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+/* Conta suspensa: borda tracejada, convenção sólido/tracejado (nunca só cor). */
+.card.dashed {
+    border-style: dashed;
+    border-color: var(--color-border-strong);
+}
+
+.cardTitle {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.label {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.value {
+    margin: 0;
+    color: var(--color-text-primary);
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.sub,
+.muted {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.muted {
+    margin: 0;
+    font-size: var(--font-size-sm);
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-100);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.badge.dashed {
+    border: 1px dashed var(--color-border-strong);
+    background: transparent;
+    color: var(--color-text-secondary);
+}
+
+.link {
+    color: var(--color-brand-500);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.link:hover {
+    text-decoration: underline;
+}

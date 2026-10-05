@@ -47,7 +47,11 @@ export class RegisterUserUseCase {
     // mesmo saldo simulado, aberta no motor de simulação.
     await this.accountProvisioner.provision(user.id)
 
-    const token = this.tokenIssuer.issue({ sub: user.id, role: user.role })
+    const token = this.tokenIssuer.issue({
+      sub: user.id,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    })
     return { user, token }
   }
 }

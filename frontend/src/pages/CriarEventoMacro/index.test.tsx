@@ -16,7 +16,7 @@ function renderPage() {
     const router = createMemoryRouter(
         [
             { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
-            { path: '/admin', element: <div>tela do painel admin</div> },
+            { path: '/admin/eventos', element: <div>tela do painel admin</div> },
         ],
         { initialEntries: ['/admin/eventos/novo'] },
     )
@@ -47,13 +47,13 @@ describe('CriarEventoMacro (tela 10.2)', () => {
 
     afterEach(() => vi.clearAllMocks())
 
-    it('link "Painel Administrativo" volta pra 10.1', () => {
+    it('link "Eventos macro" volta pro histórico', () => {
         renderPage()
-        fireEvent.click(screen.getByText('Painel Administrativo'))
+        fireEvent.click(screen.getByText('Eventos macro'))
         expect(screen.getByText('tela do painel admin')).toBeInTheDocument()
     })
 
-    it('disparo confirmado com sucesso volta pra 10.1', async () => {
+    it('disparo confirmado com sucesso volta pro histórico', async () => {
         vi.mocked(triggerMacroEvent).mockResolvedValue({
             event: {
                 id: 'e1',

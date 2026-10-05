@@ -1,0 +1,113 @@
+.empty {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.item {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    list-style: none;
+}
+
+.summary::-webkit-details-marker {
+    display: none;
+}
+
+.badge {
+    flex-shrink: 0;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.success {
+    border: 1px solid transparent;
+    background: var(--color-brand-100);
+    color: var(--color-text-primary);
+}
+
+.failed {
+    border: 1px dashed var(--color-loss-500);
+    background: transparent;
+    color: var(--color-loss-500);
+}
+
+.day {
+    flex: 1;
+    min-width: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.trigger,
+.date,
+.duration {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: 0 var(--space-4) var(--space-4);
+}
+
+.errorMessage {
+    margin: 0;
+    color: var(--color-loss-500);
+    font-size: var(--font-size-sm);
+}
+
+.warning,
+.flags {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.counters {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+    margin: 0;
+}
+
+@media (min-width: 768px) {
+    .counters {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.counters dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.counters dd {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
