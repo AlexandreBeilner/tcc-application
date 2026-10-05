@@ -18,6 +18,9 @@ export const WIDGET_IDS = [
     'inflation-selic-seesaw',
     'emergency-fund-calculator',
     'where-to-keep',
+    'mtm-seesaw',
+    'fgc-coverage-bar',
+    'rating-ruler',
     'savings-vs-selic',
     'growth-calculator',
     'fixed-income-comparison',
@@ -87,6 +90,17 @@ export const widgetPropsSchemas = {
         monthlyContribution: z.number().min(0).max(1_000_000).default(500),
     }),
     'where-to-keep': emptyProps,
+    'mtm-seesaw': z.object({
+        contractRatePct: z.number().min(2).max(25).default(11.75),
+        yearsToMaturity: z.number().min(0.25).max(10).default(2),
+        indexer: z.enum(['prefixed', 'ipca-plus', 'selic']).default('prefixed'),
+    }),
+    'fgc-coverage-bar': z.object({
+        amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
+        institutions: z.number().int().min(1).max(6).default(1),
+        sameConglomerate: z.boolean().default(false),
+    }),
+    'rating-ruler': z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') }),
     'savings-vs-selic': z.object({
         selicPct: z.number().min(2).max(16).default(14),
         trMonthlyPct: z.number().min(0).max(0.3).default(0.15),

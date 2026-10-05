@@ -29,6 +29,9 @@ export const WIDGET_IDS = [
   'inflation-selic-seesaw',
   'emergency-fund-calculator',
   'where-to-keep',
+  'mtm-seesaw',
+  'fgc-coverage-bar',
+  'rating-ruler',
   'savings-vs-selic',
   'growth-calculator',
   'fixed-income-comparison',
@@ -114,6 +117,27 @@ const emergencyFundCalculatorProps = z.object({
   monthlyContribution: z.number().min(0).max(1_000_000).default(500),
 })
 
+// Gangorra da marcação a mercado (RC.3.4b): a conta vive no frontend; as props
+// só escolhem o ponto de partida e o tipo de título.
+const mtmSeesawProps = z.object({
+  contractRatePct: z.number().min(2).max(25).default(11.75),
+  yearsToMaturity: z.number().min(0.25).max(10).default(2),
+  indexer: z.enum(['prefixed', 'ipca-plus', 'selic']).default('prefixed'),
+})
+
+// Barra de cobertura do FGC (RC.3.4b): valor por instituição, quantas
+// instituições quebram e se são do mesmo conglomerado. Os limites (R$ 250 mil e
+// R$ 1 milhão) são os fatos fgc-* e ficam no frontend.
+const fgcCoverageBarProps = z.object({
+  amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
+  institutions: z.number().int().min(1).max(6).default(1),
+  sameConglomerate: z.boolean().default(false),
+})
+
+// Régua de rating (RC.3.4b): a escala é convenção das agências; a prop só
+// escolhe a nota que começa selecionada.
+const ratingRulerProps = z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') })
+
 // Poupança contra Tesouro Selic (RC.5.2): a conta vive no frontend; as props só
 // escolhem o ponto de partida dentro dos limites dos controles.
 const savingsVsSelicProps = z.object({
@@ -144,6 +168,9 @@ export const widgetPropsSchemas = {
   'inflation-selic-seesaw': inflationSelicSeesawProps,
   'emergency-fund-calculator': emergencyFundCalculatorProps,
   'where-to-keep': emptyProps,
+  'mtm-seesaw': mtmSeesawProps,
+  'fgc-coverage-bar': fgcCoverageBarProps,
+  'rating-ruler': ratingRulerProps,
   'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,

@@ -7,6 +7,9 @@ import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidge
 import { EmergencyFundCalculatorWidget, emergencyFundCalculatorSummary } from '../EmergencyFundCalculatorWidget'
 import { WhereToKeepWidget, whereToKeepSummary } from '../WhereToKeepWidget'
 import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
+import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
+import { MtmSeesawWidget, mtmSeesawSummary } from '../MtmSeesawWidget'
+import { RatingRulerWidget, ratingRulerSummary } from '../RatingRulerWidget'
 import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
 import { SavingsVsSelicWidget, savingsVsSelicSummary } from '../SavingsVsSelicWidget'
 import { SelicIpcaChartWidget, selicIpcaChartSummary } from '../SelicIpcaChartWidget'
@@ -92,6 +95,21 @@ export const widgetRegistry: Registry = {
         component: WhereToKeepWidget,
         propsSchema: widgetPropsSchemas['where-to-keep'],
         summary: whereToKeepSummary,
+    },
+    'mtm-seesaw': {
+        component: MtmSeesawWidget,
+        propsSchema: widgetPropsSchemas['mtm-seesaw'],
+        summary: mtmSeesawSummary,
+    },
+    'fgc-coverage-bar': {
+        component: FgcCoverageBarWidget,
+        propsSchema: widgetPropsSchemas['fgc-coverage-bar'],
+        summary: fgcCoverageBarSummary,
+    },
+    'rating-ruler': {
+        component: RatingRulerWidget,
+        propsSchema: widgetPropsSchemas['rating-ruler'],
+        summary: ratingRulerSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,

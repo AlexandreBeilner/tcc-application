@@ -469,7 +469,7 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 | Sessão | Widgets | Lições que consomem |
 |---|---|---|
 | RC.3.4a Cálculo de renda fixa ✅ | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
-| RC.3.4b Risco e proteção | `mtm-seesaw` (gangorra de marcação a mercado: taxa x preço, prazo, Prefixado/IPCA+/Selic, choques), `fgc-coverage-bar` (R$ 250 mil por conglomerado, teto R$ 1 milhão em 4 anos, guarda-chuva), `rating-ruler` | 1.4, 1.8, 1.11 |
+| RC.3.4b Risco e proteção ✅ | `mtm-seesaw` (gangorra de marcação a mercado: taxa x preço, prazo, Prefixado/IPCA+/Selic, choques), `fgc-coverage-bar` (R$ 250 mil por conglomerado, teto R$ 1 milhão em 4 anos, guarda-chuva), `rating-ruler` | 1.4, 1.8, 1.11 |
 | RC.3.4c Juros e inflação ✅ | `compound-growth` (substitui `growth_calculator`), `real-return`, `selic-ipca-chart` (série com faixa da meta), `copom-timeline` (8 reuniões/ano) | 0.2-0.5, 1.2, 1.3, 1.9, 1.10 |
 | RC.3.4d Títulos | `bond-price-calculator` (preço/deságio, IR e custódia, LTN x NTN-F), `ipca-plus-simulator` (VNA, ano a ano), `breakeven-inflation` | 1.7, 1.10 |
 | RC.3.4e Ações, parte 1 | `ownership-calculator`, `bookbuilding-simulator`, `ticker-decoder` (arrastar), `headline-triage`, `order-book` (livro de ofertas interativo; G) | 2.1-2.5 |
@@ -512,6 +512,24 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
   são as primeiras consumidoras); (b) `growth-calculator` continua registrado, porque as lições de hoje ainda o
   referenciam; a troca é a Fase 5; (c) sem conferência visual nos 3 breakpoints nem `docker compose`; (d) os limites de
   `windowDays` (7 a 365) seguem o `live-macro`, sem teste contra a janela real do motor.
+- **RC.3.4b entregue (2026-10-05):** três widgets registrados nos dois lados do contrato (props todas com default):
+  `mtm-seesaw` (`contractRatePct`, `yearsToMaturity`, `indexer`: gangorra em SVG que inclina com a taxa de mercado,
+  controles de taxa e prazo, seletor Prefixado/IPCA+/Selic, cenários "sobe 1 p.p.", "sobe 2,5 p.p.", "cai 1 p.p.";
+  preço de compra, preço hoje e variação; Selic reprecifica todo dia, então usa prazo de 1 dia útil e quase não se
+  mexe; `prefers-reduced-motion` sem transição), `fgc-coverage-bar` (`amountPerInstitution`, `institutions`,
+  `sameConglomerate`: uma barra por instituição com trecho coberto sólido e descoberto listrado, teto global de R$ 1
+  milhão e soma por conglomerado) e `rating-ruler` (`highlight`: 10 notas de AAA a D, borda contínua para grau de
+  investimento e tracejada para especulativo, significado de cada nota). Contas em `features/lessons/widgets/mtmMath`
+  e `fgcMath` (puras, teste table-driven; `fgcMath` espelha os fatos `fgc-limite-por-cpf` e `fgc-teto-global`).
+  `.docs/backend/lessons.md` atualizado. Validou: frontend `tsc -b`/oxlint/`vitest` (1445), backend
+  lint/build/`npm test` (2699). **Correção a um anexo:** os valores de 5 anos de `audit-licoes-1b.md` estavam
+  errados (R$ 575,77 e queda de 9,8%); o correto é **R$ 573,80 e queda de 9,49%** (2 anos: 800,76, 769,47 e 826,45
+  conferem). **Ressalvas:** (a) nenhuma lição usa os widgets ainda (RC.5.6 e RC.5.7 são as consumidoras; a 1.4 deve
+  receber o `fgc-coverage-bar`); (b) a escala de rating é convenção das agências e não há fonte oficial na lista de
+  fontes aceitas, então não virou fato em `regulatoryFacts.ts`: a lição deve dizer "escala usada pelas agências" e
+  não citar norma; (c) a gangorra mostra preço bruto, sem IR, custódia nem o spread de compra e venda do Tesouro, e
+  o IPCA+ usa a mesma conta sobre a taxa real (preço em % do valor atualizado, não em reais); (d) sem conferência
+  visual nos 3 breakpoints nem `docker compose`; (e) `bond-price-calculator` e `ipca-plus-simulator` ficam na RC.3.4d.
 - **Aceite geral:** nenhum texto manda calcular fora; nenhum botão "Ver resultado" solto (se sobrar, rótulo
   contextual); lint do seed barra "calcule" sem widget na mesma fase.
 - **Depende de:** RC.3.1 (e RC.3.2 quando o widget traz checkpoint).
