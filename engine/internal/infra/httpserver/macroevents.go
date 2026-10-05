@@ -47,6 +47,8 @@ type triggerMacroEventRequest struct {
 	AffectsFundamentals *bool                            `json:"affects_fundamentals"`
 	Targets             []triggerMacroEventTargetRequest `json:"targets"`
 	CreatedBy           *string                          `json:"created_by"`
+	// ApplyOnDay (N.11) agenda o primeiro dia de efeito; ausente dispara já.
+	ApplyOnDay *int `json:"apply_on_day"`
 }
 
 // macroEventTargetResponse espelha macroevent.Target — exatamente um entre
@@ -83,6 +85,10 @@ type macroEventResponse struct {
 	FundamentalsEffectPct *float64                   `json:"fundamentals_effect_pct,omitempty"`
 	FundamentalsReportDay *int                       `json:"fundamentals_report_day,omitempty"`
 	Targets               []macroEventTargetResponse `json:"targets"`
+	// Scheduled e Cancellable (N.11) só aparecem na visão do painel: ainda sem efeito
+	// aplicado, e se o cancelamento ainda é possível.
+	Scheduled   *bool `json:"scheduled,omitempty"`
+	Cancellable *bool `json:"cancellable,omitempty"`
 	// CreatedAt só é preenchido por toMacroEventResponseFromRecord (GET
 	// /macro-events, tarefa 6.6.1) — o disparo em si (POST /macro-events)
 	// não busca created_at de volta do banco depois do INSERT, então fica
@@ -174,6 +180,7 @@ func handleTriggerMacroEvent(macroEvents macroEventTriggerer) http.HandlerFunc {
 			AffectsPrice:        body.AffectsPrice,
 			AffectsFundamentals: body.AffectsFundamentals,
 			CreatedBy:           body.CreatedBy,
+			ApplyOnDay:          body.ApplyOnDay,
 		}
 		if body.Direction != nil {
 			d := macroevent.Direction(*body.Direction)
@@ -215,11 +222,14 @@ func handleTriggerMacroEvent(macroEvents macroEventTriggerer) http.HandlerFunc {
 // /admin/macro-events), esta rota só é alcançável de dentro da rede do
 // Compose.
 type macroEventLister interface {
-	List(ctx context.Context, limit, offset int) ([]macroevent.Record, error)
-	// Count devolve o total de eventos macro (sem paginação) — usado pra
-	// compor total_entries/total_pages na resposta (tarefa 6.9.9, frontend
+	List(ctx context.Context, filter macroevent.ListFilter) ([]macroevent.Record, error)
+	// Count devolve o total de eventos macro que o filtro alcança (sem paginação) —
+	// usado pra compor total_entries/total_pages na resposta (tarefa 6.9.9, frontend
 	// trocando "Carregar mais" por paginação numerada).
-	Count(ctx context.Context) (int, error)
+	Count(ctx context.Context, filter macroevent.ListFilter) (int, error)
+	// LoadCurrentDay lê o dia simulado corrente, pra marcar agendado/cancelável na
+	// visão do painel (N.11).
+	LoadCurrentDay(ctx context.Context) (int, error)
 }
 
 // defaultMacroEventListLimit/maxMacroEventListLimit balizam a paginação
@@ -261,14 +271,9 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 			return
 		}
 
-		limit, ok := parsePaginationParam(r.URL.Query().Get("limit"), defaultMacroEventListLimit, 1, maxMacroEventListLimit)
-		if !ok {
-			writeCatalogError(w, http.StatusBadRequest, "limit inválido")
-			return
-		}
-		offset, ok := parsePaginationParam(r.URL.Query().Get("offset"), 0, 0, 0)
-		if !ok {
-			writeCatalogError(w, http.StatusBadRequest, "offset inválido")
+		filter, message := parseMacroEventFilter(r)
+		if message != "" {
+			writeCatalogError(w, http.StatusBadRequest, message)
 			return
 		}
 
@@ -282,11 +287,11 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			records, listErr = macroEvents.List(r.Context(), limit, offset)
+			records, listErr = macroEvents.List(r.Context(), filter)
 		}()
 		go func() {
 			defer wg.Done()
-			total, countErr = macroEvents.Count(r.Context())
+			total, countErr = macroEvents.Count(r.Context(), filter)
 		}()
 		wg.Wait()
 
@@ -299,12 +304,88 @@ func handleListMacroEvents(macroEvents macroEventLister) http.HandlerFunc {
 			return
 		}
 
+		currentDay := 0
+		if filter.View == macroevent.ViewAdmin {
+			day, err := macroEvents.LoadCurrentDay(r.Context())
+			if err != nil {
+				writeCatalogError(w, http.StatusInternalServerError, "erro ao ler o dia simulado")
+				return
+			}
+			currentDay = day
+		}
+
 		events := make([]macroEventResponse, 0, len(records))
 		for _, rec := range records {
-			events = append(events, toMacroEventResponseFromRecord(rec))
+			resp := toMacroEventResponseFromRecord(rec)
+			if filter.View == macroevent.ViewAdmin {
+				scheduled := rec.Status == macroevent.StatusPendente && macroevent.IsScheduled(rec.TriggeredOnDay, currentDay)
+				cancellable := macroevent.CanCancel(rec.Status, rec.TriggeredOnDay, currentDay) == nil
+				resp.Scheduled, resp.Cancellable = &scheduled, &cancellable
+			}
+			events = append(events, resp)
 		}
 		writeJSON(w, http.StatusOK, macroEventListResponse{Events: events, TotalEntries: total})
 	}
+}
+
+// parseMacroEventFilter lê paginação, visão e filtros de GET /macro-events. A visão
+// padrão é a pública (a segura: sem cancelado nem agendado antes da véspera); o painel
+// pede view=admin. Devolve a mensagem de erro (400) ou vazio.
+func parseMacroEventFilter(r *http.Request) (macroevent.ListFilter, string) {
+	q := r.URL.Query()
+	var f macroevent.ListFilter
+	var ok bool
+	if f.Limit, ok = parsePaginationParam(q.Get("limit"), defaultMacroEventListLimit, 1, maxMacroEventListLimit); !ok {
+		return f, "limit inválido"
+	}
+	if f.Offset, ok = parsePaginationParam(q.Get("offset"), 0, 0, 0); !ok {
+		return f, "offset inválido"
+	}
+	switch macroevent.View(q.Get("view")) {
+	case "", macroevent.ViewPublic:
+		f.View = macroevent.ViewPublic
+	case macroevent.ViewAdmin:
+		f.View = macroevent.ViewAdmin
+	default:
+		return f, "view inválida"
+	}
+	if raw := q.Get("status"); raw != "" {
+		status := macroevent.Status(raw)
+		if !macroevent.ValidStatus(status) {
+			return f, "status inválido"
+		}
+		f.Status = &status
+	}
+	targetFilters := 0
+	for _, tf := range []struct {
+		name string
+		dest **string
+	}{{"sector", &f.Sector}, {"risk_class", &f.RiskClass}, {"asset_id", &f.AssetID}} {
+		if raw := q.Get(tf.name); raw != "" {
+			value := raw
+			*tf.dest = &value
+			targetFilters++
+		}
+	}
+	if targetFilters > 1 {
+		return f, "use no máximo um filtro de alvo (sector, risk_class ou asset_id)"
+	}
+	for _, df := range []struct {
+		name string
+		dest **int
+	}{{"from_day", &f.FromDay}, {"to_day", &f.ToDay}} {
+		if raw := q.Get(df.name); raw != "" {
+			day, err := strconv.Atoi(raw)
+			if err != nil || day < 0 {
+				return f, df.name + " inválido"
+			}
+			*df.dest = &day
+		}
+	}
+	if f.FromDay != nil && f.ToDay != nil && *f.FromDay > *f.ToDay {
+		return f, "from_day não pode ser maior que to_day"
+	}
+	return f, ""
 }
 
 func writeMacroEventTriggerError(w http.ResponseWriter, err error) {
@@ -320,7 +401,9 @@ func writeMacroEventTriggerError(w http.ResponseWriter, err error) {
 		errors.Is(err, macroevent.ErrNoTarget),
 		errors.Is(err, macroevent.ErrTargetScopeAmbiguous),
 		errors.Is(err, macroevent.ErrTargetDirectionMustBeSigned),
-		errors.Is(err, macroevent.ErrUnknownBand):
+		errors.Is(err, macroevent.ErrUnknownBand),
+		errors.Is(err, macroevent.ErrApplyDayInPast),
+		errors.Is(err, macroevent.ErrApplyDayTooFar):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao disparar evento macro")

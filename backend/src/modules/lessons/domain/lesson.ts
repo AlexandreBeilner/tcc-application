@@ -34,22 +34,75 @@ export type MicroDecisionType =
   | 'live_indicator'
   | 'live_macro_indicator'
 
-// Progressão essencialmente linear por sortOrder global (spec 5.1) — cada
-// trilha só desbloqueia a próxima na última lição, sem pré-requisito
-// ramificado/paralelo modelado (decisão de escopo, ver backlog tarefa 5.6).
-export function isUnlocked(sortOrder: number, completedCount: number): boolean {
-  return sortOrder <= completedCount + 1
+// Progressão linear sobre as lições da trilha, na ordem de `sortOrder` (spec
+// 5.1) — cada trilha só desbloqueia a próxima na última lição, sem
+// pré-requisito ramificado/paralelo modelado (decisão de escopo, backlog
+// tarefa 5.6). Desde a N.24 a posição de uma lição é o índice dela entre as
+// lições da lista recebida (não o `sortOrder` cru), e o avanço do usuário é
+// "quantas lições ele satisfez" (concluídas ou dispensadas), não "quantas
+// concluiu". Isso permite criar/despublicar lição no meio sem bloquear nem
+// fazer pular ninguém: a lista recebida deve ser só das lições publicadas.
+export function isUnlocked(position: number, satisfiedCount: number): boolean {
+  return position <= satisfiedCount + 1
 }
 
-export function lessonStatus(input: {
-  sortOrder: number
-  completedCount: number
-  completedByUser: boolean
-}): LessonStatus {
+// "Satisfeita" = concluída de verdade ou dispensada (N.24). Dispensa não dá
+// XP nem conta pra `countCompleted`; só deixa de bloquear a sequência.
+export function isSatisfied(
+  progress: Pick<LessonProgressSnapshot, 'completedAt' | 'waivedAt'>,
+): boolean {
+  return progress.completedAt !== null || progress.waivedAt !== null
+}
+
+// Estado de progressão de um usuário sobre a lista de lições publicadas.
+// Construído uma vez por requisição e consultado por lição — única fonte da
+// regra de desbloqueio (`getTrackMap`, `getLesson`, `advanceLesson`,
+// `getUnlockedProductKeys`), pra os gates não divergirem entre si.
+export interface Progression {
+  satisfiedCount: number
+  // `false` também pra lição fora da lista (despublicada/inexistente): sem
+  // posição não há como estar desbloqueada.
+  isUnlocked(lessonId: string): boolean
+}
+
+export function buildProgression(
+  lessons: Pick<LessonSummary, 'id' | 'sortOrder'>[],
+  progress: (Pick<LessonProgressSnapshot, 'completedAt' | 'waivedAt'> & { lessonId: string })[],
+): Progression {
+  const ordered = [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
+  const positionById = new Map(ordered.map((lesson, index) => [lesson.id, index + 1]))
+  // Só conta progresso de lição que está na lista: lição despublicada sai da
+  // conta de todos, inclusive de quem a tinha concluído.
+  const satisfiedCount = progress.filter(
+    (p) => positionById.has(p.lessonId) && isSatisfied(p),
+  ).length
+
+  return {
+    satisfiedCount,
+    isUnlocked(lessonId) {
+      const position = positionById.get(lessonId)
+      return position !== undefined && isUnlocked(position, satisfiedCount)
+    },
+  }
+}
+
+// Quem já satisfez a lição que ocupava a posição de inserção (ou qualquer
+// posterior) já passou daquele ponto: recebe a dispensa da lição nova. Quem
+// estava exatamente nessa posição (próxima a fazer) ou antes não recebe e é
+// bloqueado por ela normalmente. `insertionPosition` é 1-based, a posição que
+// a lição nova passa a ocupar. Consumida pela criação de lição (N.23).
+export function shouldWaiveInsertedLesson(
+  satisfiedCount: number,
+  insertionPosition: number,
+): boolean {
+  return satisfiedCount >= insertionPosition
+}
+
+export function lessonStatus(input: { unlocked: boolean; completedByUser: boolean }): LessonStatus {
   if (input.completedByUser) {
     return 'completed'
   }
-  return isUnlocked(input.sortOrder, input.completedCount) ? 'available' : 'locked'
+  return input.unlocked ? 'available' : 'locked'
 }
 
 export interface LessonSummary {
@@ -101,6 +154,8 @@ export interface LessonProgressSnapshot {
   microDecisionAttempts: number
   microDecisionWrongOptions: number[]
   microDecisionSolvedAt: Date | null
+  // Dispensa (N.24) — `null` pra quem nunca foi dispensado da lição.
+  waivedAt: Date | null
 }
 
 // Três estados, não booleano: `null` cobre tanto "lição sem aposta real
@@ -154,18 +209,21 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   // e voltar: o gabarito nunca vai aqui, só o que o próprio usuário já tentou.
   microDecisionSolved: boolean
   microDecisionWrongOptions: number[]
+  // Lição dispensada e ainda não feita (N.24): aparece no mapa como "nova,
+  // opcional" — disponível pra fazer, mas sem bloquear nada.
+  waived: boolean
 }
 
 export function buildLessonView(
   lesson: LessonSummary,
   progress: LessonProgressSnapshot | undefined,
-  completedCount: number,
+  progression: Progression,
   checkpointRecords: CheckpointRecord[] = [],
 ): LessonView {
+  const completedByUser = progress?.completedAt != null
   const status = lessonStatus({
-    sortOrder: lesson.sortOrder,
-    completedCount,
-    completedByUser: progress?.completedAt != null,
+    unlocked: progression.isUnlocked(lesson.id),
+    completedByUser,
   })
 
   const checkpoints: CheckpointState[] = checkpointRecords.map((record) => ({
@@ -200,6 +258,7 @@ export function buildLessonView(
     currentStep: progress?.currentStep ?? 0,
     microDecisionSolved: progress?.microDecisionSolvedAt != null,
     microDecisionWrongOptions: progress?.microDecisionWrongOptions ?? [],
+    waived: !completedByUser && progress?.waivedAt != null,
   }
 }
 
@@ -234,33 +293,34 @@ export function microDecisionResultFor(
 // achado 5 do backlog Semana 7): diferente de `isUnlocked` acima (que só
 // decide se a lição em si está disponível pra fazer), esta função decide
 // quais chaves ('portfolio', 'asset:acao', ...) já viraram acesso de
-// verdade. Critério deliberadamente mais estrito — sortOrder <=
-// completedCount, não completedCount + 1 — porque a chave só deve valer
-// depois que a lição foi de fato *concluída* (ex: entender Tesouro Selic
+// verdade. Critério deliberadamente mais estrito — posição <=
+// satisfiedCount, não satisfiedCount + 1 — porque a chave só deve valer
+// depois que a lição foi de fato *satisfeita* (ex: entender Tesouro Selic
 // antes de poder comprá-lo), enquanto `isUnlocked` só decide se dá pra
-// começar. Nunca "tranca de novo" depois de desbloqueado (união, não
-// diferença). Espelhada em TS puro no frontend
-// (`frontend/src/features/lessons/unlockedKeys.ts`) a partir dos mesmos
-// dados de `GET /lessons` — sem endpoint novo.
+// começar. Lição dispensada (N.24) conta como satisfeita: quem já passou
+// daquele ponto provavelmente já viu o conteúdo, então mantém o produto.
+// Nunca "tranca de novo" depois de desbloqueado (união, não diferença).
+// `lessons` são as publicadas, em qualquer ordem. Espelhada em TS puro no
+// frontend (`frontend/src/features/lessons/unlockedKeys`) a partir dos
+// mesmos dados de `GET /lessons` — sem endpoint novo.
 export function unlockedKeysFor(
-  completedCount: number,
+  satisfiedCount: number,
   lessons: Pick<LessonSummary, 'sortOrder' | 'unlocksKeys'>[],
 ): Set<string> {
   const keys = new Set<string>()
-  for (const lesson of lessons) {
-    if (lesson.sortOrder <= completedCount) {
-      for (const key of lesson.unlocksKeys) {
-        keys.add(key)
-      }
+  const ordered = [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
+  for (const lesson of ordered.slice(0, satisfiedCount)) {
+    for (const key of lesson.unlocksKeys) {
+      keys.add(key)
     }
   }
   return keys
 }
 
 // Único lugar que define "lição concluída" (completedAt preenchido) —
-// reaproveitado por `CountCompletedLessonsUseCase` (achievements) e
-// `GetUnlockedProductKeysUseCase` (gate de desbloqueio real, tarefa
-// 7.0.1) pra evitar que os dois critérios divirjam silenciosamente.
+// reaproveitado por `CountCompletedLessonsUseCase` (achievements, XP,
+// missões). Conta só conclusão real: a dispensa (N.24) entra em
+// `isSatisfied`/`buildProgression`, nunca aqui.
 export function countCompleted(progress: Pick<LessonProgressSnapshot, 'completedAt'>[]): number {
   return progress.filter((p) => p.completedAt !== null).length
 }
@@ -372,15 +432,20 @@ export function tracksCompletedWithoutErrors(
   lessons: {
     trackNumber: number
     completedAt: Date | null
+    waivedAt: Date | null
     microDecisionCorrectOption: number | null
     microDecisionSelectedOption: number | null
   }[],
 ): number[] {
   return trackNumbersWhereEveryLessonSatisfies(lessons, (lesson) => {
-    const completed = lesson.completedAt !== null
+    // Lição dispensada nunca foi apostada, então não há erro a contar contra
+    // a trilha (N.24); só a que foi feita com aposta real precisa ter acertado.
+    if (lesson.completedAt === null) {
+      return lesson.waivedAt !== null
+    }
     const hasRealBet = lesson.microDecisionCorrectOption !== null
     const wonBet = isCorrectOption(lesson, lesson.microDecisionSelectedOption) === true
-    return completed && (!hasRealBet || wonBet)
+    return !hasRealBet || wonBet
   })
 }
 
@@ -394,11 +459,12 @@ export function countReviewedLessons(progress: { lastReviewedAt: Date | null }[]
 }
 
 // Trilha "completa" (backlog de engajamento F.2, sala de troféus do Perfil):
-// todas as lições dela concluídas, mesmo critério de `completedAt !== null`
-// usado por `countCompleted` acima. Uma trilha sem nenhuma lição na lista de
+// todas as lições dela satisfeitas (concluídas ou dispensadas, N.24 — assim
+// um troféu já conquistado não regride quando uma lição nova entra no meio da
+// trilha de quem já passou dela). Uma trilha sem nenhuma lição na lista de
 // entrada nunca aparece no resultado (não existe "trilha completa vazia").
 export function completedTrackNumbers(
-  lessons: { trackNumber: number; completedAt: Date | null }[],
+  lessons: { trackNumber: number; completedAt: Date | null; waivedAt: Date | null }[],
 ): number[] {
-  return trackNumbersWhereEveryLessonSatisfies(lessons, (lesson) => lesson.completedAt !== null)
+  return trackNumbersWhereEveryLessonSatisfies(lessons, isSatisfied)
 }

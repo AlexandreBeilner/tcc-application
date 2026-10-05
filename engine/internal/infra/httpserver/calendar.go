@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/marketcalendar"
 	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
@@ -25,8 +26,10 @@ type marketCalendarService interface {
 type CalendarAPI struct {
 	Service        marketCalendarService
 	DaysPerRealDay int
-	NextTick       func(now time.Time) time.Time
-	Now            func() time.Time
+	// Current (opcional) devolve o ritmo vigente (N.7); sem ela vale DaysPerRealDay.
+	Current  func(ctx context.Context) (enginesetting.Values, error)
+	NextTick func(now time.Time) time.Time
+	Now      func() time.Time
 }
 
 const dateLayout = "2006-01-02"
@@ -60,13 +63,22 @@ func handleGetMarketClock(api *CalendarAPI) http.HandlerFunc {
 			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar o relógio do mercado")
 			return
 		}
+		daysPerRealDay := api.DaysPerRealDay
+		if api.Current != nil {
+			values, err := api.Current(r.Context())
+			if err != nil {
+				writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar o relógio do mercado")
+				return
+			}
+			daysPerRealDay = values.TicksPerDay
+		}
 		resp := clockResponse{
 			SimulatedDay:   clock.Day,
 			Date:           clock.Date.Format(dateLayout),
 			Weekday:        weekdayCodes[clock.Weekday],
 			MarketOpen:     clock.MarketOpen,
 			DaysUntilOpen:  clock.DaysUntilOpen,
-			DaysPerRealDay: api.DaysPerRealDay,
+			DaysPerRealDay: daysPerRealDay,
 			QuarterDay:     clock.QuarterDay,
 			QuarterLength:  clock.QuarterLength,
 		}
