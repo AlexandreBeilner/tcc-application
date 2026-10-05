@@ -29,6 +29,12 @@ export function login(input: LoginInput): Promise<AuthResult> {
     return apiRequest<AuthResult>('/auth/login', { method: 'POST', body: input })
 }
 
+// N.22: confere a senha de quem já está logado e devolve um token novo com a
+// senha recém-conferida. 401 aqui é senha errada, não sessão inválida.
+export function reauthenticate(token: string, password: string): Promise<{ token: string }> {
+    return apiRequest<{ token: string }>('/auth/reauth', { method: 'POST', token, body: { password }, keepSessionOn401: true })
+}
+
 export function getCurrentUser(token: string): Promise<{ user: AuthUser }> {
     return apiRequest<{ user: AuthUser }>('/auth/me', { token })
 }

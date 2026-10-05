@@ -1,0 +1,104 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1160px;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.title {
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.link {
+    color: var(--color-brand-500);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.link:hover {
+    text-decoration: underline;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.action {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.action:hover:not(:disabled) {
+    background: var(--color-bg-surface-elevated);
+}
+
+.danger {
+    border-color: var(--color-loss-500);
+    color: var(--color-loss-500);
+}
+
+.danger:hover:not(:disabled) {
+    background: var(--color-loss-500);
+    color: var(--color-bg-base);
+}
+
+.action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hint {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.loading {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.notice {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-feedback-error-500);
+    border-radius: var(--radius-md);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}

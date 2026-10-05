@@ -2727,7 +2727,7 @@ sequência sugerida** (palavras do autor: "essa pode ser a última parte") — s
 bots (Fase C) existir de verdade, senão não há o que listar/criar. Reaproveita o padrão visual já
 estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
 
-### N.1 · Endpoints admin pra listar/criar/desativar bots
+### N.1 · Endpoints admin pra listar/criar/desativar bots ✅
 
 - **Descrição:** motor ganha rotas administrativas (mesmo trust boundary de `POST /admin/tick` —
   sem checagem de role aqui, backend valida `role = admin` antes de repassar, `admin.go:14-23`):
@@ -2748,8 +2748,9 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
   `[0, MaxSpreadWidthPct = 0.10]` (`ErrSpreadWidthAboveMax`); `POST /admin/bots` só precisa reaproveitá-lo,
   sem teto novo.
 - **Dependências:** A.4, C.1, C.6 (catálogo de bots já existente pra listar).
+- **Entregável (sessão 2026-10-03, PR 5 da Fase N):** **Motor:** pacote de domínio `botadmin` (`Service.List/Create/Update`, interfaces pequenas `Reader`/`Writer`/`OrderCanceller` declaradas no próprio pacote) e rotas `GET /admin/bots`, `POST /admin/bots`, `PATCH /admin/bots/{id}` (`admin_bots.go`). A criação passa pelos construtores já existentes (`bot.NewSpecializationScope`/`NewRiskProfile`/`NewPersonality`/`WithMaxCoveredAssets`), sem validação nova nem duplicada, e grava conta + personalidade **numa transação só** (`createAccountTx`/`createPersonalityTx`, extraídos de `AccountRepository.Create`/`BotRepository.CreatePersonality`, que seguem com o mesmo comportamento; `personalityFromRow` também foi extraído e agora é usado por `Find`, pela coleta de rodada e pela listagem). `BotAdminRepository` lê o roster em quatro consultas (bots, escopos, cobertura com ticker, posições com quantidade > 0) mais os ativos sem cobertura ativa (mesma definição do `uncovered_assets` da N.5). `PATCH` valida o **estado final** (teto e conjunto de ativos) antes de gravar; ao tirar um ativo de um Market Maker cancela as ordens dele nesse ativo com o cancelamento em lote da N.10 (interseção ativo + dono, `cancel_reason = admin`) **antes** de remover a linha de cobertura, e ativo novo entra por `coverage.Provisioner.ProvisionCoverage` com 0 ações. **Backend:** porta `BotAdmin`, adapter `engineBotAdmin`, três casos de uso (criar e alterar auditados como `bot.create` e `bot.update`, o segundo só com os campos pedidos), router `adminBotsRouter` com Zod, `422 batch_too_large` repassado. **Decisões declaradas:** (1) **sem posição inicial no `POST`**: o texto da tarefa diz "caixa/posição inicial", mas o float de todo ativo já está 100% distribuído (B.1/P.2) e a posição teria que sair de outro detentor; o bot nasce só com caixa e ganha posição negociando (se o autor quiser posição inicial, é uma decisão nova: de quem ela sai); (2) Market Maker novo **nasce sem cobertura**: usa o esquema `coverage.NewMarketMakerID` e, por ser o menos carregado, vira o candidato de `coverage.Assign` pro próximo ativo, ou recebe ativos explícitos pelo `PATCH`; (3) ativo coberto por **outro** Market Maker é recusado (`409`): mover é remover e adicionar, em duas chamadas; (4) `MaxInitialCash = R$ 1 trilhão`, porque o seed dá a um Market Maker mais de R$ 300 bilhões (float sintético grande) e um teto "realista" impediria criar bot de porte comparável; (5) ID dos bots direcionais criados pelo painel é determinístico `00000000-0000-0000-0002-<índice>` (entra na semente das rodadas, RNF08), prefixo próprio pra não colidir com o pool do seed. **Validado ao vivo em `docker compose`:** roster real (64 bots, 4 Market Makers, 0 ativos sem cobertura), `POST` de chartista e de Market Maker (`201`, spread de 0,5 recusado com `400`), `PATCH` de ativo já coberto (`409`), tirar um ativo do Market Maker cancelou as 2 ordens dele com `cancel_reason = admin` e o ativo apareceu em `uncovered_assets`, o Market Maker novo assumiu o ativo, teto zero e teto em chartista `400`, bot inexistente `404`, desativar/reativar sem mexer no caixa, e **um tick depois o bot novo já tinha ordem no book** (participou da rodada). Testes: domínio (`botadmin_test.go`, com um fake em memória que se comporta como o banco), rotas HTTP, integração com Postgres descartável (`bot_admin_repository_integration_test.go`), caso de uso, adapter e router do backend. `golangci-lint` (0 issues), `go build`, `go test ./...`, `npm run lint`, `npm run build` e `npm test` verdes.
 
-### N.2 · Tela "Painel Admin — Bots" no frontend
+### N.2 · Tela "Painel Admin — Bots" no frontend ✅
 
 - **Descrição:** tela nova dentro da área admin (mesmo padrão visual/navegação do Painel Admin de
   Eventos Macro, 10.1/10.2) — lista de bots (ticker/setor de cobertura, arquétipo, `is_active`,
@@ -2761,6 +2762,499 @@ estabelecido pelo Painel Admin de Eventos Macro (telas 10.1/10.2, tarefa 6.11).
   da rodada de negociação seguinte (D.2); responsiva nos três breakpoints.
 - **Referências:** `.claude/identidade-visual-padroes.md`; tela 10.1/10.2 como precedente.
 - **Dependências:** N.1.
+- **Entregável (sessão 2026-10-03, PR 5 da Fase N):** tela **10.10** em `/admin/bots` (seção "Bots" do `AdminNav`, antes "Em breve"): `pages/AdminBots`, organismos `AdminBotsTable` (tabela no tablet/desktop, cartões no mobile, inativo com borda tracejada), `BotCreateForm` (percentuais em %, campos por arquétipo) e `BotCoverageEditor` (dentro do `ConfirmDialog`); `features/admin/botForm` (validação espelhando as faixas do motor, conversão % para fração, mensagens de erro por status), `botLabels`, `useAdminBotsQuery` e `useAdminBotActions`; serviço `listAdminBots`/`createAdminBot`/`updateAdminBot`; rótulos de auditoria `bot.create`/`bot.update`. Desativar pede confirmação e explica o efeito (num Market Maker, a cobertura deixa de valer); ativar é direto; editar cobertura avisa quais ativos terão as ordens canceladas. Desktop: lista à esquerda e formulário fixo à direita; tablet/mobile: formulário abre pelo botão "Novo bot", acima da lista. Inventário de telas atualizado (10.10, total 37). **Correção de passagem (bug mecânico):** `describeOwner` (tela de ordens) mapeava arquétipo com chaves em inglês e o motor manda em português, então mostrava "Bot (fundamentalista)" cru; agora usa o mapa único de `botLabels`. **Id curto do bot** passou a ser os 6 últimos caracteres, porque os ids do seed só diferem no fim. **Validado ao vivo** (dev server + `docker compose`, admin de teste): lista real de 66 bots com caixa, posições e escopo, formulário abrindo acima da lista no tablet, diálogo de cobertura listando os ativos do Market Maker; a janela do navegador de teste não encolheu abaixo de 900px, então os cartões do mobile ficam validados só por teste de componente e pelo mesmo padrão CSS da tabela de ordens. Testes: componentes, feature, serviço e página (343 testes dos módulos tocados, 1009 no total), `tsc`, lint, Prettier e build verdes.
+
+### Ampliação da Fase N — Painel Admin completo (pedido do autor, 2026-10-03)
+
+O autor pediu que o painel deixe de ser só "bots" e passe a ser o **centro de controle geral da
+aplicação**: operar o mercado, o tempo, os bots, os usuários, o conteúdo e a gamificação sem tocar em
+seed, script ou `docker exec`. N.1 e N.2 (bots) continuam como estão; as tarefas **N.3 a N.22**
+abaixo cobrem o que faltava, mapeado contra o código real (2026-10-03): o motor só expõe
+`POST /admin/tick`, `POST/GET /macro-events` e o backend só tem `modules/admin` com `ping`,
+`macro-events` e `tick`; o Temporizador só se controla por variável de ambiente no boot
+(`TICK_SCHEDULER_ENABLED`, `SIMULATION_DAYS_PER_REAL_DAY`, `TICK_MAX_CATCHUP`); catálogo, lições,
+conquistas e missões só mudam por seed; usuário só muda por `DELETE /me` e `PATCH /me` do próprio dono.
+
+**Revisão de escopo declarada:** a spec 3.3.3 limitava o painel a eventos macro e deixava cadastro de
+ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a evoluir". Esta ampliação
+é a evolução prevista lá, por decisão do autor; a 3.3.3 ganhou uma nota de revisão apontando pra cá.
+
+**Regras transversais (valem pra toda tarefa N.3+):**
+1. **Nenhuma escrita sem auditoria.** Toda ação mutável do painel grava em `admin_audit_log` (N.4) no mesmo
+   caso de uso; isso inclui as ações que já existem (disparo de evento macro e de tick), retroativamente.
+2. **Event Sourcing intacto.** O painel nunca escreve direto em `positions`/`accounts`; qualquer efeito
+   financeiro (ex: crédito manual) passa por evento imutável em `market_events`. Nada de "apagar"
+   histórico de mercado.
+3. **Preço continua só por negociação.** O painel não tem botão pra definir preço, Selic ou IPCA à mão;
+   só cria condições (evento, bot, pausa) e o mercado reage. Intervenção direta de preço fica fora.
+4. **Mesmo trust boundary de hoje:** motor sem checagem de role, backend valida `role = admin` antes de
+   repassar (`authMiddleware`); `role = admin` continua só por seed manual (CLAUDE.md), o painel **não**
+   promove nem rebaixa admin.
+5. **Backend (Node) e motor (Go) seguem os checklists do CLAUDE.md** (DDD lite / Go idiomático, Zod, testes
+   junto, `.docs/` no mesmo commit). Cada tela nasce responsiva nos 3 breakpoints, com composição própria
+   no desktop (`identidade-visual-padroes.md`) e componentes em atomic design.
+6. **Ação destrutiva ou irreversível pede confirmação explícita** na UI (digitar o ticker/nome) e é
+   idempotente quando possível.
+
+#### Bloco 1 — Fundação do painel
+
+### N.3 · Shell do painel admin e navegação por seções ✅
+
+- **Descrição:** hoje `/admin` é a lista de eventos macro. Vira um shell próprio (template `AdminShell`,
+  atomic design) com navegação lateral no desktop/tablet e menu em gaveta no mobile, seções: **Visão geral,
+  Tempo, Mercado, Bots, Usuários, Conteúdo, Gamificação, Sistema, Auditoria**. `/admin` passa a ser a Visão
+  geral (N.5); o histórico de eventos macro atual migra pra `/admin/eventos` (rota de `/admin/eventos/novo`
+  não muda). `ProtectedRoute` com `role = admin` envolve a árvore inteira; `AvatarMenu` continua com a
+  entrada única "Painel admin". Atualiza o inventário: seção 10 vira "Painel Administrativo" com as telas
+  10.1 a 10.N (uma por tarefa de tela).
+- **Critérios de aceite:** navegação entre as seções funciona nos 3 breakpoints; usuário não-admin recebe
+  redirecionamento (e `403` nas rotas); links antigos `/admin` e `/admin/eventos/novo` continuam
+  funcionando; testes de rota e de menu.
+- **Referências:** tela 10.1/10.2 (precedente); `identidade-visual-padroes.md`.
+- **Dependências:** nenhuma (pode abrir a fase).
+- **Entregável (sessão 2026-10-03, só frontend):** `AdminShell` (template) com `<Outlet/>` e `AdminNav` (organismo) alimentado por `features/admin/adminSections` (9 seções na ordem do backlog; seção sem `to` aparece desabilitada com "Em breve", e cada tarefa seguinte só preenche o `to` da sua e registra a rota). Uma só árvore, três composições: barra lateral sticky de 252px no desktop, faixa horizontal rolável no tablet, gaveta com botão "Menu do painel" no mobile (fecha por Escape, scrim e clique no link; fechada fica `visibility: hidden`, fora da tabulação). Rotas em `router.tsx` dentro do `ProtectedRoute requireRole="admin"`: `/admin` (nova `AdminVisaoGeral`, tela 10.1, provisória até a N.5), `/admin/eventos` (histórico, antiga `PainelAdmin`, renomeada `AdminEventosMacro`, tela **10.3** nova no inventário, que também ganhou 10.1 reescrita e contagem de 30 telas) e `/admin/eventos/novo` (10.2, agora volta pra `/admin/eventos`). **Gap real achado na validação visual:** o proxy do Vite repassava toda navegação direta a `/admin/*` pro gateway ("Cannot GET /admin/eventos" no F5); `vite.config.ts` agora serve a SPA quando a requisição é navegação (`Accept: text/html`) no namespace `/admin` e mantém chamada de API indo ao gateway (verificado com `curl` dos dois casos). Testes novos de `AdminNav`, `AdminShell` e `AdminVisaoGeral`; suíte inteira (832 testes), `tsc -b` e `oxlint` sem erro novo. Verificado em navegador real contra `docker compose` (admin de teste semeado): desktop, tablet (900px) e mobile (375px, gaveta aberta). Também corrigido na validação: ícones encolhendo nos itens com "Em breve" (`flex: none`). Sem backend novo, então `.docs/` não muda. **Pendente da tarefa:** nada; o menu do avatar continua com a entrada única "Painel Administrativo".
+
+### N.4 · Log de auditoria das ações administrativas ✅
+
+- **Descrição:** tabela `admin_audit_log` no banco de usuário/gamificação (id, `admin_id`, `action`
+  (enum fechado, ex: `macro_event.trigger`, `tick.trigger`, `bot.create`, `user.suspend`), `target_type`,
+  `target_id`, `payload` jsonb já sem dado sensível, `occurred_at`, `result`). Porta
+  `AuditLogRepository` + `RecordAdminActionUseCase` chamada pelos casos de uso do módulo `admin` (não por
+  middleware genérico, pra registrar o `payload` de negócio). `GET /admin/audit-log` paginado com filtro
+  por admin, ação e período. Backfill: ações já executadas antes da tarefa não existem no log (declarado),
+  só as novas. Tela "Auditoria" com filtros e detalhe do payload.
+- **Critérios de aceite:** disparo de tick e de evento macro existentes passam a gerar linha; falha do
+  motor registra `result = failed` com o motivo; log é append-only (trigger no Postgres, mesmo padrão de
+  `market_events`); `403` pra não-admin; teste de caso de uso com fake e de adapter real.
+- **Referências:** `market_events_append_only` (padrão do trigger); `.docs/backend/admin.md`.
+- **Dependências:** nenhuma. **Faça antes de qualquer tarefa que mude estado** (N.1 em diante).
+- **Entregável (sessão 2026-10-03):** backend: tabela `admin_audit_log` (migration `0018`, com `CHECK` de resultado, 3 índices e trigger `admin_audit_log_append_only` que recusa `UPDATE`/`DELETE`); porta `AuditLogRepository`, adapter `drizzleAuditLogRepository`, `RecordAdminActionUseCase.run(spec, operation, describeOutcome)` (ponto único de gravação: grava `success` ou `failed` com o motivo e relança o erro original) e `ListAuditLogUseCase`; `TriggerTickUseCase`/`TriggerMacroEventUseCase` agora recebem o `adminId` do token e passam a gravar `tick.trigger`/`macro_event.trigger`; `GET /admin/audit-log` (filtros `admin_id`, `action`, `result`, `from`, `to`, `limit`, `offset`), documentado em `.docs/backend/admin.md`. Lista fechada de ações em `domain/auditEntry.ts`, em texto no banco, então ação nova das próximas tarefas não pede migration. Frontend: tela **10.4** em `/admin/auditoria` (seção Auditoria do shell da N.3) com filtros de ação, resultado e período, paginação e detalhe com payload; item ativo do menu rola pra vista no tablet. **Decisões declaradas:** (1) falha ao gravar o log **não** troca a resposta de uma ação que já aconteceu (é logada como `[audit]`), pra um tick bem-sucedido não virar 500 e ser repetido; (2) corpo recusado pelo Zod (400 antes do caso de uso) e acesso negado (401/403) não geram linha; (3) o filtro por admin existe na API mas não na tela (um admin só hoje). **Sem backfill** (declarado na tarefa). Testes: casos de uso e routers com fakes, e adapter real em `drizzleAuditLogRepository.test.ts`, que só roda com `TEST_DATABASE_URL` apontando pra um banco **descartável** (aplica as migrations e grava linhas que o trigger impede de apagar; verificado em `audit_scratch`, já removido): grava/lista/filtra, trigger recusa `UPDATE` e `DELETE`, `CHECK` recusa resultado inválido. `eslint`, `tsc`, `npm run build` e 760 testes do backend; 843 do frontend. Validado ponta a ponta em `docker compose`: tick, evento recusado (motivo `template de evento macro desconhecido`) e evento aceito geraram as 3 linhas, filtro `result=failed` devolveu 1, e a tela mostrou os 3 registros. **Pendente:** `.docs/engine` não muda (sem rota nova no motor); as tarefas seguintes devem chamar `RecordAdminActionUseCase.run` em toda ação nova (regra transversal 1).
+
+#### Bloco 2 — Visão geral e tempo
+
+### N.5 · Visão geral e saúde do sistema (tela 10.x) ✅
+
+- **Descrição:** dashboard de entrada. Faixa de **saúde**: motor, backend, Postgres (os dois bancos
+  lógicos), Redis — `GET /admin/system/health` (backend consulta o próprio banco e Redis e chama
+  `GET /health` do motor, devolvendo `ok/degradado/fora` por componente com latência). Faixa de **estado do
+  mercado**: dia simulado atual, Selic e IPCA vigentes, último tick (instante, duração, contadores) e
+  próximo tick agendado, scheduler ligado/pausado, eventos macro pendentes, ativos sem cobertura de Market
+  Maker (P.9). Faixa de **produto**: usuários totais, cadastros nas últimas 24h/7d, bots ativos, ordens e
+  volume do último dia simulado. Atualização automática (polling curto), cada card leva à tela da seção.
+  Endpoint do motor `GET /admin/overview` agrega o que é do mercado (uma chamada, não N).
+- **Critérios de aceite:** componente fora do ar aparece como "fora" sem derrubar a tela; números batem com
+  `GET /market/clock` e `/market/indicators`; responsiva; `.docs/engine` e `.docs/backend/admin.md`.
+- **Dependências:** N.3, N.6 (histórico de tick).
+- **Entregável (sessão 2026-10-03):** **Motor:** `GET /admin/overview` (`httpserver.WithAdminReader`, `503` sem banco) devolve o recorte do mercado numa chamada (dia simulado, Selic e IPCA da última linha de `market_indicator_history`, eventos macro pendentes, ativos negociáveis e quantos estão **agora** sem Market Maker ativo, bots ativos/total, negócios e volume do dia simulado, ordens abertas no book), lido por `db.AdminReadRepository.Overview` (domínio `internal/domain/adminview`, só leitura). **Backend:** `GET /admin/system/health` (`GetSystemHealthUseCase` sonda motor, banco de usuários, banco de mercado e Redis em paralelo por `HealthProbe`, com prazo de 3 s, `ok`/`degradado` acima de 1 s/`fora` com o motivo) e `GET /admin/overview` (`GetAdminOverviewUseCase` junta a visão do motor, `GET /admin/scheduler`, o último item de `GET /admin/ticks` e a contagem de usuários por `UserStatsReader`; cada fonte falha sozinha, vira `null` com o motivo em `errors`). **Frontend:** tela **10.1** reescrita como dashboard (`SystemHealthStrip`, `StatCard`, polling de 15 s; cartões Mercado, Tempo, Negociação e Usuários; cartão da fonte que caiu mostra "Indisponível: motivo" sem derrubar os outros). Documentado em `.docs/engine/admin.md` (novo) e `.docs/backend/admin.md`; inventário atualizado. **Decisões declaradas:** (1) o banco "market" é sondado pela própria leitura da visão geral do motor, porque só o motor fala com ele (o `/health` do motor é liveness e responde com o banco fora); (2) o backend é `ok` por definição; (3) "usuários" conta só `role = user`; (4) o card de Mercado aponta pra `/admin/eventos` até a N.8. **Achado na validação ao vivo e corrigido:** o cliente Redis do backend é `lazyConnect` e sem fila offline, então a primeira sonda antes de conectar dizia "fora" com o Redis de pé; a sonda agora conecta antes do `PING` (teste novo). **Validado em `docker compose`:** os números batem com `GET /market/clock` (dia 373) e com a contagem direta de ordens abertas no Postgres (82); com `docker stop tcc-redis` a faixa mostra o Redis "fora" e as outras quatro seguem "ok". **Testes:** motor (go test ./... com banco descartável, `golangci-lint` 0 issues), backend (eslint, tsc, build, 828 testes com `TEST_DATABASE_URL` e `--no-file-parallelism`, porque duas suítes de integração migrando o mesmo banco ao mesmo tempo disputam o schema `drizzle`), frontend (tsc, oxlint sem aviso novo, testes das telas/serviços novos).
+
+### N.6 · Controle do Temporizador e histórico de ticks ✅
+
+- **Descrição:** hoje o agendamento só muda reiniciando o container com outra env. Persistir `tick_runs`
+  (dia simulado, `trigger` = `scheduled` | `manual` | `catchup`, início, duração, resultado, erro, os
+  contadores que `POST /admin/tick` já devolve) e expor no motor: `GET /admin/scheduler` (ligado, slots/dia,
+  fuso, `max_catch_up`, próximo slot, trava de tick em andamento), `POST /admin/scheduler/pause` e
+  `/resume` (a goroutine para de disparar sem reiniciar; estado persistido pra sobreviver a restart),
+  `GET /admin/ticks` (histórico paginado). **Avançar N dias de uma vez** (`POST /admin/tick` repetido com teto,
+  ex: 30, e retorno por tick) pra demonstração e testes; ticks de catch-up descartados por `MaxCatchUp`
+  passam a ser **registrados** (hoje só vão pra log). A tela mostra linha do tempo de ticks, status do
+  scheduler, botões "Pausar/Retomar", "Disparar 1 tick" e "Avançar N dias" (com confirmação, e aviso de que
+  o mercado é compartilhado: afeta todos os usuários). Mudar `TicksPerDay`/`MaxCatchUp` em runtime fica pra
+  N.7.
+- **Critérios de aceite:** pausar impede o tick agendado e não o manual; retomar não dispara "catch-up" dos
+  slots pausados além do `MaxCatchUp`; falha de tick aparece no histórico com o erro; `409` do tick em
+  andamento vira mensagem amigável; teste de domínio do estado pausado e de integração do repositório.
+- **Referências:** S.3 (agenda ancorada, trava consultiva), P.10; `.docs/engine/tick.md`.
+- **Dependências:** N.4.
+- **Entregável (sessão 2026-10-03):** **Motor:** migration `000040` (`tick_runs` e `scheduler_control`); `tick.RunRecorder` + `Service.WithRunRecorder` gravam uma linha por tick (agendado, `catchup` ou `manual`, com dia, duração, contadores e o motivo da falha; falha ao gravar o histórico é logada e não muda o desfecho de um tick já persistido); `Service.RunMany` (avançar N dias sob **uma só trava**, teto `tick.MaxAdvanceDays = 30`); `RunScheduled` agora recebe `plan` com `(run, discarded)` e grava o descarte do `MaxCatchUp` na primeira linha da recuperação (`Config.PlanWithDiscard`); `scheduler.Run` consulta `scheduler.Control` a cada tentativa (pausado ou falha de leitura adia o tick) e conta slots perdidos a partir de `resumed_at`, então **o tempo pausado de propósito não vira recuperação em massa ao retomar**. Rotas internas `GET /admin/scheduler`, `POST /admin/scheduler/pause|resume` (idempotentes, `409` com a agenda desligada no ambiente), `GET /admin/ticks`, `POST /admin/tick/advance` (a API entra por `httpserver.WithSchedulerAdmin`, opção variádica, pra não quebrar as 21 chamadas posicionais de `New` nos testes). **Backend:** porta `SchedulerAdmin` + `engineSchedulerAdmin`, casos de uso `GetSchedulerStatus`, `ListTicks`, `SetSchedulerPaused` e `AdvanceTicks` (os dois últimos **auditados**: novas ações `scheduler.pause`, `scheduler.resume` e `tick.advance`), router com as mesmas cinco rotas atrás de `role = admin`, erros de domínio `SchedulerDisabledError` e `TickAdvanceFailedError` (carrega os ticks que já rodaram). **Frontend:** tela **10.5** em `/admin/tempo` (`SchedulerPanel`, `TickRunList`, novo `ConfirmDialog` genérico que as próximas ações destrutivas reaproveitam); `AuditAction` e rótulos da tela de auditoria ganharam as 3 ações. Documentado em `.docs/engine/tick.md` e `.docs/backend/admin.md`. **Decisões declaradas:** (1) tick disparado antes desta tarefa não está em `tick_runs` (sem backfill); (2) `Slots` recuperados: com mais de um tick devido, os primeiros são `catchup` e só o último é `scheduled`; (3) mudar `TicksPerDay`/`MaxCatchUp` em runtime fica pra N.7, como o texto da tarefa já dizia; (4) o chip de dia do cabeçalho do app tem cache e polling próprios e atualiza sozinho depois de avançar. **Testes:** motor (`golangci-lint` 0 issues, `go test ./...` inclusive os de integração em Postgres real com banco descartável: gravação/listagem/paginação/CHECK, pausa e retomada persistentes), backend (802 testes, eslint, tsc, build), frontend (878 testes, tsc). **Validado ao vivo em `docker compose`:** estado, pausar, retomar, `days: 0` recusado com 400, avançar 3 dias (3 linhas `manual` no histórico e 1 `tick.advance` na auditoria), **pausa persistindo após `docker compose restart engine`**, e a tela no navegador (disparar 1 tick com confirmação, banner e histórico atualizados). **Pendente:** o caminho de recuperação (`catchup` + descarte) está coberto por testes de domínio e de banco, mas não foi reproduzido ao vivo (exigiria deixar o motor parado por mais de `max_catch_up` slots); o `409` de tick em andamento via painel só foi exercitado em teste.
+
+### N.7 · Parâmetros de simulação visíveis e editáveis (com lista fechada) ✅
+
+- **Descrição:** inventariar o que hoje é constante de código ou env e separar em **somente leitura**
+  (semente `SIMULATION_SEED`, capital inicial R$ 10.000 — RNF06, constantes de calendário como Copom 45 dias)
+  e **editáveis em runtime**, numa tabela `engine_settings` (chave, valor, `updated_by`, `updated_at`,
+  versão) com validação de domínio por chave (faixa permitida, tipo). Candidatas a editáveis: ticks por dia
+  simulado, `max_catch_up`, teto de `SpreadWidthPct` do bot (hoje `MaxSpreadWidthPct = 0.10`), valor/nível do
+  salário mensal simulado (Fase T), limites de ordem. Tela "Parâmetros" lista valor atual, padrão, faixa e
+  quem alterou por último, com "restaurar padrão". Mudança só vale a partir do próximo tick (nunca no meio de
+  um). **Decisão do autor (2026-10-03, achado 029, item 1): só os parâmetros operacionais de ritmo são
+  editáveis, a saber ticks por dia real (`SIMULATION_DAYS_PER_REAL_DAY`) e recuperação máxima
+  (`TICK_MAX_CATCHUP`).** Todo o resto (salário, teto de `SpreadWidthPct`, limites de ordem, semente, capital
+  inicial, constantes de calendário) aparece só como leitura, sem controle de edição: regra financeira ou
+  invariante de domínio não muda por botão.
+- **Critérios de aceite:** valor fora da faixa é recusado com mensagem do domínio; edição gera linha em
+  `admin_audit_log`; reiniciar o motor preserva o valor; parâmetro somente leitura não tem controle.
+- **Dependências:** N.4, N.6.
+- **Entregável (sessão 2026-10-03, PR 7 da Fase N):** **Motor:** pacote de domínio `enginesetting` (lista fechada de chaves `ticks_per_day` 1 a 24 e `max_catch_up` 1 a 30, `Validate`, `Service` com padrão do ambiente por baixo e cache de 5 s invalidado em `Set`/`Reset`), tabela `engine_settings` (migration `000045`, uma linha por chave alterada com `updated_by`, `updated_at` e `version`), `EngineSettingsRepository`. O agendador (`scheduler.Run`) passou a receber uma `ConfigSource` em vez de uma `Config` fixa e dorme no máximo 30 s por vez, então a troca de ritmo vale na tentativa seguinte e nunca no meio de um tick; `GET /admin/scheduler` e `GET /market/clock` (`days_per_real_day`) leem o valor vigente. Rotas internas `GET /admin/settings`, `PUT /admin/settings/{key}` (`404` chave fora da lista, `422` fora da faixa com a mensagem do domínio) e `DELETE /admin/settings/{key}` (restaurar, idempotente). A lista somente leitura vem do próprio código (semente, capital inicial, Copom, teto de spread, teto de ordem sobre o volume, teto de avançar dias, teto do lote), sem controle de edição. **Backend:** porta `EngineSettingsAdmin` + adapter, casos de uso `ListEngineSettings` e os dois auditados `UpdateEngineSetting`/`ResetEngineSetting` (novas ações `settings.update` e `settings.reset`), router com Zod. **Frontend:** tela **10.11** em `/admin/tempo/parametros` (link na tela de Tempo): cartões editáveis com valor, padrão, faixa e data da última alteração, validação na tela, confirmação, restaurar padrão, e a lista somente leitura com o motivo de cada item. Documentado em `.docs/engine/admin.md`, `.docs/engine/tick.md` e `.docs/backend/admin.md`; inventário atualizado (10.11, 38 telas). **Decisões declaradas:** (1) chaves de valor inteiro apenas; (2) o valor anterior não vai no payload da auditoria, está na linha anterior da mesma chave; (3) mudar `ticks_per_day` renumera os slots da agenda, o que no máximo antecipa ou adia uma tentativa, e quantos ticks rodam continua sendo decidido pelo `Plan` limitado por `max_catch_up`; (4) o salário mensal simulado não é um parâmetro do motor (é crédito disparado por usuário), então não aparece na lista. **Validado ao vivo em `docker compose`:** `422` e `404` corretos, `PUT` mudou `ticks_per_day` pra 8 (scheduler, relógio e próximo slot refletiram), o valor **sobreviveu a `docker compose restart engine`**, `DELETE` voltou pra 5, e a auditoria registrou update com sucesso, update falho e reset. Testes: domínio, repositório com Postgres descartável, agendador (fonte lida a cada tentativa e falha de leitura adia), rotas HTTP, casos de uso, adapter e router do backend, página e serviço do frontend. `golangci-lint` 0 issues; `go test ./...`, backend (lint, build, 2347 testes) e frontend (tsc, oxlint, Prettier, 1069 testes) verdes. **Não validado em navegador:** a tela só tem teste de componente nesta sessão.
+
+#### Bloco 3 — Mercado
+
+### N.8 · Monitor do mercado ao vivo (somente leitura) ✅
+
+- **Descrição:** tela "Mercado" com a tabela de todos os ativos: último negócio, variação, melhor bid/ask e
+  spread, volume do dia, nº de ordens em repouso, float em circulação vs. posse de bots/usuários, e, por
+  classe, o que importa (ágio/deságio de ETF e FII, P/L de ação). Detalhe do ativo com o book completo,
+  últimos negócios, série de cotações e, pra ETF, NAV e tracking error. Seção de **indicadores
+  macro** (Selic/IPCA) com histórico e próximo Copom, e do **calendário** (próximos balanços, pagamento de
+  dividendo, rebalanceamento). Reaproveita endpoints públicos do motor (`/assets`, `/book`, `/quotes`) onde
+  existirem e cria `GET /admin/market/assets` só para o que não é público (posse por bot, ordens de bot).
+- **Critérios de aceite:** a tabela ordena/filtra por classe e setor; ativo sem negócio aparece sem quebrar;
+  números batem com o book público; responsiva (tabela vira cartões no mobile).
+- **Dependências:** N.3.
+- **Entregável (sessão 2026-10-03):** **Motor:** `GET /admin/market/assets` (uma consulta só, sem N+1: preço e variação, melhor compra/venda e spread, ordens abertas e parcela de bots, negócios e volume do dia simulado, cotas em circulação versus posse de bots e usuários, cobertura por Market Maker ativo, indicador por classe) e `GET /admin/market/assets/{id}` (book completo agregado por preço com a parcela de bots, últimos 30 negócios, 60 cotações e, pra ETF, 30 NAVs); fórmulas puras em `domain/adminview` (`SpreadPct`, `DailyChangePct`, `ClassIndicator`: P/L da ação, ágio do ETF, P/VP do FII, respeitando RF21); migration `000041` indexa `market_events (simulated_day, event_type)` pros negócios do dia. **Backend:** `MarketMonitorReader` (porta) → `engineMarketMonitorReader`, casos de uso de listar e detalhar, `GET /admin/market/assets[/:id]` (`400` UUID inválido sem chamar o motor, `404` ativo inexistente). **Frontend:** telas **10.6** (`/admin/mercado`: filtros, tabela que vira cartões no mobile, ordenação com sem-valor sempre no fim, indicadores macro e próximos eventos) e **10.7** (detalhe); a seção "Mercado" do shell aponta pra `/admin/mercado` e continua ativa nas rotas de eventos macro (`alsoActiveOn`). Documentado em `.docs/engine/admin.md` e `.docs/backend/admin.md`; inventário atualizado (34 telas). **Decisões declaradas:** (1) indicadores macro e calendário reaproveitam `GET /market/indicators` e `/market/calendar` em vez de rota admin nova; (2) o calendário público não tem o rebalanceamento de ETF, então "próximos eventos" cobre Copom, balanço, provento e eventos macro, não rebalanceamento (lacuna pequena, fora desta tarefa); (3) o book nunca expõe o dono de uma ordem, só quantidade por preço. **Validado ao vivo em `docker compose`:** 35 ativos, book e melhor compra/venda idênticos a `GET /market/assets/:id/book` público, `400` e `404` corretos, NAV do ETF, e as duas telas no navegador. **Testes:** motor (go test com banco descartável, integração do monitor, golangci-lint), backend (router, adapter), frontend (filtro/ordenação, tabela, book, páginas, nav).
+
+### N.9 · Pausa de negociação (global e por ativo) ✅
+
+- **Descrição:** "disjuntor" operacional. Motor ganha `trading_halts` (escopo `global` | `asset`, motivo,
+  quem, quando, `lifted_at`). Enquanto houver pausa vigente: `POST /orders` pra o escopo recusa com erro
+  tipado (`409 trading_halted`), o scheduler de rodadas dos bots **não** envia ordem pro ativo pausado, e o
+  tick continua rodando (dia, Selic, balanços, dividendos seguem). Ordens já em repouso permanecem (decisão
+  padrão; cancelar em massa é a N.10). Frontend do usuário mostra o aviso "Negociação pausada" no detalhe do
+  ativo e na confirmação de ordem. Tela admin: lista de pausas, "Pausar tudo", "Pausar ativo", "Retomar".
+  **Decisão do autor (2026-10-03, achado 029, item 2): a pausa de negociação NÃO suspende o tick**; o relógio
+  tem o seu próprio interruptor (N.6), são dois controles independentes. **Consequência aceita e que a tela deve
+  avisar:** ordens em repouso expiram a cada tick (regra Day) e os bots não recotam durante a pausa; se ela
+  atravessar um tick, o book fica vazio ao retomar e a liquidez só volta quando o próximo tick rodar as rodadas.
+  Retomar não força uma rodada; quem quiser liquidez imediata dispara 1 tick na tela de Tempo.
+- **Critérios de aceite:** ordem de usuário e de bot recusadas durante a pausa, aceitas depois; pausa
+  global e por ativo coexistem (a mais restritiva vence); teste de domínio e de rota; `.docs/engine/orders.md`
+  atualizado com o novo erro.
+- **Referências:** O.1 (cancelamento), P.5 (cotação de Market Maker); `orderexecution`.
+- **Dependências:** N.4, N.8.
+- **Entregável (sessão 2026-10-03, PR 3 da Fase N):** **Motor:** pacote `domain/tradinghalt` (`NewHalt`, `Blocking`, `Service`; global vence a do ativo), tabela `trading_halts` (migration `000043`, índices parciais únicos: uma vigente global e uma por ativo, linha nunca apagada), `TradingHaltRepository`. A recusa vive em `orderexecution.Execute` (`Context.Halt` → `*TradingHaltedError`, `errors.Is(ErrTradingHalted)`), alimentada pela mesma consulta de saldo de `LoadContext` (**zero idas extras ao banco por ordem**); vale pra usuário, bots e ETF, sandbox nunca é pausado. No tick: `businessRejection` reconhece a pausa, `runBotOnAsset` nem decide em ativo pausado e `maintainQuote` lê o contexto **antes** de cancelar, então o Market Maker não esvazia a cotação sem poder repô-la. Rotas `GET/POST /admin/halts`, `POST /admin/halts/{id}/lift`, `GET /market/halts` (público, sem motivo nem autor) e `409 trading_halted {scope}` em `POST /orders`. **Backend:** porta `TradingHaltAdmin`, casos de uso auditados (`trading.halt`, `trading.resume`), router com Zod, `GET /market/halts` no módulo `market`. **Frontend:** tela **10.9** em `/admin/mercado/pausas` (aviso das consequências, motivo obrigatório, "Pausar tudo" exige digitar PAUSAR TUDO, "Pausar ativo" exige o ticker, retomar, histórico), faixa de pausa vigente na 10.6, e o aviso "Negociação pausada" com botão desabilitado no detalhe do ativo (hook `useTradingHaltReason`). **Decisões declaradas:** (1) motivo é texto livre de até 200 caracteres, obrigatório, e fica só na auditoria e no painel; (2) pausar ativo de renda fixa ou sandbox é recusado (400); (3) a faixa de pausa na 10.1 (Visão geral) fica fora desta tarefa. **Validado ao vivo em `docker compose`:** pausa duplicada 409; com global e ativo vigentes a ordem devolve 409 `scope: global`; retomada a global, só o ativo segue barrado e outro ativo aceita; um tick com o ativo pausado avançou o dia (373→374, 95 negócios) sem nenhuma ordem nova no ativo e com a cotação do Market Maker intacta; auditoria com halt/resume/falhas; as telas 10.8 e 10.9 conferidas no navegador. Testes: domínio, tick, rotas HTTP, integração com Postgres descartável, caso de uso, adapter e router do backend, componentes e páginas do frontend.
+
+### N.10 · Ordens e book: inspecionar e cancelar por intervenção ✅
+
+- **Descrição:** tela "Ordens" com busca de ordens por usuário/bot, ativo, lado, status e período
+  (`GET /admin/orders`), e **cancelamento administrativo** de uma ordem ou em lote por ativo/dono
+  (`POST /admin/orders/{id}/cancel`, `POST /admin/orders/cancel-batch`) reaproveitando a regra de
+  cancelamento da O.1 com `cancel_reason = admin` (novo valor do enum) pra distinguir de `user`, `expired`
+  e `requoted`. Devolve a reserva de saldo/posição como o cancelamento normal (achado 015). É também o
+  caminho que a N.1 usa pra cancelar as ordens de um Market Maker que deixa de cobrir um ativo.
+- **Critérios de aceite:** cancelar ordem de usuário libera a reserva e emite o evento de cancelamento
+  existente; lote tem teto e é auditado como uma ação com a lista de ids; ordem já executada devolve erro
+  tipado; teste table-driven por status.
+- **Dependências:** N.4, N.8; **N.1 deve reaproveitar** (não duplicar) este cancelamento.
+- **Entregável (sessão 2026-10-03, PR 3 da Fase N):** **Motor:** `GET /admin/orders` (filtros dono, ativo, lado, status com o atalho `open`, período, paginação até 200; traz o dono e o arquétipo do bot), `POST /admin/orders/{id}/cancel` e `POST /admin/orders/cancel-batch`. Domínio em `orderexecution/admincancel.go` (`AdminService`, `CancelFilter`, `MaxAdminCancelBatch = 500`, `BatchTooLargeError`), separado do `Service` do usuário pra não tocar o contrato existente; `OrderExecutionRepository.AdminCancelOrder` (leitura `FOR UPDATE`, sem checar dono) e `AdminCancelBatch` (trava as linhas, lê no máximo `max + 1`, recusa o lote inteiro acima do teto), migration `000042` com `cancel_reason = admin`. O lote exige ativo e/ou dono (com os dois vale a interseção, que é o caminho que a N.1 deve reaproveitar ao tirar um ativo de um Market Maker). **Backend:** porta `OrderAdmin`, adapter, três casos de uso (os dois cancelamentos auditados como `order.cancel` e `order.cancel_batch`, o lote em UMA linha com a lista de ids; recusa do motor vira `failed` com o motivo), router `adminOrdersRouter` com Zod. **Frontend:** tela **10.8** em `/admin/mercado/ordens` (filtros, tabela que vira cartões no mobile, cancelar uma ordem, cancelar em lote exigindo digitar o ticker ou "CANCELAR"), link na 10.6 e na 10.7; `ConfirmDialog` ganhou `requireText` (reaproveitável pela N.9). **Decisões declaradas:** (1) "devolve a reserva e emite o evento de cancelamento" do texto da tarefa não se aplica: nenhuma ordem em repouso reserva saldo ou posição (achado 015, revalidação no match) e nenhum cancelamento passa por `market_events`; o cancelamento admin segue a mesma regra do cancelamento do dono (O.1); (2) lote acima do teto é recusado inteiro (422 `batch_too_large` com a contagem) em vez de cancelar parcialmente; (3) o valor `admin` aparece também em "Minhas Ordens" do usuário ("Cancelada pela administração"). **Validado ao vivo em `docker compose`:** cancelar 204, repetir 409, inexistente 404, lote sem filtro 400, lote por ativo cancelou a cotação de um Market Maker, `order_book` com `cancel_reason = admin`, auditoria com as 4 linhas. Testes: domínio, rotas HTTP, integração com Postgres descartável, caso de uso, adapter e router do backend, componentes e página do frontend.
+
+### N.11 · Eventos macro: ciclo de vida completo ✅
+
+- **Descrição:** hoje só dispara e lista. Acrescentar: **detalhe do evento** (efeitos amostrados, alvos,
+  dia do relatório de fundamentos, notícia gerada e a versão "pendente/redigida" que o usuário vê),
+  **impacto realizado** (variação de preço por alvo entre o dia do disparo e N dias depois, vinda das
+  cotações), **cancelar evento pendente** (`DELETE /admin/macro-events/{id}` só se `status = pendente` e
+  ainda sem efeito aplicado) e **agendar** disparo pra um dia simulado futuro (`apply_on_day`). Filtros do
+  histórico por status, alvo e período. Catálogo de templates listado na tela (somente leitura; edição
+  segue via código, 3.3.3; fora da Fase N).
+- **Critérios de aceite:** cancelar evento já aplicado é recusado; agendado dispara no tick do dia certo e
+  aparece como pendente até lá; impacto realizado só aparece depois de haver cotação posterior; testes de
+  domínio dos estados `pendente → aplicado | cancelado`.
+- **Referências:** 4.4/4.5, 6.6, Fase E; `.docs/engine/macroevent.md`.
+- **Dependências:** N.4.
+- **Entregável (sessão 2026-10-03, PR 7 da Fase N):** **Motor:** estado novo `cancelado` (migration `000046`, `ALTER TYPE ... ADD VALUE`) e as regras do ciclo de vida em `macroevent/lifecycle.go` (`CanCancel`: só pendente e ainda sem efeito aplicado, `ValidateApplyDay`: posterior ao dia corrente e até 365 dias à frente, `IsPubliclyVisible`, `ListFilter`). **Agendar:** `apply_on_day` em `POST /macro-events` move o primeiro dia de efeito (`triggered_on_day`); o dia de referência do relatório de fundamentos passa a ser a véspera do efeito, não o dia do cadastro. **Detalhe:** `GET /macro-events/{id}` (pacote `macroeventadmin`) com `scheduled`, `cancellable`, `publicly_visible`, `report_date` e o **impacto realizado**: variação de preço por alvo (setor, classe de risco ou ativo, o mesmo critério do tick, sem sandbox) entre o último dia antes do efeito e a janela escolhida (`window_days`, 1 a 90, padrão 5), numa consulta só, e só `available` depois de o mercado chegar ao fim da janela. **Cancelar:** `DELETE /macro-events/{id}`, atômico (`FOR UPDATE` e trava de transação com a **mesma chave da trava consultiva do tick**, então um tick em andamento recusa o cancelamento em vez de aplicar o efeito de um evento cancelado); cancelado sai da lista de pendentes do tick sem mudar a consulta dele. **Histórico:** `GET /macro-events` ganhou `view` (`public` por padrão, a visão segura; o painel pede `admin`), `status`, um filtro de alvo e período em dias simulados. **Backend:** portas `MacroEventAdmin` e `UserViewProjector` (o adapter reaproveita `redactPending` do módulo de notícias, então o painel mostra ao admin exatamente a versão que o jogador vê), `GetMacroEventDetail` e `CancelMacroEvent` (auditado como `macro_event.cancel`), `apply_on_day` no schema do disparo (auditado no payload), filtros no `GET /admin/macro-events`, `GET` e `DELETE /admin/macro-events/:id`. **Frontend:** tela 10.3 com filtros, situação por evento (agendado pontilhado, cancelado riscado) e o catálogo de templates em somente leitura; tela 10.2 com o dia de aplicação ("Agendar evento"); tela nova **10.12** em `/admin/eventos/:id` (ciclo de vida, o que foi sorteado, o que o jogador vê, impacto com janela de 5, 10 ou 30 dias, cancelar com confirmação). Documentado em `.docs/engine/macroevent.md`, `.docs/engine/calendar.md` e `.docs/backend/admin.md`; inventário atualizado (10.12, 39 telas). **Decisões declaradas:** (1) **o evento agendado só aparece pro jogador na véspera**, e o cancelado nunca (feed e calendário), registrado como achado **031** pra o autor confirmar; (2) o padrão do `GET /macro-events` do motor passou a ser a visão pública, então o feed do usuário continua sem mudar e só o painel pede `admin`; (3) "efeito já aplicado" significa que o tick que avalia o primeiro dia de efeito já rodou; (4) o impacto de um evento só de fundamentos não é medido (não há efeito de preço); (5) o catálogo de templates mostrado na tela é o espelho do frontend (`macroEventTemplates`), não um endpoint novo. **Validado ao vivo em `docker compose`:** agendar no dia corrente recusado (400), agendado 30 dias à frente nasce pendente com o relatório calculado a partir da véspera, o feed do jogador só mostra o disparado já (não o agendado), cancelar o agendado funciona, repetir dá 409, id inexistente 404 e id inválido 400, depois de 1 tick o evento imediato dá 409 "já começou a produzir efeito", com 6 dias a mais o impacto da janela de 5 dias apareceu por alvo e por ativo (Mineração +2,57% de média), o cancelado some do feed e a auditoria registrou cancelamentos com sucesso e falha. Testes: domínio (estados, agendamento, visibilidade, impacto), repositório com Postgres descartável (visões, filtros, cancelamento sob trava de tick, calendário), rotas HTTP, casos de uso, adapters e router do backend, componentes, páginas e serviço do frontend. `golangci-lint` 0 issues; `go test ./...`, backend (lint, build, 2378 testes) e frontend (tsc, oxlint, Prettier, 1091 testes) verdes. **Não validado em navegador:** as telas só têm teste de componente nesta sessão.
+
+#### Bloco 4 — Catálogo
+
+### N.12 · Catálogo de ativos e empresas: consulta e ajuste de parâmetros
+
+- **Descrição:** tela "Catálogo" listando ações, FIIs, ETFs e renda fixa com seus parâmetros de seed:
+  setor, `risk_class`, `outstanding_shares`, `base_growth_pct`, `quality_multiplier`, frequência de
+  relatório, indicadores, composição do ETF. Edição restrita a uma lista fechada de campos que não quebram
+  invariantes (ex: `base_growth_pct`, `quality_multiplier`, nome/descrição, `report_frequency_days`),
+  validados pelo domínio; mudança vale a partir do próximo relatório/tick e é auditada. Campos estruturais
+  (ticker, classe, `outstanding_shares`, setor) ficam somente leitura (mudar float ou setor reescreve a
+  distribuição de bots e casa com templates de evento).
+- **Critérios de aceite:** edição inválida recusada com a mensagem do domínio; ativo sandbox aparece
+  marcado e não editável (achado 023); `GET /admin/catalog` e `PATCH /admin/catalog/{id}` documentados.
+- **Dependências:** N.4, N.8.
+
+### N.13 · Cadastro de novo ativo pela interface
+
+- **Descrição:** criar ação, FII ou ETF novo sem seed: formulário por classe (campos específicos de
+  RF21: ação com setor/fundamentos, FII com segmento/indexador, ETF com índice/metodologia/composição) que
+  chama o mesmo caminho do seed (`catalog` + `bot.PoolSize` da Q.2 + `coverage.Ensurer` da P.9) pra **crescer
+  o pool de bots e a cobertura de Market Maker proporcionalmente**, sem posições dos ativos antigos mudarem
+  (propriedade já validada na Q.2). Pré-visualização do que será criado (bots novos, Market Maker que vai
+  cobrir, float distribuído) antes de confirmar. Sem exclusão de ativo (ele pode ter posição e histórico
+  imutável); só **deslistar** (N.9 pausa permanente + `delisted_at`), decisão registrada.
+- **Critérios de aceite:** ativo criado aparece no mercado do usuário na rodada seguinte, com cotação de
+  Market Maker; criar o 31º ativo num banco de 30 não altera as posições dos 30 anteriores (critério de
+  crescimento, memória "Design for growth"); teste por classe; documentado em `.docs/engine/catalog.md`.
+- **Dependências:** N.1, N.9, N.12. Maior e mais arriscada do bloco: **faça por último** do bloco 4.
+
+#### Bloco 5 — Bots (complementa N.1/N.2)
+
+### N.14 · Desempenho e atividade dos bots ✅
+
+- **Descrição:** a N.1 lista estado atual; falta saber **se o bot está fazendo o trabalho dele**. Por bot:
+  patrimônio e P&L no período, ordens enviadas/executadas/canceladas (por `cancel_reason`), volume, última
+  atividade, taxa de fill. Por Market Maker: tempo de cotação por ativo (% dos dias com bid+ask), spread
+  médio praticado, inventário vs. alvo. Visão agregada: liquidez por ativo (quem provê), concentração de
+  float por bot, bots parados (sem ordem há N rodadas) e Market Maker com caixa/posição esgotados.
+  `GET /admin/bots/{id}/activity` e `GET /admin/bots/summary`. Alerta visual nos dois casos críticos
+  (ativo sem cobertura, bot sem caixa).
+- **Critérios de aceite:** números batem com `market_events` (mesma fonte, nunca tabela paralela); bot sem
+  atividade aparece em "parados"; responsiva.
+- **Dependências:** N.1, N.2.
+- **Entregável (sessão 2026-10-03, PR 6 da Fase N):** **Motor:** modelos e fórmulas puras em `adminview/bots.go` (`BotActivity` com patrimônio, P&L e taxa de fill derivados, `MarketMakerQuote` com spread e inventário, `IsLowCash`, `LowCashRatio = 1%`) e leituras em `admin_bots_read_repository.go` sobre `order_book`, `market_events`, `positions` e `asset_quotes`; `GET /admin/bots/{id}/activity?days=` (padrão 30, máximo 365) e `GET /admin/bots/summary?idle_days=` (padrão 3, máximo 90), migration `000044` indexando `order_book (user_id, simulated_day)`. O resumo traz bots ativos parados, bots sem caixa, Market Maker sem ação de ativo coberto, liquidez em repouso por provedor (arquétipo ou `usuario`) e concentração de float (maior bot e todos os bots, em % das cotas). **Backend:** `BotAdmin` ganhou `activity` e `summary`, dois casos de uso de leitura (sem auditoria), duas rotas no `adminBotsRouter` com Zod nas queries (`/admin/bots/summary` declarada antes de `:id`). **Frontend:** na tela 10.10, painel `BotHealthPanel` (alertas tracejados, cada bot abre o desempenho; liquidez e concentração numa seção recolhível) e `BotActivityPanel` (expande abaixo da linha/cartão, janela de 7/30/90 dias), com `useAdminBotActivityQuery` e `useAdminBotsSummaryQuery`. **Decisões declaradas:** (1) **patrimônio, capital e P&L são acumulados desde a criação**, não da janela: o patrimônio de um dia passado exigiria reconstruir posições dia a dia; ordens, negócios e volume respeitam a janela; (2) **"tempo de cotação por ativo (% dos dias com bid e ask)" não foi entregue como histórico**: o `order_book` não guarda quando uma ordem terminou, então não é reconstruível sem tabela nova; a tela mostra a situação **atual** da cotação (melhor compra e venda do próprio Market Maker, spread e inventário contra o alvo provisionado). Se o autor quiser o histórico, é uma decisão nova (gravar um snapshot por dia); (3) "parados há N rodadas" virou **dias simulados** (a rodada não é gravada, a ordem tem o dia); (4) "ativo sem cobertura" continua no aviso que a N.2 já mostra, sem duplicar no resumo; (5) taxa de fill = quantidade executada sobre a enviada na janela (ordens abertas diluem a taxa, é a realidade da cotação contínua). **Validado ao vivo em `docker compose`** (72 bots ativos reais): o Market Maker `…0001` em 7 dias deu 101 negócios e R$ 6.805.929.376 de volume, idêntico à soma em `market_events`; resumo com 10 bots parados e 1 sem caixa, concentração e liquidez de 35 ativos; id inexistente `404`, backend `401` sem token. Testes: domínio, integração com Postgres descartável, rotas HTTP do motor, caso de uso, adapter e router do backend, componentes, página e serviço do frontend. `golangci-lint` (0 issues), `go build`, `go test ./...`, `npm run lint`, `npm run build`, `npm test` (backend) e `tsc`, oxlint, Prettier, build e 1024 testes (frontend) verdes.
+
+### N.15 · Editar personalidade do bot e provisionar caixa/posição ✅
+
+- **Descrição:** `PATCH /admin/bots/{id}` da N.1 só alterna `is_active` e `max_covered_assets`. Aqui:
+  ajustar arquétipo-parâmetros (`SpreadWidthPct`, agressividade, nível de conhecimento, escopo de
+  especialização; **a preferência por ordem a mercado NÃO é exposta**, ver achado 001, decidido em 2026-10-03:
+  o campo fica reservado e sem efeito) revalidando por
+  `NewRiskProfile`/`Personality`; e **aportar caixa ou posição** num bot (ex: Market Maker esgotado) como
+  evento imutável de alocação (mesmo tipo do `bot_initial_cash_event`/`bot_initial_allocation_event`),
+  respeitando o teto de float da achado 005. Nunca remove caixa/posição existente.
+- **Critérios de aceite:** parâmetro inválido recusado; aporte aparece no extrato do bot e em `market_events`;
+  mudança vale na rodada seguinte; auditado.
+- **Dependências:** N.1, N.4. Sem bloqueio (achado 001 decidido: o campo de preferência fica fora do painel).
+- **Entregável (sessão 2026-10-03, PR 6 da Fase N):** **Motor:** `PATCH /admin/bots/{id}` aceita a personalidade (`sectors`, `risk_classes`, `asset_classes`, `within_scope_pct`, `knowledge_level`, `max_position_size_pct`, `spread_width_pct`), montada pelos **mesmos construtores da criação** (`NewSpecializationScope`/`NewRiskProfile`/`NewPersonality`) a partir da personalidade atual, então qualquer recusa de domínio é `400` e nada é gravado; `UpdatePersonality` troca as colunas e **todas** as linhas de `bot_personality_scopes` numa transação (`insertScopeTx`, extraído de `createPersonalityTx`). A preferência por ordem a mercado **não existe** no `UpdateInput` (achado 001): o campo é descartado. Rota nova `POST /admin/bots/{id}/funding` (`botadmin.Service.Fund`): caixa e/ou posições, validados e valorizados pela última cotação (`FundingTarget`), gravados por `FundBot` como `bot_initial_cash` (sem ativo) e `bot_initial_allocation` (quantidade e cotação) **antes** de projetar saldo e posição (preço médio ponderado), com o teto de float validado depois de gravar e a transação inteira desfeita se estourar (`409`, `ErrFloatCeilingExceeded`). Só soma, nunca remove. **Backend:** `bot.fund` em `ADMIN_AUDIT_ACTIONS`, `FundAdminBotUseCase` (auditado), `bot.update` audita os campos de personalidade pedidos, rota `POST /admin/bots/:id/funding` e schemas Zod (`updateBotBodySchema` ampliado, `fundBotBodySchema`; um corpo só com `market_order_preference` é `400`). **Frontend:** na tela 10.10, ações **Editar** (diálogo `BotEditForm` com o escopo e os números atuais, envia só o que mudou, sem a preferência por ordem a mercado e com a nota do porquê) e **Aportar** (diálogo `BotFundingForm`: caixa e uma posição opcional, com o aviso do teto de float), `features/admin/botEdit` e `botFunding`, mensagem de `409` própria do aporte, rótulo `Aporte em bot` na auditoria. **Decisões declaradas:** (1) o aporte de **posição** é aceito pelo contrato mas, com o float de todo ativo 100% distribuído (B.1/P.2), é recusado em quase todo ativo; o caminho comum pra um Market Maker esgotado é o aporte de **caixa** (registrado em `pontos-em-aberto-decisao-produto.md`, achado 031, junto com o histórico de tempo de cotação da N.14); (2) o aporte entra como **capital aportado** no P&L da N.14, então não vira lucro; (3) a UI aporta no máximo uma posição por vez (a API aceita várias); (4) arquétipo, caixa e preferência por ordem a mercado não mudam pela edição. **Validado ao vivo em `docker compose`:** bot descartável criado (`…0002`), aporte de caixa R$ 2.500,50 (`bot_initial_cash`, saldo 12.500,50), aporte de posição em `SINT11` recusado com `409` **sem deixar rastro** (o caixa de R$ 777 do mesmo pedido não foi gravado), `404`, `400` (vazio, spread acima do teto, conhecimento em chartista, escopo vazio), edição de spread, posição máxima e setores (`bot_personality_scopes` com as duas linhas novas) com `market_order_preference` ignorado (continuou 0,5), P&L da N.14 em zero depois do aporte; o bot foi desativado em seguida. Testes: domínio (fake em memória), rotas HTTP, integração com Postgres descartável (eventos, preço médio, rollback do teto, escopo substituído, fluxo pelo serviço), caso de uso, adapter e router do backend, helpers, componentes e página do frontend. `golangci-lint` (0 issues), `go build`, `go test ./...`, `npm run lint`, `npm run build`, `npm test` (2322 no backend) e `tsc`, Prettier, build e 1063 testes (frontend) verdes.
+
+#### Bloco 6 — Usuários
+
+### N.16 · Gestão de usuários: busca, detalhe e suspensão ✅
+
+- **Descrição:** tela "Usuários" com busca por nome/e-mail/username/id, filtros (role, status, data de
+  cadastro, provedor de login) e paginação. Detalhe: dados de conta, provedores vinculados, onboarding,
+  nível/XP/streak, última atividade, ordens e posições resumidas (via motor), conquistas, amigos (contagem).
+  Ações: **suspender / reativar** conta (coluna `users.status`: `active` | `suspended`, `suspended_reason`,
+  `suspended_at`; login e todas as rotas autenticadas recusam conta suspensa com `403 account_suspended`;
+  conta suspensa sai do ranking e da busca de amigos, mas **não perde progresso**), **forçar logout**
+  (invalidar sessões: hoje JWT stateless, então requer `token_version` no usuário checado pelo
+  `authMiddleware`), e **solicitar redefinição de senha** (só se existir canal de e-mail, senão fora).
+  Excluir conta a pedido (LGPD, mesmo caminho do `DELETE /me`, com confirmação dupla). Admin **não** edita
+  perfil de terceiro nem promove/rebaixa `role` (CLAUDE.md). **Decisões do autor (2026-10-03, achado 029,
+  itens 3 e 4):** (a) o admin **vê o patrimônio absoluto** de qualquer usuário **sem auditar a leitura** (a RNF09
+  vale entre usuários, não pro administrador; a exceção está escrita no CLAUDE.md); (b) a **suspensão de conta
+  entra, na forma reversível**, como subtarefa separável no fim da N.16 (consulta, detalhe e exclusão LGPD
+  podem ser entregues antes). Suspender **não cancela** as ordens em repouso do usuário: o admin usa a N.10.
+- **Critérios de aceite:** usuário suspenso não loga nem usa token antigo; reativar restaura sem perda;
+  `role = admin` não pode ser suspenso pelo painel (evita se trancar fora); teste de middleware, caso de
+  uso e router; `.docs/backend/admin.md` e `auth.md` atualizados.
+- **Dependências:** N.4.
+- **Entregável (sessão 2026-10-03, PR 8 da Fase N):** **Banco:** migration `0020` em `users`: `status` (`active` | `suspended`, CHECK), `suspended_reason`, `suspended_at`, `token_version` (todo usuário existente nasce ativo, versão 0). **Sessão:** o JWT carrega `tokenVersion`; `authMiddleware` ganhou uma `SessionGuard` opcional (`UserSessionGuard`, uma leitura por chave primária, sem cache de propósito) que devolve `403 account_suspended` para conta suspensa e `401 sessão encerrada` para versão de token antiga. Token anterior à tarefa vale como versão 0, então ninguém é deslogado pela migração. Login por senha e por Google recusam conta suspensa (`403 account_suspended`, checado **depois** da senha, pra não revelar a suspensão a quem erra); no Google o callback redireciona com `#error=account_suspended`. `DELETE /me` também revoga sessões. **Leitura (módulo `admin`):** `GET /admin/users` (busca por nome, e-mail, username ou id exato; filtros de papel, status, provedor, data de cadastro; paginação; `%` e `_` literais; provedores só da página, uma consulta) e `GET /admin/users/:id` (conta, provedores, progressão e "última atividade", conquistas, amigos, **patrimônio absoluto** lido do saldo atual do motor pelo mesmo leitor de estado do ranking, posições com quantidade > 0, até 10 ordens abertas pela consulta da N.10, e a linha do tempo de ações do painel sobre a conta via novos filtros `targetType`/`targetId` do log). Motor fora do ar devolve `portfolio`/`open_orders` nulos sem derrubar o detalhe. A leitura do patrimônio não é auditada (decisão do autor). **Ações:** `POST /admin/users/:id/suspend` (motivo 3 a 500 caracteres; revoga sessões), `/reactivate`, `/force-logout` (`token_version + 1` atômico) e `DELETE /admin/users/:id` (LGPD: mesmo `AnonymizeAccountUseCase` do `DELETE /me`, confirmação dupla = senha recente + username digitado, log só com o id). Suspender, forçar logout e excluir exigem senha recente (N.22); admin não é suspenso nem excluído pelo painel (`422 admin_account_protected`); suspender não cancela ordens (usa-se a N.10). Ações novas em `ADMIN_AUDIT_ACTIONS`: `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`. Conta suspensa sai do ranking (`listAll`) e da busca de amigos, sem perder progresso. **Frontend:** seção Usuários (`/admin/usuarios`) com lista filtrável e detalhe (`/admin/usuarios/:id`) com cartões de conta, progressão, carteira, ordens abertas (atalho pra tela de Ordens filtrada pelo dono) e linha do tempo, ações com `ConfirmDialog` (novo `confirmDisabled`), `SuspendUserDialog` e exclusão digitando o username, todas pelo `withReauth` da N.22 (reativar não pede); o cliente HTTP trata `403 account_suspended` como fim de sessão, e Login e AuthCallback mostram mensagem própria. **Fora de escopo, por decisão:** "solicitar redefinição de senha" (não há canal de e-mail). **Achado de infraestrutura:** o migrador do drizzle só aplica migrations com `when` maior que o da última aplicada, e a `0019` (escrita à mão na N.24) tem um `when` no futuro; a `0020` gerada ficou com `when` menor e foi **ignorada em silêncio** num banco já migrado (passou limpa em banco novo). Corrigido com `when` posterior no `_journal.json`; quem gerar migration nova precisa conferir isso. **Suíte e2e:** `reauth_required` quebrava as jornadas longas (token de admin com mais de 5 min), então `support/tick.ts` relogina como admin e repete. **Validado ao vivo em `docker compose`:** busca e detalhe com patrimônio de R$ 10.000, suspender, token antigo `403`, login `403`, suspender admin `422`, reativar, token antigo `401` (sessão revogada) e login novo `200`, forçar logout (token novo `401`), excluir com username errado `422` e certo `204`, linha do tempo com as cinco ações. Telas conferidas no navegador. Testes: guarda, middleware, JWT, login/Google, casos de uso, router (supertest), adapters com Postgres descartável (`TEST_DATABASE_URL`, `--no-file-parallelism`: diretório de usuários, repositório, ranking, busca de amigos), e no frontend helpers, organismos, páginas, cliente, Login e AuthCallback. `npm run lint`, `build`, `npm test` (2445 + 12 de integração) no backend; `tsc`, `oxlint`, build e 1136 testes no frontend.
+
+### N.17 · Correções manuais de conta de usuário ✅
+
+- **Descrição:** ferramentas de suporte, todas auditadas; motivo obrigatório nos ajustes de gamificação
+  (**ajustar XP/streak** com `reason`, via o caso de uso de gamificação, nunca update direto; **conceder ou
+  revogar conquista** manualmente; **marcar lição como concluída/reabrir**) e **opcional no crédito**.
+  **Crédito de caixa** (decisão do autor, 2026-10-03, achado 029 item 5): o admin pode **adicionar dinheiro
+  simulado na conta de qualquer usuário, sem teto**, pra uso excepcional (reparar prejuízo causado por bug,
+  preparar conta de demonstração). Evento imutável `admin_credit` em `market_events` (Event Sourcing), com
+  rótulo próprio no extrato, nunca confundido com salário. Validações mínimas: valor finito e maior que zero;
+  a UI usa o `ConfirmDialog` mostrando o valor formatado, pra um erro de digitação não virar milhões.
+  **Efeito no ranking:** nenhum direto. A rentabilidade do ranking (`investmentReturnPct`, T.1) é calculada só
+  sobre capital de risco, nunca sobre caixa parado, então o crédito não infla o retorno; se o usuário investir o
+  valor, ganho e perda contam normalmente. **Verificar na implementação:** a reconstrução de patrimônio do
+  ranking (`modules/ranking/domain/networth.ts`) não tem `case` para `salary_payment` e passará a não ter para
+  `admin_credit`, então o `cash` desse snapshot ignora os dois; o patrimônio mostrado ao admin na N.16 deve vir
+  do saldo atual da conta no motor, não dessa reconstrução. **Resetar carteira** fica **fora** (apagaria histórico imutável e conflita com
+  RNF06); alternativa registrada: suspender e criar conta nova. Cada ação aparece na linha do tempo do
+  usuário no detalhe da N.16.
+- **Critérios de aceite:** ajuste de gamificação sem motivo é recusado; crédito (sem teto) aparece no extrato do
+  usuário com rótulo próprio e é auditado com valor, usuário e motivo se houver; valor zero, negativo, `NaN` ou
+  infinito é recusado; o crédito não altera a rentabilidade do ranking; teste por ação.
+- **Dependências:** N.4, N.16.
+- **Entregável (sessão 2026-10-03, PR 9 da Fase N):** **Motor:** evento imutável `admin_credit` (migration `000047`, `EventAdminCredit`), `account.Service.AdminCredit` (valor finito, arredondado a centavos, positivo, no máximo `MaxAdminCredit` = R$ 1 trilhão, que é limite **físico** da coluna `numeric(15,2)` e não teto de negócio, decisão do autor "sem teto") e `AccountRepository.AdminCredit` (grava o evento antes de projetar o saldo, mesma transação; conta inexistente desfaz o evento; estouro da coluna, SQLSTATE `22003`, vira `ErrBalanceOverflow`), rota `POST /admin/accounts/{user_id}/credit` (`200 { user_id, credited }`, `400`, `404`, `422`). Nunca toca `total_invested`/`total_disinvested`/`total_dividends_received`, então não altera a rentabilidade. **Backend:** `POST /admin/users/:id/credit|xp|streak`, `POST /admin/users/:id/achievements/:achievementId/grant|revoke`, `POST /admin/users/:id/lessons/:lessonId/complete|reopen` e `GET /admin/users/:id/corrections` (seletores de conquistas e lições do usuário), todas com papel admin, **senha recente** (as mutações) e auditoria (`user.credit`, `user.adjust_xp`, `user.set_streak`, `user.grant_achievement`, `user.revoke_achievement`, `user.complete_lesson`, `user.reopen_lesson`, com motivo, e no crédito o valor pedido e o creditado). Motivo obrigatório (3 a 500) em tudo menos no crédito, onde é opcional. Cada ação passa pelo caso de uso do módulo dono do dado, nunca update direto: `AdjustProgressionUseCase` (gamificação: XP com sinal, nível sempre recalculado do total, total nunca abaixo de zero, streak definido com `longest_streak` só subindo, conquistas reavaliadas), `GrantAchievementUseCase`/`RevokeAchievementUseCase` (conquistas, `AchievementRepository.revoke` novo) e `MarkLessonCompletedUseCase`/`ReopenLessonUseCase` (lições). Painel (módulo `admin`): portas `UserCashCreditor` (adapter do motor) e `UserCorrections` (adapter em processo, que traduz as recusas dos três módulos), casos de uso `CreditUserCashUseCase` e as seis correções, router `adminUserCorrectionsRouter`. **Frontend:** organismo `AdminUserCorrections` no detalhe do usuário (crédito com `ConfirmDialog` mostrando o valor formatado, XP, streak, conquistas, lições; 1 coluna no mobile, 2 no tablet, 3 no desktop), hooks `useUserCorrections`, parsing de valor com vírgula decimal e ponto de milhar, rótulos novos na auditoria. **Verificação feita:** `modules/ranking/domain/networth.ts` ignora `salary_payment` e `admin_credit` no `cash` do replay (e nenhum dos dois entra em `investedCost`), então a rentabilidade do ranking não muda (teste novo); o patrimônio do admin vem do saldo atual do motor. **Decisões declaradas:** (1) **concluir lição não dá XP**, não toca streak, missão nem feed (o XP, se devido, é um ajuste separado e auditado) e pula o gate de passos e de desbloqueio; (2) **reabrir** limpa a conclusão e volta pro passo 0, mantendo a escolha da micro-decisão e o XP já dado, e como a progressão conta lições satisfeitas, reabrir no meio da trilha tira o acesso à última que ela liberou até concluí-la de novo (avisado na tela); (3) streak definido na mão conta como "vivo hoje" (`last_qualifying_activity_date` = hoje UTC), senão o próximo toque o reiniciaria em 1, e zero limpa a data; (4) **todas** as mutações exigem senha recente, inclusive conceder conquista e concluir lição, por serem correções raras de suporte; (5) crédito sem teto de negócio, só o limite físico de R$ 1 trilhão por operação (mesmo valor de `botadmin.MaxInitialCash`). **Achado registrado:** 032 em `pontos-em-aberto-decisao-produto.md` (revogar conquista que o usuário ainda cumpre é revertido pela próxima checagem). **Fora de escopo, por decisão do backlog:** resetar carteira. **Validado ao vivo** com motor e backend deste worktree em portas e bancos descartáveis (a stack do Compose pertence ao checkout principal e uma migration nova não deve rodar no banco de desenvolvimento dele sem o autor pedir): crédito de R$ 2.500,504 virou R$ 2.500,50, saldo no motor 12.500,50 com `total_*` zerados, extrato com `admin_credit`, valor zero, negativo, texto e acima do limite recusados (`400`/`422`) sem alterar o saldo, XP `+350` (nível 3) e `-5000` recusado (`422`), streak 8 que concedeu sozinha a conquista de 7 dias na checagem seguinte, conceder/revogar/repetir (`204`/`409`), concluir/reabrir/repetir (`204`/`409`) e a linha do tempo do detalhe com cada ação (sucesso e falha). Testes: domínio, repositório com Postgres descartável e rota HTTP no motor; casos de uso, adapters, router (supertest) e regressão do replay do ranking no backend; organismo, hooks auxiliares, cliente e página no frontend. `golangci-lint` (0 issues), `go build`, `go test ./...`, `npm run lint`, `build` e `npm test` (2517 + 12 de integração) no backend, `tsc`, `oxlint`, build e 1185 testes no frontend.
+
+#### Bloco 7 — Conteúdo e gamificação
+
+### N.18 · Trilha e lições: métricas e publicação
+
+- **Descrição:** tela "Conteúdo" listando as 35 lições (trilha, ordem, tipo, pré-requisito) com **funil**
+  por lição (iniciaram, concluíram, tempo médio, taxa de acerto da aposta/micro-decisão, abandono no passo
+  N) — base pra calibrar conteúdo (achado 020, engajamento) — e **publicar/despublicar** (nova coluna
+  `lessons.published`, padrão `true`; lição despublicada some da trilha sem apagar progresso). **A regra de
+  despublicar no meio da trilha usa a progressão da N.24**: hoje, com a progressão por contagem, despublicar
+  uma lição que o usuário ainda não fez **trava** a trilha dele (as seguintes exigem uma contagem que ele não
+  alcança) e despublicar uma que ele fez o faz **pular** uma lição. Edição e criação de lição ficam na **N.23**
+  (decisão do autor de 2026-10-03: o banco é a fonte da verdade do conteúdo).
+- **Critérios de aceite:** funil bate com `user_lesson_progress`; despublicar lição no meio da trilha não
+  quebra o desbloqueio das seguintes (regra definida e testada); auditado.
+- **Referências:** `backlog-engajamento-gamificacao.md` (D.0/D.1 dependem de dado de produção — esta
+  tela é a fonte).
+- **Dependências:** N.4; **N.24** para publicar/despublicar (o funil não depende dela).
+
+### N.23 · Lições no banco como fonte da verdade: editor e criação
+
+- **Descrição:** decisão do autor (2026-10-03, achado 029 item 6): o conteúdo das lições passa a viver no
+  banco e o admin edita e cria lições pelo painel, em vez de mexer em `seedLessons.ts`. Peças: (1) **o seed
+  vira só importação inicial**: `upsertLessonSeed` deixa de usar `onConflictDoUpdate` e passa a inserir apenas
+  o que falta (por `stable_key`), nunca sobrescrevendo conteúdo editado; `seedLessons.test.ts` é reescrito pra
+  esse comportamento; CLAUDE.md e a spec (seção 5) passam a dizer que o banco é a fonte. (2) **Editor** (tela
+  `/admin/conteudo/:id`): `title`, `central_concept`, `scenario_text`, `micro_decision_prompt`,
+  `micro_decision_type` (+ `micro_decision_asset_ticker` quando `live_indicator`), `micro_decision_options` e
+  opção correta, `revelation_text`, `unlocks_description`, `unlocks_keys` (vocabulário fechado: `portfolio`,
+  `calculator`, `news_feed`, `asset:<AssetType>`) e `unlocks_asset_ticker`, com **pré-visualização** que renderiza
+  a lição como o usuário a vê. (3) **Validação de domínio compartilhada** (extrair do que o seed já assume):
+  aposta exige 2+ opções e índice correto dentro da faixa; `live_indicator` exige ticker que exista no catálogo
+  (consulta ao motor por porta); `asset:*` em `unlocks_keys` exige `unlocks_asset_ticker`; limites de tamanho de
+  texto; **aviso (não bloqueio)** se o texto tiver travessão como pontuação (regra de copy do produto).
+  (4) **Histórico de revisões** (`lesson_revisions`, append-only, com snapshot do conteúdo, admin e data) e
+  "restaurar versão" — sem isso o banco perde o histórico que o git dava. (5) **Criar lição** nova, com
+  `stable_key` gerada e imutável; **onde ela pode entrar na ordem depende do achado 030** (progressão por
+  contagem); **decisão do autor (2026-10-03, achado 030): pode entrar no meio**, e quem já avançou além daquele
+  ponto não é bloqueado, regra implementada na **N.24**. Sem exclusão de lição (só despublicar).
+  `trackNumber`, `stable_key`, `code` e `sort_order` de lição existente não são editáveis aqui.
+- **Critérios de aceite:** reexecutar o seed não desfaz edição feita pelo painel; edição inválida recusada
+  com a mensagem do domínio; cada edição, criação e restauração gera revisão e linha de auditoria (novas
+  ações `lesson.update`, `lesson.create`, `lesson.restore`); preview idêntico à tela da lição; criar uma lição
+  no meio não altera o acesso de nenhum usuário que já havia passado daquele ponto (garantido pela N.24).
+- **Referências:** achado 010 (renumeração e arrasto de progresso: o mesmo risco), achado 030;
+  `modules/lessons/domain/lesson.ts` (`isUnlocked`, `unlockedKeysFor`).
+- **Dependências:** N.4, N.18 (coluna `published`); **N.24** para criar lição (a edição de lição existente não
+  depende dela e pode sair antes).
+
+### N.24 · Progressão com dispensa: lição nova no meio sem bloquear quem já passou ✅
+
+- **Descrição:** decisão do autor (2026-10-03, achado 030): lição nova pode entrar **no meio** do currículo; quem
+  já avançou além daquele ponto **não é bloqueado** por ela, e quem ainda não chegou é bloqueado normalmente.
+  Hoje a progressão é por contagem (`isUnlocked`: `sortOrder <= completedCount + 1`), então inserir no meio
+  desloca o acesso de todos. Peças: (1) **dispensa**: coluna `user_lesson_progress.waived_at` (nullable); uma
+  lição dispensada não tem `completed_at`, mas não bloqueia a sequência. (2) **Na criação**, numa transação,
+  cada usuário que já tinha concluído a posição de inserção ou além recebe uma linha de dispensa pra lição
+  nova; quem estava exatamente nessa posição (próxima a fazer) ou antes não recebe, e é bloqueado por ela.
+  (3) A progressão passa a ser calculada **sobre as lições publicadas**: posição = índice entre as publicadas e
+  "satisfeitas" = concluídas ou dispensadas; isso substitui `completedCount` em `getTrackMap`, `getLesson`,
+  `advanceLesson` e `getUnlockedProductKeys`, enquanto `countCompleted` (XP, conquistas, missões) continua
+  contando só lições **realmente concluídas**. (4) `sort_order` das lições seguintes é renumerado na mesma
+  transação (coluna única). (5) A mesma regra resolve **despublicar** (N.18): lição despublicada sai da conta pra
+  todos, sem travar nem pular ninguém. **Regras de detalhe (decididas pelo autor em 2026-10-03):** lição dispensada **concede as chaves de produto**
+  dela mesmo sem ter sido feita (quem já passou daquele ponto provavelmente já viu o conteúdo, a lição é um
+  complemento), então `unlockedKeysFor` conta dispensadas como satisfeitas, sem tratamento à parte; a lição
+  aparece no mapa como "nova, opcional" e o usuário pode fazê-la quando quiser; dispensa **não dá XP** (só a
+  conclusão real dá); para "trilha concluída", dispensada conta como satisfeita, então um troféu já conquistado
+  não regride.
+- **Critérios de aceite:** teste table-driven provando que, pra cada contagem de concluídas de 0 a 35, inserir
+  uma lição na posição k deixa o acesso de quem já passou de k **idêntico ao de antes** e bloqueia quem estava em
+  k ou antes; despublicar uma lição no meio não trava a trilha de quem não a fez nem faz pular quem a fez;
+  XP, conquistas, missões e ranking não mudam; usuário dispensado de uma lição que desbloqueia produto continua com
+  o produto liberado; `backend/test/e2e/` continua passando; migration reversível.
+- **Referências:** achado 010 (renumeração arrastando progresso), achado 030; `modules/lessons/domain/lesson.ts`
+  (`isUnlocked`, `unlockedKeysFor`, `countCompleted`).
+- **Dependências:** nenhuma de painel (é backend de lições). **Refatoração do núcleo da progressão: fazer em PR
+  próprio, antes da N.18 (publicar) e da N.23 (criar lição).**
+- **Entregável (sessão 2026-10-03, PR 4):** migration `0019_add_lesson_progress_waived_at` (coluna nullable
+  `user_lesson_progress.waived_at`, sem backfill, reversível por `DROP COLUMN`; é `0019` e não `0018` porque a branch do
+  PR 1 já ocupa a `0018`, então este PR foi empilhado sobre a branch do PR 3). Domínio (`modules/lessons/domain/lesson.ts`):
+  `isSatisfied` (concluída ou dispensada), `buildProgression(lessons, progress)` (fonte única da regra: posição = índice na
+  lista recebida, `satisfiedCount` conta só lições da lista) e `shouldWaiveInsertedLesson(satisfiedCount, posição)`;
+  `isUnlocked`, `lessonStatus`, `buildLessonView` e `unlockedKeysFor` passaram a usá-los. `getTrackMap`, `getLesson`,
+  `advanceLesson` e `getUnlockedProductKeys` trocaram `completedCount` por `buildProgression`; `countCompleted` (XP,
+  conquistas, missões) segue contando só conclusão real. Trilha concluída e conquista de trilha sem erro tratam dispensada
+  como satisfeita (troféu não regride). `GET /lessons` ganhou `waived` (dispensada e ainda não feita). Frontend: espelho
+  de `unlockedKeysFor`/`nextUnlockFor` agora conta `completed` ou `waived` e usa o índice na lista. Testes: tabela de
+  36 contagens x 36 posições de inserção provando "quem passou de k fica idêntico, quem estava em k ou antes é bloqueado",
+  despublicação com lacuna (não trava nem faz pular), dispensa que concede chaves, XP uma única vez ao fazer a dispensada.
+  Validado ao vivo: migração subiu sobre o banco com 68 linhas de progresso reais (nenhuma alterada) e um usuário com
+  dispensa plantada viu a lição `available`+`waived`, a seguinte liberada, e XP 50 só ao concluir.
+  **Deixado pra N.23/N.18, de propósito:** a transação de criação de lição (inserir linhas de dispensa e renumerar
+  `sort_order`, atenção ao `UNIQUE (sort_order)`, que exige deslocar em duas passadas) e o filtro de publicadas em
+  `listAll` (coluna `published`); o selo "nova, opcional" no Mapa da Trilha (o dado `waived` já chega no frontend).
+
+### N.19 · Conquistas e missões diárias: catálogo operável ✅
+
+- **Descrição:** tela "Gamificação" com o catálogo de **conquistas** (listar, criar, editar nome/descrição/
+  ícone/XP, ativar/desativar; critério de desbloqueio selecionado de uma lista fechada de regras
+  implementadas, nunca expressão livre) e de **missões diárias** (`daily_missions`: texto, tipo, meta, XP,
+  ativa; sorteio do dia usa só as ativas), com **quantos usuários** concluíram cada uma. Desativar nunca
+  remove o que o usuário já ganhou. Ranking: ver janela atual (semana/mês), top N e **recalcular/fechar
+  janela** manual só se houver caso de uso (senão somente leitura).
+- **Critérios de aceite:** missão desativada não é sorteada no dia seguinte; conquista desativada não
+  concede mais e não revoga as concedidas; teste de regra de elegibilidade; auditado.
+- **Dependências:** N.4.
+- **Entregável (sessão 2026-10-03, PR 9 da Fase N):** **Banco:** migration `0021`: `achievements.is_active` e `daily_missions.is_active` (default `true`, tudo que existe nasce ativo) e `achievements.seed_key` (única, nula nas criadas pelo painel), com backfill das 11 conquistas do seed pelo nome. `seed_key` existe porque o painel agora edita o nome e o `db:seed:achievements` casava por nome: sem ela, renomear gerava duplicata a cada seed; o seed agora casa por `seed_key` e só insere. **Conquistas** (módulo `achievements`): `domain/catalog.ts` com a **lista fechada** de 7 regras (`ACHIEVEMENT_CRITERIA`: rótulo e tipo de meta, inteira ou em reais com no máximo duas casas) e `validateAchievementDraft` (nome 1 a 100, descrição até 255, meta positiva até R$ 1 trilhão, nome único sem diferenciar caixa); `ListAchievementCatalogUseCase` (com quantos usuários ganharam cada uma), `CreateAchievementUseCase`, `UpdateAchievementUseCase` (valida o **estado final**). `CheckAndUnlockAchievementsUseCase` ignora conquista desativada e `ListAchievementsUseCase` a esconde de quem não a tem, mas ela continua na lista e no perfil público de quem ganhou: **desativar nunca remove**, e mudar meta ou regra só vale pras próximas concessões. **Missões** (módulo `missions`): `MissionRepository.listCatalog()` devolve só as ativas (é o conjunto do qual o dia é montado, então missão desativada **não é sorteada nem ganha linha de progresso**), `listAll`, `update`, `countCompletions` (usuários distintos no total e no dia); `ListMissionCatalogUseCase`, `UpdateMissionUseCase` (título, descrição, XP de 1 a 500, liga/desliga) e `missionVerification` (`lesson_completion`, `server_check` ou `client_reported`, só leitura); `CompleteMissionUseCase` devolve `404` para missão desativada. **Painel:** `GET/POST/PATCH /admin/gamification/achievements`, `GET/PATCH /admin/gamification/missions` e `GET /admin/gamification/ranking`; editar é auditado (`achievement.create`, `achievement.update`, `mission.update`, só com o que foi pedido) e **não pede senha recente** (não apaga dado de ninguém); portas `GamificationCatalogAdmin` e `AdminRankingReader` com adapters em processo que traduzem as recusas dos módulos (`404`, `409`, `422 invalid_catalog_entry`). **Ranking só leitura, por decisão do backlog ("só se houver caso de uso"):** é calculado na hora sobre a janela fixa, sem estado gravado, então não existe janela pra fechar nem recalcular; a rota devolve a janela corrente com início e fim (UTC), por critério, paginada, só nível, XP e rentabilidade percentual (nunca patrimônio, RNF09). **Frontend:** tela `/admin/gamificacao` (10.15) com três abas que só consultam quando abertas (organismos `AdminAchievementsPanel`, `AdminMissionsPanel`, `AdminRankingPanel`; tabela no tablet e no desktop e cartões no mobile, desativada com borda tracejada), seção "Gamificação" do menu habilitada, hooks `useGamificationCatalog`, formulário de conquista com a regra escolhida numa lista e meta validada pelo tipo, confirmação ao desativar explicando que ninguém perde o que ganhou. **Decisões declaradas:** (1) **sem criar missão nova** e sem editar o tipo (cada tipo de conferência é código, e uma missão nova sem conferência seria XP de graça); (2) **sem ícone nem XP por conquista** (o modelo não tem, e XP ao desbloquear muda a economia de XP e cria laço com a checagem), registrado como achado 033; (3) missão desativada some na hora, inclusive pra quem já tinha a linha de hoje, e não pode ser concluída, mas quem já concluiu mantém XP e streak; (4) o inventário de telas ganhou 10.13 (Usuários), 10.14 (Detalhe, com as correções da N.17) e 10.15 (Gamificação). **Achado de infraestrutura:** o script de build do backend (`cp -r src/db/migrations dist/db/migrations`) copia **para dentro** da pasta quando `dist` já existe, então um `dist` reaproveitado roda migrations velhas em silêncio (num build limpo, como o do Docker, não acontece); a validação ao vivo precisou de `rm -rf dist` antes do `npm run build`. **Migração conferida em banco já migrado:** o `when` do journal da `0021` foi posto acima do da `0020` (o gerado ficava abaixo e seria ignorado em silêncio, mesmo problema da N.16), e a conferência foi num banco migrado até a `0020` com conquistas e missões antigas: a `0021` aplicou, o backfill preencheu só as do seed e a criada antes ficou intacta. **Validado ao vivo** com backend e motor deste worktree em portas e bancos descartáveis: criar conquista (`201`), meta fracionada `422`, nome repetido `409`, regra fora da lista `400`; renomear conquista do seed e rodar o seed de novo sem duplicar; usuário com streak 8 ganhou a conquista de 7 dias, desativada ela passou a não ser concedida a outro usuário (streak 10) e a sumir pra ele, enquanto o usuário que já tinha continuou com ela na lista e no perfil público e a contagem do catálogo seguiu 1; missão `feed_read`: concluída por um usuário (30 XP, contagem 1 e 1 hoje), XP editado pra 45, XP `0` e `501` `422`, `1.5` e corpo vazio `400`, desativada saiu da lista de outro usuário sem criar linha de progresso, `POST /missions/:id/complete` `404`, o histórico de quem concluiu ficou, reativada voltou; ranking da semana (com início e fim) e por nível, sem `window` `400`, usuário comum `403`, sem token `401`; auditoria com sucesso e falha de cada ação. Testes: domínio (catálogo de conquistas e de missões), casos de uso (incluindo "desativada não concede e não revoga" e "não é sorteada nem concluída"), repositórios com Postgres descartável (`TEST_DATABASE_URL`, `--no-file-parallelism`), adapters, router (supertest) e, no frontend, os três painéis, a página, helpers e cliente. `npm run lint`, `build` e `npm test` (2584 + 20 de integração) no backend, `tsc`, `oxlint`, build e 1248 testes no frontend.
+
+#### Bloco 8 — Sistema
+
+### N.20 · Comunicados globais e modo de manutenção
+
+- **Descrição:** `announcements` (título, texto curto, severidade info/aviso/crítico, início/fim,
+  `dismissible`) criados no painel e exibidos como faixa no topo do app do usuário (e no WebView do app
+  mobile, sem código nativo). **Modo de manutenção** liga um aviso crítico e pode, opcionalmente, acionar
+  a pausa global da N.9. Serve pra avisar "vamos avançar N dias do mercado", "evento extraordinário" ou
+  "manutenção às 22h".
+- **Critérios de aceite:** comunicado fora da janela não aparece; usuário dispensa e não vê de novo na
+  sessão; texto passa por limite de tamanho e escape (sem HTML); testes de caso de uso e componente; sem em
+  dash no texto de UI (feedback do autor).
+- **Dependências:** N.4, N.9 (só pro vínculo com a pausa).
+
+### N.21 · Integridade financeira e relatórios exportáveis
+
+- **Descrição:** como o Event Sourcing é a fonte da verdade, o painel precisa poder **provar que o estado
+  bate com o histórico**. Verificação sob demanda (`POST /admin/integrity/check`, assíncrona se passar de
+  alguns segundos): reconstruir saldo e posição por conta a partir de `market_events` e comparar com
+  `accounts`/`positions`; conferir que a soma de caixa+ações em circulação bate com o float
+  (`outstanding_shares`); detectar ordem em repouso sem reserva (achado 015) e saldo negativo. Resultado com
+  lista de divergências, **somente leitura** (corrigir é decisão humana, não botão). Exportação **CSV** de
+  usuários (sem hash de senha nem patrimônio absoluto por padrão), ordens, eventos de mercado e log de
+  auditoria, com filtro de período, limitada em linhas.
+- **Critérios de aceite:** banco consistente retorna zero divergências; divergência plantada em teste de
+  integração é encontrada e listada; CSV respeita as mesmas regras de privacidade (RNF09, LGPD) e é
+  auditado como ação.
+- **Dependências:** N.4, N.16.
+
+### N.22 · Segurança do próprio painel ✅
+
+- **Descrição:** o painel concentra poder; proteger. Limite de taxa específico em `/admin/*`, cabeçalho
+  `Cache-Control: no-store` nas respostas admin, token de admin com **expiração curta** (reautenticação
+  pedida pra ações destrutivas: senha de novo antes de suspender, pausar tudo, avançar N dias, cancelar em
+  lote), registro de login/falha de admin no `admin_audit_log` e documentação de como criar/revogar admin
+  (seed manual, runbook em `.docs/`). 2FA fica fora (registrado como Fase 2).
+- **Critérios de aceite:** ação destrutiva sem reautenticação recente devolve `401 reauth_required`;
+  excesso de requisições devolve `429`; teste de middleware e do fluxo de reautenticação no frontend.
+- **Dependências:** N.3, N.4.
+- **Entregável (sessão 2026-10-03, PR 8 da Fase N):** **Token:** `TokenIssuer` ganha o claim `authTime` (momento da conferência da senha; `issue` assume agora, `verify` cai no `iat` para token antigo) e a expiração passa a depender do papel: **2 h para admin, 7 dias para usuário**. **Reautenticação:** `POST /auth/reauth` (`ReauthenticateUseCase`, rota no `authRouter`, limitada a 10 tentativas em 5 min por IP) confere a senha de quem já está logado e devolve token novo com `authTime` fresco; conta sem senha local recebe `401`. **Middleware:** `requireRecentAuth(maxAge = 5 min)` em `shared/http/authMiddleware.ts`, aplicado depois do `requireRole` (usuário comum continua vendo `403`) e antes de qualquer efeito ou auditoria em `POST /admin/tick`, `/admin/tick/advance`, `/admin/scheduler/pause`, `/admin/halts` (pausa) e `/admin/orders/cancel-batch`; devolve `401 { error: "reauth_required" }`. Retomar temporizador e levantar pausa não pedem senha. **Transversal:** `Cache-Control: no-store` em tudo sob `/admin` (`noStore`), limite de **600 req/min por IP** (`createRateLimiter`, janela fixa em memória, sem dependência nova; `trust proxy` = 1 porque o gateway nginx fica na frente e sem isso todo cliente cairia no mesmo balde). **Auditoria de sessão:** porta `AdminSessionAuditor` no `auth` (o `auth` não importa o `admin`), adapter `auditLogAdminSessionAuditor` grava `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed` (só para contas admin; falha de gravação nunca derruba o login). **Frontend:** o cliente HTTP não trata `reauth_required` como sessão expirada (nem 401 de `keepSessionOn401`); `AdminReauthProvider` (montado no `AdminShell`) expõe `withReauth(run)`: tenta, se vier `reauth_required` abre o `ReauthDialog` (reusa o `ConfirmDialog`), chama `/auth/reauth`, troca o token da sessão sem refazer `GET /auth/me` e repete a ação uma vez; cancelar rejeita com `ReauthCancelledError`. Os hooks de pausar temporizador, tick, avançar dias, pausar negociação e cancelar em lote passam por `withReauth`; rótulos novos na tela de Auditoria. **Runbook** de criar e revogar admin em `.docs/backend/admin.md`. **Decisões declaradas:** (1) login do admin por Google não existe na prática (admin nasce de seed com senha), e um token vindo do Google teria `authTime = agora` sem senha conferida; fica como está; (2) 2FA segue fora (Fase 2); (3) o limitador é em memória, com a nota de migrar para Redis se o backend virar réplicas. **Validado ao vivo em `docker compose`:** admin de teste criado por seed, login responde `Cache-Control: no-store`, pausa com `authTime` de 11 min atrás devolve `401 reauth_required`, reauth com senha errada `401`, com a certa devolve token que libera a pausa (`200`) e a retomada, 8 tentativas seguidas e depois `429`, e as entradas `admin.reauth_failed` aparecem em `GET /admin/audit-log`. Testes: JWT (claims e TTL por papel), middleware (janela e janela customizada), limitador e `no-store`, casos de uso de login e reautenticação, adapter de auditoria, rota `/auth/reauth`, um teste de `reauth_required` por rota destrutiva, cliente HTTP, `ReauthDialog` e `AdminReauthProvider`. `npm run lint`, `build`, `npm test` (2408) no backend; `tsc`, build e 1104 testes no frontend.
+
+#### Plano de PRs da Fase N (ordem linear de execução)
+
+Criado em 2026-10-03, reagrupado e **ordenado em sequência única** no mesmo dia, a pedido do autor ("pode ajustar a ordem
+como achar melhor, eu mando sempre fazer o próximo"). **Como escolher o próximo PR: é o primeiro da tabela sem ✅ no
+Estado.** Os números já são a ordem de execução; não pule, salvo instrução do autor.
+
+**Ao fazer um PR:** (1) branch nova a partir da `main` atualizada, com o nome `fase-n-pr<número>-<tema>` (se o PR anterior
+ainda não foi mesclado e há dependência, partir da branch dele e dizer isso ao autor); (2) **um commit por tarefa** do PR,
+na ordem em que aparecem na coluna Tarefas; (3) cada tarefa segue o checklist do CLAUDE.md da camada que toca (backend
+Node e/ou engine Go), inclusive `.docs/`, testes junto e validação em `docker compose` (ver nota de ambiente abaixo);
+(4) ao terminar cada tarefa, marcar ✅ no título dela e registrar o **Entregável** nesta fase, e ao terminar o PR marcar ✅
+no Estado da tabela; (5) a descrição do PR lista cada tarefa e o passo de validação dela; (6) regra transversal 1: todo
+PR que muda estado adiciona a ação em `ADMIN_AUDIT_ACTIONS` e chama `RecordAdminActionUseCase.run`; (7) PRs que mexem em
+caminho crítico (3, 4, 8) pedem `/code-review` e a suíte e2e (`backend/test/e2e/`) antes de mesclar; os que podem pesar no
+tick (5, 11) medem o tick com o catálogo sintético (projetar pro crescimento); (8) fim de PR: `git push` e abrir o PR só
+se o autor pedir.
+
+| PR | Estado | Tema | Tarefas (um commit cada, nessa ordem) | Camadas | Depende de | Como validar sozinho |
+|---|---|---|---|---|---|---|
+| **1** | ✅ feito, aguardando merge | Fundação | N.3 shell, N.4 auditoria, N.6 Tempo | engine, backend, frontend | nenhuma | branch `fase-n-painel-admin-shell-auditoria-tempo`, validada ao vivo |
+| **2** | ✅ feito, aguardando merge | Leituras | N.5 Visão geral e saúde, N.8 Monitor do mercado | engine, backend, frontend | PR 1 | cards e tabelas batem com o mercado público; derrubar o Redis mostra "fora" sem quebrar a tela |
+| **3** | ✅ feito, aguardando merge | Controle do book | N.10 Cancelar ordens como admin, N.9 Pausa de negociação | engine (caminho de ordem e rodadas de bot), backend, frontend (inclui o aviso ao usuário) | PR 2 | cancelar libera a reserva; ordem de usuário e de bot recusada na pausa e aceita depois |
+| **4** | ✅ feito, aguardando merge | Progressão de lições | N.24 Progressão com dispensa | backend (núcleo de lições) | nenhuma | **sozinho de propósito**: teste por contagem de 0 a 35, e2e e migração em banco com progresso real |
+| **5** | ✅ feito, aguardando merge | Bots | N.1 API de bots, N.2 Tela de bots | engine, backend, frontend | PR 3 | criar bot pela tela e vê-lo na rodada seguinte; reatribuir cobertura cancela ordens do Market Maker |
+| **6** | ✅ feito, aguardando merge | Bots avançado | N.14 Desempenho, N.15 Editar bot e aportar | engine, backend, frontend | PR 5 | P&L e volume batem com `market_events`; aporte vale na rodada seguinte |
+| **7** | ✅ feito, aguardando merge | Operar a simulação | N.7 Parâmetros (só ritmo editável), N.11 Eventos macro completos | engine, backend, frontend | PR 1 | mudar ticks por dia reflete no próximo slot e sobrevive a restart; cancelar pendente, agendar e ver impacto |
+| **8** | ✅ feito, aguardando merge | Usuários | N.22 Segurança do painel, N.16 Usuários (consulta, patrimônio, LGPD, suspensão, forçar logout) | backend (autenticação), engine (leitura), frontend | PR 1 | ação destrutiva sem reautenticação devolve `401 reauth_required` (inclusive as já existentes: tick, avançar, pausa, cancelar em lote); suspenso não loga nem usa token antigo |
+| **9** | ✅ feito, aguardando merge | Gamificação e correções | N.17 Correções manuais (crédito sem teto, XP, conquistas, lição), N.19 Conquistas e missões | engine (`admin_credit`), backend, frontend | PR 8 | crédito aparece no extrato e não altera a rentabilidade; missão desativada não sorteia |
+| **10** | ⬜ | Lições no painel | N.18 Funil e publicar, N.23 Editor e criar lição (banco como fonte) | backend, frontend | PR 4 | seed reexecutado não desfaz edição; despublicar no meio não trava nem pula ninguém; lição criada no meio não altera o acesso de quem já passou |
+| **11** | ⬜ | Catálogo | N.12 Consulta e ajuste, N.13 Cadastrar ativo novo | engine, backend, frontend | PR 2, PR 3, PR 5 | edição inválida recusada; ativo novo ganha cotação de Market Maker e criar o 31º não altera os 30 |
+| **12** | ⬜ | Sistema | N.20 Comunicados e manutenção, N.21 Integridade e CSV | engine, backend, frontend | PR 3, PR 8 | faixa só na janela e dispensável; base consistente dá zero divergências; CSV respeita privacidade |
+
+**Por que essa ordem:** o PR 2 só lê, então entra primeiro sem risco. O PR 3 dá o controle do book e o cancelamento que o
+PR 5 reaproveita. O **PR 4 vem cedo de propósito**: é a refatoração mais arriscada (núcleo da progressão de todos os
+usuários) e, quanto antes entrar na `main`, mais tempo de uso ela tem antes do PR 10 depender dela. Bots (5 e 6) vêm logo
+depois porque eram a ideia original da fase. O PR 7 é independente e fica aqui como respiro operacional. Usuários (8)
+antes de gamificação e correções (9), porque o 9 usa o detalhe de usuário do 8. Catálogo (11) e sistema (12) ficam por
+último: o PR 11 tem a tarefa de maior risco de custo por tick (N.13) e o PR 12 usa tudo que veio antes.
+
+**Nota de ambiente:** o admin de teste e a stack local sobem com `docker compose up -d --build` e o seed do admin
+(`ADMIN_EMAIL`/`ADMIN_PASSWORD`/`ADMIN_USERNAME` com `node dist/db/seed.js`); testes de integração do engine usam
+`TEST_DATABASE_URL` apontando pra um Postgres do Compose, com banco descartável criado pelo próprio teste.
+
+**Fora da Fase N, de propósito:** editor de templates de evento macro (segue no código; o CMS de lições
+entrou como N.23 por decisão do autor de 2026-10-03), definir preço/Selic/IPCA manualmente,
+promover admin pela interface, resetar carteira, 2FA, gestão de assinaturas (depende de
+`estrategia-monetizacao.md`, ainda sem backlog).
 
 ---
 

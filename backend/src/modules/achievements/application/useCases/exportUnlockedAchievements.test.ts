@@ -9,6 +9,7 @@ const catalog = [
     description: null,
     criteriaType: 'streak_days' as const,
     criteriaValue: 7,
+    isActive: true,
   },
 ]
 

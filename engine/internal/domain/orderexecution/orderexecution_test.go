@@ -1,6 +1,7 @@
 package orderexecution
 
 import (
+	"errors"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
@@ -589,5 +590,41 @@ func TestExecute_DonoQuePodeHonrarNaoGeraCancelamento(t *testing.T) {
 				t.Errorf("Outcome = %+v, want 10 preenchidas e nenhuma ordem inválida", out)
 			}
 		})
+	}
+}
+
+func TestExecute_PausaDeNegociacaoRecusaAOrdem(t *testing.T) {
+	order := orderbook.Order{ID: "incoming", UserID: "u1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1}
+	tests := []struct {
+		name       string
+		ctx        Context
+		wantHalted bool
+		wantGlobal bool
+	}{
+		{"pausa global", Context{Halt: &HaltInfo{Global: true}, IncomingUserBalance: 1000, ReferencePrice: 10}, true, true},
+		{"pausa do ativo", Context{Halt: &HaltInfo{}, IncomingUserBalance: 1000, ReferencePrice: 10}, true, false},
+		{"sandbox nunca é pausado", Context{Halt: &HaltInfo{Global: true}, Sandbox: true, IncomingUserBalance: 1000, ReferencePrice: 10}, false, false},
+		{"sem pausa", Context{IncomingUserBalance: 1000, ReferencePrice: 10, Sandbox: true}, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Execute(order, tt.ctx)
+			if got := errors.Is(err, ErrTradingHalted); got != tt.wantHalted {
+				t.Fatalf("errors.Is(ErrTradingHalted) = %v, want %v (err = %v)", got, tt.wantHalted, err)
+			}
+			var halted *TradingHaltedError
+			if tt.wantHalted && (!errors.As(err, &halted) || halted.Global != tt.wantGlobal) {
+				t.Errorf("err = %v, want TradingHaltedError{Global: %v}", err, tt.wantGlobal)
+			}
+		})
+	}
+}
+
+func TestTradingHaltedError_MensagemDizOEscopo(t *testing.T) {
+	if got := (&TradingHaltedError{Global: true}).Error(); got != "Negociação pausada em todo o mercado pela administração." {
+		t.Errorf("global = %q", got)
+	}
+	if got := (&TradingHaltedError{}).Error(); got != "Negociação pausada neste ativo pela administração." {
+		t.Errorf("ativo = %q", got)
 	}
 }

@@ -11,6 +11,7 @@ const catalog: Achievement[] = [
     description: null,
     criteriaType: 'streak_days',
     criteriaValue: 7,
+    isActive: true,
   },
   {
     id: 'a-lessons-10',
@@ -18,6 +19,7 @@ const catalog: Achievement[] = [
     description: null,
     criteriaType: 'lessons_completed',
     criteriaValue: 10,
+    isActive: true,
   },
   {
     id: 'a-networth-12000',
@@ -25,6 +27,7 @@ const catalog: Achievement[] = [
     description: null,
     criteriaType: 'net_worth',
     criteriaValue: 12000,
+    isActive: true,
   },
   {
     id: 'a-trades-1',
@@ -32,6 +35,7 @@ const catalog: Achievement[] = [
     description: null,
     criteriaType: 'trades_executed',
     criteriaValue: 1,
+    isActive: true,
   },
 ]
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 )
 
@@ -127,6 +128,20 @@ var ErrInvalidSalaryAmount = errors.New("valor de salário inválido")
 // salário se refere do dia em que o crédito de fato foi processado).
 var ErrInvalidReferenceMonth = errors.New("mês de referência inválido")
 
+// MaxAdminCredit é o limite físico de um crédito administrativo (N.17): não é teto
+// de negócio (o autor decidiu "sem teto", achado 029 item 5), é a folga que mantém
+// saldo + crédito dentro de accounts.current_balance numeric(15,2), cujo máximo é
+// R$ 9,99 trilhões. Mesmo valor de botadmin.MaxInitialCash.
+const MaxAdminCredit = 1_000_000_000_000.00
+
+// ErrInvalidCreditAmount é devolvido por AdminCredit quando o valor não é finito,
+// não é positivo (depois de arredondar pra centavos) ou passa de MaxAdminCredit.
+var ErrInvalidCreditAmount = errors.New("valor de crédito inválido")
+
+// ErrBalanceOverflow é devolvido por AdminCredit quando saldo + crédito não cabe na
+// coluna de saldo (numeric(15,2)).
+var ErrBalanceOverflow = errors.New("o crédito faria o saldo passar do limite suportado")
+
 // Repository persiste a criação de uma conta nova e o crédito de salário
 // mensal numa conta já existente. A implementação concreta
 // (internal/infra/db) grava o evento imutável correspondente em
@@ -141,6 +156,11 @@ type Repository interface {
 	// livre, nunca capital de risco (T.1). Devolve ErrNotFound se a conta não
 	// existe.
 	CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error
+	// AdminCredit credita amount em CurrentBalance gravando o evento imutável
+	// EventAdminCredit antes (N.17) — mesmo contrato de CreditSalary: nunca toca
+	// TotalInvested/TotalDisinvested/TotalDividendsReceived. Devolve ErrNotFound se
+	// a conta não existe e ErrBalanceOverflow se o saldo não comporta o valor.
+	AdminCredit(ctx context.Context, userID string, amount float64) error
 }
 
 // Service abre contas novas sempre com o capital inicial padronizado e
@@ -173,4 +193,25 @@ func (s *Service) CreditSalary(ctx context.Context, userID string, amount float6
 		return fmt.Errorf("%w: precisa ter formato AAAA-MM (%q)", ErrInvalidReferenceMonth, referenceMonth)
 	}
 	return s.repo.CreditSalary(ctx, userID, amount, referenceMonth)
+}
+
+// AdminCredit credita caixa na conta de userID por decisão do administrador (N.17).
+// O valor é arredondado pra centavos (a coluna é numeric(15,2)); precisa ser finito,
+// positivo depois do arredondamento e de no máximo MaxAdminCredit. Quem pode pedir,
+// o motivo e a auditoria são do backend. Devolve o valor de fato creditado.
+func (s *Service) AdminCredit(ctx context.Context, userID string, amount float64) (float64, error) {
+	if math.IsNaN(amount) || math.IsInf(amount, 0) {
+		return 0, fmt.Errorf("%w: precisa ser um número finito", ErrInvalidCreditAmount)
+	}
+	cents := math.Round(amount*100) / 100
+	if cents <= 0 {
+		return 0, fmt.Errorf("%w: precisa ser positivo (%.4f)", ErrInvalidCreditAmount, amount)
+	}
+	if cents > MaxAdminCredit {
+		return 0, fmt.Errorf("%w: passa do máximo de R$ %.2f", ErrInvalidCreditAmount, MaxAdminCredit)
+	}
+	if err := s.repo.AdminCredit(ctx, userID, cents); err != nil {
+		return 0, err
+	}
+	return cents, nil
 }

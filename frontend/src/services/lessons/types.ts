@@ -42,6 +42,10 @@ export interface Lesson {
     microDecisionOptions: string[] | null
     status: 'completed' | 'available' | 'locked'
     currentStep: number
+    // Lição dispensada e ainda não feita (N.24): "nova, opcional". Sempre
+    // `status: 'available'`, e conta como satisfeita no desbloqueio. O backend
+    // sempre envia; opcional aqui só pra `undefined` valer como `false`.
+    waived?: boolean
 }
 
 export interface ListLessonsResult {
