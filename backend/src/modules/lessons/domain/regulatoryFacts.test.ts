@@ -51,6 +51,8 @@ describe('fatos regulatórios (RC.1.3)', () => {
       'ir-renda-fixa-regressivo',
       'iof-renda-fixa-30-dias',
       'tesouro-custodia-b3',
+      'tesouro-prefixado-regras',
+      'tesouro-resgate-preco-mercado',
       'poupanca-regra',
       'reserva-emergencia-bcb',
       'poupanca-isencao-ir-pf',

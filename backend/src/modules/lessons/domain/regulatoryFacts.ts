@@ -101,6 +101,27 @@ export const REGULATORY_FACTS = [
     note: 'Resultado de busca no domínio do Tesouro Direto e do gov.br (notícia "Tesouro Direto passa a ter liquidação de resgate no mesmo dia"); as páginas retornaram 401/403 à leitura automática. A auditoria da RC.1.7 dizia só D+1: está desatualizada. Na lição, dizer "no mesmo dia útil ou no seguinte, conforme o horário" sem citar o horário exato; reabrir no navegador na RC.8.1.',
   },
   {
+    id: 'tesouro-prefixado-regras',
+    label: 'Tesouro Prefixado: LTN e NTN-F',
+    value:
+      'O Tesouro Prefixado (LTN) paga o valor de face de R$ 1.000 por título no vencimento, sem pagamentos antes. O Tesouro Prefixado com Juros Semestrais (NTN-F) paga juros a cada semestre e o principal no vencimento. Os dois vencem em 1º de janeiro do ano do vencimento.',
+    data: { faceValueBRL: 1000 },
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-05',
+    note: 'A página de regras foi aberta e confirma a forma de pagamento da NTN-F (semestral nos juros, principal no vencimento) e usa exemplo de LTN com vencimento em 01/01. O valor de face de R$ 1.000 e o vencimento sempre em 1º de janeiro vêm do resultado de busca no domínio do Tesouro Direto; reabrir no navegador na RC.8.1. O cupom de 10% ao ano da NTN-F não foi confirmado na página e não entra nas lições.',
+  },
+  {
+    id: 'tesouro-resgate-preco-mercado',
+    label: 'Tesouro Direto: resgate antecipado a preço de mercado',
+    value:
+      'O Tesouro Nacional garante liquidez diária aos títulos e recompra o título antes do vencimento pelo valor de mercado do dia, então o retorno pode diferir da taxa contratada. Segurar até o vencimento garante a rentabilidade contratada.',
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Página de regras e regulamento aberta: "o Tesouro Nacional recompra o título com base no valor de mercado".',
+  },
+  {
     id: 'reserva-emergencia-bcb',
     label: 'Reserva de emergência: onde aplicar (Banco Central)',
     value:

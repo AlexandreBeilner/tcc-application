@@ -6,7 +6,14 @@ import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
 import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
-import { BLOCKS_1_1, BLOCKS_1_2, BLOCKS_1_3, BLOCKS_RESERVA } from './lessonContentTrilha1b'
+import {
+  BLOCKS_1_1,
+  BLOCKS_1_2,
+  BLOCKS_1_3,
+  BLOCKS_1_7,
+  BLOCKS_1_8,
+  BLOCKS_RESERVA,
+} from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
 import { legacyText } from './lessonText'
 
@@ -395,30 +402,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 14,
     title: 'Tesouro Prefixado',
     centralConcept: 'Deságio: preço menor que o valor de face, taxa travada na compra',
-    scenarioText:
-      'O Tesouro Prefixado 2027 (LTN2027) promete pagar R$1.000,00 no vencimento, mas você não ' +
-      'paga R$1.000,00 por ele hoje: você paga menos, e a diferença (o deságio) é a fonte da sua ' +
-      'rentabilidade.' +
-      '\n\n' +
-      'A taxa contratada na compra fica travada até o vencimento, 11,75% ao ano nesse título.',
-    microDecisionPrompt:
-      'Supondo que faltem exatamente 504 dias úteis (2 anos) até o vencimento, o preço de compra ' +
-      'do LTN2027 hoje deveria ficar acima ou abaixo de R$1.000,00?',
+    scenarioText: legacyText(BLOCKS_1_7, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_7, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Acima de R$1.000,00', 'Abaixo de R$1.000,00'],
+    microDecisionOptions: ['Maior que R$ 1.000', 'Menor que R$ 1.000', 'Igual a R$ 1.000'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Abaixo. A fórmula de deságio é Preço = Valor Nominal ÷ (1 + Taxa)^(DU/252): com taxa de ' +
-      '11,75% ao ano e 504 dias úteis (dois anos) restantes, Preço = 1.000 ÷ (1,1175)² ≈ R$800,76.' +
-      '\n\n' +
-      'Você paga R$800,76 hoje e recebe R$1.000,00 no vencimento, uma diferença de R$199,24 que é ' +
-      'exatamente a sua rentabilidade contratada.' +
-      '\n\n' +
-      'Diferente do Tesouro Selic, essa taxa fica travada: se a Selic subir ou cair depois da ' +
-      'compra, o valor recebido no vencimento não muda, mas o preço de venda antes do vencimento ' +
-      'sim, como a próxima lição mostra.',
-    unlocksDescription: 'Compra real de Tesouro Prefixado (LTN2027) no Mercado',
+    revelationText: legacyText(BLOCKS_1_7, 'revelation'),
+    blocks: BLOCKS_1_7,
+    unlocksDescription: 'Compra de Tesouro Prefixado (LTN2027) no Mercado',
     unlocksKeys: ['asset:tesouro_prefixado'],
     unlocksAssetTicker: 'LTN2027',
   },
@@ -430,35 +422,14 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 15,
     title: 'Marcação a mercado',
     centralConcept: 'Risco de vender um título prefixado antes do vencimento',
-    scenarioText:
-      'Você comprou o LTN2027 (lição anterior) travado a 11,75% ao ano, mas um imprevisto te ' +
-      'obriga a resgatar antes do vencimento.' +
-      '\n\n' +
-      'Nesse meio tempo, o Copom (simulado nesta plataforma a cada 21 dias reais) subiu a taxa de ' +
-      'juros de mercado pra 14% ao ano.' +
-      '\n\n' +
-      'O preço de venda do seu título hoje muda por causa disso, mesmo sem nada ter mudado no seu ' +
-      'contrato original.',
-    microDecisionPrompt:
-      'Se a taxa de mercado subiu (de 11,75% pra 14%) desde a sua compra, o preço de revenda do ' +
-      'seu título hoje fica acima ou abaixo do que renderia até esse dia na taxa contratada?',
+    scenarioText: legacyText(BLOCKS_1_8, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_1_8, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Acima', 'Abaixo'],
+    microDecisionOptions: ['Acima', 'Abaixo', 'Igual'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Abaixo: o preço de qualquer prefixado é recalculado todo dia útil pela mesma fórmula de ' +
-      '{{deságio}}, só que com a taxa de mercado vigente no lugar da taxa contratada.' +
-      '\n\n' +
-      'Taxa de mercado maior gera um preço menor (o denominador da fórmula cresce), então vender ' +
-      'antes do vencimento numa alta de juros realiza um retorno pior do que o contratado.' +
-      '\n\n' +
-      'O oposto também vale: se a taxa de mercado tivesse caído, o preço subiria e a venda ' +
-      'antecipada renderia mais do que o contratado, um ganho extraordinário.' +
-      '\n\n' +
-      'Segurar até o vencimento sempre paga exatamente a taxa contratada; vender antes expõe você ' +
-      'a esse risco de marcação a mercado, pra cima ou pra baixo. Você pode simular esse cenário ' +
-      'sem nenhum risco real no ativo de prática (Sandbox) disponível no Mercado.',
+    revelationText: legacyText(BLOCKS_1_8, 'revelation'),
+    blocks: BLOCKS_1_8,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,

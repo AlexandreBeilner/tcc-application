@@ -346,3 +346,251 @@ export const BLOCKS_RESERVA: LessonBlocks = {
     ],
   },
 }
+
+// Lição 1.7, Tesouro Prefixado (RC.5.6). Preço, deságio e conta líquida vêm do
+// widget `bond-price-calculator`; 11,75% é taxa de exemplo, dita assim no
+// texto. Fatos: `tesouro-prefixado-regras`, `tesouro-custodia-b3`,
+// `ir-renda-fixa-regressivo`.
+export const BLOCKS_1_7: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'O governo também vende títulos com a taxa travada na compra: o Tesouro Prefixado, nome técnico LTN. Ele promete pagar R$ 1.000 por título no vencimento, sem pagar nada no meio do caminho.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Esses R$ 1.000 são o {{valor de face}} do título. Os juros não vêm em parcelas: estão na diferença entre o que você paga hoje e o que recebe no fim.',
+      },
+      {
+        type: 'check',
+        id: 'taxa-travada',
+        kind: 'single',
+        prompt:
+          'Você comprou um prefixado a 11,75% ao ano e, depois, a Selic subiu. O que acontece com a taxa do seu título?',
+        options: [
+          'Sobe junto com a Selic',
+          'Continua em 11,75% até o vencimento',
+          'Cai, para compensar',
+        ],
+        answer: 1,
+        explanation:
+          'Prefixado quer dizer taxa travada na compra. Ela só muda de verdade para quem vende antes do vencimento, assunto da próxima lição.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Um título promete R$ 1.000 daqui a 2 anos, com taxa de 11,75% ao ano (taxa de exemplo). Hoje, o preço dele deve ser maior, menor ou igual a R$ 1.000?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Menor. O governo vende com {{deságio}}: o juro já está dentro do preço. Você paga menos hoje e recebe os R$ 1.000 no vencimento.',
+      },
+      {
+        type: 'widget',
+        id: 'preco-prefixado',
+        widget: 'bond-price-calculator',
+        props: { ratePct: 11.75, years: 2, amount: 10000 },
+        caption: 'Mexa na taxa e no prazo e veja o preço de cada título.',
+      },
+      {
+        type: 'check',
+        id: 'preco-um-ano',
+        kind: 'numeric',
+        prompt:
+          'Com taxa de 10% ao ano e prazo de 1 ano, quanto custa um título que paga R$ 1.000?',
+        answer: 909.09,
+        tolerance: 0.05,
+        unit: 'reais',
+        explanation:
+          'R$ 1.000 divididos por 1,10 dão R$ 909,09. O deságio de R$ 90,91 é o juro de um ano.',
+      },
+      {
+        type: 'check',
+        id: 'prazo-maior-preco',
+        kind: 'single',
+        prompt: 'Com a mesma taxa, se o prazo até o vencimento aumenta, o preço de hoje:',
+        options: ['Sobe', 'Cai', 'Fica igual'],
+        answer: 1,
+        explanation:
+          'Quanto mais tempo os juros têm para correr, maior o deságio e menor o preço de hoje.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O ganho que a conta mostra primeiro é bruto. Sobre ele pagam-se o imposto de renda, pela tabela regressiva, e a custódia da B3, de 0,20% ao ano. O widget já mostra o líquido.',
+      },
+      {
+        type: 'text',
+        markup:
+          'No app do Tesouro Direto você vai ver "Tesouro Prefixado" e também "Tesouro Prefixado com Juros Semestrais", que paga juros a cada semestre. Os dois vencem em 1º de janeiro. Aqui estudamos o sem juros semestrais.',
+      },
+      {
+        type: 'check',
+        id: 'prefixado-garante-selic',
+        kind: 'true_false',
+        prompt: 'O Tesouro Prefixado garante que você nunca vai ganhar menos que a Selic.',
+        answer: false,
+        explanation:
+          'Travar a taxa é uma aposta. Se a Selic subir depois, quem travou fica com uma taxa menor que a nova Selic.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-tesouro-prefixado',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'A taxa e o preço do Tesouro Prefixado mudam todo dia útil, e cada título vence em 1º de janeiro.',
+          here: 'O Tesouro Prefixado do Mercado tem taxa e vencimento definidos pelo catálogo da plataforma.',
+          why: 'Assim os números do exemplo ficam estáveis para você praticar.',
+        },
+      },
+      {
+        type: 'text',
+        markup: 'Completar esta lição libera a compra do Tesouro Prefixado no Mercado.',
+      },
+    ],
+  },
+}
+
+// Lição 1.8, Marcação a mercado (RC.5.6). A gangorra (`mtm-seesaw`) mostra taxa
+// x preço, prazo e tipo de título. A taxa de mercado do título não é a Selic, e
+// o preço antecipa expectativas. Fato: `tesouro-resgate-preco-mercado`.
+export const BLOCKS_1_8: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Você comprou um prefixado a 11,75% ao ano e precisa do dinheiro antes do vencimento. O Tesouro recompra o título, mas pelo preço de mercado do dia, e não pelos R$ 1.000.',
+      },
+      {
+        type: 'check',
+        id: 'valor-resgate-antecipado',
+        kind: 'single',
+        prompt: 'Você vende um prefixado antes do vencimento. Quanto o Tesouro paga?',
+        options: [
+          'R$ 1.000 por título',
+          'O preço do dia, que pode ser maior ou menor',
+          'O que você pagou, sem juros',
+        ],
+        answer: 1,
+        explanation:
+          'O Tesouro recompra pelo valor de mercado do dia. Os R$ 1.000 só chegam a quem segura até o vencimento.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Esse preço do dia vem da taxa que o mercado exige hoje para aquele vencimento. Ela não é a Selic: depende também da expectativa de juros, da inflação e do risco do país. Recalcular o preço todo dia é a {{marcação a mercado}}.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Desde a sua compra, a taxa de mercado para esse vencimento subiu de 11,75% para 14% ao ano. O preço de revenda do seu título fica acima ou abaixo do que ele valia?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Abaixo. Quem compra hoje consegue 14%, então ninguém paga o mesmo preço por um título que rende só 11,75%. Taxa sobe, preço cai.',
+      },
+      {
+        type: 'widget',
+        id: 'gangorra-marcacao',
+        widget: 'mtm-seesaw',
+        props: { contractRatePct: 11.75, yearsToMaturity: 2, indexer: 'prefixed' },
+        caption: 'Mova a taxa de mercado e o prazo. O que acontece com o preço?',
+      },
+      {
+        type: 'check',
+        id: 'preco-a-14',
+        kind: 'numeric',
+        prompt:
+          'Faltam 2 anos. Com a taxa de mercado em 14% ao ano, quanto vale hoje um título que paga R$ 1.000?',
+        answer: 769.47,
+        tolerance: 0.05,
+        unit: 'reais',
+        explanation:
+          'R$ 1.000 divididos por 1,14 ao quadrado dão R$ 769,47, cerca de 3,9% abaixo dos R$ 800,76 da compra.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O prazo importa. Quanto mais longe o vencimento, mais o preço se mexe com a mesma mudança de taxa. Essa sensibilidade é a {{duration}} do título.',
+      },
+      {
+        type: 'check',
+        id: 'prazo-longo-oscila-mais',
+        kind: 'single',
+        prompt:
+          'Dois prefixados, mesma taxa, vencimentos em 1 e em 10 anos. Os juros sobem 2 pontos. Qual cai mais?',
+        options: ['O de 1 ano', 'O de 10 anos', 'Caem igual'],
+        answer: 1,
+        explanation:
+          'Os juros do prazo longo ficam mais tempo descontados à taxa nova, então o preço dele reage mais.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Isso vale também para o IPCA+, que oscila com a taxa real de mercado. O Tesouro Selic quase não se mexe, porque o próprio rendimento acompanha a Selic todo dia.',
+      },
+      {
+        type: 'check',
+        id: 'menos-afetado',
+        kind: 'single',
+        prompt: 'Os juros de mercado sobem. Qual título tem o preço menos afetado?',
+        options: ['Prefixado de 10 anos', 'IPCA+ de 20 anos', 'Tesouro Selic'],
+        answer: 2,
+        explanation:
+          'O Tesouro Selic reprecifica com a Selic todo dia, então quase não há queda de preço.',
+      },
+      {
+        type: 'text',
+        markup:
+          'A queda de preço só vira perda se você vender. Segurando até o vencimento, recebe o combinado. E, se a taxa cai, vender antes dá ganho.',
+      },
+      {
+        type: 'check',
+        id: 'segurar-ate-o-fim',
+        kind: 'true_false',
+        prompt:
+          'Se você segurar o prefixado até o vencimento, a oscilação do preço no meio do caminho muda o valor que você recebe.',
+        answer: false,
+        explanation:
+          'No vencimento o título paga o valor de face. A oscilação só importa para quem vende antes.',
+      },
+      {
+        type: 'check',
+        id: 'copom-antecipado',
+        kind: 'true_false',
+        prompt: 'Os prefixados só caem depois que o Copom eleva a Selic.',
+        answer: false,
+        explanation:
+          'O mercado antecipa a decisão. Muitas vezes o preço já caiu antes da reunião, porque a expectativa de juros subiu.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-marcacao',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'Os preços dos títulos são recalculados todo dia útil, e a taxa de mercado reage a expectativas, inflação e cenário fiscal.',
+          here: 'Na plataforma, a taxa de mercado reage às decisões do Copom da plataforma e a eventos do jogo.',
+          why: 'Assim você vê o efeito de uma alta de juros sobre o preço sem esperar o calendário real.',
+        },
+      },
+    ],
+  },
+}
