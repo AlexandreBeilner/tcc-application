@@ -110,6 +110,13 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'c', widget: 'selic-ipca-chart', props: { windowDays: 180 } },
         { type: 'widget', id: 'd', widget: 'copom-timeline', props: {} },
         { type: 'widget', id: 'e', widget: 'inflation-selic-seesaw', props: { inflationPct: 7 } },
+        {
+          type: 'widget',
+          id: 'f',
+          widget: 'emergency-fund-calculator',
+          props: { monthlyCost: 4000, incomeType: 'variable' },
+        },
+        { type: 'widget', id: 'g', widget: 'where-to-keep', props: {} },
       ],
     }
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
@@ -121,6 +128,7 @@ describe('lessonBlocksSchema', () => {
     ['real-return', { inflationPct: 50 }],
     ['selic-ipca-chart', { windowDays: 3 }],
     ['inflation-selic-seesaw', { inflationPct: 40 }],
+    ['emergency-fund-calculator', { incomeType: 'rico' }],
   ])('%s com props fora do limite é rejeitado', (widget, props) => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

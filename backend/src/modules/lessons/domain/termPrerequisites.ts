@@ -67,10 +67,10 @@ export const TERM_RULES: TermRule[] = [
     id: 'valor-de-face',
     label: 'valor de face',
     pattern: /valor de face/i,
-    definedIn: '1.7',
+    definedIn: '1.8',
     glossaryKeys: ['valor de face'],
   },
-  { id: 'vna', label: 'VNA', pattern: /\bVNA\b/, definedIn: '1.10', glossaryKeys: ['VNA'] },
+  { id: 'vna', label: 'VNA', pattern: /\bVNA\b/, definedIn: '1.11', glossaryKeys: ['VNA'] },
   {
     id: 'alavancagem',
     label: 'alavancagem',
@@ -111,7 +111,7 @@ export const TERM_RULES: TermRule[] = [
     id: 'agio-desagio',
     label: 'ágio/deságio',
     pattern: /ágio|deságio/i,
-    definedIn: '1.7',
+    definedIn: '1.8',
     glossaryKeys: ['deságio', 'ágio'],
   },
   {

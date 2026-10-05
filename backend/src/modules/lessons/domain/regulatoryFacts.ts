@@ -101,6 +101,17 @@ export const REGULATORY_FACTS = [
     note: 'Resultado de busca no domínio do Tesouro Direto e do gov.br (notícia "Tesouro Direto passa a ter liquidação de resgate no mesmo dia"); as páginas retornaram 401/403 à leitura automática. A auditoria da RC.1.7 dizia só D+1: está desatualizada. Na lição, dizer "no mesmo dia útil ou no seguinte, conforme o horário" sem citar o horário exato; reabrir no navegador na RC.8.1.',
   },
   {
+    id: 'reserva-emergencia-bcb',
+    label: 'Reserva de emergência: onde aplicar (Banco Central)',
+    value:
+      'O Caderno de Educação Financeira do Banco Central orienta aplicar a reserva de emergência em investimento de alta liquidez e baixo risco, para o dinheiro estar disponível rápido e sem perdas. O Caderno não fixa um número de meses de despesas.',
+    source:
+      'https://www.bcb.gov.br/content/cidadaniafinanceira/documentos_cidadania/Cuidando_do_seu_dinheiro_Gestao_de_Financas_Pessoais/caderno_cidadania_financeira.pdf',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'PDF baixado e lido (pdftotext): seção "Despesas emergenciais" (reserva para cobrir eventualidades e evitar o endividamento) e a dica "aplique sua reserva de emergência em um investimento de alta liquidez e baixo risco". As faixas de 3 a 6 meses (renda estável) e 6 a 12 (renda variável) NÃO constam do Caderno: são regra de bolso e a lição as rotula assim. Tesouro Reserva (lançado em 11/05/2026 por Tesouro, B3 e Banco do Brasil, rende 100% da Selic over, sem marcação a mercado, só para clientes do Banco do Brasil por ora) foi visto só em resultado de busca no gov.br; não entra na lição até a página abrir.',
+  },
+  {
     id: 'poupanca-regra',
     label: 'Poupança: regra de rendimento',
     value:

@@ -6,7 +6,7 @@ import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
 import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
-import { BLOCKS_1_1, BLOCKS_1_2, BLOCKS_1_3 } from './lessonContentTrilha1b'
+import { BLOCKS_1_1, BLOCKS_1_2, BLOCKS_1_3, BLOCKS_RESERVA } from './lessonContentTrilha1b'
 import { BLOCKS_1_4, BLOCKS_1_5, BLOCKS_1_6 } from './lessonContentTrilha1a'
 import { legacyText } from './lessonText'
 
@@ -279,11 +279,36 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'LFT2029',
   },
   {
-    stableKey: '1.3',
+    // Lição inserida no meio da Trilha 1 (RC.4.6), logo depois do Tesouro
+    // Selic: `stableKey` próprio e `code` 1.3. As lições seguintes da trilha
+    // ganharam um `code` a mais (1.3 passou a 1.4 e assim por diante, o
+    // `stableKey` de cada uma não muda, então o progresso fica). Quem já tinha
+    // passado da posição recebe a dispensa na hora do seed.
+    stableKey: 'reserva-emergencia',
     code: '1.3',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
     sortOrder: 9,
+    title: 'Reserva de emergência: quanto e onde',
+    centralConcept: 'Quanto guardar para imprevistos e em que tipo de aplicação',
+    scenarioText: legacyText(BLOCKS_RESERVA, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_RESERVA, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['R$ 3.000', 'De R$ 9.000 a R$ 18.000', 'R$ 60.000'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_RESERVA, 'revelation'),
+    blocks: BLOCKS_RESERVA,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: '1.3',
+    code: '1.4',
+    trackNumber: 1,
+    trackName: 'Trilha 1: Renda Fixa',
+    sortOrder: 10,
     title: 'Como a Selic é formada',
     centralConcept: 'Copom reagindo à inflação frente à meta',
     scenarioText: legacyText(BLOCKS_1_3, 'scenario'),
@@ -300,10 +325,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.4',
-    code: '1.4',
+    code: '1.5',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 10,
+    sortOrder: 11,
     title: 'CDB e o CDI',
     centralConcept: 'Remuneração bancária atrelada ao CDI, com garantia do FGC',
     scenarioText: legacyText(BLOCKS_1_4, 'scenario'),
@@ -324,10 +349,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.5',
-    code: '1.5',
+    code: '1.6',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 11,
+    sortOrder: 12,
     title: 'Tributação regressiva de IR',
     centralConcept: 'Tabela regressiva de Imposto de Renda: quanto mais tempo, menor a alíquota',
     scenarioText: legacyText(BLOCKS_1_5, 'scenario'),
@@ -344,10 +369,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.6',
-    code: '1.6',
+    code: '1.7',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 12,
+    sortOrder: 13,
     title: 'LCI e LCA',
     centralConcept: 'Isenção de IR, comparação de retorno líquido entre produtos',
     scenarioText: legacyText(BLOCKS_1_6, 'scenario'),
@@ -364,10 +389,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.7',
-    code: '1.7',
+    code: '1.8',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 13,
+    sortOrder: 14,
     title: 'Tesouro Prefixado',
     centralConcept: 'Deságio: preço menor que o valor de face, taxa travada na compra',
     scenarioText:
@@ -399,10 +424,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.8',
-    code: '1.8',
+    code: '1.9',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 14,
+    sortOrder: 15,
     title: 'Marcação a mercado',
     centralConcept: 'Risco de vender um título prefixado antes do vencimento',
     scenarioText:
@@ -440,10 +465,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.9',
-    code: '1.9',
+    code: '1.10',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 15,
+    sortOrder: 16,
     title: 'O que é o IPCA',
     centralConcept: 'Índice de preços ao consumidor (IBGE), referência da meta de inflação',
     scenarioText:
@@ -478,10 +503,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.10',
-    code: '1.10',
+    code: '1.11',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 16,
+    sortOrder: 17,
     title: 'Tesouro IPCA+',
     centralConcept: 'Proteção contra inflação: rendimento real garantido acima do IPCA',
     scenarioText:
@@ -514,10 +539,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
   {
     stableKey: '1.11',
-    code: '1.11',
+    code: '1.12',
     trackNumber: 1,
     trackName: 'Trilha 1: Renda Fixa',
-    sortOrder: 17,
+    sortOrder: 18,
     title: 'CRI e CRA',
     centralConcept: 'Risco de crédito privado sem FGC, compensado por maior remuneração',
     scenarioText:
@@ -557,7 +582,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 18,
+    sortOrder: 19,
     title: 'O que é uma ação',
     centralConcept: 'Comprar uma ação é se tornar sócio de uma empresa',
     scenarioText:
@@ -594,7 +619,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 19,
+    sortOrder: 20,
     title: 'IPO',
     centralConcept: 'Como uma empresa vai à bolsa',
     scenarioText:
@@ -625,7 +650,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 20,
+    sortOrder: 21,
     title: 'Nomenclatura de tickers',
     centralConcept:
       'Final 3 (ON) e final 4 (PN) da mesma empresa; final 11 pode ser ETF, FII ou unit',
@@ -668,7 +693,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 21,
+    sortOrder: 22,
     title: 'Lendo notícias de mercado',
     centralConcept: 'Como interpretar um evento macro e decidir',
     scenarioText:
@@ -705,7 +730,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 22,
+    sortOrder: 23,
     title: 'Oferta e demanda',
     centralConcept: 'Formação de preço no livro de ofertas',
     scenarioText:
@@ -744,7 +769,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.1',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 23,
+    sortOrder: 24,
     title: 'Lendo um balanço',
     centralConcept:
       'Peças básicas: Receita, EBIT, Lucro Líquido, Patrimônio Líquido, Dívida Bruta, Caixa',
@@ -783,7 +808,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.2',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 24,
+    sortOrder: 25,
     title: 'Margens de rentabilidade',
     centralConcept: 'O que é EBIT na prática, diferença para lucro líquido',
     scenarioText:
@@ -819,7 +844,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.3',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 25,
+    sortOrder: 26,
     title: 'Retorno sobre patrimônio (ROE)',
     centralConcept: 'Quão bem a empresa usa o capital dos sócios',
     scenarioText:
@@ -852,7 +877,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.4',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 26,
+    sortOrder: 27,
     title: 'Indicadores de preço (P/L e P/VP)',
     centralConcept: 'Ação "cara" ou "barata" frente ao que a empresa entrega',
     scenarioText:
@@ -886,7 +911,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.5',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 27,
+    sortOrder: 28,
     title: 'Endividamento',
     centralConcept: 'Risco de alavancagem',
     scenarioText:
@@ -922,7 +947,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.6.6',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 28,
+    sortOrder: 29,
     title: 'Dividend Yield',
     centralConcept: 'Quanto a ação "paga" em relação ao preço',
     scenarioText:
@@ -959,7 +984,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.7',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 29,
+    sortOrder: 30,
     title: 'Dividendos e data ex',
     centralConcept: 'Como e quando o acionista recebe',
     scenarioText:
@@ -996,7 +1021,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.8',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 30,
+    sortOrder: 31,
     title: 'Setores e ciclicidade',
     centralConcept: 'Conecta com Selic afetando fundamentos (3.2.2), defensivo vs cíclico',
     scenarioText:
@@ -1036,7 +1061,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.9',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 31,
+    sortOrder: 32,
     title: 'ETFs',
     centralConcept: 'Diversificação automática via índice',
     scenarioText:
@@ -1082,7 +1107,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '2.10',
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
-    sortOrder: 32,
+    sortOrder: 33,
     title: 'FIIs',
     centralConcept: 'Fundos imobiliários, tickers final 11',
     scenarioText:
@@ -1126,7 +1151,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 33,
+    sortOrder: 34,
     title: 'Diversificação',
     centralConcept: 'Por que não concentrar tudo num ativo',
     scenarioText:
@@ -1173,7 +1198,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 34,
+    sortOrder: 35,
     title: 'Perfil de risco',
     centralConcept: 'Conservador vs Sofisticado, risco x retorno',
     scenarioText:
@@ -1213,7 +1238,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 35,
+    sortOrder: 36,
     title: 'Comparando produtos na prática',
     centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
     scenarioText:
@@ -1253,7 +1278,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 36,
+    sortOrder: 37,
     title: 'Desafio final da trilha',
     centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
     scenarioText:
@@ -1348,12 +1373,29 @@ export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
 // satisfez (concluiu ou foi dispensado de) `position` lições ou mais recebe a
 // dispensa dela, porque já passou daquele ponto; quem ainda não chegou lá é
 // bloqueado por ela normalmente. `position` é 1-based e igual a `seed.sortOrder`.
-export async function insertLessonInMiddle(db: Database, seed: LessonSeed) {
+//
+// `allSeeds` (RC.4.6): quando a inserção também renumera o `code` das lições
+// seguintes (1.3 vira 1.4, 1.4 vira 1.5...), o `code` é único e a renumeração em
+// cadeia colidiria no `upsert`. Então, dentro da mesma transação, toda lição cujo
+// `code` do banco difere do seed vai a um código provisório e, no fim, recebe o
+// código definitivo (todos livres a essa altura).
+export async function insertLessonInMiddle(
+  db: Database,
+  seed: LessonSeed,
+  allSeeds: LessonSeed[] = [],
+) {
   return db.transaction(async (tx) => {
     await tx
       .update(lessons)
       .set({ code: sql`'tmp-' || ${lessons.stableKey}` })
       .where(and(sql`${lessons.code} = ${seed.code}`, ne(lessons.stableKey, seed.stableKey)))
+    const renumbered = allSeeds.filter((other) => other.stableKey !== seed.stableKey)
+    for (const other of renumbered) {
+      await tx
+        .update(lessons)
+        .set({ code: sql`'tmp-' || ${lessons.stableKey}` })
+        .where(and(sql`${lessons.stableKey} = ${other.stableKey}`, ne(lessons.code, other.code)))
+    }
     await tx
       .update(lessons)
       .set({ sortOrder: sql`-(${lessons.sortOrder} + 1)` })
@@ -1367,6 +1409,13 @@ export async function insertLessonInMiddle(db: Database, seed: LessonSeed) {
       .insert(lessons)
       .values({ id: randomUUID(), ...seed, blocks: seed.blocks ?? null })
       .returning()
+
+    for (const other of renumbered) {
+      await tx
+        .update(lessons)
+        .set({ code: other.code })
+        .where(sql`${lessons.stableKey} = ${other.stableKey} and ${lessons.code} like 'tmp-%'`)
+    }
 
     const passed = await tx
       .select({ userId: userLessonProgress.userId })
@@ -1416,7 +1465,7 @@ async function main() {
 
   const db = createDb(databaseUrl)
   for (const seed of await findMiddleInsertions(db, LESSON_SEEDS)) {
-    const { waivedUsers } = await insertLessonInMiddle(db, seed)
+    const { waivedUsers } = await insertLessonInMiddle(db, seed, LESSON_SEEDS)
     console.log(
       `lição ${seed.code} inserida no meio da trilha (${waivedUsers} usuário(s) dispensado(s))`,
     )

@@ -52,6 +52,7 @@ describe('fatos regulatórios (RC.1.3)', () => {
       'iof-renda-fixa-30-dias',
       'tesouro-custodia-b3',
       'poupanca-regra',
+      'reserva-emergencia-bcb',
       'poupanca-isencao-ir-pf',
       'lci-lca-isencao-pf',
       'copom-reunioes',

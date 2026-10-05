@@ -27,6 +27,8 @@ export const WIDGET_IDS = [
   'selic-ipca-chart',
   'copom-timeline',
   'inflation-selic-seesaw',
+  'emergency-fund-calculator',
+  'where-to-keep',
   'savings-vs-selic',
   'growth-calculator',
   'fixed-income-comparison',
@@ -104,6 +106,14 @@ const selicIpcaChartProps = z.object({ windowDays: z.number().int().min(7).max(3
 // prop só escolhe o ponto de partida do controle.
 const inflationSelicSeesawProps = z.object({ inflationPct: z.number().min(0).max(15).default(6) })
 
+// Calculadora de reserva de emergência (RC.4.6): a conta vive no frontend; as
+// props só escolhem o ponto de partida dos campos.
+const emergencyFundCalculatorProps = z.object({
+  monthlyCost: z.number().min(0).max(1_000_000).default(3000),
+  incomeType: z.enum(['stable', 'variable']).default('stable'),
+  monthlyContribution: z.number().min(0).max(1_000_000).default(500),
+})
+
 // Poupança contra Tesouro Selic (RC.5.2): a conta vive no frontend; as props só
 // escolhem o ponto de partida dentro dos limites dos controles.
 const savingsVsSelicProps = z.object({
@@ -132,6 +142,8 @@ export const widgetPropsSchemas = {
   'selic-ipca-chart': selicIpcaChartProps,
   'savings-vs-selic': savingsVsSelicProps,
   'inflation-selic-seesaw': inflationSelicSeesawProps,
+  'emergency-fund-calculator': emergencyFundCalculatorProps,
+  'where-to-keep': emptyProps,
   'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,

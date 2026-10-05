@@ -238,3 +238,111 @@ export const BLOCKS_1_3: LessonBlocks = {
     ],
   },
 }
+
+// Lição nova "Reserva de emergência: quanto e onde" (RC.4.6), logo depois do
+// Tesouro Selic: cumpre a promessa das lições 1.1 e 1.2. O critério de onde
+// guardar vem do fato `reserva-emergencia-bcb`; o número de meses é regra de
+// bolso, rotulada assim no texto e no widget, porque o Caderno do Banco Central
+// não fixa um prazo.
+export const BLOCKS_RESERVA: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Antes de investir para ganhar, vem o seguro contra o imprevisto: a reserva de emergência. É o dinheiro para um conserto, um problema de saúde ou uma perda de renda, sem precisar se endividar.',
+      },
+      {
+        type: 'check',
+        id: 'funcao-reserva',
+        kind: 'single',
+        prompt: 'Para que serve a reserva de emergência?',
+        options: [
+          'Render o máximo possível',
+          'Cobrir imprevistos sem se endividar',
+          'Comprar ações quando elas caem',
+        ],
+        answer: 1,
+        explanation:
+          'A reserva é um seguro. O objetivo é o dinheiro estar disponível quando o imprevisto chegar, não render mais.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Quanto guardar? Uma regra de bolso comum: de 3 a 6 meses do seu custo de vida essencial, e de 6 a 12 meses se a renda for variável. A conta é sobre o que você gasta, não sobre o que você ganha.',
+      },
+      {
+        type: 'widget',
+        id: 'calculadora-reserva',
+        widget: 'emergency-fund-calculator',
+        props: { monthlyCost: 3000, incomeType: 'stable', monthlyContribution: 500 },
+        caption: 'Troque os valores pelos seus.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Seu custo de vida essencial é de R$ 3.000 por mês e sua renda é estável. Qual valor é uma meta razoável de reserva?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'De R$ 9.000 a R$ 18.000, que são de 3 a 6 meses do custo essencial. R$ 3.000 cobre só um mês, e R$ 60.000 é mais do que a regra pede.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Onde guardar? O Banco Central orienta uma aplicação de alta {{liquidez}} e baixo risco: o dinheiro precisa estar lá, sem perda e disponível rápido.',
+      },
+      {
+        type: 'widget',
+        id: 'onde-guardar',
+        widget: 'where-to-keep',
+        props: {},
+        caption: 'Marque cada produto e veja o motivo.',
+      },
+      {
+        type: 'check',
+        id: 'erro-comum-reserva',
+        kind: 'single',
+        prompt: 'Qual é um erro comum ao guardar a reserva?',
+        options: [
+          'Aplicar num produto com {{carência}} ou que pode cair de preço',
+          'Aplicar no Tesouro Selic',
+          'Aplicar num CDB com liquidez diária',
+        ],
+        answer: 0,
+        explanation:
+          'Com carência o dinheiro fica preso, e com preço oscilando você pode vender no prejuízo justo na hora do aperto.',
+      },
+      {
+        type: 'check',
+        id: 'trocar-por-acoes',
+        kind: 'true_false',
+        prompt: 'Se a reserva rende pouco, vale trocá-la por ações para render mais.',
+        answer: false,
+        explanation:
+          'A função da reserva é a segurança. Render menos é o preço de ter o dinheiro disponível e sem risco de perda.',
+      },
+      {
+        type: 'text',
+        markup: 'Usou a reserva? Reponha antes de voltar a investir em outras coisas.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-reserva',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'A reserva é sua, numa aplicação que você escolhe e contrata no banco ou na corretora.',
+          here: 'O dinheiro da plataforma é de treino e não é a sua reserva real.',
+          why: 'A plataforma ensina a escolher o produto. A reserva de verdade deve ficar numa aplicação sua.',
+        },
+      },
+    ],
+  },
+}

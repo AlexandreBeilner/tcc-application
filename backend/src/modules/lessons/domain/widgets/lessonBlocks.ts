@@ -13,6 +13,8 @@ export type WidgetId =
   | 'selic-ipca-chart'
   | 'copom-timeline'
   | 'inflation-selic-seesaw'
+  | 'emergency-fund-calculator'
+  | 'where-to-keep'
   | 'savings-vs-selic'
   | 'growth-calculator'
   | 'fixed-income-comparison'

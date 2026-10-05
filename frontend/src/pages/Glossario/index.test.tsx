@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Glossario } from '.'
 
 vi.mock('../../features/lessons/useLessonsQuery', () => ({
-    useLessonsQuery: () => ({ data: { lessons: [{ id: 'abc', code: '1.7', title: 'Tesouro Prefixado' }] } }),
+    useLessonsQuery: () => ({ data: { lessons: [{ id: 'abc', code: '1.8', title: 'Tesouro Prefixado' }] } }),
 }))
 
 function renderPage() {

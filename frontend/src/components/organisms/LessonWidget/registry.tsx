@@ -4,6 +4,8 @@ import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
 import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
 import { CompoundGrowthWidget, compoundGrowthSummary } from '../CompoundGrowthWidget'
 import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidget'
+import { EmergencyFundCalculatorWidget, emergencyFundCalculatorSummary } from '../EmergencyFundCalculatorWidget'
+import { WhereToKeepWidget, whereToKeepSummary } from '../WhereToKeepWidget'
 import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
 import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
 import { SavingsVsSelicWidget, savingsVsSelicSummary } from '../SavingsVsSelicWidget'
@@ -80,6 +82,16 @@ export const widgetRegistry: Registry = {
         component: InflationSelicSeesawWidget,
         propsSchema: widgetPropsSchemas['inflation-selic-seesaw'],
         summary: inflationSelicSeesawSummary,
+    },
+    'emergency-fund-calculator': {
+        component: EmergencyFundCalculatorWidget,
+        propsSchema: widgetPropsSchemas['emergency-fund-calculator'],
+        summary: emergencyFundCalculatorSummary,
+    },
+    'where-to-keep': {
+        component: WhereToKeepWidget,
+        propsSchema: widgetPropsSchemas['where-to-keep'],
+        summary: whereToKeepSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,
