@@ -33,6 +33,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'achievement.create': 'Criação de conquista',
     'achievement.update': 'Alteração de conquista',
     'mission.update': 'Alteração de missão',
+    'lesson.publish': 'Publicação de lição',
+    'lesson.unpublish': 'Despublicação de lição',
     'admin.login': 'Login de administrador',
     'admin.login_failed': 'Tentativa de login de administrador',
     'admin.reauth': 'Reautenticação de administrador',

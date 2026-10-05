@@ -32,6 +32,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'achievement.create',
   'achievement.update',
   'mission.update',
+  'lesson.publish',
+  'lesson.unpublish',
   'admin.login',
   'admin.login_failed',
   'admin.reauth',

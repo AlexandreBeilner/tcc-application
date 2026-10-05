@@ -120,3 +120,10 @@ export class AdminCatalogNotFoundError extends Error {}
 export class AdminCatalogConflictError extends Error {}
 // Dado que a regra de domínio recusa (meta, nome, XP, critério fora da lista fechada).
 export class InvalidAdminCatalogError extends Error {}
+
+// Conteúdo das lições (N.18/N.23). Traduzidas pelo router: 404, 409 e 422.
+export class AdminLessonNotFoundError extends Error {}
+// Publicar lição já publicada, despublicar uma já despublicada.
+export class AdminLessonConflictError extends Error {}
+// Conteúdo que a regra de domínio da lição recusa (aposta, chaves de desbloqueio, ticker, tamanho).
+export class InvalidAdminLessonError extends Error {}

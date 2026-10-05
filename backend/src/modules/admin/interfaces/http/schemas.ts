@@ -343,3 +343,6 @@ export const adminRankingQuerySchema = z
     message: 'window é obrigatório exceto quando criterion=level',
     path: ['window'],
   })
+
+// PATCH /admin/lessons/:id/published (N.18).
+export const setLessonPublishedBodySchema = z.object({ published: z.boolean() })

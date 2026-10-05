@@ -155,6 +155,13 @@
       "when": 1791300000000,
       "tag": "0021_add_catalog_active_and_achievement_seed_key",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0022_add_lesson_published_and_revisions",
+      "breakpoints": true
     }
   ]
 }

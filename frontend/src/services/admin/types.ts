@@ -106,6 +106,8 @@ export type AuditAction =
     | 'achievement.create'
     | 'achievement.update'
     | 'mission.update'
+    | 'lesson.publish'
+    | 'lesson.unpublish'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -812,4 +814,44 @@ export interface AdminRankingFilters {
     window?: AdminRankingWindow
     criterion: AdminRankingCriterion
     page: number
+}
+
+export type LessonMicroDecisionType =
+    'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator' | 'live_macro_indicator'
+
+export interface LessonFunnel {
+    started: number
+    completed: number
+    abandoned: number
+    completion_rate: number | null
+    avg_seconds_to_complete: number | null
+    median_seconds_to_complete: number | null
+    bet_answered: number
+    bet_correct: number
+    bet_accuracy: number | null
+    // Quem iniciou e não concluiu, por passo gravado: cenário, micro-decisão, revelação, desbloqueio.
+    abandoned_by_step: number[]
+}
+
+export interface AdminLesson {
+    id: string
+    code: string
+    title: string
+    track_number: number
+    track_name: string
+    sort_order: number
+    micro_decision_type: LessonMicroDecisionType
+    has_bet: boolean
+    unlocks_keys: string[]
+    published: boolean
+    prerequisite_code: string | null
+    funnel: LessonFunnel
+}
+
+export interface LessonPublicationResult {
+    id: string
+    code: string
+    title: string
+    published: boolean
+    waived_users: number
 }

@@ -5,6 +5,8 @@ import type {
     AdminRankingFilters,
     CatalogAchievement,
     CatalogMission,
+    AdminLesson,
+    LessonPublicationResult,
     CreateAchievementInput,
     UpdateAchievementInput,
     UpdateMissionInput,
@@ -50,6 +52,10 @@ import type {
 } from './types'
 
 export type {
+    AdminLesson,
+    LessonFunnel,
+    LessonMicroDecisionType,
+    LessonPublicationResult,
     AchievementCatalog,
     AchievementCriteriaType,
     AchievementCriterionOption,
@@ -414,4 +420,12 @@ export function getAdminRanking(token: string, filters: AdminRankingFilters): Pr
     const params = new URLSearchParams({ criterion: filters.criterion, page: String(filters.page) })
     if (filters.window) params.set('window', filters.window)
     return apiRequest<AdminRanking>(`/admin/gamification/ranking?${params.toString()}`, { token })
+}
+
+export function getAdminLessons(token: string) {
+    return apiRequest<{ lessons: AdminLesson[] }>('/admin/lessons', { token })
+}
+
+export function setLessonPublished(token: string, id: string, published: boolean) {
+    return apiRequest<LessonPublicationResult>(`/admin/lessons/${id}/published`, { token, method: 'PATCH', body: { published } })
 }

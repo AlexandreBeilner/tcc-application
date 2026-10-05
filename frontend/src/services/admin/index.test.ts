@@ -38,8 +38,10 @@ import {
     setAdminUserStreak,
     createAchievement,
     getAchievementCatalog,
+    getAdminLessons,
     getAdminRanking,
     getMissionCatalog,
+    setLessonPublished,
     updateAchievement,
     updateMission,
 } from '.'
@@ -406,6 +408,16 @@ describe('services/admin', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/missions/m1')
         expect(fetchMock.mock.calls[0][1].method).toBe('PATCH')
         expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ xp_reward: 45 })
+    })
+
+    it('getAdminLessons faz GET e setLessonPublished faz PATCH com published', async () => {
+        const fetchMock = mockFetchOnce({ lessons: [] })
+        await getAdminLessons('token')
+        await setLessonPublished('token', 'l1', false)
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/lessons')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/lessons/l1/published')
+        expect(fetchMock.mock.calls[1][1].method).toBe('PATCH')
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ published: false })
     })
 
     it('getAdminRanking monta a query e omite a janela no critério de nível', async () => {

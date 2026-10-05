@@ -24,3 +24,6 @@ export class LessonStepTooFastError extends Error {
 // Correção manual de lição pelo painel (N.17).
 export class LessonAlreadyCompletedError extends Error {}
 export class LessonNotReopenableError extends Error {}
+// Gestão do catálogo de lições pelo painel (N.18/N.23).
+// Publicar lição já publicada, ou despublicar uma já despublicada.
+export class LessonPublicationConflictError extends Error {}

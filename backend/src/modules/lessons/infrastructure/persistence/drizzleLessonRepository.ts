@@ -46,7 +46,12 @@ function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonPr
 export function createDrizzleLessonRepository(db: Database): LessonRepository {
   return {
     async listAll() {
-      const rows = await db.select().from(lessons).orderBy(asc(lessons.sortOrder))
+      // Só as publicadas (N.18): a progressão do jogador é calculada sobre esta lista.
+      const rows = await db
+        .select()
+        .from(lessons)
+        .where(eq(lessons.published, true))
+        .orderBy(asc(lessons.sortOrder))
       return rows.map(toLessonSummary)
     },
 

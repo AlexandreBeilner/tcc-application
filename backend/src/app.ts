@@ -88,6 +88,17 @@ import {
 import { createEngineUserCashCreditor } from './modules/admin/infrastructure/engine/engineUserCashCreditor'
 import { createInProcessUserCorrections } from './modules/admin/infrastructure/corrections/inProcessUserCorrections'
 import { createAdminGamificationRouter } from './modules/admin/interfaces/http/adminGamificationRouter'
+import { createAdminLessonsRouter } from './modules/admin/interfaces/http/adminLessonsRouter'
+import {
+  ListLessonCatalogAdminUseCase,
+  SetLessonPublishedAdminUseCase,
+} from './modules/admin/application/useCases/lessonCatalog'
+import { createInProcessLessonCatalogAdmin } from './modules/admin/infrastructure/lessons/inProcessLessonCatalogAdmin'
+import {
+  ListLessonCatalogUseCase,
+  SetLessonPublishedUseCase,
+} from './modules/lessons/application/useCases/manageLessonCatalog'
+import { createDrizzleLessonCatalogRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCatalogRepository'
 import {
   CreateAchievementAdminUseCase,
   ListAchievementCatalogUseCase as ListAchievementCatalogAdminUseCase,
@@ -786,6 +797,20 @@ export function createApp(deps: AppDeps = {}): Express {
       listMissionCatalog: new ListMissionCatalogAdminUseCase(gamificationCatalogAdmin),
       updateMission: new UpdateMissionAdminUseCase(gamificationCatalogAdmin, recordAdminAction),
       getAdminRanking: new GetAdminRankingUseCase(createInProcessAdminRankingReader(getRanking)),
+      authMiddleware,
+    }),
+  )
+  // Conteúdo das lições (N.18): o painel só orquestra e audita; o funil e a regra de publicação
+  // (dispensa ao publicar de volta) vivem no módulo `lessons`.
+  const lessonCatalogRepository = createDrizzleLessonCatalogRepository(db)
+  const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
+    listLessonCatalog: new ListLessonCatalogUseCase(lessonCatalogRepository),
+    setLessonPublished: new SetLessonPublishedUseCase(lessonCatalogRepository),
+  })
+  app.use(
+    createAdminLessonsRouter({
+      listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
+      setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, recordAdminAction),
       authMiddleware,
     }),
   )

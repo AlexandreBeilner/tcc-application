@@ -192,6 +192,22 @@ Seis rotas, todas só para `role: 'admin'` (`401` sem token, `403` para usuário
 - **Sucesso:** `200` → `{ window, window_start, window_end, criterion, entries: [{ position, user_id, username, level, xp, profitability_pct }], page, page_size, total_entries, total_pages }`. **Somente leitura**: é o ranking global da janela corrente (UTC, mesmo cálculo do `GET /ranking`), calculado na hora, sem janela gravada, então não há o que fechar nem recalcular. `window_start`/`window_end` mostram o período (`null` no critério de nível, que é cumulativo). Só nível, XP e rentabilidade percentual: nunca patrimônio absoluto (RNF09). Custa chamadas ao motor por usuário, por isso a tela só consulta quando a aba está aberta.
 - **Erros:** `400` parâmetros inválidos.
 
+### Conteúdo das lições: funil e publicação (tarefa N.18)
+
+Exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum). Publicar e despublicar são auditados, mas não pedem senha recente: não apagam dado de ninguém e desfazem-se com o gesto contrário.
+
+#### `GET /admin/lessons`
+
+- **Sucesso:** `200` → `{ lessons: [...] }`, **todas** as lições (publicadas ou não) em ordem da trilha. Cada item: `{ id, code, title, track_number, track_name, sort_order, micro_decision_type, has_bet, unlocks_keys, published, prerequisite_code, funnel }`. `prerequisite_code` é o código da publicada anterior na ordem (a progressão é linear); `null` na primeira e nas despublicadas. `funnel`: `{ started, completed, abandoned, completion_rate, avg_seconds_to_complete, median_seconds_to_complete, bet_answered, bet_correct, bet_accuracy, abandoned_by_step: [n, n, n, n] }`.
+- **Como o funil é contado** (a partir de `user_lesson_progress`): `started` são as linhas que não são só uma dispensa nunca aberta (N.24), `completed` as com `completed_at`; `abandoned_by_step` distribui quem iniciou e não concluiu pelo passo gravado (0 cenário, 1 micro-decisão, 2 revelação, 3 desbloqueio). O tempo é de iniciar a concluir, só de quem concluiu sem dispensa, e **inclui pausas** (quem volta no dia seguinte), por isso a mediana vem junto da média. A aposta só conta quem concluiu com a escolha gravada, em lição com aposta real. As taxas são `null` quando não há base (ninguém iniciou, lição sem aposta respondida).
+
+#### `PATCH /admin/lessons/:id/published`
+
+- **Payload:** `{ "published": true | false }`.
+- **Sucesso:** `200` → `{ id, code, title, published, waived_users }`. **Despublicar** tira a lição da trilha e da conta de progressão de todos sem apagar progresso: ninguém fica travado (as seguintes não passam a exigir uma contagem que o usuário não alcança) nem pula uma lição. **Publicar de volta** concede dispensa (N.24) a quem já satisfez o número de lições equivalente à posição dela (quem já tinha concluído a própria lição fica como está); `waived_users` diz quantos. A dispensa libera as chaves de produto e não dá XP.
+- **Erros:** `400` corpo inválido ou `id` que não é UUID; `404` lição inexistente; `409` a lição já está no estado pedido.
+- **Auditoria:** `lesson.publish` / `lesson.unpublish`, `target_type = lesson`, `payload = { code, waived_users }`; a recusa grava `result = failed`.
+
 ### Painel de Tempo (tarefa N.6)
 
 Cinco rotas que repassam o controle do Temporizador do motor (ver `.docs/engine/tick.md#controle-do-temporizador-tarefa-n6-fase-n`). Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum, nada é chamado nem auditado nesses casos). Proxy fino: `SchedulerAdmin` (porta → `engineSchedulerAdmin`) chama o motor via `ENGINE_URL`; a regra (pausa só vale pro tick agendado, retomar não recupera o tempo parado, teto de dias) vive no motor.
