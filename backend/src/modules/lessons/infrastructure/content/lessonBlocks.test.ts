@@ -101,6 +101,32 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
   })
 
+  it('aceita os widgets de juros e inflação com defaults', () => {
+    const phases = {
+      ...CONTRACT_EXAMPLE.phases,
+      scenario: [
+        { type: 'widget', id: 'a', widget: 'compound-growth', props: {} },
+        { type: 'widget', id: 'b', widget: 'real-return', props: { inflationPct: 6 } },
+        { type: 'widget', id: 'c', widget: 'selic-ipca-chart', props: { windowDays: 180 } },
+        { type: 'widget', id: 'd', widget: 'copom-timeline', props: {} },
+      ],
+    }
+    expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
+  })
+
+  it.each([
+    ['compound-growth', { months: 0 }],
+    ['compound-growth', { rateUnit: 'day' }],
+    ['real-return', { inflationPct: 50 }],
+    ['selic-ipca-chart', { windowDays: 3 }],
+  ])('%s com props fora do limite é rejeitado', (widget, props) => {
+    const phases = {
+      ...CONTRACT_EXAMPLE.phases,
+      scenario: [{ type: 'widget', id: 'x', widget, props }],
+    }
+    expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(false)
+  })
+
   it('comparador com um produto só é rejeitado', () => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

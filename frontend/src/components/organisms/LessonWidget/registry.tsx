@@ -2,6 +2,10 @@ import type { ComponentType } from 'react'
 import type { ZodType } from 'zod'
 import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
 import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
+import { CompoundGrowthWidget, compoundGrowthSummary } from '../CompoundGrowthWidget'
+import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidget'
+import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
+import { SelicIpcaChartWidget, selicIpcaChartSummary } from '../SelicIpcaChartWidget'
 import { EquivalentRateWidget, equivalentRateSummary } from '../EquivalentRateWidget'
 import { IrRegressiveTableWidget, irRegressiveTableSummary } from '../IrRegressiveTableWidget'
 import { ProductComparatorWidget, productComparatorSummary } from '../ProductComparatorWidget'
@@ -49,6 +53,26 @@ export const widgetRegistry: Registry = {
         component: ProductComparatorWidget,
         propsSchema: widgetPropsSchemas['product-comparator'],
         summary: productComparatorSummary,
+    },
+    'compound-growth': {
+        component: CompoundGrowthWidget,
+        propsSchema: widgetPropsSchemas['compound-growth'],
+        summary: compoundGrowthSummary,
+    },
+    'real-return': {
+        component: RealReturnWidget,
+        propsSchema: widgetPropsSchemas['real-return'],
+        summary: realReturnSummary,
+    },
+    'selic-ipca-chart': {
+        component: SelicIpcaChartWidget,
+        propsSchema: widgetPropsSchemas['selic-ipca-chart'],
+        summary: selicIpcaChartSummary,
+    },
+    'copom-timeline': {
+        component: CopomTimelineWidget,
+        propsSchema: widgetPropsSchemas['copom-timeline'],
+        summary: copomTimelineSummary,
     },
     'growth-calculator': {
         component: GrowthCalculatorForm,

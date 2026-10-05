@@ -470,7 +470,7 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 |---|---|---|
 | RC.3.4a Cálculo de renda fixa ✅ | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
 | RC.3.4b Risco e proteção | `mtm-seesaw` (gangorra de marcação a mercado: taxa x preço, prazo, Prefixado/IPCA+/Selic, choques), `fgc-coverage-bar` (R$ 250 mil por conglomerado, teto R$ 1 milhão em 4 anos, guarda-chuva), `rating-ruler` | 1.4, 1.8, 1.11 |
-| RC.3.4c Juros e inflação | `compound-growth` (substitui `growth_calculator`), `real-return`, `selic-ipca-chart` (série com faixa da meta), `copom-timeline` (8 reuniões/ano) | 0.2-0.5, 1.2, 1.3, 1.9, 1.10 |
+| RC.3.4c Juros e inflação ✅ | `compound-growth` (substitui `growth_calculator`), `real-return`, `selic-ipca-chart` (série com faixa da meta), `copom-timeline` (8 reuniões/ano) | 0.2-0.5, 1.2, 1.3, 1.9, 1.10 |
 | RC.3.4d Títulos | `bond-price-calculator` (preço/deságio, IR e custódia, LTN x NTN-F), `ipca-plus-simulator` (VNA, ano a ano), `breakeven-inflation` | 1.7, 1.10 |
 | RC.3.4e Ações, parte 1 | `ownership-calculator`, `bookbuilding-simulator`, `ticker-decoder` (arrastar), `headline-triage`, `order-book` (livro de ofertas interativo; G) | 2.1-2.5 |
 | RC.3.4f Ações, parte 2 | `interactive-balance` (DRE em cascata + Ativo = Passivo + PL; G), `margin-comparator`, `roe-lab` (DuPont), `multiples-calculator`, `debt-thermometer` (choque de Selic) | 2.6.1-2.6.5 |
@@ -493,6 +493,25 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
   comparador usa capitalização composta, então os dois podem divergir em frações de ponto percentual em prazos
   curtos; (c) a tabela de IR está duplicada entre backend (fato) e frontend (constante), sem teste que as cruze;
   (d) sem conferência visual nos 3 breakpoints nem `docker compose`; (e) não incluem o IOF dos primeiros 30 dias.
+- **RC.3.4c entregue (2026-10-04):** quatro widgets registrados nos dois lados do contrato (props todas com default):
+  `compound-growth` (`initial`, `monthly`, `ratePct`, `rateUnit`, `months` até 480, `showSimple`: campos de capital e
+  aporte, controles deslizantes de taxa e prazo, `GrowthChart` e, com `showSimple`, o valor dos juros simples e a
+  diferença em R$; reusa `computeGrowthProjection`, então bate com a Calculadora), `real-return` (`nominalPct`,
+  `inflationPct`, `amount`: três barras com o valor escrito, rendimento real por Fisher `(1+n)/(1+i)-1` e o valor em
+  reais de hoje; barra negativa listrada, nunca só cor), `selic-ipca-chart` (`windowDays`: Selic em linha contínua e
+  IPCA 12 meses tracejada na mesma escala, faixa da meta de 3% com tolerância de 1,5 p.p. sombreada, lê a série pelo
+  `useIndicatorHistoryQuery`; estados de carregando e histórico curto) e `copom-timeline` (sem props: 8 marcos
+  selecionáveis, decisão no segundo dia, comunicado a partir das 18h30, cerca de 45 dias entre reuniões, sem datas de
+  calendário). Contas em `features/lessons/widgets/macroMath` e layout do gráfico em `selicIpcaChartLayout`, ambos com
+  teste table-driven; constantes espelham os fatos `meta-inflacao` e `copom-reunioes` de `regulatoryFacts.ts`. CSS
+  novo (barras, gráfico, linha do tempo) em `widgetControls.module.css`. `.docs/backend/lessons.md` atualizado.
+  Validou: frontend `tsc -b`/oxlint/`vitest` (1378), backend lint/build/`npm test` (2694). O teste de conteúdo
+  proibido barrou "simulado" e "Na plataforma" nos widgets (só valem no bloco "Na plataforma"), então a prop
+  `showPlatformCadence` do desenho original saiu: o ritmo de 21 dias simulados do Copom da plataforma é escrito no
+  bloco "Na plataforma" da lição, não no widget. **Ressalvas:** (a) nenhuma lição usa os widgets ainda (RC.4.1 e RC.5.2
+  são as primeiras consumidoras); (b) `growth-calculator` continua registrado, porque as lições de hoje ainda o
+  referenciam; a troca é a Fase 5; (c) sem conferência visual nos 3 breakpoints nem `docker compose`; (d) os limites de
+  `windowDays` (7 a 365) seguem o `live-macro`, sem teste contra a janela real do motor.
 - **Aceite geral:** nenhum texto manda calcular fora; nenhum botão "Ver resultado" solto (se sobrar, rótulo
   contextual); lint do seed barra "calcule" sem widget na mesma fase.
 - **Depende de:** RC.3.1 (e RC.3.2 quando o widget traz checkpoint).

@@ -22,6 +22,10 @@ export const WIDGET_IDS = [
   'equivalent-rate',
   'ir-regressive-table',
   'product-comparator',
+  'compound-growth',
+  'real-return',
+  'selic-ipca-chart',
+  'copom-timeline',
   'growth-calculator',
   'fixed-income-comparison',
   'live-indicator',
@@ -74,6 +78,26 @@ const productComparatorProps = z.object({
   days: z.number().int().min(1).max(3650).default(180),
 })
 
+// Widgets de juros e inflação (RC.3.4c): props só configuram o ponto de partida.
+// `compound-growth` aceita o limite do slider (480 meses = 40 anos); a Selic e o
+// IPCA do gráfico vêm do motor, o widget só escolhe a janela.
+const compoundGrowthProps = z.object({
+  initial: z.number().min(0).max(10_000_000).default(1000),
+  monthly: z.number().min(0).max(1_000_000).default(0),
+  ratePct: z.number().min(0).max(100).default(10),
+  rateUnit: z.enum(['year', 'month']).default('year'),
+  months: z.number().int().min(1).max(480).default(60),
+  showSimple: z.boolean().default(true),
+})
+
+const realReturnProps = z.object({
+  nominalPct: z.number().min(0).max(20).default(10),
+  inflationPct: z.number().min(0).max(20).default(5),
+  amount: z.number().positive().default(10000),
+})
+
+const selicIpcaChartProps = z.object({ windowDays: z.number().int().min(7).max(365).default(365) })
+
 // Widgets sem configuração por lição hoje (a Calculadora e o comparador da 6.7
 // nascem vazios); o objeto vazio fica estrito para o editor da N.23 não
 // aceitar props que nenhum widget lê.
@@ -88,6 +112,10 @@ export const widgetPropsSchemas = {
   'equivalent-rate': equivalentRateProps,
   'ir-regressive-table': irRegressiveTableProps,
   'product-comparator': productComparatorProps,
+  'compound-growth': compoundGrowthProps,
+  'real-return': realReturnProps,
+  'selic-ipca-chart': selicIpcaChartProps,
+  'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,
   'live-indicator': liveIndicatorProps,
