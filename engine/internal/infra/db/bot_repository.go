@@ -59,6 +59,16 @@ func (r *BotRepository) CreatePersonality(ctx context.Context, accountID string,
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := createPersonalityTx(ctx, tx, accountID, personality); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// createPersonalityTx grava a personalidade dentro de uma transação já aberta —
+// reaproveitado por CreatePersonality e por BotAdminRepository.CreateBot (N.1),
+// que cria conta e personalidade na mesma transação.
+func createPersonalityTx(ctx context.Context, tx *sql.Tx, accountID string, personality bot.Personality) error {
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO bot_personalities
 			(account_id, archetype, within_scope_pct, knowledge_level, max_position_size_pct, market_order_preference, spread_width_pct, max_covered_assets)
@@ -70,29 +80,34 @@ func (r *BotRepository) CreatePersonality(ctx context.Context, accountID string,
 		return err
 	}
 
-	for _, sector := range personality.Scope.Sectors {
+	return insertScopeTx(ctx, tx, accountID, personality.Scope)
+}
+
+// insertScopeTx grava uma linha de bot_personality_scopes por setor, classe de risco e
+// classe de ativo do escopo; reaproveitado pela criação e pela edição da personalidade (N.15).
+func insertScopeTx(ctx context.Context, tx *sql.Tx, accountID string, scope bot.SpecializationScope) error {
+	for _, sector := range scope.Sectors {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO bot_personality_scopes (account_id, sector) VALUES ($1, $2)`, accountID, string(sector),
 		); err != nil {
 			return err
 		}
 	}
-	for _, riskClass := range personality.Scope.RiskClasses {
+	for _, riskClass := range scope.RiskClasses {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO bot_personality_scopes (account_id, risk_class) VALUES ($1, $2)`, accountID, string(riskClass),
 		); err != nil {
 			return err
 		}
 	}
-	for _, assetClass := range personality.Scope.AssetClasses {
+	for _, assetClass := range scope.AssetClasses {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO bot_personality_scopes (account_id, asset_class) VALUES ($1, $2)`, accountID, string(assetClass),
 		); err != nil {
 			return err
 		}
 	}
-
-	return tx.Commit()
+	return nil
 }
 
 // withStoredMaxCoveredAssets aplica o teto persistido (P.1) sobre a
@@ -103,6 +118,34 @@ func withStoredMaxCoveredAssets(personality bot.Personality, stored sql.NullInt6
 		return personality, nil
 	}
 	return personality.WithMaxCoveredAssets(int(stored.Int64))
+}
+
+// personalityFromRow reconstrói a Personality de uma linha de bot_personalities
+// (mais o escopo acumulado) pelos construtores de domínio, nunca por struct
+// literal: uma linha corrompida não produz uma Personality que viole os
+// invariantes (C.1). Compartilhado por Find, ListEligibleForTradingRound e pela
+// listagem do painel (N.1).
+func personalityFromRow(archetype string, withinScopePct float64, knowledgeLevel sql.NullFloat64, maxPositionSizePct, marketOrderPreference, spreadWidthPct float64, maxCoveredAssets sql.NullInt64, acc *scopeAccumulator) (bot.Personality, error) {
+	if acc == nil {
+		acc = &scopeAccumulator{}
+	}
+	scope, err := bot.NewSpecializationScope(acc.sectors, acc.riskClasses, acc.assetClasses, withinScopePct)
+	if err != nil {
+		return bot.Personality{}, err
+	}
+	riskProfile, err := bot.NewRiskProfile(maxPositionSizePct, marketOrderPreference, spreadWidthPct)
+	if err != nil {
+		return bot.Personality{}, err
+	}
+	var knowledgeLevelPtr *float64
+	if knowledgeLevel.Valid {
+		knowledgeLevelPtr = &knowledgeLevel.Float64
+	}
+	personality, err := bot.NewPersonality(bot.Archetype(archetype), scope, knowledgeLevelPtr, riskProfile)
+	if err != nil {
+		return bot.Personality{}, err
+	}
+	return withStoredMaxCoveredAssets(personality, maxCoveredAssets)
 }
 
 // FindPersonalityByAccountID devolve a personalidade de accountID, se já
@@ -148,24 +191,7 @@ func (r *BotRepository) FindPersonalityByAccountID(ctx context.Context, accountI
 		return bot.Personality{}, false, err
 	}
 
-	scope, err := bot.NewSpecializationScope(acc.sectors, acc.riskClasses, acc.assetClasses, withinScopePct)
-	if err != nil {
-		return bot.Personality{}, false, err
-	}
-	riskProfile, err := bot.NewRiskProfile(maxPositionSizePct, marketOrderPreference, spreadWidthPct)
-	if err != nil {
-		return bot.Personality{}, false, err
-	}
-	var knowledgeLevelPtr *float64
-	if knowledgeLevel.Valid {
-		knowledgeLevelPtr = &knowledgeLevel.Float64
-	}
-
-	personality, err := bot.NewPersonality(bot.Archetype(archetype), scope, knowledgeLevelPtr, riskProfile)
-	if err != nil {
-		return bot.Personality{}, false, err
-	}
-	personality, err = withStoredMaxCoveredAssets(personality, maxCoveredAssets)
+	personality, err := personalityFromRow(archetype, withinScopePct, knowledgeLevel, maxPositionSizePct, marketOrderPreference, spreadWidthPct, maxCoveredAssets, &acc)
 	if err != nil {
 		return bot.Personality{}, false, err
 	}
@@ -263,27 +289,7 @@ func (r *BotRepository) ListEligibleForTradingRound(ctx context.Context) ([]tick
 
 	roster := make([]tick.BotForRound, 0, len(eligible))
 	for _, raw := range eligible {
-		acc := scopesByAccount[raw.userID]
-		if acc == nil {
-			acc = &scopeAccumulator{}
-		}
-		scope, err := bot.NewSpecializationScope(acc.sectors, acc.riskClasses, acc.assetClasses, raw.withinScopePct)
-		if err != nil {
-			return nil, err
-		}
-		riskProfile, err := bot.NewRiskProfile(raw.maxPositionSizePct, raw.marketOrderPreference, raw.spreadWidthPct)
-		if err != nil {
-			return nil, err
-		}
-		var knowledgeLevelPtr *float64
-		if raw.knowledgeLevel.Valid {
-			knowledgeLevelPtr = &raw.knowledgeLevel.Float64
-		}
-		personality, err := bot.NewPersonality(bot.Archetype(raw.archetype), scope, knowledgeLevelPtr, riskProfile)
-		if err != nil {
-			return nil, err
-		}
-		personality, err = withStoredMaxCoveredAssets(personality, raw.maxCoveredAssets)
+		personality, err := personalityFromRow(raw.archetype, raw.withinScopePct, raw.knowledgeLevel, raw.maxPositionSizePct, raw.marketOrderPreference, raw.spreadWidthPct, raw.maxCoveredAssets, scopesByAccount[raw.userID])
 		if err != nil {
 			return nil, err
 		}

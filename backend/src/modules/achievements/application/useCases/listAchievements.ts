@@ -20,7 +20,13 @@ export class ListAchievementsUseCase {
     ])
     const unlockedAtByAchievementId = new Map(unlocked.map((u) => [u.achievementId, u.unlockedAt]))
 
-    return catalog.map((achievement) =>
+    // Conquista desativada pelo painel (N.19) some pra quem ainda não a tem, mas continua
+    // na lista (e no perfil público) de quem já a ganhou: desativar nunca tira o que foi ganho.
+    const visible = catalog.filter(
+      (achievement) => achievement.isActive || unlockedAtByAchievementId.has(achievement.id),
+    )
+
+    return visible.map((achievement) =>
       buildAchievementView(
         achievement,
         unlockedAtByAchievementId.get(achievement.id) ?? null,

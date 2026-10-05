@@ -23,7 +23,9 @@ export type { LockedAssetPanelProps } from './types'
 // `/trilha/:id` direto nos demais casos.
 export function LockedAssetPanel({ lessonId, lessonTitle, reachable }: LockedAssetPanelProps) {
     const navigate = useNavigate()
-    const description = lessonTitle ? `Complete a lição "${lessonTitle}" na trilha pra liberar isso.` : 'Ainda não há lição cobrindo este produto.'
+    const description = lessonTitle
+        ? `Complete a lição "${lessonTitle}" na trilha pra liberar isso.`
+        : 'Ainda não há lição cobrindo este produto.'
     const destination = lessonId && reachable !== false ? `/trilha/${lessonId}` : '/trilha'
 
     return (

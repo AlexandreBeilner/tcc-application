@@ -1,4 +1,4 @@
-import { countCompleted, unlockedKeysFor } from '../../domain/lesson'
+import { buildProgression, unlockedKeysFor } from '../../domain/lesson'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface GetUnlockedProductKeysInput {
@@ -9,9 +9,9 @@ export interface GetUnlockedProductKeysInput {
 // de `POST /market/orders`/`fixed-income/purchases` (achado 5 da revisão
 // da Semana 7) e, do lado do frontend, espelhada em TS puro
 // (`frontend/src/features/lessons/unlockedKeys.ts`) a partir dos mesmos
-// dados de `GET /lessons`. `countCompleted` (mesmo critério de
-// `CountCompletedLessonsUseCase`) garante que este gate nunca divirja da
-// contagem usada por `achievements` pro critério `lessons_completed`.
+// dados de `GET /lessons`. Usa `buildProgression` (concluídas + dispensadas,
+// N.24), a mesma contagem do desbloqueio das lições: dispensa mantém o
+// produto liberado, mas não entra em `lessons_completed` (achievements).
 export class GetUnlockedProductKeysUseCase {
   constructor(private readonly lessonRepository: LessonRepository) {}
 
@@ -21,6 +21,6 @@ export class GetUnlockedProductKeysUseCase {
       this.lessonRepository.listProgressForUser(input.userId),
     ])
 
-    return unlockedKeysFor(countCompleted(progress), lessons)
+    return unlockedKeysFor(buildProgression(lessons, progress).satisfiedCount, lessons)
   }
 }

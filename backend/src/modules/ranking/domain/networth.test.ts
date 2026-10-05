@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { replay, type MarketEventRecord } from './networth'
+import { investmentReturnPct, toRiskCapitalSnapshot } from './profitability'
 
 function event(
   partial: Partial<MarketEventRecord> & Pick<MarketEventRecord, 'eventType'>,
@@ -108,6 +109,32 @@ describe('replay', () => {
 
     expect(snapshot.cash).toBe(10000 + 100 * 1.5)
     expect(snapshot.dividendsReceived).toBe(100 * 1.5)
+  })
+
+  it('admin_credit e salary_payment são caixa livre: não entram no capital de risco, então não mexem na rentabilidade (N.17, T.1)', () => {
+    const base = [
+      event({ eventType: 'initial_deposit', unitValue: 10000 }),
+      event({ eventType: 'buy_order_executed', assetId: 'a1', quantity: 10, unitValue: 50 }),
+    ]
+    const withCredits = [
+      ...base,
+      event({ eventType: 'admin_credit', unitValue: 5_000_000 }),
+      event({ eventType: 'salary_payment', unitValue: 3000 }),
+    ]
+    const quotes = new Map([['a1', 60]])
+
+    const before = replay(base, quotes, new Set())
+    const after = replay(withCredits, quotes, new Set())
+
+    expect(after.investedCost).toBe(before.investedCost)
+    expect(after.disinvestedProceeds).toBe(before.disinvestedProceeds)
+    expect(after.dividendsReceived).toBe(before.dividendsReceived)
+    expect(after.variableIncomeValue).toBe(before.variableIncomeValue)
+    expect(after.tradesExecuted).toBe(before.tradesExecuted)
+    expect(toRiskCapitalSnapshot(after)).toEqual(toRiskCapitalSnapshot(before))
+    expect(investmentReturnPct(toRiskCapitalSnapshot(after))).toBe(
+      investmentReturnPct(toRiskCapitalSnapshot(before)),
+    )
   })
 
   it('exclui posição de ativo sandbox da valorização, mas mantém o efeito real no caixa', () => {
