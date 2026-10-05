@@ -8,6 +8,7 @@ import type {
     IndicatorHistoryEntry,
     MarketCalendar,
     MarketClock,
+    TradingHaltStatus,
     MarketEvent,
     MyAccount,
     MyOrderRecord,
@@ -25,7 +26,7 @@ import type {
 
 export type { ProductLockedErrorBody } from './types'
 
-export type { CalendarDay, CalendarEvent, CalendarEventKind, MarketCalendar, MarketClock } from './types'
+export type { CalendarDay, CalendarEvent, CalendarEventKind, MarketCalendar, MarketClock, TradingHaltStatus } from './types'
 
 export type {
     AssetBook,
@@ -175,4 +176,9 @@ export function purchaseFixedIncome(token: string, input: PurchaseFixedIncomeInp
 
 export function redeemFixedIncome(token: string, input: RedeemFixedIncomeInput): Promise<RedeemFixedIncomeResult> {
     return apiRequest<RedeemFixedIncomeResult>('/market/fixed-income/redemptions', { token, method: 'POST', body: input })
+}
+
+// Pausa de negociação vigente (tarefa N.9): alimenta o aviso "Negociação pausada".
+export function getTradingHalts(token: string): Promise<TradingHaltStatus> {
+    return apiRequest<TradingHaltStatus>('/market/halts', { token })
 }

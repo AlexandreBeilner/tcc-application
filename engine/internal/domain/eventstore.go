@@ -57,6 +57,13 @@ const (
 	// a rentabilidade (T.1) calculada só sobre capital que já foi de risco em
 	// algum momento.
 	EventSalaryPayment MarketEventType = "salary_payment"
+	// EventAdminCredit (Fase N, tarefa N.17, migration 000047) é o crédito de caixa
+	// feito pelo administrador na conta de um usuário (reparar prejuízo causado por
+	// bug, preparar conta de demonstração). Caixa livre como o salário: nunca
+	// incrementa TotalInvested/TotalDisinvested/TotalDividendsReceived, então não
+	// infla a rentabilidade (T.1). Tipo próprio pra o extrato rotular e pra nunca ser
+	// confundido com EventSalaryPayment nem com EventInitialDeposit (RNF06).
+	EventAdminCredit MarketEventType = "admin_credit"
 )
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte

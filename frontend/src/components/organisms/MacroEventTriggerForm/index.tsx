@@ -16,8 +16,9 @@ import {
     validateMacroEventDraft,
 } from '../../../features/admin/macroEventDraft'
 import type { MacroEventDraft, MacroEventTargetDraft, MacroEventTargetKind } from '../../../features/admin/macroEventDraft'
+import { describeTriggerError } from '../../../features/admin/macroEventLifecycle'
 import { useTriggerMacroEventMutation } from '../../../features/admin/useTriggerMacroEventMutation'
-import { ApiError } from '../../../services/client'
+import { useMarketClockQuery } from '../../../features/market/useMarketClockQuery'
 import type { MacroEventTriggerFormProps } from './types'
 import styles from './index.module.css'
 
@@ -76,6 +77,8 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
     // pelo motor (achado 028), então nem aparecem no seletor.
     const assetsQuery = useAssetsQuery('acao')
     const triggerMutation = useTriggerMacroEventMutation()
+    const clockQuery = useMarketClockQuery()
+    const currentDay = clockQuery.data?.simulated_day
     const assetLabels = useAssetLabels(assetsQuery.data?.assets)
 
     const assetOptions: SelectOption[] = useMemo(
@@ -109,7 +112,7 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
     }
 
     function handleOpenConfirm() {
-        const errors = validateMacroEventDraft(draft)
+        const errors = validateMacroEventDraft(draft, currentDay)
         setClientErrors(errors)
         if (errors.length === 0) setConfirming(true)
     }
@@ -125,12 +128,8 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
     }
 
     const summaryRows = buildMacroEventSummaryRows(draft, assetLabels)
-    const triggerErrorMessage =
-        triggerMutation.error instanceof ApiError
-            ? triggerMutation.error.message
-            : triggerMutation.isError
-              ? 'Não foi possível disparar o evento agora. Tente novamente.'
-              : null
+    const triggerErrorMessage = triggerMutation.isError ? describeTriggerError(triggerMutation.error) : null
+    const scheduling = draft.applyOnDay.trim() !== ''
 
     return (
         <div className={styles.layout}>
@@ -274,6 +273,21 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
                     </Button>
                 </div>
 
+                <label className={styles.field}>
+                    Dia simulado em que o efeito começa (opcional)
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        value={draft.applyOnDay}
+                        onChange={(e) => updateDraft({ applyOnDay: e.target.value })}
+                        placeholder={currentDay !== undefined ? `Vazio dispara já. Hoje é o dia ${currentDay}` : 'Vazio dispara já'}
+                    />
+                </label>
+                <p className={styles.hint}>
+                    Com um dia futuro, o evento fica agendado: nasce pendente, só aparece pros jogadores na véspera e pode ser cancelado até
+                    o efeito começar.
+                </p>
+
                 {clientErrors.length > 0 && (
                     <ul className={styles.error} role="alert">
                         {clientErrors.map((error) => (
@@ -282,7 +296,7 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
                     </ul>
                 )}
 
-                <Button onClick={handleOpenConfirm}>Disparar agora</Button>
+                <Button onClick={handleOpenConfirm}>{scheduling ? 'Agendar evento' : 'Disparar agora'}</Button>
             </div>
 
             <aside className={styles.preview} aria-label="Prévia do evento">
@@ -297,7 +311,7 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
                 >
                     <div className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="confirm-trigger-title">
                         <h2 id="confirm-trigger-title" className={styles.panelTitle}>
-                            Confirmar disparo
+                            {scheduling ? 'Confirmar agendamento' : 'Confirmar disparo'}
                         </h2>
 
                         <OrderSummaryList rows={summaryRows} />
@@ -313,7 +327,7 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
                                 Cancelar
                             </Button>
                             <Button onClick={() => void handleConfirm()} disabled={triggerMutation.isPending}>
-                                Confirmar disparo
+                                {scheduling ? 'Confirmar agendamento' : 'Confirmar disparo'}
                             </Button>
                         </div>
                     </div>

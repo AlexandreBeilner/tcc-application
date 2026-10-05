@@ -2,6 +2,7 @@ import type {
   MarketCalendar,
   MarketCalendarReader,
   MarketClock,
+  TradingHaltStatus,
 } from '../../application/ports/marketCalendarReader'
 import { engineFetch } from './engineHttp'
 
@@ -16,6 +17,10 @@ export function createEngineMarketCalendarReader(engineUrl: string): MarketCalen
       if (query.from !== undefined) params.set('from', query.from)
       if (query.to !== undefined) params.set('to', query.to)
       return engineFetch<MarketCalendar>(`${engineUrl}/market/calendar?${params.toString()}`)
+    },
+
+    getTradingHalts() {
+      return engineFetch<TradingHaltStatus>(`${engineUrl}/market/halts`)
     },
   }
 }

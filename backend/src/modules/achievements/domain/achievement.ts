@@ -15,6 +15,9 @@ export interface Achievement {
   description: string | null
   criteriaType: AchievementCriteriaType
   criteriaValue: number
+  // Desativada (N.19): deixa de ser concedida e some pra quem ainda não a tem,
+  // mas nunca é tirada de quem já ganhou.
+  isActive: boolean
 }
 
 // Os números que qualquer critério de conquista pode consultar — agregado em
