@@ -14,7 +14,10 @@ import (
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
 
-const pqUniqueViolation = "23505"
+const (
+	pqUniqueViolation = "23505"
+	pqNumericOverflow = "22003"
+)
 
 // AccountRepository implementa account.Repository (escrita) contra o banco
 // "market" — desde a tarefa 4.7, também lê estado de usuário
@@ -46,6 +49,16 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := createAccountTx(ctx, tx, acc); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// createAccountTx grava o evento e a projeção da conta dentro de uma transação
+// já aberta (a conta de bot criada pelo painel, N.1, entra na mesma transação da
+// personalidade).
+func createAccountTx(ctx context.Context, tx *sql.Tx, acc account.Account) error {
 	eventType := domain.EventInitialDeposit
 	if acc.IsBot {
 		eventType = domain.EventBotInitialCash
@@ -66,8 +79,7 @@ func (r *AccountRepository) Create(ctx context.Context, acc account.Account) err
 	); err != nil {
 		return mapAccountError(err)
 	}
-
-	return tx.Commit()
+	return nil
 }
 
 // CreditSalary credita amount em accounts.current_balance de userID,
@@ -104,6 +116,47 @@ func (r *AccountRepository) CreditSalary(ctx context.Context, userID string, amo
 		amount, userID,
 	)
 	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return account.ErrNotFound
+	}
+
+	return tx.Commit()
+}
+
+// AdminCredit credita amount em accounts.current_balance gravando antes o evento
+// imutável EventAdminCredit, na mesma transação (N.17) — mesmo padrão de CreditSalary
+// (conta inexistente desfaz o evento, já que a FK só é checada no commit). Saldo que
+// estoura numeric(15,2) (SQLSTATE 22003) vira account.ErrBalanceOverflow.
+func (r *AccountRepository) AdminCredit(ctx context.Context, userID string, amount float64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
+		UserID:    userID,
+		EventType: domain.EventAdminCredit,
+		UnitValue: &amount,
+	}); err != nil {
+		return mapAccountError(err)
+	}
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE accounts SET current_balance = current_balance + $1 WHERE user_id = $2`,
+		amount, userID,
+	)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == pqNumericOverflow {
+			return account.ErrBalanceOverflow
+		}
 		return err
 	}
 	rowsAffected, err := result.RowsAffected()

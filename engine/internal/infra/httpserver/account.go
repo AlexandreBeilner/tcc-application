@@ -44,6 +44,13 @@ type accountSalaryCrediter interface {
 	CreditSalary(ctx context.Context, userID string, amount float64, referenceMonth string) error
 }
 
+// accountAdminCrediter é o colaborador que POST /admin/accounts/{user_id}/credit
+// precisa (N.17) — implementado por *account.Service. Devolve o valor de fato creditado
+// (já arredondado pra centavos).
+type accountAdminCrediter interface {
+	AdminCredit(ctx context.Context, userID string, amount float64) (float64, error)
+}
+
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // monthKeyPattern valida o formato 'YYYY-MM' de reference_month (achado 025)
@@ -63,6 +70,15 @@ type creditSalaryRequest struct {
 	// meses atrasados (T.5) grava eventos indistinguíveis, todos no dia em
 	// que o job rodou.
 	ReferenceMonth string `json:"reference_month"`
+}
+
+type adminCreditRequest struct {
+	Amount float64 `json:"amount"`
+}
+
+type adminCreditResponse struct {
+	UserID   string  `json:"user_id"`
+	Credited float64 `json:"credited"`
 }
 
 type accountResponse struct {
@@ -185,6 +201,47 @@ func handleCreditSalary(accounts accountSalaryCrediter) http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// handleAdminCredit serve POST /admin/accounts/{user_id}/credit — crédito de caixa
+// administrativo (N.17), sem teto de negócio (só o limite físico da coluna, 422). Grava
+// o evento imutável admin_credit antes de creditar current_balance, na mesma transação.
+// Mesmo trust boundary das demais rotas /admin: o backend valida role = admin, senha
+// recente e audita antes de repassar. Devolve o valor creditado (arredondado a centavos).
+func handleAdminCredit(accounts accountAdminCrediter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if accounts == nil {
+			writeAccountError(w, http.StatusServiceUnavailable, "serviço de contas indisponível")
+			return
+		}
+
+		userID := r.PathValue("user_id")
+		if !uuidPattern.MatchString(userID) {
+			writeAccountError(w, http.StatusBadRequest, "user_id deve ser um UUID válido")
+			return
+		}
+		var req adminCreditRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAccountError(w, http.StatusBadRequest, "amount é obrigatório e deve ser um número")
+			return
+		}
+
+		credited, err := accounts.AdminCredit(r.Context(), userID, req.Amount)
+		switch {
+		case err == nil:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(adminCreditResponse{UserID: userID, Credited: credited})
+		case errors.Is(err, account.ErrInvalidCreditAmount):
+			writeAccountError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, account.ErrNotFound):
+			writeAccountError(w, http.StatusNotFound, err.Error())
+		case errors.Is(err, account.ErrBalanceOverflow):
+			writeAccountError(w, http.StatusUnprocessableEntity, err.Error())
+		default:
+			writeAccountError(w, http.StatusInternalServerError, "erro ao creditar a conta")
+		}
 	}
 }
 

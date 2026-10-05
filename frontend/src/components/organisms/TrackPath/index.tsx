@@ -185,11 +185,7 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                                     >
                                         <Flag size={11} strokeWidth={2.4} aria-hidden="true" />
                                         <span
-                                            className={
-                                                expandedFlagId === point.lesson.id
-                                                    ? styles.flagTextExpanded
-                                                    : styles.flagText
-                                            }
+                                            className={expandedFlagId === point.lesson.id ? styles.flagTextExpanded : styles.flagText}
                                             aria-hidden="true"
                                         >
                                             Libera {point.lesson.unlocksDescription}

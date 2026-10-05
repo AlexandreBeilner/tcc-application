@@ -36,22 +36,29 @@ func postMacroEvent(t *testing.T, triggerer macroEventTriggerer, body string) *h
 }
 
 type fakeMacroEventLister struct {
-	records   []macroevent.Record
-	total     int
-	err       error
-	countErr  error
-	gotLimit  int
-	gotOffset int
+	records    []macroevent.Record
+	total      int
+	err        error
+	countErr   error
+	gotLimit   int
+	gotOffset  int
+	gotFilter  macroevent.ListFilter
+	currentDay int
 }
 
-func (f *fakeMacroEventLister) List(_ context.Context, limit, offset int) ([]macroevent.Record, error) {
-	f.gotLimit = limit
-	f.gotOffset = offset
+func (f *fakeMacroEventLister) List(_ context.Context, filter macroevent.ListFilter) ([]macroevent.Record, error) {
+	f.gotLimit = filter.Limit
+	f.gotOffset = filter.Offset
+	f.gotFilter = filter
 	return f.records, f.err
 }
 
-func (f *fakeMacroEventLister) Count(_ context.Context) (int, error) {
+func (f *fakeMacroEventLister) Count(_ context.Context, _ macroevent.ListFilter) (int, error) {
 	return f.total, f.countErr
+}
+
+func (f *fakeMacroEventLister) LoadCurrentDay(context.Context) (int, error) {
+	return f.currentDay, nil
 }
 
 func getMacroEvents(t *testing.T, lister macroEventLister, query string) *httptest.ResponseRecorder {
@@ -452,3 +459,68 @@ func TestHandleTriggerMacroEvent_ErroInternoRetorna500(t *testing.T) {
 }
 
 func ptrTest[T any](v T) *T { return &v }
+
+// Filtros do histórico (N.11): visão pública por padrão, painel só com view=admin,
+// filtros repassados ao repositório e entrada inválida recusada antes de consultá-lo.
+func TestHandleListMacroEvents_FiltrosEVisao(t *testing.T) {
+	fake := &fakeMacroEventLister{}
+	if rec := getMacroEvents(t, fake, ""); rec.Code != http.StatusOK || fake.gotFilter.View != macroevent.ViewPublic {
+		t.Errorf("sem view: status = %d, view = %q, want 200 e public (a visão segura é a padrão)", rec.Code, fake.gotFilter.View)
+	}
+
+	rec := getMacroEvents(t, fake, "?view=admin&status=cancelado&sector=Financeiro&from_day=10&to_day=50")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	f := fake.gotFilter
+	if f.View != macroevent.ViewAdmin || *f.Status != macroevent.StatusCancelado || *f.Sector != "Financeiro" || *f.FromDay != 10 || *f.ToDay != 50 {
+		t.Errorf("filtro = %+v", f)
+	}
+
+	for _, query := range []string{
+		"?view=todos", "?status=feito", "?sector=A&risk_class=B", "?from_day=x", "?from_day=-1",
+		"?from_day=9&to_day=3",
+	} {
+		fake = &fakeMacroEventLister{}
+		if rec := getMacroEvents(t, fake, query); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", query, rec.Code)
+		}
+	}
+}
+
+func TestHandleListMacroEvents_VisaoAdminMarcaAgendadoECancelavel(t *testing.T) {
+	fake := &fakeMacroEventLister{currentDay: 100, records: []macroevent.Record{
+		{ID: "agendado", Event: macroevent.Event{Status: macroevent.StatusPendente, TriggeredOnDay: 130}},
+		{ID: "em-curso", Event: macroevent.Event{Status: macroevent.StatusPendente, TriggeredOnDay: 99}},
+		{ID: "aplicado", Event: macroevent.Event{Status: macroevent.StatusAplicado, TriggeredOnDay: 90}},
+	}}
+	var body macroEventListResponse
+	_ = json.NewDecoder(getMacroEvents(t, fake, "?view=admin").Body).Decode(&body)
+	want := map[string][2]bool{"agendado": {true, true}, "em-curso": {false, false}, "aplicado": {false, false}}
+	for _, e := range body.Events {
+		if *e.Scheduled != want[e.ID][0] || *e.Cancellable != want[e.ID][1] {
+			t.Errorf("%s: scheduled = %v, cancellable = %v, want %v", e.ID, *e.Scheduled, *e.Cancellable, want[e.ID])
+		}
+	}
+
+	// Na visão pública os campos do painel nem existem.
+	body = macroEventListResponse{}
+	_ = json.NewDecoder(getMacroEvents(t, fake, "").Body).Decode(&body)
+	if body.Events[0].Scheduled != nil || body.Events[0].Cancellable != nil {
+		t.Error("a visão pública não deveria trazer scheduled/cancellable")
+	}
+}
+
+func TestHandleTriggerMacroEvent_RepassaApplyOnDayERecusaDiaInvalido(t *testing.T) {
+	body := `{"template_key":"t","targets":[{"sector":"Financeiro"}],"apply_on_day":120}`
+	fake := &fakeMacroEventTriggerer{id: "e1", event: macroevent.Event{Title: "t"}}
+	if rec := postMacroEvent(t, fake, body); rec.Code != http.StatusCreated || fake.got.ApplyOnDay == nil || *fake.got.ApplyOnDay != 120 {
+		t.Errorf("status = %d, apply = %v, want 201 e 120", rec.Code, fake.got.ApplyOnDay)
+	}
+	for _, err := range []error{macroevent.ErrApplyDayInPast, macroevent.ErrApplyDayTooFar} {
+		fake = &fakeMacroEventTriggerer{err: err}
+		if rec := postMacroEvent(t, fake, body); rec.Code != http.StatusBadRequest {
+			t.Errorf("%v: status = %d, want 400", err, rec.Code)
+		}
+	}
+}

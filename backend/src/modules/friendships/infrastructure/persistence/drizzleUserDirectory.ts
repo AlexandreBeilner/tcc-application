@@ -49,7 +49,12 @@ export function createDrizzleUserDirectory(db: Database): UserDirectory {
         .select()
         .from(users)
         .where(
-          and(ilike(users.username, `%${escapeLikePattern(query)}%`), ne(users.id, excludeUserId)),
+          and(
+            ilike(users.username, `%${escapeLikePattern(query)}%`),
+            ne(users.id, excludeUserId),
+            // Conta suspensa pelo painel (N.16) não aparece na busca de amigos.
+            eq(users.status, 'active'),
+          ),
         )
         .limit(20)
       return rows.map(toSummary)

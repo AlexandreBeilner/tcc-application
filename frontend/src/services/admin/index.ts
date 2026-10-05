@@ -1,7 +1,138 @@
 import { apiRequest } from '../client'
-import type { ListMacroEventsResult, TriggerMacroEventInput, TriggerMacroEventResult } from './types'
+import type {
+    AchievementCatalog,
+    AdminRanking,
+    AdminRankingFilters,
+    CatalogAchievement,
+    CatalogMission,
+    CreateAchievementInput,
+    UpdateAchievementInput,
+    UpdateMissionInput,
+    CorrectedProgression,
+    CreditUserInput,
+    CreditUserResult,
+    UserCorrectionContext,
+    AdminUserDetail,
+    AdminUsersFilters,
+    ListAdminUsersResult,
+    AdminBot,
+    AdminBotListing,
+    BotActivity,
+    BotsSummary,
+    CreateBotInput,
+    FundBotInput,
+    UpdateBotInput,
+    AdminOverview,
+    AdminOrdersFilters,
+    AdvanceTicksResult,
+    AuditLogFilters,
+    CancelMacroEventResult,
+    MacroEventDetail,
+    MacroEventFilters,
+    CancelOrdersBatchInput,
+    CancelOrdersBatchResult,
+    EngineSettingKey,
+    EngineSettings,
+    ListAdminOrdersResult,
+    ListAuditLogResult,
+    ListMacroEventsResult,
+    ListTicksResult,
+    MonitorAsset,
+    MonitorAssetDetail,
+    PauseTradingInput,
+    SchedulerStatus,
+    SystemHealth,
+    TickResult,
+    TradingHalt,
+    TradingHaltListing,
+    TriggerMacroEventInput,
+    TriggerMacroEventResult,
+} from './types'
 
 export type {
+    AchievementCatalog,
+    AchievementCriteriaType,
+    AchievementCriterionOption,
+    AdminRanking,
+    AdminRankingCriterion,
+    AdminRankingEntry,
+    AdminRankingFilters,
+    AdminRankingWindow,
+    CatalogAchievement,
+    CatalogMission,
+    CreateAchievementInput,
+    MissionVerification,
+    UpdateAchievementInput,
+    UpdateMissionInput,
+    CorrectedProgression,
+    CorrectionAchievement,
+    CorrectionLesson,
+    CorrectionLessonStatus,
+    CreditUserInput,
+    CreditUserResult,
+    UserCorrectionContext,
+    AdminUserDetail,
+    AdminUserRole,
+    AdminUserStatus,
+    AdminUserSummary,
+    AdminUserTimelineEntry,
+    AdminUsersFilters,
+    ListAdminUsersResult,
+    UserPortfolio,
+    UserPortfolioPosition,
+    CancelMacroEventResult,
+    MacroEventDetail,
+    MacroEventFilters,
+    MacroEventImpact,
+    MacroEventImpactAsset,
+    MacroEventImpactTarget,
+    EditableSetting,
+    EngineSettingKey,
+    EngineSettings,
+    ReadOnlySetting,
+    AdminBot,
+    AdminBotListing,
+    BotArchetype,
+    BotAssetRef,
+    BotActivity,
+    BotHolding,
+    BotQuote,
+    BotsSummary,
+    CreateBotInput,
+    FundBotInput,
+    UpdateBotInput,
+    HaltScope,
+    PauseTradingInput,
+    TradingHalt,
+    TradingHaltListing,
+    AdminOrder,
+    AdminOrdersFilters,
+    AdminOrderStatus,
+    CancelOrdersBatchInput,
+    CancelOrdersBatchResult,
+    ListAdminOrdersResult,
+    AdminOverview,
+    ComponentHealth,
+    HealthComponentKey,
+    HealthStatus,
+    MarketOverview,
+    MonitorAsset,
+    MonitorAssetDetail,
+    MonitorAssetType,
+    MonitorBookLevel,
+    MonitorIndicator,
+    MonitorIndicatorKind,
+    MonitorNavPoint,
+    MonitorTrade,
+    SystemHealth,
+    UserStats,
+    AdvanceTicksResult,
+    AuditAction,
+    AuditLogEntry,
+    AuditLogFilters,
+    AuditResult,
+    ListAuditLogResult,
+    ListTicksResult,
     MacroEvent,
     MacroEventBase,
     MacroEventDirection,
@@ -9,6 +140,11 @@ export type {
     MacroEventStatus,
     ListMacroEventsResult,
     NewsEventTarget,
+    SchedulerStatus,
+    TickResult,
+    TickRun,
+    TickRunStatus,
+    TickTrigger,
     TriggerMacroEventAdHocInput,
     TriggerMacroEventFromTemplateInput,
     TriggerMacroEventInput,
@@ -17,10 +153,19 @@ export type {
 
 // Tela 10.1 (`.docs/backend/admin.md#get-adminmacro-events`) — mesma
 // convenção limit/offset de `listNews`.
-export function listMacroEvents(token: string, limit?: number, offset?: number): Promise<ListMacroEventsResult> {
+export function listMacroEvents(
+    token: string,
+    limit?: number,
+    offset?: number,
+    filters: MacroEventFilters = {},
+): Promise<ListMacroEventsResult> {
     const params = new URLSearchParams()
     if (limit !== undefined) params.set('limit', String(limit))
     if (offset !== undefined) params.set('offset', String(offset))
+    // Filtros do painel (N.11): só os preenchidos entram na query string.
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
     const query = params.toString()
     return apiRequest<ListMacroEventsResult>(`/admin/macro-events${query ? `?${query}` : ''}`, { token })
 }
@@ -30,4 +175,243 @@ export function listMacroEvents(token: string, limit?: number, offset?: number):
 // client antes de chamar esta função (`MacroEventTriggerForm`).
 export function triggerMacroEvent(token: string, input: TriggerMacroEventInput): Promise<TriggerMacroEventResult> {
     return apiRequest<TriggerMacroEventResult>('/admin/macro-events', { token, method: 'POST', body: input })
+}
+
+// Tela 10.4 (`.docs/backend/admin.md#get-adminaudit-log`) — só os filtros
+// preenchidos entram na query string.
+export function listAuditLog(token: string, filters: AuditLogFilters = {}): Promise<ListAuditLogResult> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiRequest<ListAuditLogResult>(`/admin/audit-log${query ? `?${query}` : ''}`, { token })
+}
+
+// Painel de Tempo (N.6). `triggerTick` é o `POST /admin/tick` que já existia no
+// backend (3.11/7.3) e nunca teve cliente no frontend.
+export function getScheduler(token: string): Promise<SchedulerStatus> {
+    return apiRequest<SchedulerStatus>('/admin/scheduler', { token })
+}
+
+export function pauseScheduler(token: string): Promise<SchedulerStatus> {
+    return apiRequest<SchedulerStatus>('/admin/scheduler/pause', { token, method: 'POST' })
+}
+
+export function resumeScheduler(token: string): Promise<SchedulerStatus> {
+    return apiRequest<SchedulerStatus>('/admin/scheduler/resume', { token, method: 'POST' })
+}
+
+export function listTicks(token: string, limit?: number, offset?: number): Promise<ListTicksResult> {
+    const params = new URLSearchParams()
+    if (limit !== undefined) params.set('limit', String(limit))
+    if (offset !== undefined) params.set('offset', String(offset))
+    const query = params.toString()
+    return apiRequest<ListTicksResult>(`/admin/ticks${query ? `?${query}` : ''}`, { token })
+}
+
+export function triggerTick(token: string): Promise<TickResult> {
+    return apiRequest<TickResult>('/admin/tick', { token, method: 'POST' })
+}
+
+export function advanceTicks(token: string, days: number): Promise<AdvanceTicksResult> {
+    return apiRequest<AdvanceTicksResult>('/admin/tick/advance', { token, method: 'POST', body: { days } })
+}
+
+// Visão geral e saúde (N.5): só leitura.
+export function getSystemHealth(token: string): Promise<SystemHealth> {
+    return apiRequest<SystemHealth>('/admin/system/health', { token })
+}
+
+export function getAdminOverview(token: string): Promise<AdminOverview> {
+    return apiRequest<AdminOverview>('/admin/overview', { token })
+}
+
+// Monitor do mercado ao vivo (N.8): só leitura.
+export function listMarketMonitor(token: string): Promise<{ assets: MonitorAsset[] }> {
+    return apiRequest<{ assets: MonitorAsset[] }>('/admin/market/assets', { token })
+}
+
+export function getMarketMonitorAsset(token: string, assetId: string): Promise<MonitorAssetDetail> {
+    return apiRequest<MonitorAssetDetail>(`/admin/market/assets/${assetId}`, { token })
+}
+
+// Ordens do book (N.10): busca e cancelamento por intervenção. O cancelamento de uma
+// ordem responde 204 (sem corpo).
+export function listAdminOrders(token: string, filters: AdminOrdersFilters = {}): Promise<ListAdminOrdersResult> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiRequest<ListAdminOrdersResult>(`/admin/orders${query ? `?${query}` : ''}`, { token })
+}
+
+export function cancelAdminOrder(token: string, orderId: string): Promise<void> {
+    return apiRequest<void>(`/admin/orders/${orderId}/cancel`, { token, method: 'POST' })
+}
+
+export function cancelAdminOrdersBatch(token: string, input: CancelOrdersBatchInput): Promise<CancelOrdersBatchResult> {
+    return apiRequest<CancelOrdersBatchResult>('/admin/orders/cancel-batch', { token, method: 'POST', body: input })
+}
+
+// Pausa de negociação (N.9): lista, pausa e retomada. Retomar responde com a pausa encerrada.
+export function listTradingHalts(token: string): Promise<TradingHaltListing> {
+    return apiRequest<TradingHaltListing>('/admin/halts', { token })
+}
+
+export function pauseTrading(token: string, input: PauseTradingInput): Promise<TradingHalt> {
+    return apiRequest<TradingHalt>('/admin/halts', { token, method: 'POST', body: input })
+}
+
+export function liftTradingHalt(token: string, haltId: string): Promise<TradingHalt> {
+    return apiRequest<TradingHalt>(`/admin/halts/${haltId}/lift`, { token, method: 'POST' })
+}
+
+// Gestão de bots (N.1/N.2): lista com cobertura e posições, criação e alteração (interruptor,
+// teto e cobertura de Market Maker).
+export function listAdminBots(token: string): Promise<AdminBotListing> {
+    return apiRequest<AdminBotListing>('/admin/bots', { token })
+}
+
+export function createAdminBot(token: string, input: CreateBotInput): Promise<AdminBot> {
+    return apiRequest<AdminBot>('/admin/bots', { token, method: 'POST', body: input })
+}
+
+export function updateAdminBot(token: string, botId: string, input: UpdateBotInput): Promise<AdminBot> {
+    return apiRequest<AdminBot>(`/admin/bots/${botId}`, { token, method: 'PATCH', body: input })
+}
+
+export function fundAdminBot(token: string, botId: string, input: FundBotInput): Promise<AdminBot> {
+    return apiRequest<AdminBot>(`/admin/bots/${botId}/funding`, { token, method: 'POST', body: input })
+}
+
+// Desempenho dos bots (N.14): só leitura. `days` e `idleDays` ausentes usam o padrão do motor.
+export function getAdminBotActivity(token: string, botId: string, days?: number): Promise<BotActivity> {
+    const query = days === undefined ? '' : `?days=${days}`
+    return apiRequest<BotActivity>(`/admin/bots/${botId}/activity${query}`, { token })
+}
+
+export function getAdminBotsSummary(token: string, idleDays?: number): Promise<BotsSummary> {
+    const query = idleDays === undefined ? '' : `?idle_days=${idleDays}`
+    return apiRequest<BotsSummary>(`/admin/bots/summary${query}`, { token })
+}
+
+export function getEngineSettings(token: string): Promise<EngineSettings> {
+    return apiRequest<EngineSettings>('/admin/settings', { token })
+}
+
+export function updateEngineSetting(token: string, key: EngineSettingKey, value: number): Promise<EngineSettings> {
+    return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'PUT', body: { value } })
+}
+
+export function resetEngineSetting(token: string, key: EngineSettingKey): Promise<EngineSettings> {
+    return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'DELETE' })
+}
+
+// Detalhe de um evento macro (N.11): estado de ciclo de vida, impacto realizado e a versão
+// que o usuário vê.
+export function getMacroEventDetail(token: string, id: string, windowDays?: number): Promise<MacroEventDetail> {
+    const query = windowDays === undefined ? '' : `?window_days=${windowDays}`
+    return apiRequest<MacroEventDetail>(`/admin/macro-events/${id}${query}`, { token })
+}
+
+// Cancela um evento pendente que ainda não produziu efeito (N.11).
+export function cancelMacroEvent(token: string, id: string): Promise<CancelMacroEventResult> {
+    return apiRequest<CancelMacroEventResult>(`/admin/macro-events/${id}`, { token, method: 'DELETE' })
+}
+
+// Gestão de usuários (N.16). Suspender, reativar, forçar logout e excluir respondem 204.
+export function listAdminUsers(token: string, filters: AdminUsersFilters = {}): Promise<ListAdminUsersResult> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiRequest<ListAdminUsersResult>(`/admin/users${query ? `?${query}` : ''}`, { token })
+}
+
+export function getAdminUser(token: string, userId: string): Promise<AdminUserDetail> {
+    return apiRequest<AdminUserDetail>(`/admin/users/${userId}`, { token })
+}
+
+export function suspendAdminUser(token: string, userId: string, reason: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/suspend`, { token, method: 'POST', body: { reason } })
+}
+
+export function reactivateAdminUser(token: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/reactivate`, { token, method: 'POST' })
+}
+
+export function forceLogoutAdminUser(token: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/force-logout`, { token, method: 'POST' })
+}
+
+export function deleteAdminUser(token: string, userId: string, confirmUsername: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}`, { token, method: 'DELETE', body: { confirm_username: confirmUsername } })
+}
+
+export function getUserCorrectionContext(token: string, userId: string): Promise<UserCorrectionContext> {
+    return apiRequest<UserCorrectionContext>(`/admin/users/${userId}/corrections`, { token })
+}
+
+export function creditAdminUser(token: string, userId: string, input: CreditUserInput): Promise<CreditUserResult> {
+    return apiRequest<CreditUserResult>(`/admin/users/${userId}/credit`, { token, method: 'POST', body: input })
+}
+
+export function adjustAdminUserXp(token: string, userId: string, delta: number, reason: string): Promise<CorrectedProgression> {
+    return apiRequest<CorrectedProgression>(`/admin/users/${userId}/xp`, { token, method: 'POST', body: { delta, reason } })
+}
+
+export function setAdminUserStreak(token: string, userId: string, value: number, reason: string): Promise<CorrectedProgression> {
+    return apiRequest<CorrectedProgression>(`/admin/users/${userId}/streak`, { token, method: 'POST', body: { value, reason } })
+}
+
+export type AchievementCorrection = 'grant' | 'revoke'
+export type LessonCorrection = 'complete' | 'reopen'
+
+export function correctAdminUserAchievement(
+    token: string,
+    userId: string,
+    achievementId: string,
+    action: AchievementCorrection,
+    reason: string,
+): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/${action}`, { token, method: 'POST', body: { reason } })
+}
+
+export function correctAdminUserLesson(
+    token: string,
+    userId: string,
+    lessonId: string,
+    action: LessonCorrection,
+    reason: string,
+): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/lessons/${lessonId}/${action}`, { token, method: 'POST', body: { reason } })
+}
+
+export function getAchievementCatalog(token: string): Promise<AchievementCatalog> {
+    return apiRequest<AchievementCatalog>('/admin/gamification/achievements', { token })
+}
+
+export function createAchievement(token: string, input: CreateAchievementInput): Promise<CatalogAchievement> {
+    return apiRequest<CatalogAchievement>('/admin/gamification/achievements', { token, method: 'POST', body: input })
+}
+
+export function updateAchievement(token: string, id: string, input: UpdateAchievementInput): Promise<CatalogAchievement> {
+    return apiRequest<CatalogAchievement>(`/admin/gamification/achievements/${id}`, { token, method: 'PATCH', body: input })
+}
+
+export function getMissionCatalog(token: string): Promise<{ missions: CatalogMission[] }> {
+    return apiRequest<{ missions: CatalogMission[] }>('/admin/gamification/missions', { token })
+}
+
+export function updateMission(token: string, id: string, input: UpdateMissionInput): Promise<CatalogMission> {
+    return apiRequest<CatalogMission>(`/admin/gamification/missions/${id}`, { token, method: 'PATCH', body: input })
+}
+
+export function getAdminRanking(token: string, filters: AdminRankingFilters): Promise<AdminRanking> {
+    const params = new URLSearchParams({ criterion: filters.criterion, page: String(filters.page) })
+    if (filters.window) params.set('window', filters.window)
+    return apiRequest<AdminRanking>(`/admin/gamification/ranking?${params.toString()}`, { token })
 }
