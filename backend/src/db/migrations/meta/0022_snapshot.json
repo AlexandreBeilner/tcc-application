@@ -61,9 +61,7 @@
         "achievements_seed_key_unique": {
           "name": "achievements_seed_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "seed_key"
-          ]
+          "columns": ["seed_key"]
         }
       },
       "policies": {},
@@ -184,12 +182,8 @@
           "name": "admin_audit_log_admin_id_users_id_fk",
           "tableFrom": "admin_audit_log",
           "tableTo": "users",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -275,9 +269,7 @@
         "daily_missions_key_unique": {
           "name": "daily_missions_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -335,12 +327,8 @@
           "name": "friendships_requester_id_users_id_fk",
           "tableFrom": "friendships",
           "tableTo": "users",
-          "columnsFrom": [
-            "requester_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["requester_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -348,12 +336,8 @@
           "name": "friendships_addressee_id_users_id_fk",
           "tableFrom": "friendships",
           "tableTo": "users",
-          "columnsFrom": [
-            "addressee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["addressee_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -363,10 +347,7 @@
         "friendships_pair_unique": {
           "name": "friendships_pair_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "requester_id",
-            "addressee_id"
-          ]
+          "columns": ["requester_id", "addressee_id"]
         }
       },
       "policies": {},
@@ -512,23 +493,17 @@
         "lessons_stable_key_unique": {
           "name": "lessons_stable_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "stable_key"
-          ]
+          "columns": ["stable_key"]
         },
         "lessons_code_unique": {
           "name": "lessons_code_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         },
         "lessons_sort_order_unique": {
           "name": "lessons_sort_order_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "sort_order"
-          ]
+          "columns": ["sort_order"]
         }
       },
       "policies": {},
@@ -572,12 +547,8 @@
           "name": "news_event_reads_user_id_users_id_fk",
           "tableFrom": "news_event_reads",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -587,10 +558,7 @@
         "news_event_reads_unique": {
           "name": "news_event_reads_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "macro_event_id"
-          ]
+          "columns": ["user_id", "macro_event_id"]
         }
       },
       "policies": {},
@@ -627,12 +595,8 @@
           "name": "payroll_state_user_id_users_id_fk",
           "tableFrom": "payroll_state",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -686,12 +650,8 @@
           "name": "social_feed_events_user_id_users_id_fk",
           "tableFrom": "social_feed_events",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -739,12 +699,8 @@
           "name": "user_achievements_user_id_users_id_fk",
           "tableFrom": "user_achievements",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -752,12 +708,8 @@
           "name": "user_achievements_achievement_id_achievements_id_fk",
           "tableFrom": "user_achievements",
           "tableTo": "achievements",
-          "columnsFrom": [
-            "achievement_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["achievement_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -767,10 +719,7 @@
         "user_achievements_unique": {
           "name": "user_achievements_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "achievement_id"
-          ]
+          "columns": ["user_id", "achievement_id"]
         }
       },
       "policies": {},
@@ -831,12 +780,8 @@
           "name": "user_identities_user_id_users_id_fk",
           "tableFrom": "user_identities",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -846,10 +791,7 @@
         "user_identities_provider_unique": {
           "name": "user_identities_provider_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "provider_name",
-            "provider_account_id"
-          ]
+          "columns": ["provider_name", "provider_account_id"]
         }
       },
       "policies": {},
@@ -951,12 +893,8 @@
           "name": "user_lesson_progress_user_id_users_id_fk",
           "tableFrom": "user_lesson_progress",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -964,12 +902,8 @@
           "name": "user_lesson_progress_lesson_id_lessons_id_fk",
           "tableFrom": "user_lesson_progress",
           "tableTo": "lessons",
-          "columnsFrom": [
-            "lesson_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lesson_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -979,10 +913,7 @@
         "user_lesson_progress_unique": {
           "name": "user_lesson_progress_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "lesson_id"
-          ]
+          "columns": ["user_id", "lesson_id"]
         }
       },
       "policies": {},
@@ -1039,12 +970,8 @@
           "name": "user_mission_progress_user_id_users_id_fk",
           "tableFrom": "user_mission_progress",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1052,12 +979,8 @@
           "name": "user_mission_progress_mission_id_daily_missions_id_fk",
           "tableFrom": "user_mission_progress",
           "tableTo": "daily_missions",
-          "columnsFrom": [
-            "mission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mission_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1067,11 +990,7 @@
         "user_mission_progress_unique": {
           "name": "user_mission_progress_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "mission_id",
-            "mission_date"
-          ]
+          "columns": ["user_id", "mission_id", "mission_date"]
         }
       },
       "policies": {},
@@ -1136,12 +1055,8 @@
           "name": "user_progression_user_id_users_id_fk",
           "tableFrom": "user_progression",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1249,16 +1164,12 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "users_username_unique": {
           "name": "users_username_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         }
       },
       "policies": {},
@@ -1288,11 +1199,7 @@
     "public.friendship_status": {
       "name": "friendship_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "accepted",
-        "declined"
-      ]
+      "values": ["pending", "accepted", "declined"]
     },
     "public.lesson_micro_decision_type": {
       "name": "lesson_micro_decision_type",
@@ -1308,18 +1215,12 @@
     "public.mission_status": {
       "name": "mission_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "completed"
-      ]
+      "values": ["pending", "completed"]
     },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "user",
-        "admin"
-      ]
+      "values": ["user", "admin"]
     }
   },
   "schemas": {},

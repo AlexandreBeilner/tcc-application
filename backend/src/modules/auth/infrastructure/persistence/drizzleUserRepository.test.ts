@@ -82,14 +82,12 @@ describe.skipIf(!databaseUrl)('drizzleUserRepository, suspensão e sessão (banc
   it('o banco recusa um status fora de active/suspended', async () => {
     const suffix = Date.now().toString(36)
     await expect(
-      db
-        .insert(schema.users)
-        .values({
-          name: 'X',
-          email: `x-${suffix}@t.dev`,
-          username: `x${suffix}`,
-          status: 'banido',
-        }),
+      db.insert(schema.users).values({
+        name: 'X',
+        email: `x-${suffix}@t.dev`,
+        username: `x${suffix}`,
+        status: 'banido',
+      }),
     ).rejects.toThrow()
   })
 })

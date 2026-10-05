@@ -10,7 +10,13 @@ const STRICT = false
 const lessons = LESSON_SEEDS.map((l) => ({
   code: l.code,
   sortOrder: l.sortOrder,
-  text: [l.title, l.scenarioText, l.microDecisionPrompt, ...(l.microDecisionOptions ?? []), l.revelationText].join('\n'),
+  text: [
+    l.title,
+    l.scenarioText,
+    l.microDecisionPrompt,
+    ...(l.microDecisionOptions ?? []),
+    l.revelationText,
+  ].join('\n'),
 }))
 
 describe('pré-requisitos de termos nas lições (RC.1.2)', () => {
@@ -39,12 +45,15 @@ describe('pré-requisitos de termos nas lições (RC.1.2)', () => {
 
   it('relata (aviso) ou falha (estrito) os usos antes da definição', () => {
     const lines = violations.map(
-      (v) => `${v.label} em ${v.lessonCode} (definição: ${v.definedIn ?? `ainda não existe, ${v.plannedIn}`})`,
+      (v) =>
+        `${v.label} em ${v.lessonCode} (definição: ${v.definedIn ?? `ainda não existe, ${v.plannedIn}`})`,
     )
     if (STRICT) {
       expect(lines).toEqual([])
     } else if (lines.length > 0) {
-      console.warn(`[RC.1.2] ${lines.length} uso(s) de termo antes da definição:\n  ${lines.join('\n  ')}`)
+      console.warn(
+        `[RC.1.2] ${lines.length} uso(s) de termo antes da definição:\n  ${lines.join('\n  ')}`,
+      )
     }
   })
 })

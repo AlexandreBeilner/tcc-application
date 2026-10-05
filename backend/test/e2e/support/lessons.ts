@@ -41,7 +41,9 @@ async function advanceStep(userToken: string, lessonId: string, step: number): P
 // sem pergunta com alternativas responde 422 `no_micro_decision` e segue.
 async function solveMicroDecision(userToken: string, lessonId: string): Promise<void> {
   for (let option = 0; option < 6; option++) {
-    const res = await authed(userToken).post(`/lessons/${lessonId}/answer`).send({ selectedOption: option })
+    const res = await authed(userToken)
+      .post(`/lessons/${lessonId}/answer`)
+      .send({ selectedOption: option })
     if (res.status === 422 && res.body.code === 'no_micro_decision') {
       return
     }
@@ -49,7 +51,9 @@ async function solveMicroDecision(userToken: string, lessonId: string): Promise<
       break
     }
     if (res.status !== 200) {
-      throw new Error(`falha ao responder a lição ${lessonId}: ${res.status} ${JSON.stringify(res.body)}`)
+      throw new Error(
+        `falha ao responder a lição ${lessonId}: ${res.status} ${JSON.stringify(res.body)}`,
+      )
     }
     if (res.body.correct === true) {
       return
