@@ -1,0 +1,56 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1160px;
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: 0;
+    max-width: 64ch;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Abas roláveis na horizontal no mobile, sem quebrar a linha. */
+.tabs {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+    flex: none;
+    padding: var(--space-2) var(--space-4);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.tab:hover {
+    color: var(--color-text-primary);
+}
+
+/* Aba ativa: sublinhado sólido além da cor (nunca só cor). */
+.active {
+    border-bottom-color: var(--color-brand-500);
+    color: var(--color-text-primary);
+}

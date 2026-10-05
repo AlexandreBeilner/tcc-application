@@ -1,4 +1,5 @@
 import { authed, sleep } from './http'
+import { loginAsAdmin } from './users'
 
 export interface TickResult {
   day: number
@@ -20,11 +21,23 @@ export interface TickResult {
 // tarefa S.3, pode acontecer se o job diário automático rodar no meio da
 // suíte); espera um instante e tenta de novo em vez de falhar o teste por
 // uma corrida que não é bug nenhum.
+//
+// 401 `reauth_required` (N.22): tick é ação destrutiva e exige senha conferida há menos de
+// 5 minutos, mas um teste longo segura o mesmo token por mais que isso. Em vez de repassar
+// o token velho, relogamos como admin (login zera o relógio e não passa pelo limite de
+// `/auth/reauth`) e repetimos; o token novo vale pras chamadas seguintes do mesmo teste.
+let currentAdminToken: { original: string; fresh: string } | undefined
+
 export async function triggerTick(adminToken: string): Promise<TickResult> {
   for (let attempt = 0; attempt < 5; attempt++) {
-    const res = await authed(adminToken).post('/admin/tick')
+    const token = currentAdminToken?.original === adminToken ? currentAdminToken.fresh : adminToken
+    const res = await authed(token).post('/admin/tick')
     if (res.status === 200) {
       return res.body as TickResult
+    }
+    if (res.status === 401 && res.body?.error === 'reauth_required') {
+      currentAdminToken = { original: adminToken, fresh: await loginAsAdmin() }
+      continue
     }
     if (res.status === 409) {
       await sleep(1000)

@@ -1,0 +1,165 @@
+import { describe, expect, it } from 'vitest'
+import { AnonymizeAccountUseCase } from '../../../auth/application/useCases/anonymizeAccount'
+import { createFakeAvatarStorage } from '../../../auth/test/fakes/fakeAvatarStorage'
+import { createFakeUserRepository } from '../../../auth/test/fakes/fakeUserRepository'
+import {
+  AdminAccountProtectedError,
+  AdminUserNotFoundError,
+  DeleteConfirmationMismatchError,
+  UserStatusConflictError,
+} from '../../domain/errors'
+import { createFakeAuditLogRepository } from '../../test/fakes/fakeAuditLogRepository'
+import { DeleteUserAccountUseCase } from './deleteUserAccount'
+import { ForceLogoutUserUseCase } from './forceLogoutUser'
+import { ReactivateUserUseCase } from './reactivateUser'
+import { RecordAdminActionUseCase } from './recordAdminAction'
+import { SuspendUserUseCase } from './suspendUser'
+
+async function build() {
+  const userRepository = createFakeUserRepository()
+  const auditLog = createFakeAuditLogRepository()
+  const record = new RecordAdminActionUseCase(auditLog)
+  const admin = await userRepository.createUser({
+    name: 'Admin',
+    email: 'admin@example.com',
+    username: 'admin',
+    passwordHash: 'x',
+    role: 'admin',
+  })
+  const user = await userRepository.createUser({
+    name: 'Fulano',
+    email: 'fulano@example.com',
+    username: 'fulano',
+    passwordHash: 'x',
+  })
+  const now = new Date('2026-10-03T12:00:00Z')
+  return {
+    userRepository,
+    auditLog,
+    admin,
+    user,
+    suspend: new SuspendUserUseCase(userRepository, record, () => now),
+    reactivate: new ReactivateUserUseCase(userRepository, record),
+    forceLogout: new ForceLogoutUserUseCase(userRepository, record),
+    remove: new DeleteUserAccountUseCase(
+      userRepository,
+      new AnonymizeAccountUseCase(userRepository, createFakeAvatarStorage()),
+      record,
+    ),
+    now,
+  }
+}
+
+describe('SuspendUserUseCase', () => {
+  it('suspende com motivo e instante, revoga as sessões e audita', async () => {
+    const { suspend, userRepository, user, admin, auditLog, now } = await build()
+
+    await suspend.execute(admin.id, user.id, 'spam no feed')
+
+    const after = await userRepository.findById(user.id)
+    expect(after).toMatchObject({
+      status: 'suspended',
+      suspendedReason: 'spam no feed',
+      suspendedAt: now,
+      tokenVersion: 1,
+    })
+    expect(auditLog.entries[0]).toMatchObject({
+      action: 'user.suspend',
+      targetType: 'user',
+      targetId: user.id,
+      adminId: admin.id,
+      result: 'success',
+      payload: { reason: 'spam no feed' },
+    })
+  })
+
+  it('recusa suspender administrador, conta já suspensa e usuário inexistente', async () => {
+    const { suspend, admin, user, auditLog } = await build()
+
+    await expect(suspend.execute(admin.id, admin.id, 'teste')).rejects.toBeInstanceOf(
+      AdminAccountProtectedError,
+    )
+    await suspend.execute(admin.id, user.id, 'primeira')
+    await expect(suspend.execute(admin.id, user.id, 'segunda')).rejects.toBeInstanceOf(
+      UserStatusConflictError,
+    )
+    await expect(suspend.execute(admin.id, 'nao-existe', 'x')).rejects.toBeInstanceOf(
+      AdminUserNotFoundError,
+    )
+    expect(auditLog.entries.filter((e) => e.result === 'failed')).toHaveLength(3)
+  })
+})
+
+describe('ReactivateUserUseCase', () => {
+  it('restaura o acesso e limpa motivo e instante, sem perder o resto', async () => {
+    const { suspend, reactivate, userRepository, user, admin, auditLog } = await build()
+    await suspend.execute(admin.id, user.id, 'spam no feed')
+
+    await reactivate.execute(admin.id, user.id)
+
+    const after = await userRepository.findById(user.id)
+    expect(after).toMatchObject({ status: 'active', suspendedReason: null, suspendedAt: null })
+    expect(after?.email).toBe('fulano@example.com')
+    expect(auditLog.entries.at(-1)).toMatchObject({ action: 'user.reactivate', result: 'success' })
+  })
+
+  it('recusa reativar conta que não está suspensa', async () => {
+    const { reactivate, user, admin } = await build()
+    await expect(reactivate.execute(admin.id, user.id)).rejects.toBeInstanceOf(
+      UserStatusConflictError,
+    )
+  })
+})
+
+describe('ForceLogoutUserUseCase', () => {
+  it('incrementa a versão de sessão e audita', async () => {
+    const { forceLogout, userRepository, user, admin, auditLog } = await build()
+
+    await forceLogout.execute(admin.id, user.id)
+    await forceLogout.execute(admin.id, user.id)
+
+    expect((await userRepository.findById(user.id))?.tokenVersion).toBe(2)
+    expect(auditLog.entries.map((e) => e.action)).toEqual([
+      'user.force_logout',
+      'user.force_logout',
+    ])
+  })
+
+  it('falha com usuário inexistente', async () => {
+    const { forceLogout, admin } = await build()
+    await expect(forceLogout.execute(admin.id, 'nao-existe')).rejects.toBeInstanceOf(
+      AdminUserNotFoundError,
+    )
+  })
+})
+
+describe('DeleteUserAccountUseCase', () => {
+  it('anonimiza com o username confirmado, revoga sessões e audita sem dado pessoal', async () => {
+    const { remove, userRepository, user, admin, auditLog } = await build()
+
+    await remove.execute(admin.id, user.id, 'fulano')
+
+    const after = await userRepository.findById(user.id)
+    expect(after?.email).toMatch(/@anonimo\.invalid$/)
+    expect(after?.name).toBe('Usuário removido')
+    expect(after?.tokenVersion).toBe(1)
+    const entry = auditLog.entries[0]
+    expect(entry).toMatchObject({ action: 'user.delete', targetId: user.id, result: 'success' })
+    expect(JSON.stringify(entry)).not.toContain('fulano')
+  })
+
+  it('recusa username que não confere e não altera nada', async () => {
+    const { remove, userRepository, user, admin } = await build()
+    await expect(remove.execute(admin.id, user.id, 'outro')).rejects.toBeInstanceOf(
+      DeleteConfirmationMismatchError,
+    )
+    expect((await userRepository.findById(user.id))?.email).toBe('fulano@example.com')
+  })
+
+  it('recusa excluir administrador', async () => {
+    const { remove, admin } = await build()
+    await expect(remove.execute(admin.id, admin.id, 'admin')).rejects.toBeInstanceOf(
+      AdminAccountProtectedError,
+    )
+  })
+})

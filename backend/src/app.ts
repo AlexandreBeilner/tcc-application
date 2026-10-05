@@ -12,7 +12,110 @@ import { TriggerMacroEventUseCase } from './modules/admin/application/useCases/t
 import { ListMacroEventsUseCase } from './modules/admin/application/useCases/listMacroEvents'
 import { TriggerTickUseCase } from './modules/admin/application/useCases/triggerTick'
 import { createAdminMacroEventsRouter } from './modules/admin/interfaces/http/adminMacroEventsRouter'
+import { createEngineMacroEventAdmin } from './modules/admin/infrastructure/engine/engineMacroEventAdmin'
+import { createNewsUserViewProjector } from './modules/admin/infrastructure/news/newsUserViewProjector'
+import { GetMacroEventDetailUseCase } from './modules/admin/application/useCases/getMacroEventDetail'
+import { CancelMacroEventUseCase } from './modules/admin/application/useCases/cancelMacroEvent'
 import { createAdminTickRouter } from './modules/admin/interfaces/http/adminTickRouter'
+import { createAdminSchedulerRouter } from './modules/admin/interfaces/http/adminSchedulerRouter'
+import { createEngineSchedulerAdmin } from './modules/admin/infrastructure/engine/engineSchedulerAdmin'
+import { GetSchedulerStatusUseCase } from './modules/admin/application/useCases/getSchedulerStatus'
+import { ListTicksUseCase } from './modules/admin/application/useCases/listTicks'
+import { SetSchedulerPausedUseCase } from './modules/admin/application/useCases/setSchedulerPaused'
+import { AdvanceTicksUseCase } from './modules/admin/application/useCases/advanceTicks'
+import { createEngineMarketOverviewReader } from './modules/admin/infrastructure/engine/engineMarketOverviewReader'
+import { createDrizzleUserStatsReader } from './modules/admin/infrastructure/persistence/drizzleUserStatsReader'
+import {
+  createDatabaseProbe,
+  createEngineHealthProbe,
+  createMarketDatabaseProbe,
+  createRedisProbe,
+} from './modules/admin/infrastructure/health/probes'
+import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
+import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
+import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
+import { createEngineMarketMonitorReader } from './modules/admin/infrastructure/engine/engineMarketMonitorReader'
+import { ListMarketMonitorUseCase } from './modules/admin/application/useCases/listMarketMonitor'
+import { GetMarketMonitorAssetUseCase } from './modules/admin/application/useCases/getMarketMonitorAsset'
+import { createAdminMarketRouter } from './modules/admin/interfaces/http/adminMarketRouter'
+import { createEngineOrderAdmin } from './modules/admin/infrastructure/engine/engineOrderAdmin'
+import { ListAdminOrdersUseCase } from './modules/admin/application/useCases/listAdminOrders'
+import { CancelAdminOrderUseCase } from './modules/admin/application/useCases/cancelAdminOrder'
+import { CancelAdminOrdersBatchUseCase } from './modules/admin/application/useCases/cancelAdminOrdersBatch'
+import { createAdminOrdersRouter } from './modules/admin/interfaces/http/adminOrdersRouter'
+import { createEngineTradingHaltAdmin } from './modules/admin/infrastructure/engine/engineTradingHaltAdmin'
+import { ListTradingHaltsUseCase } from './modules/admin/application/useCases/listTradingHalts'
+import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseTrading'
+import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
+import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
+import { createEngineSettingsAdmin } from './modules/admin/infrastructure/engine/engineSettingsAdmin'
+import { ListEngineSettingsUseCase } from './modules/admin/application/useCases/listEngineSettings'
+import { UpdateEngineSettingUseCase } from './modules/admin/application/useCases/updateEngineSetting'
+import { ResetEngineSettingUseCase } from './modules/admin/application/useCases/resetEngineSetting'
+import { createAdminSettingsRouter } from './modules/admin/interfaces/http/adminSettingsRouter'
+import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
+import { FundAdminBotUseCase } from './modules/admin/application/useCases/fundAdminBot'
+import { GetAdminBotActivityUseCase } from './modules/admin/application/useCases/getAdminBotActivity'
+import { GetAdminBotsSummaryUseCase } from './modules/admin/application/useCases/getAdminBotsSummary'
+import { ListAdminBotsUseCase } from './modules/admin/application/useCases/listAdminBots'
+import { CreateAdminBotUseCase } from './modules/admin/application/useCases/createAdminBot'
+import { UpdateAdminBotUseCase } from './modules/admin/application/useCases/updateAdminBot'
+import { createAdminBotsRouter } from './modules/admin/interfaces/http/adminBotsRouter'
+import { createAdminAuditLogRouter } from './modules/admin/interfaces/http/adminAuditLogRouter'
+import { createDrizzleAuditLogRepository } from './modules/admin/infrastructure/persistence/drizzleAuditLogRepository'
+import { RecordAdminActionUseCase } from './modules/admin/application/useCases/recordAdminAction'
+import { ListAuditLogUseCase } from './modules/admin/application/useCases/listAuditLog'
+import { createDrizzleAdminUserDirectory } from './modules/admin/infrastructure/persistence/drizzleAdminUserDirectory'
+import { createEngineUserPortfolioReader } from './modules/admin/infrastructure/engine/engineUserPortfolioReader'
+import { ListAdminUsersUseCase } from './modules/admin/application/useCases/listAdminUsers'
+import { GetAdminUserDetailUseCase } from './modules/admin/application/useCases/getAdminUserDetail'
+import { SuspendUserUseCase } from './modules/admin/application/useCases/suspendUser'
+import { ReactivateUserUseCase } from './modules/admin/application/useCases/reactivateUser'
+import { ForceLogoutUserUseCase } from './modules/admin/application/useCases/forceLogoutUser'
+import { DeleteUserAccountUseCase } from './modules/admin/application/useCases/deleteUserAccount'
+import { createAdminUsersRouter } from './modules/admin/interfaces/http/adminUsersRouter'
+import { createAdminUserCorrectionsRouter } from './modules/admin/interfaces/http/adminUserCorrectionsRouter'
+import { CreditUserCashUseCase } from './modules/admin/application/useCases/creditUserCash'
+import {
+  AdjustUserXpUseCase,
+  CompleteUserLessonUseCase,
+  GetUserCorrectionContextUseCase,
+  GrantUserAchievementUseCase,
+  ReopenUserLessonUseCase,
+  RevokeUserAchievementUseCase,
+  SetUserStreakUseCase,
+} from './modules/admin/application/useCases/userCorrections'
+import { createEngineUserCashCreditor } from './modules/admin/infrastructure/engine/engineUserCashCreditor'
+import { createInProcessUserCorrections } from './modules/admin/infrastructure/corrections/inProcessUserCorrections'
+import { createAdminGamificationRouter } from './modules/admin/interfaces/http/adminGamificationRouter'
+import {
+  CreateAchievementAdminUseCase,
+  ListAchievementCatalogUseCase as ListAchievementCatalogAdminUseCase,
+  ListMissionCatalogUseCase as ListMissionCatalogAdminUseCase,
+  UpdateAchievementAdminUseCase,
+  UpdateMissionAdminUseCase,
+} from './modules/admin/application/useCases/gamificationCatalog'
+import { GetAdminRankingUseCase } from './modules/admin/application/useCases/getAdminRanking'
+import { createInProcessGamificationCatalogAdmin } from './modules/admin/infrastructure/gamification/inProcessGamificationCatalogAdmin'
+import { createInProcessAdminRankingReader } from './modules/admin/infrastructure/ranking/inProcessAdminRankingReader'
+import {
+  CreateAchievementUseCase,
+  ListAchievementCatalogUseCase,
+  UpdateAchievementUseCase,
+} from './modules/achievements/application/useCases/manageAchievementCatalog'
+import {
+  ListMissionCatalogUseCase,
+  UpdateMissionUseCase,
+} from './modules/missions/application/useCases/manageMissionCatalog'
+import { AdjustProgressionUseCase } from './modules/gamification/application/useCases/adjustProgression'
+import {
+  GrantAchievementUseCase,
+  RevokeAchievementUseCase,
+} from './modules/achievements/application/useCases/correctAchievements'
+import {
+  MarkLessonCompletedUseCase,
+  ReopenLessonUseCase,
+} from './modules/lessons/application/useCases/correctLessonProgress'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -147,6 +250,7 @@ import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCa
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
 import { GetMarketCalendarUseCase } from './modules/market/application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from './modules/market/application/useCases/getMarketClock'
+import { GetTradingHaltsUseCase } from './modules/market/application/useCases/getTradingHalts'
 import { createEngineMarketCalendarReader } from './modules/market/infrastructure/engine/engineMarketCalendarReader'
 import { createEngineAccountReader } from './modules/market/infrastructure/engine/engineAccountReader'
 import { createEngineCatalogReader } from './modules/market/infrastructure/engine/engineCatalogReader'
@@ -158,6 +262,11 @@ import { createEngineOrderExecutor } from './modules/market/infrastructure/engin
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
+import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
+import { noStore } from './shared/http/noStore'
+import { createRateLimiter } from './shared/http/rateLimit'
+import { ReauthenticateUseCase } from './modules/auth/application/useCases/reauthenticate'
+import { createAuditLogAdminSessionAuditor } from './modules/admin/infrastructure/audit/auditLogAdminSessionAuditor'
 
 export interface AppDeps {
   userRepository?: UserRepository
@@ -253,6 +362,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
   const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
+  const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
   const registerUser = new RegisterUserUseCase(
     userRepository,
@@ -260,7 +370,6 @@ export function createApp(deps: AppDeps = {}): Express {
     tokenIssuer,
     accountProvisioner,
   )
-  const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
   const loginWithGoogle = new LoginWithGoogleUseCase(
     userRepository,
@@ -268,10 +377,78 @@ export function createApp(deps: AppDeps = {}): Express {
     tokenIssuer,
     accountProvisioner,
   )
-  const authMiddleware = createAuthMiddleware(tokenIssuer)
-  const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger)
+  const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
+  const auditLogRepository = createDrizzleAuditLogRepository(db)
+  const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
+  const loginUser = new LoginUserUseCase(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+    adminSessionAuditor,
+  )
+  const reauthenticate = new ReauthenticateUseCase(
+    userRepository,
+    passwordHasher,
+    tokenIssuer,
+    adminSessionAuditor,
+  )
+  const recordAdminAction = new RecordAdminActionUseCase(auditLogRepository)
+  const listAuditLog = new ListAuditLogUseCase(auditLogRepository)
+  const triggerMacroEvent = new TriggerMacroEventUseCase(macroEventTrigger, recordAdminAction)
+  const macroEventAdmin = createEngineMacroEventAdmin(engineUrl)
+  const getMacroEventDetail = new GetMacroEventDetailUseCase(
+    macroEventAdmin,
+    createNewsUserViewProjector(),
+  )
+  const cancelMacroEvent = new CancelMacroEventUseCase(macroEventAdmin, recordAdminAction)
   const listMacroEvents = new ListMacroEventsUseCase(macroEventReader)
-  const triggerTick = new TriggerTickUseCase(tickTrigger)
+  const triggerTick = new TriggerTickUseCase(tickTrigger, recordAdminAction)
+  const schedulerAdmin = createEngineSchedulerAdmin(engineUrl)
+  const getSchedulerStatus = new GetSchedulerStatusUseCase(schedulerAdmin)
+  const setSchedulerPaused = new SetSchedulerPausedUseCase(schedulerAdmin, recordAdminAction)
+  const listTicks = new ListTicksUseCase(schedulerAdmin)
+  const advanceTicks = new AdvanceTicksUseCase(schedulerAdmin, recordAdminAction)
+  // Visão geral e saúde (N.5): só leitura. O banco "market" é sondado pela mesma
+  // leitura da visão geral do motor (só o motor fala com ele).
+  const marketOverviewReader = createEngineMarketOverviewReader(engineUrl)
+  const getSystemHealth = new GetSystemHealthUseCase({
+    engine: createEngineHealthProbe(engineUrl),
+    gamification_db: createDatabaseProbe(db),
+    market_db: createMarketDatabaseProbe(marketOverviewReader),
+    redis: createRedisProbe(redisClient),
+  })
+  // Monitor do mercado (N.8): só leitura.
+  const marketMonitorReader = createEngineMarketMonitorReader(engineUrl)
+  const listMarketMonitor = new ListMarketMonitorUseCase(marketMonitorReader)
+  const getMarketMonitorAsset = new GetMarketMonitorAssetUseCase(marketMonitorReader)
+  // Ordens do painel (N.10): consulta e cancelamento por intervenção.
+  const orderAdmin = createEngineOrderAdmin(engineUrl)
+  const listAdminOrders = new ListAdminOrdersUseCase(orderAdmin)
+  const cancelAdminOrder = new CancelAdminOrderUseCase(orderAdmin, recordAdminAction)
+  const cancelAdminOrdersBatch = new CancelAdminOrdersBatchUseCase(orderAdmin, recordAdminAction)
+  // Pausa de negociação (N.9).
+  const tradingHaltAdmin = createEngineTradingHaltAdmin(engineUrl)
+  const listTradingHalts = new ListTradingHaltsUseCase(tradingHaltAdmin)
+  const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, recordAdminAction)
+  const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, recordAdminAction)
+  const engineSettingsAdmin = createEngineSettingsAdmin(engineUrl)
+  const listEngineSettings = new ListEngineSettingsUseCase(engineSettingsAdmin)
+  const updateEngineSetting = new UpdateEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
+  const resetEngineSetting = new ResetEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
+  // Gestão de bots (N.1).
+  const botAdmin = createEngineBotAdmin(engineUrl)
+  const listAdminBots = new ListAdminBotsUseCase(botAdmin)
+  const createAdminBot = new CreateAdminBotUseCase(botAdmin, recordAdminAction)
+  const updateAdminBot = new UpdateAdminBotUseCase(botAdmin, recordAdminAction)
+  const fundAdminBot = new FundAdminBotUseCase(botAdmin, recordAdminAction)
+  // Desempenho dos bots (N.14).
+  const getAdminBotActivity = new GetAdminBotActivityUseCase(botAdmin)
+  const getAdminBotsSummary = new GetAdminBotsSummaryUseCase(botAdmin)
+  const getAdminOverview = new GetAdminOverviewUseCase(
+    marketOverviewReader,
+    schedulerAdmin,
+    createDrizzleUserStatsReader(db),
+  )
   // Reaproveita a mesma instância de ListMacroEventsUseCase (admin, 4.5) —
   // feed público (6.0.6, tela 5.1) é o mesmo caso de uso, só sem
   // requireRole('admin') no router. newsReadRepository (6.6.2) decora
@@ -297,10 +474,11 @@ export function createApp(deps: AppDeps = {}): Express {
   // `trades_executed`. Reaproveitados de novo mais abaixo por `getRanking`.
   const userDirectory = createDrizzleUserDirectory(db)
   const sandboxAssetReader = createEngineSandboxAssetReader(engineUrl)
+  const currentAccountStateReader = createEngineCurrentAccountStateReader(engineUrl)
   const getNetWorth = new GetNetWorthUseCase(
     createEngineAccountEventsReader(engineUrl),
     createEngineAssetPriceHistoryReader(engineUrl),
-    createEngineCurrentAccountStateReader(engineUrl),
+    currentAccountStateReader,
   )
 
   const achievementRepository = createDrizzleAchievementRepository(db)
@@ -429,14 +607,20 @@ export function createApp(deps: AppDeps = {}): Express {
   const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  // Reaproveitados pelo detalhe de usuário do painel admin (N.16).
+  const progressionExporter = createInProcessProgressionExporter(getProgression)
+  const achievementsExporter = createInProcessAchievementsExporter(
+    new ExportUnlockedAchievementsUseCase(achievementRepository),
+  )
+  const friendshipsExporter = createInProcessFriendshipsExporter(
+    new ExportFriendshipsUseCase(friendshipRepository),
+  )
   const exportUserData = new ExportUserDataUseCase(
     userRepository,
-    createInProcessProgressionExporter(getProgression),
+    progressionExporter,
     createInProcessLessonProgressExporter(new ExportLessonProgressUseCase(lessonRepository)),
-    createInProcessAchievementsExporter(
-      new ExportUnlockedAchievementsUseCase(achievementRepository),
-    ),
-    createInProcessFriendshipsExporter(new ExportFriendshipsUseCase(friendshipRepository)),
+    achievementsExporter,
+    friendshipsExporter,
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
   )
 
@@ -448,6 +632,9 @@ export function createApp(deps: AppDeps = {}): Express {
   // observável rodando só `npm run dev` — só em `vite build && vite preview`.
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
   const app = express()
+  // Atrás do gateway nginx (um salto): sem isso `req.ip` seria sempre o IP do
+  // gateway e o limitador de taxa (N.22) trataria todo mundo como um cliente só.
+  app.set('trust proxy', 1)
   app.use(cors({ origin: frontendUrl }))
   app.use(express.json())
   app.use(healthRouter)
@@ -456,12 +643,15 @@ export function createApp(deps: AppDeps = {}): Express {
   // (tarefa 6.10.8) — mesma pasta do volume Docker, montado na raiz do
   // gateway (`location /` já faz proxy de tudo, `gateway/nginx.conf`).
   app.use('/avatars', express.static(avatarStorageDir))
+  // Conferência de senha é alvo de força bruta: teto bem menor que o do painel.
+  app.use('/auth/reauth', createRateLimiter({ windowMs: 5 * 60_000, max: 10 }))
   app.use(
     createAuthRouter({
       registerUser,
       loginUser,
       getCurrentUser,
       loginWithGoogle,
+      reauthenticate,
       googleIdentityProvider,
       authMiddleware,
     }),
@@ -477,9 +667,153 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  // N.22: respostas do painel nunca em cache e teto de requisições por IP
+  // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
+  app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))
   app.use(createAdminPingRouter(authMiddleware))
-  app.use(createAdminMacroEventsRouter({ triggerMacroEvent, listMacroEvents, authMiddleware }))
+  app.use(
+    createAdminMacroEventsRouter({
+      triggerMacroEvent,
+      listMacroEvents,
+      getMacroEventDetail,
+      cancelMacroEvent,
+      authMiddleware,
+    }),
+  )
   app.use(createAdminTickRouter({ triggerTick, authMiddleware }))
+  app.use(
+    createAdminSchedulerRouter({
+      getSchedulerStatus,
+      setSchedulerPaused,
+      listTicks,
+      advanceTicks,
+      authMiddleware,
+    }),
+  )
+  app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
+  app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
+  app.use(
+    createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),
+    createAdminSettingsRouter({
+      listEngineSettings,
+      updateEngineSetting,
+      resetEngineSetting,
+      authMiddleware,
+    }),
+  )
+  app.use(
+    createAdminBotsRouter({
+      listAdminBots,
+      createAdminBot,
+      updateAdminBot,
+      fundAdminBot,
+      getAdminBotActivity,
+      getAdminBotsSummary,
+      authMiddleware,
+    }),
+  )
+  app.use(
+    createAdminOrdersRouter({
+      listAdminOrders,
+      cancelAdminOrder,
+      cancelAdminOrdersBatch,
+      authMiddleware,
+    }),
+  )
+  app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
+  // Correções manuais de conta (N.17): crédito de caixa vai ao motor; XP, streak,
+  // conquistas e lições passam pelos casos de uso dos módulos donos do dado.
+  const userCorrections = createInProcessUserCorrections({
+    adjustProgression: new AdjustProgressionUseCase(progressionRepository, achievementChecker),
+    grantAchievement: new GrantAchievementUseCase(achievementRepository),
+    revokeAchievement: new RevokeAchievementUseCase(achievementRepository),
+    markLessonCompleted: new MarkLessonCompletedUseCase(lessonRepository),
+    reopenLesson: new ReopenLessonUseCase(lessonRepository),
+    achievementRepository,
+    lessonRepository,
+  })
+  app.use(
+    createAdminUserCorrectionsRouter({
+      creditUserCash: new CreditUserCashUseCase(
+        userRepository,
+        createEngineUserCashCreditor(engineUrl),
+        recordAdminAction,
+      ),
+      adjustUserXp: new AdjustUserXpUseCase(userRepository, userCorrections, recordAdminAction),
+      setUserStreak: new SetUserStreakUseCase(userRepository, userCorrections, recordAdminAction),
+      grantUserAchievement: new GrantUserAchievementUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+      ),
+      revokeUserAchievement: new RevokeUserAchievementUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+      ),
+      completeUserLesson: new CompleteUserLessonUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+      ),
+      reopenUserLesson: new ReopenUserLessonUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+      ),
+      getCorrectionContext: new GetUserCorrectionContextUseCase(userRepository, userCorrections),
+      authMiddleware,
+    }),
+  )
+  // Catálogo de conquistas e missões e ranking só leitura (N.19): editar passa pelos casos de
+  // uso dos módulos donos do dado; o ranking reaproveita o caso de uso que o jogador usa.
+  const gamificationCatalogAdmin = createInProcessGamificationCatalogAdmin({
+    listAchievementCatalog: new ListAchievementCatalogUseCase(achievementRepository),
+    createAchievement: new CreateAchievementUseCase(achievementRepository),
+    updateAchievement: new UpdateAchievementUseCase(achievementRepository),
+    listMissionCatalog: new ListMissionCatalogUseCase(missionRepository),
+    updateMission: new UpdateMissionUseCase(missionRepository),
+  })
+  app.use(
+    createAdminGamificationRouter({
+      listAchievementCatalog: new ListAchievementCatalogAdminUseCase(gamificationCatalogAdmin),
+      createAchievement: new CreateAchievementAdminUseCase(
+        gamificationCatalogAdmin,
+        recordAdminAction,
+      ),
+      updateAchievement: new UpdateAchievementAdminUseCase(
+        gamificationCatalogAdmin,
+        recordAdminAction,
+      ),
+      listMissionCatalog: new ListMissionCatalogAdminUseCase(gamificationCatalogAdmin),
+      updateMission: new UpdateMissionAdminUseCase(gamificationCatalogAdmin, recordAdminAction),
+      getAdminRanking: new GetAdminRankingUseCase(createInProcessAdminRankingReader(getRanking)),
+      authMiddleware,
+    }),
+  )
+  app.use(
+    createAdminUsersRouter({
+      listAdminUsers: new ListAdminUsersUseCase(createDrizzleAdminUserDirectory(db)),
+      getAdminUserDetail: new GetAdminUserDetailUseCase(
+        userRepository,
+        progressionExporter,
+        achievementsExporter,
+        friendshipsExporter,
+        createEngineUserPortfolioReader(engineUrl, currentAccountStateReader),
+        orderAdmin,
+        auditLogRepository,
+      ),
+      suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction),
+      reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction),
+      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction),
+      deleteUserAccount: new DeleteUserAccountUseCase(
+        userRepository,
+        anonymizeAccount,
+        recordAdminAction,
+      ),
+      authMiddleware,
+    }),
+  )
   app.use(createNewsRouter({ listNewsFeed, markNewsEventAsSeen, authMiddleware }))
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
@@ -517,6 +851,7 @@ export function createApp(deps: AppDeps = {}): Express {
       getIndicatorHistory,
       getMarketClock,
       getMarketCalendar,
+      getTradingHalts,
       authMiddleware,
     }),
   )

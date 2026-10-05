@@ -11,7 +11,9 @@ import {
   boolean,
   check,
   date,
+  index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -53,24 +55,37 @@ export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'live_macro_indicator',
 ])
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: varchar('name', { length: 100 }).notNull(),
-  email: varchar('email', { length: 100 }).notNull().unique(),
-  // Nullable: contas criadas só via OAuth Google não têm senha local.
-  passwordHash: varchar('password_hash', { length: 255 }),
-  username: varchar('username', { length: 30 }).notNull().unique(),
-  role: userRole('role').notNull().default('user'),
-  // Tela 1.2 (inventário) — controla se o pós-login cai no onboarding ou
-  // direto no Portfólio (2.1). Nunca lido de um flag local (localStorage):
-  // precisa sobreviver a um segundo dispositivo/navegador (tarefa 6.0.4).
-  onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
-  // Nome do arquivo salvo em disco (tarefa 6.10.8, upload de foto de
-  // perfil) — nunca a URL pronta, ver `shared/avatarUrl.ts`. Nullable: nem
-  // todo usuário fez upload.
-  avatarPath: varchar('avatar_path', { length: 255 }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 100 }).notNull(),
+    email: varchar('email', { length: 100 }).notNull().unique(),
+    // Nullable: contas criadas só via OAuth Google não têm senha local.
+    passwordHash: varchar('password_hash', { length: 255 }),
+    username: varchar('username', { length: 30 }).notNull().unique(),
+    role: userRole('role').notNull().default('user'),
+    // Tela 1.2 (inventário) — controla se o pós-login cai no onboarding ou
+    // direto no Portfólio (2.1). Nunca lido de um flag local (localStorage):
+    // precisa sobreviver a um segundo dispositivo/navegador (tarefa 6.0.4).
+    onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
+    // Nome do arquivo salvo em disco (tarefa 6.10.8, upload de foto de
+    // perfil) — nunca a URL pronta, ver `shared/avatarUrl.ts`. Nullable: nem
+    // todo usuário fez upload.
+    avatarPath: varchar('avatar_path', { length: 255 }),
+    // Suspensão pelo painel admin (N.16): reversível, nunca apaga progresso.
+    // Texto + CHECK em vez de enum do Postgres, como o `result` do log de
+    // auditoria: um terceiro estado futuro não exige migration de tipo.
+    status: text('status').notNull().default('active'),
+    suspendedReason: text('suspended_reason'),
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    // Incrementado por "forçar logout" (N.16): o token carrega a versão com que
+    // foi emitido e o `authMiddleware` recusa token de versão antiga.
+    tokenVersion: integer('token_version').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('users_status_chk', sql`${table.status} IN ('active', 'suspended')`)],
+)
 
 export const userIdentities = pgTable(
   'user_identities',
@@ -101,6 +116,13 @@ export const achievements = pgTable('achievements', {
   // coluna antiga nunca teve consumidor.
   criteriaType: achievementCriteriaType('criteria_type').notNull(),
   criteriaValue: numeric('criteria_value', { precision: 15, scale: 2 }).notNull(),
+  // Catálogo operável pelo painel (N.19). Conquista desativada para de ser
+  // concedida e some da lista de quem ainda não a tem; quem já ganhou não perde.
+  isActive: boolean('is_active').notNull().default(true),
+  // Chave estável do seed (N.19): `db:seed:achievements` casa por ela, não pelo
+  // nome, que o painel agora pode editar (casar por nome criaria duplicata a cada
+  // seed depois de um renomear). Nula nas conquistas criadas pelo painel.
+  seedKey: varchar('seed_key', { length: 50 }).unique(),
 })
 
 export const userAchievements = pgTable(
@@ -226,6 +248,13 @@ export const userLessonProgress = pgTable(
       .notNull()
       .default(sql`'{}'::smallint[]`),
     microDecisionSolvedAt: timestamp('micro_decision_solved_at', { withTimezone: true }),
+    // Dispensa (N.24): lição criada no meio do currículo depois que o usuário
+    // já tinha passado daquele ponto. Não é conclusão (`completedAt` segue
+    // nulo, sem XP), mas conta como "satisfeita" na progressão, então não
+    // bloqueia a sequência nem cancela as chaves de produto da lição. Se o
+    // usuário fizer a lição depois, `completedAt` é preenchido e `waivedAt`
+    // permanece como registro de origem.
+    waivedAt: timestamp('waived_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],
@@ -269,6 +298,9 @@ export const dailyMissions = pgTable('daily_missions', {
   // → `criteria_type`/`criteria_value`, tarefa 5.2). Só a missão "complete
   // uma lição" tem esse tratamento nesta fase (tarefa 5.4).
   requiresLessonCompletion: boolean('requires_lesson_completion').notNull().default(false),
+  // Catálogo operável pelo painel (N.19): missão desativada deixa de ser gerada
+  // pro dia e de poder ser concluída; o que já foi concluído fica como está.
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -353,3 +385,33 @@ export const payrollState = pgTable('payroll_state', {
   lastPaidMonth: varchar('last_paid_month', { length: 7 }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Log de auditoria das ações administrativas (Fase N, tarefa N.4). Append-only
+// também no banco: a migration 0018 cria um trigger que recusa UPDATE e DELETE
+// (mesmo padrão de `market_events` no motor). `action` é texto (a lista
+// fechada vive em `modules/admin/domain/auditEntry.ts`) pra uma ação nova não
+// pedir migration. `targetId` é texto porque o alvo nem sempre é um uuid (o
+// dia do tick, por exemplo). Sem backfill: ações anteriores à tarefa não
+// existem aqui.
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    adminId: uuid('admin_id')
+      .notNull()
+      .references(() => users.id),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    result: text('result').notNull(),
+    errorMessage: text('error_message'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('admin_audit_log_result_chk', sql`${table.result} IN ('success', 'failed')`),
+    index('admin_audit_log_occurred_at_idx').on(table.occurredAt),
+    index('admin_audit_log_admin_id_idx').on(table.adminId),
+    index('admin_audit_log_action_idx').on(table.action),
+  ],
+)

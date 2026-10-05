@@ -162,6 +162,63 @@ func TestCreditSalary_ContaNaoEncontrada(t *testing.T) {
 	}
 }
 
+// TestAdminCredit_CreditaSaldoEGravaEvento cobre a N.17: crédito administrativo é caixa
+// livre (nunca toca total_invested/total_disinvested/total_dividends_received, então não
+// infla a rentabilidade) e grava o evento imutável admin_credit, distinto de
+// salary_payment. Valor acima do limite da coluna vira ErrBalanceOverflow e desfaz o
+// evento junto.
+func TestAdminCredit_CreditaSaldoEGravaEvento(t *testing.T) {
+	repo, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	_, userID := seedAssetAndAccount(t, conn)
+
+	if err := repo.AdminCredit(ctx, userID, 250000.50); err != nil {
+		t.Fatalf("AdminCredit: %v", err)
+	}
+
+	acc, _, err := repo.FindByUserID(ctx, userID)
+	if err != nil {
+		t.Fatalf("FindByUserID: %v", err)
+	}
+	if acc.CurrentBalance != 260000.50 {
+		t.Errorf("CurrentBalance = %v, want 260000.50", acc.CurrentBalance)
+	}
+	if acc.TotalInvested != 0 || acc.TotalDisinvested != 0 || acc.TotalDividendsReceived != 0 {
+		t.Errorf("acc = %+v, crédito administrativo não pode tocar os totais de capital de risco", acc)
+	}
+
+	var unitValue float64
+	if err := conn.QueryRowContext(ctx,
+		`SELECT unit_value FROM market_events WHERE user_id = $1 AND event_type = 'admin_credit'`, userID,
+	).Scan(&unitValue); err != nil {
+		t.Fatalf("evento admin_credit não gravado: %v", err)
+	}
+	if unitValue != 250000.50 {
+		t.Errorf("unit_value do evento = %v, want 250000.50", unitValue)
+	}
+}
+
+func TestAdminCredit_ContaInexistenteEEstouroDesfazemOEvento(t *testing.T) {
+	repo, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	_, userID := seedAssetAndAccount(t, conn)
+
+	if err := repo.AdminCredit(ctx, "00000000-0000-4000-8000-000000000000", 100); !errors.Is(err, account.ErrNotFound) {
+		t.Fatalf("conta inexistente: err = %v, want account.ErrNotFound", err)
+	}
+	if err := repo.AdminCredit(ctx, userID, 9_999_999_999_999.99); !errors.Is(err, account.ErrBalanceOverflow) {
+		t.Fatalf("estouro: err = %v, want account.ErrBalanceOverflow", err)
+	}
+
+	var count int
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM market_events WHERE event_type = 'admin_credit'`).Scan(&count); err != nil {
+		t.Fatalf("count market_events: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("eventos admin_credit = %d, want 0 (as duas falhas desfazem a transação)", count)
+	}
+}
+
 // TestListPositionsByUser_DividendsReceived cobre a tarefa S.15: o motor
 // agrega dividends_received por ativo a partir dos eventos dividend_payment
 // em market_events (payDueDividends, tick_repository.go), sem precisar de

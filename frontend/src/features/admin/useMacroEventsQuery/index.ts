@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { useAuth } from '../../auth/AuthContext'
 import { listMacroEvents } from '../../../services/admin'
-import type { MacroEvent } from '../../../services/admin'
+import type { MacroEvent, MacroEventFilters } from '../../../services/admin'
 
 // Mesmo default de paginação do motor (defaultMacroEventListLimit) e
 // mesma migração "Carregar mais" → paginação numerada já feita no Feed de
@@ -20,14 +20,14 @@ export interface MacroEventsPage {
     totalPages: number
 }
 
-export function useMacroEventsQuery(page: number): UseQueryResult<MacroEventsPage> {
+export function useMacroEventsQuery(page: number, filters: MacroEventFilters = {}): UseQueryResult<MacroEventsPage> {
     const { token } = useAuth()
 
     return useQuery({
-        queryKey: [...MACRO_EVENTS_QUERY_KEY, page] as const,
+        queryKey: [...MACRO_EVENTS_QUERY_KEY, page, filters] as const,
         queryFn: async () => {
             const offset = (page - 1) * MACRO_EVENTS_PAGE_SIZE
-            const result = await listMacroEvents(token as string, MACRO_EVENTS_PAGE_SIZE, offset)
+            const result = await listMacroEvents(token as string, MACRO_EVENTS_PAGE_SIZE, offset, filters)
             return {
                 events: result.events,
                 page,
