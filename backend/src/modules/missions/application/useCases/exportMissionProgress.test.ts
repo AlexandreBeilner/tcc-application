@@ -11,6 +11,7 @@ const catalog = [
     completionCriteria: 'x',
     xpReward: 10,
     requiresLessonCompletion: false,
+    isActive: true,
   },
 ]
 

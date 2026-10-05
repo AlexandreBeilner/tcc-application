@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { InvalidCredentialsError } from '../../domain/errors'
+import { AccountSuspendedError, InvalidCredentialsError } from '../../domain/errors'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
+import { createFakeAdminSessionAuditor } from '../../test/fakes/fakeAdminSessionAuditor'
 import { RegisterUserUseCase } from './registerUser'
 import { LoginUserUseCase } from './loginUser'
 
@@ -18,7 +19,7 @@ function build() {
     createFakeAccountProvisioner(),
   )
   const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
-  return { registerUser, loginUser }
+  return { registerUser, loginUser, userRepository, tokenIssuer }
 }
 
 describe('LoginUserUseCase', () => {
@@ -77,5 +78,88 @@ describe('LoginUserUseCase', () => {
     await expect(
       loginUser.execute({ email: 'oauth@example.com', password: 'qualquer-coisa' }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError)
+  })
+
+  describe('auditoria de sessão de administrador (N.22)', () => {
+    async function buildWithAdmin() {
+      const userRepository = createFakeUserRepository()
+      const passwordHasher = createFakePasswordHasher()
+      const sessionAuditor = createFakeAdminSessionAuditor()
+      const loginUser = new LoginUserUseCase(
+        userRepository,
+        passwordHasher,
+        createFakeTokenIssuer(),
+        sessionAuditor,
+      )
+      const admin = await userRepository.createUser({
+        name: 'Admin',
+        email: 'admin@example.com',
+        username: 'admin',
+        passwordHash: await passwordHasher.hash('senha-forte-123'),
+        role: 'admin',
+      })
+      const user = await userRepository.createUser({
+        name: 'Comum',
+        email: 'comum@example.com',
+        username: 'comum',
+        passwordHash: await passwordHasher.hash('senha-forte-123'),
+      })
+      return { loginUser, sessionAuditor, admin, user }
+    }
+
+    it('registra login e falha de admin', async () => {
+      const { loginUser, sessionAuditor, admin } = await buildWithAdmin()
+      await loginUser.execute({ email: 'admin@example.com', password: 'senha-forte-123' })
+      await expect(
+        loginUser.execute({ email: 'admin@example.com', password: 'errada' }),
+      ).rejects.toBeInstanceOf(InvalidCredentialsError)
+      expect(sessionAuditor.events).toEqual([
+        { adminId: admin.id, kind: 'login' },
+        { adminId: admin.id, kind: 'login_failed' },
+      ])
+    })
+
+    it('não registra login de usuário comum', async () => {
+      const { loginUser, sessionAuditor } = await buildWithAdmin()
+      await loginUser.execute({ email: 'comum@example.com', password: 'senha-forte-123' })
+      expect(sessionAuditor.events).toEqual([])
+    })
+  })
+
+  describe('conta suspensa (N.16)', () => {
+    it('recusa login com a senha certa e não revela a suspensão a quem erra a senha', async () => {
+      const { registerUser, loginUser, userRepository } = build()
+      const { user } = await registerUser.execute({
+        name: 'Alexandre',
+        email: 'susp@example.com',
+        username: 'susp',
+        password: 'senha-forte-123',
+      })
+      await userRepository.updateUser(user.id, { status: 'suspended' })
+
+      await expect(
+        loginUser.execute({ email: 'susp@example.com', password: 'senha-forte-123' }),
+      ).rejects.toBeInstanceOf(AccountSuspendedError)
+      await expect(
+        loginUser.execute({ email: 'susp@example.com', password: 'errada' }),
+      ).rejects.toBeInstanceOf(InvalidCredentialsError)
+    })
+
+    it('emite o token com a versão de sessão atual do usuário', async () => {
+      const { registerUser, loginUser, userRepository, tokenIssuer } = build()
+      const { user } = await registerUser.execute({
+        name: 'Alexandre',
+        email: 'ver@example.com',
+        username: 'ver',
+        password: 'senha-forte-123',
+      })
+      await userRepository.revokeSessions(user.id)
+
+      const { token } = await loginUser.execute({
+        email: 'ver@example.com',
+        password: 'senha-forte-123',
+      })
+      expect(tokenIssuer.verify(token).tokenVersion).toBe(1)
+    })
   })
 })

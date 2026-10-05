@@ -59,6 +59,7 @@ describe('buildAchievementView', () => {
     description: null,
     criteriaType: 'streak_days' as const,
     criteriaValue: 7,
+    isActive: true,
   }
 
   it('marca como bloqueada com progresso atual quando não desbloqueada', () => {

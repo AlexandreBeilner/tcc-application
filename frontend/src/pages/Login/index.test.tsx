@@ -131,6 +131,28 @@ describe('Login (tela 1.1)', () => {
         expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
     })
 
+    it('conta suspensa (403 account_suspended) mostra a mensagem própria, sem navegar', async () => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+        vi.mocked(login).mockRejectedValue(new ApiError(403, 'account_suspended'))
+
+        renderLogin()
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha-forte-123' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Sua conta está suspensa. Fale com o suporte para entender o motivo.'),
+        )
+        expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
+    })
+
     it('e-mail e username já em uso no cadastro (409) mostram mensagens distintas do backend', async () => {
         vi.mocked(useAuth).mockReturnValue({
             token: null,

@@ -11,6 +11,7 @@ const catalog: Achievement[] = [
     description: null,
     criteriaType: 'streak_days',
     criteriaValue: 7,
+    isActive: true,
   },
   {
     id: 'a-streak-30',
@@ -18,6 +19,7 @@ const catalog: Achievement[] = [
     description: null,
     criteriaType: 'streak_days',
     criteriaValue: 30,
+    isActive: true,
   },
 ]
 

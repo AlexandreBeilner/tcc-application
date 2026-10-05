@@ -48,7 +48,8 @@ export class CompleteMissionUseCase {
 
   async execute(input: CompleteMissionInput): Promise<CompleteMissionResult> {
     const mission = await this.missionRepository.findById(input.missionId)
-    if (!mission) {
+    // Missão desativada pelo painel (N.19) não pode mais ser concluída, como se não existisse.
+    if (!mission || !mission.isActive) {
       throw new MissionNotFoundError('missão não encontrada')
     }
 
