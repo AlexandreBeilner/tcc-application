@@ -12,6 +12,11 @@ import { HeadlineTriageWidget, headlineTriageSummary } from '../HeadlineTriageWi
 import { OrderBookWidget, orderBookSummary } from '../OrderBookWidget'
 import { OwnershipCalculatorWidget, ownershipCalculatorSummary } from '../OwnershipCalculatorWidget'
 import { TickerDecoderWidget, tickerDecoderSummary } from '../TickerDecoderWidget'
+import { InteractiveBalanceWidget, interactiveBalanceSummary } from '../InteractiveBalanceWidget'
+import { MarginComparatorWidget, marginComparatorSummary } from '../MarginComparatorWidget'
+import { RoeLabWidget, roeLabSummary } from '../RoeLabWidget'
+import { MultiplesCalculatorWidget, multiplesCalculatorSummary } from '../MultiplesCalculatorWidget'
+import { DebtThermometerWidget, debtThermometerSummary } from '../DebtThermometerWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
 import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
 import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
@@ -158,6 +163,31 @@ export const widgetRegistry: Registry = {
         component: OrderBookWidget,
         propsSchema: widgetPropsSchemas['order-book'],
         summary: orderBookSummary,
+    },
+    'interactive-balance': {
+        component: InteractiveBalanceWidget,
+        propsSchema: widgetPropsSchemas['interactive-balance'],
+        summary: interactiveBalanceSummary,
+    },
+    'margin-comparator': {
+        component: MarginComparatorWidget,
+        propsSchema: widgetPropsSchemas['margin-comparator'],
+        summary: marginComparatorSummary,
+    },
+    'roe-lab': {
+        component: RoeLabWidget,
+        propsSchema: widgetPropsSchemas['roe-lab'],
+        summary: roeLabSummary,
+    },
+    'multiples-calculator': {
+        component: MultiplesCalculatorWidget,
+        propsSchema: widgetPropsSchemas['multiples-calculator'],
+        summary: multiplesCalculatorSummary,
+    },
+    'debt-thermometer': {
+        component: DebtThermometerWidget,
+        propsSchema: widgetPropsSchemas['debt-thermometer'],
+        summary: debtThermometerSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,

@@ -40,6 +40,11 @@ export const WIDGET_IDS = [
   'ticker-decoder',
   'headline-triage',
   'order-book',
+  'interactive-balance',
+  'margin-comparator',
+  'roe-lab',
+  'multiples-calculator',
+  'debt-thermometer',
   'savings-vs-selic',
   'growth-calculator',
   'fixed-income-comparison',
@@ -144,7 +149,9 @@ const fgcCoverageBarProps = z.object({
 
 // Régua de rating (RC.3.4b): a escala é convenção das agências; a prop só
 // escolhe a nota que começa selecionada.
-const ratingRulerProps = z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') })
+const ratingRulerProps = z.object({
+  highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA'),
+})
 
 // Títulos públicos (RC.3.4d): as contas vivem no frontend; as props só escolhem
 // o ponto de partida dentro dos limites dos controles.
@@ -201,6 +208,13 @@ const emptyProps = z.object({}).strict()
 const liveIndicatorProps = z.object({ ticker: z.string().min(1).max(20) })
 const liveMacroProps = z.object({ windowDays: z.number().int().min(7).max(365).optional() })
 
+const companyMarginsProps = z.object({
+  netRevenue: z.number().positive().max(100_000),
+  grossProfit: z.number().min(-100_000).max(100_000),
+  ebit: z.number().min(-100_000).max(100_000),
+  netIncome: z.number().min(-100_000).max(100_000),
+})
+
 export const widgetPropsSchemas = {
   callout: calloutProps,
   'platform-note': platformNoteProps,
@@ -225,6 +239,47 @@ export const widgetPropsSchemas = {
   'ticker-decoder': emptyProps,
   'headline-triage': emptyProps,
   'order-book': emptyProps,
+  'interactive-balance': z.object({
+    netRevenue: z.number().positive().max(100_000).default(1000),
+    costsPct: z.number().min(0).max(90).default(55),
+    expensesPct: z.number().min(0).max(50).default(15),
+    financialResult: z.number().min(-300).max(0).default(-100),
+    taxPct: z.number().min(0).max(40).default(30),
+    cash: z.number().min(0).max(1000).default(200),
+    fixedAssets: z.number().min(0).max(2000).default(800),
+    debt: z.number().min(0).max(2000).default(600),
+    otherLiabilities: z.number().min(0).max(1000).default(150),
+  }),
+  'margin-comparator': z.object({
+    a: companyMarginsProps.default({
+      netRevenue: 1000,
+      grossProfit: 400,
+      ebit: 200,
+      netIncome: 50,
+    }),
+    b: companyMarginsProps.default({ netRevenue: 200, grossProfit: 90, ebit: 60, netIncome: 40 }),
+  }),
+  'roe-lab': z.object({
+    revenue: z.number().positive().max(100_000).default(1000),
+    netIncome: z.number().min(-100_000).max(100_000).default(100),
+    assets: z.number().positive().max(100_000).default(1000),
+    equity: z.number().positive().max(100_000).default(500),
+    selicPct: z.number().min(2).max(16).default(10.5),
+  }),
+  'multiples-calculator': z.object({
+    price: z.number().min(5).max(60).default(24),
+    netIncome: z.number().min(-100_000).max(100_000).default(120),
+    equity: z.number().min(-100_000).max(100_000).default(300),
+    shares: z.number().positive().max(100_000).default(60),
+    selicPct: z.number().min(2).max(16).default(10.5),
+  }),
+  'debt-thermometer': z.object({
+    grossDebt: z.number().min(0).max(2000).default(800),
+    cash: z.number().min(0).max(1500).default(300),
+    ebit: z.number().min(-100_000).max(100_000).default(250),
+    financialExpense: z.number().min(0).max(100_000).default(50),
+    cdiSharePct: z.number().min(0).max(100).default(100),
+  }),
   'copom-timeline': emptyProps,
   'growth-calculator': emptyProps,
   'fixed-income-comparison': emptyProps,
