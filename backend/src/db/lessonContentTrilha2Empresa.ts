@@ -517,3 +517,183 @@ export const BLOCKS_2_7_7: LessonBlocks = {
     ],
   },
 }
+
+// Lições de setores e de ETFs reescritas (RC.5.12). Fatos: `acoes-isencao-20-mil`
+// (a isenção de R$ 20 mil não vale para ETF). O imposto do ETF não cita
+// alíquota: `etf-ir` segue como trecho de busca (texto da norma não abriu). A
+// cesta do ETF do texto é de exemplo (A, B, C, D), sem os pesos do catálogo; o
+// que é regra da plataforma fica no bloco "Na plataforma".
+
+export const BLOCKS_2_8: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Empresas se agrupam em setores, como mineração, bancos, varejo, energia e tecnologia. Cada setor reage de um jeito à economia e aos juros.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Um setor {{cíclico}} vende mais quando a economia vai bem e sofre quando ela esfria, como o varejo. Um setor {{defensivo}} vende parecido em qualquer fase, como a energia.',
+      },
+      {
+        type: 'check',
+        id: 'setor-defensivo',
+        kind: 'single',
+        prompt: 'Qual destes setores é tipicamente defensivo?',
+        options: ['Moda de luxo', 'Distribuição de energia', 'Venda de carros novos'],
+        answer: 1,
+        explanation:
+          'Energia é gasta em qualquer fase da economia. Moda de luxo e carros novos são os primeiros cortes quando o orçamento aperta.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Juro alto pesa mais em empresa endividada e em quem só vai lucrar lá na frente, porque o dinheiro fica caro hoje e o lucro futuro vale menos.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'A Selic sobe forte. Quem tende a sentir mais nos resultados: a mineradora VALR3, com receita em dólar e pouca dívida, ou a TechNova (TNVA3), de tecnologia, com o lucro concentrado no futuro?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'A TechNova. Quando o lucro está mais distante, juro alto o desvaloriza mais. A mineradora tem receita em dólar e pouca dívida, então sente menos.',
+      },
+      {
+        type: 'check',
+        id: 'juros-afetam-todos',
+        kind: 'true_false',
+        prompt: 'Numa alta de juros, todas as empresas pioram do mesmo jeito.',
+        answer: false,
+        explanation:
+          'Depende da dívida, do setor e de quando o lucro aparece. Por isso setores reagem de formas diferentes.',
+      },
+      {
+        type: 'check',
+        id: 'carteira-so-ciclica',
+        kind: 'single',
+        prompt: 'A economia desacelera. Como tende a ir uma carteira só de setores cíclicos, comparada a uma mista?',
+        options: ['Sofre mais que a mista', 'Sofre menos que a mista', 'Não muda'],
+        answer: 0,
+        explanation:
+          'Setores defensivos seguram parte da queda. Diversificar entre cíclicos e defensivos reduz o risco da carteira.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-setores',
+        widget: 'platform-note',
+        props: {
+          brazil: 'Cada setor reage de um jeito ao ciclo da economia e aos juros, e a intensidade varia a cada momento.',
+          here: 'A sensibilidade de cada setor à Selic é uma regra da plataforma, calibrada em empresas reais de cada setor.',
+          why: 'Assim uma alta de juros muda os resultados de forma diferente por setor, e você vê o efeito na carteira.',
+        },
+      },
+    ],
+  },
+}
+
+export const BLOCKS_2_9: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Um {{ETF}} é um fundo que reproduz um índice e é negociado na bolsa como uma ação. Com uma cota, você tem uma fatia de uma cesta inteira de ativos.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Imagine um ETF com quatro ativos: o A pesa 40%, o B 20%, o C 25% e o D 15%. Em vez de escolher um por um, você compra a cesta toda.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'No ETF de exemplo, o ativo A, de peso 40%, cai 20% e os outros ficam parados. Quanto cai o ETF?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Cai 8%. O efeito é o peso vezes a queda: 40% de 20%. O resto da cesta amortece, e é essa a diversificação de uma única compra.',
+      },
+      {
+        type: 'check',
+        id: 'peso-vezes-queda',
+        kind: 'numeric',
+        prompt: 'Um ativo de peso 25% cai 10% e o resto da cesta fica parado. Quanto cai o ETF, em %?',
+        answer: 2.5,
+        tolerance: 0.05,
+        unit: '%',
+        explanation: '25% de 10% dá 2,5%.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O {{NAV}} é o valor da cesta dividido pelo número de cotas. O preço na bolsa oscila em torno dele: acima do NAV há {{ágio}}, e abaixo, desconto.',
+      },
+      {
+        type: 'check',
+        id: 'agio-ou-desconto',
+        kind: 'single',
+        prompt: 'A cota negocia a R$ 101 e o NAV é R$ 100. Como se chama a diferença?',
+        options: ['Ágio', 'Desconto', 'Não há diferença'],
+        answer: 0,
+        explanation: 'Preço acima do NAV é ágio. Abaixo do NAV seria desconto.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Se a diferença cresce, um {{participante autorizado}} cria cotas novas, entregando a cesta, ou resgata cotas, recebendo a cesta. Isso empurra o preço de volta para o NAV.',
+      },
+      {
+        type: 'check',
+        id: 'participante-autorizado',
+        kind: 'true_false',
+        prompt: 'O participante autorizado ajuda o preço da cota a ficar perto do NAV.',
+        answer: true,
+        explanation: 'Quando o preço foge do NAV, criar ou resgatar cotas dá lucro a ele e traz o preço de volta.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Os dividendos da cesta podem ser reinvestidos ou distribuídos aos cotistas, conforme o regulamento. O ETF cobra uma taxa de administração, que reduz o valor da cota aos poucos.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Vender com lucro paga imposto de renda, e o ETF não tem a isenção de R$ 20 mil em vendas no mês, que vale só para ações.',
+      },
+      {
+        type: 'check',
+        id: 'etf-sem-isencao',
+        kind: 'single',
+        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
+        options: ['Sim, como nas ações', 'Não, a isenção de R$ 20 mil vale só para ações', 'Só se o ETF distribuir dividendos'],
+        answer: 1,
+        explanation: 'A isenção de até R$ 20 mil em vendas no mês vale para ações, não para ETF nem FII.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-etf',
+        widget: 'platform-note',
+        props: {
+          brazil: 'O ETF segue um índice público, e participantes autorizados reais criam e resgatam cotas.',
+          here: 'Os índices são fictícios, com cestas de ações e FIIs do catálogo, e a criação e o resgate de cotas são automáticos.',
+          why: 'Assim você vê o ETF funcionar sem depender de um índice real.',
+        },
+      },
+    ],
+  },
+}

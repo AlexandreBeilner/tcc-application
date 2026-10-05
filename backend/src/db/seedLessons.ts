@@ -33,6 +33,8 @@ import {
   BLOCKS_2_7_4,
   BLOCKS_2_7_5,
   BLOCKS_2_7_7,
+  BLOCKS_2_8,
+  BLOCKS_2_9,
 } from './lessonContentTrilha2Empresa'
 import { legacyText } from './lessonText'
 
@@ -814,35 +816,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 32,
     title: 'Setores e ciclicidade',
-    centralConcept: 'Conecta com Selic afetando fundamentos (3.2.2), defensivo vs cíclico',
-    scenarioText:
-      'A Selic não afeta só renda fixa: ela também entra na simulação dos fundamentos de toda empresa ' +
-      'listada, e não afeta todas do mesmo jeito.' +
-      '\n\n' +
-      'A Mineradora Vale do Rio (VALR3, setor Mineração, perfil Conservador, {{ref:2.1}}) e o Banco Nordeste ' +
-      'Digital (BNDD4, setor Bancário/Financeiro, perfil Sofisticado, {{ref:2.2}}) reagem de forma diferente ' +
-      'quando a Selic simulada sobe.',
-    microDecisionPrompt:
-      'Perfil Sofisticado (setores mais cíclicos e alavancados) é mais sensível a juros altos do que perfil ' +
-      'Conservador (fluxo de caixa mais estável).' +
-      '\n\n' +
-      'Numa alta de Selic, qual das duas você espera que sinta um efeito maior nos fundamentos: VALR3 ' +
-      '(Conservador) ou BNDD4 (Sofisticado)?',
+    centralConcept: 'Setores cíclicos e defensivos reagem diferente à economia e aos juros',
+    scenarioText: legacyText(BLOCKS_2_8, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_8, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['VALR3 (Conservador)', 'BNDD4 (Sofisticado)'],
+    microDecisionOptions: ['VALR3', 'TNVA3', 'Sentem igual'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'BNDD4 sente um efeito maior. É o mesmo perfil de risco (Conservador/Sofisticado) que você já viu na ' +
-      'Trilha 1 para renda fixa, aqui aplicado ao efeito da Selic sobre os fundamentos de cada empresa.' +
-      '\n\n' +
-      'Perfil Sofisticado, como o do Banco Nordeste Digital, concentra setores mais cíclicos e alavancados, ' +
-      'mais sensíveis a juros altos; perfil Conservador, como o da Mineradora Vale do Rio, tem fluxo de ' +
-      'caixa mais estável e sente menos esse efeito.' +
-      '\n\n' +
-      'É essa mesma lógica que explica por que diversificar entre setores e perfis diferentes reduz o risco ' +
-      'da carteira. Numa alta de juros, nem todas as empresas pioram do mesmo jeito, e um portfólio ' +
-      'concentrado só em setores cíclicos sofre mais do que um distribuído entre defensivo e cíclico.',
+    revelationText: legacyText(BLOCKS_2_8, 'revelation'),
+    blocks: BLOCKS_2_8,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -855,41 +837,15 @@ export const LESSON_SEEDS: LessonSeed[] = [
     sortOrder: 33,
     title: 'ETFs',
     centralConcept: 'Diversificação automática via índice',
-    scenarioText:
-      'Comprar uma única cota do ETF Índice Sintético (SINT11) dá exposição, de uma vez, a uma cesta ' +
-      'inteira de empresas que compõem o índice de referência dele.' +
-      '\n\n' +
-      'Hoje replicado por amostragem representativa com a Mineradora Vale do Rio (40% do peso), o Banco ' +
-      'Nordeste Digital (35%) e outras posições agregadas (25%).' +
-      '\n\n' +
-      'Em vez de escolher ação por ação, você compra o índice inteiro.',
-    microDecisionPrompt:
-      'Se só a Mineradora Vale do Rio (40% do peso do SINT11) sofrer uma queda forte de preço, o preço do ' +
-      'SINT11 inteiro deveria cair na mesma proporção, ou menos?',
+    scenarioText: legacyText(BLOCKS_2_9, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_9, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Na mesma proporção', 'Menos'],
+    microDecisionOptions: ['20%', '8%', '40%'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Menos. O preço do ETF acompanha o índice de referência que ele replica, formado pela média ponderada ' +
-      'de todos os constituintes, não só de um.' +
-      '\n\n' +
-      'Com a Mineradora Vale do Rio pesando 40% da composição, uma queda forte só nela puxa o índice pra ' +
-      'baixo proporcionalmente a esse peso, mas o resto da cesta (Banco Nordeste Digital e outras posições) ' +
-      'amortece o efeito.' +
-      '\n\n' +
-      'É essa diversificação automática, numa única compra, que torna o ETF diferente de comprar uma ação ' +
-      'isolada: você nunca fica 100% exposto ao resultado de uma empresa só.' +
-      '\n\n' +
-      'Dois números ajudam a ler um ETF. O NAV é o valor real da cesta dividido pelo número de cotas. O preço ' +
-      'no mercado oscila em torno dele: acima do NAV é ágio, abaixo é deságio. Quando a diferença fica grande, ' +
-      'um participante autorizado entra em ação, criando cotas novas (compra a cesta e recebe cotas) ou ' +
-      'resgatando cotas (devolve cotas e recebe a cesta), o que empurra o preço de volta pro NAV.' +
-      '\n\n' +
-      'O fundo também recebe os dividendos das empresas da cesta e os distribui aos cotistas, e cobra uma ' +
-      'taxa de administração pequena, que reduz um pouco o valor da cota com o tempo. Completar esta lição ' +
-      'libera a compra real do SINT11 no Mercado.',
-    unlocksDescription: 'Compra real de ETF (SINT11) no Mercado',
+    revelationText: legacyText(BLOCKS_2_9, 'revelation'),
+    blocks: BLOCKS_2_9,
+    unlocksDescription: 'Compra de ETF (SINT11) no Mercado',
     unlocksKeys: ['asset:etf'],
     unlocksAssetTicker: 'SINT11',
   },

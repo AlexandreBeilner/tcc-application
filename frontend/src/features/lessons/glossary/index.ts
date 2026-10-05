@@ -163,13 +163,26 @@ export const glossary: Record<string, GlossaryEntry> = {
         example: '10 milhões de ações a R$20,00 dão valor de mercado de R$200 milhões.',
         originLesson: '2.1',
     },
+    cíclico: {
+        definition: 'Setor cujas vendas e lucros sobem e descem junto com a economia, como o varejo.',
+        originLesson: '2.8',
+    },
+    defensivo: {
+        definition: 'Setor cujas vendas variam pouco ao longo do ciclo da economia, como a energia.',
+        originLesson: '2.8',
+    },
+    'participante autorizado': {
+        definition: 'Instituição que cria ou resgata cotas de um ETF trocando-as pela cesta de ativos, o que mantém o preço perto do NAV.',
+        originLesson: '2.9',
+    },
     NAV: {
         definition: 'Valor patrimonial por cota de um fundo ou ETF: o valor dos ativos da carteira dividido pelo número de cotas.',
         originLesson: '2.9',
     },
     ágio: {
-        definition: 'Quando o preço de negociação fica acima do valor de referência. O contrário é o deságio.',
-        originLesson: '2.10',
+        definition:
+            'Quando o preço de negociação fica acima do valor de referência, como o NAV de um ETF. Abaixo dele, fala-se em desconto.',
+        originLesson: '2.9',
     },
     spread: {
         definition: 'Diferença entre dois preços ou taxas. Na bolsa, é a distância entre a melhor oferta de compra e a de venda.',
