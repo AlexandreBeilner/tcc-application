@@ -10,6 +10,8 @@ import {
     liftTradingHalt,
     cancelMacroEvent,
     getEngineSettings,
+    listAdminCatalog,
+    updateCatalogAsset,
     getMacroEventDetail,
     listTradingHalts,
     resetEngineSetting,
@@ -254,6 +256,21 @@ describe('services/admin', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/admin/settings/max_catch_up')
         expect(init.method).toBe('DELETE')
+    })
+
+    it('listAdminCatalog faz GET /admin/catalog e devolve só a lista', async () => {
+        const fetchMock = mockFetchOnce({ assets: [{ asset_id: 'a1' }] })
+        expect(await listAdminCatalog('token')).toEqual([{ asset_id: 'a1' }])
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/catalog')
+    })
+
+    it('updateCatalogAsset faz PATCH /admin/catalog/:id com o patch', async () => {
+        const fetchMock = mockFetchOnce({ asset_id: 'a1' })
+        await updateCatalogAsset('token', 'a1', { name: 'Novo' })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/catalog/a1')
+        expect(init.method).toBe('PATCH')
+        expect(JSON.parse(init.body)).toEqual({ name: 'Novo' })
     })
 
     it('listTradingHalts faz GET /admin/halts', async () => {

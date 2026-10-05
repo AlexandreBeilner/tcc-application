@@ -22,6 +22,7 @@ import { AdminGamificacao } from '../pages/AdminGamificacao'
 import { AdminMercado } from '../pages/AdminMercado'
 import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
 import { AdminOrdens } from '../pages/AdminOrdens'
+import { AdminCatalogo } from '../pages/AdminCatalogo'
 import { AdminParametros } from '../pages/AdminParametros'
 import { AdminPausas } from '../pages/AdminPausas'
 import { AdminBots } from '../pages/AdminBots'
@@ -163,6 +164,7 @@ export const router = createBrowserRouter([
                                     { path: '/admin/tempo/parametros', element: <AdminParametros /> },
                                     { path: '/admin/mercado', element: <AdminMercado /> },
                                     { path: '/admin/mercado/ativos/:id', element: <AdminMercadoAtivo /> },
+                                    { path: '/admin/mercado/catalogo', element: <AdminCatalogo /> },
                                     { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
                                     { path: '/admin/mercado/pausas', element: <AdminPausas /> },
                                     { path: '/admin/bots', element: <AdminBots /> },

@@ -19,6 +19,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'bot.fund': 'Aporte em bot',
     'settings.update': 'Alteração de parâmetro',
     'settings.reset': 'Restauração de parâmetro',
+    'catalog.update': 'Alteração de ativo do catálogo',
     'user.suspend': 'Suspensão de conta',
     'user.reactivate': 'Reativação de conta',
     'user.force_logout': 'Logout forçado de conta',

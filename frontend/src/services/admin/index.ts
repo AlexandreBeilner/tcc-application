@@ -39,6 +39,8 @@ import type {
     MacroEventFilters,
     CancelOrdersBatchInput,
     CancelOrdersBatchResult,
+    CatalogAsset,
+    CatalogPatch,
     EngineSettingKey,
     EngineSettings,
     ListAdminOrdersResult,
@@ -111,6 +113,13 @@ export type {
     EngineSettingKey,
     EngineSettings,
     ReadOnlySetting,
+    CatalogAsset,
+    CatalogCompany,
+    CatalogEditableField,
+    CatalogETF,
+    CatalogFII,
+    CatalogFixedIncome,
+    CatalogPatch,
     AdminBot,
     AdminBotListing,
     BotArchetype,
@@ -328,6 +337,15 @@ export function updateEngineSetting(token: string, key: EngineSettingKey, value:
 
 export function resetEngineSetting(token: string, key: EngineSettingKey): Promise<EngineSettings> {
     return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'DELETE' })
+}
+
+// Catálogo de ativos (N.12): consulta e ajuste de uma lista fechada de campos.
+export async function listAdminCatalog(token: string): Promise<CatalogAsset[]> {
+    return (await apiRequest<{ assets: CatalogAsset[] }>('/admin/catalog', { token })).assets
+}
+
+export function updateCatalogAsset(token: string, assetId: string, patch: CatalogPatch): Promise<CatalogAsset> {
+    return apiRequest<CatalogAsset>(`/admin/catalog/${assetId}`, { token, method: 'PATCH', body: patch })
 }
 
 // Detalhe de um evento macro (N.11): estado de ciclo de vida, impacto realizado e a versão
