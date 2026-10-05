@@ -85,3 +85,55 @@ describe('apiRequest', () => {
         expect(onUnauthorized).toHaveBeenCalledOnce()
     })
 })
+
+describe('apiRequest, 401 que não encerra a sessão (N.22)', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        setUnauthorizedHandler(null)
+    })
+
+    function stub401(error: string) {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error }) }))
+    }
+
+    it('reauth_required não chama o handler de logout, mas lança ApiError 401', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        stub401('reauth_required')
+
+        await expect(apiRequest('/admin/tick', { method: 'POST', token: 'abc' })).rejects.toMatchObject({
+            status: 401,
+            message: 'reauth_required',
+        })
+        expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('keepSessionOn401 também não chama o handler', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        stub401('senha incorreta')
+
+        await expect(apiRequest('/auth/reauth', { method: 'POST', token: 'abc', keepSessionOn401: true })).rejects.toBeInstanceOf(ApiError)
+        expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('403 account_suspended em rota autenticada derruba a sessão como um 401', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'account_suspended' }) }))
+
+        await expect(apiRequest('/auth/me', { token: 'abc' })).rejects.toMatchObject({ status: 403 })
+        expect(handler).toHaveBeenCalledTimes(1)
+    })
+
+    it('outro 403 não derruba a sessão, e account_suspended sem token (login) também não', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'acesso restrito' }) }))
+        await expect(apiRequest('/admin/ping', { token: 'abc' })).rejects.toBeInstanceOf(ApiError)
+
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'account_suspended' }) }))
+        await expect(apiRequest('/auth/login', { method: 'POST', body: {} })).rejects.toBeInstanceOf(ApiError)
+        expect(handler).not.toHaveBeenCalled()
+    })
+})

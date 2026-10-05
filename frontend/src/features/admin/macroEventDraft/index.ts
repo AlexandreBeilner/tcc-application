@@ -20,6 +20,7 @@ export function createEmptyMacroEventDraft(): MacroEventDraft {
         affectsPrice: true,
         affectsFundamentals: false,
         targets: [createEmptyTarget()],
+        applyOnDay: '',
     }
 }
 
@@ -29,7 +30,7 @@ export function createEmptyMacroEventDraft(): MacroEventDraft {
 // submeter (backlog 6.11). Lista de mensagens, não mapa por campo — forma
 // enxuta o bastante pro tamanho do formulário (mesmo padrão de banner único
 // já usado por `OrderConfirmationDialog`/`PrivacidadeLgpd`).
-export function validateMacroEventDraft(draft: MacroEventDraft): string[] {
+export function validateMacroEventDraft(draft: MacroEventDraft, currentDay?: number): string[] {
     const errors: string[] = []
 
     if (draft.mode === 'template') {
@@ -49,7 +50,21 @@ export function validateMacroEventDraft(draft: MacroEventDraft): string[] {
         errors.push('Preencha o valor de todos os alvos (ou remova a linha vazia).')
     }
 
+    const applyDay = parseApplyOnDay(draft.applyOnDay)
+    if (applyDay === 'invalid') {
+        errors.push('O dia de aplicação precisa ser um número inteiro.')
+    } else if (applyDay !== undefined && currentDay !== undefined && applyDay <= currentDay) {
+        errors.push(`O dia de aplicação precisa ser posterior ao dia simulado atual (${currentDay}).`)
+    }
+
     return errors
+}
+
+// Vazio significa "disparar já" (undefined); texto que não é inteiro é inválido.
+function parseApplyOnDay(raw: string): number | 'invalid' | undefined {
+    const trimmed = raw.trim()
+    if (trimmed === '') return undefined
+    return /^\d+$/.test(trimmed) ? Number(trimmed) : 'invalid'
 }
 
 function toWireTarget(target: MacroEventTargetDraft): NewsEventTarget {
@@ -62,9 +77,11 @@ function toWireTarget(target: MacroEventTargetDraft): NewsEventTarget {
 // revalida aqui (a tela é a única chamadora).
 export function buildTriggerMacroEventInput(draft: MacroEventDraft): TriggerMacroEventInput {
     const targets = draft.targets.map(toWireTarget)
+    const applyDay = parseApplyOnDay(draft.applyOnDay)
+    const schedule = typeof applyDay === 'number' ? { apply_on_day: applyDay } : {}
 
     if (draft.mode === 'template') {
-        return { template_key: draft.templateKey, targets }
+        return { template_key: draft.templateKey, targets, ...schedule }
     }
 
     return {
@@ -75,6 +92,7 @@ export function buildTriggerMacroEventInput(draft: MacroEventDraft): TriggerMacr
         affects_price: draft.affectsPrice,
         affects_fundamentals: draft.affectsFundamentals,
         targets,
+        ...schedule,
     }
 }
 
@@ -120,6 +138,11 @@ export function buildMacroEventSummaryRows(draft: MacroEventDraft, assetLabels: 
     const filledTargets = draft.targets.filter((target) => target.value)
     const targetLabels = resolveTargets(filledTargets.map(toWireTarget), assetLabels).map((target) => target.label)
     rows.push({ label: 'Alvos', value: targetLabels.length > 0 ? targetLabels.join(', ') : '(nenhum)' })
+    const applyDay = parseApplyOnDay(draft.applyOnDay)
+    rows.push({
+        label: 'Efeito começa',
+        value: typeof applyDay === 'number' ? `No dia simulado ${applyDay} (agendado)` : 'No próximo tick (já)',
+    })
 
     return rows
 }

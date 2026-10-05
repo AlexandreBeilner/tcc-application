@@ -22,10 +22,22 @@ function lesson(overrides: Partial<Lesson>): Lesson {
         microDecisionOptions: overrides.microDecisionOptions ?? null,
         status: overrides.status ?? 'locked',
         currentStep: overrides.currentStep ?? 0,
+        waived: overrides.waived ?? false,
     }
 }
 
 describe('nextUnlockFor', () => {
+    it('lição dispensada nunca é o alvo e conta como satisfeita na distância (N.24)', () => {
+        const lessons = [
+            lesson({ sortOrder: 1, status: 'completed', unlocksDescription: '' }),
+            lesson({ sortOrder: 2, status: 'available', waived: true, unlocksDescription: 'Acesso à calculadora' }),
+            lesson({ sortOrder: 3, status: 'completed', unlocksDescription: '' }),
+            lesson({ sortOrder: 4, status: 'available', unlocksDescription: 'Compra real de CDB' }),
+        ]
+
+        expect(nextUnlockFor(lessons)).toEqual({ description: 'Compra real de CDB', lessonsRemaining: 1 })
+    })
+
     it('sem lições, não há próximo desbloqueio', () => {
         expect(nextUnlockFor([])).toBeNull()
     })

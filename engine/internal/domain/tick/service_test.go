@@ -105,6 +105,8 @@ type fakeOrderContextLoader struct {
 	outstandingShares *int64
 	// scopes conta quantos escopos de leitura de tick foram abertos (Q.1).
 	scopes int
+	// halted marca os ativos com negociação pausada (N.9): LoadContext devolve Halt.
+	halted map[string]bool
 }
 
 func (f *fakeOrderContextLoader) WithReadScope(ctx context.Context) context.Context {
@@ -117,10 +119,15 @@ func (f *fakeOrderContextLoader) LoadContext(_ context.Context, assetID, _ strin
 	if f.loadErr != nil {
 		return orderexecution.Context{}, f.loadErr
 	}
+	var halt *orderexecution.HaltInfo
+	if f.halted[assetID] {
+		halt = &orderexecution.HaltInfo{}
+	}
 	return orderexecution.Context{
 		IncomingUserBalance:  f.balance,
 		IncomingUserPosition: f.positions[assetID],
 		OutstandingShares:    f.outstandingShares,
+		Halt:                 halt,
 	}, nil
 }
 
@@ -523,9 +530,9 @@ func TestService_RunScheduled_RodaAQuantidadeDoPlanoSobATrava(t *testing.T) {
 	svc := newTestService(repo).WithGuard(guard)
 
 	var gotLast time.Time
-	ran, err := svc.RunScheduled(context.Background(), func(last time.Time, found bool) int {
+	ran, err := svc.RunScheduled(context.Background(), func(last time.Time, found bool) (int, int) {
 		gotLast = last
-		return 3
+		return 3, 0
 	})
 	if err != nil || ran != 3 {
 		t.Fatalf("RunScheduled() = %d, %v, want 3, nil", ran, err)
@@ -545,7 +552,7 @@ func TestService_RunScheduled_PlanoZeroNaoRodaNada(t *testing.T) {
 	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
 	svc := newTestService(repo).WithGuard(&fakeGuard{found: true})
 
-	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) int { return 0 })
+	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) (int, int) { return 0, 0 })
 	if err != nil || ran != 0 || repo.saveCalls != 0 {
 		t.Errorf("RunScheduled() = %d, %v (saves %d), want 0, nil, 0", ran, err, repo.saveCalls)
 	}
@@ -555,7 +562,7 @@ func TestService_TravaOcupadaPorOutroProcesso(t *testing.T) {
 	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
 	svc := newTestService(repo).WithGuard(&fakeGuard{locked: true})
 
-	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) int { return 1 })
+	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) (int, int) { return 1, 0 })
 	if err != nil || ran != 0 || repo.saveCalls != 0 {
 		t.Errorf("agenda com trava ocupada = %d, %v (saves %d), want 0, nil, 0", ran, err, repo.saveCalls)
 	}
@@ -644,7 +651,7 @@ func TestService_TickAgendadoEmAndamentoBloqueiaManualEOutraInstancia(t *testing
 
 	scheduledDone := make(chan int, 1)
 	go func() {
-		n, _ := instanceA.RunScheduled(context.Background(), func(time.Time, bool) int { return 1 })
+		n, _ := instanceA.RunScheduled(context.Background(), func(time.Time, bool) (int, int) { return 1, 0 })
 		scheduledDone <- n
 	}()
 	<-repoA.entered // o tick agendado da instância A está dentro do SaveTick, com a trava
@@ -652,7 +659,7 @@ func TestService_TickAgendadoEmAndamentoBloqueiaManualEOutraInstancia(t *testing
 	if _, err := instanceB.Run(context.Background()); !errors.Is(err, ErrTickInProgress) {
 		t.Errorf("POST manual durante o tick agendado: err = %v, want ErrTickInProgress", err)
 	}
-	if n, err := instanceB.RunScheduled(context.Background(), func(time.Time, bool) int { return 1 }); n != 0 || err != nil {
+	if n, err := instanceB.RunScheduled(context.Background(), func(time.Time, bool) (int, int) { return 1, 0 }); n != 0 || err != nil {
 		t.Errorf("agenda da outra instância = %d, %v, want 0, nil", n, err)
 	}
 	if repoB.saveCalls != 0 {
@@ -666,4 +673,182 @@ func TestService_TickAgendadoEmAndamentoBloqueiaManualEOutraInstancia(t *testing
 	if _, err := instanceB.Run(context.Background()); err != nil {
 		t.Errorf("depois da liberação o manual deveria rodar: %v", err)
 	}
+}
+
+// fakeRecorder guarda o histórico de ticks gravado pelo Service (N.6).
+type fakeRecorder struct {
+	records []RunRecord
+	err     error
+}
+
+func (f *fakeRecorder) RecordRun(_ context.Context, r RunRecord) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.records = append(f.records, r)
+	return nil
+}
+
+// failingSaveRepo faz o tick falhar na gravação, depois de todo o cálculo.
+type failingSaveRepo struct {
+	*fakeRepository
+	err error
+}
+
+func (f *failingSaveRepo) SaveTick(context.Context, Result) error { return f.err }
+
+func TestService_Run_ManualGravaHistoricoComContadores(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	rec := &fakeRecorder{}
+	result, err := newTestService(repo).WithRunRecorder(rec).Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run() erro: %v", err)
+	}
+	if len(rec.records) != 1 {
+		t.Fatalf("registros = %d, want 1", len(rec.records))
+	}
+	got := rec.records[0]
+	if got.Trigger != TriggerManual || got.Status != RunSuccess || got.Day != result.State.Day || got.ErrorMessage != "" {
+		t.Errorf("registro = %+v, want manual/success/dia %d", got, result.State.Day)
+	}
+	if got.Counters.QuotesCount != len(result.Quotes) || got.Counters.SelicRate != result.State.SelicRate {
+		t.Errorf("contadores = %+v não batem com o Result", got.Counters)
+	}
+	if got.StartedAt.IsZero() {
+		t.Error("StartedAt não preenchido")
+	}
+}
+
+func TestService_Run_FalhaGravaHistoricoComOMotivoEDiaZero(t *testing.T) {
+	boom := errors.New("banco caiu")
+	repo := &failingSaveRepo{fakeRepository: &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}, err: boom}
+	rec := &fakeRecorder{}
+	if _, err := newTestService(repo).WithRunRecorder(rec).Run(context.Background()); !errors.Is(err, boom) {
+		t.Fatalf("Run() err = %v, want %v", err, boom)
+	}
+	if len(rec.records) != 1 || rec.records[0].Status != RunFailed || rec.records[0].ErrorMessage != "banco caiu" || rec.records[0].Day != 0 {
+		t.Errorf("registros = %+v, want 1 falha com motivo e dia 0", rec.records)
+	}
+}
+
+func TestService_Run_FalhaAoGravarHistoricoNaoMudaODesfechoDoTick(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	rec := &fakeRecorder{err: errors.New("tabela fora")}
+	if _, err := newTestService(repo).WithRunRecorder(rec).Run(context.Background()); err != nil {
+		t.Errorf("Run() = %v, want nil (o tick já foi persistido)", err)
+	}
+	if repo.saveCalls != 1 {
+		t.Errorf("saveCalls = %d, want 1", repo.saveCalls)
+	}
+}
+
+func TestService_RunScheduled_ClassificaGatilhoEGravaDescarte(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	rec := &fakeRecorder{}
+	svc := newTestService(repo).WithGuard(&fakeGuard{found: true}).WithRunRecorder(rec)
+
+	ran, err := svc.RunScheduled(context.Background(), func(time.Time, bool) (int, int) { return 3, 9 })
+	if err != nil || ran != 3 {
+		t.Fatalf("RunScheduled() = %d, %v", ran, err)
+	}
+	var triggers []Trigger
+	var discarded []int
+	for _, r := range rec.records {
+		triggers = append(triggers, r.Trigger)
+		discarded = append(discarded, r.CatchUpDiscarded)
+	}
+	wantTriggers := []Trigger{TriggerCatchUp, TriggerCatchUp, TriggerScheduled}
+	wantDiscarded := []int{9, 0, 0}
+	for i := range wantTriggers {
+		if triggers[i] != wantTriggers[i] || discarded[i] != wantDiscarded[i] {
+			t.Fatalf("gatilhos = %v, descartes = %v, want %v, %v", triggers, discarded, wantTriggers, wantDiscarded)
+		}
+	}
+}
+
+func TestService_RunScheduled_UmSoTickEAgendadoNormal(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	rec := &fakeRecorder{}
+	svc := newTestService(repo).WithGuard(&fakeGuard{found: true}).WithRunRecorder(rec)
+	if _, err := svc.RunScheduled(context.Background(), func(time.Time, bool) (int, int) { return 1, 0 }); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.records) != 1 || rec.records[0].Trigger != TriggerScheduled {
+		t.Errorf("registros = %+v, want 1 agendado", rec.records)
+	}
+}
+
+func TestService_RunMany(t *testing.T) {
+	t.Run("roda N ticks manuais sob uma só trava e grava um registro por tick", func(t *testing.T) {
+		repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+		guard := &fakeGuard{found: true}
+		rec := &fakeRecorder{}
+		svc := newTestService(repo).WithGuard(guard).WithRunRecorder(rec)
+
+		results, err := svc.RunMany(context.Background(), 3)
+		if err != nil || len(results) != 3 {
+			t.Fatalf("RunMany(3) = %d resultados, %v", len(results), err)
+		}
+		if repo.saveCalls != 3 || len(rec.records) != 3 {
+			t.Errorf("saves = %d, registros = %d, want 3, 3", repo.saveCalls, len(rec.records))
+		}
+		for _, r := range rec.records {
+			if r.Trigger != TriggerManual {
+				t.Errorf("gatilho = %s, want manual", r.Trigger)
+			}
+		}
+		if guard.released != 1 {
+			t.Errorf("trava liberada %d vez(es), want 1 (uma trava pro lote inteiro)", guard.released)
+		}
+	})
+
+	t.Run("fora do intervalo não roda nada", func(t *testing.T) {
+		for _, days := range []int{0, -1, MaxAdvanceDays + 1} {
+			repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+			if _, err := newTestService(repo).RunMany(context.Background(), days); !errors.Is(err, ErrInvalidAdvanceDays) {
+				t.Errorf("RunMany(%d) err = %v, want ErrInvalidAdvanceDays", days, err)
+			}
+			if repo.saveCalls != 0 {
+				t.Errorf("RunMany(%d) gravou %d ticks, want 0", days, repo.saveCalls)
+			}
+		}
+	})
+
+	t.Run("trava ocupada devolve ErrTickInProgress", func(t *testing.T) {
+		repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+		svc := newTestService(repo).WithGuard(&fakeGuard{locked: true})
+		if _, err := svc.RunMany(context.Background(), 2); !errors.Is(err, ErrTickInProgress) {
+			t.Errorf("err = %v, want ErrTickInProgress", err)
+		}
+	})
+
+	t.Run("falha no meio devolve o que já rodou e o erro", func(t *testing.T) {
+		boom := errors.New("banco caiu")
+		inner := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+		repo := &failOnNthSave{fakeRepository: inner, failAt: 3, err: boom}
+		rec := &fakeRecorder{}
+		results, err := newTestService(repo).WithRunRecorder(rec).RunMany(context.Background(), 5)
+		if !errors.Is(err, boom) || len(results) != 2 {
+			t.Fatalf("RunMany = %d resultados, %v, want 2, %v", len(results), err, boom)
+		}
+		if len(rec.records) != 3 || rec.records[2].Status != RunFailed {
+			t.Errorf("registros = %+v, want 2 sucessos e 1 falha", rec.records)
+		}
+	})
+}
+
+// failOnNthSave falha a N-ésima chamada de SaveTick.
+type failOnNthSave struct {
+	*fakeRepository
+	failAt int
+	calls  int
+	err    error
+}
+
+func (f *failOnNthSave) SaveTick(ctx context.Context, r Result) error {
+	f.calls++
+	if f.calls == f.failAt {
+		return f.err
+	}
+	return f.fakeRepository.SaveTick(ctx, r)
 }

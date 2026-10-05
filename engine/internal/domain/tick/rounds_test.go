@@ -1078,6 +1078,7 @@ func TestRunIntradayRounds_RejeicaoDeNegocioDoSubmitNaoAbortaOTick(t *testing.T)
 		orderexecution.ErrInsufficientPosition,
 		orderexecution.ErrFloatExceeded,
 		orderexecution.ErrRestingOrderNoLongerAvailable,
+		&orderexecution.TradingHaltedError{},
 	} {
 		t.Run(businessErr.Error(), func(t *testing.T) {
 			svc := newTestService(&fakeRepository{})
@@ -1899,5 +1900,44 @@ func TestApplyEventAttention_ETFDerivaDaCesta(t *testing.T) {
 	}
 	if got["a1"] != hot || got["a2"] != 0 {
 		t.Errorf("a1 = %v, a2 = %v, want %v e 0 (constituintes intactos)", got["a1"], got["a2"], hot)
+	}
+}
+
+// Pausa de negociação (N.9): o bot de ativo pausado nem decide, então nenhuma ordem
+// é enviada, e o tick segue (sem erro).
+func TestRunIntradayRounds_AtivoPausadoNaoRecebeOrdemDeBot(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeRuido)}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}, halted: map[string]bool{"a1": true}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+
+	_, _, fills, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10)
+	if err != nil {
+		t.Fatalf("err = %v, want nil — a pausa nunca suspende o tick", err)
+	}
+	if len(submitter.submitted) != 0 || fills != 0 {
+		t.Errorf("submetidas = %d, fills = %d; want nenhuma ordem em ativo pausado", len(submitter.submitted), fills)
+	}
+}
+
+// O Market Maker não recota ativo pausado e, principalmente, não cancela a cotação
+// velha sem poder repor (esvaziaria o book à toa).
+func TestRunIntradayRounds_MarketMakerNaoMexeNaCotacaoDeAtivoPausado(t *testing.T) {
+	svc := newTestService(&fakeRepository{})
+	svc.bots = &fakeBotRoster{bots: []BotForRound{{UserID: "bot1", Personality: mustRoundPersonality(t, bot.ArchetypeMarketMaker), CoveredAssetIDs: []string{"a1"}}}}
+	svc.orderContext = &fakeOrderContextLoader{balance: 1_000_000, positions: map[string]int{"a1": 10_000}, halted: map[string]bool{"a1": true}}
+	submitter := &fakeOrderSubmitter{}
+	svc.orderSubmitter = submitter
+	stale := goodQuote("a1")
+	stale[1].Price = 110
+	lifecycle := &fakeOrderLifecycleManager{resting: map[string][]bot.RestingQuote{"a1": stale}}
+	svc.orderLifecycle = lifecycle
+
+	if _, _, _, _, err := svc.runIntradayRounds(context.Background(), 0, twoIntradayRounds(), []AssetForPricing{acaoAsset("a1", 100)}, RoundContext{}, 10, 10); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(lifecycle.cancelCalls) != 0 || len(submitter.submitted) != 0 {
+		t.Errorf("cancelCalls = %v, submetidas = %d; want a cotação intacta com a negociação pausada", lifecycle.cancelCalls, len(submitter.submitted))
 	}
 }

@@ -127,6 +127,34 @@
       "when": 1790548832458,
       "tag": "0017_add_payroll_state",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791037574901,
+      "tag": "0018_add_admin_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0019_add_lesson_progress_waived_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0020_add_user_suspension_and_token_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0021_add_catalog_active_and_achievement_seed_key",
+      "breakpoints": true
     }
   ]
 }

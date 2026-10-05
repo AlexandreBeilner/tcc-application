@@ -51,16 +51,43 @@
     font-weight: 600;
 }
 
-.statusPendente {
+.status_pendente {
     border: 1px dashed var(--color-border-strong);
     color: var(--color-text-secondary);
     background: transparent;
 }
 
-.statusAplicado {
+/* Agendado: pontilhado (ainda não começou), distinto do tracejado do pendente em curso. */
+.status_agendado {
+    border: 1px dotted var(--color-border-strong);
+    color: var(--color-text-secondary);
+    background: transparent;
+}
+
+.status_aplicado {
     border: 1px solid transparent;
     color: var(--color-text-primary);
     background: var(--color-brand-100);
+}
+
+/* Cancelado: tracejado com texto riscado, nunca só cor. */
+.status_cancelado {
+    border: 1px dashed var(--color-border-strong);
+    color: var(--color-text-muted);
+    background: transparent;
+    text-decoration: line-through;
+}
+
+.detailLink {
+    align-self: flex-start;
+    color: var(--color-brand-500);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.detailLink:hover {
+    text-decoration: underline;
 }
 
 .date {

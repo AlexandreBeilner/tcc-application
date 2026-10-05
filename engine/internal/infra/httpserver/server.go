@@ -26,6 +26,7 @@ type catalogReader interface {
 type accountWriter interface {
 	accountOpener
 	accountSalaryCrediter
+	accountAdminCrediter
 }
 
 // userMarketDataReader é o colaborador que os handlers de leitura de estado
@@ -51,12 +52,22 @@ type userMarketDataReader interface {
 // GET /fixed-income/simulate, POST /macro-events, GET /macro-events, GET
 // /accounts/:user_id[/events], GET /positions, GET /fixed-income/positions,
 // GET /market/indicators/history, GET /market/clock e GET /market/calendar respondem 503 nesse caso, em vez de
-// panicar.
-func New(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) *http.Server {
+// panicar. As rotas do painel de Tempo (N.6: /admin/scheduler, /admin/ticks,
+// /admin/tick/advance) só funcionam com WithSchedulerAdmin; sem ela respondem 503. As de leitura
+// do painel (N.5/N.8/N.10: /admin/overview, /admin/market/assets[/{id}], /admin/orders) dependem de WithAdminReader, idem;
+// o cancelamento por intervenção (N.10) depende de WithAdminOrderCanceller e as pausas de negociação (N.9:
+// /admin/halts, GET /market/halts) de WithTradingHalts e a gestão de bots (N.1: /admin/bots) de WithBotAdmin.
+func New(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) *http.Server {
+	var cfg options
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("POST /accounts", handleCreateAccount(accounts))
 	mux.HandleFunc("POST /accounts/{user_id}/salary", handleCreditSalary(accounts))
+	mux.HandleFunc("POST /admin/accounts/{user_id}/credit", handleAdminCredit(accounts))
 	mux.HandleFunc("GET /accounts/{user_id}", handleGetAccount(userData))
 	mux.HandleFunc("GET /accounts/{user_id}/events", handleListAccountEvents(userData))
 	mux.HandleFunc("GET /positions", handleListPositions(userData))
@@ -67,6 +78,30 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /assets/{id}/book", handleGetAssetBook(catalog, orders))
 	mux.HandleFunc("GET /companies/{id}", handleGetCompany(catalog))
 	mux.HandleFunc("POST /admin/tick", handleAdminTick(temporizador))
+	mux.HandleFunc("POST /admin/tick/advance", handleAdvanceTicks(cfg.scheduler))
+	mux.HandleFunc("GET /admin/scheduler", handleGetScheduler(cfg.scheduler))
+	mux.HandleFunc("POST /admin/scheduler/pause", handleSetSchedulerPaused(cfg.scheduler, true))
+	mux.HandleFunc("POST /admin/scheduler/resume", handleSetSchedulerPaused(cfg.scheduler, false))
+	mux.HandleFunc("GET /admin/ticks", handleListTicks(cfg.scheduler))
+	mux.HandleFunc("GET /admin/settings", handleAdminListSettings(cfg.settings))
+	mux.HandleFunc("PUT /admin/settings/{key}", handleAdminSetSetting(cfg.settings))
+	mux.HandleFunc("DELETE /admin/settings/{key}", handleAdminResetSetting(cfg.settings))
+	mux.HandleFunc("GET /admin/overview", handleAdminOverview(cfg.adminReader))
+	mux.HandleFunc("GET /admin/market/assets", handleAdminMarketAssets(cfg.adminReader))
+	mux.HandleFunc("GET /admin/market/assets/{id}", handleAdminMarketAssetDetail(cfg.adminReader))
+	mux.HandleFunc("GET /admin/orders", handleAdminOrders(cfg.adminReader))
+	mux.HandleFunc("POST /admin/orders/cancel-batch", handleAdminCancelBatch(cfg.orderCanceller))
+	mux.HandleFunc("POST /admin/orders/{id}/cancel", handleAdminCancelOrder(cfg.orderCanceller))
+	mux.HandleFunc("GET /admin/halts", handleAdminListHalts(cfg.tradingHalts))
+	mux.HandleFunc("POST /admin/halts", handleAdminPause(cfg.tradingHalts))
+	mux.HandleFunc("POST /admin/halts/{id}/lift", handleAdminLift(cfg.tradingHalts))
+	mux.HandleFunc("GET /market/halts", handleMarketHalts(cfg.tradingHalts))
+	mux.HandleFunc("GET /admin/bots", handleAdminListBots(cfg.botManager))
+	mux.HandleFunc("GET /admin/bots/summary", handleAdminBotsSummary(cfg.adminReader))
+	mux.HandleFunc("GET /admin/bots/{id}/activity", handleAdminBotActivity(cfg.adminReader))
+	mux.HandleFunc("POST /admin/bots", handleAdminCreateBot(cfg.botManager))
+	mux.HandleFunc("PATCH /admin/bots/{id}", handleAdminUpdateBot(cfg.botManager))
+	mux.HandleFunc("POST /admin/bots/{id}/funding", handleAdminFundBot(cfg.botManager))
 	mux.HandleFunc("POST /orders", handleSubmitOrder(catalog, orders))
 	mux.HandleFunc("POST /orders/{id}/cancel", handleCancelOrder(orders))
 	mux.HandleFunc("GET /orders", handleListOrders(orders))
@@ -76,6 +111,8 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /fixed-income/tax-rate", handleFixedIncomeTaxRate())
 	mux.HandleFunc("POST /macro-events", handleTriggerMacroEvent(macroEvents))
 	mux.HandleFunc("GET /macro-events", handleListMacroEvents(macroEventReader))
+	mux.HandleFunc("GET /macro-events/{id}", handleAdminMacroEventDetail(cfg.macroEventAdmin))
+	mux.HandleFunc("DELETE /macro-events/{id}", handleAdminMacroEventCancel(cfg.macroEventAdmin))
 	mux.HandleFunc("GET /market/indicators/history", handleGetIndicatorHistory(indicatorHistory))
 	mux.HandleFunc("GET /market/clock", handleGetMarketClock(calendar))
 	mux.HandleFunc("GET /market/calendar", handleGetMarketCalendar(calendar))
@@ -90,8 +127,8 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 }
 
 // Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI) error {
-	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory, calendar)
+func Run(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) error {
+	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory, calendar, opts...)
 	log.Printf("motor de simulação escutando em %s", addr)
 	return srv.ListenAndServe()
 }
