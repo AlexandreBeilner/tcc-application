@@ -653,10 +653,9 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
   visual; (b) a 0.4 ainda cita "Tesouro" e "CDB" apenas na 0.2/1.x, sem uso novo; (c) o "IPCA dá 1,5% a 4,5%" da
   explicação é conta sobre o fato da meta, não fato novo; (d) as lições 0.1 a 0.4 usam `{{inflação}}` e `{{IPCA}}`
   inline em vez de depender da RC.4.1.
-- **RC.4.1 bloqueada (2026-10-04):** inserir uma lição entre 0.4 e 0.5 muda o `sortOrder` das 30 seguintes, e a
-  progressão ainda é por contagem. A progressão com dispensa (N.24, commit `0f229c0`) só existe nas branches
-  `fase-n-pr4` em diante, não mescladas na linhagem destas branches `rc-*`. Mesclar a N.24 (ou partir de uma branch
-  que a contenha) é pré-requisito de RC.4.1, RC.4.2 e RC.4.4 a RC.4.9.
+- **RC.4.1 desbloqueada (2026-10-04):** a progressão com dispensa (N.24) entrou na `main` (PR #55) e foi integrada
+  à pilha de PRs das RC (#62 a #83, encadeados, migrations `0022` a `0024` renumeradas depois da `0021`). Falta só
+  mesclar a pilha na `main` para começar RC.4.1, RC.4.2 e RC.4.4 a RC.4.9 (partir da `main` já com ela).
 - **RC.5.5 entregue (2026-10-04):** lições 1.4, 1.5 e 1.6 reescritas no contrato `blocks`, em
   `backend/src/db/lessonContentTrilha1a.ts` (os textos legados `scenarioText`/`microDecisionPrompt`/
   `revelationText` agora são derivados dos blocos de texto por `legacyText`, então o conteúdo existe uma vez só).
