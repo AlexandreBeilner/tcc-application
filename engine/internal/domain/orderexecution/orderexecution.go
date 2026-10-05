@@ -87,7 +87,27 @@ var (
 	// ErrInsufficientPosition contra a mesma ordem "furada" (achado 005):
 	// nada é persistido, a transação inteira do submissor aborta.
 	ErrRestingOrderNoLongerAvailable = errors.New("ordem pendurada não está mais disponível para execução")
+	// ErrTradingHalted é o alvo de errors.Is para TradingHaltedError: há uma pausa de
+	// negociação vigente (tarefa N.9) que barra a ordem.
+	ErrTradingHalted = errors.New("negociação pausada")
 )
+
+// TradingHaltedError recusa a ordem porque há pausa de negociação vigente (tarefa
+// N.9). Global diz que a pausa cobre todos os ativos; senão é a pausa do ativo da
+// ordem. Vale pra ordem de usuário e de bot; ativo sandbox nunca é pausado.
+type TradingHaltedError struct {
+	Global bool
+}
+
+func (e *TradingHaltedError) Error() string {
+	if e.Global {
+		return "Negociação pausada em todo o mercado pela administração."
+	}
+	return "Negociação pausada neste ativo pela administração."
+}
+
+// Is faz errors.Is(err, ErrTradingHalted) valer para qualquer TradingHaltedError.
+func (e *TradingHaltedError) Is(target error) bool { return target == ErrTradingHalted }
 
 // MarketCounterparty é o UserID sentinela usado num Fill contra liquidez
 // sintética (só pra ativo sandbox, Context.Sandbox — ver doc do pacote) —
@@ -121,6 +141,9 @@ const (
 	// honrá-la (achado 015): a ordem é pulada e cancelada em vez de travar o book
 	// ou levar o dono a saldo negativo.
 	CancelReasonInsufficientFunds CancelReason = "insufficient_funds"
+	// CancelReasonAdmin é gravado pelo cancelamento por intervenção do painel
+	// admin (tarefa N.10), de uma ordem ou de um lote.
+	CancelReasonAdmin CancelReason = "admin"
 )
 
 // RestingOrder é uma ordem já persistida em order_book aguardando
@@ -195,6 +218,17 @@ type Context struct {
 	// ticks) sempre carimbam o mesmo dia lógico sem precisar de dois
 	// caminhos de leitura diferentes.
 	SimulatedDay int
+	// Halt é a pausa de negociação vigente que barra o ativo (tarefa N.9), nil sem
+	// pausa. Quando as duas coexistem (global e do ativo) a global é a que vem aqui,
+	// a mais restritiva. Execute recusa a ordem com *TradingHaltedError, salvo ativo
+	// sandbox.
+	Halt *HaltInfo
+}
+
+// HaltInfo descreve a pausa que barra uma ordem. Só o escopo importa a quem decide
+// a ordem; motivo e autor ficam no painel.
+type HaltInfo struct {
+	Global bool
 }
 
 // Fill é uma execução (real ou sintética, só possível pro caso sandbox)
@@ -279,6 +313,9 @@ type OrderRecord struct {
 // (venda) do usuário da ordem recebida contra o resultado já calculado —
 // só depois disso o chamador deve persistir qualquer coisa.
 func Execute(incoming orderbook.Order, ctx Context) (Outcome, error) {
+	if ctx.Halt != nil && !ctx.Sandbox {
+		return Outcome{}, &TradingHaltedError{Global: ctx.Halt.Global}
+	}
 	if incoming.Quantity <= 0 {
 		return Outcome{}, ErrInvalidQuantity
 	}

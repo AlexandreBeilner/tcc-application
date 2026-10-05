@@ -114,3 +114,10 @@ Não é necessário resetar nada — cada execução cria seus próprios usuári
 Se quiser mesmo assim um banco limpo: `docker compose down -v && docker compose up -d` (apaga todos
 os volumes, inclusive dados reais que você queira manter) e repita a precondição acima (seed do
 catálogo + seed do admin) antes de rodar a suíte de novo.
+
+## Senha recente do admin (N.22)
+
+Ações destrutivas do painel (`POST /admin/tick` entre elas) exigem senha conferida há menos de
+5 minutos. As jornadas longas passam disso, então `support/tick.ts` relogina como admin quando
+recebe `401 reauth_required` e repete a chamada. Outros helpers que chamem rota destrutiva do
+painel precisam do mesmo cuidado.

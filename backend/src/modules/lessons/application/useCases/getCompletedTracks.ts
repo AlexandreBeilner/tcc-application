@@ -20,12 +20,13 @@ export class GetCompletedTracksUseCase {
       this.lessonRepository.listProgressForUser(input.userId),
     ])
 
-    const completedAtByLessonId = new Map(progress.map((p) => [p.lessonId, p.completedAt]))
+    const progressByLessonId = new Map(progress.map((p) => [p.lessonId, p]))
 
     return completedTrackNumbers(
       lessons.map((lesson) => ({
         trackNumber: lesson.trackNumber,
-        completedAt: completedAtByLessonId.get(lesson.id) ?? null,
+        completedAt: progressByLessonId.get(lesson.id)?.completedAt ?? null,
+        waivedAt: progressByLessonId.get(lesson.id)?.waivedAt ?? null,
       })),
     )
   }

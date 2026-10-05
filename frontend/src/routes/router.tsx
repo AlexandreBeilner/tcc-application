@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { RequiresUnlock } from '../features/lessons/RequiresUnlock'
+import { AdminShell } from '../components/templates/AdminShell'
 import { AppShell } from '../components/templates/AppShell'
 import { Amigos } from '../pages/Amigos'
 import { AssetDetail } from '../pages/AssetDetail'
@@ -11,6 +12,20 @@ import { Classificacao } from '../pages/Classificacao'
 import { CompanyProfile } from '../pages/CompanyProfile'
 import { Configuracoes } from '../pages/Configuracoes'
 import { Conquistas } from '../pages/Conquistas'
+import { AdminAuditoria } from '../pages/AdminAuditoria'
+import { AdminEventoMacroDetalhe } from '../pages/AdminEventoMacroDetalhe'
+import { AdminEventosMacro } from '../pages/AdminEventosMacro'
+import { AdminGamificacao } from '../pages/AdminGamificacao'
+import { AdminMercado } from '../pages/AdminMercado'
+import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
+import { AdminOrdens } from '../pages/AdminOrdens'
+import { AdminParametros } from '../pages/AdminParametros'
+import { AdminPausas } from '../pages/AdminPausas'
+import { AdminBots } from '../pages/AdminBots'
+import { AdminTempo } from '../pages/AdminTempo'
+import { AdminUsuarioDetalhe } from '../pages/AdminUsuarioDetalhe'
+import { AdminUsuarios } from '../pages/AdminUsuarios'
+import { AdminVisaoGeral } from '../pages/AdminVisaoGeral'
 import { CriarEventoMacro } from '../pages/CriarEventoMacro'
 import { EquityList } from '../pages/EquityList'
 import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
@@ -24,7 +39,6 @@ import { MinhasOrdens } from '../pages/MinhasOrdens'
 import { News } from '../pages/News'
 import { NotFound } from '../pages/NotFound'
 import { Onboarding } from '../pages/Onboarding'
-import { PainelAdmin } from '../pages/PainelAdmin'
 import { PerfilPublico } from '../pages/PerfilPublico'
 import { Portfolio } from '../pages/Portfolio'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
@@ -40,8 +54,10 @@ import { Glossario } from '../pages/Glossario'
 // de `<ProtectedRoute requireRole="admin">`: o item "Painel Administrativo"
 // só aparece no menu do avatar pra `role=admin`, mas a rota em si precisa
 // ser protegida de verdade, não só escondida via CSS (critério de aceite da
-// tarefa 6.1). `/admin/eventos/novo` (10.2, tarefa 6.11) é rota irmã de
-// `/admin` (10.1), não filha — mesmo padrão de nesting de `/amigos/*`.
+// tarefa 6.1). Dentro dela, `<AdminShell>` (N.3) dá a navegação por seções
+// do painel: `/admin` é a Visão geral (10.1), `/admin/mercado` o monitor ao vivo (N.8), `/admin/eventos` o histórico de
+// eventos macro e `/admin/eventos/novo` (10.2, tarefa 6.11) a criação — rotas
+// irmãs, mesmo padrão de nesting de `/amigos/*`.
 export const router = createBrowserRouter([
     {
         path: '/login',
@@ -137,8 +153,26 @@ export const router = createBrowserRouter([
                     {
                         element: <ProtectedRoute requireRole="admin" />,
                         children: [
-                            { path: '/admin', element: <PainelAdmin /> },
-                            { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
+                            {
+                                element: <AdminShell />,
+                                children: [
+                                    { path: '/admin', element: <AdminVisaoGeral /> },
+                                    { path: '/admin/eventos', element: <AdminEventosMacro /> },
+                                    { path: '/admin/eventos/:id', element: <AdminEventoMacroDetalhe /> },
+                                    { path: '/admin/tempo', element: <AdminTempo /> },
+                                    { path: '/admin/tempo/parametros', element: <AdminParametros /> },
+                                    { path: '/admin/mercado', element: <AdminMercado /> },
+                                    { path: '/admin/mercado/ativos/:id', element: <AdminMercadoAtivo /> },
+                                    { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
+                                    { path: '/admin/mercado/pausas', element: <AdminPausas /> },
+                                    { path: '/admin/bots', element: <AdminBots /> },
+                                    { path: '/admin/gamificacao', element: <AdminGamificacao /> },
+                                    { path: '/admin/usuarios', element: <AdminUsuarios /> },
+                                    { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },
+                                    { path: '/admin/auditoria', element: <AdminAuditoria /> },
+                                    { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
+                                ],
+                            },
                         ],
                     },
                 ],

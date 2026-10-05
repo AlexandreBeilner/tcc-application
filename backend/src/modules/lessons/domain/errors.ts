@@ -32,3 +32,6 @@ export class CheckpointNotFoundError extends Error {}
 export class InvalidCheckpointResponseError extends Error {}
 // Avanço de fase sem ter resolvido as perguntas intermediárias dela (RC.3.2).
 export class CheckpointUnsolvedError extends Error {}
+// Correção manual de lição pelo painel (N.17).
+export class LessonAlreadyCompletedError extends Error {}
+export class LessonNotReopenableError extends Error {}

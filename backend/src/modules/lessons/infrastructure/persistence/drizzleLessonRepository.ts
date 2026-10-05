@@ -45,6 +45,7 @@ function toProgressRecord(row: typeof userLessonProgress.$inferSelect): LessonPr
     microDecisionAttempts: row.microDecisionAttempts,
     microDecisionWrongOptions: row.microDecisionWrongOptions,
     microDecisionSolvedAt: row.microDecisionSolvedAt,
+    waivedAt: row.waivedAt,
   }
 }
 

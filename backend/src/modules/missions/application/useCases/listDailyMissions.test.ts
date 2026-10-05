@@ -11,6 +11,7 @@ const catalog = [
     completionCriteria: 'Concluir qualquer lição hoje',
     xpReward: 30,
     requiresLessonCompletion: true,
+    isActive: true,
   },
   {
     id: 'm2',
@@ -20,6 +21,7 @@ const catalog = [
     completionCriteria: 'Abrir o feed de notícias',
     xpReward: 30,
     requiresLessonCompletion: false,
+    isActive: true,
   },
 ]
 

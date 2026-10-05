@@ -52,6 +52,10 @@ export interface Lesson {
     // que o usuário já tentou, e quantas acertou de primeira.
     checkpoints?: CheckpointState[]
     checkpointsFirstTry?: number
+    // Lição dispensada e ainda não feita (N.24): "nova, opcional". Sempre
+    // `status: 'available'`, e conta como satisfeita no desbloqueio. O backend
+    // sempre envia; opcional aqui só pra `undefined` valer como `false`.
+    waived?: boolean
 }
 
 export interface ListLessonsResult {
