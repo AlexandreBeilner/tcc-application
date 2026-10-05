@@ -180,12 +180,40 @@
     background: var(--color-brand-100);
 }
 
+/* Alternativa errada (RC.2.4): descartada, nunca vermelha (o vermelho é de
+   dado financeiro, tokens §2.3). */
+.optionWrong {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.answerFeedback {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.answerFeedbackCorrect {
+    color: var(--color-gain-500);
+    font-weight: 600;
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 /* Badge da Revelação (B.3) — "acertou" reaproveita a semântica de ganho
    financeiro por decisão explícita da tarefa; "quase" fica neutro, nunca
    `--color-loss-*` (identidade-visual-tokens.md §2.3 reserva vermelho pra
    dado financeiro real, não pra feedback de UI genérico). */
-.answerBadgeCorrect,
-.answerBadgeAlmost {
+.answerBadgeCorrect {
     display: inline-flex;
     align-self: flex-start;
     font-size: var(--font-size-sm);
@@ -197,12 +225,6 @@
 .answerBadgeCorrect {
     color: var(--color-gain-500);
     background: var(--color-gain-100);
-}
-
-.answerBadgeAlmost {
-    color: var(--color-text-secondary);
-    background: var(--color-bg-surface-elevated);
-    border: 1px solid var(--color-border);
 }
 
 .ctaRow {
@@ -219,4 +241,34 @@
 
 .error {
     color: var(--color-feedback-error-500);
+}
+
+/* Cartão de widget (RC.3.1). Mobile/tablet: tudo empilhado, widget em largura
+   total. Desktop (>= 1024px): composição própria, texto/CTA numa coluna e o
+   widget numa coluna maior ao lado, em vez de widget empilhado abaixo de um
+   texto estreito com laterais mortas. */
+.widgetStage {
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .page:has(.hasWidget) {
+        max-width: 1040px;
+    }
+
+    .hasWidget {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        column-gap: var(--space-8);
+        align-content: start;
+    }
+
+    .hasWidget > * {
+        grid-column: 1;
+    }
+
+    .hasWidget > .widgetStage {
+        grid-column: 2;
+        grid-row: 1 / span 6;
+    }
 }

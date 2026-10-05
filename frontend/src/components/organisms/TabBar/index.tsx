@@ -15,7 +15,7 @@ import styles from './index.module.css'
 // reversão da J.1 ("clicar leva direto pra lição que desbloqueia"), que a
 // Fase Q tornou inconsistente com o resto do app: "bloqueio é parede em
 // todo lugar macro" significa que a própria rota (já protegida por
-// `RequiresUnlock`) mostra o card de bloqueio (`LockedScreen`) no lugar do
+// `RequiresUnlock`) mostra o card de bloqueio (`LockedGate`) no lugar do
 // conteúdo — a `TabBar` não precisa mais calcular/repassar hint de
 // desbloqueio, `RequiresUnlock` já faz isso. A legenda visível com o
 // código da lição (`.lockHint`, tarefa J.2) saiu na Fase Q — "Lição X.X"

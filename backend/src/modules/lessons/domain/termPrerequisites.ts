@@ -19,21 +19,105 @@ export interface TermRule {
 }
 
 export const TERM_RULES: TermRule[] = [
-  { id: 'selic', label: 'Selic', pattern: /\bselic\b/i, definedIn: null, plannedIn: 'RC.4.1', glossaryKeys: ['Selic'] },
-  { id: 'cdi', label: 'CDI', pattern: /\bcdi\b/i, definedIn: null, plannedIn: 'RC.4.1', glossaryKeys: ['CDI'] },
-  { id: 'tr', label: 'TR', pattern: /\bTR\b/, definedIn: null, plannedIn: 'RC.4.1', glossaryKeys: ['TR'] },
-  { id: 'ipca', label: 'IPCA', pattern: /\bipca\b/i, definedIn: null, plannedIn: 'RC.4.1', glossaryKeys: ['IPCA'] },
-  { id: 'ticker', label: 'ticker', pattern: /\bticker/i, definedIn: null, plannedIn: 'RC.4.2', glossaryKeys: ['ticker'] },
-  { id: 'on-pn', label: 'ON/PN', pattern: /\b(ON|PN)\b/, definedIn: null, plannedIn: 'RC.4.2', glossaryKeys: ['ON', 'PN'] },
-  { id: 'valor-de-face', label: 'valor de face', pattern: /valor de face/i, definedIn: '1.7', glossaryKeys: ['valor de face'] },
+  {
+    id: 'selic',
+    label: 'Selic',
+    pattern: /\bselic\b/i,
+    definedIn: null,
+    plannedIn: 'RC.4.1',
+    glossaryKeys: ['Selic'],
+  },
+  {
+    id: 'cdi',
+    label: 'CDI',
+    pattern: /\bcdi\b/i,
+    definedIn: null,
+    plannedIn: 'RC.4.1',
+    glossaryKeys: ['CDI'],
+  },
+  {
+    id: 'tr',
+    label: 'TR',
+    pattern: /\bTR\b/,
+    definedIn: null,
+    plannedIn: 'RC.4.1',
+    glossaryKeys: ['TR'],
+  },
+  {
+    id: 'ipca',
+    label: 'IPCA',
+    pattern: /\bipca\b/i,
+    definedIn: null,
+    plannedIn: 'RC.4.1',
+    glossaryKeys: ['IPCA'],
+  },
+  {
+    id: 'ticker',
+    label: 'ticker',
+    pattern: /\bticker/i,
+    definedIn: null,
+    plannedIn: 'RC.4.2',
+    glossaryKeys: ['ticker'],
+  },
+  {
+    id: 'on-pn',
+    label: 'ON/PN',
+    pattern: /\b(ON|PN)\b/,
+    definedIn: null,
+    plannedIn: 'RC.4.2',
+    glossaryKeys: ['ON', 'PN'],
+  },
+  {
+    id: 'valor-de-face',
+    label: 'valor de face',
+    pattern: /valor de face/i,
+    definedIn: '1.7',
+    glossaryKeys: ['valor de face'],
+  },
   { id: 'vna', label: 'VNA', pattern: /\bVNA\b/, definedIn: '1.10', glossaryKeys: ['VNA'] },
-  { id: 'alavancagem', label: 'alavancagem', pattern: /alavanca/i, definedIn: '2.8', glossaryKeys: ['alavancagem'] },
-  { id: 'payout', label: 'payout', pattern: /payout/i, definedIn: '2.6.6', glossaryKeys: ['payout'] },
-  { id: 'jcp', label: 'JCP', pattern: /\bJCP\b|juros sobre capital/i, definedIn: '2.6.6', glossaryKeys: ['JCP'] },
-  { id: 'itr-dfp', label: 'ITR/DFP', pattern: /\b(ITR|DFP)\b/, definedIn: '2.7', glossaryKeys: ['ITR', 'DFP'] },
-  { id: 'valor-de-mercado', label: 'valor de mercado', pattern: /valor de mercado/i, definedIn: '2.2', glossaryKeys: ['valor de mercado'] },
+  {
+    id: 'alavancagem',
+    label: 'alavancagem',
+    pattern: /alavanca/i,
+    definedIn: '2.8',
+    glossaryKeys: ['alavancagem'],
+  },
+  {
+    id: 'payout',
+    label: 'payout',
+    pattern: /payout/i,
+    definedIn: '2.6.6',
+    glossaryKeys: ['payout'],
+  },
+  {
+    id: 'jcp',
+    label: 'JCP',
+    pattern: /\bJCP\b|juros sobre capital/i,
+    definedIn: '2.6.6',
+    glossaryKeys: ['JCP'],
+  },
+  {
+    id: 'itr-dfp',
+    label: 'ITR/DFP',
+    pattern: /\b(ITR|DFP)\b/,
+    definedIn: '2.7',
+    glossaryKeys: ['ITR', 'DFP'],
+  },
+  {
+    id: 'valor-de-mercado',
+    label: 'valor de mercado',
+    pattern: /valor de mercado/i,
+    definedIn: '2.2',
+    glossaryKeys: ['valor de mercado'],
+  },
   { id: 'nav', label: 'NAV', pattern: /\bNAV\b/, definedIn: '2.9', glossaryKeys: ['NAV'] },
-  { id: 'agio-desagio', label: 'ágio/deságio', pattern: /ágio|deságio/i, definedIn: '1.7', glossaryKeys: ['deságio', 'ágio'] },
+  {
+    id: 'agio-desagio',
+    label: 'ágio/deságio',
+    pattern: /ágio|deságio/i,
+    definedIn: '1.7',
+    glossaryKeys: ['deságio', 'ágio'],
+  },
   {
     id: 'ordem-mercado-limite',
     label: 'ordem a mercado/limite',
@@ -42,8 +126,20 @@ export const TERM_RULES: TermRule[] = [
     glossaryKeys: ['ordem a mercado', 'ordem limite'],
   },
   { id: 'spread', label: 'spread', pattern: /spread/i, definedIn: '2.4', glossaryKeys: ['spread'] },
-  { id: 'liquidez', label: 'liquidez', pattern: /liquidez/i, definedIn: '2.4', glossaryKeys: ['liquidez'] },
-  { id: 'ciclico-defensivo', label: 'cíclico/defensivo', pattern: /cíclic|defensiv/i, definedIn: '2.8', glossaryKeys: ['cíclico', 'defensivo'] },
+  {
+    id: 'liquidez',
+    label: 'liquidez',
+    pattern: /liquidez/i,
+    definedIn: '2.4',
+    glossaryKeys: ['liquidez'],
+  },
+  {
+    id: 'ciclico-defensivo',
+    label: 'cíclico/defensivo',
+    pattern: /cíclic|defensiv/i,
+    definedIn: '2.8',
+    glossaryKeys: ['cíclico', 'defensivo'],
+  },
 ]
 
 export interface LessonText {
@@ -63,7 +159,10 @@ export interface TermViolation {
 const hasInlineDefinition = (text: string, keys: string[] = []) =>
   keys.some((key) => text.includes(`{{${key}}}`))
 
-export function findTermViolations(lessons: LessonText[], rules: TermRule[] = TERM_RULES): TermViolation[] {
+export function findTermViolations(
+  lessons: LessonText[],
+  rules: TermRule[] = TERM_RULES,
+): TermViolation[] {
   const orderByCode = new Map(lessons.map((l) => [l.code, l.sortOrder]))
   const violations: TermViolation[] = []
   for (const rule of rules) {

@@ -83,3 +83,8 @@
         grid-template-columns: 1fr 1fr;
     }
 }
+
+.glossaryLink {
+    font-size: var(--font-size-sm);
+    color: var(--color-brand-500);
+}

@@ -8,6 +8,8 @@ export interface ExportedLessonProgressRecord {
   lessonId: string
   currentStep: number
   completedAt: Date | null
+  // RC.2.3: respostas dadas à pergunta da lição e se acertou de primeira (LGPD).
+  microDecisionAttempts: number
 }
 
 // Consumida em processo pelo módulo `auth` (5.11, portabilidade RNF04) —
@@ -22,6 +24,7 @@ export class ExportLessonProgressUseCase {
       lessonId: p.lessonId,
       currentStep: p.currentStep,
       completedAt: p.completedAt,
+      microDecisionAttempts: p.microDecisionAttempts,
     }))
   }
 }

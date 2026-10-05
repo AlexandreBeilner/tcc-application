@@ -13,7 +13,7 @@ const SOURCES = import.meta.glob(
     [
         '../**/*.{ts,tsx}',
         '!../**/*.test.{ts,tsx}',
-        '!../**/{admin,PainelAdmin,CriarEventoMacro,test,content,storage}/**',
+        '!../**/{admin,PainelAdmin,CriarEventoMacro,test,content,storage,PlatformNote}/**',
         // Painel admin da Fase N: fora do escopo de usuário final.
         '!../**/Admin*/**',
         '!../**/{BotActivityPanel,BotHealthPanel,MonitorBookPanel,SchedulerPanel,TickRunList,MacroEventTriggerForm}/**',

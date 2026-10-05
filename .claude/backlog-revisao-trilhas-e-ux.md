@@ -277,15 +277,28 @@ colunas.
   badge de acerto/erro da Revelação não aparece (o veredito vem do servidor e a revisão não faz POST); a revisão
   stateless é escopo da RC.2.4. (b) Não rodei `docker compose up` nem o e2e `lessonJourney`.
 
-### RC.2.2 · Botão Voltar (P.2)
+### RC.2.2 · Botão Voltar (P.2) ✅ concluída (2026-10-04)
 
 - **Escopo:** reducer de navegação (`useLessonNavigation`), Voltar entre cartões e fases (exceto o primeiro
   cartão do Cenário), preserva escolha, veredito e revelações; reavançar fases já vistas não chama o POST (sem 422
   por intervalo de 5 s ou passo fora de ordem); teclado e leitor de tela.
 - **Aceite:** voltar e reavançar em qualquer ponto sem erro nem espera; estado preservado.
 - **Depende de:** RC.2.1.
+- **Entregável (2026-10-04):** `features/lessons/useLessonNavigation` (reducer + hook, com testes) guarda fase,
+  cartão, fase mais avançada já alcançada (`reached`) e cartões `[revelar]` já abertos (chave `fase:cartão`, não zera
+  ao avançar nem ao voltar). `pages/Lesson` troca os estados soltos (`localStep`, `subStep`, `revealedIndexes`) por
+  esse hook. Botão "Voltar" (secundário, à esquerda do CTA) em todos os cartões e fases, exceto o primeiro do Cenário;
+  do primeiro cartão de uma fase cai no último da anterior. Reavançar até `reached` (fase já gravada no servidor, ou
+  tudo em revisão) é só navegação local, sem `POST /progress`, então não há 422 de intervalo/ordem. Voltar à pergunta
+  já passada não pede escolha de novo e desabilita as alternativas (resposta aceita não troca). Teclado: setas
+  esquerda/direita clicam Voltar/Continuar (ignoradas com foco em input/slider ou modificador; herdam o `disabled`);
+  o botão tem `aria-label`. Validou: `vitest` (suíte completa), `tsc -b`, oxlint; 6 testes novos de página.
+  **Ressalvas:** (a) o veredito/badge da Revelação só existe na sessão em que a aposta foi enviada; voltar e
+  reavançar o preserva, mas após recarregar a página ele não volta (isso é da revisão stateless, RC.2.4). (b) Sem
+  conferência visual do botão nos 3 breakpoints nem `docker compose up`. (c) `CardDots` continua decorativo (o
+  "contador clicável" era opcional).
 
-### RC.2.3 · Backend da pergunta que só avança ao acertar (P.3)
+### RC.2.3 · Backend da pergunta que só avança ao acertar (P.3) ✅ concluída (2026-10-04)
 
 - **Escopo:** migration aditiva (`attempts`, `solved_at`, `hints`, backfill), `AnswerMicroDecisionUseCase`,
   `POST /lessons/:id/answer` (Zod), primeira escolha imutável, gabarito só em acerto (D3), gate 1->2 exige aposta
@@ -294,8 +307,26 @@ colunas.
 - **Aceite:** testes de caso de uso (fakes), router (supertest) e adapter (Postgres descartável); migration
   testada com progresso real; conquistas/missões H.1/H.3 inalteradas para dados antigos.
 - **Depende de:** D1, D3, D4.
+- **Entregável (2026-10-04):** migration `0022_add_lesson_micro_decision_attempts` (colunas `micro_decision_attempts`,
+  `micro_decision_wrong_options smallint[]` e `micro_decision_solved_at`, com backfill de quem já passou da pergunta;
+  `when` 1791400000000, acima da 0021 da branch da Fase N, que ainda não está na `main`, então o número 0022 evita
+  colisão no merge; snapshot escrito à mão). `AnswerMicroDecisionUseCase` + `POST /lessons/:id/answer` (Zod): primeira
+  escolha imutável, tentativas ilimitadas, erro devolve só as alternativas erradas já tentadas (a UI as desativa),
+  gabarito só no acerto, lição concluída ou pergunta resolvida respondem sem gravar, `UPDATE` atômico que preserva
+  `updated_at`. `AdvanceLessonUseCase`: gate 1->2 (`422 micro_decision_unsolved`, só nessa transição, quem já passou
+  não é afetado); `selectedOption` em `/progress` virou deprecado e ignorado, e o veredito saiu dessa resposta
+  (entregaria o gabarito). `GET /lessons/:id` devolve `microDecisionSolved` e `microDecisionWrongOptions`. Export LGPD
+  inclui `microDecisionAttempts`. `.docs/backend/lessons.md` atualizado e helper e2e `support/lessons.ts` resolve a
+  pergunta antes de avançar. Validou: `npm test`/`lint`/`build` (775) e, num Postgres descartável, migration com
+  progresso real (backfill), as três respostas em sequência e `updated_at` intacto.
+  **Atenção:** o frontend ainda envia a escolha em `/progress`, então **numa lição com pergunta o player fica preso no
+  passo 1 até a RC.2.4 sair; as duas precisam ir juntas para a `main`.** **Ressalvas:** (a) múltiplas perguntas por
+  lição (RC.3.2) não entraram: hoje há uma pergunta por lição, em colunas da linha de progresso; o desenho por
+  pergunta fica para quando o contrato `blocks` existir. (b) Limite de taxa em `/answer` não implementado (tentativas
+  são ilimitadas por decisão; com 2 a 4 alternativas não há o que proteger). (c) Não rodei `docker compose up` nem
+  o e2e (só ajustei o helper).
 
-### RC.2.4 · Frontend da pergunta (P.4)
+### RC.2.4 · Frontend da pergunta (P.4) ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** botão Responder, erro desativa a alternativa escolhida (sem dicas), travar após acerto, "acertou de primeira"/"na Nª
   tentativa", revisão stateless, adaptar `useAdvanceLesson`/serviços, atualizar `backend/test/e2e/support/lessons.ts`
@@ -303,8 +334,26 @@ colunas.
   `aria-invalid`, `role=alert`, foco.
 - **Aceite:** errar nunca avança; tentativas ilimitadas; jornadas e2e existentes verdes.
 - **Depende de:** RC.2.2, RC.2.3.
+- **Entregável (2026-10-04):** *Serviços:* `answerMicroDecision` (`POST /lessons/:id/answer`) e hook
+  `useAnswerMicroDecision`; `advanceLesson`/`useAdvanceLesson` não enviam mais `selectedOption`; tipos ganham
+  `AnswerMicroDecisionResult`, `microDecisionSolved` e `microDecisionWrongOptions` e perdem o veredito de
+  `AdvanceLessonResult`. *Player:* botão Responder; erro descarta a alternativa (desativada, riscada, com texto para
+  leitor de tela), mostra aviso `role="alert"` que recebe o foco, sem dica nem gabarito; acerto trava as alternativas,
+  mostra "Acertou de primeira"/"Acertou na Nª tentativa" (`role="status"`) e só então libera Continuar; a Revelação
+  mostra o mesmo selo. Ao recarregar, restaura erros gravados e pergunta resolvida ("Você já resolveu esta pergunta").
+  Revisão de lição concluída é sem estado: pergunta respondível de novo, Continuar nunca travado. Falha de rede mostra
+  erro sem descartar a alternativa. O selo "Quase" saiu (errar não avança mais). Testes: 7 novos do player,
+  `lessonJourney.e2e.test.ts` novo (erra, tenta de novo, acerta, 422 sem acertar, `selectedOption` antigo ignorado,
+  revisão sem mudar XP/streak/progresso); o helper e2e `support/lessons.ts` já tinha sido ajustado na RC.2.3.
+  Validou: `vitest` (suíte completa), `tsc -b`, oxlint. **Ressalvas:** (a) **a jornada e2e nova não foi executada**:
+  a stack do `docker compose` não sobe nesta máquina porque o volume do Postgres está numa migration do engine
+  (versão 46) que esta árvore não tem (`no migration found for version 46`), então o cadastro (que cria a conta de
+  mercado no engine) falha; só passou `tsc`/prettier. Rodar com a stack da branch da Fase N ou um volume limpo.
+  (b) Sem conferência visual nos 3 breakpoints. (c) Após recarregar, o selo "acertou de primeira" da Revelação não
+  volta (o `GET` não devolve tentativas); só "Você já resolveu esta pergunta". (d) Em lição só leitura o servidor não
+  devolve erros, então os descartados em revisão valem só na sessão.
 
-### RC.2.5 · `LockedGate` unificado (P.5)
+### RC.2.5 · `LockedGate` unificado (P.5) ✅ concluída (2026-10-04)
 
 - **Escopo:** rascunho/mockup primeiro. Componente único com variantes `screen`, `section`, `inline`, mesmo
   tamanho e estilo por variante, cadeado inequívoco, textos sem código de lição, claro/escuro, 3 breakpoints.
@@ -313,6 +362,17 @@ colunas.
   engajamento).
 - **Aceite:** o card tem a mesma largura/altura relativa em todas as telas da mesma variante.
 - **Depende de:** nada (paralelizável).
+- **Entregável (2026-10-04):** `components/organisms/LockedGate` (variantes `screen`, `section`, `inline`) substitui
+  `LockedAssetPanel` e `LockedScreen` (removidos, com testes portados). Largura máxima, selo e padding fixados pela
+  variante (screen 640px/selo 96px, section 560px/64px, inline 420px/36px), nunca pelo contêiner; borda tracejada e
+  selo âmbar (`--color-gamify-*`, ícone de cadeado grande); no desktop (>= 1024px) a `screen` vira selo à esquerda e
+  texto/CTA à direita; no mobile o CTA ocupa a largura toda; título em `h2`, `role="status"` na `screen` e
+  `role="note"` nas demais. Migrados `RequiresUnlock` (screen), `AssetDetail`/`FixedIncomeDetail` (section, sem o
+  `<main>` duplicado dentro do `main` do AppShell) e `OrderConfirmationDialog` (inline). Texto e regra do CTA
+  (nunca código de lição, `reachable: false` cai no Mapa) preservados. Validou: `vitest` (845), `tsc -b`, oxlint.
+  **Ressalvas:** (a) não houve mockup separado nem conferência visual em 360/768/1280px, nos dois temas (sem
+  `docker compose up` nesta sessão); a composição foi definida só em CSS e precisa de uma olhada no navegador antes
+  de fechar. (b) Não apliquei a linha "Faltam N lições" opcional da proposta.
 
 ### RC.2.6 · Limpeza de comentários e tipos obsoletos
 
@@ -323,7 +383,7 @@ colunas.
 
 ## Fase 3: Infraestrutura de conteúdo visual
 
-### RC.3.1 · Contrato `blocks` e registro de widgets (P.6)
+### RC.3.1 · Contrato `blocks` e registro de widgets (P.6) ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** coluna `blocks` jsonb aditiva com fallback ao texto legado; registro de widgets no frontend com Zod
   por widget; `WidgetBoundary` (erro num widget não derruba a lição); `aria-live` e resumo textual por widget;
@@ -332,20 +392,73 @@ colunas.
 - **Aceite:** lição sem `blocks` renderiza igual a hoje; `blocks` inválido cai no legado; contrato testado no
   front e no back.
 - **Depende de:** RC.2.2. **Entrega antes do editor da N.23** (o editor já nasce sobre o contrato).
+- **Entregável (2026-10-04):** *Backend:* migration `0023_add_lesson_blocks` (`lessons.blocks jsonb`, nulo = texto
+  legado; `when` 1791500000000, snapshot escrito à mão); contrato Zod em `modules/lessons/infrastructure/content/
+  lessonBlocks.ts` (o domínio não importa lib externa, então os tipos ficam em `domain/widgets/lessonBlocks.ts`):
+  `{ schemaVersion: 1, phases: { scenario, microDecision, revelation } }` de blocos `text` ou `widget` (`id` único,
+  props validadas por widget), leitura tolerante (fora do contrato vira `null`), `GET /lessons` e `/:id` devolvem
+  `blocks`, seed aceita `blocks` e o inclui no `set` do upsert; `.docs/backend/lessons.md` atualizado. *Frontend:*
+  `zod` adicionado; espelho do contrato em `features/lessons/widgets/schema`, `features/lessons/playerCards`
+  (blocos viram cartões; widget = cartão próprio; fase sem blocos usa o texto legado), registro único em
+  `components/organisms/LessonWidget` (componente + schema + resumo textual por widget, `role="group"` com o resumo),
+  `WidgetBoundary` (erro de render vira fallback só do widget), widget desconhecido ou props inválidas viram
+  fallback (legenda ou aviso discreto), `LessonCallout` (tom info/dica/aviso por ícone e borda, nunca ganho/perda),
+  `prefers-reduced-motion` no contêiner. Os 4 widgets existentes passaram pelo registro (`growth-calculator`,
+  `fixed-income-comparison`, `live-indicator`, `live-macro`); os tipos legados `microDecisionType` renderizam pelo
+  mesmo registro quando a fase não tem blocos. Desktop (>= 1024px): cartão de widget em duas colunas (texto/CTA à
+  esquerda, widget à direita, página até 1040px via `:has`). Validou: backend lint/build/`npm test` (788), frontend
+  `vitest` (884)/`tsc -b`/oxlint; contrato testado nos dois lados com o mesmo exemplo. **Ressalvas:** (a) sem
+  rascunho/mockup do desktop em duas colunas e sem conferência visual nos 3 breakpoints nem `docker compose`
+  (a migration só foi escrita, não aplicada num Postgres; o ambiente local está num volume de outra branch);
+  (b) nenhuma lição do seed usa `blocks` ainda (fica para a Fase 5), então o caminho novo só é exercitado por testes;
+  (c) `aria-live` está nos estados de carregamento dos widgets ao vivo; os widgets de cálculo existentes mantêm o
+  próprio markup, sem região `aria-live` nova; (d) `requiresInteraction` do desenho original ficou fora.
 
-### RC.3.2 · Pergunta intermediária como bloco
+### RC.3.2 · Pergunta intermediária como bloco ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** bloco `checkpoint` (single, V/F, numérica com tolerância) com explicação mostrada após o acerto, erro desativa a alternativa escolhida
   (sem dicas) e tentativas ilimitadas; contagem de acertos de primeira por lição; reaproveita o endpoint de RC.2.3.
 - **Aceite:** 3 a 7 checkpoints por lição suportados sem mudar o XP total (D1); progresso salvo ao sair e voltar.
 - **Depende de:** RC.2.3, RC.3.1.
+- **Entregável (2026-10-04):** *Modelagem (decidida aqui):* o gabarito mora no próprio bloco `check` de
+  `lessons.blocks` (servidor), `toPublicBlocks` o remove de `GET /lessons` e `/:id` (sem `answer`, `tolerance`,
+  `explanation`); o estado do aluno fica em tabela nova `user_lesson_checkpoints` (migration `0024`, uma linha por
+  usuário, lição e checkpoint: tentativas, alternativas erradas, `solved_at`), em vez de colunas na linha de progresso.
+  *Backend:* tipos `single` (2 a 4 alternativas), `true_false` e `numeric` (tolerância e unidade), até 7 por lição,
+  `id` único junto com os widgets (Zod); `AnswerCheckpointUseCase` + `POST /lessons/:id/checkpoints/:checkpointId/
+  answer` (mesmas regras da RC.2.3: erro só desativa a alternativa, explicação só no acerto, tentativas ilimitadas,
+  lição concluída ou checkpoint resolvido responde sem gravar, upsert atômico); `GET /lessons/:id` devolve
+  `checkpoints` e `checkpointsFirstTry`; gate no `/progress`: sair de uma fase sem resolver as `check` dela dá
+  `422 checkpoint_unsolved` (só na transição, quem já passou não é afetado); XP inalterado (D1). `.docs/backend/
+  lessons.md` atualizado. *Frontend:* contrato espelhado, `PlayerCard` ganha `check`, hook `useCheckpoints` (estado do
+  servidor + sessão; em revisão ignora o servidor e nada trava), `LessonCheckpoint` (alternativas ou campo numérico
+  com vírgula, aviso `role="alert"` com foco, `aria-invalid`, selo "de primeira"/"Nª tentativa", explicação no acerto),
+  Continuar travado no cartão da pergunta até acertar. Validou: backend lint/build/`npm test` (826) e frontend
+  `vitest`/`tsc -b`/oxlint, com testes de caso de uso, rota, gate, schema e página (inclui 7 perguntas na mesma
+  fase e restauração ao reabrir). **Ressalvas:** (a) migration `0024` só escrita, não aplicada num Postgres, e sem
+  `docker compose`/e2e (o ambiente local está num volume de outra branch); (b) ao reabrir uma pergunta já resolvida
+  o servidor não devolve a explicação (só no acerto), então aparece "Você já resolveu esta pergunta."; (c) o export
+  LGPD de progresso ainda não inclui as respostas dos checkpoints; (d) nenhuma lição do seed usa `check` ainda
+  (Fase 5); (e) sem conferência visual nos 3 breakpoints.
 
-### RC.3.3 · Bloco "Na plataforma"
+### RC.3.3 · Bloco "Na plataforma" ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** componente `PlatformNote` com *No Brasil / Aqui / Por quê*, visual distinto (selo, cor de token),
   aceito pelo teste RC.1.1 como único lugar permitido para a palavra "plataforma".
 - **Aceite:** usado nas lições que divergem do real (Copom, Selic simulada, calendário, catálogo fictício).
 - **Depende de:** RC.3.1.
+- **Entregável (2026-10-04):** o bloco é o widget `platform-note` (props `brazil`, `here`, `why`, as três
+  obrigatórias e não vazias), registrado nos dois lados do contrato (`lessonBlocks.ts` do backend e `widgets/schema`
+  do frontend, mesmo exemplo de contrato com o bloco nos dois testes). Componente `components/organisms/PlatformNote`
+  (selo "Na plataforma" com ícone, borda tracejada na cor da marca, lista No Brasil / Aqui / Por quê; em >= 768px
+  rótulo e texto lado a lado), com `platformNoteSummary` como resumo textual no registro. *Teste de conteúdo:* a
+  pasta `PlatformNote` ficou fora da varredura do frontend e o backend passou a varrer os textos de `blocks`
+  (`blockTextFields` em `contentRules.ts`: markup, callout, check, caption), isentando só o `platform-note` das
+  regras `nesta-plataforma`, `simulado`, `sandbox` e `motor` (TCC, travessão etc. continuam valendo). `.docs/backend/
+  lessons.md` atualizado. Validou: backend lint/build/`npm test` (829) e frontend `tsc -b`/oxlint/`vitest` (895).
+  **Ressalvas:** (a) nenhuma lição do seed usa o bloco ainda (a Fase 5 o usa em Copom, Selic simulada, calendário);
+  (b) sem conferência visual nos 3 breakpoints nem `docker compose`; (c) o seed ainda não valida `blocks` contra o
+  schema além do teste de conteúdo.
 
 ### RC.3.4 · Biblioteca de widgets (agrupada em sessões)
 
@@ -354,7 +467,7 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 
 | Sessão | Widgets | Lições que consomem |
 |---|---|---|
-| RC.3.4a Cálculo de renda fixa | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
+| RC.3.4a Cálculo de renda fixa ✅ | `equivalent-rate` (taxa bruta equivalente, presets 60/720 dias), `ir-regressive-table`, `product-comparator` (líquido vs bruto, breakeven) | 1.4, 1.5, 1.6, 3.3 |
 | RC.3.4b Risco e proteção | `mtm-seesaw` (gangorra de marcação a mercado: taxa x preço, prazo, Prefixado/IPCA+/Selic, choques), `fgc-coverage-bar` (R$ 250 mil por conglomerado, teto R$ 1 milhão em 4 anos, guarda-chuva), `rating-ruler` | 1.4, 1.8, 1.11 |
 | RC.3.4c Juros e inflação | `compound-growth` (substitui `growth_calculator`), `real-return`, `selic-ipca-chart` (série com faixa da meta), `copom-timeline` (8 reuniões/ano) | 0.2-0.5, 1.2, 1.3, 1.9, 1.10 |
 | RC.3.4d Títulos | `bond-price-calculator` (preço/deságio, IR e custódia, LTN x NTN-F), `ipca-plus-simulator` (VNA, ano a ano), `breakeven-inflation` | 1.7, 1.10 |
@@ -364,11 +477,26 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
 | RC.3.4i Vida real | `budget-split`, `debt-snowball`, `pay-or-invest`, `emergency-fund-calculator`, `where-to-keep`, `equity-tax-calculator`, `tax-decision-tree`, `fee-drag`, `behavior-bias-quiz` | RC.4.4 a RC.4.9 |
 | RC.3.4h Planejamento | `risk-return-scatter`, `allocation-donut`, `risk-profile-quiz` | 3.1, 3.2, 3.4 |
 
+- **RC.3.4a entregue (2026-10-04):** três widgets registrados nos dois lados do contrato (props todas com
+  default): `equivalent-rate` (`exemptRatePct`, `cdbRatePct`, `daysPresets`: presets de prazo + campos livres,
+  mostra IR do prazo, taxa bruta equivalente, taxa líquida do CDB e o vencedor), `ir-regressive-table` (`grossYield`,
+  `initialDays`: controle deslizante de prazo, faixa atual marcada com "▶" e `aria-current`, IR e líquido em R$) e
+  `product-comparator` (`products` 2 a 3 com `liquidity`/`fgc` opcionais, `amount`, `days`: líquido de cada um e
+  vencedor com "★"). Contas em funções puras `features/lessons/widgets/fixedIncomeMath` (tabela regressiva
+  espelha o fato `ir-renda-fixa-regressivo` de `regulatoryFacts.ts`; capitalização anual `(1+i)^(dias/365)`), com
+  teste table-driven; cada componente com teste de interação e `aria-live` no resultado, resumo textual no registro
+  e CSS compartilhado `LessonWidget/widgetControls.module.css` (campos em 3 colunas só a partir de 768px).
+  `.docs/backend/lessons.md` atualizado. Validou: frontend `tsc -b`/oxlint/`vitest` (931), backend
+  lint/build/`npm test` (831). **Ressalvas:** (a) nenhuma lição usa os widgets ainda (a RC.5.5 reescreve a 1.6 e
+  1.4/1.5 com eles); (b) a taxa equivalente é a razão simples sobre a taxa anual, a aproximação padrão, enquanto o
+  comparador usa capitalização composta, então os dois podem divergir em frações de ponto percentual em prazos
+  curtos; (c) a tabela de IR está duplicada entre backend (fato) e frontend (constante), sem teste que as cruze;
+  (d) sem conferência visual nos 3 breakpoints nem `docker compose`; (e) não incluem o IOF dos primeiros 30 dias.
 - **Aceite geral:** nenhum texto manda calcular fora; nenhum botão "Ver resultado" solto (se sobrar, rótulo
   contextual); lint do seed barra "calcule" sem widget na mesma fase.
 - **Depende de:** RC.3.1 (e RC.3.2 quando o widget traz checkpoint).
 
-### RC.3.5 · Glossário ampliado e dicas inline
+### RC.3.5 · Glossário ampliado e dicas inline ✅ concluída com ressalva (2026-10-04)
 
 - **Escopo:** glossário estruturado (hoje 6 termos) com cerca de 40 termos, cada um com a lição de origem,
   definição curta, exemplo; tooltip/toque no primeiro uso do termo em cada lição; página de glossário (consulta).
@@ -376,6 +504,20 @@ entradas, saídas e fórmulas em `audit-licoes-*.md` e `analise-player-licao.md`
   mercado, NAV, ágio/deságio, spread, liquidez, duration, conglomerado financeiro, securitizadora.
 - **Aceite:** RC.1.2 sem avisos; glossário acessível em todos os breakpoints.
 - **Depende de:** RC.3.1.
+- **Entregável (2026-10-04):** `features/lessons/glossary` virou catálogo estruturado (`{ definition, example?,
+  originLesson? }`) com 49 termos (os 6 antigos mais Selic, CDI, TR, IPCA, ticker, ON e PN, valor de face, VNA,
+  alavancagem, payout, JCP, ITR e DFP, valor de mercado, NAV, ágio, spread, liquidez, duration, conglomerado
+  financeiro, securitizadora e outros); `originLesson` fica vazio para os termos cuja lição ainda não existe
+  (Selic, CDI, TR, IPCA, ticker, ON e PN: RC.4.1/RC.4.2), para não haver link morto. *Primeiro uso:* o popover só
+  aparece no primeiro uso do termo na lição (entre as três fases); depois vira texto puro
+  (`termsSeenBeforeEachCard` em `playerCards`, derivado do conteúdo, sem estado, então Voltar e revisão não mudam).
+  *Página `/glossario`* (`pages/Glossario`): ordem alfabética, busca sem acento, exemplo, link para a lição de
+  origem; 1 coluna no mobile, 2 no tablet, 3 no desktop; link "Glossário" no cabeçalho do Hub de trilhas. Validou:
+  frontend `tsc -b`/oxlint/`vitest` (903) e backend `npm test` (829). **Ressalvas:** (a) o aceite "RC.1.2 sem
+  avisos" não é atingível aqui: o lint segue em modo aviso até as lições novas da Fase 4 existirem, e nenhuma lição
+  do seed usa `{{Selic}}` etc. ainda (Fase 5); (b) definições e exemplos não passaram pela validação factual
+  da RC.1.7 com fonte primária (são definições gerais; conferir TR, CDI e ON/PN na Fase 5); (c) sem conferência
+  visual nos 3 breakpoints nem `docker compose`; (d) o glossário mostra todos os termos, não só os já vistos.
 
 ### RC.3.6 · Compatibilidade com o editor do painel (P.10)
 
@@ -480,11 +622,11 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
 
 | Tarefa | Lições | Principais correções (resumo; detalhe no anexo) | Esforço |
 |---|---|---|---|
-| RC.5.1 | 0.1-0.4 | tirar "TCC cap. 2.1.1" da 0.2; "regime composto" impreciso; "indicador nesta plataforma é nominal" (0.4) vira Na plataforma; IPCA definido ou movido | M |
+| RC.5.1 ✅ | 0.1-0.4 | tirar "TCC cap. 2.1.1" da 0.2; "regime composto" impreciso; "indicador nesta plataforma é nominal" (0.4) vira Na plataforma; IPCA definido ou movido | M |
 | RC.5.2 | 0.5 (poupança) | duas regras (Selic acima de 8,5%: 0,5% a.m. + TR; igual ou abaixo: 70% da Selic + TR), TR explicada, "sempre atrás" falso: comparação líquida; widget `real-return` | G |
 | RC.5.3 | 1.1, 1.2 | PU do Tesouro Selic sobe todo dia, a Selic muda a velocidade (pergunta corrigida); IOF 29 dias, custódia B3, IR; remover "spec do TCC" | M + G |
 | RC.5.4 | 1.3 (Copom) | 8 reuniões/ano de 2 dias, ~45 dias (nunca "21 dias simulados"); meta de inflação 3% ±1,5; meta x efetiva; Taylor vira Na plataforma; gangorra inflação x Selic; gráfico Selic x IPCA | G |
-| RC.5.5 | 1.4-1.6 | FGC completo (conglomerado, R$ 1 milhão em 4 anos, o que não cobre, sem "tão seguro quanto o Tesouro"); CDI com exemplo coerente (% do CDI); IR com IOF e retenção, isenção só PF; LCI/LCA com carência real e `equivalent-rate`; remover `[revelar]` | G |
+| RC.5.5 ✅ | 1.4-1.6 | FGC completo (conglomerado, R$ 1 milhão em 4 anos, o que não cobre, sem "tão seguro quanto o Tesouro"); CDI com exemplo coerente (% do CDI); IR com IOF e retenção, isenção só PF; LCI/LCA com carência real e `equivalent-rate`; remover `[revelar]` | G |
 | RC.5.6 | 1.7-1.8 | Prefixado: R$ 199,24 é bruto, LTN x NTN-F, vencimento coerente; marcação a mercado com gangorra e duration, vale também para IPCA+, Copom x taxa de mercado do título; remover "Copom simulado a cada 21 dias reais" e "Sandbox" | M + G |
 | RC.5.7 | 1.9-1.11 | IPCA: cesta e abrangência reais, meta 3% ±1,5, números atuais verificados; IPCA+: marcação a mercado, IR sobre o ganho nominal, VNA e defasagem, taxa realista; CRI/CRA: não vendê-los como reserva de emergência, risco nos devedores e garantias (patrimônio separado), FGC não cobre, isenção e risco regulatório | M-G + G + G |
 | RC.5.8 | 3.1-3.4 | trilha 3 vira planejamento real: diversificação, perfil de investidor real (conservador/moderado/arrojado, questionário de suitability; "Sofisticado" removido), comparação de produtos líquida (252 dias úteis, CDI explícito), desafio final; prática no simulador como etapa separada e rotulada; 3.4 sem "evento real" para evento simulado (D12) | G x4 |
@@ -495,6 +637,45 @@ widgets e checkpoints, não parágrafos novos; (4) o teste de tamanho de cartão
 | RC.5.13 | 2.10 | FII: distribuição mensal (mínimo 95% do resultado semestral), isenção de IR para PF (requisitos), 20% sobre ganho de capital, P/VP, papel indexado a IPCA, "dividendo" x "rendimento", frase quebrada na revelação e `unlocksDescription` com erro ("com onde crescer") | G |
 | RC.5.14 | Todas | taxas citadas (CDB 12%, LCI 9,5%, LTN 11,75%, NTN-B 6%) alinhadas ao catálogo (% do CDI e spreads) ou apresentadas como exemplo didático explícito | M |
 
+- **RC.5.1 entregue (2026-10-04):** lições 0.1 a 0.4 reescritas em `blocks`
+  (`backend/src/db/lessonContentTrilha0a.ts`; `legacyText` foi para `lessonText.ts`). *0.1:* investir como
+  empréstimo ou sociedade (a definição "ceder capital a alguém" valia só para renda fixa), dinheiro parado perde
+  poder de compra, sem "de verdade" nem "geralmente deixa valor na mesa", capital de R$ 10.000 e desbloqueio das
+  trilhas vão para o bloco "Na plataforma"; 3 checkpoints; a micro-decisão segue aberta, sem gabarito. *0.2:* sem
+  "TCC cap. 2.1.1" (já limpo na RC.1.4), "todo investimento real (Tesouro, CDB, ações)" corrigido para "a renda fixa"
+  (ação não tem juros), diferença no curto prazo depende da taxa, calculadora no registro (`growth-calculator`),
+  R$ 3.000 contra cerca de R$ 6.727 em 20 anos, 3 checkpoints. *0.3:* define inflação e IPCA inline, meta de 3% com
+  tolerância de 1,5 ponto (fato `meta-inflacao`), distrator R$ 5 no lugar de R$ 95 e R$ 110, 2 checkpoints.
+  *0.4:* sem CDB antes da 1.4 (diz "aplicação"), IPCA definido, IR sobre o ganho nominal, "indicadores nominais"
+  no bloco "Na plataforma", 2 checkpoints. Alternativa certa fora da posição 0 onde há aposta. Baselines: saem
+  `nesta-plataforma` da 0.1 e da 0.4; `termPrerequisites.test.ts` agora espera sem aviso de IPCA na 0.3 e 0.4.
+  Validou: backend lint/build/`npm test` (832). **Ressalvas:** (a) sem `docker compose`, e2e nem conferência
+  visual; (b) a 0.4 ainda cita "Tesouro" e "CDB" apenas na 0.2/1.x, sem uso novo; (c) o "IPCA dá 1,5% a 4,5%" da
+  explicação é conta sobre o fato da meta, não fato novo; (d) as lições 0.1 a 0.4 usam `{{inflação}}` e `{{IPCA}}`
+  inline em vez de depender da RC.4.1.
+- **RC.4.1 desbloqueada (2026-10-04):** a progressão com dispensa (N.24) entrou na `main` (PR #55) e foi integrada
+  à pilha de PRs das RC (#62 a #83, encadeados, migrations `0022` a `0024` renumeradas depois da `0021`). Falta só
+  mesclar a pilha na `main` para começar RC.4.1, RC.4.2 e RC.4.4 a RC.4.9 (partir da `main` já com ela).
+- **RC.5.5 entregue (2026-10-04):** lições 1.4, 1.5 e 1.6 reescritas no contrato `blocks`, em
+  `backend/src/db/lessonContentTrilha1a.ts` (os textos legados `scenarioText`/`microDecisionPrompt`/
+  `revelationText` agora são derivados dos blocos de texto por `legacyText`, então o conteúdo existe uma vez só).
+  *1.4:* CDB como empréstimo ao banco, % do CDI, FGC completo (R$ 250 mil por CPF e por conglomerado, teto de R$ 1
+  milhão em 4 anos, títulos públicos fora, "entra se o banco for liquidado"), sem "tão seguro quanto o Tesouro",
+  3 perguntas (1 na aposta de 3 alternativas e 3 checkpoints), bloco "Na plataforma" (CDB fictício a 110% do CDI).
+  *1.5:* IR retido na fonte, só sobre o lucro, `ir-regressive-table` na abertura, IOF de 96% a 0% em 30 dias, 3
+  checkpoints. *1.6:* isenção só para pessoa física, prazo mínimo de 6 meses da LCI (o exemplo de 60 dias, que não
+  existe, saiu), `equivalent-rate` na micro-decisão e `product-comparator` na revelação, exemplo didático declarado
+  (CDI a 10%: CDB 11% e LCI 9%, proporções do catálogo), faixa de 720 dias corrigida (17,5% até 720, 15% acima), 4
+  checkpoints; os dois `[revelar]` ("Ver resultado") saíram; `unlocksDescription` sem "real". Alternativa certa da
+  aposta fora da posição 0 nas três. Novo teste de seed: fase com `blocks` que diz "calcule" exige widget na fase.
+  Baseline de conteúdo encolheu 1 (número de lição na 1.6). Validou: backend lint/build/`npm test` (831). Nenhum
+  fato novo foi introduzido: todos já estavam em `regulatoryFacts.ts` com `verifiedAt` de 2026-10-04.
+  **Ressalvas:** (a) sem `docker compose`, sem conferência visual e sem rodar o e2e das lições; (b) o
+  `fgc-coverage-bar` (RC.3.4b) não existe ainda, então o FGC usa texto e pergunta numérica; (c) os fatos de FGC
+  "entra na liquidação" e "CRA fora" ficaram simplificados/omitidos por falta de fonte lida (a 1.11 deve tratar);
+  (d) as lições 1.4 a 1.6 ainda usam CDI e carência sem lição própria (RC.4.1), cobertos por `{{termo}}` inline;
+  (e) quem já concluiu essas lições não é afetado (seed só substitui conteúdo, progresso fica); (f) a revisão
+  `/code-review` e a leitura contra o guia RC.1.6 não foram feitas por outra sessão.
 - **Nota de esforço:** a Fase 5 reescreve as 35 lições atuais (as 8 novas são RC.4.1, RC.4.2 e RC.4.4 a RC.4.9), com margem de crescimento
   para o autor ("muita margem para adição de coisas"). Cada tarefa pode se dividir em duas sessões se passar de 4
   lições com widget novo.

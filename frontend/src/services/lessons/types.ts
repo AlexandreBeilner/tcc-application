@@ -36,12 +36,22 @@ export interface Lesson {
     // estado normal de hoje (checkbox "já pensei"); preenchido troca pro
     // widget de escolha real. O índice certo (`microDecisionCorrectOption`)
     // nunca vem aqui (correção da revisão da PR 18 — vazava a resposta antes
-    // do usuário escolher); o veredito vem só na resposta de
-    // `POST /lessons/:id/progress` que envia `selectedOption`, ver
-    // `AdvanceLessonResult` abaixo.
+    // do usuário escolher); o veredito vem só de `POST /lessons/:id/answer`
+    // (`AnswerMicroDecisionResult`), e o gabarito só no acerto.
     microDecisionOptions: string[] | null
+    // Conteúdo visual por fase (RC.3.1), validado no frontend por
+    // `features/lessons/widgets/schema`; ausente/nulo = texto legado.
+    blocks?: unknown
     status: 'completed' | 'available' | 'locked'
     currentStep: number
+    // Só em `GET /lessons/:id` (RC.2.3): o player restaura a pergunta já
+    // resolvida e as alternativas erradas já tentadas. Ausentes na listagem.
+    microDecisionSolved?: boolean
+    microDecisionWrongOptions?: number[]
+    // Só em `GET /lessons/:id` (RC.3.2): estado de cada pergunta intermediária
+    // que o usuário já tentou, e quantas acertou de primeira.
+    checkpoints?: CheckpointState[]
+    checkpointsFirstTry?: number
     // Lição dispensada e ainda não feita (N.24): "nova, opcional". Sempre
     // `status: 'available'`, e conta como satisfeita no desbloqueio. O backend
     // sempre envia; opcional aqui só pra `undefined` valer como `false`.
@@ -63,16 +73,38 @@ export interface UnlockedAchievement {
     description: string | null
 }
 
-// `GET /lessons/:id` reaproveita o mesmo formato de `Lesson` (`.docs/backend/lessons.md`).
+export interface CheckpointState {
+    checkpointId: string
+    solved: boolean
+    attempts: number
+    wrongOptions: number[]
+    firstTry: boolean
+}
+
+// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, `.docs/backend/lessons.md`).
+export interface AnswerCheckpointResult {
+    correct: boolean
+    attempts: number
+    firstTry: boolean
+    wrongOptions: number[]
+    // Só em acerto.
+    explanation?: string
+}
+
+// `POST /lessons/:id/answer` (RC.2.3, `.docs/backend/lessons.md`).
+export interface AnswerMicroDecisionResult {
+    correct: boolean
+    attempts: number
+    firstTry: boolean
+    // Alternativas erradas já tentadas; vazio quando a lição é só leitura.
+    wrongOptions: number[]
+    // Só em acerto: errar nunca entrega o gabarito (D3).
+    correctOptionLabel?: string
+}
+
 export interface AdvanceLessonResult {
     currentStep: number
     completed: boolean
-    // Presente só quando esta chamada enviou `selectedOption` válido pra uma
-    // lição com aposta real (correção da revisão da PR 18) — veredito da
-    // escolha, calculado no servidor; nunca disponível de antemão via
-    // `Lesson.microDecisionCorrectOption` (esse campo não existe mais).
-    microDecisionCorrect?: boolean
-    correctOptionLabel?: string
     // Presentes só quando esta chamada é quem conclui a lição pela primeira
     // vez (backlog engajamento I.2) — ausentes ao reabrir uma lição já
     // concluída. `xpAwarded`/`leveledUp` consumidos pelo reveal de XP/nível

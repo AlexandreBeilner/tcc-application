@@ -34,7 +34,12 @@ describe('ExportLessonProgressUseCase', () => {
     const result = await useCase.execute({ userId: 'u1' })
 
     expect(result).toEqual([
-      { lessonId: 'l1', currentStep: 3, completedAt: new Date('2026-08-20T00:00:00Z') },
+      {
+        lessonId: 'l1',
+        currentStep: 3,
+        completedAt: new Date('2026-08-20T00:00:00Z'),
+        microDecisionAttempts: 0,
+      },
     ])
   })
 

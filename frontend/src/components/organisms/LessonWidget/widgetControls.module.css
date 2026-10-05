@@ -1,0 +1,121 @@
+/* Controles compartilhados pelos widgets de cálculo das lições (RC.3.4a). */
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .fields {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.field input {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    font-variant-numeric: tabular-nums;
+}
+
+.presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.preset {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.preset[aria-pressed='true'] {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-500);
+    font-weight: 600;
+}
+
+.result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface-elevated);
+    font-variant-numeric: tabular-nums;
+}
+
+.result p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+}
+
+.headline {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    color: var(--color-text-secondary);
+}
+
+.table th {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.table .current,
+.table .current td,
+.table .current th {
+    color: var(--color-text-primary);
+    font-weight: 600;
+    background: var(--color-bg-surface-elevated);
+}
+
+.tableWrap {
+    overflow-x: auto;
+}
+
+.visuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}

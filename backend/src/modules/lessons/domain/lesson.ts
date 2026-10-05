@@ -1,3 +1,5 @@
+import { toPublicBlocks } from './widgets/lessonBlocks'
+import type { LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -132,6 +134,9 @@ export interface LessonSummary {
   // a B.4) troca pro widget de escolha real (B.3).
   microDecisionOptions: string[] | null
   microDecisionCorrectOption: number | null
+  // Conteúdo visual por fase (RC.3.1). Ausente/`null` = player usa os textos
+  // legados acima. Já validado: valor fora do contrato chega aqui como `null`.
+  blocks?: LessonBlocks | null
 }
 
 export interface LessonProgressSnapshot {
@@ -143,6 +148,12 @@ export interface LessonProgressSnapshot {
   // Índice escolhido pelo usuário na Micro-decisão (B.1) — `null` até a
   // escolha ser gravada (B.2) ou pra lição sem aposta real.
   microDecisionSelectedOption: number | null
+  // Pergunta que só avança ao acertar (RC.2.3): nº de respostas dadas,
+  // alternativas erradas já tentadas e instante do acerto (`null` = ainda não
+  // resolvida). `microDecisionSelectedOption` acima é a PRIMEIRA escolha.
+  microDecisionAttempts: number
+  microDecisionWrongOptions: number[]
+  microDecisionSolvedAt: Date | null
   // Dispensa (N.24) — `null` pra quem nunca foi dispensado da lição.
   waivedAt: Date | null
 }
@@ -168,9 +179,36 @@ export function isCorrectOption(
 // a aba de rede. `AdvanceLessonUseCase` devolve o resultado (`correct`/
 // `correctOptionLabel`, via `microDecisionResultFor` abaixo) só na resposta
 // do `POST` que de fato inclui a escolha do usuário.
-export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption'> {
+// Estado gravado de uma pergunta intermediária (`check`, RC.3.2) pro usuário.
+export interface CheckpointRecord {
+  checkpointId: string
+  attempts: number
+  wrongOptions: number[]
+  solvedAt: Date | null
+}
+
+// Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
+// o gabarito nunca vai aqui.
+export interface CheckpointState {
+  checkpointId: string
+  solved: boolean
+  attempts: number
+  wrongOptions: number[]
+  firstTry: boolean
+}
+
+export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
+  // Sem gabarito nem explicação das perguntas intermediárias (`toPublicBlocks`).
+  blocks: PublicLessonBlocks | null
+  checkpoints: CheckpointState[]
+  // Quantas perguntas intermediárias o aluno acertou de primeira nesta lição.
+  checkpointsFirstTry: number
   status: LessonStatus
   currentStep: number
+  // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
+  // e voltar: o gabarito nunca vai aqui, só o que o próprio usuário já tentou.
+  microDecisionSolved: boolean
+  microDecisionWrongOptions: number[]
   // Lição dispensada e ainda não feita (N.24): aparece no mapa como "nova,
   // opcional" — disponível pra fazer, mas sem bloquear nada.
   waived: boolean
@@ -180,12 +218,21 @@ export function buildLessonView(
   lesson: LessonSummary,
   progress: LessonProgressSnapshot | undefined,
   progression: Progression,
+  checkpointRecords: CheckpointRecord[] = [],
 ): LessonView {
   const completedByUser = progress?.completedAt != null
   const status = lessonStatus({
     unlocked: progression.isUnlocked(lesson.id),
     completedByUser,
   })
+
+  const checkpoints: CheckpointState[] = checkpointRecords.map((record) => ({
+    checkpointId: record.checkpointId,
+    solved: record.solvedAt !== null,
+    attempts: record.attempts,
+    wrongOptions: record.wrongOptions,
+    firstTry: record.solvedAt !== null && record.attempts === 1,
+  }))
 
   return {
     id: lesson.id,
@@ -204,8 +251,13 @@ export function buildLessonView(
     unlocksKeys: lesson.unlocksKeys,
     unlocksAssetTicker: lesson.unlocksAssetTicker,
     microDecisionOptions: lesson.microDecisionOptions,
+    blocks: toPublicBlocks(lesson.blocks),
+    checkpoints,
+    checkpointsFirstTry: checkpoints.filter((c) => c.firstTry).length,
     status,
     currentStep: progress?.currentStep ?? 0,
+    microDecisionSolved: progress?.microDecisionSolvedAt != null,
+    microDecisionWrongOptions: progress?.microDecisionWrongOptions ?? [],
     waived: !completedByUser && progress?.waivedAt != null,
   }
 }

@@ -46,11 +46,17 @@ export const FORBIDDEN_RULES: ContentRule[] = [
 export const CARD_TARGET_CHARS = 280
 export const CARD_HARD_LIMIT_CHARS = 420
 
+// Regras que o bloco "Na plataforma" (RC.3.3) pode violar: é o único lugar
+// onde a mecânica da plataforma pode ser descrita (diretrizes §3).
+export const PLATFORM_NOTE_EXEMPT_RULE_IDS = ['nesta-plataforma', 'simulado', 'sandbox', 'motor']
+
 export interface TextField {
   // Origem legível (ex: "lesson:1.2"), usada na mensagem e na chave de baseline.
   source: string
   field: string
   text: string
+  // Regras que não valem para este campo (ex: texto do bloco "Na plataforma").
+  exemptRuleIds?: string[]
 }
 
 export interface Violation {
@@ -65,8 +71,9 @@ export function findForbidden(
   rules: ContentRule[] = FORBIDDEN_RULES,
 ): Violation[] {
   const found: Violation[] = []
-  for (const { source, field, text } of fields) {
+  for (const { source, field, text, exemptRuleIds } of fields) {
     for (const rule of rules) {
+      if (exemptRuleIds?.includes(rule.id)) continue
       const match = rule.pattern.exec(text)
       if (!match) continue
       const start = Math.max(0, match.index - 25)
@@ -100,6 +107,43 @@ export function findOversizedCards(
     }
   }
   return found
+}
+
+interface BlockLike {
+  type: string
+  [key: string]: unknown
+}
+
+// Campos de texto de um bloco do contrato `blocks` (RC.3.1 a RC.3.3), pra o
+// teste de conteúdo varrer o que o aluno vê. `long` marca texto corrido
+// (sujeito ao teto de cartão).
+export function blockTextFields(
+  source: string,
+  phase: string,
+  blocks: readonly BlockLike[],
+): { field: TextField; long: boolean }[] {
+  const out: { field: TextField; long: boolean }[] = []
+  blocks.forEach((block, i) => {
+    const base = `blocks.${phase}[${i}]`
+    const push = (name: string, text: unknown, long = false, exemptRuleIds?: string[]) => {
+      if (typeof text === 'string' && text) {
+        out.push({ field: { source, field: `${base}.${name}`, text, exemptRuleIds }, long })
+      }
+    }
+    if (block.type === 'text') {
+      push('markup', block.markup, true)
+    } else if (block.type === 'check') {
+      push('prompt', block.prompt)
+      push('explanation', block.explanation)
+      if (Array.isArray(block.options)) block.options.forEach((o, j) => push(`options[${j}]`, o))
+    } else if (block.type === 'widget') {
+      const props = (block.props ?? {}) as Record<string, unknown>
+      const exempt = block.widget === 'platform-note' ? PLATFORM_NOTE_EXEMPT_RULE_IDS : undefined
+      push('caption', block.caption)
+      for (const [key, value] of Object.entries(props)) push(`props.${key}`, value, false, exempt)
+    }
+  })
+  return out
 }
 
 export function violationKey(v: Pick<Violation, 'ruleId' | 'source' | 'field'>): string {

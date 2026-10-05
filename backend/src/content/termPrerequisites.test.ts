@@ -29,7 +29,9 @@ describe('pré-requisitos de termos nas lições (RC.1.2)', () => {
       violations.some((v) => v.termId === termId && v.lessonCode === lessonCode)
     expect(has('selic', '0.5')).toBe(true)
     expect(has('cdi', '0.5')).toBe(true)
-    expect(has('ipca', '0.4')).toBe(true)
+    // 0.3 e 0.4 (RC.5.1) definem o IPCA inline com {{IPCA}}: sem aviso.
+    expect(has('ipca', '0.4')).toBe(false)
+    expect(has('ipca', '0.3')).toBe(false)
     expect(has('ipca', '1.3')).toBe(true)
     expect(has('on-pn', '2.3')).toBe(true)
     expect(has('ticker', '2.3')).toBe(true)

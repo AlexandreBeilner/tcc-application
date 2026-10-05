@@ -252,6 +252,20 @@ describe('buildLessonView', () => {
 
     expect(Object.keys(view)).not.toContain('microDecisionCorrectOption')
   })
+
+  it('devolve blocks (RC.3.1): null quando a lição não tem, conteúdo quando tem', () => {
+    expect(buildLessonView(lesson, undefined, progression).blocks).toBeNull()
+
+    const blocks = {
+      schemaVersion: 1 as const,
+      phases: {
+        scenario: [{ type: 'text' as const, markup: 'oi' }],
+        microDecision: [],
+        revelation: [],
+      },
+    }
+    expect(buildLessonView({ ...lesson, blocks }, undefined, progression).blocks).toEqual(blocks)
+  })
 })
 
 describe('unlockedKeysFor', () => {

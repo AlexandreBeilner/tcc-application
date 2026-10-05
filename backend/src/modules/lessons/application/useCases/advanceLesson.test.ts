@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  InvalidMicroDecisionOptionError,
+  CheckpointUnsolvedError,
+  MicroDecisionUnsolvedError,
   LessonLockedError,
   LessonNotFoundError,
   LessonStepOutOfOrderError,
@@ -373,54 +374,69 @@ function buildWithOptions() {
   return { clock, lessonRepository, useCase }
 }
 
-describe('AdvanceLessonUseCase — aposta com acerto/erro real (B.2)', () => {
-  it('persiste selectedOption válido, lido de volta em listProgressForUser', async () => {
-    const { lessonRepository, ...harness } = buildWithOptions()
+describe('AdvanceLessonUseCase — pergunta que só avança ao acertar (RC.2.3)', () => {
+  async function solve(
+    lessonRepository: ReturnType<typeof buildWithOptions>['lessonRepository'],
+    correct: boolean,
+  ) {
+    await lessonRepository.recordMicroDecisionAnswer('u1', 'lo1', {
+      selectedOption: correct ? 0 : 1,
+      correct,
+      answeredAt: new Date(),
+    })
+  }
 
-    await walk(harness, 'u1', 'lo1', 2, { atStep: 2, option: 1 })
-
-    const [progress] = await lessonRepository.listProgressForUser('u1')
-    expect(progress.microDecisionSelectedOption).toBe(1)
-  })
-
-  it('rejeita selectedOption fora do intervalo de microDecisionOptions', async () => {
-    const { useCase } = buildWithOptions()
+  it('errar não avança: sair do passo 1 sem ter acertado devolve MicroDecisionUnsolvedError', async () => {
+    const { lessonRepository, clock, useCase } = buildWithOptions()
+    await walk({ useCase, clock }, 'u1', 'lo1', 1)
+    await solve(lessonRepository, false)
+    clock.tick(STEP_INTERVAL_MS)
 
     await expect(
-      useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 1, selectedOption: 2 }),
-    ).rejects.toBeInstanceOf(InvalidMicroDecisionOptionError)
-  })
-
-  it('devolve microDecisionCorrect/correctOptionLabel na resposta quando selectedOption é enviado (correção da revisão da PR 18)', async () => {
-    const harness = buildWithOptions()
-
-    const acerto = await walk(harness, 'u1', 'lo1', 2, { atStep: 2, option: 0 })
-    expect(acerto).toMatchObject({ microDecisionCorrect: true, correctOptionLabel: 'Sim' })
-
-    const erro = await walk(harness, 'u2', 'lo1', 2, { atStep: 2, option: 1 })
-    expect(erro).toMatchObject({ microDecisionCorrect: false, correctOptionLabel: 'Sim' })
-  })
-
-  it('não devolve microDecisionCorrect/correctOptionLabel quando selectedOption não é enviado', async () => {
-    const harness = buildWithOptions()
-
-    const result = await walk(harness, 'u1', 'lo1', 2)
-
-    expect(result).not.toHaveProperty('microDecisionCorrect')
-    expect(result).not.toHaveProperty('correctOptionLabel')
-  })
-
-  it('persiste selectedOption mesmo quando a mesma chamada já conclui a lição', async () => {
-    const { lessonRepository, ...harness } = buildWithOptions()
-
-    await walk(harness, 'u1', 'lo1', LESSON_UNLOCK_STEP, { atStep: LESSON_UNLOCK_STEP, option: 1 })
-
+      useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2 }),
+    ).rejects.toBeInstanceOf(MicroDecisionUnsolvedError)
     const [progress] = await lessonRepository.listProgressForUser('u1')
-    expect(progress.completedAt).not.toBeNull()
-    expect(progress.microDecisionSelectedOption).toBe(1)
+    expect(progress.currentStep).toBe(1)
   })
 
-  it('ignora selectedOption sem erro pra lição sem opções reais (mantém checkbox)', async () => {
+  it('acertar libera o avanço pro passo 2', async () => {
+    const { lessonRepository, clock, useCase } = buildWithOptions()
+    await walk({ useCase, clock }, 'u1', 'lo1', 1)
+    await solve(lessonRepository, true)
+    clock.tick(STEP_INTERVAL_MS)
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 2 })
+
+    expect(result).toEqual({ currentStep: 2, completed: false })
+  })
+
+  it('quem já estava no passo 2 sem pergunta resolvida (antes do deploy) não é afetado', async () => {
+    const { lessonRepository, clock, useCase } = buildWithOptions()
+    await lessonRepository.upsertProgress('u1', 'lo1', { currentStep: 2, completedAt: null })
+    clock.tick(STEP_INTERVAL_MS)
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'lo1', step: 3 })
+
+    expect(result).toMatchObject({ currentStep: 3, completed: true })
+  })
+
+  it('selectedOption em /progress é ignorado: não grava e não devolve veredito nem gabarito', async () => {
+    const { lessonRepository, clock, useCase } = buildWithOptions()
+    await walk({ useCase, clock }, 'u1', 'lo1', 1)
+
+    const result = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'lo1',
+      step: 1,
+      selectedOption: 0,
+    })
+
+    expect(result).toEqual({ currentStep: 1, completed: false })
+    const [progress] = await lessonRepository.listProgressForUser('u1')
+    expect(progress.microDecisionSelectedOption).toBeNull()
+  })
+
+  it('lição sem pergunta com alternativas não tem gate', async () => {
     const { useCase } = build()
 
     const result = await useCase.execute({
@@ -472,6 +488,92 @@ describe('AdvanceLessonUseCase — aposta com acerto/erro real (B.2)', () => {
       await walk(harness, 'u1', 'l2', LESSON_UNLOCK_STEP)
 
       expect(socialFeedRecorder.recorded).toHaveLength(1)
+    })
+  })
+})
+
+describe('AdvanceLessonUseCase: perguntas intermediárias (RC.3.2)', () => {
+  const withChecks = {
+    ...lessons[0],
+    id: 'lc1',
+    sortOrder: 1,
+    blocks: {
+      schemaVersion: 1 as const,
+      phases: {
+        scenario: [
+          {
+            type: 'check' as const,
+            id: 'c1',
+            kind: 'true_false' as const,
+            prompt: 'p',
+            answer: true,
+            explanation: 'e',
+          },
+        ],
+        microDecision: [],
+        revelation: [],
+      },
+    },
+  }
+
+  function buildWithChecks() {
+    const clock = createClock()
+    const lessonRepository = createFakeLessonRepository([withChecks], clock.now)
+    const useCase = new AdvanceLessonUseCase(
+      lessonRepository,
+      createFakeXpAwarder(),
+      createFakeStreakTracker(),
+      createFakeSocialFeedRecorder(),
+      { clock: clock.now },
+    )
+    return { clock, lessonRepository, useCase }
+  }
+
+  it('sair da fase com checkpoint sem resolver devolve CheckpointUnsolvedError e não grava', async () => {
+    const { lessonRepository, clock, useCase } = buildWithChecks()
+    clock.tick(STEP_INTERVAL_MS)
+
+    await expect(
+      useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 }),
+    ).rejects.toBeInstanceOf(CheckpointUnsolvedError)
+    expect(await lessonRepository.listProgressForUser('u1')).toEqual([])
+
+    await lessonRepository.recordCheckpointAnswer('u1', 'lc1', 'c1', {
+      choice: 1,
+      correct: false,
+      answeredAt: clock.now(),
+    })
+    await expect(
+      useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 }),
+    ).rejects.toBeInstanceOf(CheckpointUnsolvedError)
+  })
+
+  it('resolvido o checkpoint, o avanço passa', async () => {
+    const { lessonRepository, clock, useCase } = buildWithChecks()
+    await lessonRepository.recordCheckpointAnswer('u1', 'lc1', 'c1', {
+      choice: 0,
+      correct: true,
+      answeredAt: clock.now(),
+    })
+    clock.tick(STEP_INTERVAL_MS)
+
+    expect(await useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 })).toEqual({
+      currentStep: 1,
+      completed: false,
+    })
+  })
+
+  it('quem já passou da fase (antes do deploy) não é afetado, e reenviar o passo gravado também não', async () => {
+    const { lessonRepository, clock, useCase } = buildWithChecks()
+    await lessonRepository.upsertProgress('u1', 'lc1', { currentStep: 1, completedAt: null })
+    clock.tick(STEP_INTERVAL_MS)
+
+    expect(await useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 1 })).toMatchObject({
+      currentStep: 1,
+    })
+    clock.tick(STEP_INTERVAL_MS)
+    expect(await useCase.execute({ userId: 'u1', lessonId: 'lc1', step: 2 })).toMatchObject({
+      currentStep: 2,
     })
   })
 })

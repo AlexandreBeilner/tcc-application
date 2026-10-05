@@ -1,11 +1,21 @@
 import { apiRequest } from '../client'
-import type { AdvanceLessonResult, GetLessonResult, ListLessonsResult, ReviewLessonResult } from './types'
+import type {
+    AdvanceLessonResult,
+    AnswerCheckpointResult,
+    AnswerMicroDecisionResult,
+    GetLessonResult,
+    ListLessonsResult,
+    ReviewLessonResult,
+} from './types'
 
 export type {
     Lesson,
     ListLessonsResult,
     GetLessonResult,
     AdvanceLessonResult,
+    AnswerCheckpointResult,
+    AnswerMicroDecisionResult,
+    CheckpointState,
     ReviewLessonResult,
     MicroDecisionType,
     UnlockedAchievement,
@@ -19,15 +29,30 @@ export function getLesson(token: string, id: string): Promise<GetLessonResult> {
     return apiRequest<GetLessonResult>(`/lessons/${id}`, { token })
 }
 
-// `selectedOption` (backlog engajamento B.2) — escolha real do passo
-// Micro-decisão, só relevante pra lição com `microDecisionOptions`
-// preenchido. Omitido do corpo (não enviado como `undefined`) quando
-// ausente, pra não alterar o payload das chamadas que não fazem aposta real.
-export function advanceLesson(token: string, id: string, step: number, selectedOption?: number): Promise<AdvanceLessonResult> {
-    return apiRequest<AdvanceLessonResult>(`/lessons/${id}/progress`, {
+// `selectedOption` deixou de viajar aqui na RC.2.3 (o backend o ignora): a
+// escolha da Micro-decisão vai em `answerMicroDecision`.
+export function advanceLesson(token: string, id: string, step: number): Promise<AdvanceLessonResult> {
+    return apiRequest<AdvanceLessonResult>(`/lessons/${id}/progress`, { token, method: 'POST', body: { step } })
+}
+
+// `POST /lessons/:id/answer` (RC.2.3): errar não avança, tentativas ilimitadas;
+// o gabarito (`correctOptionLabel`) só vem quando `correct` é verdadeiro.
+export function answerMicroDecision(token: string, id: string, selectedOption: number): Promise<AnswerMicroDecisionResult> {
+    return apiRequest<AnswerMicroDecisionResult>(`/lessons/${id}/answer`, { token, method: 'POST', body: { selectedOption } })
+}
+
+// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2): `selectedOption`
+// (única escolha, verdadeiro/falso) ou `value` (numérica). A explicação só vem no acerto.
+export function answerCheckpoint(
+    token: string,
+    id: string,
+    checkpointId: string,
+    response: { selectedOption: number } | { value: number },
+): Promise<AnswerCheckpointResult> {
+    return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
         token,
         method: 'POST',
-        body: selectedOption === undefined ? { step } : { step, selectedOption },
+        body: response,
     })
 }
 

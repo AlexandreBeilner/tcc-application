@@ -5,6 +5,7 @@ import { ACHIEVEMENT_SEEDS } from '../db/seedAchievements'
 import { LESSON_SEEDS } from '../db/seedLessons'
 import { MISSION_SEEDS } from '../db/seedMissions'
 import {
+  blockTextFields,
   CARD_HARD_LIMIT_CHARS,
   countByKey,
   diffAgainstBaseline,
@@ -35,6 +36,12 @@ function lessonFields(): { all: TextField[]; longText: TextField[] } {
     lesson.microDecisionOptions?.forEach((option, i) => push(`microDecisionOptions[${i}]`, option))
     push('revelationText', lesson.revelationText, true)
     push('unlocksDescription', lesson.unlocksDescription)
+    for (const [phase, blocks] of Object.entries(lesson.blocks?.phases ?? {})) {
+      for (const { field, long } of blockTextFields(source, phase, blocks)) {
+        all.push(field)
+        if (long) longText.push(field)
+      }
+    }
   }
   return { all, longText }
 }
@@ -121,6 +128,27 @@ describe('conteúdo visível ao usuário (RC.1.1)', () => {
       const ids = findForbidden([{ source: 's', field: 'f', text }]).map((v) => v.ruleId)
       expect(ids, ruleId).toContain(ruleId)
     }
+  })
+
+  it('varre os blocos e isenta só o bloco "Na plataforma" das regras de mecânica', () => {
+    const fields = blockTextFields('lesson:x', 'scenario', [
+      {
+        type: 'widget',
+        widget: 'platform-note',
+        props: { here: 'Selic simulada nesta plataforma' },
+      },
+      { type: 'widget', widget: 'callout', props: { body: 'Selic simulada' } },
+      { type: 'text', markup: 'o motor decide' },
+    ]).map((f) => f.field)
+    const ids = findForbidden(fields).map((v) => `${v.field}:${v.ruleId}`)
+    expect(ids).toEqual([
+      'blocks.scenario[1].props.body:simulado',
+      'blocks.scenario[2].markup:motor',
+    ])
+    const tcc = blockTextFields('l', 'scenario', [
+      { type: 'widget', widget: 'platform-note', props: { why: 'veja o TCC' } },
+    ]).map((f) => f.field)
+    expect(findForbidden(tcc).map((v) => v.ruleId)).toEqual(['tcc'])
   })
 
   it('texto limpo não dispara nenhuma regra', () => {

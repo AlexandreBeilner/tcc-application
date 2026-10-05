@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
-import { advanceLesson, getLesson, listLessons, reviewLesson } from '../../services/lessons'
+import { advanceLesson, answerCheckpoint, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
 import type { AssetDetail, AssetSummary, IndicatorHistoryEntry } from '../../services/market'
@@ -16,6 +16,8 @@ vi.mock('../../services/lessons', () => ({
     getLesson: vi.fn(),
     listLessons: vi.fn(),
     advanceLesson: vi.fn(),
+    answerMicroDecision: vi.fn(),
+    answerCheckpoint: vi.fn(),
     reviewLesson: vi.fn(),
 }))
 vi.mock('../../services/market', () => ({
@@ -158,58 +160,131 @@ describe('Lesson (tela 3.2)', () => {
         expect(screen.queryByRole('group', { name: 'Escolha uma opção' })).not.toBeInTheDocument()
     })
 
-    it('micro-decisão com opções reais exige escolher uma opção antes de habilitar Continuar', async () => {
-        vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
+    describe('pergunta que só avança ao acertar (RC.2.4)', () => {
+        const withOptions = (overrides: Partial<LessonType> = {}) =>
+            lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não', 'Talvez'], ...overrides })
+
+        it('Continuar fica desabilitado até acertar, e Responder só habilita com uma alternativa marcada', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions() })
+
+            renderLesson()
+
+            const responder = await screen.findByRole('button', { name: 'Responder' })
+            expect(responder).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Sim' }))
+            expect(responder).not.toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
         })
 
-        renderLesson()
+        it('errar descarta a alternativa, avisa sem entregar o gabarito, não avança e permite tentar de novo', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions() })
+            vi.mocked(answerMicroDecision).mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [0] })
 
-        const button = await screen.findByRole('button', { name: 'Continuar' })
-        expect(button).toBeDisabled()
+            renderLesson()
 
-        fireEvent.click(screen.getByRole('button', { name: 'Sim' }))
-        expect(button).not.toBeDisabled()
-    })
+            fireEvent.click(await screen.findByRole('button', { name: 'Sim' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
 
-    it('escolher a opção certa envia selectedOption e mostra "Você acertou" na Revelação', async () => {
-        vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
-        })
-        vi.mocked(advanceLesson).mockResolvedValue({
-            currentStep: 2,
-            completed: false,
-            microDecisionCorrect: true,
-            correctOptionLabel: 'Sim',
-        })
-
-        renderLesson()
-
-        fireEvent.click(await screen.findByRole('button', { name: 'Sim' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-
-        await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 2, 0))
-        expect(await screen.findByText('Você acertou')).toBeInTheDocument()
-    })
-
-    it('escolher a opção errada mostra "Quase" com a resposta certa na Revelação', async () => {
-        vi.mocked(getLesson).mockResolvedValue({
-            lesson: lesson({ currentStep: 1, microDecisionOptions: ['Sim', 'Não'] }),
-        })
-        vi.mocked(advanceLesson).mockResolvedValue({
-            currentStep: 2,
-            completed: false,
-            microDecisionCorrect: false,
-            correctOptionLabel: 'Sim',
+            const alert = await screen.findByRole('alert')
+            expect(alert).toHaveTextContent('Ainda não')
+            expect(answerMicroDecision).toHaveBeenCalledWith('token-valido', 'lesson-1', 0)
+            expect(screen.getByRole('button', { name: /Sim/ })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Não' })).not.toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Responder' })).toBeDisabled()
+            expect(advanceLesson).not.toHaveBeenCalled()
+            await waitFor(() => expect(alert).toHaveFocus())
         })
 
-        renderLesson()
+        it('acertar na segunda tentativa trava a pergunta, libera o Continuar e mostra a tentativa', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions() })
+            vi.mocked(answerMicroDecision)
+                .mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [0] })
+                .mockResolvedValueOnce({ correct: true, attempts: 2, firstTry: false, wrongOptions: [0], correctOptionLabel: 'Não' })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Não' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            renderLesson()
 
-        await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 2, 1))
-        expect(await screen.findByText('Quase. A resposta certa era: Sim')).toBeInTheDocument()
+            fireEvent.click(await screen.findByRole('button', { name: 'Sim' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByRole('alert')
+            fireEvent.click(screen.getByRole('button', { name: 'Não' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Talvez' })).toBeDisabled()
+            expect(screen.queryByRole('button', { name: 'Responder' })).not.toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 2))
+            expect(await screen.findByText('Você acertou na 2ª tentativa')).toBeInTheDocument()
+        })
+
+        it('acertar de primeira mostra o selo "de primeira" na Revelação', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions() })
+            vi.mocked(answerMicroDecision).mockResolvedValue({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                correctOptionLabel: 'Sim',
+            })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Sim' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            expect(await screen.findByText('Acertou de primeira.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Você acertou de primeira')).toBeInTheDocument()
+        })
+
+        it('restaura a tela ao recarregar: erros já gravados desativados e pergunta resolvida travada', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions({ microDecisionWrongOptions: [1] }) })
+
+            const { unmount } = renderLesson()
+            expect(await screen.findByRole('button', { name: /Não/ })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Sim' })).not.toBeDisabled()
+            unmount()
+
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions({ microDecisionSolved: true, microDecisionWrongOptions: [1] }) })
+            renderLesson()
+
+            expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Sim' })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('falha de rede ao responder mostra erro e não descarta a alternativa', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withOptions() })
+            vi.mocked(answerMicroDecision).mockRejectedValue(new Error('rede'))
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Sim' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Não foi possível enviar sua resposta agora. Tente de novo.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Sim' })).not.toBeDisabled()
+        })
+
+        it('revisão de lição concluída não trava o Continuar e a resposta certa não grava nada', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withOptions({ status: 'completed', currentStep: 3, microDecisionSolved: true }),
+            })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Sim' })).not.toBeDisabled()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
     })
 
     it('lição sem opções reais não mostra badge de acerto/erro na Revelação (regressão)', async () => {
@@ -570,5 +645,322 @@ describe('Lesson (tela 3.2)', () => {
         expect(
             await screen.findByText('Não foi possível carregar esta lição agora. Ela pode estar bloqueada ou não existir.'),
         ).toBeInTheDocument()
+    })
+
+    describe('botão Voltar (RC.2.2)', () => {
+        const voltar = () => screen.getByRole('button', { name: /^Voltar ao/ })
+
+        it('não aparece no primeiro cartão do Cenário', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+
+            renderLesson()
+
+            await screen.findByText('Cenário')
+            expect(screen.queryByRole('button', { name: /^Voltar ao/ })).not.toBeInTheDocument()
+        })
+
+        it('volta entre cartões da mesma fase', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+            })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+
+            fireEvent.click(voltar())
+            expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
+        })
+
+        it('volta pro último cartão da fase anterior e reavançar não chama o servidor de novo', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nÚltimo do cenário.' }),
+            })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(advanceLesson).toHaveBeenCalledTimes(1)
+
+            fireEvent.click(voltar())
+            expect(await screen.findByText('Último do cenário.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(advanceLesson).toHaveBeenCalledTimes(1)
+        })
+
+        it('seta esquerda volta e seta direita continua', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+            })
+
+            renderLesson()
+
+            await screen.findByText('Primeiro cartão.')
+            fireEvent.keyDown(window, { key: 'ArrowRight' })
+            expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+            fireEvent.keyDown(window, { key: 'ArrowLeft' })
+            expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
+        })
+
+        it('lição retomada no meio deixa voltar às fases anteriores e reavançar sem POST', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+
+            renderLesson()
+
+            await screen.findByText('Revelação')
+            fireEvent.click(voltar())
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Revelação')).toBeInTheDocument()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
+
+        it('voltar pra pergunta já respondida não pede escolha de novo nem deixa trocar a resposta', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2, microDecisionOptions: ['Sim', 'Não'] }) })
+
+            renderLesson()
+
+            await screen.findByText('Revelação')
+            fireEvent.click(voltar())
+
+            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Sim' })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+    })
+
+    describe('conteúdo por blocos (RC.3.1)', () => {
+        const blocks = (overrides: Record<string, unknown> = {}) => ({
+            schemaVersion: 1,
+            phases: {
+                scenario: [
+                    { type: 'text', markup: 'Texto do bloco.' },
+                    {
+                        type: 'widget',
+                        id: 'dica',
+                        widget: 'callout',
+                        props: { tone: 'tip', title: 'Dica de bloco', body: 'Corpo da dica' },
+                    },
+                ],
+                microDecision: [],
+                revelation: [],
+                ...overrides,
+            },
+        })
+
+        it('lição com blocks mostra texto e widget como cartões, no lugar do texto legado', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0, blocks: blocks() }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Texto do bloco.')).toBeInTheDocument()
+            expect(screen.queryByText('Espalhar capital reduz risco')).not.toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Dica de bloco')).toBeInTheDocument()
+            expect(screen.getByText('Corpo da dica')).toBeInTheDocument()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
+
+        it('fase sem blocos continua no texto legado, mesmo com blocks nas outras', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2, blocks: blocks() }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Diversificar reduz o risco não sistemático')).toBeInTheDocument()
+        })
+
+        it('blocks fora do contrato cai no texto legado', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0, blocks: { schemaVersion: 9 } }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Espalhar capital reduz risco')).toBeInTheDocument()
+        })
+
+        it('widget desconhecido num bloco não derruba a lição: mostra o fallback e segue', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 0,
+                    blocks: blocks({
+                        scenario: [{ type: 'widget', id: 'x', widget: 'nao-existe', props: {}, caption: 'Texto de reserva' }],
+                    }),
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByText('Texto de reserva')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument()
+        })
+
+        it('widget do registro na Micro-decisão (growth-calculator) substitui o legado, sem duplicar', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 1,
+                    blocks: blocks({ microDecision: [{ type: 'widget', id: 'calc', widget: 'growth-calculator', props: {} }] }),
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByRole('group', { name: /Calculadora de juros/ })).toBeInTheDocument()
+            expect(screen.getAllByRole('group', { name: /Calculadora de juros/ })).toHaveLength(1)
+        })
+    })
+
+    describe('perguntas intermediárias (RC.3.2)', () => {
+        const check = { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] }
+        const numeric = { type: 'check', id: 'q2', kind: 'numeric', prompt: 'Qual a taxa equivalente?', unit: '%' }
+        const withChecks = (scenario: unknown[], overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                blocks: { schemaVersion: 1, phases: { scenario, microDecision: [], revelation: [] } },
+                ...overrides,
+            })
+
+        it('Continuar fica travado até acertar; errar desativa a alternativa e não avança', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([check]) })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [0] })
+
+            renderLesson()
+
+            expect(await screen.findByText('Qual rende mais?')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+            fireEvent.click(screen.getByRole('button', { name: 'LCI' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Ainda não')
+            expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'q1', { selectedOption: 0 })
+            expect(screen.getByRole('button', { name: /LCI/ })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
+
+        it('acertar mostra a explicação, libera o Continuar e avança a fase', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([check]) })
+            vi.mocked(answerCheckpoint).mockResolvedValue({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'O CDB líquido vence.',
+            })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'CDB' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Acertou de primeira.')).toBeInTheDocument()
+            expect(screen.getByText('O CDB líquido vence.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
+        })
+
+        it('numérica envia o valor (aceita vírgula) e mostra a tentativa', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([numeric]) })
+            vi.mocked(answerCheckpoint)
+                .mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [] })
+                .mockResolvedValueOnce({ correct: true, attempts: 2, firstTry: false, wrongOptions: [], explanation: '9,50 / 0,775.' })
+
+            renderLesson()
+
+            const input = await screen.findByLabelText(/Sua resposta/)
+            fireEvent.change(input, { target: { value: '9,5' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            expect(await screen.findByRole('alert')).toHaveTextContent('Confira a conta')
+            expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'q2', { value: 9.5 })
+
+            fireEvent.change(input, { target: { value: '12,26' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withChecks([check], {
+                    checkpoints: [{ checkpointId: 'q1', solved: false, attempts: 1, wrongOptions: [0], firstTry: false }],
+                }),
+            })
+
+            const { unmount } = renderLesson()
+            expect(await screen.findByRole('button', { name: /LCI/ })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'CDB' })).not.toBeDisabled()
+            unmount()
+
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withChecks([check], {
+                    checkpoints: [{ checkpointId: 'q1', solved: true, attempts: 2, wrongOptions: [0], firstTry: false }],
+                }),
+            })
+            renderLesson()
+
+            expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('revisão de lição concluída não trava o Continuar na pergunta', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withChecks([check], {
+                    status: 'completed',
+                    currentStep: 3,
+                    checkpoints: [{ checkpointId: 'q1', solved: true, attempts: 1, wrongOptions: [], firstTry: true }],
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByText('Qual rende mais?')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'LCI' })).not.toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
+        })
+
+        it('falha de rede mostra o erro e mantém a pergunta como estava', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([check]) })
+            vi.mocked(answerCheckpoint).mockRejectedValue(new Error('rede'))
+
+            renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'LCI' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Não foi possível enviar sua resposta agora. Tente de novo.')).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: /LCI/ })).not.toBeDisabled()
+        })
+
+        it('suporta 7 perguntas na mesma fase, cada uma num cartão', async () => {
+            const seven = Array.from({ length: 7 }, (_, i) => ({ type: 'check', id: `q${i}`, kind: 'true_false', prompt: `Pergunta ${i}` }))
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks(seven) })
+            vi.mocked(answerCheckpoint).mockResolvedValue({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'ok',
+            })
+
+            renderLesson()
+
+            for (let i = 0; i < 7; i++) {
+                expect(await screen.findByText(`Pergunta ${i}`)).toBeInTheDocument()
+                fireEvent.click(screen.getByRole('button', { name: 'Verdadeiro' }))
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+                await screen.findByText('Acertou de primeira.')
+                if (i < 6) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            }
+            expect(advanceLesson).not.toHaveBeenCalled()
+        })
     })
 })

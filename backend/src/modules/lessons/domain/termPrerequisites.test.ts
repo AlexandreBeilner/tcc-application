@@ -1,18 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import { findTermViolations, type TermRule } from './termPrerequisites'
 
-const rule: TermRule = { id: 'x', label: 'termoX', pattern: /termox/i, definedIn: 'B', glossaryKeys: ['termoX'] }
+const rule: TermRule = {
+  id: 'x',
+  label: 'termoX',
+  pattern: /termox/i,
+  definedIn: 'B',
+  glossaryKeys: ['termoX'],
+}
 const lessons = (texts: Record<string, string>) =>
   Object.entries(texts).map(([code, text], i) => ({ code, sortOrder: i + 1, text }))
 
 describe('findTermViolations', () => {
   it('acusa uso antes da lição que define o termo', () => {
-    const v = findTermViolations(lessons({ A: 'fala de termoX', B: 'define termoX', C: 'usa termoX' }), [rule])
+    const v = findTermViolations(
+      lessons({ A: 'fala de termoX', B: 'define termoX', C: 'usa termoX' }),
+      [rule],
+    )
     expect(v.map((x) => x.lessonCode)).toEqual(['A'])
   })
 
   it('aceita definição inline pelo glossário', () => {
-    expect(findTermViolations(lessons({ A: 'fala de {{termoX}}', B: 'define' }), [rule])).toEqual([])
+    expect(findTermViolations(lessons({ A: 'fala de {{termoX}}', B: 'define' }), [rule])).toEqual(
+      [],
+    )
   })
 
   it('termo sem lição definidora acusa todo uso', () => {
