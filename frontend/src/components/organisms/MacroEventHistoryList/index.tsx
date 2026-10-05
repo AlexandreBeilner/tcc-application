@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+import { PHASE_LABELS, phaseOf } from '../../../features/admin/macroEventLifecycle'
 import { formatSignedPercent } from '../../../features/market/format'
 import { resolveTargets } from '../../../features/news/resolveTargets'
 import type { MacroEvent } from '../../../services/admin'
@@ -47,15 +49,13 @@ export function MacroEventHistoryList({ events, assetLabels = {}, onSelectAsset 
     return (
         <ul className={styles.list}>
             {events.map((event) => {
-                const applied = event.status === 'aplicado'
+                const phase = phaseOf(event)
 
                 return (
                     <li key={event.id}>
                         <details className={styles.item}>
                             <summary className={styles.summary}>
-                                <span className={`${styles.statusBadge} ${applied ? styles.statusAplicado : styles.statusPendente}`}>
-                                    {applied ? 'Aplicado' : 'Pendente'}
-                                </span>
+                                <span className={`${styles.statusBadge} ${styles[`status_${phase}`]}`}>{PHASE_LABELS[phase]}</span>
                                 <span className={styles.title}>{event.title}</span>
                                 <span className={styles.date}>{dateFormatter.format(new Date(event.created_at))}</span>
                                 <span className={`${styles.direction} ${directionClass(event.direction)}`}>
@@ -68,7 +68,9 @@ export function MacroEventHistoryList({ events, assetLabels = {}, onSelectAsset 
 
                                 <div className={styles.meta}>
                                     <span>Magnitude: {MAGNITUDE_LABELS[event.magnitude_band]}</span>
-                                    <span>Disparado no dia simulado {event.triggered_on_day}</span>
+                                    <span>
+                                        {phase === 'agendado' ? 'Efeito começa' : 'Efeito desde'} o dia simulado {event.triggered_on_day}
+                                    </span>
                                     {event.template_key && <span>Template: {event.template_key}</span>}
                                     {event.affects_price && event.price_effect_pct !== undefined && (
                                         <span className={`tabular-nums ${directionClass(event.direction)}`}>
@@ -81,6 +83,11 @@ export function MacroEventHistoryList({ events, assetLabels = {}, onSelectAsset 
                                         </span>
                                     )}
                                 </div>
+
+                                <Link to={`/admin/eventos/${event.id}`} className={styles.detailLink}>
+                                    Ver detalhe
+                                    {event.cancellable ? ' e cancelar' : ''}
+                                </Link>
 
                                 {event.targets.length > 0 && (
                                     <div className={styles.targets}>

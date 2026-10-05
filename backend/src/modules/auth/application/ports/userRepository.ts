@@ -1,4 +1,4 @@
-import type { User, UserRole } from '../../domain/user'
+import type { User, UserRole, UserStatus } from '../../domain/user'
 
 export interface NewUserInput {
   name: string
@@ -36,6 +36,10 @@ export interface UpdateUserInput {
   // `null` limpa o avatar (não usado nesta sessão — 6.10.8 cobre só upload,
   // sem remoção); `UploadAvatarUseCase` sempre passa uma string nova.
   avatarPath?: string | null
+  // Suspensão (N.16): `status`, motivo e instante andam juntos.
+  status?: UserStatus
+  suspendedReason?: string | null
+  suspendedAt?: Date | null
 }
 
 export interface UserRepository {
@@ -52,4 +56,7 @@ export interface UserRepository {
   // Usada só por AnonymizeAccountUseCase — "excluir conta" (tela 9.3) tira
   // todos os provedores conectados, não desconecta um por vez.
   deleteIdentitiesForUser(userId: string): Promise<void>
+  // Incrementa `token_version` de forma atômica (forçar logout, N.16) e devolve
+  // a versão nova. Todo token emitido antes passa a ser recusado.
+  revokeSessions(userId: string): Promise<number>
 }

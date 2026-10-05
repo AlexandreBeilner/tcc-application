@@ -11,15 +11,19 @@ import (
 	_ "time/tzdata" // fuso da agenda (America/Sao_Paulo) sem depender do tzdata da imagem
 
 	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/botadmin"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/coverage"
+	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/ipca"
+	"tcc-investimentos/engine/internal/domain/macroeventadmin"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
 	"tcc-investimentos/engine/internal/domain/marketcalendar"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/tick"
+	"tcc-investimentos/engine/internal/domain/tradinghalt"
 	"tcc-investimentos/engine/internal/infra/cache"
 	"tcc-investimentos/engine/internal/infra/db"
 	"tcc-investimentos/engine/internal/infra/httpserver"
@@ -154,22 +158,77 @@ func main() {
 	// plano enquanto o servidor HTTP atende requisições; POST /admin/tick
 	// (handleAdminTick) dispara o mesmo Run fora da agenda. A trava consultiva do
 	// Postgres (Guard) serializa os dois e as instâncias entre si.
-	tickService.WithGuard(tickRepository)
+	// Histórico de ticks e pausa em runtime (tarefa N.6): cada tick grava uma linha
+	// em tick_runs; a pausa vive em scheduler_control e só vale pro tick agendado.
+	tickService.WithGuard(tickRepository).WithRunRecorder(tickRepository)
+	schedulerControl := db.NewSchedulerControlRepository(pool)
 	calendarRepository := db.NewCalendarRepository(pool)
 	calendarAPI := &httpserver.CalendarAPI{
 		Service:        marketcalendar.NewService(calendarRepository, calendarRepository),
 		DaysPerRealDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
 	}
-	if scheduleCfg, enabled := loadScheduleConfig(); enabled {
-		calendarAPI.NextTick = scheduleCfg.NextSlotStart
+	scheduleCfg, scheduleEnabled := loadScheduleConfig()
+	// Ritmo editável pelo painel (N.7): o ambiente é o padrão; o que o admin gravar em
+	// engine_settings vale por cima, sem reiniciar o motor.
+	settingsService := enginesetting.NewService(db.NewEngineSettingsRepository(pool), enginesetting.Values{
+		TicksPerDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
+		MaxCatchUp:  envInt("TICK_MAX_CATCHUP", 3),
+	})
+	calendarAPI.Current = settingsService.Current
+	schedulerAdmin := &httpserver.SchedulerAdminAPI{
+		Control:     schedulerControl,
+		Runs:        tickRepository,
+		Advancer:    tickService,
+		Enabled:     scheduleEnabled,
+		TicksPerDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5),
+		MaxCatchUp:  envInt("TICK_MAX_CATCHUP", 3),
+		Timezone:    schedulerTimezone(),
+		Current:     settingsService.Current,
+		LastTickAt:  tickRepository.LastTickAt,
+		// Sonda da trava consultiva: se não dá pra pegá-la, há um tick rodando.
+		InProgress: func(ctx context.Context) (bool, error) {
+			release, ok, err := tickRepository.TryLockTick(ctx)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				release()
+			}
+			return !ok, nil
+		},
+	}
+	if scheduleEnabled {
+		// A agenda é remontada a cada leitura: o fuso é fixo, o ritmo vem das configurações.
+		liveConfig := func(ctx context.Context) (scheduler.Config, error) {
+			values, err := settingsService.Current(ctx)
+			if err != nil {
+				return scheduler.Config{}, err
+			}
+			return scheduler.Config{Location: scheduleCfg.Location, TicksPerDay: values.TicksPerDay, MaxCatchUp: values.MaxCatchUp}, nil
+		}
+		nextSlot := func(now time.Time) time.Time {
+			cfg, err := liveConfig(context.Background())
+			if err != nil {
+				cfg = scheduleCfg
+			}
+			return cfg.NextSlotStart(now)
+		}
+		calendarAPI.NextTick = nextSlot
+		schedulerAdmin.NextSlot = nextSlot
 		tickerCtx, stopTicker := context.WithCancel(context.Background())
 		defer stopTicker()
-		go scheduler.Run(tickerCtx, scheduleCfg, time.Now, tickService.RunScheduled)
+		go scheduler.Run(tickerCtx, liveConfig, time.Now, tickService.RunScheduled, schedulerControl)
 	} else {
 		log.Print("agenda automática do Temporizador desligada (TICK_SCHEDULER_ENABLED=false)")
 	}
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI); err != nil {
+	// Gestão de bots do painel (N.1): cobertura reaproveita o repositório de P.1 e o
+	// cancelamento de ordens o mesmo serviço da N.10.
+	adminOrderService := orderexecution.NewAdminService(orderExecutionRepository)
+	botAdminRepository := db.NewBotAdminRepository(pool)
+	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
+
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }
@@ -185,16 +244,21 @@ func loadScheduleConfig() (scheduler.Config, bool) {
 		return scheduler.Config{}, false
 	}
 	cfg := scheduler.Config{TicksPerDay: envInt("SIMULATION_DAYS_PER_REAL_DAY", 5), MaxCatchUp: envInt("TICK_MAX_CATCHUP", 3)}
-	zone := os.Getenv("SCHEDULER_TIMEZONE")
-	if zone == "" {
-		zone = "America/Sao_Paulo"
-	}
+	zone := schedulerTimezone()
 	loc, err := time.LoadLocation(zone)
 	if err != nil {
 		log.Fatalf("SCHEDULER_TIMEZONE inválida: %v", err)
 	}
 	cfg.Location = loc
 	return cfg, true
+}
+
+// schedulerTimezone é o fuso da agenda (SCHEDULER_TIMEZONE, padrão America/Sao_Paulo).
+func schedulerTimezone() string {
+	if zone := os.Getenv("SCHEDULER_TIMEZONE"); zone != "" {
+		return zone
+	}
+	return "America/Sao_Paulo"
 }
 
 func envInt(name string, fallback int) int {
