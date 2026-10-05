@@ -25,12 +25,12 @@ import styles from './index.module.css'
 
 const TOTAL_STEPS = 4
 
-// Widget do passo Micro-decisão que não precisa do checkbox "já pensei" —
-// os dois embutem um componente já existente (tarefa 6.7) que já traz sua
-// própria interação. Os outros três (`reflection`, `live_indicator`,
-// `live_macro_indicator`) mantêm o checkbox (tarefa 7.0.2/M.5 — a
-// revelação desses dois últimos busca o indicador ao vivo, mas a
-// micro-decisão em si continua sendo reflexão).
+// Widget do passo Micro-decisão que traz a própria interação (tarefa 6.7),
+// então a pergunta com opções reais (`hasQuestionGate`) não se aplica a ele.
+// Os outros três (`reflection`, `live_indicator`, `live_macro_indicator`)
+// usam a pergunta normalmente (tarefa 7.0.2/M.5 — a revelação dos dois
+// últimos busca o indicador ao vivo, mas a micro-decisão em si continua
+// sendo uma pergunta).
 const EMBEDDED_WIDGET_TYPES = new Set<LessonType['microDecisionType']>(['growth_calculator', 'fixed_income_comparison'])
 
 // Widgets legados por `microDecisionType` (lição sem `blocks`) passam pelo

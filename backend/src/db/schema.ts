@@ -41,8 +41,8 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'lesson_reviewed',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
-// padrão (checkbox "já pensei"); os outros três embutem um componente já
-// existente (tarefa 6.7) em vez do checkbox. Ver `domain/lesson.ts` pro
+// padrão (sem widget embutido); os outros três embutem um componente já
+// existente (tarefa 6.7) junto da pergunta. Ver `domain/lesson.ts` pro
 // vocabulário completo e `frontend/src/pages/Lesson/index.tsx` pro switch.
 export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'reflection',

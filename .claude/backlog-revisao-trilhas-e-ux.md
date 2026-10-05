@@ -374,10 +374,11 @@ colunas.
   `docker compose up` nesta sessão); a composição foi definida só em CSS e precisa de uma olhada no navegador antes
   de fechar. (b) Não apliquei a linha "Faltam N lições" opcional da proposta.
 
-### RC.2.6 · Limpeza de comentários e tipos obsoletos
+### RC.2.6 · Limpeza de comentários e tipos obsoletos ✅ concluída (2026-10-04)
 
 - `pages/Lesson/index.tsx:33-38` e `domain/lesson.ts:24-27` citam um checkbox "já pensei" que não existe. Corrigir
   na primeira tarefa que tocar nesses arquivos.
+- **Entregável:** comentários que descreviam um checkbox "já pensei" inexistente reescritos em `frontend/src/pages/Lesson/index.tsx`, `frontend/src/services/lessons/types.ts`, `backend/src/modules/lessons/domain/lesson.ts` e `backend/src/db/schema.ts` (só comentário, sem mudança de comportamento). Ficam de propósito as menções históricas em `schema.ts` (B.1) e `seedLessons.ts` (auditoria B.4). Validou: `tsc --noEmit` nos dois pacotes e `prettier --check`.
 
 ---
 

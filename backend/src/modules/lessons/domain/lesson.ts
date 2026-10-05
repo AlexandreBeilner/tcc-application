@@ -24,9 +24,9 @@ export const LESSON_XP_REWARD = 50
 export type LessonStatus = 'completed' | 'available' | 'locked'
 
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — espelha o enum
-// `lesson_micro_decision_type` do schema. 'reflection' é o padrão (checkbox
-// "já pensei"); os outros embutem um componente já existente (tarefa 6.7)
-// no frontend em vez do checkbox.
+// `lesson_micro_decision_type` do schema. 'reflection' é o padrão (sem widget
+// embutido); os outros embutem um componente já existente (tarefa 6.7) no
+// frontend, junto da pergunta.
 export type MicroDecisionType =
   | 'reflection'
   | 'growth_calculator'
@@ -129,8 +129,8 @@ export interface LessonSummary {
   // Desbloqueio (tarefa 7.0.2, achado 6).
   unlocksAssetTicker: string | null
   // Aposta com acerto/erro real (backlog engajamento B.1) — `null` nos dois
-  // campos é o estado normal de hoje (checkbox "já pensei" no passo
-  // Micro-decisão); só uma lição com as duas colunas preenchidas (autoria é
+  // campos é o estado normal de hoje (passo Micro-decisão sem
+  // pergunta); só uma lição com as duas colunas preenchidas (autoria é
   // a B.4) troca pro widget de escolha real (B.3).
   microDecisionOptions: string[] | null
   microDecisionCorrectOption: number | null
