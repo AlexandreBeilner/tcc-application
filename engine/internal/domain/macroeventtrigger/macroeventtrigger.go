@@ -78,6 +78,10 @@ type Request struct {
 	// futuro (macroevent.ValidateApplyDay). nil dispara já: o efeito começa no
 	// próximo tick (currentDay+1). O evento fica pendente até lá.
 	ApplyOnDay *int
+	// RevealLeadDays (tarefa N.25) é com quantos dias de antecedência do primeiro dia de
+	// efeito o jogador passa a ver o evento (macroevent.ValidateRevealLead). nil usa
+	// macroevent.DefaultRevealLeadDays (a véspera), o comportamento de sempre.
+	RevealLeadDays *int
 }
 
 // Repository é o colaborador que Service precisa pra ler o dia simulado
@@ -197,6 +201,12 @@ func (s *Service) Trigger(ctx context.Context, req Request) (string, macroevent.
 			return "", macroevent.Event{}, err
 		}
 		event.TriggeredOnDay = *req.ApplyOnDay
+	}
+	if req.RevealLeadDays != nil {
+		if err := macroevent.ValidateRevealLead(*req.RevealLeadDays, event.TriggeredOnDay, currentDay); err != nil {
+			return "", macroevent.Event{}, err
+		}
+		event.RevealLeadDays = *req.RevealLeadDays
 	}
 
 	durationDays, err := macroevent.DurationDays(event.MagnitudeBand)

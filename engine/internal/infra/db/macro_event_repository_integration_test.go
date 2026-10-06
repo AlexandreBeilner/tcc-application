@@ -222,3 +222,76 @@ func TestMacroEventRepository_CicloDeVidaEVisoes(t *testing.T) {
 		t.Errorf("StockPrices = %+v, %v", prices, err)
 	}
 }
+
+// Antecedência de aparição por evento (N.25) contra um Postgres real descartável: a mesma
+// regra de macroevent.IsPubliclyVisible vale no feed (List/Count) e no calendário
+// (MacroEventsBetween), a coluna volta no Find e o padrão é a véspera.
+func TestMacroEventRepository_AntecedenciaDeAparicao(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	repo := NewMacroEventRepository(conn)
+	if _, err := conn.ExecContext(ctx, `INSERT INTO market_calendar (id, current_day, selic_rate) VALUES (1, 100, 10.5)
+	      ON CONFLICT (id) DO UPDATE SET current_day = 100`); err != nil {
+		t.Fatal(err)
+	}
+
+	sector := catalog.SectorMineracao
+	persist := func(title string, triggeredOnDay, lead int) string {
+		t.Helper()
+		target, err := macroevent.NewTarget(&sector, nil, nil, macroevent.MetricPrice, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		event, err := macroevent.NewEvent(nil, title, "narrativa", macroevent.DirectionPositivo, macroevent.BandLeve, true, false, []macroevent.Target{target}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		event.TriggeredOnDay, event.DurationDays, event.RevealLeadDays = triggeredOnDay, 1, lead
+		id, err := repo.Persist(ctx, event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	persist("padrão a 30 dias", 130, macroevent.DefaultRevealLeadDays)
+	persist("antecedência 5, a 5 dias", 105, 5)
+	persist("antecedência 5, a 6 dias", 106, 5)
+	persist("antecedência 0, começa amanhã", 101, 0)
+	persist("padrão, começa amanhã", 101, macroevent.DefaultRevealLeadDays)
+	withLead := persist("antecedência 40, a 30 dias", 130, 40)
+
+	records, err := repo.List(ctx, macroevent.ListFilter{View: macroevent.ViewPublic, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, r := range records {
+		got[r.Title] = true
+	}
+	// "antecedência 40" aparece porque a coluna não limita (o domínio limita ao agendar).
+	want := map[string]bool{"antecedência 5, a 5 dias": true, "padrão, começa amanhã": true, "antecedência 40, a 30 dias": true}
+	if len(got) != len(want) {
+		t.Fatalf("visão pública = %v, want %v", got, want)
+	}
+	for title := range want {
+		if !got[title] {
+			t.Errorf("visão pública = %v, falta %q", got, title)
+		}
+	}
+	if count, err := repo.Count(ctx, macroevent.ListFilter{View: macroevent.ViewPublic}); err != nil || count != 3 {
+		t.Errorf("Count público = %d, %v, want 3", count, err)
+	}
+	if count, err := repo.Count(ctx, macroevent.ListFilter{View: macroevent.ViewAdmin}); err != nil || count != 6 {
+		t.Errorf("Count do painel = %d, %v, want 6", count, err)
+	}
+
+	facts, err := NewCalendarRepository(conn).MacroEventsBetween(ctx, 0, 500)
+	if err != nil || len(facts) != 3 {
+		t.Fatalf("calendário = %+v, %v, want 3 eventos", facts, err)
+	}
+
+	rec, err := repo.Find(ctx, withLead)
+	if err != nil || rec.RevealLeadDays != 40 {
+		t.Errorf("Find = %+v, %v, want RevealLeadDays 40", rec.RevealLeadDays, err)
+	}
+}

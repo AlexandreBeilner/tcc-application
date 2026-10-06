@@ -20,7 +20,31 @@ var (
 	ErrApplyDayTooFar = errors.New("o dia de aplicação passa do limite de agendamento")
 	ErrNotPending     = errors.New("só um evento pendente pode ser cancelado")
 	ErrEffectStarted  = errors.New("o evento já começou a produzir efeito e não pode mais ser cancelado")
+
+	ErrRevealLeadNegative = errors.New("a antecedência de aparição não pode ser negativa")
+	ErrRevealLeadTooLong  = errors.New("a antecedência de aparição passa dos dias que faltam até o primeiro dia de efeito")
 )
+
+// DefaultRevealLeadDays é a antecedência padrão de aparição de um evento: a véspera do
+// primeiro dia de efeito, a mesma de um disparo imediato (que já aparece um tick antes de
+// produzir efeito). É o valor de todo evento anterior à N.25 e de todo evento em que o
+// admin não escolhe.
+const DefaultRevealLeadDays = 1
+
+// ValidateRevealLead confere a antecedência de aparição escolhida pelo admin (N.25,
+// achado 035): inteiro de 0 até os dias que faltam entre o dia corrente e o primeiro dia
+// de efeito. 0 significa "só aparece quando o efeito já começou". Passar de
+// triggeredOnDay-currentDay seria equivalente a "já visível", e recusar evita um valor que
+// parece mandar mais do que manda.
+func ValidateRevealLead(revealLeadDays, triggeredOnDay, currentDay int) error {
+	if revealLeadDays < 0 {
+		return ErrRevealLeadNegative
+	}
+	if revealLeadDays > triggeredOnDay-currentDay {
+		return ErrRevealLeadTooLong
+	}
+	return nil
+}
 
 // ValidateApplyDay confere o dia de aplicação de um evento agendado: o primeiro dia
 // que um tick futuro avalia é currentDay+1, e o teto é MaxScheduleAheadDays à frente.
@@ -54,12 +78,13 @@ func CanCancel(status Status, triggeredOnDay, currentDay int) error {
 }
 
 // IsPubliclyVisible diz se o usuário já pode ver o evento no feed e no calendário.
-// Cancelado nunca aparece. Um evento agendado só aparece na véspera do primeiro dia
-// de efeito (triggeredOnDay <= currentDay+1), a mesma antecedência de um disparo
-// imediato; antes disso, mostrar título e narrativa entregaria o evento com semanas
-// de aviso.
-func IsPubliclyVisible(status Status, triggeredOnDay, currentDay int) bool {
-	return status != StatusCancelado && triggeredOnDay <= currentDay+1
+// Cancelado nunca aparece. Um evento aparece a partir de revealLeadDays dias antes do
+// primeiro dia de efeito (triggeredOnDay <= currentDay+revealLeadDays); com o padrão
+// (DefaultRevealLeadDays, a véspera) é a mesma antecedência de um disparo imediato.
+// Antes disso, mostrar título e narrativa entregaria o evento com semanas de aviso
+// (RF16), que só o admin pode escolher (N.25).
+func IsPubliclyVisible(status Status, triggeredOnDay, revealLeadDays, currentDay int) bool {
+	return status != StatusCancelado && triggeredOnDay <= currentDay+revealLeadDays
 }
 
 // View escolhe quem está lendo o histórico.
