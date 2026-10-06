@@ -205,3 +205,37 @@ func PoolCycles(p Policy) int {
 		return 1
 	}
 }
+
+// legacyPaymentLagDays é o atraso corrido do pagamento no relógio global antigo
+// (catalog.DefaultPaymentLagDays), usado nos ciclos sem agenda.
+const legacyPaymentLagDays = catalog.DefaultPaymentLagDays
+
+// EquityCycle é a agenda de provento do balanço de um ciclo de uma empresa.
+type EquityCycle struct {
+	Report int  // dia do balanço (declaração)
+	Ex     int  // data-ex
+	Pay    int  // dia de pagamento
+	Pays   bool // o balanço paga provento
+	// PoolCycles é quantos ciclos de lucro entram no valor pago (1 quando trimestral).
+	PoolCycles int
+}
+
+// EquityCycleAt resolve a agenda do ciclo cycleIndex. Empresa sem agenda atribuída
+// (assigned = false) ou ciclo que fechou antes do dia de corte seguem o legado: paga
+// todo balanço, na própria data da declaração (ex = declaração), com pagamento
+// legacyPaymentLagDays corridos depois e lucro de um ciclo. Os demais seguem a
+// política, com data-com, data-ex e pagamento em dia útil.
+func EquityCycleAt(freqDays, offsetBusinessDays, cutoverDay int, assigned bool, p Policy, comLagBusinessDays, payLagBusinessDays, cycleIndex int) EquityCycle {
+	report := EffectiveReportDay(freqDays, offsetBusinessDays, cutoverDay, cycleIndex)
+	if !assigned || (cycleIndex+1)*freqDays <= cutoverDay {
+		return EquityCycle{Report: report, Ex: report, Pay: report + legacyPaymentLagDays, Pays: true, PoolCycles: 1}
+	}
+	ex := ExDay(ComDay(report, comLagBusinessDays))
+	return EquityCycle{
+		Report:     report,
+		Ex:         ex,
+		Pay:        PaymentDay(ex, payLagBusinessDays),
+		Pays:       PaysInCycle(p, cycleIndex),
+		PoolCycles: PoolCycles(p),
+	}
+}

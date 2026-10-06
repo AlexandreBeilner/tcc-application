@@ -171,7 +171,11 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.base_growth_pct, c.quality_multiplier, c.report_offset_days,
-		        COALESCE((SELECT schedule_cutover_day FROM market_calendar WHERE id = 1), 0), f.net_revenue
+		        COALESCE((SELECT schedule_cutover_day FROM market_calendar WHERE id = 1), 0), f.net_revenue,
+		        c.schedule_assigned, c.dividend_policy, c.com_lag_days, c.payment_lag_days,
+		        ARRAY(SELECT net_income FROM company_fundamentals
+		              WHERE company_id = c.id AND net_income IS NOT NULL
+		              ORDER BY period_date DESC, created_at DESC LIMIT 3)
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -189,9 +193,12 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	var companies []tick.CompanyForFundamentals
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.ReportOffsetDays, &c.ScheduleCutoverDay, &c.LastRevenue); err != nil {
+		var policy string
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.ReportOffsetDays, &c.ScheduleCutoverDay, &c.LastRevenue,
+			&c.ScheduleAssigned, &policy, &c.ComLagDays, &c.PaymentLagDays, pq.Array(&c.PriorNetIncomes)); err != nil {
 			return nil, err
 		}
+		c.DividendPolicy = catalog.DividendPolicy(policy)
 		companies = append(companies, c)
 	}
 	return companies, rows.Err()
@@ -582,15 +589,19 @@ func (r *TickRepository) refreshQuoteCache(ctx context.Context, quotes []tick.Qu
 // governa quando o pagamento acontece, ver migration 000008).
 func saveNewDividends(ctx context.Context, tx *sql.Tx, day int, records []tick.DividendRecord) error {
 	for _, rec := range records {
-		exDate := simcalendar.DateOf(day)
+		exDay := day
+		if rec.ExDay > 0 {
+			exDay = rec.ExDay
+		}
+		exDate := simcalendar.DateOf(exDay)
 		paymentDate := simcalendar.DateOf(rec.PaymentDay)
 
 		var eventID string
 		if err := tx.QueryRowContext(ctx,
 			`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day,
 			                              declared_day, ex_day, recipients_snapshotted)
-			 VALUES ($1, $2, $3, $4, $5, $6, $6, true) RETURNING id`,
-			rec.AssetID, rec.ValuePerShare, exDate, paymentDate, rec.PaymentDay, day,
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING id`,
+			rec.AssetID, rec.ValuePerShare, exDate, paymentDate, rec.PaymentDay, day, exDay,
 		).Scan(&eventID); err != nil {
 			return err
 		}
