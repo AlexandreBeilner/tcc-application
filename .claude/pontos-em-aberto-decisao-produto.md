@@ -905,7 +905,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** hoje o snapshot é tirado quando o evento de provento é gerado, não na data-ex; o calendário já trata a data-ex passada sem snapshot como "sem direito" e estima antes dela. Enquanto a RC.6.11 (declaração separada e snapshot na data-ex) não entra, quem compra entre a geração e a data-ex pode ver uma estimativa que o snapshot depois não confirma. Também falta definir a tolerância do primeiro ciclo irregular no cutover do escalonamento (item 3 da análise) e os pesos anual/semestral por setor (item 4, vão para `calibracao-calendario-proventos.md`, RC.6.5b).
 - **Por que não foi corrigido:** a mudança de instante altera quem recebe cada provento, e a entrega ordenada é a RC.6.11; o texto da lição "Na plataforma" deve descrever o comportamento vigente.
 - **Opções:** (a) manter o snapshot na geração até a RC.6.11 e documentar na lição; (b) antecipar o snapshot na data-ex só para os proventos novos, com cutover por dia; (c) (b) retroativo, o que contraria o event sourcing (proventos já pagos ficam intactos).
-- **Status:** aberto (implementado com (a); D10 decidiu o destino, a RC.6.11 o entrega)
+- **Status:** Resolvido (2026-10-06, RC.6.11): proventos declarados antes da data-ex ganham o snapshot no tick da data-ex (opção (b), só para os novos; os já pagos ficam intactos). Falta só a tolerância do primeiro ciclo irregular no cutover, coberta pelo dia de corte (`schedule_cutover_day`).
 
 ### 038 · Copom e eventos macro aparecem como "No mercado", mesmo para quem tem renda fixa pós-fixada (RC.6.5)
 

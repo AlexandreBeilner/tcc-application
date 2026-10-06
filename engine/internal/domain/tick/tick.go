@@ -308,6 +308,25 @@ type DividendRecord struct {
 	FundLiability float64
 	// ExDay é a data-ex (dia simulado); zero vale o dia da geração (legado).
 	ExDay int
+	// SnapshotPending (RC.6.11) marca o provento declarado antes da data-ex: o
+	// snapshot dos elegíveis não é tirado agora, e sim no tick da data-ex
+	// (Result.Snapshots), com a posição do fechamento da data-com.
+	SnapshotPending bool
+}
+
+// DividendSnapshot (RC.6.11) é o snapshot dos elegíveis de um provento já
+// declarado, tirado no tick da data-ex: SaveTick grava os Recipients e marca
+// dividend_events.recipients_snapshotted.
+type DividendSnapshot struct {
+	EventID    string
+	Recipients []PositionHolder
+}
+
+// DividendAwaitingSnapshot é um provento declarado cuja data-ex chegou e ainda não
+// tem snapshot de elegíveis.
+type DividendAwaitingSnapshot struct {
+	EventID string
+	AssetID string
 }
 
 // NetWorthUpdate é o novo `fii_details.net_worth` de um FII tijolo pronto
@@ -372,6 +391,10 @@ type Result struct {
 	// linha e o snapshot de Recipients (dividend_event_recipients)
 	// atomicamente com o resto do tick.
 	NewDividends []DividendRecord
+	// Snapshots são os snapshots de elegíveis tirados neste tick pros proventos
+	// declarados antes (RC.6.11), preenchidos por Service.Run (precisa ler as
+	// posições, que Advance, função pura, não vê).
+	Snapshots []DividendSnapshot
 	// DuePayments são os PendingDividendPayment cujo PaymentDay é
 	// exatamente este tick (newDay) — SaveTick credita
 	// current_balance/total_dividends_received de cada Recipient, gravando
@@ -514,13 +537,27 @@ type Repository interface {
 	// snapshot de elegibilidade (posição na data ex) de um novo
 	// dividend_events, e (tarefas G.2/G.3) pra reavaliar NetWorth/
 	// PortfolioValue no mesmo calendário.
+	//
+	// Desde a RC.6.11 a lista não traz mais os Holders de ninguém: carregar a
+	// posição de todo ativo todo tick não escala com o catálogo. Quem precisa
+	// (os proventos com data-ex hoje) pede por ListDividendHolders.
 	ListDividendPayerAssets(ctx context.Context) ([]DividendPayerAsset, error)
+	// ListDividendHolders devolve a posição (quantity > 0) de cada usuário só nos
+	// ativos pedidos, por asset_id.
+	ListDividendHolders(ctx context.Context, assetIDs []string) (map[string][]PositionHolder, error)
+	// ListDividendsAwaitingSnapshot devolve os proventos declarados com data-ex
+	// igual ou anterior a day e ainda sem snapshot de elegíveis.
+	ListDividendsAwaitingSnapshot(ctx context.Context, day int) ([]DividendAwaitingSnapshot, error)
 	// ListPendingDividendPayments devolve todo dividend_events com paid =
 	// false, com seus Recipients (dividend_event_recipients) — usado por
 	// Advance (tarefa 4.9) pra decidir quais vencem (PaymentDay == newDay)
 	// e creditar accounts.current_balance/total_dividends_received de cada
 	// Recipient.
-	ListPendingDividendPayments(ctx context.Context) ([]PendingDividendPayment, error)
+	//
+	// upToDay limita aos que vencem até esse dia (a lista de pendentes de um
+	// catálogo grande não precisa ser lida inteira todo tick), e só entram
+	// proventos já com snapshot de elegíveis.
+	ListPendingDividendPayments(ctx context.Context, upToDay int) ([]PendingDividendPayment, error)
 	// SaveTick persiste o novo estado do calendário e as cotações geradas,
 	// atomicamente — nem calendário nem cotações são escrita de
 	// saldo/posição de usuário, por isso não passa por Event Sourcing
@@ -985,11 +1022,12 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, payoutsByCompany map[s
 		}
 
 		records = append(records, DividendRecord{
-			AssetID:       a.AssetID,
-			ValuePerShare: value,
-			PaymentDay:    recordPaymentDay,
-			ExDay:         recordExDay,
-			Recipients:    a.Holders,
+			AssetID:         a.AssetID,
+			ValuePerShare:   value,
+			PaymentDay:      recordPaymentDay,
+			ExDay:           recordExDay,
+			Recipients:      a.Holders,
+			SnapshotPending: recordExDay > newDay,
 		})
 	}
 	return records

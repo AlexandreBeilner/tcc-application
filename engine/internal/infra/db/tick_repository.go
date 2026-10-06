@@ -312,27 +312,6 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 		return nil, nil
 	}
 
-	holderRows, err := r.db.QueryContext(ctx,
-		`SELECT asset_id, user_id, quantity FROM positions WHERE asset_id = ANY($1) AND quantity > 0`,
-		pq.Array(assetIDs),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = holderRows.Close() }()
-
-	for holderRows.Next() {
-		var assetID string
-		var holder tick.PositionHolder
-		if err := holderRows.Scan(&assetID, &holder.UserID, &holder.Quantity); err != nil {
-			return nil, err
-		}
-		byID[assetID].Holders = append(byID[assetID].Holders, holder)
-	}
-	if err := holderRows.Err(); err != nil {
-		return nil, err
-	}
-
 	assets := make([]tick.DividendPayerAsset, 0, len(assetIDs))
 	for _, id := range assetIDs {
 		assets = append(assets, *byID[id])
@@ -340,16 +319,67 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	return assets, nil
 }
 
+// ListDividendHolders devolve a posição (quantity > 0) de cada usuário só nos ativos
+// pedidos (RC.6.11), em uma consulta — o custo acompanha os ativos com data-ex hoje,
+// não o tamanho do catálogo.
+func (r *TickRepository) ListDividendHolders(ctx context.Context, assetIDs []string) (map[string][]tick.PositionHolder, error) {
+	holders := make(map[string][]tick.PositionHolder, len(assetIDs))
+	if len(assetIDs) == 0 {
+		return holders, nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT asset_id, user_id, quantity FROM positions WHERE asset_id = ANY($1) AND quantity > 0 ORDER BY asset_id, user_id`,
+		pq.Array(assetIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var assetID string
+		var holder tick.PositionHolder
+		if err := rows.Scan(&assetID, &holder.UserID, &holder.Quantity); err != nil {
+			return nil, err
+		}
+		holders[assetID] = append(holders[assetID], holder)
+	}
+	return holders, rows.Err()
+}
+
+// ListDividendsAwaitingSnapshot devolve os proventos declarados cuja data-ex chegou
+// (ex_day <= day) e ainda sem snapshot de elegíveis (índice parcial da migration 000048).
+func (r *TickRepository) ListDividendsAwaitingSnapshot(ctx context.Context, day int) ([]tick.DividendAwaitingSnapshot, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, asset_id FROM dividend_events WHERE recipients_snapshotted = false AND ex_day <= $1 ORDER BY ex_day, id`, day)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var awaiting []tick.DividendAwaitingSnapshot
+	for rows.Next() {
+		var a tick.DividendAwaitingSnapshot
+		if err := rows.Scan(&a.EventID, &a.AssetID); err != nil {
+			return nil, err
+		}
+		awaiting = append(awaiting, a)
+	}
+	return awaiting, rows.Err()
+}
+
 // ListPendingDividendPayments devolve todo dividend_events com paid =
 // false, com seus Recipients (dividend_event_recipients) — usado por
 // Advance (tarefa 4.9) pra decidir quais vencem no tick atual (PaymentDay
 // == newDay) e creditar cada Recipient.
-func (r *TickRepository) ListPendingDividendPayments(ctx context.Context) ([]tick.PendingDividendPayment, error) {
+func (r *TickRepository) ListPendingDividendPayments(ctx context.Context, upToDay int) ([]tick.PendingDividendPayment, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT de.id, de.asset_id, de.value_per_share, de.payment_day, ed.fund_account_id
 		 FROM dividend_events de
 		 LEFT JOIN etf_details ed ON ed.asset_id = de.asset_id
-		 WHERE de.paid = false ORDER BY de.payment_day`,
+		 WHERE de.paid = false AND de.recipients_snapshotted AND de.payment_day <= $1
+		 ORDER BY de.payment_day`,
+		upToDay,
 	)
 	if err != nil {
 		return nil, err
@@ -517,6 +547,10 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		return err
 	}
 
+	if err := saveDividendSnapshots(ctx, tx, result.Snapshots); err != nil {
+		return err
+	}
+
 	if err := payDueDividends(ctx, tx, result.DuePayments); err != nil {
 		return err
 	}
@@ -603,8 +637,8 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, day int, records []tick.D
 		if err := tx.QueryRowContext(ctx,
 			`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day,
 			                              declared_day, ex_day, recipients_snapshotted)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING id`,
-			rec.AssetID, rec.ValuePerShare, exDate, paymentDate, rec.PaymentDay, day, exDay,
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+			rec.AssetID, rec.ValuePerShare, exDate, paymentDate, rec.PaymentDay, day, exDay, !rec.SnapshotPending,
 		).Scan(&eventID); err != nil {
 			return err
 		}
@@ -620,20 +654,41 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, day int, records []tick.D
 			}
 		}
 
-		if len(rec.Recipients) > 0 {
-			// Um INSERT por evento de dividendo (tarefa Q.6), não um por detentor.
-			userIDs := make([]string, len(rec.Recipients))
-			quantities := make([]int64, len(rec.Recipients))
-			for i, recipient := range rec.Recipients {
-				userIDs[i], quantities[i] = recipient.UserID, int64(recipient.Quantity)
-			}
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO dividend_event_recipients (dividend_event_id, user_id, quantity)
-				 SELECT $1, t.u::uuid, t.q FROM unnest($2::text[], $3::int[]) AS t(u, q)`,
-				eventID, pq.Array(userIDs), pq.Array(quantities),
-			); err != nil {
-				return err
-			}
+		if err := insertDividendRecipients(ctx, tx, eventID, rec.Recipients); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// insertDividendRecipients grava o snapshot de elegíveis de um evento de dividendo:
+// um INSERT por evento (tarefa Q.6), não um por detentor.
+func insertDividendRecipients(ctx context.Context, tx *sql.Tx, eventID string, recipients []tick.PositionHolder) error {
+	if len(recipients) == 0 {
+		return nil
+	}
+	userIDs := make([]string, len(recipients))
+	quantities := make([]int64, len(recipients))
+	for i, recipient := range recipients {
+		userIDs[i], quantities[i] = recipient.UserID, int64(recipient.Quantity)
+	}
+	_, err := tx.ExecContext(ctx,
+		`INSERT INTO dividend_event_recipients (dividend_event_id, user_id, quantity)
+		 SELECT $1, t.u::uuid, t.q FROM unnest($2::text[], $3::int[]) AS t(u, q)`,
+		eventID, pq.Array(userIDs), pq.Array(quantities),
+	)
+	return err
+}
+
+// saveDividendSnapshots grava os snapshots tirados na data-ex dos proventos declarados
+// antes (RC.6.11) e os marca como snapshotted, na mesma transação do tick.
+func saveDividendSnapshots(ctx context.Context, tx *sql.Tx, snapshots []tick.DividendSnapshot) error {
+	for _, snap := range snapshots {
+		if err := insertDividendRecipients(ctx, tx, snap.EventID, snap.Recipients); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE dividend_events SET recipients_snapshotted = true WHERE id = $1`, snap.EventID); err != nil {
+			return err
 		}
 	}
 	return nil
