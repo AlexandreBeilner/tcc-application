@@ -217,6 +217,8 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
         userId: req.auth.userId,
         from: parsed.data.from,
         to: parsed.data.to,
+        scope: parsed.data.scope,
+        marketLimit: parsed.data.market_limit,
       })
       res.status(200).json(calendar)
     } catch (err) {
