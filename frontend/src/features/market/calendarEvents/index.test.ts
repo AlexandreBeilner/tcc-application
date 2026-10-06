@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../../../services/market'
 import { describeCalendarEvent } from '.'
 
 function event(overrides: Partial<CalendarEvent>): CalendarEvent {
-    return { kind: 'macro_event', scope: 'global', future: false, ...overrides }
+    return { kind: 'macro_event', scope: 'global', future: false, relevance: 'market', ...overrides }
 }
 
 describe('describeCalendarEvent', () => {

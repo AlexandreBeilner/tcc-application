@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { getMarketCalendar, getMarketClock } from '../../../services/market'
-import { calendarFixture, DEFAULT_EVENTS, SATURDAY_CLOCK, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
+import { calendarFixture, calendarWindow, DEFAULT_EVENTS, SATURDAY_CLOCK, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
 import { MarketCalendarPanel } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -28,6 +28,7 @@ describe('MarketCalendarPanel', () => {
 
     afterEach(() => {
         vi.clearAllMocks()
+        localStorage.clear()
     })
 
     it('mostra o dia, o trimestre em dias e a regra do tempo acelerado', async () => {
@@ -43,9 +44,30 @@ describe('MarketCalendarPanel', () => {
         renderPanel()
 
         await screen.findByText('Dia 135 · quarta 08/07/2026')
-        expect(getMarketCalendar).toHaveBeenCalledWith('token', '2026-07-01', '2026-07-22')
+        expect(getMarketCalendar).toHaveBeenCalledWith('token', '2026-07-01', '2026-07-22', { scope: 'mine' })
         // Sem matchMedia (jsdom) o layout cai no mobile: a janela do trimestre não é pedida.
         expect(getMarketCalendar).toHaveBeenCalledTimes(1)
+    })
+
+    it('abre em "Meus" e a troca para "Todos" pede scope=all e fica lembrada', async () => {
+        renderPanel()
+
+        await screen.findByText('Dia 135 · quarta 08/07/2026')
+        expect(screen.getByRole('radio', { name: 'Meus' })).toBeChecked()
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Todos' }))
+
+        await vi.waitFor(() => expect(getMarketCalendar).toHaveBeenLastCalledWith('token', '2026-07-01', '2026-07-22', { scope: 'all' }))
+        expect(localStorage.getItem('app.calendar.scope')).toBe('all')
+    })
+
+    it('lembra o escopo escolhido na abertura seguinte', async () => {
+        localStorage.setItem('app.calendar.scope', 'all')
+        renderPanel()
+
+        await screen.findByText('Dia 135 · quarta 08/07/2026')
+        expect(screen.getByRole('radio', { name: 'Todos' })).toBeChecked()
+        expect(getMarketCalendar).toHaveBeenCalledWith('token', '2026-07-01', '2026-07-22', { scope: 'all' })
     })
 
     it('hoje: "Aconteceu" com o do dia e "Vem aí" só com fatos futuros', async () => {
@@ -134,7 +156,7 @@ describe('MarketCalendarPanel', () => {
     })
 
     it('sem dados do dia (calendário vazio) não quebra', async () => {
-        vi.mocked(getMarketCalendar).mockResolvedValue({ from_day: 128, to_day: 149, days: [] })
+        vi.mocked(getMarketCalendar).mockResolvedValue(calendarWindow(128, 149))
         renderPanel()
 
         expect(await screen.findByText('Nada registrado neste dia.')).toBeInTheDocument()

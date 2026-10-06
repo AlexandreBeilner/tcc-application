@@ -3,12 +3,14 @@ import { Clock, FastForward, FileText, Lock, X } from 'lucide-react'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { formatDayMonth, formatWeekdayDate, shiftIsoDate, weekdayLong, weekdayShort } from '../../../features/market/calendarFormat'
 import { quarterCells } from '../../../features/market/quarterCells'
+import { useCalendarScope } from '../../../features/market/useCalendarScope'
 import { useMarketCalendarQuery } from '../../../features/market/useMarketCalendarQuery'
 import { useMarketClockQuery } from '../../../features/market/useMarketClockQuery'
 import type { CalendarDay, CalendarEvent, CalendarEventKind, MarketClock } from '../../../services/market'
 import { CalendarKindIcon } from '../../atoms/CalendarKindIcon'
 import { CalendarDayStrip } from '../../molecules/CalendarDayStrip'
 import { CalendarEventItem } from '../../molecules/CalendarEventItem'
+import { CalendarScopeToggle } from '../../molecules/CalendarScopeToggle'
 import { QuarterGrid } from '../../molecules/QuarterGrid'
 import styles from './index.module.css'
 
@@ -53,6 +55,7 @@ export function MarketCalendarPanel({ onClose }: MarketCalendarPanelProps) {
     const clock = clockQuery.data
     const isDesktop = useMediaQuery('(min-width: 1024px)')
     const [selectedDay, setSelectedDay] = useState<number | null>(null)
+    const [scope, setScope] = useCalendarScope()
     const closeRef = useRef<HTMLButtonElement>(null)
 
     useEffect(() => {
@@ -66,11 +69,12 @@ export function MarketCalendarPanel({ onClose }: MarketCalendarPanelProps) {
 
     const cells = useMemo(() => (clock ? quarterCells(clock) : []), [clock])
     const range = clock ? { from: shiftIsoDate(clock.date, -DAYS_BEFORE), to: shiftIsoDate(clock.date, DAYS_AFTER) } : null
-    const calendarQuery = useMarketCalendarQuery(range?.from ?? null, range?.to ?? null, clock !== undefined)
+    const calendarQuery = useMarketCalendarQuery(range?.from ?? null, range?.to ?? null, clock !== undefined, scope)
     const quarterQuery = useMarketCalendarQuery(
         cells[0]?.date ?? null,
         cells[cells.length - 1]?.date ?? null,
         isDesktop && cells.length > 0,
+        scope,
     )
 
     const windowDays = useMemo(() => calendarQuery.data?.days ?? [], [calendarQuery.data])
@@ -99,6 +103,8 @@ export function MarketCalendarPanel({ onClose }: MarketCalendarPanelProps) {
                         <X size={18} strokeWidth={2} aria-hidden="true" />
                     </button>
                 </div>
+
+                <CalendarScopeToggle scope={scope} onChange={setScope} />
 
                 {clock ? (
                     <PanelBody

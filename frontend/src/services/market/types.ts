@@ -378,6 +378,24 @@ export interface CalendarEvent {
     // a que aquele salário se refere, que pode divergir do dia deste evento
     // num catch-up de vários meses atrasados de uma vez (backend, T.5).
     reference_month?: string
+    // Relevância pro usuário do token (RC.6.1), calculada no motor. Os quatro
+    // campos abaixo só vêm em `mine` com valor do próprio usuário (RNF09).
+    relevance: CalendarRelevance
+    relevance_reason?: CalendarRelevanceReason
+    // Provento: exato (`amount_is_estimate` falso) depois da data-ex, estimado antes.
+    estimated_amount?: number
+    amount_is_estimate?: boolean
+    user_quantity?: number
+}
+
+export type CalendarRelevance = 'mine' | 'market'
+export type CalendarRelevanceReason = 'position' | 'own_fact' | 'fixed_income_position' | 'salary'
+export type CalendarScope = 'mine' | 'all'
+
+// Fatos do dia por relevância, contados antes do corte por `market_limit`.
+export interface CalendarDaySummary {
+    mine_count: number
+    market_count: number
 }
 
 export interface CalendarDay {
@@ -385,13 +403,22 @@ export interface CalendarDay {
     date: string
     weekday: string
     market_open: boolean
+    summary: CalendarDaySummary
     events: CalendarEvent[]
 }
 
 export interface MarketCalendar {
     from_day: number
     to_day: number
+    // Fatos de mercado na janela antes do corte e quantos vieram.
+    market_total: number
+    market_shown: number
     days: CalendarDay[]
+}
+
+export interface MarketCalendarOptions {
+    scope?: CalendarScope
+    marketLimit?: number
 }
 
 // `GET /market/halts` (tarefa N.9): pausa de negociação vigente, só o que o usuário pode
