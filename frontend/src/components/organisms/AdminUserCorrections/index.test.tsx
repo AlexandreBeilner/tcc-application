@@ -6,7 +6,7 @@ import { AdminReauthProvider } from '../../../features/admin/AdminReauth'
 import { useAuth } from '../../../features/auth/AuthContext'
 import {
     adjustAdminUserXp,
-    correctAdminUserAchievement,
+    grantAdminUserAchievement,
     correctAdminUserLesson,
     creditAdminUser,
     getUserCorrectionContext,
@@ -23,7 +23,7 @@ vi.mock('../../../services/admin', () => ({
     creditAdminUser: vi.fn(),
     adjustAdminUserXp: vi.fn(),
     setAdminUserStreak: vi.fn(),
-    correctAdminUserAchievement: vi.fn(),
+    grantAdminUserAchievement: vi.fn(),
     correctAdminUserLesson: vi.fn(),
 }))
 
@@ -209,33 +209,30 @@ describe('AdminUserCorrections', () => {
     })
 
     describe('conquistas', () => {
-        it('concede uma conquista que o usuário não tem e bloqueia revogar', async () => {
-            vi.mocked(correctAdminUserAchievement).mockResolvedValue(undefined)
+        it('concede uma conquista que o usuário não tem e não oferece revogar', async () => {
+            vi.mocked(grantAdminUserAchievement).mockResolvedValue(undefined)
             renderPanel()
             const group = card('Conquistas')
             await screen.findByRole('option', { name: 'Fiel (já tem)' })
 
             fireEvent.change(group.getByLabelText('Conquista'), { target: { value: 'a1' } })
             fireEvent.change(group.getByLabelText('Motivo'), { target: { value: 'bug do streak' } })
-            expect(group.getByRole('button', { name: 'Revogar' })).toBeDisabled()
+            expect(group.queryByRole('button', { name: 'Revogar' })).not.toBeInTheDocument()
             fireEvent.click(group.getByRole('button', { name: 'Conceder' }))
 
-            await waitFor(() => expect(correctAdminUserAchievement).toHaveBeenCalledWith('tok', USER_ID, 'a1', 'grant', 'bug do streak'))
+            await waitFor(() => expect(grantAdminUserAchievement).toHaveBeenCalledWith('tok', USER_ID, 'a1', 'bug do streak'))
             expect(await screen.findByRole('status')).toHaveTextContent('Conquista "Primeira Semana" concedida.')
         })
 
-        it('revoga uma conquista que o usuário já tem e bloqueia conceder', async () => {
-            vi.mocked(correctAdminUserAchievement).mockResolvedValue(undefined)
+        it('bloqueia conceder uma conquista que o usuário já tem', async () => {
             renderPanel()
             const group = card('Conquistas')
             await screen.findByRole('option', { name: 'Fiel (já tem)' })
 
             fireEvent.change(group.getByLabelText('Conquista'), { target: { value: 'a2' } })
             fireEvent.change(group.getByLabelText('Motivo'), { target: { value: 'dada por engano' } })
-            expect(group.getByRole('button', { name: 'Conceder' })).toBeDisabled()
-            fireEvent.click(group.getByRole('button', { name: 'Revogar' }))
 
-            await waitFor(() => expect(correctAdminUserAchievement).toHaveBeenCalledWith('tok', USER_ID, 'a2', 'revoke', 'dada por engano'))
+            expect(group.getByRole('button', { name: 'Conceder' })).toBeDisabled()
         })
 
         it('sem conquista escolhida ou sem motivo, nada habilita', async () => {
@@ -244,7 +241,6 @@ describe('AdminUserCorrections', () => {
             await screen.findByRole('option', { name: 'Fiel (já tem)' })
             fireEvent.change(group.getByLabelText('Motivo'), { target: { value: 'motivo válido' } })
             expect(group.getByRole('button', { name: 'Conceder' })).toBeDisabled()
-            expect(group.getByRole('button', { name: 'Revogar' })).toBeDisabled()
         })
     })
 

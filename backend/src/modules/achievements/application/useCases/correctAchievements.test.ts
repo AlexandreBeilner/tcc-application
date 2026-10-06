@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Achievement } from '../../domain/achievement'
-import {
-  AchievementAlreadyUnlockedError,
-  AchievementNotFoundError,
-  AchievementNotUnlockedError,
-} from '../../domain/errors'
+import { AchievementAlreadyUnlockedError, AchievementNotFoundError } from '../../domain/errors'
 import { createFakeAchievementRepository } from '../../test/fakes/fakeAchievementRepository'
-import { GrantAchievementUseCase, RevokeAchievementUseCase } from './correctAchievements'
+import { GrantAchievementUseCase } from './correctAchievements'
 
 const streak7: Achievement = {
   id: 'a-streak-7',
@@ -22,7 +18,6 @@ function build() {
   return {
     repository,
     grant: new GrantAchievementUseCase(repository),
-    revoke: new RevokeAchievementUseCase(repository),
   }
 }
 
@@ -43,28 +38,6 @@ describe('GrantAchievementUseCase', () => {
     await grant.execute('u1', streak7.id)
     await expect(grant.execute('u1', streak7.id)).rejects.toBeInstanceOf(
       AchievementAlreadyUnlockedError,
-    )
-  })
-})
-
-describe('RevokeAchievementUseCase', () => {
-  it('remove a conquista do usuário', async () => {
-    const { grant, revoke, repository } = build()
-    await grant.execute('u1', streak7.id)
-
-    await revoke.execute('u1', streak7.id)
-
-    expect(await repository.listUnlockedForUser('u1')).toEqual([])
-  })
-
-  it('recusa conquista que não existe e conquista que o usuário não tem', async () => {
-    const { revoke } = build()
-
-    await expect(revoke.execute('u1', 'nao-existe')).rejects.toBeInstanceOf(
-      AchievementNotFoundError,
-    )
-    await expect(revoke.execute('u1', streak7.id)).rejects.toBeInstanceOf(
-      AchievementNotUnlockedError,
     )
   })
 })

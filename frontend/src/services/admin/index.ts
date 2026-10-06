@@ -446,17 +446,10 @@ export function setAdminUserStreak(token: string, userId: string, value: number,
     return apiRequest<CorrectedProgression>(`/admin/users/${userId}/streak`, { token, method: 'POST', body: { value, reason } })
 }
 
-export type AchievementCorrection = 'grant' | 'revoke'
 export type LessonCorrection = 'complete' | 'reopen'
 
-export function correctAdminUserAchievement(
-    token: string,
-    userId: string,
-    achievementId: string,
-    action: AchievementCorrection,
-    reason: string,
-): Promise<void> {
-    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/${action}`, { token, method: 'POST', body: { reason } })
+export function grantAdminUserAchievement(token: string, userId: string, achievementId: string, reason: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/grant`, { token, method: 'POST', body: { reason } })
 }
 
 export function correctAdminUserLesson(

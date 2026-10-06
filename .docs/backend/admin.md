@@ -139,11 +139,11 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 - **Sucesso:** `200` → mesmo corpo de `/xp`. `longest_streak` só sobe (é o máximo histórico). Um streak maior que zero conta como "vivo hoje" (`last_qualifying_activity_date` = hoje, UTC), senão o próximo toque o reiniciaria em 1; zero limpa essa data. Auditoria: `user.set_streak`.
 - **Erros:** `400`; `401 reauth_required`; `404`.
 
-#### `POST /admin/users/:id/achievements/:achievementId/grant` e `/revoke`
+#### `POST /admin/users/:id/achievements/:achievementId/grant`
 
 - **Payload:** `{ reason }`.
-- **Sucesso:** `204`. `grant` concede a conquista **sem checar o critério**; `revoke` remove. Atenção: se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concede de novo; revogar só "fica" quando foi dada por engano. Auditoria: `user.grant_achievement` / `user.revoke_achievement` com `achievement_id`, `achievement_name` e `reason`.
-- **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista (`grant`) ou não a tem (`revoke`).
+- **Sucesso:** `204`. Concede a conquista **sem checar o critério**. Não existe `/revoke` (removida na N.26): se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concederia de novo, então a ação prometia algo que não acontecia; a rota agora responde `404`. Auditoria: `user.grant_achievement` com `achievement_id`, `achievement_name` e `reason` (as linhas `user.revoke_achievement` já gravadas continuam legíveis no histórico).
+- **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista.
 
 #### `POST /admin/users/:id/lessons/:lessonId/complete` e `/reopen`
 

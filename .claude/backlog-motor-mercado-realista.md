@@ -3245,7 +3245,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   `.docs/backend/admin.md` atualizados; responsiva nos três breakpoints.
 - **Dependências:** N.11. Fecha o achado 035.
 
-### N.26 · Tirar "revogar conquista" do painel
+### N.26 · Tirar "revogar conquista" do painel ✅
 
 - **Descrição:** decisão do autor (2026-10-06, achado 032, opção c): revogar uma conquista não fica quando o
   usuário ainda cumpre o critério (a próxima checagem a concede de novo, em silêncio), então a ação prometia algo
@@ -3255,6 +3255,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   do caso de uso e da rota removidos junto, sem deixar teste órfão; `npm run lint`, `npm run build` e `npm test`
   verdes; `.docs/backend/admin.md` atualizado.
 - **Dependências:** N.17. Fecha o achado 032.
+- **Entregável (sessão 2026-10-06, PR 13 da Fase N):** **Backend:** removidos `RevokeAchievementUseCase`, `AchievementRepository.revoke` (porta, Drizzle e fake), `AchievementNotUnlockedError`, `RevokeUserAchievementUseCase`, `UserCorrections.revokeAchievement` e a rota `POST /admin/users/:id/achievements/:achievementId/revoke` (agora `404`, com teste). `user.revoke_achievement` continua na lista de ações de auditoria, só pra as linhas já gravadas seguirem legíveis. **Frontend:** o botão "Revogar" saiu de `AdminUserCorrections`; `correctAdminUserAchievement`/`useCorrectAchievementMutation` viraram `grantAdminUserAchievement`/`useGrantAchievementMutation`, sem o parâmetro de ação; o aviso da tela diz que não há como revogar. **Docs:** `.docs/backend/admin.md` e a tela 10.x do inventário. `npm run lint`/`npm test` do backend (2806 testes), `tsc`/lint/testes do frontend verdes.
 
 #### Plano de PRs da Fase N (ordem linear de execução)
 

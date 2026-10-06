@@ -500,7 +500,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ### 10.14 Detalhe do usuário
 - **Objetivo:** ver uma conta por inteiro e atuar sobre ela (N.16 e N.17). Rota `/admin/usuarios/:id`.
-- **Conteúdo:** cartões de conta, progressão, carteira (o administrador **vê o patrimônio absoluto**, exceção deliberada à RNF09), ordens abertas e linha do tempo de ações do painel sobre a conta; abaixo, **Correções de conta** (N.17): crédito de caixa sem teto, ajuste de XP, definir streak, conceder ou revogar conquista, concluir ou reabrir lição.
+- **Conteúdo:** cartões de conta, progressão, carteira (o administrador **vê o patrimônio absoluto**, exceção deliberada à RNF09), ordens abertas e linha do tempo de ações do painel sobre a conta; abaixo, **Correções de conta** (N.17): crédito de caixa sem teto, ajuste de XP, definir streak, conceder conquista (sem revogar, N.26), concluir ou reabrir lição.
 - **Ações:** suspender (motivo obrigatório), reativar, encerrar sessões, excluir a pedido (LGPD, digitando o username) e cada correção, todas com senha recente (exceto reativar) e na auditoria. O crédito pede confirmação mostrando o valor formatado; concluir lição não dá XP e reabrir pode tirar o acesso à lição seguinte (avisado na tela). Resetar carteira não existe.
 - **Estados especiais:** conta de administrador não é suspensa nem excluída pelo painel; motor fora do ar (carteira e ordens vêm vazias, o resto segue); recusa do backend aparece no formulário; conta excluída não mostra as correções.
 - **Dados envolvidos:** `users`, `user_progression`, `user_achievements`, `user_lesson_progress`, `admin_audit_log`, e `accounts`/`market_events` (via motor).
