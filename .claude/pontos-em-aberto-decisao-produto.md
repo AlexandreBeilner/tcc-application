@@ -888,3 +888,30 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido na hora:** renumerar uma delas (por exemplo, a de limpeza de texto para `000043`) é mecânico, mas quem já aplicou a `000040` num banco de dev ficaria com o histórico dessincronizado, e a ordem de merge das pilhas é decisão do autor.
 - **Opções:** (a) renumerar a `000040_clean_visible_catalog_text` para o próximo número livre antes de mesclar a pilha RC (ajustando bancos de dev que já a aplicaram); (b) renumerar a da Fase N; (c) mesclar uma pilha antes e renumerar a outra no rebase.
 - **Status:** aberto
+
+### 036 · JCP e imposto sobre dividendos não existem no motor, só nas lições (RC.6.5, D9)
+
+- **Local:** `engine/internal/domain/tick/tick.go` (geração de `dividend_events`) e `dividend_events` (sem coluna de natureza do provento)
+- **Origem:** análise do calendário (`revisao-trilhas-anexos/analise-calendario.md`, seções 2 e 3.7) e decisão D9 do backlog de revisão, 2026-10-03.
+- **O que é:** na vida real, parte dos proventos de ações vem como JCP (retenção na fonte de 15%) e a Lei 15.270/2025 passou a tributar dividendos de grande valor. O motor paga todo provento como dividendo isento: não há natureza `dividend|jcp`, retenção nem imposto sobre dividendos. As lições explicam o tema, mas o calendário e o extrato mostram sempre o valor cheio.
+- **Por que não foi corrigido:** modelar IR retido muda o valor creditado, o extrato e o `estimated_amount` do calendário, e a decisão D9 foi manter isso fora do motor por ora (só nas lições).
+- **Opções:** (a) manter assim (lição explica, motor simplifica; o bloco "Na plataforma" diz isso); (b) coluna `dividend_events.kind = dividend|jcp` com retenção de 15% no crédito e no valor estimado do calendário; (c) (b) mais o imposto sobre dividendos acima do limite da Lei 15.270/2025.
+- **Status:** aberto (implementado com (a))
+
+### 037 · Instante do snapshot de quem recebe o provento: data-com real x geração do evento (RC.6.5, D10)
+
+- **Local:** `engine/internal/domain/tick/tick.go` (`dividend_event_recipients`) e `engine/internal/domain/marketcalendar/calendar.go` (`entitlement`)
+- **Origem:** análise do calendário (3.7 itens 2 e 3) e decisão D10, 2026-10-03: data-com real, com snapshot dos elegíveis na data-ex.
+- **O que é:** hoje o snapshot é tirado quando o evento de provento é gerado, não na data-ex; o calendário já trata a data-ex passada sem snapshot como "sem direito" e estima antes dela. Enquanto a RC.6.11 (declaração separada e snapshot na data-ex) não entra, quem compra entre a geração e a data-ex pode ver uma estimativa que o snapshot depois não confirma. Também falta definir a tolerância do primeiro ciclo irregular no cutover do escalonamento (item 3 da análise) e os pesos anual/semestral por setor (item 4, vão para `calibracao-calendario-proventos.md`, RC.6.5b).
+- **Por que não foi corrigido:** a mudança de instante altera quem recebe cada provento, e a entrega ordenada é a RC.6.11; o texto da lição "Na plataforma" deve descrever o comportamento vigente.
+- **Opções:** (a) manter o snapshot na geração até a RC.6.11 e documentar na lição; (b) antecipar o snapshot na data-ex só para os proventos novos, com cutover por dia; (c) (b) retroativo, o que contraria o event sourcing (proventos já pagos ficam intactos).
+- **Status:** aberto (implementado com (a); D10 decidiu o destino, a RC.6.11 o entrega)
+
+### 038 · Copom e eventos macro aparecem como "No mercado", mesmo para quem tem renda fixa pós-fixada (RC.6.5)
+
+- **Local:** `engine/internal/domain/marketcalendar/calendar.go` (relevância de `copom` e `macro_event`) e `frontend/src/components/organisms/MarketCalendarPanel`
+- **Origem:** análise do calendário (3.7 item 1) e RC.6.1/RC.6.4.
+- **O que é:** só fato com consequência direta no saldo do usuário é "Para você". Uma reunião do Copom muda o rendimento de quem tem Tesouro Selic, CDB pós-fixado ou a poupança, mas hoje é sempre "No mercado" (aparece só em "Todos"); evento macro setorial também não marca quem tem ativo do setor. Quem usa só "Meus" não vê o Copom que mexe na sua carteira.
+- **Por que não foi corrigido:** "mine" para Copom e macro exige regra de produto (qual posição conta, se vale para o evento macro agendado sem entregar o veredito, RF16) e a v1 decidiu por `market`.
+- **Opções:** (a) manter (informação macro vai em "No mercado"); (b) Copom `mine` para quem tem posição pós-fixada ou Selic; (c) (b) mais macro setorial `mine` para quem tem ativo do setor, sem texto de veredito.
+- **Status:** aberto (implementado com (a))
