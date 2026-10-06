@@ -72,7 +72,7 @@ Valem para todas as rotas `/admin/*`:
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
@@ -471,3 +471,39 @@ Todas exigem `role = admin`. Proxy do motor (ver `.docs/engine/admin.md#cadastro
 - **Sucesso:** `201` → `{ asset_id, preview }`.
 - **Erros:** os do preview; `500` — `{ error, asset_id }` quando o catálogo gravou e a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots).
 - **Auditoria:** `catalog.create`, `target_type = asset`, `target_id` = o ticker, `payload` = o pedido; recusa ou falha grava `result = failed` com o motivo.
+
+### Comunicados e modo de manutenção (tarefa N.20)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Criar, editar e encerrar comunicado é auditado e **não** pede senha recente (não apaga dado de ninguém). A leitura que o app do usuário faz está em `GET /announcements` (`.docs/backend/announcements.md`). Tabela `announcements` (migration `0023`, sem backfill).
+
+Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto puro**, `<` e `>` são recusados (o app exibe como texto, nunca como HTML); `severity` ∈ `info` | `warning` | `critical`; janela `[starts_at, ends_at)` (no instante do fim já saiu do ar), `ends_at` ausente ou `null` = até alguém encerrar, `starts_at` ausente = agora. `status` é derivado na leitura: `scheduled` | `active` | `ended`.
+
+#### `GET /admin/announcements`
+
+- **Sucesso:** `200` → `{ announcements: [{ id, title, body, severity, kind ('notice' | 'maintenance'), dismissible, starts_at, ends_at | null, linked_halt_id | null, status, created_at }] }`, mais recente primeiro, até 100.
+
+#### `POST /admin/announcements`
+
+- **Payload (JSON):** `title`, `body`, `severity`, `dismissible` (padrão `true`), `starts_at`, `ends_at` (ISO 8601 com fuso), validados por `createAnnouncementBodySchema`. O criador vem do token.
+- **Sucesso:** `201` → o comunicado.
+- **Erros:** `400` — formato (severidade fora da lista, data malformada); `422` — regra de domínio (tamanho, `<`/`>`, fim não posterior ao início).
+- **Auditoria:** `announcement.create`, `target_type = announcement`, `target_id` = id, `payload` = o que foi pedido; recusa grava `result = failed`.
+
+#### `PATCH /admin/announcements/:id`
+
+- **Payload:** os mesmos campos, todos opcionais, ao menos um; `ends_at: null` tira o fim. O **estado final** é validado (editar só o fim pra antes do início é `422`).
+- **Sucesso:** `200` → o comunicado. **Erros:** `400`, `404`, `409` (aviso de manutenção não se edita, encerre e abra outro; comunicado que já terminou), `422`.
+- **Auditoria:** `announcement.update`, `payload` só com o que foi pedido.
+
+#### `POST /admin/announcements/:id/end`
+
+- **Sucesso:** `200` → `{ announcement, outcome, halt_lifted }`. `announcement` é o estado **de antes** de encerrar. `outcome = ended` fixa o fim em agora (saiu do ar); `cancelled` quando ainda estava agendado (a linha é removida; fica a auditoria). `halt_lifted = true` quando havia pausa ligada à manutenção e ela foi levantada agora; pausa que já tinha sido levantada à mão não é erro (`false`).
+- **Erros:** `400` id que não é UUID; `404`; `409` já terminou.
+- **Auditoria:** `announcement.end`, `payload = { kind, outcome, halt_lifted }`; levantar a pausa gera também a linha `trading.resume` (N.9).
+
+#### `POST /admin/maintenance`
+
+- **Payload (JSON):** `title`, `body`, `ends_at` (opcional), `starts_at` (opcional) e `pause_trading` (padrão `false`), validados por `startMaintenanceBodySchema`.
+- **Sucesso:** `201` → o aviso, sempre `kind = maintenance`, `severity = critical`, `dismissible = false`. Com `pause_trading`, abre antes a **pausa global de negociação** (N.9, mesma regra: ordem nova de usuário e de bot recusada, tick segue) e grava o id dela em `linked_halt_id`; encerrar a manutenção (`/end`) a levanta. Se o aviso falhar depois de a pausa abrir, a pausa é levantada de volta.
+- **Erros:** `400` formato; `401 reauth_required` **só quando `pause_trading` é `true`** (mesma ação destrutiva da pausa); `409` já existe manutenção em aberto (ou já existe pausa global vigente); `422` regra de domínio, ou `pause_trading` junto com `starts_at` (a pausa vale já, então a manutenção também começa agora).
+- **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }`; com pausa, a linha `trading.halt` também é gravada.

@@ -155,3 +155,10 @@ export class CatalogAssetPartialError extends Error {
     super(message)
   }
 }
+
+// Comunicados e modo de manutenção (N.20). Traduzidas pelo router: 404, 409 e 422.
+export class AdminAnnouncementNotFoundError extends Error {}
+// Editar aviso de manutenção ou terminado, encerrar o que já terminou, abrir segunda manutenção.
+export class AdminAnnouncementConflictError extends Error {}
+// Texto, janela ou combinação que a regra de domínio recusa.
+export class InvalidAdminAnnouncementError extends Error {}

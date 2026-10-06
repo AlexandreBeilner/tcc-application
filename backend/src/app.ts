@@ -147,6 +147,24 @@ import {
   MarkLessonCompletedUseCase,
   ReopenLessonUseCase,
 } from './modules/lessons/application/useCases/correctLessonProgress'
+import { createDrizzleAnnouncementRepository } from './modules/announcements/infrastructure/persistence/drizzleAnnouncementRepository'
+import {
+  CreateAnnouncementUseCase,
+  EndAnnouncementUseCase,
+  ListActiveAnnouncementsUseCase,
+  ListAnnouncementsUseCase,
+  UpdateAnnouncementUseCase,
+} from './modules/announcements/application/useCases/announcements'
+import { createAnnouncementsRouter } from './modules/announcements/interfaces/http/announcementsRouter'
+import { createInProcessAnnouncementAdmin } from './modules/admin/infrastructure/announcements/inProcessAnnouncementAdmin'
+import {
+  CreateAdminAnnouncementUseCase,
+  EndAdminAnnouncementUseCase,
+  ListAdminAnnouncementsUseCase,
+  StartMaintenanceUseCase,
+  UpdateAdminAnnouncementUseCase,
+} from './modules/admin/application/useCases/announcements'
+import { createAdminAnnouncementsRouter } from './modules/admin/interfaces/http/adminAnnouncementsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -461,6 +479,35 @@ export function createApp(deps: AppDeps = {}): Express {
   const listTradingHalts = new ListTradingHaltsUseCase(tradingHaltAdmin)
   const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, recordAdminAction)
   const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, recordAdminAction)
+  // Comunicados globais e modo de manutenção (N.20).
+  const announcementRepository = createDrizzleAnnouncementRepository(db)
+  const listActiveAnnouncements = new ListActiveAnnouncementsUseCase(announcementRepository)
+  const announcementAdmin = createInProcessAnnouncementAdmin({
+    listAnnouncements: new ListAnnouncementsUseCase(announcementRepository),
+    createAnnouncement: new CreateAnnouncementUseCase(announcementRepository),
+    updateAnnouncement: new UpdateAnnouncementUseCase(announcementRepository),
+    endAnnouncement: new EndAnnouncementUseCase(announcementRepository),
+  })
+  const listAdminAnnouncements = new ListAdminAnnouncementsUseCase(announcementAdmin)
+  const createAdminAnnouncement = new CreateAdminAnnouncementUseCase(
+    announcementAdmin,
+    recordAdminAction,
+  )
+  const updateAdminAnnouncement = new UpdateAdminAnnouncementUseCase(
+    announcementAdmin,
+    recordAdminAction,
+  )
+  const endAdminAnnouncement = new EndAdminAnnouncementUseCase(
+    announcementAdmin,
+    liftTradingHalt,
+    recordAdminAction,
+  )
+  const startMaintenance = new StartMaintenanceUseCase(
+    announcementAdmin,
+    pauseTrading,
+    liftTradingHalt,
+    recordAdminAction,
+  )
   const engineSettingsAdmin = createEngineSettingsAdmin(engineUrl)
   const listEngineSettings = new ListEngineSettingsUseCase(engineSettingsAdmin)
   const updateEngineSetting = new UpdateEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
@@ -705,6 +752,17 @@ export function createApp(deps: AppDeps = {}): Express {
   // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
   app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))
   app.use(createAdminPingRouter(authMiddleware))
+  app.use(createAnnouncementsRouter({ listActiveAnnouncements, authMiddleware }))
+  app.use(
+    createAdminAnnouncementsRouter({
+      listAnnouncements: listAdminAnnouncements,
+      createAnnouncement: createAdminAnnouncement,
+      updateAnnouncement: updateAdminAnnouncement,
+      endAnnouncement: endAdminAnnouncement,
+      startMaintenance,
+      authMiddleware,
+    }),
+  )
   app.use(
     createAdminMacroEventsRouter({
       triggerMacroEvent,

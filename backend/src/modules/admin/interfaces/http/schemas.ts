@@ -432,3 +432,37 @@ export const newCatalogAssetBodySchema = z.discriminatedUnion('kind', [
       .max(50),
   }),
 ])
+
+const isoDate = z.iso.datetime({ offset: true })
+
+// POST /admin/announcements (N.20). Início ausente = agora; fim ausente/nulo = até encerrar.
+// Tamanho e texto puro são regra do domínio (a borda só confere o formato).
+export const createAnnouncementBodySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  severity: z.enum(['info', 'warning', 'critical']),
+  dismissible: z.boolean().default(true),
+  starts_at: isoDate.optional(),
+  ends_at: isoDate.nullable().optional(),
+})
+
+// PATCH /admin/announcements/:id (N.20): só o que veio muda; `ends_at: null` tira o fim.
+export const updateAnnouncementBodySchema = z
+  .object({
+    title: z.string().optional(),
+    body: z.string().optional(),
+    severity: z.enum(['info', 'warning', 'critical']).optional(),
+    dismissible: z.boolean().optional(),
+    starts_at: isoDate.optional(),
+    ends_at: isoDate.nullable().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'informe ao menos um campo' })
+
+// POST /admin/maintenance (N.20).
+export const startMaintenanceBodySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  starts_at: isoDate.optional(),
+  ends_at: isoDate.nullable().optional(),
+  pause_trading: z.boolean().default(false),
+})
