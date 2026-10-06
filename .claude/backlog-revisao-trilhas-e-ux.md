@@ -772,7 +772,7 @@ Fonte: `analise-calendario.md`. A Trilha B (UX) é independente e entrega valor 
 
 ### Trilha B: "o que me afeta"
 
-- **RC.6.1 Relevância no engine (B.1):** `Event` ganha `relevance` (mine/market), `relevance_reason`,
+- **RC.6.1 ✅ Relevância no engine (B.1):** `Event` ganha `relevance` (mine/market), `relevance_reason`,
   `estimated_amount`, `amount_is_estimate`, `user_quantity`; `summary` por dia; `scope`/`market_limit`; valor
   exato de provento a partir de `dividend_event_recipients` quando a data ex já passou, estimativa antes. Sem dado
   de terceiros (RNF09). `.docs/engine/calendar.md`.
@@ -785,6 +785,8 @@ Fonte: `analise-calendario.md`. A Trilha B (UX) é independente e entrega valor 
   faixa de dias e na grade, relevância nunca só por cor, estados vazios, 3 breakpoints.
 - **RC.6.5 Decisões e docs (B.5):** registrar JCP, instante do snapshot e Copom como "mine" em
   `pontos-em-aberto-decisao-produto.md` (D9, D10).
+
+- **RC.6.1 entregue (2026-10-05):** `marketcalendar.Service.CalendarWith(ctx, userID, from, to, Options)` (o `Calendar` antigo virou um invólucro sem limite). `Event` ganhou `Relevance`, `RelevanceReason`, `EstimatedAmount`, `AmountIsEstimate` e `UserQuantity`; `DayEntry` ganhou `Summary` (`mine`/`market`); `Result` traz `MarketTotal` e `MarketShown`. Regras: fato `scope: user` é `mine` (motivos `own_fact`, `fixed_income_position` no vencimento, `salary` inclusive o futuro); provento é `mine` com snapshot (valor **exato**, `amount_is_estimate` falso, vale para quem vendeu depois da data-ex) ou, antes da data-ex, com posição atual (estimativa); relatório é `mine` com posição em **ação**; Copom e macro são `market`; sem `user_id`, tudo `market`; depois da data-ex sem snapshot o usuário não tem direito (comprou tarde). `scope=mine|all` e `market_limit` (0 a 200, padrão 50, os mais próximos de hoje) no handler, com 400 nos inválidos. `UserFacts` ganhou `HoldingsOf` e `DividendRecipientsBetween`, implementados em `CalendarRepository` (só as linhas do próprio usuário, sem posição zerada nem sandbox). `.docs/engine/calendar.md` atualizado. Testes: 9 de domínio com fakes (posição, snapshot exato, comprou tarde, relatório só com ação, motivos, salário futuro, escopo e resumo, limite pelos mais próximos, sem usuário), 3 do handler (query, 400, serialização) e 1 de SQL num Postgres 16 descartável (posições e destinatários, privacidade entre usuários). Validou: `go build`, `go test ./...`, `golangci-lint` v2.12.2 (0 issues). **Ressalvas:** (a) o relatório continua um fato global único (não por ticker): é `mine` se o usuário tem qualquer ação; relatório por empresa depende do escalonamento (RC.6.8); (b) o `market_limit` padrão de 50 já vale para o backend atual, que repassa a query sem o parâmetro (hoje o catálogo cabe folgado); (c) vencimento de renda fixa sem `estimated_amount`, só `quantity` (o valor depende do rendimento); (d) ordens abertas (`order_pending`) ficaram de fora, como a análise já marcava como opcional; (e) o teste de SQL só rodou com a migration `000040_clean_visible_catalog_text` movida para fora, por colisão de número com `000040_tick_runs_and_scheduler_control` (achado 035 em `pontos-em-aberto-decisao-produto.md`); (f) sem `docker compose up` de ponta a ponta; (g) `/code-review` não rodado.
 
 ### Trilha A: escalonamento por ativo (D8, decidido: entra no escopo)
 

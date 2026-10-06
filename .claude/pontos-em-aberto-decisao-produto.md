@@ -879,3 +879,12 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** o jogador pode comprar ações depois de aprender só o que é ação e o ticker, sem ainda ter visto ordem a mercado x limite, spread, liquidez e custos. Mover o desbloqueio para a lição de ordens faria quem já concluiu o ticker perder o acesso até concluir a nova (regressão para quem já está na trilha).
 - **Opções:** (a) manter (a compra libera cedo, as ordens vêm logo depois); (b) mover o desbloqueio para a lição de B3 e ordens, e dispensar dela quem já concluiu a do ticker (migração com N.24); (c) manter na lição do ticker, mas mostrar um aviso curto de ordem a mercado x limite na tela de compra.
 - **Status:** aberto (implementado com (a))
+
+### 035 · Duas migrations do engine com o mesmo número `000040` nas pilhas ainda não mescladas (RC.6.1)
+
+- **Local:** `engine/internal/infra/db/migrations/000040_clean_visible_catalog_text.*` (RC.1.4) e `000040_tick_runs_and_scheduler_control.*` (Fase N, N.3/N.4/N.6)
+- **Origem:** rodar o teste de integração do `CalendarRepository` (RC.6.1) num Postgres descartável: `Migrate` falha com `duplicate migration file: 000040_...` nesta branch, que empilha as duas séries. A `main` ainda não tem nenhuma das duas.
+- **O que é:** as pilhas RC e Fase N foram criadas em paralelo e cada uma pegou o próximo número livre. Quem aplicar as duas no mesmo banco (ou subir o `engine` com as duas) tem o `golang-migrate` recusando a pasta inteira. O teste de integração do calendário só rodou movendo uma delas para fora, temporariamente.
+- **Por que não foi corrigido na hora:** renumerar uma delas (por exemplo, a de limpeza de texto para `000043`) é mecânico, mas quem já aplicou a `000040` num banco de dev ficaria com o histórico dessincronizado, e a ordem de merge das pilhas é decisão do autor.
+- **Opções:** (a) renumerar a `000040_clean_visible_catalog_text` para o próximo número livre antes de mesclar a pilha RC (ajustando bancos de dev que já a aplicaram); (b) renumerar a da Fase N; (c) mesclar uma pilha antes e renumerar a outra no rebase.
+- **Status:** aberto
