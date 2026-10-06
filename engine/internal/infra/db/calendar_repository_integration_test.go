@@ -56,10 +56,10 @@ func TestCalendarRepository_PosicoesEDestinatariosDeProventos(t *testing.T) {
 	// Provento de SOLD3: ex no dia 8, pagamento no 13. Eu e o outro usuário somos destinatários;
 	// o de FUND11 só tem o outro. Fora da janela, nada.
 	exDay, payDay := 8, 13
-	event := insertID(`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day) VALUES ($1, 0.5, $2, $3, $4) RETURNING id`,
-		sold, simcalendar.DateOf(exDay), simcalendar.DateOf(payDay), payDay)
-	otherEvent := insertID(`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day) VALUES ($1, 1, $2, $3, $4) RETURNING id`,
-		fund, simcalendar.DateOf(exDay), simcalendar.DateOf(payDay), payDay)
+	event := insertID(`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day, declared_day, ex_day) VALUES ($1, 0.5, $2, $3, $4, $5, $5) RETURNING id`,
+		sold, simcalendar.DateOf(exDay), simcalendar.DateOf(payDay), payDay, exDay)
+	otherEvent := insertID(`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day, declared_day, ex_day) VALUES ($1, 1, $2, $3, $4, $5, $5) RETURNING id`,
+		fund, simcalendar.DateOf(exDay), simcalendar.DateOf(payDay), payDay, exDay)
 	exec(`INSERT INTO dividend_event_recipients (dividend_event_id, user_id, quantity) VALUES ($1, $2, 40), ($1, $3, 99), ($4, $3, 5)`, event, me, other, otherEvent)
 
 	facts, err := NewCalendarRepository(conn).DividendRecipientsBetween(ctx, me, 8, 14)

@@ -60,9 +60,11 @@ type Schedule struct {
 	FIIPaymentBusinessDay int
 }
 
-// DefaultsFor deriva a agenda do ticker com hash FNV-1a (estável entre bancos
-// recriados, diferente do UUID gerado pelo Postgres). Mesmo ticker e setor dão
-// sempre a mesma agenda; setor desconhecido paga trimestral (o legado).
+// DefaultsFor deriva a agenda de uma chave estável com hash FNV-1a (estável entre bancos
+// recriados, diferente do UUID gerado pelo Postgres): o ticker, para FIIs, e o CNPJ, para
+// empresas (ON e PN da mesma empresa compartilham a agenda, e a empresa não tem ticker
+// próprio). Mesma chave e setor dão sempre a mesma agenda; setor desconhecido (ou vazio,
+// o caso do FII) paga trimestral, o legado.
 func DefaultsFor(ticker string, sector catalog.Sector) Schedule {
 	policy := Quarterly
 	if weights, ok := policyWeights[sector]; ok {

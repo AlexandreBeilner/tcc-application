@@ -63,12 +63,39 @@ const DefaultQualityMultiplier = 1.00
 // de ser plausível pra uma empresa sintética.
 const maxQualityMultiplier = 2.0
 
+// DividendPolicy é a periodicidade do provento de ação (companies.dividend_policy,
+// migration 000048). Quais balanços pagam é regra de paymentschedule.
+type DividendPolicy string
+
+const (
+	DividendQuarterly  DividendPolicy = "quarterly"
+	DividendSemiannual DividendPolicy = "semiannual"
+	DividendAnnual     DividendPolicy = "annual"
+)
+
+// IsValid diz se p é uma das três políticas.
+func (p DividendPolicy) IsValid() bool {
+	return p == DividendQuarterly || p == DividendSemiannual || p == DividendAnnual
+}
+
+// Limites da agenda por empresa, os mesmos CHECKs da migration 000048. Os valores
+// padrão do legado (sem escalonamento) são o offset 0, a política trimestral, data-com
+// no dia da declaração e pagamento 5 dias depois.
+const (
+	MaxReportOffsetDays = 31
+	MaxComLagDays       = 10
+	MaxPaymentLagDays   = 40
+	// DefaultPaymentLagDays é o legado: a data-ex fica 5 dias antes do pagamento.
+	DefaultPaymentLagDays = 5
+)
+
 var (
 	ErrMissingCompanyName       = errors.New("nome da empresa é obrigatório")
 	ErrInvalidCNPJ              = errors.New("CNPJ deve ter 14 dígitos")
 	ErrUnknownSector            = errors.New("setor de empresa desconhecido")
 	ErrInvalidBaseGrowthPct     = errors.New("crescimento_base da empresa não pode zerar ou inverter o fator (1+crescimento)")
 	ErrInvalidQualityMultiplier = errors.New("multiplicador de qualidade da empresa precisa estar em (0, 2]")
+	ErrInvalidPaymentSchedule   = errors.New("agenda de proventos da empresa fora das faixas permitidas")
 )
 
 // Company é o cadastro de uma empresa emissora de ações (companies) —
@@ -97,6 +124,29 @@ type Company struct {
 	// Complementa BaseGrowthPct: sem ele, ROE/margem/alavancagem eram
 	// idênticos pra toda empresa do mesmo setor.
 	QualityMultiplier float64
+	// Agenda de balanço e proventos (RC.6.7, migration 000048). O legado (offset 0,
+	// trimestral, data-com no dia da declaração, pagamento em 5 dias) é o que NewCompany
+	// devolve; WithPaymentSchedule troca pela agenda derivada do ticker. Os atrasos são
+	// em dias úteis.
+	ReportOffsetDays int
+	DividendPolicy   DividendPolicy
+	ComLagDays       int
+	PaymentLagDays   int
+	// ScheduleAssigned marca que a agenda veio de WithPaymentSchedule (e não do legado
+	// padrão), gravado em companies.schedule_assigned.
+	ScheduleAssigned bool
+}
+
+// WithPaymentSchedule devolve a empresa com a agenda dada, validada nas mesmas faixas
+// dos CHECKs do banco. Quem deriva a agenda (paymentschedule.DefaultsFor) chama isto.
+func (c Company) WithPaymentSchedule(reportOffsetDays int, policy DividendPolicy, comLagDays, paymentLagDays int) (Company, error) {
+	if reportOffsetDays < 0 || reportOffsetDays > MaxReportOffsetDays || !policy.IsValid() ||
+		comLagDays < 0 || comLagDays > MaxComLagDays || paymentLagDays < 0 || paymentLagDays > MaxPaymentLagDays {
+		return Company{}, ErrInvalidPaymentSchedule
+	}
+	c.ReportOffsetDays, c.DividendPolicy, c.ComLagDays, c.PaymentLagDays = reportOffsetDays, policy, comLagDays, paymentLagDays
+	c.ScheduleAssigned = true
+	return c, nil
 }
 
 // NewCompany valida os invariantes mínimos de uma empresa cadastrada —
@@ -134,5 +184,7 @@ func NewCompany(name, cnpj string, sector Sector, baseGrowthPct, qualityMultipli
 		ReportFrequencyDays: DefaultReportFrequencyDays,
 		BaseGrowthPct:       baseGrowthPct,
 		QualityMultiplier:   qualityMultiplier,
+		DividendPolicy:      DividendQuarterly,
+		PaymentLagDays:      DefaultPaymentLagDays,
 	}, nil
 }

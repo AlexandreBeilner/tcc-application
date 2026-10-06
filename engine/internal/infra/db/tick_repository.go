@@ -586,9 +586,10 @@ func saveNewDividends(ctx context.Context, tx *sql.Tx, day int, records []tick.D
 
 		var eventID string
 		if err := tx.QueryRowContext(ctx,
-			`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day)
-			 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-			rec.AssetID, rec.ValuePerShare, exDate, paymentDate, rec.PaymentDay,
+			`INSERT INTO dividend_events (asset_id, value_per_share, ex_date, payment_date, payment_day,
+			                              declared_day, ex_day, recipients_snapshotted)
+			 VALUES ($1, $2, $3, $4, $5, $6, $6, true) RETURNING id`,
+			rec.AssetID, rec.ValuePerShare, exDate, paymentDate, rec.PaymentDay, day,
 		).Scan(&eventID); err != nil {
 			return err
 		}

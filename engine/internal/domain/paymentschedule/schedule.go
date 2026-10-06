@@ -16,7 +16,10 @@
 // `newDay` do tick: dayIndex+1 é o dia que acabou de começar.
 package paymentschedule
 
-import "tcc-investimentos/engine/internal/domain/simcalendar"
+import (
+	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
+)
 
 // AddBusinessDays avança n dias úteis a partir de day (o próprio day não
 // conta). Com n = 0 devolve o próprio day se for útil, ou o próximo dia útil se
@@ -99,22 +102,18 @@ func PaymentDay(exDay, lagBusinessDays int) int {
 	return AddBusinessDays(exDay, lagBusinessDays)
 }
 
-// Policy é a periodicidade do provento de ação: quais balanços pagam.
-type Policy string
+// Policy é a periodicidade do provento de ação: quais balanços pagam. O tipo mora em
+// catalog (o cadastro da empresa o guarda) e é reexportado aqui com as constantes.
+type Policy = catalog.DividendPolicy
 
 const (
 	// Quarterly paga em todo balanço trimestral (o comportamento legado).
-	Quarterly Policy = "quarterly"
+	Quarterly = catalog.DividendQuarterly
 	// Semiannual paga nos balanços do 2º e do 4º trimestre, com o lucro dos dois.
-	Semiannual Policy = "semiannual"
+	Semiannual = catalog.DividendSemiannual
 	// Annual paga só no balanço do 4º trimestre, com o lucro do ano.
-	Annual Policy = "annual"
+	Annual = catalog.DividendAnnual
 )
-
-// IsValid diz se p é uma das três políticas.
-func (p Policy) IsValid() bool {
-	return p == Quarterly || p == Semiannual || p == Annual
-}
 
 // EquityPayoutCycles diz, para os 4 trimestres do ano (índice 0 = 1º), em quais
 // o balanço paga provento. Política desconhecida cai no legado (trimestral).
