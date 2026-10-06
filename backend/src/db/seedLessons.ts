@@ -36,6 +36,7 @@ import {
   BLOCKS_2_8,
   BLOCKS_2_9,
   BLOCKS_CUSTOS,
+  BLOCKS_IMPOSTO,
 } from './lessonContentTrilha2Empresa'
 import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
 import { legacyText } from './lessonText'
@@ -881,11 +882,31 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: 'imposto-renda-variavel',
+    code: '2.12',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 36,
+    title: 'Imposto em renda variável',
+    centralConcept: 'Swing trade, day trade, isenção de R$ 20 mil, DARF e declaração',
+    scenarioText: legacyText(BLOCKS_IMPOSTO, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_IMPOSTO, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['R$ 300', 'R$ 200', 'Nada'],
+    microDecisionCorrectOption: 2,
+    revelationText: legacyText(BLOCKS_IMPOSTO, 'revelation'),
+    blocks: BLOCKS_IMPOSTO,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
     stableKey: '3.1',
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 36,
+    sortOrder: 37,
     title: 'Diversificação',
     centralConcept: 'Por que não concentrar tudo num ativo',
     scenarioText:
@@ -932,7 +953,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 37,
+    sortOrder: 38,
     title: 'Perfil de risco',
     centralConcept: 'Conservador vs Sofisticado, risco x retorno',
     scenarioText:
@@ -972,7 +993,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 38,
+    sortOrder: 39,
     title: 'Comparando produtos na prática',
     centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
     scenarioText:
@@ -1012,7 +1033,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 39,
+    sortOrder: 40,
     title: 'Desafio final da trilha',
     centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
     scenarioText:

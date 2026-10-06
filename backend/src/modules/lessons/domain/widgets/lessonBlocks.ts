@@ -36,6 +36,8 @@ export type WidgetId =
   | 'etf-shock-simulator'
   | 'fii-monthly-calendar'
   | 'fee-drag'
+  | 'equity-tax-calculator'
+  | 'tax-decision-tree'
   | 'savings-vs-selic'
   | 'growth-calculator'
   | 'fixed-income-comparison'

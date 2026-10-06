@@ -306,4 +306,23 @@ export const glossary: Record<string, GlossaryEntry> = {
         definition: 'Intensidade das oscilações do preço de um ativo. Quanto maior, mais incerto o resultado no curto prazo.',
         originLesson: '3.1',
     },
+    'swing trade': {
+        definition:
+            'Comprar e vender em dias diferentes. No imposto, é o tratamento padrão: 15% sobre o lucro, com isenção para ações até R$ 20 mil vendidos no mês.',
+        originLesson: '2.12',
+    },
+    'day trade': {
+        definition: 'Comprar e vender o mesmo ativo no mesmo dia. Paga 20% sobre o lucro e nunca tem a isenção de R$ 20 mil.',
+        originLesson: '2.12',
+    },
+    DARF: {
+        definition:
+            'Guia da Receita Federal usada para pagar o imposto devido sobre ganhos em renda variável, até o último dia útil do mês seguinte à venda.',
+        originLesson: '2.12',
+    },
+    'dedo-duro': {
+        definition:
+            'Retenção pequena de imposto que a corretora faz na venda (0,005% do valor vendido no swing trade), que avisa a Receita e abate do imposto devido.',
+        originLesson: '2.12',
+    },
 }

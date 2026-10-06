@@ -184,6 +184,7 @@ describe('blocks no seed (RC.3.1)', () => {
       '2.9',
       '2.10',
       'custos-de-investir',
+      'imposto-renda-variavel',
     ])
     expect(trilha2.map((l) => l.code)).toEqual([
       '2.1',
@@ -203,6 +204,7 @@ describe('blocks no seed (RC.3.1)', () => {
       '2.9',
       '2.10',
       '2.11',
+      '2.12',
     ])
     const orders = LESSON_SEEDS.map((l) => l.sortOrder)
     expect(orders).toEqual(orders.map((_, i) => i + 1))

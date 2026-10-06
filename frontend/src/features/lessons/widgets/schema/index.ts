@@ -39,6 +39,8 @@ export const WIDGET_IDS = [
     'etf-shock-simulator',
     'fii-monthly-calendar',
     'fee-drag',
+    'equity-tax-calculator',
+    'tax-decision-tree',
     'savings-vs-selic',
     'growth-calculator',
     'fixed-income-comparison',
@@ -235,6 +237,14 @@ export const widgetPropsSchemas = {
         feeBPct: z.number().min(0).max(4).default(2),
         years: z.number().int().min(1).max(40).default(20),
     }),
+    'equity-tax-calculator': z.object({
+        kind: z.enum(['swing', 'daytrade']).default('swing'),
+        assetClass: z.enum(['stock', 'etf', 'fii']).default('stock'),
+        salesMonth: z.number().min(0).max(100_000).default(15000),
+        profit: z.number().min(-10_000).max(20_000).default(2000),
+        lossCarry: z.number().min(0).max(10_000).default(0),
+    }),
+    'tax-decision-tree': emptyProps,
     'rating-ruler': z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') }),
     'savings-vs-selic': z.object({
         selicPct: z.number().min(2).max(16).default(14),

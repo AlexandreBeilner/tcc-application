@@ -176,6 +176,13 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'x1', widget: 'fee-drag', props: { feeBPct: 1.5, years: 30 } },
         {
           type: 'widget',
+          id: 'x2',
+          widget: 'equity-tax-calculator',
+          props: { kind: 'daytrade', assetClass: 'etf', profit: -500 },
+        },
+        { type: 'widget', id: 'x3', widget: 'tax-decision-tree', props: {} },
+        {
+          type: 'widget',
           id: 'y1',
           widget: 'dividend-timeline',
           props: { comDay: 2, paymentDay: 15 },
@@ -231,6 +238,8 @@ describe('lessonBlocksSchema', () => {
     ['debt-thermometer', { cdiSharePct: 120 }],
     ['fee-drag', { feeBPct: 9 }],
     ['fee-drag', { years: 0 }],
+    ['equity-tax-calculator', { kind: 'position' }],
+    ['equity-tax-calculator', { salesMonth: -1 }],
     ['dividend-timeline', { comDay: 9 }],
     ['dividend-timeline', { paymentDay: 3 }],
     ['dividend-net-calculator', { kind: 'bonus' }],

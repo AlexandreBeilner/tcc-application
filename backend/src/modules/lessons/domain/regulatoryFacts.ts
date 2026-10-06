@@ -436,6 +436,34 @@ export const REGULATORY_FACTS = [
     note: 'Lei 8.668/1993, art. 18 (redação de 1999), lido em reprodução do artigo; a página do Planalto não abriu. Reconferir antes de citar o número em lição (a RC.4.7 trata do imposto).',
   },
   {
+    id: 'renda-variavel-aliquotas',
+    label: 'Renda variável: alíquotas, DARF, dedo-duro e compensação',
+    value:
+      'Swing trade (venda em outro dia): 15% sobre o lucro, com isenção para vendas de ações de até R$ 20 mil no mês (conta o valor vendido, não o lucro). Day trade: 20% sobre o lucro, sem isenção. Retenção na fonte (dedo-duro): 0,005% sobre o valor da venda no swing trade e 1% no day trade. O imposto é pago em DARF até o último dia útil do mês seguinte à venda; atraso tem multa de 0,33% ao dia, limitada a 20%, e juros pela Selic. Prejuízo de swing trade não compensa lucro de day trade, e o contrário também vale; o prejuízo abate lucros futuros do mesmo tipo de operação. Declaração: ações em carteira em Bens e Direitos pelo custo de aquisição; ganho isento em Rendimentos Isentos; ganho tributado em Renda Variável.',
+    data: {
+      swingPct: 15,
+      dayTradePct: 20,
+      swingWithholdingPct: 0.005,
+      dayTradeWithholdingPct: 1,
+      monthlySalesLimitBRL: 20_000,
+    },
+    source:
+      'https://borainvestir.b3.com.br/noticias/imposto-de-renda/renda-variavel-imposto-de-renda/comprou-ou-vendeu-acoes-veja-como-declarar-swing-trade-day-trade-e-proventos-no-imposto-de-renda/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Matéria do Bora Investir (B3 Educação) aberta e lida. A página da Receita sobre isenções (gov.br/receitafederal, bolsa-de-valores-1/isencoes) confirma a isenção, que exclui day trade, ETF de ações e resgate de fundos de ações, mas não traz alíquotas nem DARF. A lição não cita o código do DARF nem o DARF mínimo, que não foram conferidos. O imposto sobre o ganho do FII (20%) segue em `fii-ganho-capital` (trecho de busca): a lição só o cita no widget com ressalva de que é de exemplo.',
+  },
+  {
+    id: 'mp-1303-caducou',
+    label: 'MP 1.303/2025 perdeu a validade',
+    value:
+      'A Câmara retirou a MP 1.303/2025 da pauta em 8/10/2025 (251 votos a 193) e ela perdeu a validade sem ser votada pelo Senado. Ela previa tributação unificada de 18% sobre aplicações financeiras a partir de 2026; as regras de imposto de renda variável continuam as de antes.',
+    source: 'https://www.congressonacional.leg.br/materias/medidas-provisorias/-/mpv/169059',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-06',
+    note: 'A página da MP no Congresso Nacional e a notícia da Câmara dos Deputados (camara.leg.br/noticias/1209479) apareceram na busca com vigência encerrada em 8/10/2025; o texto integral não foi aberto. A lição não menciona a MP: o fato fica registrado para o autor não reintroduzir as alíquotas de 17,5% e o limite trimestral.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:
