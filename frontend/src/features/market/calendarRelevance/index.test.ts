@@ -40,7 +40,7 @@ describe('calendarRelevance', () => {
         expect(calendarRelevance([day]).market).toHaveLength(1)
     })
 
-    it('soma só os proventos futuros do usuário e sinaliza estimativa', () => {
+    it('soma só o pagamento futuro de provento do usuário (a data-ex não conta em dobro) e sinaliza estimativa', () => {
         const day = calendarDay({ ...base, simulated_day: 10 }, [
             {
                 kind: 'dividend_payment_date',
@@ -57,6 +57,14 @@ describe('calendarRelevance', () => {
                 relevance: 'mine',
                 estimated_amount: 7.5,
                 amount_is_estimate: true,
+            },
+            {
+                kind: 'dividend_ex_date',
+                scope: 'global',
+                future: true,
+                relevance: 'mine',
+                estimated_amount: 12.5,
+                amount_is_estimate: false,
             },
             {
                 kind: 'dividend_received',

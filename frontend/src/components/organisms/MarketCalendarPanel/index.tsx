@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Clock, FastForward, FileText, Lock, X } from 'lucide-react'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { formatDayMonth, formatWeekdayDate, shiftIsoDate, weekdayLong, weekdayShort } from '../../../features/market/calendarFormat'
+import { calendarRelevance } from '../../../features/market/calendarRelevance'
+import { formatCurrency } from '../../../features/portfolio/format'
 import { quarterCells } from '../../../features/market/quarterCells'
 import { useCalendarScope } from '../../../features/market/useCalendarScope'
 import { useMarketCalendarQuery } from '../../../features/market/useMarketCalendarQuery'
 import { useMarketClockQuery } from '../../../features/market/useMarketClockQuery'
-import type { CalendarDay, CalendarEvent, CalendarEventKind, MarketClock } from '../../../services/market'
+import type { CalendarDay, CalendarEvent, CalendarEventKind, CalendarScope, MarketCalendar, MarketClock } from '../../../services/market'
 import { CalendarKindIcon } from '../../atoms/CalendarKindIcon'
 import { CalendarDayStrip } from '../../molecules/CalendarDayStrip'
 import { CalendarEventItem } from '../../molecules/CalendarEventItem'
@@ -39,10 +41,20 @@ function daysLabel(days: number): string {
     return `em ${days} ${days === 1 ? 'dia' : 'dias'}`
 }
 
-function upcomingFrom(days: CalendarDay[], todayDay: number): { event: CalendarEvent; day: CalendarDay }[] {
+interface Entry {
+    event: CalendarEvent
+    // Dia do fato, quando ele vem de fora do dia selecionado ("Vem aí" de hoje).
+    day: CalendarDay | null
+}
+
+function isMine(event: CalendarEvent): boolean {
+    return event.relevance === 'mine'
+}
+
+function upcomingFrom(days: CalendarDay[], todayDay: number, mine: boolean): Entry[] {
     return days
         .filter((day) => day.simulated_day >= todayDay)
-        .flatMap((day) => day.events.filter((event) => event.future).map((event) => ({ event, day })))
+        .flatMap((day) => day.events.filter((event) => event.future && isMine(event) === mine).map((event) => ({ event, day })))
         .slice(0, UPCOMING_LIMIT)
 }
 
@@ -117,6 +129,9 @@ export function MarketCalendarPanel({ onClose }: MarketCalendarPanelProps) {
                         showGrid={isDesktop}
                         selectedDay={selectedDay ?? clock.simulated_day}
                         onSelect={setSelectedDay}
+                        scope={scope}
+                        onScopeChange={setScope}
+                        calendar={calendarQuery.data}
                     />
                 ) : (
                     <p className={styles.empty} role="status">
@@ -140,9 +155,25 @@ interface PanelBodyProps {
     showGrid: boolean
     selectedDay: number
     onSelect: (day: number) => void
+    scope: CalendarScope
+    onScopeChange: (scope: CalendarScope) => void
+    calendar: MarketCalendar | undefined
 }
 
-function PanelBody({ clock, windowDays, loading, failed, eventsByDay, cells, showGrid, selectedDay, onSelect }: PanelBodyProps) {
+function PanelBody({
+    clock,
+    windowDays,
+    loading,
+    failed,
+    eventsByDay,
+    cells,
+    showGrid,
+    selectedDay,
+    onSelect,
+    scope,
+    onScopeChange,
+    calendar,
+}: PanelBodyProps) {
     const today = clock.simulated_day
     // Último dia do trimestre (dia de relatório): vira um bloco dourado, sem barra de progresso.
     const reportDay = today + (clock.quarter_length - clock.quarter_day)
@@ -157,10 +188,19 @@ function PanelBody({ clock, windowDays, loading, failed, eventsByDay, cells, sho
     const date = selectedWindowDay?.date ?? selectedCell?.date ?? clock.date
     const open = selectedWindowDay?.market_open ?? selectedCell?.open ?? clock.market_open
 
-    const happened = selectedEvents.filter((event) => !event.future)
-    const coming = selectedIsToday
-        ? upcomingFrom(windowDays, today)
-        : selectedEvents.filter((event) => event.future).map((event) => ({ event, day: null }))
+    const dayEntries = (mine: boolean): { happened: Entry[]; coming: Entry[] } => {
+        const own = selectedEvents.filter((event) => isMine(event) === mine)
+        return {
+            happened: own.filter((event) => !event.future).map((event) => ({ event, day: null })),
+            coming: selectedIsToday
+                ? upcomingFrom(windowDays, today, mine)
+                : own.filter((event) => event.future).map((event) => ({ event, day: null })),
+        }
+    }
+    const mineGroup = dayEntries(true)
+    const marketGroup = dayEntries(false)
+    const { summary } = calendarRelevance(windowDays)
+    const hiddenMarket = summary.marketCount
 
     return (
         <>
@@ -212,49 +252,111 @@ function PanelBody({ clock, windowDays, loading, failed, eventsByDay, cells, sho
                         )}
                     </div>
 
-                    <div className={styles.lists}>
-                        <div>
-                            <h4 className={styles.groupTitle}>Aconteceu</h4>
-                            {happened.length > 0 ? (
-                                <ul className={styles.list}>
-                                    {happened.map((event, index) => (
-                                        <CalendarEventItem key={`${event.kind}-${index}`} event={event} />
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className={styles.empty}>{selectedIsFuture ? 'Ainda não aconteceu.' : 'Nada registrado neste dia.'}</p>
-                            )}
-                        </div>
-                        <div>
-                            <h4 className={styles.groupTitle}>Vem aí</h4>
-                            {coming.length > 0 ? (
-                                <ul className={styles.list}>
-                                    {coming.map(({ event, day }, index) => (
-                                        <CalendarEventItem
-                                            key={`${event.kind}-${index}`}
-                                            event={event}
-                                            whenLabel={
-                                                day && day.simulated_day > today
-                                                    ? `${weekdayShort(day.weekday)} ${formatDayMonth(day.date)} · ${daysLabel(day.simulated_day - today)}`
-                                                    : day
-                                                      ? 'hoje'
-                                                      : undefined
-                                            }
-                                        />
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className={styles.empty}>
-                                    {selectedIsFuture || selectedIsToday
-                                        ? 'Nenhum fato previsto.'
-                                        : 'Para ver o que vem depois, toque em hoje.'}
+                    <section className={styles.mine} aria-label="Para você">
+                        <h4 className={styles.mineTitle}>
+                            Para você
+                            <span className={styles.count}>{summary.mineCount}</span>
+                        </h4>
+                        {summary.upcomingPayout > 0 && (
+                            <p className={styles.payout}>
+                                Proventos a receber nesta janela: <b>{formatCurrency(summary.upcomingPayout)}</b>
+                                {summary.upcomingPayoutIsEstimate && ' (estimado)'}
+                            </p>
+                        )}
+                        <EventColumns
+                            group={mineGroup}
+                            today={today}
+                            selectedIsToday={selectedIsToday}
+                            selectedIsFuture={selectedIsFuture}
+                            nothing="Nada que afete você neste dia."
+                        />
+                    </section>
+
+                    {scope === 'all' ? (
+                        <details className={styles.market} open={marketGroup.happened.length + marketGroup.coming.length > 0}>
+                            <summary className={styles.marketSummary}>No mercado</summary>
+                            <EventColumns
+                                group={marketGroup}
+                                today={today}
+                                selectedIsToday={selectedIsToday}
+                                selectedIsFuture={selectedIsFuture}
+                                nothing="Nenhum fato do mercado neste dia."
+                            />
+                            {calendar && calendar.market_total > calendar.market_shown && (
+                                <p className={styles.note}>
+                                    Mostrando {calendar.market_shown} de {calendar.market_total} fatos do mercado, os mais próximos de hoje.
                                 </p>
                             )}
-                        </div>
-                    </div>
+                        </details>
+                    ) : (
+                        <p className={styles.note}>
+                            Mostrando só o que afeta você.{' '}
+                            {hiddenMarket > 0 &&
+                                `${hiddenMarket} ${hiddenMarket === 1 ? 'fato do mercado fica' : 'fatos do mercado ficam'} de fora. `}
+                            <button type="button" className={styles.link} onClick={() => onScopeChange('all')}>
+                                Ver o mercado
+                            </button>
+                        </p>
+                    )}
                 </>
             )}
         </>
+    )
+}
+
+interface EventColumnsProps {
+    group: { happened: Entry[]; coming: Entry[] }
+    today: number
+    selectedIsToday: boolean
+    selectedIsFuture: boolean
+    nothing: string
+}
+
+// As duas listas do dia, "Aconteceu" e "Vem aí", usadas tanto em "Para você"
+// quanto em "No mercado".
+function EventColumns({ group, today, selectedIsToday, selectedIsFuture, nothing }: EventColumnsProps) {
+    const { happened, coming } = group
+    if (happened.length === 0 && coming.length === 0) return <p className={styles.empty}>{nothing}</p>
+
+    return (
+        <div className={styles.lists}>
+            <div>
+                <h5 className={styles.groupTitle}>Aconteceu</h5>
+                {happened.length > 0 ? (
+                    <ul className={styles.list}>
+                        {happened.map(({ event }, index) => (
+                            <CalendarEventItem key={`${event.kind}-${index}`} event={event} />
+                        ))}
+                    </ul>
+                ) : (
+                    <p className={styles.empty}>{selectedIsFuture ? 'Ainda não aconteceu.' : 'Nada registrado neste dia.'}</p>
+                )}
+            </div>
+            <div>
+                <h5 className={styles.groupTitle}>Vem aí</h5>
+                {coming.length > 0 ? (
+                    <ul className={styles.list}>
+                        {coming.map(({ event, day }, index) => (
+                            <CalendarEventItem
+                                key={`${event.kind}-${index}`}
+                                event={event}
+                                whenLabel={
+                                    day && day.simulated_day > today
+                                        ? `${weekdayShort(day.weekday)} ${formatDayMonth(day.date)} · ${daysLabel(day.simulated_day - today)}`
+                                        : day
+                                          ? 'hoje'
+                                          : undefined
+                                }
+                            />
+                        ))}
+                    </ul>
+                ) : (
+                    <p className={styles.empty}>
+                        {selectedIsFuture || selectedIsToday ? 'Nenhum fato previsto.' : 'Para ver o que vem depois, toque em hoje.'}
+                    </p>
+                )}
+            </div>
+        </div>
     )
 }
 
@@ -268,6 +370,14 @@ function Footer({ daysPerRealDay }: { daysPerRealDay: number | undefined }) {
                 </span>
             </p>
             <ul className={styles.legend} aria-label="Legenda">
+                <li>
+                    <span className={`${styles.swatch} ${styles.swatchMine}`} aria-hidden="true" />
+                    Para você
+                </li>
+                <li>
+                    <span className={`${styles.swatch} ${styles.swatchDashed}`} aria-hidden="true" />
+                    No mercado
+                </li>
                 <li>
                     <span className={styles.swatch} aria-hidden="true" />
                     Aconteceu

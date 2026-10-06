@@ -780,7 +780,7 @@ Fonte: `analise-calendario.md`. A Trilha B (UX) é independente e entrega valor 
   uso testados; `user_id` na query ignorado; `.docs/backend/market.md`.
 - **RC.6.3 ✅ Frontend: dados (B.3):** tipos, função pura `calendarRelevance`, segmented control Meus/Todos
   persistido.
-- **RC.6.4 Frontend: UI (B.4):** rascunho antes. Faixa "Para você" em destaque (sólido para exato, tracejado para
+- **RC.6.4 ✅ Frontend: UI (B.4):** rascunho antes. Faixa "Para você" em destaque (sólido para exato, tracejado para
   estimado, convenção do `identidade-visual-padroes.md`), "No mercado" recolhível e secundário, marcador duplo na
   faixa de dias e na grade, relevância nunca só por cor, estados vazios, 3 breakpoints.
 - **RC.6.5 Decisões e docs (B.5):** registrar JCP, instante do snapshot e Copom como "mine" em
@@ -791,6 +791,21 @@ Fonte: `analise-calendario.md`. A Trilha B (UX) é independente e entrega valor 
 - **RC.6.2 entregue (2026-10-05):** `marketCalendarQuerySchema` ganhou `scope` (`mine`/`all`) e `market_limit` (inteiro 0 a 200, `z.coerce`); a porta `MarketCalendarReader` ganhou `CalendarScope`, os campos de relevância no `CalendarEvent` (`relevance`, `relevance_reason`, `estimated_amount`, `amount_is_estimate`, `user_quantity`, e o `reference_month` que faltava desde o achado 025), `summary` por dia e `market_total`/`market_shown`; `GetMarketCalendarUseCase` repassa `scope` e `marketLimit`; o adapter do motor só manda os parâmetros quando informados (sem eles o motor decide: `all` e 50); o router repassa. `user_id` na query segue ignorado (sempre o do token). Testes: caso de uso, adapter (URL com `scope` e `market_limit`), router (repasse, 400 para `scope=todos`, `market_limit` -1, 201 e `abc`, sem chamar o motor). `.docs/backend/market.md` atualizado. Validou: backend lint/build/`npm test` (2719). **Ressalvas:** sem `docker compose up` de ponta a ponta com o motor novo, e o frontend ainda não manda `scope=mine` (RC.6.3); o contrato é aditivo, então o frontend atual segue funcionando.
 
 - **RC.6.3 entregue (2026-10-06):** `services/market/types.ts` espelha o contrato do backend (`relevance`, `relevance_reason`, `estimated_amount`, `amount_is_estimate`, `user_quantity` no evento; `summary` por dia; `market_total`/`market_shown`; `CalendarScope`) e `getMarketCalendar` aceita `{ scope, marketLimit }` (só manda o que for informado). `features/market/calendarRelevance` é a função pura que separa "Para você" e "No mercado" em ordem cronológica, com contadores do `summary` do motor (que contam antes do corte) e a soma dos proventos futuros do usuário (`upcomingPayoutIsEstimate` se algum for estimativa). `features/market/useCalendarScope` guarda Meus/Todos em `localStorage` (`app.calendar.scope`), padrão `mine`, tolerando armazenamento bloqueado. `useMarketCalendarQuery` ganhou o parâmetro `scope` (na chave da query) e o `MarketCalendarPanel` pede `scope=mine` por padrão, com o novo `CalendarScopeToggle` (radiogroup Meus/Todos, estado ativo também por peso de fonte). Fixtures de teste ganharam `calendarEvent`/`calendarDay`/`calendarWindow` (relevância e `summary` derivados). Testes: função pura (4), hook (3), toggle, serviço (query string), painel (abre em `mine`, troca pede `all` e persiste, lembra na abertura seguinte). Validou: `vitest` (1574), `tsc -b`, lint sem erros. **Ressalvas:** o painel ainda não separa as duas seções nem mostra "No mercado" (RC.6.4): com o padrão `mine` o Copom e eventos macro só aparecem em "Todos" até lá; o toggle foi posto sem rascunho de layout, a RC.6.4 o reposiciona; `useNextSalaryPayment` e o teatro de virada de dia seguem sem `scope` (salário é `mine` de qualquer forma); sem `docker compose up` de ponta a ponta nem `/code-review`.
+
+- **RC.6.4 entregue (2026-10-06):** rascunho de layout (mesma árvore nos 3 breakpoints; o desktop mantém o painel lateral de 440px com a grade do trimestre em cima):
+  ```
+  [ Meus | Todos ]
+  faixa de dias:  qua 08  [▮2] [┄●┄]      ▮ pílula cheia = para você (com número)
+  grade (desktop): célula com barra grossa embaixo = tem fato seu   ┄ tracejado = só mercado
+  ┌ Para você (2) ─────────────────────┐  faixa em destaque (borda e fundo da marca)
+  │ Proventos a receber: R$ 10,80 (estimado)
+  │ Aconteceu | Vem aí  (tablet: 2 colunas; mobile: 1)
+  │  item sólido = valor confirmado · tracejado = previsto/estimado, valor em texto
+  └────────────────────────────────────┘
+  ▸ No mercado   (só em "Todos"; recolhível, tracejado; "Mostrando X de Y" se houve corte)
+  Em "Meus": "Mostrando só o que afeta você. N fatos do mercado ficam de fora. [Ver o mercado]"
+  ```
+  Feito: `MarketCalendarPanel` separa "Para você" (faixa em destaque, soma dos proventos a pagar, estado vazio "Nada que afete você neste dia.") de "No mercado" (`<details>` secundário, só em "Todos", com aviso de corte por `market_limit`); `CalendarDayStrip` marca o dia com pílula cheia numerada (seu) e ícone tracejado (mercado) e o `aria-label` traz as contagens ("2 para você, 1 no mercado"); `QuarterGrid` usa a barra grossa embaixo para dia com fato seu; `CalendarEventItem` mostra o valor do usuário ("10 unidades · R$ 8,80 (valor confirmado)" ou "(estimado)"), sólido quando confirmado e tracejado quando previsto; legenda ganhou "Para você" e "No mercado". Correção da RC.6.3: o total de proventos soma só o evento de pagamento (a data-ex do mesmo provento leva o mesmo valor e contava em dobro). Relevância nunca só por cor (forma, número e texto). Testes: painel (Meus/Todos, "Para você" x "No mercado", provento confirmado x estimado, marcadores da faixa), `describeCalendarEvent` com valor, `calendarRelevance`. Validou: `vitest` (1579), `tsc -b`, lint sem erros. **Ressalvas:** não conferi em 360/768/1280px nos dois temas (o app exige login; fica para a RC.7.6); a seção "No mercado" some em "Meus" por decisão deste desenho, então Copom e eventos macro só aparecem em "Todos"; sem `docker compose up` de ponta a ponta nem `/code-review`.
 
 ### Trilha A: escalonamento por ativo (D8, decidido: entra no escopo)
 

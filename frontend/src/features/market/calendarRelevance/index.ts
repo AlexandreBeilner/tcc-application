@@ -8,8 +8,9 @@ export interface RelevantEntry {
 export interface CalendarRelevanceSummary {
     mineCount: number
     marketCount: number
-    // Soma dos proventos do usuário ainda por vir, em R$. Estimativa enquanto
-    // algum deles ainda não tem data-ex passada.
+    // Soma dos proventos do usuário ainda por pagar, em R$ (só o evento de
+    // pagamento: a data-ex do mesmo provento carrega o mesmo valor). Estimativa
+    // enquanto algum deles ainda não tem data-ex passada.
     upcomingPayout: number
     upcomingPayoutIsEstimate: boolean
 }
@@ -45,7 +46,7 @@ export function calendarRelevance(days: CalendarDay[]): RelevantCalendar {
                 continue
             }
             mine.push({ event, day })
-            if (event.future && event.estimated_amount !== undefined) {
+            if (event.future && event.kind === 'dividend_payment_date' && event.estimated_amount !== undefined) {
                 upcomingPayout += event.estimated_amount
                 upcomingPayoutIsEstimate ||= event.amount_is_estimate === true
             }
