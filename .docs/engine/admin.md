@@ -207,3 +207,38 @@ Classes (`kind`): `acao` (cria a empresa emissora junto, uma ação ON; classe d
 - **Payload:** o mesmo do preview, mais `admin_id` (UUID, informado pelo backend).
 - **Sucesso:** `201` → `{ asset_id, preview }`.
 - **Erros:** os do preview (`400` também sem `admin_id`); `500` com `{ error, asset_id }` quando o catálogo gravou mas a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots, que reatribui; a ordem das etapas é a do seed: bots antes da cobertura).
+
+### Integridade financeira e exportação (tarefa N.21)
+
+Pacotes: `engine/internal/domain/integrity/` (regras puras: o efeito de cada tipo de evento no caixa e na posição, a comparação e a classificação, mais o `Service` que roda em segundo plano), `engine/internal/domain/adminexport/` (recorte de período e teto de linhas) e os adapters `db.IntegrityRepository` e `db.AdminExportRepository`. As rotas seguem o trust boundary das outras `/admin/*`: o backend valida `role = admin`. Sem o serviço ligado respondem `503`.
+
+#### O que a verificação confere
+
+**Somente leitura**: só reporta, nunca corrige (corrigir é decisão humana). Tudo numa única transação `REPEATABLE READ` somente leitura, então um tick rodando no meio não gera divergência falsa. Dinheiro em centavos inteiros (`ROUND(x*100)::bigint`), sem ponto flutuante. Os eventos são lidos em fluxo, sem carregar a tabela na memória.
+
+- **`balance_mismatch`:** o saldo em `accounts` difere do reconstruído só de `market_events`. Efeito no caixa: `initial_deposit`, `bot_initial_cash`, `salary_payment`, `admin_credit` e `fixed_income_redemption` somam o valor; `fixed_income_purchase` e `etf_expense_payout` subtraem; `buy_order_executed` subtrai quantidade vezes valor; `sell_order_executed` e `dividend_payment` somam quantidade vezes valor; `etf_dividend_payout` subtrai quantidade vezes valor; `bot_initial_allocation`, `etf_creation`, `etf_redemption` e `etf_share_transfer` não movem caixa.
+- **`position_mismatch`:** a posição em `positions` difere da reconstruída (compra e alocação somam, venda subtrai, os eventos de ETF já trazem a quantidade com sinal). Posição que existe nos eventos mas sumiu da projeção, ou o inverso, também diverge.
+- **`negative_balance`** e **`negative_position`:** saldo ou quantidade negativos (os `CHECK` da migration `000025` deveriam impedir; é a rede de proteção conferida).
+- **`float_mismatch`:** a soma das posições de um ativo (humanos, bots e fundo) difere de `outstanding_shares`. Ativo sem float (sandbox) não entra.
+- **`resting_order_unfunded`:** ordem em repouso (`pending` ou `partially_filled`) cujo dono, **sozinho**, não cobre a compra a preço limite (quantidade restante vezes preço contra o saldo) ou a venda (quantidade restante contra a posição). É a ordem "fantasma" do achado 015. Não soma as ordens do mesmo dono entre si, porque o motor revalida a cada preenchimento em vez de reservar; compra a mercado em repouso não tem custo conhecido e não é conferida.
+- **`unknown_event_type`:** evento de um tipo que a verificação não sabe reconstruir. Existe pra um tipo novo de evento nunca passar despercebido: quem o criar precisa ensinar a regra em `integrity.CashDeltaCents`/`PositionDelta`.
+
+Base saudável devolve zero divergências (conferido contra o banco de desenvolvimento: 106 contas, 14 tipos de evento, 0 divergências). A lista detalhada vai até 200 itens, ordenada de forma determinística (categoria, conta, ativo); as contagens por categoria são sempre exatas.
+
+#### `POST /admin/integrity/check`
+
+- **Payload:** nenhum.
+- **Sucesso:** `202` → `{ id, status: "running", started_at, finished_at: null, error: null, report: null }`. A verificação segue em segundo plano (timeout de 5 minutos).
+- **Erros:** `409` já há uma em andamento (só uma por vez); `503`.
+
+#### `GET /admin/integrity/check`
+
+- **Sucesso:** `200` → `{ run }`, com `run` = `null` se nenhuma rodou desde a subida do motor, ou `{ id, status ('running' | 'done' | 'failed'), started_at, finished_at | null, error | null, report | null }`. `report`: `{ checked: { events, accounts, positions, assets, resting_orders }, total, counts: { <categoria>: n } (todas as categorias, com zero quando vazia), truncated, divergences: [{ kind, user_id | null, asset_id | null, ticker | null, order_id | null, expected, found, detail }] }`. Valores monetários em reais com duas casas, em texto.
+- **Regra:** o resultado é só da última verificação e vive em memória (diagnóstico sob demanda, não histórico; o registro de que foi rodada está na auditoria do painel).
+
+#### `GET /admin/export/orders` e `GET /admin/export/events`
+
+- **Payload (query):** `from` e `to` (RFC 3339, inclusivos, opcionais, `from` não pode ser depois de `to`), `limit` (inteiro positivo; padrão 10.000, teto 50.000, acima do teto vira o teto).
+- **Sucesso:** `200` → `{ rows, truncated }`, do mais antigo pro mais recente (período sobre `created_at` nas ordens e sobre `timestamp` nos eventos); `truncated = true` se havia mais linhas que o limite. Ordens: `{ id, user_id, is_bot, ticker, side, type, quantity, filled_quantity, price, status, cancel_reason | null, simulated_day, created_at }`. Eventos: `{ id, user_id, is_bot, ticker | null, event_type, quantity | null, unit_value | null, simulated_day, timestamp }`.
+- **Erros:** `400` data fora de RFC 3339, intervalo invertido, `limit` inválido; `500`; `503`.
+- **Privacidade (RNF09, LGPD):** as linhas identificam a conta só pelo id (nome e e-mail ficam no backend) e não carregam patrimônio agregado. O CSV é montado e auditado pelo backend (`.docs/backend/admin.md`).
