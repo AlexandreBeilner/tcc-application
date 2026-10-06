@@ -37,6 +37,7 @@ import {
   BLOCKS_2_9,
   BLOCKS_CUSTOS,
 } from './lessonContentTrilha2Empresa'
+import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -665,7 +666,11 @@ export const LESSON_SEEDS: LessonSeed[] = [
     microDecisionPrompt: legacyText(BLOCKS_2_7_1, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim, é o valor de mercado', 'Não, é o valor contábil', 'Só se a empresa não tiver dívida'],
+    microDecisionOptions: [
+      'Sim, é o valor de mercado',
+      'Não, é o valor contábil',
+      'Só se a empresa não tiver dívida',
+    ],
     microDecisionCorrectOption: 1,
     revelationText: legacyText(BLOCKS_2_7_1, 'revelation'),
     blocks: BLOCKS_2_7_1,
@@ -759,33 +764,16 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 30,
-    title: 'Dividendos e data ex',
-    centralConcept: 'Como e quando o acionista recebe',
-    scenarioText:
-      'Você tem VALR3 na carteira no dia em que a Mineradora Vale do Rio fecha seu ciclo de relatório (a ' +
-      'cada 14 dias simulados) e a empresa distribui parte do lucro como dividendo.' +
-      '\n\n' +
-      'Nesse exato dia, a plataforma registra quem tem direito a receber esse provento: é a data ex.',
-    microDecisionPrompt:
-      'Se você vender toda a sua posição em VALR3 um dia depois da data ex, mas antes do dia de pagamento, ' +
-      'ainda recebe o dividendo dessa distribuição?',
+    title: 'Dividendos, JCP e data ex',
+    centralConcept: 'Como e quando o acionista recebe, e o imposto',
+    scenarioText: legacyText(BLOCKS_2_7_6, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_6, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: ['Sim', 'Não'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Sim. O direito ao provento é definido pela posição que você tinha exatamente na data ex, o dia de ' +
-      'relatório em que o dividendo é gerado, não pela posição no dia do pagamento.' +
-      '\n\n' +
-      'A plataforma registra quem tem posição nesse momento e paga esse mesmo grupo depois, com uma ' +
-      'defasagem fixa de 5 dias simulados entre a data ex e o pagamento, sempre antes do próximo ciclo de ' +
-      'relatório distribuir um novo provento sobre o mesmo ativo.' +
-      '\n\n' +
-      'Vender depois da data ex não tira o seu direito ao provento já gerado; comprar depois da data ex não ' +
-      'dá direito a ele, só ao provento do próximo ciclo.' +
-      '\n\n' +
-      'O valor por ação, o mesmo que forma o {{Dividend Yield}} da lição anterior, é creditado direto no seu ' +
-      'saldo, e vale tanto para ações quanto para FIIs, o produto da lição 2.10.',
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_7_6, 'revelation'),
+    blocks: BLOCKS_2_7_6,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -857,40 +845,17 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 34,
     title: 'FIIs',
-    centralConcept: 'Fundos imobiliários, tickers final 11',
-    scenarioText:
-      'FII (Fundo de Investimento Imobiliário) também tem ticker terminado em 11, igual ETF (lição 2.3), ' +
-      'mas o produto por trás é bem diferente.' +
-      '\n\n' +
-      'Em vez de replicar um índice de ações, um FII investe em imóveis ou em recebíveis ligados ao setor ' +
-      'imobiliário, e distribui o resultado como dividendo aos cotistas.' +
-      '\n\n' +
-      'O FII Tijolo Corporativo (TJLO11) é dono direto de imóveis (segmento Lajes Corporativas, com 5,2% de ' +
-      'vacância); o FII Papel Recebíveis (PAPL11) não tem imóvel nenhum, ele é dono de uma carteira de ' +
-      'recebíveis (dívidas ligadas ao setor imobiliário) indexada ao CDI.',
-    microDecisionPrompt:
-      'TJLO11 tem 5,2% de vacância (fração dos imóveis dele sem inquilino no momento). Esse indicador de ' +
-      'vacância faz sentido calcular também pro PAPL11, que não tem imóvel próprio?',
+    centralConcept: 'Fundos imobiliários: tijolo, papel e rendimento mensal',
+    scenarioText: legacyText(BLOCKS_2_10, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_10, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: ['Sim, faz sentido', 'Não faz sentido'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Não faz sentido: vacância é um indicador exclusivo do perfil tijolo, porque só existe imóvel físico ' +
-      'pra ficar vago.' +
-      '\n\n' +
-      'O perfil papel, como o PAPL11, é avaliado por indicadores diferentes, principalmente o indexador da ' +
-      'carteira de recebíveis (CDI, no caso do PAPL11) e o valor total dessa carteira.' +
-      '\n\n' +
-      'Já que o resultado dele vem do que os devedores pagam, não do aluguel de um imóvel. Os dois perfis, ' +
-      'porém, compartilham o mesmo {{Dividend Yield}} (lição 2.6.6) como indicador comum de quanto o FII ' +
-      'distribui frente ao preço da cota.' +
-      '\n\n' +
-      'Completar esta lição libera a compra real de FIIs no Mercado e conclui a Trilha 2 (Renda Variável): ' +
-      'a Trilha 3 (Estratégia e Tributação) abre na sequência.',
+    revelationText: legacyText(BLOCKS_2_10, 'revelation'),
+    blocks: BLOCKS_2_10,
     unlocksDescription:
-      'O resto do patrimônio com onde crescer (ações, ETFs, FIIs), compra real de FIIs (TJLO11/PAPL11) no ' +
-      'Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
+      'Compra de FIIs (TJLO11 e PAPL11) no Mercado e acesso à Trilha 3 (Estratégia e Tributação)',
     unlocksKeys: ['asset:fii'],
     unlocksAssetTicker: 'TJLO11',
   },
@@ -901,7 +866,8 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 35,
     title: 'O que custa investir',
-    centralConcept: 'Corretagem, custódia, taxas de fundo e spread: pequenas taxas, grande diferença',
+    centralConcept:
+      'Corretagem, custódia, taxas de fundo e spread: pequenas taxas, grande diferença',
     scenarioText: legacyText(BLOCKS_CUSTOS, 'scenario'),
     microDecisionPrompt: legacyText(BLOCKS_CUSTOS, 'microDecision'),
     microDecisionType: 'reflection',

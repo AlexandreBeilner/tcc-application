@@ -398,10 +398,42 @@ export const REGULATORY_FACTS = [
     label: 'Portal do Investidor (CVM): taxas de fundos de investimento',
     value:
       'A taxa de administração remunera o administrador pelos serviços legais e de manutenção. A taxa de gestão remunera o gestor pela escolha técnica dos investimentos. A taxa de performance é um prêmio pago ao gestor apenas se o rendimento do fundo superar um indicador de referência.',
-    source: 'https://www.gov.br/investidor/pt-br/investir/tipos-de-investimentos/fundos-de-investimentos',
+    source:
+      'https://www.gov.br/investidor/pt-br/investir/tipos-de-investimentos/fundos-de-investimentos',
     check: 'pagina-oficial',
     verifiedAt: '2026-10-05',
     note: 'Página do Portal do Investidor lida. Não define taxa de ingresso ou saída, então a lição não as cita.',
+  },
+  {
+    id: 'b3-data-com-ex',
+    label: 'Data com e data ex',
+    value:
+      'A data com é o último dia em que o ativo ainda confere direito ao provento anunciado. No dia seguinte, a data ex, a ação ou a cota de fundo imobiliário passa a ser negociada sem o direito. Quem comprar a partir da data ex não recebe.',
+    source: 'https://borainvestir.b3.com.br/glossario/data-ex/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Glossário da B3 (texto lido). Vale também para cotas de FII.',
+  },
+  {
+    id: 'jcp-definicao',
+    label: 'JCP: o que é',
+    value:
+      'Os juros sobre o capital próprio são uma remuneração paga ou creditada a sócios e acionistas, calculada sobre as contas do patrimônio líquido, e a empresa pode deduzi-los para apurar o lucro real.',
+    source: 'https://www.planalto.gov.br/ccivil_03/leis/l9249.htm',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-06',
+    note: 'Lei 9.249/1995, art. 9º (página do Planalto não abriu; texto lido em reprodução do artigo). O limite pela taxa de juros de longo prazo e a condição de lucros existem e não entram na lição. A alíquota está em `jcp-aliquota`.',
+  },
+  {
+    id: 'fii-ganho-capital',
+    label: 'FII: imposto sobre o ganho na venda de cotas',
+    value:
+      'O ganho de capital na venda de cotas de fundo de investimento imobiliário é tributado a 20%, seguindo as normas dos ganhos líquidos em renda variável.',
+    data: { capitalGainPct: 20 },
+    source: 'https://www.planalto.gov.br/ccivil_03/leis/l8668.htm',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-06',
+    note: 'Lei 8.668/1993, art. 18 (redação de 1999), lido em reprodução do artigo; a página do Planalto não abriu. Reconferir antes de citar o número em lição (a RC.4.7 trata do imposto).',
   },
   {
     id: 'b3-liquidacao-acoes',

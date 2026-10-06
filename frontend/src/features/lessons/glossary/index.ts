@@ -290,6 +290,10 @@ export const glossary: Record<string, GlossaryEntry> = {
             'Fundo de investimento imobiliário: reúne dinheiro de cotistas para investir em imóveis ou títulos imobiliários e distribui rendimentos.',
         originLesson: '2.10',
     },
+    proventos: {
+        definition: 'Tudo o que a empresa ou o fundo paga ao dono da ação ou da cota: dividendos, JCP e rendimentos de FII.',
+        originLesson: '2.7.6',
+    },
     dividendo: {
         definition: 'Parte do lucro que a empresa paga em dinheiro aos acionistas.',
         originLesson: '2.7.6',
