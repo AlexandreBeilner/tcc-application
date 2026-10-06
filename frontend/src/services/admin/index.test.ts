@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+    downloadAdminExport,
+    getIntegrityRun,
+    startIntegrityCheck,
     createAnnouncement,
     endAnnouncement,
     listAdminAnnouncements,
@@ -521,5 +524,37 @@ describe('services/admin', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/admin/maintenance')
         expect(JSON.parse(init.body)).toEqual({ title: 't', body: 'b', pause_trading: true })
+    })
+    it('startIntegrityCheck faz POST e getIntegrityRun faz GET e devolve só o run', async () => {
+        let fetchMock = mockFetchOnce({ id: 'r1', status: 'running' }, 202)
+        await startIntegrityCheck('token')
+        let [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/integrity/check')
+        expect(init.method).toBe('POST')
+
+        fetchMock = mockFetchOnce({ run: { id: 'r1', status: 'done' } })
+        expect(await getIntegrityRun('token')).toEqual({ id: 'r1', status: 'done' })
+        ;[url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/integrity/check')
+        expect(init.method ?? 'GET').toBe('GET')
+
+        mockFetchOnce({ run: null })
+        expect(await getIntegrityRun('token')).toBeNull()
+    })
+
+    it('downloadAdminExport monta o caminho com o conjunto e só os filtros informados', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'Content-Disposition': 'attachment; filename="x.csv"', 'X-Export-Rows': '1' }),
+            blob: async () => new Blob(['x']),
+        })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await downloadAdminExport('token', 'market-events', { from: '2026-10-01T00:00:00.000Z', limit: 50 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/exports/market-events?from=2026-10-01T00%3A00%3A00.000Z&limit=50')
+
+        await downloadAdminExport('token', 'users')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/exports/users')
     })
 })

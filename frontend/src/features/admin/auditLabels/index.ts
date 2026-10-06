@@ -44,6 +44,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'announcement.update': 'Edição de comunicado',
     'announcement.end': 'Encerramento de comunicado',
     'maintenance.start': 'Início de manutenção',
+    'integrity.check': 'Verificação de integridade',
+    'export.csv': 'Exportação de dados em CSV',
     'admin.login': 'Login de administrador',
     'admin.login_failed': 'Tentativa de login de administrador',
     'admin.reauth': 'Reautenticação de administrador',

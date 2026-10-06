@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiRequest, setUnauthorizedHandler } from '.'
+import { ApiError, apiDownload, apiRequest, setUnauthorizedHandler } from '.'
 
 describe('apiRequest', () => {
     afterEach(() => {
@@ -135,5 +135,55 @@ describe('apiRequest, 401 que não encerra a sessão (N.22)', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'account_suspended' }) }))
         await expect(apiRequest('/auth/login', { method: 'POST', body: {} })).rejects.toBeInstanceOf(ApiError)
         expect(handler).not.toHaveBeenCalled()
+    })
+})
+
+describe('apiDownload (N.21)', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        setUnauthorizedHandler(null)
+    })
+
+    function stubFile(headers: Record<string, string>) {
+        const blob = new Blob(['a,b\r\n'], { type: 'text/csv' })
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            headers: new Headers(headers),
+            blob: async () => blob,
+        })
+        vi.stubGlobal('fetch', fetchMock)
+        return { fetchMock, blob }
+    }
+
+    it('envia o Bearer e devolve o blob, o nome do arquivo e o que o backend informa nos cabeçalhos', async () => {
+        const { fetchMock, blob } = stubFile({
+            'Content-Disposition': 'attachment; filename="orders-20261006.csv"',
+            'X-Export-Rows': '12',
+            'X-Export-Truncated': 'true',
+        })
+
+        const file = await apiDownload('/admin/exports/orders', { token: 'tok' })
+
+        expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer tok')
+        expect(file).toEqual({ blob, filename: 'orders-20261006.csv', rows: 12, truncated: true })
+    })
+
+    it('sem cabeçalhos usa um nome padrão, zero linhas e não truncado', async () => {
+        stubFile({})
+        const file = await apiDownload('/x', { token: 'tok' })
+        expect(file).toMatchObject({ filename: 'exportacao.csv', rows: 0, truncated: false })
+    })
+
+    it('erro vira ApiError com a mensagem do backend; reauth_required não derruba a sessão, 401 comum derruba', async () => {
+        const handler = vi.fn()
+        setUnauthorizedHandler(handler)
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'reauth_required' }) }))
+        await expect(apiDownload('/x', { token: 'tok' })).rejects.toMatchObject({ status: 401, message: 'reauth_required' })
+        expect(handler).not.toHaveBeenCalled()
+
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'token inválido' }) }))
+        await expect(apiDownload('/x', { token: 'tok' })).rejects.toBeInstanceOf(ApiError)
+        expect(handler).toHaveBeenCalledTimes(1)
     })
 })

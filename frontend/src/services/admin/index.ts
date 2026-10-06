@@ -1,4 +1,5 @@
-import { apiRequest } from '../client'
+import { apiDownload, apiRequest } from '../client'
+import type { DownloadedFile } from '../client'
 import type {
     AchievementCatalog,
     AdminRanking,
@@ -56,6 +57,9 @@ import type {
     AnnouncementInput,
     AnnouncementPatch,
     EndAnnouncementResult,
+    ExportDataset,
+    ExportFilters,
+    IntegrityRun,
     MaintenanceInput,
     PauseTradingInput,
     SchedulerStatus,
@@ -144,6 +148,12 @@ export type {
     CreateBotInput,
     FundBotInput,
     UpdateBotInput,
+    ExportDataset,
+    ExportFilters,
+    IntegrityDivergence,
+    IntegrityKind,
+    IntegrityReport,
+    IntegrityRun,
     AdminAnnouncement,
     AnnouncementInput,
     AnnouncementKind,
@@ -533,4 +543,25 @@ export function endAnnouncement(token: string, id: string): Promise<EndAnnouncem
 
 export function startMaintenance(token: string, input: MaintenanceInput): Promise<AdminAnnouncement> {
     return apiRequest<AdminAnnouncement>('/admin/maintenance', { token, method: 'POST', body: input })
+}
+
+// Integridade financeira (N.21): abre a verificação (202, roda em segundo plano no motor) e lê a
+// última. `run` é nulo se nenhuma rodou desde a subida do motor.
+export function startIntegrityCheck(token: string): Promise<IntegrityRun> {
+    return apiRequest<IntegrityRun>('/admin/integrity/check', { token, method: 'POST' })
+}
+
+export async function getIntegrityRun(token: string): Promise<IntegrityRun | null> {
+    return (await apiRequest<{ run: IntegrityRun | null }>('/admin/integrity/check', { token })).run
+}
+
+// Exportação CSV (N.21). Só `users` pede senha recente (`reauth_required`), então quem chama
+// embrulha em `withReauth`.
+export function downloadAdminExport(token: string, dataset: ExportDataset, filters: ExportFilters = {}): Promise<DownloadedFile> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiDownload(`/admin/exports/${dataset}${query ? `?${query}` : ''}`, { token })
 }

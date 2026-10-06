@@ -1,8 +1,16 @@
 import { useState } from 'react'
 import { AdminAnnouncementsPanel } from '../../components/organisms/AdminAnnouncementsPanel'
+import { AdminExportsPanel } from '../../components/organisms/AdminExportsPanel'
+import { AdminIntegrityPanel } from '../../components/organisms/AdminIntegrityPanel'
 import { AdminMaintenancePanel } from '../../components/organisms/AdminMaintenancePanel'
 import type { MaintenanceFormValues } from '../../components/organisms/AdminMaintenancePanel'
 import { describeAnnouncementError, localInputToIso } from '../../features/admin/announcementForm'
+import { buildExportFilters, describeExportError } from '../../features/admin/adminExports'
+import type { ExportFormValues } from '../../features/admin/adminExports'
+import { describeIntegrityError } from '../../features/admin/integrity'
+import { useIntegrityRunQuery, useStartIntegrityCheckMutation } from '../../features/admin/useIntegrityRunQuery'
+import { useExportDownloadMutation } from '../../features/admin/useExportDownload'
+import type { ExportResult } from '../../features/admin/useExportDownload'
 import type { AnnouncementFormValues } from '../../features/admin/announcementForm'
 import { useAdminAnnouncementsQuery } from '../../features/admin/useAdminAnnouncementsQuery'
 import {
@@ -26,6 +34,11 @@ export function AdminSistema() {
     const update = useUpdateAnnouncementMutation()
     const end = useEndAnnouncementMutation()
     const maintenance = useStartMaintenanceMutation()
+    const integrityQuery = useIntegrityRunQuery()
+    const startIntegrity = useStartIntegrityCheckMutation()
+    const exportDownload = useExportDownloadMutation()
+    const [exportResult, setExportResult] = useState<ExportResult | null>(null)
+    const [exportError, setExportError] = useState<string | null>(null)
 
     const announcements = query.data ?? []
     const openMaintenance = announcements.find((a) => a.kind === 'maintenance' && a.status !== 'ended') ?? null
@@ -96,12 +109,32 @@ export function AdminSistema() {
         )
     }
 
+    function startIntegrityCheck() {
+        reset()
+        startIntegrity.mutate(undefined, { onError: (err) => setError(describeIntegrityError(err)) })
+    }
+
+    function downloadExport(values: ExportFormValues) {
+        setExportError(null)
+        exportDownload.mutate(
+            { dataset: values.dataset, filters: buildExportFilters(values) },
+            {
+                onSuccess: setExportResult,
+                onError: (err) => {
+                    setExportResult(null)
+                    setExportError(describeExportError(err))
+                },
+            },
+        )
+    }
+
     return (
         <main className={styles.page}>
             <header>
                 <h1 className={styles.title}>Sistema</h1>
                 <p className={styles.subtitle}>
-                    Comunicados que aparecem como faixa no topo do app de todos os usuários, e o modo de manutenção.
+                    Comunicados que aparecem como faixa no topo do app de todos os usuários, o modo de manutenção, a verificação de
+                    integridade financeira e a exportação de dados.
                 </p>
             </header>
 
@@ -139,6 +172,15 @@ export function AdminSistema() {
                     onEnd={endOne}
                 />
             )}
+
+            <AdminIntegrityPanel
+                run={integrityQuery.data ?? null}
+                loading={integrityQuery.isLoading}
+                starting={startIntegrity.isPending}
+                onStart={startIntegrityCheck}
+            />
+
+            <AdminExportsPanel busy={exportDownload.isPending} lastResult={exportResult} error={exportError} onDownload={downloadExport} />
         </main>
     )
 }

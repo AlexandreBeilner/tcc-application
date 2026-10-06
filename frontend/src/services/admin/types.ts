@@ -117,6 +117,8 @@ export type AuditAction =
     | 'announcement.update'
     | 'announcement.end'
     | 'maintenance.start'
+    | 'integrity.check'
+    | 'export.csv'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -1072,4 +1074,51 @@ export interface EndAnnouncementResult {
     announcement: AdminAnnouncement
     outcome: 'ended' | 'cancelled'
     halt_lifted: boolean
+}
+
+// Integridade financeira (N.21). Espelha `/admin/integrity/check`.
+export type IntegrityKind =
+    | 'balance_mismatch'
+    | 'position_mismatch'
+    | 'negative_balance'
+    | 'negative_position'
+    | 'float_mismatch'
+    | 'resting_order_unfunded'
+    | 'unknown_event_type'
+
+export interface IntegrityDivergence {
+    kind: IntegrityKind
+    user_id: string | null
+    asset_id: string | null
+    ticker: string | null
+    order_id: string | null
+    expected: string
+    found: string
+    detail: string
+}
+
+export interface IntegrityReport {
+    checked: { events: number; accounts: number; positions: number; assets: number; resting_orders: number }
+    total: number
+    counts: Record<IntegrityKind, number>
+    truncated: boolean
+    divergences: IntegrityDivergence[]
+}
+
+export interface IntegrityRun {
+    id: string
+    status: 'running' | 'done' | 'failed'
+    started_at: string
+    finished_at: string | null
+    error: string | null
+    report: IntegrityReport | null
+}
+
+// Exportação CSV (N.21).
+export type ExportDataset = 'users' | 'orders' | 'market-events' | 'audit-log'
+
+export interface ExportFilters {
+    from?: string
+    to?: string
+    limit?: number
 }
