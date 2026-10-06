@@ -113,3 +113,42 @@ func TestListCompaniesForFundamentals_TrazQualityMultiplier(t *testing.T) {
 		}
 	}
 }
+
+// TestListCompaniesForFundamentals_TrazAgendaDeBalanco cobre a RC.6.8: o offset de
+// balanço da empresa e o dia de corte do escalonamento chegam em
+// tick.CompanyForFundamentals. Usa o banco descartável (roda só com TEST_DATABASE_URL).
+func TestListCompaniesForFundamentals_TrazAgendaDeBalanco(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	catalogRepo := NewCatalogRepository(conn, nil)
+
+	company, err := catalog.NewCompany("Escalonada S.A.", "55555555000101", catalog.SectorMineracao, catalog.DefaultBaseGrowthPct, catalog.DefaultQualityMultiplier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := catalogRepo.CreateCompany(ctx, company)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, `UPDATE companies SET report_offset_days = 12 WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.ExecContext(ctx, `INSERT INTO market_calendar (id, selic_rate, schedule_cutover_day) VALUES (1, 10, 77)
+		 ON CONFLICT (id) DO UPDATE SET schedule_cutover_day = 77`); err != nil {
+		t.Fatal(err)
+	}
+
+	companies, err := NewTickRepository(conn, nil).ListCompaniesForFundamentals(ctx)
+	if err != nil {
+		t.Fatalf("ListCompaniesForFundamentals: %v", err)
+	}
+	for _, c := range companies {
+		if c.CompanyID == id {
+			if c.ReportOffsetDays != 12 || c.ScheduleCutoverDay != 77 {
+				t.Errorf("offset = %d, corte = %d, want 12 e 77", c.ReportOffsetDays, c.ScheduleCutoverDay)
+			}
+			return
+		}
+	}
+	t.Fatalf("empresa %s ausente em %+v", id, companies)
+}

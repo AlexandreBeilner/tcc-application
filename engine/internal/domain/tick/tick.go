@@ -21,6 +21,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fundamentals"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroevent"
+	"tcc-investimentos/engine/internal/domain/paymentschedule"
 	"tcc-investimentos/engine/internal/domain/selic"
 )
 
@@ -129,6 +130,15 @@ type CompanyForFundamentals struct {
 	// margens/alavancagem do setor pra esta empresa (fundamentals.
 	// CoefficientsForCompany). Zero (campo não preenchido) vale neutro (1).
 	QualityMultiplier float64
+	// ReportOffsetDays é companies.report_offset_days (tarefa RC.6.7/RC.6.8):
+	// atraso, em dias úteis, do balanço desta empresa sobre o fim do ciclo
+	// global. Zero é o legado (todas reportam juntas).
+	ReportOffsetDays int
+	// ScheduleCutoverDay é market_calendar.schedule_cutover_day: ciclo cujo
+	// fim é igual ou anterior a esse dia já saiu pelo relógio global e não
+	// ganha offset (paymentschedule.EffectiveReportDay). Igual pra todas as
+	// empresas; fica aqui pra Advance não ganhar mais um parâmetro.
+	ScheduleCutoverDay int
 }
 
 // MacroEventTargetForApplication espelha uma linha de macro_event_targets
@@ -569,16 +579,13 @@ const dividendPriceEffectBandDays = 10
 // qualquer dia dentro do ciclo, já que LastRevenue só muda no próximo
 // relatório), então não recalcula nada, só decide se o efeito já
 // calculado está dentro da janela.
-func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex, reportFrequencyDays int) float64 {
-	if dayIndex < reportFrequencyDays-1 {
-		// Nenhum relatório (e portanto nenhum dividendo) aconteceu ainda —
-		// sem essa guarda, (dayIndex+1) % reportFrequencyDays sozinho não
-		// distingue "N dias antes do primeiro relatório" de "N dias depois
-		// de um relatório", e ativaria o efeito com um net_income que nunca
-		// foi de fato distribuído.
+func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex int, c CompanyForFundamentals) float64 {
+	daysSinceReport, reported := paymentschedule.DaysSinceReport(dayIndex, c.ReportFrequencyDays, c.ReportOffsetDays, c.ScheduleCutoverDay)
+	if !reported {
+		// Nenhum relatório (e portanto nenhum dividendo) aconteceu ainda pra
+		// esta empresa: nada foi de fato distribuído.
 		return 0
 	}
-	daysSinceReport := (dayIndex + 1) % reportFrequencyDays
 	if daysSinceReport >= dividendPriceEffectBandDays {
 		return 0
 	}
@@ -649,7 +656,7 @@ func companyRoundContexts(companies []CompanyForFundamentals, reportedRevenue ma
 			GrowthRate:           fundamentals.ExpectedGrowth(cfg, newSelicRate, selicNeutral),
 			MacroEffectPct:       macroPriceEffects[c.CompanyID],
 			PnDividendPremiumPct: c.PnDividendPremiumPct,
-			DividendEffectPct:    dividendPriceEffectPct(financials, dayIndex, c.ReportFrequencyDays),
+			DividendEffectPct:    dividendPriceEffectPct(financials, dayIndex, c),
 		}
 	}
 	return contexts
@@ -783,16 +790,19 @@ func macroPriceEffectsByCompany(macroEvents []MacroEventForApplication, companie
 // exatamente newDay (o dia de relatório ao qual o efeito foi atribuído na
 // tarefa 4.4) e cujo alvo alcança a empresa — um valor combinado por
 // empresa, só pras empresas afetadas nesse ciclo.
-func macroFundamentalsEffectsByCompany(macroEvents []MacroEventForApplication, companies []CompanyForFundamentals, equityRiskClasses map[string]equity.RiskClass, assetToCompany map[string]string, newDay int) map[string]float64 {
+func macroFundamentalsEffectsByCompany(macroEvents []MacroEventForApplication, companies []CompanyForFundamentals, equityRiskClasses map[string]equity.RiskClass, assetToCompany map[string]string, reportCycles map[string]companyReportCycle) map[string]float64 {
 	pending := make(map[string][]float64)
 	for _, ev := range macroEvents {
 		if !ev.AffectsFundamentals || ev.FundamentalsEffectPct == nil || ev.FundamentalsReportDay == nil {
 			continue
 		}
-		if *ev.FundamentalsReportDay != newDay {
-			continue
-		}
 		for _, c := range companies {
+			// O evento guarda o fim do ciclo global (FundamentalsReportDay); o
+			// efeito entra no balanço de cada empresa daquele ciclo, que com
+			// escalonamento sai alguns dias depois (RC.6.8).
+			if cycle, reports := reportCycles[c.CompanyID]; !reports || cycle.BaseDay != *ev.FundamentalsReportDay {
+				continue
+			}
 			if eventTargetsCompany(ev.Targets, c.CompanyID, c.Sector, equityRiskClasses[c.CompanyID], assetToCompany) {
 				pending[c.CompanyID] = append(pending[c.CompanyID], *ev.FundamentalsEffectPct)
 			}
@@ -812,9 +822,12 @@ func macroFundamentalsEffectsByCompany(macroEvents []MacroEventForApplication, c
 // TriggeredOnDay+DurationDays); evento com AffectsFundamentals só depois
 // que o dia de relatório correspondente (FundamentalsReportDay) chegou —
 // critério de aceite da tarefa 4.5.
-func macroEventDone(ev MacroEventForApplication, newDay int) bool {
+//
+// Com balanço escalonado (RC.6.8) o evento só termina depois do último balanço
+// atrasado do ciclo: reportSpanDays é o maior atraso entre as empresas.
+func macroEventDone(ev MacroEventForApplication, newDay, reportSpanDays int) bool {
 	priceDone := !ev.AffectsPrice || newDay >= ev.TriggeredOnDay+ev.DurationDays
-	fundamentalsDone := !ev.AffectsFundamentals || (ev.FundamentalsReportDay != nil && newDay >= *ev.FundamentalsReportDay)
+	fundamentalsDone := !ev.AffectsFundamentals || (ev.FundamentalsReportDay != nil && newDay >= *ev.FundamentalsReportDay+reportSpanDays)
 	return priceDone && fundamentalsDone
 }
 
@@ -1157,7 +1170,8 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 
 	equityRiskClasses := companyEquityRiskClasses(assets)
 	assetToCompany := assetCompanies(assets)
-	macroFundamentalsEffects := macroFundamentalsEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, newDay)
+	reportCycles := companyReportCycles(companies, dayIndex)
+	macroFundamentalsEffects := macroFundamentalsEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, reportCycles)
 	macroPriceEffects := macroPriceEffectsByCompany(macroEvents, companies, equityRiskClasses, assetToCompany, newDay)
 
 	reportedRevenue := make(map[string]float64, len(companies))
@@ -1167,13 +1181,14 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	for _, c := range companies {
 		pnPremiumPctByCompany[c.CompanyID] = c.PnDividendPremiumPct
 
-		if !fundamentals.IsReportDay(dayIndex, c.ReportFrequencyDays) {
+		cycle, reports := reportCycles[c.CompanyID]
+		if !reports {
 			continue
 		}
 
 		sector := catalog.Sector(c.Sector)
 		cfg := fundamentalsConfig(seed, c.CompanyID, sector, c.BaseGrowthPct)
-		cycleIndex := (dayIndex+1)/c.ReportFrequencyDays - 1 // 0-based, um por ciclo de relatório já fechado
+		cycleIndex := cycle.Index // 0-based, um por ciclo de relatório já fechado
 		actualGrowth := fundamentals.NextGrowth(cfg, cycleIndex, newSelicRate, selicCfg.Neutral)
 		if macroEffect, affected := macroFundamentalsEffects[c.CompanyID]; affected {
 			actualGrowth = fundamentals.ActualGrowthWithMacroEffect(actualGrowth, macroEffect)
@@ -1245,10 +1260,11 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	}
 
 	intradayRounds := IntradayRounds(seed, dayIndex)
+	reportSpanDays := maxReportSpanDays(companies)
 
 	appliedMacroEventIDs := make([]string, 0)
 	for _, ev := range macroEvents {
-		if macroEventDone(ev, newDay) {
+		if macroEventDone(ev, newDay, reportSpanDays) {
 			appliedMacroEventIDs = append(appliedMacroEventIDs, ev.ID)
 		}
 	}
@@ -1273,4 +1289,37 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		IPCAMonthlyRate:       ipcaMonthlyRate,
 		IPCAAccumulated12m:    ipcaAccumulated12m,
 	}
+}
+
+// companyReportCycle é o ciclo de balanço que fecha hoje pra uma empresa:
+// Index (0-based, semente do ruído de crescimento) e BaseDay, o fim do ciclo
+// global (referência de macro_events.fundamentals_report_day).
+type companyReportCycle struct {
+	Index   int
+	BaseDay int
+}
+
+// companyReportCycles lista as empresas que divulgam balanço em dayIndex+1,
+// cada uma no seu dia (offset em dias úteis, RC.6.8) com o ciclo de cada uma.
+// Offset 0 reproduz o relógio único legado.
+func companyReportCycles(companies []CompanyForFundamentals, dayIndex int) map[string]companyReportCycle {
+	cycles := make(map[string]companyReportCycle, len(companies))
+	for _, c := range companies {
+		index, ok := paymentschedule.CycleIndexWithCutover(dayIndex, c.ReportFrequencyDays, c.ReportOffsetDays, c.ScheduleCutoverDay)
+		if !ok {
+			continue
+		}
+		cycles[c.CompanyID] = companyReportCycle{Index: index, BaseDay: (index + 1) * c.ReportFrequencyDays}
+	}
+	return cycles
+}
+
+// maxReportSpanDays é o maior atraso de balanço, em dias corridos, entre as
+// empresas (0 quando todas estão no relógio legado).
+func maxReportSpanDays(companies []CompanyForFundamentals) int {
+	maxOffset := 0
+	for _, c := range companies {
+		maxOffset = max(maxOffset, c.ReportOffsetDays)
+	}
+	return paymentschedule.MaxReportSpanDays(maxOffset)
 }

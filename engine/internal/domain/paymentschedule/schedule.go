@@ -84,6 +84,61 @@ func IsReportDay(dayIndex, freqDays, offsetBusinessDays int) bool {
 	return ok
 }
 
+// MaxReportSpanDays é o maior atraso, em dias corridos, que um offset de balanço
+// de maxOffsetBusinessDays dias úteis pode causar sobre o fim do ciclo.
+func MaxReportSpanDays(maxOffsetBusinessDays int) int {
+	if maxOffsetBusinessDays <= 0 {
+		return 0
+	}
+	return maxOffsetBusinessDays*7/5 + 4
+}
+
+// EffectiveReportDay é o dia em que o balanço do ciclo cycleIndex realmente sai
+// para uma empresa, respeitando o dia de corte do escalonamento: ciclo cujo fim
+// (base) é igual ou anterior a cutoverDay já saiu pelo relógio global (legado,
+// sem offset); só os ciclos que fecham depois do corte usam o offset. Assim a
+// migração nunca gera dois balanços para o mesmo ciclo.
+func EffectiveReportDay(freqDays, offsetBusinessDays, cutoverDay, cycleIndex int) int {
+	base := (cycleIndex + 1) * freqDays
+	if base <= cutoverDay {
+		return base
+	}
+	return ReportDay(freqDays, offsetBusinessDays, cycleIndex)
+}
+
+// CycleIndexWithCutover é CycleIndex com o dia de corte: devolve o ciclo cujo
+// balanço sai em dayIndex+1, e ok = false se nenhum sai. Com offset 0 ou
+// cutoverDay alto o bastante é idêntico ao legado.
+func CycleIndexWithCutover(dayIndex, freqDays, offsetBusinessDays, cutoverDay int) (cycleIndex int, ok bool) {
+	if freqDays <= 0 {
+		return 0, false
+	}
+	newDay := dayIndex + 1
+	span := MaxReportSpanDays(offsetBusinessDays)
+	for k := newDay/freqDays - 1; k >= 0 && (k+1)*freqDays >= newDay-span; k-- {
+		if EffectiveReportDay(freqDays, offsetBusinessDays, cutoverDay, k) == newDay {
+			return k, true
+		}
+	}
+	return 0, false
+}
+
+// DaysSinceReport é quantos dias se passaram desde o último balanço da empresa
+// (0 no próprio dia do balanço, ok = false se ainda não houve nenhum), contado
+// até o dia dayIndex+1.
+func DaysSinceReport(dayIndex, freqDays, offsetBusinessDays, cutoverDay int) (days int, ok bool) {
+	if freqDays <= 0 {
+		return 0, false
+	}
+	newDay := dayIndex + 1
+	for k := newDay/freqDays - 1; k >= 0; k-- {
+		if day := EffectiveReportDay(freqDays, offsetBusinessDays, cutoverDay, k); day <= newDay {
+			return newDay - day, true
+		}
+	}
+	return 0, false
+}
+
 // ComDay é a data-com: o último dia de negociação com direito ao provento,
 // lagBusinessDays dias úteis depois da declaração (o dia do balanço).
 func ComDay(declarationDay, lagBusinessDays int) int {
