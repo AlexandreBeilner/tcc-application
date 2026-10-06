@@ -22,6 +22,7 @@ import { DividendTimelineWidget, dividendTimelineSummary } from '../DividendTime
 import { EtfShockSimulatorWidget, etfShockSimulatorSummary } from '../EtfShockSimulatorWidget'
 import { FiiMonthlyCalendarWidget, fiiMonthlyCalendarSummary } from '../FiiMonthlyCalendarWidget'
 import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
+import { BudgetSplitWidget, budgetSplitSummary } from '../BudgetSplitWidget'
 import { EquityTaxCalculatorWidget, equityTaxCalculatorSummary } from '../EquityTaxCalculatorWidget'
 import { TaxDecisionTreeWidget, taxDecisionTreeSummary } from '../TaxDecisionTreeWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
@@ -220,6 +221,11 @@ export const widgetRegistry: Registry = {
         component: FeeDragWidget,
         propsSchema: widgetPropsSchemas['fee-drag'],
         summary: feeDragSummary,
+    },
+    'budget-split': {
+        component: BudgetSplitWidget,
+        propsSchema: widgetPropsSchemas['budget-split'],
+        summary: budgetSplitSummary,
     },
     'equity-tax-calculator': {
         component: EquityTaxCalculatorWidget,

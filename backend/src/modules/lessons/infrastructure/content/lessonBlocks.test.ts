@@ -181,6 +181,7 @@ describe('lessonBlocksSchema', () => {
           props: { kind: 'daytrade', assetClass: 'etf', profit: -500 },
         },
         { type: 'widget', id: 'x3', widget: 'tax-decision-tree', props: {} },
+        { type: 'widget', id: 'x4', widget: 'budget-split', props: { income: 6000, leisure: 500 } },
         {
           type: 'widget',
           id: 'y1',
@@ -239,6 +240,8 @@ describe('lessonBlocksSchema', () => {
     ['fee-drag', { feeBPct: 9 }],
     ['fee-drag', { years: 0 }],
     ['equity-tax-calculator', { kind: 'position' }],
+    ['budget-split', { income: 10 }],
+    ['budget-split', { housing: -1 }],
     ['equity-tax-calculator', { salesMonth: -1 }],
     ['dividend-timeline', { comDay: 9 }],
     ['dividend-timeline', { paymentDay: 3 }],

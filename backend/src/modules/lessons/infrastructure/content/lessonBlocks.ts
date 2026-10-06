@@ -50,6 +50,7 @@ export const WIDGET_IDS = [
   'etf-shock-simulator',
   'fii-monthly-calendar',
   'fee-drag',
+  'budget-split',
   'equity-tax-calculator',
   'tax-decision-tree',
   'savings-vs-selic',
@@ -332,6 +333,15 @@ export const widgetPropsSchemas = {
     feeAPct: z.number().min(0).max(4).default(0),
     feeBPct: z.number().min(0).max(4).default(2),
     years: z.number().int().min(1).max(40).default(20),
+  }),
+  'budget-split': z.object({
+    income: z.number().min(1000).max(20_000).default(4000),
+    housing: z.number().min(0).max(10_000).default(1500),
+    food: z.number().min(0).max(10_000).default(800),
+    transport: z.number().min(0).max(10_000).default(400),
+    leisure: z.number().min(0).max(10_000).default(300),
+    debts: z.number().min(0).max(10_000).default(200),
+    other: z.number().min(0).max(10_000).default(200),
   }),
   'equity-tax-calculator': z.object({
     kind: z.enum(['swing', 'daytrade']).default('swing'),

@@ -325,4 +325,10 @@ export const glossary: Record<string, GlossaryEntry> = {
             'Retenção pequena de imposto que a corretora faz na venda (0,005% do valor vendido no swing trade), que avisa a Receita e abate do imposto devido.',
         originLesson: '2.12',
     },
+    orçamento: {
+        definition:
+            'Conta simples de quanto entra e quanto sai por mês. O objetivo básico é gastar menos do que se recebe: o que sobra é o que dá para poupar ou investir.',
+        example: 'Renda de R$ 4.000 e gastos de R$ 3.400 deixam uma sobra de R$ 600, ou 15% da renda.',
+        originLesson: 'F.1',
+    },
 }

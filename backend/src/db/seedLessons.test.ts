@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isParallelTrack } from '../modules/lessons/domain/lesson'
 import { LESSON_SEEDS, upsertLessonSeed, type LessonSeed } from './seedLessons'
 import { lessonBlocksSchema } from '../modules/lessons/infrastructure/content/lessonBlocks'
 import { lessons } from './schema'
@@ -209,5 +210,17 @@ describe('blocks no seed (RC.3.1)', () => {
     const orders = LESSON_SEEDS.map((l) => l.sortOrder)
     expect(orders).toEqual(orders.map((_, i) => i + 1))
     expect(new Set(LESSON_SEEDS.map((l) => l.code)).size).toBe(LESSON_SEEDS.length)
+  })
+
+  it('a Trilha F (paralela, RC.4.4) fica no fim do sortOrder e fora da corrente', () => {
+    const parallel = LESSON_SEEDS.filter((l) => isParallelTrack(l.trackNumber))
+    expect(parallel.map((l) => l.code)).toEqual(['F.1'])
+    const lastChain = Math.max(
+      ...LESSON_SEEDS.filter((l) => !isParallelTrack(l.trackNumber)).map((l) => l.sortOrder),
+    )
+    for (const lesson of parallel) {
+      expect(lesson.sortOrder).toBeGreaterThan(lastChain)
+      expect(lesson.unlocksKeys).toEqual([])
+    }
   })
 })

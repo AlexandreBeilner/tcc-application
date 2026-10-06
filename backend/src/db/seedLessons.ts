@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { and, gte, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, ne, notInArray, or, sql } from 'drizzle-orm'
 import { createDb, type Database } from './client'
 import { lessons, userLessonProgress } from './schema'
-import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
+import { PARALLEL_TRACK_NUMBERS, type MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
 import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
@@ -38,6 +38,7 @@ import {
   BLOCKS_CUSTOS,
   BLOCKS_IMPOSTO,
 } from './lessonContentTrilha2Empresa'
+import { BLOCKS_ORCAMENTO } from './lessonContentTrilhaF'
 import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
 import { legacyText } from './lessonText'
 
@@ -1079,6 +1080,26 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },
+  {
+    stableKey: 'orcamento-para-onde-vai',
+    code: 'F.1',
+    trackNumber: 4,
+    trackName: 'Trilha F: Finanças do dia a dia',
+    sortOrder: 41,
+    title: 'Para onde vai seu dinheiro',
+    centralConcept: 'Orçamento: renda menos gastos é o que sobra para investir',
+    scenarioText: legacyText(BLOCKS_ORCAMENTO, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_ORCAMENTO, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['R$ 400', 'R$ 600', 'R$ 700'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_ORCAMENTO, 'revelation'),
+    blocks: BLOCKS_ORCAMENTO,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
 ]
 
 // `onConflictDoUpdate` (não só `onConflictDoNothing`): a autoria de conteúdo
@@ -1127,7 +1148,7 @@ export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
 // restrição de unicidade no meio do UPDATE; (3) a nova é inserida; (4) quem já
 // satisfez (concluiu ou foi dispensado de) `position` lições ou mais recebe a
 // dispensa dela, porque já passou daquele ponto; quem ainda não chegou lá é
-// bloqueado por ela normalmente. `position` é 1-based e igual a `seed.sortOrder`.
+// bloqueado por ela normalmente (a conta ignora a Trilha F, paralela). `position` é 1-based e igual a `seed.sortOrder`.
 //
 // `allSeeds` (RC.4.6): quando a inserção também renumera o `code` das lições
 // seguintes (1.3 vira 1.4, 1.4 vira 1.5...), o `code` é único e a renumeração em
@@ -1175,7 +1196,14 @@ export async function insertLessonInMiddle(
     const passed = await tx
       .select({ userId: userLessonProgress.userId })
       .from(userLessonProgress)
-      .where(or(isNotNull(userLessonProgress.completedAt), isNotNull(userLessonProgress.waivedAt)))
+      .innerJoin(lessons, eq(lessons.id, userLessonProgress.lessonId))
+      .where(
+        and(
+          or(isNotNull(userLessonProgress.completedAt), isNotNull(userLessonProgress.waivedAt)),
+          // Trilha paralela (RC.4.4) fora da corrente: não conta como "já passou daquele ponto".
+          notInArray(lessons.trackNumber, [...PARALLEL_TRACK_NUMBERS]),
+        ),
+      )
       .groupBy(userLessonProgress.userId)
       .having(sql`count(*) >= ${seed.sortOrder}`)
     if (passed.length > 0) {

@@ -464,6 +464,18 @@ export const REGULATORY_FACTS = [
     note: 'A página da MP no Congresso Nacional e a notícia da Câmara dos Deputados (camara.leg.br/noticias/1209479) apareceram na busca com vigência encerrada em 8/10/2025; o texto integral não foi aberto. A lição não menciona a MP: o fato fica registrado para o autor não reintroduzir as alíquotas de 17,5% e o limite trimestral.',
   },
   {
+    id: 'orcamento-bcb-caderno',
+    label:
+      'Banco Central: orçamento pessoal (despesas fixas, variáveis e sazonais, superávit, pague-se primeiro)',
+    value:
+      'Despesas fixas não variam ou variam muito pouco (aluguel, prestação de financiamento); despesas variáveis mudam de um mês para o outro (conta de luz ou de água, conforme o consumo); há ainda compromissos sazonais (impostos, seguros, matrículas escolares). A regra de ouro é ter orçamento superavitário, ou seja, gastar menos do que se recebe. "Pague-se primeiro": separar o dinheiro da reserva assim que receber o salário, de preferência com transferência automática.',
+    source:
+      'https://www.bcb.gov.br/content/cidadaniafinanceira/documentos_cidadania/Cuidando_do_seu_dinheiro_Gestao_de_Financas_Pessoais/caderno_cidadania_financeira.pdf',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Caderno de Educação Financeira do Banco Central (versão nova, texto extraído e lido); o folheto "Orçamento Pessoal" (série II) confirma os 4 passos e a meta de despesa menor que receita. A regra 50/30/20 NÃO aparece no caderno: a lição a apresenta como regra de bolso popular, nunca como orientação oficial.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:
