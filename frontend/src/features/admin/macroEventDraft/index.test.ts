@@ -174,7 +174,7 @@ describe('agendamento (N.11)', () => {
         expect(buildTriggerMacroEventInput(template)).toMatchObject({ apply_on_day: 130 })
         const adhoc = draftWithTarget({ mode: 'adhoc', title: 't', narrative: 'n', applyOnDay: '130' })
         expect(buildTriggerMacroEventInput(adhoc)).toMatchObject({ apply_on_day: 130 })
-        expect(buildMacroEventSummaryRows(template).at(-1)).toEqual({
+        expect(buildMacroEventSummaryRows(template).find((row) => row.label === 'Efeito começa')).toEqual({
             label: 'Efeito começa',
             value: 'No dia simulado 130 (agendado)',
         })
@@ -191,5 +191,50 @@ describe('agendamento (N.11)', () => {
         expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '101' }), 100)).toEqual([])
         // Sem o relógio carregado, só o formato é conferido; o motor recusa o resto (400).
         expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '5' }))).toEqual([])
+    })
+})
+
+describe('antecedência de aparição (N.25)', () => {
+    const scheduled = { mode: 'template' as const, templateKey: 'alta-minerio-ferro', applyOnDay: '130' }
+
+    it('vazia não manda reveal_lead_days e a prévia diz que é a véspera', () => {
+        const draft = draftWithTarget(scheduled)
+        expect(buildTriggerMacroEventInput(draft)).not.toHaveProperty('reveal_lead_days')
+        expect(buildMacroEventSummaryRows(draft).at(-1)).toEqual({ label: 'Jogador vê o evento', value: 'Na véspera do efeito (padrão)' })
+    })
+
+    it('manda reveal_lead_days nas duas variantes, inclusive 0, e a prévia descreve a escolha', () => {
+        const template = draftWithTarget({ ...scheduled, revealLeadDays: ' 5 ' })
+        expect(buildTriggerMacroEventInput(template)).toMatchObject({ apply_on_day: 130, reveal_lead_days: 5 })
+        const adhoc = draftWithTarget({ mode: 'adhoc', title: 't', narrative: 'n', applyOnDay: '130', revealLeadDays: '0' })
+        expect(buildTriggerMacroEventInput(adhoc)).toMatchObject({ reveal_lead_days: 0 })
+        expect(buildMacroEventSummaryRows(template).at(-1)?.value).toBe('5 dias antes do efeito')
+        expect(buildMacroEventSummaryRows(adhoc).at(-1)?.value).toBe('Só quando o efeito começa')
+        expect(buildMacroEventSummaryRows(draftWithTarget({ ...scheduled, revealLeadDays: '1' })).at(-1)?.value).toBe(
+            '1 dia antes do efeito',
+        )
+    })
+
+    it('sem agendamento a antecedência é ignorada: nem vai no payload nem aparece na prévia', () => {
+        const draft = draftWithTarget({ mode: 'template', templateKey: 'alta-minerio-ferro', revealLeadDays: '5' })
+        expect(buildTriggerMacroEventInput(draft)).not.toHaveProperty('reveal_lead_days')
+        expect(buildMacroEventSummaryRows(draft).some((row) => row.label === 'Jogador vê o evento')).toBe(false)
+        expect(validateMacroEventDraft(draftWithTarget({ ...draft, revealLeadDays: 'cedo' }), 100)).toEqual([])
+    })
+
+    it('valida: inteiro e no máximo os dias que faltam até o efeito', () => {
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: 'cedo' }), 100)).toContain(
+            'A antecedência precisa ser um número inteiro, 0 ou maior.',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '-1' }), 100)).toContain(
+            'A antecedência precisa ser um número inteiro, 0 ou maior.',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '31' }), 100)).toContain(
+            'A antecedência não pode passar de 30 dias (o efeito começa em 30 dias).',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '30' }), 100)).toEqual([])
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '0' }), 100)).toEqual([])
+        // Sem o relógio, só o formato é conferido; o motor recusa o resto.
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '999' }))).toEqual([])
     })
 })

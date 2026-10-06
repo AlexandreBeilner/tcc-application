@@ -459,7 +459,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Objetivo:** formalizar RF13 — criação e disparo manual de evento.
 - **Acesso:** a partir de 10.3.
 - **Conteúdo:** seleção de template do catálogo (seção 3.3.2 da spec, 10 templates pré-definidos) OU criação avulsa (título, narrativa, setor/ativo-alvo, banda de magnitude — Leve/Moderado/Severo, tipo de efeito — preço/fundamentos/ambos).
-- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico. Com um **dia de aplicação** preenchido (N.11) o botão vira "Agendar evento": o evento nasce pendente, só começa a produzir efeito naquele dia simulado e só aparece pros jogadores na véspera; vazio, dispara já (efeito a partir do próximo tick).
+- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico. Com um **dia de aplicação** preenchido (N.11) o botão vira "Agendar evento": o evento nasce pendente, só começa a produzir efeito naquele dia simulado e só aparece pros jogadores quando faltar a **antecedência** escolhida (campo "dias de antecedência", N.25; vazio usa a véspera, 0 só mostra quando o efeito começa); vazio, dispara já (efeito a partir do próximo tick).
 - **Estados especiais:** validação de campos obrigatórios ao criar evento avulso; dia de aplicação que não é posterior ao dia simulado atual (recusado na tela e no motor).
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`, `companies` (para segmentar por setor).
 

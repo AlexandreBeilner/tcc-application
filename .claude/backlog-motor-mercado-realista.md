@@ -3226,7 +3226,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
 
 #### Bloco 9 — Ajustes decididos depois do PR 12 (2026-10-06)
 
-### N.25 · Antecedência de aparição por evento macro agendado
+### N.25 · Antecedência de aparição por evento macro agendado ✅
 
 - **Descrição:** decisão do autor (2026-10-06, achado 035, opção c): quem agenda um evento macro (N.11) escolhe
   **com quantos dias de antecedência o jogador o vê** no feed de notícias e no calendário. O valor padrão é a
@@ -3244,6 +3244,7 @@ ativos e gestão de usuários "fora do escopo nesta fase, candidatos naturais a 
   da visibilidade por antecedência, do repositório e do router; `.docs/engine/macroevent.md` e
   `.docs/backend/admin.md` atualizados; responsiva nos três breakpoints.
 - **Dependências:** N.11. Fecha o achado 035.
+- **Entregável (sessão 2026-10-06, PR 13 da Fase N):** **Motor:** migration `000048` (`macro_events.reveal_lead_days`, `INTEGER NOT NULL DEFAULT 1 CHECK (>= 0)`, então todo evento que já existe segue na véspera); domínio em `macroevent/lifecycle.go` (`DefaultRevealLeadDays`, `ValidateRevealLead` com `ErrRevealLeadNegative`/`ErrRevealLeadTooLong`, e `IsPubliclyVisible` agora recebe a antecedência do evento: `triggeredOnDay <= currentDay + revealLeadDays`), `Event.RevealLeadDays`, `Request.RevealLeadDays` validado em `macroeventtrigger.Trigger` depois de resolver o dia de efeito (máximo = dias até o efeito, então um disparo imediato só aceita 0 ou 1) e as duas consultas de visão pública (`listWhere` e `MacroEventsBetween`) comparando contra `reveal_lead_days` da própria linha. `POST /macro-events` aceita `reveal_lead_days` e as respostas o devolvem; `400` com a mensagem do domínio. **Backend:** Zod `reveal_lead_days` (inteiro ≥ 0) nas duas variantes, tipos da porta, auditoria (o corpo todo já vai pro payload). **Frontend:** campo "Dias de antecedência com que o jogador vê o evento" só aparece quando há dia agendado, validação cliente (inteiro e no máximo os dias que faltam), linha "Jogador vê o evento" na prévia e no diálogo, e o detalhe do evento diz "aparece N dias antes do efeito" em vez de sempre "na véspera". **Docs:** `.docs/engine/macroevent.md`, `.docs/backend/admin.md`. **Testes:** domínio (`IsPubliclyVisible` com antecedência, `ValidateRevealLead`, `Trigger`), integração contra Postgres real (feed, contagem, calendário, `Find`), router do backend, rascunho/formulário/detalhe do frontend. **Validação ao vivo:** binário do motor contra um Postgres descartável, eventos no dia 100 com antecedência padrão, 30, 5 e 0 aparecem na visão pública exatamente nos dias 100, 100, 125, 129 e 130 esperados; 31, -1 e 2 num imediato respondem `400`; o painel vê os 5 desde o início. `go test ./...` (com `TEST_DATABASE_URL`), `golangci-lint` v2.12.2 (0 issues), backend lint/build/2811 testes, frontend `tsc`/1412 testes verdes. Não validado no navegador.
 
 ### N.26 · Tirar "revogar conquista" do painel ✅
 
@@ -3288,7 +3289,7 @@ se o autor pedir.
 | **10** | ✅ feito, aguardando merge | Lições no painel | N.18 Funil e publicar, N.23 Editor e criar lição (banco como fonte) | backend, frontend | PR 4 | seed reexecutado não desfaz edição; despublicar no meio não trava nem pula ninguém; lição criada no meio não altera o acesso de quem já passou |
 | **11** | ✅ feito, aguardando merge | Catálogo | N.12 Consulta e ajuste, N.13 Cadastrar ativo novo | engine, backend, frontend | PR 2, PR 3, PR 5 | edição inválida recusada; ativo novo ganha cotação de Market Maker e criar o 31º não altera os 30 |
 | **12** | ✅ feito, aguardando merge | Sistema | N.20 Comunicados e manutenção, N.21 Integridade e CSV | engine, backend, frontend | PR 3, PR 8 | faixa só na janela e dispensável; base consistente dá zero divergências; CSV respeita privacidade |
-| **13** | pendente | Ajustes pós-decisão | N.25 Antecedência por evento agendado, N.26 Tirar "revogar conquista" | engine, backend, frontend | PR 7, PR 9 | evento agendado com antecedência 5 só aparece a 5 dias do efeito; rota de revogação responde `404` |
+| **13** | ✅ feito, aguardando merge | Ajustes pós-decisão | N.25 Antecedência por evento agendado, N.26 Tirar "revogar conquista" | engine, backend, frontend | PR 7, PR 9 | evento agendado com antecedência 5 só aparece a 5 dias do efeito; rota de revogação responde `404` |
 
 **Por que essa ordem:** o PR 2 só lê, então entra primeiro sem risco. O PR 3 dá o controle do book e o cancelamento que o
 PR 5 reaproveita. O **PR 4 vem cedo de propósito**: é a refatoração mais arriscada (núcleo da progressão de todos os
