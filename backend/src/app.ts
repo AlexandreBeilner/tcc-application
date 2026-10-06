@@ -165,6 +165,20 @@ import {
   UpdateAdminAnnouncementUseCase,
 } from './modules/admin/application/useCases/announcements'
 import { createAdminAnnouncementsRouter } from './modules/admin/interfaces/http/adminAnnouncementsRouter'
+import { createEngineIntegrityAdmin } from './modules/admin/infrastructure/engine/engineIntegrityAdmin'
+import {
+  createEngineEventsExportSource,
+  createEngineOrdersExportSource,
+} from './modules/admin/infrastructure/engine/engineExportSource'
+import { createDrizzleUsersExportSource } from './modules/admin/infrastructure/persistence/drizzleUsersExportSource'
+import { createAuditLogExportSource } from './modules/admin/infrastructure/export/auditLogExportSource'
+import {
+  GetIntegrityRunUseCase,
+  StartIntegrityCheckUseCase,
+} from './modules/admin/application/useCases/integrity'
+import { ExportCsvUseCase } from './modules/admin/application/useCases/exportCsv'
+import { createAdminIntegrityRouter } from './modules/admin/interfaces/http/adminIntegrityRouter'
+import { createAdminExportsRouter } from './modules/admin/interfaces/http/adminExportsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -508,6 +522,19 @@ export function createApp(deps: AppDeps = {}): Express {
     liftTradingHalt,
     recordAdminAction,
   )
+  // Integridade financeira e exportação CSV (N.21).
+  const integrityAdmin = createEngineIntegrityAdmin(engineUrl)
+  const startIntegrityCheck = new StartIntegrityCheckUseCase(integrityAdmin, recordAdminAction)
+  const getIntegrityRun = new GetIntegrityRunUseCase(integrityAdmin)
+  const exportCsv = new ExportCsvUseCase(
+    {
+      users: createDrizzleUsersExportSource(db),
+      orders: createEngineOrdersExportSource(engineUrl),
+      'market-events': createEngineEventsExportSource(engineUrl),
+      'audit-log': createAuditLogExportSource(auditLogRepository),
+    },
+    recordAdminAction,
+  )
   const engineSettingsAdmin = createEngineSettingsAdmin(engineUrl)
   const listEngineSettings = new ListEngineSettingsUseCase(engineSettingsAdmin)
   const updateEngineSetting = new UpdateEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
@@ -752,6 +779,8 @@ export function createApp(deps: AppDeps = {}): Express {
   // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
   app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))
   app.use(createAdminPingRouter(authMiddleware))
+  app.use(createAdminIntegrityRouter({ startIntegrityCheck, getIntegrityRun, authMiddleware }))
+  app.use(createAdminExportsRouter({ exportCsv, authMiddleware }))
   app.use(createAnnouncementsRouter({ listActiveAnnouncements, authMiddleware }))
   app.use(
     createAdminAnnouncementsRouter({

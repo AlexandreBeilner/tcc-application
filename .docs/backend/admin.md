@@ -507,3 +507,27 @@ Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto pu
 - **Sucesso:** `201` → o aviso, sempre `kind = maintenance`, `severity = critical`, `dismissible = false`. Com `pause_trading`, abre antes a **pausa global de negociação** (N.9, mesma regra: ordem nova de usuário e de bot recusada, tick segue) e grava o id dela em `linked_halt_id`; encerrar a manutenção (`/end`) a levanta. Se o aviso falhar depois de a pausa abrir, a pausa é levantada de volta.
 - **Erros:** `400` formato; `401 reauth_required` **só quando `pause_trading` é `true`** (mesma ação destrutiva da pausa); `409` já existe manutenção em aberto (ou já existe pausa global vigente); `422` regra de domínio, ou `pause_trading` junto com `starts_at` (a pausa vale já, então a manutenção também começa agora).
 - **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }`; com pausa, a linha `trading.halt` também é gravada.
+
+### Integridade financeira e exportação CSV (tarefa N.21)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). O que a verificação confere, categoria por categoria, está em `.docs/engine/admin.md` (o motor reconstrói saldo e posição de `market_events` e compara com `accounts`/`positions`/float). **Somente leitura**: nenhuma rota corrige nada, corrigir é decisão humana.
+
+#### `POST /admin/integrity/check`
+
+- **Payload:** nenhum.
+- **Sucesso:** `202` → `{ id, status: "running", started_at, finished_at: null, error: null, report: null }`. A verificação segue em segundo plano no motor (numa base com ~360 mil eventos leva menos de 1 s, mas o timeout é de 5 minutos).
+- **Erros:** `409` já há uma em andamento (só uma por vez).
+- **Auditoria:** `integrity.check`, `target_type = integrity_check`, `target_id` = id da verificação. Não pede senha recente (não altera nada).
+
+#### `GET /admin/integrity/check`
+
+- **Sucesso:** `200` → `{ run }`: `null` se nenhuma verificação rodou desde a subida do motor; senão `{ id, status ('running' | 'done' | 'failed'), started_at, finished_at | null, error | null, report | null }`. `report`: `{ checked: { events, accounts, positions, assets, resting_orders }, total, counts: { balance_mismatch, position_mismatch, negative_balance, negative_position, float_mismatch, resting_order_unfunded, unknown_event_type }, truncated, divergences: [{ kind, user_id | null, asset_id | null, ticker | null, order_id | null, expected, found, detail }] }`. Base consistente: `total = 0`. A lista detalhada vai até 200 itens (`truncated`), mas `counts` é sempre exato. O resultado é só o da última verificação e vive em memória no motor.
+
+#### `GET /admin/exports/:dataset`
+
+- **Conjuntos (`:dataset`):** `users`, `orders`, `market-events`, `audit-log`.
+- **Payload (query), opcionais:** `from`/`to` (ISO 8601 com fuso, inclusivos, `from` ≤ `to`; o período é sobre `created_at` em usuários e ordens, `timestamp` nos eventos e `occurred_at` na auditoria), `limit` (inteiro ≥ 1; padrão 10.000, **teto 50.000**: acima do teto vira o teto). Validados por `exportQuerySchema`.
+- **Sucesso:** `200` com `text/csv; charset=utf-8` e `Content-Disposition: attachment; filename="<conjunto>-AAAAMMDD.csv"`. Cabeçalhos `X-Export-Rows` (linhas no arquivo) e `X-Export-Truncated` (`true` se havia mais linhas que o limite: o arquivo traz as primeiras). CRLF entre linhas, BOM de UTF-8 na frente (o Excel abre os acentos certos). Células que começam com `=`, `+`, `-`, `@`, tab ou CR (e não são número) ganham apóstrofo na frente (CSV injection); `true`/`false` pros booleanos, ISO 8601 pras datas, vazio pro nulo.
+- **Colunas (e a privacidade, RNF09 e LGPD):** `users`: `id, name, email, username, role, status, onboarding_completed, created_at`, **nunca** hash de senha, token, patrimônio nem rentabilidade. `orders`: `id, user_id, is_bot, ticker, side, type, quantity, filled_quantity, price, status, cancel_reason, simulated_day, created_at`. `market-events`: `id, user_id, is_bot, ticker, event_type, quantity, unit_value, simulated_day, timestamp`. `audit-log`: `id, occurred_at, admin_id, admin_username, action, target_type, target_id, result, error_message, payload` (JSON em texto; o `payload` já nasce sem dado sensível). Ordens e eventos identificam a conta só pelo id, nunca por nome ou e-mail.
+- **Erros:** `400` conjunto desconhecido, data malformada, intervalo invertido, `limit` inválido (nada é lido nem auditado); `401 reauth_required` **só em `users`** (traz e-mail, dado pessoal: pede senha conferida nos últimos 5 minutos, como as ações destrutivas); `500` se o motor ou o banco falhar.
+- **Auditoria:** `export.csv`, `target_type = export`, `target_id` = o conjunto, `payload = { dataset, from, to, limit, rows, truncated }`; falha de leitura grava `result = failed`.

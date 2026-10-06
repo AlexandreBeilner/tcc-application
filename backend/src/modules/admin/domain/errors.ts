@@ -162,3 +162,6 @@ export class AdminAnnouncementNotFoundError extends Error {}
 export class AdminAnnouncementConflictError extends Error {}
 // Texto, janela ou combinação que a regra de domínio recusa.
 export class InvalidAdminAnnouncementError extends Error {}
+
+// Integridade financeira (N.21). Já há uma verificação em andamento (409 do motor).
+export class IntegrityAlreadyRunningError extends Error {}

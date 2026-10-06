@@ -43,6 +43,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'announcement.update',
   'announcement.end',
   'maintenance.start',
+  'integrity.check',
+  'export.csv',
   'admin.login',
   'admin.login_failed',
   'admin.reauth',

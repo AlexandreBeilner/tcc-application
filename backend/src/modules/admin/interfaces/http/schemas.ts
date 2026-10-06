@@ -466,3 +466,18 @@ export const startMaintenanceBodySchema = z.object({
   ends_at: isoDate.nullable().optional(),
   pause_trading: z.boolean().default(false),
 })
+
+// GET /admin/exports/:dataset (N.21): período inclusivo (ISO 8601 com fuso) e teto de linhas.
+// O teto real (50.000) é aplicado pelo caso de uso; aqui só o formato.
+export const exportDatasetParamSchema = z.enum(['users', 'orders', 'market-events', 'audit-log'])
+
+export const exportQuerySchema = z
+  .object({
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).optional(),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from não pode ser depois de to',
+    path: ['from'],
+  })
