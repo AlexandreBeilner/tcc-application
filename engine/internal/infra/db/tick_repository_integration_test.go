@@ -64,6 +64,21 @@ func TestListDividendPayerAssets_FIITrazTipoESegmento(t *testing.T) {
 	if p := payers[tijolo]; p.FIIType == nil || *p.FIIType != "tijolo" || p.Segment == nil || *p.Segment != segment || p.NetWorth == nil {
 		t.Errorf("tijolo = %+v, want FIIType=tijolo Segment=%q NetWorth preenchido", p, segment)
 	}
+	if p := payers[tijolo]; p.FIIScheduleAssigned || p.FIIPayoutBusinessDay != fii.DefaultPayoutBusinessDay {
+		t.Errorf("FII sem agenda: assigned = %v, dia útil = %d, want false e %d (legado)", p.FIIScheduleAssigned, p.FIIPayoutBusinessDay, fii.DefaultPayoutBusinessDay)
+	}
+	if _, err := conn.ExecContext(ctx, `UPDATE fii_details SET schedule_assigned = true, payout_business_day = 7 WHERE asset_id = $1`, tijoloID); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := NewTickRepository(conn, nil).ListDividendPayerAssets(ctx); err != nil {
+		t.Fatal(err)
+	} else {
+		for _, p := range again {
+			if p.AssetID == tijoloID && (!p.FIIScheduleAssigned || p.FIIPayoutBusinessDay != 7) {
+				t.Errorf("FII com agenda: assigned = %v, dia útil = %d, want true e 7", p.FIIScheduleAssigned, p.FIIPayoutBusinessDay)
+			}
+		}
+	}
 	papel, ok := byID[papelID]
 	if !ok {
 		t.Fatal("FII papel ausente da listagem")

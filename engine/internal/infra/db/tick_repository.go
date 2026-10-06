@@ -278,7 +278,9 @@ func (r *TickRepository) ListPendingMacroEvents(ctx context.Context) ([]tick.Mac
 // o snapshot de cotistas de ETFFundRepository.ListShareHolders.
 func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.DividendPayerAsset, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador, fd.fii_type, fd.segment
+		`SELECT a.id, a.type, via.company_id, via.share_class, via.outstanding_shares, fd.net_worth, fd.portfolio_value, fd.indexador, fd.fii_type, fd.segment,
+		        COALESCE(fd.schedule_assigned, false), COALESCE(fd.payout_business_day, 10),
+		        COALESCE((SELECT schedule_cutover_day FROM market_calendar WHERE id = 1), 0)
 		 FROM assets a
 		 JOIN variable_income_assets via ON via.asset_id = a.id
 		 LEFT JOIN fii_details fd ON fd.asset_id = a.id
@@ -295,7 +297,8 @@ func (r *TickRepository) ListDividendPayerAssets(ctx context.Context) ([]tick.Di
 	for rows.Next() {
 		var a tick.DividendPayerAsset
 		var assetType string
-		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.ShareClass, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador, &a.FIIType, &a.Segment); err != nil {
+		if err := rows.Scan(&a.AssetID, &assetType, &a.CompanyID, &a.ShareClass, &a.OutstandingShares, &a.NetWorth, &a.PortfolioValue, &a.Indexador, &a.FIIType, &a.Segment,
+			&a.FIIScheduleAssigned, &a.FIIPayoutBusinessDay, &a.ScheduleCutoverDay); err != nil {
 			return nil, err
 		}
 		a.Type = assetType

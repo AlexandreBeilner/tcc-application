@@ -278,6 +278,13 @@ type DividendPayerAsset struct {
 	FIIType *string
 	Segment *string
 	Holders []PositionHolder
+	// FIIScheduleAssigned, FIIPayoutBusinessDay e ScheduleCutoverDay são a agenda
+	// do provento do FII (RC.6.7/RC.6.10): quando atribuída, o FII paga todo mês
+	// real, com data-ex no 1º dia útil e pagamento no N-ésimo dia útil do mês
+	// seguinte, a partir do dia de corte; sem agenda segue o ciclo legado de 30 dias.
+	FIIScheduleAssigned  bool
+	FIIPayoutBusinessDay int
+	ScheduleCutoverDay   int
 }
 
 // DividendRecord é um novo dividend_events pronto pra persistir — gerado
@@ -621,12 +628,20 @@ func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex int, c 
 // (dividend.FIIPayoutIntervalDays, calendário de 30 dias, mesma técnica sem
 // estado persistido e mesma guarda de primeiro ciclo), 0 fora da banda. Não é
 // permanente: ver o doc de dividend.FIIPriceEffectPct.
-func fiiDividendPriceEffectPct(baseValue float64, outstandingShares int64, yieldPerCyclePct float64, dayIndex int) float64 {
-	if dayIndex < dividend.FIIPayoutIntervalDays-1 {
-		return 0
-	}
-	if (dayIndex+1)%dividend.FIIPayoutIntervalDays >= dividendPriceEffectBandDays {
-		return 0
+func fiiDividendPriceEffectPct(a DividendPayerAsset, baseValue float64, outstandingShares int64, yieldPerCyclePct float64, dayIndex int) float64 {
+	newDay := dayIndex + 1
+	if ex, ok := paymentschedule.LastFIIExDay(newDay); a.FIIScheduleAssigned && ok && ex > a.ScheduleCutoverDay {
+		// Agenda mensal real: a banda conta desde a data-ex do último provento.
+		if newDay-ex >= dividendPriceEffectBandDays {
+			return 0
+		}
+	} else {
+		if dayIndex < dividend.FIIPayoutIntervalDays-1 {
+			return 0
+		}
+		if (dayIndex+1)%dividend.FIIPayoutIntervalDays >= dividendPriceEffectBandDays {
+			return 0
+		}
 	}
 	perShare, ok := dividend.FIIValuePerShare(baseValue, outstandingShares, yieldPerCyclePct)
 	if !ok {
@@ -937,8 +952,13 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, payoutsByCompany map[s
 				value, ok = onValue, valueOK
 			}
 		case "fii":
-			if !fiiPayoutDay {
-				continue
+			legacyDue := fiiPayoutDay && (!a.FIIScheduleAssigned || newDay <= a.ScheduleCutoverDay)
+			if !legacyDue {
+				_, exDay, payDay, scheduledDue := paymentschedule.FIIPayoutOn(newDay, a.FIIPayoutBusinessDay)
+				if !a.FIIScheduleAssigned || newDay <= a.ScheduleCutoverDay || !scheduledDue {
+					continue
+				}
+				recordPaymentDay, recordExDay = payDay, exDay
 			}
 			baseValue := a.NetWorth
 			if baseValue == nil {
@@ -1105,7 +1125,7 @@ func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpd
 			BaseValue:         baseValue,
 			OutstandingShares: *a.OutstandingShares,
 			TargetPriceToBook: targetPriceToBook,
-			DividendEffectPct: fiiDividendPriceEffectPct(baseValue, *a.OutstandingShares, payoutYieldPct, dayIndex),
+			DividendEffectPct: fiiDividendPriceEffectPct(a, baseValue, *a.OutstandingShares, payoutYieldPct, dayIndex),
 		}
 	}
 	return contexts
