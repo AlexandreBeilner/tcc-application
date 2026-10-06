@@ -37,6 +37,8 @@ export type WidgetId =
   | 'fii-monthly-calendar'
   | 'fee-drag'
   | 'budget-split'
+  | 'debt-snowball'
+  | 'pay-or-invest'
   | 'equity-tax-calculator'
   | 'tax-decision-tree'
   | 'savings-vs-selic'

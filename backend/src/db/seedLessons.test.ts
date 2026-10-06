@@ -214,7 +214,7 @@ describe('blocks no seed (RC.3.1)', () => {
 
   it('a Trilha F (paralela, RC.4.4) fica no fim do sortOrder e fora da corrente', () => {
     const parallel = LESSON_SEEDS.filter((l) => isParallelTrack(l.trackNumber))
-    expect(parallel.map((l) => l.code)).toEqual(['F.1'])
+    expect(parallel.map((l) => l.code)).toEqual(['F.1', 'F.2'])
     const lastChain = Math.max(
       ...LESSON_SEEDS.filter((l) => !isParallelTrack(l.trackNumber)).map((l) => l.sortOrder),
     )

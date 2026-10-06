@@ -331,4 +331,19 @@ export const glossary: Record<string, GlossaryEntry> = {
         example: 'Renda de R$ 4.000 e gastos de R$ 3.400 deixam uma sobra de R$ 600, ou 15% da renda.',
         originLesson: 'F.1',
     },
+    rotativo: {
+        definition:
+            'Crédito automático do cartão quando você paga menos que o total da fatura: o que sobra vira dívida com juros muito altos.',
+        originLesson: 'F.2',
+    },
+    'cheque especial': {
+        definition:
+            'Limite que o banco empresta quando o saldo da conta fica negativo. Os juros são altos e cobrados todo mês sobre o valor usado.',
+        originLesson: 'F.2',
+    },
+    consignado: {
+        definition:
+            'Empréstimo com parcela descontada direto da folha de pagamento ou do benefício, o que reduz o risco do banco e costuma baixar os juros.',
+        originLesson: 'F.2',
+    },
 }

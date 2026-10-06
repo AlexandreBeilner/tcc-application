@@ -38,7 +38,7 @@ import {
   BLOCKS_CUSTOS,
   BLOCKS_IMPOSTO,
 } from './lessonContentTrilha2Empresa'
-import { BLOCKS_ORCAMENTO } from './lessonContentTrilhaF'
+import { BLOCKS_DIVIDA, BLOCKS_ORCAMENTO } from './lessonContentTrilhaF'
 import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
 import { legacyText } from './lessonText'
 
@@ -1096,6 +1096,27 @@ export const LESSON_SEEDS: LessonSeed[] = [
     microDecisionCorrectOption: 1,
     revelationText: legacyText(BLOCKS_ORCAMENTO, 'revelation'),
     blocks: BLOCKS_ORCAMENTO,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: 'divida-os-juros-do-outro-lado',
+    code: 'F.2',
+    trackNumber: 4,
+    trackName: 'Trilha F: Finanças do dia a dia',
+    sortOrder: 42,
+    title: 'Dívida: os juros do outro lado',
+    centralConcept:
+      'Juros compostos contra você: rotativo, cheque especial, consignado e quitar primeiro',
+    scenarioText: legacyText(BLOCKS_DIVIDA, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_DIVIDA, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Perto de R$ 1.100', 'Perto de R$ 1.960', 'Perto de R$ 2.520'],
+    microDecisionCorrectOption: 2,
+    revelationText: legacyText(BLOCKS_DIVIDA, 'revelation'),
+    blocks: BLOCKS_DIVIDA,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,

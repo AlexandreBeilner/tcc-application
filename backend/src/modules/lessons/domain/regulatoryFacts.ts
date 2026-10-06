@@ -476,6 +476,30 @@ export const REGULATORY_FACTS = [
     note: 'Caderno de Educação Financeira do Banco Central (versão nova, texto extraído e lido); o folheto "Orçamento Pessoal" (série II) confirma os 4 passos e a meta de despesa menor que receita. A regra 50/30/20 NÃO aparece no caderno: a lição a apresenta como regra de bolso popular, nunca como orientação oficial.',
   },
   {
+    id: 'rotativo-limite-lei-14690',
+    label: 'Cartão de crédito: limite de juros e encargos no rotativo e no parcelamento da fatura',
+    value:
+      'Lei 14.690/2023, art. 28, § 1º: sem limites aprovados no prazo de 90 dias da publicação da lei, o total cobrado a título de juros e encargos financeiros no crédito rotativo e no parcelamento do saldo da fatura não pode exceder o valor original da dívida. A regra vale também para emissores que não aderirem à autorregulação (§ 2º). Na prática, o teto de 100% passou a valer em janeiro de 2024.',
+    data: { capPctOfOriginalDebt: 100 },
+    source: 'https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2023/lei/l14690.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Texto da lei lido (art. 28, §§ 1º e 2º). A vigência em janeiro de 2024 e o regulamento do CMN vieram de páginas do governo federal que apareceram na busca (Fazenda e Secom), não abertas em leitura integral.',
+  },
+  {
+    id: 'bcb-taxas-medias-credito-pf',
+    label:
+      'Banco Central: taxa média de juros do rotativo do cartão e do cheque especial (pessoa física)',
+    value:
+      'Em agosto de 2026, a taxa média mensal de juros de operações de crédito com recursos livres para pessoa física foi de 15,18% ao mês no cartão de crédito rotativo (série SGS 25477) e de 7,43% ao mês no cheque especial (série SGS 25463).',
+    data: { rotativoMonthlyPct: 15.18, chequeEspecialMonthlyPct: 7.43, reference: '2026-08' },
+    source:
+      'https://dadosabertos.bcb.gov.br/dataset/25477-taxa-media-mensal-de-juros-das-operacoes-de-credito-com-recursos-livres---pessoas-fisicas---c',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Valores lidos pela API de séries temporais do Banco Central (api.bcb.gov.br, SGS 25477 e 25463; a página de dados abertos confirma o título do 25477 e do 25463). Média mensal ponderada pelas concessões, muda todo mês: a lição usa "cerca de" e diz que são números de 2026. O teto do consignado do INSS (1,80% ao mês em 2025) é decidido por conselho e já mudou mais de uma vez, por isso a lição não cita número.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:

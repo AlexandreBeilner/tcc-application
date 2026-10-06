@@ -23,6 +23,8 @@ import { EtfShockSimulatorWidget, etfShockSimulatorSummary } from '../EtfShockSi
 import { FiiMonthlyCalendarWidget, fiiMonthlyCalendarSummary } from '../FiiMonthlyCalendarWidget'
 import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
 import { BudgetSplitWidget, budgetSplitSummary } from '../BudgetSplitWidget'
+import { DebtSnowballWidget, debtSnowballSummary } from '../DebtSnowballWidget'
+import { PayOrInvestWidget, payOrInvestSummary } from '../PayOrInvestWidget'
 import { EquityTaxCalculatorWidget, equityTaxCalculatorSummary } from '../EquityTaxCalculatorWidget'
 import { TaxDecisionTreeWidget, taxDecisionTreeSummary } from '../TaxDecisionTreeWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
@@ -226,6 +228,16 @@ export const widgetRegistry: Registry = {
         component: BudgetSplitWidget,
         propsSchema: widgetPropsSchemas['budget-split'],
         summary: budgetSplitSummary,
+    },
+    'debt-snowball': {
+        component: DebtSnowballWidget,
+        propsSchema: widgetPropsSchemas['debt-snowball'],
+        summary: debtSnowballSummary,
+    },
+    'pay-or-invest': {
+        component: PayOrInvestWidget,
+        propsSchema: widgetPropsSchemas['pay-or-invest'],
+        summary: payOrInvestSummary,
     },
     'equity-tax-calculator': {
         component: EquityTaxCalculatorWidget,

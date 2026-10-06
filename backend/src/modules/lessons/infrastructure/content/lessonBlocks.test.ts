@@ -184,6 +184,18 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'x4', widget: 'budget-split', props: { income: 6000, leisure: 500 } },
         {
           type: 'widget',
+          id: 'x5',
+          widget: 'debt-snowball',
+          props: { balance: 8000, payment: 900 },
+        },
+        {
+          type: 'widget',
+          id: 'x6',
+          widget: 'pay-or-invest',
+          props: { debtMonthlyPct: 8, irPct: 17.5 },
+        },
+        {
+          type: 'widget',
           id: 'y1',
           widget: 'dividend-timeline',
           props: { comDay: 2, paymentDay: 15 },
@@ -241,6 +253,8 @@ describe('lessonBlocksSchema', () => {
     ['fee-drag', { years: 0 }],
     ['equity-tax-calculator', { kind: 'position' }],
     ['budget-split', { income: 10 }],
+    ['debt-snowball', { monthlyRatePct: 40 }],
+    ['pay-or-invest', { irPct: 50 }],
     ['budget-split', { housing: -1 }],
     ['equity-tax-calculator', { salesMonth: -1 }],
     ['dividend-timeline', { comDay: 9 }],

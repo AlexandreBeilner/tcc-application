@@ -40,6 +40,8 @@ export const WIDGET_IDS = [
     'fii-monthly-calendar',
     'fee-drag',
     'budget-split',
+    'debt-snowball',
+    'pay-or-invest',
     'equity-tax-calculator',
     'tax-decision-tree',
     'savings-vs-selic',
@@ -246,6 +248,17 @@ export const widgetPropsSchemas = {
         leisure: z.number().min(0).max(10_000).default(300),
         debts: z.number().min(0).max(10_000).default(200),
         other: z.number().min(0).max(10_000).default(200),
+    }),
+    'debt-snowball': z.object({
+        balance: z.number().min(500).max(50_000).default(5000),
+        monthlyRatePct: z.number().min(0.5).max(16).default(5),
+        payment: z.number().min(50).max(5000).default(600),
+    }),
+    'pay-or-invest': z.object({
+        amount: z.number().min(100).max(100_000).default(1000),
+        debtMonthlyPct: z.number().min(0.5).max(16).default(5),
+        investAnnualPct: z.number().min(4).max(20).default(14),
+        irPct: z.number().min(0).max(22.5).default(15),
     }),
     'equity-tax-calculator': z.object({
         kind: z.enum(['swing', 'daytrade']).default('swing'),
