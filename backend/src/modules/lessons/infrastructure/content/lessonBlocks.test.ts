@@ -168,6 +168,7 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'u', widget: 'roe-lab', props: { netIncome: 30, selicPct: 12 } },
         { type: 'widget', id: 'v', widget: 'multiples-calculator', props: { price: 30 } },
         { type: 'widget', id: 'w', widget: 'debt-thermometer', props: { cdiSharePct: 50 } },
+        { type: 'widget', id: 'x1', widget: 'fee-drag', props: { feeBPct: 1.5, years: 30 } },
       ],
     }
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
@@ -194,6 +195,8 @@ describe('lessonBlocksSchema', () => {
     ['roe-lab', { equity: 0 }],
     ['multiples-calculator', { price: 100 }],
     ['debt-thermometer', { cdiSharePct: 120 }],
+    ['fee-drag', { feeBPct: 9 }],
+    ['fee-drag', { years: 0 }],
   ])('%s com props fora do limite é rejeitado', (widget, props) => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

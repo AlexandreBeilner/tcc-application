@@ -35,6 +35,7 @@ import {
   BLOCKS_2_7_7,
   BLOCKS_2_8,
   BLOCKS_2_9,
+  BLOCKS_CUSTOS,
 } from './lessonContentTrilha2Empresa'
 import { legacyText } from './lessonText'
 
@@ -894,11 +895,31 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: 'TJLO11',
   },
   {
+    stableKey: 'custos-de-investir',
+    code: '2.11',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 35,
+    title: 'O que custa investir',
+    centralConcept: 'Corretagem, custódia, taxas de fundo e spread: pequenas taxas, grande diferença',
+    scenarioText: legacyText(BLOCKS_CUSTOS, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_CUSTOS, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Perto de 98%', 'Perto de 80%', 'Perto de 70%'],
+    microDecisionCorrectOption: 2,
+    revelationText: legacyText(BLOCKS_CUSTOS, 'revelation'),
+    blocks: BLOCKS_CUSTOS,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
     stableKey: '3.1',
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 35,
+    sortOrder: 36,
     title: 'Diversificação',
     centralConcept: 'Por que não concentrar tudo num ativo',
     scenarioText:
@@ -945,7 +966,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 36,
+    sortOrder: 37,
     title: 'Perfil de risco',
     centralConcept: 'Conservador vs Sofisticado, risco x retorno',
     scenarioText:
@@ -985,7 +1006,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 37,
+    sortOrder: 38,
     title: 'Comparando produtos na prática',
     centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
     scenarioText:
@@ -1025,7 +1046,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 38,
+    sortOrder: 39,
     title: 'Desafio final da trilha',
     centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
     scenarioText:

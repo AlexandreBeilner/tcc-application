@@ -394,6 +394,16 @@ export const REGULATORY_FACTS = [
     note: 'Página do Portal do Investidor lida (publicada em 2022). Valores de tarifas e faixas de isenção da B3 mudam e não foram registrados; a lição não cita número de custo.',
   },
   {
+    id: 'fundos-taxas-definicoes',
+    label: 'Portal do Investidor (CVM): taxas de fundos de investimento',
+    value:
+      'A taxa de administração remunera o administrador pelos serviços legais e de manutenção. A taxa de gestão remunera o gestor pela escolha técnica dos investimentos. A taxa de performance é um prêmio pago ao gestor apenas se o rendimento do fundo superar um indicador de referência.',
+    source: 'https://www.gov.br/investidor/pt-br/investir/tipos-de-investimentos/fundos-de-investimentos',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Página do Portal do Investidor lida. Não define taxa de ingresso ou saída, então a lição não as cita.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:

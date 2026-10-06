@@ -34,6 +34,7 @@ export const WIDGET_IDS = [
     'roe-lab',
     'multiples-calculator',
     'debt-thermometer',
+    'fee-drag',
     'savings-vs-selic',
     'growth-calculator',
     'fixed-income-comparison',
@@ -186,6 +187,14 @@ export const widgetPropsSchemas = {
         ebit: z.number().min(-100_000).max(100_000).default(250),
         financialExpense: z.number().min(0).max(100_000).default(50),
         cdiSharePct: z.number().min(0).max(100).default(100),
+    }),
+    'fee-drag': z.object({
+        initial: z.number().min(0).max(1_000_000).default(10000),
+        monthly: z.number().min(0).max(100_000).default(0),
+        grossReturnPct: z.number().min(2).max(16).default(10),
+        feeAPct: z.number().min(0).max(4).default(0),
+        feeBPct: z.number().min(0).max(4).default(2),
+        years: z.number().int().min(1).max(40).default(20),
     }),
     'rating-ruler': z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') }),
     'savings-vs-selic': z.object({

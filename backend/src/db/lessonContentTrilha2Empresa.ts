@@ -697,3 +697,118 @@ export const BLOCKS_2_9: LessonBlocks = {
     ],
   },
 }
+
+// Lição nova "O que custa investir" (RC.4.8), no fim da Trilha 2. Fatos:
+// `fundos-taxas-definicoes` (administração, gestão e performance),
+// `tesouro-custodia-b3` (0,20% ao ano) e `investidor-custos-acoes` (sem número
+// de corretagem, que muda). O retorno de 10% ao ano do exemplo é didático.
+
+export const BLOCKS_CUSTOS: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Todo investimento tem custo, e boa parte dele é cobrada em silêncio, direto do que você ganha. Pequenas taxas, repetidas por anos, viram uma diferença grande.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Em ações há corretagem, custódia, emolumentos e taxa de liquidação, e muitas corretoras nem cobram corretagem. Em fundos e ETFs há a taxa de administração, cobrada todo ano sobre o patrimônio.',
+      },
+      {
+        type: 'check',
+        id: 'onde-aparece-a-taxa',
+        kind: 'single',
+        prompt: 'Como a taxa de administração de um ETF aparece na sua conta?',
+        options: ['Como um débito separado todo mês', 'Descontada do valor da cota, sem lançamento', 'Só quando você vende'],
+        answer: 1,
+        explanation:
+          'A taxa é paga pelo fundo e reduz o valor da cota aos poucos. Você não vê um débito, só um retorno menor.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Dois produtos rendem 10% ao ano antes das taxas. O A não cobra taxa e o B cobra 2% ao ano. Depois de 20 anos, o saldo do B é quanto do saldo do A?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Perto de 70%. A taxa leva cerca de 30% do saldo final em 20 anos, e mais de um terço do ganho, porque ela corrói o retorno todo ano e os juros seguintes incidem sobre o que sobrou.',
+      },
+      {
+        type: 'widget',
+        id: 'efeito-da-taxa',
+        widget: 'fee-drag',
+        props: {},
+        caption: 'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
+      },
+      {
+        type: 'check',
+        id: 'retorno-liquido',
+        kind: 'numeric',
+        prompt: 'Um fundo rende 10% ao ano e cobra 2% de taxa. Quanto sobra de retorno, em % ao ano?',
+        answer: 8,
+        tolerance: 0.01,
+        unit: '% ao ano',
+        explanation: 'O retorno que chega a você é o bruto menos a taxa: 10% menos 2% dá 8%.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Em fundos há três taxas diferentes. A de administração remunera o administrador. A de gestão remunera o gestor pela escolha dos investimentos. A de performance é um prêmio cobrado só se o fundo superar um indicador de referência.',
+      },
+      {
+        type: 'check',
+        id: 'taxa-de-performance',
+        kind: 'single',
+        prompt: 'Qual taxa só é cobrada se o fundo superar o indicador de referência?',
+        options: ['Administração', 'Gestão', 'Performance'],
+        answer: 2,
+        explanation: 'A taxa de performance é um prêmio ao gestor por render mais que a referência. As outras duas são cobradas sempre.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O {{spread}} também é custo: você compra pelo preço de venda e vende pelo de compra, e a diferença fica com o mercado. No Tesouro Direto, a B3 cobra custódia de 0,20% ao ano sobre o valor dos títulos.',
+      },
+      {
+        type: 'check',
+        id: 'custodia-do-tesouro',
+        kind: 'numeric',
+        prompt: 'Você tem R$ 20.000 em um Tesouro Prefixado. Quanto paga de custódia por ano, em reais?',
+        answer: 40,
+        tolerance: 0.5,
+        unit: 'reais',
+        explanation: '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre até R$ 10 mil, mas não é o caso aqui.',
+      },
+      {
+        type: 'check',
+        id: 'corretagem-zero',
+        kind: 'true_false',
+        prompt: 'Corretagem zero significa investir sem nenhum custo.',
+        answer: false,
+        explanation: 'Ainda há custódia, emolumentos, taxa de liquidação, taxa de administração em fundos e o spread.',
+      },
+      {
+        type: 'text',
+        markup: 'Custo é a parte do retorno que você controla. Compare as taxas antes de escolher, e lembre que ele pesa mais quanto maior o prazo.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-custos',
+        widget: 'platform-note',
+        props: {
+          brazil: 'Você paga corretagem, custódia e taxas de fundos, que variam por corretora e produto.',
+          here: 'Os ETFs cobram uma taxa de administração, descontada do fundo. Suas ordens não pagam corretagem nem custódia.',
+          why: 'Assim o treino foca no efeito da taxa de administração, sem tabelas de tarifa de cada corretora.',
+        },
+      },
+    ],
+  },
+}

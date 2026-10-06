@@ -17,6 +17,7 @@ import { MarginComparatorWidget, marginComparatorSummary } from '../MarginCompar
 import { RoeLabWidget, roeLabSummary } from '../RoeLabWidget'
 import { MultiplesCalculatorWidget, multiplesCalculatorSummary } from '../MultiplesCalculatorWidget'
 import { DebtThermometerWidget, debtThermometerSummary } from '../DebtThermometerWidget'
+import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
 import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
 import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
@@ -188,6 +189,11 @@ export const widgetRegistry: Registry = {
         component: DebtThermometerWidget,
         propsSchema: widgetPropsSchemas['debt-thermometer'],
         summary: debtThermometerSummary,
+    },
+    'fee-drag': {
+        component: FeeDragWidget,
+        propsSchema: widgetPropsSchemas['fee-drag'],
+        summary: feeDragSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,

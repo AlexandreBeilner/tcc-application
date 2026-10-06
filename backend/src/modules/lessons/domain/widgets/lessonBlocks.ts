@@ -31,6 +31,7 @@ export type WidgetId =
   | 'roe-lab'
   | 'multiples-calculator'
   | 'debt-thermometer'
+  | 'fee-drag'
   | 'savings-vs-selic'
   | 'growth-calculator'
   | 'fixed-income-comparison'
