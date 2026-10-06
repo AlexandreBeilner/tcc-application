@@ -113,6 +113,10 @@ export type AuditAction =
     | 'lesson.update'
     | 'lesson.create'
     | 'lesson.restore'
+    | 'announcement.create'
+    | 'announcement.update'
+    | 'announcement.end'
+    | 'maintenance.start'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -1025,4 +1029,47 @@ export interface NewCatalogAssetPreview {
 export interface CreatedCatalogAsset {
     asset_id: string
     preview: NewCatalogAssetPreview
+}
+
+// Comunicados globais e modo de manutenção (N.20). Espelha `/admin/announcements`.
+export type AnnouncementSeverity = 'info' | 'warning' | 'critical'
+export type AnnouncementKind = 'notice' | 'maintenance'
+export type AnnouncementStatus = 'scheduled' | 'active' | 'ended'
+
+export interface AdminAnnouncement {
+    id: string
+    title: string
+    body: string
+    severity: AnnouncementSeverity
+    kind: AnnouncementKind
+    dismissible: boolean
+    starts_at: string
+    ends_at: string | null
+    linked_halt_id: string | null
+    status: AnnouncementStatus
+    created_at: string
+}
+
+export interface AnnouncementInput {
+    title: string
+    body: string
+    severity: AnnouncementSeverity
+    dismissible: boolean
+    starts_at?: string
+    ends_at?: string | null
+}
+
+export type AnnouncementPatch = Partial<AnnouncementInput>
+
+export interface MaintenanceInput {
+    title: string
+    body: string
+    ends_at?: string | null
+    pause_trading: boolean
+}
+
+export interface EndAnnouncementResult {
+    announcement: AdminAnnouncement
+    outcome: 'ended' | 'cancelled'
+    halt_lifted: boolean
 }

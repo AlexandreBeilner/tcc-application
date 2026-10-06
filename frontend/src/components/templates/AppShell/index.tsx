@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { useActiveAnnouncements } from '../../../features/announcements/useActiveAnnouncements'
+import { AnnouncementBanner } from '../../organisms/AnnouncementBanner'
 import { TopBar } from '../../organisms/TopBar'
 import { TabBar } from '../../organisms/TabBar'
 import { MarketCalendarPanel } from '../../organisms/MarketCalendarPanel'
@@ -13,6 +15,7 @@ import styles from './index.module.css'
 export function AppShell() {
     const { user } = useAuth()
     const [calendarOpen, setCalendarOpen] = useState(false)
+    const { announcements, dismiss } = useActiveAnnouncements()
     const toggleCalendar = useCallback(() => setCalendarOpen((open) => !open), [])
     const closeCalendar = useCallback(() => setCalendarOpen(false), [])
 
@@ -27,6 +30,8 @@ export function AppShell() {
 
     return (
         <div className={styles.shell}>
+            {/* Comunicados globais (N.20): faixa acima de tudo, dispensável por sessão. */}
+            <AnnouncementBanner announcements={announcements} onDismiss={dismiss} />
             <TopBar calendarOpen={calendarOpen} onToggleCalendar={toggleCalendar} />
             <TabBar />
             {/* Calendário do mercado (S.12): aberto só pelo chip do relógio, sem rota. */}

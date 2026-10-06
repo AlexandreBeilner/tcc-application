@@ -52,6 +52,11 @@ import type {
     ListTicksResult,
     MonitorAsset,
     MonitorAssetDetail,
+    AdminAnnouncement,
+    AnnouncementInput,
+    AnnouncementPatch,
+    EndAnnouncementResult,
+    MaintenanceInput,
     PauseTradingInput,
     SchedulerStatus,
     SystemHealth,
@@ -139,6 +144,14 @@ export type {
     CreateBotInput,
     FundBotInput,
     UpdateBotInput,
+    AdminAnnouncement,
+    AnnouncementInput,
+    AnnouncementKind,
+    AnnouncementPatch,
+    AnnouncementSeverity,
+    AnnouncementStatus,
+    EndAnnouncementResult,
+    MaintenanceInput,
     HaltScope,
     PauseTradingInput,
     TradingHalt,
@@ -498,4 +511,26 @@ export function getLessonRevision(token: string, lessonId: string, revisionId: s
 
 export function restoreLessonRevision(token: string, lessonId: string, revisionId: string) {
     return apiRequest<LessonSaveResult>(`/admin/lessons/${lessonId}/revisions/${revisionId}/restore`, { token, method: 'POST' })
+}
+
+// Comunicados globais e modo de manutenção (N.20). Encerrar a manutenção levanta a pausa de
+// negociação que ela abriu; abrir manutenção com pausa pede senha recente (`withReauth`).
+export function listAdminAnnouncements(token: string): Promise<{ announcements: AdminAnnouncement[] }> {
+    return apiRequest<{ announcements: AdminAnnouncement[] }>('/admin/announcements', { token })
+}
+
+export function createAnnouncement(token: string, input: AnnouncementInput): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>('/admin/announcements', { token, method: 'POST', body: input })
+}
+
+export function updateAnnouncement(token: string, id: string, patch: AnnouncementPatch): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>(`/admin/announcements/${id}`, { token, method: 'PATCH', body: patch })
+}
+
+export function endAnnouncement(token: string, id: string): Promise<EndAnnouncementResult> {
+    return apiRequest<EndAnnouncementResult>(`/admin/announcements/${id}/end`, { token, method: 'POST' })
+}
+
+export function startMaintenance(token: string, input: MaintenanceInput): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>('/admin/maintenance', { token, method: 'POST', body: input })
 }

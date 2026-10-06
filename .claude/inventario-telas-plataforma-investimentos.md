@@ -521,6 +521,14 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** carregando; erro de carga; filtro sem resultado; valor fora da regra (recusado na tela e, se passar, com a mensagem do motor); ativo removido no meio do caminho. Cartões em 1, 2 ou 3 colunas conforme o breakpoint.
 - **Dados envolvidos:** `GET /admin/catalog`, `PATCH /admin/catalog/:id`, `POST /admin/catalog/preview`, `POST /admin/catalog` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
 
+### 10.17 Sistema
+- **Objetivo:** avisar todos os usuários de algo que vai acontecer e pôr a plataforma em manutenção (N.20). Rota `/admin/sistema`, seção "Sistema". As telas de integridade e exportação da N.21 entram na mesma rota.
+- **Conteúdo:** **Modo de manutenção** (formulário ou, com uma manutenção em aberto, o resumo dela com "Encerrar manutenção"); **Novo comunicado** (título até 80 e texto até 280 caracteres, só texto, severidade, início, fim, "o usuário pode dispensar"); **lista de comunicados** com o estado de cada um (no ar com selo sólido; agendado e encerrado com selo tracejado).
+- **Ações:** publicar, editar (menos a manutenção), encerrar, cancelar um agendado; iniciar e encerrar manutenção. Iniciar manutenção com a pausa de negociação liga a pausa global (N.9) e pede digitar `PAUSAR TUDO` e senha recente; encerrar a manutenção levanta a pausa que ela abriu. Tudo na auditoria (`announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`).
+- **No app do usuário:** faixa no topo de todas as telas autenticadas (e no WebView do app mobile, que carrega o mesmo frontend), com o rótulo da severidade em texto (Aviso, Atenção, Importante, Manutenção). Comunicado dispensável tem botão de fechar e não volta na mesma sessão do navegador; a manutenção é crítica e não dispensável. Fora da janela de início e fim o comunicado não aparece.
+- **Estados especiais:** texto com `<` ou `>` recusado na tela e no servidor; fim antes do início; segunda manutenção em aberto (409); carregando; erro de carga.
+- **Dados envolvidos:** `announcements`; `GET/POST/PATCH /admin/announcements`, `POST /admin/announcements/:id/end`, `POST /admin/maintenance` e `GET /announcements` (`.docs/backend/admin.md`, `.docs/backend/announcements.md`).
+
 ## 11. Resumo — todas as telas numeradas
 
 | # | Tela | Grupo |
@@ -568,8 +576,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.14 | Detalhe do usuário | Admin |
 | 10.15 | Gamificação | Admin |
 | 10.16 | Catálogo de ativos | Admin |
+| 10.17 | Sistema | Admin |
 
-**Total: 40 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 41 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

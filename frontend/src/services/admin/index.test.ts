@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+    createAnnouncement,
+    endAnnouncement,
+    listAdminAnnouncements,
+    startMaintenance,
+    updateAnnouncement,
     advanceTicks,
     getAdminBotActivity,
     getAdminBotsSummary,
@@ -484,5 +489,37 @@ describe('services/admin', () => {
         await getAdminRanking('token', { criterion: 'level', page: 1 })
         expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/ranking?criterion=overall&page=2&window=month')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/gamification/ranking?criterion=level&page=1')
+    })
+    it('comunicados: lista, cria, edita e encerra pelas rotas /admin/announcements', async () => {
+        let fetchMock = mockFetchOnce({ announcements: [] })
+        await listAdminAnnouncements('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/announcements')
+
+        fetchMock = mockFetchOnce({ id: 'a1' }, 201)
+        await createAnnouncement('token', { title: 't', body: 'b', severity: 'info', dismissible: true, ends_at: null })
+        let [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/announcements')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ title: 't', body: 'b', severity: 'info', dismissible: true, ends_at: null })
+
+        fetchMock = mockFetchOnce({ id: 'a1' })
+        await updateAnnouncement('token', 'a1', { title: 'novo' })
+        ;[url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/announcements/a1')
+        expect(init.method).toBe('PATCH')
+
+        fetchMock = mockFetchOnce({ outcome: 'ended' })
+        await endAnnouncement('token', 'a1')
+        ;[url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/announcements/a1/end')
+        expect(init.method).toBe('POST')
+    })
+
+    it('startMaintenance faz POST /admin/maintenance com a opção de pausar', async () => {
+        const fetchMock = mockFetchOnce({ id: 'a1' }, 201)
+        await startMaintenance('token', { title: 't', body: 'b', pause_trading: true })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/maintenance')
+        expect(JSON.parse(init.body)).toEqual({ title: 't', body: 'b', pause_trading: true })
     })
 })
