@@ -1,0 +1,153 @@
+// Package paymentschedule é a agenda de balanços e proventos por ativo (tarefa
+// RC.6.6, pacote P8; desenho em .claude/revisao-trilhas-anexos/analise-calendario.md
+// e parâmetros calibrados em .claude/calibracao-calendario-proventos.md).
+//
+// Hoje todas as empresas divulgam balanço no mesmo dia (fundamentals.IsReportDay,
+// um relógio único de 91 dias) e todos os FIIs pagam juntos a cada 30 dias. Este
+// pacote são só funções puras (sem I/O, sem relógio de parede) que escalonam isso
+// por ativo: o dia do balanço ganha um offset em dias úteis, o provento ganha
+// data-com, data-ex e pagamento em dia útil, a periodicidade (trimestral,
+// semestral, anual) decide quais balanços pagam, e o FII paga no mês-calendário
+// real. O tempo vem só de simcalendar.
+//
+// Compatibilidade: offset 0 reproduz exatamente fundamentals.IsReportDay e o
+// índice de ciclo legado, sem nenhum ajuste de dia útil (teste de equivalência
+// de 0 a 2000). Os dias são dias simulados (simcalendar), 1-based como o
+// `newDay` do tick: dayIndex+1 é o dia que acabou de começar.
+package paymentschedule
+
+import "tcc-investimentos/engine/internal/domain/simcalendar"
+
+// AddBusinessDays avança n dias úteis a partir de day (o próprio day não
+// conta). Com n = 0 devolve o próprio day se for útil, ou o próximo dia útil se
+// cair em sábado ou domingo. n negativo é tratado como 0.
+func AddBusinessDays(day, n int) int {
+	for !simcalendar.IsBusinessDay(day) {
+		day++
+	}
+	for ; n > 0; n-- {
+		day++
+		for !simcalendar.IsBusinessDay(day) {
+			day++
+		}
+	}
+	return day
+}
+
+// ReportDay é o dia simulado em que o balanço do ciclo cycleIndex (0-based) sai:
+// o fim do ciclo (a cada freqDays) mais offsetBusinessDays dias úteis. Offset 0
+// ou negativo é o legado: o próprio dia do fim do ciclo, sem ajuste de fim de
+// semana.
+func ReportDay(freqDays, offsetBusinessDays, cycleIndex int) int {
+	base := (cycleIndex + 1) * freqDays
+	if offsetBusinessDays <= 0 {
+		return base
+	}
+	return AddBusinessDays(base, offsetBusinessDays)
+}
+
+// CycleIndex devolve o ciclo (0-based) cujo balanço sai em dayIndex+1, e ok =
+// false se nenhum sai nesse dia. Com offset 0 é o índice legado
+// ((dayIndex+1)/freqDays - 1), usado como semente do ruído de crescimento.
+func CycleIndex(dayIndex, freqDays, offsetBusinessDays int) (cycleIndex int, ok bool) {
+	if freqDays <= 0 {
+		return 0, false
+	}
+	newDay := dayIndex + 1
+	if offsetBusinessDays <= 0 {
+		if newDay > 0 && newDay%freqDays == 0 {
+			return newDay/freqDays - 1, true
+		}
+		return 0, false
+	}
+	// O fim do ciclo (base) fica, no máximo, offset dias úteis antes do balanço:
+	// no pior caso offset*7/5 dias corridos mais o fim de semana do começo.
+	span := offsetBusinessDays*7/5 + 4
+	for base := newDay; base >= newDay-span && base > 0; base-- {
+		if base%freqDays != 0 {
+			continue
+		}
+		k := base/freqDays - 1
+		if ReportDay(freqDays, offsetBusinessDays, k) == newDay {
+			return k, true
+		}
+	}
+	return 0, false
+}
+
+// IsReportDay generaliza fundamentals.IsReportDay com o offset por empresa.
+func IsReportDay(dayIndex, freqDays, offsetBusinessDays int) bool {
+	_, ok := CycleIndex(dayIndex, freqDays, offsetBusinessDays)
+	return ok
+}
+
+// ComDay é a data-com: o último dia de negociação com direito ao provento,
+// lagBusinessDays dias úteis depois da declaração (o dia do balanço).
+func ComDay(declarationDay, lagBusinessDays int) int {
+	return AddBusinessDays(declarationDay, lagBusinessDays)
+}
+
+// ExDay é a data-ex: o primeiro dia útil seguinte à data-com, quando o ativo
+// passa a ser negociado sem direito ao provento (regra da B3).
+func ExDay(comDay int) int {
+	return AddBusinessDays(comDay, 1)
+}
+
+// PaymentDay é o dia de pagamento: lagBusinessDays dias úteis depois da data-ex,
+// sempre em dia útil.
+func PaymentDay(exDay, lagBusinessDays int) int {
+	return AddBusinessDays(exDay, lagBusinessDays)
+}
+
+// Policy é a periodicidade do provento de ação: quais balanços pagam.
+type Policy string
+
+const (
+	// Quarterly paga em todo balanço trimestral (o comportamento legado).
+	Quarterly Policy = "quarterly"
+	// Semiannual paga nos balanços do 2º e do 4º trimestre, com o lucro dos dois.
+	Semiannual Policy = "semiannual"
+	// Annual paga só no balanço do 4º trimestre, com o lucro do ano.
+	Annual Policy = "annual"
+)
+
+// IsValid diz se p é uma das três políticas.
+func (p Policy) IsValid() bool {
+	return p == Quarterly || p == Semiannual || p == Annual
+}
+
+// EquityPayoutCycles diz, para os 4 trimestres do ano (índice 0 = 1º), em quais
+// o balanço paga provento. Política desconhecida cai no legado (trimestral).
+func EquityPayoutCycles(p Policy) [4]bool {
+	switch p {
+	case Semiannual:
+		return [4]bool{false, true, false, true}
+	case Annual:
+		return [4]bool{false, false, false, true}
+	default:
+		return [4]bool{true, true, true, true}
+	}
+}
+
+// PaysInCycle diz se o balanço do ciclo cycleIndex (0-based, o ciclo 0 é o 1º
+// trimestre do ano) paga provento.
+func PaysInCycle(p Policy, cycleIndex int) bool {
+	if cycleIndex < 0 {
+		return false
+	}
+	return EquityPayoutCycles(p)[cycleIndex%4]
+}
+
+// PoolCycles é quantos ciclos de lucro entram no provento de um pagamento: 1
+// (trimestral), 2 (semestral) ou 4 (anual). O chamador soma o lucro líquido
+// desses ciclos antes de EquityValuePerShare.
+func PoolCycles(p Policy) int {
+	switch p {
+	case Semiannual:
+		return 2
+	case Annual:
+		return 4
+	default:
+		return 1
+	}
+}

@@ -38,19 +38,21 @@ ficam na semana do prazo. [OBSERVADO] Em números: cerca de 4% das divulgações
 
 ### Parâmetro para o motor (`companies.report_offset_days`)
 
-O balanço de hoje sai no fim do trimestre do motor (dia 0 do offset). O offset é o **atraso, em dias corridos, depois do
-fim do trimestre**, empurrado para o dia útil seguinte se cair em fim de semana.
+O balanço de hoje sai no fim do trimestre do motor (offset 0). O offset é o **atraso, em dias úteis, depois do fim do
+trimestre** (decisão da RC.6.6: em dias úteis, não corridos, porque empurrar o fim de semana para a segunda juntaria
+três dias de massa na mesma data; em dias úteis cada offset é um dia distinto e nunca cai em fim de semana). Offset 0
+é o legado, sem ajuste.
 
-| Faixa de offset (dias após o fim do trimestre) | Peso | Selo |
+| Faixa de offset (dias úteis após o fim do trimestre) | Peso | Selo |
 |---|---|---|
-| 0 a 29 | 5% | [OBSERVADO] (13 de 294 em abril) |
-| 30 a 36 | 30% | [ILUSTRATIVO] (entre o início de maio e o pico) |
-| 37 a 44 | 65% | [ILUSTRATIVO] (pico em 38 e semana do prazo) |
+| 0 a 20 (até cerca de 30 dias corridos) | 5% | [OBSERVADO] (13 de 294 em abril) |
+| 21 a 25 | 30% | [ILUSTRATIVO] (entre o início de maio e o pico) |
+| 26 a 31 (pico no dia 38 corrido, semana do prazo) | 65% | [ILUSTRATIVO] |
 
-- **Janela:** `[0, 45)` dias, nunca depois do prazo legal de 45 dias. Para o 4T (DFP, prazo de 3 meses), manter a
+- **Janela:** `[0, 32)` dias úteis, cerca de 45 dias corridos, nunca depois do prazo legal de 45 dias. Para o 4T (DFP, prazo de 3 meses), manter a
   **mesma janela de 45 dias** por simplicidade: a DFP real vai até ~90 dias, mas a maioria das grandes divulga entre
   fevereiro e março (dias 30 a 60); fica como simplificação declarada, revisável.
-- **Dia útil:** offset que cair em sábado ou domingo passa para a segunda-feira (a B3 não divulga balanço em fim de
+- **Dia útil:** com o offset em dias úteis o balanço nunca cai em fim de semana (a B3 não divulga balanço em fim de
   semana). [OBSERVADO]
 - **Atenção ao acoplamento (análise 2.5):** `MaxWindowDays = 92` deixa de depender da frequência de relatório; o
   balanço escalonado de uma empresa nunca cai depois do início do trimestre seguinte (45 < 91).
@@ -154,7 +156,7 @@ A fonte que lista os fundos por dia útil mistura, na redação, data-com e paga
 
 | Parâmetro | Valor | Selo |
 |---|---|---|
-| Janela do offset de balanço | `[0, 45)` dias após o fim do trimestre, dia útil | [FONTE] (prazo) + [ILUSTRATIVO] (pesos 5/30/65) |
+| Janela do offset de balanço | `[0, 32)` dias úteis (cerca de 45 corridos) após o fim do trimestre | [FONTE] (prazo) + [ILUSTRATIVO] (pesos 5/30/65) |
 | Data-ex | próximo dia útil depois da data-com | [FONTE] |
 | Pagamento de ação | ex + 5 a 30 dias úteis (teto legal de 60 dias) | [FONTE] (teto) + [ILUSTRATIVO] |
 | Periodicidade de ação | pesos por setor da seção 3 | [ILUSTRATIVO] |
