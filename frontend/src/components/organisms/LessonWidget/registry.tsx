@@ -17,6 +17,10 @@ import { MarginComparatorWidget, marginComparatorSummary } from '../MarginCompar
 import { RoeLabWidget, roeLabSummary } from '../RoeLabWidget'
 import { MultiplesCalculatorWidget, multiplesCalculatorSummary } from '../MultiplesCalculatorWidget'
 import { DebtThermometerWidget, debtThermometerSummary } from '../DebtThermometerWidget'
+import { DividendNetCalculatorWidget, dividendNetCalculatorSummary } from '../DividendNetCalculatorWidget'
+import { DividendTimelineWidget, dividendTimelineSummary } from '../DividendTimelineWidget'
+import { EtfShockSimulatorWidget, etfShockSimulatorSummary } from '../EtfShockSimulatorWidget'
+import { FiiMonthlyCalendarWidget, fiiMonthlyCalendarSummary } from '../FiiMonthlyCalendarWidget'
 import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
 import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
@@ -189,6 +193,26 @@ export const widgetRegistry: Registry = {
         component: DebtThermometerWidget,
         propsSchema: widgetPropsSchemas['debt-thermometer'],
         summary: debtThermometerSummary,
+    },
+    'dividend-timeline': {
+        component: DividendTimelineWidget,
+        propsSchema: widgetPropsSchemas['dividend-timeline'],
+        summary: dividendTimelineSummary,
+    },
+    'dividend-net-calculator': {
+        component: DividendNetCalculatorWidget,
+        propsSchema: widgetPropsSchemas['dividend-net-calculator'],
+        summary: dividendNetCalculatorSummary,
+    },
+    'etf-shock-simulator': {
+        component: EtfShockSimulatorWidget,
+        propsSchema: widgetPropsSchemas['etf-shock-simulator'],
+        summary: etfShockSimulatorSummary,
+    },
+    'fii-monthly-calendar': {
+        component: FiiMonthlyCalendarWidget,
+        propsSchema: widgetPropsSchemas['fii-monthly-calendar'],
+        summary: fiiMonthlyCalendarSummary,
     },
     'fee-drag': {
         component: FeeDragWidget,

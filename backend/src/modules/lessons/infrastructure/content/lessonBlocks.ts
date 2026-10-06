@@ -45,6 +45,10 @@ export const WIDGET_IDS = [
   'roe-lab',
   'multiples-calculator',
   'debt-thermometer',
+  'dividend-timeline',
+  'dividend-net-calculator',
+  'etf-shock-simulator',
+  'fii-monthly-calendar',
   'fee-drag',
   'savings-vs-selic',
   'growth-calculator',
@@ -280,6 +284,44 @@ export const widgetPropsSchemas = {
     ebit: z.number().min(-100_000).max(100_000).default(250),
     financialExpense: z.number().min(0).max(100_000).default(50),
     cdiSharePct: z.number().min(0).max(100).default(100),
+  }),
+  'dividend-timeline': z.object({
+    quantity: z.number().int().min(1).max(1_000_000).default(100),
+    valuePerShare: z.number().min(0.01).max(1000).default(1),
+    comDay: z.number().int().min(1).max(5).default(3),
+    paymentDay: z.number().int().min(8).max(30).default(12),
+  }),
+  'dividend-net-calculator': z.object({
+    quantity: z.number().int().min(1).max(1_000_000).default(1000),
+    valuePerShare: z.number().min(0.01).max(1000).default(1),
+    kind: z.enum(['dividend', 'jcp']).default('dividend'),
+    otherSameMonth: z.number().min(0).max(200_000).default(0),
+  }),
+  'etf-shock-simulator': z
+    .object({
+      holdings: z
+        .array(z.object({ name: z.string().min(1).max(30), weightPct: z.number().min(1).max(100) }))
+        .min(2)
+        .max(6)
+        .default([
+          { name: 'Empresa A', weightPct: 40 },
+          { name: 'Empresa B', weightPct: 20 },
+          { name: 'Empresa C', weightPct: 25 },
+          { name: 'Empresa D', weightPct: 15 },
+        ]),
+      navBefore: z.number().min(10).max(1000).default(100),
+    })
+    .refine(
+      (props) => Math.abs(props.holdings.reduce((sum, h) => sum + h.weightPct, 0) - 100) < 0.01,
+      {
+        message: 'Os pesos da cesta precisam somar 100%',
+      },
+    ),
+  'fii-monthly-calendar': z.object({
+    monthlyPerShare: z.number().min(0.01).max(50).default(1.1),
+    shares: z.number().int().min(1).max(1_000_000).default(100),
+    price: z.number().min(1).max(1000).default(100),
+    payoutBusinessDay: z.number().int().min(5).max(15).default(10),
   }),
   'fee-drag': z.object({
     initial: z.number().min(0).max(1_000_000).default(10000),

@@ -163,12 +163,46 @@ describe('lessonBlocksSchema', () => {
         { type: 'widget', id: 'p', widget: 'ticker-decoder', props: {} },
         { type: 'widget', id: 'q', widget: 'headline-triage', props: {} },
         { type: 'widget', id: 'r', widget: 'order-book', props: {} },
-        { type: 'widget', id: 's', widget: 'interactive-balance', props: { costsPct: 60, taxPct: 34 } },
+        {
+          type: 'widget',
+          id: 's',
+          widget: 'interactive-balance',
+          props: { costsPct: 60, taxPct: 34 },
+        },
         { type: 'widget', id: 't', widget: 'margin-comparator', props: {} },
         { type: 'widget', id: 'u', widget: 'roe-lab', props: { netIncome: 30, selicPct: 12 } },
         { type: 'widget', id: 'v', widget: 'multiples-calculator', props: { price: 30 } },
         { type: 'widget', id: 'w', widget: 'debt-thermometer', props: { cdiSharePct: 50 } },
         { type: 'widget', id: 'x1', widget: 'fee-drag', props: { feeBPct: 1.5, years: 30 } },
+        {
+          type: 'widget',
+          id: 'y1',
+          widget: 'dividend-timeline',
+          props: { comDay: 2, paymentDay: 15 },
+        },
+        {
+          type: 'widget',
+          id: 'y2',
+          widget: 'dividend-net-calculator',
+          props: { kind: 'jcp', otherSameMonth: 60000 },
+        },
+        {
+          type: 'widget',
+          id: 'y3',
+          widget: 'etf-shock-simulator',
+          props: {
+            holdings: [
+              { name: 'A', weightPct: 60 },
+              { name: 'B', weightPct: 40 },
+            ],
+          },
+        },
+        {
+          type: 'widget',
+          id: 'y4',
+          widget: 'fii-monthly-calendar',
+          props: { payoutBusinessDay: 7 },
+        },
       ],
     }
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
@@ -197,6 +231,20 @@ describe('lessonBlocksSchema', () => {
     ['debt-thermometer', { cdiSharePct: 120 }],
     ['fee-drag', { feeBPct: 9 }],
     ['fee-drag', { years: 0 }],
+    ['dividend-timeline', { comDay: 9 }],
+    ['dividend-timeline', { paymentDay: 3 }],
+    ['dividend-net-calculator', { kind: 'bonus' }],
+    ['etf-shock-simulator', { holdings: [{ name: 'A', weightPct: 60 }] }],
+    [
+      'etf-shock-simulator',
+      {
+        holdings: [
+          { name: 'A', weightPct: 60 },
+          { name: 'B', weightPct: 50 },
+        ],
+      },
+    ],
+    ['fii-monthly-calendar', { payoutBusinessDay: 25 }],
   ])('%s com props fora do limite é rejeitado', (widget, props) => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,
