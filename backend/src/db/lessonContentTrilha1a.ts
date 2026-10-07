@@ -61,6 +61,13 @@ export const BLOCKS_1_4: LessonBlocks = {
           'O limite é de R$ 250 mil por CPF e por conglomerado financeiro, não por banco. Os outros R$ 150 mil ficam sem a cobertura.',
       },
       {
+        type: 'widget',
+        id: 'barra-fgc',
+        widget: 'fgc-coverage-bar',
+        props: { amountPerInstitution: 200000, institutions: 2, sameConglomerate: true },
+        caption: 'Mude os valores e veja o que o FGC cobre e o que fica de fora.',
+      },
+      {
         type: 'text',
         markup:
           'O FGC cobre depósitos e títulos como CDB, LCI e LCA, e entra se o banco for liquidado pelo Banco Central. Títulos públicos ficam fora.',
