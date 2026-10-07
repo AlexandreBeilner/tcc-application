@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { authed, sleep } from './support/http'
+import { solveCheckpoints } from './support/lessons'
 import { registerRandomUser } from './support/users'
 
 interface LessonView {
@@ -36,6 +37,9 @@ describe('jornada: lição com pergunta que só avança ao acertar', () => {
     expect(early.status).toBe(422)
     expect(early.body.code).toBe('step_out_of_order')
 
+    // Fase 1 do player: as perguntas intermediárias da fase precisam estar resolvidas pra sair dela.
+    await solveCheckpoints(user.token, target.id, target.sortOrder, 'scenario')
+
     // `selectedOption` antigo em /progress é aceito e ignorado: não grava nem devolve veredito.
     const toStep1 = await http
       .post(`/lessons/${target.id}/progress`)
@@ -60,7 +64,12 @@ describe('jornada: lição com pergunta que só avança ao acertar', () => {
       expect(res.body.correctOptionLabel).toBeUndefined()
       expect(res.body.wrongOptions).toContain(option)
 
-      const blocked = await http.post(`/lessons/${target.id}/progress`).send({ step: 2 })
+      // O intervalo mínimo entre passos vem antes do gate da pergunta: espera passar pra ver o 422 certo.
+      let blocked = await http.post(`/lessons/${target.id}/progress`).send({ step: 2 })
+      while (blocked.status === 422 && blocked.body.code === 'step_too_fast') {
+        await sleep((blocked.body.retryAfterMs as number) + 50)
+        blocked = await http.post(`/lessons/${target.id}/progress`).send({ step: 2 })
+      }
       expect(blocked.status).toBe(422)
       expect(blocked.body.code).toBe('micro_decision_unsolved')
     }
@@ -73,6 +82,12 @@ describe('jornada: lição com pergunta que só avança ao acertar', () => {
 
     // Respeita o intervalo mínimo entre passos (o 422 devolve quanto falta).
     for (const step of [2, 3]) {
+      await solveCheckpoints(
+        user.token,
+        target.id,
+        target.sortOrder,
+        step === 2 ? 'microDecision' : 'revelation',
+      )
       for (;;) {
         const res = await http.post(`/lessons/${target.id}/progress`).send({ step })
         if (res.status === 200) break
