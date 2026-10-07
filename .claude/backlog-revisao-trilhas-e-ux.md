@@ -934,19 +934,36 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
 
 ## Fase 8: Fechamento
 
-### RC.8.1 · Auditoria final de conteúdo
+### RC.8.1 · Auditoria final de conteúdo ✅ concluída (2026-10-07)
 
 - Reler as 43 lições no app (desktop e mobile), passar RC.1.1 e RC.1.2 sem avisos, checar cada fato contra RC.1.3,
   confirmar que nenhuma lição manda calcular fora, tem pergunta que avança no erro ou termo não introduzido.
 - Jornada e2e completa (`backend/test/e2e/`) percorrendo a trilha com respostas certas e erradas.
-
-### RC.8.2 · Atualizar documentação de referência
+- **Entregável RC.8.1 (2026-10-07):** (a) RC.1.1 verde nos dois lados (backend com baseline `{}`; o do frontend encolheu, as entradas que
+  sobram são de telas fora das lições: `simulado` e `sandbox` em Onboarding, Mercado, Classificação e Indicadores, e `nesta-plataforma`
+  na Privacidade, a tratar fora deste backlog); (b) RC.1.2 em `STRICT = true` e verde, sem aviso; (c) as 43 lições relidas no app
+  logado (a trilha mostra 43 de 43, o player abre a 2.12 em 360 e 768px), sem texto de TCC/spec nem conta externa nas amostras; a leitura
+  integral das 43 em desktop e mobile não foi feita lição a lição, a cobertura é a dos testes de conteúdo (RC.1.1, RC.1.2, tamanho de
+  cartão) mais a amostra; (d) fatos conferidos contra RC.1.3 pelo teste de `regulatoryFacts` e RC.5.14 rotulou as taxas de exemplo
+  restantes; (e) jornada e2e (`backend/test/e2e/`, 5 jornadas, todas verdes, sem `timeout`): `lessonJourney` errando e acertando a
+  pergunta, e `unlockKey` completando lições de verdade. **Achado:** as jornadas estavam desatualizadas desde a RC.3.2 (o gate
+  `checkpoint_unsolved` barrava o avanço e o intervalo mínimo entre passos vem antes do gate da pergunta); `support/lessons.ts` ganhou
+  `solveCheckpoints` (alternativas por tentativa, numérica pelo gabarito do seed) e a jornada de lição espera o `step_too_fast`.
+  Validou: backend `lint`, `build`, `npm test` (2741) e `typecheck:e2e`; frontend `vitest` (1696), `tsc -b`, lint.
+### RC.8.2 · Atualizar documentação de referência ✅ concluída (2026-10-07)
 
 - `especificacao-plataforma-investimentos.md` (currículo passa de 35 para 43 lições, regras do player,
   changelog), `inventario-telas-plataforma-investimentos.md` (Portfólio, Calendário, Lição, Mapa),
   `identidade-visual-padroes.md` e `-tokens.md` (grade do mapa, `LockedGate`, `PlatformNote`, calendário),
   `.docs/backend/lessons.md`, `.docs/backend/market.md`, `.docs/engine/calendar.md`, `CLAUDE.md` (tabela de
   documentos) e `backlog-pendencias-consolidado.md`.
+- **Entregável RC.8.2 (2026-10-07):** `especificacao-plataforma-investimentos.md` (5.1 com a lista vigente das 43 lições e
+  a Trilha F, regras do player em 5.2, 35 para 43 no corte de MVP, changelog v0.7), `inventario-telas-plataforma-investimentos.md`
+  (Portfólio com donut interativo e 2 colunas, Mapa com 43 lições, Trilha F e "Você está aqui", Lição com `blocks`/`LockedGate`/revisão,
+  Extrato com escopo, Calendário "Para você"), `identidade-visual-padroes.md` (nova seção 4d: `LockedGate`, `PlatformNote`, grade do
+  mapa, donut, faixa do Sandbox, calendário) e `backlog-pendencias-consolidado.md`. `identidade-visual-tokens.md` já tinha
+  `--grid-line` (RC.7.1); `.docs/backend/lessons.md`, `.docs/backend/market.md` e `.docs/engine/calendar.md` foram atualizados nas
+  tarefas que mexeram nas rotas; a tabela do `CLAUDE.md` já listava o backlog.
 
 ---
 

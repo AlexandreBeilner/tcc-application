@@ -98,7 +98,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - Card de patrimônio do **mercado ao vivo** (o que conta pro ranking) — saldo total, variação percentual, total investido.
   - **Faixa compacta** (não card), visualmente distinta (fundo diferente, selo "modo aprendizado"), de patrimônio do **sandbox** — reforça a separação exigida na seção 3.1 da spec. Só aparece com posição de treino aberta e leva a `/extrato?escopo=aprendizado`; sem posição, vira uma dica de uma linha, nunca "R$ 0,00" (decisões D5 opção B e D7 da revisão de trilhas, 2026-10-03; RC.7.4).
   - Indicador de **XP/nível** e **streak diário** (mecânicas da seção 6, hoje sem espaço em nenhuma tela).
-  - Gráfico de rosca de distribuição de investimentos (herdado do wireframe original, Fig. 3).
+  - Gráfico de rosca de distribuição de investimentos (herdado do wireframe original, Fig. 3), **interativo** (RC.7.3): anel em SVG, furo com o total investido por padrão e, ao passar o mouse, tocar ou focar uma fatia, o nome, o R$ e a %; legenda sempre com R$ e %; teclado (Tab, setas, Enter, Esc). Só mercado ao vivo, a preço de mercado (a soma bate com "Investido" do card).
   - Atalho "Retomar lição" se a trilha não estiver concluída — link direto pra **4.2 Lição** no ponto onde o usuário parou.
   - Botões "Investir" e "Conquistas".
 - **Ações:**
@@ -106,7 +106,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - "Conquistas" → **8.1 Conquistas**.
   - "Retomar lição" → **4.2 Lição** (estado atual do usuário).
   - Clique no card de patrimônio → **5.8 Extrato/Histórico** (ver o que compõe aquele número).
-- **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, incentivando ir pro Mercado ou pra Trilha).
+- **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, incentivando ir pro Mercado ou pra Trilha); carregamento com placeholders de altura próxima da final. **Composição por breakpoint (RC.7.5):** coluna única em mobile e tablet; a partir de 1024px, 2 colunas (patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita).
 - **Dados envolvidos:** `accounts`, `positions`, `assets` (join pro gráfico de distribuição).
 
 ---
@@ -117,9 +117,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Objetivo:** dar corpo visual à progressão pedagógica (RF11) — é a tela que substitui a ausência total de UI pra esse conceito hoje.
 - **Acesso:** nav primária ("Trilha"), ou via atalho do Portfólio (2.1).
 - **Conteúdo:**
-  - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) como seções/módulos expansíveis.
-  - Cada uma das 35 lições como um "nó" no formato mapa de progressão (concluída / disponível / bloqueada), mostrando o que cada lição desbloqueia (ex: "Tesouro Selic" ao lado da lição 1.2).
-  - Indicador de progresso geral (ex: "12 de 35 lições concluídas").
+  - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) mais a Trilha F paralela (Finanças do dia a dia, sem desbloqueio, em qualquer ordem) como seções/módulos expansíveis.
+  - Cada uma das 43 lições como um "nó" no formato mapa de progressão (concluída / disponível / bloqueada), mostrando o que cada lição desbloqueia (ex: "Tesouro Selic" ao lado da lição 1.2).
+  - Indicador de progresso geral (ex: "12 de 43 lições concluídas").
 - **Ações:**
   - Clique em lição disponível → **3.2 Lição**.
   - Clique em lição bloqueada → estado informativo (o que falta pra desbloquear), sem navegação.
@@ -128,7 +128,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Dados envolvidos:** `lessons`, `user_lesson_progress`.
 
 ### 3.2 Lição (componente genérico reutilizável)
-- **Objetivo:** ensinar um conceito através do padrão "aprender fazendo" (seção 5.2 da spec) — reutilizado pelas 35 lições e por produtos parecidos (CDB/LCI/LCA/CRI/CRA compartilham a mesma estrutura de tela).
+- **Objetivo:** ensinar um conceito através do padrão "aprender fazendo" (seção 5.2 da spec) — reutilizado pelas 43 lições e por produtos parecidos (CDB/LCI/LCA/CRI/CRA compartilham a mesma estrutura de tela).
 - **Acesso:** a partir do Mapa da Trilha (3.1) ou do atalho "Retomar lição" (2.1).
 - **Conteúdo, em 4 estados sequenciais dentro da mesma tela:**
   1. **Cenário/gatilho** — texto + ilustração da situação simulada.
@@ -138,7 +138,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Ações:**
   - "Continuar" ao final → próxima lição (3.2, nova instância) ou volta ao **3.1 Mapa da Trilha** se for a última do bloco.
   - "Usar agora" no passo de desbloqueio → leva direto pra tela recém-liberada (ex: lição 1.2 desbloqueia Tesouro Selic → **5.3 Detalhe de Ativo**).
-- **Estados especiais:** lição já concluída antes (modo revisão, sem repetir XP/conquista).
+- **Estados especiais:** lição já concluída antes (modo revisão, sem repetir XP/conquista; pode ser revista e o aluno pode voltar de passo, RC.2.1/RC.2.2). Conteúdo em `blocks` (texto curto, widgets, perguntas intermediárias que só avançam ao acertar, bloco "Na plataforma"); item travado pela trilha usa o `LockedGate` único. No Mapa, a etiqueta "Você está aqui" fica acima do nó atual e a grade de fundo usa o token `--grid-line` nos dois temas (RC.7.1).
 - **Dados envolvidos:** `lessons`, `user_lesson_progress`; grava progresso a cada etapa (permite retomar no meio).
 
 ---
@@ -231,7 +231,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** a partir do Portfólio (2.1, clique no card de patrimônio), ou item de menu dentro de Mercado.
 - **Conteúdo:** lista cronológica reversa de eventos (compra, venda, dividendo recebido, imposto pago, resgate de renda fixa), com filtro por tipo e por período.
 - **Ações:** clique num item → detalhe expandido inline (sem navegação nova, é só um "accordion").
-- **Estados especiais:** sem transações ainda (estado vazio).
+- **Estados especiais:** sem transações ainda (estado vazio). Filtro de **escopo** (Tudo, Modo Aprendizado, Mercado Ao Vivo) lido de `?escopo=`, usado pela faixa do Sandbox no Portfólio (RC.7.4).
 - **Dados envolvidos:** `market_events` (fonte de verdade, Event Sourcing).
 
 ### 4.9 Indicadores Econômicos
@@ -268,6 +268,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - Detalhe do dia escolhido: listas "Aconteceu" e "Vem aí" (fatos do usuário com a etiqueta VOCÊ; futuro só com o que é determinístico: Copom, relatório, proventos anunciados e vencimentos do usuário, nunca evento macro que ainda não aconteceu).
   - Desktop: "visão geral dos dias" (uma coluna por semana, sólido passado e tracejado futuro, bloco dourado no fim do trimestre).
   - Legenda e a linha fixa "cada dia real equivale a 5 dias de mercado".
+  - **"Para você" (RC.6.1 a RC.6.4):** faixa em destaque com o que afeta o usuário (posição em ação, FII, renda fixa a vencer, salário), separado do que é só do mercado; seletor Meus/Todos. Proventos e balanços saem em dias diferentes por ativo (política trimestral, semestral ou anual por empresa; FIIs no mês real), com valor exato após a data ex e estimativa antes dela.
 - **Teatro de recompensa leve:** na virada de dia, o ponteiro do relógio gira e aparece um toast "Novo dia: Selic X%" (dourado, só aqui); no fim de semana, "Mercado fechado até segunda. Hora de estudar." Respeita `prefers-reduced-motion`.
 - **Onboarding (1.2):** um passo novo explicando o tempo acelerado, o fim de semana fechado e o que segue aberto (lições, Modo Aprendizado, cancelar ordem).
 - **Estados especiais:** motor sem nenhum tick (dia 0, sem histórico); agenda automática desligada (sem "próximo dia em", o relógio mostra só o dia).
