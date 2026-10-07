@@ -5,7 +5,7 @@ import {
   LessonStepOutOfOrderError,
   NoMicroDecisionError,
 } from '../../domain/errors'
-import { isUnlocked } from '../../domain/lesson'
+import { buildProgression } from '../../domain/lesson'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface AnswerMicroDecisionInput {
@@ -59,13 +59,15 @@ export class AnswerMicroDecisionUseCase {
       ? microDecisionOptions[microDecisionCorrectOption]
       : undefined
 
-    const progress = await this.lessonRepository.listProgressForUser(input.userId)
-    const completedCount = progress.filter((p) => p.completedAt !== null).length
+    const [progress, allLessons] = await Promise.all([
+      this.lessonRepository.listProgressForUser(input.userId),
+      this.lessonRepository.listAll(),
+    ])
     const own = progress.find((p) => p.lessonId === input.lessonId)
     const readOnly = own?.completedAt != null || own?.microDecisionSolvedAt != null
 
     if (!readOnly) {
-      if (!isUnlocked(lesson.sortOrder, completedCount)) {
+      if (!buildProgression(allLessons, progress).isUnlocked(lesson.id)) {
         throw new LessonLockedError('lição bloqueada')
       }
       // Só depois de sair do Cenário: a linha de progresso é criada ao avançar

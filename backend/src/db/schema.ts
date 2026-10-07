@@ -155,7 +155,7 @@ export const lessons = pgTable(
     // renumeração reaproveitar a linha física errada, arrastando
     // `user_lesson_progress` de quem já tinha progresso pra um conteúdo
     // diferente. Ver `seedLessons.ts` pro upsert real.
-    stableKey: varchar('stable_key', { length: 20 }).notNull(),
+    stableKey: varchar('stable_key', { length: 64 }).notNull(),
     // Código do currículo (spec 5.1), ex: "0.1", "2.6.3", "3.4" — só posição
     // didática atual, mutável em renumeração (ex: M.5). Nunca usado como
     // chave de upsert do seed desde a M.6, ver `stableKey` acima.

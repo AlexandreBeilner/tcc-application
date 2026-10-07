@@ -24,7 +24,9 @@ const JUROS_KEY = 'juros-selic-cdi-tr'
 const RESERVA_KEY = 'reserva-emergencia'
 const B3_KEY = 'b3-corretora-ordens'
 const CUSTOS_KEY = 'custos-de-investir'
-const NEW_KEYS = new Set([JUROS_KEY, RESERVA_KEY, B3_KEY, CUSTOS_KEY])
+const IMPOSTO_KEY = 'imposto-renda-variavel'
+const VIESES_KEY = 'vieses-e-emocao'
+const NEW_KEYS = new Set([JUROS_KEY, RESERVA_KEY, B3_KEY, CUSTOS_KEY, IMPOSTO_KEY, VIESES_KEY])
 
 describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', () => {
   let pool: Pool
@@ -117,6 +119,8 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
       RESERVA_KEY,
       B3_KEY,
       CUSTOS_KEY,
+      IMPOSTO_KEY,
+      VIESES_KEY,
     ])
     for (const seed of toInsert) await insertLessonInMiddle(database, seed, LESSON_SEEDS)
     // RC.4.3: a Trilha 2 foi reordenada (ticker antes de IPO, notícias depois de
@@ -160,6 +164,8 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
     expect(await waivedFor(RESERVA_KEY)).toEqual([userD!.id, userF!.id].sort())
     expect(await waivedFor(B3_KEY)).toEqual([userF!.id])
     expect(await waivedFor(CUSTOS_KEY)).toEqual([])
+    expect(await waivedFor(IMPOSTO_KEY)).toEqual([])
+    expect(await waivedFor(VIESES_KEY)).toEqual([])
     expect(userB).toBeDefined()
 
     // Idempotente: rodar de novo não insere nem dispensa de novo.
