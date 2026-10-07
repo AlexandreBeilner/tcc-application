@@ -588,6 +588,17 @@ export const REGULATORY_FACTS = [
     verifiedAt: '2026-10-05',
     note: 'Matéria do Bora Investir (B3 Educação) aberta e lida. Ela não menciona unit, as classes 5 a 8 nem o F do fracionário (esses seguem em `b3-ticker-sufixos`, como trecho de busca); por isso a lição não cita unit nem as classes 5 a 8.',
   },
+  {
+    id: 'suitability-cvm30',
+    label: 'Suitability: perfil do investidor (Resolução CVM 30)',
+    value:
+      'A corretora e outras instituições intermediárias precisam verificar se o produto é adequado ao perfil do cliente, medido por questionário sobre objetivos, situação financeira e conhecimento. O perfil é do investidor, não do produto. Os nomes das categorias (como conservador, moderado e arrojado) ficam por conta de cada instituição.',
+    source:
+      'https://www.gov.br/investidor/pt-br/educacional/publicacoes-educacionais/guias/guia-de-suitability-lancamento/@@download/file',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Guia de Suitability do Portal do Investidor (CVM) aberto; o PDF tem leitura difícil, então a lição não cita número de artigo nem número de perguntas, só a ideia (questionário, três dimensões, perfil da pessoa).',
+  },
 ] as const satisfies readonly RegulatoryFact[]
 
 export type RegulatoryFactId = (typeof REGULATORY_FACTS)[number]['id']

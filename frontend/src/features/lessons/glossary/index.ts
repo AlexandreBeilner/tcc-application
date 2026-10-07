@@ -302,6 +302,19 @@ export const glossary: Record<string, GlossaryEntry> = {
         definition: 'Dividir o dinheiro entre ativos diferentes para que o problema de um não derrube toda a carteira.',
         originLesson: '3.1',
     },
+    'risco específico': {
+        definition: 'Risco que vem de uma empresa ou setor só, como uma fraude ou uma safra perdida. A diversificação reduz esse risco.',
+        originLesson: '3.1',
+    },
+    'risco de mercado': {
+        definition: 'Risco de queda que atinge o mercado inteiro ao mesmo tempo, como numa crise. Diversificar não elimina.',
+        originLesson: '3.1',
+    },
+    'perfil do investidor': {
+        definition:
+            'Resultado do questionário da corretora (suitability) sobre seus objetivos, sua situação financeira e seu conhecimento. É da pessoa, não do produto.',
+        originLesson: '3.2',
+    },
     volatilidade: {
         definition: 'Intensidade das oscilações do preço de um ativo. Quanto maior, mais incerto o resultado no curto prazo.',
         originLesson: '3.1',
