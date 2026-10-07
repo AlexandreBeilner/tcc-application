@@ -887,7 +887,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** as pilhas RC e Fase N foram criadas em paralelo e cada uma pegou o próximo número livre. Quem aplicar as duas no mesmo banco (ou subir o `engine` com as duas) tem o `golang-migrate` recusando a pasta inteira. O teste de integração do calendário só rodou movendo uma delas para fora, temporariamente.
 - **Por que não foi corrigido na hora:** renumerar uma delas (por exemplo, a de limpeza de texto para `000043`) é mecânico, mas quem já aplicou a `000040` num banco de dev ficaria com o histórico dessincronizado, e a ordem de merge das pilhas é decisão do autor.
 - **Opções:** (a) renumerar a `000040_clean_visible_catalog_text` para o próximo número livre antes de mesclar a pilha RC (ajustando bancos de dev que já a aplicaram); (b) renumerar a da Fase N; (c) mesclar uma pilha antes e renumerar a outra no rebase.
-- **Status:** aberto
+- **Status:** resolvido (2026-10-07, RC.7.6): opção (a), `000040_clean_visible_catalog_text` renumerada para `000049` (idempotente, só UPDATEs de texto); `docker compose up` subiu o engine com as duas séries. Bancos de dev que já tinham a antiga `000040` da série RC precisam de `UPDATE schema_migrations`/reaplicação (a 000049 é idempotente).
 
 ### 036 · JCP e imposto sobre dividendos não existem no motor, só nas lições (RC.6.5, D9)
 
