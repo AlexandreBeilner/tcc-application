@@ -25,6 +25,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/paymentschedule"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/simcalendar"
 	"tcc-investimentos/engine/internal/domain/tick"
@@ -225,17 +226,31 @@ const (
 )
 
 func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj string, sector catalog.Sector, baseGrowthPct, qualityMultiplier float64) string {
-	if id, found, err := repo.FindCompanyByCNPJ(ctx, cnpj); err != nil {
-		log.Fatalf("erro ao buscar empresa %s: %v", cnpj, err)
-	} else if found {
-		log.Printf("empresa %s já existe (id %s) — pulando", name, id)
-		return id
-	}
-
 	company, err := catalog.NewCompany(name, cnpj, sector, baseGrowthPct, qualityMultiplier)
 	if err != nil {
 		log.Fatalf("empresa %s inválida: %v", name, err)
 	}
+	// Agenda de balanço e proventos derivada do CNPJ (RC.6.7, paymentschedule.DefaultsFor).
+	schedule := paymentschedule.DefaultsFor(cnpj, sector)
+	company, err = company.WithPaymentSchedule(schedule.ReportOffsetBusinessDays, schedule.Policy, schedule.ComLagBusinessDays, schedule.PaymentLagBusinessDays)
+	if err != nil {
+		log.Fatalf("agenda da empresa %s inválida: %v", name, err)
+	}
+
+	if id, found, err := repo.FindCompanyByCNPJ(ctx, cnpj); err != nil {
+		log.Fatalf("erro ao buscar empresa %s: %v", cnpj, err)
+	} else if found {
+		// Empresa criada antes da migration 000048: só recebe a agenda se ainda não recebeu.
+		if assigned, err := repo.AssignCompanyScheduleIfUnassigned(ctx, id, company); err != nil {
+			log.Fatalf("erro ao atribuir a agenda da empresa %s: %v", name, err)
+		} else if assigned {
+			log.Printf("empresa %s já existe (id %s) — agenda de proventos atribuída", name, id)
+		} else {
+			log.Printf("empresa %s já existe (id %s) — pulando", name, id)
+		}
+		return id
+	}
+
 	id, err := repo.CreateCompany(ctx, company)
 	if err != nil {
 		log.Fatalf("erro ao criar empresa %s: %v", name, err)
@@ -674,6 +689,23 @@ func recalibrateExistingFII(ctx context.Context, repo *db.CatalogRepository, id,
 	}
 }
 
+// fiiPayoutBusinessDay é o dia útil de pagamento do FII derivado do ticker (RC.6.7).
+func fiiPayoutBusinessDay(ticker string) int {
+	return paymentschedule.DefaultsFor(ticker, "").FIIPaymentBusinessDay
+}
+
+// assignExistingFIISchedule leva um FII criado antes da migration 000048 à agenda derivada do
+// ticker, se ainda não recebeu uma.
+func assignExistingFIISchedule(ctx context.Context, repo *db.CatalogRepository, id, ticker string) {
+	assigned, err := repo.AssignFIIScheduleIfUnassigned(ctx, id, fiiPayoutBusinessDay(ticker))
+	if err != nil {
+		log.Fatalf("erro ao atribuir a agenda de pagamento de %s: %v", ticker, err)
+	}
+	if assigned {
+		log.Printf("agenda de pagamento de %s atribuída (dia útil %d)", ticker, fiiPayoutBusinessDay(ticker))
+	}
+}
+
 // seedFIITijolo cria um FII de tijolo (segment/vacancyRate próprios —
 // tarefa 7.2 generalizou pra além do TJLO11/Lajes Corporativas original,
 // cobrindo Shopping/Logística com vacância própria por segmento).
@@ -682,6 +714,7 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name
 	netWorth := fiiInitialBaseValue(fii.TypeTijolo, segment)
 	if existed {
 		recalibrateExistingFII(ctx, repo, id, ticker, netWorth)
+		assignExistingFIISchedule(ctx, repo, id, ticker)
 		return id
 	}
 
@@ -702,6 +735,7 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
 	}
+	details.PayoutBusinessDay = fiiPayoutBusinessDay(ticker)
 	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar fii_details pra %s: %v", ticker, err)
 	}
@@ -715,6 +749,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name,
 	portfolioValue := fiiInitialBaseValue(fii.TypePapel, "")
 	if existed {
 		recalibrateExistingFII(ctx, repo, id, ticker, portfolioValue)
+		assignExistingFIISchedule(ctx, repo, id, ticker)
 		return id
 	}
 
@@ -736,6 +771,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name,
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
 	}
+	details.PayoutBusinessDay = fiiPayoutBusinessDay(ticker)
 	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar fii_details pra %s: %v", ticker, err)
 	}

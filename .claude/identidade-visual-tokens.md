@@ -94,6 +94,7 @@ Tarefa F.1 (backlog de engajamento, Fase F — sala de troféus no Perfil). Cada
 | 1 — Renda Fixa | Semântica de ganho (verde) | `--color-track-1` | `#34C77B` | `#167A4A` | 8.22:1 dark · 5.36:1 light |
 | 2 — Renda Variável | Semântica de perda (vermelho) | `--color-track-2` | `#E5484D` | `#C4313A` | 4.60:1 dark · 5.46:1 light |
 | 3 — Estratégia e Tributação | Gamificação (dourado) | `--color-track-3` | `#F0A202` | `#8A5B08` | 8.46:1 dark · 5.87:1 light |
+| F — Finanças do dia a dia (paralela, RC.4.4) | Teal, família própria | `--color-track-f` | `#2DD4BF` | `#0F766E` | 9.54:1 dark · 5.47:1 light |
 
 Tons 0 e 2 reaproveitam o hex exato de `--color-brand-300`/`--color-loss-500` (mesmo padrão da seção 2.3a — hue idêntico, token separado por semântica, já com contraste comprovado). Tons 1 e 3 **não** reaproveitam `--color-gain-500`/`--color-gamify-500` no tema claro: o valor original fica em ~3.45:1/~3.64:1 contra fundo branco, abaixo do AA de texto normal (4.5:1) — só serviria pra elemento gráfico/texto grande (limiar 3:1). Por isso o tom claro de `--color-track-1`/`--color-track-3` é uma variação mais escura da mesma família, calculada pra ficar acima de 4.5:1. Fundo suave do emblema, se precisar, reaproveita o `-100` da família de origem (`--color-brand-100`, `--color-gain-100`, `--color-loss-100`, `--color-gamify-100`) — não é um token novo.
 
@@ -172,6 +173,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --color-track-1: #34C77B;
   --color-track-2: #E5484D;
   --color-track-3: #F0A202;
+  --color-track-f: #2DD4BF;
 }
 
 :root[data-theme="light"] {
@@ -205,6 +207,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --color-track-1: #167A4A;
   --color-track-2: #C4313A;
   --color-track-3: #8A5B08;
+  --color-track-f: #0F766E;
 }
 ```
 
