@@ -53,6 +53,7 @@ export const WIDGET_IDS = [
   'risk-return-scatter',
   'allocation-donut',
   'risk-profile-quiz',
+  'behavior-bias-quiz',
   'budget-split',
   'debt-snowball',
   'pay-or-invest',
@@ -350,6 +351,7 @@ export const widgetPropsSchemas = {
     amount: z.number().min(100).max(1_000_000).default(10000),
   }),
   'risk-profile-quiz': emptyProps,
+  'behavior-bias-quiz': emptyProps,
   'budget-split': z.object({
     income: z.number().min(1000).max(20_000).default(4000),
     housing: z.number().min(0).max(10_000).default(1500),

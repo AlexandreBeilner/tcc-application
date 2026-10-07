@@ -477,3 +477,121 @@ export const BLOCKS_3_4: LessonBlocks = {
     ],
   },
 }
+
+// Lição nova "Cabeça de investidor" (RC.4.9), antes do desafio final. Fato:
+// `cvm-vieses-comportamentais` (Série CVM Comportamental, volume 1, texto lido). O
+// efeito manada ficou de fora porque a página da CVM sobre ele não foi aberta.
+export const BLOCKS_VIESES: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Conhecer produtos e contas não basta. Na hora do susto, a emoção decide mais rápido que a razão, e os atalhos da mente nos levam a erros previsíveis, os vieses.',
+      },
+      {
+        type: 'text',
+        markup:
+          'A Comissão de Valores Mobiliários (CVM) estuda esses erros para orientar o investidor. Três deles aparecem o tempo todo.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Perder R$ 100 incomoda mais do que ganhar R$ 100 alegra. Isso tende a levar o investidor a fazer o quê?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'A vender cedo o que está ganhando, por medo de perder o lucro, e a segurar o que está perdendo, por não querer assumir o prejuízo. É a {{aversão à perda}}.',
+      },
+      {
+        type: 'check',
+        id: 'sinal-aversao',
+        kind: 'single',
+        prompt: 'Qual atitude é um sinal de aversão à perda?',
+        options: [
+          'Comprar mais de um ativo em queda só para recuperar o prejuízo',
+          'Rever a carteira em datas marcadas',
+          'Diversificar entre classes',
+        ],
+        answer: 0,
+        explanation:
+          'Reforçar uma posição perdedora pelo desejo de recuperar é a emoção falando. Rever em datas marcadas e diversificar são defesas.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Há também a {{ancoragem}}: prender-se ao preço que você pagou. A ação comprada a R$ 30 vale R$ 20, e você espera voltar a R$ 30, mesmo sem motivo para isso.',
+      },
+      {
+        type: 'check',
+        id: 'preco-de-compra',
+        kind: 'true_false',
+        prompt: 'O mercado leva em conta o preço que você pagou pela ação.',
+        answer: false,
+        explanation:
+          'O preço só reflete o que os compradores e vendedores pensam hoje. O seu preço de compra não entra na conta.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O terceiro é a {{autoconfiança excessiva}}: achar que sabe mais que a média. Quem pensa assim negocia mais, paga mais custos e tende a ter retorno menor.',
+      },
+      {
+        type: 'check',
+        id: 'operar-demais',
+        kind: 'single',
+        prompt: 'Por que quem se acha melhor que a média costuma ter retorno menor?',
+        options: [
+          'Negocia mais e paga mais custos',
+          'A lei limita o lucro de quem opera muito',
+          'Ele nunca acerta nenhuma operação',
+        ],
+        answer: 0,
+        explanation:
+          'Cada negociação tem custo. Mais operações por confiança demais aumentam os custos e pioram o resultado.',
+      },
+      {
+        type: 'widget',
+        id: 'quiz-de-vieses',
+        widget: 'behavior-bias-quiz',
+        props: {},
+        caption: 'Escolha sua reação em cada situação e veja o viés por trás dela.',
+      },
+      {
+        type: 'text',
+        markup:
+          'A defesa é ter regras antes do susto: uma estratégia com limites de perda aceitáveis, rever a carteira em datas marcadas, conferir cotações com menos frequência e desconfiar de quem apressa você.',
+      },
+      {
+        type: 'check',
+        id: 'regra-previa',
+        kind: 'single',
+        prompt: 'A carteira cai 20%. Qual é a melhor primeira reação?',
+        options: [
+          'Vender tudo imediatamente',
+          'Voltar ao plano e checar se o motivo da compra mudou',
+          'Comprar o dobro para recuperar rápido',
+        ],
+        answer: 1,
+        explanation:
+          'O plano feito com a cabeça fria evita decidir no pânico. Vender tudo e dobrar a aposta são as duas formas de deixar o medo mandar.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-vieses',
+        widget: 'platform-note',
+        props: {
+          brazil: 'Os vieses aparecem com dinheiro de verdade, e o susto de uma queda é real.',
+          here: 'No Mercado, eventos macro provocam quedas e altas em segundos. Dá para treinar a reação com R$ 10.000 de capital inicial.',
+          why: 'Errar aqui não custa dinheiro de verdade, e você aprende a seguir o plano.',
+        },
+      },
+    ],
+  },
+}

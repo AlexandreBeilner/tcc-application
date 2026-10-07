@@ -212,6 +212,12 @@ describe('blocks no seed (RC.3.1)', () => {
     expect(new Set(LESSON_SEEDS.map((l) => l.code)).size).toBe(LESSON_SEEDS.length)
   })
 
+  it('a Trilha 3 traz a lição de vieses antes do desafio final (RC.4.9)', () => {
+    const trilha3 = LESSON_SEEDS.filter((l) => l.trackNumber === 3)
+    expect(trilha3.map((l) => l.stableKey)).toEqual(['3.1', '3.2', '3.3', 'vieses-e-emocao', '3.4'])
+    expect(trilha3.map((l) => l.code)).toEqual(['3.1', '3.2', '3.3', '3.4', '3.5'])
+  })
+
   it('a Trilha F (paralela, RC.4.4) fica no fim do sortOrder e fora da corrente', () => {
     const parallel = LESSON_SEEDS.filter((l) => isParallelTrack(l.trackNumber))
     expect(parallel.map((l) => l.code)).toEqual(['F.1', 'F.2'])

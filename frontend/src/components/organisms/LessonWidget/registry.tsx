@@ -21,6 +21,7 @@ import { DividendNetCalculatorWidget, dividendNetCalculatorSummary } from '../Di
 import { DividendTimelineWidget, dividendTimelineSummary } from '../DividendTimelineWidget'
 import { EtfShockSimulatorWidget, etfShockSimulatorSummary } from '../EtfShockSimulatorWidget'
 import { FiiMonthlyCalendarWidget, fiiMonthlyCalendarSummary } from '../FiiMonthlyCalendarWidget'
+import { BehaviorBiasQuizWidget, behaviorBiasQuizSummary } from '../BehaviorBiasQuizWidget'
 import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
 import { BudgetSplitWidget, budgetSplitSummary } from '../BudgetSplitWidget'
 import { RiskReturnScatterWidget, riskReturnScatterSummary } from '../RiskReturnScatterWidget'
@@ -241,6 +242,11 @@ export const widgetRegistry: Registry = {
         component: RiskProfileQuizWidget,
         propsSchema: widgetPropsSchemas['risk-profile-quiz'],
         summary: riskProfileQuizSummary,
+    },
+    'behavior-bias-quiz': {
+        component: BehaviorBiasQuizWidget,
+        propsSchema: widgetPropsSchemas['behavior-bias-quiz'],
+        summary: behaviorBiasQuizSummary,
     },
     'budget-split': {
         component: BudgetSplitWidget,

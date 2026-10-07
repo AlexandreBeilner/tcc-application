@@ -194,6 +194,7 @@ describe('lessonBlocksSchema', () => {
           props: { profile: 'aggressive', amount: 5000 },
         },
         { type: 'widget', id: 'r3', widget: 'risk-profile-quiz', props: {} },
+        { type: 'widget', id: 'r4', widget: 'behavior-bias-quiz', props: {} },
         { type: 'widget', id: 'x4', widget: 'budget-split', props: { income: 6000, leisure: 500 } },
         {
           type: 'widget',

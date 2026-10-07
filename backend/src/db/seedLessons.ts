@@ -40,7 +40,7 @@ import {
 } from './lessonContentTrilha2Empresa'
 import { BLOCKS_DIVIDA, BLOCKS_ORCAMENTO } from './lessonContentTrilhaF'
 import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
-import { BLOCKS_3_1, BLOCKS_3_2, BLOCKS_3_3, BLOCKS_3_4 } from './lessonContentTrilha3'
+import { BLOCKS_3_1, BLOCKS_3_2, BLOCKS_3_3, BLOCKS_3_4, BLOCKS_VIESES } from './lessonContentTrilha3'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -964,11 +964,35 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
-    stableKey: '3.4',
+    stableKey: 'vieses-e-emocao',
     code: '3.4',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
     sortOrder: 40,
+    title: 'Cabeça de investidor',
+    centralConcept: 'Vieses e emoção: o que a mente faz com o seu dinheiro',
+    scenarioText: legacyText(BLOCKS_VIESES, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_VIESES, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'Vender cedo o que ganha e segurar o que perde',
+      'Comprar sempre na baixa',
+      'Diversificar mais',
+    ],
+    microDecisionCorrectOption: 0,
+    revelationText: legacyText(BLOCKS_VIESES, 'revelation'),
+    blocks: BLOCKS_VIESES,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: '3.4',
+    code: '3.5',
+    trackNumber: 3,
+    trackName: 'Trilha 3: Estratégia e Tributação',
+    sortOrder: 41,
     title: 'Desafio final da trilha',
     centralConcept: 'Uma carteira diante de uma alta de juros',
     scenarioText: legacyText(BLOCKS_3_4, 'scenario'),
@@ -988,7 +1012,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: 'F.1',
     trackNumber: 4,
     trackName: 'Trilha F: Finanças do dia a dia',
-    sortOrder: 41,
+    sortOrder: 42,
     title: 'Para onde vai seu dinheiro',
     centralConcept: 'Orçamento: renda menos gastos é o que sobra para investir',
     scenarioText: legacyText(BLOCKS_ORCAMENTO, 'scenario'),
@@ -1008,7 +1032,7 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: 'F.2',
     trackNumber: 4,
     trackName: 'Trilha F: Finanças do dia a dia',
-    sortOrder: 42,
+    sortOrder: 43,
     title: 'Dívida: os juros do outro lado',
     centralConcept:
       'Juros compostos contra você: rotativo, cheque especial, consignado e quitar primeiro',

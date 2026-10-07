@@ -315,6 +315,18 @@ export const glossary: Record<string, GlossaryEntry> = {
             'Resultado do questionário da corretora (suitability) sobre seus objetivos, sua situação financeira e seu conhecimento. É da pessoa, não do produto.',
         originLesson: '3.2',
     },
+    'aversão à perda': {
+        definition: 'Tendência de sentir a perda com mais força do que o ganho do mesmo tamanho, o que leva a decisões precipitadas.',
+        originLesson: '3.4',
+    },
+    ancoragem: {
+        definition: 'Prender-se a uma referência, como o preço que você pagou, mesmo quando ela não ajuda a decidir.',
+        originLesson: '3.4',
+    },
+    'autoconfiança excessiva': {
+        definition: 'Acreditar que sabe mais ou acerta mais do que de fato, o que leva a negociar demais e a ignorar o acaso.',
+        originLesson: '3.4',
+    },
     volatilidade: {
         definition: 'Intensidade das oscilações do preço de um ativo. Quanto maior, mais incerto o resultado no curto prazo.',
         originLesson: '3.1',

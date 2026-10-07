@@ -39,6 +39,7 @@ export type WidgetId =
   | 'risk-return-scatter'
   | 'allocation-donut'
   | 'risk-profile-quiz'
+  | 'behavior-bias-quiz'
   | 'budget-split'
   | 'debt-snowball'
   | 'pay-or-invest'
