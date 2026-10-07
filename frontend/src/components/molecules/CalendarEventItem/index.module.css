@@ -56,3 +56,11 @@
     letter-spacing: 0.03em;
     vertical-align: 1px;
 }
+
+.amount {
+    margin-top: 2px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}

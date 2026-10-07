@@ -17,6 +17,8 @@ type fakeCalendarService struct {
 	gotFrom  int
 	gotTo    int
 	calendar []marketcalendar.DayEntry
+	gotOpts  marketcalendar.Options
+	result   marketcalendar.Result
 	err      error
 }
 
@@ -26,12 +28,15 @@ func (f *fakeCalendarService) Clock(context.Context) (marketcalendar.Clock, erro
 func (f *fakeCalendarService) DefaultWindow(context.Context) (int, int, error) {
 	return f.day - 7, f.day + 14, f.err
 }
-func (f *fakeCalendarService) Calendar(_ context.Context, userID string, from, to int) ([]marketcalendar.DayEntry, error) {
-	f.gotUser, f.gotFrom, f.gotTo = userID, from, to
+func (f *fakeCalendarService) CalendarWith(_ context.Context, userID string, from, to int, opts marketcalendar.Options) (marketcalendar.Result, error) {
+	f.gotUser, f.gotFrom, f.gotTo, f.gotOpts = userID, from, to, opts
 	if to < from {
-		return nil, marketcalendar.ErrInvalidWindow
+		return marketcalendar.Result{}, marketcalendar.ErrInvalidWindow
 	}
-	return f.calendar, f.err
+	if f.result.Days != nil {
+		return f.result, f.err
+	}
+	return marketcalendar.Result{Days: f.calendar}, f.err
 }
 
 func getCalendar(api *CalendarAPI, target string) *httptest.ResponseRecorder {
@@ -127,6 +132,79 @@ func TestGetMarketCalendar_Entradas_Invalidas(t *testing.T) {
 	} {
 		if rec := getCalendar(api, target); rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: status = %d", target, rec.Code)
+		}
+	}
+}
+
+func TestGetMarketCalendar_EscopoELimiteChegamAoServico(t *testing.T) {
+	svc := &fakeCalendarService{day: 10}
+	api := &CalendarAPI{Service: svc}
+
+	if rec := getCalendar(api, "/market/calendar"); rec.Code != http.StatusOK || svc.gotOpts != (marketcalendar.Options{MarketLimit: 50}) {
+		t.Errorf("padrão = %d %+v", rec.Code, svc.gotOpts)
+	}
+	rec := getCalendar(api, "/market/calendar?scope=mine&market_limit=7")
+	if rec.Code != http.StatusOK || svc.gotOpts != (marketcalendar.Options{MineOnly: true, MarketLimit: 7}) {
+		t.Errorf("mine = %d %+v", rec.Code, svc.gotOpts)
+	}
+}
+
+func TestGetMarketCalendar_EscopoELimiteInvalidos(t *testing.T) {
+	api := &CalendarAPI{Service: &fakeCalendarService{day: 10}}
+	for _, target := range []string{
+		"/market/calendar?scope=todos",
+		"/market/calendar?market_limit=-1",
+		"/market/calendar?market_limit=201",
+		"/market/calendar?market_limit=abc",
+	} {
+		if rec := getCalendar(api, target); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", target, rec.Code)
+		}
+	}
+}
+
+func TestGetMarketCalendar_SerializaRelevanciaEResumo(t *testing.T) {
+	amount, qty := 60.0, 120.0
+	svc := &fakeCalendarService{day: 10, result: marketcalendar.Result{
+		MarketTotal: 4, MarketShown: 1,
+		Days: []marketcalendar.DayEntry{{
+			Day: 12, Summary: marketcalendar.DaySummary{Mine: 1, Market: 4},
+			Events: []marketcalendar.Event{
+				{Kind: marketcalendar.KindDividendPayDate, Scope: "global", Ticker: "TJLO11", Relevance: "mine", RelevanceReason: "position",
+					EstimatedAmount: &amount, AmountIsEstimate: true, UserQuantity: &qty},
+				{Kind: marketcalendar.KindCopom, Scope: "global", Relevance: "market"},
+			},
+		}},
+	}}
+	rec := getCalendar(&CalendarAPI{Service: svc}, "/market/calendar")
+	var got struct {
+		MarketTotal int `json:"market_total"`
+		MarketShown int `json:"market_shown"`
+		Days        []struct {
+			Summary struct {
+				Mine   int `json:"mine_count"`
+				Market int `json:"market_count"`
+			} `json:"summary"`
+			Events []map[string]any `json:"events"`
+		} `json:"days"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.MarketTotal != 4 || got.MarketShown != 1 || got.Days[0].Summary.Mine != 1 || got.Days[0].Summary.Market != 4 {
+		t.Errorf("cabeçalho = %+v", got)
+	}
+	mine, market := got.Days[0].Events[0], got.Days[0].Events[1]
+	if mine["relevance"] != "mine" || mine["relevance_reason"] != "position" || mine["estimated_amount"] != 60.0 ||
+		mine["amount_is_estimate"] != true || mine["user_quantity"] != 120.0 {
+		t.Errorf("mine = %v", mine)
+	}
+	if market["relevance"] != "market" {
+		t.Errorf("market = %v", market)
+	}
+	for _, key := range []string{"relevance_reason", "estimated_amount", "amount_is_estimate", "user_quantity"} {
+		if _, present := market[key]; present {
+			t.Errorf("fato de mercado não traz %s: %v", key, market)
 		}
 	}
 }

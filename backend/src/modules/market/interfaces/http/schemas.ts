@@ -42,6 +42,10 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'use AAAA-MM-DD')
 export const marketCalendarQuerySchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
+  // RC.6.1: `mine` só os fatos que afetam o usuário; `all` (padrão do motor) também o
+  // mercado, até `market_limit` fatos (0 a 200).
+  scope: z.enum(['mine', 'all']).optional(),
+  market_limit: z.coerce.number().int().min(0).max(200).optional(),
 })
 
 // Mesma convenção de paginação de `listMacroEventsQuerySchema`

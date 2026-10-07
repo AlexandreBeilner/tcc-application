@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isParallelTrack } from '../modules/lessons/domain/lesson'
 import { LESSON_SEEDS, upsertLessonSeed, type LessonSeed } from './seedLessons'
 import { lessonBlocksSchema } from '../modules/lessons/infrastructure/content/lessonBlocks'
 import { lessons } from './schema'
@@ -184,6 +185,7 @@ describe('blocks no seed (RC.3.1)', () => {
       '2.9',
       '2.10',
       'custos-de-investir',
+      'imposto-renda-variavel',
     ])
     expect(trilha2.map((l) => l.code)).toEqual([
       '2.1',
@@ -203,9 +205,47 @@ describe('blocks no seed (RC.3.1)', () => {
       '2.9',
       '2.10',
       '2.11',
+      '2.12',
     ])
     const orders = LESSON_SEEDS.map((l) => l.sortOrder)
     expect(orders).toEqual(orders.map((_, i) => i + 1))
     expect(new Set(LESSON_SEEDS.map((l) => l.code)).size).toBe(LESSON_SEEDS.length)
+  })
+
+  it('a Trilha 3 traz a lição de vieses antes do desafio final (RC.4.9)', () => {
+    const trilha3 = LESSON_SEEDS.filter((l) => l.trackNumber === 3)
+    expect(trilha3.map((l) => l.stableKey)).toEqual(['3.1', '3.2', '3.3', 'vieses-e-emocao', '3.4'])
+    expect(trilha3.map((l) => l.code)).toEqual(['3.1', '3.2', '3.3', '3.4', '3.5'])
+  })
+
+  it('a Trilha F (paralela, RC.4.4) fica no fim do sortOrder e fora da corrente', () => {
+    const parallel = LESSON_SEEDS.filter((l) => isParallelTrack(l.trackNumber))
+    expect(parallel.map((l) => l.code)).toEqual(['F.1', 'F.2'])
+    const lastChain = Math.max(
+      ...LESSON_SEEDS.filter((l) => !isParallelTrack(l.trackNumber)).map((l) => l.sortOrder),
+    )
+    for (const lesson of parallel) {
+      expect(lesson.sortOrder).toBeGreaterThan(lastChain)
+      expect(lesson.unlocksKeys).toEqual([])
+    }
+  })
+})
+
+// Achado da RC.7.6: o seed falhou num banco real porque `stableKey` de 4 lições novas passava do
+// limite da coluna (era varchar(20)). O fake acima não tem limite, então o teste confere o tamanho
+// declarado em `lessons.stableKey` contra todos os seeds.
+describe('tamanho das chaves dos seeds de lição', () => {
+  it('todo stableKey e ticker cabe na coluna do banco', () => {
+    const stableKeyLimit = lessons.stableKey.length as number
+    const tickerLimit = lessons.microDecisionAssetTicker.length as number
+    for (const seed of LESSON_SEEDS) {
+      expect(seed.stableKey.length, seed.stableKey).toBeLessThanOrEqual(stableKeyLimit)
+      if (seed.microDecisionAssetTicker) {
+        expect(seed.microDecisionAssetTicker.length).toBeLessThanOrEqual(tickerLimit)
+      }
+      if (seed.unlocksAssetTicker) {
+        expect(seed.unlocksAssetTicker.length).toBeLessThanOrEqual(lessons.unlocksAssetTicker.length as number)
+      }
+    }
   })
 })

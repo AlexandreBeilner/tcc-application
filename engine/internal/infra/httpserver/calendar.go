@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/enginesetting"
@@ -16,7 +17,7 @@ import (
 type marketCalendarService interface {
 	Clock(ctx context.Context) (marketcalendar.Clock, error)
 	DefaultWindow(ctx context.Context) (fromDay, toDay int, err error)
-	Calendar(ctx context.Context, userID string, fromDay, toDay int) ([]marketcalendar.DayEntry, error)
+	CalendarWith(ctx context.Context, userID string, fromDay, toDay int, opts marketcalendar.Options) (marketcalendar.Result, error)
 }
 
 // CalendarAPI reúne o serviço do calendário e o que só a infraestrutura de
@@ -111,6 +112,18 @@ type calendarEventResponse struct {
 	// mês-calendário real a que o salário se refere, distinto do dia deste
 	// evento quando o pagamento foi um catch-up de meses atrasados (T.5).
 	ReferenceMonth *string `json:"reference_month,omitempty"`
+	// Relevância pro usuário do token (RC.6.1). EstimatedAmount e UserQuantity são
+	// sempre do próprio usuário; AmountIsEstimate é falso quando o valor é exato.
+	Relevance        string   `json:"relevance"`
+	RelevanceReason  *string  `json:"relevance_reason,omitempty"`
+	EstimatedAmount  *float64 `json:"estimated_amount,omitempty"`
+	AmountIsEstimate *bool    `json:"amount_is_estimate,omitempty"`
+	UserQuantity     *float64 `json:"user_quantity,omitempty"`
+}
+
+type calendarSummaryResponse struct {
+	MineCount   int `json:"mine_count"`
+	MarketCount int `json:"market_count"`
 }
 
 type calendarDayResponse struct {
@@ -119,12 +132,30 @@ type calendarDayResponse struct {
 	Weekday      string                  `json:"weekday"`
 	MarketOpen   bool                    `json:"market_open"`
 	Events       []calendarEventResponse `json:"events"`
+	Summary      calendarSummaryResponse `json:"summary"`
 }
 
 type calendarResponse struct {
 	From int                   `json:"from_day"`
 	To   int                   `json:"to_day"`
 	Days []calendarDayResponse `json:"days"`
+	// MarketTotal é o total de fatos de mercado na janela antes do corte por
+	// market_limit; MarketShown é quantos vieram na resposta.
+	MarketTotal int `json:"market_total"`
+	MarketShown int `json:"market_shown"`
+}
+
+const (
+	defaultMarketLimit = 50
+	maxMarketLimit     = 200
+)
+
+// amountIsEstimate só aparece quando há valor estimado do usuário no fato.
+func amountIsEstimate(e marketcalendar.Event) *bool {
+	if e.EstimatedAmount == nil {
+		return nil
+	}
+	return &e.AmountIsEstimate
 }
 
 func optionalString(s string) *string {
@@ -180,7 +211,25 @@ func handleGetMarketCalendar(api *CalendarAPI) http.HandlerFunc {
 			return
 		}
 
-		days, err := api.Service.Calendar(r.Context(), userID, fromDay, toDay)
+		opts := marketcalendar.Options{MarketLimit: defaultMarketLimit}
+		switch q.Get("scope") {
+		case "", "all":
+		case "mine":
+			opts.MineOnly = true
+		default:
+			writeCatalogError(w, http.StatusBadRequest, "scope deve ser mine ou all")
+			return
+		}
+		if raw := q.Get("market_limit"); raw != "" {
+			limit, err := strconv.Atoi(raw)
+			if err != nil || limit < 0 || limit > maxMarketLimit {
+				writeCatalogError(w, http.StatusBadRequest, "market_limit deve ser um inteiro de 0 a 200")
+				return
+			}
+			opts.MarketLimit = limit
+		}
+
+		result, err := api.Service.CalendarWith(r.Context(), userID, fromDay, toDay, opts)
 		if errors.Is(err, marketcalendar.ErrInvalidWindow) {
 			writeCatalogError(w, http.StatusBadRequest, "janela inválida: from deve ser <= to e cobrir no máximo 92 dias")
 			return
@@ -190,8 +239,11 @@ func handleGetMarketCalendar(api *CalendarAPI) http.HandlerFunc {
 			return
 		}
 
-		resp := calendarResponse{From: fromDay, To: toDay, Days: make([]calendarDayResponse, 0, len(days))}
-		for _, d := range days {
+		resp := calendarResponse{
+			From: fromDay, To: toDay, Days: make([]calendarDayResponse, 0, len(result.Days)),
+			MarketTotal: result.MarketTotal, MarketShown: result.MarketShown,
+		}
+		for _, d := range result.Days {
 			events := make([]calendarEventResponse, 0, len(d.Events))
 			for _, e := range d.Events {
 				events = append(events, calendarEventResponse{
@@ -201,11 +253,15 @@ func handleGetMarketCalendar(api *CalendarAPI) http.HandlerFunc {
 					Quantity: e.Quantity, UnitValue: e.UnitValue,
 					SelicRate: e.SelicRate, PreviousSelicRate: e.PreviousSelicRate,
 					ReferenceMonth: optionalString(e.ReferenceMonth),
+					Relevance:      e.Relevance, RelevanceReason: optionalString(e.RelevanceReason),
+					EstimatedAmount: e.EstimatedAmount, AmountIsEstimate: amountIsEstimate(e),
+					UserQuantity: e.UserQuantity,
 				})
 			}
 			resp.Days = append(resp.Days, calendarDayResponse{
 				SimulatedDay: d.Day, Date: d.Date.Format(dateLayout), Weekday: weekdayCodes[d.Weekday],
 				MarketOpen: d.MarketOpen, Events: events,
+				Summary: calendarSummaryResponse{MineCount: d.Summary.Mine, MarketCount: d.Summary.Market},
 			})
 		}
 		writeJSON(w, http.StatusOK, resp)
