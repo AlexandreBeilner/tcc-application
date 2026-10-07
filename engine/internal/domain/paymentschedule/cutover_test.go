@@ -1,6 +1,10 @@
 package paymentschedule
 
-import "testing"
+import (
+	"testing"
+
+	"tcc-investimentos/engine/internal/domain/simcalendar"
+)
 
 func TestCycleIndexWithCutover_SemCorteEquivaleAoCycleIndex(t *testing.T) {
 	for _, offset := range []int{0, 5, 30, 65 % 32} {
@@ -82,3 +86,32 @@ func TestDaysSinceReport_OffsetZeroEquivaleAoModuloLegado(t *testing.T) {
 		}
 	}
 }
+
+func TestEquityCycleAt(t *testing.T) {
+	t.Run("sem agenda atribuída é o legado", func(t *testing.T) {
+		c := EquityCycleAt(91, 0, 0, false, Annual, 3, 20, 0)
+		if !c.Pays || c.Ex != 91 || c.Pay != 96 || c.PoolCycles != 1 {
+			t.Errorf("got %+v", c)
+		}
+	})
+	t.Run("ciclo anterior ao corte é o legado mesmo com agenda", func(t *testing.T) {
+		c := EquityCycleAt(91, 10, 100, true, Annual, 3, 20, 0)
+		if !c.Pays || c.Ex != c.Report || c.Report != 91 {
+			t.Errorf("got %+v", c)
+		}
+	})
+	t.Run("política e datas em dia útil depois do corte", func(t *testing.T) {
+		c := EquityCycleAt(91, 10, 0, true, Semiannual, 2, 7, 1)
+		if !c.Pays || c.PoolCycles != 2 {
+			t.Errorf("got %+v", c)
+		}
+		if c.Report >= c.Ex || c.Ex >= c.Pay || !simcalendarBusiness(c.Ex) || !simcalendarBusiness(c.Pay) {
+			t.Errorf("datas fora de ordem ou fora de dia útil: %+v", c)
+		}
+		if EquityCycleAt(91, 10, 0, true, Semiannual, 2, 7, 0).Pays {
+			t.Error("o 1º balanço do semestral não paga")
+		}
+	})
+}
+
+func simcalendarBusiness(day int) bool { return simcalendar.IsBusinessDay(day) }

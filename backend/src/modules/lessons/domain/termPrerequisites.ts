@@ -144,6 +144,9 @@ export interface LessonText {
   code: string
   sortOrder: number
   text: string
+  // Lição de trilha paralela (RC.4.4) pode ser aberta antes de qualquer outra,
+  // então nenhuma lição "anterior" apresenta termo para ela.
+  parallel?: boolean
 }
 
 export interface TermViolation {
@@ -168,7 +171,7 @@ export function findTermViolations(
     for (const lesson of lessons) {
       if (!rule.pattern.test(lesson.text)) continue
       if (lesson.code === rule.definedIn) continue
-      if (definerOrder !== null && definerOrder < lesson.sortOrder) continue
+      if (!lesson.parallel && definerOrder !== null && definerOrder < lesson.sortOrder) continue
       if (hasInlineDefinition(lesson.text, rule.glossaryKeys)) continue
       violations.push({
         termId: rule.id,

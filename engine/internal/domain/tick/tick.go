@@ -139,6 +139,17 @@ type CompanyForFundamentals struct {
 	// ganha offset (paymentschedule.EffectiveReportDay). Igual pra todas as
 	// empresas; fica aqui pra Advance não ganhar mais um parâmetro.
 	ScheduleCutoverDay int
+	// ScheduleAssigned, DividendPolicy, ComLagDays e PaymentLagDays são a agenda
+	// de provento da empresa (companies.*, RC.6.7/RC.6.9). Sem agenda atribuída o
+	// provento segue o legado (todo balanço paga, ex na declaração).
+	ScheduleAssigned bool
+	DividendPolicy   catalog.DividendPolicy
+	ComLagDays       int
+	PaymentLagDays   int
+	// PriorNetIncomes são os lucros líquidos dos últimos balanços já persistidos
+	// (o mais recente primeiro, até 3), insumo do pool acumulado do provento
+	// semestral e anual.
+	PriorNetIncomes []float64
 }
 
 // MacroEventTargetForApplication espelha uma linha de macro_event_targets
@@ -267,6 +278,13 @@ type DividendPayerAsset struct {
 	FIIType *string
 	Segment *string
 	Holders []PositionHolder
+	// FIIScheduleAssigned, FIIPayoutBusinessDay e ScheduleCutoverDay são a agenda
+	// do provento do FII (RC.6.7/RC.6.10): quando atribuída, o FII paga todo mês
+	// real, com data-ex no 1º dia útil e pagamento no N-ésimo dia útil do mês
+	// seguinte, a partir do dia de corte; sem agenda segue o ciclo legado de 30 dias.
+	FIIScheduleAssigned  bool
+	FIIPayoutBusinessDay int
+	ScheduleCutoverDay   int
 }
 
 // DividendRecord é um novo dividend_events pronto pra persistir — gerado
@@ -288,6 +306,27 @@ type DividendRecord struct {
 	// FundLiability (R.8) é, num provento de ETF, o total que o fundo passa a dever
 	// na data-ex (valor por cota x cotas dos cotistas); zero nos demais ativos.
 	FundLiability float64
+	// ExDay é a data-ex (dia simulado); zero vale o dia da geração (legado).
+	ExDay int
+	// SnapshotPending (RC.6.11) marca o provento declarado antes da data-ex: o
+	// snapshot dos elegíveis não é tirado agora, e sim no tick da data-ex
+	// (Result.Snapshots), com a posição do fechamento da data-com.
+	SnapshotPending bool
+}
+
+// DividendSnapshot (RC.6.11) é o snapshot dos elegíveis de um provento já
+// declarado, tirado no tick da data-ex: SaveTick grava os Recipients e marca
+// dividend_events.recipients_snapshotted.
+type DividendSnapshot struct {
+	EventID    string
+	Recipients []PositionHolder
+}
+
+// DividendAwaitingSnapshot é um provento declarado cuja data-ex chegou e ainda não
+// tem snapshot de elegíveis.
+type DividendAwaitingSnapshot struct {
+	EventID string
+	AssetID string
 }
 
 // NetWorthUpdate é o novo `fii_details.net_worth` de um FII tijolo pronto
@@ -352,6 +391,10 @@ type Result struct {
 	// linha e o snapshot de Recipients (dividend_event_recipients)
 	// atomicamente com o resto do tick.
 	NewDividends []DividendRecord
+	// Snapshots são os snapshots de elegíveis tirados neste tick pros proventos
+	// declarados antes (RC.6.11), preenchidos por Service.Run (precisa ler as
+	// posições, que Advance, função pura, não vê).
+	Snapshots []DividendSnapshot
 	// DuePayments são os PendingDividendPayment cujo PaymentDay é
 	// exatamente este tick (newDay) — SaveTick credita
 	// current_balance/total_dividends_received de cada Recipient, gravando
@@ -494,13 +537,27 @@ type Repository interface {
 	// snapshot de elegibilidade (posição na data ex) de um novo
 	// dividend_events, e (tarefas G.2/G.3) pra reavaliar NetWorth/
 	// PortfolioValue no mesmo calendário.
+	//
+	// Desde a RC.6.11 a lista não traz mais os Holders de ninguém: carregar a
+	// posição de todo ativo todo tick não escala com o catálogo. Quem precisa
+	// (os proventos com data-ex hoje) pede por ListDividendHolders.
 	ListDividendPayerAssets(ctx context.Context) ([]DividendPayerAsset, error)
+	// ListDividendHolders devolve a posição (quantity > 0) de cada usuário só nos
+	// ativos pedidos, por asset_id.
+	ListDividendHolders(ctx context.Context, assetIDs []string) (map[string][]PositionHolder, error)
+	// ListDividendsAwaitingSnapshot devolve os proventos declarados com data-ex
+	// igual ou anterior a day e ainda sem snapshot de elegíveis.
+	ListDividendsAwaitingSnapshot(ctx context.Context, day int) ([]DividendAwaitingSnapshot, error)
 	// ListPendingDividendPayments devolve todo dividend_events com paid =
 	// false, com seus Recipients (dividend_event_recipients) — usado por
 	// Advance (tarefa 4.9) pra decidir quais vencem (PaymentDay == newDay)
 	// e creditar accounts.current_balance/total_dividends_received de cada
 	// Recipient.
-	ListPendingDividendPayments(ctx context.Context) ([]PendingDividendPayment, error)
+	//
+	// upToDay limita aos que vencem até esse dia (a lista de pendentes de um
+	// catálogo grande não precisa ser lida inteira todo tick), e só entram
+	// proventos já com snapshot de elegíveis.
+	ListPendingDividendPayments(ctx context.Context, upToDay int) ([]PendingDividendPayment, error)
 	// SaveTick persiste o novo estado do calendário e as cotações geradas,
 	// atomicamente — nem calendário nem cotações são escrita de
 	// saldo/posição de usuário, por isso não passa por Event Sourcing
@@ -580,16 +637,25 @@ const dividendPriceEffectBandDays = 10
 // relatório), então não recalcula nada, só decide se o efeito já
 // calculado está dentro da janela.
 func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex int, c CompanyForFundamentals) float64 {
-	daysSinceReport, reported := paymentschedule.DaysSinceReport(dayIndex, c.ReportFrequencyDays, c.ReportOffsetDays, c.ScheduleCutoverDay)
-	if !reported {
-		// Nenhum relatório (e portanto nenhum dividendo) aconteceu ainda pra
-		// esta empresa: nada foi de fato distribuído.
+	newDay := dayIndex + 1
+	freq := c.ReportFrequencyDays
+	if freq <= 0 {
 		return 0
 	}
-	if daysSinceReport >= dividendPriceEffectBandDays {
-		return 0
+	for k := newDay/freq - 1; k >= 0; k-- {
+		cycle := paymentschedule.EquityCycleAt(freq, c.ReportOffsetDays, c.ScheduleCutoverDay, c.ScheduleAssigned, c.DividendPolicy, c.ComLagDays, c.PaymentLagDays, k)
+		if cycle.Report > newDay || !cycle.Pays {
+			// Balanço que ainda não saiu, ou que não paga: o efeito é do último que pagou.
+			continue
+		}
+		daysSinceEx := newDay - cycle.Ex
+		if daysSinceEx < 0 || daysSinceEx >= dividendPriceEffectBandDays {
+			return 0
+		}
+		return dividend.EquityPriceEffectPct(financials.NetIncome*float64(cycle.PoolCycles), financials.NetEquity)
 	}
-	return dividend.EquityPriceEffectPct(financials.NetIncome, financials.NetEquity)
+	// Nenhum relatório (e portanto nenhum dividendo) aconteceu ainda pra esta empresa.
+	return 0
 }
 
 // fiiDividendPriceEffectPct (tarefa U.4) é o equivalente de
@@ -599,12 +665,20 @@ func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex int, c 
 // (dividend.FIIPayoutIntervalDays, calendário de 30 dias, mesma técnica sem
 // estado persistido e mesma guarda de primeiro ciclo), 0 fora da banda. Não é
 // permanente: ver o doc de dividend.FIIPriceEffectPct.
-func fiiDividendPriceEffectPct(baseValue float64, outstandingShares int64, yieldPerCyclePct float64, dayIndex int) float64 {
-	if dayIndex < dividend.FIIPayoutIntervalDays-1 {
-		return 0
-	}
-	if (dayIndex+1)%dividend.FIIPayoutIntervalDays >= dividendPriceEffectBandDays {
-		return 0
+func fiiDividendPriceEffectPct(a DividendPayerAsset, baseValue float64, outstandingShares int64, yieldPerCyclePct float64, dayIndex int) float64 {
+	newDay := dayIndex + 1
+	if ex, ok := paymentschedule.LastFIIExDay(newDay); a.FIIScheduleAssigned && ok && ex > a.ScheduleCutoverDay {
+		// Agenda mensal real: a banda conta desde a data-ex do último provento.
+		if newDay-ex >= dividendPriceEffectBandDays {
+			return 0
+		}
+	} else {
+		if dayIndex < dividend.FIIPayoutIntervalDays-1 {
+			return 0
+		}
+		if (dayIndex+1)%dividend.FIIPayoutIntervalDays >= dividendPriceEffectBandDays {
+			return 0
+		}
 	}
 	perShare, ok := dividend.FIIValuePerShare(baseValue, outstandingShares, yieldPerCyclePct)
 	if !ok {
@@ -883,7 +957,7 @@ func equityShareClassesByCompany(payers []DividendPayerAsset) map[string]equityS
 // nem FII sem NetWorth nem PortfolioValue preenchidos, mesmo tratamento de
 // "indicador omitido, não erro nem 0" já dado a dado de origem ausente em
 // outros lugares do RF21.
-func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map[string]float64, pnPremiumPctByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
+func dividendRecordsForCycle(payers []DividendPayerAsset, payoutsByCompany map[string]equityPayout, pnPremiumPctByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
 	fiiPayoutDay := fundamentals.IsReportDay(dayIndex, dividend.FIIPayoutIntervalDays)
 	shareClasses := equityShareClassesByCompany(payers)
 
@@ -895,15 +969,18 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 
 		var value float64
 		var ok bool
+		recordPaymentDay, recordExDay := newDay+dividend.DefaultPaymentLagDays, 0
 		switch a.Type {
 		case "acao":
 			if a.CompanyID == nil {
 				continue
 			}
-			netIncome, reported := netIncomeByCompany[*a.CompanyID]
+			payout, reported := payoutsByCompany[*a.CompanyID]
 			if !reported {
 				continue
 			}
+			netIncome := payout.PoolNetIncome
+			recordPaymentDay, recordExDay = payout.PayDay, payout.ExDay
 			classes := shareClasses[*a.CompanyID]
 			onValue, pnValue, valueOK := dividend.EquityValuePerShare(netIncome, classes.On, classes.Pn, pnPremiumPctByCompany[*a.CompanyID])
 			if a.ShareClass != nil && *a.ShareClass == "PN" {
@@ -912,8 +989,13 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 				value, ok = onValue, valueOK
 			}
 		case "fii":
-			if !fiiPayoutDay {
-				continue
+			legacyDue := fiiPayoutDay && (!a.FIIScheduleAssigned || newDay <= a.ScheduleCutoverDay)
+			if !legacyDue {
+				_, exDay, payDay, scheduledDue := paymentschedule.FIIPayoutOn(newDay, a.FIIPayoutBusinessDay)
+				if !a.FIIScheduleAssigned || newDay <= a.ScheduleCutoverDay || !scheduledDue {
+					continue
+				}
+				recordPaymentDay, recordExDay = payDay, exDay
 			}
 			baseValue := a.NetWorth
 			if baseValue == nil {
@@ -940,10 +1022,12 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, netIncomeByCompany map
 		}
 
 		records = append(records, DividendRecord{
-			AssetID:       a.AssetID,
-			ValuePerShare: value,
-			PaymentDay:    newDay + dividend.DefaultPaymentLagDays,
-			Recipients:    a.Holders,
+			AssetID:         a.AssetID,
+			ValuePerShare:   value,
+			PaymentDay:      recordPaymentDay,
+			ExDay:           recordExDay,
+			Recipients:      a.Holders,
+			SnapshotPending: recordExDay > newDay,
 		})
 	}
 	return records
@@ -1079,7 +1163,7 @@ func fiiRoundContexts(payers []DividendPayerAsset, netWorthUpdates []NetWorthUpd
 			BaseValue:         baseValue,
 			OutstandingShares: *a.OutstandingShares,
 			TargetPriceToBook: targetPriceToBook,
-			DividendEffectPct: fiiDividendPriceEffectPct(baseValue, *a.OutstandingShares, payoutYieldPct, dayIndex),
+			DividendEffectPct: fiiDividendPriceEffectPct(a, baseValue, *a.OutstandingShares, payoutYieldPct, dayIndex),
 		}
 	}
 	return contexts
@@ -1176,7 +1260,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 
 	reportedRevenue := make(map[string]float64, len(companies))
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
-	netIncomeByCompany := make(map[string]float64, len(companies))
+	payoutsByCompany := make(map[string]equityPayout, len(companies))
 	pnPremiumPctByCompany := make(map[string]float64, len(companies))
 	for _, c := range companies {
 		pnPremiumPctByCompany[c.CompanyID] = c.PnDividendPremiumPct
@@ -1200,7 +1284,9 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		}
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
 		financials := fundamentals.DeriveFinancials(sector, c.QualityMultiplier, netRevenue)
-		netIncomeByCompany[c.CompanyID] = financials.NetIncome
+		if payout, pays := equityPayoutFor(c, cycle.Index, financials.NetIncome); pays {
+			payoutsByCompany[c.CompanyID] = payout
+		}
 
 		reportedRevenue[c.CompanyID] = netRevenue
 		fundamentalsRecords = append(fundamentalsRecords, FundamentalsRecord{
@@ -1279,7 +1365,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		IsCopomDay:            selic.IsCopomMeetingDay(dayIndex),
 		IsReportDay:           fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
 		AppliedMacroEventIDs:  appliedMacroEventIDs,
-		NewDividends:          dividendRecordsForCycle(dividendPayers, netIncomeByCompany, pnPremiumPctByCompany, dayIndex, newDay),
+		NewDividends:          dividendRecordsForCycle(dividendPayers, payoutsByCompany, pnPremiumPctByCompany, dayIndex, newDay),
 		DuePayments:           duePaymentsForDay(pendingDividends, newDay),
 		NetWorthUpdates:       netWorthUpdates,
 		PortfolioValueUpdates: portfolioValueUpdates,
@@ -1322,4 +1408,27 @@ func maxReportSpanDays(companies []CompanyForFundamentals) int {
 		maxOffset = max(maxOffset, c.ReportOffsetDays)
 	}
 	return paymentschedule.MaxReportSpanDays(maxOffset)
+}
+
+// equityPayout é o provento que uma empresa declara no balanço de hoje: o lucro
+// do pool (um ciclo no trimestral, acumulado no semestral e no anual) e as datas.
+type equityPayout struct {
+	PoolNetIncome float64
+	ExDay         int
+	PayDay        int
+}
+
+// equityPayoutFor resolve se o balanço do ciclo cycleIndex paga provento e quanto
+// entra no pool. O pool soma o lucro de hoje com os PoolCycles-1 balanços anteriores
+// já persistidos (no começo da simulação, só os que existem).
+func equityPayoutFor(c CompanyForFundamentals, cycleIndex int, netIncome float64) (equityPayout, bool) {
+	cycle := paymentschedule.EquityCycleAt(c.ReportFrequencyDays, c.ReportOffsetDays, c.ScheduleCutoverDay, c.ScheduleAssigned, c.DividendPolicy, c.ComLagDays, c.PaymentLagDays, cycleIndex)
+	if !cycle.Pays {
+		return equityPayout{}, false
+	}
+	pool := netIncome
+	for i := 0; i < cycle.PoolCycles-1 && i < len(c.PriorNetIncomes); i++ {
+		pool += c.PriorNetIncomes[i]
+	}
+	return equityPayout{PoolNetIncome: pool, ExDay: cycle.Ex, PayDay: cycle.Pay}, true
 }

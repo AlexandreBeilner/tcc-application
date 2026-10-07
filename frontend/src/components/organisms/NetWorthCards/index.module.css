@@ -1,16 +1,9 @@
-/* Uma coluna em mobile, 2 colunas a partir de tablet (tarefa 6.3.3, decisão
-   explícita — não `auto-fit`, que só coincidentemente cairia em 2 colunas
-   nessa largura). */
+/* Card de mercado ao vivo em largura total; o Sandbox é uma faixa
+   compacta abaixo (D5 opção B da revisão de trilhas). */
 .cards {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--space-4);
-}
-
-@media (min-width: 768px) {
-    .cards {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
 }
 
 /* Complemento ao `components/atoms/Card` (padding/radius/background/cursor
@@ -19,11 +12,50 @@
     gap: var(--space-1);
 }
 
-/* Selo "modo aprendizado" (inventário 2.1) — fundo diferente do card de
-   mercado ao vivo pra reforçar a separação exigida pela spec (3.1). */
-.sandbox {
+/* Faixa do modo aprendizado (inventário 2.1): fundo diferente do card de
+   mercado ao vivo reforça a separação exigida pela spec (3.1). */
+.sandboxStrip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-brand-300);
+    border-radius: var(--radius-md);
     background: var(--color-brand-100);
-    border-color: var(--color-brand-300);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sandboxStrip:focus-visible {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: 2px;
+}
+
+.sandboxValue {
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.sandboxNote {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.chevron {
+    margin-left: auto;
+    color: var(--color-text-secondary);
+}
+
+.sandboxHint {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
 }
 
 .sandboxBadge {

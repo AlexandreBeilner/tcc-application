@@ -217,7 +217,8 @@ export const BLOCKS_2_1: LessonBlocks = {
         type: 'check',
         id: 'sua-fatia',
         kind: 'numeric',
-        prompt: 'A empresa tem 1 milhão de ações e você compra 10 mil. Que percentual dela você tem?',
+        prompt:
+          'A empresa tem 1 milhão de ações e você compra 10 mil. Que percentual dela você tem?',
         answer: 1,
         tolerance: 0.01,
         unit: '%',
@@ -246,7 +247,8 @@ export const BLOCKS_2_1: LessonBlocks = {
         type: 'check',
         id: 'responsabilidade-limitada',
         kind: 'true_false',
-        prompt: 'Se a empresa quebrar, o acionista precisa pagar as dívidas dela com o próprio patrimônio.',
+        prompt:
+          'Se a empresa quebrar, o acionista precisa pagar as dívidas dela com o próprio patrimônio.',
         answer: false,
         explanation:
           'A lei limita a responsabilidade do acionista ao preço das ações que ele comprou. Ele pode perder o que investiu, mas não responde pelas dívidas com outros bens.',
@@ -256,7 +258,8 @@ export const BLOCKS_2_1: LessonBlocks = {
         id: 'nota-acao',
         widget: 'platform-note',
         props: {
-          brazil: 'Na B3, a bolsa do Brasil, são negociadas ações de empresas reais, com preços e quantidades de verdade.',
+          brazil:
+            'Na B3, a bolsa do Brasil, são negociadas ações de empresas reais, com preços e quantidades de verdade.',
           here: 'Na plataforma as empresas são fictícias, como a Mineradora Vale do Rio (VALR3), e o dinheiro é de treino.',
           why: 'Assim você pratica sem arriscar dinheiro de verdade.',
         },
@@ -315,7 +318,8 @@ export const BLOCKS_2_2: LessonBlocks = {
         answer: 200,
         tolerance: 0.5,
         unit: 'R$ milhões',
-        explanation: '10 milhões de ações vezes R$ 20 dá R$ 200 milhões, todos para a empresa, porque as ações são novas.',
+        explanation:
+          '10 milhões de ações vezes R$ 20 dá R$ 200 milhões, todos para a empresa, porque as ações são novas.',
       },
       {
         type: 'text',
@@ -348,7 +352,8 @@ export const BLOCKS_2_2: LessonBlocks = {
         type: 'check',
         id: 'dinheiro-no-secundario',
         kind: 'single',
-        prompt: 'Você compra uma ação na bolsa, meses depois do IPO. O dinheiro vai principalmente para:',
+        prompt:
+          'Você compra uma ação na bolsa, meses depois do IPO. O dinheiro vai principalmente para:',
         options: ['O caixa da empresa', 'O investidor que vendeu a ação', 'O Banco Central'],
         answer: 1,
         explanation:
@@ -395,7 +400,8 @@ export const BLOCKS_2_3: LessonBlocks = {
         prompt: 'Qual destes tickers é de uma ação ordinária?',
         options: ['BNDD4', 'BNDD3', 'BNDD11'],
         answer: 1,
-        explanation: 'O final 3 marca a ação ordinária. O 4 é preferencial, e o 11 não é de ação simples.',
+        explanation:
+          'O final 3 marca a ação ordinária. O 4 é preferencial, e o 11 não é de ação simples.',
       },
     ],
     microDecision: [
@@ -417,7 +423,8 @@ export const BLOCKS_2_3: LessonBlocks = {
         kind: 'true_false',
         prompt: 'BNDD3 e BNDD4 são de empresas diferentes.',
         answer: false,
-        explanation: 'As quatro letras identificam a empresa. O número final só diz a classe da ação.',
+        explanation:
+          'As quatro letras identificam a empresa. O número final só diz a classe da ação.',
       },
       {
         type: 'text',
@@ -451,14 +458,16 @@ export const BLOCKS_2_3: LessonBlocks = {
           'Que é uma empresa estrangeira',
         ],
         answer: 1,
-        explanation: 'O F marca o mercado fracionário. O lote padrão é de 100 ações, e quantidades menores vão para ele.',
+        explanation:
+          'O F marca o mercado fracionário. O lote padrão é de 100 ações, e quantidades menores vão para ele.',
       },
       {
         type: 'widget',
         id: 'nota-ticker',
         widget: 'platform-note',
         props: {
-          brazil: 'Na B3, cada empresa real escolhe as letras do seu ticker, e o número final segue o padrão do tipo de ativo.',
+          brazil:
+            'Na B3, cada empresa real escolhe as letras do seu ticker, e o número final segue o padrão do tipo de ativo.',
           here: 'Na plataforma os tickers são de empresas fictícias, como VALR3 e BNDD4, e o catálogo tem ações, ETFs e FIIs.',
           why: 'Assim você aprende a ler o código sem depender de empresas reais.',
         },
@@ -544,7 +553,8 @@ export const BLOCKS_2_4: LessonBlocks = {
         id: 'nota-noticias',
         widget: 'platform-note',
         props: {
-          brazil: 'No Brasil, as notícias vêm das empresas, do Banco Central, do IBGE, de portais e de redes sociais, e cada uma chega ao preço de um jeito.',
+          brazil:
+            'No Brasil, as notícias vêm das empresas, do Banco Central, do IBGE, de portais e de redes sociais, e cada uma chega ao preço de um jeito.',
           here: 'Na plataforma as notícias são eventos de exemplo, mostrados na área de Notícias, e eles mexem nos preços dentro do jogo.',
           why: 'Assim você treina a ler uma notícia e decidir antes de o preço se ajustar.',
         },
@@ -636,7 +646,8 @@ export const BLOCKS_2_5: LessonBlocks = {
         id: 'nota-oferta-demanda',
         widget: 'platform-note',
         props: {
-          brazil: 'Na B3, muitos investidores, instituições e robôs enviam ordens o tempo todo, e o preço nasce desses negócios.',
+          brazil:
+            'Na B3, muitos investidores, instituições e robôs enviam ordens o tempo todo, e o preço nasce desses negócios.',
           here: 'Na plataforma o preço também nasce dos negócios, mas as ordens vêm de você, de outros usuários e de robôs de liquidez.',
           why: 'Assim o livro sempre tem ofertas dos dois lados para você negociar.',
         },

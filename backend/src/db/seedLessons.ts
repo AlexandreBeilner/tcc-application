@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { and, gte, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, ne, notInArray, or, sql } from 'drizzle-orm'
 import { createDb, type Database } from './client'
 import { lessons, userLessonProgress } from './schema'
-import type { MicroDecisionType } from '../modules/lessons/domain/lesson'
+import { PARALLEL_TRACK_NUMBERS, type MicroDecisionType } from '../modules/lessons/domain/lesson'
 import type { LessonBlocks } from '../modules/lessons/domain/widgets/lessonBlocks'
 import { BLOCKS_0_1, BLOCKS_0_2, BLOCKS_0_3, BLOCKS_0_4 } from './lessonContentTrilha0a'
 import { BLOCKS_JUROS_SELIC_CDI_TR, BLOCKS_POUPANCA } from './lessonContentTrilha0b'
@@ -36,7 +36,11 @@ import {
   BLOCKS_2_8,
   BLOCKS_2_9,
   BLOCKS_CUSTOS,
+  BLOCKS_IMPOSTO,
 } from './lessonContentTrilha2Empresa'
+import { BLOCKS_DIVIDA, BLOCKS_ORCAMENTO } from './lessonContentTrilhaF'
+import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
+import { BLOCKS_3_1, BLOCKS_3_2, BLOCKS_3_3, BLOCKS_3_4, BLOCKS_VIESES } from './lessonContentTrilha3'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -665,7 +669,11 @@ export const LESSON_SEEDS: LessonSeed[] = [
     microDecisionPrompt: legacyText(BLOCKS_2_7_1, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Sim, é o valor de mercado', 'Não, é o valor contábil', 'Só se a empresa não tiver dívida'],
+    microDecisionOptions: [
+      'Sim, é o valor de mercado',
+      'Não, é o valor contábil',
+      'Só se a empresa não tiver dívida',
+    ],
     microDecisionCorrectOption: 1,
     revelationText: legacyText(BLOCKS_2_7_1, 'revelation'),
     blocks: BLOCKS_2_7_1,
@@ -759,33 +767,16 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackNumber: 2,
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 30,
-    title: 'Dividendos e data ex',
-    centralConcept: 'Como e quando o acionista recebe',
-    scenarioText:
-      'Você tem VALR3 na carteira no dia em que a Mineradora Vale do Rio fecha seu ciclo de relatório (a ' +
-      'cada 14 dias simulados) e a empresa distribui parte do lucro como dividendo.' +
-      '\n\n' +
-      'Nesse exato dia, a plataforma registra quem tem direito a receber esse provento: é a data ex.',
-    microDecisionPrompt:
-      'Se você vender toda a sua posição em VALR3 um dia depois da data ex, mas antes do dia de pagamento, ' +
-      'ainda recebe o dividendo dessa distribuição?',
+    title: 'Dividendos, JCP e data ex',
+    centralConcept: 'Como e quando o acionista recebe, e o imposto',
+    scenarioText: legacyText(BLOCKS_2_7_6, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_7_6, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: ['Sim', 'Não'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'Sim. O direito ao provento é definido pela posição que você tinha exatamente na data ex, o dia de ' +
-      'relatório em que o dividendo é gerado, não pela posição no dia do pagamento.' +
-      '\n\n' +
-      'A plataforma registra quem tem posição nesse momento e paga esse mesmo grupo depois, com uma ' +
-      'defasagem fixa de 5 dias simulados entre a data ex e o pagamento, sempre antes do próximo ciclo de ' +
-      'relatório distribuir um novo provento sobre o mesmo ativo.' +
-      '\n\n' +
-      'Vender depois da data ex não tira o seu direito ao provento já gerado; comprar depois da data ex não ' +
-      'dá direito a ele, só ao provento do próximo ciclo.' +
-      '\n\n' +
-      'O valor por ação, o mesmo que forma o {{Dividend Yield}} da lição anterior, é creditado direto no seu ' +
-      'saldo, e vale tanto para ações quanto para FIIs, o produto da lição 2.10.',
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_2_7_6, 'revelation'),
+    blocks: BLOCKS_2_7_6,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -857,40 +848,17 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 34,
     title: 'FIIs',
-    centralConcept: 'Fundos imobiliários, tickers final 11',
-    scenarioText:
-      'FII (Fundo de Investimento Imobiliário) também tem ticker terminado em 11, igual ETF (lição 2.3), ' +
-      'mas o produto por trás é bem diferente.' +
-      '\n\n' +
-      'Em vez de replicar um índice de ações, um FII investe em imóveis ou em recebíveis ligados ao setor ' +
-      'imobiliário, e distribui o resultado como dividendo aos cotistas.' +
-      '\n\n' +
-      'O FII Tijolo Corporativo (TJLO11) é dono direto de imóveis (segmento Lajes Corporativas, com 5,2% de ' +
-      'vacância); o FII Papel Recebíveis (PAPL11) não tem imóvel nenhum, ele é dono de uma carteira de ' +
-      'recebíveis (dívidas ligadas ao setor imobiliário) indexada ao CDI.',
-    microDecisionPrompt:
-      'TJLO11 tem 5,2% de vacância (fração dos imóveis dele sem inquilino no momento). Esse indicador de ' +
-      'vacância faz sentido calcular também pro PAPL11, que não tem imóvel próprio?',
+    centralConcept: 'Fundos imobiliários: tijolo, papel e rendimento mensal',
+    scenarioText: legacyText(BLOCKS_2_10, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_2_10, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
     microDecisionOptions: ['Sim, faz sentido', 'Não faz sentido'],
     microDecisionCorrectOption: 1,
-    revelationText:
-      'Não faz sentido: vacância é um indicador exclusivo do perfil tijolo, porque só existe imóvel físico ' +
-      'pra ficar vago.' +
-      '\n\n' +
-      'O perfil papel, como o PAPL11, é avaliado por indicadores diferentes, principalmente o indexador da ' +
-      'carteira de recebíveis (CDI, no caso do PAPL11) e o valor total dessa carteira.' +
-      '\n\n' +
-      'Já que o resultado dele vem do que os devedores pagam, não do aluguel de um imóvel. Os dois perfis, ' +
-      'porém, compartilham o mesmo {{Dividend Yield}} (lição 2.6.6) como indicador comum de quanto o FII ' +
-      'distribui frente ao preço da cota.' +
-      '\n\n' +
-      'Completar esta lição libera a compra real de FIIs no Mercado e conclui a Trilha 2 (Renda Variável): ' +
-      'a Trilha 3 (Estratégia e Tributação) abre na sequência.',
+    revelationText: legacyText(BLOCKS_2_10, 'revelation'),
+    blocks: BLOCKS_2_10,
     unlocksDescription:
-      'O resto do patrimônio com onde crescer (ações, ETFs, FIIs), compra real de FIIs (TJLO11/PAPL11) no ' +
-      'Mercado, acesso à Trilha 3 (Estratégia e Tributação)',
+      'Compra de FIIs (TJLO11 e PAPL11) no Mercado e acesso à Trilha 3 (Estratégia e Tributação)',
     unlocksKeys: ['asset:fii'],
     unlocksAssetTicker: 'TJLO11',
   },
@@ -901,7 +869,8 @@ export const LESSON_SEEDS: LessonSeed[] = [
     trackName: 'Trilha 2: Renda Variável',
     sortOrder: 35,
     title: 'O que custa investir',
-    centralConcept: 'Corretagem, custódia, taxas de fundo e spread: pequenas taxas, grande diferença',
+    centralConcept:
+      'Corretagem, custódia, taxas de fundo e spread: pequenas taxas, grande diferença',
     scenarioText: legacyText(BLOCKS_CUSTOS, 'scenario'),
     microDecisionPrompt: legacyText(BLOCKS_CUSTOS, 'microDecision'),
     microDecisionType: 'reflection',
@@ -915,48 +884,41 @@ export const LESSON_SEEDS: LessonSeed[] = [
     unlocksAssetTicker: null,
   },
   {
+    stableKey: 'imposto-renda-variavel',
+    code: '2.12',
+    trackNumber: 2,
+    trackName: 'Trilha 2: Renda Variável',
+    sortOrder: 36,
+    title: 'Imposto em renda variável',
+    centralConcept: 'Swing trade, day trade, isenção de R$ 20 mil, DARF e declaração',
+    scenarioText: legacyText(BLOCKS_IMPOSTO, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_IMPOSTO, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['R$ 300', 'R$ 200', 'Nada'],
+    microDecisionCorrectOption: 2,
+    revelationText: legacyText(BLOCKS_IMPOSTO, 'revelation'),
+    blocks: BLOCKS_IMPOSTO,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
     stableKey: '3.1',
     code: '3.1',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 36,
+    sortOrder: 37,
     title: 'Diversificação',
-    centralConcept: 'Por que não concentrar tudo num ativo',
-    scenarioText:
-      'Você tem R$10.000 e dois planos: colocar tudo em VALR3, uma única ação, ou dividir esse valor entre ' +
-      'VALR3, BNDD4 e um pouco de Tesouro Selic.' +
-      '\n\n' +
-      'Nos dois planos você está investindo o mesmo valor total, mas o resultado de um evento ruim ' +
-      'específico da Mineradora Vale do Rio (uma quebra de safra, um escândalo contábil, qualquer choque ' +
-      'isolado) afeta cada plano de um jeito bem diferente.' +
-      '\n\n' +
-      'Esta trilha fecha o arco das duas anteriores: juntar a reserva segura (Trilha 1) e a parte de risco ' +
-      '(Trilha 2) numa única estratégia, e testar essa estratégia contra um evento de mercado real na ' +
-      'última lição.',
-    microDecisionPrompt:
-      'Se um evento negativo atinge só a Mineradora Vale do Rio, qual dos dois planos sofre a perda maior no ' +
-      'patrimônio total: o concentrado 100% em VALR3, ou o dividido entre VALR3, BNDD4 e Tesouro Selic?',
+    centralConcept: 'Como espalhar o risco sem eliminá-lo',
+    scenarioText: legacyText(BLOCKS_3_1, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_3_1, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: [
-      'O plano concentrado 100% em VALR3',
-      'O plano dividido entre VALR3, BNDD4 e Tesouro Selic',
-    ],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'O plano concentrado. Todo o patrimônio está exposto ao mesmo risco específico daquela empresa, então ' +
-      'um choque nela vira um choque no portfólio inteiro.' +
-      '\n\n' +
-      'No plano diversificado, o mesmo evento só afeta a fatia aplicada em VALR3; o resto (BNDD4, com ' +
-      'fundamentos e setor diferentes, e o Tesouro Selic, sem nenhuma ligação com o desempenho de uma ' +
-      'empresa) segue intacto.' +
-      '\n\n' +
-      'É a mesma lógica por trás do ETF da lição 2.9 (uma cesta de ações amortecendo o choque de uma só), ' +
-      'aplicada agora entre classes inteiras: renda fixa, ações de setores diferentes e perfis de risco ' +
-      'diferentes (lição 2.8).' +
-      '\n\n' +
-      'Diversificar não aumenta o retorno esperado de cada ativo isolado, mas reduz o risco específico de ' +
-      'cada um pesar sozinho no resultado final.',
+    microDecisionOptions: ['50%', '10%', '20%'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_3_1, 'revelation'),
+    blocks: BLOCKS_3_1,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -966,37 +928,17 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.2',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 37,
+    sortOrder: 38,
     title: 'Perfil de risco',
-    centralConcept: 'Conservador vs Sofisticado, risco x retorno',
-    scenarioText:
-      'Você já viu o rótulo de risco em vários produtos ao longo da trilha: VALR3 e o Tesouro Selic com ' +
-      'perfil Conservador; BNDD4 com perfil Sofisticado; CRI2028 (AA) e CRA2028 (A) com classificação de ' +
-      'crédito.' +
-      '\n\n' +
-      'Cada um mede uma coisa diferente, mas todos apontam pra uma mesma pergunta: quanta oscilação e ' +
-      'quanto risco de perda você está disposto a aceitar em troca de um retorno maior?',
-    microDecisionPrompt:
-      'Um portfólio 100% perfil Sofisticado tende a oscilar mais, pra cima e pra baixo, do que um portfólio ' +
-      '100% perfil Conservador. Pra alguém que pode precisar resgatar o dinheiro em poucos meses, qual dos ' +
-      'dois perfis é mais adequado?',
+    centralConcept: 'Perfil do investidor, prazo e risco',
+    scenarioText: legacyText(BLOCKS_3_2, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_3_2, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['Conservador', 'Sofisticado'],
-    microDecisionCorrectOption: 0,
-    revelationText:
-      'O perfil Conservador. Risco e retorno não são opostos que se escolhe livremente: são uma troca.' +
-      '\n\n' +
-      'Perfil Sofisticado, como o do Banco Nordeste Digital (lição 2.8), tende a entregar retorno maior no ' +
-      'longo prazo justamente por aceitar mais oscilação no caminho, o que é perigoso pra quem precisa do ' +
-      'valor num prazo curto e pode ser forçado a vender numa hora ruim.' +
-      '\n\n' +
-      'Perfil Conservador entrega menos oscilação em troca de um retorno esperado mais modesto. Não existe ' +
-      'perfil certo ou errado, existe perfil adequado ao seu horizonte de tempo e à sua necessidade real ' +
-      'daquele dinheiro.' +
-      '\n\n' +
-      'É por isso que a mesma pergunta vale tanto pra escolher entre ações de perfis diferentes quanto ' +
-      'entre CRI2028 (AA, mais seguro) e CRA2028 (A, mais arriscado e mais rentável).',
+    microDecisionOptions: ['O que precisa do dinheiro em 6 meses', 'O que só vai usar daqui a 20 anos'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_3_2, 'revelation'),
+    blocks: BLOCKS_3_2,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
@@ -1006,89 +948,103 @@ export const LESSON_SEEDS: LessonSeed[] = [
     code: '3.3',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 38,
+    sortOrder: 39,
     title: 'Comparando produtos na prática',
-    centralConcept: 'CDB 110% CDI líquido vs LCI 90% CDI isento, qual rende mais?',
-    scenarioText:
-      'Você já viu, na lição 1.6, que CDB é tributado pela tabela regressiva de IR e LCI é isento.' +
-      '\n\n' +
-      'Mas taxa bruta maior e isenção de imposto são coisas diferentes, e comparar os dois de verdade exige ' +
-      'olhar o valor líquido no bolso, não só o percentual anunciado.',
-    microDecisionPrompt:
-      'Use a calculadora abaixo, mantendo os valores padrão (CDB 110% CDI vs LCI 90% CDI, R$10.000, 365 ' +
-      'dias) e compare o valor líquido dos dois. Depois mude o prazo pra 180 dias e compare de novo: o ' +
-      'vencedor muda?',
-    microDecisionType: 'fixed_income_comparison',
+    centralConcept: 'CDB e LCI: o que sobra no bolso',
+    scenarioText: legacyText(BLOCKS_3_3, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_3_3, 'microDecision'),
+    microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: null,
-    microDecisionCorrectOption: null,
-    revelationText:
-      'Com os valores padrão (365 dias, alíquota regressiva de 17,5% nessa faixa), o CDB a 11,00% a.a. ' +
-      'bruto rende R$10.907,50 líquidos contra R$10.900,00 do LCI a 9,00% a.a. isento: o CDB vence, mas por ' +
-      'pouco.' +
-      '\n\n' +
-      'Em 180 dias, a alíquota sobe pra 22,5% (a faixa mais alta da tabela regressiva, mesma da lição 1.5), ' +
-      'e o resultado se inverte: o CDB rende R$10.409,30 líquidos contra R$10.434,15 do LCI, que agora ' +
-      'vence.' +
-      '\n\n' +
-      'A taxa bruta maior do CDB não garante o resultado líquido maior: quanto mais cedo você resgata, ' +
-      'maior a alíquota que corrói o rendimento tributado, e mais a isenção do LCI pesa a favor dele.' +
-      '\n\n' +
-      'Quanto mais tempo o dinheiro fica aplicado, menor a alíquota, e mais o CDB tem chance de recuperar a ' +
-      'vantagem. Não existe produto que "rende mais" de forma absoluta: existe o produto que rende mais ' +
-      'líquido pro prazo que você de fato pretende manter o dinheiro aplicado.',
+    microDecisionOptions: ['CDB', 'LCI'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_3_3, 'revelation'),
+    blocks: BLOCKS_3_3,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: 'vieses-e-emocao',
+    code: '3.4',
+    trackNumber: 3,
+    trackName: 'Trilha 3: Estratégia e Tributação',
+    sortOrder: 40,
+    title: 'Cabeça de investidor',
+    centralConcept: 'Vieses e emoção: o que a mente faz com o seu dinheiro',
+    scenarioText: legacyText(BLOCKS_VIESES, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_VIESES, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: [
+      'Vender cedo o que ganha e segurar o que perde',
+      'Comprar sempre na baixa',
+      'Diversificar mais',
+    ],
+    microDecisionCorrectOption: 0,
+    revelationText: legacyText(BLOCKS_VIESES, 'revelation'),
+    blocks: BLOCKS_VIESES,
     unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },
   {
     stableKey: '3.4',
-    code: '3.4',
+    code: '3.5',
     trackNumber: 3,
     trackName: 'Trilha 3: Estratégia e Tributação',
-    sortOrder: 39,
+    sortOrder: 41,
     title: 'Desafio final da trilha',
-    centralConcept: 'Cenário combinando renda fixa + variável + um evento macro',
-    scenarioText:
-      'Você tem um portfólio com Tesouro Selic (LFT2029) e ações da Mineradora Vale do Rio (VALR3) e do ' +
-      'Banco Nordeste Digital (BNDD4).' +
-      '\n\n' +
-      'Um evento macro de alta da Selic é disparado (lição 2.4): o Tesouro Selic passa a render mais no ' +
-      'mesmo instante em que os fundamentos das duas empresas sentem o efeito sistêmico da Selic (lição ' +
-      '2.8) e o preço de ambas reage ao choque especulativo do evento (lição 2.5).',
-    microDecisionPrompt:
-      'Juntando o que você já viu nas lições 2.8 e 3.2.' +
-      '\n\n' +
-      'Nesse cenário de alta de Selic, qual das duas ações tende a sentir o efeito maior nos fundamentos, ' +
-      'VALR3 (Conservador) ou BNDD4 (Sofisticado), e o que acontece com o Tesouro Selic ao mesmo tempo?',
+    centralConcept: 'Uma carteira diante de uma alta de juros',
+    scenarioText: legacyText(BLOCKS_3_4, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_3_4, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: [
-      'VALR3 sente mais o efeito, e o Tesouro Selic passa a render menos',
-      'VALR3 sente mais o efeito, e o Tesouro Selic passa a render mais',
-      'BNDD4 sente mais o efeito, e o Tesouro Selic passa a render menos',
-      'BNDD4 sente mais o efeito, e o Tesouro Selic passa a render mais',
-    ],
-    microDecisionCorrectOption: 3,
-    revelationText:
-      'BNDD4 (Sofisticado) sente o efeito maior nos fundamentos, o mesmo padrão da lição 2.8, enquanto o ' +
-      'Tesouro Selic passa a render mais, acompanhando a taxa que agora subiu (lição 1.2).' +
-      '\n\n' +
-      'É por isso que um portfólio dividido entre renda fixa e ações de perfis diferentes (lição 3.1) reage ' +
-      'de um jeito que nenhum ativo isolado reproduz sozinho.' +
-      '\n\n' +
-      'A parte em Tesouro Selic ganha justamente no momento em que a parte mais sofisticada da carteira ' +
-      'sofre mais, amortecendo o resultado total.' +
-      '\n\n' +
-      'Entender isso, e não uma fórmula nova, é a diferença entre reagir a um evento macro no susto e já ' +
-      'ter, desde a composição do portfólio (perfil de risco, lição 3.2, e produto certo pro prazo certo, ' +
-      'lição 3.3), uma resposta pronta pra ele.' +
-      '\n\n' +
-      'Você concluiu a trilha guiada. A partir de agora, todo o Mercado (renda fixa e renda variável, ' +
-      'sandbox e ao vivo) está disponível sem nenhuma restrição de lição.',
-    unlocksDescription:
-      'Estratégia completa e testada contra um evento real, trilha guiada concluída, mundo aberto liberado ' +
-      'por completo',
+    microDecisionOptions: ['Sobe', 'Cai', 'Não muda'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_3_4, 'revelation'),
+    blocks: BLOCKS_3_4,
+    unlocksDescription: 'Trilha guiada concluída e Mercado liberado por completo',
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: 'orcamento-para-onde-vai',
+    code: 'F.1',
+    trackNumber: 4,
+    trackName: 'Trilha F: Finanças do dia a dia',
+    sortOrder: 42,
+    title: 'Para onde vai seu dinheiro',
+    centralConcept: 'Orçamento: renda menos gastos é o que sobra para investir',
+    scenarioText: legacyText(BLOCKS_ORCAMENTO, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_ORCAMENTO, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['R$ 400', 'R$ 600', 'R$ 700'],
+    microDecisionCorrectOption: 1,
+    revelationText: legacyText(BLOCKS_ORCAMENTO, 'revelation'),
+    blocks: BLOCKS_ORCAMENTO,
+    unlocksDescription: null,
+    unlocksKeys: [],
+    unlocksAssetTicker: null,
+  },
+  {
+    stableKey: 'divida-os-juros-do-outro-lado',
+    code: 'F.2',
+    trackNumber: 4,
+    trackName: 'Trilha F: Finanças do dia a dia',
+    sortOrder: 43,
+    title: 'Dívida: os juros do outro lado',
+    centralConcept:
+      'Juros compostos contra você: rotativo, cheque especial, consignado e quitar primeiro',
+    scenarioText: legacyText(BLOCKS_DIVIDA, 'scenario'),
+    microDecisionPrompt: legacyText(BLOCKS_DIVIDA, 'microDecision'),
+    microDecisionType: 'reflection',
+    microDecisionAssetTicker: null,
+    microDecisionOptions: ['Perto de R$ 1.100', 'Perto de R$ 1.960', 'Perto de R$ 2.520'],
+    microDecisionCorrectOption: 2,
+    revelationText: legacyText(BLOCKS_DIVIDA, 'revelation'),
+    blocks: BLOCKS_DIVIDA,
+    unlocksDescription: null,
     unlocksKeys: [],
     unlocksAssetTicker: null,
   },
@@ -1140,7 +1096,7 @@ export async function upsertLessonSeed(db: Database, seed: LessonSeed) {
 // restrição de unicidade no meio do UPDATE; (3) a nova é inserida; (4) quem já
 // satisfez (concluiu ou foi dispensado de) `position` lições ou mais recebe a
 // dispensa dela, porque já passou daquele ponto; quem ainda não chegou lá é
-// bloqueado por ela normalmente. `position` é 1-based e igual a `seed.sortOrder`.
+// bloqueado por ela normalmente (a conta ignora a Trilha F, paralela). `position` é 1-based e igual a `seed.sortOrder`.
 //
 // `allSeeds` (RC.4.6): quando a inserção também renumera o `code` das lições
 // seguintes (1.3 vira 1.4, 1.4 vira 1.5...), o `code` é único e a renumeração em
@@ -1188,7 +1144,14 @@ export async function insertLessonInMiddle(
     const passed = await tx
       .select({ userId: userLessonProgress.userId })
       .from(userLessonProgress)
-      .where(or(isNotNull(userLessonProgress.completedAt), isNotNull(userLessonProgress.waivedAt)))
+      .innerJoin(lessons, eq(lessons.id, userLessonProgress.lessonId))
+      .where(
+        and(
+          or(isNotNull(userLessonProgress.completedAt), isNotNull(userLessonProgress.waivedAt)),
+          // Trilha paralela (RC.4.4) fora da corrente: não conta como "já passou daquele ponto".
+          notInArray(lessons.trackNumber, [...PARALLEL_TRACK_NUMBERS]),
+        ),
+      )
       .groupBy(userLessonProgress.userId)
       .having(sql`count(*) >= ${seed.sortOrder}`)
     if (passed.length > 0) {

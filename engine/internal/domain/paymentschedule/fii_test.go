@@ -55,3 +55,45 @@ func TestFIIPayoutDays_DozePorAnoEEmDiaUtil(t *testing.T) {
 		}
 	}
 }
+
+func TestFIIPayoutOn_UmaDataExPorMesEDozePorAno(t *testing.T) {
+	exDays := 0
+	for day := 1; day <= 365*2; day++ {
+		com, ex, pay, ok := FIIPayoutOn(day, 10)
+		if !ok {
+			continue
+		}
+		exDays++
+		if ex != day || com >= ex || pay <= ex || !simcalendar.IsBusinessDay(ex) || !simcalendar.IsBusinessDay(pay) {
+			t.Fatalf("dia %d: com %d ex %d pay %d", day, com, ex, pay)
+		}
+	}
+	if exDays < 23 || exDays > 24 {
+		t.Errorf("em 2 anos esperava ~24 datas-ex, veio %d", exDays)
+	}
+}
+
+func TestFIIPayoutOn_PagamentoDoQuintoAoDecimoQuintoDiaUtil(t *testing.T) {
+	for n := 5; n <= 15; n++ {
+		for day := 1; day <= 800; day++ {
+			if _, ex, pay, ok := FIIPayoutOn(day, n); ok {
+				firstOfMonth := simcalendar.DayOf(simcalendar.DateOf(pay).AddDate(0, 0, -simcalendar.DateOf(pay).Day()+1))
+				if got := simcalendar.BusinessDaysBetween(firstOfMonth-1, pay); got != n {
+					t.Fatalf("n=%d ex=%d pay=%d: %dº dia útil do mês", n, ex, pay, got)
+				}
+			}
+		}
+	}
+}
+
+func TestLastFIIExDay(t *testing.T) {
+	for day := 40; day <= 800; day++ {
+		ex, ok := LastFIIExDay(day)
+		if !ok || ex > day || day-ex > 35 {
+			t.Fatalf("dia %d: ex %d ok %v", day, ex, ok)
+		}
+		if _, _, _, isEx := FIIPayoutOn(ex, 10); !isEx {
+			t.Fatalf("dia %d: %d não é data-ex", day, ex)
+		}
+	}
+}

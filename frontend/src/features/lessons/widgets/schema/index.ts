@@ -34,7 +34,20 @@ export const WIDGET_IDS = [
     'roe-lab',
     'multiples-calculator',
     'debt-thermometer',
+    'dividend-timeline',
+    'dividend-net-calculator',
+    'etf-shock-simulator',
+    'fii-monthly-calendar',
     'fee-drag',
+    'risk-return-scatter',
+    'allocation-donut',
+    'risk-profile-quiz',
+    'behavior-bias-quiz',
+    'budget-split',
+    'debt-snowball',
+    'pay-or-invest',
+    'equity-tax-calculator',
+    'tax-decision-tree',
     'savings-vs-selic',
     'growth-calculator',
     'fixed-income-comparison',
@@ -188,6 +201,41 @@ export const widgetPropsSchemas = {
         financialExpense: z.number().min(0).max(100_000).default(50),
         cdiSharePct: z.number().min(0).max(100).default(100),
     }),
+    'dividend-timeline': z.object({
+        quantity: z.number().int().min(1).max(1_000_000).default(100),
+        valuePerShare: z.number().min(0.01).max(1000).default(1),
+        comDay: z.number().int().min(1).max(5).default(3),
+        paymentDay: z.number().int().min(8).max(30).default(12),
+    }),
+    'dividend-net-calculator': z.object({
+        quantity: z.number().int().min(1).max(1_000_000).default(1000),
+        valuePerShare: z.number().min(0.01).max(1000).default(1),
+        kind: z.enum(['dividend', 'jcp']).default('dividend'),
+        otherSameMonth: z.number().min(0).max(200_000).default(0),
+    }),
+    'etf-shock-simulator': z
+        .object({
+            holdings: z
+                .array(z.object({ name: z.string().min(1).max(30), weightPct: z.number().min(1).max(100) }))
+                .min(2)
+                .max(6)
+                .default([
+                    { name: 'Empresa A', weightPct: 40 },
+                    { name: 'Empresa B', weightPct: 20 },
+                    { name: 'Empresa C', weightPct: 25 },
+                    { name: 'Empresa D', weightPct: 15 },
+                ]),
+            navBefore: z.number().min(10).max(1000).default(100),
+        })
+        .refine((props) => Math.abs(props.holdings.reduce((sum, h) => sum + h.weightPct, 0) - 100) < 0.01, {
+            message: 'Os pesos da cesta precisam somar 100%',
+        }),
+    'fii-monthly-calendar': z.object({
+        monthlyPerShare: z.number().min(0.01).max(50).default(1.1),
+        shares: z.number().int().min(1).max(1_000_000).default(100),
+        price: z.number().min(1).max(1000).default(100),
+        payoutBusinessDay: z.number().int().min(5).max(15).default(10),
+    }),
     'fee-drag': z.object({
         initial: z.number().min(0).max(1_000_000).default(10000),
         monthly: z.number().min(0).max(100_000).default(0),
@@ -196,6 +244,44 @@ export const widgetPropsSchemas = {
         feeBPct: z.number().min(0).max(4).default(2),
         years: z.number().int().min(1).max(40).default(20),
     }),
+    'risk-return-scatter': z.object({
+        highlight: z.enum(['savings', 'selic-bond', 'cdb', 'ipca-bond', 'fii', 'stocks']).default('stocks'),
+        profile: z.enum(['none', 'conservative', 'moderate', 'aggressive']).default('none'),
+    }),
+    'allocation-donut': z.object({
+        profile: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
+        amount: z.number().min(100).max(1_000_000).default(10000),
+    }),
+    'risk-profile-quiz': emptyProps,
+    'behavior-bias-quiz': emptyProps,
+    'budget-split': z.object({
+        income: z.number().min(1000).max(20_000).default(4000),
+        housing: z.number().min(0).max(10_000).default(1500),
+        food: z.number().min(0).max(10_000).default(800),
+        transport: z.number().min(0).max(10_000).default(400),
+        leisure: z.number().min(0).max(10_000).default(300),
+        debts: z.number().min(0).max(10_000).default(200),
+        other: z.number().min(0).max(10_000).default(200),
+    }),
+    'debt-snowball': z.object({
+        balance: z.number().min(500).max(50_000).default(5000),
+        monthlyRatePct: z.number().min(0.5).max(16).default(5),
+        payment: z.number().min(50).max(5000).default(600),
+    }),
+    'pay-or-invest': z.object({
+        amount: z.number().min(100).max(100_000).default(1000),
+        debtMonthlyPct: z.number().min(0.5).max(16).default(5),
+        investAnnualPct: z.number().min(4).max(20).default(14),
+        irPct: z.number().min(0).max(22.5).default(15),
+    }),
+    'equity-tax-calculator': z.object({
+        kind: z.enum(['swing', 'daytrade']).default('swing'),
+        assetClass: z.enum(['stock', 'etf', 'fii']).default('stock'),
+        salesMonth: z.number().min(0).max(100_000).default(15000),
+        profit: z.number().min(-10_000).max(20_000).default(2000),
+        lossCarry: z.number().min(0).max(10_000).default(0),
+    }),
+    'tax-decision-tree': emptyProps,
     'rating-ruler': z.object({ highlight: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).default('AA') }),
     'savings-vs-selic': z.object({
         selicPct: z.number().min(2).max(16).default(14),

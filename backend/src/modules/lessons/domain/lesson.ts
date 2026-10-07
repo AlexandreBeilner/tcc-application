@@ -42,6 +42,18 @@ export type MicroDecisionType =
 // "quantas lições ele satisfez" (concluídas ou dispensadas), não "quantas
 // concluiu". Isso permite criar/despublicar lição no meio sem bloquear nem
 // fazer pular ninguém: a lista recebida deve ser só das lições publicadas.
+//
+// Trilhas paralelas (RC.4.4, decisão D13): a Trilha F "Finanças do dia a dia"
+// fica fora dessa corrente. Suas lições estão sempre disponíveis, em qualquer
+// ordem, não contam para `satisfiedCount` (nem para as chaves de produto que
+// ele libera) e não bloqueiam nem dispensam ninguém quando entram. Ficam no fim
+// do `sortOrder` para nunca caírem "no meio" da corrente.
+export const PARALLEL_TRACK_NUMBERS: readonly number[] = [4]
+
+export function isParallelTrack(trackNumber: number): boolean {
+  return PARALLEL_TRACK_NUMBERS.includes(trackNumber)
+}
+
 export function isUnlocked(position: number, satisfiedCount: number): boolean {
   return position <= satisfiedCount + 1
 }
@@ -66,10 +78,15 @@ export interface Progression {
 }
 
 export function buildProgression(
-  lessons: Pick<LessonSummary, 'id' | 'sortOrder'>[],
+  lessons: Pick<LessonSummary, 'id' | 'sortOrder' | 'trackNumber'>[],
   progress: (Pick<LessonProgressSnapshot, 'completedAt' | 'waivedAt'> & { lessonId: string })[],
 ): Progression {
-  const ordered = [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
+  const parallelIds = new Set(
+    lessons.filter((lesson) => isParallelTrack(lesson.trackNumber)).map((lesson) => lesson.id),
+  )
+  const ordered = lessons
+    .filter((lesson) => !parallelIds.has(lesson.id))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
   const positionById = new Map(ordered.map((lesson, index) => [lesson.id, index + 1]))
   // Só conta progresso de lição que está na lista: lição despublicada sai da
   // conta de todos, inclusive de quem a tinha concluído.
@@ -80,6 +97,7 @@ export function buildProgression(
   return {
     satisfiedCount,
     isUnlocked(lessonId) {
+      if (parallelIds.has(lessonId)) return true
       const position = positionById.get(lessonId)
       return position !== undefined && isUnlocked(position, satisfiedCount)
     },
@@ -305,10 +323,12 @@ export function microDecisionResultFor(
 // mesmos dados de `GET /lessons` — sem endpoint novo.
 export function unlockedKeysFor(
   satisfiedCount: number,
-  lessons: Pick<LessonSummary, 'sortOrder' | 'unlocksKeys'>[],
+  lessons: Pick<LessonSummary, 'sortOrder' | 'unlocksKeys' | 'trackNumber'>[],
 ): Set<string> {
   const keys = new Set<string>()
-  const ordered = [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
+  const ordered = lessons
+    .filter((lesson) => !isParallelTrack(lesson.trackNumber))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
   for (const lesson of ordered.slice(0, satisfiedCount)) {
     for (const key of lesson.unlocksKeys) {
       keys.add(key)
