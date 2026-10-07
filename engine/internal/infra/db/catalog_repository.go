@@ -63,13 +63,54 @@ func (r *CatalogRepository) FindCompanyByCNPJ(ctx context.Context, cnpj string) 
 }
 
 func (r *CatalogRepository) CreateCompany(ctx context.Context, c catalog.Company) (string, error) {
+	policy := c.DividendPolicy
+	if policy == "" {
+		policy = catalog.DividendQuarterly
+	}
 	var id string
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct, quality_multiplier)
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct, quality_multiplier,
+		                        report_offset_days, dividend_policy, com_lag_days, payment_lag_days, schedule_assigned)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
 		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays, c.BaseGrowthPct, c.QualityMultiplier,
+		c.ReportOffsetDays, string(policy), c.ComLagDays, c.PaymentLagDays, c.ScheduleAssigned,
 	).Scan(&id)
 	return id, err
+}
+
+// AssignCompanyScheduleIfUnassigned (RC.6.7) grava a agenda de balanço e proventos derivada do
+// ticker numa empresa que ainda não recebeu uma (schedule_assigned = false), e só nela:
+// o seed idempotente leva empresas criadas antes da migration 000048 para a agenda escalonada
+// sem sobrescrever o que um admin tenha editado. Devolve se alterou. É dado cadastral, não
+// move saldo nem posição, então não passa por market_events.
+func (r *CatalogRepository) AssignCompanyScheduleIfUnassigned(ctx context.Context, id string, c catalog.Company) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE companies
+		    SET report_offset_days = $2, dividend_policy = $3, com_lag_days = $4, payment_lag_days = $5,
+		        schedule_assigned = true
+		  WHERE id = $1 AND schedule_assigned = false`,
+		id, c.ReportOffsetDays, string(c.DividendPolicy), c.ComLagDays, c.PaymentLagDays,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// AssignFIIScheduleIfUnassigned é o equivalente de AssignCompanyScheduleIfUnassigned para o dia
+// útil de pagamento do FII (fii_details.payout_business_day).
+func (r *CatalogRepository) AssignFIIScheduleIfUnassigned(ctx context.Context, assetID string, payoutBusinessDay int) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE fii_details SET payout_business_day = $2, schedule_assigned = true
+		  WHERE asset_id = $1 AND schedule_assigned = false`,
+		assetID, payoutBusinessDay,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // FindAssetByTicker devolve o id do ativo já cadastrado com este ticker,
@@ -223,10 +264,16 @@ func (r *CatalogRepository) AttachETFFundAccount(ctx context.Context, assetID, f
 }
 
 func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string, details fii.Details) error {
+	payoutDay, assigned := details.PayoutBusinessDay, true
+	if payoutDay == 0 {
+		payoutDay, assigned = fii.DefaultPayoutBusinessDay, false
+	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value,
+		                          payout_business_day, schedule_assigned)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador, details.PortfolioValue,
+		payoutDay, assigned,
 	)
 	return err
 }

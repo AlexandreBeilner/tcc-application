@@ -66,8 +66,26 @@
     color: var(--color-brand-300);
 }
 
-.more {
-    font-size: 10px;
+.mineMark {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 5px;
+    border-radius: 9px;
+    background: var(--color-brand-500);
+    color: var(--color-bg-base);
+    font-size: 10.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.marketMark {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 3px;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: 9px;
+    color: var(--color-text-secondary);
 }
 
 .status {

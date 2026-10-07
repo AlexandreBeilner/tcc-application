@@ -13,14 +13,17 @@ interface CalendarDayStripProps {
     onSelect: (day: number) => void
 }
 
-const MAX_MARKS = 2
+// Um marcador do usuário (número em pílula cheia) e um do mercado (ícone vazado):
+// formas diferentes, para a relevância nunca depender só da cor.
 
 function dayLabel(day: CalendarDay, todayDay: number, reportDay: number): string {
     const parts = [`${weekdayLong(day.weekday)} ${formatDayMonth(day.date)}`]
     if (day.simulated_day === todayDay) parts.push('hoje')
     if (!day.market_open) parts.push('mercado fechado')
     if (day.simulated_day === reportDay) parts.push('fim do trimestre')
-    if (day.events.length > 0) parts.push(`${day.events.length} ${day.events.length === 1 ? 'fato' : 'fatos'}`)
+    const { mine_count: mine, market_count: market } = day.summary
+    if (mine > 0) parts.push(`${mine} para você`)
+    if (market > 0) parts.push(`${market} no mercado`)
     return parts.join(', ')
 }
 
@@ -55,7 +58,8 @@ export function CalendarDayStrip({ days, todayDay, reportDay, selectedDay, onSel
                 ]
                     .filter(Boolean)
                     .join(' ')
-                const marks = day.events.slice(0, MAX_MARKS)
+                const marketEvent = day.events.find((event) => event.relevance !== 'mine')
+                const mineEvent = day.events.find((event) => event.relevance === 'mine')
                 return (
                     <button
                         key={day.simulated_day}
@@ -69,10 +73,17 @@ export function CalendarDayStrip({ days, todayDay, reportDay, selectedDay, onSel
                         <span className={styles.weekday}>{weekdayShort(day.weekday)}</span>
                         <span className={styles.dayNumber}>{formatDayOfMonth(day.date)}</span>
                         <span className={styles.marks}>
-                            {marks.map((event, index) => (
-                                <CalendarKindIcon key={`${event.kind}-${index}`} kind={event.kind} size={13} />
-                            ))}
-                            {day.events.length > MAX_MARKS && <span className={styles.more}>+{day.events.length - MAX_MARKS}</span>}
+                            {day.summary.mine_count > 0 && (
+                                <span className={styles.mineMark} data-testid="mine-mark">
+                                    {mineEvent && <CalendarKindIcon kind={mineEvent.kind} size={11} />}
+                                    {day.summary.mine_count}
+                                </span>
+                            )}
+                            {day.summary.market_count > 0 && (
+                                <span className={styles.marketMark} data-testid="market-mark">
+                                    {marketEvent ? <CalendarKindIcon kind={marketEvent.kind} size={12} /> : '·'}
+                                </span>
+                            )}
                         </span>
                         <span className={styles.status}>
                             {isToday ? 'hoje' : day.simulated_day === reportDay ? 'fim do trim.' : !day.market_open ? 'fechado' : ''}

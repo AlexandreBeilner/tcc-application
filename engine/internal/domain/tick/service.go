@@ -273,12 +273,16 @@ func (s *Service) execute(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 
-	pendingDividends, err := s.repo.ListPendingDividendPayments(ctx)
+	pendingDividends, err := s.repo.ListPendingDividendPayments(ctx, current.Day+1)
 	if err != nil {
 		return Result{}, err
 	}
 
 	result := Advance(current, assets, companies, macroEvents, dividendPayers, pendingDividends, s.selicCfg, s.ipcaCfg, s.seed)
+
+	if err := s.fillDividendRecipients(ctx, &result); err != nil {
+		return Result{}, err
+	}
 
 	dayIndex := result.State.Day - 1 // 0-based, mesma convenção de Advance
 
@@ -347,4 +351,50 @@ func (s *Service) execute(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 	return result, nil
+}
+
+// fillDividendRecipients tira os snapshots de elegíveis do dia (RC.6.11), antes das
+// rodadas de negociação: a posição que vale é a do fechamento da data-com, ou seja,
+// a de antes de qualquer ordem da data-ex. Cobre (a) os proventos gerados hoje já
+// com data-ex hoje (legado e FII) e (b) os declarados antes cuja data-ex chegou.
+// Só lê a posição dos ativos envolvidos, nunca do catálogo inteiro.
+func (s *Service) fillDividendRecipients(ctx context.Context, result *Result) error {
+	awaiting, err := s.repo.ListDividendsAwaitingSnapshot(ctx, result.State.Day)
+	if err != nil {
+		return err
+	}
+
+	need := make(map[string]struct{})
+	for _, rec := range result.NewDividends {
+		if !rec.SnapshotPending && len(rec.Recipients) == 0 {
+			need[rec.AssetID] = struct{}{}
+		}
+	}
+	for _, a := range awaiting {
+		need[a.AssetID] = struct{}{}
+	}
+	if len(need) == 0 {
+		return nil
+	}
+
+	assetIDs := make([]string, 0, len(need))
+	for id := range need {
+		assetIDs = append(assetIDs, id)
+	}
+	sort.Strings(assetIDs)
+	holders, err := s.repo.ListDividendHolders(ctx, assetIDs)
+	if err != nil {
+		return err
+	}
+
+	for i := range result.NewDividends {
+		rec := &result.NewDividends[i]
+		if !rec.SnapshotPending && len(rec.Recipients) == 0 {
+			rec.Recipients = holders[rec.AssetID]
+		}
+	}
+	for _, a := range awaiting {
+		result.Snapshots = append(result.Snapshots, DividendSnapshot{EventID: a.EventID, Recipients: holders[a.AssetID]})
+	}
+	return nil
 }

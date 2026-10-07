@@ -39,7 +39,9 @@ export function createFakeMarketCalendarReader(results: {
     async getCalendar(userId, query) {
       fake.getCalendarCalls.push({ userId, query })
       if (fake.errorToThrow) throw fake.errorToThrow
-      return results.calendar ?? { from_day: 0, to_day: 0, days: [] }
+      return (
+        results.calendar ?? { from_day: 0, to_day: 0, market_total: 0, market_shown: 0, days: [] }
+      )
     },
     async getTradingHalts() {
       if (fake.errorToThrow) throw fake.errorToThrow

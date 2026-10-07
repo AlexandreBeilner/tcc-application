@@ -24,6 +24,21 @@ describe('GetMarketCalendarUseCase', () => {
     ])
   })
 
+  it('repassa o escopo e o limite de mercado', async () => {
+    const reader = createFakeMarketCalendarReader({})
+    await new GetMarketCalendarUseCase(reader).execute({
+      userId: 'u-1',
+      scope: 'mine',
+      marketLimit: 0,
+    })
+    expect(reader.getCalendarCalls).toEqual([
+      {
+        userId: 'u-1',
+        query: { from: undefined, to: undefined, scope: 'mine', market_limit: 0 },
+      },
+    ])
+  })
+
   it('propaga erro do motor', async () => {
     const reader = createFakeMarketCalendarReader({})
     reader.errorToThrow = new Error('boom')

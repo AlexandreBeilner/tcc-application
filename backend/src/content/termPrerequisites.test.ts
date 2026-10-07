@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LESSON_SEEDS } from '../db/seedLessons'
+import { isParallelTrack } from '../modules/lessons/domain/lesson'
 import { findTermViolations, TERM_RULES } from '../modules/lessons/domain/termPrerequisites'
 
 // Modo estrito (RC.1.2): uso de termo antes da definição quebra o teste. Ligado
@@ -10,6 +11,7 @@ const STRICT = true
 const lessons = LESSON_SEEDS.map((l) => ({
   code: l.code,
   sortOrder: l.sortOrder,
+  parallel: isParallelTrack(l.trackNumber),
   text: [
     l.title,
     l.scenarioText,

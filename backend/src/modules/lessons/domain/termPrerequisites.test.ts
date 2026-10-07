@@ -36,4 +36,12 @@ describe('findTermViolations', () => {
   it('lição que não usa o termo não é acusada', () => {
     expect(findTermViolations(lessons({ A: 'nada', B: 'termoX' }), [rule])).toEqual([])
   })
+
+  it('lição de trilha paralela não herda definição de lição anterior', () => {
+    const list = [
+      { code: 'B', sortOrder: 1, text: 'define termoX' },
+      { code: 'F', sortOrder: 2, text: 'usa termoX', parallel: true },
+    ]
+    expect(findTermViolations(list, [rule]).map((x) => x.lessonCode)).toEqual(['F'])
+  })
 })

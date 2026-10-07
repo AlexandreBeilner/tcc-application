@@ -5,22 +5,58 @@
     flex-wrap: wrap;
 }
 
-.ring {
+.ringBox {
     position: relative;
-    width: 140px;
-    height: 140px;
-    border-radius: var(--radius-full);
+    width: 180px;
+    height: 180px;
     flex-shrink: 0;
 }
 
-/* Furo do donut — elevação por diferença de superfície (seção 2.2 do doc
-   de tokens), sem sombra, mesmo padrão do resto do dark mode. */
-.ring::after {
-    content: '';
+.ring {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.arc {
+    fill: none;
+    stroke-width: 14;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.arcDimmed {
+    opacity: 0.35;
+}
+
+/* Furo: mostra o total por padrão e a fatia ativa em hover/toque/foco. Não
+   captura ponteiro, para o arco abaixo continuar clicável. */
+.hole {
     position: absolute;
-    inset: 22px;
-    border-radius: var(--radius-full);
-    background: var(--color-bg-surface);
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0 28px;
+    pointer-events: none;
+}
+
+.holeLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.holeValue {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.holePercent {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
 }
 
 .legend {
@@ -29,14 +65,33 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
+    flex: 1;
+    min-width: 220px;
 }
 
 .legendItem {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font: inherit;
     font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.legendItemActive {
+    background: var(--color-bg-surface-elevated);
+}
+
+.legendItem:focus-visible {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: 1px;
 }
 
 .swatch {
@@ -54,4 +109,10 @@
     color: var(--color-text-primary);
     font-weight: 600;
     margin-left: auto;
+}
+
+.legendPercent {
+    color: var(--color-text-secondary);
+    min-width: 3.5em;
+    text-align: right;
 }

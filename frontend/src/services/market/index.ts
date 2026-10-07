@@ -7,6 +7,7 @@ import type {
     Company,
     IndicatorHistoryEntry,
     MarketCalendar,
+    MarketCalendarOptions,
     MarketClock,
     TradingHaltStatus,
     MarketEvent,
@@ -26,7 +27,19 @@ import type {
 
 export type { ProductLockedErrorBody } from './types'
 
-export type { CalendarDay, CalendarEvent, CalendarEventKind, MarketCalendar, MarketClock, TradingHaltStatus } from './types'
+export type {
+    CalendarDay,
+    CalendarDaySummary,
+    CalendarEvent,
+    CalendarEventKind,
+    CalendarRelevance,
+    CalendarRelevanceReason,
+    CalendarScope,
+    MarketCalendar,
+    MarketCalendarOptions,
+    MarketClock,
+    TradingHaltStatus,
+} from './types'
 
 export type {
     AssetBook,
@@ -118,10 +131,14 @@ export function getMarketClock(token: string): Promise<MarketClock> {
 
 // Linha do tempo do calendário (tarefa S.10/S.12). `from`/`to` em `AAAA-MM-DD`,
 // janela máxima de 92 dias; o backend sempre injeta o usuário do token.
-export function getMarketCalendar(token: string, from?: string, to?: string): Promise<MarketCalendar> {
+// `scope=mine` devolve só o que afeta o usuário; sem `scope` o motor devolve tudo,
+// e sem `marketLimit` usa o padrão dele (50 fatos de mercado, os mais próximos de hoje).
+export function getMarketCalendar(token: string, from?: string, to?: string, options: MarketCalendarOptions = {}): Promise<MarketCalendar> {
     const params = new URLSearchParams()
     if (from) params.set('from', from)
     if (to) params.set('to', to)
+    if (options.scope) params.set('scope', options.scope)
+    if (options.marketLimit !== undefined) params.set('market_limit', String(options.marketLimit))
     const query = params.size > 0 ? `?${params.toString()}` : ''
     return apiRequest<MarketCalendar>(`/market/calendar${query}`, { token })
 }

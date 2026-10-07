@@ -46,6 +46,7 @@
     --color-track-1: #34c77b;
     --color-track-2: #e5484d;
     --color-track-3: #f0a202;
+    --color-track-f: #2dd4bf;
 
     /* Tipografia — fallback system-ui até a decisão de self-host/Google Fonts
      de Inter/Sora ser tomada (pendência explícita da 1.0, seção 7). */
@@ -134,6 +135,7 @@
     --color-track-1: #167a4a;
     --color-track-2: #c4313a;
     --color-track-3: #8a5b08;
+    --color-track-f: #0f766e;
 
     /* Passos "light" da mesma paleta categórica, validados contra a
      superfície clara (`--color-bg-surface: #ffffff`) — checks rodados

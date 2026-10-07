@@ -804,7 +804,7 @@ export const BLOCKS_1_10: LessonBlocks = {
         id: 'prefixado-ou-ipca-mais',
         kind: 'single',
         prompt:
-          'Prefixado de 13% e IPCA+ de 7%: a inflação de equilíbrio é cerca de 5,6%. Você espera 7%. Qual rende mais?',
+          'Com taxas de exemplo, prefixado de 13% e IPCA+ de 7%: a inflação de equilíbrio é cerca de 5,6%. Você espera 7%. Qual rende mais?',
         options: ['O prefixado', 'O IPCA+', 'Empatam'],
         answer: 1,
         explanation:
@@ -910,14 +910,14 @@ export const BLOCKS_1_11: LessonBlocks = {
         id: 'taxa-equivalente-cri',
         widget: 'equivalent-rate',
         props: { exemptRatePct: 11, cdbRatePct: 12, daysPresets: [720, 360] },
-        caption: 'Um CRI isento de 11% equivale a quanto de um CDB tributado?',
+        caption: 'Taxas de exemplo. Um CRI isento de 11% equivale a quanto de um CDB tributado?',
       },
       {
         type: 'check',
         id: 'taxa-bruta-cri',
         kind: 'numeric',
         prompt:
-          'Um CRI isento paga 11% ao ano. Com imposto de 15%, qual taxa bruta um CDB precisa pagar para empatar?',
+          'Um CRI isento paga 11% ao ano (taxa de exemplo). Com imposto de 15%, qual taxa bruta um CDB precisa pagar para empatar?',
         answer: 12.94,
         tolerance: 0.02,
         unit: '%',

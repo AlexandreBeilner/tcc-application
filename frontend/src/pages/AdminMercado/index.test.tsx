@@ -6,6 +6,7 @@ import { useAuth } from '../../features/auth/AuthContext'
 import { listMarketMonitor, listTradingHalts } from '../../services/admin'
 import type { MonitorAsset } from '../../services/admin'
 import { getIndicatorHistory, getMarketCalendar, getMarketClock } from '../../services/market'
+import { calendarDay, calendarWindow } from '../../test/calendarFixtures'
 import { AdminMercado } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -103,19 +104,12 @@ describe('AdminMercado (tela 10.6)', () => {
         vi.mocked(getMarketCalendar)
             .mockReset()
             .mockResolvedValue({
-                from_day: 42,
-                to_day: 72,
+                ...calendarWindow(42, 72),
                 days: [
-                    {
-                        simulated_day: 50,
-                        date: '2027-01-21',
-                        weekday: 'thu',
-                        market_open: true,
-                        events: [
-                            { kind: 'copom', scope: 'global', future: true },
-                            { kind: 'order_executed', scope: 'user', future: false, ticker: 'ACME3', side: 'buy' },
-                        ],
-                    },
+                    calendarDay({ simulated_day: 50, date: '2027-01-21', weekday: 'thu', market_open: true }, [
+                        { kind: 'copom', scope: 'global', future: true },
+                        { kind: 'order_executed', scope: 'user', future: false, ticker: 'ACME3', side: 'buy' },
+                    ]),
                 ],
             })
     })

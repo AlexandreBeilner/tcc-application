@@ -1,4 +1,5 @@
 import type { Lesson } from '../../../services/lessons'
+import { isParallelTrack } from '../../../utils/tracks'
 import type { NextUnlock } from './types'
 
 export type { NextUnlock } from './types'
@@ -17,7 +18,9 @@ export type { NextUnlock } from './types'
 // posição dela na lista menos a quantidade já satisfeita (concluída ou
 // dispensada, N.24). Lição dispensada nunca é alvo: o usuário já passou dela
 // e o desbloqueio dela já vale.
-export function nextUnlockFor(lessons: Lesson[]): NextUnlock | null {
+export function nextUnlockFor(allLessons: Lesson[]): NextUnlock | null {
+    // Trilha paralela (RC.4.4) não desbloqueia nada e não entra na corrente.
+    const lessons = allLessons.filter((lesson) => !isParallelTrack(lesson.trackNumber))
     const satisfiedCount = lessons.filter((lesson) => lesson.status === 'completed' || lesson.waived).length
     const targetIndex = lessons.findIndex((lesson) => lesson.status !== 'completed' && !lesson.waived && Boolean(lesson.unlocksDescription))
 

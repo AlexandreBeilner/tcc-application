@@ -7,7 +7,7 @@ import {
     TRACK_HUB_SPARKLINE_WIDTH,
 } from '../../../features/lessons/trackHubSparkline'
 import { Locked } from '../../atoms/Locked'
-import { TRACKS } from '../../../utils/tracks'
+import { TRACKS, isParallelTrack } from '../../../utils/tracks'
 import type { TrackCardProps } from './types'
 import styles from './index.module.css'
 
@@ -84,6 +84,8 @@ export function TrackCard({ group, onClick }: TrackCardProps) {
                     ))}
                 </span>
             </span>
+
+            {isParallelTrack(group.trackNumber) && <span className={styles.hint}>Trilha paralela: abra em qualquer ordem</span>}
 
             {status === 'locked' && (
                 <span className={styles.hint}>
