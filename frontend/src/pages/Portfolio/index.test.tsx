@@ -133,7 +133,7 @@ describe('Portfolio (tela 2.1)', () => {
         renderPortfolio()
 
         await waitFor(() => expect(screen.getByText('Mercado Ao Vivo')).toBeInTheDocument())
-        expect(screen.getByText('Sandbox')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver extrato do modo aprendizado' })).not.toBeInTheDocument()
         expect(screen.getByText('Ações')).toBeInTheDocument()
         expect(screen.queryByText('Você ainda não tem nenhuma posição')).not.toBeInTheDocument()
     })

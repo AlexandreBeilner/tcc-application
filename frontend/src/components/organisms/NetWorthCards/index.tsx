@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { CandlestickChart, FlaskConical } from 'lucide-react'
+import { CandlestickChart, ChevronRight, FlaskConical } from 'lucide-react'
 import { Card } from '../../atoms/Card'
 import { calculateAccountTotals } from '../../../features/portfolio/accountTotals'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -19,6 +19,12 @@ export type { NetWorthCardsProps } from './types'
 export function NetWorthCards({ account }: NetWorthCardsProps) {
     const navigate = useNavigate()
     const { liveInvested, sandboxInvested } = calculateAccountTotals(account.positions, account.fixedIncomePositions)
+    // Faixa do Sandbox só com posição de treino aberta (D5 opção B); sem ela
+    // vira uma dica de uma linha (D7), nunca um card com R$ 0,00. Posição
+    // zerada continua vindo da API (UPSERT, não DELETE), então checa quantidade.
+    const hasSandboxPosition = [...account.positions, ...account.fixedIncomePositions].some(
+        (position) => position.isSandbox && position.quantity > 0,
+    )
     const livePatrimony = account.cashBalance + liveInvested
 
     return (
@@ -45,21 +51,27 @@ export function NetWorthCards({ account }: NetWorthCardsProps) {
                 </span>
             </Card>
 
-            <Card
-                className={`${styles.cardLayout} ${styles.sandbox}`}
-                onClick={() => navigate('/extrato')}
-                aria-label="Ver extrato do modo aprendizado"
-            >
-                <span className={styles.sandboxBadge}>Modo Aprendizado</span>
-                <span className={styles.headerLeft}>
+            {hasSandboxPosition ? (
+                <button
+                    type="button"
+                    className={styles.sandboxStrip}
+                    onClick={() => navigate('/extrato?escopo=aprendizado')}
+                    aria-label="Ver extrato do modo aprendizado"
+                >
                     <span className={styles.iconBadge} aria-hidden="true">
                         <FlaskConical size={15} strokeWidth={2} />
                     </span>
-                    <span className={styles.label}>Sandbox</span>
-                </span>
-                <span className={`${styles.total} tabular-nums`}>{formatCurrency(sandboxInvested)}</span>
-                <span className={styles.detail}>Não conta pro ranking</span>
-            </Card>
+                    <span className={styles.sandboxBadge}>Modo Aprendizado</span>
+                    <span className={`${styles.sandboxValue} tabular-nums`}>{formatCurrency(sandboxInvested)}</span>
+                    <span className={styles.sandboxNote}>Não conta pro ranking</span>
+                    <ChevronRight size={16} strokeWidth={2} aria-hidden="true" className={styles.chevron} />
+                </button>
+            ) : (
+                <p className={styles.sandboxHint}>
+                    <FlaskConical size={14} strokeWidth={2} aria-hidden="true" />
+                    Modo Aprendizado: pratique nas lições sem risco. Não conta pro ranking.
+                </p>
+            )}
         </div>
     )
 }

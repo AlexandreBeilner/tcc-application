@@ -96,7 +96,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** nav primária ("Portfólio"), destino padrão após login recorrente.
 - **Conteúdo:**
   - Card de patrimônio do **mercado ao vivo** (o que conta pro ranking) — saldo total, variação percentual, total investido.
-  - Card separado, visualmente distinto (ex: fundo diferente, selo "modo aprendizado"), de patrimônio do **sandbox** — reforça a separação exigida na seção 3.1 da spec.
+  - **Faixa compacta** (não card), visualmente distinta (fundo diferente, selo "modo aprendizado"), de patrimônio do **sandbox** — reforça a separação exigida na seção 3.1 da spec. Só aparece com posição de treino aberta e leva a `/extrato?escopo=aprendizado`; sem posição, vira uma dica de uma linha, nunca "R$ 0,00" (decisões D5 opção B e D7 da revisão de trilhas, 2026-10-03; RC.7.4).
   - Indicador de **XP/nível** e **streak diário** (mecânicas da seção 6, hoje sem espaço em nenhuma tela).
   - Gráfico de rosca de distribuição de investimentos (herdado do wireframe original, Fig. 3).
   - Atalho "Retomar lição" se a trilha não estiver concluída — link direto pra **4.2 Lição** no ponto onde o usuário parou.

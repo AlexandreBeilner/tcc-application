@@ -863,7 +863,7 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
 | RC.7.1 ✅ | **Marcador "Você está aqui" e grade do mapa (T1).** Etiqueta como filha do `.nodeWrap` do nó atual (`TrackPath/index.tsx:110-114`, `index.module.css:225-244`), centrada acima do círculo, com z-index; grade em CSS no `.canvas` com token `--grid-line` para claro e escuro (hoje `rgba(255,255,255,0.035)` fixo, invisível no tema claro), `preserveAspectRatio="none"` removido; atualizar `identidade-visual-tokens.md`; checar também a dica `.hint` e a bandeira expandida | em 360/768/1280px a etiqueta nunca intersecta nó ou título; grade cobre o canvas inteiro em trilhas de 2, 4 e 15 lições, nos dois temas; testes RTL e `getBoundingClientRect` |
 | RC.7.2 ✅ | **Dados do donut (T2, mecânico).** Filtrar `isSandbox` (SAND3 entra hoje), base `markPrice ?? averagePrice` (D6) | soma das fatias igual ao `liveInvested` do card; nenhum ticker de Sandbox |
 | RC.7.3 ✅ | **Donut interativo com R$ (T3).** Arcos em SVG (hoje um `conic-gradient` em `role="img"`), tooltip em hover (desktop) e toque/clique (mobile), foco por teclado (Tab, Enter, setas, Esc), furo mostra o total por padrão, legenda com R$ e %, `aria-label` por fatia, sem lib nova | informação nunca só em hover; R$ e % corretos; 3 breakpoints |
-| RC.7.4 | **Cards Mercado Ao Vivo e Sandbox (T4).** Implementar a opção decidida em D5 (recomendada B: faixa compacta que só aparece com posição Sandbox, destinos distintos, ex. `/extrato?escopo=aprendizado`); estado vazio sem "R$ 0,00" gigante; se mudar, atualizar spec 3.1, inventário 2.1 e RF12 | com e sem posição Sandbox; tela mais curta em mobile; decisão registrada |
+| RC.7.4 ✅ | **Cards Mercado Ao Vivo e Sandbox (T4).** Implementar a opção decidida em D5 (recomendada B: faixa compacta que só aparece com posição Sandbox, destinos distintos, ex. `/extrato?escopo=aprendizado`); estado vazio sem "R$ 0,00" gigante; se mudar, atualizar spec 3.1, inventário 2.1 e RF12 | com e sem posição Sandbox; tela mais curta em mobile; decisão registrada |
 | RC.7.5 | **Composição desktop do Portfólio (T5).** `pages/Portfolio/index.module.css:5-11` fixa `max-width: 720px` em coluna única em todos os breakpoints, contra a regra "desktop não é mobile esticado"; grid de 2 colunas a partir de 1024px, skeletons nos cards (hoje "Carregando..." com salto de layout), cabeçalho mobile alinhado, affordance nos cards clicáveis | 3 breakpoints sem espaço morto; sem salto de layout |
 | RC.7.6 | **Varredura visual com navegador logado (T6).** Rodar o app em 360/768/1280, claro e escuro; validar as hipóteses do anexo (`TrackCard` e `AchievementsGrid` de altura fixa com texto longo, `.hint` colidindo a 220px); abrir tarefa para cada achado confirmado | lista validada com capturas |
 - **Entregável RC.7.1 (2026-10-04):** etiqueta "Você está aqui" agora é filha do `.nodeWrap` do nó atual (`TrackPath`), centrada
@@ -888,6 +888,14 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
   `min-width` e quebra abaixo do anel em telas estreitas. Testes RTL em `DistributionChart/index.test.tsx` (4).
   Validou: `vitest` (1690), `tsc -b`, lint e prettier. **Ressalva:** conferência visual em 360/768/1280px nos dois
   temas não feita (app exige login); fica para a RC.7.6.
+
+- **Entregável RC.7.4 (2026-10-07):** `NetWorthCards`: Mercado Ao Vivo em largura total; o Sandbox virou faixa compacta
+  (selo, R$, "Não conta pro ranking", chevron) que só aparece com posição `isSandbox` de quantidade > 0 e navega a
+  `/extrato?escopo=aprendizado`; sem posição, uma linha de dica (D7), sem R$ 0,00. O Extrato ganhou o filtro "Escopo"
+  (Tudo / Modo Aprendizado / Mercado Ao Vivo) lido de `?escopo=`, com evento sem ativo (depósito, salário) contado
+  como da conta. Inventário 2.1 atualizado; a spec 3.1 e o RF12 já exigem só "distinção visual", mantida. Testes:
+  `NetWorthCards/index.test.tsx` (4), caso novo no Extrato, ajuste no Portfólio. Validou: `vitest`, `tsc -b`, lint,
+  prettier. **Ressalva:** tela mais curta em mobile não medida no navegador (RC.7.6).
 
 ---
 
