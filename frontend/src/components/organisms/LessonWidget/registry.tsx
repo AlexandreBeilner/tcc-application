@@ -4,6 +4,15 @@ import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
 import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
 import { CompoundGrowthWidget, compoundGrowthSummary } from '../CompoundGrowthWidget'
 import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidget'
+import { EmergencyFundCalculatorWidget, emergencyFundCalculatorSummary } from '../EmergencyFundCalculatorWidget'
+import { WhereToKeepWidget, whereToKeepSummary } from '../WhereToKeepWidget'
+import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
+import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
+import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
+import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
+import { IpcaPlusSimulatorWidget, ipcaPlusSimulatorSummary } from '../IpcaPlusSimulatorWidget'
+import { MtmSeesawWidget, mtmSeesawSummary } from '../MtmSeesawWidget'
+import { RatingRulerWidget, ratingRulerSummary } from '../RatingRulerWidget'
 import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
 import { SavingsVsSelicWidget, savingsVsSelicSummary } from '../SavingsVsSelicWidget'
 import { SelicIpcaChartWidget, selicIpcaChartSummary } from '../SelicIpcaChartWidget'
@@ -74,6 +83,51 @@ export const widgetRegistry: Registry = {
         component: CopomTimelineWidget,
         propsSchema: widgetPropsSchemas['copom-timeline'],
         summary: copomTimelineSummary,
+    },
+    'inflation-selic-seesaw': {
+        component: InflationSelicSeesawWidget,
+        propsSchema: widgetPropsSchemas['inflation-selic-seesaw'],
+        summary: inflationSelicSeesawSummary,
+    },
+    'emergency-fund-calculator': {
+        component: EmergencyFundCalculatorWidget,
+        propsSchema: widgetPropsSchemas['emergency-fund-calculator'],
+        summary: emergencyFundCalculatorSummary,
+    },
+    'where-to-keep': {
+        component: WhereToKeepWidget,
+        propsSchema: widgetPropsSchemas['where-to-keep'],
+        summary: whereToKeepSummary,
+    },
+    'mtm-seesaw': {
+        component: MtmSeesawWidget,
+        propsSchema: widgetPropsSchemas['mtm-seesaw'],
+        summary: mtmSeesawSummary,
+    },
+    'fgc-coverage-bar': {
+        component: FgcCoverageBarWidget,
+        propsSchema: widgetPropsSchemas['fgc-coverage-bar'],
+        summary: fgcCoverageBarSummary,
+    },
+    'rating-ruler': {
+        component: RatingRulerWidget,
+        propsSchema: widgetPropsSchemas['rating-ruler'],
+        summary: ratingRulerSummary,
+    },
+    'bond-price-calculator': {
+        component: BondPriceCalculatorWidget,
+        propsSchema: widgetPropsSchemas['bond-price-calculator'],
+        summary: bondPriceCalculatorSummary,
+    },
+    'ipca-plus-simulator': {
+        component: IpcaPlusSimulatorWidget,
+        propsSchema: widgetPropsSchemas['ipca-plus-simulator'],
+        summary: ipcaPlusSimulatorSummary,
+    },
+    'breakeven-inflation': {
+        component: BreakevenInflationWidget,
+        propsSchema: widgetPropsSchemas['breakeven-inflation'],
+        summary: breakevenInflationSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,

@@ -15,24 +15,24 @@ export const glossary: Record<string, GlossaryEntry> = {
     FGC: {
         definition:
             'Fundo Garantidor de Créditos: cobre CDB, LCI e LCA em até R$250.000,00 por CPF e por instituição financeira, mesmo que o emissor quebre.',
-        originLesson: '1.4',
+        originLesson: '1.5',
     },
     'marcação a mercado': {
         definition:
             'Recálculo diário do preço de um título prefixado pela taxa de mercado vigente, que pode ficar acima ou abaixo do que a taxa contratada renderia até aquele dia.',
-        originLesson: '1.8',
+        originLesson: '1.9',
     },
     deságio: {
         definition:
             'Diferença entre o valor de face de um título prefixado e o preço menor que você paga por ele hoje; é essa diferença que forma a rentabilidade contratada.',
         example: 'Um título de face R$1.000,00 comprado por R$900,00 tem deságio de R$100,00.',
-        originLesson: '1.7',
+        originLesson: '1.8',
     },
     'taxa bruta equivalente': {
         definition:
             'Taxa que um produto tributado precisaria pagar pra empatar, líquido de IR, com um produto isento: taxa isenta dividida por (1 menos a alíquota).',
         example: 'Uma LCI isenta de 9% ao ano equivale a um CDB tributado a 15% de IR pagando 9 / 0,85, cerca de 10,59% ao ano.',
-        originLesson: '1.6',
+        originLesson: '1.7',
     },
     EBIT: { definition: 'Lucro operacional da empresa, antes de descontar juros e impostos.', originLesson: '2.6.2' },
     'Dividend Yield': {
@@ -70,11 +70,11 @@ export const glossary: Record<string, GlossaryEntry> = {
     'valor de face': {
         definition: 'Valor que o título paga no vencimento, também chamado de valor nominal.',
         example: 'Um título prefixado de face R$1.000,00 devolve R$1.000,00 no vencimento.',
-        originLesson: '1.7',
+        originLesson: '1.8',
     },
     VNA: {
         definition: 'Valor Nominal Atualizado: o valor de face de um título já corrigido pelo indexador, como o IPCA, até hoje.',
-        originLesson: '1.10',
+        originLesson: '1.11',
     },
     alavancagem: {
         definition: 'Uso de dívida para financiar a operação. Aumenta o retorno quando tudo vai bem e amplia o prejuízo quando não vai.',
@@ -116,15 +116,15 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     duration: {
         definition: 'Prazo médio ponderado em que o título devolve o dinheiro. Quanto maior, mais o preço oscila quando os juros mudam.',
-        originLesson: '1.8',
+        originLesson: '1.9',
     },
     'conglomerado financeiro': {
         definition: 'Grupo de instituições do mesmo controlador. A garantia do FGC vale por conglomerado, não por banco do grupo.',
-        originLesson: '1.11',
+        originLesson: '1.12',
     },
     securitizadora: {
         definition: 'Empresa que compra recebíveis e emite títulos, como CRI e CRA, lastreados neles para vender a investidores.',
-        originLesson: '1.11',
+        originLesson: '1.12',
     },
     indexador: {
         definition: 'Índice ou taxa que corrige a rentabilidade de um título, como o CDI, a Selic ou o IPCA.',
@@ -132,7 +132,7 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     prefixado: {
         definition: 'Título cuja taxa é conhecida no momento da compra, antes de saber o que acontecerá com os juros.',
-        originLesson: '1.7',
+        originLesson: '1.8',
     },
     'pós-fixado': {
         definition: 'Título cuja rentabilidade acompanha um indicador, como o CDI ou a Selic, e só é conhecida no fim.',
@@ -140,11 +140,11 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     carência: {
         definition: 'Período em que o dinheiro aplicado não pode ser resgatado.',
-        originLesson: '1.6',
+        originLesson: '1.7',
     },
     rating: {
         definition: 'Nota de uma agência de classificação sobre a capacidade de o emissor pagar suas dívidas.',
-        originLesson: '1.11',
+        originLesson: '1.12',
     },
     'juros compostos': {
         definition: 'Juros calculados sobre o capital mais os juros já acumulados, o famoso juros sobre juros.',
@@ -162,7 +162,7 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     alíquota: {
         definition: 'Percentual do imposto que incide sobre o rendimento.',
-        originLesson: '1.5',
+        originLesson: '1.6',
     },
     vencimento: {
         definition: 'Data em que o título termina e devolve o valor ao investidor.',
@@ -170,7 +170,7 @@ export const glossary: Record<string, GlossaryEntry> = {
     },
     lastro: {
         definition: 'Direito ou crédito que garante um título. Um CRI, por exemplo, é lastreado em créditos imobiliários.',
-        originLesson: '1.11',
+        originLesson: '1.12',
     },
     ROE: {
         definition:

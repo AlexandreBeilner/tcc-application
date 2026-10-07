@@ -32,3 +32,15 @@ export function inflationBand(inflationPct: number): InflationBand {
     if (inflationPct > INFLATION_TARGET_PCT + INFLATION_TOLERANCE_PP) return 'above'
     return 'inside'
 }
+
+export type CopomLean = 'cut' | 'hold' | 'raise'
+
+// Intuição didática, não a regra do Copom (que olha expectativas, atividade e
+// cenário, sem fórmula): inflação acima do teto da tolerância pressiona a Selic
+// para cima, abaixo do piso pressiona para baixo, dentro do intervalo tende a manter.
+export function copomLean(inflationPct: number): CopomLean {
+    const band = inflationBand(inflationPct)
+    if (band === 'above') return 'raise'
+    if (band === 'below') return 'cut'
+    return 'hold'
+}

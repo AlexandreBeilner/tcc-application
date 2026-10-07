@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inflationBand, oneYearOutcome, realReturnPct } from '.'
+import { copomLean, inflationBand, oneYearOutcome, realReturnPct } from '.'
 
 describe('realReturnPct', () => {
     it.each([
@@ -33,5 +33,16 @@ describe('inflationBand', () => {
         [4.6, 'above'],
     ] as const)('%f%% fica %s', (value, expected) => {
         expect(inflationBand(value)).toBe(expected)
+    })
+})
+
+describe('copomLean', () => {
+    it.each([
+        [1, 'cut'],
+        [3, 'hold'],
+        [4.5, 'hold'],
+        [6, 'raise'],
+    ] as const)('inflação de %f%% pressiona para %s', (value, expected) => {
+        expect(copomLean(value)).toBe(expected)
     })
 })
