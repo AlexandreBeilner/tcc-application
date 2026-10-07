@@ -4,7 +4,7 @@ import {
   LessonLockedError,
   LessonNotFoundError,
 } from '../../domain/errors'
-import { isUnlocked } from '../../domain/lesson'
+import { buildProgression } from '../../domain/lesson'
 import {
   findCheckBlock,
   isCheckCorrect,
@@ -56,11 +56,13 @@ export class AnswerCheckpointUseCase {
     }
 
     const correct = isCheckCorrect(block, input)
-    const progress = await this.lessonRepository.listProgressForUser(input.userId)
-    const completedCount = progress.filter((p) => p.completedAt !== null).length
+    const [progress, allLessons] = await Promise.all([
+      this.lessonRepository.listProgressForUser(input.userId),
+      this.lessonRepository.listAll(),
+    ])
     const completed = progress.find((p) => p.lessonId === input.lessonId)?.completedAt != null
 
-    if (!completed && !isUnlocked(lesson.sortOrder, completedCount)) {
+    if (!completed && !buildProgression(allLessons, progress).isUnlocked(lesson.id)) {
       throw new LessonLockedError('lição bloqueada')
     }
 

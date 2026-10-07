@@ -163,13 +163,26 @@ export const glossary: Record<string, GlossaryEntry> = {
         example: '10 milhões de ações a R$20,00 dão valor de mercado de R$200 milhões.',
         originLesson: '2.1',
     },
+    cíclico: {
+        definition: 'Setor cujas vendas e lucros sobem e descem junto com a economia, como o varejo.',
+        originLesson: '2.8',
+    },
+    defensivo: {
+        definition: 'Setor cujas vendas variam pouco ao longo do ciclo da economia, como a energia.',
+        originLesson: '2.8',
+    },
+    'participante autorizado': {
+        definition: 'Instituição que cria ou resgata cotas de um ETF trocando-as pela cesta de ativos, o que mantém o preço perto do NAV.',
+        originLesson: '2.9',
+    },
     NAV: {
         definition: 'Valor patrimonial por cota de um fundo ou ETF: o valor dos ativos da carteira dividido pelo número de cotas.',
         originLesson: '2.9',
     },
     ágio: {
-        definition: 'Quando o preço de negociação fica acima do valor de referência. O contrário é o deságio.',
-        originLesson: '2.10',
+        definition:
+            'Quando o preço de negociação fica acima do valor de referência, como o NAV de um ETF. Abaixo dele, fala-se em desconto.',
+        originLesson: '2.9',
     },
     spread: {
         definition: 'Diferença entre dois preços ou taxas. Na bolsa, é a distância entre a melhor oferta de compra e a de venda.',
@@ -277,6 +290,10 @@ export const glossary: Record<string, GlossaryEntry> = {
             'Fundo de investimento imobiliário: reúne dinheiro de cotistas para investir em imóveis ou títulos imobiliários e distribui rendimentos.',
         originLesson: '2.10',
     },
+    proventos: {
+        definition: 'Tudo o que a empresa ou o fundo paga ao dono da ação ou da cota: dividendos, JCP e rendimentos de FII.',
+        originLesson: '2.7.6',
+    },
     dividendo: {
         definition: 'Parte do lucro que a empresa paga em dinheiro aos acionistas.',
         originLesson: '2.7.6',
@@ -285,8 +302,73 @@ export const glossary: Record<string, GlossaryEntry> = {
         definition: 'Dividir o dinheiro entre ativos diferentes para que o problema de um não derrube toda a carteira.',
         originLesson: '3.1',
     },
+    'risco específico': {
+        definition: 'Risco que vem de uma empresa ou setor só, como uma fraude ou uma safra perdida. A diversificação reduz esse risco.',
+        originLesson: '3.1',
+    },
+    'risco de mercado': {
+        definition: 'Risco de queda que atinge o mercado inteiro ao mesmo tempo, como numa crise. Diversificar não elimina.',
+        originLesson: '3.1',
+    },
+    'perfil do investidor': {
+        definition:
+            'Resultado do questionário da corretora (suitability) sobre seus objetivos, sua situação financeira e seu conhecimento. É da pessoa, não do produto.',
+        originLesson: '3.2',
+    },
+    'aversão à perda': {
+        definition: 'Tendência de sentir a perda com mais força do que o ganho do mesmo tamanho, o que leva a decisões precipitadas.',
+        originLesson: '3.4',
+    },
+    ancoragem: {
+        definition: 'Prender-se a uma referência, como o preço que você pagou, mesmo quando ela não ajuda a decidir.',
+        originLesson: '3.4',
+    },
+    'autoconfiança excessiva': {
+        definition: 'Acreditar que sabe mais ou acerta mais do que de fato, o que leva a negociar demais e a ignorar o acaso.',
+        originLesson: '3.4',
+    },
     volatilidade: {
         definition: 'Intensidade das oscilações do preço de um ativo. Quanto maior, mais incerto o resultado no curto prazo.',
         originLesson: '3.1',
+    },
+    'swing trade': {
+        definition:
+            'Comprar e vender em dias diferentes. No imposto, é o tratamento padrão: 15% sobre o lucro, com isenção para ações até R$ 20 mil vendidos no mês.',
+        originLesson: '2.12',
+    },
+    'day trade': {
+        definition: 'Comprar e vender o mesmo ativo no mesmo dia. Paga 20% sobre o lucro e nunca tem a isenção de R$ 20 mil.',
+        originLesson: '2.12',
+    },
+    DARF: {
+        definition:
+            'Guia da Receita Federal usada para pagar o imposto devido sobre ganhos em renda variável, até o último dia útil do mês seguinte à venda.',
+        originLesson: '2.12',
+    },
+    'dedo-duro': {
+        definition:
+            'Retenção pequena de imposto que a corretora faz na venda (0,005% do valor vendido no swing trade), que avisa a Receita e abate do imposto devido.',
+        originLesson: '2.12',
+    },
+    orçamento: {
+        definition:
+            'Conta simples de quanto entra e quanto sai por mês. O objetivo básico é gastar menos do que se recebe: o que sobra é o que dá para poupar ou investir.',
+        example: 'Renda de R$ 4.000 e gastos de R$ 3.400 deixam uma sobra de R$ 600, ou 15% da renda.',
+        originLesson: 'F.1',
+    },
+    rotativo: {
+        definition:
+            'Crédito automático do cartão quando você paga menos que o total da fatura: o que sobra vira dívida com juros muito altos.',
+        originLesson: 'F.2',
+    },
+    'cheque especial': {
+        definition:
+            'Limite que o banco empresta quando o saldo da conta fica negativo. Os juros são altos e cobrados todo mês sobre o valor usado.',
+        originLesson: 'F.2',
+    },
+    consignado: {
+        definition:
+            'Empréstimo com parcela descontada direto da folha de pagamento ou do benefício, o que reduz o risco do banco e costuma baixar os juros.',
+        originLesson: 'F.2',
     },
 }

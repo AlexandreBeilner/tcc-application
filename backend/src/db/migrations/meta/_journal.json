@@ -176,6 +176,13 @@
       "when": 1791600000000,
       "tag": "0024_add_user_lesson_checkpoints",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791700000000,
+      "tag": "0025_widen_lesson_stable_key",
+      "breakpoints": true
     }
   ]
 }

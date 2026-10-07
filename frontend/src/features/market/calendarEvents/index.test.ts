@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../../../services/market'
 import { describeCalendarEvent } from '.'
 
 function event(overrides: Partial<CalendarEvent>): CalendarEvent {
-    return { kind: 'macro_event', scope: 'global', future: false, ...overrides }
+    return { kind: 'macro_event', scope: 'global', future: false, relevance: 'market', ...overrides }
 }
 
 describe('describeCalendarEvent', () => {
@@ -80,5 +80,39 @@ describe('describeCalendarEvent', () => {
         const view = describeCalendarEvent(event({ kind: 'salary_payment', scope: 'user', future: true }))
         expect(view.title).toBe('Dia de pagamento')
         expect(JSON.stringify(view)).not.toMatch(/R\$/)
+    })
+})
+
+describe('describeCalendarEvent: valor do usuário', () => {
+    it('provento com valor confirmado e com estimativa', () => {
+        const exact = describeCalendarEvent(
+            event({
+                kind: 'dividend_payment_date',
+                ticker: 'PAPL11',
+                relevance: 'mine',
+                user_quantity: 10,
+                estimated_amount: 8.8,
+                amount_is_estimate: false,
+            }),
+        )
+        expect(exact.amount?.replace(/\u00a0/g, ' ')).toBe('10 unidades · R$ 8,80 (valor confirmado)')
+        expect(exact.confirmed).toBe(true)
+
+        const estimate = describeCalendarEvent(
+            event({
+                kind: 'dividend_payment_date',
+                ticker: 'PAPL11',
+                relevance: 'mine',
+                user_quantity: 1,
+                estimated_amount: 0.88,
+                amount_is_estimate: true,
+            }),
+        )
+        expect(estimate.amount?.replace(/\u00a0/g, ' ')).toBe('1 unidade · R$ 0,88 (estimado)')
+        expect(estimate.confirmed).toBe(false)
+    })
+
+    it('sem valor do usuário não há linha de valor', () => {
+        expect(describeCalendarEvent(event({ kind: 'copom' })).amount).toBeUndefined()
     })
 })

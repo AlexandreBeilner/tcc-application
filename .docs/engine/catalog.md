@@ -58,3 +58,13 @@ Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincom
   - `404` — nenhuma empresa com esse `id`.
   - `503` / `500` — mesmos casos de `GET /assets` (`500` inclui falha ao listar o histórico de fundamentos).
 - **Regra:** nenhuma fórmula — dado cadastral de `companies` + join em `variable_income_assets`/`assets`, mais o histórico de `company_fundamentals` (`CatalogRepository.ListFundamentalsByCompany`, ordenado por `period_date` desc). A geração de fato das linhas de `company_fundamentals` é responsabilidade do ciclo de relatórios conectado ao Temporizador (tarefa 3.14, `POST /admin/tick` — ver `.docs/engine/tick.md`), não desta rota de leitura.
+
+## Agenda de balanço e proventos por ativo (RC.6.7, sem rota nova)
+
+Nenhuma rota muda: as colunas abaixo são cadastrais (migration `000048_payment_schedule`) e só o motor passa a ler a partir da RC.6.8. Todo default reproduz o legado (relógio único de 91 dias, ex no dia da geração, pagamento em 5 dias, FII a cada 30 dias).
+
+- `companies`: `report_offset_days` (atraso do balanço em **dias úteis** depois do fim do trimestre, 0 a 31), `dividend_policy` (`quarterly`, `semiannual` ou `annual`), `com_lag_days` e `payment_lag_days` (dias úteis, a data-com depois do balanço e o pagamento depois da data-ex) e `schedule_assigned`.
+- `fii_details`: `payout_business_day` (dia útil do mês seguinte em que o fundo paga, 1 a 20) e `schedule_assigned`.
+- `dividend_events`: `declared_day`, `ex_day` (dias simulados) e `recipients_snapshotted` (linhas antigas e a geração atual: declaração e ex no mesmo dia, snapshot já tirado).
+- `market_calendar.schedule_cutover_day`: até esse dia vale o relógio legado, depois a agenda escalonada; nasce no dia simulado corrente do deploy.
+- A agenda é derivada de uma chave estável por `paymentschedule.DefaultsFor` (CNPJ da empresa, ticker do FII; ON e PN dividem a agenda da empresa). O seed atribui na criação e leva ativos antigos à agenda **uma vez** (`schedule_assigned = false` vira `true`), sem sobrescrever o que um admin editar.

@@ -418,6 +418,38 @@ describe('GET /market/calendar', () => {
     ])
   })
 
+  it('repassa scope e market_limit ao motor', async () => {
+    const { app, tokenIssuer, marketCalendarReader } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/calendar?scope=mine&market_limit=7')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(marketCalendarReader.getCalendarCalls).toEqual([
+      {
+        userId: 'user-1',
+        query: { from: undefined, to: undefined, scope: 'mine', market_limit: 7 },
+      },
+    ])
+  })
+
+  it.each(['scope=todos', 'market_limit=-1', 'market_limit=201', 'market_limit=abc'])(
+    'retorna 400 pra %s',
+    async (query) => {
+      const { app, tokenIssuer, marketCalendarReader } = buildApp()
+      const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+      const res = await request(app)
+        .get(`/market/calendar?${query}`)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(res.status).toBe(400)
+      expect(marketCalendarReader.getCalendarCalls).toEqual([])
+    },
+  )
+
   it('retorna 400 pra data fora do formato AAAA-MM-DD', async () => {
     const { app, tokenIssuer } = buildApp()
     const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })

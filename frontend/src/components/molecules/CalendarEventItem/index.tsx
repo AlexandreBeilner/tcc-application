@@ -10,14 +10,16 @@ interface CalendarEventItemProps {
 }
 
 // Um fato do calendário: ícone, título, tipo em texto e, se for do usuário, a
-// etiqueta VOCÊ. Fato futuro é tracejado e leva "previsto" (cor nunca sozinha).
+// etiqueta VOCÊ. Fato futuro é tracejado e leva "previsto"; com valor confirmado
+// (data-ex passada) o item fica sólido, e o valor estimado leva "(estimado)" no
+// texto. Cor nunca é o único sinal.
 export function CalendarEventItem({ event, whenLabel }: CalendarEventItemProps) {
     const view = describeCalendarEvent(event)
     const detail = whenLabel ?? `${view.label} · ${view.subtitle}`
 
     return (
         <li
-            className={[styles.item, event.future ? styles.future : '', event.kind === 'report' ? styles.report : '']
+            className={[styles.item, event.future && !view.confirmed ? styles.future : '', event.kind === 'report' ? styles.report : '']
                 .filter(Boolean)
                 .join(' ')}
         >
@@ -33,6 +35,7 @@ export function CalendarEventItem({ event, whenLabel }: CalendarEventItemProps) 
                     {detail}
                     {event.future && ' · previsto'}
                 </div>
+                {view.amount && <div className={styles.amount}>{view.amount}</div>}
             </div>
         </li>
     )

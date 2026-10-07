@@ -152,6 +152,15 @@ reaproveitável, não específico de nenhuma das três telas:
   confirmação leve em duas etapas já usada por "Desfazer amizade" (tarefa 6.9.3,
   `components/organisms/FriendsList`) — nunca `window.confirm` nativo, sem precedente no app.
 
+## 4d. Bloqueio pela trilha, "Na plataforma", mapa e donut (revisão das trilhas, 2026-10)
+
+- **`LockedGate` (RC.2.5):** um único card de bloqueio pela trilha, com três variantes (`screen`, `section`, `inline`), cada uma com largura máxima, ícone (48, 32, 20px) e padding próprios. Em tela travada ele é a única coisa exibida, nunca cita o código da lição (só o título) e o CTA vai para a lição quando ela é alcançável, senão para o Mapa. Não criar painel de bloqueio novo.
+- **`PlatformNote` (RC.3.3):** o único lugar da lição que fala da mecânica da plataforma, em três linhas fixas (No Brasil, Aqui, Por quê), com selo e borda tracejada (tracejado = "isto é da plataforma, não do mundo real") e sem as cores de ganho e perda.
+- **Mapa da Trilha (RC.7.1):** a etiqueta "Você está aqui" é filha do nó atual, centrada acima do círculo; a grade quadriculada é `background-image` do canvas com o token `--grid-line` (claro e escuro), nunca um `pattern` do SVG.
+- **Donut do Portfólio (RC.7.3):** o anel é SVG; o furo mostra o total por padrão e a fatia ativa (nome, R$ e %) em hover, toque ou foco; nenhuma informação vive só no hover (a legenda traz R$ e %); fatias esmaecem (não somem) quando outra está ativa.
+- **Faixa do Sandbox (RC.7.4):** o Modo Aprendizado é uma faixa compacta (selo, valor, "Não conta pro ranking", seta) que só existe com posição aberta; sem posição, uma linha de dica. Nunca um card grande com "R$ 0,00".
+- **Calendário "Para você" (RC.6.4):** o que afeta o usuário ganha faixa própria em destaque (sólido para valor exato, tracejado para estimativa), separada do que é só do mercado.
+
 ## 5. Cor — reforço da regra de não-sobreposição (tokens, seção 2.3)
 
 Ação de UI (toggle Comprar/Vender, botão genérico) **nunca** reaproveita verde/vermelho de

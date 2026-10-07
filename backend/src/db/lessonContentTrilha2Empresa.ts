@@ -88,7 +88,8 @@ export const BLOCKS_2_7_1: LessonBlocks = {
         id: 'nota-balanco',
         widget: 'platform-note',
         props: {
-          brazil: 'As empresas publicam o ITR a cada trimestre e a DFP uma vez por ano, e você lê tudo na CVM.',
+          brazil:
+            'As empresas publicam o ITR a cada trimestre e a DFP uma vez por ano, e você lê tudo na CVM.',
           here: 'As empresas são fictícias e o relatório sai em ciclos regulares, com os mesmos números básicos.',
           why: 'Assim você treina a leitura de resultado sem depender do calendário de empresas reais.',
         },
@@ -130,13 +131,15 @@ export const BLOCKS_2_7_2: LessonBlocks = {
         id: 'comparador-de-margens',
         widget: 'margin-comparator',
         props: {},
-        caption: 'Edite receita e lucros das duas empresas e veja quem converte melhor em cada etapa.',
+        caption:
+          'Edite receita e lucros das duas empresas e veja quem converte melhor em cada etapa.',
       },
       {
         type: 'check',
         id: 'margem-ebit-conta',
         kind: 'numeric',
-        prompt: 'Uma empresa vende R$ 800 milhões e tem EBIT de R$ 120 milhões. Qual é a margem EBIT, em %?',
+        prompt:
+          'Uma empresa vende R$ 800 milhões e tem EBIT de R$ 120 milhões. Qual é a margem EBIT, em %?',
         answer: 15,
         tolerance: 0.1,
         unit: '%',
@@ -228,13 +231,15 @@ export const BLOCKS_2_7_3: LessonBlocks = {
         answer: 2,
         tolerance: 0.01,
         unit: 'anos',
-        explanation: 'A dívida líquida é 800 menos 300, ou 500. Dividido pelo EBIT de 250, dá 2 anos.',
+        explanation:
+          'A dívida líquida é 800 menos 300, ou 500. Dividido pelo EBIT de 250, dá 2 anos.',
       },
       {
         type: 'check',
         id: 'divida-e-so-aproximacao',
         kind: 'true_false',
-        prompt: 'Dívida líquida sobre EBIT diz exatamente em quantos anos a empresa quita a dívida.',
+        prompt:
+          'Dívida líquida sobre EBIT diz exatamente em quantos anos a empresa quita a dívida.',
         answer: false,
         explanation:
           'É só uma aproximação: ignora imposto, investimento e juros, e supõe um EBIT que se repete todo ano.',
@@ -307,7 +312,8 @@ export const BLOCKS_2_7_4: LessonBlocks = {
         type: 'check',
         id: 'roe-conta',
         kind: 'numeric',
-        prompt: 'Lucro líquido de R$ 60 milhões e patrimônio líquido de R$ 400 milhões. Qual é o ROE, em %?',
+        prompt:
+          'Lucro líquido de R$ 60 milhões e patrimônio líquido de R$ 400 milhões. Qual é o ROE, em %?',
         answer: 15,
         tolerance: 0.1,
         unit: '%',
@@ -326,7 +332,8 @@ export const BLOCKS_2_7_4: LessonBlocks = {
           'Com o mesmo lucro, uma empresa troca patrimônio por dívida. O que acontece com o ROE e com o risco?',
         options: ['O ROE sobe e o risco sobe', 'O ROE sobe e o risco cai', 'O ROE não muda'],
         answer: 0,
-        explanation: 'Com menos patrimônio o ROE sobe, mas a dívida a mais deixa a empresa mais exposta se o lucro cair.',
+        explanation:
+          'Com menos patrimônio o ROE sobe, mas a dívida a mais deixa a empresa mais exposta se o lucro cair.',
       },
       {
         type: 'check',
@@ -357,8 +364,7 @@ export const BLOCKS_2_7_5: LessonBlocks = {
       },
       {
         type: 'text',
-        markup:
-          'O {{P/L}} compara o preço com o LPA, e o {{P/VP}} compara o preço com o VPA.',
+        markup: 'O {{P/L}} compara o preço com o LPA, e o {{P/VP}} compara o preço com o VPA.',
       },
     ],
     microDecision: [
@@ -411,7 +417,8 @@ export const BLOCKS_2_7_5: LessonBlocks = {
         kind: 'true_false',
         prompt: 'Quando a empresa dá prejuízo, o P/L deixa de ter sentido.',
         answer: true,
-        explanation: 'Com lucro negativo, o P/L fica negativo e não diz quantos anos de lucro o preço representa.',
+        explanation:
+          'Com lucro negativo, o P/L fica negativo e não diz quantos anos de lucro o preço representa.',
       },
       {
         type: 'check',
@@ -432,7 +439,8 @@ export const BLOCKS_2_7_5: LessonBlocks = {
         id: 'indicadores-valr3',
         widget: 'live-indicator',
         props: { ticker: 'VALR3' },
-        caption: 'Os indicadores atuais de VALR3, calculados com o relatório mais recente da empresa.',
+        caption:
+          'Os indicadores atuais de VALR3, calculados com o relatório mais recente da empresa.',
       },
     ],
   },
@@ -449,7 +457,8 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       },
       {
         type: 'text',
-        markup: 'É a soma dos dividendos pagos por ação nos últimos 12 meses dividida pelo preço atual.',
+        markup:
+          'É a soma dos dividendos pagos por ação nos últimos 12 meses dividida pelo preço atual.',
       },
     ],
     microDecision: [
@@ -469,7 +478,8 @@ export const BLOCKS_2_7_7: LessonBlocks = {
         type: 'check',
         id: 'dy-conta',
         kind: 'numeric',
-        prompt: 'Uma ação paga R$ 3,00 de dividendos em 12 meses e custa R$ 50,00. Qual é o Dividend Yield, em %?',
+        prompt:
+          'Uma ação paga R$ 3,00 de dividendos em 12 meses e custa R$ 50,00. Qual é o Dividend Yield, em %?',
         answer: 6,
         tolerance: 0.1,
         unit: '%',
@@ -479,8 +489,13 @@ export const BLOCKS_2_7_7: LessonBlocks = {
         type: 'check',
         id: 'dy-alto-por-queda',
         kind: 'single',
-        prompt: 'O Dividend Yield de uma ação saltou de 6% para 12%, sem que o dividendo pago tenha mudado. O que explica?',
-        options: ['O preço da ação caiu pela metade', 'A empresa dobrou o lucro', 'O imposto diminuiu'],
+        prompt:
+          'O Dividend Yield de uma ação saltou de 6% para 12%, sem que o dividendo pago tenha mudado. O que explica?',
+        options: [
+          'O preço da ação caiu pela metade',
+          'A empresa dobrou o lucro',
+          'O imposto diminuiu',
+        ],
         answer: 0,
         explanation:
           'Com o dividendo igual, o yield só dobra se o preço cair pela metade. Olhe o preço e o histórico de pagamentos, nunca o número sozinho.',
@@ -491,7 +506,8 @@ export const BLOCKS_2_7_7: LessonBlocks = {
         kind: 'true_false',
         prompt: 'Quem pagou muito dividendo no ano passado vai pagar o mesmo no próximo.',
         answer: false,
-        explanation: 'O dividendo depende do lucro e da decisão da empresa. O Dividend Yield olha para trás e não garante nada.',
+        explanation:
+          'O dividendo depende do lucro e da decisão da empresa. O Dividend Yield olha para trás e não garante nada.',
       },
       {
         type: 'text',
@@ -502,7 +518,8 @@ export const BLOCKS_2_7_7: LessonBlocks = {
         type: 'check',
         id: 'retencao-dividendos',
         kind: 'true_false',
-        prompt: 'Quem recebe R$ 1.000 de dividendos num mês, de uma mesma empresa, sofre retenção de 10%.',
+        prompt:
+          'Quem recebe R$ 1.000 de dividendos num mês, de uma mesma empresa, sofre retenção de 10%.',
         answer: false,
         explanation:
           'A retenção de 10% vale acima de R$ 50 mil no mês, da mesma empresa para a mesma pessoa. Abaixo disso, não há retenção sobre o dividendo.',
@@ -512,7 +529,474 @@ export const BLOCKS_2_7_7: LessonBlocks = {
         id: 'indicadores-dy-valr3',
         widget: 'live-indicator',
         props: { ticker: 'VALR3' },
-        caption: 'O Dividend Yield atual de VALR3 e os outros indicadores, com o relatório mais recente.',
+        caption:
+          'O Dividend Yield atual de VALR3 e os outros indicadores, com o relatório mais recente.',
+      },
+    ],
+  },
+}
+
+// Lições de setores e de ETFs reescritas (RC.5.12). Fatos: `acoes-isencao-20-mil`
+// (a isenção de R$ 20 mil não vale para ETF). O imposto do ETF não cita
+// alíquota: `etf-ir` segue como trecho de busca (texto da norma não abriu). A
+// cesta do ETF do texto é de exemplo (A, B, C, D), sem os pesos do catálogo; o
+// que é regra da plataforma fica no bloco "Na plataforma".
+
+export const BLOCKS_2_8: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Empresas se agrupam em setores, como mineração, bancos, varejo, energia e tecnologia. Cada setor reage de um jeito à economia e aos juros.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Um setor {{cíclico}} vende mais quando a economia vai bem e sofre quando ela esfria, como o varejo. Um setor {{defensivo}} vende parecido em qualquer fase, como a energia.',
+      },
+      {
+        type: 'check',
+        id: 'setor-defensivo',
+        kind: 'single',
+        prompt: 'Qual destes setores é tipicamente defensivo?',
+        options: ['Moda de luxo', 'Distribuição de energia', 'Venda de carros novos'],
+        answer: 1,
+        explanation:
+          'Energia é gasta em qualquer fase da economia. Moda de luxo e carros novos são os primeiros cortes quando o orçamento aperta.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Juro alto pesa mais em empresa endividada e em quem só vai lucrar lá na frente, porque o dinheiro fica caro hoje e o lucro futuro vale menos.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'A Selic sobe forte. Quem tende a sentir mais nos resultados: a mineradora VALR3, com receita em dólar e pouca dívida, ou a TechNova (TNVA3), de tecnologia, com o lucro concentrado no futuro?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'A TechNova. Quando o lucro está mais distante, juro alto o desvaloriza mais. A mineradora tem receita em dólar e pouca dívida, então sente menos.',
+      },
+      {
+        type: 'check',
+        id: 'juros-afetam-todos',
+        kind: 'true_false',
+        prompt: 'Numa alta de juros, todas as empresas pioram do mesmo jeito.',
+        answer: false,
+        explanation:
+          'Depende da dívida, do setor e de quando o lucro aparece. Por isso setores reagem de formas diferentes.',
+      },
+      {
+        type: 'check',
+        id: 'carteira-so-ciclica',
+        kind: 'single',
+        prompt:
+          'A economia desacelera. Como tende a ir uma carteira só de setores cíclicos, comparada a uma mista?',
+        options: ['Sofre mais que a mista', 'Sofre menos que a mista', 'Não muda'],
+        answer: 0,
+        explanation:
+          'Setores defensivos seguram parte da queda. Diversificar entre cíclicos e defensivos reduz o risco da carteira.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-setores',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'Cada setor reage de um jeito ao ciclo da economia e aos juros, e a intensidade varia a cada momento.',
+          here: 'A sensibilidade de cada setor à Selic é uma regra da plataforma, calibrada em empresas reais de cada setor.',
+          why: 'Assim uma alta de juros muda os resultados de forma diferente por setor, e você vê o efeito na carteira.',
+        },
+      },
+    ],
+  },
+}
+
+export const BLOCKS_2_9: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Um {{ETF}} é um fundo que reproduz um índice e é negociado na bolsa como uma ação. Com uma cota, você tem uma fatia de uma cesta inteira de ativos.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Imagine um ETF com quatro ativos: o A pesa 40%, o B 20%, o C 25% e o D 15%. Em vez de escolher um por um, você compra a cesta toda.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'No ETF de exemplo, o ativo A, de peso 40%, cai 20% e os outros ficam parados. Quanto cai o ETF?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Cai 8%. O efeito é o peso vezes a queda: 40% de 20%. O resto da cesta amortece, e é essa a diversificação de uma única compra.',
+      },
+      {
+        type: 'check',
+        id: 'peso-vezes-queda',
+        kind: 'numeric',
+        prompt:
+          'Um ativo de peso 25% cai 10% e o resto da cesta fica parado. Quanto cai o ETF, em %?',
+        answer: 2.5,
+        tolerance: 0.05,
+        unit: '%',
+        explanation: '25% de 10% dá 2,5%.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O {{NAV}} é o valor da cesta dividido pelo número de cotas. O preço na bolsa oscila em torno dele: acima do NAV há {{ágio}}, e abaixo, desconto.',
+      },
+      {
+        type: 'check',
+        id: 'agio-ou-desconto',
+        kind: 'single',
+        prompt: 'A cota negocia a R$ 101 e o NAV é R$ 100. Como se chama a diferença?',
+        options: ['Ágio', 'Desconto', 'Não há diferença'],
+        answer: 0,
+        explanation: 'Preço acima do NAV é ágio. Abaixo do NAV seria desconto.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Se a diferença cresce, um {{participante autorizado}} cria cotas novas, entregando a cesta, ou resgata cotas, recebendo a cesta. Isso empurra o preço de volta para o NAV.',
+      },
+      {
+        type: 'check',
+        id: 'participante-autorizado',
+        kind: 'true_false',
+        prompt: 'O participante autorizado ajuda o preço da cota a ficar perto do NAV.',
+        answer: true,
+        explanation:
+          'Quando o preço foge do NAV, criar ou resgatar cotas dá lucro a ele e traz o preço de volta.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Os dividendos da cesta podem ser reinvestidos ou distribuídos aos cotistas, conforme o regulamento. O ETF cobra uma taxa de administração, que reduz o valor da cota aos poucos.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Vender com lucro paga imposto de renda, e o ETF não tem a isenção de R$ 20 mil em vendas no mês, que vale só para ações.',
+      },
+      {
+        type: 'check',
+        id: 'etf-sem-isencao',
+        kind: 'single',
+        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
+        options: [
+          'Sim, como nas ações',
+          'Não, a isenção de R$ 20 mil vale só para ações',
+          'Só se o ETF distribuir dividendos',
+        ],
+        answer: 1,
+        explanation:
+          'A isenção de até R$ 20 mil em vendas no mês vale para ações, não para ETF nem FII.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-etf',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'O ETF segue um índice público, e participantes autorizados reais criam e resgatam cotas.',
+          here: 'Os índices são fictícios, com cestas de ações e FIIs do catálogo, e a criação e o resgate de cotas são automáticos.',
+          why: 'Assim você vê o ETF funcionar sem depender de um índice real.',
+        },
+      },
+    ],
+  },
+}
+
+// Lição nova "O que custa investir" (RC.4.8), no fim da Trilha 2. Fatos:
+// `fundos-taxas-definicoes` (administração, gestão e performance),
+// `tesouro-custodia-b3` (0,20% ao ano) e `investidor-custos-acoes` (sem número
+// de corretagem, que muda). O retorno de 10% ao ano do exemplo é didático.
+
+export const BLOCKS_CUSTOS: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Todo investimento tem custo, e boa parte dele é cobrada em silêncio, direto do que você ganha. Pequenas taxas, repetidas por anos, viram uma diferença grande.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Em ações há corretagem, custódia, emolumentos e taxa de liquidação, e muitas corretoras nem cobram corretagem. Em fundos e ETFs há a taxa de administração, cobrada todo ano sobre o patrimônio.',
+      },
+      {
+        type: 'check',
+        id: 'onde-aparece-a-taxa',
+        kind: 'single',
+        prompt: 'Como a taxa de administração de um ETF aparece na sua conta?',
+        options: [
+          'Como um débito separado todo mês',
+          'Descontada do valor da cota, sem lançamento',
+          'Só quando você vende',
+        ],
+        answer: 1,
+        explanation:
+          'A taxa é paga pelo fundo e reduz o valor da cota aos poucos. Você não vê um débito, só um retorno menor.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Dois produtos rendem 10% ao ano antes das taxas. O A não cobra taxa e o B cobra 2% ao ano. Depois de 20 anos, o saldo do B é quanto do saldo do A?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Perto de 70%. A taxa leva cerca de 30% do saldo final em 20 anos, e mais de um terço do ganho, porque ela corrói o retorno todo ano e os juros seguintes incidem sobre o que sobrou.',
+      },
+      {
+        type: 'widget',
+        id: 'efeito-da-taxa',
+        widget: 'fee-drag',
+        props: {},
+        caption:
+          'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
+      },
+      {
+        type: 'check',
+        id: 'retorno-liquido',
+        kind: 'numeric',
+        prompt:
+          'Um fundo rende 10% ao ano e cobra 2% de taxa. Quanto sobra de retorno, em % ao ano?',
+        answer: 8,
+        tolerance: 0.01,
+        unit: '% ao ano',
+        explanation: 'O retorno que chega a você é o bruto menos a taxa: 10% menos 2% dá 8%.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Em fundos há três taxas diferentes. A de administração remunera o administrador. A de gestão remunera o gestor pela escolha dos investimentos. A de performance é um prêmio cobrado só se o fundo superar um indicador de referência.',
+      },
+      {
+        type: 'check',
+        id: 'taxa-de-performance',
+        kind: 'single',
+        prompt: 'Qual taxa só é cobrada se o fundo superar o indicador de referência?',
+        options: ['Administração', 'Gestão', 'Performance'],
+        answer: 2,
+        explanation:
+          'A taxa de performance é um prêmio ao gestor por render mais que a referência. As outras duas são cobradas sempre.',
+      },
+      {
+        type: 'text',
+        markup:
+          'O {{spread}} também é custo: você compra pelo preço de venda e vende pelo de compra, e a diferença fica com o mercado. No Tesouro Direto, a B3 cobra custódia de 0,20% ao ano sobre o valor dos títulos.',
+      },
+      {
+        type: 'check',
+        id: 'custodia-do-tesouro',
+        kind: 'numeric',
+        prompt:
+          'Você tem R$ 20.000 em um Tesouro Prefixado. Quanto paga de custódia por ano, em reais?',
+        answer: 40,
+        tolerance: 0.5,
+        unit: 'reais',
+        explanation:
+          '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre até R$ 10 mil, mas não é o caso aqui.',
+      },
+      {
+        type: 'check',
+        id: 'corretagem-zero',
+        kind: 'true_false',
+        prompt: 'Corretagem zero significa investir sem nenhum custo.',
+        answer: false,
+        explanation:
+          'Ainda há custódia, emolumentos, taxa de liquidação, taxa de administração em fundos e o spread.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Custo é a parte do retorno que você controla. Compare as taxas antes de escolher, e lembre que ele pesa mais quanto maior o prazo.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-custos',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'Você paga corretagem, custódia e taxas de fundos, que variam por corretora e produto.',
+          here: 'Os ETFs cobram uma taxa de administração, descontada do fundo. Suas ordens não pagam corretagem nem custódia.',
+          why: 'Assim o treino foca no efeito da taxa de administração, sem tabelas de tarifa de cada corretora.',
+        },
+      },
+    ],
+  },
+}
+
+// Lição nova "Imposto em renda variável" (RC.4.7), depois de "O que custa investir".
+// Fatos: `renda-variavel-aliquotas` (15%, 20%, dedo-duro, DARF, compensação, declaração),
+// `acoes-isencao-20-mil` e `dividendos-retencao-lei-15270`. Os números dos exemplos são
+// didáticos. A plataforma não cobra imposto sobre renda variável (só renda fixa).
+
+export const BLOCKS_IMPOSTO: LessonBlocks = {
+  schemaVersion: 1,
+  phases: {
+    scenario: [
+      {
+        type: 'text',
+        markup:
+          'Ganhar vendendo uma ação ou uma cota pode gerar imposto. Quanto, depende de três coisas: o que você vendeu, se comprou e vendeu no mesmo dia e quanto vendeu no mês.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Quem compra e vende em dias diferentes faz {{swing trade}}: paga 15% sobre o lucro. Quem compra e vende no mesmo dia faz {{day trade}}: paga 20%.',
+      },
+      {
+        type: 'check',
+        id: 'tipo-de-operacao',
+        kind: 'single',
+        prompt:
+          'Você comprou uma ação na segunda e vendeu na quarta, com lucro. Qual é a operação?',
+        options: ['Day trade', 'Swing trade', 'Nenhuma das duas'],
+        answer: 1,
+        explanation:
+          'Day trade é só quando a compra e a venda acontecem no mesmo dia. Em dias diferentes, é swing trade.',
+      },
+    ],
+    microDecision: [
+      {
+        type: 'text',
+        markup:
+          'Você vendeu R$ 15.000 em ações no mês, com R$ 2.000 de lucro, comprando e vendendo em dias diferentes. Quanto de imposto você paga sobre esses R$ 2.000?',
+      },
+    ],
+    revelation: [
+      {
+        type: 'text',
+        markup:
+          'Nada. Quem vende até R$ 20 mil em ações no mês tem o ganho isento, e o que conta é o valor vendido, não o lucro. Day trade não entra nessa isenção.',
+      },
+      {
+        type: 'widget',
+        id: 'calculadora-de-imposto',
+        widget: 'equity-tax-calculator',
+        props: {},
+        caption: 'Troque o tipo de operação, o ativo e os valores e veja o imposto e o DARF.',
+      },
+      {
+        type: 'check',
+        id: 'isencao-so-acoes',
+        kind: 'single',
+        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, no mês. O ganho é isento?',
+        options: ['Sim, abaixo de R$ 20 mil', 'Não, a isenção vale só para ações', 'Só se for FII'],
+        answer: 1,
+        explanation:
+          'A isenção de R$ 20 mil em vendas no mês vale para ações. ETF e FII pagam imposto sobre o lucro.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Passou de R$ 20 mil? Todo o lucro do mês é tributado, não só o que passou do limite. Você mesmo apura e paga o imposto em {{DARF}}, até o último dia útil do mês seguinte à venda.',
+      },
+      {
+        type: 'check',
+        id: 'imposto-acima-do-limite',
+        kind: 'numeric',
+        prompt:
+          'Você vendeu R$ 30.000 em ações no mês, com lucro de R$ 4.000, em operações de swing trade. Quanto paga de imposto, em reais?',
+        answer: 600,
+        tolerance: 0.5,
+        unit: 'reais',
+        explanation: 'Passou de R$ 20 mil, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Prejuízo não se perde. Ele abate lucros futuros, mas só do mesmo tipo: prejuízo de swing trade não compensa lucro de day trade, e o contrário também vale.',
+      },
+      {
+        type: 'check',
+        id: 'compensar-prejuizo',
+        kind: 'numeric',
+        prompt:
+          'No mês passado você teve R$ 1.000 de prejuízo em swing trade. Neste mês, R$ 4.000 de lucro, também em swing trade, com vendas de R$ 30.000. Qual é a base do imposto, em reais?',
+        answer: 3000,
+        tolerance: 0.5,
+        unit: 'reais',
+        explanation:
+          'O prejuízo abate o lucro: R$ 4.000 menos R$ 1.000 dá R$ 3.000, e o imposto é de 15% disso.',
+      },
+      {
+        type: 'text',
+        markup:
+          'A corretora retém um pouco na venda, o {{dedo-duro}}: 0,005% do valor vendido no swing trade e 1% no day trade. Ele avisa a Receita e abate do imposto que você deve.',
+      },
+      {
+        type: 'widget',
+        id: 'arvore-de-imposto',
+        widget: 'tax-decision-tree',
+        props: {},
+        caption: 'Responda as perguntas e veja como a venda é tributada.',
+      },
+      {
+        type: 'check',
+        id: 'declarar-isento',
+        kind: 'true_false',
+        prompt: 'Se o ganho foi isento, não precisa declarar nada no imposto de renda.',
+        answer: false,
+        explanation:
+          'Você declara as ações que tem em Bens e Direitos, e o ganho isento em Rendimentos Isentos.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Os dividendos das ações também têm regra própria: desde 2026, a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Abaixo disso, não há retenção.',
+      },
+      {
+        type: 'check',
+        id: 'dividendo-limite',
+        kind: 'true_false',
+        prompt: 'Em 2026, todo dividendo de ação tem 10% de imposto retido.',
+        answer: false,
+        explanation:
+          'A retenção de 10% só vale quando a mesma empresa paga mais de R$ 50 mil no mês a uma mesma pessoa.',
+      },
+      {
+        type: 'text',
+        markup:
+          'Imposto é um custo que você controla pouco, mas pode planejar: saber a regra evita surpresa e multa de atraso.',
+      },
+      {
+        type: 'widget',
+        id: 'nota-imposto',
+        widget: 'platform-note',
+        props: {
+          brazil:
+            'Você apura o imposto de cada mês, paga o DARF e declara as operações no imposto de renda.',
+          here: 'As compras e vendas de ações, FIIs e ETFs não geram imposto, DARF nem declaração.',
+          why: 'Assim você foca em entender a regra, e na vida real o cálculo fica por sua conta, com a calculadora desta lição.',
+        },
       },
     ],
   },

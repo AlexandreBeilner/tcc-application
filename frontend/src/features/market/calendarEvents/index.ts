@@ -8,6 +8,10 @@ export interface CalendarEventView {
     // Nome do tipo em texto: o ícone nunca é o único sinal.
     label: string
     mine: boolean
+    // Valor do usuário no fato (provento), quando o motor mandou. Nunca de terceiros.
+    amount?: string
+    // Valor confirmado (data-ex já passou): o item fica sólido em vez de tracejado.
+    confirmed: boolean
 }
 
 const KIND_LABEL: Record<CalendarEventKind, string> = {
@@ -52,10 +56,21 @@ function describeCopom(event: CalendarEvent): Pick<CalendarEventView, 'title' | 
     return { title: `Copom ${verb} a Selic para ${formatSelic(current)}`, subtitle }
 }
 
+function describeAmount(event: CalendarEvent): string | undefined {
+    if (event.estimated_amount === undefined) return undefined
+    const units = event.user_quantity
+    const quantity = units === undefined ? '' : `${quantityFormatter.format(units)} ${units === 1 ? 'unidade' : 'unidades'} · `
+    return `${quantity}${money(event.estimated_amount)} ${event.amount_is_estimate ? '(estimado)' : '(valor confirmado)'}`
+}
+
+export function describeCalendarEvent(event: CalendarEvent): CalendarEventView {
+    return { ...describeKind(event), amount: describeAmount(event), confirmed: event.amount_is_estimate === false }
+}
+
 // Texto de um fato do calendário. Evento macro mostra só o título já escrito pelo
 // motor: a direção (positivo/negativo) fica de fora de propósito, o calendário
 // não entrega o veredito (diretrizes de redação de eventos macro).
-export function describeCalendarEvent(event: CalendarEvent): CalendarEventView {
+function describeKind(event: CalendarEvent): Omit<CalendarEventView, 'amount' | 'confirmed'> {
     const label = KIND_LABEL[event.kind]
     const mine = event.scope === 'user'
     const ticker = event.ticker ?? ''

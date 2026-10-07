@@ -1,0 +1,36 @@
+.chart {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.axis {
+    stroke: var(--color-border-strong);
+    stroke-width: 1;
+}
+
+.lineA {
+    fill: none;
+    stroke: var(--color-brand-500);
+    stroke-width: 2.5;
+}
+
+.lineB {
+    fill: none;
+    stroke: var(--color-loss-500);
+    stroke-width: 2.5;
+    stroke-dasharray: 6 4;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}

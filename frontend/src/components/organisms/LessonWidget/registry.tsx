@@ -17,6 +17,20 @@ import { MarginComparatorWidget, marginComparatorSummary } from '../MarginCompar
 import { RoeLabWidget, roeLabSummary } from '../RoeLabWidget'
 import { MultiplesCalculatorWidget, multiplesCalculatorSummary } from '../MultiplesCalculatorWidget'
 import { DebtThermometerWidget, debtThermometerSummary } from '../DebtThermometerWidget'
+import { DividendNetCalculatorWidget, dividendNetCalculatorSummary } from '../DividendNetCalculatorWidget'
+import { DividendTimelineWidget, dividendTimelineSummary } from '../DividendTimelineWidget'
+import { EtfShockSimulatorWidget, etfShockSimulatorSummary } from '../EtfShockSimulatorWidget'
+import { FiiMonthlyCalendarWidget, fiiMonthlyCalendarSummary } from '../FiiMonthlyCalendarWidget'
+import { BehaviorBiasQuizWidget, behaviorBiasQuizSummary } from '../BehaviorBiasQuizWidget'
+import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
+import { BudgetSplitWidget, budgetSplitSummary } from '../BudgetSplitWidget'
+import { RiskReturnScatterWidget, riskReturnScatterSummary } from '../RiskReturnScatterWidget'
+import { AllocationDonutWidget, allocationDonutSummary } from '../AllocationDonutWidget'
+import { RiskProfileQuizWidget, riskProfileQuizSummary } from '../RiskProfileQuizWidget'
+import { DebtSnowballWidget, debtSnowballSummary } from '../DebtSnowballWidget'
+import { PayOrInvestWidget, payOrInvestSummary } from '../PayOrInvestWidget'
+import { EquityTaxCalculatorWidget, equityTaxCalculatorSummary } from '../EquityTaxCalculatorWidget'
+import { TaxDecisionTreeWidget, taxDecisionTreeSummary } from '../TaxDecisionTreeWidget'
 import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
 import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
 import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
@@ -188,6 +202,76 @@ export const widgetRegistry: Registry = {
         component: DebtThermometerWidget,
         propsSchema: widgetPropsSchemas['debt-thermometer'],
         summary: debtThermometerSummary,
+    },
+    'dividend-timeline': {
+        component: DividendTimelineWidget,
+        propsSchema: widgetPropsSchemas['dividend-timeline'],
+        summary: dividendTimelineSummary,
+    },
+    'dividend-net-calculator': {
+        component: DividendNetCalculatorWidget,
+        propsSchema: widgetPropsSchemas['dividend-net-calculator'],
+        summary: dividendNetCalculatorSummary,
+    },
+    'etf-shock-simulator': {
+        component: EtfShockSimulatorWidget,
+        propsSchema: widgetPropsSchemas['etf-shock-simulator'],
+        summary: etfShockSimulatorSummary,
+    },
+    'fii-monthly-calendar': {
+        component: FiiMonthlyCalendarWidget,
+        propsSchema: widgetPropsSchemas['fii-monthly-calendar'],
+        summary: fiiMonthlyCalendarSummary,
+    },
+    'fee-drag': {
+        component: FeeDragWidget,
+        propsSchema: widgetPropsSchemas['fee-drag'],
+        summary: feeDragSummary,
+    },
+    'risk-return-scatter': {
+        component: RiskReturnScatterWidget,
+        propsSchema: widgetPropsSchemas['risk-return-scatter'],
+        summary: riskReturnScatterSummary,
+    },
+    'allocation-donut': {
+        component: AllocationDonutWidget,
+        propsSchema: widgetPropsSchemas['allocation-donut'],
+        summary: allocationDonutSummary,
+    },
+    'risk-profile-quiz': {
+        component: RiskProfileQuizWidget,
+        propsSchema: widgetPropsSchemas['risk-profile-quiz'],
+        summary: riskProfileQuizSummary,
+    },
+    'behavior-bias-quiz': {
+        component: BehaviorBiasQuizWidget,
+        propsSchema: widgetPropsSchemas['behavior-bias-quiz'],
+        summary: behaviorBiasQuizSummary,
+    },
+    'budget-split': {
+        component: BudgetSplitWidget,
+        propsSchema: widgetPropsSchemas['budget-split'],
+        summary: budgetSplitSummary,
+    },
+    'debt-snowball': {
+        component: DebtSnowballWidget,
+        propsSchema: widgetPropsSchemas['debt-snowball'],
+        summary: debtSnowballSummary,
+    },
+    'pay-or-invest': {
+        component: PayOrInvestWidget,
+        propsSchema: widgetPropsSchemas['pay-or-invest'],
+        summary: payOrInvestSummary,
+    },
+    'equity-tax-calculator': {
+        component: EquityTaxCalculatorWidget,
+        propsSchema: widgetPropsSchemas['equity-tax-calculator'],
+        summary: equityTaxCalculatorSummary,
+    },
+    'tax-decision-tree': {
+        component: TaxDecisionTreeWidget,
+        propsSchema: widgetPropsSchemas['tax-decision-tree'],
+        summary: taxDecisionTreeSummary,
     },
     'savings-vs-selic': {
         component: SavingsVsSelicWidget,
