@@ -302,6 +302,31 @@ export const glossary: Record<string, GlossaryEntry> = {
         definition: 'Dividir o dinheiro entre ativos diferentes para que o problema de um não derrube toda a carteira.',
         originLesson: '3.1',
     },
+    'risco específico': {
+        definition: 'Risco que vem de uma empresa ou setor só, como uma fraude ou uma safra perdida. A diversificação reduz esse risco.',
+        originLesson: '3.1',
+    },
+    'risco de mercado': {
+        definition: 'Risco de queda que atinge o mercado inteiro ao mesmo tempo, como numa crise. Diversificar não elimina.',
+        originLesson: '3.1',
+    },
+    'perfil do investidor': {
+        definition:
+            'Resultado do questionário da corretora (suitability) sobre seus objetivos, sua situação financeira e seu conhecimento. É da pessoa, não do produto.',
+        originLesson: '3.2',
+    },
+    'aversão à perda': {
+        definition: 'Tendência de sentir a perda com mais força do que o ganho do mesmo tamanho, o que leva a decisões precipitadas.',
+        originLesson: '3.4',
+    },
+    ancoragem: {
+        definition: 'Prender-se a uma referência, como o preço que você pagou, mesmo quando ela não ajuda a decidir.',
+        originLesson: '3.4',
+    },
+    'autoconfiança excessiva': {
+        definition: 'Acreditar que sabe mais ou acerta mais do que de fato, o que leva a negociar demais e a ignorar o acaso.',
+        originLesson: '3.4',
+    },
     volatilidade: {
         definition: 'Intensidade das oscilações do preço de um ativo. Quanto maior, mais incerto o resultado no curto prazo.',
         originLesson: '3.1',
@@ -324,5 +349,26 @@ export const glossary: Record<string, GlossaryEntry> = {
         definition:
             'Retenção pequena de imposto que a corretora faz na venda (0,005% do valor vendido no swing trade), que avisa a Receita e abate do imposto devido.',
         originLesson: '2.12',
+    },
+    orçamento: {
+        definition:
+            'Conta simples de quanto entra e quanto sai por mês. O objetivo básico é gastar menos do que se recebe: o que sobra é o que dá para poupar ou investir.',
+        example: 'Renda de R$ 4.000 e gastos de R$ 3.400 deixam uma sobra de R$ 600, ou 15% da renda.',
+        originLesson: 'F.1',
+    },
+    rotativo: {
+        definition:
+            'Crédito automático do cartão quando você paga menos que o total da fatura: o que sobra vira dívida com juros muito altos.',
+        originLesson: 'F.2',
+    },
+    'cheque especial': {
+        definition:
+            'Limite que o banco empresta quando o saldo da conta fica negativo. Os juros são altos e cobrados todo mês sobre o valor usado.',
+        originLesson: 'F.2',
+    },
+    consignado: {
+        definition:
+            'Empréstimo com parcela descontada direto da folha de pagamento ou do benefício, o que reduz o risco do banco e costuma baixar os juros.',
+        originLesson: 'F.2',
     },
 }

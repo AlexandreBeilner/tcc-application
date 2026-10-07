@@ -464,6 +464,42 @@ export const REGULATORY_FACTS = [
     note: 'A página da MP no Congresso Nacional e a notícia da Câmara dos Deputados (camara.leg.br/noticias/1209479) apareceram na busca com vigência encerrada em 8/10/2025; o texto integral não foi aberto. A lição não menciona a MP: o fato fica registrado para o autor não reintroduzir as alíquotas de 17,5% e o limite trimestral.',
   },
   {
+    id: 'orcamento-bcb-caderno',
+    label:
+      'Banco Central: orçamento pessoal (despesas fixas, variáveis e sazonais, superávit, pague-se primeiro)',
+    value:
+      'Despesas fixas não variam ou variam muito pouco (aluguel, prestação de financiamento); despesas variáveis mudam de um mês para o outro (conta de luz ou de água, conforme o consumo); há ainda compromissos sazonais (impostos, seguros, matrículas escolares). A regra de ouro é ter orçamento superavitário, ou seja, gastar menos do que se recebe. "Pague-se primeiro": separar o dinheiro da reserva assim que receber o salário, de preferência com transferência automática.',
+    source:
+      'https://www.bcb.gov.br/content/cidadaniafinanceira/documentos_cidadania/Cuidando_do_seu_dinheiro_Gestao_de_Financas_Pessoais/caderno_cidadania_financeira.pdf',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Caderno de Educação Financeira do Banco Central (versão nova, texto extraído e lido); o folheto "Orçamento Pessoal" (série II) confirma os 4 passos e a meta de despesa menor que receita. A regra 50/30/20 NÃO aparece no caderno: a lição a apresenta como regra de bolso popular, nunca como orientação oficial.',
+  },
+  {
+    id: 'rotativo-limite-lei-14690',
+    label: 'Cartão de crédito: limite de juros e encargos no rotativo e no parcelamento da fatura',
+    value:
+      'Lei 14.690/2023, art. 28, § 1º: sem limites aprovados no prazo de 90 dias da publicação da lei, o total cobrado a título de juros e encargos financeiros no crédito rotativo e no parcelamento do saldo da fatura não pode exceder o valor original da dívida. A regra vale também para emissores que não aderirem à autorregulação (§ 2º). Na prática, o teto de 100% passou a valer em janeiro de 2024.',
+    data: { capPctOfOriginalDebt: 100 },
+    source: 'https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2023/lei/l14690.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Texto da lei lido (art. 28, §§ 1º e 2º). A vigência em janeiro de 2024 e o regulamento do CMN vieram de páginas do governo federal que apareceram na busca (Fazenda e Secom), não abertas em leitura integral.',
+  },
+  {
+    id: 'bcb-taxas-medias-credito-pf',
+    label:
+      'Banco Central: taxa média de juros do rotativo do cartão e do cheque especial (pessoa física)',
+    value:
+      'Em agosto de 2026, a taxa média mensal de juros de operações de crédito com recursos livres para pessoa física foi de 15,18% ao mês no cartão de crédito rotativo (série SGS 25477) e de 7,43% ao mês no cheque especial (série SGS 25463).',
+    data: { rotativoMonthlyPct: 15.18, chequeEspecialMonthlyPct: 7.43, reference: '2026-08' },
+    source:
+      'https://dadosabertos.bcb.gov.br/dataset/25477-taxa-media-mensal-de-juros-das-operacoes-de-credito-com-recursos-livres---pessoas-fisicas---c',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Valores lidos pela API de séries temporais do Banco Central (api.bcb.gov.br, SGS 25477 e 25463; a página de dados abertos confirma o título do 25477 e do 25463). Média mensal ponderada pelas concessões, muda todo mês: a lição usa "cerca de" e diz que são números de 2026. O teto do consignado do INSS (1,80% ao mês em 2025) é decidido por conselho e já mudou mais de uma vez, por isso a lição não cita número.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:
@@ -551,6 +587,28 @@ export const REGULATORY_FACTS = [
     check: 'pagina-oficial',
     verifiedAt: '2026-10-05',
     note: 'Matéria do Bora Investir (B3 Educação) aberta e lida. Ela não menciona unit, as classes 5 a 8 nem o F do fracionário (esses seguem em `b3-ticker-sufixos`, como trecho de busca); por isso a lição não cita unit nem as classes 5 a 8.',
+  },
+  {
+    id: 'suitability-cvm30',
+    label: 'Suitability: perfil do investidor (Resolução CVM 30)',
+    value:
+      'A corretora e outras instituições intermediárias precisam verificar se o produto é adequado ao perfil do cliente, medido por questionário sobre objetivos, situação financeira e conhecimento. O perfil é do investidor, não do produto. Os nomes das categorias (como conservador, moderado e arrojado) ficam por conta de cada instituição.',
+    source:
+      'https://www.gov.br/investidor/pt-br/educacional/publicacoes-educacionais/guias/guia-de-suitability-lancamento/@@download/file',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Guia de Suitability do Portal do Investidor (CVM) aberto; o PDF tem leitura difícil, então a lição não cita número de artigo nem número de perguntas, só a ideia (questionário, três dimensões, perfil da pessoa).',
+  },
+  {
+    id: 'cvm-vieses-comportamentais',
+    label: 'CVM Comportamental: vieses do investidor',
+    value:
+      'Aversão à perda: atribuímos mais importância às perdas que aos ganhos, o que leva a insistir em investimentos sem perspectiva, vender cedo o que está lucrando e reforçar posição perdedora para recuperar o prejuízo. Ancoragem: o investidor se prende ao preço de compra e mantém posição perdedora esperando voltar a ele. Autoconfiança excessiva: quem se crê melhor que a média negocia mais, paga mais custos e tem retorno menor. A CVM recomenda estratégia com limites definidos, reavaliar a carteira como se fosse dinheiro em caixa, evitar conferir cotações com frequência e desconfiar de pressa ("se não decidir agora, perderá").',
+    source:
+      'https://www.gov.br/investidor/pt-br/educacional/publicacoes-educacionais/cvm-comportamental/volume-1-vieses-do-investidor.pdf/@@display-file/file',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Série CVM Comportamental, volume 1 "Vieses do Investidor" (PDF, 2015), texto lido: seções Ancoragem, Aversão a Perda e Autoconfiança Excessiva. Efeito manada/adesão aparece só como resultado de busca e não foi aberto, então a lição não o cita. O estudo de 2006 com gestores (74% acima da média) é citado pela CVM, mas a lição não usa o número.',
   },
 ] as const satisfies readonly RegulatoryFact[]
 

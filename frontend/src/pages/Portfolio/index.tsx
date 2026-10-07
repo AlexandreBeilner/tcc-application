@@ -49,7 +49,8 @@ export function Portfolio() {
                         <SalaryIndicator monthlySalary={progressionQuery.data.monthlySalary} daysUntilNextPayment={daysUntilNextSalary} />
                     </div>
                 ) : (
-                    !progressionQuery.isError && !streakQuery.isError && <span className={styles.loading}>Carregando…</span>
+                    !progressionQuery.isError &&
+                    !streakQuery.isError && <span className={styles.skeletonSummary} role="status" aria-label="Carregando progressão" />
                 )}
             </header>
 
@@ -59,55 +60,64 @@ export function Portfolio() {
                 </p>
             )}
 
-            {!account && !accountQuery.isError && <p className={styles.loading}>Carregando conta…</p>}
+            <div className={styles.columns}>
+                <div className={styles.mainColumn}>
+                    {!account && !accountQuery.isError && (
+                        <div className={styles.skeletonCard} role="status" aria-label="Carregando conta" />
+                    )}
 
-            {account && <NetWorthCards account={account} />}
+                    {account && <NetWorthCards account={account} />}
 
-            {hasNoPositions && (
-                <section className={styles.emptyState}>
-                    <span className={styles.emptyIcon} aria-hidden="true">
-                        <Compass size={22} strokeWidth={2} />
-                    </span>
-                    <h2 className={styles.emptyTitle}>Você ainda não tem nenhuma posição</h2>
-                    <p className={styles.emptyBody}>
-                        Comece pela Trilha pra entender os produtos antes de investir, ou vá direto pro Mercado se já sabe o que procura.
-                    </p>
-                    <div className={styles.emptyActions}>
-                        <Button variant="secondary" onClick={() => navigate('/trilha')}>
-                            Ir pra Trilha
+                    {hasNoPositions && (
+                        <section className={styles.emptyState}>
+                            <span className={styles.emptyIcon} aria-hidden="true">
+                                <Compass size={22} strokeWidth={2} />
+                            </span>
+                            <h2 className={styles.emptyTitle}>Você ainda não tem nenhuma posição</h2>
+                            <p className={styles.emptyBody}>
+                                Comece pela Trilha pra entender os produtos antes de investir, ou vá direto pro Mercado se já sabe o que
+                                procura.
+                            </p>
+                            <div className={styles.emptyActions}>
+                                <Button variant="secondary" onClick={() => navigate('/trilha')}>
+                                    Ir pra Trilha
+                                </Button>
+                                <Button onClick={() => navigate('/mercado')}>Ir pro Mercado</Button>
+                            </div>
+                        </section>
+                    )}
+
+                    {account && !hasNoPositions && (
+                        <section className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <PieChart size={18} strokeWidth={2} aria-hidden="true" />
+                                Distribuição
+                            </h2>
+                            <DistributionChart slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)} />
+                        </section>
+                    )}
+                </div>
+
+                <div className={styles.sideColumn}>
+                    {missionsQuery.data && missionsQuery.data.missions.length > 0 && (
+                        <section className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <Target size={18} strokeWidth={2} aria-hidden="true" />
+                                Missões do dia
+                            </h2>
+                            <DailyMissionsList missions={missionsQuery.data.missions} streak={streakQuery.data?.currentStreak ?? 0} />
+                        </section>
+                    )}
+
+                    {lessonsQuery.data && <ResumeLessonCard lessons={lessonsQuery.data.lessons} />}
+
+                    <div className={styles.actions}>
+                        <Button onClick={() => navigate('/mercado')}>Investir</Button>
+                        <Button variant="secondary" onClick={() => navigate('/conquistas')}>
+                            Conquistas
                         </Button>
-                        <Button onClick={() => navigate('/mercado')}>Ir pro Mercado</Button>
                     </div>
-                </section>
-            )}
-
-            {account && !hasNoPositions && (
-                <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>
-                        <PieChart size={18} strokeWidth={2} aria-hidden="true" />
-                        Distribuição
-                    </h2>
-                    <DistributionChart slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)} />
-                </section>
-            )}
-
-            {missionsQuery.data && missionsQuery.data.missions.length > 0 && (
-                <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>
-                        <Target size={18} strokeWidth={2} aria-hidden="true" />
-                        Missões do dia
-                    </h2>
-                    <DailyMissionsList missions={missionsQuery.data.missions} streak={streakQuery.data?.currentStreak ?? 0} />
-                </section>
-            )}
-
-            {lessonsQuery.data && <ResumeLessonCard lessons={lessonsQuery.data.lessons} />}
-
-            <div className={styles.actions}>
-                <Button onClick={() => navigate('/mercado')}>Investir</Button>
-                <Button variant="secondary" onClick={() => navigate('/conquistas')}>
-                    Conquistas
-                </Button>
+                </div>
             </div>
         </main>
     )

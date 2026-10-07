@@ -50,6 +50,13 @@ export const WIDGET_IDS = [
   'etf-shock-simulator',
   'fii-monthly-calendar',
   'fee-drag',
+  'risk-return-scatter',
+  'allocation-donut',
+  'risk-profile-quiz',
+  'behavior-bias-quiz',
+  'budget-split',
+  'debt-snowball',
+  'pay-or-invest',
   'equity-tax-calculator',
   'tax-decision-tree',
   'savings-vs-selic',
@@ -332,6 +339,38 @@ export const widgetPropsSchemas = {
     feeAPct: z.number().min(0).max(4).default(0),
     feeBPct: z.number().min(0).max(4).default(2),
     years: z.number().int().min(1).max(40).default(20),
+  }),
+  'risk-return-scatter': z.object({
+    highlight: z
+      .enum(['savings', 'selic-bond', 'cdb', 'ipca-bond', 'fii', 'stocks'])
+      .default('stocks'),
+    profile: z.enum(['none', 'conservative', 'moderate', 'aggressive']).default('none'),
+  }),
+  'allocation-donut': z.object({
+    profile: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
+    amount: z.number().min(100).max(1_000_000).default(10000),
+  }),
+  'risk-profile-quiz': emptyProps,
+  'behavior-bias-quiz': emptyProps,
+  'budget-split': z.object({
+    income: z.number().min(1000).max(20_000).default(4000),
+    housing: z.number().min(0).max(10_000).default(1500),
+    food: z.number().min(0).max(10_000).default(800),
+    transport: z.number().min(0).max(10_000).default(400),
+    leisure: z.number().min(0).max(10_000).default(300),
+    debts: z.number().min(0).max(10_000).default(200),
+    other: z.number().min(0).max(10_000).default(200),
+  }),
+  'debt-snowball': z.object({
+    balance: z.number().min(500).max(50_000).default(5000),
+    monthlyRatePct: z.number().min(0.5).max(16).default(5),
+    payment: z.number().min(50).max(5000).default(600),
+  }),
+  'pay-or-invest': z.object({
+    amount: z.number().min(100).max(100_000).default(1000),
+    debtMonthlyPct: z.number().min(0.5).max(16).default(5),
+    investAnnualPct: z.number().min(4).max(20).default(14),
+    irPct: z.number().min(0).max(22.5).default(15),
   }),
   'equity-tax-calculator': z.object({
     kind: z.enum(['swing', 'daytrade']).default('swing'),
