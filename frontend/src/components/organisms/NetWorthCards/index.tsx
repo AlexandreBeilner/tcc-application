@@ -40,6 +40,7 @@ export function NetWorthCards({ account }: NetWorthCardsProps) {
                     <span className={styles.liveTag}>
                         <span className={styles.liveDot} aria-hidden="true" />
                         ao vivo
+                        <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
                     </span>
                 </div>
                 <span className={`${styles.total} tabular-nums`}>{formatCurrency(livePatrimony)}</span>

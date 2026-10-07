@@ -270,4 +270,15 @@ describe('Portfolio (tela 2.1)', () => {
             expect(screen.getByText('Não foi possível carregar sua conta agora. Tente novamente em instantes.')).toBeInTheDocument(),
         )
     })
+
+    it('enquanto a conta carrega mostra placeholder em vez de texto solto', () => {
+        vi.mocked(getMyAccount).mockReturnValue(new Promise(() => {}))
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+
+        renderPortfolio()
+
+        expect(screen.getByRole('status', { name: 'Carregando conta' })).toBeInTheDocument()
+    })
 })

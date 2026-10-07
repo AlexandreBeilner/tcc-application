@@ -864,7 +864,7 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
 | RC.7.2 ✅ | **Dados do donut (T2, mecânico).** Filtrar `isSandbox` (SAND3 entra hoje), base `markPrice ?? averagePrice` (D6) | soma das fatias igual ao `liveInvested` do card; nenhum ticker de Sandbox |
 | RC.7.3 ✅ | **Donut interativo com R$ (T3).** Arcos em SVG (hoje um `conic-gradient` em `role="img"`), tooltip em hover (desktop) e toque/clique (mobile), foco por teclado (Tab, Enter, setas, Esc), furo mostra o total por padrão, legenda com R$ e %, `aria-label` por fatia, sem lib nova | informação nunca só em hover; R$ e % corretos; 3 breakpoints |
 | RC.7.4 ✅ | **Cards Mercado Ao Vivo e Sandbox (T4).** Implementar a opção decidida em D5 (recomendada B: faixa compacta que só aparece com posição Sandbox, destinos distintos, ex. `/extrato?escopo=aprendizado`); estado vazio sem "R$ 0,00" gigante; se mudar, atualizar spec 3.1, inventário 2.1 e RF12 | com e sem posição Sandbox; tela mais curta em mobile; decisão registrada |
-| RC.7.5 | **Composição desktop do Portfólio (T5).** `pages/Portfolio/index.module.css:5-11` fixa `max-width: 720px` em coluna única em todos os breakpoints, contra a regra "desktop não é mobile esticado"; grid de 2 colunas a partir de 1024px, skeletons nos cards (hoje "Carregando..." com salto de layout), cabeçalho mobile alinhado, affordance nos cards clicáveis | 3 breakpoints sem espaço morto; sem salto de layout |
+| RC.7.5 ✅ | **Composição desktop do Portfólio (T5).** `pages/Portfolio/index.module.css:5-11` fixa `max-width: 720px` em coluna única em todos os breakpoints, contra a regra "desktop não é mobile esticado"; grid de 2 colunas a partir de 1024px, skeletons nos cards (hoje "Carregando..." com salto de layout), cabeçalho mobile alinhado, affordance nos cards clicáveis | 3 breakpoints sem espaço morto; sem salto de layout |
 | RC.7.6 | **Varredura visual com navegador logado (T6).** Rodar o app em 360/768/1280, claro e escuro; validar as hipóteses do anexo (`TrackCard` e `AchievementsGrid` de altura fixa com texto longo, `.hint` colidindo a 220px); abrir tarefa para cada achado confirmado | lista validada com capturas |
 - **Entregável RC.7.1 (2026-10-04):** etiqueta "Você está aqui" agora é filha do `.nodeWrap` do nó atual (`TrackPath`), centrada
   acima do círculo (`bottom` 34px, 40px no desktop), `z-index` 2 e wrap atual em 3; a linha-guia tracejada ficou como
@@ -896,6 +896,14 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
   como da conta. Inventário 2.1 atualizado; a spec 3.1 e o RF12 já exigem só "distinção visual", mantida. Testes:
   `NetWorthCards/index.test.tsx` (4), caso novo no Extrato, ajuste no Portfólio. Validou: `vitest`, `tsc -b`, lint,
   prettier. **Ressalva:** tela mais curta em mobile não medida no navegador (RC.7.6).
+
+- **Entregável RC.7.5 (2026-10-07):** `pages/Portfolio`: a partir de 1024px a página passa de 720 para 1080px e vira grade
+  de 2 colunas (3fr/2fr): patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita; em mobile e
+  tablet segue coluna única na mesma ordem de antes. "Carregando…" solto virou placeholders com altura próxima da final
+  (card da conta e resumo de progressão, `role="status"`), sem salto de layout. Resumo do cabeçalho alinhado à esquerda
+  no mobile (à direita a partir de 768px). Card Ao Vivo ganhou chevron como affordance de clique. Removida do baseline do
+  RC.1.1 a entrada `sandbox|NetWorthCards` (resolvida na RC.7.4). Teste novo do placeholder. Validou: `vitest` completo,
+  `tsc -b`, lint, prettier. **Ressalva:** conferência visual nos 3 breakpoints fica para a RC.7.6.
 
 ---
 
