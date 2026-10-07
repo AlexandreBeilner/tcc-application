@@ -202,7 +202,7 @@ parágrafo. Se uma lição ficou mais correta e mais pesada de ler, ela falhou.
   da 2.6.5 reescritos sem a referência; `completionCriteria` das missões sem travessão. *Engine:* nomes dos ativos
   de treino viraram "Ação de Treino" e "Tesouro Prefixado de Treino"; metodologia dos ETFs sem nome de coluna,
   `SINT11` nem "do catálogo"; travessões dos 4 templates de macroevento trocados por pontuação. Como o seed pula
-  ativo que já existe, a migration `000040_clean_visible_catalog_text` aplica a mesma correção em bancos já
+  ativo que já existe, a migration `000049_clean_visible_catalog_text` aplica a mesma correção em bancos já
   semeados (idempotente, testada num Postgres descartável). *Frontend:* "Aguardando a primeira atualização" no lugar
   de "primeiro tick", "Recotada pelo mercado", travessões do `OrderConfirmationDialog` e da tela de Indicadores;
   chaves de storage `tcc.*` viraram `app.*` via `utils/storage`, que lê a chave antiga uma vez e migra (usuário
@@ -873,7 +873,7 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
 | RC.7.3 ✅ | **Donut interativo com R$ (T3).** Arcos em SVG (hoje um `conic-gradient` em `role="img"`), tooltip em hover (desktop) e toque/clique (mobile), foco por teclado (Tab, Enter, setas, Esc), furo mostra o total por padrão, legenda com R$ e %, `aria-label` por fatia, sem lib nova | informação nunca só em hover; R$ e % corretos; 3 breakpoints |
 | RC.7.4 ✅ | **Cards Mercado Ao Vivo e Sandbox (T4).** Implementar a opção decidida em D5 (recomendada B: faixa compacta que só aparece com posição Sandbox, destinos distintos, ex. `/extrato?escopo=aprendizado`); estado vazio sem "R$ 0,00" gigante; se mudar, atualizar spec 3.1, inventário 2.1 e RF12 | com e sem posição Sandbox; tela mais curta em mobile; decisão registrada |
 | RC.7.5 ✅ | **Composição desktop do Portfólio (T5).** `pages/Portfolio/index.module.css:5-11` fixa `max-width: 720px` em coluna única em todos os breakpoints, contra a regra "desktop não é mobile esticado"; grid de 2 colunas a partir de 1024px, skeletons nos cards (hoje "Carregando..." com salto de layout), cabeçalho mobile alinhado, affordance nos cards clicáveis | 3 breakpoints sem espaço morto; sem salto de layout |
-| RC.7.6 | **Varredura visual com navegador logado (T6).** Rodar o app em 360/768/1280, claro e escuro; validar as hipóteses do anexo (`TrackCard` e `AchievementsGrid` de altura fixa com texto longo, `.hint` colidindo a 220px); abrir tarefa para cada achado confirmado | lista validada com capturas |
+| RC.7.6 ✅ | **Varredura visual com navegador logado (T6).** Rodar o app em 360/768/1280, claro e escuro; validar as hipóteses do anexo (`TrackCard` e `AchievementsGrid` de altura fixa com texto longo, `.hint` colidindo a 220px); abrir tarefa para cada achado confirmado | lista validada com capturas |
 - **Entregável RC.7.1 (2026-10-04):** etiqueta "Você está aqui" agora é filha do `.nodeWrap` do nó atual (`TrackPath`), centrada
   acima do círculo (`bottom` 34px, 40px no desktop), `z-index` 2 e wrap atual em 3; a linha-guia tracejada ficou como
   elemento próprio sem etiqueta. Grade passou do `<pattern>` do SVG para `background-image` do `.canvas` com o token
@@ -912,6 +912,23 @@ Fonte: `analise-mapa-portfolio-sandbox.md`.
   no mobile (à direita a partir de 768px). Card Ao Vivo ganhou chevron como affordance de clique. Removida do baseline do
   RC.1.1 a entrada `sandbox|NetWorthCards` (resolvida na RC.7.4). Teste novo do placeholder. Validou: `vitest` completo,
   `tsc -b`, lint, prettier. **Ressalva:** conferência visual nos 3 breakpoints fica para a RC.7.6.
+
+- **Entregável RC.7.6 (2026-10-07):** `docker compose up` completo (engine, backend, gateway, Postgres, Redis) e o frontend em dev, com
+  usuário de teste local logado no Chrome (token no `localStorage`), 43 lições concluídas, compras de ação, FII, Tesouro Selic, CDB e
+  uma posição Sandbox. Larguras 360 e 768px por `iframe` (a janela do Chrome não encolhe abaixo de ~1500px) e 1567px direto; tema escuro
+  e claro (`data-theme`). **Confirmado:** (a) Portfólio: donut, furo e legenda batem com o card (Investido R$ 7.088,80 = soma das fatias, sem
+  Sandbox), faixa do Sandbox quebra a nota em 2 linhas a 360px sem estourar, 2 colunas no desktop (a coluna direita fica só com os botões
+  quando não há missão nem lição a retomar); (b) mapa da trilha: "Você está aqui" acima do nó sem tocar título ou nó, grade cobrindo o canvas
+  nos dois temas (fecha a ressalva da RC.7.1); (c) Extrato `?escopo=aprendizado` lista só a compra Sandbox; (d) `TrackCard` e conquistas com
+  nomes longos quebram sem corte a 360px (hipótese 11 do anexo **não** se confirmou). **Achado visual aberto (cosmético):** a bandeira
+  "Libera Compra de CDB" do nó à esquerda passa ~13px da borda esquerda do canvas a 360px (`.metaLeft`, largura `clamp(120px, 40vw, 168px)`),
+  sem sair da tela. **Não verificado:** a `.hint` de nó bloqueado a 220px (a conta de teste tinha tudo liberado). **Achados de mecânica
+  corrigidos na varredura:** (1) `lessons.stable_key` era `varchar(20)` e o seed quebrava em banco real com 3 chaves novas (`imposto-renda-variavel`,
+  `orcamento-para-onde-vai`, `divida-os-juros-do-outro-lado`): migration `0025_widen_lesson_stable_key` (varchar 64) e teste de tamanho em
+  `seedLessons.test.ts` (o fake de teste não tinha limite); (2) migration `000040` duplicada do engine (achado 035): `clean_visible_catalog_text`
+  virou `000049`; sem isso o engine nem subia com as duas séries. **Nota:** num volume de dev antigo a migration `0021` do backend ficou
+  sem ser aplicada (o `when` do journal já estava para trás no banco), e Conquistas deu 500 até aplicar o SQL à mão; é artefato do volume, não do
+  código (ver memória sobre `when` do journal).
 
 ---
 

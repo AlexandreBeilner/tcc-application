@@ -230,3 +230,22 @@ describe('blocks no seed (RC.3.1)', () => {
     }
   })
 })
+
+// Achado da RC.7.6: o seed falhou num banco real porque `stableKey` de 4 lições novas passava do
+// limite da coluna (era varchar(20)). O fake acima não tem limite, então o teste confere o tamanho
+// declarado em `lessons.stableKey` contra todos os seeds.
+describe('tamanho das chaves dos seeds de lição', () => {
+  it('todo stableKey e ticker cabe na coluna do banco', () => {
+    const stableKeyLimit = lessons.stableKey.length as number
+    const tickerLimit = lessons.microDecisionAssetTicker.length as number
+    for (const seed of LESSON_SEEDS) {
+      expect(seed.stableKey.length, seed.stableKey).toBeLessThanOrEqual(stableKeyLimit)
+      if (seed.microDecisionAssetTicker) {
+        expect(seed.microDecisionAssetTicker.length).toBeLessThanOrEqual(tickerLimit)
+      }
+      if (seed.unlocksAssetTicker) {
+        expect(seed.unlocksAssetTicker.length).toBeLessThanOrEqual(lessons.unlocksAssetTicker.length as number)
+      }
+    }
+  })
+})
