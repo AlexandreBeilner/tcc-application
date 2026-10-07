@@ -93,9 +93,9 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 *(Tarefa S.10 — proxy de `GET /market/calendar` do motor, ver `.docs/engine/calendar.md`.)*
 
 - **Autenticação:** Bearer token — qualquer usuário autenticado.
-- **Payload:** query `from` e `to` (opcionais, `AAAA-MM-DD` — `marketCalendarQuerySchema`). Sem elas o motor usa a janela padrão (uma semana atrás, duas à frente).
-- **Sucesso:** `200` → proxy 1:1: `{ from_day, to_day, days: [{ simulated_day, date, weekday, market_open, events: [...] }] }`, fatos globais do mercado mais os do próprio usuário (ordens, proventos recebidos, aportes, resgates e vencimentos de renda fixa). Formato dos eventos em `.docs/engine/calendar.md`.
-- **Erros:** `400` — data fora do formato (validação Zod aqui) ou janela inválida (`from > to`, mais de 92 dias, validada no motor). `401`. Erro do motor repassado com o mesmo status.
+- **Payload:** query `from` e `to` (opcionais, `AAAA-MM-DD` — `marketCalendarQuerySchema`). Sem elas o motor usa a janela padrão (uma semana atrás, duas à frente). `scope` (`mine` ou `all`; sem ele o motor devolve `all`) e `market_limit` (inteiro de 0 a 200; sem ele o motor usa 50) controlam o recorte (RC.6.2): `mine` devolve só o que afeta o usuário, e `market_limit` limita quantos fatos de mercado vêm, os mais próximos de hoje.
+- **Sucesso:** `200` → proxy 1:1: `{ from_day, to_day, market_total, market_shown, days: [{ simulated_day, date, weekday, market_open, summary: { mine_count, market_count }, events: [...] }] }`, fatos globais do mercado mais os do próprio usuário (ordens, proventos recebidos, aportes, resgates e vencimentos de renda fixa). Cada evento traz `relevance` (`mine` ou `market`) e, em `mine`, `relevance_reason`, mais `user_quantity`, `estimated_amount` e `amount_is_estimate` quando há provento do próprio usuário; `summary` e `market_total` contam antes do corte por `market_limit`. Formato completo dos eventos e regras de relevância em `.docs/engine/calendar.md`.
+- **Erros:** `400` — data fora do formato, `scope` diferente de `mine`/`all` ou `market_limit` fora de 0 a 200 (validação Zod aqui) ou janela inválida (`from > to`, mais de 92 dias, validada no motor). `401`. Erro do motor repassado com o mesmo status.
 - **Regra:** `GetMarketCalendarUseCase` passa sempre o `userId` do token; um `user_id` na query é ignorado, então ninguém enxerga fato de terceiros (RNF09). Evento macro ainda não disparado nunca aparece.
 
 ---

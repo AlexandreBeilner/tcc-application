@@ -361,6 +361,145 @@ export const REGULATORY_FACTS = [
     note: 'Material educacional da B3 (Bora Investir), resultado de busca. Os números de BDR (32 a 35, 39) não foram confirmados e não entram na lição.',
   },
   {
+    id: 'b3-ordens-tipos',
+    label: 'B3: ordem a mercado e ordem limitada',
+    value:
+      'Na ordem a mercado, o investidor indica à instituição intermediária que quer comprar ou vender ao preço que estiver sendo praticado no mercado naquele momento. Na ordem limitada, comunica que quer negociar e estabelece os valores limites da negociação.',
+    source: 'https://borainvestir.b3.com.br/glossario/ordem-a-mercado/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Glossário do Bora Investir (B3), páginas "Ordem a Mercado" e "Ordem Limitada" lidas. O glossário da B3 define "spread" como diferença entre taxas de aplicação e captação (crédito), não como a distância entre melhor compra e melhor venda: a lição define o spread do livro de ofertas por conta própria, como conceito geral de mercado, sem citar a B3.',
+  },
+  {
+    id: 'b3-horario-pregao',
+    label: 'B3: fases do pregão de ações',
+    value:
+      'O mercado à vista de ações tem fases em dias úteis: cancelamento de ofertas, pré-abertura (leilão antes de abrir), negociação, call de fechamento e after-market. Em 05/10/2026: pré-abertura de 9h45 a 10h, negociação de 10h a 16h55, call de fechamento de 16h55 a 17h.',
+    data: { openingHour: 10, closeMinuteOfDay: 1015 },
+    source:
+      'https://www.b3.com.br/pt_br/solucoes/plataformas/puma-trading-system/para-participantes-e-traders/horario-de-negociacao/acoes/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Tabela de horários da B3 aberta. Os horários mudam ao longo do ano (resultados de busca da B3 mostram ajustes ligados ao horário de verão nos EUA), então a lição não cita horário: só as fases.',
+  },
+  {
+    id: 'investidor-custos-acoes',
+    label: 'Portal do Investidor (CVM): custos de investir em bolsa',
+    value:
+      'Os principais custos por negócio são a taxa de corretagem, a taxa de custódia, os emolumentos e a taxa de liquidação. A corretagem é livremente pactuada com a corretora (valor fixo, percentual ou misto) e algumas corretoras não repassam a custódia. Emolumentos e taxa de liquidação são cobrados pela bolsa sobre o volume.',
+    source:
+      'https://www.gov.br/investidor/pt-br/investir/como-investir/como-funciona-a-bolsa/taxas-e-custos',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Página do Portal do Investidor lida (publicada em 2022). Valores de tarifas e faixas de isenção da B3 mudam e não foram registrados; a lição não cita número de custo.',
+  },
+  {
+    id: 'fundos-taxas-definicoes',
+    label: 'Portal do Investidor (CVM): taxas de fundos de investimento',
+    value:
+      'A taxa de administração remunera o administrador pelos serviços legais e de manutenção. A taxa de gestão remunera o gestor pela escolha técnica dos investimentos. A taxa de performance é um prêmio pago ao gestor apenas se o rendimento do fundo superar um indicador de referência.',
+    source:
+      'https://www.gov.br/investidor/pt-br/investir/tipos-de-investimentos/fundos-de-investimentos',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Página do Portal do Investidor lida. Não define taxa de ingresso ou saída, então a lição não as cita.',
+  },
+  {
+    id: 'b3-data-com-ex',
+    label: 'Data com e data ex',
+    value:
+      'A data com é o último dia em que o ativo ainda confere direito ao provento anunciado. No dia seguinte, a data ex, a ação ou a cota de fundo imobiliário passa a ser negociada sem o direito. Quem comprar a partir da data ex não recebe.',
+    source: 'https://borainvestir.b3.com.br/glossario/data-ex/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Glossário da B3 (texto lido). Vale também para cotas de FII.',
+  },
+  {
+    id: 'jcp-definicao',
+    label: 'JCP: o que é',
+    value:
+      'Os juros sobre o capital próprio são uma remuneração paga ou creditada a sócios e acionistas, calculada sobre as contas do patrimônio líquido, e a empresa pode deduzi-los para apurar o lucro real.',
+    source: 'https://www.planalto.gov.br/ccivil_03/leis/l9249.htm',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-06',
+    note: 'Lei 9.249/1995, art. 9º (página do Planalto não abriu; texto lido em reprodução do artigo). O limite pela taxa de juros de longo prazo e a condição de lucros existem e não entram na lição. A alíquota está em `jcp-aliquota`.',
+  },
+  {
+    id: 'fii-ganho-capital',
+    label: 'FII: imposto sobre o ganho na venda de cotas',
+    value:
+      'O ganho de capital na venda de cotas de fundo de investimento imobiliário é tributado a 20%, seguindo as normas dos ganhos líquidos em renda variável.',
+    data: { capitalGainPct: 20 },
+    source: 'https://www.planalto.gov.br/ccivil_03/leis/l8668.htm',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-06',
+    note: 'Lei 8.668/1993, art. 18 (redação de 1999), lido em reprodução do artigo; a página do Planalto não abriu. Reconferir antes de citar o número em lição (a RC.4.7 trata do imposto).',
+  },
+  {
+    id: 'renda-variavel-aliquotas',
+    label: 'Renda variável: alíquotas, DARF, dedo-duro e compensação',
+    value:
+      'Swing trade (venda em outro dia): 15% sobre o lucro, com isenção para vendas de ações de até R$ 20 mil no mês (conta o valor vendido, não o lucro). Day trade: 20% sobre o lucro, sem isenção. Retenção na fonte (dedo-duro): 0,005% sobre o valor da venda no swing trade e 1% no day trade. O imposto é pago em DARF até o último dia útil do mês seguinte à venda; atraso tem multa de 0,33% ao dia, limitada a 20%, e juros pela Selic. Prejuízo de swing trade não compensa lucro de day trade, e o contrário também vale; o prejuízo abate lucros futuros do mesmo tipo de operação. Declaração: ações em carteira em Bens e Direitos pelo custo de aquisição; ganho isento em Rendimentos Isentos; ganho tributado em Renda Variável.',
+    data: {
+      swingPct: 15,
+      dayTradePct: 20,
+      swingWithholdingPct: 0.005,
+      dayTradeWithholdingPct: 1,
+      monthlySalesLimitBRL: 20_000,
+    },
+    source:
+      'https://borainvestir.b3.com.br/noticias/imposto-de-renda/renda-variavel-imposto-de-renda/comprou-ou-vendeu-acoes-veja-como-declarar-swing-trade-day-trade-e-proventos-no-imposto-de-renda/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Matéria do Bora Investir (B3 Educação) aberta e lida. A página da Receita sobre isenções (gov.br/receitafederal, bolsa-de-valores-1/isencoes) confirma a isenção, que exclui day trade, ETF de ações e resgate de fundos de ações, mas não traz alíquotas nem DARF. A lição não cita o código do DARF nem o DARF mínimo, que não foram conferidos. O imposto sobre o ganho do FII (20%) segue em `fii-ganho-capital` (trecho de busca): a lição só o cita no widget com ressalva de que é de exemplo.',
+  },
+  {
+    id: 'mp-1303-caducou',
+    label: 'MP 1.303/2025 perdeu a validade',
+    value:
+      'A Câmara retirou a MP 1.303/2025 da pauta em 8/10/2025 (251 votos a 193) e ela perdeu a validade sem ser votada pelo Senado. Ela previa tributação unificada de 18% sobre aplicações financeiras a partir de 2026; as regras de imposto de renda variável continuam as de antes.',
+    source: 'https://www.congressonacional.leg.br/materias/medidas-provisorias/-/mpv/169059',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-06',
+    note: 'A página da MP no Congresso Nacional e a notícia da Câmara dos Deputados (camara.leg.br/noticias/1209479) apareceram na busca com vigência encerrada em 8/10/2025; o texto integral não foi aberto. A lição não menciona a MP: o fato fica registrado para o autor não reintroduzir as alíquotas de 17,5% e o limite trimestral.',
+  },
+  {
+    id: 'orcamento-bcb-caderno',
+    label:
+      'Banco Central: orçamento pessoal (despesas fixas, variáveis e sazonais, superávit, pague-se primeiro)',
+    value:
+      'Despesas fixas não variam ou variam muito pouco (aluguel, prestação de financiamento); despesas variáveis mudam de um mês para o outro (conta de luz ou de água, conforme o consumo); há ainda compromissos sazonais (impostos, seguros, matrículas escolares). A regra de ouro é ter orçamento superavitário, ou seja, gastar menos do que se recebe. "Pague-se primeiro": separar o dinheiro da reserva assim que receber o salário, de preferência com transferência automática.',
+    source:
+      'https://www.bcb.gov.br/content/cidadaniafinanceira/documentos_cidadania/Cuidando_do_seu_dinheiro_Gestao_de_Financas_Pessoais/caderno_cidadania_financeira.pdf',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Caderno de Educação Financeira do Banco Central (versão nova, texto extraído e lido); o folheto "Orçamento Pessoal" (série II) confirma os 4 passos e a meta de despesa menor que receita. A regra 50/30/20 NÃO aparece no caderno: a lição a apresenta como regra de bolso popular, nunca como orientação oficial.',
+  },
+  {
+    id: 'rotativo-limite-lei-14690',
+    label: 'Cartão de crédito: limite de juros e encargos no rotativo e no parcelamento da fatura',
+    value:
+      'Lei 14.690/2023, art. 28, § 1º: sem limites aprovados no prazo de 90 dias da publicação da lei, o total cobrado a título de juros e encargos financeiros no crédito rotativo e no parcelamento do saldo da fatura não pode exceder o valor original da dívida. A regra vale também para emissores que não aderirem à autorregulação (§ 2º). Na prática, o teto de 100% passou a valer em janeiro de 2024.',
+    data: { capPctOfOriginalDebt: 100 },
+    source: 'https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2023/lei/l14690.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Texto da lei lido (art. 28, §§ 1º e 2º). A vigência em janeiro de 2024 e o regulamento do CMN vieram de páginas do governo federal que apareceram na busca (Fazenda e Secom), não abertas em leitura integral.',
+  },
+  {
+    id: 'bcb-taxas-medias-credito-pf',
+    label:
+      'Banco Central: taxa média de juros do rotativo do cartão e do cheque especial (pessoa física)',
+    value:
+      'Em agosto de 2026, a taxa média mensal de juros de operações de crédito com recursos livres para pessoa física foi de 15,18% ao mês no cartão de crédito rotativo (série SGS 25477) e de 7,43% ao mês no cheque especial (série SGS 25463).',
+    data: { rotativoMonthlyPct: 15.18, chequeEspecialMonthlyPct: 7.43, reference: '2026-08' },
+    source:
+      'https://dadosabertos.bcb.gov.br/dataset/25477-taxa-media-mensal-de-juros-das-operacoes-de-credito-com-recursos-livres---pessoas-fisicas---c',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Valores lidos pela API de séries temporais do Banco Central (api.bcb.gov.br, SGS 25477 e 25463; a página de dados abertos confirma o título do 25477 e do 25463). Média mensal ponderada pelas concessões, muda todo mês: a lição usa "cerca de" e diz que são números de 2026. O teto do consignado do INSS (1,80% ao mês em 2025) é decidido por conselho e já mudou mais de uma vez, por isso a lição não cita número.',
+  },
+  {
     id: 'b3-liquidacao-acoes',
     label: 'Data com, data ex e liquidação de ações',
     value:
@@ -416,6 +555,60 @@ export const REGULATORY_FACTS = [
     check: 'trecho-de-busca',
     verifiedAt: '2026-10-04',
     note: 'Resultado de busca no domínio do IBGE (estrutura de ponderação baseada na POF 2017-2018). A página bloqueou o acesso direto.',
+  },
+  {
+    id: 'acao-responsabilidade-limitada',
+    label: 'Ação: responsabilidade limitada do acionista',
+    value:
+      'A companhia tem o capital dividido em ações, e a responsabilidade dos acionistas é limitada ao preço de emissão das ações que subscreveram ou adquiriram (Lei 6.404/1976, art. 1º).',
+    source: 'https://www.planalto.gov.br/ccivil_03/leis/l6404consol.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Texto consolidado lido (art. 1º). A lição diz que o acionista pode perder o que investiu e não responde pelas dívidas da empresa com outros bens.',
+  },
+  {
+    id: 'b3-ipo-ofertas',
+    label: 'B3: IPO, oferta primária e secundária, mercado primário',
+    value:
+      'IPO é o processo em que uma empresa privada oferece ações ao público pela primeira vez e passa a ser de capital aberto; sócios antigos, como fundadores, podem vender parte das ações na oferta. Oferta primária é a emissão de ações novas, com o dinheiro entrando no próprio emissor; oferta secundária é a venda de ações já existentes, com o dinheiro indo para os acionistas vendedores. Mercado primário é onde ocorrem os lançamentos de novas ações e títulos para a primeira aquisição.',
+    source: 'https://borainvestir.b3.com.br/glossario/ipo/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Glossário do Bora Investir (B3), páginas "IPO", "Oferta Primária", "Oferta Secundária", "Mercado Primário" e "Bookbuilding" lidas. O bookbuilding aparece só como "processo de formação de preços"; a explicação de como o preço de corte sai das ordens é didática, do widget. Lock-up, roadshow e norma da CVM não foram abertos e não entram na lição.',
+  },
+  {
+    id: 'b3-ticker-estrutura',
+    label: 'B3: estrutura do ticker (letras, 3, 4, 11 e BDR)',
+    value:
+      'O ticker tem quatro letras que remetem ao nome da empresa e um número que identifica o tipo de ação: 3 para ordinárias (ON) e 4 para preferenciais (PN). O número 11 é o mais abrangente e pode caracterizar fundos de investimento, ETFs e BDRs patrocinados nível I. BDRs são recibos de ações de empresas estrangeiras, com final 32 (patrocinado nível II), 33 (nível III), 34 ou 35 (não patrocinados). A empresa escolhe as letras; o número segue o padrão do tipo.',
+    data: { onSuffix: 3, pnSuffix: 4, fundSuffix: 11 },
+    source:
+      'https://borainvestir.b3.com.br/noticias/empresas/ticker-como-nasce-o-codigo-das-empresas-listadas-na-b3/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Matéria do Bora Investir (B3 Educação) aberta e lida. Ela não menciona unit, as classes 5 a 8 nem o F do fracionário (esses seguem em `b3-ticker-sufixos`, como trecho de busca); por isso a lição não cita unit nem as classes 5 a 8.',
+  },
+  {
+    id: 'suitability-cvm30',
+    label: 'Suitability: perfil do investidor (Resolução CVM 30)',
+    value:
+      'A corretora e outras instituições intermediárias precisam verificar se o produto é adequado ao perfil do cliente, medido por questionário sobre objetivos, situação financeira e conhecimento. O perfil é do investidor, não do produto. Os nomes das categorias (como conservador, moderado e arrojado) ficam por conta de cada instituição.',
+    source:
+      'https://www.gov.br/investidor/pt-br/educacional/publicacoes-educacionais/guias/guia-de-suitability-lancamento/@@download/file',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Guia de Suitability do Portal do Investidor (CVM) aberto; o PDF tem leitura difícil, então a lição não cita número de artigo nem número de perguntas, só a ideia (questionário, três dimensões, perfil da pessoa).',
+  },
+  {
+    id: 'cvm-vieses-comportamentais',
+    label: 'CVM Comportamental: vieses do investidor',
+    value:
+      'Aversão à perda: atribuímos mais importância às perdas que aos ganhos, o que leva a insistir em investimentos sem perspectiva, vender cedo o que está lucrando e reforçar posição perdedora para recuperar o prejuízo. Ancoragem: o investidor se prende ao preço de compra e mantém posição perdedora esperando voltar a ele. Autoconfiança excessiva: quem se crê melhor que a média negocia mais, paga mais custos e tem retorno menor. A CVM recomenda estratégia com limites definidos, reavaliar a carteira como se fosse dinheiro em caixa, evitar conferir cotações com frequência e desconfiar de pressa ("se não decidir agora, perderá").',
+    source:
+      'https://www.gov.br/investidor/pt-br/educacional/publicacoes-educacionais/cvm-comportamental/volume-1-vieses-do-investidor.pdf/@@display-file/file',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-06',
+    note: 'Série CVM Comportamental, volume 1 "Vieses do Investidor" (PDF, 2015), texto lido: seções Ancoragem, Aversão a Perda e Autoconfiança Excessiva. Efeito manada/adesão aparece só como resultado de busca e não foi aberto, então a lição não o cita. O estudo de 2006 com gestores (74% acima da média) é citado pela CVM, mas a lição não usa o número.',
   },
 ] as const satisfies readonly RegulatoryFact[]
 

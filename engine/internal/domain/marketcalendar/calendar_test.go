@@ -26,8 +26,15 @@ func (f fakeGlobal) DividendsBetween(context.Context, int, int) ([]DividendFact,
 }
 
 type fakeUser struct {
-	facts  []UserFact
-	called string
+	facts      []UserFact
+	called     string
+	holdings   []Holding
+	recipients []RecipientFact
+}
+
+func (f *fakeUser) HoldingsOf(context.Context, string) ([]Holding, error) { return f.holdings, nil }
+func (f *fakeUser) DividendRecipientsBetween(context.Context, string, int, int) ([]RecipientFact, error) {
+	return f.recipients, nil
 }
 
 func (f *fakeUser) UserFactsBetween(_ context.Context, userID string, _, _ int) ([]UserFact, error) {
@@ -315,5 +322,174 @@ func TestCalendar_DiasDaJanelaSaoCompletos(t *testing.T) {
 	// dia 3 = quinta, 5 = sábado
 	if !days[0].MarketOpen || days[2].MarketOpen || days[3].MarketOpen || !days[4].MarketOpen {
 		t.Errorf("mercado aberto por dia: %v %v %v %v %v", days[0].MarketOpen, days[1].MarketOpen, days[2].MarketOpen, days[3].MarketOpen, days[4].MarketOpen)
+	}
+}
+
+func calendarWith(t *testing.T, svc *Service, user string, from, to int, opts Options) Result {
+	t.Helper()
+	result, err := svc.CalendarWith(context.Background(), user, from, to, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func eventOf(d DayEntry, kind Kind) (Event, bool) {
+	for _, e := range d.Events {
+		if e.Kind == kind {
+			return e, true
+		}
+	}
+	return Event{}, false
+}
+
+func TestCalendar_RelevanciaDeProventoPorPosicao(t *testing.T) {
+	qty := 120.0
+	global := fakeGlobal{day: 10, dividends: []DividendFact{
+		{Ticker: "TJLO11", ValuePerShare: 0.5, ExDay: 12, PaymentDay: 14},
+		{Ticker: "BNDD3", ValuePerShare: 0.3, ExDay: 12, PaymentDay: 14},
+	}}
+	user := &fakeUser{holdings: []Holding{{Ticker: "TJLO11", Class: "fii", Quantity: qty}}}
+	result := calendarWith(t, NewService(global, user), "u-1", 12, 14, Options{MarketLimit: -1})
+
+	var mine, market []Event
+	for _, e := range result.Days[0].Events {
+		if e.Relevance == RelevanceMine {
+			mine = append(mine, e)
+		} else {
+			market = append(market, e)
+		}
+	}
+	if len(mine) != 1 || mine[0].Ticker != "TJLO11" || mine[0].RelevanceReason != ReasonPosition {
+		t.Fatalf("mine = %+v", mine)
+	}
+	if mine[0].UserQuantity == nil || *mine[0].UserQuantity != 120 || mine[0].EstimatedAmount == nil || *mine[0].EstimatedAmount != 60 || !mine[0].AmountIsEstimate {
+		t.Errorf("antes da data-ex o valor é estimado (0,50 x 120): %+v", mine[0])
+	}
+	if len(market) != 1 || market[0].Ticker != "BNDD3" || market[0].EstimatedAmount != nil || market[0].UserQuantity != nil {
+		t.Errorf("provento de ativo que o usuário não tem é market, sem valor nem quantidade: %+v", market)
+	}
+}
+
+func TestCalendar_ProventoComSnapshotEExato(t *testing.T) {
+	global := fakeGlobal{day: 10, dividends: []DividendFact{{Ticker: "TJLO11", ValuePerShare: 0.5, ExDay: 8, PaymentDay: 12}}}
+	// O usuário vendeu depois da data-ex: não tem posição agora, mas o snapshot garante o direito.
+	user := &fakeUser{recipients: []RecipientFact{{Ticker: "TJLO11", ExDay: 8, PaymentDay: 12, Quantity: 40}}}
+	result := calendarWith(t, NewService(global, user), "u-1", 12, 12, Options{MarketLimit: -1})
+
+	e, ok := eventOf(result.Days[0], KindDividendPayDate)
+	if !ok || e.Relevance != RelevanceMine || e.AmountIsEstimate || e.EstimatedAmount == nil || *e.EstimatedAmount != 20 {
+		t.Fatalf("pagamento com snapshot = %+v", e)
+	}
+}
+
+func TestCalendar_CompradoDepoisDaDataExNaoTemDireito(t *testing.T) {
+	global := fakeGlobal{day: 10, dividends: []DividendFact{{Ticker: "TJLO11", ValuePerShare: 0.5, ExDay: 8, PaymentDay: 12}}}
+	user := &fakeUser{holdings: []Holding{{Ticker: "TJLO11", Class: "fii", Quantity: 10}}}
+	result := calendarWith(t, NewService(global, user), "u-1", 12, 12, Options{MarketLimit: -1})
+
+	e, _ := eventOf(result.Days[0], KindDividendPayDate)
+	if e.Relevance != RelevanceMarket || e.EstimatedAmount != nil {
+		t.Errorf("sem snapshot e depois da data-ex o provento não é do usuário: %+v", e)
+	}
+}
+
+func TestCalendar_RelatorioEMineSoComAcao(t *testing.T) {
+	svc := func(h []Holding) *Service { return NewService(fakeGlobal{day: 50}, &fakeUser{holdings: h}) }
+	withStock := calendarWith(t, svc([]Holding{{Ticker: "VALR3", Class: "acao", Quantity: 5}}), "u-1", 91, 91, Options{MarketLimit: -1})
+	if e, _ := eventOf(withStock.Days[0], KindReport); e.Relevance != RelevanceMine {
+		t.Errorf("com ação o relatório é mine: %+v", e)
+	}
+	onlyFund := calendarWith(t, svc([]Holding{{Ticker: "TJLO11", Class: "fii", Quantity: 5}}), "u-1", 91, 91, Options{MarketLimit: -1})
+	if e, _ := eventOf(onlyFund.Days[0], KindReport); e.Relevance != RelevanceMarket {
+		t.Errorf("só com FII o relatório é market: %+v", e)
+	}
+	copom, _ := eventOf(withStock.Days[0], KindCopom)
+	if copom.Relevance != RelevanceMarket {
+		t.Errorf("Copom é informação macro (market): %+v", copom)
+	}
+}
+
+func TestCalendar_FatosPropriosSaoMineComMotivo(t *testing.T) {
+	qty := 3.0
+	user := &fakeUser{facts: []UserFact{
+		{Day: 9, EventType: "buy_order_executed", Ticker: "X", Quantity: &qty},
+		{Day: 9, EventType: "salary_payment"},
+		{Day: 9, Ticker: "LTN2027", Maturity: true},
+	}}
+	result := calendarWith(t, NewService(fakeGlobal{day: 10}, user), "u-1", 9, 9, Options{MarketLimit: -1})
+	reasons := map[Kind]string{}
+	for _, e := range result.Days[0].Events {
+		if e.Relevance != RelevanceMine {
+			t.Errorf("fato próprio deve ser mine: %+v", e)
+		}
+		reasons[e.Kind] = e.RelevanceReason
+	}
+	if reasons[KindOrderExecuted] != ReasonOwnFact || reasons[KindSalaryPayment] != ReasonSalary || reasons[KindFixedIncomeMaturity] != ReasonFixedIncomePosition {
+		t.Errorf("motivos = %v", reasons)
+	}
+}
+
+func TestCalendar_SalarioFuturoEMine(t *testing.T) {
+	result := calendarWith(t, NewService(fakeGlobal{day: 15}, &fakeUser{}), "u-1", 32, 32, Options{MarketLimit: -1})
+	if e, _ := eventOf(result.Days[0], KindSalaryPayment); e.Relevance != RelevanceMine || e.RelevanceReason != ReasonSalary {
+		t.Errorf("salário futuro = %+v", e)
+	}
+}
+
+func TestCalendar_EscopoMineEResumoPorDia(t *testing.T) {
+	global := fakeGlobal{day: 10, dividends: []DividendFact{
+		{Ticker: "TJLO11", ValuePerShare: 1, ExDay: 12, PaymentDay: 14},
+		{Ticker: "BNDD3", ValuePerShare: 1, ExDay: 12, PaymentDay: 14},
+	}}
+	user := &fakeUser{holdings: []Holding{{Ticker: "TJLO11", Class: "fii", Quantity: 1}}}
+	svc := NewService(global, user)
+
+	all := calendarWith(t, svc, "u-1", 12, 12, Options{MarketLimit: -1})
+	if all.Days[0].Summary != (DaySummary{Mine: 1, Market: 1}) || all.MarketTotal != 1 || all.MarketShown != 1 {
+		t.Errorf("all = %+v %+v", all.Days[0].Summary, all)
+	}
+	mine := calendarWith(t, svc, "u-1", 12, 12, Options{MineOnly: true, MarketLimit: -1})
+	if len(mine.Days[0].Events) != 1 || mine.Days[0].Events[0].Relevance != RelevanceMine {
+		t.Errorf("mine só devolve os do usuário: %+v", mine.Days[0].Events)
+	}
+	if mine.Days[0].Summary.Market != 1 || mine.MarketTotal != 1 || mine.MarketShown != 0 {
+		t.Errorf("o resumo conta o mercado mesmo sem devolvê-lo: %+v", mine)
+	}
+}
+
+func TestCalendar_LimiteDeMercadoMantemOsMaisProximosDeHoje(t *testing.T) {
+	var dividends []DividendFact
+	for i := 0; i < 6; i++ {
+		dividends = append(dividends, DividendFact{Ticker: "T" + string(rune('A'+i)), ValuePerShare: 1, ExDay: 20 + i, PaymentDay: 1000})
+	}
+	svc := NewService(fakeGlobal{day: 22, dividends: dividends}, &fakeUser{})
+	result := calendarWith(t, svc, "u-1", 18, 30, Options{MarketLimit: 3})
+
+	if result.MarketTotal != 6 || result.MarketShown != 3 {
+		t.Fatalf("total/shown = %d/%d", result.MarketTotal, result.MarketShown)
+	}
+	var days []int
+	for _, d := range result.Days {
+		if len(d.Events) > 0 {
+			days = append(days, d.Day)
+		}
+	}
+	// Hoje é o dia 22: ficam 22, 21 e 23 (distância 0, 1 e 1, o mais cedo primeiro), nunca os extremos.
+	if len(days) != 3 || days[0] != 21 || days[1] != 22 || days[2] != 23 {
+		t.Errorf("dias mantidos = %v", days)
+	}
+	none := calendarWith(t, svc, "u-1", 18, 30, Options{MarketLimit: 0})
+	if none.MarketShown != 0 || none.MarketTotal != 6 {
+		t.Errorf("limite 0 = %+v", none)
+	}
+}
+
+func TestCalendar_SemUsuarioTudoEMarket(t *testing.T) {
+	global := fakeGlobal{day: 10, dividends: []DividendFact{{Ticker: "TJLO11", ValuePerShare: 1, ExDay: 12, PaymentDay: 14}}}
+	result := calendarWith(t, NewService(global, &fakeUser{holdings: []Holding{{Ticker: "TJLO11", Quantity: 9}}}), "", 12, 12, Options{MarketLimit: -1})
+	e := result.Days[0].Events[0]
+	if e.Relevance != RelevanceMarket || e.UserQuantity != nil {
+		t.Errorf("sem userID nada é do usuário: %+v", e)
 	}
 }

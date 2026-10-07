@@ -391,3 +391,91 @@
     height: 0.75rem;
     background: repeating-linear-gradient(45deg, var(--color-text-secondary) 0 3px, transparent 3px 7px);
 }
+
+/* RC.3.4e: livro de ofertas e classificações. */
+.bookGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .bookGrid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.bookSide {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.bookSide li {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+}
+
+.bookBid {
+    border-left: 3px solid var(--color-brand-500);
+}
+
+/* Venda: borda tracejada, a diferença do lado da compra não depende só de cor. */
+.bookAsk {
+    border-left: 3px dashed var(--color-text-secondary);
+}
+
+.bookTitle {
+    margin: 0 0 var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.bookMid {
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* RC.3.4g: marcos de um provento (anúncio, data com, data ex, pagamento). */
+.milestones {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+@media (min-width: 768px) {
+    .milestones {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.milestone {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.milestone strong {
+    color: var(--color-text-primary);
+}

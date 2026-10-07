@@ -51,17 +51,15 @@ export const TERM_RULES: TermRule[] = [
     id: 'ticker',
     label: 'ticker',
     pattern: /\bticker/i,
-    definedIn: null,
-    plannedIn: 'RC.4.2',
+    definedIn: '2.1',
     glossaryKeys: ['ticker'],
   },
   {
     id: 'on-pn',
     label: 'ON/PN',
     pattern: /\b(ON|PN)\b/,
-    definedIn: null,
-    plannedIn: 'RC.4.2',
-    glossaryKeys: ['ON', 'PN'],
+    definedIn: '2.2',
+    glossaryKeys: ['ON e PN', 'ação ordinária', 'ação preferencial'],
   },
   {
     id: 'valor-de-face',
@@ -75,35 +73,38 @@ export const TERM_RULES: TermRule[] = [
     id: 'alavancagem',
     label: 'alavancagem',
     pattern: /alavanca/i,
-    definedIn: '2.8',
+    definedIn: '2.7.3',
     glossaryKeys: ['alavancagem'],
   },
   {
     id: 'payout',
     label: 'payout',
     pattern: /payout/i,
-    definedIn: '2.6.6',
+    definedIn: '2.7.6',
     glossaryKeys: ['payout'],
   },
   {
     id: 'jcp',
     label: 'JCP',
     pattern: /\bJCP\b|juros sobre capital/i,
-    definedIn: '2.6.6',
+    definedIn: '2.7.6',
     glossaryKeys: ['JCP'],
   },
   {
     id: 'itr-dfp',
     label: 'ITR/DFP',
     pattern: /\b(ITR|DFP)\b/,
-    definedIn: '2.7',
+    definedIn: '2.7.1',
     glossaryKeys: ['ITR', 'DFP'],
   },
   {
     id: 'valor-de-mercado',
     label: 'valor de mercado',
-    pattern: /valor de mercado/i,
-    definedIn: '2.2',
+    // Só o valor de mercado da empresa (preço x ações). O "valor de mercado" de um
+    // título público (o preço de recompra do dia) é outro conceito, da lição de
+    // marcação a mercado, e não é o que a 2.1 define.
+    pattern: /valor de mercado d[ao]s? (empresa|companhia)|market cap/i,
+    definedIn: '2.1',
     glossaryKeys: ['valor de mercado'],
   },
   { id: 'nav', label: 'NAV', pattern: /\bNAV\b/, definedIn: '2.9', glossaryKeys: ['NAV'] },
@@ -126,7 +127,8 @@ export const TERM_RULES: TermRule[] = [
     id: 'liquidez',
     label: 'liquidez',
     pattern: /liquidez/i,
-    definedIn: '2.4',
+    // A reserva de emergência (1.3) define inline; a 2.5 volta ao termo no livro de ofertas.
+    definedIn: '1.3',
     glossaryKeys: ['liquidez'],
   },
   {
@@ -142,6 +144,9 @@ export interface LessonText {
   code: string
   sortOrder: number
   text: string
+  // Lição de trilha paralela (RC.4.4) pode ser aberta antes de qualquer outra,
+  // então nenhuma lição "anterior" apresenta termo para ela.
+  parallel?: boolean
 }
 
 export interface TermViolation {
@@ -166,7 +171,7 @@ export function findTermViolations(
     for (const lesson of lessons) {
       if (!rule.pattern.test(lesson.text)) continue
       if (lesson.code === rule.definedIn) continue
-      if (definerOrder !== null && definerOrder < lesson.sortOrder) continue
+      if (!lesson.parallel && definerOrder !== null && definerOrder < lesson.sortOrder) continue
       if (hasInlineDefinition(lesson.text, rule.glossaryKeys)) continue
       violations.push({
         termId: rule.id,

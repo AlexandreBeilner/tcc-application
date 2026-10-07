@@ -871,3 +871,47 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **O que é:** entregar "ícone" e "XP por conquista" não é só uma coluna: XP ao desbloquear muda a economia de XP do jogo (nível, salário por nível, ranking de nível) e cria um laço (`AwardXpUseCase` chama a checagem de conquistas, que concederia XP de novo); ícone exige o frontend passar a renderizar um ícone por conquista (hoje não renderiza). Criar missão nova pelo painel entregaria XP de graça (sem verificação cruzada). **Decisão provisória tomada na implementação (a confirmar):** o painel opera o que existe (conquista: nome, descrição, regra da lista fechada, meta, ativa; missão: título, descrição, XP de 1 a 500, ativa, tipo só leitura), sem ícone, sem XP por conquista, sem criar missão.
 - **Opções:** (a) manter assim; (b) ícone por chave de uma lista fechada (coluna `icon` e o frontend renderizando); (c) XP por conquista, concedido uma vez ao desbloquear (decidir a curva e quebrar o laço da checagem); (d) tipos de missão genéricos com meta (ex: "ler N eventos no feed"), o que é uma refatoração do despacho por `key`.
 - **Status:** aberto (implementado com (a))
+
+### 034 · A compra de ações libera na lição do ticker, antes de a trilha ensinar ordens, corretora e custos (RC.4.3)
+
+- **Local:** `backend/src/db/seedLessons.ts` (lição `stableKey` `2.3`, `unlocksKeys: ['asset:acao']`)
+- **Origem:** reordenação da Trilha 2 (RC.4.3). O ticker passou a ser a 2ª lição (antes do IPO), e a lição "B3, corretora e ordens" a 4ª; o desbloqueio de `asset:acao` continuou na lição do ticker.
+- **O que é:** o jogador pode comprar ações depois de aprender só o que é ação e o ticker, sem ainda ter visto ordem a mercado x limite, spread, liquidez e custos. Mover o desbloqueio para a lição de ordens faria quem já concluiu o ticker perder o acesso até concluir a nova (regressão para quem já está na trilha).
+- **Opções:** (a) manter (a compra libera cedo, as ordens vêm logo depois); (b) mover o desbloqueio para a lição de B3 e ordens, e dispensar dela quem já concluiu a do ticker (migração com N.24); (c) manter na lição do ticker, mas mostrar um aviso curto de ordem a mercado x limite na tela de compra.
+- **Status:** aberto (implementado com (a))
+
+### 035 · Duas migrations do engine com o mesmo número `000040` nas pilhas ainda não mescladas (RC.6.1)
+
+- **Local:** `engine/internal/infra/db/migrations/000040_clean_visible_catalog_text.*` (RC.1.4) e `000040_tick_runs_and_scheduler_control.*` (Fase N, N.3/N.4/N.6)
+- **Origem:** rodar o teste de integração do `CalendarRepository` (RC.6.1) num Postgres descartável: `Migrate` falha com `duplicate migration file: 000040_...` nesta branch, que empilha as duas séries. A `main` ainda não tem nenhuma das duas.
+- **O que é:** as pilhas RC e Fase N foram criadas em paralelo e cada uma pegou o próximo número livre. Quem aplicar as duas no mesmo banco (ou subir o `engine` com as duas) tem o `golang-migrate` recusando a pasta inteira. O teste de integração do calendário só rodou movendo uma delas para fora, temporariamente.
+- **Por que não foi corrigido na hora:** renumerar uma delas (por exemplo, a de limpeza de texto para `000043`) é mecânico, mas quem já aplicou a `000040` num banco de dev ficaria com o histórico dessincronizado, e a ordem de merge das pilhas é decisão do autor.
+- **Opções:** (a) renumerar a `000040_clean_visible_catalog_text` para o próximo número livre antes de mesclar a pilha RC (ajustando bancos de dev que já a aplicaram); (b) renumerar a da Fase N; (c) mesclar uma pilha antes e renumerar a outra no rebase.
+- **Status:** resolvido (2026-10-07, RC.7.6): opção (a), `000040_clean_visible_catalog_text` renumerada para `000049` (idempotente, só UPDATEs de texto); `docker compose up` subiu o engine com as duas séries. Bancos de dev que já tinham a antiga `000040` da série RC precisam de `UPDATE schema_migrations`/reaplicação (a 000049 é idempotente).
+
+### 036 · JCP e imposto sobre dividendos não existem no motor, só nas lições (RC.6.5, D9)
+
+- **Local:** `engine/internal/domain/tick/tick.go` (geração de `dividend_events`) e `dividend_events` (sem coluna de natureza do provento)
+- **Origem:** análise do calendário (`revisao-trilhas-anexos/analise-calendario.md`, seções 2 e 3.7) e decisão D9 do backlog de revisão, 2026-10-03.
+- **O que é:** na vida real, parte dos proventos de ações vem como JCP (retenção na fonte de 15%) e a Lei 15.270/2025 passou a tributar dividendos de grande valor. O motor paga todo provento como dividendo isento: não há natureza `dividend|jcp`, retenção nem imposto sobre dividendos. As lições explicam o tema, mas o calendário e o extrato mostram sempre o valor cheio.
+- **Por que não foi corrigido:** modelar IR retido muda o valor creditado, o extrato e o `estimated_amount` do calendário, e a decisão D9 foi manter isso fora do motor por ora (só nas lições).
+- **Opções:** (a) manter assim (lição explica, motor simplifica; o bloco "Na plataforma" diz isso); (b) coluna `dividend_events.kind = dividend|jcp` com retenção de 15% no crédito e no valor estimado do calendário; (c) (b) mais o imposto sobre dividendos acima do limite da Lei 15.270/2025.
+- **Status:** aberto (implementado com (a))
+
+### 037 · Instante do snapshot de quem recebe o provento: data-com real x geração do evento (RC.6.5, D10)
+
+- **Local:** `engine/internal/domain/tick/tick.go` (`dividend_event_recipients`) e `engine/internal/domain/marketcalendar/calendar.go` (`entitlement`)
+- **Origem:** análise do calendário (3.7 itens 2 e 3) e decisão D10, 2026-10-03: data-com real, com snapshot dos elegíveis na data-ex.
+- **O que é:** hoje o snapshot é tirado quando o evento de provento é gerado, não na data-ex; o calendário já trata a data-ex passada sem snapshot como "sem direito" e estima antes dela. Enquanto a RC.6.11 (declaração separada e snapshot na data-ex) não entra, quem compra entre a geração e a data-ex pode ver uma estimativa que o snapshot depois não confirma. Também falta definir a tolerância do primeiro ciclo irregular no cutover do escalonamento (item 3 da análise) e os pesos anual/semestral por setor (item 4, vão para `calibracao-calendario-proventos.md`, RC.6.5b).
+- **Por que não foi corrigido:** a mudança de instante altera quem recebe cada provento, e a entrega ordenada é a RC.6.11; o texto da lição "Na plataforma" deve descrever o comportamento vigente.
+- **Opções:** (a) manter o snapshot na geração até a RC.6.11 e documentar na lição; (b) antecipar o snapshot na data-ex só para os proventos novos, com cutover por dia; (c) (b) retroativo, o que contraria o event sourcing (proventos já pagos ficam intactos).
+- **Status:** Resolvido (2026-10-06, RC.6.11): proventos declarados antes da data-ex ganham o snapshot no tick da data-ex (opção (b), só para os novos; os já pagos ficam intactos). Falta só a tolerância do primeiro ciclo irregular no cutover, coberta pelo dia de corte (`schedule_cutover_day`).
+
+### 038 · Copom e eventos macro aparecem como "No mercado", mesmo para quem tem renda fixa pós-fixada (RC.6.5)
+
+- **Local:** `engine/internal/domain/marketcalendar/calendar.go` (relevância de `copom` e `macro_event`) e `frontend/src/components/organisms/MarketCalendarPanel`
+- **Origem:** análise do calendário (3.7 item 1) e RC.6.1/RC.6.4.
+- **O que é:** só fato com consequência direta no saldo do usuário é "Para você". Uma reunião do Copom muda o rendimento de quem tem Tesouro Selic, CDB pós-fixado ou a poupança, mas hoje é sempre "No mercado" (aparece só em "Todos"); evento macro setorial também não marca quem tem ativo do setor. Quem usa só "Meus" não vê o Copom que mexe na sua carteira.
+- **Por que não foi corrigido:** "mine" para Copom e macro exige regra de produto (qual posição conta, se vale para o evento macro agendado sem entregar o veredito, RF16) e a v1 decidiu por `market`.
+- **Opções:** (a) manter (informação macro vai em "No mercado"); (b) Copom `mine` para quem tem posição pós-fixada ou Selic; (c) (b) mais macro setorial `mine` para quem tem ativo do setor, sem texto de veredito.
+- **Status:** aberto (implementado com (a))

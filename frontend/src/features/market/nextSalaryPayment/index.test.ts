@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { CalendarDay, CalendarEvent } from '../../../services/market'
+import { calendarDay } from '../../../test/calendarFixtures'
 import { nextSalaryPaymentDays } from '.'
 
 function day(simulatedDay: number, events: CalendarEvent[]): CalendarDay {
-    return { simulated_day: simulatedDay, date: '2026-01-01', weekday: 'mon', market_open: true, events }
+    return calendarDay({ simulated_day: simulatedDay, date: '2026-01-01', weekday: 'mon', market_open: true }, events)
 }
 
 function salaryEvent(future: boolean): CalendarEvent {
-    return { kind: 'salary_payment', scope: 'user', future }
+    return { kind: 'salary_payment', scope: 'user', future, relevance: 'mine' }
 }
 
 describe('nextSalaryPaymentDays (tarefa T.9)', () => {
