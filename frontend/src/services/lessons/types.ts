@@ -1,5 +1,5 @@
 // Vocabulário fixo do widget de Micro-decisão (tarefa 7.0.2) — 'reflection'
-// é o padrão (checkbox "já pensei"); os outros embutem um componente já
+// é o padrão (sem widget embutido); os outros embutem um componente já
 // existente (tarefa 6.7) — ver `pages/Lesson/index.tsx`.
 export type MicroDecisionType = 'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator' | 'live_macro_indicator'
 
@@ -33,7 +33,7 @@ export interface Lesson {
     // Desbloqueio.
     unlocksAssetTicker: string | null
     // Aposta com acerto/erro real (backlog engajamento B.1/B.3) — `null` é o
-    // estado normal de hoje (checkbox "já pensei"); preenchido troca pro
+    // estado normal de hoje (passo sem pergunta); preenchido troca pro
     // widget de escolha real. O índice certo (`microDecisionCorrectOption`)
     // nunca vem aqui (correção da revisão da PR 18 — vazava a resposta antes
     // do usuário escolher); o veredito vem só de `POST /lessons/:id/answer`

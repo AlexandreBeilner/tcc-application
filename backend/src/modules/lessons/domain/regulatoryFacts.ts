@@ -90,6 +90,49 @@ export const REGULATORY_FACTS = [
     verifiedAt: '2026-10-04',
   },
   {
+    id: 'tesouro-resgate-liquidez',
+    label: 'Tesouro Direto: prazo de liquidação do resgate',
+    value:
+      'O resgate de qualquer título pode ser creditado no mesmo dia útil, se pedido até cerca das 13h, ou no dia útil seguinte (D+1), se pedido depois disso. Só em dia útil.',
+    data: { sameDayCutoffHour: 13 },
+    source: 'https://www.tesourodireto.com.br/en/regras-e-regulamento',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-04',
+    note: 'Resultado de busca no domínio do Tesouro Direto e do gov.br (notícia "Tesouro Direto passa a ter liquidação de resgate no mesmo dia"); as páginas retornaram 401/403 à leitura automática. A auditoria da RC.1.7 dizia só D+1: está desatualizada. Na lição, dizer "no mesmo dia útil ou no seguinte, conforme o horário" sem citar o horário exato; reabrir no navegador na RC.8.1.',
+  },
+  {
+    id: 'tesouro-prefixado-regras',
+    label: 'Tesouro Prefixado: LTN e NTN-F',
+    value:
+      'O Tesouro Prefixado (LTN) paga o valor de face de R$ 1.000 por título no vencimento, sem pagamentos antes. O Tesouro Prefixado com Juros Semestrais (NTN-F) paga juros a cada semestre e o principal no vencimento. Os dois vencem em 1º de janeiro do ano do vencimento.',
+    data: { faceValueBRL: 1000 },
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'trecho-de-busca',
+    verifiedAt: '2026-10-05',
+    note: 'A página de regras foi aberta e confirma a forma de pagamento da NTN-F (semestral nos juros, principal no vencimento) e usa exemplo de LTN com vencimento em 01/01. O valor de face de R$ 1.000 e o vencimento sempre em 1º de janeiro vêm do resultado de busca no domínio do Tesouro Direto; reabrir no navegador na RC.8.1. O cupom de 10% ao ano da NTN-F não foi confirmado na página e não entra nas lições.',
+  },
+  {
+    id: 'tesouro-resgate-preco-mercado',
+    label: 'Tesouro Direto: resgate antecipado a preço de mercado',
+    value:
+      'O Tesouro Nacional garante liquidez diária aos títulos e recompra o título antes do vencimento pelo valor de mercado do dia, então o retorno pode diferir da taxa contratada. Segurar até o vencimento garante a rentabilidade contratada.',
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Página de regras e regulamento aberta: "o Tesouro Nacional recompra o título com base no valor de mercado".',
+  },
+  {
+    id: 'reserva-emergencia-bcb',
+    label: 'Reserva de emergência: onde aplicar (Banco Central)',
+    value:
+      'O Caderno de Educação Financeira do Banco Central orienta aplicar a reserva de emergência em investimento de alta liquidez e baixo risco, para o dinheiro estar disponível rápido e sem perdas. O Caderno não fixa um número de meses de despesas.',
+    source:
+      'https://www.bcb.gov.br/content/cidadaniafinanceira/documentos_cidadania/Cuidando_do_seu_dinheiro_Gestao_de_Financas_Pessoais/caderno_cidadania_financeira.pdf',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'PDF baixado e lido (pdftotext): seção "Despesas emergenciais" (reserva para cobrir eventualidades e evitar o endividamento) e a dica "aplique sua reserva de emergência em um investimento de alta liquidez e baixo risco". As faixas de 3 a 6 meses (renda estável) e 6 a 12 (renda variável) NÃO constam do Caderno: são regra de bolso e a lição as rotula assim. Tesouro Reserva (lançado em 11/05/2026 por Tesouro, B3 e Banco do Brasil, rende 100% da Selic over, sem marcação a mercado, só para clientes do Banco do Brasil por ora) foi visto só em resultado de busca no gov.br; não entra na lição até a página abrir.',
+  },
+  {
     id: 'poupanca-regra',
     label: 'Poupança: regra de rendimento',
     value:
@@ -98,7 +141,18 @@ export const REGULATORY_FACTS = [
     source: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/lei/l12703.htm',
     check: 'pagina-oficial',
     verifiedAt: '2026-10-04',
-    note: 'Lei 12.703/2012 (texto lido). Vale para depósitos a partir da MP 567/2012 (04/05/2012); saldos anteriores mantêm a regra antiga. 0,5% ao mês equivale a 6,168% ao ano composto. A isenção de IR da poupança para pessoa física aparece de forma indireta na Lei 9.250/1995, art. 16-A (rendimentos de poupança deduzidos da base do imposto mínimo); a norma específica de isenção não foi aberta.',
+    note: 'Lei 12.703/2012 (texto lido de novo em 2026-10-04: art. 1º, inciso II, alíneas a e b; art. 2º mantém TR mais 0,5% ao mês para saldos até 3 de maio de 2012, data da MP 567; a remuneração é da TR relativa ao aniversário do depósito mais a remuneração adicional). Vale para depósitos a partir da MP 567/2012 (04/05/2012); saldos anteriores mantêm a regra antiga. 0,5% ao mês equivale a 6,168% ao ano composto. A isenção de IR da poupança para pessoa física aparece de forma indireta na Lei 9.250/1995, art. 16-A (rendimentos de poupança deduzidos da base do imposto mínimo); a norma específica de isenção não foi aberta.',
+  },
+  {
+    id: 'poupanca-isencao-ir-pf',
+    label: 'Poupança: rendimento isento de IR para pessoa física',
+    value:
+      'Rendimentos de caderneta de poupança são isentos e não tributáveis na declaração de imposto de renda da pessoa física.',
+    source:
+      'https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/preenchimento/manual-mir/rendimentos/rendimentos-do-capital',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Manual do Meu Imposto de Renda, Receita Federal (página lida): lista poupança, LCI, LCA, CRI e CRA como rendimentos isentos e não tributáveis, "que só podem ser recebidos de Pessoa Jurídica" (ou seja, pagos pela instituição). Complementa o fato poupanca-regra, que só tinha a referência indireta da Lei 9.250.',
   },
   {
     id: 'lci-lca-isencao-pf',
@@ -136,6 +190,64 @@ export const REGULATORY_FACTS = [
     check: 'trecho-de-busca',
     verifiedAt: '2026-10-04',
     note: 'Regra do regulamento do Copom (resultado de busca no domínio do Banco Central). A página oficial só abre com JavaScript; reabrir pelo navegador antes de citar horário. Intervalo de cerca de 45 dias é consequência de 8 reuniões por ano.',
+  },
+  {
+    id: 'selic-definicao',
+    label: 'Selic: meta do Copom e taxa efetiva',
+    value:
+      'O Copom define a meta da Selic, que vigora por todo o período entre reuniões ordinárias. A taxa Selic efetiva é a média ponderada, pelo volume, das taxas das operações compromissadas de um dia útil com títulos públicos federais registrados no Selic.',
+    source: 'https://www.bcb.gov.br/htms/copom_normas/a-hist.asp?frame=1',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Página do Copom lida (meta e vigência entre reuniões). A definição da taxa efetiva vem do material do Banco Central sobre a taxa Selic (resultado de busca no domínio bcb.gov.br).',
+  },
+  {
+    id: 'cdi-taxa-di',
+    label: 'CDI e taxa DI',
+    value:
+      'O CDI é o título que bancos usam para empréstimos de um dia útil entre si. A taxa DI, apurada pela B3, é a média ponderada dessas taxas, expressa ao ano com base em 252 dias úteis, e acompanha de perto a Selic. Rentabilidade de 100% do CDI é igual à taxa DI do período.',
+    data: { businessDaysPerYear: 252 },
+    source: 'https://borainvestir.b3.com.br/glossario/taxa-di/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Glossário educacional da B3 (Bora Investir), páginas de CDI e de taxa DI lidas. Série diária da taxa DI no SGS do Banco Central (série 4389).',
+  },
+  {
+    id: 'tr-metodologia',
+    label: 'TR: como é calculada',
+    value:
+      'A Taxa Referencial é calculada pelo Banco Central a partir da TBF, que sai de taxas negociadas no mercado secundário de Letras do Tesouro Nacional (LTN), com um redutor R e piso de zero: TR = max {0; (1 + TBF) / R - 1}.',
+    source: 'https://www.bcb.gov.br/htms/normativ/Resolucao4624.pdf?r=1',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Resolução CMN 4.624/2018 (texto lido: arts. 1º a 5º sobre TBF e LTN; o redutor R e o piso zero constam em resultado de busca no domínio bcb.gov.br sobre a norma anterior da metodologia, a Res. 3.354/2006; reabrir a 4.624 inteira antes de citar a fórmula do redutor em texto).',
+  },
+  {
+    id: 'tr-historico-zero',
+    label: 'TR: período em que ficou zerada',
+    value:
+      'A TR ficou zerada em grande parte do período entre fevereiro de 2017 e fevereiro de 2022, enquanto a Selic esteve baixa, e voltou a ser positiva com a alta dos juros. Em outubro de 2026 estava em cerca de 0,16% ao mês.',
+    data: {
+      zeroFrom: '2017-02-15',
+      zeroUntil: '2022-02-28',
+      recentMonthlyPct: 0.16,
+      recentRefDate: '2026-10-01',
+    },
+    source: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.226/dados/ultimos/3?formato=json',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'Série 226 (TR diária) do SGS consultada direto na API: 1.623 de 2.232 observações de 2017 a 2022 com valor zero, a última em 28/02/2022; 0,1616% ao mês em 01/10/2026. Corrige o texto de apoio que dizia a TR "hoje ~zero": com a Selic acima de 8,5% ela é positiva e entra na conta da poupança.',
+  },
+  {
+    id: 'selic-cdi-valores-recentes',
+    label: 'Selic e CDI: valores recentes (exemplo datado)',
+    value:
+      'Em outubro de 2026, a meta da Selic estava em 13,75% ao ano e a Selic efetiva e o CDI em 13,65% ao ano, cerca de 0,10 ponto percentual abaixo da meta.',
+    data: { targetPct: 13.75, effectivePct: 13.65, cdiPct: 13.65, refDate: '2026-10-02' },
+    source: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/3?formato=json',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-04',
+    note: 'SGS: série 432 (meta), 1178 (Selic efetiva) e 4389 (CDI). Número com data de validade: só entra em lição rotulado como exemplo datado, nunca como valor atual.',
   },
   {
     id: 'meta-inflacao',
@@ -270,6 +382,16 @@ export const REGULATORY_FACTS = [
     check: 'trecho-de-busca',
     verifiedAt: '2026-10-04',
     note: 'Resolução CVM 80/2022 (resultado de busca no domínio da CVM). Texto consolidado não aberto.',
+  },
+  {
+    id: 'securitizacao-patrimonio-separado',
+    label: 'Securitização: regime fiduciário e patrimônio separado',
+    value:
+      'A companhia securitizadora pode instituir regime fiduciário sobre os recebíveis que lastreiam os certificados (CRI e CRA entre eles). Eles formam um patrimônio separado, que não responde perante os credores da securitizadora e só paga os titulares daquela emissão. Em emissões públicas há agente fiduciário, que atua em nome dos investidores.',
+    source: 'https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2022/lei/l14430.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-05',
+    note: 'Lei 14.430/2022, arts. 25 a 27 (texto lido): art. 26, II e III (patrimônio separado e agente fiduciário em emissões públicas); art. 27, I, IV e VI (patrimônio que não se confunde com o comum, não responde por obrigações da securitizadora e responde só pelos certificados vinculados).',
   },
   {
     id: 'tesouro-vna-ipca',

@@ -2,6 +2,20 @@ import type { ComponentType } from 'react'
 import type { ZodType } from 'zod'
 import { widgetPropsSchemas } from '../../../features/lessons/widgets/schema'
 import type { WidgetId, WidgetProps } from '../../../features/lessons/widgets/schema'
+import { CompoundGrowthWidget, compoundGrowthSummary } from '../CompoundGrowthWidget'
+import { CopomTimelineWidget, copomTimelineSummary } from '../CopomTimelineWidget'
+import { EmergencyFundCalculatorWidget, emergencyFundCalculatorSummary } from '../EmergencyFundCalculatorWidget'
+import { WhereToKeepWidget, whereToKeepSummary } from '../WhereToKeepWidget'
+import { InflationSelicSeesawWidget, inflationSelicSeesawSummary } from '../InflationSelicSeesawWidget'
+import { BondPriceCalculatorWidget, bondPriceCalculatorSummary } from '../BondPriceCalculatorWidget'
+import { BreakevenInflationWidget, breakevenInflationSummary } from '../BreakevenInflationWidget'
+import { FgcCoverageBarWidget, fgcCoverageBarSummary } from '../FgcCoverageBarWidget'
+import { IpcaPlusSimulatorWidget, ipcaPlusSimulatorSummary } from '../IpcaPlusSimulatorWidget'
+import { MtmSeesawWidget, mtmSeesawSummary } from '../MtmSeesawWidget'
+import { RatingRulerWidget, ratingRulerSummary } from '../RatingRulerWidget'
+import { RealReturnWidget, realReturnSummary } from '../RealReturnWidget'
+import { SavingsVsSelicWidget, savingsVsSelicSummary } from '../SavingsVsSelicWidget'
+import { SelicIpcaChartWidget, selicIpcaChartSummary } from '../SelicIpcaChartWidget'
 import { EquivalentRateWidget, equivalentRateSummary } from '../EquivalentRateWidget'
 import { IrRegressiveTableWidget, irRegressiveTableSummary } from '../IrRegressiveTableWidget'
 import { ProductComparatorWidget, productComparatorSummary } from '../ProductComparatorWidget'
@@ -49,6 +63,76 @@ export const widgetRegistry: Registry = {
         component: ProductComparatorWidget,
         propsSchema: widgetPropsSchemas['product-comparator'],
         summary: productComparatorSummary,
+    },
+    'compound-growth': {
+        component: CompoundGrowthWidget,
+        propsSchema: widgetPropsSchemas['compound-growth'],
+        summary: compoundGrowthSummary,
+    },
+    'real-return': {
+        component: RealReturnWidget,
+        propsSchema: widgetPropsSchemas['real-return'],
+        summary: realReturnSummary,
+    },
+    'selic-ipca-chart': {
+        component: SelicIpcaChartWidget,
+        propsSchema: widgetPropsSchemas['selic-ipca-chart'],
+        summary: selicIpcaChartSummary,
+    },
+    'copom-timeline': {
+        component: CopomTimelineWidget,
+        propsSchema: widgetPropsSchemas['copom-timeline'],
+        summary: copomTimelineSummary,
+    },
+    'inflation-selic-seesaw': {
+        component: InflationSelicSeesawWidget,
+        propsSchema: widgetPropsSchemas['inflation-selic-seesaw'],
+        summary: inflationSelicSeesawSummary,
+    },
+    'emergency-fund-calculator': {
+        component: EmergencyFundCalculatorWidget,
+        propsSchema: widgetPropsSchemas['emergency-fund-calculator'],
+        summary: emergencyFundCalculatorSummary,
+    },
+    'where-to-keep': {
+        component: WhereToKeepWidget,
+        propsSchema: widgetPropsSchemas['where-to-keep'],
+        summary: whereToKeepSummary,
+    },
+    'mtm-seesaw': {
+        component: MtmSeesawWidget,
+        propsSchema: widgetPropsSchemas['mtm-seesaw'],
+        summary: mtmSeesawSummary,
+    },
+    'fgc-coverage-bar': {
+        component: FgcCoverageBarWidget,
+        propsSchema: widgetPropsSchemas['fgc-coverage-bar'],
+        summary: fgcCoverageBarSummary,
+    },
+    'rating-ruler': {
+        component: RatingRulerWidget,
+        propsSchema: widgetPropsSchemas['rating-ruler'],
+        summary: ratingRulerSummary,
+    },
+    'bond-price-calculator': {
+        component: BondPriceCalculatorWidget,
+        propsSchema: widgetPropsSchemas['bond-price-calculator'],
+        summary: bondPriceCalculatorSummary,
+    },
+    'ipca-plus-simulator': {
+        component: IpcaPlusSimulatorWidget,
+        propsSchema: widgetPropsSchemas['ipca-plus-simulator'],
+        summary: ipcaPlusSimulatorSummary,
+    },
+    'breakeven-inflation': {
+        component: BreakevenInflationWidget,
+        propsSchema: widgetPropsSchemas['breakeven-inflation'],
+        summary: breakevenInflationSummary,
+    },
+    'savings-vs-selic': {
+        component: SavingsVsSelicWidget,
+        propsSchema: widgetPropsSchemas['savings-vs-selic'],
+        summary: savingsVsSelicSummary,
     },
     'growth-calculator': {
         component: GrowthCalculatorForm,

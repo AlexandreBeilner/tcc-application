@@ -101,6 +101,54 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
   })
 
+  it('aceita os widgets de juros e inflação com defaults', () => {
+    const phases = {
+      ...CONTRACT_EXAMPLE.phases,
+      scenario: [
+        { type: 'widget', id: 'a', widget: 'compound-growth', props: {} },
+        { type: 'widget', id: 'b', widget: 'real-return', props: { inflationPct: 6 } },
+        { type: 'widget', id: 'c', widget: 'selic-ipca-chart', props: { windowDays: 180 } },
+        { type: 'widget', id: 'd', widget: 'copom-timeline', props: {} },
+        { type: 'widget', id: 'e', widget: 'inflation-selic-seesaw', props: { inflationPct: 7 } },
+        {
+          type: 'widget',
+          id: 'f',
+          widget: 'emergency-fund-calculator',
+          props: { monthlyCost: 4000, incomeType: 'variable' },
+        },
+        { type: 'widget', id: 'g', widget: 'where-to-keep', props: {} },
+        { type: 'widget', id: 'h', widget: 'mtm-seesaw', props: { indexer: 'ipca-plus', yearsToMaturity: 5 } },
+        { type: 'widget', id: 'i', widget: 'fgc-coverage-bar', props: { institutions: 3, sameConglomerate: true } },
+        { type: 'widget', id: 'j', widget: 'rating-ruler', props: { highlight: 'BBB' } },
+        { type: 'widget', id: 'k', widget: 'bond-price-calculator', props: { ratePct: 10, years: 1 } },
+        { type: 'widget', id: 'l', widget: 'ipca-plus-simulator', props: { years: 10, ipcaPct: 4 } },
+        { type: 'widget', id: 'm', widget: 'breakeven-inflation', props: { prefixedPct: 13, realPct: 7 } },
+      ],
+    }
+    expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(true)
+  })
+
+  it.each([
+    ['compound-growth', { months: 0 }],
+    ['compound-growth', { rateUnit: 'day' }],
+    ['real-return', { inflationPct: 50 }],
+    ['selic-ipca-chart', { windowDays: 3 }],
+    ['inflation-selic-seesaw', { inflationPct: 40 }],
+    ['emergency-fund-calculator', { incomeType: 'rico' }],
+    ['mtm-seesaw', { indexer: 'cdi' }],
+    ['fgc-coverage-bar', { institutions: 9 }],
+    ['rating-ruler', { highlight: 'ZZ' }],
+    ['bond-price-calculator', { ratePct: 40 }],
+    ['ipca-plus-simulator', { years: 2.5 }],
+    ['breakeven-inflation', { realPct: 1 }],
+  ])('%s com props fora do limite é rejeitado', (widget, props) => {
+    const phases = {
+      ...CONTRACT_EXAMPLE.phases,
+      scenario: [{ type: 'widget', id: 'x', widget, props }],
+    }
+    expect(lessonBlocksSchema.safeParse({ ...CONTRACT_EXAMPLE, phases }).success).toBe(false)
+  })
+
   it('comparador com um produto só é rejeitado', () => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,
