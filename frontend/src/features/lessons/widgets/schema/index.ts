@@ -39,6 +39,9 @@ export const WIDGET_IDS = [
     'etf-shock-simulator',
     'fii-monthly-calendar',
     'fee-drag',
+    'risk-return-scatter',
+    'allocation-donut',
+    'risk-profile-quiz',
     'budget-split',
     'debt-snowball',
     'pay-or-invest',
@@ -240,6 +243,15 @@ export const widgetPropsSchemas = {
         feeBPct: z.number().min(0).max(4).default(2),
         years: z.number().int().min(1).max(40).default(20),
     }),
+    'risk-return-scatter': z.object({
+        highlight: z.enum(['savings', 'selic-bond', 'cdb', 'ipca-bond', 'fii', 'stocks']).default('stocks'),
+        profile: z.enum(['none', 'conservative', 'moderate', 'aggressive']).default('none'),
+    }),
+    'allocation-donut': z.object({
+        profile: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
+        amount: z.number().min(100).max(1_000_000).default(10000),
+    }),
+    'risk-profile-quiz': emptyProps,
     'budget-split': z.object({
         income: z.number().min(1000).max(20_000).default(4000),
         housing: z.number().min(0).max(10_000).default(1500),

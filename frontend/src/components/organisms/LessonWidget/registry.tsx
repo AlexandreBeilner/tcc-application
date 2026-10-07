@@ -23,6 +23,9 @@ import { EtfShockSimulatorWidget, etfShockSimulatorSummary } from '../EtfShockSi
 import { FiiMonthlyCalendarWidget, fiiMonthlyCalendarSummary } from '../FiiMonthlyCalendarWidget'
 import { FeeDragWidget, feeDragSummary } from '../FeeDragWidget'
 import { BudgetSplitWidget, budgetSplitSummary } from '../BudgetSplitWidget'
+import { RiskReturnScatterWidget, riskReturnScatterSummary } from '../RiskReturnScatterWidget'
+import { AllocationDonutWidget, allocationDonutSummary } from '../AllocationDonutWidget'
+import { RiskProfileQuizWidget, riskProfileQuizSummary } from '../RiskProfileQuizWidget'
 import { DebtSnowballWidget, debtSnowballSummary } from '../DebtSnowballWidget'
 import { PayOrInvestWidget, payOrInvestSummary } from '../PayOrInvestWidget'
 import { EquityTaxCalculatorWidget, equityTaxCalculatorSummary } from '../EquityTaxCalculatorWidget'
@@ -223,6 +226,21 @@ export const widgetRegistry: Registry = {
         component: FeeDragWidget,
         propsSchema: widgetPropsSchemas['fee-drag'],
         summary: feeDragSummary,
+    },
+    'risk-return-scatter': {
+        component: RiskReturnScatterWidget,
+        propsSchema: widgetPropsSchemas['risk-return-scatter'],
+        summary: riskReturnScatterSummary,
+    },
+    'allocation-donut': {
+        component: AllocationDonutWidget,
+        propsSchema: widgetPropsSchemas['allocation-donut'],
+        summary: allocationDonutSummary,
+    },
+    'risk-profile-quiz': {
+        component: RiskProfileQuizWidget,
+        propsSchema: widgetPropsSchemas['risk-profile-quiz'],
+        summary: riskProfileQuizSummary,
     },
     'budget-split': {
         component: BudgetSplitWidget,

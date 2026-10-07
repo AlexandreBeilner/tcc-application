@@ -181,6 +181,19 @@ describe('lessonBlocksSchema', () => {
           props: { kind: 'daytrade', assetClass: 'etf', profit: -500 },
         },
         { type: 'widget', id: 'x3', widget: 'tax-decision-tree', props: {} },
+        {
+          type: 'widget',
+          id: 'r1',
+          widget: 'risk-return-scatter',
+          props: { highlight: 'fii', profile: 'moderate' },
+        },
+        {
+          type: 'widget',
+          id: 'r2',
+          widget: 'allocation-donut',
+          props: { profile: 'aggressive', amount: 5000 },
+        },
+        { type: 'widget', id: 'r3', widget: 'risk-profile-quiz', props: {} },
         { type: 'widget', id: 'x4', widget: 'budget-split', props: { income: 6000, leisure: 500 } },
         {
           type: 'widget',
@@ -253,6 +266,8 @@ describe('lessonBlocksSchema', () => {
     ['fee-drag', { years: 0 }],
     ['equity-tax-calculator', { kind: 'position' }],
     ['budget-split', { income: 10 }],
+    ['risk-return-scatter', { highlight: 'bitcoin' }],
+    ['allocation-donut', { amount: 1 }],
     ['debt-snowball', { monthlyRatePct: 40 }],
     ['pay-or-invest', { irPct: 50 }],
     ['budget-split', { housing: -1 }],
