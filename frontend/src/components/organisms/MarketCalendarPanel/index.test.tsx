@@ -37,6 +37,8 @@ describe('MarketCalendarPanel', () => {
         expect(await screen.findByText('Dia 135 · quarta 08/07/2026')).toBeInTheDocument()
         expect(screen.queryByText(/Trimestre: dia/)).not.toBeInTheDocument()
         expect(screen.getByText(/5 dias de mercado/)).toBeInTheDocument()
+        expect(screen.queryByRole('list', { name: 'Legenda' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Legenda do calendário' }))
         expect(screen.getByRole('list', { name: 'Legenda' })).toBeInTheDocument()
     })
 
