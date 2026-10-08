@@ -648,6 +648,23 @@ describe('Lesson (tela 3.2)', () => {
         ).toBeInTheDocument()
     })
 
+    it('lição bloqueada pela trilha mostra o LockedGate com CTA pra próxima lição disponível (achado 039)', async () => {
+        vi.mocked(getLesson).mockRejectedValue(new ApiError(404, 'lição bloqueada'))
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [
+                lesson({ id: 'lesson-done', title: 'Lição concluída', status: 'completed' }),
+                lesson({ id: 'lesson-next', title: 'Próxima da fila', status: 'available' }),
+                lesson({ id: 'lesson-1', title: 'Lição trancada', status: 'locked' }),
+            ],
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Travado pela trilha')).toBeInTheDocument()
+        expect(screen.getByText('Complete a lição "Próxima da fila" na trilha pra liberar isso.')).toBeInTheDocument()
+        expect(screen.queryByText(/Não foi possível carregar esta lição/)).not.toBeInTheDocument()
+    })
+
     describe('botão Voltar (RC.2.2)', () => {
         const voltar = () => screen.getByRole('button', { name: /^Voltar ao/ })
 
