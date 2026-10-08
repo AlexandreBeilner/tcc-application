@@ -18,6 +18,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
+	"tcc-investimentos/engine/internal/domain/integrity"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/macroeventadmin"
 	"tcc-investimentos/engine/internal/domain/macroeventtrigger"
@@ -232,7 +233,7 @@ func main() {
 	assetProvisionService := assetprovision.NewService(assetProvisionRepository, assetProvisionRepository, coverageRepository, coverage.NewEnsurer(coverageRepository, coverageRepository))
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService)); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool))); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

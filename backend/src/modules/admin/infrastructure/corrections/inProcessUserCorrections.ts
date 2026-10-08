@@ -1,12 +1,8 @@
 import type { AchievementRepository } from '../../../achievements/application/ports/achievementRepository'
-import type {
-  GrantAchievementUseCase,
-  RevokeAchievementUseCase,
-} from '../../../achievements/application/useCases/correctAchievements'
+import type { GrantAchievementUseCase } from '../../../achievements/application/useCases/correctAchievements'
 import {
   AchievementAlreadyUnlockedError,
   AchievementNotFoundError,
-  AchievementNotUnlockedError,
 } from '../../../achievements/domain/errors'
 import type { AdjustProgressionUseCase } from '../../../gamification/application/useCases/adjustProgression'
 import { InvalidProgressionAdjustmentError } from '../../../gamification/domain/errors'
@@ -31,7 +27,6 @@ import type { CorrectedProgression, UserCorrections } from '../../application/po
 export interface InProcessUserCorrectionsDeps {
   adjustProgression: AdjustProgressionUseCase
   grantAchievement: GrantAchievementUseCase
-  revokeAchievement: RevokeAchievementUseCase
   markLessonCompleted: MarkLessonCompletedUseCase
   reopenLesson: ReopenLessonUseCase
   achievementRepository: AchievementRepository
@@ -55,7 +50,6 @@ function translate(err: unknown): never {
   }
   if (
     err instanceof AchievementAlreadyUnlockedError ||
-    err instanceof AchievementNotUnlockedError ||
     err instanceof LessonAlreadyCompletedError ||
     err instanceof LessonNotReopenableError
   ) {
@@ -121,12 +115,6 @@ export function createInProcessUserCorrections(
     grantAchievement: (userId, achievementId) =>
       guard(async () => {
         const achievement = await deps.grantAchievement.execute(userId, achievementId)
-        return { id: achievement.id, name: achievement.name }
-      }),
-
-    revokeAchievement: (userId, achievementId) =>
-      guard(async () => {
-        const achievement = await deps.revokeAchievement.execute(userId, achievementId)
         return { id: achievement.id, name: achievement.name }
       }),
 

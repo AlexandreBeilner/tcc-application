@@ -2,19 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import {
     adjustAdminUserXp,
-    correctAdminUserAchievement,
+    grantAdminUserAchievement,
     correctAdminUserLesson,
     creditAdminUser,
     getUserCorrectionContext,
     setAdminUserStreak,
 } from '../../../services/admin'
-import type {
-    AchievementCorrection,
-    CorrectedProgression,
-    CreditUserResult,
-    LessonCorrection,
-    UserCorrectionContext,
-} from '../../../services/admin'
+import type { CorrectedProgression, CreditUserResult, LessonCorrection, UserCorrectionContext } from '../../../services/admin'
 import { useAuth } from '../../auth/AuthContext'
 import { useAdminReauth } from '../AdminReauth'
 import { ADMIN_USER_DETAIL_QUERY_KEY } from '../useAdminUserDetailQuery'
@@ -91,19 +85,18 @@ export function useSetStreakMutation(): UseMutationResult<CorrectedProgression, 
     })
 }
 
-export interface CorrectAchievementVariables {
+export interface GrantAchievementVariables {
     userId: string
     achievementId: string
-    action: AchievementCorrection
     reason: string
 }
 
-export function useCorrectAchievementMutation(): UseMutationResult<void, unknown, CorrectAchievementVariables> {
+export function useGrantAchievementMutation(): UseMutationResult<void, unknown, GrantAchievementVariables> {
     const { withReauth } = useAdminReauth()
     const invalidate = useInvalidateCorrectionQueries()
     return useMutation({
-        mutationFn: ({ userId, achievementId, action, reason }: CorrectAchievementVariables) =>
-            withReauth((t) => correctAdminUserAchievement(t, userId, achievementId, action, reason)),
+        mutationFn: ({ userId, achievementId, reason }: GrantAchievementVariables) =>
+            withReauth((t) => grantAdminUserAchievement(t, userId, achievementId, reason)),
         onSettled: invalidate,
     })
 }

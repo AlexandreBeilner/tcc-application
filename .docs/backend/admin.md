@@ -17,12 +17,12 @@ Módulo: `backend/src/modules/admin/`. `GET /admin/ping` é rota de exemplo; `PO
 ### `POST /admin/macro-events`
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** repassado praticamente sem tradução pro motor (mesmos nomes de campo, snake_case) — ver `.docs/engine/macroevent.md` pro formato completo (`template_key` opcional; evento avulso exige `title`/`narrative`/`direction`/`magnitude_band`/`affects_price`/`affects_fundamentals`; `targets`, mínimo 1, cada um com exatamente um entre `sector`/`risk_class`/`asset_id`; `apply_on_day` opcional, inteiro positivo, **agenda** o primeiro dia de efeito pra um dia simulado futuro, N.11). Validado com `interfaces/http/schemas.ts` (`triggerMacroEventBodySchema`, união de duas variantes — template ou avulso) antes de chamar o caso de uso.
+- **Payload:** repassado praticamente sem tradução pro motor (mesmos nomes de campo, snake_case) — ver `.docs/engine/macroevent.md` pro formato completo (`template_key` opcional; evento avulso exige `title`/`narrative`/`direction`/`magnitude_band`/`affects_price`/`affects_fundamentals`; `targets`, mínimo 1, cada um com exatamente um entre `sector`/`risk_class`/`asset_id`; `apply_on_day` opcional, inteiro positivo, **agenda** o primeiro dia de efeito pra um dia simulado futuro, N.11, N.11; `reveal_lead_days` opcional, inteiro maior ou igual a 0, é com quantos dias de antecedência do efeito o **jogador** passa a ver o evento no feed e no calendário, padrão a véspera, N.25 — o painel enxerga tudo; vai pra auditoria junto com o resto do corpo). Validado com `interfaces/http/schemas.ts` (`triggerMacroEventBodySchema`, união de duas variantes — template ou avulso) antes de chamar o caso de uso.
 - **Sucesso:** `201` → `{ event: {...} }`, corpo de `event` idêntico à resposta de `POST /macro-events` do motor (id, efeitos já amostrados, `fundamentals_report_day` se aplicável, `targets` — array de `{ sector? | risk_class? | asset_id? }` refletindo os alvos persistidos, exatamente um campo preenchido por item).
 - **Erros:**
   - `401` — token ausente ou inválido.
   - `403` — token válido, mas `role` diferente de `admin`.
-  - `400` — corpo não bate com nenhuma das duas variantes do schema (campo obrigatório ausente, alvo com escopo ambíguo etc.) **ou** o motor rejeitou o evento por uma regra que só ele sabe validar (ex: `template_key` inexistente no catálogo, `asset_id` de alvo que não existe ou não é ação — FII, ETF e renda fixa são recusados — ou `apply_on_day` que não é posterior ao dia simulado corrente ou passa de 365 dias à frente) — dupla validação documentada (Zod na borda + `macroevent.NewEvent`/`NewTarget` no motor), não redundância acidental.
+  - `400` — corpo não bate com nenhuma das duas variantes do schema (campo obrigatório ausente, alvo com escopo ambíguo etc.) **ou** o motor rejeitou o evento por uma regra que só ele sabe validar (ex: `template_key` inexistente no catálogo, `asset_id` de alvo que não existe ou não é ação — FII, ETF e renda fixa são recusados — ou `apply_on_day` que não é posterior ao dia simulado corrente ou passa de 365 dias à frente, ou `reveal_lead_days` maior que os dias que faltam até o primeiro dia de efeito) — dupla validação documentada (Zod na borda + `macroevent.NewEvent`/`NewTarget` no motor), não redundância acidental.
 - **Auditoria (N.4):** grava `macro_event.trigger` com `target_type = macro_event`, `target_id` = id do evento criado e `payload` = corpo recebido; `result = failed` com `error_message` quando o motor recusa (`400`). Corpo recusado pelo Zod (`400` antes do caso de uso) não gera linha.
 - **Regra:** `TriggerMacroEventUseCase` delega inteiramente pra `MacroEventTrigger` (porta) → `engineMacroEventTrigger` (adapter, chama `POST /macro-events` via `ENGINE_URL`) — a regra de negócio do disparo (sorteio de efeito por banda, defasagem preço↔fundamentos) vive toda no motor; este módulo só garante `role = admin` (RNF07) antes de repassar. Um `400` do motor é traduzido pelo adapter em `InvalidMacroEventError` (`domain/errors.ts`), mapeado de volta pra `400` pelo router — qualquer outra falha do motor (`500`+) propaga como erro genérico (`500`, tratamento padrão do Express).
 
@@ -72,7 +72,7 @@ Valem para todas as rotas `/admin/*`:
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
@@ -139,11 +139,11 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 - **Sucesso:** `200` → mesmo corpo de `/xp`. `longest_streak` só sobe (é o máximo histórico). Um streak maior que zero conta como "vivo hoje" (`last_qualifying_activity_date` = hoje, UTC), senão o próximo toque o reiniciaria em 1; zero limpa essa data. Auditoria: `user.set_streak`.
 - **Erros:** `400`; `401 reauth_required`; `404`.
 
-#### `POST /admin/users/:id/achievements/:achievementId/grant` e `/revoke`
+#### `POST /admin/users/:id/achievements/:achievementId/grant`
 
 - **Payload:** `{ reason }`.
-- **Sucesso:** `204`. `grant` concede a conquista **sem checar o critério**; `revoke` remove. Atenção: se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concede de novo; revogar só "fica" quando foi dada por engano. Auditoria: `user.grant_achievement` / `user.revoke_achievement` com `achievement_id`, `achievement_name` e `reason`.
-- **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista (`grant`) ou não a tem (`revoke`).
+- **Sucesso:** `204`. Concede a conquista **sem checar o critério**. Não existe `/revoke` (removida na N.26): se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concederia de novo, então a ação prometia algo que não acontecia; a rota agora responde `404`. Auditoria: `user.grant_achievement` com `achievement_id`, `achievement_name` e `reason` (as linhas `user.revoke_achievement` já gravadas continuam legíveis no histórico).
+- **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista.
 
 #### `POST /admin/users/:id/lessons/:lessonId/complete` e `/reopen`
 
@@ -471,3 +471,63 @@ Todas exigem `role = admin`. Proxy do motor (ver `.docs/engine/admin.md#cadastro
 - **Sucesso:** `201` → `{ asset_id, preview }`.
 - **Erros:** os do preview; `500` — `{ error, asset_id }` quando o catálogo gravou e a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots).
 - **Auditoria:** `catalog.create`, `target_type = asset`, `target_id` = o ticker, `payload` = o pedido; recusa ou falha grava `result = failed` com o motivo.
+
+### Comunicados e modo de manutenção (tarefa N.20)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Criar, editar e encerrar comunicado é auditado e **não** pede senha recente (não apaga dado de ninguém). A leitura que o app do usuário faz está em `GET /announcements` (`.docs/backend/announcements.md`). Tabela `announcements` (migration `0023`, sem backfill).
+
+Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto puro**, `<` e `>` são recusados (o app exibe como texto, nunca como HTML); `severity` ∈ `info` | `warning` | `critical`; janela `[starts_at, ends_at)` (no instante do fim já saiu do ar), `ends_at` ausente ou `null` = até alguém encerrar, `starts_at` ausente = agora. `status` é derivado na leitura: `scheduled` | `active` | `ended`.
+
+#### `GET /admin/announcements`
+
+- **Sucesso:** `200` → `{ announcements: [{ id, title, body, severity, kind ('notice' | 'maintenance'), dismissible, starts_at, ends_at | null, linked_halt_id | null, status, created_at }] }`, mais recente primeiro, até 100.
+
+#### `POST /admin/announcements`
+
+- **Payload (JSON):** `title`, `body`, `severity`, `dismissible` (padrão `true`), `starts_at`, `ends_at` (ISO 8601 com fuso), validados por `createAnnouncementBodySchema`. O criador vem do token.
+- **Sucesso:** `201` → o comunicado.
+- **Erros:** `400` — formato (severidade fora da lista, data malformada); `422` — regra de domínio (tamanho, `<`/`>`, fim não posterior ao início).
+- **Auditoria:** `announcement.create`, `target_type = announcement`, `target_id` = id, `payload` = o que foi pedido; recusa grava `result = failed`.
+
+#### `PATCH /admin/announcements/:id`
+
+- **Payload:** os mesmos campos, todos opcionais, ao menos um; `ends_at: null` tira o fim. O **estado final** é validado (editar só o fim pra antes do início é `422`).
+- **Sucesso:** `200` → o comunicado. **Erros:** `400`, `404`, `409` (aviso de manutenção não se edita, encerre e abra outro; comunicado que já terminou), `422`.
+- **Auditoria:** `announcement.update`, `payload` só com o que foi pedido.
+
+#### `POST /admin/announcements/:id/end`
+
+- **Sucesso:** `200` → `{ announcement, outcome, halt_lifted }`. `announcement` é o estado **de antes** de encerrar. `outcome = ended` fixa o fim em agora (saiu do ar); `cancelled` quando ainda estava agendado (a linha é removida; fica a auditoria). `halt_lifted = true` quando havia pausa ligada à manutenção e ela foi levantada agora; pausa que já tinha sido levantada à mão não é erro (`false`).
+- **Erros:** `400` id que não é UUID; `404`; `409` já terminou.
+- **Auditoria:** `announcement.end`, `payload = { kind, outcome, halt_lifted }`; levantar a pausa gera também a linha `trading.resume` (N.9).
+
+#### `POST /admin/maintenance`
+
+- **Payload (JSON):** `title`, `body`, `ends_at` (opcional), `starts_at` (opcional) e `pause_trading` (padrão `false`), validados por `startMaintenanceBodySchema`.
+- **Sucesso:** `201` → o aviso, sempre `kind = maintenance`, `severity = critical`, `dismissible = false`. Com `pause_trading`, abre antes a **pausa global de negociação** (N.9, mesma regra: ordem nova de usuário e de bot recusada, tick segue) e grava o id dela em `linked_halt_id`; encerrar a manutenção (`/end`) a levanta. Se o aviso falhar depois de a pausa abrir, a pausa é levantada de volta.
+- **Erros:** `400` formato; `401 reauth_required` **só quando `pause_trading` é `true`** (mesma ação destrutiva da pausa); `409` já existe manutenção em aberto (ou já existe pausa global vigente); `422` regra de domínio, ou `pause_trading` junto com `starts_at` (a pausa vale já, então a manutenção também começa agora).
+- **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }`; com pausa, a linha `trading.halt` também é gravada.
+
+### Integridade financeira e exportação CSV (tarefa N.21)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). O que a verificação confere, categoria por categoria, está em `.docs/engine/admin.md` (o motor reconstrói saldo e posição de `market_events` e compara com `accounts`/`positions`/float). **Somente leitura**: nenhuma rota corrige nada, corrigir é decisão humana.
+
+#### `POST /admin/integrity/check`
+
+- **Payload:** nenhum.
+- **Sucesso:** `202` → `{ id, status: "running", started_at, finished_at: null, error: null, report: null }`. A verificação segue em segundo plano no motor (numa base com ~360 mil eventos leva menos de 1 s, mas o timeout é de 5 minutos).
+- **Erros:** `409` já há uma em andamento (só uma por vez).
+- **Auditoria:** `integrity.check`, `target_type = integrity_check`, `target_id` = id da verificação. Não pede senha recente (não altera nada).
+
+#### `GET /admin/integrity/check`
+
+- **Sucesso:** `200` → `{ run }`: `null` se nenhuma verificação rodou desde a subida do motor; senão `{ id, status ('running' | 'done' | 'failed'), started_at, finished_at | null, error | null, report | null }`. `report`: `{ checked: { events, accounts, positions, assets, resting_orders }, total, counts: { balance_mismatch, position_mismatch, negative_balance, negative_position, float_mismatch, resting_order_unfunded, unknown_event_type }, truncated, divergences: [{ kind, user_id | null, asset_id | null, ticker | null, order_id | null, expected, found, detail }] }`. Base consistente: `total = 0`. A lista detalhada vai até 200 itens (`truncated`), mas `counts` é sempre exato. O resultado é só o da última verificação e vive em memória no motor.
+
+#### `GET /admin/exports/:dataset`
+
+- **Conjuntos (`:dataset`):** `users`, `orders`, `market-events`, `audit-log`.
+- **Payload (query), opcionais:** `from`/`to` (ISO 8601 com fuso, inclusivos, `from` ≤ `to`; o período é sobre `created_at` em usuários e ordens, `timestamp` nos eventos e `occurred_at` na auditoria), `limit` (inteiro ≥ 1; padrão 10.000, **teto 50.000**: acima do teto vira o teto). Validados por `exportQuerySchema`.
+- **Sucesso:** `200` com `text/csv; charset=utf-8` e `Content-Disposition: attachment; filename="<conjunto>-AAAAMMDD.csv"`. Cabeçalhos `X-Export-Rows` (linhas no arquivo) e `X-Export-Truncated` (`true` se havia mais linhas que o limite: o arquivo traz as primeiras). CRLF entre linhas, BOM de UTF-8 na frente (o Excel abre os acentos certos). Células que começam com `=`, `+`, `-`, `@`, tab ou CR (e não são número) ganham apóstrofo na frente (CSV injection); `true`/`false` pros booleanos, ISO 8601 pras datas, vazio pro nulo.
+- **Colunas (e a privacidade, RNF09 e LGPD):** `users`: `id, name, email, username, role, status, onboarding_completed, created_at`, **nunca** hash de senha, token, patrimônio nem rentabilidade. `orders`: `id, user_id, is_bot, ticker, side, type, quantity, filled_quantity, price, status, cancel_reason, simulated_day, created_at`. `market-events`: `id, user_id, is_bot, ticker, event_type, quantity, unit_value, simulated_day, timestamp`. `audit-log`: `id, occurred_at, admin_id, admin_username, action, target_type, target_id, result, error_message, payload` (JSON em texto; o `payload` já nasce sem dado sensível). Ordens e eventos identificam a conta só pelo id, nunca por nome ou e-mail.
+- **Erros:** `400` conjunto desconhecido, data malformada, intervalo invertido, `limit` inválido (nada é lido nem auditado); `401 reauth_required` **só em `users`** (traz e-mail, dado pessoal: pede senha conferida nos últimos 5 minutos, como as ações destrutivas); `500` se o motor ou o banco falhar.
+- **Auditoria:** `export.csv`, `target_type = export`, `target_id` = o conjunto, `payload = { dataset, from, to, limit, rows, truncated }`; falha de leitura grava `result = failed`.

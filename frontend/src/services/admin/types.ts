@@ -21,6 +21,8 @@ export interface MacroEventBase {
     affects_fundamentals: boolean
     status: MacroEventStatus
     triggered_on_day: number
+    // Dias de antecedência do efeito com que o jogador passa a ver o evento (N.25); padrão 1, a véspera.
+    reveal_lead_days?: number
     duration_days: number
     price_effect_pct?: number
     fundamentals_effect_pct?: number
@@ -54,6 +56,8 @@ export interface TriggerMacroEventFromTemplateInput {
     targets: NewsEventTarget[]
     // Agenda o primeiro dia de efeito (dia simulado futuro, N.11); ausente dispara já.
     apply_on_day?: number
+    // Com quantos dias de antecedência do efeito o jogador vê o evento (N.25); ausente, a véspera.
+    reveal_lead_days?: number
 }
 
 export interface TriggerMacroEventAdHocInput {
@@ -65,6 +69,7 @@ export interface TriggerMacroEventAdHocInput {
     affects_fundamentals: boolean
     targets: NewsEventTarget[]
     apply_on_day?: number
+    reveal_lead_days?: number
 }
 
 export type TriggerMacroEventInput = TriggerMacroEventFromTemplateInput | TriggerMacroEventAdHocInput
@@ -113,6 +118,12 @@ export type AuditAction =
     | 'lesson.update'
     | 'lesson.create'
     | 'lesson.restore'
+    | 'announcement.create'
+    | 'announcement.update'
+    | 'announcement.end'
+    | 'maintenance.start'
+    | 'integrity.check'
+    | 'export.csv'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -1025,4 +1036,94 @@ export interface NewCatalogAssetPreview {
 export interface CreatedCatalogAsset {
     asset_id: string
     preview: NewCatalogAssetPreview
+}
+
+// Comunicados globais e modo de manutenção (N.20). Espelha `/admin/announcements`.
+export type AnnouncementSeverity = 'info' | 'warning' | 'critical'
+export type AnnouncementKind = 'notice' | 'maintenance'
+export type AnnouncementStatus = 'scheduled' | 'active' | 'ended'
+
+export interface AdminAnnouncement {
+    id: string
+    title: string
+    body: string
+    severity: AnnouncementSeverity
+    kind: AnnouncementKind
+    dismissible: boolean
+    starts_at: string
+    ends_at: string | null
+    linked_halt_id: string | null
+    status: AnnouncementStatus
+    created_at: string
+}
+
+export interface AnnouncementInput {
+    title: string
+    body: string
+    severity: AnnouncementSeverity
+    dismissible: boolean
+    starts_at?: string
+    ends_at?: string | null
+}
+
+export type AnnouncementPatch = Partial<AnnouncementInput>
+
+export interface MaintenanceInput {
+    title: string
+    body: string
+    ends_at?: string | null
+    pause_trading: boolean
+}
+
+export interface EndAnnouncementResult {
+    announcement: AdminAnnouncement
+    outcome: 'ended' | 'cancelled'
+    halt_lifted: boolean
+}
+
+// Integridade financeira (N.21). Espelha `/admin/integrity/check`.
+export type IntegrityKind =
+    | 'balance_mismatch'
+    | 'position_mismatch'
+    | 'negative_balance'
+    | 'negative_position'
+    | 'float_mismatch'
+    | 'resting_order_unfunded'
+    | 'unknown_event_type'
+
+export interface IntegrityDivergence {
+    kind: IntegrityKind
+    user_id: string | null
+    asset_id: string | null
+    ticker: string | null
+    order_id: string | null
+    expected: string
+    found: string
+    detail: string
+}
+
+export interface IntegrityReport {
+    checked: { events: number; accounts: number; positions: number; assets: number; resting_orders: number }
+    total: number
+    counts: Record<IntegrityKind, number>
+    truncated: boolean
+    divergences: IntegrityDivergence[]
+}
+
+export interface IntegrityRun {
+    id: string
+    status: 'running' | 'done' | 'failed'
+    started_at: string
+    finished_at: string | null
+    error: string | null
+    report: IntegrityReport | null
+}
+
+// Exportação CSV (N.21).
+export type ExportDataset = 'users' | 'orders' | 'market-events' | 'audit-log'
+
+export interface ExportFilters {
+    from?: string
+    to?: string
+    limit?: number
 }

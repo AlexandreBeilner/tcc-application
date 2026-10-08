@@ -517,7 +517,7 @@ func TestHandleTriggerMacroEvent_RepassaApplyOnDayERecusaDiaInvalido(t *testing.
 	if rec := postMacroEvent(t, fake, body); rec.Code != http.StatusCreated || fake.got.ApplyOnDay == nil || *fake.got.ApplyOnDay != 120 {
 		t.Errorf("status = %d, apply = %v, want 201 e 120", rec.Code, fake.got.ApplyOnDay)
 	}
-	for _, err := range []error{macroevent.ErrApplyDayInPast, macroevent.ErrApplyDayTooFar} {
+	for _, err := range []error{macroevent.ErrApplyDayInPast, macroevent.ErrApplyDayTooFar, macroevent.ErrRevealLeadNegative, macroevent.ErrRevealLeadTooLong} {
 		fake = &fakeMacroEventTriggerer{err: err}
 		if rec := postMacroEvent(t, fake, body); rec.Code != http.StatusBadRequest {
 			t.Errorf("%v: status = %d, want 400", err, rec.Code)

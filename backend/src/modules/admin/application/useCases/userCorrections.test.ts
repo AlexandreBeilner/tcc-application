@@ -16,7 +16,6 @@ import {
   GetUserCorrectionContextUseCase,
   GrantUserAchievementUseCase,
   ReopenUserLessonUseCase,
-  RevokeUserAchievementUseCase,
   SetUserStreakUseCase,
 } from './userCorrections'
 
@@ -49,7 +48,6 @@ async function build() {
     adjustXp: new AdjustUserXpUseCase(userRepository, corrections, record),
     setStreak: new SetUserStreakUseCase(userRepository, corrections, record),
     grant: new GrantUserAchievementUseCase(userRepository, corrections, record),
-    revoke: new RevokeUserAchievementUseCase(userRepository, corrections, record),
     complete: new CompleteUserLessonUseCase(userRepository, corrections, record),
     reopen: new ReopenUserLessonUseCase(userRepository, corrections, record),
     context: new GetUserCorrectionContextUseCase(userRepository, corrections),
@@ -120,7 +118,6 @@ describe('correções de gamificação e lição', () => {
     await t.adjustXp.execute(t.admin.id, t.user.id, { delta: -50, reason })
     await t.setStreak.execute(t.admin.id, t.user.id, { value: 7, reason })
     await t.grant.execute(t.admin.id, t.user.id, 'a1', reason)
-    await t.revoke.execute(t.admin.id, t.user.id, 'a1', reason)
     await t.complete.execute(t.admin.id, t.user.id, 'l1', reason)
     await t.reopen.execute(t.admin.id, t.user.id, 'l1', reason)
 
@@ -128,7 +125,6 @@ describe('correções de gamificação e lição', () => {
       { method: 'adjustXp', args: [t.user.id, -50] },
       { method: 'setStreak', args: [t.user.id, 7] },
       { method: 'grantAchievement', args: [t.user.id, 'a1'] },
-      { method: 'revokeAchievement', args: [t.user.id, 'a1'] },
       { method: 'completeLesson', args: [t.user.id, 'l1'] },
       { method: 'reopenLesson', args: [t.user.id, 'l1'] },
     ])
@@ -136,7 +132,6 @@ describe('correções de gamificação e lição', () => {
       'user.adjust_xp',
       'user.set_streak',
       'user.grant_achievement',
-      'user.revoke_achievement',
       'user.complete_lesson',
       'user.reopen_lesson',
     ])
@@ -161,7 +156,6 @@ describe('correções de gamificação e lição', () => {
       t.adjustXp.execute(t.admin.id, 'x', { delta: 1, reason: 'motivo' }),
       t.setStreak.execute(t.admin.id, 'x', { value: 1, reason: 'motivo' }),
       t.grant.execute(t.admin.id, 'x', 'a1', 'motivo'),
-      t.revoke.execute(t.admin.id, 'x', 'a1', 'motivo'),
       t.complete.execute(t.admin.id, 'x', 'l1', 'motivo'),
       t.reopen.execute(t.admin.id, 'x', 'l1', 'motivo'),
       t.context.execute('x'),

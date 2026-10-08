@@ -25,6 +25,7 @@ import { AdminOrdens } from '../pages/AdminOrdens'
 import { AdminCatalogo } from '../pages/AdminCatalogo'
 import { AdminParametros } from '../pages/AdminParametros'
 import { AdminPausas } from '../pages/AdminPausas'
+import { AdminSistema } from '../pages/AdminSistema'
 import { AdminBots } from '../pages/AdminBots'
 import { AdminTempo } from '../pages/AdminTempo'
 import { AdminUsuarioDetalhe } from '../pages/AdminUsuarioDetalhe'
@@ -172,6 +173,7 @@ export const router = createBrowserRouter([
                                     { path: '/admin/conteudo/nova', element: <AdminConteudoNova /> },
                                     { path: '/admin/conteudo/:id', element: <AdminConteudoLicao /> },
                                     { path: '/admin/gamificacao', element: <AdminGamificacao /> },
+                                    { path: '/admin/sistema', element: <AdminSistema /> },
                                     { path: '/admin/usuarios', element: <AdminUsuarios /> },
                                     { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },
                                     { path: '/admin/auditoria', element: <AdminAuditoria /> },

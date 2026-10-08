@@ -49,6 +49,8 @@ type triggerMacroEventRequest struct {
 	CreatedBy           *string                          `json:"created_by"`
 	// ApplyOnDay (N.11) agenda o primeiro dia de efeito; ausente dispara já.
 	ApplyOnDay *int `json:"apply_on_day"`
+	// RevealLeadDays (N.25) é a antecedência de aparição pro jogador; ausente usa a véspera.
+	RevealLeadDays *int `json:"reveal_lead_days"`
 }
 
 // macroEventTargetResponse espelha macroevent.Target — exatamente um entre
@@ -80,6 +82,7 @@ type macroEventResponse struct {
 	AffectsFundamentals   bool                       `json:"affects_fundamentals"`
 	Status                string                     `json:"status"`
 	TriggeredOnDay        int                        `json:"triggered_on_day"`
+	RevealLeadDays        int                        `json:"reveal_lead_days"`
 	DurationDays          int                        `json:"duration_days"`
 	PriceEffectPct        *float64                   `json:"price_effect_pct,omitempty"`
 	FundamentalsEffectPct *float64                   `json:"fundamentals_effect_pct,omitempty"`
@@ -130,6 +133,7 @@ func toMacroEventResponse(id string, event macroevent.Event) macroEventResponse 
 		AffectsFundamentals:   event.AffectsFundamentals,
 		Status:                string(event.Status),
 		TriggeredOnDay:        event.TriggeredOnDay,
+		RevealLeadDays:        event.RevealLeadDays,
 		DurationDays:          event.DurationDays,
 		PriceEffectPct:        event.PriceEffectPct,
 		FundamentalsEffectPct: event.FundamentalsEffectPct,
@@ -181,6 +185,7 @@ func handleTriggerMacroEvent(macroEvents macroEventTriggerer) http.HandlerFunc {
 			AffectsFundamentals: body.AffectsFundamentals,
 			CreatedBy:           body.CreatedBy,
 			ApplyOnDay:          body.ApplyOnDay,
+			RevealLeadDays:      body.RevealLeadDays,
 		}
 		if body.Direction != nil {
 			d := macroevent.Direction(*body.Direction)
@@ -403,7 +408,9 @@ func writeMacroEventTriggerError(w http.ResponseWriter, err error) {
 		errors.Is(err, macroevent.ErrTargetDirectionMustBeSigned),
 		errors.Is(err, macroevent.ErrUnknownBand),
 		errors.Is(err, macroevent.ErrApplyDayInPast),
-		errors.Is(err, macroevent.ErrApplyDayTooFar):
+		errors.Is(err, macroevent.ErrApplyDayTooFar),
+		errors.Is(err, macroevent.ErrRevealLeadNegative),
+		errors.Is(err, macroevent.ErrRevealLeadTooLong):
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao disparar evento macro")

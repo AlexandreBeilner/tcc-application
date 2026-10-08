@@ -9,7 +9,7 @@ import {
 } from '../../../features/admin/adminUsers'
 import {
     useAdjustXpMutation,
-    useCorrectAchievementMutation,
+    useGrantAchievementMutation,
     useCorrectLessonMutation,
     useCreditUserMutation,
     useSetStreakMutation,
@@ -60,7 +60,7 @@ function validReason(reason: string): boolean {
 }
 
 // Correções manuais de conta (N.17): crédito de caixa sem teto, ajuste de XP e de streak,
-// conceder ou revogar conquista, concluir ou reabrir lição. Tudo auditado e protegido por
+// conceder conquista, concluir ou reabrir lição. Tudo auditado e protegido por
 // senha recente (o `withReauth` dos hooks pede de novo se a conferência venceu). O crédito
 // pede confirmação mostrando o valor formatado, pra um erro de digitação não virar milhões.
 // Resetar carteira não existe: apagaria histórico imutável.
@@ -69,7 +69,7 @@ export function AdminUserCorrections({ userId, username }: AdminUserCorrectionsP
     const credit = useCreditUserMutation()
     const adjustXp = useAdjustXpMutation()
     const setStreak = useSetStreakMutation()
-    const correctAchievement = useCorrectAchievementMutation()
+    const grantAchievement = useGrantAchievementMutation()
     const correctLesson = useCorrectLessonMutation()
 
     const [notice, setNotice] = useState<string | null>(null)
@@ -95,7 +95,7 @@ export function AdminUserCorrections({ userId, username }: AdminUserCorrectionsP
     const selectedAchievement = achievements.find((a) => a.id === achievementId)
     const selectedLesson = lessons.find((l) => l.id === lessonId)
 
-    const busy = credit.isPending || adjustXp.isPending || setStreak.isPending || correctAchievement.isPending || correctLesson.isPending
+    const busy = credit.isPending || adjustXp.isPending || setStreak.isPending || grantAchievement.isPending || correctLesson.isPending
 
     const amount = parseCreditAmount(creditAmount)
     const delta = parseWholeNumber(xpDelta)
@@ -160,17 +160,13 @@ export function AdminUserCorrections({ userId, username }: AdminUserCorrectionsP
         )
     }
 
-    function runAchievement(action: 'grant' | 'revoke') {
+    function runAchievement() {
         if (!selectedAchievement) return
-        correctAchievement.mutate(
-            { userId, achievementId: selectedAchievement.id, action, reason: achievementReason.trim() },
+        grantAchievement.mutate(
+            { userId, achievementId: selectedAchievement.id, reason: achievementReason.trim() },
             {
                 onSuccess: () => {
-                    succeed(
-                        action === 'grant'
-                            ? `Conquista "${selectedAchievement.name}" concedida.`
-                            : `Conquista "${selectedAchievement.name}" revogada.`,
-                    )
+                    succeed(`Conquista "${selectedAchievement.name}" concedida.`)
                     setAchievementReason('')
                 },
                 onError: fail,
@@ -302,8 +298,8 @@ export function AdminUserCorrections({ userId, username }: AdminUserCorrectionsP
                 <div className={styles.card} role="group" aria-label="Conquistas">
                     <h3 className={styles.cardTitle}>Conquistas</h3>
                     <p className={styles.hint}>
-                        Conceder não checa o critério. Revogar não impede que a conquista volte sozinha se o usuário ainda cumprir o
-                        critério.
+                        Conceder não checa o critério. Não há como revogar: se o usuário cumpre o critério, a conquista voltaria sozinha na
+                        próxima checagem.
                     </p>
                     <label className={styles.field}>
                         <span>Conquista</span>
@@ -328,17 +324,9 @@ export function AdminUserCorrections({ userId, username }: AdminUserCorrectionsP
                             type="button"
                             className={styles.submit}
                             disabled={busy || !selectedAchievement || selectedAchievement.unlocked || !validReason(achievementReason)}
-                            onClick={() => runAchievement('grant')}
+                            onClick={runAchievement}
                         >
                             Conceder
-                        </button>
-                        <button
-                            type="button"
-                            className={`${styles.submit} ${styles.danger}`}
-                            disabled={busy || !selectedAchievement || !selectedAchievement.unlocked || !validReason(achievementReason)}
-                            onClick={() => runAchievement('revoke')}
-                        >
-                            Revogar
                         </button>
                     </div>
                 </div>

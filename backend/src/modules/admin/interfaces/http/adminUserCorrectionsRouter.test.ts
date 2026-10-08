@@ -13,7 +13,6 @@ import {
   GetUserCorrectionContextUseCase,
   GrantUserAchievementUseCase,
   ReopenUserLessonUseCase,
-  RevokeUserAchievementUseCase,
   SetUserStreakUseCase,
 } from '../../application/useCases/userCorrections'
 import {
@@ -61,7 +60,6 @@ async function buildApp() {
       adjustUserXp: new AdjustUserXpUseCase(userRepository, corrections, record),
       setUserStreak: new SetUserStreakUseCase(userRepository, corrections, record),
       grantUserAchievement: new GrantUserAchievementUseCase(userRepository, corrections, record),
-      revokeUserAchievement: new RevokeUserAchievementUseCase(userRepository, corrections, record),
       completeUserLesson: new CompleteUserLessonUseCase(userRepository, corrections, record),
       reopenUserLesson: new ReopenUserLessonUseCase(userRepository, corrections, record),
       getCorrectionContext: new GetUserCorrectionContextUseCase(userRepository, corrections),
@@ -255,7 +253,6 @@ describe('POST /admin/users/:id/xp e /streak', () => {
 describe('conquistas e lições', () => {
   const cases = [
     ['achievements', ACHIEVEMENT_ID, 'grant', 'grantAchievement'],
-    ['achievements', ACHIEVEMENT_ID, 'revoke', 'revokeAchievement'],
     ['lessons', LESSON_ID, 'complete', 'completeLesson'],
     ['lessons', LESSON_ID, 'reopen', 'reopenLesson'],
   ] as const
@@ -299,9 +296,21 @@ describe('conquistas e lições', () => {
     ).toBe(409)
   })
 
+  it('não oferece revogar conquista (N.26): a rota não existe', async () => {
+    const { app, adminToken, user, auth, corrections } = await buildApp()
+
+    const res = await request(app)
+      .post(`/admin/users/${user.id}/achievements/${ACHIEVEMENT_ID}/revoke`)
+      .set(auth(adminToken))
+      .send({ reason: 'correção de suporte' })
+
+    expect(res.status).toBe(404)
+    expect(corrections.calls).toEqual([])
+  })
+
   it('exige senha recente e papel admin, e recusa id que não é uuid', async () => {
     const { app, user, userToken, staleAdminToken, adminToken, auth } = await buildApp()
-    const url = `/admin/users/${user.id}/achievements/${ACHIEVEMENT_ID}/revoke`
+    const url = `/admin/users/${user.id}/achievements/${ACHIEVEMENT_ID}/grant`
     const body = { reason: 'motivo válido' }
 
     expect((await request(app).post(url).set(auth(userToken)).send(body)).status).toBe(403)

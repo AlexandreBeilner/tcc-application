@@ -91,6 +91,18 @@ describe('AdminEventoMacroDetalhe (tela 10.12)', () => {
         expect(screen.getByText(/Disponível quando o mercado chegar ao dia 134/)).toBeInTheDocument()
     })
 
+    it('diz quando o jogador passa a ver o evento, pela antecedência escolhida (N.25)', async () => {
+        vi.mocked(getMacroEventDetail).mockResolvedValue(detail({ reveal_lead_days: 7 }))
+        renderPage()
+        expect(await screen.findByText('Ainda não (aparece 7 dias antes do efeito)')).toBeInTheDocument()
+    })
+
+    it('antecedência 0: o jogador só vê quando o efeito começar (N.25)', async () => {
+        vi.mocked(getMacroEventDetail).mockResolvedValue(detail({ reveal_lead_days: 0 }))
+        renderPage()
+        expect(await screen.findByText('Ainda não (aparece quando o efeito começar)')).toBeInTheDocument()
+    })
+
     it('evento visível e pendente: a versão do jogador não revela direção nem alvos', async () => {
         vi.mocked(getMacroEventDetail).mockResolvedValue(detail({ scheduled: false, publicly_visible: true }))
         renderPage()

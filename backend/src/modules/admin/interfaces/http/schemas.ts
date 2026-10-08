@@ -25,6 +25,8 @@ const macroEventFromTemplateSchema = z.object({
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
   apply_on_day: z.number().int().positive().optional(),
+  // Antecedência com que o jogador vê o evento (N.25); o motor valida o teto.
+  reveal_lead_days: z.number().int().min(0).optional(),
 })
 
 const macroEventAdHocSchema = z.object({
@@ -37,6 +39,8 @@ const macroEventAdHocSchema = z.object({
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
   apply_on_day: z.number().int().positive().optional(),
+  // Antecedência com que o jogador vê o evento (N.25); o motor valida o teto.
+  reveal_lead_days: z.number().int().min(0).optional(),
 })
 
 export const triggerMacroEventBodySchema = z.union([
@@ -432,3 +436,52 @@ export const newCatalogAssetBodySchema = z.discriminatedUnion('kind', [
       .max(50),
   }),
 ])
+
+const isoDate = z.iso.datetime({ offset: true })
+
+// POST /admin/announcements (N.20). Início ausente = agora; fim ausente/nulo = até encerrar.
+// Tamanho e texto puro são regra do domínio (a borda só confere o formato).
+export const createAnnouncementBodySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  severity: z.enum(['info', 'warning', 'critical']),
+  dismissible: z.boolean().default(true),
+  starts_at: isoDate.optional(),
+  ends_at: isoDate.nullable().optional(),
+})
+
+// PATCH /admin/announcements/:id (N.20): só o que veio muda; `ends_at: null` tira o fim.
+export const updateAnnouncementBodySchema = z
+  .object({
+    title: z.string().optional(),
+    body: z.string().optional(),
+    severity: z.enum(['info', 'warning', 'critical']).optional(),
+    dismissible: z.boolean().optional(),
+    starts_at: isoDate.optional(),
+    ends_at: isoDate.nullable().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'informe ao menos um campo' })
+
+// POST /admin/maintenance (N.20).
+export const startMaintenanceBodySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  starts_at: isoDate.optional(),
+  ends_at: isoDate.nullable().optional(),
+  pause_trading: z.boolean().default(false),
+})
+
+// GET /admin/exports/:dataset (N.21): período inclusivo (ISO 8601 com fuso) e teto de linhas.
+// O teto real (50.000) é aplicado pelo caso de uso; aqui só o formato.
+export const exportDatasetParamSchema = z.enum(['users', 'orders', 'market-events', 'audit-log'])
+
+export const exportQuerySchema = z
+  .object({
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).optional(),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from não pode ser depois de to',
+    path: ['from'],
+  })
