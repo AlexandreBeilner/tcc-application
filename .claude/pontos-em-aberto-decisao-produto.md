@@ -41,6 +41,15 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Opções:** (1) tabela `market_maker_quote_days (mm_account_id, asset_id, simulated_day, had_bid, had_ask)` gravada pelo tick, ou coluna `closed_at` em `order_book`; ou aceitar a foto atual como suficiente. (2) aporte de posição como transferência explícita de outro bot (com contrapartida em evento), ou aceitar só caixa e retirar o campo de posição da tela.
 - **Status:** aberto
 
+### 034 · Catálogo do painel: deslistar ativo, ciclo de relatório por empresa e ETF sem Market Maker (N.12 e N.13)
+
+- **Local:** `engine/internal/domain/catalogadmin/` (campos editáveis), `engine/internal/domain/assetprovision/` (o que o cadastro provisiona) e o texto das tarefas N.12 e N.13
+- **Origem:** implementação da N.12 e da N.13 (PR 11 da Fase N), 2026-10-05
+- **O que é:** três pontos em que o texto das tarefas pede mais do que o modelo sustenta hoje. (1) **Deslistar**: a N.13 diz "só deslistar (N.9 pausa permanente + `delisted_at`)". Não há coluna `delisted_at` e criá-la exige decidir o que o usuário vê de um ativo deslistado (some da lista e do detalhe? segue visível só pra quem tem posição? o que acontece com a posição e com a ordem em repouso?). Hoje o painel só tem a pausa de negociação por ativo (N.9), que impede operar mas deixa o ativo visível. (2) **`report_frequency_days` por empresa**: a N.12 cita o campo como exemplo de editável, mas a spec 3.3.1 fixa um ciclo global de 91 dias e o gatilho de evento macro, o FII e o ETF usam a constante, então editar por empresa desalinharia o dia de relatório do evento do dia em que a empresa divulga. Ficou somente leitura. (3) **ETF novo sem Market Maker**: o ETF criado pelo painel, como o do seed, nasce sem cotas e sem cobertura; a liquidez só vem quando o Participante Autorizado cria cotas, então o critério "aparece com cotação de Market Maker" só vale pra ação e FII.
+- **Por que não foi corrigido:** (1) é escolha de comportamento do produto, não de código; (2) mudar o ciclo por empresa contraria uma decisão registrada na spec; (3) cobrir ETF com Market Maker muda o modelo de liquidez do ETF (a proposta de ETF usa NAV e Participante Autorizado, não book de bot).
+- **Opções:** (1) `delisted_at` em `assets` com a regra de visibilidade escolhida, ou manter só a pausa de negociação. (2) manter o ciclo global, ou o ciclo por empresa com o gatilho de evento macro lendo o valor de cada empresa. (3) manter, ou um Market Maker específico de ETF cotando ao redor do NAV.
+- **Status:** aberto (implementado com a pausa de negociação, o ciclo global e o ETF sem Market Maker)
+
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado

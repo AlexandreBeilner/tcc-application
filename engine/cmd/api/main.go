@@ -11,8 +11,10 @@ import (
 	_ "time/tzdata" // fuso da agenda (America/Sao_Paulo) sem depender do tzdata da imagem
 
 	"tcc-investimentos/engine/internal/domain/account"
+	"tcc-investimentos/engine/internal/domain/assetprovision"
 	"tcc-investimentos/engine/internal/domain/botadmin"
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/catalogadmin"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
@@ -226,9 +228,11 @@ func main() {
 	// cancelamento de ordens o mesmo serviço da N.10.
 	adminOrderService := orderexecution.NewAdminService(orderExecutionRepository)
 	botAdminRepository := db.NewBotAdminRepository(pool)
+	assetProvisionRepository := db.NewAssetProvisionRepository(pool, accountRepository)
+	assetProvisionService := assetprovision.NewService(assetProvisionRepository, assetProvisionRepository, coverageRepository, coverage.NewEnsurer(coverageRepository, coverageRepository))
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool)))); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService)); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

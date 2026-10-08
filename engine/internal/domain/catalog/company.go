@@ -1,6 +1,9 @@
 package catalog
 
-import "errors"
+import (
+	"errors"
+	"math"
+)
 
 // Sector espelha o enum Postgres company_sector — lista fixa exigida pela
 // spec 3.3.2 pra casar com o catálogo de templates de evento macro.
@@ -99,6 +102,23 @@ type Company struct {
 	QualityMultiplier float64
 }
 
+// ValidateBaseGrowthPct confere a regra de crescimento_base que NewCompany e a edição do
+// painel (N.12) compartilham: o fator (1+crescimento) não pode zerar nem inverter.
+func ValidateBaseGrowthPct(baseGrowthPct float64) error {
+	if math.IsNaN(baseGrowthPct) || math.IsInf(baseGrowthPct, 0) || baseGrowthPct <= minBaseGrowthPct {
+		return ErrInvalidBaseGrowthPct
+	}
+	return nil
+}
+
+// ValidateQualityMultiplier confere que o multiplicador de qualidade está em (0, 2].
+func ValidateQualityMultiplier(qualityMultiplier float64) error {
+	if math.IsNaN(qualityMultiplier) || qualityMultiplier <= 0 || qualityMultiplier > maxQualityMultiplier {
+		return ErrInvalidQualityMultiplier
+	}
+	return nil
+}
+
 // NewCompany valida os invariantes mínimos de uma empresa cadastrada —
 // nome não vazio, CNPJ com 14 dígitos (sem validar dígito verificador,
 // fora de escopo pra dado sintético), setor dentre os 6 valores fixos,
@@ -119,12 +139,11 @@ func NewCompany(name, cnpj string, sector Sector, baseGrowthPct, qualityMultipli
 	if !validSectors[sector] {
 		return Company{}, ErrUnknownSector
 	}
-	if baseGrowthPct <= minBaseGrowthPct {
-		return Company{}, ErrInvalidBaseGrowthPct
+	if err := ValidateBaseGrowthPct(baseGrowthPct); err != nil {
+		return Company{}, err
 	}
-
-	if qualityMultiplier <= 0 || qualityMultiplier > maxQualityMultiplier {
-		return Company{}, ErrInvalidQualityMultiplier
+	if err := ValidateQualityMultiplier(qualityMultiplier); err != nil {
+		return Company{}, err
 	}
 
 	return Company{

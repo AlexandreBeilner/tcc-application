@@ -56,7 +56,7 @@ type userMarketDataReader interface {
 // /admin/tick/advance) só funcionam com WithSchedulerAdmin; sem ela respondem 503. As de leitura
 // do painel (N.5/N.8/N.10: /admin/overview, /admin/market/assets[/{id}], /admin/orders) dependem de WithAdminReader, idem;
 // o cancelamento por intervenção (N.10) depende de WithAdminOrderCanceller e as pausas de negociação (N.9:
-// /admin/halts, GET /market/halts) de WithTradingHalts e a gestão de bots (N.1: /admin/bots) de WithBotAdmin.
+// /admin/halts, GET /market/halts) de WithTradingHalts, a gestão de bots (N.1: /admin/bots) de WithBotAdmin e o catálogo (N.12: /admin/catalog) de WithCatalogAdmin.
 func New(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) *http.Server {
 	var cfg options
 	for _, opt := range opts {
@@ -89,6 +89,10 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /admin/overview", handleAdminOverview(cfg.adminReader))
 	mux.HandleFunc("GET /admin/market/assets", handleAdminMarketAssets(cfg.adminReader))
 	mux.HandleFunc("GET /admin/market/assets/{id}", handleAdminMarketAssetDetail(cfg.adminReader))
+	mux.HandleFunc("GET /admin/catalog", handleAdminCatalog(cfg.catalogAdmin))
+	mux.HandleFunc("POST /admin/catalog/preview", handleAdminCatalogPreview(cfg.assetProvision))
+	mux.HandleFunc("POST /admin/catalog", handleAdminCatalogCreate(cfg.assetProvision))
+	mux.HandleFunc("PATCH /admin/catalog/{id}", handleAdminCatalogPatch(cfg.catalogAdmin))
 	mux.HandleFunc("GET /admin/orders", handleAdminOrders(cfg.adminReader))
 	mux.HandleFunc("POST /admin/orders/cancel-batch", handleAdminCancelBatch(cfg.orderCanceller))
 	mux.HandleFunc("POST /admin/orders/{id}/cancel", handleAdminCancelOrder(cfg.orderCanceller))

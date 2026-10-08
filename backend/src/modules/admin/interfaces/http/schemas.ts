@@ -379,3 +379,56 @@ export const createLessonBodySchema = z.object({
   ...lessonContentShape,
   after_lesson_id: z.guid().nullable(),
 })
+
+// PATCH /admin/catalog/:id (N.12). Só os quatro campos da lista fechada; qualquer outro
+// (ticker, setor, float...) é 400 aqui e nunca chega ao motor. Os limites de cada campo são
+// do domínio do motor (422); aqui só o formato e o tamanho máximo.
+export const assetIdParamSchema = z.object({ id: z.uuid() })
+
+export const updateCatalogAssetBodySchema = z
+  .strictObject({
+    name: z.string().max(200).optional(),
+    base_growth_pct: z.number().finite().optional(),
+    quality_multiplier: z.number().finite().optional(),
+    methodology_summary: z.string().max(2000).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: 'informe pelo menos um campo a alterar',
+  })
+
+// POST /admin/catalog e /admin/catalog/preview (N.13): um formato por classe. Aqui só o
+// formato (tipos e tamanho máximo); as faixas e as regras são do domínio do motor (422).
+const newAssetBase = { ticker: z.string().max(12), name: z.string().max(200) }
+
+export const newCatalogAssetBodySchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('acao'),
+    ...newAssetBase,
+    company_name: z.string().max(200),
+    cnpj: z.string().max(20),
+    sector: z.string().max(40),
+    outstanding_shares: z.number().int(),
+    base_growth_pct: z.number().finite(),
+    quality_multiplier: z.number().finite(),
+  }),
+  z.strictObject({
+    kind: z.literal('fii_tijolo'),
+    ...newAssetBase,
+    segment: z.string().max(100),
+    vacancy_rate: z.number().finite(),
+  }),
+  z.strictObject({
+    kind: z.literal('fii_papel'),
+    ...newAssetBase,
+    indexador: z.enum(['CDI', 'IPCA+']),
+  }),
+  z.strictObject({
+    kind: z.literal('etf'),
+    ...newAssetBase,
+    benchmark_index: z.string().max(200),
+    methodology: z.string().max(2000).optional(),
+    holdings: z
+      .array(z.strictObject({ ticker: z.string().max(12), weight_pct: z.number().finite() }))
+      .max(50),
+  }),
+])

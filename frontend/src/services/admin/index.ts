@@ -39,9 +39,14 @@ import type {
     MacroEventFilters,
     CancelOrdersBatchInput,
     CancelOrdersBatchResult,
+    CatalogAsset,
+    CatalogPatch,
+    CreatedCatalogAsset,
     EngineSettingKey,
     EngineSettings,
     ListAdminOrdersResult,
+    NewCatalogAsset,
+    NewCatalogAssetPreview,
     ListAuditLogResult,
     ListMacroEventsResult,
     ListTicksResult,
@@ -111,6 +116,18 @@ export type {
     EngineSettingKey,
     EngineSettings,
     ReadOnlySetting,
+    CatalogAsset,
+    CatalogCompany,
+    CatalogEditableField,
+    CatalogETF,
+    CatalogFII,
+    CatalogFixedIncome,
+    CatalogPatch,
+    CatalogPoolPreview,
+    CreatedCatalogAsset,
+    NewCatalogAsset,
+    NewCatalogAssetKind,
+    NewCatalogAssetPreview,
     AdminBot,
     AdminBotListing,
     BotArchetype,
@@ -328,6 +345,24 @@ export function updateEngineSetting(token: string, key: EngineSettingKey, value:
 
 export function resetEngineSetting(token: string, key: EngineSettingKey): Promise<EngineSettings> {
     return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'DELETE' })
+}
+
+// Catálogo de ativos (N.12): consulta e ajuste de uma lista fechada de campos.
+export async function listAdminCatalog(token: string): Promise<CatalogAsset[]> {
+    return (await apiRequest<{ assets: CatalogAsset[] }>('/admin/catalog', { token })).assets
+}
+
+export function updateCatalogAsset(token: string, assetId: string, patch: CatalogPatch): Promise<CatalogAsset> {
+    return apiRequest<CatalogAsset>(`/admin/catalog/${assetId}`, { token, method: 'PATCH', body: patch })
+}
+
+// Cadastro de ativo novo (N.13): o preview mostra o que seria criado sem gravar nada.
+export function previewCatalogAsset(token: string, asset: NewCatalogAsset): Promise<NewCatalogAssetPreview> {
+    return apiRequest<NewCatalogAssetPreview>('/admin/catalog/preview', { token, method: 'POST', body: asset })
+}
+
+export function createCatalogAsset(token: string, asset: NewCatalogAsset): Promise<CreatedCatalogAsset> {
+    return apiRequest<CreatedCatalogAsset>('/admin/catalog', { token, method: 'POST', body: asset })
 }
 
 // Detalhe de um evento macro (N.11): estado de ciclo de vida, impacto realizado e a versão

@@ -167,3 +167,43 @@ Modelos e fórmulas puras em `engine/internal/domain/adminview/bots.go`; consult
 - **Sucesso:** `200` → `{ simulated_day, idle_days, active_bots, idle_bots: [{ account_id, archetype, last_order_day | null }], low_cash_bots: [{ account_id, archetype, cash, capital }], empty_inventory: [{ account_id, asset_id, ticker }], liquidity: [{ asset_id, ticker, resting_by_provider: { <arquétipo | "usuario">: quantidade } }], float_concentration: [{ asset_id, ticker, top_bot_id, top_bot_archetype, top_bot_pct, all_bots_pct, outstanding_shares }] }`.
 - **Erros:** `400` — `idle_days` inválido; `503`, `500`.
 - **Regra:** só bots **ativos** entram em `idle_bots` e `low_cash_bots`; "rodadas" do texto da tarefa viraram **dias simulados** (a rodada não é gravada; a ordem tem o dia). `idle_bots` é quem não tem ordem criada nos últimos `idle_days` dias (inclusive o corrente), com `last_order_day` nulo pra quem nunca ordenou. `low_cash_bots` é o caixa abaixo de 1% do capital aportado (`LowCashRatio`, valor ilustrativo). `empty_inventory` lista Market Maker ativo sem nenhuma ação de um ativo que cobre. `liquidity` soma a quantidade **ainda aberta** (`quantidade − executada`) das ordens a limite em repouso, por arquétipo de bot e `usuario`. `float_concentration` traz o maior bot detentor de cada ativo e a fatia de todos os bots, em % das cotas em circulação, ordenado pela maior concentração. Ativos sem cobertura continuam em `uncovered_assets` de `GET /admin/bots`.
+
+---
+
+### Catálogo de ativos (tarefa N.12)
+
+Pacote de domínio: `engine/internal/domain/catalogadmin/` (`Service`, `Patch.Validate`, `EditableFields`); leitura e gravação em `db.CatalogAdminRepository`. O catálogo é dado cadastral (não Event Sourcing), então a edição é um `UPDATE` direto, mas só numa **lista fechada de campos**, validada pelas mesmas regras do cadastro (`catalog.ValidateBaseGrowthPct`, `ValidateQualityMultiplier`). Mudar `base_growth_pct` ou `quality_multiplier` vale a partir do próximo relatório (o tick lê a empresa todo dia). Respondem `503` sem `httpserver.WithCatalogAdmin`.
+
+Editável por classe: **ação** `name`, `base_growth_pct`, `quality_multiplier` (os dois últimos são da **empresa emissora**, então valem pra ON e PN juntas); **ETF** `name`, `methodology_summary`; **FII** e **renda fixa** `name`. **Somente leitura**, por decisão: ticker, tipo, classe de risco, setor, float em circulação (`outstanding_shares`, mexer reescreve a distribuição dos bots), `report_frequency_days` (a spec 3.3.1 fixa um ciclo global de 91 dias e o gatilho de evento macro, o FII e o ETF dependem dele), cesta do ETF e parâmetros de FII/renda fixa. Ativo do sandbox aparece marcado e nunca é editável (achado 023).
+
+#### `GET /admin/catalog`
+
+- **Sucesso:** `200` → `{ assets: [...] }`, todos os ativos (inclusive sandbox) ordenados por tipo e ticker. Cada item: `{ asset_id, ticker, name, type, risk_class | null, is_sandbox, share_class | null, outstanding_shares | null, editable: [campos], company | null, etf | null, fii | null, fixed_income | null }`. Só o bloco da classe vem preenchido (RF21). `company`: `{ company_id, name, sector, report_frequency_days, base_growth_pct, quality_multiplier }`. `etf`: `{ benchmark_index, methodology_summary | null, expense_ratio_pct, rebalance_frequency_days, holdings: [{ name, weight_pct }], holdings_total_weight_pct }`. `fii`: `{ fii_type, segment | null, vacancy_rate | null, indexador | null }`. `fixed_income`: `{ interest_rate | null, maturity_date | null, issuer_type, tax_exempt, credit_risk_rating | null, minimum_investment }`.
+- **Erros:** `503`, `500`.
+
+#### `PATCH /admin/catalog/{id}`
+
+- **Payload (JSON):** qualquer subconjunto de `name` (1 a 100 caracteres), `base_growth_pct` (maior que -100), `quality_multiplier` (em (0, 2]), `methodology_summary` (até 1000 caracteres, vazio limpa), mais `admin_id` (UUID, informado pelo backend).
+- **Sucesso:** `200` → o ativo já alterado, no mesmo formato de um item do `GET`.
+- **Erros:** `400` — `id`/`admin_id` inválido, corpo que não é JSON ou campo com tipo errado; `404` — ativo inexistente; `422` — valor fora da regra (mensagem do domínio), campo somente leitura (`ticker`, `outstanding_shares`, `report_frequency_days`...), campo que não se aplica à classe, ativo do sandbox ou nenhum campo informado; `503`, `500`.
+- **Regra:** a gravação trava a linha do ativo e valida de novo dentro da transação; nada é gravado se a validação falha.
+
+#### Cadastro de ativo novo (tarefa N.13)
+
+Pacotes: `engine/internal/domain/assetprovision/` (`Spec.Validate`, `Service.Preview`/`Create`) e `engine/internal/domain/botpool/` (id e personalidade dos bots direcionais, **compartilhados com o seed**: crescer o pool pelo painel gera exatamente os bots que o seed geraria). Adapter `db.AssetProvisionRepository`. Respondem `503` sem `httpserver.WithAssetProvision`.
+
+O cadastro percorre o mesmo caminho do seed: (1) **catálogo numa transação só** (empresa, ativo, especialização e fundamentos iniciais calibrados pra o preço justo nascer em R$ 10, ou detalhes de FII/ETF; o ETF ganha a conta de fundo); (2) **pool de bots** cresce até `bot.PoolSize(nº de ativos negociáveis)` (nunca encolhe), com caixa e personalidade pros bots novos; (3) o float do ativo novo é distribuído entre o pool inteiro (`bot.InitialAllocation`, 50% pro grupo Market Maker); (4) **cobertura de Market Maker** por `coverage.Ensurer` (um Market Maker novo nasce se nenhum tem folga). **Nenhuma posição de ativo antigo é alterada**: bot antigo só ganha posição no ativo novo e bot novo só recebe posição no ativo novo. Ação e FII passam pelas quatro etapas; **ETF só pela primeira** (não tem float de bots nem Market Maker, a liquidez vem da criação de cotas pelo Participante Autorizado, igual ao seed).
+
+Classes (`kind`): `acao` (cria a empresa emissora junto, uma ação ON; classe de risco derivada do setor: Mineração e Energia Conservador, o resto Sofisticado), `fii_tijolo`, `fii_papel`, `etf`. Ticker: ação `ABCD3` ou `ABCD4`, FII e ETF `ABCD11`. Não há exclusão de ativo (pode ter posição e histórico imutável).
+
+#### `POST /admin/catalog/preview`
+
+- **Payload (JSON):** `kind`, `ticker`, `name`, e os campos da classe. Ação: `company_name`, `cnpj` (14 dígitos), `sector` (um dos 6 fixos), `outstanding_shares` (1.000.000 a 2.000.000.000), `base_growth_pct` (maior que -100), `quality_multiplier` (em (0, 2]). FII de tijolo: `segment`, `vacancy_rate` (0 a 100). FII de papel: `indexador` (`CDI` ou `IPCA+`). ETF: `benchmark_index`, `methodology` (opcional), `holdings: [{ ticker, weight_pct }]` (1 a 30 ações ou FIIs já cadastrados, pesos somando 100).
+- **Sucesso:** `200` → `{ kind, ticker, name, outstanding_shares | null, pool | null }`. `pool` (nulo em ETF): `{ pool_before, pool_after, new_bots, market_maker_shares, bot_shares, market_maker_id, creates_market_maker }`. Não grava nada.
+- **Erros:** `400` corpo inválido; `409` ticker ou CNPJ já em uso; `422` `{ error, field }` regra de domínio (faixa, formato, constituinte inexistente ou de renda fixa, pesos); `503`, `500`.
+
+#### `POST /admin/catalog`
+
+- **Payload:** o mesmo do preview, mais `admin_id` (UUID, informado pelo backend).
+- **Sucesso:** `201` → `{ asset_id, preview }`.
+- **Erros:** os do preview (`400` também sem `admin_id`); `500` com `{ error, asset_id }` quando o catálogo gravou mas a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots, que reatribui; a ordem das etapas é a do seed: bots antes da cobertura).

@@ -10,6 +10,10 @@ import {
     liftTradingHalt,
     cancelMacroEvent,
     getEngineSettings,
+    listAdminCatalog,
+    updateCatalogAsset,
+    previewCatalogAsset,
+    createCatalogAsset,
     getMacroEventDetail,
     listTradingHalts,
     resetEngineSetting,
@@ -254,6 +258,35 @@ describe('services/admin', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/admin/settings/max_catch_up')
         expect(init.method).toBe('DELETE')
+    })
+
+    it('listAdminCatalog faz GET /admin/catalog e devolve só a lista', async () => {
+        const fetchMock = mockFetchOnce({ assets: [{ asset_id: 'a1' }] })
+        expect(await listAdminCatalog('token')).toEqual([{ asset_id: 'a1' }])
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/catalog')
+    })
+
+    it('updateCatalogAsset faz PATCH /admin/catalog/:id com o patch', async () => {
+        const fetchMock = mockFetchOnce({ asset_id: 'a1' })
+        await updateCatalogAsset('token', 'a1', { name: 'Novo' })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/catalog/a1')
+        expect(init.method).toBe('PATCH')
+        expect(JSON.parse(init.body)).toEqual({ name: 'Novo' })
+    })
+
+    it('previewCatalogAsset e createCatalogAsset fazem POST com o pedido', async () => {
+        const asset = { kind: 'fii_papel', ticker: 'NOVP11', name: 'Fii', indexador: 'CDI' } as const
+        const preview = mockFetchOnce({ ticker: 'NOVP11', pool: null })
+        await previewCatalogAsset('token', asset)
+        expect(preview.mock.calls[0][0]).toBe('/admin/catalog/preview')
+        expect(preview.mock.calls[0][1].method).toBe('POST')
+        expect(JSON.parse(preview.mock.calls[0][1].body)).toEqual(asset)
+
+        const create = mockFetchOnce({ asset_id: 'a1' })
+        await createCatalogAsset('token', asset)
+        expect(create.mock.calls[0][0]).toBe('/admin/catalog')
+        expect(JSON.parse(create.mock.calls[0][1].body)).toEqual(asset)
     })
 
     it('listTradingHalts faz GET /admin/halts', async () => {

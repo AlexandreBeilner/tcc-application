@@ -376,6 +376,21 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 - **Erros:** `404` — `key` não é editável.
 - **Auditoria:** `settings.reset`, `target_id` = a chave, `payload = { key }`.
 
+### Catálogo de ativos (tarefa N.12)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md#catálogo-de-ativos-tarefa-n12`, que descreve os campos por classe e as regras).
+
+#### `GET /admin/catalog`
+
+- **Sucesso:** `200` → `{ assets: [{ asset_id, ticker, name, type, risk_class, is_sandbox, share_class, outstanding_shares, editable: [campos], company, etf, fii, fixed_income }] }`. Só o bloco da classe vem preenchido; `editable` é vazio pra ativo do sandbox.
+
+#### `PATCH /admin/catalog/:id`
+
+- **Payload (JSON):** qualquer subconjunto de `name`, `base_growth_pct`, `quality_multiplier`, `methodology_summary`, validado por `updateCatalogAssetBodySchema` (estrito: outro campo, como `ticker` ou `outstanding_shares`, é recusado). O `admin_id` vem do token.
+- **Sucesso:** `200` → o ativo já alterado (mesmo formato de um item do `GET`).
+- **Erros:** `400` — `id` não é UUID, corpo vazio, campo desconhecido ou tipo errado (o motor não é chamado); `404` — ativo inexistente; `422` — regra de domínio do motor (faixa, campo que não se aplica à classe, sandbox), com a mensagem dele.
+- **Auditoria:** `catalog.update`, `target_type = asset`, `target_id` = id do ativo, `payload` = o patch; a recusa do motor grava `result = failed` com o motivo.
+
 ### Ciclo de vida do evento macro (tarefa N.11)
 
 Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/macroevent.md#ciclo-de-vida-do-evento-tarefa-n11`, que descreve os estados e as regras): `pendente → aplicado` ou `pendente → cancelado`. Agendar é o `apply_on_day` de `POST /admin/macro-events`; o filtro do histórico é o de `GET /admin/macro-events`.
@@ -439,3 +454,20 @@ Duas leituras que repassam o motor (formato e regras em `.docs/engine/admin.md`)
 - **Sucesso:** `200` → `{ simulated_day, idle_days, active_bots, idle_bots, low_cash_bots, empty_inventory, liquidity, float_concentration }`.
 - **Erros:** `400` — `idle_days` inválido.
 - **Rota fixa:** declarada antes de qualquer `/admin/bots/:id` no router, pra `summary` não ser lido como id.
+
+#### Cadastro de ativo novo (tarefa N.13)
+
+Todas exigem `role = admin`. Proxy do motor (ver `.docs/engine/admin.md#cadastro-de-ativo-novo-tarefa-n13`, que descreve as quatro etapas, as classes e as faixas).
+
+##### `POST /admin/catalog/preview`
+
+- **Payload (JSON):** um formato por `kind`, validado por `newCatalogAssetBodySchema` (estrito, só formato): `acao` (`ticker`, `name`, `company_name`, `cnpj`, `sector`, `outstanding_shares`, `base_growth_pct`, `quality_multiplier`), `fii_tijolo` (`ticker`, `name`, `segment`, `vacancy_rate`), `fii_papel` (`ticker`, `name`, `indexador` `CDI` ou `IPCA+`), `etf` (`ticker`, `name`, `benchmark_index`, `methodology` opcional, `holdings: [{ ticker, weight_pct }]`).
+- **Sucesso:** `200` → `{ kind, ticker, name, outstanding_shares | null, pool | null }`, com `pool = { pool_before, pool_after, new_bots, market_maker_shares, bot_shares, market_maker_id, creates_market_maker }` (nulo em ETF). Não grava nem audita.
+- **Erros:** `400` — corpo fora do formato (o motor não é chamado); `409` — ticker ou CNPJ em uso; `422` — `{ error, field }` regra de domínio do motor.
+
+##### `POST /admin/catalog`
+
+- **Payload:** o mesmo do preview. O `admin_id` vem do token.
+- **Sucesso:** `201` → `{ asset_id, preview }`.
+- **Erros:** os do preview; `500` — `{ error, asset_id }` quando o catálogo gravou e a etapa dos bots ou da cobertura falhou (o ativo existe e aparece sem cobertura no painel de bots).
+- **Auditoria:** `catalog.create`, `target_type = asset`, `target_id` = o ticker, `payload` = o pedido; recusa ou falha grava `result = failed` com o motivo.
