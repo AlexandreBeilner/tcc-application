@@ -14,6 +14,8 @@ export interface MacroEventFromTemplateInput {
   created_by?: string
   // Agenda o primeiro dia de efeito (dia simulado futuro, N.11); ausente dispara já.
   apply_on_day?: number
+  // Com quantos dias de antecedência do efeito o jogador vê o evento (N.25); ausente, a véspera.
+  reveal_lead_days?: number
 }
 
 export interface MacroEventAdHocInput {
@@ -26,6 +28,7 @@ export interface MacroEventAdHocInput {
   targets: MacroEventTargetInput[]
   created_by?: string
   apply_on_day?: number
+  reveal_lead_days?: number
 }
 
 export type TriggerMacroEventInput = MacroEventFromTemplateInput | MacroEventAdHocInput
@@ -41,6 +44,7 @@ export interface MacroEventResult {
   affects_fundamentals: boolean
   status: string
   triggered_on_day: number
+  reveal_lead_days?: number
   duration_days: number
   price_effect_pct?: number
   fundamentals_effect_pct?: number

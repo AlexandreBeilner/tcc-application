@@ -40,9 +40,6 @@ export function createFakeUserCorrections(): FakeUserCorrections {
     async grantAchievement(...args) {
       return record('grantAchievement', args, { id: 'a1', name: 'Primeira Semana' })
     },
-    async revokeAchievement(...args) {
-      return record('revokeAchievement', args, { id: 'a1', name: 'Primeira Semana' })
-    },
     async completeLesson(...args) {
       return record('completeLesson', args, { id: 'l1', code: '0.1' })
     },

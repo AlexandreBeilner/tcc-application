@@ -434,3 +434,43 @@ describe('DELETE /admin/macro-events/:id (N.11)', () => {
     expect(auditLog.entries[0]).toMatchObject({ result: 'failed' })
   })
 })
+
+describe('POST /admin/macro-events com reveal_lead_days (N.25)', () => {
+  it('repassa a antecedência de aparição ao motor e a grava na auditoria', async () => {
+    const { app, tokenIssuer, macroEventTrigger, auditLog } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validTemplateBody, apply_on_day: 130, reveal_lead_days: 5 })
+
+    expect(res.status).toBe(201)
+    expect(macroEventTrigger.calls[0]).toMatchObject({ apply_on_day: 130, reveal_lead_days: 5 })
+    expect(auditLog.entries[0].payload).toMatchObject({ reveal_lead_days: 5 })
+  })
+
+  it('aceita 0 (só aparece quando o efeito começa)', async () => {
+    const { app, tokenIssuer, macroEventTrigger } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+
+    const res = await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validTemplateBody, apply_on_day: 130, reveal_lead_days: 0 })
+
+    expect(res.status).toBe(201)
+    expect(macroEventTrigger.calls[0]).toMatchObject({ reveal_lead_days: 0 })
+  })
+
+  it.each([-1, 1.5, 'cedo'])('reveal_lead_days %j retorna 400 sem chamar o motor', async (lead) => {
+    const { app, tokenIssuer, macroEventTrigger } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })
+    const res = await request(app)
+      .post('/admin/macro-events')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validTemplateBody, apply_on_day: 130, reveal_lead_days: lead })
+    expect(res.status).toBe(400)
+    expect(macroEventTrigger.calls).toHaveLength(0)
+  })
+})

@@ -70,7 +70,7 @@ func toMacroEventDetailResponse(d macroeventadmin.Detail) macroEventDetailRespon
 
 	resp := macroEventDetailResponse{
 		macroEventResponse: base, CreatedBy: d.Record.CreatedBy, CurrentDay: d.CurrentDay,
-		PubliclyVisible: macroevent.IsPubliclyVisible(d.Record.Status, d.Record.TriggeredOnDay, d.CurrentDay),
+		PubliclyVisible: macroevent.IsPubliclyVisible(d.Record.Status, d.Record.TriggeredOnDay, d.Record.RevealLeadDays, d.CurrentDay),
 	}
 	if d.Record.FundamentalsReportDay != nil {
 		date := simcalendar.DateOf(*d.Record.FundamentalsReportDay).Format(dateLayout)

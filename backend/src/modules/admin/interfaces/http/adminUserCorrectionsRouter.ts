@@ -20,7 +20,6 @@ import type {
   GetUserCorrectionContextUseCase,
   GrantUserAchievementUseCase,
   ReopenUserLessonUseCase,
-  RevokeUserAchievementUseCase,
   SetUserStreakUseCase,
 } from '../../application/useCases/userCorrections'
 import {
@@ -35,7 +34,6 @@ export interface AdminUserCorrectionsRouterDeps {
   adjustUserXp: AdjustUserXpUseCase
   setUserStreak: SetUserStreakUseCase
   grantUserAchievement: GrantUserAchievementUseCase
-  revokeUserAchievement: RevokeUserAchievementUseCase
   completeUserLesson: CompleteUserLessonUseCase
   reopenUserLesson: ReopenUserLessonUseCase
   getCorrectionContext: GetUserCorrectionContextUseCase
@@ -179,19 +177,6 @@ export function createAdminUserCorrectionsRouter(deps: AdminUserCorrectionsRoute
     '/admin/users/:id/achievements/:achievementId/grant',
     ...mutation(correctionReasonBodySchema, reasonMessage, async (adminId, req, body, res) => {
       await deps.grantUserAchievement.execute(
-        adminId,
-        String(req.params.id),
-        String(req.params.achievementId),
-        body.reason,
-      )
-      res.status(204).end()
-    }),
-  )
-
-  router.post(
-    '/admin/users/:id/achievements/:achievementId/revoke',
-    ...mutation(correctionReasonBodySchema, reasonMessage, async (adminId, req, body, res) => {
-      await deps.revokeUserAchievement.execute(
         adminId,
         String(req.params.id),
         String(req.params.achievementId),

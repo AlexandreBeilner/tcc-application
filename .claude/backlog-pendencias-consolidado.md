@@ -129,8 +129,12 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 - **Decisões (2026-10-03):** **todas as que travavam a Fase N estão tomadas** (achados 029, 030 e 001 resolvidos). Lição
   nova pode entrar no meio do currículo com dispensa de quem já passou (tarefa **N.24**, que concede os produtos da
   lição dispensada); a N.23 (editor de lições) depende da N.24 pra criar lição.
-- **Andamento:** N.3, N.4 e N.6 ✅ concluídas (2026-10-03); próximas sem bloqueio: N.5 (visão geral), N.8 (monitor de
-  mercado) e N.10/N.1 (bots).
+- **Andamento:** os 12 PRs do plano estão ✅ (o PR 12, N.20 e N.21, em 2026-10-06, branch `fase-n-pr12-sistema`, aguardando
+  merge junto da cadeia de branches anterior); a Fase N está completa em código, falta só mesclar.
+- **Ajustes pós-decisão (2026-10-06):** os 5 achados abertos da Fase N (031, 032, 033, 034 e 035) foram decididos pelo
+  autor. Só dois geram trabalho, no **PR 13** do plano: **N.25** (o admin escolhe a antecedência com que o jogador vê
+  um evento macro agendado) e **N.26** (tirar "revogar conquista" do painel). Os outros três só ajustaram o texto das
+  tarefas N.12 a N.15 e N.19. O PR 13 (N.25 e N.26) foi feito em 2026-10-06, branch `fase-n-pr13-ajustes`, aguardando merge junto da cadeia.
 
 ---
 

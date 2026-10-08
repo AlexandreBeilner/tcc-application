@@ -24,6 +24,13 @@ const MAGNITUDE_LABELS = { leve: 'Leve', moderado: 'Moderado', severo: 'Severo' 
 // efeito começa e termina, o dia do relatório de fundamentos, a versão que o usuário vê
 // hoje, o impacto realizado de preço por alvo (só depois de a janela fechar) e o botão
 // de cancelar, habilitado só enquanto o evento é pendente e ainda sem efeito aplicado.
+// Quando o jogador passa a ver o evento, pela antecedência escolhida ao agendar (N.25).
+function revealWhen(leadDays: number | undefined): string {
+    if (leadDays === 0) return 'quando o efeito começar'
+    if (leadDays === undefined || leadDays === 1) return 'na véspera'
+    return `${leadDays} dias antes do efeito`
+}
+
 export function AdminEventoMacroDetalhe() {
     const { id } = useParams<{ id: string }>()
     const [windowDays, setWindowDays] = useState<number>(5)
@@ -130,7 +137,11 @@ export function AdminEventoMacroDetalhe() {
                     <div>
                         <dt>Visível pros jogadores</dt>
                         <dd>
-                            {event.publicly_visible ? 'Sim' : phase === 'cancelado' ? 'Não (cancelado)' : 'Ainda não (aparece na véspera)'}
+                            {event.publicly_visible
+                                ? 'Sim'
+                                : phase === 'cancelado'
+                                  ? 'Não (cancelado)'
+                                  : `Ainda não (aparece ${revealWhen(event.reveal_lead_days)})`}
                         </dd>
                     </div>
                 </dl>

@@ -1,4 +1,5 @@
-import { apiRequest } from '../client'
+import { apiDownload, apiRequest } from '../client'
+import type { DownloadedFile } from '../client'
 import type {
     AchievementCatalog,
     AdminRanking,
@@ -52,6 +53,14 @@ import type {
     ListTicksResult,
     MonitorAsset,
     MonitorAssetDetail,
+    AdminAnnouncement,
+    AnnouncementInput,
+    AnnouncementPatch,
+    EndAnnouncementResult,
+    ExportDataset,
+    ExportFilters,
+    IntegrityRun,
+    MaintenanceInput,
     PauseTradingInput,
     SchedulerStatus,
     SystemHealth,
@@ -139,6 +148,20 @@ export type {
     CreateBotInput,
     FundBotInput,
     UpdateBotInput,
+    ExportDataset,
+    ExportFilters,
+    IntegrityDivergence,
+    IntegrityKind,
+    IntegrityReport,
+    IntegrityRun,
+    AdminAnnouncement,
+    AnnouncementInput,
+    AnnouncementKind,
+    AnnouncementPatch,
+    AnnouncementSeverity,
+    AnnouncementStatus,
+    EndAnnouncementResult,
+    MaintenanceInput,
     HaltScope,
     PauseTradingInput,
     TradingHalt,
@@ -423,17 +446,10 @@ export function setAdminUserStreak(token: string, userId: string, value: number,
     return apiRequest<CorrectedProgression>(`/admin/users/${userId}/streak`, { token, method: 'POST', body: { value, reason } })
 }
 
-export type AchievementCorrection = 'grant' | 'revoke'
 export type LessonCorrection = 'complete' | 'reopen'
 
-export function correctAdminUserAchievement(
-    token: string,
-    userId: string,
-    achievementId: string,
-    action: AchievementCorrection,
-    reason: string,
-): Promise<void> {
-    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/${action}`, { token, method: 'POST', body: { reason } })
+export function grantAdminUserAchievement(token: string, userId: string, achievementId: string, reason: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/grant`, { token, method: 'POST', body: { reason } })
 }
 
 export function correctAdminUserLesson(
@@ -498,4 +514,47 @@ export function getLessonRevision(token: string, lessonId: string, revisionId: s
 
 export function restoreLessonRevision(token: string, lessonId: string, revisionId: string) {
     return apiRequest<LessonSaveResult>(`/admin/lessons/${lessonId}/revisions/${revisionId}/restore`, { token, method: 'POST' })
+}
+
+// Comunicados globais e modo de manutenção (N.20). Encerrar a manutenção levanta a pausa de
+// negociação que ela abriu; abrir manutenção com pausa pede senha recente (`withReauth`).
+export function listAdminAnnouncements(token: string): Promise<{ announcements: AdminAnnouncement[] }> {
+    return apiRequest<{ announcements: AdminAnnouncement[] }>('/admin/announcements', { token })
+}
+
+export function createAnnouncement(token: string, input: AnnouncementInput): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>('/admin/announcements', { token, method: 'POST', body: input })
+}
+
+export function updateAnnouncement(token: string, id: string, patch: AnnouncementPatch): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>(`/admin/announcements/${id}`, { token, method: 'PATCH', body: patch })
+}
+
+export function endAnnouncement(token: string, id: string): Promise<EndAnnouncementResult> {
+    return apiRequest<EndAnnouncementResult>(`/admin/announcements/${id}/end`, { token, method: 'POST' })
+}
+
+export function startMaintenance(token: string, input: MaintenanceInput): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>('/admin/maintenance', { token, method: 'POST', body: input })
+}
+
+// Integridade financeira (N.21): abre a verificação (202, roda em segundo plano no motor) e lê a
+// última. `run` é nulo se nenhuma rodou desde a subida do motor.
+export function startIntegrityCheck(token: string): Promise<IntegrityRun> {
+    return apiRequest<IntegrityRun>('/admin/integrity/check', { token, method: 'POST' })
+}
+
+export async function getIntegrityRun(token: string): Promise<IntegrityRun | null> {
+    return (await apiRequest<{ run: IntegrityRun | null }>('/admin/integrity/check', { token })).run
+}
+
+// Exportação CSV (N.21). Só `users` pede senha recente (`reauth_required`), então quem chama
+// embrulha em `withReauth`.
+export function downloadAdminExport(token: string, dataset: ExportDataset, filters: ExportFilters = {}): Promise<DownloadedFile> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiDownload(`/admin/exports/${dataset}${query ? `?${query}` : ''}`, { token })
 }

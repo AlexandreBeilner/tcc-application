@@ -434,3 +434,36 @@ export const adminAuditLog = pgTable(
     index('admin_audit_log_action_idx').on(table.action),
   ],
 )
+
+// Comunicados globais e modo de manutenção (Fase N, tarefa N.20). Faixa no topo do
+// app do usuário dentro da janela [starts_at, ends_at); `ends_at` nulo = até alguém
+// encerrar. `kind = 'maintenance'` é o aviso criado pelo modo de manutenção (crítico,
+// não dispensável); `linked_halt_id` guarda a pausa global aberta junto, pra
+// encerrar a manutenção levantá-la. Sem backfill: tabela nova.
+export const announcements = pgTable(
+  'announcements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: varchar('title', { length: 80 }).notNull(),
+    body: varchar('body', { length: 280 }).notNull(),
+    severity: text('severity').notNull(),
+    kind: text('kind').notNull().default('notice'),
+    dismissible: boolean('dismissible').notNull().default(true),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    linkedHaltId: uuid('linked_halt_id'),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('announcements_severity_chk', sql`${table.severity} IN ('info', 'warning', 'critical')`),
+    check('announcements_kind_chk', sql`${table.kind} IN ('notice', 'maintenance')`),
+    check(
+      'announcements_window_chk',
+      sql`${table.endsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`,
+    ),
+    index('announcements_window_idx').on(table.startsAt, table.endsAt),
+  ],
+)

@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthUser } from '../../../services/auth'
 import { getMarketCalendar, getMarketClock } from '../../../services/market'
+import { listActiveAnnouncements } from '../../../services/announcements'
 import { listNews } from '../../../services/news'
 import { calendarFixture, DEFAULT_EVENTS, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
 import { RewardRevealProvider } from '../../../features/shell/RewardRevealProvider'
@@ -27,6 +28,10 @@ vi.mock('../../../services/market', () => ({
 
 vi.mock('../../../services/news', () => ({
     listNews: vi.fn(),
+}))
+
+vi.mock('../../../services/announcements', () => ({
+    listActiveAnnouncements: vi.fn(),
 }))
 
 function mockAuth(user: AuthUser, logout = vi.fn()) {
@@ -85,11 +90,13 @@ describe('AppShell', () => {
         })
         vi.mocked(getMarketClock).mockResolvedValue(WEDNESDAY_CLOCK)
         vi.mocked(getMarketCalendar).mockResolvedValue(calendarFixture(DEFAULT_EVENTS))
+        vi.mocked(listActiveAnnouncements).mockResolvedValue({ announcements: [] })
     })
 
     afterEach(() => {
         vi.clearAllMocks()
         localStorage.clear()
+        sessionStorage.clear()
     })
 
     it('renderiza os 5 itens de navegação primária e o conteúdo da rota', async () => {
@@ -102,6 +109,32 @@ describe('AppShell', () => {
             expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
         }
         expect(screen.getByText('conteúdo da rota')).toBeInTheDocument()
+    })
+
+    it('mostra o comunicado no ar acima da barra; dispensar some e não volta ao recarregar a consulta', async () => {
+        mockAuth(user)
+        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
+        vi.mocked(listActiveAnnouncements).mockResolvedValue({
+            announcements: [
+                {
+                    id: 'a1',
+                    title: 'Evento extraordinário',
+                    body: 'Vamos avançar 5 dias do mercado.',
+                    severity: 'warning',
+                    kind: 'notice',
+                    dismissible: true,
+                    starts_at: '2026-10-06T10:00:00Z',
+                    ends_at: null,
+                },
+            ],
+        })
+
+        renderShell()
+
+        expect(await screen.findByText('Evento extraordinário')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: /Dispensar comunicado: Evento extraordinário/ }))
+        expect(screen.queryByText('Evento extraordinário')).not.toBeInTheDocument()
+        expect(sessionStorage.getItem('dismissedAnnouncements')).toBe('["a1"]')
     })
 
     it('o chip do relógio abre e fecha o Calendário (S.12), sem mudar de rota', async () => {
