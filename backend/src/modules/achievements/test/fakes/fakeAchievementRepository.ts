@@ -57,12 +57,5 @@ export function createFakeAchievementRepository(
       }
       unlocked.set(userId, [...existing, { achievementId, unlockedAt: new Date() }])
     },
-
-    async revoke(userId, achievementId) {
-      const existing = unlocked.get(userId) ?? []
-      const remaining = existing.filter((u) => u.achievementId !== achievementId)
-      unlocked.set(userId, remaining)
-      return remaining.length < existing.length
-    },
   }
 }

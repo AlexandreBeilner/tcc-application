@@ -25,6 +25,8 @@ const macroEventFromTemplateSchema = z.object({
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
   apply_on_day: z.number().int().positive().optional(),
+  // Antecedência com que o jogador vê o evento (N.25); o motor valida o teto.
+  reveal_lead_days: z.number().int().min(0).optional(),
 })
 
 const macroEventAdHocSchema = z.object({
@@ -37,6 +39,8 @@ const macroEventAdHocSchema = z.object({
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
   apply_on_day: z.number().int().positive().optional(),
+  // Antecedência com que o jogador vê o evento (N.25); o motor valida o teto.
+  reveal_lead_days: z.number().int().min(0).optional(),
 })
 
 export const triggerMacroEventBodySchema = z.union([

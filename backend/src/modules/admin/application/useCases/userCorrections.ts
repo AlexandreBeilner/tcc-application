@@ -90,19 +90,6 @@ export class GrantUserAchievementUseCase extends UserCorrectionUseCase {
   }
 }
 
-export class RevokeUserAchievementUseCase extends UserCorrectionUseCase {
-  execute(adminId: string, userId: string, achievementId: string, reason: string) {
-    return this.audited(
-      adminId,
-      userId,
-      'user.revoke_achievement',
-      { achievement_id: achievementId, reason },
-      () => this.corrections.revokeAchievement(userId, achievementId),
-      (result) => ({ payload: { achievement_name: result.name } }),
-    )
-  }
-}
-
 export class CompleteUserLessonUseCase extends UserCorrectionUseCase {
   execute(adminId: string, userId: string, lessonId: string, reason: string) {
     return this.audited(

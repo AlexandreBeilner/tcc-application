@@ -28,7 +28,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'user.adjust_xp',
   'user.set_streak',
   'user.grant_achievement',
-  'user.revoke_achievement',
+  'user.revoke_achievement', // histórico: a ação saiu do painel na N.26, as linhas antigas continuam legíveis
   'user.complete_lesson',
   'user.reopen_lesson',
   'achievement.create',

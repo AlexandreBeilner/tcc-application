@@ -1,4 +1,4 @@
-import { and, count, eq } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { achievements, userAchievements } from '../../../../db/schema'
 import type { AchievementRepository } from '../../application/ports/achievementRepository'
@@ -88,19 +88,6 @@ export function createDrizzleAchievementRepository(db: Database): AchievementRep
         .onConflictDoNothing({
           target: [userAchievements.userId, userAchievements.achievementId],
         })
-    },
-
-    async revoke(userId, achievementId) {
-      const removed = await db
-        .delete(userAchievements)
-        .where(
-          and(
-            eq(userAchievements.userId, userId),
-            eq(userAchievements.achievementId, achievementId),
-          ),
-        )
-        .returning({ id: userAchievements.achievementId })
-      return removed.length > 0
     },
   }
 }

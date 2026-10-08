@@ -43,7 +43,7 @@ import {
     triggerMacroEvent,
     triggerTick,
     adjustAdminUserXp,
-    correctAdminUserAchievement,
+    grantAdminUserAchievement,
     correctAdminUserLesson,
     creditAdminUser,
     getUserCorrectionContext,
@@ -412,12 +412,12 @@ describe('services/admin', () => {
         expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ value: 7, reason: 'falha nossa' })
     })
 
-    it('correctAdminUserAchievement e correctAdminUserLesson montam a rota pela ação', async () => {
+    it('grantAdminUserAchievement e correctAdminUserLesson montam a rota', async () => {
         const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => undefined })
         vi.stubGlobal('fetch', fetchMock)
-        await correctAdminUserAchievement('token', 'u1', 'a1', 'revoke', 'dada por engano')
+        await grantAdminUserAchievement('token', 'u1', 'a1', 'dada por engano')
         await correctAdminUserLesson('token', 'u1', 'l1', 'complete', 'lição travada')
-        expect(fetchMock.mock.calls[0][0]).toBe('/admin/users/u1/achievements/a1/revoke')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/users/u1/achievements/a1/grant')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/users/u1/lessons/l1/complete')
         expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ reason: 'lição travada' })
     })

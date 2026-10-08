@@ -88,7 +88,6 @@ import {
   GetUserCorrectionContextUseCase,
   GrantUserAchievementUseCase,
   ReopenUserLessonUseCase,
-  RevokeUserAchievementUseCase,
   SetUserStreakUseCase,
 } from './modules/admin/application/useCases/userCorrections'
 import { createEngineUserCashCreditor } from './modules/admin/infrastructure/engine/engineUserCashCreditor'
@@ -139,10 +138,7 @@ import {
   UpdateMissionUseCase,
 } from './modules/missions/application/useCases/manageMissionCatalog'
 import { AdjustProgressionUseCase } from './modules/gamification/application/useCases/adjustProgression'
-import {
-  GrantAchievementUseCase,
-  RevokeAchievementUseCase,
-} from './modules/achievements/application/useCases/correctAchievements'
+import { GrantAchievementUseCase } from './modules/achievements/application/useCases/correctAchievements'
 import {
   MarkLessonCompletedUseCase,
   ReopenLessonUseCase,
@@ -856,7 +852,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const userCorrections = createInProcessUserCorrections({
     adjustProgression: new AdjustProgressionUseCase(progressionRepository, achievementChecker),
     grantAchievement: new GrantAchievementUseCase(achievementRepository),
-    revokeAchievement: new RevokeAchievementUseCase(achievementRepository),
     markLessonCompleted: new MarkLessonCompletedUseCase(lessonRepository),
     reopenLesson: new ReopenLessonUseCase(lessonRepository),
     achievementRepository,
@@ -872,11 +867,6 @@ export function createApp(deps: AppDeps = {}): Express {
       adjustUserXp: new AdjustUserXpUseCase(userRepository, userCorrections, recordAdminAction),
       setUserStreak: new SetUserStreakUseCase(userRepository, userCorrections, recordAdminAction),
       grantUserAchievement: new GrantUserAchievementUseCase(
-        userRepository,
-        userCorrections,
-        recordAdminAction,
-      ),
-      revokeUserAchievement: new RevokeUserAchievementUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,

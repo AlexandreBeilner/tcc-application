@@ -637,3 +637,68 @@ func TestTrigger_ApplyOnDayInvalidoNaoPersiste(t *testing.T) {
 		})
 	}
 }
+
+func TestTrigger_RevealLeadDays(t *testing.T) {
+	trigger := func(t *testing.T, apply, lead *int) (macroevent.Event, error) {
+		t.Helper()
+		repo := &fakeRepository{currentDay: 3}
+		direction := macroevent.DirectionPositivo
+		band := macroevent.BandLeve
+		_, event, err := NewService(repo).Trigger(context.Background(), Request{
+			Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+			AffectsPrice: ptr(true), AffectsFundamentals: ptr(false),
+			Targets:        []TargetInput{{AssetID: ptr("asset-1")}},
+			ApplyOnDay:     apply,
+			RevealLeadDays: lead,
+		})
+		return event, err
+	}
+	day := func(n int) *int { return &n }
+
+	t.Run("sem escolha usa a véspera, agendado ou não", func(t *testing.T) {
+		for _, apply := range []*int{nil, day(20)} {
+			event, err := trigger(t, apply, nil)
+			if err != nil {
+				t.Fatalf("Trigger: %v", err)
+			}
+			if event.RevealLeadDays != macroevent.DefaultRevealLeadDays {
+				t.Errorf("RevealLeadDays = %d, want %d", event.RevealLeadDays, macroevent.DefaultRevealLeadDays)
+			}
+		}
+	})
+
+	t.Run("antecedência escolhida vai pro evento", func(t *testing.T) {
+		event, err := trigger(t, day(20), day(5))
+		if err != nil {
+			t.Fatalf("Trigger: %v", err)
+		}
+		if event.RevealLeadDays != 5 {
+			t.Errorf("RevealLeadDays = %d, want 5", event.RevealLeadDays)
+		}
+	})
+
+	t.Run("antecedência maior que os dias até o efeito é recusada e nada é persistido", func(t *testing.T) {
+		repo := &fakeRepository{currentDay: 3}
+		direction := macroevent.DirectionPositivo
+		band := macroevent.BandLeve
+		_, _, err := NewService(repo).Trigger(context.Background(), Request{
+			Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+			AffectsPrice: ptr(true), AffectsFundamentals: ptr(false),
+			Targets:        []TargetInput{{AssetID: ptr("asset-1")}},
+			ApplyOnDay:     day(10),
+			RevealLeadDays: day(8),
+		})
+		if !errors.Is(err, macroevent.ErrRevealLeadTooLong) {
+			t.Errorf("err = %v, want ErrRevealLeadTooLong", err)
+		}
+		if repo.persistCalled {
+			t.Error("Persist chamado com antecedência inválida")
+		}
+	})
+
+	t.Run("antecedência negativa é recusada", func(t *testing.T) {
+		if _, err := trigger(t, day(10), day(-1)); !errors.Is(err, macroevent.ErrRevealLeadNegative) {
+			t.Errorf("err = %v, want ErrRevealLeadNegative", err)
+		}
+	})
+}

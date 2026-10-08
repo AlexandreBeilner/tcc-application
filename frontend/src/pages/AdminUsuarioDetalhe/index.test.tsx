@@ -29,7 +29,7 @@ vi.mock('../../services/admin', () => ({
     creditAdminUser: vi.fn(),
     adjustAdminUserXp: vi.fn(),
     setAdminUserStreak: vi.fn(),
-    correctAdminUserAchievement: vi.fn(),
+    grantAdminUserAchievement: vi.fn(),
     correctAdminUserLesson: vi.fn(),
 }))
 
