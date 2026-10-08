@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { ApiError } from '../../services/client'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import { advanceLesson, answerCheckpoint, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
@@ -638,7 +639,7 @@ describe('Lesson (tela 3.2)', () => {
     })
 
     it('lição bloqueada/inexistente mostra erro', async () => {
-        vi.mocked(getLesson).mockRejectedValue(new Error('bloqueada'))
+        vi.mocked(getLesson).mockRejectedValue(new ApiError(404, 'lição bloqueada'))
 
         renderLesson()
 

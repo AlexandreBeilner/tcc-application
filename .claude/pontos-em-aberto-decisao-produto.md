@@ -915,3 +915,12 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Por que não foi corrigido:** "mine" para Copom e macro exige regra de produto (qual posição conta, se vale para o evento macro agendado sem entregar o veredito, RF16) e a v1 decidiu por `market`.
 - **Opções:** (a) manter (informação macro vai em "No mercado"); (b) Copom `mine` para quem tem posição pós-fixada ou Selic; (c) (b) mais macro setorial `mine` para quem tem ativo do setor, sem texto de veredito.
 - **Status:** aberto (implementado com (a))
+
+### 039 · Abrir por URL uma lição ainda bloqueada mostra só um aviso de erro, sem o `LockedGate` (QA ponta a ponta, 2026-10-07)
+
+- **Local:** `frontend/src/pages/Lesson/index.tsx` (estado `lessonQuery.isError`) e `GET /lessons/:id` (404 para bloqueada)
+- **Origem:** teste ponta a ponta do backlog de revisão com um usuário novo abrindo `/trilha/<id da 2.1>` direto.
+- **O que é:** o backend responde 404 para lição bloqueada (de propósito, não revela se existe) e o player mostra "Não foi possível carregar esta lição agora. Ela pode estar bloqueada ou não existir." As telas de Mercado, Calculadora e Notícias usam o `LockedGate` com CTA para a lição que libera; o player não.
+- **Por que não foi corrigido:** trocar o aviso pelo `LockedGate` exige decidir se o player pode usar o status `locked` que já vem em `GET /lessons` (sem expor nada novo) e qual CTA mostrar (a lição disponível mais próxima, respeitando a regra de nunca apontar para lição não alcançada). Foi corrigido só o mecânico: o 404 deixou de ser repetido 3 vezes, que mantinha "Carregando lição…" na tela por ~7 segundos.
+- **Opções:** (a) manter o aviso; (b) usar `status: 'locked'` da lista e renderizar `LockedGate` (variante `screen`) com CTA para a próxima lição disponível.
+- **Status:** aberto (implementado com (a))
