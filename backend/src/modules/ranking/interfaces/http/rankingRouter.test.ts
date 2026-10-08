@@ -116,6 +116,7 @@ describe('ranking routes', () => {
       pageSize: 25,
       totalEntries: 1,
       totalPages: 1,
+      updatedAt: null,
     })
   })
 

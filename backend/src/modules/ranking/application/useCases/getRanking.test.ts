@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Snapshot } from '../../domain/networth'
 import { createFakeFriendGraphReader } from '../../test/fakes/fakeFriendGraphReader'
+import { createFakeRankingSnapshotStore } from '../../test/fakes/fakeRankingSnapshotStore'
 import { createFakeLevelReader } from '../../test/fakes/fakeLevelReader'
 import { createFakeSandboxAssetReader } from '../../test/fakes/fakeSandboxAssetReader'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
@@ -871,6 +872,128 @@ describe('GetRankingUseCase', () => {
       })
 
       expect(result.entries[0].profitabilityPct).toBe(0)
+    })
+  })
+
+  describe('com snapshot', () => {
+    const entry = (userId: string, pct: number) => ({
+      userId,
+      username: userId,
+      level: 1,
+      xp: 0,
+      profitabilityPct: pct,
+      sortKey: pct,
+    })
+    const users = ['u1', 'u2', 'u3'].map((id) => ({
+      id,
+      username: id,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    }))
+
+    async function buildWithSnapshot(friendIds: string[] = []) {
+      const store = createFakeRankingSnapshotStore()
+      const computedAt = new Date('2026-08-26T09:00:00Z')
+      await store.saveRun({
+        computedAt,
+        groups: [
+          {
+            criterion: 'overall',
+            window: 'week',
+            entries: [entry('u2', 20), entry('u1', 10), entry('u3', -5)],
+          },
+        ],
+      })
+      // O patrimônio nunca pode ser lido quando existe snapshot.
+      const getNetWorth = {
+        async execute(): Promise<Snapshot> {
+          throw new Error('não deveria recalcular')
+        },
+      }
+      const useCase = new GetRankingUseCase(
+        createFakeUserDirectory(users),
+        createFakeSandboxAssetReader(),
+        getNetWorth,
+        createFakeLevelReader(),
+        createFakeFriendGraphReader({ u1: friendIds }),
+        store,
+      )
+      return { useCase, computedAt, store }
+    }
+
+    it('lê do snapshot sem recalcular o patrimônio e informa quando foi calculado', async () => {
+      const { useCase, computedAt } = await buildWithSnapshot()
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+      expect(result.requestingUserPosition).toBe(2)
+      expect(result.updatedAt).toBe(computedAt.toISOString())
+    })
+
+    it('escopo Amigos filtra o mesmo snapshot e recalcula a posição dentro do grupo', async () => {
+      const { useCase } = await buildWithSnapshot(['u3'])
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'friends',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u3'])
+      expect(result.requestingUserPosition).toBe(1)
+    })
+
+    it('usuário fora do diretório ativo (suspenso) some do ranking mesmo estando no snapshot', async () => {
+      const { store } = await buildWithSnapshot()
+      const withoutU2 = new GetRankingUseCase(
+        createFakeUserDirectory(users.filter((u) => u.id !== 'u2')),
+        createFakeSandboxAssetReader(),
+        { execute: async () => snapshot() },
+        createFakeLevelReader(),
+        createFakeFriendGraphReader(),
+        store,
+      )
+
+      const result = await withoutU2.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u3'])
+    })
+
+    it('grupo sem snapshot ainda cai no cálculo ao vivo (updatedAt nulo)', async () => {
+      const store = createFakeRankingSnapshotStore()
+      const useCase = new GetRankingUseCase(
+        createFakeUserDirectory(users.slice(0, 1)),
+        createFakeSandboxAssetReader(),
+        { execute: async () => snapshot() },
+        createFakeLevelReader(),
+        createFakeFriendGraphReader(),
+        store,
+      )
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.updatedAt).toBeNull()
     })
   })
 })

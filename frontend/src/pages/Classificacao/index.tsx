@@ -1,3 +1,4 @@
+import { formatUpdatedAgo } from '../../utils/formatUpdatedAgo'
 import { useState } from 'react'
 import { RankingBoard } from '../../components/organisms/RankingBoard'
 import { useRankingQuery } from '../../features/ranking/useRankingQuery'
@@ -103,7 +104,11 @@ export function Classificacao() {
 
             <div className={styles.layout}>
                 <div className={styles.main}>
-                    <p className={styles.note}>Só o patrimônio do Mercado Ao Vivo conta pro ranking. O Sandbox não entra.</p>
+                    <p className={styles.note}>
+                        Só o patrimônio do Mercado Ao Vivo conta pro ranking. O Sandbox não entra.
+                        {rankingQuery.data?.updatedAt &&
+                            ` ${formatUpdatedAgo(rankingQuery.data.updatedAt)}, a classificação é recalculada a cada 3 horas.`}
+                    </p>
 
                     {rankingQuery.isError && (
                         <p className={styles.error} role="alert">

@@ -197,6 +197,7 @@ import { createInProcessLevelReader } from './modules/ranking/infrastructure/gam
 import { createDrizzleUserDirectory } from './modules/ranking/infrastructure/persistence/drizzleUserDirectory'
 import { createRedisNetWorthCache } from './modules/ranking/infrastructure/cache/redisNetWorthCache'
 import { createRedisNetWorthCacheStore } from './modules/ranking/infrastructure/cache/redisNetWorthCacheStore'
+import { createDrizzleRankingSnapshotStore } from './modules/ranking/infrastructure/persistence/drizzleRankingSnapshotStore'
 import { createRankingRouter } from './modules/ranking/interfaces/http/rankingRouter'
 import { GetPublicProfileUseCase } from './modules/profile/application/useCases/getPublicProfile'
 import { createInProcessAchievementsReader } from './modules/profile/infrastructure/achievements/inProcessAchievementsReader'
@@ -590,6 +591,7 @@ export function createApp(deps: AppDeps = {}): Express {
     cachedNetWorthForRanking,
     createInProcessLevelReader(getProgression),
     createInProcessFriendGraphReader(friendshipRepository),
+    createDrizzleRankingSnapshotStore(db),
   )
 
   const getPublicProfile = new GetPublicProfileUseCase(
