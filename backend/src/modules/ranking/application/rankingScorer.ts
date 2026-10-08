@@ -1,8 +1,9 @@
 import type { Snapshot } from '../domain/networth'
 import {
+  classReturnPct,
   investmentReturnPct,
-  profitabilityPct,
   toRiskCapitalSnapshot,
+  type ClassRiskCapital,
 } from '../domain/profitability'
 import type { ProfitabilityCriterion, ScoredEntry } from '../domain/ranking'
 import { windowFor, type WindowKind } from '../domain/window'
@@ -16,10 +17,17 @@ export interface RankingUser {
   createdAt: Date
 }
 
-// Escolhe, pro critério de renda fixa/variável, qual campo do `Snapshot` alimenta
-// `profitabilityPct`. O critério `overall` não usa isso (tarefa T.1), ver `investmentReturnPct`.
-function snapshotField(criterion: 'fixedIncome' | 'variableIncome'): keyof Snapshot {
-  return criterion === 'fixedIncome' ? 'fixedIncomeValue' : 'variableIncomeValue'
+// Fluxos e valor de mercado de uma classe num instante, a partir do replay. `null` se o snapshot
+// não veio do replay (sem `byClass`). O critério `overall` não usa isso (tarefa T.1).
+function classCapital(
+  snapshot: Snapshot,
+  criterion: 'fixedIncome' | 'variableIncome',
+): ClassRiskCapital | null {
+  const flows = snapshot.byClass?.[criterion]
+  if (!flows) return null
+  const currentValue =
+    criterion === 'fixedIncome' ? snapshot.fixedIncomeValue : snapshot.variableIncomeValue
+  return { ...flows, currentValue }
 }
 
 // Calcula as linhas do ranking a partir do patrimônio e do nível. É a parte pesada: usada pelo
@@ -66,7 +74,8 @@ export class RankingScorer {
     users: RankingUser[],
     window: WindowKind,
   ): Promise<Record<ProfitabilityCriterion, ScoredEntry[]>> {
-    const { start } = windowFor(window, new Date())
+    const now = new Date()
+    const { start } = windowFor(window, now)
     const sandboxAssetIds = await this.sandboxAssetReader.listSandboxAssetIds()
     const result: Record<ProfitabilityCriterion, ScoredEntry[]> = {
       overall: [],
@@ -80,12 +89,16 @@ export class RankingScorer {
         // meio da janela começa com o capital inicial (RNF06), não com histórico anterior.
         const baselineAsOf = start.getTime() > user.createdAt.getTime() ? start : user.createdAt
         try {
-          const [baseline, current, { level, xp }] = await Promise.all([
+          // `current` (estado do motor) alimenta o critério geral. `currentReplay` reconstrói o
+          // mesmo instante pelo log de eventos e é o que separa os fluxos por classe, na mesma
+          // metodologia de valorização do `baseline` (os dois lados por replay).
+          const [baseline, current, currentReplay, { level, xp }] = await Promise.all([
             this.getNetWorth.execute({ userId: user.id, asOf: baselineAsOf, sandboxAssetIds }),
             this.getNetWorth.execute({ userId: user.id, sandboxAssetIds }),
+            this.getNetWorth.execute({ userId: user.id, asOf: now, sandboxAssetIds }),
             this.levelReader.getProgression(user.id),
           ])
-          return { user, baseline, current, level, xp }
+          return { user, baseline, current, currentReplay, level, xp }
         } catch (err) {
           // Usuário sem estado consistente no motor não derruba o ranking dos demais.
           console.error(
@@ -99,7 +112,7 @@ export class RankingScorer {
 
     for (const item of perUser) {
       if (!item) continue
-      const { user, baseline, current, level, xp } = item
+      const { user, baseline, current, currentReplay, level, xp } = item
       const entry = (pct: number): ScoredEntry => ({
         userId: user.id,
         username: user.username,
@@ -115,12 +128,15 @@ export class RankingScorer {
         entry(investmentReturnPct(toRiskCapitalSnapshot(current), toRiskCapitalSnapshot(baseline))),
       )
 
-      // Sem posição nenhuma dessa classe no início da janela: excluído deste critério em vez
-      // de mostrar um 0% enganoso (achado da 6.8.3).
+      // Rentabilidade da classe sobre o custo investido nela (mesma lógica do geral). Quem nunca
+      // investiu na classe fica fora do ranking dela, em vez de um 0% enganoso.
       for (const criterion of ['fixedIncome', 'variableIncome'] as const) {
-        const field = snapshotField(criterion)
-        if (baseline[field] === 0) continue
-        result[criterion].push(entry(profitabilityPct(baseline[field], current[field])))
+        const currentCapital = classCapital(currentReplay, criterion)
+        const baselineCapital = classCapital(baseline, criterion)
+        if (!currentCapital || !baselineCapital) continue
+        const pct = classReturnPct(currentCapital, baselineCapital)
+        if (pct === null) continue
+        result[criterion].push(entry(pct))
       }
     }
     return result

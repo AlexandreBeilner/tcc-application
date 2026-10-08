@@ -578,42 +578,74 @@ describe('GetRankingUseCase', () => {
   })
 
   describe('critérios de classificação (6.8.3)', () => {
-    it('critério fixedIncome ordena só pela perna de renda fixa', async () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+    // Fluxos e valor de uma classe num instante, como o replay entrega (`byClass`).
+    interface ClassState {
+      invested?: number
+      proceeds?: number
+      dividends?: number
+      value?: number
+    }
+    function classSnapshot(fixed: ClassState = {}, variable: ClassState = {}): Snapshot {
+      const flows = (c: ClassState) => ({
+        investedCost: c.invested ?? 0,
+        disinvestedProceeds: c.proceeds ?? 0,
+        dividendsReceived: c.dividends ?? 0,
+      })
+      return snapshot({
+        fixedIncomeValue: fixed.value ?? 0,
+        variableIncomeValue: variable.value ?? 0,
+        byClass: { fixedIncome: flows(fixed), variableIncome: flows(variable) },
+      })
+    }
 
-      const userDirectory = createFakeUserDirectory([
-        { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
-        { id: 'u2', username: 'u2', createdAt: new Date('2026-01-01T00:00:00Z') },
-      ])
-      // u1: ganha em renda variável mas perde em renda fixa; u2 o oposto —
-      // um critério que ainda usasse `total` inverteria a ordem esperada.
-      const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
-        'u1|baseline': snapshot({ total: 10000, fixedIncomeValue: 5000, variableIncomeValue: 0 }),
-        'u1|now': snapshot({ total: 10500, fixedIncomeValue: 4500, variableIncomeValue: 1000 }),
-        'u2|baseline': snapshot({ total: 10000, fixedIncomeValue: 5000, variableIncomeValue: 0 }),
-        'u2|now': snapshot({ total: 10200, fixedIncomeValue: 5200, variableIncomeValue: 0 }),
-      }
-      const getNetWorth = {
+    // Fake de patrimônio por usuário: começo da janela (`asOf` no passado), "agora" por replay
+    // (`asOf` = agora, que alimenta os fluxos por classe) e "agora" do motor (`asOf` omitido).
+    function classNetWorth(states: Record<string, { baseline: Snapshot; now: Snapshot }>) {
+      return {
         async execute(input: { userId: string; asOf?: Date }) {
-          return snapshotsByUserAndAsOf[`${input.userId}|${input.asOf ? 'baseline' : 'now'}`]
+          const state = states[input.userId]
+          return input.asOf && input.asOf.getTime() < Date.now() ? state.baseline : state.now
         },
       }
+    }
+
+    async function rankClass(
+      criterion: 'fixedIncome' | 'variableIncome',
+      states: Record<string, { baseline: Snapshot; now: Snapshot }>,
+    ) {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+      const ids = Object.keys(states)
       const { levelReader, friendGraphReader } = build()
       const useCase = new GetRankingUseCase(
-        userDirectory,
+        createFakeUserDirectory(
+          ids.map((id) => ({ id, username: id, createdAt: new Date('2026-01-01T00:00:00Z') })),
+        ),
         createFakeSandboxAssetReader(),
-        getNetWorth,
+        classNetWorth(states),
         levelReader,
         friendGraphReader,
       )
-
-      const result = await useCase.execute({
+      return useCase.execute({
         window: 'week',
         scope: 'global',
-        criterion: 'fixedIncome',
+        criterion,
         page: 1,
-        requestingUserId: 'u1',
+        requestingUserId: ids[0],
+      })
+    }
+
+    it('critério fixedIncome ordena só pela renda fixa, não pelo patrimônio total', async () => {
+      // u1 ganha em renda variável mas perde em renda fixa; u2 o oposto.
+      const result = await rankClass('fixedIncome', {
+        u1: {
+          baseline: classSnapshot({ invested: 5000, value: 5000 }),
+          now: classSnapshot({ invested: 5000, value: 4500 }, { invested: 1000, value: 2000 }),
+        },
+        u2: {
+          baseline: classSnapshot({ invested: 5000, value: 5000 }),
+          now: classSnapshot({ invested: 5000, value: 5200 }),
+        },
       })
 
       expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1'])
@@ -621,48 +653,51 @@ describe('GetRankingUseCase', () => {
       expect(result.entries.find((e) => e.userId === 'u1')?.profitabilityPct).toBeCloseTo(-10)
     })
 
-    it('usuário sem nenhuma posição da classe no início da janela é excluído (nunca investiu ≠ empatou em 0%)', async () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
-
-      const userDirectory = createFakeUserDirectory([
-        { id: 'investiu', username: 'investiu', createdAt: new Date('2026-01-01T00:00:00Z') },
-        {
-          id: 'nunca-investiu',
-          username: 'nunca-investiu',
-          createdAt: new Date('2026-01-01T00:00:00Z'),
+    it('quem nunca investiu na classe fica fora do ranking dela (nunca investiu ≠ empatou em 0%)', async () => {
+      const result = await rankClass('variableIncome', {
+        investiu: {
+          baseline: classSnapshot({}, { invested: 1000, value: 1000 }),
+          now: classSnapshot({}, { invested: 1000, value: 1000 }), // 0% real
         },
-      ])
-      const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
-        'investiu|baseline': snapshot({ total: 10000, fixedIncomeValue: 1000 }),
-        'investiu|now': snapshot({ total: 10000, fixedIncomeValue: 1000 }), // 0% real
-        'nunca-investiu|baseline': snapshot({ total: 10000, fixedIncomeValue: 0 }),
-        'nunca-investiu|now': snapshot({ total: 10000, fixedIncomeValue: 0 }),
-      }
-      const getNetWorth = {
-        async execute(input: { userId: string; asOf?: Date }) {
-          return snapshotsByUserAndAsOf[`${input.userId}|${input.asOf ? 'baseline' : 'now'}`]
-        },
-      }
-      const { levelReader, friendGraphReader } = build()
-      const useCase = new GetRankingUseCase(
-        userDirectory,
-        createFakeSandboxAssetReader(),
-        getNetWorth,
-        levelReader,
-        friendGraphReader,
-      )
-
-      const result = await useCase.execute({
-        window: 'week',
-        scope: 'global',
-        criterion: 'fixedIncome',
-        page: 1,
-        requestingUserId: 'investiu',
+        'nunca-investiu': { baseline: classSnapshot(), now: classSnapshot() },
       })
 
       expect(result.entries.map((e) => e.userId)).toEqual(['investiu'])
       expect(result.totalEntries).toBe(1)
+    })
+
+    it('quem investiu na classe só depois do começo da janela entra no ranking', async () => {
+      const result = await rankClass('variableIncome', {
+        novo: {
+          baseline: classSnapshot(),
+          now: classSnapshot({}, { invested: 1000, value: 1100 }),
+        },
+      })
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(10)
+    })
+
+    it('aportar mais durante a janela não infla o percentual', async () => {
+      const result = await rankClass('variableIncome', {
+        aportou: {
+          baseline: classSnapshot({}, { invested: 1000, value: 1000 }),
+          now: classSnapshot({}, { invested: 2000, value: 2000 }),
+        },
+      })
+
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(0)
+    })
+
+    it('vender com lucro e receber provento contam como ganho da classe', async () => {
+      const result = await rankClass('variableIncome', {
+        vendeu: {
+          baseline: classSnapshot({}, { invested: 1000, value: 1000 }),
+          now: classSnapshot({}, { invested: 1000, proceeds: 1050, dividends: 50, value: 0 }),
+        },
+      })
+
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(10)
     })
 
     it('critério level ordena por xp, ignora janela e nunca chama o motor', async () => {

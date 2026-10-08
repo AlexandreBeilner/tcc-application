@@ -85,3 +85,38 @@ export function investmentReturnPct(
   }
   return ((riskCapitalGain(current) - riskCapitalGain(baseline)) / current.investedCost) * 100
 }
+
+// Capital de uma classe de ativo (renda fixa ou variável) num instante: os fluxos brutos da
+// classe mais o valor de mercado do que ainda está posicionado nela.
+export interface ClassRiskCapital {
+  investedCost: number
+  disinvestedProceeds: number
+  dividendsReceived: number
+  currentValue: number
+}
+
+function classGain(snapshot: ClassRiskCapital): number {
+  return (
+    snapshot.currentValue +
+    snapshot.disinvestedProceeds +
+    snapshot.dividendsReceived -
+    snapshot.investedCost
+  )
+}
+
+// Rentabilidade da JANELA numa classe, com a mesma lógica do critério geral (`investmentReturnPct`)
+// restrita à classe: quanto o ganho da classe mudou entre o começo da janela e agora, sobre o
+// custo investido nela. Vender com lucro, receber provento e a valorização contam igual, e
+// aportar mais durante a janela não infla o percentual (o aporte entra no custo e no valor).
+//
+// `null` quando o usuário nunca investiu na classe (custo zero): fica fora do ranking dela, em
+// vez de aparecer com um 0% enganoso. Quem investiu só DENTRO da janela (baseline zerado) entra.
+export function classReturnPct(
+  current: ClassRiskCapital,
+  baseline: ClassRiskCapital,
+): number | null {
+  if (current.investedCost === 0) {
+    return null
+  }
+  return ((classGain(current) - classGain(baseline)) / current.investedCost) * 100
+}

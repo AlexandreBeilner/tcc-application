@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Snapshot } from '../../domain/networth'
 import { createFakeLevelReader } from '../../test/fakes/fakeLevelReader'
 import { createFakeRankingSnapshotStore } from '../../test/fakes/fakeRankingSnapshotStore'
@@ -34,10 +34,16 @@ function build(now: Date) {
   // u1 tem R$1.000 em renda variável no começo e R$1.100 agora; u2 nunca teve nada.
   const getNetWorth = {
     async execute(input: { userId: string; asOf?: Date }) {
-      if (input.userId === 'u2') return snapshot()
+      const zero = { investedCost: 0, disinvestedProceeds: 0, dividendsReceived: 0 }
+      if (input.userId === 'u2') {
+        return snapshot({ byClass: { fixedIncome: zero, variableIncome: zero } })
+      }
+      // `asOf` no passado = começo da janela; omitido ou igual a agora = hoje.
+      const isBaseline = input.asOf !== undefined && input.asOf.getTime() < Date.now()
       return snapshot({
         investedCost: 1000,
-        variableIncomeValue: input.asOf ? 1000 : 1100,
+        variableIncomeValue: isBaseline ? 1000 : 1100,
+        byClass: { fixedIncome: zero, variableIncome: { ...zero, investedCost: 1000 } },
       })
     },
   }
@@ -56,6 +62,15 @@ function build(now: Date) {
 }
 
 describe('ComputeRankingSnapshotUseCase', () => {
+  // O scorer lê o relógio; congelado para o "agora" por replay ser distinguível do começo da janela.
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('grava uma rodada com nível e os 3 critérios nas duas janelas', async () => {
     const now = new Date('2026-08-26T12:00:00Z')
     const { store, useCase } = build(now)
