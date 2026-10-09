@@ -27,6 +27,17 @@ function lesson(overrides: Partial<Lesson>): Lesson {
     }
 }
 
+describe('unlockedKeysFor com trilha paralela (RC.4.4)', () => {
+    it('lição concluída da trilha paralela não adianta as chaves da corrente', () => {
+        const chain = [
+            lesson({ id: 'a', sortOrder: 1, status: 'completed', unlocksKeys: ['portfolio'] }),
+            lesson({ id: 'b', sortOrder: 2, status: 'available', unlocksKeys: ['calculator'] }),
+        ]
+        const parallel = lesson({ id: 'f', trackNumber: 4, sortOrder: 3, status: 'completed' })
+        expect(unlockedKeysFor([...chain, parallel])).toEqual(new Set(['portfolio']))
+    })
+})
+
 describe('unlockedKeysFor', () => {
     it('lição dispensada conta como satisfeita e mantém as chaves dela (N.24)', () => {
         const lessons = [

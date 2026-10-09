@@ -252,6 +252,20 @@ describe('buildLessonView', () => {
 
     expect(Object.keys(view)).not.toContain('microDecisionCorrectOption')
   })
+
+  it('devolve blocks (RC.3.1): null quando a lição não tem, conteúdo quando tem', () => {
+    expect(buildLessonView(lesson, undefined, progression).blocks).toBeNull()
+
+    const blocks = {
+      schemaVersion: 1 as const,
+      phases: {
+        scenario: [{ type: 'text' as const, markup: 'oi' }],
+        microDecision: [],
+        revelation: [],
+      },
+    }
+    expect(buildLessonView({ ...lesson, blocks }, undefined, progression).blocks).toEqual(blocks)
+  })
 })
 
 describe('unlockedKeysFor', () => {
@@ -614,5 +628,42 @@ describe('microDecisionResultFor', () => {
 
   it('undefined pra lição sem aposta real, mesmo com selectedOption presente', () => {
     expect(microDecisionResultFor(lessonWithoutOptions, 0)).toBeUndefined()
+  })
+})
+
+describe('trilha paralela (RC.4.4)', () => {
+  const chain = [1, 2, 3].map((n) => ({ id: `l${n}`, sortOrder: n, trackNumber: 0 }))
+  const parallel = [
+    { id: 'f1', sortOrder: 4, trackNumber: 4 },
+    { id: 'f2', sortOrder: 5, trackNumber: 4 },
+  ]
+  const lessons = [...chain, ...parallel]
+  const done = (lessonId: string) => ({ lessonId, completedAt: new Date(), waivedAt: null })
+
+  it('as lições da trilha paralela estão sempre desbloqueadas, em qualquer ordem', () => {
+    const progression = buildProgression(lessons, [])
+    expect(progression.isUnlocked('f1')).toBe(true)
+    expect(progression.isUnlocked('f2')).toBe(true)
+    expect(progression.isUnlocked('l2')).toBe(false)
+  })
+
+  it('concluir lição paralela não adianta a corrente nem conta como satisfeita', () => {
+    const progression = buildProgression(lessons, [done('f1'), done('f2')])
+    expect(progression.satisfiedCount).toBe(0)
+    expect(progression.isUnlocked('l2')).toBe(false)
+  })
+
+  it('a posição das lições da corrente ignora as paralelas', () => {
+    const progression = buildProgression(lessons, [done('l1'), done('l2')])
+    expect(progression.isUnlocked('l3')).toBe(true)
+    expect(progression.satisfiedCount).toBe(2)
+  })
+
+  it('lição paralela nunca libera chave de produto', () => {
+    const withKeys = [
+      { sortOrder: 1, trackNumber: 0, unlocksKeys: ['portfolio'] },
+      { sortOrder: 2, trackNumber: 4, unlocksKeys: ['calculator'] },
+    ]
+    expect(unlockedKeysFor(2, withKeys)).toEqual(new Set(['portfolio']))
   })
 })

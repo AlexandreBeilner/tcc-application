@@ -17,6 +17,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -40,8 +41,8 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'lesson_reviewed',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
-// padrão (checkbox "já pensei"); os outros três embutem um componente já
-// existente (tarefa 6.7) em vez do checkbox. Ver `domain/lesson.ts` pro
+// padrão (sem widget embutido); os outros três embutem um componente já
+// existente (tarefa 6.7) junto da pergunta. Ver `domain/lesson.ts` pro
 // vocabulário completo e `frontend/src/pages/Lesson/index.tsx` pro switch.
 export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'reflection',
@@ -154,7 +155,7 @@ export const lessons = pgTable(
     // renumeração reaproveitar a linha física errada, arrastando
     // `user_lesson_progress` de quem já tinha progresso pra um conteúdo
     // diferente. Ver `seedLessons.ts` pro upsert real.
-    stableKey: varchar('stable_key', { length: 20 }).notNull(),
+    stableKey: varchar('stable_key', { length: 64 }).notNull(),
     // Código do currículo (spec 5.1), ex: "0.1", "2.6.3", "3.4" — só posição
     // didática atual, mutável em renumeração (ex: M.5). Nunca usado como
     // chave de upsert do seed desde a M.6, ver `stableKey` acima.
@@ -201,6 +202,12 @@ export const lessons = pgTable(
     // conteúdo aqui, isso é a B.4).
     microDecisionOptions: text('micro_decision_options').array(),
     microDecisionCorrectOption: smallint('micro_decision_correct_option'),
+    // Conteúdo visual por fase (RC.3.1): `{ schemaVersion, phases: { scenario,
+    // microDecision, revelation } }` de blocos tipados (texto, widgets).
+    // Nulo é o estado normal e faz o player usar `scenarioText`/
+    // `microDecisionPrompt`/`revelationText`; o contrato (Zod) vive em
+    // `modules/lessons/domain/widgets/lessonBlocks.ts`.
+    blocks: jsonb('blocks'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -237,6 +244,17 @@ export const userLessonProgress = pgTable(
     // (conquista/missão de sequência de acertos) poder consultar o
     // histórico depois, não só o momento da escolha.
     microDecisionSelectedOption: smallint('micro_decision_selected_option'),
+    // Pergunta que só avança ao acertar (RC.2.3): `microDecisionSelectedOption`
+    // passa a ser a PRIMEIRA escolha (imutável), então "acertou de primeira"
+    // continua sendo `isCorrectOption` sobre ela. As colunas abaixo guardam o
+    // resto: nº de respostas, as alternativas erradas já tentadas (desativadas
+    // na UI) e o instante do acerto (libera o avanço do passo 1 pro 2).
+    microDecisionAttempts: smallint('micro_decision_attempts').notNull().default(0),
+    microDecisionWrongOptions: smallint('micro_decision_wrong_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::smallint[]`),
+    microDecisionSolvedAt: timestamp('micro_decision_solved_at', { withTimezone: true }),
     // Dispensa (N.24): lição criada no meio do currículo depois que o usuário
     // já tinha passado daquele ponto. Não é conclusão (`completedAt` segue
     // nulo, sem XP), mas conta como "satisfeita" na progressão, então não
@@ -374,6 +392,31 @@ export const payrollState = pgTable('payroll_state', {
   lastPaidMonth: varchar('last_paid_month', { length: 7 }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Resposta às perguntas intermediárias (`check`, RC.3.2) de uma lição: uma
+// linha por (usuário, lição, checkpoint). `wrong_options` guarda as
+// alternativas erradas já tentadas (a UI as desativa); numérica só conta
+// tentativas. "Acertou de primeira" = resolvida com `attempts = 1`.
+export const userLessonCheckpoints = pgTable(
+  'user_lesson_checkpoints',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    checkpointId: varchar('checkpoint_id', { length: 64 }).notNull(),
+    attempts: smallint('attempts').notNull().default(0),
+    wrongOptions: smallint('wrong_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::smallint[]`),
+    solvedAt: timestamp('solved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.lessonId, table.checkpointId] })],
+)
 
 // Log de auditoria das ações administrativas (Fase N, tarefa N.4). Append-only
 // também no banco: a migration 0018 cria um trigger que recusa UPDATE e DELETE

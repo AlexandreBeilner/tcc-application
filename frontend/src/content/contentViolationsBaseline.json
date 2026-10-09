@@ -1,0 +1,10 @@
+{
+    "nesta-plataforma|pages/PrivacidadeLgpd/index.tsx": 1,
+    "sandbox|pages/Classificacao/index.tsx": 1,
+    "simulado|components/organisms/IndicatorSummaryCards/index.tsx": 1,
+    "simulado|components/organisms/MacroEventHistoryList/index.tsx": 1,
+    "simulado|features/market/marketClosedReason/index.ts": 1,
+    "simulado|pages/IndicadoresEconomicos/index.tsx": 1,
+    "simulado|pages/Market/index.tsx": 1,
+    "simulado|pages/Onboarding/index.tsx": 3
+}

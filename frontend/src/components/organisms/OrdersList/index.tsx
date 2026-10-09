@@ -31,7 +31,7 @@ const CANCEL_REASON_LABEL: Record<OrderCancelReason, string> = {
     user_cancelled: 'Cancelada por você',
     expired: 'Expirada no fechamento do dia',
     no_liquidity: 'Sem liquidez disponível',
-    requoted: 'Recotada pelo motor',
+    requoted: 'Recotada pelo mercado',
     insufficient_funds: 'Cancelada: saldo ou posição insuficiente no momento da execução',
     admin: 'Cancelada pela administração',
 }

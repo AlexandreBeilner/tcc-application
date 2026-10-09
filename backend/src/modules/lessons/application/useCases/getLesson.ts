@@ -21,7 +21,11 @@ export class GetLessonUseCase {
       this.lessonRepository.listProgressForUser(input.userId),
     ])
     const own = progress.find((p) => p.lessonId === input.lessonId)
-    const view = buildLessonView(lesson, own, buildProgression(lessons, progress))
+    const checkpoints = await this.lessonRepository.listCheckpointsForUser(
+      input.userId,
+      input.lessonId,
+    )
+    const view = buildLessonView(lesson, own, buildProgression(lessons, progress), checkpoints)
 
     // Lição bloqueada nunca é exposta em detalhe (tela 3.2) — mesmo status
     // 404 de "não encontrada", pra não distinguir "não existe" de

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ThemeProvider, useTheme } from '.'
 
-const THEME_STORAGE_KEY = 'tcc.theme'
+const THEME_STORAGE_KEY = 'app.theme'
 
 function Consumer() {
     const { theme, setTheme } = useTheme()

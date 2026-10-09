@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { readStored, STORAGE_KEYS, writeStored } from '../../../utils/storage'
 import type { Theme, ThemeContextValue } from './types'
 
 export type { Theme, ThemeContextValue } from './types'
@@ -9,10 +10,9 @@ export type { Theme, ThemeContextValue } from './types'
 // faltava o controle de UI pra alternar. Persistência em `localStorage`
 // (decisão desta sessão: não sincroniza entre dispositivos, mesmo raciocínio
 // de escopo do RNF07/6.0.2 — sem necessidade confirmada de ir além do MVP).
-const THEME_STORAGE_KEY = 'tcc.theme'
 
 function readStoredTheme(): Theme {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    const stored = readStored(STORAGE_KEYS.theme)
     return stored === 'light' ? 'light' : 'dark'
 }
 
@@ -23,7 +23,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme)
-        localStorage.setItem(THEME_STORAGE_KEY, theme)
+        writeStored(STORAGE_KEYS.theme, theme)
     }, [theme])
 
     const value = useMemo(() => ({ theme, setTheme: setThemeState }), [theme])

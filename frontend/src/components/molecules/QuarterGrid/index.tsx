@@ -21,7 +21,8 @@ export function QuarterGrid({ cells, eventsByDay, todayDay, selectedDay, onSelec
         <section className={styles.grid} aria-label="Visão geral dos dias">
             <h3 className={styles.title}>Visão geral dos dias</h3>
             <p className={styles.hint}>
-                Uma coluna por semana. Sólido é passado, tracejado é o que vem. O bloco dourado marca o fim do trimestre.
+                Uma coluna por semana. Sólido é passado, tracejado é o que vem. A barra embaixo marca o que é para você. O bloco dourado
+                marca o fim do trimestre.
             </p>
             <div className={styles.wrap}>
                 <div className={styles.weekdays} aria-hidden="true">
@@ -32,11 +33,14 @@ export function QuarterGrid({ cells, eventsByDay, todayDay, selectedDay, onSelec
                 <div className={styles.cells}>
                     {cells.map((cell, index) => {
                         const events = eventsByDay.get(cell.simulatedDay) ?? []
+                        const mineEvents = events.filter((event) => event.relevance === 'mine')
+                        const marketCount = events.length - mineEvents.length
                         const isToday = cell.simulatedDay === todayDay
                         const classes = [
                             styles.cell,
                             cell.simulatedDay > todayDay ? styles.future : '',
-                            events.length > 0 && cell.simulatedDay <= todayDay ? styles.hasEvents : '',
+                            marketCount > 0 && cell.simulatedDay <= todayDay ? styles.hasEvents : '',
+                            mineEvents.length > 0 ? styles.hasMine : '',
                             !cell.open ? styles.weekend : '',
                             isToday ? styles.today : '',
                             cell.isReportDay ? styles.report : '',
@@ -53,7 +57,8 @@ export function QuarterGrid({ cells, eventsByDay, todayDay, selectedDay, onSelec
                             isToday ? 'hoje' : '',
                             !cell.open ? 'mercado fechado' : '',
                             cell.isReportDay ? 'fim do trimestre' : '',
-                            events.length > 0 ? `${events.length} ${events.length === 1 ? 'fato' : 'fatos'}` : '',
+                            mineEvents.length > 0 ? `${mineEvents.length} para você` : '',
+                            marketCount > 0 ? `${marketCount} no mercado` : '',
                         ]
                             .filter(Boolean)
                             .join(', ')
@@ -67,7 +72,7 @@ export function QuarterGrid({ cells, eventsByDay, todayDay, selectedDay, onSelec
                                 aria-label={label}
                                 onClick={() => onSelect(cell.simulatedDay)}
                             >
-                                {events.length > 0 && <CalendarKindIcon kind={events[0].kind} size={13} />}
+                                {events.length > 0 && <CalendarKindIcon kind={(mineEvents[0] ?? events[0]).kind} size={13} />}
                             </button>
                         )
                     })}

@@ -46,6 +46,7 @@ import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
 import { TrackMap } from '../pages/TrackMap'
 import { TrilhasHub } from '../pages/TrilhasHub'
+import { Glossario } from '../pages/Glossario'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
@@ -78,7 +79,7 @@ export const router = createBrowserRouter([
                 children: [
                     // Portfólio/Calculadora só desbloqueiam de verdade depois de
                     // 0.1/0.2 (tarefa 7.0.1, achado 5) — `RequiresUnlock` renderiza
-                    // `LockedScreen` no lugar do conteúdo antes disso (Fase Q,
+                    // `LockedGate` no lugar do conteúdo antes disso (Fase Q,
                     // "bloqueio é parede", nunca mais um redirect pra `/trilha`),
                     // mesmo padrão de nesting de `<ProtectedRoute requireRole="admin">`
                     // abaixo.
@@ -94,6 +95,8 @@ export const router = createBrowserRouter([
                     // pra nunca colidir com `/trilha/:id` (UUID) — `trackNumber`
                     // inválido/fora do currículo redireciona pro Hub.
                     { path: '/trilha', element: <TrilhasHub /> },
+                    // Consulta do glossário das lições (RC.3.5): sempre aberta, não é produto travado.
+                    { path: '/glossario', element: <Glossario /> },
                     { path: '/trilha/mapa/:trackNumber', element: <TrackMap /> },
                     { path: '/trilha/:id', element: <Lesson /> },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda

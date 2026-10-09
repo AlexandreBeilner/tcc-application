@@ -7,9 +7,9 @@ import { Button } from '../../components/atoms/Button'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
 import { useTheme } from '../../features/theme/ThemeContext'
-import { ApiError } from '../../services/client'
 import { changePassword, updateProfile, uploadAvatar } from '../../services/auth'
 import styles from './index.module.css'
+import { formatApiError } from '../../utils/formatApiError'
 
 const PROVIDER_LABELS: Record<string, string> = { google: 'Google' }
 
@@ -30,7 +30,7 @@ const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
 // confirmação inline, sem navegação (inventário 9.2). `currentPassword`
 // fica sempre opcional no form: só a conta OAuth-only dispensa (backend,
 // não sinalizado ao client), então deixar o backend decidir e mostrar
-// `err.message` (`.docs/backend/auth.md`: "senha atual obrigatória"/
+// a mensagem do erro (`.docs/backend/auth.md`: "senha atual obrigatória"/
 // "senha atual incorreta") é mais simples que replicar a regra aqui,
 // mesmo princípio de `Login` (erro do backend exibido direto). E-mail
 // (tarefa 6.10.4, apontado pelo autor) é read-only nesta seção desde
@@ -88,7 +88,7 @@ export function Configuracoes() {
             setUser(result.user)
             setProfileSaved(true)
         } catch (err) {
-            setProfileError(err instanceof ApiError ? err.message : 'Não foi possível salvar agora. Tente novamente.')
+            setProfileError(formatApiError(err, 'Não foi possível salvar agora. Tente novamente.'))
         } finally {
             setIsSavingProfile(false)
         }
@@ -115,7 +115,7 @@ export function Configuracoes() {
             setConfirmPassword('')
             setPasswordSaved(true)
         } catch (err) {
-            setPasswordError(err instanceof ApiError ? err.message : 'Não foi possível trocar a senha agora. Tente novamente.')
+            setPasswordError(formatApiError(err, 'Não foi possível trocar a senha agora. Tente novamente.'))
         } finally {
             setIsSavingPassword(false)
         }
@@ -144,7 +144,7 @@ export function Configuracoes() {
             const result = await uploadAvatar(token as string, file)
             setUser(result.user)
         } catch (err) {
-            setAvatarError(err instanceof ApiError ? err.message : 'Não foi possível enviar a foto agora. Tente novamente.')
+            setAvatarError(formatApiError(err, 'Não foi possível enviar a foto agora. Tente novamente.'))
         } finally {
             setIsUploadingAvatar(false)
         }

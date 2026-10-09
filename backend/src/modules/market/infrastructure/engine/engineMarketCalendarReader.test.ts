@@ -30,11 +30,16 @@ describe('engineMarketCalendarReader', () => {
 
     await reader.getCalendar('u-1', {})
     await reader.getCalendar('u-1', { from: '2026-01-05', to: '2026-01-11' })
+    await reader.getCalendar('u-1', { scope: 'mine', market_limit: 0 })
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://engine:8080/market/calendar?user_id=u-1')
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'http://engine:8080/market/calendar?user_id=u-1&from=2026-01-05&to=2026-01-11',
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://engine:8080/market/calendar?user_id=u-1&scope=mine&market_limit=0',
     )
   })
 

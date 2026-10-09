@@ -15,22 +15,26 @@ import (
 )
 
 type fakeRepository struct {
-	state            State
-	stateFound       bool
-	loadErr          error
-	assets           []AssetForPricing
-	listErr          error
-	companies        []CompanyForFundamentals
-	listCompaniesErr error
-	macroEvents      []MacroEventForApplication
-	listMacroErr     error
-	dividendPayers   []DividendPayerAsset
-	listPayersErr    error
-	pendingDividends []PendingDividendPayment
-	listPendingErr   error
-	saveErr          error
-	savedResult      Result
-	saveCalls        int
+	state             State
+	stateFound        bool
+	loadErr           error
+	assets            []AssetForPricing
+	listErr           error
+	companies         []CompanyForFundamentals
+	listCompaniesErr  error
+	macroEvents       []MacroEventForApplication
+	listMacroErr      error
+	dividendPayers    []DividendPayerAsset
+	listPayersErr     error
+	pendingDividends  []PendingDividendPayment
+	listPendingErr    error
+	holders           map[string][]PositionHolder
+	listHoldersErr    error
+	holderCalls       [][]string
+	awaitingSnapshots []DividendAwaitingSnapshot
+	saveErr           error
+	savedResult       Result
+	saveCalls         int
 }
 
 func (f *fakeRepository) LoadState(_ context.Context) (State, bool, error) {
@@ -53,8 +57,17 @@ func (f *fakeRepository) ListDividendPayerAssets(_ context.Context) ([]DividendP
 	return f.dividendPayers, f.listPayersErr
 }
 
-func (f *fakeRepository) ListPendingDividendPayments(_ context.Context) ([]PendingDividendPayment, error) {
+func (f *fakeRepository) ListPendingDividendPayments(_ context.Context, _ int) ([]PendingDividendPayment, error) {
 	return f.pendingDividends, f.listPendingErr
+}
+
+func (f *fakeRepository) ListDividendHolders(_ context.Context, assetIDs []string) (map[string][]PositionHolder, error) {
+	f.holderCalls = append(f.holderCalls, assetIDs)
+	return f.holders, f.listHoldersErr
+}
+
+func (f *fakeRepository) ListDividendsAwaitingSnapshot(_ context.Context, _ int) ([]DividendAwaitingSnapshot, error) {
+	return f.awaitingSnapshots, nil
 }
 
 func (f *fakeRepository) SaveTick(_ context.Context, result Result) error {

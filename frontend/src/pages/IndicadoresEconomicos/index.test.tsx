@@ -56,7 +56,7 @@ describe('IndicadoresEconomicos (tela 4.9)', () => {
 
         renderPage()
 
-        await waitFor(() => expect(screen.getAllByText('Aguardando primeiro tick')).toHaveLength(3))
+        await waitFor(() => expect(screen.getAllByText('Aguardando a primeira atualização')).toHaveLength(3))
         expect(screen.getByText('Dia 21')).toBeInTheDocument()
     })
 

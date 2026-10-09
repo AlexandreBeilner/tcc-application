@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../atoms/Button'
-import { LockedAssetPanel } from '../../molecules/LockedAssetPanel'
+import { LockedGate } from '../LockedGate'
 import { OrderSummaryList } from '../OrderSummaryList'
 import type { OrderSummaryRow } from '../OrderSummaryList'
 import { OrderSuccessOverlay } from '../OrderSuccessOverlay'
@@ -10,6 +10,7 @@ import { useAssetQuery } from '../../../features/market/useAssetQuery'
 import { useAssetBookQuery } from '../../../features/market/useAssetBookQuery'
 import { usePlaceOrderMutation } from '../../../features/market/usePlaceOrderMutation'
 import { asProductLockedError } from '../../../features/market/productLockedError'
+import { formatApiError } from '../../../utils/formatApiError'
 import { classifyOrderRejection, describeOrderRejection } from '../../../features/market/orderRejection'
 import { averageFillPrice } from '../../../features/market/orderBook'
 import type { ProductLockedErrorBody } from '../../../services/market'
@@ -17,7 +18,6 @@ import { usePurchaseFixedIncomeMutation } from '../../../features/market/usePurc
 import { useRedeemFixedIncomeMutation } from '../../../features/market/useRedeemFixedIncomeMutation'
 import { useMyAccountQuery } from '../../../features/portfolio/useMyAccountQuery'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
-import { ApiError } from '../../../services/client'
 import type { OrderConfirmationDialogProps, OrderDraft } from './types'
 import styles from './index.module.css'
 
@@ -118,7 +118,7 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                 setError(describeOrderRejection(rejection, draft.ticker, bookQuery.data?.book, cashBalance, ownedQuantity))
                 return
             }
-            setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
+            setError(formatApiError(err, 'Não foi possível concluir a operação agora.'))
         }
     }
 
@@ -152,7 +152,7 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                         Confirmar ordem
                     </h1>
 
-                    <LockedAssetPanel lessonTitle={lockedError.unlockingLesson?.title} />
+                    <LockedGate variant="inline" lessonTitle={lockedError.unlockingLesson?.title} />
 
                     <div className={styles.actions}>
                         <Button variant="secondary" onClick={onClose}>
@@ -251,7 +251,7 @@ function successMessage(
         // (que já refletia a quantidade real desde antes desta tarefa, mas
         // sem explicar por que ficou menor que o pedido).
         if (remaining > 0 && filled === 0) {
-            return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora — nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
+            return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora. Nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
         }
         // Tarefa S.7 (achado 021): preço médio executado, não o preço
         // unitário estático de antes da confirmação — a ordem a mercado
@@ -259,7 +259,7 @@ function successMessage(
         const avgPrice = averageFillPrice(fills)
         const priceSuffix = avgPrice !== null ? ` a preço médio de ${formatCurrency(avgPrice)}` : ''
         if (remaining > 0) {
-            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker}${priceSuffix} — o restante não achou liquidez suficiente e não foi executado.`
+            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker}${priceSuffix}. O restante não achou liquidez suficiente e não foi executado.`
         }
         return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}${priceSuffix}.`
     }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Lesson } from '../../../services/lessons'
 import { TrackPath } from '.'
@@ -69,6 +69,27 @@ describe('TrackPath', () => {
         expect(screen.getByText('Você está aqui')).toBeInTheDocument()
     })
 
+    it.each([0, 1, 2, 3, 5])('a etiqueta fica dentro do nó atual quando a lição disponível é a de índice %i', (index) => {
+        const lessons = Array.from({ length: 7 }, (_, i) =>
+            lesson({
+                id: String(i),
+                code: `0.${i}`,
+                title: `Lição ${i}`,
+                sortOrder: i + 1,
+                status: i < index ? 'completed' : i === index ? 'available' : 'locked',
+            }),
+        )
+        const { container } = render(
+            <TrackPath lessons={lessons} accentColor="var(--color-track-0)" expandedHintId={null} onNodeClick={vi.fn()} />,
+        )
+
+        const tags = screen.getAllByText('Você está aqui')
+        expect(tags).toHaveLength(1)
+        const wrap = tags[0].parentElement as HTMLElement
+        expect(within(wrap).getByRole('button', { name: new RegExp(`${lessons[index].title}: Disponível`) })).toBeInTheDocument()
+        expect(container.querySelectorAll('pattern')).toHaveLength(0)
+    })
+
     it('sem lição available, não mostra a linha-guia', () => {
         render(
             <TrackPath
@@ -80,6 +101,19 @@ describe('TrackPath', () => {
         )
 
         expect(screen.queryByText('Você está aqui')).not.toBeInTheDocument()
+    })
+
+    it('lição concluída mostra o rótulo Rever', () => {
+        render(
+            <TrackPath
+                lessons={[lesson({ id: '1', status: 'completed' }), lesson({ id: '2', status: 'available' })]}
+                accentColor="var(--color-track-0)"
+                expandedHintId={null}
+                onNodeClick={vi.fn()}
+            />,
+        )
+
+        expect(screen.getAllByText('Rever')).toHaveLength(1)
     })
 
     it('lição com unlocksDescription ganha a bandeira de marco', () => {

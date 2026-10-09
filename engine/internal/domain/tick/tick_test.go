@@ -1217,13 +1217,13 @@ func TestFIIDividendPriceEffectPct(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := fiiDividendPriceEffectPct(base, shares, yieldPct, tt.dayIndex)
+			got := fiiDividendPriceEffectPct(DividendPayerAsset{}, base, shares, yieldPct, tt.dayIndex)
 			if math.Abs(got-tt.want) > 1e-9 {
 				t.Fatalf("dia %d: got %v, want %v", tt.dayIndex, got, tt.want)
 			}
 		})
 	}
-	if got := fiiDividendPriceEffectPct(base, 0, yieldPct, 29); got != 0 {
+	if got := fiiDividendPriceEffectPct(DividendPayerAsset{}, base, 0, yieldPct, 29); got != 0 {
 		t.Fatalf("sem cotas: got %v, want 0", got)
 	}
 }

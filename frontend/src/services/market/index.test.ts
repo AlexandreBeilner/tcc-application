@@ -103,6 +103,12 @@ describe('services/market', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/market/calendar?from=2026-01-05&to=2026-01-19')
     })
 
+    it('getMarketCalendar repassa scope e market_limit', async () => {
+        const fetchMock = mockFetchOnce({ from_day: 1, to_day: 2, market_total: 0, market_shown: 0, days: [] })
+        await getMarketCalendar('token', '2026-01-05', '2026-01-19', { scope: 'mine', marketLimit: 20 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/calendar?from=2026-01-05&to=2026-01-19&scope=mine&market_limit=20')
+    })
+
     it('getMarketCalendar sem janela não manda query string', async () => {
         const fetchMock = mockFetchOnce({ from_day: 1, to_day: 2, days: [] })
         await getMarketCalendar('token')

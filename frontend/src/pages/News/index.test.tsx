@@ -175,7 +175,7 @@ describe('News (tela 5.1)', () => {
 
         renderPage()
         await screen.findByText('Evento 0')
-        expect(localStorage.getItem('tcc.news.lastSeenId')).toBe('p1-0')
+        expect(localStorage.getItem('app.news.lastSeenId')).toBe('p1-0')
 
         fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }))
         await screen.findByText('Evento da segunda página')
@@ -183,7 +183,7 @@ describe('News (tela 5.1)', () => {
         // `p1-0` continua sendo o marcador — se a página 2 (mais antiga)
         // sobrescrevesse pra `p2-0`, eventos pendentes entre os dois
         // voltariam a contar como não vistos.
-        expect(localStorage.getItem('tcc.news.lastSeenId')).toBe('p1-0')
+        expect(localStorage.getItem('app.news.lastSeenId')).toBe('p1-0')
     })
 
     it('estado vazio sem eventos disparados', async () => {

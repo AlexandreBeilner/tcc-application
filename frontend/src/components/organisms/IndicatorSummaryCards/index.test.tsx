@@ -5,7 +5,7 @@ import { IndicatorSummaryCards } from '.'
 describe('IndicatorSummaryCards', () => {
     it('mostra estado de espera quando o motor ainda não gerou nenhum tick', () => {
         render(<IndicatorSummaryCards latest={undefined} nextCopomSimulatedDay={21} />)
-        expect(screen.getAllByText('Aguardando primeiro tick')).toHaveLength(3)
+        expect(screen.getAllByText('Aguardando a primeira atualização')).toHaveLength(3)
         expect(screen.getByText('Dia 21')).toBeInTheDocument()
     })
 

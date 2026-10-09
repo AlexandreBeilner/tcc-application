@@ -46,7 +46,15 @@ type Details struct {
 	// (variable_income_assets), preenchidas só na leitura do catálogo
 	// (FindFIIDetails) e ignoradas por NewDetails: servem ao P/VP exibido.
 	OutstandingShares *int64
+	// PayoutBusinessDay (RC.6.7, migration 000048) é o dia útil do mês seguinte em que o
+	// fundo paga o rendimento (paymentschedule.FIIPayoutDays). Zero vale o padrão do
+	// banco (DefaultPayoutBusinessDay); quem tem agenda derivada do ticker preenche.
+	PayoutBusinessDay int
 }
+
+// DefaultPayoutBusinessDay é o default de fii_details.payout_business_day: o 10º dia
+// útil, o pico observado dos pagamentos de FII.
+const DefaultPayoutBusinessDay = 10
 
 // NewDetails monta a especialização de um FII, validando o critério de
 // aceite da tarefa 3.8 — "FII de tijolo nunca tem indexador preenchido e
