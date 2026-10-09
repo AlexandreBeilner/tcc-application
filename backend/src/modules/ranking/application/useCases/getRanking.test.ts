@@ -1010,6 +1010,116 @@ describe('GetRankingUseCase', () => {
       expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u3'])
     })
 
+    describe('usuário cadastrado depois da última rodada', () => {
+      const newUser = { id: 'u9', username: 'u9', createdAt: new Date('2026-08-26T10:00:00Z') }
+
+      async function build(netWorth: { execute(input?: { asOf?: Date }): Promise<Snapshot> }) {
+        const { store } = await buildWithSnapshot()
+        return new GetRankingUseCase(
+          createFakeUserDirectory([...users, newUser]),
+          createFakeSandboxAssetReader(),
+          netWorth,
+          createFakeLevelReader({ u9: { level: 1, xp: 5 } }),
+          createFakeFriendGraphReader(),
+          store,
+        )
+      }
+      const input = (overrides = {}) => ({
+        window: 'week' as const,
+        scope: 'global' as const,
+        criterion: 'overall' as const,
+        page: 1,
+        requestingUserId: 'u9',
+        ...overrides,
+      })
+
+      it('vê a própria linha ao vivo, encaixada na posição certa do snapshot', async () => {
+        // +15% de rentabilidade: entre u2 (20) e u1 (10).
+        const useCase = await build({
+          execute: async (input?: { asOf?: Date }) =>
+            // Começo (a conta nasceu agora): capital inicial. Agora: +15%.
+            overallSnapshot(input?.asOf?.getTime() === newUser.createdAt.getTime() ? 10000 : 11500),
+        })
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+        const result = await useCase.execute(input())
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u9', 'u1', 'u3'])
+        expect(result.requestingUserPosition).toBe(2)
+        expect(result.totalEntries).toBe(4)
+      })
+
+      it('outro usuário continua vendo só a rodada gravada, sem o recém-chegado', async () => {
+        const useCase = await build({
+          execute: async () => {
+            throw new Error('não deveria recalcular')
+          },
+        })
+
+        const result = await useCase.execute(input({ requestingUserId: 'u1' }))
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+      })
+
+      it('falha do motor não derruba o ranking: a linha ao vivo só fica de fora', async () => {
+        const useCase = await build({
+          execute: async () => {
+            throw new Error('motor fora')
+          },
+        })
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const result = await useCase.execute(input())
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+        expect(result.requestingUserPosition).toBeNull()
+      })
+
+      it('critério level também mostra a própria linha', async () => {
+        const store = createFakeRankingSnapshotStore()
+        await store.saveRun({
+          computedAt: new Date('2026-08-26T09:00:00Z'),
+          groups: [{ criterion: 'level', window: null, entries: [entry('u1', 100)] }],
+        })
+        const useCase = new GetRankingUseCase(
+          createFakeUserDirectory([...users, newUser]),
+          createFakeSandboxAssetReader(),
+          { execute: async () => snapshot() },
+          createFakeLevelReader({ u9: { level: 1, xp: 5 } }),
+          createFakeFriendGraphReader(),
+          store,
+        )
+
+        const result = await useCase.execute(input({ criterion: 'level', window: undefined }))
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u9'])
+        expect(result.requestingUserPosition).toBe(2)
+      })
+
+      it('usuário cadastrado antes da rodada e fora do snapshot (excluído da classe) não é recalculado', async () => {
+        const old = { id: 'u8', username: 'u8', createdAt: new Date('2026-01-01T00:00:00Z') }
+        const { store } = await buildWithSnapshot()
+        const useCase = new GetRankingUseCase(
+          createFakeUserDirectory([...users, old]),
+          createFakeSandboxAssetReader(),
+          {
+            execute: async () => {
+              throw new Error('não deveria recalcular')
+            },
+          },
+          createFakeLevelReader(),
+          createFakeFriendGraphReader(),
+          store,
+        )
+
+        const result = await useCase.execute(input({ requestingUserId: 'u8' }))
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+        expect(result.requestingUserPosition).toBeNull()
+      })
+    })
+
     it('grupo sem snapshot ainda cai no cálculo ao vivo (updatedAt nulo)', async () => {
       const store = createFakeRankingSnapshotStore()
       const useCase = new GetRankingUseCase(

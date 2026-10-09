@@ -80,6 +80,12 @@ describe('Classificacao (tela 7.1)', () => {
         expect(await screen.findByText(/Atualizado há 2 h, a classificação é recalculada a cada 3 horas/)).toBeInTheDocument()
     })
 
+    it('explica que a renda fixa entra líquida de IR', async () => {
+        renderPage()
+
+        expect(await screen.findByText(/já descontado o Imposto de Renda/)).toBeInTheDocument()
+    })
+
     it('não mostra o aviso de atualização quando o ranking foi calculado na hora', async () => {
         renderPage()
         await screen.findByText('ana')

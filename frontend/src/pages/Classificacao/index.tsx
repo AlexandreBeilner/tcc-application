@@ -109,6 +109,10 @@ export function Classificacao() {
                         {rankingQuery.data?.updatedAt &&
                             ` ${formatUpdatedAgo(rankingQuery.data.updatedAt)}, a classificação é recalculada a cada 3 horas.`}
                     </p>
+                    <p className={styles.note}>
+                        A renda fixa entra pelo valor de hoje, já descontado o Imposto de Renda, como se você resgatasse. Quem acabou de
+                        entrar vê a própria posição na hora, mesmo antes da próxima atualização.
+                    </p>
 
                     {rankingQuery.isError && (
                         <p className={styles.error} role="alert">

@@ -102,7 +102,12 @@ export class GetRankingUseCase {
     }
     const window = input.criterion === 'level' ? null : (input.window as WindowKind)
 
-    const { entries: ranked, updatedAt } = await this.load(input.criterion, window, scopedUsers)
+    const { entries: ranked, updatedAt } = await this.load(
+      input.criterion,
+      window,
+      scopedUsers,
+      input.requestingUserId,
+    )
     const requestingUserIndex = ranked.findIndex((entry) => entry.userId === input.requestingUserId)
 
     const {
@@ -141,14 +146,21 @@ export class GetRankingUseCase {
     criterion: RankingCriterion,
     window: WindowKind | null,
     scopedUsers: { id: string; username: string; createdAt: Date }[],
+    requestingUserId: string,
   ): Promise<{ entries: ScoredEntry[]; updatedAt: Date | null }> {
     const snapshot = await this.snapshotStore?.readLatest(criterion, window)
     if (snapshot) {
       const ids = new Set(scopedUsers.map((user) => user.id))
-      return {
-        entries: snapshot.entries.filter((entry) => ids.has(entry.userId)),
-        updatedAt: snapshot.computedAt,
+      const entries = snapshot.entries.filter((entry) => ids.has(entry.userId))
+      // Quem se cadastrou depois da última rodada ainda não está no snapshot: calcula só a linha
+      // dele ao vivo, para ele ver a própria posição sem esperar o job. Os demais usuários
+      // continuam vendo a rodada gravada.
+      const requester = scopedUsers.find((user) => user.id === requestingUserId)
+      if (requester && requester.createdAt.getTime() > snapshot.computedAt.getTime()) {
+        const own = await this.scoreOwnRow(criterion, window, requester)
+        if (own) entries.push(own)
       }
+      return { entries: sortByRank(entries), updatedAt: snapshot.computedAt }
     }
 
     if (criterion === 'level' || window === null) {
@@ -156,5 +168,23 @@ export class GetRankingUseCase {
     }
     const byCriterion = await this.scorer.scoreByProfitability(scopedUsers, window)
     return { entries: sortByRank(byCriterion[criterion]), updatedAt: null }
+  }
+
+  // Linha do próprio usuário calculada na hora. Falha do motor não derruba o ranking: a linha só
+  // fica de fora, como ficaria sem este caminho.
+  private async scoreOwnRow(
+    criterion: RankingCriterion,
+    window: WindowKind | null,
+    user: { id: string; username: string; createdAt: Date },
+  ): Promise<ScoredEntry | undefined> {
+    try {
+      if (criterion === 'level' || window === null) {
+        return (await this.scorer.scoreByLevel([user]))[0]
+      }
+      return (await this.scorer.scoreByProfitability([user], window))[criterion][0]
+    } catch (err) {
+      console.error(`ranking: falha ao calcular a linha ao vivo do usuário ${user.id}:`, err)
+      return undefined
+    }
   }
 }
