@@ -39,7 +39,7 @@ O ranking **não é em tempo real**: `GET /ranking` lê a última rodada gravada
 
 - **Uma rodada = todos os grupos** (critério x janela: `level`, e `overall`/`fixedIncome`/`variableIncome` em `week` e `month`), gravados numa transação. A leitura pega a rodada de maior `computed_at`, então nunca vê uma rodada pela metade.
 - **Escopo Amigos** filtra o mesmo snapshot (e recalcula a posição dentro do grupo); conta suspensa some na leitura mesmo estando no snapshot (o filtro é o diretório de usuários ativos).
-- **Sem snapshot ainda** (primeira subida, antes do job terminar), `GET /ranking` cai no cálculo ao vivo (`updatedAt: null`), para a tela nunca ficar vazia. Quem se cadastrou depois da última rodada só aparece na seguinte.
+- **Sem snapshot ainda** (primeira subida, antes do job terminar), `GET /ranking` cai no cálculo ao vivo (`updatedAt: null`), para a tela nunca ficar vazia. **Quem se cadastrou depois da última rodada** (`users.created_at` > `computedAt`) tem a própria linha calculada ao vivo e encaixada na posição certa (vale para `overall`, `fixedIncome`, `variableIncome` e `level`, e também no escopo Amigos), então `requestingUserPosition` nunca fica `null` por causa da espera do job. Os demais usuários continuam vendo a rodada gravada, e o recém-chegado só aparece para eles na rodada seguinte. Falha do motor nesse cálculo deixa só a linha de fora, sem derrubar a resposta.
 - **Histórico:** as rodadas dos últimos 7 dias ficam guardadas (`RANKING_SNAPSHOT_RETENTION_DAYS`), as mais antigas são apagadas ao fim de cada rodada. Ainda nenhuma tela usa o histórico.
 - O cálculo (`RankingScorer`) é o mesmo do modo ao vivo: patrimônio do começo da janela e de agora lidos uma vez por usuário e usados pelos três critérios de rentabilidade.
 
@@ -47,14 +47,14 @@ O ranking **não é em tempo real**: `GET /ranking` lê a última rodada gravada
 
 ## Renda fixa pelo valor de hoje (ranking)
 
-O ranking avalia a renda fixa pelo **valor de hoje, bruto de IR**, e não mais pelo custo: o motor calcula esse valor pela mesma regra do resgate (`GET /fixed-income/positions?valuation=true`, `.docs/engine/account.md`), então o rendimento aparece antes do resgate. Vale para os critérios `overall` e `fixedIncome`. Patrimônio de conquistas, perfil público e painel admin continuam a custo (opt-in `valuedFixedIncome` em `GetNetWorthInput`, só o ranking liga).
+O ranking avalia a renda fixa pelo **valor de hoje, líquido de IR** (`net_value` do motor, o que o resgate creditaria), e não mais pelo custo: o motor calcula esse valor pela mesma regra do resgate (`GET /fixed-income/positions?valuation=true`, `.docs/engine/account.md`), então o rendimento aparece antes do resgate. Vale para os critérios `overall` e `fixedIncome`. Patrimônio de conquistas, perfil público e painel admin continuam a custo (opt-in `valuedFixedIncome` em `GetNetWorthInput`, só o ranking liga).
 
 **O começo da janela precisa estar na mesma metodologia**, e o motor não avalia renda fixa numa data passada. Por isso o job guarda **amostras** do patrimônio de cada usuário (`ranking_valuation_samples`, jsonb com o `Snapshot`) nas rodadas que caem logo depois do começo de uma janela (segunda 00:00 UTC e dia 1 do mês, tolerância de 4 h). O começo da janela de cada usuário é a amostra mais antiga dentro dessa tolerância. Amostras com mais de 40 dias são apagadas.
 
 - **Conta criada no meio da janela:** o começo é o capital inicial (replay em `createdAt`, ainda sem renda fixa), comparável com o valor de hoje.
 - **Sem amostra** (a primeira janela depois da entrega, ou o job parado na hora do começo da janela): o usuário é medido como antes, com o começo pelo replay e a renda fixa **a custo dos dois lados**, ou seja, sem rendimento acumulado. Assim o ranking nunca atribui à janela o rendimento acumulado desde a compra.
 - **Efeito prático:** na primeira semana/mês depois do deploy o ranking de renda fixa ainda não mostra rendimento de janela; a partir da primeira virada de semana/mês passa a mostrar.
-- Bruto e não líquido de propósito: o IR regressivo faria o valor "cair" em saltos ao mudar de faixa.
+- Líquido de IR de propósito (decisão do autor, 2026-10-09, achado 042): o resgate entra em `disinvestedProceeds` já líquido, então manter e resgatar o mesmo título rendem a mesma pontuação. Consequência: o valor de uma posição mantida sobe em saltos quando o IR regressivo muda de faixa. A tela de Classificação avisa que a renda fixa entra descontado o IR.
 
 ---
 
