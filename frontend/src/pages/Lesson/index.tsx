@@ -9,6 +9,7 @@ import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDec
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { Button } from '../../components/atoms/Button'
+import { LockedGate } from '../../components/organisms/LockedGate'
 import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
@@ -85,6 +86,11 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
     // `code` citado pro `id` real usando esta mesma lista, sem chamada nova.
     const lessons = lessonsQuery.data?.lessons ?? []
+    // Lição bloqueada aberta por URL (achado 039): o backend responde 404, mas a
+    // lista já diz que ela está `locked`. O CTA aponta pra primeira lição que o
+    // usuário já pode fazer, nunca pra uma ainda inacessível.
+    const lockedLesson = lessons.some((l) => l.id === lessonId && l.status === 'locked')
+    const nextAvailableLesson = lessons.find((l) => l.status === 'available')
     // Modo revisão (RC.2.1): decidido uma vez, quando a lição carrega. Guardar
     // o valor inicial evita que concluir a lição agora (a query refaz o fetch
     // e `status` vira `completed`) troque o fluxo no meio do caminho.
@@ -277,7 +283,11 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 </div>
             </div>
 
-            {lessonQuery.isError && (
+            {lessonQuery.isError && lockedLesson && (
+                <LockedGate variant="screen" lessonId={nextAvailableLesson?.id} lessonTitle={nextAvailableLesson?.title} />
+            )}
+
+            {lessonQuery.isError && !lockedLesson && (
                 <p className={styles.error} role="alert">
                     Não foi possível carregar esta lição agora. Ela pode estar bloqueada ou não existir.
                 </p>

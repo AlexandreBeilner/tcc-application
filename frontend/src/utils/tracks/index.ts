@@ -12,7 +12,13 @@ export const TRACKS = [
     { number: 1, name: 'Renda Fixa', ticker: 'TRLH1', color: 'var(--color-track-1)', background: 'var(--color-gain-100)' },
     { number: 2, name: 'Renda Variável', ticker: 'TRLH2', color: 'var(--color-track-2)', background: 'var(--color-loss-100)' },
     { number: 3, name: 'Estratégia e Tributação', ticker: 'TRLH3', color: 'var(--color-track-3)', background: 'var(--color-gamify-100)' },
-    { number: 4, name: 'Finanças do dia a dia', ticker: 'TRLHF', color: 'var(--color-track-f)', background: 'var(--color-bg-surface-elevated)' },
+    {
+        number: 4,
+        name: 'Finanças do dia a dia',
+        ticker: 'TRLHF',
+        color: 'var(--color-track-f)',
+        background: 'var(--color-bg-surface-elevated)',
+    },
 ] as const
 
 // Trilhas paralelas (RC.4.4): fora da corrente linear, sempre abertas e sem desbloqueio de

@@ -31,8 +31,7 @@ export const BIAS_SCENARIOS: BiasScenario[] = [
             {
                 label: 'Vendo tudo para não perder mais',
                 bias: 'loss-aversion',
-                feedback:
-                    'O medo da perda pesa mais que o ganho e leva a decidir no pânico, travando o prejuízo no pior momento.',
+                feedback: 'O medo da perda pesa mais que o ganho e leva a decidir no pânico, travando o prejuízo no pior momento.',
             },
             {
                 label: 'Confiro se o motivo da compra mudou e sigo o plano',
@@ -42,8 +41,7 @@ export const BIAS_SCENARIOS: BiasScenario[] = [
             {
                 label: 'Compro mais, só para baixar meu preço médio',
                 bias: 'loss-aversion',
-                feedback:
-                    'Reforçar uma posição que cai pelo desejo de recuperar o prejuízo é um sinal clássico de aversão à perda.',
+                feedback: 'Reforçar uma posição que cai pelo desejo de recuperar o prejuízo é um sinal clássico de aversão à perda.',
             },
         ],
     },
@@ -76,8 +74,7 @@ export const BIAS_SCENARIOS: BiasScenario[] = [
             {
                 label: 'Dobro o valor e passo a operar todo dia',
                 bias: 'overconfidence',
-                feedback:
-                    'Quem acredita ser melhor que a média negocia mais, paga mais custos e tende a ter retorno menor.',
+                feedback: 'Quem acredita ser melhor que a média negocia mais, paga mais custos e tende a ter retorno menor.',
             },
             {
                 label: 'Lembro que sorte e mercado em alta contam, e mantenho o plano',

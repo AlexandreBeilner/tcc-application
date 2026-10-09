@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { ApiError } from '../../services/client'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import { advanceLesson, answerCheckpoint, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
@@ -638,13 +639,30 @@ describe('Lesson (tela 3.2)', () => {
     })
 
     it('lição bloqueada/inexistente mostra erro', async () => {
-        vi.mocked(getLesson).mockRejectedValue(new Error('bloqueada'))
+        vi.mocked(getLesson).mockRejectedValue(new ApiError(404, 'lição bloqueada'))
 
         renderLesson()
 
         expect(
             await screen.findByText('Não foi possível carregar esta lição agora. Ela pode estar bloqueada ou não existir.'),
         ).toBeInTheDocument()
+    })
+
+    it('lição bloqueada pela trilha mostra o LockedGate com CTA pra próxima lição disponível (achado 039)', async () => {
+        vi.mocked(getLesson).mockRejectedValue(new ApiError(404, 'lição bloqueada'))
+        vi.mocked(listLessons).mockResolvedValue({
+            lessons: [
+                lesson({ id: 'lesson-done', title: 'Lição concluída', status: 'completed' }),
+                lesson({ id: 'lesson-next', title: 'Próxima da fila', status: 'available' }),
+                lesson({ id: 'lesson-1', title: 'Lição trancada', status: 'locked' }),
+            ],
+        })
+
+        renderLesson()
+
+        expect(await screen.findByText('Travado pela trilha')).toBeInTheDocument()
+        expect(screen.getByText('Complete a lição "Próxima da fila" na trilha pra liberar isso.')).toBeInTheDocument()
+        expect(screen.queryByText(/Não foi possível carregar esta lição/)).not.toBeInTheDocument()
     })
 
     describe('botão Voltar (RC.2.2)', () => {

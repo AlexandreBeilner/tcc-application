@@ -1,11 +1,5 @@
 import { useState } from 'react'
-import {
-    BUDGET_CATEGORIES,
-    RULE_NEEDS_PCT,
-    RULE_SAVE_PCT,
-    RULE_WANTS_PCT,
-    budgetSplit,
-} from '../../../features/lessons/widgets/budgetMath'
+import { BUDGET_CATEGORIES, RULE_NEEDS_PCT, RULE_SAVE_PCT, RULE_WANTS_PCT, budgetSplit } from '../../../features/lessons/widgets/budgetMath'
 import type { BudgetValues } from '../../../features/lessons/widgets/budgetMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { BudgetSplitWidgetProps } from './types'
@@ -37,7 +31,14 @@ export function BudgetSplitWidget(props: BudgetSplitWidgetProps) {
             <div className={styles.fields}>
                 <label className={styles.field}>
                     Renda líquida do mês: {formatCurrency(income)}
-                    <input type="range" min={1000} max={20_000} step={100} value={income} onChange={(e) => setIncome(Number(e.target.value))} />
+                    <input
+                        type="range"
+                        min={1000}
+                        max={20_000}
+                        step={100}
+                        value={income}
+                        onChange={(e) => setIncome(Number(e.target.value))}
+                    />
                 </label>
                 {BUDGET_CATEGORIES.map(({ key, label }) => (
                     <label key={key} className={styles.field}>
