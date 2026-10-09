@@ -6,8 +6,9 @@ import {
   type ClassRiskCapital,
 } from '../domain/profitability'
 import type { ProfitabilityCriterion, ScoredEntry } from '../domain/ranking'
-import { windowFor, type WindowKind } from '../domain/window'
+import { WINDOW_START_SAMPLE_SLACK_MS, windowFor, type WindowKind } from '../domain/window'
 import type { LevelReader } from './ports/levelReader'
+import type { RankingValuationSampleStore } from './ports/rankingValuationSampleStore'
 import type { SandboxAssetReader } from './ports/sandboxAssetReader'
 import type { NetWorthReader } from './useCases/getNetWorth'
 
@@ -17,8 +18,22 @@ export interface RankingUser {
   createdAt: Date
 }
 
-// Fluxos e valor de mercado de uma classe num instante, a partir do replay. `null` se o snapshot
-// não veio do replay (sem `byClass`). O critério `overall` não usa isso (tarefa T.1).
+// Tudo que o ranking lê de um usuário "agora", lido uma vez e reaproveitado pelas duas janelas.
+export interface PreparedUser {
+  user: RankingUser
+  level: number
+  xp: number
+  // Patrimônio de hoje com a renda fixa avaliada pelo valor de hoje (bruto de IR) e os fluxos por
+  // classe do replay. É também o que o job grava como amostra de começo de janela.
+  valued: Snapshot
+  // O mesmo patrimônio com a renda fixa a custo, a valorização do replay.
+  atCost: Snapshot
+  // "Agora" reconstruído pelo replay (renda fixa a custo), usado quando não há amostra.
+  replayNow: Snapshot
+}
+
+// Fluxos e valor de mercado de uma classe num instante. `null` se o snapshot não traz fluxos por
+// classe (não veio do replay nem de uma amostra).
 function classCapital(
   snapshot: Snapshot,
   criterion: 'fixedIncome' | 'variableIncome',
@@ -30,14 +45,27 @@ function classCapital(
   return { ...flows, currentValue }
 }
 
+// "Agora" com a renda fixa a custo: o mesmo patrimônio, sem o rendimento acumulado.
+function withFixedIncomeAtCost(snapshot: Snapshot): Snapshot {
+  const cost = snapshot.fixedIncomeCostValue ?? snapshot.fixedIncomeValue
+  return { ...snapshot, fixedIncomeValue: cost }
+}
+
 // Calcula as linhas do ranking a partir do patrimônio e do nível. É a parte pesada: usada pelo
 // job de snapshot (que grava o resultado) e, quando ainda não existe snapshot, pela leitura ao
 // vivo de `GetRankingUseCase`.
+//
+// Renda fixa: "agora" é avaliado pelo valor de hoje (o motor aplica a mesma conta do resgate).
+// O começo da janela precisa estar na mesma metodologia, mas o motor não avalia no passado, então
+// vem das amostras que o job guarda logo depois de cada começo de janela. Sem amostra (primeira
+// janela depois da entrega, ou job parado nessa hora) o usuário é medido como antes: começo pelo
+// replay e renda fixa a custo dos dois lados, sem rendimento acumulado.
 export class RankingScorer {
   constructor(
     private readonly sandboxAssetReader: SandboxAssetReader,
     private readonly getNetWorth: NetWorthReader,
     private readonly levelReader: LevelReader,
+    private readonly sampleStore?: RankingValuationSampleStore,
   ) {}
 
   // Critério "maior nível" (6.8.3): não chama o motor nem usa janela, só lê `user_progression`
@@ -68,37 +96,20 @@ export class RankingScorer {
     return settled.filter((entry): entry is ScoredEntry => entry !== null)
   }
 
-  // Os 3 critérios de rentabilidade de uma janela, numa passada só: o patrimônio do começo da
-  // janela e o de agora são lidos uma vez por usuário e alimentam os três.
-  async scoreByProfitability(
-    users: RankingUser[],
-    window: WindowKind,
-  ): Promise<Record<ProfitabilityCriterion, ScoredEntry[]>> {
-    const now = new Date()
-    const { start } = windowFor(window, now)
+  // Lê o patrimônio de hoje de cada usuário (a parte cara, feita uma vez por rodada).
+  async prepare(users: RankingUser[]): Promise<PreparedUser[]> {
     const sandboxAssetIds = await this.sandboxAssetReader.listSandboxAssetIds()
-    const result: Record<ProfitabilityCriterion, ScoredEntry[]> = {
-      overall: [],
-      fixedIncome: [],
-      variableIncome: [],
-    }
-
-    const perUser = await Promise.all(
-      users.map(async (user) => {
-        // "resultado consistente independente de quando o usuário entrou": quem se cadastrou no
-        // meio da janela começa com o capital inicial (RNF06), não com histórico anterior.
-        const baselineAsOf = start.getTime() > user.createdAt.getTime() ? start : user.createdAt
+    const now = new Date()
+    const prepared = await Promise.all(
+      users.map(async (user): Promise<PreparedUser | null> => {
         try {
-          // `current` (estado do motor) alimenta o critério geral. `currentReplay` reconstrói o
-          // mesmo instante pelo log de eventos e é o que separa os fluxos por classe, na mesma
-          // metodologia de valorização do `baseline` (os dois lados por replay).
-          const [baseline, current, currentReplay, { level, xp }] = await Promise.all([
-            this.getNetWorth.execute({ userId: user.id, asOf: baselineAsOf, sandboxAssetIds }),
-            this.getNetWorth.execute({ userId: user.id, sandboxAssetIds }),
+          const [fast, replayNow, { level, xp }] = await Promise.all([
+            this.getNetWorth.execute({ userId: user.id, sandboxAssetIds, valuedFixedIncome: true }),
             this.getNetWorth.execute({ userId: user.id, asOf: now, sandboxAssetIds }),
             this.levelReader.getProgression(user.id),
           ])
-          return { user, baseline, current, currentReplay, level, xp }
+          const valued: Snapshot = { ...fast, byClass: replayNow.byClass }
+          return { user, level, xp, valued, atCost: withFixedIncomeAtCost(valued), replayNow }
         } catch (err) {
           // Usuário sem estado consistente no motor não derruba o ranking dos demais.
           console.error(
@@ -109,36 +120,93 @@ export class RankingScorer {
         }
       }),
     )
+    return prepared.filter((item): item is PreparedUser => item !== null)
+  }
 
-    for (const item of perUser) {
-      if (!item) continue
-      const { user, baseline, current, currentReplay, level, xp } = item
-      const entry = (pct: number): ScoredEntry => ({
-        userId: user.id,
-        username: user.username,
-        level,
-        xp,
-        profitabilityPct: pct,
-        sortKey: pct,
-      })
-
-      // Critério "geral" (T.1): rentabilidade sobre capital de risco, nunca sobre caixa nunca
-      // investido. 0% pra quem nunca investiu, nunca excluído.
-      result.overall.push(
-        entry(investmentReturnPct(toRiskCapitalSnapshot(current), toRiskCapitalSnapshot(baseline))),
-      )
-
-      // Rentabilidade da classe sobre o custo investido nela (mesma lógica do geral). Quem nunca
-      // investiu na classe fica fora do ranking dela, em vez de um 0% enganoso.
-      for (const criterion of ['fixedIncome', 'variableIncome'] as const) {
-        const currentCapital = classCapital(currentReplay, criterion)
-        const baselineCapital = classCapital(baseline, criterion)
-        if (!currentCapital || !baselineCapital) continue
-        const pct = classReturnPct(currentCapital, baselineCapital)
-        if (pct === null) continue
-        result[criterion].push(entry(pct))
-      }
+  // Os 3 critérios de rentabilidade de uma janela, a partir dos usuários já lidos.
+  async rank(
+    prepared: PreparedUser[],
+    window: WindowKind,
+  ): Promise<Record<ProfitabilityCriterion, ScoredEntry[]>> {
+    const { start } = windowFor(window, new Date())
+    const sandboxAssetIds = await this.sandboxAssetReader.listSandboxAssetIds()
+    const baselines =
+      (await this.sampleStore?.findBaselines(
+        start,
+        new Date(start.getTime() + WINDOW_START_SAMPLE_SLACK_MS),
+      )) ?? new Map<string, Snapshot>()
+    const result: Record<ProfitabilityCriterion, ScoredEntry[]> = {
+      overall: [],
+      fixedIncome: [],
+      variableIncome: [],
     }
+
+    await Promise.all(
+      prepared.map(async (item) => {
+        const { user } = item
+        // Quem se cadastrou no meio da janela começa com o capital inicial (RNF06), não com
+        // histórico anterior à conta; ainda sem renda fixa nesse instante, então o valor de hoje
+        // é comparável.
+        const createdInWindow = user.createdAt.getTime() >= start.getTime()
+        const sample = createdInWindow ? undefined : baselines.get(user.id)
+        const valuedMetodology = createdInWindow || sample !== undefined
+
+        let baseline: Snapshot
+        try {
+          baseline =
+            sample ??
+            (await this.getNetWorth.execute({
+              userId: user.id,
+              asOf: createdInWindow ? user.createdAt : start,
+              sandboxAssetIds,
+            }))
+        } catch (err) {
+          console.error(
+            `ranking: falha ao calcular o começo da janela do usuário ${user.id}, excluído:`,
+            err,
+          )
+          return
+        }
+
+        const overallNow = valuedMetodology ? item.valued : item.atCost
+        const classNow = valuedMetodology ? item.valued : item.replayNow
+        const entry = (pct: number): ScoredEntry => ({
+          userId: user.id,
+          username: user.username,
+          level: item.level,
+          xp: item.xp,
+          profitabilityPct: pct,
+          sortKey: pct,
+        })
+
+        // Critério "geral" (T.1): rentabilidade sobre capital de risco, nunca sobre caixa nunca
+        // investido. 0% pra quem nunca investiu, nunca excluído.
+        result.overall.push(
+          entry(
+            investmentReturnPct(toRiskCapitalSnapshot(overallNow), toRiskCapitalSnapshot(baseline)),
+          ),
+        )
+
+        // Rentabilidade da classe sobre o custo investido nela (mesma lógica do geral). Quem
+        // nunca investiu na classe fica fora do ranking dela, em vez de um 0% enganoso.
+        for (const criterion of ['fixedIncome', 'variableIncome'] as const) {
+          const currentCapital = classCapital(classNow, criterion)
+          const baselineCapital = classCapital(baseline, criterion)
+          if (!currentCapital || !baselineCapital) continue
+          const pct = classReturnPct(currentCapital, baselineCapital)
+          if (pct === null) continue
+          result[criterion].push(entry(pct))
+        }
+      }),
+    )
     return result
+  }
+
+  // Atalho: lê e ranqueia numa chamada (cálculo ao vivo sem snapshot).
+  async scoreByProfitability(
+    users: RankingUser[],
+    window: WindowKind,
+  ): Promise<Record<ProfitabilityCriterion, ScoredEntry[]>> {
+    return this.rank(await this.prepare(users), window)
   }
 }

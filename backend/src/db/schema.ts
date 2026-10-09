@@ -478,3 +478,23 @@ export const rankingSnapshots = pgTable(
     index('ranking_snapshots_computed_at_idx').on(table.computedAt),
   ],
 )
+
+// Amostras do patrimônio de cada usuário (renda fixa pelo valor de hoje) tiradas pelo job do
+// ranking logo depois do começo de cada janela (segunda 00:00 UTC e dia 1 do mês). O motor não
+// sabe avaliar a renda fixa numa data passada, então o começo da janela vem daqui: a amostra mais
+// antiga dentro de uma pequena tolerância depois do começo. Só as rodadas perto de um começo de
+// janela gravam amostras, por isso a tabela cresce devagar. `snapshot` é o `Snapshot` do ranking.
+export const rankingValuationSamples = pgTable(
+  'ranking_valuation_samples',
+  {
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.computedAt, table.userId] }),
+    index('ranking_valuation_samples_user_idx').on(table.userId),
+  ],
+)

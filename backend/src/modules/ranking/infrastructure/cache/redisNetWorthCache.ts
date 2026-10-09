@@ -9,7 +9,8 @@ import type { Snapshot } from '../../domain/networth'
 const DEFAULT_TTL_SECONDS = 5 * 60
 
 function cacheKey(input: GetNetWorthInput): string {
-  return `networth:${input.userId}:${input.asOf ? input.asOf.toISOString() : 'current'}`
+  const when = input.asOf ? input.asOf.toISOString() : 'current'
+  return `networth:${input.userId}:${when}${input.valuedFixedIncome && !input.asOf ? ':valued' : ''}`
 }
 
 // Decora NetWorthReader com cache de leitura (tarefa 5.7, primeira

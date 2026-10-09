@@ -34,3 +34,15 @@ export function monthWindow(now: Date): Window {
 export function windowFor(kind: WindowKind, now: Date): Window {
   return kind === 'week' ? weekWindow(now) : monthWindow(now)
 }
+
+// Tolerância depois do começo de uma janela em que uma rodada do job ainda conta como "o começo
+// da janela" (maior que o intervalo do job, 3h, pra sempre cair uma rodada dentro dela).
+export const WINDOW_START_SAMPLE_SLACK_MS = 4 * 60 * 60 * 1000
+
+// A rodada de `now` cai logo depois do começo de alguma janela (semana ou mês)? Só essas rodadas
+// guardam amostras de patrimônio, porque só elas servem de começo de janela.
+export function isNearWindowStart(now: Date): boolean {
+  return (['week', 'month'] as WindowKind[]).some(
+    (kind) => now.getTime() - windowFor(kind, now).start.getTime() < WINDOW_START_SAMPLE_SLACK_MS,
+  )
+}

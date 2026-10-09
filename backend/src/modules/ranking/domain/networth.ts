@@ -57,6 +57,10 @@ export interface Snapshot {
   // Fluxos por classe. Só o replay sabe separar por classe (o estado "agora" do motor guarda
   // acumuladores únicos da conta), então o caminho rápido deixa isto indefinido.
   byClass?: ClassFlowsByClass
+  // Renda fixa a custo (`quantidade × preço médio`), preenchido só quando `fixedIncomeValue` foi
+  // avaliado pelo valor de hoje (`valuedFixedIncome`). Permite voltar à valorização a custo,
+  // a mesma do replay, sem chamar o motor de novo.
+  fixedIncomeCostValue?: number
 }
 
 // Reconstrói o patrimônio de um usuário num instante passado a partir do

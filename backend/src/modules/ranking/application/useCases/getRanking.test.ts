@@ -127,7 +127,9 @@ describe('GetRankingUseCase', () => {
     })
 
     const baselineCallFor = (userId: string) =>
-      calls.find((c) => c.userId === userId && c.asOf !== undefined)
+      calls.find(
+        (c) => c.userId === userId && c.asOf !== undefined && c.asOf.getTime() < Date.now(),
+      )
 
     // "antes": baseline é o início da janela (segunda 00:00 UTC).
     expect(baselineCallFor('antes')?.asOf?.toISOString()).toBe('2026-08-24T00:00:00.000Z')

@@ -10,6 +10,7 @@ import { createEngineCurrentAccountStateReader } from './infrastructure/engine/e
 import { createEngineSandboxAssetReader } from './infrastructure/engine/engineSandboxAssetReader'
 import { createInProcessLevelReader } from './infrastructure/gamification/inProcessLevelReader'
 import { createDrizzleRankingSnapshotStore } from './infrastructure/persistence/drizzleRankingSnapshotStore'
+import { createDrizzleRankingValuationSampleStore } from './infrastructure/persistence/drizzleRankingValuationSampleStore'
 import { createDrizzleUserDirectory } from './infrastructure/persistence/drizzleUserDirectory'
 
 // Composição do job de snapshot do ranking, isolada de `createApp` (mesmo desenho de
@@ -21,15 +22,18 @@ export function createRankingSnapshotComposition(db: Database, engineUrl: string
     createEngineAssetPriceHistoryReader(engineUrl),
     createEngineCurrentAccountStateReader(engineUrl),
   )
+  const sampleStore = createDrizzleRankingValuationSampleStore(db)
   const scorer = new RankingScorer(
     createEngineSandboxAssetReader(engineUrl),
     getNetWorth,
     createInProcessLevelReader(new GetProgressionUseCase(createDrizzleProgressionRepository(db))),
+    sampleStore,
   )
   const computeRankingSnapshot = new ComputeRankingSnapshotUseCase(
     createDrizzleUserDirectory(db),
     scorer,
     createDrizzleRankingSnapshotStore(db),
+    sampleStore,
   )
   return { computeRankingSnapshot }
 }

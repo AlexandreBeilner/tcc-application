@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Snapshot } from '../../domain/networth'
 import { createFakeLevelReader } from '../../test/fakes/fakeLevelReader'
 import { createFakeRankingSnapshotStore } from '../../test/fakes/fakeRankingSnapshotStore'
+import { createFakeRankingValuationSampleStore } from '../../test/fakes/fakeRankingValuationSampleStore'
 import { createFakeSandboxAssetReader } from '../../test/fakes/fakeSandboxAssetReader'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { RankingScorer } from '../rankingScorer'
 import {
   ComputeRankingSnapshotUseCase,
   RANKING_SNAPSHOT_RETENTION_DAYS,
+  VALUATION_SAMPLE_RETENTION_DAYS,
 } from './computeRankingSnapshot'
 
 function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
@@ -31,6 +33,7 @@ const users = [
 
 function build(now: Date) {
   const store = createFakeRankingSnapshotStore()
+  const sampleStore = createFakeRankingValuationSampleStore()
   // u1 tem R$1.000 em renda variável no começo e R$1.100 agora; u2 nunca teve nada.
   const getNetWorth = {
     async execute(input: { userId: string; asOf?: Date }) {
@@ -56,9 +59,10 @@ function build(now: Date) {
     createFakeUserDirectory(users),
     scorer,
     store,
+    sampleStore,
     () => now,
   )
-  return { store, useCase }
+  return { store, sampleStore, useCase }
 }
 
 describe('ComputeRankingSnapshotUseCase', () => {
@@ -114,5 +118,27 @@ describe('ComputeRankingSnapshotUseCase', () => {
     await useCase.execute()
 
     expect(store.runs.map((r) => r.computedAt)).toEqual([now])
+  })
+
+  it('guarda as amostras de patrimônio só na rodada logo depois do começo de uma janela', async () => {
+    const monday = build(new Date('2026-08-24T01:00:00Z')) // segunda 01:00 UTC, começo da semana
+    await monday.useCase.execute()
+    expect(monday.sampleStore.saved).toHaveLength(1)
+    expect(monday.sampleStore.saved[0].samples.map((s) => s.userId).sort()).toEqual(['u1', 'u2'])
+
+    const wednesday = build(new Date('2026-08-26T12:00:00Z'))
+    await wednesday.useCase.execute()
+    expect(wednesday.sampleStore.saved).toHaveLength(0)
+  })
+
+  it('apaga as amostras mais antigas que a retenção', async () => {
+    const now = new Date('2026-08-26T12:00:00Z')
+    const { sampleStore, useCase } = build(now)
+    const old = new Date(now.getTime() - (VALUATION_SAMPLE_RETENTION_DAYS + 1) * 86_400_000)
+    await sampleStore.saveSamples(old, [{ userId: 'u1', snapshot: snapshot() }])
+
+    await useCase.execute()
+
+    expect(sampleStore.saved.map((s) => s.computedAt)).not.toContainEqual(old)
   })
 })

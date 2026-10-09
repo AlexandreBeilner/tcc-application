@@ -5,6 +5,7 @@ import type { WindowKind } from '../../domain/window'
 import type { FriendGraphReader } from '../ports/friendGraphReader'
 import type { LevelReader } from '../ports/levelReader'
 import type { RankingSnapshotStore } from '../ports/rankingSnapshotStore'
+import type { RankingValuationSampleStore } from '../ports/rankingValuationSampleStore'
 import type { SandboxAssetReader } from '../ports/sandboxAssetReader'
 import type { UserDirectory } from '../ports/userDirectory'
 import { RankingScorer } from '../rankingScorer'
@@ -73,8 +74,9 @@ export class GetRankingUseCase {
     levelReader: LevelReader,
     private readonly friendGraphReader: FriendGraphReader,
     private readonly snapshotStore?: RankingSnapshotStore,
+    sampleStore?: RankingValuationSampleStore,
   ) {
-    this.scorer = new RankingScorer(sandboxAssetReader, getNetWorth, levelReader)
+    this.scorer = new RankingScorer(sandboxAssetReader, getNetWorth, levelReader, sampleStore)
   }
 
   async execute(input: GetRankingInput): Promise<GetRankingResult> {
