@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Snapshot } from '../../domain/networth'
 import { createFakeFriendGraphReader } from '../../test/fakes/fakeFriendGraphReader'
+import { createFakeRankingSnapshotStore } from '../../test/fakes/fakeRankingSnapshotStore'
 import { createFakeLevelReader } from '../../test/fakes/fakeLevelReader'
 import { createFakeSandboxAssetReader } from '../../test/fakes/fakeSandboxAssetReader'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
@@ -126,7 +127,9 @@ describe('GetRankingUseCase', () => {
     })
 
     const baselineCallFor = (userId: string) =>
-      calls.find((c) => c.userId === userId && c.asOf !== undefined)
+      calls.find(
+        (c) => c.userId === userId && c.asOf !== undefined && c.asOf.getTime() < Date.now(),
+      )
 
     // "antes": baseline é o início da janela (segunda 00:00 UTC).
     expect(baselineCallFor('antes')?.asOf?.toISOString()).toBe('2026-08-24T00:00:00.000Z')
@@ -577,42 +580,74 @@ describe('GetRankingUseCase', () => {
   })
 
   describe('critérios de classificação (6.8.3)', () => {
-    it('critério fixedIncome ordena só pela perna de renda fixa', async () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+    // Fluxos e valor de uma classe num instante, como o replay entrega (`byClass`).
+    interface ClassState {
+      invested?: number
+      proceeds?: number
+      dividends?: number
+      value?: number
+    }
+    function classSnapshot(fixed: ClassState = {}, variable: ClassState = {}): Snapshot {
+      const flows = (c: ClassState) => ({
+        investedCost: c.invested ?? 0,
+        disinvestedProceeds: c.proceeds ?? 0,
+        dividendsReceived: c.dividends ?? 0,
+      })
+      return snapshot({
+        fixedIncomeValue: fixed.value ?? 0,
+        variableIncomeValue: variable.value ?? 0,
+        byClass: { fixedIncome: flows(fixed), variableIncome: flows(variable) },
+      })
+    }
 
-      const userDirectory = createFakeUserDirectory([
-        { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
-        { id: 'u2', username: 'u2', createdAt: new Date('2026-01-01T00:00:00Z') },
-      ])
-      // u1: ganha em renda variável mas perde em renda fixa; u2 o oposto —
-      // um critério que ainda usasse `total` inverteria a ordem esperada.
-      const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
-        'u1|baseline': snapshot({ total: 10000, fixedIncomeValue: 5000, variableIncomeValue: 0 }),
-        'u1|now': snapshot({ total: 10500, fixedIncomeValue: 4500, variableIncomeValue: 1000 }),
-        'u2|baseline': snapshot({ total: 10000, fixedIncomeValue: 5000, variableIncomeValue: 0 }),
-        'u2|now': snapshot({ total: 10200, fixedIncomeValue: 5200, variableIncomeValue: 0 }),
-      }
-      const getNetWorth = {
+    // Fake de patrimônio por usuário: começo da janela (`asOf` no passado), "agora" por replay
+    // (`asOf` = agora, que alimenta os fluxos por classe) e "agora" do motor (`asOf` omitido).
+    function classNetWorth(states: Record<string, { baseline: Snapshot; now: Snapshot }>) {
+      return {
         async execute(input: { userId: string; asOf?: Date }) {
-          return snapshotsByUserAndAsOf[`${input.userId}|${input.asOf ? 'baseline' : 'now'}`]
+          const state = states[input.userId]
+          return input.asOf && input.asOf.getTime() < Date.now() ? state.baseline : state.now
         },
       }
+    }
+
+    async function rankClass(
+      criterion: 'fixedIncome' | 'variableIncome',
+      states: Record<string, { baseline: Snapshot; now: Snapshot }>,
+    ) {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+      const ids = Object.keys(states)
       const { levelReader, friendGraphReader } = build()
       const useCase = new GetRankingUseCase(
-        userDirectory,
+        createFakeUserDirectory(
+          ids.map((id) => ({ id, username: id, createdAt: new Date('2026-01-01T00:00:00Z') })),
+        ),
         createFakeSandboxAssetReader(),
-        getNetWorth,
+        classNetWorth(states),
         levelReader,
         friendGraphReader,
       )
-
-      const result = await useCase.execute({
+      return useCase.execute({
         window: 'week',
         scope: 'global',
-        criterion: 'fixedIncome',
+        criterion,
         page: 1,
-        requestingUserId: 'u1',
+        requestingUserId: ids[0],
+      })
+    }
+
+    it('critério fixedIncome ordena só pela renda fixa, não pelo patrimônio total', async () => {
+      // u1 ganha em renda variável mas perde em renda fixa; u2 o oposto.
+      const result = await rankClass('fixedIncome', {
+        u1: {
+          baseline: classSnapshot({ invested: 5000, value: 5000 }),
+          now: classSnapshot({ invested: 5000, value: 4500 }, { invested: 1000, value: 2000 }),
+        },
+        u2: {
+          baseline: classSnapshot({ invested: 5000, value: 5000 }),
+          now: classSnapshot({ invested: 5000, value: 5200 }),
+        },
       })
 
       expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1'])
@@ -620,48 +655,51 @@ describe('GetRankingUseCase', () => {
       expect(result.entries.find((e) => e.userId === 'u1')?.profitabilityPct).toBeCloseTo(-10)
     })
 
-    it('usuário sem nenhuma posição da classe no início da janela é excluído (nunca investiu ≠ empatou em 0%)', async () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
-
-      const userDirectory = createFakeUserDirectory([
-        { id: 'investiu', username: 'investiu', createdAt: new Date('2026-01-01T00:00:00Z') },
-        {
-          id: 'nunca-investiu',
-          username: 'nunca-investiu',
-          createdAt: new Date('2026-01-01T00:00:00Z'),
+    it('quem nunca investiu na classe fica fora do ranking dela (nunca investiu ≠ empatou em 0%)', async () => {
+      const result = await rankClass('variableIncome', {
+        investiu: {
+          baseline: classSnapshot({}, { invested: 1000, value: 1000 }),
+          now: classSnapshot({}, { invested: 1000, value: 1000 }), // 0% real
         },
-      ])
-      const snapshotsByUserAndAsOf: Record<string, Snapshot> = {
-        'investiu|baseline': snapshot({ total: 10000, fixedIncomeValue: 1000 }),
-        'investiu|now': snapshot({ total: 10000, fixedIncomeValue: 1000 }), // 0% real
-        'nunca-investiu|baseline': snapshot({ total: 10000, fixedIncomeValue: 0 }),
-        'nunca-investiu|now': snapshot({ total: 10000, fixedIncomeValue: 0 }),
-      }
-      const getNetWorth = {
-        async execute(input: { userId: string; asOf?: Date }) {
-          return snapshotsByUserAndAsOf[`${input.userId}|${input.asOf ? 'baseline' : 'now'}`]
-        },
-      }
-      const { levelReader, friendGraphReader } = build()
-      const useCase = new GetRankingUseCase(
-        userDirectory,
-        createFakeSandboxAssetReader(),
-        getNetWorth,
-        levelReader,
-        friendGraphReader,
-      )
-
-      const result = await useCase.execute({
-        window: 'week',
-        scope: 'global',
-        criterion: 'fixedIncome',
-        page: 1,
-        requestingUserId: 'investiu',
+        'nunca-investiu': { baseline: classSnapshot(), now: classSnapshot() },
       })
 
       expect(result.entries.map((e) => e.userId)).toEqual(['investiu'])
       expect(result.totalEntries).toBe(1)
+    })
+
+    it('quem investiu na classe só depois do começo da janela entra no ranking', async () => {
+      const result = await rankClass('variableIncome', {
+        novo: {
+          baseline: classSnapshot(),
+          now: classSnapshot({}, { invested: 1000, value: 1100 }),
+        },
+      })
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(10)
+    })
+
+    it('aportar mais durante a janela não infla o percentual', async () => {
+      const result = await rankClass('variableIncome', {
+        aportou: {
+          baseline: classSnapshot({}, { invested: 1000, value: 1000 }),
+          now: classSnapshot({}, { invested: 2000, value: 2000 }),
+        },
+      })
+
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(0)
+    })
+
+    it('vender com lucro e receber provento contam como ganho da classe', async () => {
+      const result = await rankClass('variableIncome', {
+        vendeu: {
+          baseline: classSnapshot({}, { invested: 1000, value: 1000 }),
+          now: classSnapshot({}, { invested: 1000, proceeds: 1050, dividends: 50, value: 0 }),
+        },
+      })
+
+      expect(result.entries[0].profitabilityPct).toBeCloseTo(10)
     })
 
     it('critério level ordena por xp, ignora janela e nunca chama o motor', async () => {
@@ -871,6 +909,238 @@ describe('GetRankingUseCase', () => {
       })
 
       expect(result.entries[0].profitabilityPct).toBe(0)
+    })
+  })
+
+  describe('com snapshot', () => {
+    const entry = (userId: string, pct: number) => ({
+      userId,
+      username: userId,
+      level: 1,
+      xp: 0,
+      profitabilityPct: pct,
+      sortKey: pct,
+    })
+    const users = ['u1', 'u2', 'u3'].map((id) => ({
+      id,
+      username: id,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    }))
+
+    async function buildWithSnapshot(friendIds: string[] = []) {
+      const store = createFakeRankingSnapshotStore()
+      const computedAt = new Date('2026-08-26T09:00:00Z')
+      await store.saveRun({
+        computedAt,
+        groups: [
+          {
+            criterion: 'overall',
+            window: 'week',
+            entries: [entry('u2', 20), entry('u1', 10), entry('u3', -5)],
+          },
+        ],
+      })
+      // O patrimônio nunca pode ser lido quando existe snapshot.
+      const getNetWorth = {
+        async execute(): Promise<Snapshot> {
+          throw new Error('não deveria recalcular')
+        },
+      }
+      const useCase = new GetRankingUseCase(
+        createFakeUserDirectory(users),
+        createFakeSandboxAssetReader(),
+        getNetWorth,
+        createFakeLevelReader(),
+        createFakeFriendGraphReader({ u1: friendIds }),
+        store,
+      )
+      return { useCase, computedAt, store }
+    }
+
+    it('lê do snapshot sem recalcular o patrimônio e informa quando foi calculado', async () => {
+      const { useCase, computedAt } = await buildWithSnapshot()
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+      expect(result.requestingUserPosition).toBe(2)
+      expect(result.updatedAt).toBe(computedAt.toISOString())
+    })
+
+    it('escopo Amigos filtra o mesmo snapshot e recalcula a posição dentro do grupo', async () => {
+      const { useCase } = await buildWithSnapshot(['u3'])
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'friends',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u3'])
+      expect(result.requestingUserPosition).toBe(1)
+    })
+
+    it('usuário fora do diretório ativo (suspenso) some do ranking mesmo estando no snapshot', async () => {
+      const { store } = await buildWithSnapshot()
+      const withoutU2 = new GetRankingUseCase(
+        createFakeUserDirectory(users.filter((u) => u.id !== 'u2')),
+        createFakeSandboxAssetReader(),
+        { execute: async () => snapshot() },
+        createFakeLevelReader(),
+        createFakeFriendGraphReader(),
+        store,
+      )
+
+      const result = await withoutU2.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u3'])
+    })
+
+    describe('usuário cadastrado depois da última rodada', () => {
+      const newUser = { id: 'u9', username: 'u9', createdAt: new Date('2026-08-26T10:00:00Z') }
+
+      async function build(netWorth: { execute(input?: { asOf?: Date }): Promise<Snapshot> }) {
+        const { store } = await buildWithSnapshot()
+        return new GetRankingUseCase(
+          createFakeUserDirectory([...users, newUser]),
+          createFakeSandboxAssetReader(),
+          netWorth,
+          createFakeLevelReader({ u9: { level: 1, xp: 5 } }),
+          createFakeFriendGraphReader(),
+          store,
+        )
+      }
+      const input = (overrides = {}) => ({
+        window: 'week' as const,
+        scope: 'global' as const,
+        criterion: 'overall' as const,
+        page: 1,
+        requestingUserId: 'u9',
+        ...overrides,
+      })
+
+      it('vê a própria linha ao vivo, encaixada na posição certa do snapshot', async () => {
+        // +15% de rentabilidade: entre u2 (20) e u1 (10).
+        const useCase = await build({
+          execute: async (input?: { asOf?: Date }) =>
+            // Começo (a conta nasceu agora): capital inicial. Agora: +15%.
+            overallSnapshot(input?.asOf?.getTime() === newUser.createdAt.getTime() ? 10000 : 11500),
+        })
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-08-26T12:00:00Z'))
+
+        const result = await useCase.execute(input())
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u9', 'u1', 'u3'])
+        expect(result.requestingUserPosition).toBe(2)
+        expect(result.totalEntries).toBe(4)
+      })
+
+      it('outro usuário continua vendo só a rodada gravada, sem o recém-chegado', async () => {
+        const useCase = await build({
+          execute: async () => {
+            throw new Error('não deveria recalcular')
+          },
+        })
+
+        const result = await useCase.execute(input({ requestingUserId: 'u1' }))
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+      })
+
+      it('falha do motor não derruba o ranking: a linha ao vivo só fica de fora', async () => {
+        const useCase = await build({
+          execute: async () => {
+            throw new Error('motor fora')
+          },
+        })
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+        const result = await useCase.execute(input())
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+        expect(result.requestingUserPosition).toBeNull()
+      })
+
+      it('critério level também mostra a própria linha', async () => {
+        const store = createFakeRankingSnapshotStore()
+        await store.saveRun({
+          computedAt: new Date('2026-08-26T09:00:00Z'),
+          groups: [{ criterion: 'level', window: null, entries: [entry('u1', 100)] }],
+        })
+        const useCase = new GetRankingUseCase(
+          createFakeUserDirectory([...users, newUser]),
+          createFakeSandboxAssetReader(),
+          { execute: async () => snapshot() },
+          createFakeLevelReader({ u9: { level: 1, xp: 5 } }),
+          createFakeFriendGraphReader(),
+          store,
+        )
+
+        const result = await useCase.execute(input({ criterion: 'level', window: undefined }))
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u1', 'u9'])
+        expect(result.requestingUserPosition).toBe(2)
+      })
+
+      it('usuário cadastrado antes da rodada e fora do snapshot (excluído da classe) não é recalculado', async () => {
+        const old = { id: 'u8', username: 'u8', createdAt: new Date('2026-01-01T00:00:00Z') }
+        const { store } = await buildWithSnapshot()
+        const useCase = new GetRankingUseCase(
+          createFakeUserDirectory([...users, old]),
+          createFakeSandboxAssetReader(),
+          {
+            execute: async () => {
+              throw new Error('não deveria recalcular')
+            },
+          },
+          createFakeLevelReader(),
+          createFakeFriendGraphReader(),
+          store,
+        )
+
+        const result = await useCase.execute(input({ requestingUserId: 'u8' }))
+
+        expect(result.entries.map((e) => e.userId)).toEqual(['u2', 'u1', 'u3'])
+        expect(result.requestingUserPosition).toBeNull()
+      })
+    })
+
+    it('grupo sem snapshot ainda cai no cálculo ao vivo (updatedAt nulo)', async () => {
+      const store = createFakeRankingSnapshotStore()
+      const useCase = new GetRankingUseCase(
+        createFakeUserDirectory(users.slice(0, 1)),
+        createFakeSandboxAssetReader(),
+        { execute: async () => snapshot() },
+        createFakeLevelReader(),
+        createFakeFriendGraphReader(),
+        store,
+      )
+
+      const result = await useCase.execute({
+        window: 'week',
+        scope: 'global',
+        criterion: 'overall',
+        page: 1,
+        requestingUserId: 'u1',
+      })
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.updatedAt).toBeNull()
     })
   })
 })

@@ -1,24 +1,17 @@
 import { paginate } from '../../../../shared/pagination'
-import type { Snapshot } from '../../domain/networth'
-import {
-  investmentReturnPct,
-  profitabilityPct,
-  toRiskCapitalSnapshot,
-} from '../../domain/profitability'
-import { windowFor, type WindowKind } from '../../domain/window'
+import type { RankingCriterion, RankingScope, ScoredEntry } from '../../domain/ranking'
+import { sortByRank } from '../../domain/ranking'
+import type { WindowKind } from '../../domain/window'
 import type { FriendGraphReader } from '../ports/friendGraphReader'
 import type { LevelReader } from '../ports/levelReader'
+import type { RankingSnapshotStore } from '../ports/rankingSnapshotStore'
+import type { RankingValuationSampleStore } from '../ports/rankingValuationSampleStore'
 import type { SandboxAssetReader } from '../ports/sandboxAssetReader'
 import type { UserDirectory } from '../ports/userDirectory'
+import { RankingScorer } from '../rankingScorer'
 import type { NetWorthReader } from './getNetWorth'
 
-export type RankingScope = 'global' | 'friends'
-
-// Tarefa 6.8.3 — 4 critérios de ordenação, não só rentabilidade geral.
-// `level` é arquiteturalmente diferente dos outros 3 (não usa janela, não
-// chama o motor nenhuma vez) — ver comentário em `execute` sobre o
-// caminho mais barato que ele segue.
-export type RankingCriterion = 'overall' | 'fixedIncome' | 'variableIncome' | 'level'
+export type { RankingCriterion, RankingScope }
 
 // Página fixa de 25 (backlog 6.8.2) — não é um parâmetro de query
 // configurável, é convenção de produto.
@@ -39,8 +32,7 @@ export interface RankingEntry {
   userId: string
   username: string
   level: number
-  // Sempre presente (mesma leitura de `user_progression` que já traz
-  // `level`) — só usado como critério de ordenação quando
+  // Sempre presente — só usado como critério de ordenação quando
   // `criterion === 'level'`, mas exposto sempre pra não obrigar o
   // frontend a lidar com dois shapes de resposta diferentes.
   xp: number
@@ -64,42 +56,28 @@ export interface GetRankingResult {
   pageSize: number
   totalEntries: number
   totalPages: number
+  // Instante (ISO) do último cálculo do ranking, que é atualizado por um job a cada poucas
+  // horas. `null` quando ainda não existe snapshot e a resposta foi calculada na hora.
+  updatedAt: string | null
 }
 
-interface ScoredEntry {
-  userId: string
-  username: string
-  level: number
-  xp: number
-  profitabilityPct: number | null
-  // Chave de ordenação — `profitabilityPct` pros 3 primeiros critérios,
-  // `xp` pro critério `level`. Mantida separada de `profitabilityPct`
-  // porque esse último é `null` no critério `level`.
-  sortKey: number
-}
-
-// Escolhe, pro critério de renda fixa/variável, qual campo do `Snapshot`
-// alimenta `profitabilityPct` — achado da 6.8.3: nenhum dos dois caminhos
-// que populam `Snapshot` (estado atual via motor, replay pro baseline) foi
-// escrito só pensando num campo isolado, os dois já existem hoje. Critério
-// `overall` não usa mais isso (tarefa T.1) — ver `investmentReturnPct`.
-function snapshotField(criterion: 'fixedIncome' | 'variableIncome'): keyof Snapshot {
-  switch (criterion) {
-    case 'fixedIncome':
-      return 'fixedIncomeValue'
-    case 'variableIncome':
-      return 'variableIncomeValue'
-  }
-}
-
+// O ranking é lido do snapshot gravado pelo job (`ComputeRankingSnapshotUseCase`), não
+// recalculado a cada abertura da tela. Sem snapshot ainda (primeira subida, antes do job rodar),
+// cai no cálculo ao vivo, para a tela nunca ficar vazia.
 export class GetRankingUseCase {
+  private readonly scorer: RankingScorer
+
   constructor(
     private readonly userDirectory: UserDirectory,
-    private readonly sandboxAssetReader: SandboxAssetReader,
-    private readonly getNetWorth: NetWorthReader,
-    private readonly levelReader: LevelReader,
+    sandboxAssetReader: SandboxAssetReader,
+    getNetWorth: NetWorthReader,
+    levelReader: LevelReader,
     private readonly friendGraphReader: FriendGraphReader,
-  ) {}
+    private readonly snapshotStore?: RankingSnapshotStore,
+    sampleStore?: RankingValuationSampleStore,
+  ) {
+    this.scorer = new RankingScorer(sandboxAssetReader, getNetWorth, levelReader, sampleStore)
+  }
 
   async execute(input: GetRankingInput): Promise<GetRankingResult> {
     const [allUsers, friendIds] = await Promise.all([
@@ -109,9 +87,7 @@ export class GetRankingUseCase {
         : Promise.resolve<string[]>([]),
     ])
 
-    // Escopo Amigos nunca recalcula patrimônio de novo — só filtra {o
-    // próprio usuário} ∪ friendIds antes de calcular, evitando o custo de
-    // patrimônio de todo mundo pra uma lista que só mostra alguns.
+    // Escopo Amigos só filtra {o próprio usuário} ∪ friendIds; nunca recalcula nada.
     const scopedUsers =
       input.scope === 'friends'
         ? allUsers.filter(
@@ -120,30 +96,27 @@ export class GetRankingUseCase {
         : allUsers
 
     if (input.criterion !== 'level' && input.window === undefined) {
-      // Guarda de runtime — a borda HTTP (`schemas.ts`) já valida isso via
-      // Zod `.refine()`, mas `execute()` também é chamável direto (scripts,
-      // outras rotas, testes), então o caso de uso não pode depender só da
-      // validação de fora pra manter o invariante.
+      // Guarda de runtime — a borda HTTP (`schemas.ts`) já valida isso via Zod `.refine()`,
+      // mas `execute()` também é chamável direto (scripts, outras rotas, testes).
       throw new Error(`ranking: window é obrigatório para o critério "${input.criterion}"`)
     }
+    const window = input.criterion === 'level' ? null : (input.window as WindowKind)
 
-    const scoredEntries =
-      input.criterion === 'level'
-        ? await this.scoreByLevel(scopedUsers)
-        : await this.scoreByProfitability(scopedUsers, input.criterion, input.window as WindowKind)
-
-    scoredEntries.sort((a, b) => b.sortKey - a.sortKey)
-    const requestingUserIndex = scoredEntries.findIndex(
-      (entry) => entry.userId === input.requestingUserId,
+    const { entries: ranked, updatedAt } = await this.load(
+      input.criterion,
+      window,
+      scopedUsers,
+      input.requestingUserId,
     )
+    const requestingUserIndex = ranked.findIndex((entry) => entry.userId === input.requestingUserId)
 
     const {
-      items: pageScoredEntries,
+      items: pageEntries,
       page,
       totalEntries,
       totalPages,
-    } = paginate(scoredEntries, input.page, RANKING_PAGE_SIZE)
-    const entries: RankingEntry[] = pageScoredEntries.map(
+    } = paginate(ranked, input.page, RANKING_PAGE_SIZE)
+    const entries: RankingEntry[] = pageEntries.map(
       ({ userId, username, level, xp, profitabilityPct }) => ({
         userId,
         username,
@@ -154,7 +127,7 @@ export class GetRankingUseCase {
     )
 
     return {
-      window: input.criterion === 'level' ? null : (input.window ?? null),
+      window,
       scope: input.scope,
       criterion: input.criterion,
       entries,
@@ -163,118 +136,55 @@ export class GetRankingUseCase {
       pageSize: RANKING_PAGE_SIZE,
       totalEntries,
       totalPages,
+      updatedAt: updatedAt?.toISOString() ?? null,
     }
   }
 
-  // Critério "maior nível" (6.8.3) — não chama o motor nenhuma vez, não faz
-  // replay, não usa `windowFor`: só lê `user_progression` por usuário do
-  // escopo (`LevelReader`), muito mais barato que os outros 3 critérios
-  // (que fazem até 3 chamadas ao motor por usuário). Cumulativo desde
-  // sempre — sem baseline, sem janela.
-  private async scoreByLevel(users: { id: string; username: string }[]): Promise<ScoredEntry[]> {
-    const settledEntries = await Promise.all(
-      users.map(async (user): Promise<ScoredEntry | null> => {
-        try {
-          const { level, xp } = await this.levelReader.getProgression(user.id)
-          return {
-            userId: user.id,
-            username: user.username,
-            level,
-            xp,
-            profitabilityPct: null,
-            sortKey: xp,
-          }
-        } catch (err) {
-          // Mesmo tratamento de `scoreByProfitability` — um usuário sem
-          // progressão consistente (`user_progression` órfã/parcial) não
-          // pode derrubar o ranking inteiro pros demais.
-          console.error(
-            `ranking: falha ao calcular nível do usuário ${user.id}, excluído desta resposta:`,
-            err,
-          )
-          return null
-        }
-      }),
-    )
+  // Linhas ordenadas do critério, restritas aos usuários do escopo (e ativos): do snapshot se
+  // existir, senão calculadas na hora.
+  private async load(
+    criterion: RankingCriterion,
+    window: WindowKind | null,
+    scopedUsers: { id: string; username: string; createdAt: Date }[],
+    requestingUserId: string,
+  ): Promise<{ entries: ScoredEntry[]; updatedAt: Date | null }> {
+    const snapshot = await this.snapshotStore?.readLatest(criterion, window)
+    if (snapshot) {
+      const ids = new Set(scopedUsers.map((user) => user.id))
+      const entries = snapshot.entries.filter((entry) => ids.has(entry.userId))
+      // Quem se cadastrou depois da última rodada ainda não está no snapshot: calcula só a linha
+      // dele ao vivo, para ele ver a própria posição sem esperar o job. Os demais usuários
+      // continuam vendo a rodada gravada.
+      const requester = scopedUsers.find((user) => user.id === requestingUserId)
+      if (requester && requester.createdAt.getTime() > snapshot.computedAt.getTime()) {
+        const own = await this.scoreOwnRow(criterion, window, requester)
+        if (own) entries.push(own)
+      }
+      return { entries: sortByRank(entries), updatedAt: snapshot.computedAt }
+    }
 
-    return settledEntries.filter((entry): entry is ScoredEntry => entry !== null)
+    if (criterion === 'level' || window === null) {
+      return { entries: sortByRank(await this.scorer.scoreByLevel(scopedUsers)), updatedAt: null }
+    }
+    const byCriterion = await this.scorer.scoreByProfitability(scopedUsers, window)
+    return { entries: sortByRank(byCriterion[criterion]), updatedAt: null }
   }
 
-  private async scoreByProfitability(
-    users: { id: string; username: string; createdAt: Date }[],
-    criterion: 'overall' | 'fixedIncome' | 'variableIncome',
-    window: WindowKind,
-  ): Promise<ScoredEntry[]> {
-    const { start } = windowFor(window, new Date())
-    const sandboxAssetIds = await this.sandboxAssetReader.listSandboxAssetIds()
-
-    const settledEntries = await Promise.all(
-      users.map(async (user): Promise<ScoredEntry | null> => {
-        // "resultado consistente independente de quando o usuário entrou"
-        // — quem se cadastrou no meio da janela começa a janela dele com
-        // o capital inicial (RNF06), não com histórico anterior à conta.
-        const baselineAsOf = start.getTime() > user.createdAt.getTime() ? start : user.createdAt
-
-        try {
-          const [baseline, current, { level, xp }] = await Promise.all([
-            this.getNetWorth.execute({ userId: user.id, asOf: baselineAsOf, sandboxAssetIds }),
-            this.getNetWorth.execute({ userId: user.id, sandboxAssetIds }),
-            this.levelReader.getProgression(user.id),
-          ])
-
-          // Critério "geral" (tarefa T.1): rentabilidade sobre capital de
-          // risco, nunca sobre caixa nunca investido (ex. salário) — nunca
-          // excluído (0% pra quem nunca investiu, não -100% nem exclusão,
-          // diferente do critério de renda fixa/variável abaixo).
-          if (criterion === 'overall') {
-            const pct = investmentReturnPct(
-              toRiskCapitalSnapshot(current),
-              toRiskCapitalSnapshot(baseline),
-            )
-            return {
-              userId: user.id,
-              username: user.username,
-              level,
-              xp,
-              profitabilityPct: pct,
-              sortKey: pct,
-            }
-          }
-
-          // Sem posição nenhuma dessa classe no início da janela — "nunca
-          // investiu" não é o mesmo que "empatou em 0%" (achado da 6.8.3):
-          // excluído deste critério em vez de mostrado com um 0% enganoso.
-          const field = snapshotField(criterion)
-          if (baseline[field] === 0) {
-            return null
-          }
-
-          const pct = profitabilityPct(baseline[field], current[field])
-          return {
-            userId: user.id,
-            username: user.username,
-            level,
-            xp,
-            profitabilityPct: pct,
-            sortKey: pct,
-          }
-        } catch (err) {
-          // Um usuário sem estado consistente no motor (ex: conta que
-          // nunca terminou de ser provisionada, dado órfão de ambiente)
-          // não pode derrubar o ranking inteiro pros demais — exclui só
-          // esse usuário desta resposta em vez de propagar o erro pro
-          // `Promise.all` externo. Achado ao validar a tarefa 6.8 (usuário
-          // seedado manualmente sem conta correspondente no motor
-          // causava `500` em `GET /ranking` pra qualquer um).
-          console.error(
-            `ranking: falha ao calcular patrimônio do usuário ${user.id}, excluído desta resposta:`,
-            err,
-          )
-          return null
-        }
-      }),
-    )
-
-    return settledEntries.filter((entry): entry is ScoredEntry => entry !== null)
+  // Linha do próprio usuário calculada na hora. Falha do motor não derruba o ranking: a linha só
+  // fica de fora, como ficaria sem este caminho.
+  private async scoreOwnRow(
+    criterion: RankingCriterion,
+    window: WindowKind | null,
+    user: { id: string; username: string; createdAt: Date },
+  ): Promise<ScoredEntry | undefined> {
+    try {
+      if (criterion === 'level' || window === null) {
+        return (await this.scorer.scoreByLevel([user]))[0]
+      }
+      return (await this.scorer.scoreByProfitability([user], window))[criterion][0]
+    } catch (err) {
+      console.error(`ranking: falha ao calcular a linha ao vivo do usuário ${user.id}:`, err)
+      return undefined
+    }
   }
 }

@@ -11,6 +11,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -445,5 +446,55 @@ export const adminAuditLog = pgTable(
     index('admin_audit_log_occurred_at_idx').on(table.occurredAt),
     index('admin_audit_log_admin_id_idx').on(table.adminId),
     index('admin_audit_log_action_idx').on(table.action),
+  ],
+)
+
+// Snapshot do ranking, calculado por um job a cada poucas horas (o ranking não é em tempo
+// real: a tela lê esta tabela, nunca recalcula o patrimônio de todo mundo a cada abertura).
+// Uma rodada (`run_id`) grava todos os grupos (critério x janela) de uma vez, numa transação,
+// então a leitura nunca vê uma rodada pela metade. `window_kind` é 'none' no critério de
+// nível, que não usa janela. Nome e nível são copiados pra a rodada ficar consistente no
+// instante do cálculo. O histórico fica por alguns dias e some na limpeza do job.
+export const rankingSnapshots = pgTable(
+  'ranking_snapshots',
+  {
+    runId: uuid('run_id').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull(),
+    windowKind: text('window_kind').notNull(),
+    criterion: text('criterion').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    username: text('username').notNull(),
+    level: integer('level').notNull(),
+    xp: integer('xp').notNull(),
+    profitabilityPct: doublePrecision('profitability_pct'),
+    sortKey: doublePrecision('sort_key').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.windowKind, table.criterion, table.userId] }),
+    check('ranking_snapshots_window_chk', sql`${table.windowKind} IN ('week', 'month', 'none')`),
+    index('ranking_snapshots_computed_at_idx').on(table.computedAt),
+  ],
+)
+
+// Amostras do patrimônio de cada usuário (renda fixa pelo valor de hoje) tiradas pelo job do
+// ranking logo depois do começo de cada janela (segunda 00:00 UTC e dia 1 do mês). O motor não
+// sabe avaliar a renda fixa numa data passada, então o começo da janela vem daqui: a amostra mais
+// antiga dentro de uma pequena tolerância depois do começo. Só as rodadas perto de um começo de
+// janela gravam amostras, por isso a tabela cresce devagar. `snapshot` é o `Snapshot` do ranking.
+export const rankingValuationSamples = pgTable(
+  'ranking_valuation_samples',
+  {
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.computedAt, table.userId] }),
+    index('ranking_valuation_samples_user_idx').on(table.userId),
   ],
 )

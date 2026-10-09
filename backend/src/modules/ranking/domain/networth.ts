@@ -19,6 +19,20 @@ export interface MarketEventRecord {
   timestamp: Date
 }
 
+// Fluxos de caixa de UMA classe de ativo (só Mercado Ao Vivo, nunca sandbox), somas brutas desde
+// a criação da conta. Alimentam a rentabilidade por classe do ranking (renda fixa / renda
+// variável): ganho da classe = valor atual + vendas/resgates + proventos - custo investido.
+export interface ClassFlows {
+  investedCost: number
+  disinvestedProceeds: number
+  dividendsReceived: number
+}
+
+export interface ClassFlowsByClass {
+  fixedIncome: ClassFlows
+  variableIncome: ClassFlows
+}
+
 export interface Snapshot {
   cash: number
   variableIncomeValue: number
@@ -40,6 +54,13 @@ export interface Snapshot {
   investedCost: number
   disinvestedProceeds: number
   dividendsReceived: number
+  // Fluxos por classe. Só o replay sabe separar por classe (o estado "agora" do motor guarda
+  // acumuladores únicos da conta), então o caminho rápido deixa isto indefinido.
+  byClass?: ClassFlowsByClass
+  // Renda fixa a custo (`quantidade × preço médio`), preenchido só quando `fixedIncomeValue` foi
+  // avaliado pelo valor de hoje (`valuedFixedIncome`). Permite voltar à valorização a custo,
+  // a mesma do replay, sem chamar o motor de novo.
+  fixedIncomeCostValue?: number
 }
 
 // Reconstrói o patrimônio de um usuário num instante passado a partir do
@@ -69,6 +90,11 @@ export function replay(
   let investedCost = 0
   let disinvestedProceeds = 0
   let dividendsReceived = 0
+  const classFlows: ClassFlowsByClass = {
+    fixedIncome: { investedCost: 0, disinvestedProceeds: 0, dividendsReceived: 0 },
+    variableIncome: { investedCost: 0, disinvestedProceeds: 0, dividendsReceived: 0 },
+  }
+  const isLive = (assetId?: string) => assetId !== undefined && !sandboxAssetIds.has(assetId)
   const variableIncomeQty = new Map<string, number>()
   const fixedIncomeCost = new Map<string, number>()
 
@@ -86,6 +112,7 @@ export function replay(
         cash -= cost
         investedCost += cost
         tradesExecuted += 1
+        if (isLive(event.assetId)) classFlows.variableIncome.investedCost += cost
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           variableIncomeQty.set(
             event.assetId,
@@ -100,6 +127,7 @@ export function replay(
         cash += proceeds
         disinvestedProceeds += proceeds
         tradesExecuted += 1
+        if (isLive(event.assetId)) classFlows.variableIncome.disinvestedProceeds += proceeds
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           variableIncomeQty.set(
             event.assetId,
@@ -112,6 +140,7 @@ export function replay(
       case 'fixed_income_purchase':
         cash -= unitValue
         investedCost += unitValue
+        if (isLive(event.assetId)) classFlows.fixedIncome.investedCost += unitValue
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           fixedIncomeCost.set(event.assetId, (fixedIncomeCost.get(event.assetId) ?? 0) + unitValue)
         }
@@ -120,6 +149,7 @@ export function replay(
       case 'fixed_income_redemption':
         cash += unitValue
         disinvestedProceeds += unitValue
+        if (isLive(event.assetId)) classFlows.fixedIncome.disinvestedProceeds += unitValue
         // Resgate é sempre integral (3.13) — zera o custo, mesmo se nunca
         // acumulado (ativo sandbox): idempotente, sem efeito nesse caso.
         if (event.assetId) {
@@ -133,6 +163,8 @@ export function replay(
         const total = quantity * unitValue
         cash += total
         dividendsReceived += total
+        // Provento só existe em ativo de renda variável (ação, FII, ETF).
+        if (isLive(event.assetId)) classFlows.variableIncome.dividendsReceived += total
         break
       }
 
@@ -165,5 +197,6 @@ export function replay(
     investedCost,
     disinvestedProceeds,
     dividendsReceived,
+    byClass: classFlows,
   }
 }

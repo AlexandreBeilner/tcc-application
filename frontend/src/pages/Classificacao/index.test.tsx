@@ -33,6 +33,7 @@ const globalResult: RankingResult = {
     pageSize: 25,
     totalEntries: 2,
     totalPages: 1,
+    updatedAt: null,
 }
 
 describe('Classificacao (tela 7.1)', () => {
@@ -70,6 +71,26 @@ describe('Classificacao (tela 7.1)', () => {
     it('mostra a posição do usuário autenticado retornada pelo backend', async () => {
         renderPage()
         expect(await screen.findByText('Você está em Nº 2')).toBeInTheDocument()
+    })
+
+    it('avisa que a classificação é recalculada a cada 3 horas quando vem do snapshot', async () => {
+        vi.mocked(getRanking).mockResolvedValue({ ...globalResult, updatedAt: new Date(Date.now() - 2 * 3_600_000).toISOString() })
+        renderPage()
+
+        expect(await screen.findByText(/Atualizado há 2 h, a classificação é recalculada a cada 3 horas/)).toBeInTheDocument()
+    })
+
+    it('explica que a renda fixa entra líquida de IR', async () => {
+        renderPage()
+
+        expect(await screen.findByText(/já descontado o Imposto de Renda/)).toBeInTheDocument()
+    })
+
+    it('não mostra o aviso de atualização quando o ranking foi calculado na hora', async () => {
+        renderPage()
+        await screen.findByText('ana')
+
+        expect(screen.queryByText(/Atualizado há/)).not.toBeInTheDocument()
     })
 
     it('alternar pra Amigos refaz a consulta com o novo escopo', async () => {

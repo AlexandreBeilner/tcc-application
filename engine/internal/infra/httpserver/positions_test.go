@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 	"tcc-investimentos/engine/internal/domain/fixedincomeposition"
 	"tcc-investimentos/engine/internal/domain/position"
 )
@@ -138,5 +140,73 @@ func TestHandleListFixedIncomePositions_SemUserMarketDataReader(t *testing.T) {
 	rec := getUserMarketData(t, nil, "/fixed-income/positions?user_id="+validUserID)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func getFixedIncomePositionsWithValuer(t *testing.T, reader userMarketDataReader, valuer fixedIncomeExecutor, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	New("", nil, nil, nil, nil, valuer, nil, nil, reader, nil, nil).Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	return rec
+}
+
+func TestHandleListFixedIncomePositions_Valuation(t *testing.T) {
+	reader := &fakeUserMarketDataReader{fixedIncomePositions: []fixedincomeposition.Record{
+		{AssetID: "live", AssetTicker: "LFT2029", IsSandbox: false, Position: fixedincomeposition.Position{Quantity: 1, AveragePrice: 1000, AverageRate: 1}},
+		{AssetID: "sbx", AssetTicker: "SANDPRE", IsSandbox: true, Position: fixedincomeposition.Position{Quantity: 1, AveragePrice: 900, AverageRate: 10}},
+	}}
+	valuer := &fakeFixedIncomeExecutor{valueOutcomes: map[string]fixedincomeexecution.RedeemOutcome{
+		"live": {TotalValue: 1100, NetValue: 1085},
+		"sbx":  {TotalValue: 999, NetValue: 999},
+	}}
+
+	rec := getFixedIncomePositionsWithValuer(t, reader, valuer, "/fixed-income/positions?valuation=true&user_id="+validUserID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body []userFixedIncomePositionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body[0].CurrentValue == nil || *body[0].CurrentValue != 1100 || body[0].NetValue == nil || *body[0].NetValue != 1085 {
+		t.Errorf("body[0] = %+v, want current_value 1100 e net_value 1085", body[0])
+	}
+	if body[1].CurrentValue != nil || body[1].NetValue != nil {
+		t.Errorf("body[1] = %+v, sandbox não deveria ser avaliado", body[1])
+	}
+}
+
+func TestHandleListFixedIncomePositions_SemValuationNaoAvalia(t *testing.T) {
+	reader := &fakeUserMarketDataReader{fixedIncomePositions: []fixedincomeposition.Record{
+		{AssetID: "live", IsSandbox: false, Position: fixedincomeposition.Position{Quantity: 1, AveragePrice: 1000}},
+	}}
+	valuer := &fakeFixedIncomeExecutor{valueOutcomes: map[string]fixedincomeexecution.RedeemOutcome{"live": {TotalValue: 1100}}}
+
+	rec := getFixedIncomePositionsWithValuer(t, reader, valuer, "/fixed-income/positions?user_id="+validUserID)
+	var body []userFixedIncomePositionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body[0].CurrentValue != nil {
+		t.Errorf("current_value = %v, want ausente sem ?valuation=true", *body[0].CurrentValue)
+	}
+}
+
+func TestHandleListFixedIncomePositions_ValuationComFalhaDeixaOCampoAusente(t *testing.T) {
+	reader := &fakeUserMarketDataReader{fixedIncomePositions: []fixedincomeposition.Record{
+		{AssetID: "live", IsSandbox: false, Position: fixedincomeposition.Position{Quantity: 1, AveragePrice: 1000}},
+	}}
+	valuer := &fakeFixedIncomeExecutor{valueErr: context.DeadlineExceeded}
+
+	rec := getFixedIncomePositionsWithValuer(t, reader, valuer, "/fixed-income/positions?valuation=true&user_id="+validUserID)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var body []userFixedIncomePositionResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body[0].CurrentValue != nil {
+		t.Errorf("current_value deveria ficar ausente quando a avaliação falha")
 	}
 }

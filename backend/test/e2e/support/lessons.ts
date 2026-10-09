@@ -90,14 +90,16 @@ export async function solveCheckpoints(
   for (const check of checks) {
     const url = `/lessons/${lessonId}/checkpoints/${check.id}/answer`
     if (check.kind === 'numeric') {
-      const seeded = LESSON_SEEDS.find((seed) => seed.sortOrder === sortOrder)
-        ?.blocks?.phases[phase].find((block) => block.type === 'check' && block.id === check.id) as
-        | Extract<CheckBlock, { kind: 'numeric' }>
-        | undefined
+      const seeded = LESSON_SEEDS.find((seed) => seed.sortOrder === sortOrder)?.blocks?.phases[
+        phase
+      ].find((block) => block.type === 'check' && block.id === check.id) as
+        Extract<CheckBlock, { kind: 'numeric' }> | undefined
       if (!seeded) throw new Error(`gabarito numérico de "${check.id}" não achado no seed`)
       const res = await authed(userToken).post(url).send({ value: seeded.answer })
       if (res.status !== 200 || res.body.correct !== true) {
-        throw new Error(`checkpoint "${check.id}" não resolveu: ${res.status} ${JSON.stringify(res.body)}`)
+        throw new Error(
+          `checkpoint "${check.id}" não resolveu: ${res.status} ${JSON.stringify(res.body)}`,
+        )
       }
       continue
     }

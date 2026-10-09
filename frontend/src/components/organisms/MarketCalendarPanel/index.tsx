@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Clock, FastForward, FileText, Lock, X } from 'lucide-react'
+import { Clock, FastForward, FileText, Info, Lock, X } from 'lucide-react'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { formatDayMonth, formatWeekdayDate, shiftIsoDate, weekdayLong, weekdayShort } from '../../../features/market/calendarFormat'
 import { calendarRelevance } from '../../../features/market/calendarRelevance'
@@ -21,6 +21,8 @@ export const MARKET_CALENDAR_PANEL_ID = 'market-calendar-panel'
 interface MarketCalendarPanelProps {
     onClose: () => void
 }
+
+const LEGEND_ID = 'market-calendar-legend'
 
 const DAYS_BEFORE = 7
 const DAYS_AFTER = 14
@@ -68,6 +70,7 @@ export function MarketCalendarPanel({ onClose }: MarketCalendarPanelProps) {
     const isDesktop = useMediaQuery('(min-width: 1024px)')
     const [selectedDay, setSelectedDay] = useState<number | null>(null)
     const [scope, setScope] = useCalendarScope()
+    const [legendOpen, setLegendOpen] = useState(false)
     const closeRef = useRef<HTMLButtonElement>(null)
 
     useEffect(() => {
@@ -111,10 +114,24 @@ export function MarketCalendarPanel({ onClose }: MarketCalendarPanelProps) {
                             </p>
                         )}
                     </div>
-                    <button ref={closeRef} type="button" className={styles.close} onClick={onClose} aria-label="Fechar calendário">
-                        <X size={18} strokeWidth={2} aria-hidden="true" />
-                    </button>
+                    <div className={styles.actions}>
+                        <button
+                            type="button"
+                            className={styles.iconButton}
+                            onClick={() => setLegendOpen((open) => !open)}
+                            aria-expanded={legendOpen}
+                            aria-controls={LEGEND_ID}
+                            aria-label="Legenda do calendário"
+                        >
+                            <Info size={18} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                        <button ref={closeRef} type="button" className={styles.iconButton} onClick={onClose} aria-label="Fechar calendário">
+                            <X size={18} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                    </div>
                 </div>
+
+                {legendOpen && <Legend />}
 
                 <CalendarScopeToggle scope={scope} onChange={setScope} />
 
@@ -369,34 +386,39 @@ function Footer({ daysPerRealDay }: { daysPerRealDay: number | undefined }) {
                     Cada dia real equivale a <b>{daysPerRealDay ?? 5} dias de mercado</b>. Sábado e domingo o mercado fica fechado.
                 </span>
             </p>
-            <ul className={styles.legend} aria-label="Legenda">
-                <li>
-                    <span className={`${styles.swatch} ${styles.swatchMine}`} aria-hidden="true" />
-                    Para você
-                </li>
-                <li>
-                    <span className={`${styles.swatch} ${styles.swatchDashed}`} aria-hidden="true" />
-                    No mercado
-                </li>
-                <li>
-                    <span className={styles.swatch} aria-hidden="true" />
-                    Aconteceu
-                </li>
-                <li>
-                    <span className={`${styles.swatch} ${styles.swatchDashed}`} aria-hidden="true" />
-                    Vem aí
-                </li>
-                <li>
-                    <span className={`${styles.swatch} ${styles.swatchReport}`} aria-hidden="true" />
-                    Fim do trimestre
-                </li>
-                {LEGEND.map((item) => (
-                    <li key={item.kind}>
-                        <CalendarKindIcon kind={item.kind} size={13} />
-                        {item.label}
-                    </li>
-                ))}
-            </ul>
         </div>
+    )
+}
+
+function Legend() {
+    return (
+        <ul id={LEGEND_ID} className={styles.legend} aria-label="Legenda">
+            <li>
+                <span className={`${styles.swatch} ${styles.swatchMine}`} aria-hidden="true" />
+                Para você
+            </li>
+            <li>
+                <span className={`${styles.swatch} ${styles.swatchDashed}`} aria-hidden="true" />
+                No mercado
+            </li>
+            <li>
+                <span className={styles.swatch} aria-hidden="true" />
+                Aconteceu
+            </li>
+            <li>
+                <span className={`${styles.swatch} ${styles.swatchDashed}`} aria-hidden="true" />
+                Vem aí
+            </li>
+            <li>
+                <span className={`${styles.swatch} ${styles.swatchReport}`} aria-hidden="true" />
+                Fim do trimestre
+            </li>
+            {LEGEND.map((item) => (
+                <li key={item.kind}>
+                    <CalendarKindIcon kind={item.kind} size={13} />
+                    {item.label}
+                </li>
+            ))}
+        </ul>
     )
 }
