@@ -176,3 +176,7 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
 }
+
+.terms a {
+    color: var(--color-brand-300);
+}

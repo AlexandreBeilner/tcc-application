@@ -345,8 +345,16 @@ funcionar e ser testado localmente em Android; esta fase só importa quando a in
 - **Referências:** arquitetura-app-mobile §10.
 - **Dependências:** 3.1 (o identificador técnico já existe, isso só substitui o visual por cima).
 
-### 4.2 · Política de privacidade pública
+### 4.2 · Política de privacidade pública ✅ (conteúdo com placeholders do autor)
 
+- **Entregável:** rota pública `/privacidade` (fora do `ProtectedRoute`, `frontend/src/pages/PoliticaPrivacidade/`)
+  com política no padrão LGPD art. 9º: controlador, tabela de dados com finalidade e base legal, dados não
+  coletados, compartilhamento, cookies/armazenamento, retenção (anonimização do `DELETE /me`), segurança,
+  direitos (art. 18) com ponte pro fluxo in-app de exportar/excluir, menores e contato. Tabela vira blocos
+  empilhados em mobile. Link na tela de Login (substituiu a menção a "Termos de Uso", que não existem). Dados que
+  só o autor sabe (controlador, e-mail do encarregado, hospedagem, idade mínima, data) ficam como
+  `[PREENCHER ...]` em `policyConfig.ts`: lista e passo a passo em `.claude/politica-privacidade-placeholders.md`.
+  A tarefa só fica pronta pra publicar quando `grep -rn "PREENCHER" frontend/src` voltar vazio.
 - **Descrição:** as lojas exigem uma URL pública (não autenticada) de política de privacidade. A
   tela de LGPD do produto (`pages/PrivacidadeLgpd`) hoje vive atrás de login — não serve como está.
   Confirmado pelo autor (2026-09-10) como trabalho a fazer, não um lembrete condicional.
