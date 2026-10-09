@@ -116,7 +116,8 @@ export const BLOCKS_3_1: LessonBlocks = {
         answer: 150000,
         tolerance: 1,
         unit: 'R$',
-        explanation: 'A cobertura é de R$ 250 mil por instituição. 400 mil menos 250 mil dá 150 mil.',
+        explanation:
+          'A cobertura é de R$ 250 mil por instituição. 400 mil menos 250 mil dá 150 mil.',
       },
       {
         type: 'widget',
@@ -234,11 +235,7 @@ export const BLOCKS_3_2: LessonBlocks = {
         id: 'rating-aaa',
         kind: 'single',
         prompt: 'Um rating mais alto, como AAA, indica:',
-        options: [
-          'Retorno maior',
-          'Menor risco de o emissor não pagar',
-          'Cobertura do FGC',
-        ],
+        options: ['Retorno maior', 'Menor risco de o emissor não pagar', 'Cobertura do FGC'],
         answer: 1,
         explanation:
           'A nota mede o risco de calote do emissor. Risco menor costuma vir com retorno menor, e o FGC é outra proteção.',
@@ -274,7 +271,8 @@ export const BLOCKS_3_3: LessonBlocks = {
     microDecision: [
       {
         type: 'text',
-        markup: 'Você vai deixar R$ 10.000 aplicados por 180 dias. Qual rende mais, já descontado o imposto?',
+        markup:
+          'Você vai deixar R$ 10.000 aplicados por 180 dias. Qual rende mais, já descontado o imposto?',
       },
     ],
     revelation: [
@@ -316,7 +314,8 @@ export const BLOCKS_3_3: LessonBlocks = {
         prompt: 'Em qual prazo o CDB paga a menor alíquota de IR?',
         options: ['Até 180 dias', 'Acima de 720 dias', 'De 181 a 360 dias'],
         answer: 1,
-        explanation: 'A tabela é regressiva: quanto mais tempo, menor a alíquota. Acima de 720 dias ela é de 15%.',
+        explanation:
+          'A tabela é regressiva: quanto mais tempo, menor a alíquota. Acima de 720 dias ela é de 15%.',
       },
       {
         type: 'text',
@@ -339,7 +338,8 @@ export const BLOCKS_3_3: LessonBlocks = {
         answer: 11.6,
         tolerance: 0.1,
         unit: '%',
-        explanation: '9 ÷ (1 menos 0,225) dá cerca de 11,6%. O CDB de 11% fica abaixo disso, então perde.',
+        explanation:
+          '9 ÷ (1 menos 0,225) dá cerca de 11,6%. O CDB de 11% fica abaixo disso, então perde.',
       },
       {
         type: 'text',
@@ -414,9 +414,14 @@ export const BLOCKS_3_4: LessonBlocks = {
         id: 'quem-rende-mais',
         kind: 'single',
         prompt: 'Com a Selic em alta, qual passa a render mais?',
-        options: ['Tesouro Selic', 'Prefixado já comprado, vendido antes do prazo', 'Nada muda em nenhum'],
+        options: [
+          'Tesouro Selic',
+          'Prefixado já comprado, vendido antes do prazo',
+          'Nada muda em nenhum',
+        ],
         answer: 0,
-        explanation: 'O Tesouro Selic acompanha a taxa, então rende mais. O prefixado fica preso à taxa antiga.',
+        explanation:
+          'O Tesouro Selic acompanha a taxa, então rende mais. O prefixado fica preso à taxa antiga.',
       },
       {
         type: 'text',

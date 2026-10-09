@@ -244,7 +244,9 @@ describe('tamanho das chaves dos seeds de lição', () => {
         expect(seed.microDecisionAssetTicker.length).toBeLessThanOrEqual(tickerLimit)
       }
       if (seed.unlocksAssetTicker) {
-        expect(seed.unlocksAssetTicker.length).toBeLessThanOrEqual(lessons.unlocksAssetTicker.length as number)
+        expect(seed.unlocksAssetTicker.length).toBeLessThanOrEqual(
+          lessons.unlocksAssetTicker.length as number,
+        )
       }
     }
   })

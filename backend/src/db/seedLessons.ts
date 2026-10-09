@@ -40,7 +40,13 @@ import {
 } from './lessonContentTrilha2Empresa'
 import { BLOCKS_DIVIDA, BLOCKS_ORCAMENTO } from './lessonContentTrilhaF'
 import { BLOCKS_2_7_6, BLOCKS_2_10 } from './lessonContentTrilha2Proventos'
-import { BLOCKS_3_1, BLOCKS_3_2, BLOCKS_3_3, BLOCKS_3_4, BLOCKS_VIESES } from './lessonContentTrilha3'
+import {
+  BLOCKS_3_1,
+  BLOCKS_3_2,
+  BLOCKS_3_3,
+  BLOCKS_3_4,
+  BLOCKS_VIESES,
+} from './lessonContentTrilha3'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -935,7 +941,10 @@ export const LESSON_SEEDS: LessonSeed[] = [
     microDecisionPrompt: legacyText(BLOCKS_3_2, 'microDecision'),
     microDecisionType: 'reflection',
     microDecisionAssetTicker: null,
-    microDecisionOptions: ['O que precisa do dinheiro em 6 meses', 'O que só vai usar daqui a 20 anos'],
+    microDecisionOptions: [
+      'O que precisa do dinheiro em 6 meses',
+      'O que só vai usar daqui a 20 anos',
+    ],
     microDecisionCorrectOption: 1,
     revelationText: legacyText(BLOCKS_3_2, 'revelation'),
     blocks: BLOCKS_3_2,
