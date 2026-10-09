@@ -157,12 +157,26 @@ describe('engineCurrentAccountStateReader', () => {
 
   describe('renda fixa pelo valor de hoje (valuedFixedIncome)', () => {
     const fixedIncomePositions = [
-      // Avaliada pelo motor: custo 1.000, vale 1.040 hoje.
-      { asset_id: 'cdb', is_sandbox: false, quantity: 1, average_price: 1000, current_value: 1040 },
-      // A avaliação falhou: sem current_value, cai no custo.
+      // Avaliada pelo motor: custo 1.000, vale 1.040 bruto e 1.034 líquido de IR (15% de 40).
+      {
+        asset_id: 'cdb',
+        is_sandbox: false,
+        quantity: 1,
+        average_price: 1000,
+        current_value: 1040,
+        net_value: 1034,
+      },
+      // A avaliação falhou: sem net_value, cai no custo.
       { asset_id: 'lft', is_sandbox: false, quantity: 2, average_price: 500 },
       // Sandbox nunca entra.
-      { asset_id: 'sbx', is_sandbox: true, quantity: 1, average_price: 300, current_value: 999 },
+      {
+        asset_id: 'sbx',
+        is_sandbox: true,
+        quantity: 1,
+        average_price: 300,
+        current_value: 999,
+        net_value: 999,
+      },
     ]
     const account = {
       current_balance: 0,
@@ -184,7 +198,7 @@ describe('engineCurrentAccountStateReader', () => {
       )
     })
 
-    it('com a opção, pede a avaliação e usa o valor de hoje, com o custo de volta no snapshot', async () => {
+    it('com a opção, pede a avaliação e usa o valor de hoje líquido de IR, com o custo de volta no snapshot', async () => {
       mockEngine({ account, positions: [], fixedIncomePositions })
       const fetchMock = vi.mocked(fetch)
 
@@ -193,7 +207,7 @@ describe('engineCurrentAccountStateReader', () => {
       expect(fetchMock.mock.calls.some(([url]) => String(url).includes('valuation=true'))).toBe(
         true,
       )
-      expect(snapshot.fixedIncomeValue).toBe(1040 + 1000)
+      expect(snapshot.fixedIncomeValue).toBe(1034 + 1000)
       expect(snapshot.fixedIncomeCostValue).toBe(2000)
     })
   })

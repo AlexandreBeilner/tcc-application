@@ -5,7 +5,7 @@ import type { Snapshot } from '../../domain/networth'
 // de histórico. `tradesExecuted` não é computado neste caminho rápido (ver
 // nota em `getNetWorth.ts`).
 export interface CurrentSnapshotOptions {
-  // Avalia a renda fixa pelo valor de hoje (bruto de IR, mesma conta do resgate) em vez do custo.
+  // Avalia a renda fixa pelo valor de hoje (líquido de IR, mesma conta do resgate) em vez do custo.
   // Só o ranking usa; patrimônio de conquistas, perfil e painel seguem a custo.
   valuedFixedIncome?: boolean
 }
