@@ -107,6 +107,22 @@ func (s *Service) Redeem(ctx context.Context, req RedeemRequest) (RedeemOutcome,
 	return outcome, nil
 }
 
+// Value avalia hoje uma posição existente, sem resgatar: roda a mesma regra pura de Redeem
+// (rendimento pós-fixado, marcação a mercado do Prefixado e do IPCA+, IR regressivo) e devolve
+// o resultado, sem verificar se o mercado está aberto e sem persistir nada. TotalValue é o
+// valor bruto (o que o patrimônio e o ranking usam) e NetValue o líquido de IR (o que o
+// resgate creditaria). Mesma conta do resgate de propósito: o valor mostrado nunca diverge do
+// que o resgate pagaria no mesmo dia simulado.
+func (s *Service) Value(ctx context.Context, userID, assetID string) (RedeemOutcome, error) {
+	rctx, err := s.repo.LoadRedeemContext(ctx, userID, assetID)
+	if err != nil {
+		return RedeemOutcome{}, err
+	}
+	now := simcalendar.DateOf(rctx.SimulatedDay)
+	vnaBase, monthlyIPCA := fixedincome.CurrentVNAWindow(s.ipcaCfg, now)
+	return Redeem(rctx, now, vnaBase, monthlyIPCA)
+}
+
 // Simulate projeta o retorno de um aporte hipotético (tarefa 6.0.5,
 // achado do teste de ponta a ponta da Fase L — Simulate ganhou acesso ao
 // VNA do Tesouro IPCA+ pelo mesmo caminho de Purchase/Redeem). Nunca toca

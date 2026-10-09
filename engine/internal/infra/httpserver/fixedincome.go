@@ -23,6 +23,8 @@ type fixedIncomeExecutor interface {
 	Purchase(ctx context.Context, req fixedincomeexecution.Request) (fixedincomeexecution.PurchaseOutcome, error)
 	Redeem(ctx context.Context, req fixedincomeexecution.RedeemRequest) (fixedincomeexecution.RedeemOutcome, error)
 	Simulate(req fixedincomeexecution.SimulateRequest, ctx fixedincomeexecution.SimulateContext) (fixedincomeexecution.SimulateOutcome, error)
+	// Value avalia uma posição aberta hoje, sem resgatar (GET /fixed-income/positions?valuation=true).
+	Value(ctx context.Context, userID, assetID string) (fixedincomeexecution.RedeemOutcome, error)
 }
 
 // fixedIncomeAssetTypes são os únicos tipos de ativo que passam por essas

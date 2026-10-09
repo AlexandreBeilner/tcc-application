@@ -89,9 +89,9 @@ Nenhuma das quatro rotas de leitura abaixo (tarefa 4.7) aceita listar o estado d
 ### `GET /fixed-income/positions`
 
 - **Autenticação:** interno, mesma observação de `POST /accounts`.
-- **Payload:** query `user_id` (obrigatório) — UUID do usuário.
-- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, is_sandbox, quantity, average_price, average_rate }, ...]` — mesmo padrão de `GET /positions` (incluindo `is_sandbox`, tarefa 4.11), pra `fixed_income_positions`, incluindo `average_rate` (a taxa contratada ajustada pela média ponderada — `fixedincomeposition.ApplyBuy`, tarefa 3.13). Lista vazia (não erro) pra usuário sem posição nenhuma.
+- **Payload:** query `user_id` (obrigatório) — UUID do usuário. `valuation` (opcional) — `true` avalia cada posição de Mercado Ao Vivo pelo valor de hoje.
+- **Sucesso:** `200` → array `[{ asset_id, ticker, name, type, is_sandbox, quantity, average_price, average_rate }, ...]` — mesmo padrão de `GET /positions` (incluindo `is_sandbox`, tarefa 4.11), pra `fixed_income_positions`, incluindo `average_rate` (a taxa contratada ajustada pela média ponderada — `fixedincomeposition.ApplyBuy`, tarefa 3.13). Lista vazia (não erro) pra usuário sem posição nenhuma. Com `?valuation=true` cada posição fora do sandbox ganha `current_value` (valor **bruto** de hoje) e `net_value` (líquido de IR, o que o resgate creditaria). Os dois campos são ausentes no sandbox e quando a avaliação de uma posição falha (quem lê cai no custo `quantity × average_price`).
 - **Erros:**
   - `400` — `user_id` ausente ou não é um UUID válido.
   - `503` / `500` — mesmos casos de `GET /accounts/:user_id`.
-- **Regra:** nenhuma fórmula — `fixed_income_positions JOIN assets` (`AccountRepository.ListFixedIncomePositionsByUser`), ordenado por `ticker`.
+- **Regra:** nenhuma fórmula — `fixed_income_positions JOIN assets` (`AccountRepository.ListFixedIncomePositionsByUser`), ordenado por `ticker`. Com `valuation=true`, `current_value`/`net_value` vêm de `fixedincomeexecution.Service.Value`, que roda a mesma regra pura do resgate (`Redeem`: rendimento pós-fixado pela série real de Selic, marcação a mercado do Prefixado e do Tesouro IPCA+, IR regressivo) **sem resgatar**, sem exigir mercado aberto e sem persistir nada. Por ser a mesma conta, o valor mostrado coincide com o que o resgate pagaria no mesmo dia simulado. Opt-in porque custa uma consulta por posição.
