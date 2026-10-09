@@ -58,6 +58,35 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
     onUnauthorized = handler
 }
 
+// Falha de uma chamada autenticada: reage a sessão inválida/conta suspensa (efeitos globais) e
+// lança o `ApiError` com o corpo de erro. Usado por `apiRequest` e por `apiDownload`.
+function failRequest(res: Response, data: unknown, options: Pick<ApiRequestOptions, 'token' | 'keepSessionOn401'>): never {
+    // `options.token` distingue um 401 de sessão (token expirado/inválido
+    // num endpoint autenticado) de um 401 anônimo (ex: `POST /auth/login`
+    // com senha errada) — sem essa checagem, um usuário já logado que erra
+    // a senha numa segunda conta em `/login` derrubava a própria sessão
+    // válida, já que esse handler é global (linha 22 acima).
+    const errorBody = data as ErrorBody | undefined
+    if (res.status === 401 && options.token && !options.keepSessionOn401 && errorBody?.error !== REAUTH_REQUIRED) {
+        onUnauthorized?.()
+    }
+    // Conta suspensa pelo painel (N.16): o backend recusa o token com 403. Para o
+    // usuário isso também é fim de sessão, não um erro de permissão pontual.
+    if (res.status === 403 && options.token && errorBody?.error === ACCOUNT_SUSPENDED) {
+        onUnauthorized?.()
+    }
+    // Convenção padrão (`.docs/backend/*.md`, ex: erro de validação Zod
+    // em qualquer módulo): `details` = `errorBody.details`. Alguns
+    // endpoints fogem dessa convenção e devolvem campos extras no nível
+    // raiz em vez de aninhados em `details` (ex: `ProductLockedError` de
+    // `POST /market/orders`, `{ error, key, unlockingLesson }`,
+    // `.docs/backend/market.md`, tarefa J.3) — nesse caso, sem `details`
+    // próprio, cai pro corpo bruto. Quem chama sabe o shape esperado do
+    // próprio módulo e faz o narrowing, este cliente não precisa conhecer
+    // cada formato.
+    throw new ApiError(res.status, errorBody?.error ?? 'erro inesperado', errorBody?.details ?? data)
+}
+
 // Todo módulo documentado em `.docs/backend/<módulo>.md` devolve erro 4xx
 // como `{ error: string, details?: ... }` (conferido em auth.md) — este é
 // o único lugar que sabe interpretar esse formato.
@@ -87,31 +116,41 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const data: unknown = await res.json().catch(() => undefined)
 
     if (!res.ok) {
-        // `options.token` distingue um 401 de sessão (token expirado/inválido
-        // num endpoint autenticado) de um 401 anônimo (ex: `POST /auth/login`
-        // com senha errada) — sem essa checagem, um usuário já logado que erra
-        // a senha numa segunda conta em `/login` derrubava a própria sessão
-        // válida, já que esse handler é global (linha 22 acima).
-        const errorBody = data as ErrorBody | undefined
-        if (res.status === 401 && options.token && !options.keepSessionOn401 && errorBody?.error !== REAUTH_REQUIRED) {
-            onUnauthorized?.()
-        }
-        // Conta suspensa pelo painel (N.16): o backend recusa o token com 403. Para o
-        // usuário isso também é fim de sessão, não um erro de permissão pontual.
-        if (res.status === 403 && options.token && errorBody?.error === ACCOUNT_SUSPENDED) {
-            onUnauthorized?.()
-        }
-        // Convenção padrão (`.docs/backend/*.md`, ex: erro de validação Zod
-        // em qualquer módulo): `details` = `errorBody.details`. Alguns
-        // endpoints fogem dessa convenção e devolvem campos extras no nível
-        // raiz em vez de aninhados em `details` (ex: `ProductLockedError` de
-        // `POST /market/orders`, `{ error, key, unlockingLesson }`,
-        // `.docs/backend/market.md`, tarefa J.3) — nesse caso, sem `details`
-        // próprio, cai pro corpo bruto. Quem chama sabe o shape esperado do
-        // próprio módulo e faz o narrowing, este cliente não precisa conhecer
-        // cada formato.
-        throw new ApiError(res.status, errorBody?.error ?? 'erro inesperado', errorBody?.details ?? data)
+        failRequest(res, data, options)
     }
 
     return data as T
+}
+
+export interface DownloadedFile {
+    blob: Blob
+    filename: string
+    // Cabeçalhos `X-Export-Rows` e `X-Export-Truncated` do backend (exportações do painel, N.21).
+    rows: number
+    truncated: boolean
+}
+
+// Baixa um arquivo autenticado (o `<a href>` não leva o Bearer): devolve o blob e o que o
+// backend informa nos cabeçalhos. Mesmo tratamento de erro de `apiRequest`.
+export async function apiDownload(
+    path: string,
+    options: Pick<ApiRequestOptions, 'token' | 'keepSessionOn401'> = {},
+): Promise<DownloadedFile> {
+    const headers: Record<string, string> = {}
+    if (options.token) headers.Authorization = `Bearer ${options.token}`
+
+    const res = await fetch(`${API_BASE_URL}${path}`, { headers })
+    if (!res.ok) {
+        const data: unknown = await res.json().catch(() => undefined)
+        failRequest(res, data, options)
+    }
+
+    const disposition = res.headers.get('Content-Disposition') ?? ''
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'exportacao.csv'
+    return {
+        blob: await res.blob(),
+        filename,
+        rows: Number(res.headers.get('X-Export-Rows') ?? 0),
+        truncated: res.headers.get('X-Export-Truncated') === 'true',
+    }
 }

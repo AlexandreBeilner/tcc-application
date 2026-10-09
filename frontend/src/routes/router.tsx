@@ -15,12 +15,17 @@ import { Conquistas } from '../pages/Conquistas'
 import { AdminAuditoria } from '../pages/AdminAuditoria'
 import { AdminEventoMacroDetalhe } from '../pages/AdminEventoMacroDetalhe'
 import { AdminEventosMacro } from '../pages/AdminEventosMacro'
+import { AdminConteudo } from '../pages/AdminConteudo'
+import { AdminConteudoLicao } from '../pages/AdminConteudoLicao'
+import { AdminConteudoNova } from '../pages/AdminConteudoNova'
 import { AdminGamificacao } from '../pages/AdminGamificacao'
 import { AdminMercado } from '../pages/AdminMercado'
 import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
 import { AdminOrdens } from '../pages/AdminOrdens'
+import { AdminCatalogo } from '../pages/AdminCatalogo'
 import { AdminParametros } from '../pages/AdminParametros'
 import { AdminPausas } from '../pages/AdminPausas'
+import { AdminSistema } from '../pages/AdminSistema'
 import { AdminBots } from '../pages/AdminBots'
 import { AdminTempo } from '../pages/AdminTempo'
 import { AdminUsuarioDetalhe } from '../pages/AdminUsuarioDetalhe'
@@ -163,10 +168,15 @@ export const router = createBrowserRouter([
                                     { path: '/admin/tempo/parametros', element: <AdminParametros /> },
                                     { path: '/admin/mercado', element: <AdminMercado /> },
                                     { path: '/admin/mercado/ativos/:id', element: <AdminMercadoAtivo /> },
+                                    { path: '/admin/mercado/catalogo', element: <AdminCatalogo /> },
                                     { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
                                     { path: '/admin/mercado/pausas', element: <AdminPausas /> },
                                     { path: '/admin/bots', element: <AdminBots /> },
+                                    { path: '/admin/conteudo', element: <AdminConteudo /> },
+                                    { path: '/admin/conteudo/nova', element: <AdminConteudoNova /> },
+                                    { path: '/admin/conteudo/:id', element: <AdminConteudoLicao /> },
                                     { path: '/admin/gamificacao', element: <AdminGamificacao /> },
+                                    { path: '/admin/sistema', element: <AdminSistema /> },
                                     { path: '/admin/usuarios', element: <AdminUsuarios /> },
                                     { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },
                                     { path: '/admin/auditoria', element: <AdminAuditoria /> },

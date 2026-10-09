@@ -203,6 +203,10 @@ export const lessons = pgTable(
     // conteúdo aqui, isso é a B.4).
     microDecisionOptions: text('micro_decision_options').array(),
     microDecisionCorrectOption: smallint('micro_decision_correct_option'),
+    // Publicação (N.18): lição despublicada sai da trilha e da conta de
+    // progressão de todos (`buildProgression` só recebe as publicadas), sem
+    // apagar o progresso de ninguém.
+    published: boolean('published').notNull().default(true),
     // Conteúdo visual por fase (RC.3.1): `{ schemaVersion, phases: { scenario,
     // microDecision, revelation } }` de blocos tipados (texto, widgets).
     // Nulo é o estado normal e faz o player usar `scenarioText`/
@@ -215,6 +219,32 @@ export const lessons = pgTable(
     unique('lessons_stable_key_unique').on(table.stableKey),
     unique('lessons_code_unique').on(table.code),
     unique('lessons_sort_order_unique').on(table.sortOrder),
+  ],
+)
+
+// Histórico de revisões do conteúdo de uma lição (N.23), append-only: o banco
+// virou a fonte da verdade do conteúdo, então este é o histórico que o git
+// dava. Cada linha é um retrato completo do conteúdo editável (`snapshot`).
+// `action`: 'baseline' (estado anterior à primeira edição de uma lição vinda
+// do seed), 'create', 'update' ou 'restore'. `admin_id` é nulo só no baseline.
+export const lessonRevisions = pgTable(
+  'lesson_revisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    adminId: uuid('admin_id').references(() => users.id),
+    action: varchar('action', { length: 20 }).notNull(),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'lesson_revisions_action_chk',
+      sql`${table.action} IN ('baseline', 'create', 'update', 'restore')`,
+    ),
+    index('lesson_revisions_lesson_id_idx').on(table.lessonId, table.createdAt),
   ],
 )
 
@@ -446,6 +476,39 @@ export const adminAuditLog = pgTable(
     index('admin_audit_log_occurred_at_idx').on(table.occurredAt),
     index('admin_audit_log_admin_id_idx').on(table.adminId),
     index('admin_audit_log_action_idx').on(table.action),
+  ],
+)
+
+// Comunicados globais e modo de manutenção (Fase N, tarefa N.20). Faixa no topo do
+// app do usuário dentro da janela [starts_at, ends_at); `ends_at` nulo = até alguém
+// encerrar. `kind = 'maintenance'` é o aviso criado pelo modo de manutenção (crítico,
+// não dispensável); `linked_halt_id` guarda a pausa global aberta junto, pra
+// encerrar a manutenção levantá-la. Sem backfill: tabela nova.
+export const announcements = pgTable(
+  'announcements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    title: varchar('title', { length: 80 }).notNull(),
+    body: varchar('body', { length: 280 }).notNull(),
+    severity: text('severity').notNull(),
+    kind: text('kind').notNull().default('notice'),
+    dismissible: boolean('dismissible').notNull().default(true),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    linkedHaltId: uuid('linked_halt_id'),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('announcements_severity_chk', sql`${table.severity} IN ('info', 'warning', 'critical')`),
+    check('announcements_kind_chk', sql`${table.kind} IN ('notice', 'maintenance')`),
+    check(
+      'announcements_window_chk',
+      sql`${table.endsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`,
+    ),
+    index('announcements_window_idx').on(table.startsAt, table.endsAt),
   ],
 )
 

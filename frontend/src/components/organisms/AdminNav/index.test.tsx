@@ -21,16 +21,29 @@ describe('AdminNav (N.3)', () => {
         expect(labels[8]).toContain('Auditoria')
     })
 
-    it('seção com rota vira link e seção sem tela aparece desabilitada com "Em breve"', () => {
+    it('seção com rota vira link, inclusive Sistema (N.20)', () => {
         renderNav()
         expect(screen.getByRole('link', { name: 'Visão geral' })).toHaveAttribute('href', '/admin')
         expect(screen.getByRole('link', { name: 'Mercado' })).toHaveAttribute('href', '/admin/mercado')
         expect(screen.getByRole('link', { name: 'Bots' })).toHaveAttribute('href', '/admin/bots')
         expect(screen.getByRole('link', { name: 'Usuários' })).toHaveAttribute('href', '/admin/usuarios')
-        expect(screen.queryByRole('link', { name: /Conteúdo/ })).not.toBeInTheDocument()
-        const content = screen.getByText('Conteúdo').closest('span[aria-disabled]')
-        expect(content).toHaveAttribute('aria-disabled', 'true')
-        expect(content).toHaveTextContent('Em breve')
+        expect(screen.getByRole('link', { name: 'Conteúdo' })).toHaveAttribute('href', '/admin/conteudo')
+        expect(screen.getByRole('link', { name: 'Sistema' })).toHaveAttribute('href', '/admin/sistema')
+    })
+
+    it('seção sem tela ainda aparece desabilitada com "Em breve", nunca como link morto', () => {
+        // Todas as seções já têm tela; uma temporária sem `to` cobre o ramo de "em breve".
+        const pending = { ...ADMIN_SECTIONS[0], key: 'pending', label: 'Futura', to: undefined, task: 'X' }
+        ADMIN_SECTIONS.push(pending)
+        try {
+            renderNav()
+            expect(screen.queryByRole('link', { name: /Futura/ })).not.toBeInTheDocument()
+            const future = screen.getByText('Futura').closest('span[aria-disabled]')
+            expect(future).toHaveAttribute('aria-disabled', 'true')
+            expect(future).toHaveTextContent('Em breve')
+        } finally {
+            ADMIN_SECTIONS.pop()
+        }
     })
 
     it('Visão geral não fica ativa em sub-rota; Mercado fica ativa em /admin/eventos/novo', () => {

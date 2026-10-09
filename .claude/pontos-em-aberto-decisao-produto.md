@@ -32,14 +32,7 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
-### 031 · Painel de bots: histórico de tempo de cotação e origem de uma posição aportada
-
-- **Local:** `engine/internal/infra/db/admin_bots_read_repository.go` (`marketMakerQuotes`) e `engine/internal/infra/db/bot_admin_repository.go` (`FundBot`)
-- **Origem:** N.14 e N.15 (PR 6 da Fase N), 2026-10-03
-- **O que é:** dois gaps entre o texto das tarefas e o que o dado permite. (1) A N.14 pede "tempo de cotação por ativo (% dos dias com bid+ask)" do Market Maker, mas o `order_book` não guarda quando uma ordem terminou (só `created_at`, `status` e `cancel_reason`), então esse histórico não é reconstruível; a tela mostra só a **situação atual** da cotação (melhor compra e venda do próprio Market Maker, spread e inventário contra o alvo). (2) A N.15 pede aporte de caixa **ou posição** "respeitando o teto de float", mas o float de todo ativo já está 100% distribuído (B.1/P.2), então o aporte de **posição** é recusado (`409`) em quase todo ativo; só o aporte de caixa funciona na prática. Mesmo ponto já registrado na N.1 ("de quem sai a posição?").
-- **Por que não foi corrigido:** (1) exige gravar um dado novo (um snapshot de cotação por dia e por Market Maker, ou o instante de encerramento da ordem), o que muda o motor e o custo por tick; (2) exige escolher de onde a posição aportada sai (de outro detentor, de uma criação de cotas, ou aumentando `outstanding_shares`), e cada uma tem efeito diferente na economia do ativo.
-- **Opções:** (1) tabela `market_maker_quote_days (mm_account_id, asset_id, simulated_day, had_bid, had_ask)` gravada pelo tick, ou coluna `closed_at` em `order_book`; ou aceitar a foto atual como suficiente. (2) aporte de posição como transferência explícita de outro bot (com contrapartida em evento), ou aceitar só caixa e retirar o campo de posição da tela.
-- **Status:** aberto
+Nenhum ponto em aberto no momento.
 
 ## Resolvidos
 
@@ -848,13 +841,14 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
   como satisfeita (troféu já conquistado não regride). Os itens (b) e (c) foram aceitos como propostos.
 - **Status:** resolvido
 
-### 031 · Quando o jogador passa a ver um evento macro agendado (N.11)
+### 045 · Quando o jogador passa a ver um evento macro agendado (N.11)
 
 - **Local:** `engine/internal/domain/macroevent/lifecycle.go` (`IsPubliclyVisible`), `engine/internal/infra/db/macro_event_repository.go` (`listWhere`, visão pública) e `engine/internal/infra/db/calendar_repository.go` (`MacroEventsBetween`)
 - **Origem:** implementação da N.11 (agendar um evento pra um dia simulado futuro). O backlog diz que o agendado "aparece como pendente até lá", mas não diz **pra quem**: o feed de notícias e o calendário do jogador mostram título e narrativa de todo evento.
 - **O que é:** mostrar o evento ao jogador no instante em que o admin o agenda entregaria o evento com semanas de aviso, o que contraria a razão de existir do veredito redigido (RF16). **Decisão provisória tomada na implementação (a confirmar):** o evento agendado só aparece no feed e no calendário do jogador na **véspera** do primeiro dia de efeito (`triggered_on_day <= dia corrente + 1`), a mesma antecedência de um disparo imediato, que já aparece um tick antes de produzir efeito. Evento **cancelado** nunca aparece. O painel enxerga tudo.
 - **Opções:** (a) a regra atual (véspera, igual ao disparo imediato); (b) aparecer só quando o efeito começa (some a antecedência de um tick, e o disparo imediato teria de seguir a mesma regra); (c) o admin escolher a antecedência por evento.
-- **Status:** aberto (implementado com (a), reversível: é uma condição em duas consultas)
+- **Decisão (2026-10-06, autor): opção (c), o admin escolhe a antecedência por evento.** A regra da véspera vira só o valor padrão. Implementação na tarefa **N.25** (campo de antecedência no agendamento, no motor, na tela e nas duas consultas de visão pública). Numeração: este achado era o segundo "031" do arquivo e foi renumerado para 035.
+- **Status:** resolvido
 
 ### 032 · Revogar uma conquista que o usuário ainda cumpre não "fica": a próxima checagem a concede de novo (N.17)
 
@@ -862,7 +856,8 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Origem:** implementação da N.17 (conceder ou revogar conquista manualmente).
 - **O que é:** revogar só apaga a linha de `user_achievements`. A conquista não tem noção de "revogada pelo suporte", então se o usuário ainda satisfaz o critério (streak, lições, patrimônio), o próximo `checkAndUnlock` (disparado por XP, streak ou lição) a concede de novo, em silêncio. Revogar só funciona de verdade quando a conquista foi dada **por engano** (concessão manual sem critério, ou bug). **Decisão provisória tomada na implementação (a confirmar):** manter assim e avisar o admin na tela e em `.docs/backend/admin.md`.
 - **Opções:** (a) manter (revogar desfaz concessão indevida; critério cumprido volta sozinho); (b) guardar uma marca de "revogada" por usuário e conquista, que a checagem automática respeita (precisa de coluna ou tabela nova, e um jeito de desfazer a marca); (c) tirar a ação "revogar" do painel e só permitir conceder.
-- **Status:** aberto (implementado com (a))
+- **Decisão (2026-10-06, autor): opção (c), tirar "revogar" do painel e deixar só "conceder".** Revogar não fica quando o critério continua cumprido, então a ação prometia algo que não acontece. Implementação na tarefa **N.26**.
+- **Status:** resolvido
 
 ### 033 · Conquistas sem ícone nem XP, missões sem "tipo" e "meta" editáveis: o painel de gamificação cobre só o que o modelo já tem (N.19)
 
@@ -870,7 +865,28 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 - **Origem:** implementação da N.19. A descrição pede **editar nome, descrição, ícone e XP** da conquista e, na missão, **texto, tipo, meta, XP**. O modelo não tem nada disso: `achievements` só tem nome, descrição, regra e meta de desbloqueio (sem coluna de ícone nem de XP, e o frontend não renderiza ícone por conquista); `daily_missions` tem texto, XP e um "tipo" que na verdade é **código** (`requiresLessonCompletion` e duas `key`s despachadas em `CompleteMissionUseCase`), sem meta numérica parametrizável.
 - **O que é:** entregar "ícone" e "XP por conquista" não é só uma coluna: XP ao desbloquear muda a economia de XP do jogo (nível, salário por nível, ranking de nível) e cria um laço (`AwardXpUseCase` chama a checagem de conquistas, que concederia XP de novo); ícone exige o frontend passar a renderizar um ícone por conquista (hoje não renderiza). Criar missão nova pelo painel entregaria XP de graça (sem verificação cruzada). **Decisão provisória tomada na implementação (a confirmar):** o painel opera o que existe (conquista: nome, descrição, regra da lista fechada, meta, ativa; missão: título, descrição, XP de 1 a 500, ativa, tipo só leitura), sem ícone, sem XP por conquista, sem criar missão.
 - **Opções:** (a) manter assim; (b) ícone por chave de uma lista fechada (coluna `icon` e o frontend renderizando); (c) XP por conquista, concedido uma vez ao desbloquear (decidir a curva e quebrar o laço da checagem); (d) tipos de missão genéricos com meta (ex: "ler N eventos no feed"), o que é uma refatoração do despacho por `key`.
-- **Status:** aberto (implementado com (a))
+- **Decisão (2026-10-06, autor): opção (a), manter o escopo atual.** Sem ícone, sem XP por conquista e sem criar missão pelo painel: XP por conquista mexeria na economia de nível/salário/ranking e criaria um laço com a checagem de conquistas. Ícone por lista fechada (b) e tipos de missão genéricos (d) ficam como evolução futura, sem tarefa aberta. O texto da N.19 foi ajustado no backlog.
+- **Status:** resolvido
+
+### 043 · Painel de bots: histórico de tempo de cotação e origem de uma posição aportada
+
+- **Local:** `engine/internal/infra/db/admin_bots_read_repository.go` (`marketMakerQuotes`) e `engine/internal/infra/db/bot_admin_repository.go` (`FundBot`)
+- **Origem:** N.14 e N.15 (PR 6 da Fase N), 2026-10-03
+- **O que é:** dois gaps entre o texto das tarefas e o que o dado permite. (1) A N.14 pede "tempo de cotação por ativo (% dos dias com bid+ask)" do Market Maker, mas o `order_book` não guarda quando uma ordem terminou (só `created_at`, `status` e `cancel_reason`), então esse histórico não é reconstruível; a tela mostra só a **situação atual** da cotação (melhor compra e venda do próprio Market Maker, spread e inventário contra o alvo). (2) A N.15 pede aporte de caixa **ou posição** "respeitando o teto de float", mas o float de todo ativo já está 100% distribuído (B.1/P.2), então o aporte de **posição** é recusado (`409`) em quase todo ativo; só o aporte de caixa funciona na prática. Mesmo ponto já registrado na N.1 ("de quem sai a posição?").
+- **Por que não foi corrigido:** (1) exige gravar um dado novo (um snapshot de cotação por dia e por Market Maker, ou o instante de encerramento da ordem), o que muda o motor e o custo por tick; (2) exige escolher de onde a posição aportada sai (de outro detentor, de uma criação de cotas, ou aumentando `outstanding_shares`), e cada uma tem efeito diferente na economia do ativo.
+- **Opções:** (1) tabela `market_maker_quote_days (mm_account_id, asset_id, simulated_day, had_bid, had_ask)` gravada pelo tick, ou coluna `closed_at` em `order_book`; ou aceitar a foto atual como suficiente. (2) aporte de posição como transferência explícita de outro bot (com contrapartida em evento), ou aceitar só caixa e retirar o campo de posição da tela.
+- **Decisão (2026-10-06, autor):** (1) **aceitar a foto atual**: a tela mostra só a situação atual da cotação (melhor compra e venda, spread, inventário), sem tabela de histórico diário. A métrica "% dos dias com bid+ask" é diagnóstico do admin, não afeta o jogador nem o preço, e gravá-la mudaria o motor e o custo por tick. (2) **aporte só de caixa**: o campo de posição sai da tela da N.15, já que o float está 100% distribuído e o aporte de posição quase sempre devolve `409`. O texto das tarefas N.14 e N.15 foi ajustado no backlog.
+- **Status:** resolvido
+
+### 044 · Catálogo do painel: deslistar ativo, ciclo de relatório por empresa e ETF sem Market Maker (N.12 e N.13)
+
+- **Local:** `engine/internal/domain/catalogadmin/` (campos editáveis), `engine/internal/domain/assetprovision/` (o que o cadastro provisiona) e o texto das tarefas N.12 e N.13
+- **Origem:** implementação da N.12 e da N.13 (PR 11 da Fase N), 2026-10-05
+- **O que é:** três pontos em que o texto das tarefas pede mais do que o modelo sustenta hoje. (1) **Deslistar**: a N.13 diz "só deslistar (N.9 pausa permanente + `delisted_at`)". Não há coluna `delisted_at` e criá-la exige decidir o que o usuário vê de um ativo deslistado (some da lista e do detalhe? segue visível só pra quem tem posição? o que acontece com a posição e com a ordem em repouso?). Hoje o painel só tem a pausa de negociação por ativo (N.9), que impede operar mas deixa o ativo visível. (2) **`report_frequency_days` por empresa**: a N.12 cita o campo como exemplo de editável, mas a spec 3.3.1 fixa um ciclo global de 91 dias e o gatilho de evento macro, o FII e o ETF usam a constante, então editar por empresa desalinharia o dia de relatório do evento do dia em que a empresa divulga. Ficou somente leitura. (3) **ETF novo sem Market Maker**: o ETF criado pelo painel, como o do seed, nasce sem cotas e sem cobertura; a liquidez só vem quando o Participante Autorizado cria cotas, então o critério "aparece com cotação de Market Maker" só vale pra ação e FII.
+- **Por que não foi corrigido:** (1) é escolha de comportamento do produto, não de código; (2) mudar o ciclo por empresa contraria uma decisão registrada na spec; (3) cobrir ETF com Market Maker muda o modelo de liquidez do ETF (a proposta de ETF usa NAV e Participante Autorizado, não book de bot).
+- **Opções:** (1) `delisted_at` em `assets` com a regra de visibilidade escolhida, ou manter só a pausa de negociação. (2) manter o ciclo global, ou o ciclo por empresa com o gatilho de evento macro lendo o valor de cada empresa. (3) manter, ou um Market Maker específico de ETF cotando ao redor do NAV.
+- **Decisão (2026-10-06, autor):** confirmado o que foi implementado. (1) **sem deslistar**: fica só a pausa de negociação por ativo (N.9), sem `delisted_at`, porque deslistar exigiria regras novas de visibilidade, de posição e de ordem em repouso. (2) **ciclo de relatório global** de 91 dias (spec 3.3.1), `report_frequency_days` segue somente leitura. (3) **ETF sem Market Maker**: a liquidez vem do Participante Autorizado e do NAV; o critério "cotação de Market Maker" da N.13 vale só para ação e FII. O texto da N.12 e da N.13 foi ajustado no backlog.
+- **Status:** resolvido
 
 ### 034 · A compra de ações libera na lição do ticker, antes de a trilha ensinar ordens, corretora e custos (RC.4.3)
 

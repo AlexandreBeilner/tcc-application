@@ -48,6 +48,12 @@ import { ListTradingHaltsUseCase } from './modules/admin/application/useCases/li
 import { PauseTradingUseCase } from './modules/admin/application/useCases/pauseTrading'
 import { LiftTradingHaltUseCase } from './modules/admin/application/useCases/liftTradingHalt'
 import { createAdminHaltsRouter } from './modules/admin/interfaces/http/adminHaltsRouter'
+import { createCatalogAdmin } from './modules/admin/infrastructure/engine/catalogAdmin'
+import { ListAdminCatalogUseCase } from './modules/admin/application/useCases/listAdminCatalog'
+import { PreviewCatalogAssetUseCase } from './modules/admin/application/useCases/previewCatalogAsset'
+import { CreateCatalogAssetUseCase } from './modules/admin/application/useCases/createCatalogAsset'
+import { UpdateCatalogAssetUseCase } from './modules/admin/application/useCases/updateCatalogAsset'
+import { createAdminCatalogRouter } from './modules/admin/interfaces/http/adminCatalogRouter'
 import { createEngineSettingsAdmin } from './modules/admin/infrastructure/engine/engineSettingsAdmin'
 import { ListEngineSettingsUseCase } from './modules/admin/application/useCases/listEngineSettings'
 import { UpdateEngineSettingUseCase } from './modules/admin/application/useCases/updateEngineSetting'
@@ -82,12 +88,36 @@ import {
   GetUserCorrectionContextUseCase,
   GrantUserAchievementUseCase,
   ReopenUserLessonUseCase,
-  RevokeUserAchievementUseCase,
   SetUserStreakUseCase,
 } from './modules/admin/application/useCases/userCorrections'
 import { createEngineUserCashCreditor } from './modules/admin/infrastructure/engine/engineUserCashCreditor'
 import { createInProcessUserCorrections } from './modules/admin/infrastructure/corrections/inProcessUserCorrections'
 import { createAdminGamificationRouter } from './modules/admin/interfaces/http/adminGamificationRouter'
+import { createAdminLessonsRouter } from './modules/admin/interfaces/http/adminLessonsRouter'
+import {
+  CreateLessonAdminUseCase,
+  GetLessonForEditAdminUseCase,
+  GetLessonRevisionAdminUseCase,
+  ListLessonCatalogAdminUseCase,
+  RestoreLessonRevisionAdminUseCase,
+  SetLessonPublishedAdminUseCase,
+  UpdateLessonContentAdminUseCase,
+} from './modules/admin/application/useCases/lessonCatalog'
+import { createInProcessLessonCatalogAdmin } from './modules/admin/infrastructure/lessons/inProcessLessonCatalogAdmin'
+import {
+  ListLessonCatalogUseCase,
+  SetLessonPublishedUseCase,
+} from './modules/lessons/application/useCases/manageLessonCatalog'
+import {
+  CreateLessonUseCase,
+  GetLessonForEditUseCase,
+  GetLessonRevisionUseCase,
+  LessonContentValidator,
+  RestoreLessonRevisionUseCase,
+  UpdateLessonContentUseCase,
+} from './modules/lessons/application/useCases/manageLessonContent'
+import { createEngineAssetTypeLookup } from './modules/lessons/infrastructure/engine/engineAssetTypeLookup'
+import { createDrizzleLessonCatalogRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCatalogRepository'
 import {
   CreateAchievementAdminUseCase,
   ListAchievementCatalogUseCase as ListAchievementCatalogAdminUseCase,
@@ -108,14 +138,43 @@ import {
   UpdateMissionUseCase,
 } from './modules/missions/application/useCases/manageMissionCatalog'
 import { AdjustProgressionUseCase } from './modules/gamification/application/useCases/adjustProgression'
-import {
-  GrantAchievementUseCase,
-  RevokeAchievementUseCase,
-} from './modules/achievements/application/useCases/correctAchievements'
+import { GrantAchievementUseCase } from './modules/achievements/application/useCases/correctAchievements'
 import {
   MarkLessonCompletedUseCase,
   ReopenLessonUseCase,
 } from './modules/lessons/application/useCases/correctLessonProgress'
+import { createDrizzleAnnouncementRepository } from './modules/announcements/infrastructure/persistence/drizzleAnnouncementRepository'
+import {
+  CreateAnnouncementUseCase,
+  EndAnnouncementUseCase,
+  ListActiveAnnouncementsUseCase,
+  ListAnnouncementsUseCase,
+  UpdateAnnouncementUseCase,
+} from './modules/announcements/application/useCases/announcements'
+import { createAnnouncementsRouter } from './modules/announcements/interfaces/http/announcementsRouter'
+import { createInProcessAnnouncementAdmin } from './modules/admin/infrastructure/announcements/inProcessAnnouncementAdmin'
+import {
+  CreateAdminAnnouncementUseCase,
+  EndAdminAnnouncementUseCase,
+  ListAdminAnnouncementsUseCase,
+  StartMaintenanceUseCase,
+  UpdateAdminAnnouncementUseCase,
+} from './modules/admin/application/useCases/announcements'
+import { createAdminAnnouncementsRouter } from './modules/admin/interfaces/http/adminAnnouncementsRouter'
+import { createEngineIntegrityAdmin } from './modules/admin/infrastructure/engine/engineIntegrityAdmin'
+import {
+  createEngineEventsExportSource,
+  createEngineOrdersExportSource,
+} from './modules/admin/infrastructure/engine/engineExportSource'
+import { createDrizzleUsersExportSource } from './modules/admin/infrastructure/persistence/drizzleUsersExportSource'
+import { createAuditLogExportSource } from './modules/admin/infrastructure/export/auditLogExportSource'
+import {
+  GetIntegrityRunUseCase,
+  StartIntegrityCheckUseCase,
+} from './modules/admin/application/useCases/integrity'
+import { ExportCsvUseCase } from './modules/admin/application/useCases/exportCsv'
+import { createAdminIntegrityRouter } from './modules/admin/interfaces/http/adminIntegrityRouter'
+import { createAdminExportsRouter } from './modules/admin/interfaces/http/adminExportsRouter'
 import { createAdminPingRouter } from './modules/admin/interfaces/http/pingRouter'
 import { ListNewsFeedUseCase } from './modules/news/application/useCases/listNewsFeed'
 import { MarkNewsEventAsSeenUseCase } from './modules/news/application/useCases/markNewsEventAsSeen'
@@ -434,10 +493,57 @@ export function createApp(deps: AppDeps = {}): Express {
   const listTradingHalts = new ListTradingHaltsUseCase(tradingHaltAdmin)
   const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, recordAdminAction)
   const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, recordAdminAction)
+  // Comunicados globais e modo de manutenção (N.20).
+  const announcementRepository = createDrizzleAnnouncementRepository(db)
+  const listActiveAnnouncements = new ListActiveAnnouncementsUseCase(announcementRepository)
+  const announcementAdmin = createInProcessAnnouncementAdmin({
+    listAnnouncements: new ListAnnouncementsUseCase(announcementRepository),
+    createAnnouncement: new CreateAnnouncementUseCase(announcementRepository),
+    updateAnnouncement: new UpdateAnnouncementUseCase(announcementRepository),
+    endAnnouncement: new EndAnnouncementUseCase(announcementRepository),
+  })
+  const listAdminAnnouncements = new ListAdminAnnouncementsUseCase(announcementAdmin)
+  const createAdminAnnouncement = new CreateAdminAnnouncementUseCase(
+    announcementAdmin,
+    recordAdminAction,
+  )
+  const updateAdminAnnouncement = new UpdateAdminAnnouncementUseCase(
+    announcementAdmin,
+    recordAdminAction,
+  )
+  const endAdminAnnouncement = new EndAdminAnnouncementUseCase(
+    announcementAdmin,
+    liftTradingHalt,
+    recordAdminAction,
+  )
+  const startMaintenance = new StartMaintenanceUseCase(
+    announcementAdmin,
+    pauseTrading,
+    liftTradingHalt,
+    recordAdminAction,
+  )
+  // Integridade financeira e exportação CSV (N.21).
+  const integrityAdmin = createEngineIntegrityAdmin(engineUrl)
+  const startIntegrityCheck = new StartIntegrityCheckUseCase(integrityAdmin, recordAdminAction)
+  const getIntegrityRun = new GetIntegrityRunUseCase(integrityAdmin)
+  const exportCsv = new ExportCsvUseCase(
+    {
+      users: createDrizzleUsersExportSource(db),
+      orders: createEngineOrdersExportSource(engineUrl),
+      'market-events': createEngineEventsExportSource(engineUrl),
+      'audit-log': createAuditLogExportSource(auditLogRepository),
+    },
+    recordAdminAction,
+  )
   const engineSettingsAdmin = createEngineSettingsAdmin(engineUrl)
   const listEngineSettings = new ListEngineSettingsUseCase(engineSettingsAdmin)
   const updateEngineSetting = new UpdateEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
   const resetEngineSetting = new ResetEngineSettingUseCase(engineSettingsAdmin, recordAdminAction)
+  const catalogAdmin = createCatalogAdmin(engineUrl)
+  const listAdminCatalog = new ListAdminCatalogUseCase(catalogAdmin)
+  const updateCatalogAsset = new UpdateCatalogAssetUseCase(catalogAdmin, recordAdminAction)
+  const previewCatalogAsset = new PreviewCatalogAssetUseCase(catalogAdmin)
+  const createCatalogAsset = new CreateCatalogAssetUseCase(catalogAdmin, recordAdminAction)
   // Gestão de bots (N.1).
   const botAdmin = createEngineBotAdmin(engineUrl)
   const listAdminBots = new ListAdminBotsUseCase(botAdmin)
@@ -677,6 +783,19 @@ export function createApp(deps: AppDeps = {}): Express {
   // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
   app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))
   app.use(createAdminPingRouter(authMiddleware))
+  app.use(createAdminIntegrityRouter({ startIntegrityCheck, getIntegrityRun, authMiddleware }))
+  app.use(createAdminExportsRouter({ exportCsv, authMiddleware }))
+  app.use(createAnnouncementsRouter({ listActiveAnnouncements, authMiddleware }))
+  app.use(
+    createAdminAnnouncementsRouter({
+      listAnnouncements: listAdminAnnouncements,
+      createAnnouncement: createAdminAnnouncement,
+      updateAnnouncement: updateAdminAnnouncement,
+      endAnnouncement: endAdminAnnouncement,
+      startMaintenance,
+      authMiddleware,
+    }),
+  )
   app.use(
     createAdminMacroEventsRouter({
       triggerMacroEvent,
@@ -693,6 +812,15 @@ export function createApp(deps: AppDeps = {}): Express {
       setSchedulerPaused,
       listTicks,
       advanceTicks,
+      authMiddleware,
+    }),
+  )
+  app.use(
+    createAdminCatalogRouter({
+      listAdminCatalog,
+      updateCatalogAsset,
+      previewCatalogAsset,
+      createCatalogAsset,
       authMiddleware,
     }),
   )
@@ -732,7 +860,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const userCorrections = createInProcessUserCorrections({
     adjustProgression: new AdjustProgressionUseCase(progressionRepository, achievementChecker),
     grantAchievement: new GrantAchievementUseCase(achievementRepository),
-    revokeAchievement: new RevokeAchievementUseCase(achievementRepository),
     markLessonCompleted: new MarkLessonCompletedUseCase(lessonRepository),
     reopenLesson: new ReopenLessonUseCase(lessonRepository),
     achievementRepository,
@@ -748,11 +875,6 @@ export function createApp(deps: AppDeps = {}): Express {
       adjustUserXp: new AdjustUserXpUseCase(userRepository, userCorrections, recordAdminAction),
       setUserStreak: new SetUserStreakUseCase(userRepository, userCorrections, recordAdminAction),
       grantUserAchievement: new GrantUserAchievementUseCase(
-        userRepository,
-        userCorrections,
-        recordAdminAction,
-      ),
-      revokeUserAchievement: new RevokeUserAchievementUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
@@ -794,6 +916,43 @@ export function createApp(deps: AppDeps = {}): Express {
       listMissionCatalog: new ListMissionCatalogAdminUseCase(gamificationCatalogAdmin),
       updateMission: new UpdateMissionAdminUseCase(gamificationCatalogAdmin, recordAdminAction),
       getAdminRanking: new GetAdminRankingUseCase(createInProcessAdminRankingReader(getRanking)),
+      authMiddleware,
+    }),
+  )
+  // Conteúdo das lições (N.18): o painel só orquestra e audita; o funil e a regra de publicação
+  // (dispensa ao publicar de volta) vivem no módulo `lessons`.
+  const lessonCatalogRepository = createDrizzleLessonCatalogRepository(db)
+  const lessonContentValidator = new LessonContentValidator(createEngineAssetTypeLookup(engineUrl))
+  const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
+    listLessonCatalog: new ListLessonCatalogUseCase(lessonCatalogRepository),
+    setLessonPublished: new SetLessonPublishedUseCase(lessonCatalogRepository),
+    getLessonForEdit: new GetLessonForEditUseCase(lessonCatalogRepository),
+    updateLessonContent: new UpdateLessonContentUseCase(
+      lessonCatalogRepository,
+      lessonContentValidator,
+    ),
+    createLesson: new CreateLessonUseCase(lessonCatalogRepository, lessonContentValidator),
+    getLessonRevision: new GetLessonRevisionUseCase(lessonCatalogRepository),
+    restoreLessonRevision: new RestoreLessonRevisionUseCase(
+      lessonCatalogRepository,
+      lessonContentValidator,
+    ),
+  })
+  app.use(
+    createAdminLessonsRouter({
+      listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
+      setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonForEdit: new GetLessonForEditAdminUseCase(lessonCatalogAdmin),
+      updateLessonContent: new UpdateLessonContentAdminUseCase(
+        lessonCatalogAdmin,
+        recordAdminAction,
+      ),
+      createLesson: new CreateLessonAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonRevision: new GetLessonRevisionAdminUseCase(lessonCatalogAdmin),
+      restoreLessonRevision: new RestoreLessonRevisionAdminUseCase(
+        lessonCatalogAdmin,
+        recordAdminAction,
+      ),
       authMiddleware,
     }),
   )

@@ -87,13 +87,13 @@ func (r *MacroEventRepository) Persist(ctx context.Context, event macroevent.Eve
 			template_key, title, narrative, direction, magnitude_band,
 			affects_price, affects_fundamentals, status, created_by,
 			triggered_on_day, duration_days, price_effect_pct,
-			fundamentals_effect_pct, fundamentals_report_day
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			fundamentals_effect_pct, fundamentals_report_day, reveal_lead_days
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id`,
 		event.TemplateKey, event.Title, event.Narrative, string(event.Direction), string(event.MagnitudeBand),
 		event.AffectsPrice, event.AffectsFundamentals, string(event.Status), event.CreatedBy,
 		event.TriggeredOnDay, event.DurationDays, event.PriceEffectPct,
-		event.FundamentalsEffectPct, event.FundamentalsReportDay,
+		event.FundamentalsEffectPct, event.FundamentalsReportDay, event.RevealLeadDays,
 	).Scan(&id)
 	if err != nil {
 		return "", err
@@ -133,7 +133,7 @@ func (r *MacroEventRepository) Persist(ctx context.Context, event macroevent.Eve
 const macroEventColumns = `e.id, e.template_key, e.title, e.narrative, e.direction, e.magnitude_band,
 		        e.affects_price, e.affects_fundamentals, e.status, e.created_by,
 		        e.triggered_on_day, e.duration_days, e.price_effect_pct,
-		        e.fundamentals_effect_pct, e.fundamentals_report_day, e.created_at`
+		        e.fundamentals_effect_pct, e.fundamentals_report_day, e.created_at, e.reveal_lead_days`
 
 // scanMacroEvent lê uma linha de macroEventColumns.
 func scanMacroEvent(scan func(dest ...any) error) (macroevent.Record, error) {
@@ -143,7 +143,7 @@ func scanMacroEvent(scan func(dest ...any) error) (macroevent.Record, error) {
 		&rec.ID, &rec.TemplateKey, &rec.Title, &rec.Narrative, &direction, &band,
 		&rec.AffectsPrice, &rec.AffectsFundamentals, &status, &rec.CreatedBy,
 		&rec.TriggeredOnDay, &rec.DurationDays, &rec.PriceEffectPct,
-		&rec.FundamentalsEffectPct, &rec.FundamentalsReportDay, &rec.CreatedAt,
+		&rec.FundamentalsEffectPct, &rec.FundamentalsReportDay, &rec.CreatedAt, &rec.RevealLeadDays,
 	); err != nil {
 		return macroevent.Record{}, err
 	}
@@ -155,7 +155,8 @@ func scanMacroEvent(scan func(dest ...any) error) (macroevent.Record, error) {
 
 // listWhere monta o WHERE do histórico a partir do filtro (tarefa N.11). A visão
 // pública (feed e calendário do usuário) esconde o cancelado e o agendado antes da
-// véspera (macroevent.IsPubliclyVisible); a do painel enxerga tudo. Os valores vão
+// antecedência de aparição do próprio evento (macroevent.IsPubliclyVisible, N.25); a do
+// painel enxerga tudo. Os valores vão
 // sempre como parâmetro; um id malformado vira "nenhum evento" em vez de erro de uuid
 // porque a comparação é feita como texto.
 func listWhere(f macroevent.ListFilter) (string, []any) {
@@ -167,7 +168,7 @@ func listWhere(f macroevent.ListFilter) (string, []any) {
 	}
 	if f.View == macroevent.ViewPublic {
 		conds = append(conds, `e.status <> 'cancelado'`,
-			`e.triggered_on_day <= (SELECT current_day FROM market_calendar WHERE id = 1) + 1`)
+			`e.triggered_on_day <= (SELECT current_day FROM market_calendar WHERE id = 1) + e.reveal_lead_days`)
 	}
 	if f.Status != nil {
 		add(`e.status::text = ?`, string(*f.Status))

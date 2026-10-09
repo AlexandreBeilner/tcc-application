@@ -12,13 +12,12 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
-	"math/rand"
 	"os"
 
 	"tcc-investimentos/engine/internal/domain/account"
 	"tcc-investimentos/engine/internal/domain/bot"
+	"tcc-investimentos/engine/internal/domain/botpool"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/etf"
@@ -846,28 +845,6 @@ func seedSandboxFixedIncome(ctx context.Context, repo *db.CatalogRepository) {
 // Maker + botOtherBotCount direcionais), o que já cai dentro da faixa
 // 15-25 confirmada, cobrindo todos os 6 setores fixos (spec 3.3.2) e as
 // classes FII/ETF (Ação já é coberta via setor).
-const (
-	// botSeed é fixa (não derivada de time.Now()) pro seed continuar
-	// determinístico/reprodutível entre execuções, mesmo padrão de
-	// qualquer outro valor fixo deste script.
-	botSeed                = int64(20260913)
-	botMarketMakerSharePct = 0.50 // meio da faixa confirmada (bot.MarketMakerShareMin/Max, proposta 2.2)
-	// legacyPoolSize é o pool de bots direcionais de antes da Fase Q (o mesmo que
-	// bot.MinPoolSize): os bots de índice abaixo dele mantêm exatamente a
-	// personalidade que sempre tiveram, então o seed real (5 ativos) não muda.
-	legacyPoolSize        = bot.MinPoolSize
-	botMinimumOrderShares = 100 // "ordem de tamanho médio" ilustrativa usada só pra calibrar o piso de caixa do seed
-)
-
-// otherBotUserID gera um uuid fixo e determinístico pro bot direcional de
-// índice i (0-based) — literais em vez de gerados em tempo de execução
-// (uuid.New()) porque o seed precisa ser idempotente (ensureBotAccount
-// busca por este mesmo userID numa segunda execução), mesmo raciocínio da
-// tarefa A.1 sobre account.NewBot exigir formato de uuid mas não um usuário
-// cadastrado de verdade.
-func otherBotUserID(i int) string {
-	return fmt.Sprintf("00000000-0000-0000-0000-%012d", i+2)
-}
 
 // botAssetSeed é a entrada de seedBotLiquidity — o outstandingShares de um
 // ativo já seedado (Ação/FII, nunca ETF/sandbox) que bot.InitialAllocation
@@ -903,7 +880,7 @@ type botHolding struct {
 func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, coverageLister coverage.MarketMakerLister, ensurer *coverage.Ensurer, assets []botAssetSeed, poolSize int) {
 	bots := map[string]*botHolding{}
 	for i := 0; i < poolSize; i++ {
-		bots[otherBotUserID(i)] = &botHolding{positions: map[string]int64{}}
+		bots[botpool.UserID(i)] = &botHolding{positions: map[string]int64{}}
 	}
 
 	// Ativo já coberto por um Market Maker já teve o float distribuído entre os
@@ -955,14 +932,14 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, co
 			log.Printf("ativo %s: humanos já detêm %d/%d do float — nada sobrou pros bots, pulando", asset.AssetID, humanHoldings, asset.OutstandingShares)
 			continue
 		}
-		meanBotValue += float64(botAvailableFloat) * (1 - botMarketMakerSharePct) / float64(poolSize) * tick.DefaultInitialPrice
+		meanBotValue += float64(botAvailableFloat) * (1 - botpool.MarketMakerSharePct) / float64(poolSize) * tick.DefaultInitialPrice
 
 		if alreadyDistributed[asset.AssetID] {
 			log.Printf("ativo %s já distribuído entre os bots — pulando", asset.AssetID)
 			continue
 		}
 
-		allocation, err := bot.InitialAllocation(asset.AssetID, botAvailableFloat, botMarketMakerSharePct, poolSize, botSeed)
+		allocation, err := bot.InitialAllocation(asset.AssetID, botAvailableFloat, botpool.MarketMakerSharePct, poolSize, botpool.Seed)
 		if err != nil {
 			log.Fatalf("erro ao calcular alocação inicial de bots pro ativo %s: %v", asset.AssetID, err)
 		}
@@ -970,7 +947,7 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, co
 		newlyDistributed = append(newlyDistributed, asset)
 
 		for i, shares := range allocation.Others {
-			holder := bots[otherBotUserID(i)]
+			holder := bots[botpool.UserID(i)]
 			holder.positions[asset.AssetID] = shares
 			holder.positionValue += float64(shares) * tick.DefaultInitialPrice
 		}
@@ -979,9 +956,9 @@ func seedBotLiquidity(ctx context.Context, accountRepo *db.AccountRepository, co
 	// Bots primeiro, cobertura depois: se o seed cair no meio, o ativo continua
 	// sem cobertura e a próxima execução redistribui (idempotente, as posições
 	// que já existem são puladas) em vez de deixar o ativo coberto e sem bots.
-	minimumCash := tick.DefaultInitialPrice * botMinimumOrderShares
+	minimumCash := tick.DefaultInitialPrice * botpool.MinimumOrderShares
 	for i := 0; i < poolSize; i++ {
-		userID := otherBotUserID(i)
+		userID := botpool.UserID(i)
 		holding := bots[userID]
 		value := holding.positionValue
 		if value == 0 {
@@ -1045,49 +1022,6 @@ func ensureBotPosition(ctx context.Context, repo *db.AccountRepository, userID, 
 	log.Printf("posição inicial do bot %s no ativo %s: %d unidades a %.2f", userID, assetID, quantity, price)
 }
 
-// botSpecializationWithinScopePct é fixo no meio da faixa confirmada
-// (bot.SpecializationWithinScopeMin/Max, proposta 2.3.2) — mesmo raciocínio
-// de botMarketMakerSharePct ficar no meio de MarketMakerShareMin/Max (B.2):
-// quem decide o valor exato dentro da faixa é quem monta o catálogo, e
-// meio da faixa é a escolha mais neutra possível sem nenhum motivo pra
-// puxar pra uma ponta.
-const botSpecializationWithinScopePct = (bot.SpecializationWithinScopeMin + bot.SpecializationWithinScopeMax) / 2
-
-// botDirectionalMaxPositionSizePct/botMarketOrderPreference são o perfil de
-// risco (RiskProfile, tarefa C.1) dos bots direcionais (o do Market Maker é
-// bot.DefaultMarketMakerPersonality, P.2) — valores ilustrativos sem calibração fina
-// (mesmo tratamento de qualquer outro coeficiente deste seed), únicos por
-// enquanto porque nenhuma tarefa até aqui (C.2-C.5) diferencia perfil de
-// risco por bot individual, só por arquétipo. SpreadWidthPct só importa de
-// fato pro Market Maker (DecideMarketMakerOrders, C.3) — os direcionais não
-// leem esse campo, por isso ficam com 0.
-const (
-	botDirectionalMaxPositionSizePct = 0.20
-	botMarketOrderPreference         = 0.50
-)
-
-// sixFixedSectors são os 6 setores fixos da spec 3.3.2 — mesma lista que
-// catalog.IsValidSector valida, repetida aqui como slice concreto porque
-// bot.AssignSpecializations precisa iterar sobre eles (catalog não expõe
-// essa lista como slice, só o predicado de validade).
-var sixFixedSectors = []catalog.Sector{
-	catalog.SectorMineracao, catalog.SectorAgronegocio, catalog.SectorBancario,
-	catalog.SectorVarejo, catalog.SectorEnergia, catalog.SectorTecnologia,
-}
-
-// nonEquityAssetClasses são as classes de Renda Variável sem setor próprio
-// no catálogo atual (FII/ETF, catalog.go) — Ação já é coberta via
-// sixFixedSectors (todo ativo type=acao tem uma company_sector), então não
-// entra aqui de novo (evita um bot "genérico de Ação" redundante com os
-// grupos por setor).
-var nonEquityAssetClasses = []catalog.AssetType{catalog.AssetFII, catalog.AssetETF}
-
-// botDirectionalArchetypes são os 3 arquétipos que botOtherBotCount
-// (direcionais) se dividem entre — Market Maker fica de fora porque já tem
-// sua própria conta única e escopo próprio (todo o pool, ver
-// seedBotPersonalities), não faz parte da distribuição por especialização.
-var botDirectionalArchetypes = []bot.Archetype{bot.ArchetypeRuido, bot.ArchetypeChartista, bot.ArchetypeFundamentalista}
-
 // seedBotPersonalities atribui personalidade (tarefa C.1) a cada conta do
 // pool de bots direcionais já criado por seedBotLiquidity (B.2, tarefa
 // anterior) — o Market Maker não passa mais por aqui: conta e personalidade
@@ -1095,54 +1029,17 @@ var botDirectionalArchetypes = []bot.Archetype{bot.ArchetypeRuido, bot.Archetype
 // direcionais se dividem entre os 3 arquétipos restantes via bot.AssignSpecializations
 // (C.6), que garante que todo setor/classe tem pelo menos um bot de cada
 // arquétipo cobrindo-o. Nível de conhecimento dos bots Fundamentalistas é
-// sorteado (determinístico por botSeed) — o único jeito de ter bots "que
+// sorteado (determinístico por botpool.Seed) — o único jeito de ter bots "que
 // sabem mais que outros" sem hardcodar um valor igual pra todos.
 // Idempotente: ensureBotPersonality pula bots que já têm personalidade
 // persistida, mesma convenção de ensureBotAccount/ensureBotPosition.
 func seedBotPersonalities(ctx context.Context, repo *db.BotRepository, poolSize int) {
-	// Os legacyPoolSize primeiros bots mantêm a distribuição e o sorteio de
-	// conhecimento de sempre (o seed real não muda). Os bots acima dele (tarefa
-	// Q.2, catálogo maior) repetem ciclicamente a especialização dos originais,
-	// então a proporção entre arquétipos e a cobertura de todo setor e classe de
-	// ativo se mantêm por construção, e crescer o pool nunca altera um bot que já
-	// existe. O sorteio de conhecimento deles é próprio por bot.
-	legacy, err := bot.AssignSpecializations(botDirectionalArchetypes, sixFixedSectors, nonEquityAssetClasses, legacyPoolSize)
+	personalities, err := botpool.Personalities(poolSize)
 	if err != nil {
-		log.Fatalf("erro ao distribuir especialização entre os %d bots direcionais: %v", legacyPoolSize, err)
+		log.Fatalf("erro ao montar as personalidades dos bots direcionais: %v", err)
 	}
-	assignments := append([]bot.SpecializationAssignment{}, legacy...)
-	for i := legacyPoolSize; i < poolSize; i++ {
-		assignments = append(assignments, legacy[i%legacyPoolSize])
-	}
-
-	knowledgeRNG := rand.New(rand.NewSource(botSeed))
-	directionalRisk, err := bot.NewRiskProfile(botDirectionalMaxPositionSizePct, botMarketOrderPreference, 0)
-	if err != nil {
-		log.Fatalf("perfil de risco dos bots direcionais inválido: %v", err)
-	}
-
-	for i, assignment := range assignments {
-		scope, err := bot.NewSpecializationScope(assignment.Sectors, nil, assignment.AssetClasses, botSpecializationWithinScopePct)
-		if err != nil {
-			log.Fatalf("escopo de especialização do bot direcional %d inválido: %v", i, err)
-		}
-
-		var knowledgeLevel *float64
-		if assignment.Archetype == bot.ArchetypeFundamentalista {
-			var level float64
-			if i < legacyPoolSize {
-				level = knowledgeRNG.Float64()
-			} else {
-				level = rand.New(rand.NewSource(botSeed + int64(i))).Float64()
-			}
-			knowledgeLevel = &level
-		}
-
-		personality, err := bot.NewPersonality(assignment.Archetype, scope, knowledgeLevel, directionalRisk)
-		if err != nil {
-			log.Fatalf("personalidade do bot direcional %d inválida: %v", i, err)
-		}
-		ensureBotPersonality(ctx, repo, otherBotUserID(i), personality)
+	for i, personality := range personalities {
+		ensureBotPersonality(ctx, repo, botpool.UserID(i), personality)
 	}
 }
 

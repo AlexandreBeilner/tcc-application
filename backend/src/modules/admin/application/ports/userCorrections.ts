@@ -34,7 +34,6 @@ export interface UserCorrections {
   adjustXp(userId: string, delta: number): Promise<CorrectedProgression>
   setStreak(userId: string, value: number): Promise<CorrectedProgression>
   grantAchievement(userId: string, achievementId: string): Promise<{ id: string; name: string }>
-  revokeAchievement(userId: string, achievementId: string): Promise<{ id: string; name: string }>
   completeLesson(userId: string, lessonId: string): Promise<{ id: string; code: string }>
   reopenLesson(userId: string, lessonId: string): Promise<{ id: string; code: string }>
 }

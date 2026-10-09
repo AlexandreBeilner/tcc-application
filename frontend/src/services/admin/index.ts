@@ -1,10 +1,19 @@
-import { apiRequest } from '../client'
+import { apiDownload, apiRequest } from '../client'
+import type { DownloadedFile } from '../client'
 import type {
     AchievementCatalog,
     AdminRanking,
     AdminRankingFilters,
     CatalogAchievement,
     CatalogMission,
+    AdminLesson,
+    AdminLessonContent,
+    AdminLessonForEdit,
+    LessonCreateInput,
+    LessonCreateResult,
+    LessonRevisionContent,
+    LessonSaveResult,
+    LessonPublicationResult,
     CreateAchievementInput,
     UpdateAchievementInput,
     UpdateMissionInput,
@@ -31,14 +40,27 @@ import type {
     MacroEventFilters,
     CancelOrdersBatchInput,
     CancelOrdersBatchResult,
+    CatalogAsset,
+    CatalogPatch,
+    CreatedCatalogAsset,
     EngineSettingKey,
     EngineSettings,
     ListAdminOrdersResult,
+    NewCatalogAsset,
+    NewCatalogAssetPreview,
     ListAuditLogResult,
     ListMacroEventsResult,
     ListTicksResult,
     MonitorAsset,
     MonitorAssetDetail,
+    AdminAnnouncement,
+    AnnouncementInput,
+    AnnouncementPatch,
+    EndAnnouncementResult,
+    ExportDataset,
+    ExportFilters,
+    IntegrityRun,
+    MaintenanceInput,
     PauseTradingInput,
     SchedulerStatus,
     SystemHealth,
@@ -50,6 +72,19 @@ import type {
 } from './types'
 
 export type {
+    AdminLesson,
+    AdminLessonContent,
+    AdminLessonDetail,
+    AdminLessonForEdit,
+    LessonCreateInput,
+    LessonCreateResult,
+    LessonRevisionAction,
+    LessonRevisionContent,
+    LessonRevisionItem,
+    LessonSaveResult,
+    LessonFunnel,
+    LessonMicroDecisionType,
+    LessonPublicationResult,
     AchievementCatalog,
     AchievementCriteriaType,
     AchievementCriterionOption,
@@ -90,6 +125,18 @@ export type {
     EngineSettingKey,
     EngineSettings,
     ReadOnlySetting,
+    CatalogAsset,
+    CatalogCompany,
+    CatalogEditableField,
+    CatalogETF,
+    CatalogFII,
+    CatalogFixedIncome,
+    CatalogPatch,
+    CatalogPoolPreview,
+    CreatedCatalogAsset,
+    NewCatalogAsset,
+    NewCatalogAssetKind,
+    NewCatalogAssetPreview,
     AdminBot,
     AdminBotListing,
     BotArchetype,
@@ -101,6 +148,20 @@ export type {
     CreateBotInput,
     FundBotInput,
     UpdateBotInput,
+    ExportDataset,
+    ExportFilters,
+    IntegrityDivergence,
+    IntegrityKind,
+    IntegrityReport,
+    IntegrityRun,
+    AdminAnnouncement,
+    AnnouncementInput,
+    AnnouncementKind,
+    AnnouncementPatch,
+    AnnouncementSeverity,
+    AnnouncementStatus,
+    EndAnnouncementResult,
+    MaintenanceInput,
     HaltScope,
     PauseTradingInput,
     TradingHalt,
@@ -309,6 +370,24 @@ export function resetEngineSetting(token: string, key: EngineSettingKey): Promis
     return apiRequest<EngineSettings>(`/admin/settings/${key}`, { token, method: 'DELETE' })
 }
 
+// Catálogo de ativos (N.12): consulta e ajuste de uma lista fechada de campos.
+export async function listAdminCatalog(token: string): Promise<CatalogAsset[]> {
+    return (await apiRequest<{ assets: CatalogAsset[] }>('/admin/catalog', { token })).assets
+}
+
+export function updateCatalogAsset(token: string, assetId: string, patch: CatalogPatch): Promise<CatalogAsset> {
+    return apiRequest<CatalogAsset>(`/admin/catalog/${assetId}`, { token, method: 'PATCH', body: patch })
+}
+
+// Cadastro de ativo novo (N.13): o preview mostra o que seria criado sem gravar nada.
+export function previewCatalogAsset(token: string, asset: NewCatalogAsset): Promise<NewCatalogAssetPreview> {
+    return apiRequest<NewCatalogAssetPreview>('/admin/catalog/preview', { token, method: 'POST', body: asset })
+}
+
+export function createCatalogAsset(token: string, asset: NewCatalogAsset): Promise<CreatedCatalogAsset> {
+    return apiRequest<CreatedCatalogAsset>('/admin/catalog', { token, method: 'POST', body: asset })
+}
+
 // Detalhe de um evento macro (N.11): estado de ciclo de vida, impacto realizado e a versão
 // que o usuário vê.
 export function getMacroEventDetail(token: string, id: string, windowDays?: number): Promise<MacroEventDetail> {
@@ -367,17 +446,10 @@ export function setAdminUserStreak(token: string, userId: string, value: number,
     return apiRequest<CorrectedProgression>(`/admin/users/${userId}/streak`, { token, method: 'POST', body: { value, reason } })
 }
 
-export type AchievementCorrection = 'grant' | 'revoke'
 export type LessonCorrection = 'complete' | 'reopen'
 
-export function correctAdminUserAchievement(
-    token: string,
-    userId: string,
-    achievementId: string,
-    action: AchievementCorrection,
-    reason: string,
-): Promise<void> {
-    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/${action}`, { token, method: 'POST', body: { reason } })
+export function grantAdminUserAchievement(token: string, userId: string, achievementId: string, reason: string): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}/achievements/${achievementId}/grant`, { token, method: 'POST', body: { reason } })
 }
 
 export function correctAdminUserLesson(
@@ -414,4 +486,75 @@ export function getAdminRanking(token: string, filters: AdminRankingFilters): Pr
     const params = new URLSearchParams({ criterion: filters.criterion, page: String(filters.page) })
     if (filters.window) params.set('window', filters.window)
     return apiRequest<AdminRanking>(`/admin/gamification/ranking?${params.toString()}`, { token })
+}
+
+export function getAdminLessons(token: string) {
+    return apiRequest<{ lessons: AdminLesson[] }>('/admin/lessons', { token })
+}
+
+export function setLessonPublished(token: string, id: string, published: boolean) {
+    return apiRequest<LessonPublicationResult>(`/admin/lessons/${id}/published`, { token, method: 'PATCH', body: { published } })
+}
+
+export function getAdminLesson(token: string, id: string) {
+    return apiRequest<AdminLessonForEdit>(`/admin/lessons/${id}`, { token })
+}
+
+export function updateAdminLesson(token: string, id: string, content: AdminLessonContent) {
+    return apiRequest<LessonSaveResult>(`/admin/lessons/${id}`, { token, method: 'PUT', body: content })
+}
+
+export function createAdminLesson(token: string, input: LessonCreateInput) {
+    return apiRequest<LessonCreateResult>('/admin/lessons', { token, method: 'POST', body: input })
+}
+
+export function getLessonRevision(token: string, lessonId: string, revisionId: string) {
+    return apiRequest<LessonRevisionContent>(`/admin/lessons/${lessonId}/revisions/${revisionId}`, { token })
+}
+
+export function restoreLessonRevision(token: string, lessonId: string, revisionId: string) {
+    return apiRequest<LessonSaveResult>(`/admin/lessons/${lessonId}/revisions/${revisionId}/restore`, { token, method: 'POST' })
+}
+
+// Comunicados globais e modo de manutenção (N.20). Encerrar a manutenção levanta a pausa de
+// negociação que ela abriu; abrir manutenção com pausa pede senha recente (`withReauth`).
+export function listAdminAnnouncements(token: string): Promise<{ announcements: AdminAnnouncement[] }> {
+    return apiRequest<{ announcements: AdminAnnouncement[] }>('/admin/announcements', { token })
+}
+
+export function createAnnouncement(token: string, input: AnnouncementInput): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>('/admin/announcements', { token, method: 'POST', body: input })
+}
+
+export function updateAnnouncement(token: string, id: string, patch: AnnouncementPatch): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>(`/admin/announcements/${id}`, { token, method: 'PATCH', body: patch })
+}
+
+export function endAnnouncement(token: string, id: string): Promise<EndAnnouncementResult> {
+    return apiRequest<EndAnnouncementResult>(`/admin/announcements/${id}/end`, { token, method: 'POST' })
+}
+
+export function startMaintenance(token: string, input: MaintenanceInput): Promise<AdminAnnouncement> {
+    return apiRequest<AdminAnnouncement>('/admin/maintenance', { token, method: 'POST', body: input })
+}
+
+// Integridade financeira (N.21): abre a verificação (202, roda em segundo plano no motor) e lê a
+// última. `run` é nulo se nenhuma rodou desde a subida do motor.
+export function startIntegrityCheck(token: string): Promise<IntegrityRun> {
+    return apiRequest<IntegrityRun>('/admin/integrity/check', { token, method: 'POST' })
+}
+
+export async function getIntegrityRun(token: string): Promise<IntegrityRun | null> {
+    return (await apiRequest<{ run: IntegrityRun | null }>('/admin/integrity/check', { token })).run
+}
+
+// Exportação CSV (N.21). Só `users` pede senha recente (`reauth_required`), então quem chama
+// embrulha em `withReauth`.
+export function downloadAdminExport(token: string, dataset: ExportDataset, filters: ExportFilters = {}): Promise<DownloadedFile> {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined) params.set(key, String(value))
+    }
+    const query = params.toString()
+    return apiDownload(`/admin/exports/${dataset}${query ? `?${query}` : ''}`, { token })
 }

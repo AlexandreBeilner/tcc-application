@@ -25,6 +25,8 @@ const macroEventFromTemplateSchema = z.object({
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
   apply_on_day: z.number().int().positive().optional(),
+  // Antecedência com que o jogador vê o evento (N.25); o motor valida o teto.
+  reveal_lead_days: z.number().int().min(0).optional(),
 })
 
 const macroEventAdHocSchema = z.object({
@@ -37,6 +39,8 @@ const macroEventAdHocSchema = z.object({
   targets: z.array(macroEventTargetSchema).min(1),
   created_by: z.uuid().optional(),
   apply_on_day: z.number().int().positive().optional(),
+  // Antecedência com que o jogador vê o evento (N.25); o motor valida o teto.
+  reveal_lead_days: z.number().int().min(0).optional(),
 })
 
 export const triggerMacroEventBodySchema = z.union([
@@ -342,4 +346,142 @@ export const adminRankingQuerySchema = z
   .refine((query) => query.criterion === 'level' || query.window !== undefined, {
     message: 'window é obrigatório exceto quando criterion=level',
     path: ['window'],
+  })
+
+// PATCH /admin/lessons/:id/published (N.18).
+export const setLessonPublishedBodySchema = z.object({ published: z.boolean() })
+
+// Conteúdo de uma lição (N.23), em snake_case como o resto da API. Só formato e tamanho de transporte:
+// as regras de negócio (aposta, chaves, ticker no catálogo) são do domínio da lição, que devolve 422 com
+// a mensagem. Os limites daqui são folgados de propósito (impedem corpo absurdo, não duplicam a regra).
+const lessonContentShape = {
+  title: z.string().max(1000),
+  central_concept: z.string().max(10000),
+  scenario_text: z.string().max(100000),
+  micro_decision_prompt: z.string().max(100000),
+  micro_decision_type: z.enum([
+    'reflection',
+    'growth_calculator',
+    'fixed_income_comparison',
+    'live_indicator',
+    'live_macro_indicator',
+  ]),
+  micro_decision_asset_ticker: z.string().trim().max(100).nullable(),
+  micro_decision_options: z.array(z.string().max(1000)).max(50).nullable(),
+  micro_decision_correct_option: z.number().int().nullable(),
+  revelation_text: z.string().max(100000),
+  unlocks_description: z.string().max(10000).nullable(),
+  unlocks_keys: z.array(z.string().max(100)).max(50),
+  unlocks_asset_ticker: z.string().trim().max(100).nullable(),
+}
+
+// PUT /admin/lessons/:id (N.23): o conteúdo inteiro (substitui, não mescla).
+export const lessonContentBodySchema = z.object(lessonContentShape)
+
+// POST /admin/lessons (N.23): o conteúdo mais onde a lição entra (depois de qual lição; `null` = início).
+export const createLessonBodySchema = z.object({
+  ...lessonContentShape,
+  after_lesson_id: z.guid().nullable(),
+})
+
+// PATCH /admin/catalog/:id (N.12). Só os quatro campos da lista fechada; qualquer outro
+// (ticker, setor, float...) é 400 aqui e nunca chega ao motor. Os limites de cada campo são
+// do domínio do motor (422); aqui só o formato e o tamanho máximo.
+export const assetIdParamSchema = z.object({ id: z.uuid() })
+
+export const updateCatalogAssetBodySchema = z
+  .strictObject({
+    name: z.string().max(200).optional(),
+    base_growth_pct: z.number().finite().optional(),
+    quality_multiplier: z.number().finite().optional(),
+    methodology_summary: z.string().max(2000).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: 'informe pelo menos um campo a alterar',
+  })
+
+// POST /admin/catalog e /admin/catalog/preview (N.13): um formato por classe. Aqui só o
+// formato (tipos e tamanho máximo); as faixas e as regras são do domínio do motor (422).
+const newAssetBase = { ticker: z.string().max(12), name: z.string().max(200) }
+
+export const newCatalogAssetBodySchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('acao'),
+    ...newAssetBase,
+    company_name: z.string().max(200),
+    cnpj: z.string().max(20),
+    sector: z.string().max(40),
+    outstanding_shares: z.number().int(),
+    base_growth_pct: z.number().finite(),
+    quality_multiplier: z.number().finite(),
+  }),
+  z.strictObject({
+    kind: z.literal('fii_tijolo'),
+    ...newAssetBase,
+    segment: z.string().max(100),
+    vacancy_rate: z.number().finite(),
+  }),
+  z.strictObject({
+    kind: z.literal('fii_papel'),
+    ...newAssetBase,
+    indexador: z.enum(['CDI', 'IPCA+']),
+  }),
+  z.strictObject({
+    kind: z.literal('etf'),
+    ...newAssetBase,
+    benchmark_index: z.string().max(200),
+    methodology: z.string().max(2000).optional(),
+    holdings: z
+      .array(z.strictObject({ ticker: z.string().max(12), weight_pct: z.number().finite() }))
+      .max(50),
+  }),
+])
+
+const isoDate = z.iso.datetime({ offset: true })
+
+// POST /admin/announcements (N.20). Início ausente = agora; fim ausente/nulo = até encerrar.
+// Tamanho e texto puro são regra do domínio (a borda só confere o formato).
+export const createAnnouncementBodySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  severity: z.enum(['info', 'warning', 'critical']),
+  dismissible: z.boolean().default(true),
+  starts_at: isoDate.optional(),
+  ends_at: isoDate.nullable().optional(),
+})
+
+// PATCH /admin/announcements/:id (N.20): só o que veio muda; `ends_at: null` tira o fim.
+export const updateAnnouncementBodySchema = z
+  .object({
+    title: z.string().optional(),
+    body: z.string().optional(),
+    severity: z.enum(['info', 'warning', 'critical']).optional(),
+    dismissible: z.boolean().optional(),
+    starts_at: isoDate.optional(),
+    ends_at: isoDate.nullable().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: 'informe ao menos um campo' })
+
+// POST /admin/maintenance (N.20).
+export const startMaintenanceBodySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  starts_at: isoDate.optional(),
+  ends_at: isoDate.nullable().optional(),
+  pause_trading: z.boolean().default(false),
+})
+
+// GET /admin/exports/:dataset (N.21): período inclusivo (ISO 8601 com fuso) e teto de linhas.
+// O teto real (50.000) é aplicado pelo caso de uso; aqui só o formato.
+export const exportDatasetParamSchema = z.enum(['users', 'orders', 'market-events', 'audit-log'])
+
+export const exportQuerySchema = z
+  .object({
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).optional(),
+  })
+  .refine((q) => !q.from || !q.to || new Date(q.from) <= new Date(q.to), {
+    message: 'from não pode ser depois de to',
+    path: ['from'],
   })

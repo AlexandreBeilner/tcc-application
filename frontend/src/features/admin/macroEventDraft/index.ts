@@ -21,6 +21,7 @@ export function createEmptyMacroEventDraft(): MacroEventDraft {
         affectsFundamentals: false,
         targets: [createEmptyTarget()],
         applyOnDay: '',
+        revealLeadDays: '',
     }
 }
 
@@ -57,6 +58,15 @@ export function validateMacroEventDraft(draft: MacroEventDraft, currentDay?: num
         errors.push(`O dia de aplicação precisa ser posterior ao dia simulado atual (${currentDay}).`)
     }
 
+    // A antecedência só existe num evento agendado (um disparo imediato já aparece na véspera).
+    const lead = typeof applyDay === 'number' ? parseNonNegativeInt(draft.revealLeadDays) : undefined
+    if (lead === 'invalid') {
+        errors.push('A antecedência precisa ser um número inteiro, 0 ou maior.')
+    } else if (typeof lead === 'number' && typeof applyDay === 'number' && currentDay !== undefined && applyDay > currentDay) {
+        const daysAhead = applyDay - currentDay
+        if (lead > daysAhead) errors.push(`A antecedência não pode passar de ${daysAhead} dias (o efeito começa em ${daysAhead} dias).`)
+    }
+
     return errors
 }
 
@@ -65,6 +75,26 @@ function parseApplyOnDay(raw: string): number | 'invalid' | undefined {
     const trimmed = raw.trim()
     if (trimmed === '') return undefined
     return /^\d+$/.test(trimmed) ? Number(trimmed) : 'invalid'
+}
+
+// Vazio significa "a véspera" (undefined); aceita 0.
+function parseNonNegativeInt(raw: string): number | 'invalid' | undefined {
+    const trimmed = raw.trim()
+    if (trimmed === '') return undefined
+    return /^\d+$/.test(trimmed) ? Number(trimmed) : 'invalid'
+}
+
+// Só um evento agendado manda a antecedência; vazio deixa o motor usar a véspera.
+function revealLeadOf(draft: MacroEventDraft): number | undefined {
+    if (typeof parseApplyOnDay(draft.applyOnDay) !== 'number') return undefined
+    const lead = parseNonNegativeInt(draft.revealLeadDays)
+    return typeof lead === 'number' ? lead : undefined
+}
+
+function revealLeadLabel(lead: number | undefined): string {
+    if (lead === undefined) return 'Na véspera do efeito (padrão)'
+    if (lead === 0) return 'Só quando o efeito começa'
+    return lead === 1 ? '1 dia antes do efeito' : `${lead} dias antes do efeito`
 }
 
 function toWireTarget(target: MacroEventTargetDraft): NewsEventTarget {
@@ -78,7 +108,11 @@ function toWireTarget(target: MacroEventTargetDraft): NewsEventTarget {
 export function buildTriggerMacroEventInput(draft: MacroEventDraft): TriggerMacroEventInput {
     const targets = draft.targets.map(toWireTarget)
     const applyDay = parseApplyOnDay(draft.applyOnDay)
-    const schedule = typeof applyDay === 'number' ? { apply_on_day: applyDay } : {}
+    const lead = revealLeadOf(draft)
+    const schedule = {
+        ...(typeof applyDay === 'number' ? { apply_on_day: applyDay } : {}),
+        ...(lead !== undefined ? { reveal_lead_days: lead } : {}),
+    }
 
     if (draft.mode === 'template') {
         return { template_key: draft.templateKey, targets, ...schedule }
@@ -143,6 +177,9 @@ export function buildMacroEventSummaryRows(draft: MacroEventDraft, assetLabels: 
         label: 'Efeito começa',
         value: typeof applyDay === 'number' ? `No dia simulado ${applyDay} (agendado)` : 'No próximo tick (já)',
     })
+    if (typeof applyDay === 'number') {
+        rows.push({ label: 'Jogador vê o evento', value: revealLeadLabel(revealLeadOf(draft)) })
+    }
 
     return rows
 }

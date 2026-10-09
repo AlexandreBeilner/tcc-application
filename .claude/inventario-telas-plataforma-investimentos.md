@@ -460,7 +460,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Objetivo:** formalizar RF13 — criação e disparo manual de evento.
 - **Acesso:** a partir de 10.3.
 - **Conteúdo:** seleção de template do catálogo (seção 3.3.2 da spec, 10 templates pré-definidos) OU criação avulsa (título, narrativa, setor/ativo-alvo, banda de magnitude — Leve/Moderado/Severo, tipo de efeito — preço/fundamentos/ambos).
-- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico. Com um **dia de aplicação** preenchido (N.11) o botão vira "Agendar evento": o evento nasce pendente, só começa a produzir efeito naquele dia simulado e só aparece pros jogadores na véspera; vazio, dispara já (efeito a partir do próximo tick).
+- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico. Com um **dia de aplicação** preenchido (N.11) o botão vira "Agendar evento": o evento nasce pendente, só começa a produzir efeito naquele dia simulado e só aparece pros jogadores quando faltar a **antecedência** escolhida (campo "dias de antecedência", N.25; vazio usa a véspera, 0 só mostra quando o efeito começa); vazio, dispara já (efeito a partir do próximo tick).
 - **Estados especiais:** validação de campos obrigatórios ao criar evento avulso; dia de aplicação que não é posterior ao dia simulado atual (recusado na tela e no motor).
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`, `companies` (para segmentar por setor).
 
@@ -501,7 +501,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ### 10.14 Detalhe do usuário
 - **Objetivo:** ver uma conta por inteiro e atuar sobre ela (N.16 e N.17). Rota `/admin/usuarios/:id`.
-- **Conteúdo:** cartões de conta, progressão, carteira (o administrador **vê o patrimônio absoluto**, exceção deliberada à RNF09), ordens abertas e linha do tempo de ações do painel sobre a conta; abaixo, **Correções de conta** (N.17): crédito de caixa sem teto, ajuste de XP, definir streak, conceder ou revogar conquista, concluir ou reabrir lição.
+- **Conteúdo:** cartões de conta, progressão, carteira (o administrador **vê o patrimônio absoluto**, exceção deliberada à RNF09), ordens abertas e linha do tempo de ações do painel sobre a conta; abaixo, **Correções de conta** (N.17): crédito de caixa sem teto, ajuste de XP, definir streak, conceder conquista (sem revogar, N.26), concluir ou reabrir lição.
 - **Ações:** suspender (motivo obrigatório), reativar, encerrar sessões, excluir a pedido (LGPD, digitando o username) e cada correção, todas com senha recente (exceto reativar) e na auditoria. O crédito pede confirmação mostrando o valor formatado; concluir lição não dá XP e reabrir pode tirar o acesso à lição seguinte (avisado na tela). Resetar carteira não existe.
 - **Estados especiais:** conta de administrador não é suspensa nem excluída pelo painel; motor fora do ar (carteira e ordens vêm vazias, o resto segue); recusa do backend aparece no formulário; conta excluída não mostra as correções.
 - **Dados envolvidos:** `users`, `user_progression`, `user_achievements`, `user_lesson_progress`, `admin_audit_log`, e `accounts`/`market_events` (via motor).
@@ -514,6 +514,21 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Dados envolvidos:** `achievements`, `user_achievements`, `daily_missions`, `user_mission_progress`.
 
 ---
+
+### 10.16 Catálogo de ativos
+- **Objetivo:** consultar os parâmetros de todos os ativos e ajustar uma lista fechada de campos (N.12). Rota `/admin/mercado/catalogo`, dentro da seção "Mercado"; link na 10.6.
+- **Conteúdo:** filtros de classe (ações, FIIs, ETFs, renda fixa) e busca por ticker ou nome; um cartão por ativo com o bloco da classe (RF21: ação com empresa, setor, crescimento base e multiplicador de qualidade; ETF com índice, taxa, rebalanceamento, cesta e metodologia; FII com tipo, segmento, indexador ou vacância; renda fixa com emissor, taxa, vencimento e aplicação mínima). Os campos estruturais (ticker, setor, cotas em circulação, ciclo de relatório) aparecem separados por borda tracejada, sem controle de edição. Ativo do sandbox vem marcado e travado.
+- **Ações:** editar nome (todos), crescimento base e multiplicador de qualidade (ação; valem pra empresa emissora, ou seja, ON e PN), metodologia (ETF). Confirmação com o de/para antes de gravar, e a alteração vai pra auditoria. **Cadastrar ativo novo (N.13):** formulário por classe (ação com empresa, CNPJ, setor, float, crescimento e qualidade; FII de tijolo com segmento e vacância; FII de papel com indexador; ETF com índice, metodologia e cesta de ações/FIIs já cadastrados), preview do que será criado (bots novos, Market Maker que cobre, float distribuído) e confirmação digitando o ticker. Não há exclusão de ativo.
+- **Estados especiais:** carregando; erro de carga; filtro sem resultado; valor fora da regra (recusado na tela e, se passar, com a mensagem do motor); ativo removido no meio do caminho. Cartões em 1, 2 ou 3 colunas conforme o breakpoint.
+- **Dados envolvidos:** `GET /admin/catalog`, `PATCH /admin/catalog/:id`, `POST /admin/catalog/preview`, `POST /admin/catalog` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
+### 10.17 Sistema
+- **Objetivo:** avisar todos os usuários de algo que vai acontecer, pôr a plataforma em manutenção (N.20), provar que o estado financeiro bate com o histórico e exportar dados (N.21). Rota `/admin/sistema`, seção "Sistema", uma página só com quatro blocos.
+- **Conteúdo:** **Modo de manutenção** (formulário ou, com uma manutenção em aberto, o resumo dela com "Encerrar manutenção"); **Integridade financeira** (botão "Verificar agora", a última verificação, o resumo do que foi conferido, uma contagem por categoria de divergência mesmo quando zero, e a lista de divergências com esperado e encontrado); **Exportar dados em CSV** (conjunto, período, limite de linhas, o que o conjunto contém e o que nunca contém); **Novo comunicado** (título até 80 e texto até 280 caracteres, só texto, severidade, início, fim, "o usuário pode dispensar"); **lista de comunicados** com o estado de cada um (no ar com selo sólido; agendado e encerrado com selo tracejado).
+- **Ações:** publicar, editar (menos a manutenção), encerrar, cancelar um agendado; iniciar e encerrar manutenção. Iniciar manutenção com a pausa de negociação liga a pausa global (N.9) e pede digitar `PAUSAR TUDO` e senha recente; encerrar a manutenção levanta a pausa que ela abriu. Verificar integridade só lê (nunca há botão de corrigir) e roda em segundo plano, com a tela consultando a cada 2 segundos enquanto roda; só uma por vez. Baixar CSV entrega o arquivo ao navegador e informa quantas linhas vieram e se o teto cortou; a exportação de usuários (traz e-mail) pede senha recente. Tudo na auditoria (`announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`, `integrity.check`, `export.csv`).
+- **No app do usuário:** faixa no topo de todas as telas autenticadas (e no WebView do app mobile, que carrega o mesmo frontend), com o rótulo da severidade em texto (Aviso, Atenção, Importante, Manutenção). Comunicado dispensável tem botão de fechar e não volta na mesma sessão do navegador; a manutenção é crítica e não dispensável. Fora da janela de início e fim o comunicado não aparece.
+- **Estados especiais:** texto com `<` ou `>` recusado na tela e no servidor; fim antes do início; segunda manutenção em aberto (409); integridade sem verificação anterior, em andamento, falha, zero divergências, mais de 200 divergências (lista cortada, contagens exatas); exportação com período invertido, arquivo cortado pelo teto, senha não confirmada; carregando; erro de carga.
+- **Dados envolvidos:** `announcements`; `GET/POST/PATCH /admin/announcements`, `POST /admin/announcements/:id/end`, `POST /admin/maintenance`, `GET /announcements`, `POST/GET /admin/integrity/check` e `GET /admin/exports/:dataset` (`.docs/backend/admin.md`, `.docs/backend/announcements.md`, `.docs/engine/admin.md`).
 
 ## 11. Resumo — todas as telas numeradas
 
@@ -561,8 +576,10 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.13 | Usuários | Admin |
 | 10.14 | Detalhe do usuário | Admin |
 | 10.15 | Gamificação | Admin |
+| 10.16 | Catálogo de ativos | Admin |
+| 10.17 | Sistema | Admin |
 
-**Total: 39 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 41 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

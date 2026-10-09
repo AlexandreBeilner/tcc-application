@@ -11,7 +11,7 @@ import {
   insertLessonInMiddle,
   reorderExistingLessons,
   LESSON_SEEDS,
-  upsertLessonSeed,
+  importLessonSeed,
 } from './seedLessons'
 
 // Teste de integração (RC.4.1, RC.4.6 e RC.4.2): só roda com TEST_DATABASE_URL apontando
@@ -79,9 +79,9 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
       sortOrder: oldTrilha2.includes(s.stableKey)
         ? firstTrilha2 - 2 + oldTrilha2.indexOf(s.stableKey)
         : s.sortOrder - insertedBefore(s.sortOrder),
-      code: s.stableKey,
+      code: s.stableKey.length <= 10 ? s.stableKey : s.code,
     }))
-    for (const seed of before) await upsertLessonSeed(database, seed)
+    for (const seed of before) await importLessonSeed(database, seed)
     const idsBefore = new Map(
       (await db.select().from(schema.lessons)).map((l) => [l.stableKey, l.id]),
     )
@@ -126,7 +126,7 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
     // RC.4.3: a Trilha 2 foi reordenada (ticker antes de IPO, notícias depois de
     // oferta e demanda...), o que o `upsert` simples não consegue por causa da unicidade.
     expect(await reorderExistingLessons(database, LESSON_SEEDS)).toBeGreaterThan(0)
-    for (const seed of LESSON_SEEDS) await upsertLessonSeed(database, seed)
+    for (const seed of LESSON_SEEDS) await importLessonSeed(database, seed)
 
     const after = await db.select().from(schema.lessons)
     expect(after).toHaveLength(LESSON_SEEDS.length)

@@ -284,9 +284,27 @@ export function MacroEventTriggerForm({ onTriggered }: MacroEventTriggerFormProp
                     />
                 </label>
                 <p className={styles.hint}>
-                    Com um dia futuro, o evento fica agendado: nasce pendente, só aparece pros jogadores na véspera e pode ser cancelado até
-                    o efeito começar.
+                    Com um dia futuro, o evento fica agendado: nasce pendente, pode ser cancelado até o efeito começar e só aparece pros
+                    jogadores quando faltar a antecedência abaixo (por padrão, na véspera).
                 </p>
+
+                {scheduling && (
+                    <>
+                        <label className={styles.field}>
+                            Dias de antecedência com que o jogador vê o evento (opcional)
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={draft.revealLeadDays}
+                                onChange={(e) => updateDraft({ revealLeadDays: e.target.value })}
+                                placeholder="Vazio usa a véspera (1 dia). 0 só mostra quando o efeito começa"
+                            />
+                        </label>
+                        <p className={styles.hint}>
+                            Quanto maior, mais aviso o jogador tem. O administrador sempre vê o evento, independente disso.
+                        </p>
+                    </>
+                )}
 
                 {clientErrors.length > 0 && (
                     <ul className={styles.error} role="alert">

@@ -100,6 +100,9 @@ export function AdminMercado() {
                     <Link to="/admin/mercado/ordens" className={styles.link}>
                         Ordens
                     </Link>
+                    <Link to="/admin/mercado/catalogo" className={styles.link}>
+                        Catálogo
+                    </Link>
                     <Link to="/admin/eventos" className={styles.link}>
                         Eventos macro
                     </Link>

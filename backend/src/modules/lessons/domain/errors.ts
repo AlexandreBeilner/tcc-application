@@ -35,3 +35,12 @@ export class CheckpointUnsolvedError extends Error {}
 // Correção manual de lição pelo painel (N.17).
 export class LessonAlreadyCompletedError extends Error {}
 export class LessonNotReopenableError extends Error {}
+// Gestão do catálogo de lições pelo painel (N.18/N.23).
+// Publicar lição já publicada, ou despublicar uma já despublicada.
+export class LessonPublicationConflictError extends Error {}
+// Conteúdo que a regra de domínio da lição recusa (N.23). A mensagem lista todas as recusas.
+export class InvalidLessonContentError extends Error {}
+// Edição que não muda nada (N.23): não gera revisão nem linha de auditoria de sucesso.
+export class LessonUnchangedError extends Error {}
+// Revisão que não existe ou é de outra lição (N.23).
+export class LessonRevisionNotFoundError extends Error {}

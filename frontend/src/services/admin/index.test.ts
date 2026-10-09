@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+    downloadAdminExport,
+    getIntegrityRun,
+    startIntegrityCheck,
+    createAnnouncement,
+    endAnnouncement,
+    listAdminAnnouncements,
+    startMaintenance,
+    updateAnnouncement,
     advanceTicks,
     getAdminBotActivity,
     getAdminBotsSummary,
@@ -10,6 +18,10 @@ import {
     liftTradingHalt,
     cancelMacroEvent,
     getEngineSettings,
+    listAdminCatalog,
+    updateCatalogAsset,
+    previewCatalogAsset,
+    createCatalogAsset,
     getMacroEventDetail,
     listTradingHalts,
     resetEngineSetting,
@@ -31,15 +43,22 @@ import {
     triggerMacroEvent,
     triggerTick,
     adjustAdminUserXp,
-    correctAdminUserAchievement,
+    grantAdminUserAchievement,
     correctAdminUserLesson,
     creditAdminUser,
     getUserCorrectionContext,
     setAdminUserStreak,
     createAchievement,
     getAchievementCatalog,
+    createAdminLesson,
+    getAdminLesson,
+    getAdminLessons,
+    getLessonRevision,
+    restoreLessonRevision,
+    updateAdminLesson,
     getAdminRanking,
     getMissionCatalog,
+    setLessonPublished,
     updateAchievement,
     updateMission,
 } from '.'
@@ -249,6 +268,35 @@ describe('services/admin', () => {
         expect(init.method).toBe('DELETE')
     })
 
+    it('listAdminCatalog faz GET /admin/catalog e devolve só a lista', async () => {
+        const fetchMock = mockFetchOnce({ assets: [{ asset_id: 'a1' }] })
+        expect(await listAdminCatalog('token')).toEqual([{ asset_id: 'a1' }])
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/catalog')
+    })
+
+    it('updateCatalogAsset faz PATCH /admin/catalog/:id com o patch', async () => {
+        const fetchMock = mockFetchOnce({ asset_id: 'a1' })
+        await updateCatalogAsset('token', 'a1', { name: 'Novo' })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/catalog/a1')
+        expect(init.method).toBe('PATCH')
+        expect(JSON.parse(init.body)).toEqual({ name: 'Novo' })
+    })
+
+    it('previewCatalogAsset e createCatalogAsset fazem POST com o pedido', async () => {
+        const asset = { kind: 'fii_papel', ticker: 'NOVP11', name: 'Fii', indexador: 'CDI' } as const
+        const preview = mockFetchOnce({ ticker: 'NOVP11', pool: null })
+        await previewCatalogAsset('token', asset)
+        expect(preview.mock.calls[0][0]).toBe('/admin/catalog/preview')
+        expect(preview.mock.calls[0][1].method).toBe('POST')
+        expect(JSON.parse(preview.mock.calls[0][1].body)).toEqual(asset)
+
+        const create = mockFetchOnce({ asset_id: 'a1' })
+        await createCatalogAsset('token', asset)
+        expect(create.mock.calls[0][0]).toBe('/admin/catalog')
+        expect(JSON.parse(create.mock.calls[0][1].body)).toEqual(asset)
+    })
+
     it('listTradingHalts faz GET /admin/halts', async () => {
         const fetchMock = mockFetchOnce({ active: [], recent: [] })
         await listTradingHalts('token')
@@ -364,12 +412,12 @@ describe('services/admin', () => {
         expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ value: 7, reason: 'falha nossa' })
     })
 
-    it('correctAdminUserAchievement e correctAdminUserLesson montam a rota pela ação', async () => {
+    it('grantAdminUserAchievement e correctAdminUserLesson montam a rota', async () => {
         const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => undefined })
         vi.stubGlobal('fetch', fetchMock)
-        await correctAdminUserAchievement('token', 'u1', 'a1', 'revoke', 'dada por engano')
+        await grantAdminUserAchievement('token', 'u1', 'a1', 'dada por engano')
         await correctAdminUserLesson('token', 'u1', 'l1', 'complete', 'lição travada')
-        expect(fetchMock.mock.calls[0][0]).toBe('/admin/users/u1/achievements/a1/revoke')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/users/u1/achievements/a1/grant')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/users/u1/lessons/l1/complete')
         expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ reason: 'lição travada' })
     })
@@ -408,11 +456,105 @@ describe('services/admin', () => {
         expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ xp_reward: 45 })
     })
 
+    it('getAdminLessons faz GET e setLessonPublished faz PATCH com published', async () => {
+        const fetchMock = mockFetchOnce({ lessons: [] })
+        await getAdminLessons('token')
+        await setLessonPublished('token', 'l1', false)
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/lessons')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/lessons/l1/published')
+        expect(fetchMock.mock.calls[1][1].method).toBe('PATCH')
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ published: false })
+    })
+
+    it('editor de lições: GET, PUT com o conteúdo, POST de criação e revisões', async () => {
+        const fetchMock = mockFetchOnce({})
+        const content = { title: 'x' } as never
+        await getAdminLesson('token', 'l1')
+        await updateAdminLesson('token', 'l1', content)
+        await createAdminLesson('token', { ...(content as object), after_lesson_id: null } as never)
+        await getLessonRevision('token', 'l1', 'r1')
+        await restoreLessonRevision('token', 'l1', 'r1')
+        const calls = fetchMock.mock.calls.map((c) => [c[0], c[1]?.method ?? 'GET'])
+        expect(calls).toEqual([
+            ['/admin/lessons/l1', 'GET'],
+            ['/admin/lessons/l1', 'PUT'],
+            ['/admin/lessons', 'POST'],
+            ['/admin/lessons/l1/revisions/r1', 'GET'],
+            ['/admin/lessons/l1/revisions/r1/restore', 'POST'],
+        ])
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ title: 'x' })
+        expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ title: 'x', after_lesson_id: null })
+    })
+
     it('getAdminRanking monta a query e omite a janela no critério de nível', async () => {
         const fetchMock = mockFetchOnce({ entries: [] })
         await getAdminRanking('token', { window: 'month', criterion: 'overall', page: 2 })
         await getAdminRanking('token', { criterion: 'level', page: 1 })
         expect(fetchMock.mock.calls[0][0]).toBe('/admin/gamification/ranking?criterion=overall&page=2&window=month')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/gamification/ranking?criterion=level&page=1')
+    })
+    it('comunicados: lista, cria, edita e encerra pelas rotas /admin/announcements', async () => {
+        let fetchMock = mockFetchOnce({ announcements: [] })
+        await listAdminAnnouncements('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/announcements')
+
+        fetchMock = mockFetchOnce({ id: 'a1' }, 201)
+        await createAnnouncement('token', { title: 't', body: 'b', severity: 'info', dismissible: true, ends_at: null })
+        let [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/announcements')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ title: 't', body: 'b', severity: 'info', dismissible: true, ends_at: null })
+
+        fetchMock = mockFetchOnce({ id: 'a1' })
+        await updateAnnouncement('token', 'a1', { title: 'novo' })
+        ;[url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/announcements/a1')
+        expect(init.method).toBe('PATCH')
+
+        fetchMock = mockFetchOnce({ outcome: 'ended' })
+        await endAnnouncement('token', 'a1')
+        ;[url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/announcements/a1/end')
+        expect(init.method).toBe('POST')
+    })
+
+    it('startMaintenance faz POST /admin/maintenance com a opção de pausar', async () => {
+        const fetchMock = mockFetchOnce({ id: 'a1' }, 201)
+        await startMaintenance('token', { title: 't', body: 'b', pause_trading: true })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/maintenance')
+        expect(JSON.parse(init.body)).toEqual({ title: 't', body: 'b', pause_trading: true })
+    })
+    it('startIntegrityCheck faz POST e getIntegrityRun faz GET e devolve só o run', async () => {
+        let fetchMock = mockFetchOnce({ id: 'r1', status: 'running' }, 202)
+        await startIntegrityCheck('token')
+        let [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/integrity/check')
+        expect(init.method).toBe('POST')
+
+        fetchMock = mockFetchOnce({ run: { id: 'r1', status: 'done' } })
+        expect(await getIntegrityRun('token')).toEqual({ id: 'r1', status: 'done' })
+        ;[url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/integrity/check')
+        expect(init.method ?? 'GET').toBe('GET')
+
+        mockFetchOnce({ run: null })
+        expect(await getIntegrityRun('token')).toBeNull()
+    })
+
+    it('downloadAdminExport monta o caminho com o conjunto e só os filtros informados', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'Content-Disposition': 'attachment; filename="x.csv"', 'X-Export-Rows': '1' }),
+            blob: async () => new Blob(['x']),
+        })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await downloadAdminExport('token', 'market-events', { from: '2026-10-01T00:00:00.000Z', limit: 50 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/exports/market-events?from=2026-10-01T00%3A00%3A00.000Z&limit=50')
+
+        await downloadAdminExport('token', 'users')
+        expect(fetchMock.mock.calls[1][0]).toBe('/admin/exports/users')
     })
 })

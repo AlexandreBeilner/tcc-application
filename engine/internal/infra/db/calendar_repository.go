@@ -28,12 +28,12 @@ func (r *CalendarRepository) CurrentDay(ctx context.Context) (int, error) {
 func (r *CalendarRepository) MacroEventsBetween(ctx context.Context, fromDay, toDay int) ([]marketcalendar.MacroEventFact, error) {
 	rows, err := r.db.QueryContext(ctx,
 		// Calendário do usuário: só o que macroevent.IsPubliclyVisible permite (cancelado
-		// nunca, agendado só a partir da véspera), senão título e direção de um evento
+		// nunca, agendado só a partir da antecedência escolhida pro evento, padrão a véspera), senão título e direção de um evento
 		// agendado apareceriam com semanas de aviso (tarefa N.11).
 		`SELECT triggered_on_day, title, direction FROM macro_events
 		 WHERE triggered_on_day BETWEEN $1 AND $2
 		   AND status <> 'cancelado'
-		   AND triggered_on_day <= (SELECT current_day FROM market_calendar WHERE id = 1) + 1
+		   AND triggered_on_day <= (SELECT current_day FROM market_calendar WHERE id = 1) + reveal_lead_days
 		 ORDER BY triggered_on_day, created_at`, fromDay, toDay)
 	if err != nil {
 		return nil, err

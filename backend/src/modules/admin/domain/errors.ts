@@ -120,3 +120,48 @@ export class AdminCatalogNotFoundError extends Error {}
 export class AdminCatalogConflictError extends Error {}
 // Dado que a regra de domínio recusa (meta, nome, XP, critério fora da lista fechada).
 export class InvalidAdminCatalogError extends Error {}
+
+// Conteúdo das lições (N.18/N.23). Traduzidas pelo router: 404, 409 e 422.
+export class AdminLessonNotFoundError extends Error {}
+// Publicar lição já publicada, despublicar uma já despublicada.
+export class AdminLessonConflictError extends Error {}
+// Conteúdo que a regra de domínio da lição recusa (aposta, chaves de desbloqueio, ticker, tamanho).
+export class InvalidAdminLessonError extends Error {}
+
+// CatalogAssetNotFoundError é o 404 do motor: o ativo não existe no catálogo (N.12).
+export class CatalogAssetNotFoundError extends Error {}
+
+// CatalogAssetRejectedError é o 422 do motor: campo somente leitura ou fora da regra de
+// domínio, ativo do sandbox ou patch vazio (N.12). A mensagem vem do domínio do motor.
+export class CatalogAssetRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly field?: string,
+  ) {
+    super(message)
+  }
+}
+
+// CatalogAssetConflictError é o 409 do motor: ticker ou CNPJ já em uso (N.13).
+export class CatalogAssetConflictError extends Error {}
+
+// CatalogAssetPartialError é o 500 do motor depois de o catálogo gravar: o ativo existe, mas a
+// etapa dos bots ou da cobertura falhou (N.13). Leva o id pra o painel apontar o ativo.
+export class CatalogAssetPartialError extends Error {
+  constructor(
+    message: string,
+    readonly assetId: string,
+  ) {
+    super(message)
+  }
+}
+
+// Comunicados e modo de manutenção (N.20). Traduzidas pelo router: 404, 409 e 422.
+export class AdminAnnouncementNotFoundError extends Error {}
+// Editar aviso de manutenção ou terminado, encerrar o que já terminou, abrir segunda manutenção.
+export class AdminAnnouncementConflictError extends Error {}
+// Texto, janela ou combinação que a regra de domínio recusa.
+export class InvalidAdminAnnouncementError extends Error {}
+
+// Integridade financeira (N.21). Já há uma verificação em andamento (409 do motor).
+export class IntegrityAlreadyRunningError extends Error {}

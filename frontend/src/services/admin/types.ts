@@ -21,6 +21,8 @@ export interface MacroEventBase {
     affects_fundamentals: boolean
     status: MacroEventStatus
     triggered_on_day: number
+    // Dias de antecedência do efeito com que o jogador passa a ver o evento (N.25); padrão 1, a véspera.
+    reveal_lead_days?: number
     duration_days: number
     price_effect_pct?: number
     fundamentals_effect_pct?: number
@@ -54,6 +56,8 @@ export interface TriggerMacroEventFromTemplateInput {
     targets: NewsEventTarget[]
     // Agenda o primeiro dia de efeito (dia simulado futuro, N.11); ausente dispara já.
     apply_on_day?: number
+    // Com quantos dias de antecedência do efeito o jogador vê o evento (N.25); ausente, a véspera.
+    reveal_lead_days?: number
 }
 
 export interface TriggerMacroEventAdHocInput {
@@ -65,6 +69,7 @@ export interface TriggerMacroEventAdHocInput {
     affects_fundamentals: boolean
     targets: NewsEventTarget[]
     apply_on_day?: number
+    reveal_lead_days?: number
 }
 
 export type TriggerMacroEventInput = TriggerMacroEventFromTemplateInput | TriggerMacroEventAdHocInput
@@ -92,6 +97,8 @@ export type AuditAction =
     | 'bot.fund'
     | 'settings.update'
     | 'settings.reset'
+    | 'catalog.update'
+    | 'catalog.create'
     | 'user.suspend'
     | 'user.reactivate'
     | 'user.force_logout'
@@ -106,6 +113,17 @@ export type AuditAction =
     | 'achievement.create'
     | 'achievement.update'
     | 'mission.update'
+    | 'lesson.publish'
+    | 'lesson.unpublish'
+    | 'lesson.update'
+    | 'lesson.create'
+    | 'lesson.restore'
+    | 'announcement.create'
+    | 'announcement.update'
+    | 'announcement.end'
+    | 'maintenance.start'
+    | 'integrity.check'
+    | 'export.csv'
     | 'admin.login'
     | 'admin.login_failed'
     | 'admin.reauth'
@@ -812,4 +830,300 @@ export interface AdminRankingFilters {
     window?: AdminRankingWindow
     criterion: AdminRankingCriterion
     page: number
+}
+
+export type LessonMicroDecisionType =
+    'reflection' | 'growth_calculator' | 'fixed_income_comparison' | 'live_indicator' | 'live_macro_indicator'
+
+export interface LessonFunnel {
+    started: number
+    completed: number
+    abandoned: number
+    completion_rate: number | null
+    avg_seconds_to_complete: number | null
+    median_seconds_to_complete: number | null
+    bet_answered: number
+    bet_correct: number
+    bet_accuracy: number | null
+    // Quem iniciou e não concluiu, por passo gravado: cenário, micro-decisão, revelação, desbloqueio.
+    abandoned_by_step: number[]
+}
+
+export interface AdminLesson {
+    id: string
+    code: string
+    title: string
+    track_number: number
+    track_name: string
+    sort_order: number
+    micro_decision_type: LessonMicroDecisionType
+    has_bet: boolean
+    unlocks_keys: string[]
+    published: boolean
+    prerequisite_code: string | null
+    funnel: LessonFunnel
+}
+
+export interface LessonPublicationResult {
+    id: string
+    code: string
+    title: string
+    published: boolean
+    waived_users: number
+}
+
+// Conteúdo editável de uma lição (N.23), como a API devolve e recebe.
+export interface AdminLessonContent {
+    title: string
+    central_concept: string
+    scenario_text: string
+    micro_decision_prompt: string
+    micro_decision_type: LessonMicroDecisionType
+    micro_decision_asset_ticker: string | null
+    micro_decision_options: string[] | null
+    micro_decision_correct_option: number | null
+    revelation_text: string
+    unlocks_description: string | null
+    unlocks_keys: string[]
+    unlocks_asset_ticker: string | null
+}
+
+export interface AdminLessonDetail extends AdminLessonContent {
+    id: string
+    code: string
+    track_number: number
+    track_name: string
+    sort_order: number
+    published: boolean
+}
+
+export type LessonRevisionAction = 'baseline' | 'create' | 'update' | 'restore'
+
+export interface LessonRevisionItem {
+    id: string
+    action: LessonRevisionAction
+    admin_id: string | null
+    admin_username: string | null
+    created_at: string
+}
+
+export interface AdminLessonForEdit {
+    lesson: AdminLessonDetail
+    revisions: LessonRevisionItem[]
+}
+
+export interface LessonSaveResult {
+    lesson: AdminLessonDetail
+    warnings: string[]
+}
+
+export interface LessonCreateInput extends AdminLessonContent {
+    after_lesson_id: string | null
+}
+
+export interface LessonCreateResult extends LessonSaveResult {
+    waived_users: number
+}
+
+export type LessonRevisionContent = LessonRevisionItem & AdminLessonContent
+
+// Catálogo de ativos (N.12, `.docs/backend/admin.md#catalogo-de-ativos-tarefa-n12`). Só o bloco
+// da classe do ativo vem preenchido; `editable` lista os campos que o painel pode alterar.
+export type CatalogEditableField = 'name' | 'base_growth_pct' | 'quality_multiplier' | 'methodology_summary'
+
+export interface CatalogCompany {
+    company_id: string
+    name: string
+    sector: string
+    report_frequency_days: number
+    base_growth_pct: number
+    quality_multiplier: number
+}
+
+export interface CatalogETF {
+    benchmark_index: string
+    methodology_summary: string | null
+    expense_ratio_pct: number
+    rebalance_frequency_days: number
+    holdings: Array<{ name: string; weight_pct: number }>
+    holdings_total_weight_pct: number
+}
+
+export interface CatalogFII {
+    fii_type: string
+    segment: string | null
+    vacancy_rate: number | null
+    indexador: string | null
+}
+
+export interface CatalogFixedIncome {
+    interest_rate: number | null
+    maturity_date: string | null
+    issuer_type: string
+    tax_exempt: boolean
+    credit_risk_rating: string | null
+    minimum_investment: number
+}
+
+export interface CatalogAsset {
+    asset_id: string
+    ticker: string
+    name: string
+    type: string
+    risk_class: string | null
+    is_sandbox: boolean
+    share_class: string | null
+    outstanding_shares: number | null
+    editable: CatalogEditableField[]
+    company: CatalogCompany | null
+    etf: CatalogETF | null
+    fii: CatalogFII | null
+    fixed_income: CatalogFixedIncome | null
+}
+
+export interface CatalogPatch {
+    name?: string
+    base_growth_pct?: number
+    quality_multiplier?: number
+    methodology_summary?: string
+}
+
+// Cadastro de ativo novo (N.13): um formato por classe, o mesmo do motor.
+export type NewCatalogAsset =
+    | {
+          kind: 'acao'
+          ticker: string
+          name: string
+          company_name: string
+          cnpj: string
+          sector: string
+          outstanding_shares: number
+          base_growth_pct: number
+          quality_multiplier: number
+      }
+    | { kind: 'fii_tijolo'; ticker: string; name: string; segment: string; vacancy_rate: number }
+    | { kind: 'fii_papel'; ticker: string; name: string; indexador: 'CDI' | 'IPCA+' }
+    | {
+          kind: 'etf'
+          ticker: string
+          name: string
+          benchmark_index: string
+          methodology?: string
+          holdings: Array<{ ticker: string; weight_pct: number }>
+      }
+
+export type NewCatalogAssetKind = NewCatalogAsset['kind']
+
+export interface CatalogPoolPreview {
+    pool_before: number
+    pool_after: number
+    new_bots: number
+    market_maker_shares: number
+    bot_shares: number
+    market_maker_id: string
+    creates_market_maker: boolean
+}
+
+// O que o cadastro criaria (ou criou). `pool` é nulo em ETF (sem float de bots nem Market Maker).
+export interface NewCatalogAssetPreview {
+    kind: string
+    ticker: string
+    name: string
+    outstanding_shares: number | null
+    pool: CatalogPoolPreview | null
+}
+
+export interface CreatedCatalogAsset {
+    asset_id: string
+    preview: NewCatalogAssetPreview
+}
+
+// Comunicados globais e modo de manutenção (N.20). Espelha `/admin/announcements`.
+export type AnnouncementSeverity = 'info' | 'warning' | 'critical'
+export type AnnouncementKind = 'notice' | 'maintenance'
+export type AnnouncementStatus = 'scheduled' | 'active' | 'ended'
+
+export interface AdminAnnouncement {
+    id: string
+    title: string
+    body: string
+    severity: AnnouncementSeverity
+    kind: AnnouncementKind
+    dismissible: boolean
+    starts_at: string
+    ends_at: string | null
+    linked_halt_id: string | null
+    status: AnnouncementStatus
+    created_at: string
+}
+
+export interface AnnouncementInput {
+    title: string
+    body: string
+    severity: AnnouncementSeverity
+    dismissible: boolean
+    starts_at?: string
+    ends_at?: string | null
+}
+
+export type AnnouncementPatch = Partial<AnnouncementInput>
+
+export interface MaintenanceInput {
+    title: string
+    body: string
+    ends_at?: string | null
+    pause_trading: boolean
+}
+
+export interface EndAnnouncementResult {
+    announcement: AdminAnnouncement
+    outcome: 'ended' | 'cancelled'
+    halt_lifted: boolean
+}
+
+// Integridade financeira (N.21). Espelha `/admin/integrity/check`.
+export type IntegrityKind =
+    | 'balance_mismatch'
+    | 'position_mismatch'
+    | 'negative_balance'
+    | 'negative_position'
+    | 'float_mismatch'
+    | 'resting_order_unfunded'
+    | 'unknown_event_type'
+
+export interface IntegrityDivergence {
+    kind: IntegrityKind
+    user_id: string | null
+    asset_id: string | null
+    ticker: string | null
+    order_id: string | null
+    expected: string
+    found: string
+    detail: string
+}
+
+export interface IntegrityReport {
+    checked: { events: number; accounts: number; positions: number; assets: number; resting_orders: number }
+    total: number
+    counts: Record<IntegrityKind, number>
+    truncated: boolean
+    divergences: IntegrityDivergence[]
+}
+
+export interface IntegrityRun {
+    id: string
+    status: 'running' | 'done' | 'failed'
+    started_at: string
+    finished_at: string | null
+    error: string | null
+    report: IntegrityReport | null
+}
+
+// Exportação CSV (N.21).
+export type ExportDataset = 'users' | 'orders' | 'market-events' | 'audit-log'
+
+export interface ExportFilters {
+    from?: string
+    to?: string
+    limit?: number
 }

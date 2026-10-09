@@ -165,7 +165,9 @@ func TestPaymentSchedule_MigrationSobeEDesceComBackfill(t *testing.T) {
 	_, conn := openAccountRepositoryOnScratchDB(t)
 	m := newMigrator(t, scratchDSNOf(t, conn))
 
-	if err := m.Steps(-1); err != nil {
+	// Desce até a versão anterior à 000048 (47), seja qual for a última migration: as seguintes
+	// (000049 só de texto, 000050 do prazo de revelação do evento macro) vêm junto.
+	if err := m.Migrate(47); err != nil {
 		t.Fatalf("descer a 000048: %v", err)
 	}
 	if _, err := conn.Exec(`SELECT declared_day FROM dividend_events LIMIT 1`); err == nil {

@@ -157,6 +157,11 @@ type Event struct {
 	PriceEffectPct        *float64
 	FundamentalsEffectPct *float64
 	FundamentalsReportDay *int
+
+	// RevealLeadDays (N.25) é com quantos dias de antecedência do primeiro dia de efeito o
+	// jogador passa a ver o evento (IsPubliclyVisible). Escolhido pelo admin ao agendar;
+	// NewEvent deixa DefaultRevealLeadDays.
+	RevealLeadDays int
 }
 
 // Record é um Event já persistido, pareado com o id e o created_at gerados
@@ -201,5 +206,6 @@ func NewEvent(templateKey *string, title, narrative string, direction Direction,
 		Status:              StatusPendente,
 		CreatedBy:           createdBy,
 		Targets:             targets,
+		RevealLeadDays:      DefaultRevealLeadDays,
 	}, nil
 }

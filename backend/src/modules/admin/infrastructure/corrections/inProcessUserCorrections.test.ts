@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  GrantAchievementUseCase,
-  RevokeAchievementUseCase,
-} from '../../../achievements/application/useCases/correctAchievements'
+import { GrantAchievementUseCase } from '../../../achievements/application/useCases/correctAchievements'
 import type { Achievement } from '../../../achievements/domain/achievement'
 import { createFakeAchievementRepository } from '../../../achievements/test/fakes/fakeAchievementRepository'
 import { AdjustProgressionUseCase } from '../../../gamification/application/useCases/adjustProgression'
@@ -60,7 +57,6 @@ function build() {
       () => '2026-10-03',
     ),
     grantAchievement: new GrantAchievementUseCase(achievementRepository),
-    revokeAchievement: new RevokeAchievementUseCase(achievementRepository),
     markLessonCompleted: new MarkLessonCompletedUseCase(lessonRepository),
     reopenLesson: new ReopenLessonUseCase(lessonRepository),
     achievementRepository,
@@ -89,7 +85,7 @@ describe('inProcessUserCorrections', () => {
     )
   })
 
-  it('concede e revoga conquista, e traduz inexistente e conflito', async () => {
+  it('concede conquista, e traduz inexistente e conflito', async () => {
     const { corrections } = build()
 
     expect(await corrections.grantAchievement('u1', 'a1')).toEqual({
@@ -97,10 +93,6 @@ describe('inProcessUserCorrections', () => {
       name: 'Primeira Semana',
     })
     await expect(corrections.grantAchievement('u1', 'a1')).rejects.toBeInstanceOf(
-      AdminCorrectionConflictError,
-    )
-    await corrections.revokeAchievement('u1', 'a1')
-    await expect(corrections.revokeAchievement('u1', 'a1')).rejects.toBeInstanceOf(
       AdminCorrectionConflictError,
     )
     await expect(corrections.grantAchievement('u1', 'nope')).rejects.toBeInstanceOf(
