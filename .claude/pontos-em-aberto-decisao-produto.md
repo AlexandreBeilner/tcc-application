@@ -841,7 +841,7 @@ Nenhum ponto em aberto no momento.
   como satisfeita (troféu já conquistado não regride). Os itens (b) e (c) foram aceitos como propostos.
 - **Status:** resolvido
 
-### 035 · Quando o jogador passa a ver um evento macro agendado (N.11)
+### 045 · Quando o jogador passa a ver um evento macro agendado (N.11)
 
 - **Local:** `engine/internal/domain/macroevent/lifecycle.go` (`IsPubliclyVisible`), `engine/internal/infra/db/macro_event_repository.go` (`listWhere`, visão pública) e `engine/internal/infra/db/calendar_repository.go` (`MacroEventsBetween`)
 - **Origem:** implementação da N.11 (agendar um evento pra um dia simulado futuro). O backlog diz que o agendado "aparece como pendente até lá", mas não diz **pra quem**: o feed de notícias e o calendário do jogador mostram título e narrativa de todo evento.
@@ -868,7 +868,7 @@ Nenhum ponto em aberto no momento.
 - **Decisão (2026-10-06, autor): opção (a), manter o escopo atual.** Sem ícone, sem XP por conquista e sem criar missão pelo painel: XP por conquista mexeria na economia de nível/salário/ranking e criaria um laço com a checagem de conquistas. Ícone por lista fechada (b) e tipos de missão genéricos (d) ficam como evolução futura, sem tarefa aberta. O texto da N.19 foi ajustado no backlog.
 - **Status:** resolvido
 
-### 031 · Painel de bots: histórico de tempo de cotação e origem de uma posição aportada
+### 043 · Painel de bots: histórico de tempo de cotação e origem de uma posição aportada
 
 - **Local:** `engine/internal/infra/db/admin_bots_read_repository.go` (`marketMakerQuotes`) e `engine/internal/infra/db/bot_admin_repository.go` (`FundBot`)
 - **Origem:** N.14 e N.15 (PR 6 da Fase N), 2026-10-03
@@ -878,7 +878,7 @@ Nenhum ponto em aberto no momento.
 - **Decisão (2026-10-06, autor):** (1) **aceitar a foto atual**: a tela mostra só a situação atual da cotação (melhor compra e venda, spread, inventário), sem tabela de histórico diário. A métrica "% dos dias com bid+ask" é diagnóstico do admin, não afeta o jogador nem o preço, e gravá-la mudaria o motor e o custo por tick. (2) **aporte só de caixa**: o campo de posição sai da tela da N.15, já que o float está 100% distribuído e o aporte de posição quase sempre devolve `409`. O texto das tarefas N.14 e N.15 foi ajustado no backlog.
 - **Status:** resolvido
 
-### 034 · Catálogo do painel: deslistar ativo, ciclo de relatório por empresa e ETF sem Market Maker (N.12 e N.13)
+### 044 · Catálogo do painel: deslistar ativo, ciclo de relatório por empresa e ETF sem Market Maker (N.12 e N.13)
 
 - **Local:** `engine/internal/domain/catalogadmin/` (campos editáveis), `engine/internal/domain/assetprovision/` (o que o cadastro provisiona) e o texto das tarefas N.12 e N.13
 - **Origem:** implementação da N.12 e da N.13 (PR 11 da Fase N), 2026-10-05
@@ -887,3 +887,82 @@ Nenhum ponto em aberto no momento.
 - **Opções:** (1) `delisted_at` em `assets` com a regra de visibilidade escolhida, ou manter só a pausa de negociação. (2) manter o ciclo global, ou o ciclo por empresa com o gatilho de evento macro lendo o valor de cada empresa. (3) manter, ou um Market Maker específico de ETF cotando ao redor do NAV.
 - **Decisão (2026-10-06, autor):** confirmado o que foi implementado. (1) **sem deslistar**: fica só a pausa de negociação por ativo (N.9), sem `delisted_at`, porque deslistar exigiria regras novas de visibilidade, de posição e de ordem em repouso. (2) **ciclo de relatório global** de 91 dias (spec 3.3.1), `report_frequency_days` segue somente leitura. (3) **ETF sem Market Maker**: a liquidez vem do Participante Autorizado e do NAV; o critério "cotação de Market Maker" da N.13 vale só para ação e FII. O texto da N.12 e da N.13 foi ajustado no backlog.
 - **Status:** resolvido
+
+### 034 · A compra de ações libera na lição do ticker, antes de a trilha ensinar ordens, corretora e custos (RC.4.3)
+
+- **Local:** `backend/src/db/seedLessons.ts` (lição `stableKey` `2.3`, `unlocksKeys: ['asset:acao']`)
+- **Origem:** reordenação da Trilha 2 (RC.4.3). O ticker passou a ser a 2ª lição (antes do IPO), e a lição "B3, corretora e ordens" a 4ª; o desbloqueio de `asset:acao` continuou na lição do ticker.
+- **O que é:** o jogador pode comprar ações depois de aprender só o que é ação e o ticker, sem ainda ter visto ordem a mercado x limite, spread, liquidez e custos. Mover o desbloqueio para a lição de ordens faria quem já concluiu o ticker perder o acesso até concluir a nova (regressão para quem já está na trilha).
+- **Opções:** (a) manter (a compra libera cedo, as ordens vêm logo depois); (b) mover o desbloqueio para a lição de B3 e ordens, e dispensar dela quem já concluiu a do ticker (migração com N.24); (c) manter na lição do ticker, mas mostrar um aviso curto de ordem a mercado x limite na tela de compra.
+- **Status:** aberto (implementado com (a))
+
+### 035 · Duas migrations do engine com o mesmo número `000040` nas pilhas ainda não mescladas (RC.6.1)
+
+- **Local:** `engine/internal/infra/db/migrations/000040_clean_visible_catalog_text.*` (RC.1.4) e `000040_tick_runs_and_scheduler_control.*` (Fase N, N.3/N.4/N.6)
+- **Origem:** rodar o teste de integração do `CalendarRepository` (RC.6.1) num Postgres descartável: `Migrate` falha com `duplicate migration file: 000040_...` nesta branch, que empilha as duas séries. A `main` ainda não tem nenhuma das duas.
+- **O que é:** as pilhas RC e Fase N foram criadas em paralelo e cada uma pegou o próximo número livre. Quem aplicar as duas no mesmo banco (ou subir o `engine` com as duas) tem o `golang-migrate` recusando a pasta inteira. O teste de integração do calendário só rodou movendo uma delas para fora, temporariamente.
+- **Por que não foi corrigido na hora:** renumerar uma delas (por exemplo, a de limpeza de texto para `000043`) é mecânico, mas quem já aplicou a `000040` num banco de dev ficaria com o histórico dessincronizado, e a ordem de merge das pilhas é decisão do autor.
+- **Opções:** (a) renumerar a `000040_clean_visible_catalog_text` para o próximo número livre antes de mesclar a pilha RC (ajustando bancos de dev que já a aplicaram); (b) renumerar a da Fase N; (c) mesclar uma pilha antes e renumerar a outra no rebase.
+- **Status:** resolvido (2026-10-07, RC.7.6): opção (a), `000040_clean_visible_catalog_text` renumerada para `000049` (idempotente, só UPDATEs de texto); `docker compose up` subiu o engine com as duas séries. Bancos de dev que já tinham a antiga `000040` da série RC precisam de `UPDATE schema_migrations`/reaplicação (a 000049 é idempotente).
+
+### 036 · JCP e imposto sobre dividendos não existem no motor, só nas lições (RC.6.5, D9)
+
+- **Local:** `engine/internal/domain/tick/tick.go` (geração de `dividend_events`) e `dividend_events` (sem coluna de natureza do provento)
+- **Origem:** análise do calendário (`revisao-trilhas-anexos/analise-calendario.md`, seções 2 e 3.7) e decisão D9 do backlog de revisão, 2026-10-03.
+- **O que é:** na vida real, parte dos proventos de ações vem como JCP (retenção na fonte de 15%) e a Lei 15.270/2025 passou a tributar dividendos de grande valor. O motor paga todo provento como dividendo isento: não há natureza `dividend|jcp`, retenção nem imposto sobre dividendos. As lições explicam o tema, mas o calendário e o extrato mostram sempre o valor cheio.
+- **Por que não foi corrigido:** modelar IR retido muda o valor creditado, o extrato e o `estimated_amount` do calendário, e a decisão D9 foi manter isso fora do motor por ora (só nas lições).
+- **Opções:** (a) manter assim (lição explica, motor simplifica; o bloco "Na plataforma" diz isso); (b) coluna `dividend_events.kind = dividend|jcp` com retenção de 15% no crédito e no valor estimado do calendário; (c) (b) mais o imposto sobre dividendos acima do limite da Lei 15.270/2025.
+- **Status:** aberto (implementado com (a))
+
+### 037 · Instante do snapshot de quem recebe o provento: data-com real x geração do evento (RC.6.5, D10)
+
+- **Local:** `engine/internal/domain/tick/tick.go` (`dividend_event_recipients`) e `engine/internal/domain/marketcalendar/calendar.go` (`entitlement`)
+- **Origem:** análise do calendário (3.7 itens 2 e 3) e decisão D10, 2026-10-03: data-com real, com snapshot dos elegíveis na data-ex.
+- **O que é:** hoje o snapshot é tirado quando o evento de provento é gerado, não na data-ex; o calendário já trata a data-ex passada sem snapshot como "sem direito" e estima antes dela. Enquanto a RC.6.11 (declaração separada e snapshot na data-ex) não entra, quem compra entre a geração e a data-ex pode ver uma estimativa que o snapshot depois não confirma. Também falta definir a tolerância do primeiro ciclo irregular no cutover do escalonamento (item 3 da análise) e os pesos anual/semestral por setor (item 4, vão para `calibracao-calendario-proventos.md`, RC.6.5b).
+- **Por que não foi corrigido:** a mudança de instante altera quem recebe cada provento, e a entrega ordenada é a RC.6.11; o texto da lição "Na plataforma" deve descrever o comportamento vigente.
+- **Opções:** (a) manter o snapshot na geração até a RC.6.11 e documentar na lição; (b) antecipar o snapshot na data-ex só para os proventos novos, com cutover por dia; (c) (b) retroativo, o que contraria o event sourcing (proventos já pagos ficam intactos).
+- **Status:** Resolvido (2026-10-06, RC.6.11): proventos declarados antes da data-ex ganham o snapshot no tick da data-ex (opção (b), só para os novos; os já pagos ficam intactos). Falta só a tolerância do primeiro ciclo irregular no cutover, coberta pelo dia de corte (`schedule_cutover_day`).
+
+### 038 · Copom e eventos macro aparecem como "No mercado", mesmo para quem tem renda fixa pós-fixada (RC.6.5)
+
+- **Local:** `engine/internal/domain/marketcalendar/calendar.go` (relevância de `copom` e `macro_event`) e `frontend/src/components/organisms/MarketCalendarPanel`
+- **Origem:** análise do calendário (3.7 item 1) e RC.6.1/RC.6.4.
+- **O que é:** só fato com consequência direta no saldo do usuário é "Para você". Uma reunião do Copom muda o rendimento de quem tem Tesouro Selic, CDB pós-fixado ou a poupança, mas hoje é sempre "No mercado" (aparece só em "Todos"); evento macro setorial também não marca quem tem ativo do setor. Quem usa só "Meus" não vê o Copom que mexe na sua carteira.
+- **Por que não foi corrigido:** "mine" para Copom e macro exige regra de produto (qual posição conta, se vale para o evento macro agendado sem entregar o veredito, RF16) e a v1 decidiu por `market`.
+- **Opções:** (a) manter (informação macro vai em "No mercado"); (b) Copom `mine` para quem tem posição pós-fixada ou Selic; (c) (b) mais macro setorial `mine` para quem tem ativo do setor, sem texto de veredito.
+- **Status:** aberto (implementado com (a))
+
+### 039 · Abrir por URL uma lição ainda bloqueada mostra só um aviso de erro, sem o `LockedGate` (QA ponta a ponta, 2026-10-07)
+
+- **Local:** `frontend/src/pages/Lesson/index.tsx` (estado `lessonQuery.isError`) e `GET /lessons/:id` (404 para bloqueada)
+- **Origem:** teste ponta a ponta do backlog de revisão com um usuário novo abrindo `/trilha/<id da 2.1>` direto.
+- **O que é:** o backend responde 404 para lição bloqueada (de propósito, não revela se existe) e o player mostra "Não foi possível carregar esta lição agora. Ela pode estar bloqueada ou não existir." As telas de Mercado, Calculadora e Notícias usam o `LockedGate` com CTA para a lição que libera; o player não.
+- **Por que não foi corrigido:** trocar o aviso pelo `LockedGate` exige decidir se o player pode usar o status `locked` que já vem em `GET /lessons` (sem expor nada novo) e qual CTA mostrar (a lição disponível mais próxima, respeitando a regra de nunca apontar para lição não alcançada). Foi corrigido só o mecânico: o 404 deixou de ser repetido 3 vezes, que mantinha "Carregando lição…" na tela por ~7 segundos.
+- **Opções:** (a) manter o aviso; (b) usar `status: 'locked'` da lista e renderizar `LockedGate` (variante `screen`) com CTA para a próxima lição disponível.
+- **Status:** ✅ resolvido (2026-10-07, opção (b)): `pages/Lesson` usa o `status: 'locked'` de `GET /lessons` e renderiza `LockedGate` (variante `screen`) com CTA para a primeira lição `available`; lição inexistente continua com o aviso de erro.
+
+### 040 · Ranking por renda fixa/variável exclui quem não tinha a classe no início da janela (6.8.3)
+
+- **Local:** `backend/src/modules/ranking/application/useCases/getRanking.ts` (`scoreByProfitability`, ramo `baseline[field] === 0`)
+- **Origem:** dúvida do autor em 2026-10-08: usuários com +5,7% no geral não aparecem ao filtrar por renda fixa ou variável.
+- **O que é:** o critério de classe compara o valor da classe no início da janela com o valor atual e exclui quem tinha zero na classe no início (para não mostrar um 0% enganoso). Quem investiu na classe só depois do início da janela, e quem criou a conta no meio da janela (baseline = depósito inicial, sem posição), nunca entra nesse ranking, mesmo com posição e rentabilidade hoje. Com poucos usuários e janela semanal/mensal, a lista costuma ficar vazia.
+- **Por que não foi corrigido:** mudar a base de cálculo (custo investido em vez de valor no início, por exemplo) é regra de produto sobre o que "rentabilidade da classe" significa.
+- **Opções:** (a) manter e mostrar um texto de lista vazia explicando o motivo; (b) base = custo investido na classe dentro da janela (qualquer posição atual entra); (c) incluir quem tem posição hoje, usando o valor da primeira compra como baseline.
+- **Decisão do autor (2026-10-08):** (1) o ranking não é em tempo real: snapshot recalculado a cada 3 horas, com histórico curto (**feito**, branch `ranking-snapshot-3h`: tabela `ranking_snapshots`, job `ComputeRankingSnapshotUseCase`, `GET /ranking` lê o snapshot e informa `updatedAt`); (2) critério por classe passa a usar a rentabilidade sobre o custo investido na própria classe (mesma lógica do geral), em vez do valor no início da janela; (3) renda fixa passa a ser valorizada pelo valor atual (marcação a mercado, inicialmente **bruto** de IR; trocado por líquido em 2026-10-09, achado 042) no patrimônio e no ranking, extraindo a conta do resgate do motor para uma função pura reaproveitada. Também levantado: o patrimônio de renda fixa hoje é a custo, então o ranking de renda fixa nunca mostra rendimento até o resgate.
+- **Status:** parcial: (1) feito; (2) feito (`classReturnPct`, fluxos por classe no replay, 2026-10-08); (3) feito para o ranking (2026-10-08): motor `?valuation=true`, valor de hoje (líquido de IR desde 2026-10-09), começo da janela por amostras do job (decisão do autor); patrimônio mostrado na carteira/UI, conquistas, perfil e painel admin seguem a custo (ainda sem decisão de mudar) (ver análise de viabilidade desta sessão: (2) via replay por classe no backend; (3) mexe no motor Go e muda o patrimônio de quem tem renda fixa)
+
+### 041 · Usuário novo some do ranking (e da própria posição) até a próxima rodada do snapshot (review do PR 107, 2026-10-09)
+
+- **O que acontece:** como `GET /ranking` lê só o snapshot de até 3 h atrás, quem se cadastra depois da última rodada não aparece em nenhum critério e recebe `requestingUserPosition: null`, inclusive no critério Nível. Medido ao vivo: 4 usuários criados e com ordens executadas ficaram com posição `null` nos 5 critérios até o job rodar; depois apareceram corretos. O mesmo vale para amigo recém-aceito/cadastrado no escopo Amigos.
+- **Por que não foi corrigido:** é regra de produto saber se o usuário recém-chegado deve ver "Você aparece na próxima atualização" ou se a posição dele deve ser calculada na hora.
+- **Opções:** (a) manter e mostrar na tela uma mensagem explicando que a posição entra na próxima atualização; (b) calcular ao vivo só a linha do próprio usuário e encaixar no snapshot; (c) disparar uma rodada extra do job no cadastro.
+- **Decisão do autor (2026-10-09):** opção (b). Quem se cadastrou depois da última rodada tem a própria linha calculada ao vivo e encaixada no snapshot; a tela de Classificação avisa isso.
+- **Status:** ✅ resolvido (2026-10-09): `GetRankingUseCase.load`/`scoreOwnRow`, com testes.
+
+### 042 · Resgate de renda fixa dentro da janela entra líquido de IR, a posição mantida entra bruta (review do PR 107, 2026-10-09)
+
+- **O que acontece:** o valor de hoje da renda fixa no ranking é bruto de IR (decisão do autor), mas `disinvestedProceeds` de um resgate é o valor líquido creditado. Resgatar dentro da janela faz o IR sair do ganho da classe; manter a posição não. Resgatar um título com lucro rende menos pontos no ranking do que manter o mesmo título.
+- **Por que não foi corrigido:** exige decidir se o ranking deve ser líquido de IR dos dois lados ou se o resgate deve ser contabilizado pelo valor bruto. Não foi exercitado ao vivo (resgate no mesmo dia simulado não gera lucro nem IR).
+- **Opções:** (a) manter e documentar; (b) valorizar a posição mantida pelo `net_value` (já devolvido pelo motor); (c) guardar o bruto do resgate nos fluxos.
+- **Decisão do autor (2026-10-09):** opção (b), líquido de IR dos dois lados, revertendo o "bruto de IR" da decisão de 2026-10-08; a tela de Classificação avisa que a renda fixa entra descontado o IR.
+- **Status:** ✅ resolvido (2026-10-09): `engineCurrentAccountStateReader` soma `net_value`; amostras de começo de janela gravadas antes da mudança ficam em bruto até a próxima virada de semana/mês.

@@ -3,36 +3,36 @@ import type { ReactNode } from 'react'
 import { getCurrentUser } from '../../../services/auth'
 import type { AuthUser } from '../../../services/auth'
 import { ApiError, setUnauthorizedHandler } from '../../../services/client'
+import { readStored, removeStored, STORAGE_KEYS, writeStored } from '../../../utils/storage'
 import type { AuthContextValue } from './types'
 
 export type { AuthContextValue } from './types'
 
 // localStorage, sem refresh token — mesmo padrão simples de SPA que RNF07
 // não exige ir além nesta fase (tarefa 6.0.2).
-const TOKEN_STORAGE_KEY = 'tcc.auth.token'
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY))
+    const [token, setToken] = useState<string | null>(() => readStored(STORAGE_KEYS.authToken))
     const [user, setUser] = useState<AuthUser | null>(null)
     // Deriva do token inicial, não de um efeito: sem token salvo não há nada
     // pra carregar, então já nasce `false` (evita um render extra só pra
     // desligar o loading de novo logo depois de montar).
-    const [isLoading, setIsLoading] = useState<boolean>(() => localStorage.getItem(TOKEN_STORAGE_KEY) !== null)
+    const [isLoading, setIsLoading] = useState<boolean>(() => readStored(STORAGE_KEYS.authToken) !== null)
     // Evita a corrida descrita em `login()` abaixo: sem isso, o efeito de
     // `GET /auth/me` dispararia de novo assim que `token` mudasse, mesmo
     // quando `login()` já recebeu o usuário pronto na própria resposta.
     const skipNextFetchRef = useRef(false)
 
     const logout = useCallback(() => {
-        localStorage.removeItem(TOKEN_STORAGE_KEY)
+        removeStored(STORAGE_KEYS.authToken)
         setToken(null)
         setUser(null)
     }, [])
 
     const login = useCallback((newToken: string, newUser?: AuthUser) => {
-        localStorage.setItem(TOKEN_STORAGE_KEY, newToken)
+        writeStored(STORAGE_KEYS.authToken, newToken)
         if (newUser) {
             skipNextFetchRef.current = true
             setUser(newUser)

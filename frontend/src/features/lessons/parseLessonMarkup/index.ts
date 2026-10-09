@@ -44,6 +44,11 @@ function toSegment(content: string): Segment {
         return { type: 'ref', code: content.slice(REF_PREFIX.length).trim() }
     }
 
-    const definition = glossary[content]
-    return definition ? { type: 'term', term: content, definition } : { type: 'text', value: content }
+    const entry = glossary[content]
+    return entry ? { type: 'term', term: content, definition: entry.definition } : { type: 'text', value: content }
+}
+
+// Termos de glossário que o texto usa (só os que existem no catálogo), na ordem.
+export function termsInText(text: string): string[] {
+    return parseLessonMarkup(text).flatMap((segment) => (segment.type === 'term' ? [segment.term] : []))
 }

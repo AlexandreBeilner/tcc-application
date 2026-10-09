@@ -1,4 +1,5 @@
 import type { Lesson } from '../../../services/lessons'
+import { isParallelTrack } from '../../../utils/tracks'
 import type { LessonUnlockHint } from './types'
 
 export type { LessonUnlockHint } from './types'
@@ -10,7 +11,9 @@ export type { LessonUnlockHint } from './types'
 // nunca recalculadas aqui. `GET /lessons` devolve só as publicadas, ordenadas
 // por `sortOrder`, então a posição é o índice na lista: as chaves valem pras
 // primeiras `satisfiedCount` lições.
-export function unlockedKeysFor(lessons: Lesson[]): Set<string> {
+export function unlockedKeysFor(allLessons: Lesson[]): Set<string> {
+    // Trilha paralela (RC.4.4) fica fora da corrente que as chaves seguem.
+    const lessons = allLessons.filter((lesson) => !isParallelTrack(lesson.trackNumber))
     const satisfiedCount = lessons.filter((lesson) => lesson.status === 'completed' || lesson.waived).length
     const keys = new Set<string>()
 

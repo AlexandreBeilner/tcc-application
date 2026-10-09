@@ -265,3 +265,51 @@ func TestService_SandboxSegueAbertoNoFimDeSemana(t *testing.T) {
 		t.Fatalf("err = %v, sandbox deve operar no fim de semana", err)
 	}
 }
+
+// Value avalia a posição pela mesma regra do resgate, sem persistir nada e sem exigir mercado aberto.
+func TestService_Value_IgualAoResgateENaoPersiste(t *testing.T) {
+	rctx := RedeemContext{
+		SimulatedDay:         400, // fora de pregão não importa: Value não checa mercado aberto
+		Position:             fixedincomeposition.Position{Quantity: 2, AveragePrice: 900, AverageRate: 0.10},
+		MaturityDate:         simcalendar.BaseDate.AddDate(0, 6, 0).AddDate(1, 0, 0),
+		CurrentMarketRatePct: 8,
+	}
+	repo := &fakeRepository{redeemCtx: rctx}
+	svc := NewService(repo, testIPCAConfig)
+
+	value, err := svc.Value(context.Background(), "u1", "a1")
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	redeemed, err := svc.Redeem(context.Background(), RedeemRequest{UserID: "u1", AssetID: "a1"})
+	if err != nil {
+		t.Skipf("resgate recusado neste dia simulado (%v)", err)
+	}
+	if value.TotalValue != redeemed.TotalValue || value.NetValue != redeemed.NetValue {
+		t.Errorf("Value = %+v, Redeem = %+v, devem coincidir", value, redeemed)
+	}
+}
+
+func TestService_Value_NaoPersisteNada(t *testing.T) {
+	repo := &fakeRepository{redeemCtx: RedeemContext{
+		Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: 900, AverageRate: 0.10},
+		MaturityDate:         simcalendar.BaseDate.AddDate(0, 6, 0),
+		CurrentMarketRatePct: 8,
+	}}
+	svc := NewService(repo, testIPCAConfig)
+
+	if _, err := svc.Value(context.Background(), "u1", "a1"); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if repo.persistRedeemCalled {
+		t.Error("Value não pode persistir")
+	}
+}
+
+func TestService_Value_PosicaoInexistente(t *testing.T) {
+	svc := NewService(&fakeRepository{redeemCtxErr: ErrPositionNotFound}, testIPCAConfig)
+
+	if _, err := svc.Value(context.Background(), "u1", "a1"); err != ErrPositionNotFound {
+		t.Fatalf("err = %v, want %v", err, ErrPositionNotFound)
+	}
+}

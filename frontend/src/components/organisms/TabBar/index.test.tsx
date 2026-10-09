@@ -91,7 +91,7 @@ describe('TabBar', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Portfólio travado pela trilha' }))
 
         // Nunca redireciona pra lição/Mapa da Trilha: a própria rota "/" já
-        // está protegida por `RequiresUnlock`, que renderiza `LockedScreen`
+        // está protegida por `RequiresUnlock`, que renderiza `LockedGate`
         // (o card de bloqueio) no lugar do `Portfolio` real.
         expect(screen.getByTestId('location')).toHaveTextContent('/')
     })

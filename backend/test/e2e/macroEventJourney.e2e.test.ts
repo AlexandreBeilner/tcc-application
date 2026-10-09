@@ -94,12 +94,22 @@ describe('jornada: evento macro → preço → relatório', () => {
         (result) => result.day >= event.fundamentals_report_day,
         event.fundamentals_report_day - event.triggered_on_day + 20,
       )
-      // Um tick extra: SaveTick grava o relatório e atualiza o status do
-      // evento na mesma transação do tick em que o dia de relatório é
-      // alcançado — o resultado já reflete isso, mas um tick a mais
-      // garante que qualquer processamento pendente do próprio dia do
-      // relatório já foi persistido antes de ler de volta.
-      await triggerTick(adminToken)
+      // Com balanço escalonado (RC.6.8) cada empresa divulga com um atraso
+      // próprio e o evento só vira 'aplicado' depois do último balanço
+      // atrasado do ciclo. Avança tick a tick até o status mudar (teto
+      // folgado: o atraso máximo é bem menor que um ciclo).
+      const findNewsItem = async () => {
+        const news = await authed(user.token).get('/news?limit=50')
+        expect(news.status).toBe(200)
+        return (news.body.events as Array<{ id: string; status: string }>).find(
+          (item) => item.id === event.id,
+        )
+      }
+      let newsItem = await findNewsItem()
+      for (let extra = 0; extra < 60 && newsItem?.status !== 'aplicado'; extra++) {
+        await triggerTick(adminToken)
+        newsItem = await findNewsItem()
+      }
 
       const companyAfter = await authed(user.token).get(`/market/companies/${companyId}`)
       expect(companyAfter.status).toBe(200)
@@ -107,11 +117,6 @@ describe('jornada: evento macro → preço → relatório', () => {
         .length
       expect(fundamentalsCountAfter).toBeGreaterThan(fundamentalsCountBefore)
 
-      const news = await authed(user.token).get('/news?limit=50')
-      expect(news.status).toBe(200)
-      const newsItem = (news.body.events as Array<{ id: string; status: string }>).find(
-        (item) => item.id === event.id,
-      )
       expect(newsItem).toBeDefined()
       expect(newsItem!.status).toBe('aplicado')
     },

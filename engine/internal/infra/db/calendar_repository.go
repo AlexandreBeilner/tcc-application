@@ -164,3 +164,56 @@ func (r *CalendarRepository) UserFactsBetween(ctx context.Context, userID string
 	}
 	return facts, maturities.Err()
 }
+
+// HoldingsOf devolve as posições de renda variável abertas do próprio usuário
+// (positions guarda o estado atual; quantidade zerada não é posição).
+func (r *CalendarRepository) HoldingsOf(ctx context.Context, userID string) ([]marketcalendar.Holding, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT a.ticker, a.type::text, p.quantity
+		 FROM positions p JOIN assets a ON a.id = p.asset_id
+		 WHERE p.user_id = $1 AND p.quantity > 0 AND a.is_sandbox = false`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	holdings := make([]marketcalendar.Holding, 0)
+	for rows.Next() {
+		var h marketcalendar.Holding
+		if err := rows.Scan(&h.Ticker, &h.Class, &h.Quantity); err != nil {
+			return nil, err
+		}
+		holdings = append(holdings, h)
+	}
+	return holdings, rows.Err()
+}
+
+// DividendRecipientsBetween devolve os proventos com data-ex ou pagamento na
+// janela aos quais o usuário tem direito, com a quantidade do snapshot. Só as
+// linhas dele: o snapshot dos outros nunca sai daqui (RNF09).
+func (r *CalendarRepository) DividendRecipientsBetween(ctx context.Context, userID string, fromDay, toDay int) ([]marketcalendar.RecipientFact, error) {
+	from, to := simcalendar.DateOf(fromDay), simcalendar.DateOf(toDay)
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT a.ticker, d.ex_date, d.payment_date, rec.quantity
+		 FROM dividend_event_recipients rec
+		   JOIN dividend_events d ON d.id = rec.dividend_event_id
+		   JOIN assets a ON a.id = d.asset_id
+		 WHERE rec.user_id = $1 AND a.is_sandbox = false
+		   AND ((d.ex_date BETWEEN $2 AND $3) OR (d.payment_date BETWEEN $2 AND $3))`, userID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	facts := make([]marketcalendar.RecipientFact, 0)
+	for rows.Next() {
+		var f marketcalendar.RecipientFact
+		var ex, pay time.Time
+		if err := rows.Scan(&f.Ticker, &ex, &pay, &f.Quantity); err != nil {
+			return nil, err
+		}
+		f.ExDay, f.PaymentDay = simcalendar.DayOf(ex), simcalendar.DayOf(pay)
+		facts = append(facts, f)
+	}
+	return facts, rows.Err()
+}

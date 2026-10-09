@@ -22,7 +22,7 @@ export interface UseLockedAssetGateResult {
 // do clique em si) — mas desde a Fase Q o Detalhe (`AssetDetail`/
 // `FixedIncomeDetail`) vira parede total quando `isLocked`, substituindo
 // TODO o conteúdo (chart/indicadores/simulador) pelo card de
-// `LockedAssetPanel` via `unlockingLessonFor`, reversão da "prévia, não
+// `LockedGate` via `unlockingLessonFor`, reversão da "prévia, não
 // parede" da Fase J.
 export function useLockedAssetGate(): UseLockedAssetGateResult {
     const navigate = useNavigate()

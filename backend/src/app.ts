@@ -198,6 +198,8 @@ import { createProgressionRouter } from './modules/gamification/interfaces/http/
 import { createStreakRouter } from './modules/gamification/interfaces/http/streakRouter'
 import { LESSON_MIN_STEP_INTERVAL_MS } from './modules/lessons/domain/lesson'
 import { AdvanceLessonUseCase } from './modules/lessons/application/useCases/advanceLesson'
+import { AnswerCheckpointUseCase } from './modules/lessons/application/useCases/answerCheckpoint'
+import { AnswerMicroDecisionUseCase } from './modules/lessons/application/useCases/answerMicroDecision'
 import { CountCompletedLessonsUseCase } from './modules/lessons/application/useCases/countCompletedLessons'
 import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/application/useCases/getCurrentMicroDecisionStreak'
 import { GetTracksCompletedWithoutErrorsCountUseCase } from './modules/lessons/application/useCases/getTracksCompletedWithoutErrorsCount'
@@ -254,6 +256,8 @@ import { createInProcessLevelReader } from './modules/ranking/infrastructure/gam
 import { createDrizzleUserDirectory } from './modules/ranking/infrastructure/persistence/drizzleUserDirectory'
 import { createRedisNetWorthCache } from './modules/ranking/infrastructure/cache/redisNetWorthCache'
 import { createRedisNetWorthCacheStore } from './modules/ranking/infrastructure/cache/redisNetWorthCacheStore'
+import { createDrizzleRankingValuationSampleStore } from './modules/ranking/infrastructure/persistence/drizzleRankingValuationSampleStore'
+import { createDrizzleRankingSnapshotStore } from './modules/ranking/infrastructure/persistence/drizzleRankingSnapshotStore'
 import { createRankingRouter } from './modules/ranking/interfaces/http/rankingRouter'
 import { GetPublicProfileUseCase } from './modules/profile/application/useCases/getPublicProfile'
 import { createInProcessAchievementsReader } from './modules/profile/infrastructure/achievements/inProcessAchievementsReader'
@@ -633,6 +637,8 @@ export function createApp(deps: AppDeps = {}): Express {
       : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
   const getLesson = new GetLessonUseCase(lessonRepository)
+  const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
+  const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     xpAwarder,
@@ -692,6 +698,8 @@ export function createApp(deps: AppDeps = {}): Express {
     cachedNetWorthForRanking,
     createInProcessLevelReader(getProgression),
     createInProcessFriendGraphReader(friendshipRepository),
+    createDrizzleRankingSnapshotStore(db),
+    createDrizzleRankingValuationSampleStore(db),
   )
 
   const getPublicProfile = new GetPublicProfileUseCase(
@@ -975,7 +983,15 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   app.use(createStreakRouter({ getProgression, authMiddleware }))
   app.use(
-    createLessonsRouter({ getTrackMap, getLesson, advanceLesson, reviewLesson, authMiddleware }),
+    createLessonsRouter({
+      getTrackMap,
+      getLesson,
+      advanceLesson,
+      answerMicroDecision,
+      answerCheckpoint,
+      reviewLesson,
+      authMiddleware,
+    }),
   )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))

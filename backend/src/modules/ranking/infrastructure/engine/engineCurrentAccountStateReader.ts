@@ -1,5 +1,8 @@
 import { markPrice } from '../../domain/markPrice'
-import type { CurrentAccountStateReader } from '../../application/ports/currentAccountStateReader'
+import type {
+  CurrentAccountStateReader,
+  CurrentSnapshotOptions,
+} from '../../application/ports/currentAccountStateReader'
 import type { Snapshot } from '../../domain/networth'
 
 interface AccountResponse {
@@ -14,6 +17,10 @@ interface PositionResponse {
   is_sandbox: boolean
   quantity: number
   average_price: number
+  // Só em `GET /fixed-income/positions?valuation=true`, fora do sandbox: valor de hoje, bruto
+  // (`current_value`) e líquido de IR (`net_value`, o que o resgate creditaria).
+  current_value?: number
+  net_value?: number
 }
 
 interface AssetResponse {
@@ -40,11 +47,16 @@ export function createEngineCurrentAccountStateReader(
   engineUrl: string,
 ): CurrentAccountStateReader {
   return {
-    async getCurrentSnapshot(userId: string): Promise<Snapshot> {
+    async getCurrentSnapshot(
+      userId: string,
+      options: CurrentSnapshotOptions = {},
+    ): Promise<Snapshot> {
       const [account, positions, fixedIncomePositions] = await Promise.all([
         fetchJson<AccountResponse>(`${engineUrl}/accounts/${userId}`),
         fetchJson<PositionResponse[]>(`${engineUrl}/positions?user_id=${userId}`),
-        fetchJson<PositionResponse[]>(`${engineUrl}/fixed-income/positions?user_id=${userId}`),
+        fetchJson<PositionResponse[]>(
+          `${engineUrl}/fixed-income/positions?user_id=${userId}${options.valuedFixedIncome ? '&valuation=true' : ''}`,
+        ),
       ])
 
       // Marcação a mercado (tarefa S.6): ponto médio do book de cada ativo
@@ -86,12 +98,23 @@ export function createEngineCurrentAccountStateReader(
           0,
         )
 
-      // Mesma aproximação de custo (sem marcação a mercado) do replay
-      // (`domain/networth.ts`) — mantém baseline (passado) e atual (agora)
-      // na mesma metodologia de valorização.
-      const fixedIncomeValue = fixedIncomePositions
-        .filter((position) => !position.is_sandbox)
-        .reduce((sum, position) => sum + position.quantity * position.average_price, 0)
+      // Por padrão a renda fixa é valorizada a custo, a mesma aproximação do replay
+      // (`domain/networth.ts`), pra manter baseline (passado) e atual (agora) na mesma
+      // metodologia. Com `valuedFixedIncome` usa o valor de hoje que o motor calcula pela mesma
+      // conta do resgate, líquido de IR (`net_value`), como o resgate que entra em `disinvestedProceeds`;
+      // posição sem `net_value` (avaliação falhou) cai no custo.
+      const livePositions = fixedIncomePositions.filter((position) => !position.is_sandbox)
+      const fixedIncomeCostValue = livePositions.reduce(
+        (sum, position) => sum + position.quantity * position.average_price,
+        0,
+      )
+      const fixedIncomeValue = options.valuedFixedIncome
+        ? livePositions.reduce(
+            (sum, position) =>
+              sum + (position.net_value ?? position.quantity * position.average_price),
+            0,
+          )
+        : fixedIncomeCostValue
 
       const cash = account.current_balance
 
@@ -109,6 +132,7 @@ export function createEngineCurrentAccountStateReader(
         investedCost: account.total_invested,
         disinvestedProceeds: account.total_disinvested,
         dividendsReceived: account.total_dividends_received,
+        ...(options.valuedFixedIncome ? { fixedIncomeCostValue } : {}),
       }
     },
   }

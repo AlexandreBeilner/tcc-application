@@ -1,0 +1,132 @@
+/* Largura, ícone e padding são decididos pela variante, nunca pelo contêiner
+   (RC.2.5). Borda tracejada + selo âmbar: convenção "indisponível/ainda não"
+   de identidade-visual-padroes.md. */
+.gate {
+    box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin: 0 auto;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.seal {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--color-gamify-100);
+    color: var(--color-gamify-500);
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: center;
+    min-width: 0;
+}
+
+.title {
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.description {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.cta {
+    margin-top: var(--space-2);
+}
+
+.screen {
+    max-width: 640px;
+    min-height: 50vh;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: var(--space-8) var(--space-4);
+}
+
+.screen .seal {
+    width: 96px;
+    height: 96px;
+}
+
+.screen .title {
+    font-size: var(--font-size-xl);
+}
+
+.section {
+    max-width: 560px;
+    gap: var(--space-3);
+    padding: var(--space-6) var(--space-4);
+}
+
+.section .seal {
+    width: 64px;
+    height: 64px;
+}
+
+.inline {
+    max-width: 420px;
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+
+.inline .seal {
+    width: 36px;
+    height: 36px;
+}
+
+.inline .body {
+    align-items: flex-start;
+}
+
+/* Mobile: CTA ocupa a largura toda nas variantes grandes. */
+@media (max-width: 767px) {
+    .screen .cta,
+    .section .cta {
+        width: 100%;
+    }
+
+    .screen .cta button,
+    .section .cta button {
+        width: 100%;
+    }
+}
+
+/* Desktop: a tela cheia ganha composição própria (selo à esquerda, texto e
+   CTA à direita) em vez de bloco estreito centrado com laterais mortas. */
+@media (min-width: 1024px) {
+    .screen {
+        max-width: 880px;
+        min-height: 40vh;
+        flex-direction: row;
+        text-align: left;
+        gap: var(--space-8);
+        padding: var(--space-12) var(--space-8);
+    }
+
+    .screen .body {
+        align-items: flex-start;
+    }
+
+    .screen .seal {
+        width: 128px;
+        height: 128px;
+    }
+}

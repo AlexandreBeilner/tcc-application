@@ -24,7 +24,7 @@ export function IndicatorSummaryCards({ latest, nextCopomSimulatedDay }: Indicat
                 </span>
                 <span className={styles.label}>Selic (meta anual)</span>
                 <span className={`${styles.value} tabular-nums`}>
-                    {latest ? formatRatePercent(latest.selic_rate) : 'Aguardando primeiro tick'}
+                    {latest ? formatRatePercent(latest.selic_rate) : 'Aguardando a primeira atualização'}
                 </span>
             </div>
 
@@ -34,7 +34,7 @@ export function IndicatorSummaryCards({ latest, nextCopomSimulatedDay }: Indicat
                 </span>
                 <span className={styles.label}>IPCA mensal</span>
                 <span className={`${styles.value} tabular-nums`}>
-                    {latest ? formatPercentage(latest.ipca_monthly_rate) : 'Aguardando primeiro tick'}
+                    {latest ? formatPercentage(latest.ipca_monthly_rate) : 'Aguardando a primeira atualização'}
                 </span>
             </div>
 
@@ -44,7 +44,7 @@ export function IndicatorSummaryCards({ latest, nextCopomSimulatedDay }: Indicat
                 </span>
                 <span className={styles.label}>IPCA acumulado 12m</span>
                 <span className={`${styles.value} tabular-nums`}>
-                    {latest ? formatPercentage(latest.ipca_accumulated_12m) : 'Aguardando primeiro tick'}
+                    {latest ? formatPercentage(latest.ipca_accumulated_12m) : 'Aguardando a primeira atualização'}
                 </span>
             </div>
 

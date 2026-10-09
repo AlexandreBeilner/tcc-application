@@ -1,6 +1,6 @@
 {
-  "id": "c54d8f37-ab91-419d-8d32-594030a373a9",
-  "prevId": "c703b252-4ff9-4958-b143-e6b9349f460f",
+  "id": "3ca9e519-8370-4448-84fd-b1d5570c14fd",
+  "prevId": "07b04fac-4335-4ab5-a913-dfe09bdc26b7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -61,9 +61,7 @@
         "achievements_seed_key_unique": {
           "name": "achievements_seed_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "seed_key"
-          ]
+          "columns": ["seed_key"]
         }
       },
       "policies": {},
@@ -184,12 +182,8 @@
           "name": "admin_audit_log_admin_id_users_id_fk",
           "tableFrom": "admin_audit_log",
           "tableTo": "users",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admin_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -201,138 +195,6 @@
         "admin_audit_log_result_chk": {
           "name": "admin_audit_log_result_chk",
           "value": "\"admin_audit_log\".\"result\" IN ('success', 'failed')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.announcements": {
-      "name": "announcements",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(80)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "varchar(280)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "severity": {
-          "name": "severity",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'notice'"
-        },
-        "dismissible": {
-          "name": "dismissible",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "starts_at": {
-          "name": "starts_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ends_at": {
-          "name": "ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "linked_halt_id": {
-          "name": "linked_halt_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "announcements_window_idx": {
-          "name": "announcements_window_idx",
-          "columns": [
-            {
-              "expression": "starts_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "ends_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "announcements_created_by_users_id_fk": {
-          "name": "announcements_created_by_users_id_fk",
-          "tableFrom": "announcements",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "announcements_severity_chk": {
-          "name": "announcements_severity_chk",
-          "value": "\"announcements\".\"severity\" IN ('info', 'warning', 'critical')"
-        },
-        "announcements_kind_chk": {
-          "name": "announcements_kind_chk",
-          "value": "\"announcements\".\"kind\" IN ('notice', 'maintenance')"
-        },
-        "announcements_window_chk": {
-          "name": "announcements_window_chk",
-          "value": "\"announcements\".\"ends_at\" IS NULL OR \"announcements\".\"ends_at\" > \"announcements\".\"starts_at\""
         }
       },
       "isRLSEnabled": false
@@ -407,9 +269,7 @@
         "daily_missions_key_unique": {
           "name": "daily_missions_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -467,12 +327,8 @@
           "name": "friendships_requester_id_users_id_fk",
           "tableFrom": "friendships",
           "tableTo": "users",
-          "columnsFrom": [
-            "requester_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["requester_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -480,12 +336,8 @@
           "name": "friendships_addressee_id_users_id_fk",
           "tableFrom": "friendships",
           "tableTo": "users",
-          "columnsFrom": [
-            "addressee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["addressee_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -495,10 +347,7 @@
         "friendships_pair_unique": {
           "name": "friendships_pair_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "requester_id",
-            "addressee_id"
-          ]
+          "columns": ["requester_id", "addressee_id"]
         }
       },
       "policies": {},
@@ -506,111 +355,6 @@
         "friendships_no_self_chk": {
           "name": "friendships_no_self_chk",
           "value": "\"friendships\".\"requester_id\" <> \"friendships\".\"addressee_id\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.lesson_revisions": {
-      "name": "lesson_revisions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "lesson_id": {
-          "name": "lesson_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "admin_id": {
-          "name": "admin_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "action": {
-          "name": "action",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "snapshot": {
-          "name": "snapshot",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "lesson_revisions_lesson_id_idx": {
-          "name": "lesson_revisions_lesson_id_idx",
-          "columns": [
-            {
-              "expression": "lesson_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "lesson_revisions_lesson_id_lessons_id_fk": {
-          "name": "lesson_revisions_lesson_id_lessons_id_fk",
-          "tableFrom": "lesson_revisions",
-          "tableTo": "lessons",
-          "columnsFrom": [
-            "lesson_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "lesson_revisions_admin_id_users_id_fk": {
-          "name": "lesson_revisions_admin_id_users_id_fk",
-          "tableFrom": "lesson_revisions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "admin_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "lesson_revisions_action_chk": {
-          "name": "lesson_revisions_action_chk",
-          "value": "\"lesson_revisions\".\"action\" IN ('baseline', 'create', 'update', 'restore')"
         }
       },
       "isRLSEnabled": false
@@ -734,19 +478,18 @@
           "primaryKey": false,
           "notNull": false
         },
-        "published": {
-          "name": "published",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "blocks": {
+          "name": "blocks",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -756,23 +499,17 @@
         "lessons_stable_key_unique": {
           "name": "lessons_stable_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "stable_key"
-          ]
+          "columns": ["stable_key"]
         },
         "lessons_code_unique": {
           "name": "lessons_code_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         },
         "lessons_sort_order_unique": {
           "name": "lessons_sort_order_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "sort_order"
-          ]
+          "columns": ["sort_order"]
         }
       },
       "policies": {},
@@ -816,12 +553,8 @@
           "name": "news_event_reads_user_id_users_id_fk",
           "tableFrom": "news_event_reads",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -831,10 +564,7 @@
         "news_event_reads_unique": {
           "name": "news_event_reads_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "macro_event_id"
-          ]
+          "columns": ["user_id", "macro_event_id"]
         }
       },
       "policies": {},
@@ -871,12 +601,8 @@
           "name": "payroll_state_user_id_users_id_fk",
           "tableFrom": "payroll_state",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -930,12 +656,8 @@
           "name": "social_feed_events_user_id_users_id_fk",
           "tableFrom": "social_feed_events",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -983,12 +705,8 @@
           "name": "user_achievements_user_id_users_id_fk",
           "tableFrom": "user_achievements",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -996,12 +714,8 @@
           "name": "user_achievements_achievement_id_achievements_id_fk",
           "tableFrom": "user_achievements",
           "tableTo": "achievements",
-          "columnsFrom": [
-            "achievement_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["achievement_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1011,10 +725,7 @@
         "user_achievements_unique": {
           "name": "user_achievements_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "achievement_id"
-          ]
+          "columns": ["user_id", "achievement_id"]
         }
       },
       "policies": {},
@@ -1075,12 +786,8 @@
           "name": "user_identities_user_id_users_id_fk",
           "tableFrom": "user_identities",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1090,10 +797,7 @@
         "user_identities_provider_unique": {
           "name": "user_identities_provider_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "provider_name",
-            "provider_account_id"
-          ]
+          "columns": ["provider_name", "provider_account_id"]
         }
       },
       "policies": {},
@@ -1167,6 +871,26 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "micro_decision_attempts": {
+          "name": "micro_decision_attempts",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "micro_decision_wrong_options": {
+          "name": "micro_decision_wrong_options",
+          "type": "smallint[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::smallint[]"
+        },
+        "micro_decision_solved_at": {
+          "name": "micro_decision_solved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1175,12 +899,8 @@
           "name": "user_lesson_progress_user_id_users_id_fk",
           "tableFrom": "user_lesson_progress",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1188,12 +908,8 @@
           "name": "user_lesson_progress_lesson_id_lessons_id_fk",
           "tableFrom": "user_lesson_progress",
           "tableTo": "lessons",
-          "columnsFrom": [
-            "lesson_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lesson_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1203,10 +919,7 @@
         "user_lesson_progress_unique": {
           "name": "user_lesson_progress_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "lesson_id"
-          ]
+          "columns": ["user_id", "lesson_id"]
         }
       },
       "policies": {},
@@ -1263,12 +976,8 @@
           "name": "user_mission_progress_user_id_users_id_fk",
           "tableFrom": "user_mission_progress",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1276,12 +985,8 @@
           "name": "user_mission_progress_mission_id_daily_missions_id_fk",
           "tableFrom": "user_mission_progress",
           "tableTo": "daily_missions",
-          "columnsFrom": [
-            "mission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mission_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1291,11 +996,7 @@
         "user_mission_progress_unique": {
           "name": "user_mission_progress_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "mission_id",
-            "mission_date"
-          ]
+          "columns": ["user_id", "mission_id", "mission_date"]
         }
       },
       "policies": {},
@@ -1360,12 +1061,8 @@
           "name": "user_progression_user_id_users_id_fk",
           "tableFrom": "user_progression",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1473,16 +1170,12 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "users_username_unique": {
           "name": "users_username_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         }
       },
       "policies": {},
@@ -1512,11 +1205,7 @@
     "public.friendship_status": {
       "name": "friendship_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "accepted",
-        "declined"
-      ]
+      "values": ["pending", "accepted", "declined"]
     },
     "public.lesson_micro_decision_type": {
       "name": "lesson_micro_decision_type",
@@ -1532,18 +1221,12 @@
     "public.mission_status": {
       "name": "mission_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "completed"
-      ]
+      "values": ["pending", "completed"]
     },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "user",
-        "admin"
-      ]
+      "values": ["user", "admin"]
     }
   },
   "schemas": {},

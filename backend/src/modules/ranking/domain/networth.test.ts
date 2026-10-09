@@ -27,6 +27,10 @@ describe('replay', () => {
       investedCost: 0,
       disinvestedProceeds: 0,
       dividendsReceived: 0,
+      byClass: {
+        fixedIncome: { investedCost: 0, disinvestedProceeds: 0, dividendsReceived: 0 },
+        variableIncome: { investedCost: 0, disinvestedProceeds: 0, dividendsReceived: 0 },
+      },
     })
   })
 
@@ -205,5 +209,45 @@ describe('replay', () => {
     expect(snapshot.total).toBe(expectedCash + 15 * 42)
     expect(snapshot.investedCost).toBe(20 * 40 + 2000)
     expect(snapshot.disinvestedProceeds).toBe(5 * 45 + 2100)
+  })
+
+  describe('fluxos por classe (byClass)', () => {
+    it('separa custo, vendas e proventos de renda variável e custo e resgate de renda fixa', () => {
+      const events = [
+        event({ eventType: 'initial_deposit', unitValue: 10000 }),
+        event({ eventType: 'buy_order_executed', assetId: 'acao', quantity: 10, unitValue: 50 }),
+        event({ eventType: 'sell_order_executed', assetId: 'acao', quantity: 4, unitValue: 60 }),
+        event({ eventType: 'dividend_payment', assetId: 'acao', quantity: 6, unitValue: 2 }),
+        event({ eventType: 'fixed_income_purchase', assetId: 'cdb', unitValue: 1000 }),
+        event({ eventType: 'fixed_income_redemption', assetId: 'cdb', unitValue: 1080 }),
+      ]
+
+      const { byClass } = replay(events, new Map([['acao', 55]]), new Set())
+
+      expect(byClass?.variableIncome).toEqual({
+        investedCost: 500,
+        disinvestedProceeds: 240,
+        dividendsReceived: 12,
+      })
+      expect(byClass?.fixedIncome).toEqual({
+        investedCost: 1000,
+        disinvestedProceeds: 1080,
+        dividendsReceived: 0,
+      })
+    })
+
+    it('ativo sandbox nunca entra nos fluxos por classe, mas segue nos totais da conta', () => {
+      const events = [
+        event({ eventType: 'initial_deposit', unitValue: 10000 }),
+        event({ eventType: 'buy_order_executed', assetId: 'sbx', quantity: 10, unitValue: 50 }),
+        event({ eventType: 'fixed_income_purchase', assetId: 'sbx-rf', unitValue: 300 }),
+      ]
+
+      const snapshot = replay(events, new Map(), new Set(['sbx', 'sbx-rf']))
+
+      expect(snapshot.investedCost).toBe(800)
+      expect(snapshot.byClass?.variableIncome.investedCost).toBe(0)
+      expect(snapshot.byClass?.fixedIncome.investedCost).toBe(0)
+    })
   })
 })

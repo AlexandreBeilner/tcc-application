@@ -24,6 +24,9 @@ type fakeFixedIncomeExecutor struct {
 	gotRedeemReq  fixedincomeexecution.RedeemRequest
 
 	gotSimulateReq fixedincomeexecution.SimulateRequest
+
+	valueOutcomes map[string]fixedincomeexecution.RedeemOutcome
+	valueErr      error
 }
 
 func (f *fakeFixedIncomeExecutor) Purchase(_ context.Context, req fixedincomeexecution.Request) (fixedincomeexecution.PurchaseOutcome, error) {
@@ -34,6 +37,10 @@ func (f *fakeFixedIncomeExecutor) Purchase(_ context.Context, req fixedincomeexe
 func (f *fakeFixedIncomeExecutor) Redeem(_ context.Context, req fixedincomeexecution.RedeemRequest) (fixedincomeexecution.RedeemOutcome, error) {
 	f.gotRedeemReq = req
 	return f.redeemOutcome, f.redeemErr
+}
+
+func (f *fakeFixedIncomeExecutor) Value(_ context.Context, _, assetID string) (fixedincomeexecution.RedeemOutcome, error) {
+	return f.valueOutcomes[assetID], f.valueErr
 }
 
 // Simulate delega pra fixedincomeexecution.Simulate de verdade, não um

@@ -160,14 +160,56 @@
       "idx": 22,
       "version": "7",
       "when": 1791400000000,
-      "tag": "0022_add_lesson_published_and_revisions",
+      "tag": "0022_add_lesson_micro_decision_attempts",
       "breakpoints": true
     },
     {
       "idx": 23,
       "version": "7",
       "when": 1791500000000,
-      "tag": "0023_add_announcements",
+      "tag": "0023_add_lesson_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0024_add_user_lesson_checkpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791700000000,
+      "tag": "0025_widen_lesson_stable_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791800000000,
+      "tag": "0026_add_ranking_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0027_add_ranking_valuation_samples",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0028_add_lesson_published_and_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792100000000,
+      "tag": "0029_add_announcements",
       "breakpoints": true
     }
   ]

@@ -24,6 +24,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/paymentschedule"
 	"tcc-investimentos/engine/internal/domain/selic"
 	"tcc-investimentos/engine/internal/domain/simcalendar"
 	"tcc-investimentos/engine/internal/domain/tick"
@@ -149,7 +150,7 @@ func main() {
 	// Ação/FII (R.1), precisa rodar depois de newCompanyAssets/FIIs novos
 	// já seedados (ver ordem acima).
 	seedETFAsset(ctx, repo, accountRepo, "SMLC11", "ETF Small Caps Crescimento", "Índice Small Caps Crescimento",
-		"Réplica por amostragem das empresas de maior crescimento esperado (companies.base_growth_pct) entre os 6 setores fixos — uma por setor.",
+		"Réplica por amostragem das empresas de maior crescimento esperado entre os 6 setores, uma por setor.",
 		[]etfHoldingSpec{
 			{Name: "Mineração Serra Alta ON (MSAL3)", Ticker: "MSAL3", WeightPct: 16.67},
 			{Name: "AgroPampa Grãos ON (AGPP3)", Ticker: "AGPP3", WeightPct: 16.67},
@@ -159,7 +160,7 @@ func main() {
 			{Name: "TechNova Software ON (TNVA3)", Ticker: "TNVA3", WeightPct: 16.66},
 		})
 	seedETFAsset(ctx, repo, accountRepo, "FINX11", "ETF Financeiro", "Índice Setorial Financeiro",
-		"Réplica setorial concentrada nas ações do setor Bancário/Financeiro do catálogo.",
+		"Réplica setorial concentrada nas ações do setor Bancário/Financeiro.",
 		[]etfHoldingSpec{
 			{Name: "Banco Nordeste Digital ON (BNDD3)", Ticker: "BNDD3", WeightPct: 25},
 			{Name: "Banco Nordeste Digital PN (BNDD4)", Ticker: "BNDD4", WeightPct: 20},
@@ -168,7 +169,7 @@ func main() {
 			{Name: "Crediseg Financeira ON (CDSG3)", Ticker: "CDSG3", WeightPct: 10},
 		})
 	seedETFAsset(ctx, repo, accountRepo, "DIVI11", "ETF Dividendos", "Índice de Dividendos",
-		"Réplica por amostragem de ativos historicamente pagadores de proventos consistentes — FIIs e ações de setores de fluxo de caixa estável.",
+		"Réplica por amostragem de ativos historicamente pagadores de proventos consistentes: FIIs e ações de setores de fluxo de caixa estável.",
 		[]etfHoldingSpec{
 			{Name: "FII Tijolo Corporativo (TJLO11)", Ticker: "TJLO11", WeightPct: 25},
 			{Name: "FII Papel Recebíveis (PAPL11)", Ticker: "PAPL11", WeightPct: 20},
@@ -177,7 +178,7 @@ func main() {
 			{Name: "Banco Nordeste Digital PN (BNDD4)", Ticker: "BNDD4", WeightPct: 15},
 		})
 	seedETFAsset(ctx, repo, accountRepo, "AMPL11", "ETF Amplo Mercado", "Índice Amplo de Mercado",
-		"Réplica total (full replication): mais constituintes e pesos mais pulverizados entre os 6 setores, em contraste com a amostragem representativa do SINT11.",
+		"Réplica total (full replication): mais constituintes e pesos mais pulverizados entre os 6 setores, em contraste com a amostragem representativa do ETF Índice Sintético.",
 		[]etfHoldingSpec{
 			{Name: "Mineradora Vale do Rio ON (VALR3)", Ticker: "VALR3", WeightPct: 10},
 			{Name: "Metais do Cerrado ON (MTCE3)", Ticker: "MTCE3", WeightPct: 10},
@@ -224,17 +225,31 @@ const (
 )
 
 func ensureCompany(ctx context.Context, repo *db.CatalogRepository, name, cnpj string, sector catalog.Sector, baseGrowthPct, qualityMultiplier float64) string {
-	if id, found, err := repo.FindCompanyByCNPJ(ctx, cnpj); err != nil {
-		log.Fatalf("erro ao buscar empresa %s: %v", cnpj, err)
-	} else if found {
-		log.Printf("empresa %s já existe (id %s) — pulando", name, id)
-		return id
-	}
-
 	company, err := catalog.NewCompany(name, cnpj, sector, baseGrowthPct, qualityMultiplier)
 	if err != nil {
 		log.Fatalf("empresa %s inválida: %v", name, err)
 	}
+	// Agenda de balanço e proventos derivada do CNPJ (RC.6.7, paymentschedule.DefaultsFor).
+	schedule := paymentschedule.DefaultsFor(cnpj, sector)
+	company, err = company.WithPaymentSchedule(schedule.ReportOffsetBusinessDays, schedule.Policy, schedule.ComLagBusinessDays, schedule.PaymentLagBusinessDays)
+	if err != nil {
+		log.Fatalf("agenda da empresa %s inválida: %v", name, err)
+	}
+
+	if id, found, err := repo.FindCompanyByCNPJ(ctx, cnpj); err != nil {
+		log.Fatalf("erro ao buscar empresa %s: %v", cnpj, err)
+	} else if found {
+		// Empresa criada antes da migration 000048: só recebe a agenda se ainda não recebeu.
+		if assigned, err := repo.AssignCompanyScheduleIfUnassigned(ctx, id, company); err != nil {
+			log.Fatalf("erro ao atribuir a agenda da empresa %s: %v", name, err)
+		} else if assigned {
+			log.Printf("empresa %s já existe (id %s) — agenda de proventos atribuída", name, id)
+		} else {
+			log.Printf("empresa %s já existe (id %s) — pulando", name, id)
+		}
+		return id
+	}
+
 	id, err := repo.CreateCompany(ctx, company)
 	if err != nil {
 		log.Fatalf("erro ao criar empresa %s: %v", name, err)
@@ -673,6 +688,23 @@ func recalibrateExistingFII(ctx context.Context, repo *db.CatalogRepository, id,
 	}
 }
 
+// fiiPayoutBusinessDay é o dia útil de pagamento do FII derivado do ticker (RC.6.7).
+func fiiPayoutBusinessDay(ticker string) int {
+	return paymentschedule.DefaultsFor(ticker, "").FIIPaymentBusinessDay
+}
+
+// assignExistingFIISchedule leva um FII criado antes da migration 000048 à agenda derivada do
+// ticker, se ainda não recebeu uma.
+func assignExistingFIISchedule(ctx context.Context, repo *db.CatalogRepository, id, ticker string) {
+	assigned, err := repo.AssignFIIScheduleIfUnassigned(ctx, id, fiiPayoutBusinessDay(ticker))
+	if err != nil {
+		log.Fatalf("erro ao atribuir a agenda de pagamento de %s: %v", ticker, err)
+	}
+	if assigned {
+		log.Printf("agenda de pagamento de %s atribuída (dia útil %d)", ticker, fiiPayoutBusinessDay(ticker))
+	}
+}
+
 // seedFIITijolo cria um FII de tijolo (segment/vacancyRate próprios —
 // tarefa 7.2 generalizou pra além do TJLO11/Lajes Corporativas original,
 // cobrindo Shopping/Logística com vacância própria por segmento).
@@ -681,6 +713,7 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name
 	netWorth := fiiInitialBaseValue(fii.TypeTijolo, segment)
 	if existed {
 		recalibrateExistingFII(ctx, repo, id, ticker, netWorth)
+		assignExistingFIISchedule(ctx, repo, id, ticker)
 		return id
 	}
 
@@ -701,6 +734,7 @@ func seedFIITijolo(ctx context.Context, repo *db.CatalogRepository, ticker, name
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
 	}
+	details.PayoutBusinessDay = fiiPayoutBusinessDay(ticker)
 	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar fii_details pra %s: %v", ticker, err)
 	}
@@ -714,6 +748,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name,
 	portfolioValue := fiiInitialBaseValue(fii.TypePapel, "")
 	if existed {
 		recalibrateExistingFII(ctx, repo, id, ticker, portfolioValue)
+		assignExistingFIISchedule(ctx, repo, id, ticker)
 		return id
 	}
 
@@ -735,6 +770,7 @@ func seedFIIPapel(ctx context.Context, repo *db.CatalogRepository, ticker, name,
 	if err != nil {
 		log.Fatalf("fii_details inválido pra %s: %v", ticker, err)
 	}
+	details.PayoutBusinessDay = fiiPayoutBusinessDay(ticker)
 	if err := repo.CreateFIIDetails(ctx, id, details); err != nil {
 		log.Fatalf("erro ao criar fii_details pra %s: %v", ticker, err)
 	}
@@ -772,7 +808,7 @@ func seedFixedIncome(ctx context.Context, repo *db.CatalogRepository, ticker, na
 // orderexecution não usa nada de variable_income_assets além do asset_id.
 func seedSandboxEquity(ctx context.Context, repo *db.CatalogRepository) {
 	const ticker = "SAND3"
-	id, existed := ensureAsset(ctx, repo, ticker, "Ação Sandbox — Lição 2.3", catalog.AssetAcao, nil, true)
+	id, existed := ensureAsset(ctx, repo, ticker, "Ação de Treino", catalog.AssetAcao, nil, true)
 	if existed {
 		return
 	}
@@ -795,7 +831,7 @@ func seedSandboxEquity(ctx context.Context, repo *db.CatalogRepository) {
 // compra (fixed_income_execution_repository.go), então o valor aqui não
 // precisa ser o mesmo do dia 0 do roteiro (é só o que aparece na vitrine).
 func seedSandboxFixedIncome(ctx context.Context, repo *db.CatalogRepository) {
-	seedFixedIncome(ctx, repo, "SANDPRE", "Tesouro Prefixado Sandbox — Lição 1.7", fixedincome.ProductTesouroPrefixado, "", 10.0, 30.00, true)
+	seedFixedIncome(ctx, repo, "SANDPRE", "Tesouro Prefixado de Treino", fixedincome.ProductTesouroPrefixado, "", 10.0, 30.00, true)
 }
 
 // Configuração fixa do pool de bots de liquidez desta sessão (tarefa B.2

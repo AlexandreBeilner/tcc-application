@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { RewardRevealProvider } from '../../../features/shell/RewardRevealProvider'
 import { getIndicatorHistory, getMarketCalendar, getMarketClock } from '../../../services/market'
-import { SATURDAY_CLOCK, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
+import { calendarDay, calendarWindow, SATURDAY_CLOCK, WEDNESDAY_CLOCK } from '../../../test/calendarFixtures'
 import { MarketClockChip } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -25,7 +25,7 @@ function renderChip(open = false, onToggle = vi.fn()) {
 describe('MarketClockChip', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
-        vi.mocked(getMarketCalendar).mockResolvedValue({ from_day: 0, to_day: 0, days: [] })
+        vi.mocked(getMarketCalendar).mockResolvedValue(calendarWindow(0, 0))
         vi.useFakeTimers({ toFake: ['Date'] })
         vi.setSystemTime(new Date('2026-07-08T12:00:00Z'))
     })
@@ -106,16 +106,11 @@ describe('MarketClockChip', () => {
             indicators: [{ simulated_day: 136, selic_rate: 10.5, ipca_monthly_rate: 0.4, ipca_accumulated_12m: 4 }],
         })
         vi.mocked(getMarketCalendar).mockResolvedValue({
-            from_day: 136,
-            to_day: 136,
+            ...calendarWindow(136, 136),
             days: [
-                {
-                    simulated_day: 136,
-                    date: '2026-07-09',
-                    weekday: 'thu',
-                    market_open: true,
-                    events: [{ kind: 'salary_payment', scope: 'user', future: false, unit_value: 1000 }],
-                },
+                calendarDay({ simulated_day: 136, date: '2026-07-09', weekday: 'thu', market_open: true }, [
+                    { kind: 'salary_payment', scope: 'user', future: false, unit_value: 1000 },
+                ]),
             ],
         })
         const { queryClient } = renderChip()
@@ -142,19 +137,12 @@ describe('MarketClockChip', () => {
             indicators: [{ simulated_day: 136, selic_rate: 10.5, ipca_monthly_rate: 0.4, ipca_accumulated_12m: 4 }],
         })
         vi.mocked(getMarketCalendar).mockResolvedValue({
-            from_day: 136,
-            to_day: 136,
+            ...calendarWindow(136, 136),
             days: [
-                {
-                    simulated_day: 136,
-                    date: '2026-07-09',
-                    weekday: 'thu',
-                    market_open: true,
-                    events: [
-                        { kind: 'salary_payment', scope: 'user', future: false, unit_value: 100, reference_month: '2026-05' },
-                        { kind: 'salary_payment', scope: 'user', future: false, unit_value: 100, reference_month: '2026-06' },
-                    ],
-                },
+                calendarDay({ simulated_day: 136, date: '2026-07-09', weekday: 'thu', market_open: true }, [
+                    { kind: 'salary_payment', scope: 'user', future: false, unit_value: 100, reference_month: '2026-05' },
+                    { kind: 'salary_payment', scope: 'user', future: false, unit_value: 100, reference_month: '2026-06' },
+                ]),
             ],
         })
         const { queryClient } = renderChip()

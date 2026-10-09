@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { investmentReturnPct, profitabilityPct, type RiskCapitalSnapshot } from './profitability'
+import {
+  classReturnPct,
+  investmentReturnPct,
+  profitabilityPct,
+  type RiskCapitalSnapshot,
+} from './profitability'
 
 describe('profitabilityPct', () => {
   it('ganho positivo', () => {
@@ -118,5 +123,53 @@ describe('investmentReturnPct (com baseline — retorno da janela do ranking)', 
     const baseline = riskCapital({})
     const current = riskCapital({ investedCost: 3000, currentInvestedValue: 1080 + 1040 + 970 })
     expect(investmentReturnPct(current, baseline)).toBeCloseTo(3)
+  })
+})
+
+describe('classReturnPct', () => {
+  const capital = (c: Partial<Parameters<typeof classReturnPct>[0]>) => ({
+    investedCost: 0,
+    disinvestedProceeds: 0,
+    dividendsReceived: 0,
+    currentValue: 0,
+    ...c,
+  })
+
+  it.each([
+    ['sem custo na classe: fora do ranking', capital({}), capital({}), null],
+    [
+      'valorização da posição que já existia no começo da janela',
+      capital({ investedCost: 1000, currentValue: 1100 }),
+      capital({ investedCost: 1000, currentValue: 1000 }),
+      10,
+    ],
+    [
+      'investiu só dentro da janela (começo zerado)',
+      capital({ investedCost: 1000, currentValue: 1100 }),
+      capital({}),
+      10,
+    ],
+    [
+      'aporte durante a janela não conta como ganho',
+      capital({ investedCost: 2000, currentValue: 2000 }),
+      capital({ investedCost: 1000, currentValue: 1000 }),
+      0,
+    ],
+    [
+      'venda com lucro e provento contam',
+      capital({ investedCost: 1000, disinvestedProceeds: 1050, dividendsReceived: 50 }),
+      capital({ investedCost: 1000, currentValue: 1000 }),
+      10,
+    ],
+    [
+      'perda',
+      capital({ investedCost: 1000, currentValue: 900 }),
+      capital({ investedCost: 1000, currentValue: 1000 }),
+      -10,
+    ],
+  ])('%s', (_name, current, baseline, expected) => {
+    const result = classReturnPct(current, baseline)
+    if (expected === null) expect(result).toBeNull()
+    else expect(result).toBeCloseTo(expected)
   })
 })

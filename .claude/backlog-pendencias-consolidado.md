@@ -131,7 +131,7 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
   lição dispensada); a N.23 (editor de lições) depende da N.24 pra criar lição.
 - **Andamento:** os 12 PRs do plano estão ✅ (o PR 12, N.20 e N.21, em 2026-10-06, branch `fase-n-pr12-sistema`, aguardando
   merge junto da cadeia de branches anterior); a Fase N está completa em código, falta só mesclar.
-- **Ajustes pós-decisão (2026-10-06):** os 5 achados abertos da Fase N (031, 032, 033, 034 e 035) foram decididos pelo
+- **Ajustes pós-decisão (2026-10-06):** os 5 achados abertos da Fase N (043, 032, 033, 044 e 045) foram decididos pelo
   autor. Só dois geram trabalho, no **PR 13** do plano: **N.25** (o admin escolhe a antecedência com que o jogador vê
   um evento macro agendado) e **N.26** (tirar "revogar conquista" do painel). Os outros três só ajustaram o texto das
   tarefas N.12 a N.15 e N.19. O PR 13 (N.25 e N.26) foi feito em 2026-10-06, branch `fase-n-pr13-ajustes`, aguardando merge junto da cadeia.
@@ -188,6 +188,18 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 - **Resumo:** identidade visual final do app, política de privacidade pública, publicação Google
   Play, validação e publicação iOS (precisa de CI macOS em nuvem — Xcode não roda em Linux).
 
+---
+
+## Prioridade 7 — Revisão das trilhas e melhorias de UX (2026-10-03)
+
+- **Local:** `.claude/backlog-revisao-trilhas-e-ux.md` (8 fases, tarefas RC.1.1 a RC.8.2) e anexos em
+  `.claude/revisao-trilhas-anexos/`.
+- **Resumo:** conteúdo das lições para o Brasil real, remoção de qualquer menção a TCC/spec, widgets
+  interativos, player (rever lição, voltar, errar não avança), `LockedGate`, calendário "Para você" e
+  escalonamento de proventos, mapa/donut/Sandbox. Currículo vai de 35 para 43 lições. Decisões D1-D13 do autor (várias já tomadas) na tabela do backlog.
+- **Começar por:** Fase 1 (RC.1.1 ✅ e RC.1.3 ✅ com ressalva (2026-10-04); RC.1.5 ✅ e RC.1.7 ✅ com ressalva; RC.1.4 ✅ com ressalva (2026-10-04: o que sobra nos baselines é da RC.3.3/Fase 5/RC.7.4); RC.1.2 ✅ em modo aviso (2026-10-04); RC.1.6 ✅, Fase 1 fechada; RC.2.5 ✅, RC.2.2 ✅ e RC.2.4 ✅ com ressalva 2026-10-04; RC.3.1 ✅ com ressalva e RC.3.2 ✅ com ressalva e RC.3.3 ✅ com ressalva e RC.3.5 ✅ com ressalva e RC.3.4a ✅ com ressalva e RC.5.5 ✅ com ressalva e RC.5.1 ✅ com ressalva 2026-10-04, RC.3.4b ✅, RC.3.4d ✅ e RC.5.6 ✅ e RC.5.7 ✅ 2026-10-05 (P3 fechado, PR por abrir), RC.3.4e ✅, RC.4.2 ✅ e RC.5.9 ✅ e RC.4.3 ✅ 2026-10-05 (P4 fechado, PR por abrir) RC.3.4f ✅ e RC.5.10 ✅ 2026-10-05 (P5 fechado, PR por abrir), RC.5.12 ✅ e RC.4.8 ✅ 2026-10-05 (P6 fechado, PR por abrir), RC.4.7 ✅ 2026-10-06 (P10 fechado, PR por abrir), RC.4.4 ✅ e RC.4.5 ✅ 2026-10-06 (P11 fechado, PR por abrir), RC.3.4h ✅ e RC.5.8 ✅ 2026-10-06 e RC.4.9 ✅ (P12 fechado, PR por abrir) (RC.4.1 desbloqueada: N.24 está na `main`; pilha de PRs #62 a #83 aguardando merge); RC.2.3+RC.2.4 vão juntas pra `main`).
+
+- **Estado (2026-10-07):** todas as tarefas de conteúdo e UI (Fases 1 a 7) e a Fase 8 (RC.8.1 e RC.8.2) estão ✅, em PRs encadeados #86 a #103 (P1 a P14), a mesclar em ordem. Só resta a RC.3.6 (P15, bloqueada até a N.23) e a opcional RC.6.12.
 ---
 
 ## Housekeeping (não é backlog de produto, mas vale resolver de passagem)

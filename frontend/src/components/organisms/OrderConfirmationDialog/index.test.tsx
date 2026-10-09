@@ -94,7 +94,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
 
         await waitFor(() => expect(screen.getByText('Ordem executada')).toBeInTheDocument())
         expect(
-            screen.getByText('Você comprou 4 de 10 PETR4 — o restante não achou liquidez suficiente e não foi executado.'),
+            screen.getByText('Você comprou 4 de 10 PETR4. O restante não achou liquidez suficiente e não foi executado.'),
         ).toBeInTheDocument()
     })
 
@@ -112,7 +112,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         await waitFor(() => expect(screen.getByText('Ordem executada')).toBeInTheDocument())
         expect(
             screen.getByText(
-                'Não havia liquidez suficiente pra negociar PETR4 agora — nenhuma unidade foi comprada. Tente novamente mais tarde.',
+                'Não havia liquidez suficiente pra negociar PETR4 agora. Nenhuma unidade foi comprada. Tente novamente mais tarde.',
             ),
         ).toBeInTheDocument()
     })
@@ -214,7 +214,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
             },
         })
         vi.mocked(placeOrder).mockRejectedValue(
-            new ApiError(422, 'saldo insuficiente para executar a ordem', { error: 'saldo insuficiente para executar a ordem' }),
+            new ApiError(422, 'Saldo insuficiente para essa operação.', { code: 'insufficient_balance' }),
         )
 
         renderDialog({ kind: 'order', assetId: 'a1', ticker: 'PETR4', name: 'Petrobras', side: 'buy', quantity: 1000, unitPrice: 30 })
@@ -255,8 +255,8 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
             ],
         })
         vi.mocked(placeOrder).mockRejectedValue(
-            new ApiError(422, 'quantidade em posição insuficiente para a venda', {
-                error: 'quantidade em posição insuficiente para a venda',
+            new ApiError(422, 'Você não tem quantidade suficiente em carteira para essa venda.', {
+                code: 'insufficient_position',
             }),
         )
 
@@ -297,7 +297,7 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
     })
 
     // Regressão da tarefa N.2: o 403 nunca traz `id`, só `code`/`title` —
-    // `LockedAssetPanel` já cai no Mapa da Trilha por omissão de `lessonId`,
+    // `LockedGate` já cai no Mapa da Trilha por omissão de `lessonId`,
     // continua assim mesmo com o campo `reachable` novo (nunca passado aqui).
     it('CTA do banner de trava continua caindo no Mapa da Trilha (403 nunca traz id da lição)', async () => {
         vi.mocked(getAsset).mockResolvedValue({

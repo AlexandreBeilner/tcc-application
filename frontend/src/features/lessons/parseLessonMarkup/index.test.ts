@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseLessonMarkup } from '.'
+import { parseLessonMarkup, termsInText } from '.'
 
 describe('parseLessonMarkup', () => {
     it('texto sem marcação devolve um único segmento de texto, igual ao original', () => {
@@ -51,5 +51,11 @@ describe('parseLessonMarkup', () => {
 
         expect(segments.map((segment) => segment.type)).toEqual(['term', 'text', 'ref', 'text'])
         expect(segments[2]).toMatchObject({ code: '1.3' })
+    })
+})
+
+describe('termsInText', () => {
+    it('lista só termos do catálogo, na ordem, ignorando ref e desconhecidos', () => {
+        expect(termsInText('{{FGC}} {{ref:1.4}} {{Inexistente}} {{Selic}}')).toEqual(['FGC', 'Selic'])
     })
 })

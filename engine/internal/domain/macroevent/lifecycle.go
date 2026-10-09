@@ -32,7 +32,7 @@ var (
 const DefaultRevealLeadDays = 1
 
 // ValidateRevealLead confere a antecedência de aparição escolhida pelo admin (N.25,
-// achado 035): inteiro de 0 até os dias que faltam entre o dia corrente e o primeiro dia
+// achado 045): inteiro de 0 até os dias que faltam entre o dia corrente e o primeiro dia
 // de efeito. 0 significa "só aparece quando o efeito já começou". Passar de
 // triggeredOnDay-currentDay seria equivalente a "já visível", e recusar evita um valor que
 // parece mandar mais do que manda.

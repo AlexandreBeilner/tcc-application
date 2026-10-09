@@ -1,3 +1,5 @@
+import { toPublicBlocks } from './widgets/lessonBlocks'
+import type { LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -22,9 +24,9 @@ export const LESSON_XP_REWARD = 50
 export type LessonStatus = 'completed' | 'available' | 'locked'
 
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — espelha o enum
-// `lesson_micro_decision_type` do schema. 'reflection' é o padrão (checkbox
-// "já pensei"); os outros embutem um componente já existente (tarefa 6.7)
-// no frontend em vez do checkbox.
+// `lesson_micro_decision_type` do schema. 'reflection' é o padrão (sem widget
+// embutido); os outros embutem um componente já existente (tarefa 6.7) no
+// frontend, junto da pergunta.
 export type MicroDecisionType =
   | 'reflection'
   | 'growth_calculator'
@@ -40,6 +42,18 @@ export type MicroDecisionType =
 // "quantas lições ele satisfez" (concluídas ou dispensadas), não "quantas
 // concluiu". Isso permite criar/despublicar lição no meio sem bloquear nem
 // fazer pular ninguém: a lista recebida deve ser só das lições publicadas.
+//
+// Trilhas paralelas (RC.4.4, decisão D13): a Trilha F "Finanças do dia a dia"
+// fica fora dessa corrente. Suas lições estão sempre disponíveis, em qualquer
+// ordem, não contam para `satisfiedCount` (nem para as chaves de produto que
+// ele libera) e não bloqueiam nem dispensam ninguém quando entram. Ficam no fim
+// do `sortOrder` para nunca caírem "no meio" da corrente.
+export const PARALLEL_TRACK_NUMBERS: readonly number[] = [4]
+
+export function isParallelTrack(trackNumber: number): boolean {
+  return PARALLEL_TRACK_NUMBERS.includes(trackNumber)
+}
+
 export function isUnlocked(position: number, satisfiedCount: number): boolean {
   return position <= satisfiedCount + 1
 }
@@ -64,10 +78,15 @@ export interface Progression {
 }
 
 export function buildProgression(
-  lessons: Pick<LessonSummary, 'id' | 'sortOrder'>[],
+  lessons: Pick<LessonSummary, 'id' | 'sortOrder' | 'trackNumber'>[],
   progress: (Pick<LessonProgressSnapshot, 'completedAt' | 'waivedAt'> & { lessonId: string })[],
 ): Progression {
-  const ordered = [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
+  const parallelIds = new Set(
+    lessons.filter((lesson) => isParallelTrack(lesson.trackNumber)).map((lesson) => lesson.id),
+  )
+  const ordered = lessons
+    .filter((lesson) => !parallelIds.has(lesson.id))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
   const positionById = new Map(ordered.map((lesson, index) => [lesson.id, index + 1]))
   // Só conta progresso de lição que está na lista: lição despublicada sai da
   // conta de todos, inclusive de quem a tinha concluído.
@@ -78,6 +97,7 @@ export function buildProgression(
   return {
     satisfiedCount,
     isUnlocked(lessonId) {
+      if (parallelIds.has(lessonId)) return true
       const position = positionById.get(lessonId)
       return position !== undefined && isUnlocked(position, satisfiedCount)
     },
@@ -127,11 +147,14 @@ export interface LessonSummary {
   // Desbloqueio (tarefa 7.0.2, achado 6).
   unlocksAssetTicker: string | null
   // Aposta com acerto/erro real (backlog engajamento B.1) — `null` nos dois
-  // campos é o estado normal de hoje (checkbox "já pensei" no passo
-  // Micro-decisão); só uma lição com as duas colunas preenchidas (autoria é
+  // campos é o estado normal de hoje (passo Micro-decisão sem
+  // pergunta); só uma lição com as duas colunas preenchidas (autoria é
   // a B.4) troca pro widget de escolha real (B.3).
   microDecisionOptions: string[] | null
   microDecisionCorrectOption: number | null
+  // Conteúdo visual por fase (RC.3.1). Ausente/`null` = player usa os textos
+  // legados acima. Já validado: valor fora do contrato chega aqui como `null`.
+  blocks?: LessonBlocks | null
 }
 
 export interface LessonProgressSnapshot {
@@ -143,6 +166,12 @@ export interface LessonProgressSnapshot {
   // Índice escolhido pelo usuário na Micro-decisão (B.1) — `null` até a
   // escolha ser gravada (B.2) ou pra lição sem aposta real.
   microDecisionSelectedOption: number | null
+  // Pergunta que só avança ao acertar (RC.2.3): nº de respostas dadas,
+  // alternativas erradas já tentadas e instante do acerto (`null` = ainda não
+  // resolvida). `microDecisionSelectedOption` acima é a PRIMEIRA escolha.
+  microDecisionAttempts: number
+  microDecisionWrongOptions: number[]
+  microDecisionSolvedAt: Date | null
   // Dispensa (N.24) — `null` pra quem nunca foi dispensado da lição.
   waivedAt: Date | null
 }
@@ -168,9 +197,36 @@ export function isCorrectOption(
 // a aba de rede. `AdvanceLessonUseCase` devolve o resultado (`correct`/
 // `correctOptionLabel`, via `microDecisionResultFor` abaixo) só na resposta
 // do `POST` que de fato inclui a escolha do usuário.
-export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption'> {
+// Estado gravado de uma pergunta intermediária (`check`, RC.3.2) pro usuário.
+export interface CheckpointRecord {
+  checkpointId: string
+  attempts: number
+  wrongOptions: number[]
+  solvedAt: Date | null
+}
+
+// Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
+// o gabarito nunca vai aqui.
+export interface CheckpointState {
+  checkpointId: string
+  solved: boolean
+  attempts: number
+  wrongOptions: number[]
+  firstTry: boolean
+}
+
+export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
+  // Sem gabarito nem explicação das perguntas intermediárias (`toPublicBlocks`).
+  blocks: PublicLessonBlocks | null
+  checkpoints: CheckpointState[]
+  // Quantas perguntas intermediárias o aluno acertou de primeira nesta lição.
+  checkpointsFirstTry: number
   status: LessonStatus
   currentStep: number
+  // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
+  // e voltar: o gabarito nunca vai aqui, só o que o próprio usuário já tentou.
+  microDecisionSolved: boolean
+  microDecisionWrongOptions: number[]
   // Lição dispensada e ainda não feita (N.24): aparece no mapa como "nova,
   // opcional" — disponível pra fazer, mas sem bloquear nada.
   waived: boolean
@@ -180,12 +236,21 @@ export function buildLessonView(
   lesson: LessonSummary,
   progress: LessonProgressSnapshot | undefined,
   progression: Progression,
+  checkpointRecords: CheckpointRecord[] = [],
 ): LessonView {
   const completedByUser = progress?.completedAt != null
   const status = lessonStatus({
     unlocked: progression.isUnlocked(lesson.id),
     completedByUser,
   })
+
+  const checkpoints: CheckpointState[] = checkpointRecords.map((record) => ({
+    checkpointId: record.checkpointId,
+    solved: record.solvedAt !== null,
+    attempts: record.attempts,
+    wrongOptions: record.wrongOptions,
+    firstTry: record.solvedAt !== null && record.attempts === 1,
+  }))
 
   return {
     id: lesson.id,
@@ -204,8 +269,13 @@ export function buildLessonView(
     unlocksKeys: lesson.unlocksKeys,
     unlocksAssetTicker: lesson.unlocksAssetTicker,
     microDecisionOptions: lesson.microDecisionOptions,
+    blocks: toPublicBlocks(lesson.blocks),
+    checkpoints,
+    checkpointsFirstTry: checkpoints.filter((c) => c.firstTry).length,
     status,
     currentStep: progress?.currentStep ?? 0,
+    microDecisionSolved: progress?.microDecisionSolvedAt != null,
+    microDecisionWrongOptions: progress?.microDecisionWrongOptions ?? [],
     waived: !completedByUser && progress?.waivedAt != null,
   }
 }
@@ -253,10 +323,12 @@ export function microDecisionResultFor(
 // mesmos dados de `GET /lessons` — sem endpoint novo.
 export function unlockedKeysFor(
   satisfiedCount: number,
-  lessons: Pick<LessonSummary, 'sortOrder' | 'unlocksKeys'>[],
+  lessons: Pick<LessonSummary, 'sortOrder' | 'unlocksKeys' | 'trackNumber'>[],
 ): Set<string> {
   const keys = new Set<string>()
-  const ordered = [...lessons].sort((a, b) => a.sortOrder - b.sortOrder)
+  const ordered = lessons
+    .filter((lesson) => !isParallelTrack(lesson.trackNumber))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
   for (const lesson of ordered.slice(0, satisfiedCount)) {
     for (const key of lesson.unlocksKeys) {
       keys.add(key)

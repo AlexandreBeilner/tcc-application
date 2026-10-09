@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { FixedIncomeSimulator } from '../../components/organisms/FixedIncomeSimulator'
 import { Button } from '../../components/atoms/Button'
 import { MarketClosedNotice } from '../../components/molecules/MarketClosedNotice'
-import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
+import { LockedGate } from '../../components/organisms/LockedGate'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftFixedIncomePurchase, OrderDraftFixedIncomeRedemption } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
@@ -67,13 +67,12 @@ export function FixedIncomeDetail() {
     if (gate.isLocked(asset)) {
         const unlockingLesson = gate.unlockingLessonFor(asset)
         return (
-            <main className={styles.page}>
-                <LockedAssetPanel
-                    lessonId={unlockingLesson?.id}
-                    lessonTitle={unlockingLesson?.title}
-                    reachable={unlockingLesson?.reachable}
-                />
-            </main>
+            <LockedGate
+                variant="section"
+                lessonId={unlockingLesson?.id}
+                lessonTitle={unlockingLesson?.title}
+                reachable={unlockingLesson?.reachable}
+            />
         )
     }
 

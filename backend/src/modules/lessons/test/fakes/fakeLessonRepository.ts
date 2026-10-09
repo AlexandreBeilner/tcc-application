@@ -4,7 +4,7 @@ import type {
   LessonRepository,
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
-import type { LessonSummary } from '../../domain/lesson'
+import type { CheckpointRecord, LessonSummary } from '../../domain/lesson'
 
 export function createFakeLessonRepository(
   seedLessons: LessonSummary[] = [],
@@ -12,6 +12,9 @@ export function createFakeLessonRepository(
 ): LessonRepository & { waive(userId: string, lessonId: string, waivedAt?: Date): void } {
   const lessons = [...seedLessons]
   const progressByUser = new Map<string, Map<string, LessonProgressRecord>>()
+  const checkpoints = new Map<string, CheckpointRecord>()
+  const checkpointKey = (userId: string, lessonId: string, checkpointId: string) =>
+    `${userId}|${lessonId}|${checkpointId}`
 
   return {
     // Só de teste (não faz parte da porta): planta uma dispensa (N.24) sem
@@ -57,6 +60,9 @@ export function createFakeLessonRepository(
           input.microDecisionSelectedOption !== undefined
             ? input.microDecisionSelectedOption
             : (existing?.microDecisionSelectedOption ?? null),
+        microDecisionAttempts: existing?.microDecisionAttempts ?? 0,
+        microDecisionWrongOptions: existing?.microDecisionWrongOptions ?? [],
+        microDecisionSolvedAt: existing?.microDecisionSolvedAt ?? null,
       }
       if (!progressByUser.has(userId)) {
         progressByUser.set(userId, new Map())
@@ -91,9 +97,57 @@ export function createFakeLessonRepository(
           microDecisionSelectedOption !== undefined
             ? microDecisionSelectedOption
             : (existing?.microDecisionSelectedOption ?? null),
+        microDecisionAttempts: existing?.microDecisionAttempts ?? 0,
+        microDecisionWrongOptions: existing?.microDecisionWrongOptions ?? [],
+        microDecisionSolvedAt: existing?.microDecisionSolvedAt ?? null,
       }
       userProgress?.set(lessonId, record)
       return { record, wonRace: true }
+    },
+
+    async recordMicroDecisionAnswer(userId, lessonId, answer) {
+      const existing = progressByUser.get(userId)?.get(lessonId)
+      if (!existing || existing.microDecisionSolvedAt !== null || existing.completedAt !== null) {
+        return undefined
+      }
+      const record: LessonProgressRecord = {
+        ...existing,
+        microDecisionSelectedOption: existing.microDecisionSelectedOption ?? answer.selectedOption,
+        microDecisionAttempts: existing.microDecisionAttempts + 1,
+        microDecisionWrongOptions:
+          answer.correct || existing.microDecisionWrongOptions.includes(answer.selectedOption)
+            ? existing.microDecisionWrongOptions
+            : [...existing.microDecisionWrongOptions, answer.selectedOption],
+        microDecisionSolvedAt: answer.correct ? answer.answeredAt : null,
+      }
+      progressByUser.get(userId)?.set(lessonId, record)
+      return record
+    },
+
+    async listCheckpointsForUser(userId, lessonId) {
+      return [...checkpoints.entries()]
+        .filter(([key]) => key.startsWith(`${userId}|${lessonId}|`))
+        .map(([, record]) => record)
+    },
+
+    async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
+      const key = checkpointKey(userId, lessonId, checkpointId)
+      const existing = checkpoints.get(key)
+      if (existing?.solvedAt) {
+        return existing
+      }
+      const wrongOptions = existing?.wrongOptions ?? []
+      const record: CheckpointRecord = {
+        checkpointId,
+        attempts: (existing?.attempts ?? 0) + 1,
+        wrongOptions:
+          answer.correct || answer.choice === null || wrongOptions.includes(answer.choice)
+            ? wrongOptions
+            : [...wrongOptions, answer.choice],
+        solvedAt: answer.correct ? answer.answeredAt : null,
+      }
+      checkpoints.set(key, record)
+      return record
     },
 
     async markReviewed(userId: string, lessonId: string, reviewedAt: Date) {

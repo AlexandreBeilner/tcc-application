@@ -285,7 +285,67 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 3.3 | Comparando produtos na prática | Ex: CDB 110% CDI líquido vs LCI 90% CDI isento — qual rende mais? | — |
 | 3.4 | Desafio final da trilha | Cenário combinando renda fixa + variável + um evento macro | Conclusão da trilha guiada, mundo aberto liberado por completo |
 
-**Total: 35 lições** (5 + 11 + 15 + 4 — Trilha 1 ganhou 2 lições na tarefa M.5, backlog-motor-mercado-realista, sobre o mecanismo real por trás de Selic/IPCA), todas reaproveitando o mesmo componente de UI (5.2).
+**Total: 43 lições** (6 + 12 + 18 + 5 + 2). **Revisão das trilhas (2026-10-03 a 2026-10-07, `backlog-revisao-trilhas-e-ux.md`):** as tabelas acima são o currículo original (35 lições, v0.5); a lista abaixo é a numeração vigente, com as lições novas (Juros, Selic, CDI e TR; Reserva de emergência; B3, corretora e ordens; Custos de investir; Imposto em renda variável; Cabeça de investidor; e a Trilha F paralela, sem desbloqueio de ativo, aberta em qualquer ordem) e a Trilha 3 reescrita como planejamento real (perfil conservador, moderado ou arrojado por questionário, sem "Sofisticado"). O conteúdo de cada lição passou a ser em `blocks` (cartões curtos, widgets interativos, bloco "Na plataforma" separando o mundo real do que a plataforma simplifica, fatos regulatórios com fonte primária em `regulatoryFacts.ts`).
+
+**Trilha 0: Fundamentos**
+
+- 0.1 O que é investir
+- 0.2 Juros simples vs compostos
+- 0.3 Inflação e poder de compra
+- 0.4 Rendimento nominal vs real
+- 0.5 Juros, Selic, CDI e TR
+- 0.6 Poupança: quando ela perde e quando não
+
+**Trilha 1: Renda Fixa**
+
+- 1.1 O que é renda fixa
+- 1.2 Tesouro Selic
+- 1.3 Reserva de emergência: quanto e onde
+- 1.4 Como a Selic é formada
+- 1.5 CDB e o CDI
+- 1.6 Tributação regressiva de IR
+- 1.7 LCI e LCA
+- 1.8 Tesouro Prefixado
+- 1.9 Marcação a mercado
+- 1.10 O que é o IPCA
+- 1.11 Tesouro IPCA+
+- 1.12 CRI e CRA
+
+**Trilha 2: Renda Variável**
+
+- 2.1 O que é uma ação
+- 2.2 Nomenclatura de tickers
+- 2.3 IPO
+- 2.4 Como a ação é negociada: B3, corretora e ordens
+- 2.5 Oferta e demanda
+- 2.6 Lendo notícias de mercado
+- 2.7.1 Lendo um balanço
+- 2.7.2 Margens de rentabilidade
+- 2.7.3 Endividamento
+- 2.7.4 Retorno sobre patrimônio (ROE)
+- 2.7.5 Indicadores de preço (P/L e P/VP)
+- 2.7.6 Dividendos, JCP e data ex
+- 2.7.7 Dividend Yield
+- 2.8 Setores e ciclicidade
+- 2.9 ETFs
+- 2.10 FIIs
+- 2.11 O que custa investir
+- 2.12 Imposto em renda variável
+
+**Trilha 3: Estratégia e Tributação**
+
+- 3.1 Diversificação
+- 3.2 Perfil de risco
+- 3.3 Comparando produtos na prática
+- 3.4 Cabeça de investidor
+- 3.5 Desafio final da trilha
+
+**Trilha F: Finanças do dia a dia (paralela)**
+
+- F.1 Para onde vai seu dinheiro
+- F.2 Dívida: os juros do outro lado
+
+Todas reaproveitam o mesmo componente de UI (5.2).
 
 **Fonte da verdade do conteúdo (N.23, decisão do autor de 2026-10-03):** o conteúdo das lições vive no **banco**, não em arquivo. O `seedLessons.ts` é só a importação inicial (insere o que falta, por `stable_key`, e nunca sobrescreve uma lição existente); a edição e a criação de lições são feitas no painel administrativo (`/admin/conteudo`), com histórico de revisões (`lesson_revisions`) e a regra de dispensa da N.24 pra lição criada no meio do currículo.
 
@@ -297,6 +357,8 @@ Toda lição segue o mesmo formato, reaproveitável entre produtos parecidos (CD
 2. **Micro-decisão** — interação restrita ao conceito da lição (calculadora, comparação).
 3. **Revelação** — resultado numérico real, usando as fórmulas do cap. 2 do TCC.
 4. **Desbloqueio** — libera a operação real daquele produto no mercado ao vivo.
+
+**Regras do player (revisão das trilhas, 2026-10):** (a) a lição é feita de `blocks` por fase (texto curto, widgets e perguntas `check`); (b) **errar não avança**: a pergunta da micro-decisão e as perguntas intermediárias só liberam a próxima fase ao acerto, com tentativas ilimitadas, XP fixo (nunca punição) e gabarito/explicação só depois do acerto; (c) lição concluída pode ser **revista** (sem alterar XP, streak nem progresso) e o aluno pode **voltar** de passo; (d) o conteúdo travado pela trilha usa um único `LockedGate`; (e) a progressão aceita lição **dispensada** (`waived_at`) e inserção de lição nova no meio da trilha sem quebrar quem já avançou; (f) nenhuma conta é feita fora da plataforma: o cálculo vem de um widget.
 
 ### 5.3 Trilha guiada + mundo aberto
 
@@ -407,7 +469,7 @@ Dado o prazo de ~2 meses com Claude Code e a preferência por não reduzir o esc
 - Eventos macro completos: motor, regras de defasagem preço↔fundamentos, catálogo inicial de 10 templates, painel administrativo (3.3).
 - Capital inicial padronizado (3.5) e ranking por janela fixa (seção 6).
 - Sandbox reaproveitando as tabelas reais com ativos isolados (3.1).
-- As 35 lições do currículo completo (5.1).
+- As 43 lições do currículo completo (5.1).
 - Sistema social completo: amizade bilateral com aceite, busca por `username`, visibilidade de perfil, ranking com escopo Global/Amigos (seção 8, RF18–RF20, RNF09).
 - Missões diárias formalizadas (`daily_missions`/`user_mission_progress`, seção 6.1, RF22).
 - Indicadores diferenciados por classe de ativo — Ações/ETFs/FIIs tijolo e papel (seção 3.6, RF21).
@@ -449,3 +511,4 @@ Dado o prazo de ~2 meses com Claude Code e a preferência por não reduzir o esc
 - **v0.4** — Simplificação da visibilidade de perfil (8.2): removida a opção de perfil privado/somente-amigos nesta fase — todo perfil é público por decisão explícita, sem campo `profile_visibility` no modelo de dados. Mantida a garantia de que o valor absoluto de patrimônio nunca é exposto (RNF09 revisado). Controle de privacidade configurável passa a candidato de Fase 2.
 - **v0.5** — Formalização de dois pontos que estavam pendentes: (1) missões diárias como extensão completa no MVP, com `daily_missions`/`user_mission_progress` e RF22 (seção 6.1); (2) indicadores por classe de ativo (seção 3.6, RF21) — Ações mantêm os indicadores fundamentalistas tradicionais; ETFs passam a exibir índice de referência, metodologia e composição sintética (`etf_details`/`etf_holdings`) em vez de indicadores de empresa; FIIs se dividem em tijolo (segmento, patrimônio, vacância) e papel (indexador), ambos com Dividend Yield e relação cota/valor patrimonial (`fii_details`). Ambos os pontos refletidos no corte de MVP e no roadmap (semanas 3, 5 e 6).
 - **v0.6** — Adição do salário mensal simulado (3.7, RF23): renda recorrente independente de investimento, crescendo em degraus sem teto com o nível de gamificação, paga no 5º dia útil do mês-calendário simulado — único mecanismo de injeção externa de capital além do depósito inicial (3.5). Exige recalcular a rentabilidade percentual (RF17, revisado) sobre capital de risco apenas (compras históricas líquidas de vendas/resgates/dividendos), excluindo caixa nunca investido, mas preservando lucro já realizado e guardado em caixa. Sem ranking por patrimônio absoluto — RNF09 mantido intocado. Novo tipo de evento `salary_payment` e campo `accounts.total_disinvested` (seção 4). Decisões fechadas com o autor em 2026-09-27, quebradas em 11 tarefas executáveis na Fase T de `backlog-motor-mercado-realista.md`.
+- **v0.7** — Revisão das trilhas e da UX (2026-10-03 a 2026-10-07, `backlog-revisao-trilhas-e-ux.md`, decisões D1 a D13): currículo de 35 para 43 lições (5.1), conteúdo em `blocks` com widgets e bloco "Na plataforma", fatos regulatórios versionados, regras do player (5.2), calendário com relevância "Para você" e escalonamento de proventos por ativo (políticas de dividendo, balanço por empresa, FIIs no mês real), donut do Portfólio interativo em R$ e a separação do Sandbox em faixa compacta que só aparece com posição (3.1).

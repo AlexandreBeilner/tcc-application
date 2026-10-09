@@ -1,4 +1,5 @@
 import { ApiError } from '../../../services/client'
+import { apiErrorCode } from '../../../utils/formatApiError'
 import { maxAffordableQuantity } from '../orderBook'
 import type { AssetBook } from '../../../services/market'
 
@@ -7,18 +8,17 @@ export type OrderRejectionKind = 'insufficient_balance' | 'insufficient_position
 // Distingue as duas causas de `422` de `POST /market/orders` que não são
 // `market_closed` (S.11, tem `code` próprio) nem a ordem pendurada "furada"
 // (`ErrRestingOrderNoLongerAvailable`, `.docs/engine/orders.md`) — o motor
-// devolve as duas com o mesmo status e sem `code`, então o texto de
-// `err.message` (`orderexecution.ErrInsufficientBalance`/`ErrInsufficientPosition`,
-// repassado 1:1 pelo backend) é o único jeito de diferenciar (achado 021,
-// tarefa S.7: "o 422 de saldo/quantidade ganha mensagem clara").
+// devolve as duas com o mesmo status e sem `code`; o backend
+// (`engineErrorTranslator`, RC.1.5) as traduz para `insufficient_balance`/
+// `insufficient_position` (achado 021, tarefa S.7: "o 422 de saldo/quantidade
+// ganha mensagem clara").
 export function classifyOrderRejection(err: unknown): OrderRejectionKind | null {
     if (!(err instanceof ApiError) || err.status !== 422) return null
 
-    const details = err.details as { code?: string } | undefined
-    if (details?.code) return null
-
-    if (err.message.includes('saldo insuficiente')) return 'insufficient_balance'
-    if (err.message.includes('posição insuficiente')) return 'insufficient_position'
+    // `code` estável vindo do backend (`engineErrorTranslator`, RC.1.5), nunca o texto.
+    const code = apiErrorCode(err)
+    if (code === 'insufficient_balance') return 'insufficient_balance'
+    if (code === 'insufficient_position') return 'insufficient_position'
     return null
 }
 

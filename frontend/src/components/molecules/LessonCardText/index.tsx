@@ -22,11 +22,13 @@ export function LessonCardBody({
     revealed,
     onReveal,
     lessons,
+    termsSeen,
 }: {
     card: Card
     revealed: boolean
     onReveal: () => void
     lessons: LessonRef[]
+    termsSeen?: Set<string>
 }) {
     if (card.hidden && !revealed) {
         return (
@@ -37,7 +39,7 @@ export function LessonCardBody({
         )
     }
 
-    return <p className={styles.body}>{renderLessonMarkup(card.text, lessons)}</p>
+    return <p className={styles.body}>{renderLessonMarkup(card.text, lessons, termsSeen)}</p>
 }
 
 // Convenção `{{Termo}}`/`{{ref:X.Y}}` das tarefas C.1/C.2 — termo resolvido
@@ -46,9 +48,15 @@ export function LessonCardBody({
 // `lessons` está disponível), e o resto do texto continua como nó de texto
 // puro (não `<span>`) pra não quebrar consultas de teste que buscam o texto
 // completo do cartão quando não há marcação nenhuma.
-function renderLessonMarkup(text: string, lessons: LessonRef[]) {
+function renderLessonMarkup(text: string, lessons: LessonRef[], termsSeen: Set<string> = new Set()) {
+    // Popover só no primeiro uso do termo na lição (RC.3.5); depois, texto puro.
+    const shown = new Set(termsSeen)
     return parseLessonMarkup(text).map((segment, index) => {
         if (segment.type === 'term') {
+            if (shown.has(segment.term)) {
+                return segment.term
+            }
+            shown.add(segment.term)
             return <GlossaryTerm key={index} term={segment.term} definition={segment.definition} />
         }
 

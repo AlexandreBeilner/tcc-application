@@ -9,6 +9,9 @@ export interface GetNetWorthInput {
   // reconstrói por replay até esse instante.
   asOf?: Date
   sandboxAssetIds: Set<string>
+  // Só vale sem `asOf`: renda fixa avaliada pelo valor de hoje em vez do custo. O replay (passado)
+  // não sabe fazer isso.
+  valuedFixedIncome?: boolean
 }
 
 // Interface pequena (não a classe concreta) — é o que `GetRankingUseCase`
@@ -33,7 +36,9 @@ export class GetNetWorthUseCase implements NetWorthReader {
       // "Trader Ativo") precisar de contagem cumulativa em tempo real,
       // vai precisar passar `asOf` explícito (mesmo que seja "agora") pra
       // forçar o caminho de replay.
-      return this.currentAccountStateReader.getCurrentSnapshot(input.userId)
+      return this.currentAccountStateReader.getCurrentSnapshot(input.userId, {
+        valuedFixedIncome: input.valuedFixedIncome,
+      })
     }
 
     const allEvents = [...(await this.accountEventsReader.listAllEvents(input.userId))].sort(

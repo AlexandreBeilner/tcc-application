@@ -1,6 +1,11 @@
 export class LessonNotFoundError extends Error {}
 export class LessonLockedError extends Error {}
 export class LessonNotCompletedError extends Error {}
+// `POST /lessons/:id/answer` numa lição sem pergunta com alternativas reais.
+export class NoMicroDecisionError extends Error {}
+// Avanço do passo Micro-decisão pro Revelação sem ter acertado a pergunta
+// (RC.2.3): errar não avança.
+export class MicroDecisionUnsolvedError extends Error {}
 // Aposta com acerto/erro real (backlog engajamento B.2) — `selectedOption`
 // fora do intervalo de `lesson.microDecisionOptions.length`. Nunca lançado
 // pra lição sem opções reais (checkbox de hoje) — nesse caso o campo é só
@@ -21,6 +26,12 @@ export class LessonStepTooFastError extends Error {
     super(message)
   }
 }
+// Pergunta intermediária (`check`, RC.3.2): checkpoint inexistente na lição.
+export class CheckpointNotFoundError extends Error {}
+// Resposta fora do formato do bloco (índice inválido, valor não numérico).
+export class InvalidCheckpointResponseError extends Error {}
+// Avanço de fase sem ter resolvido as perguntas intermediárias dela (RC.3.2).
+export class CheckpointUnsolvedError extends Error {}
 // Correção manual de lição pelo painel (N.17).
 export class LessonAlreadyCompletedError extends Error {}
 export class LessonNotReopenableError extends Error {}

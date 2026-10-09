@@ -1,6 +1,7 @@
 import {
-  InvalidMicroDecisionOptionError,
   LessonLockedError,
+  CheckpointUnsolvedError,
+  MicroDecisionUnsolvedError,
   LessonNotFoundError,
   LessonStepOutOfOrderError,
   LessonStepTooFastError,
@@ -11,9 +12,9 @@ import {
   LESSON_XP_REWARD,
   buildProgression,
   completedTrackNumbers,
-  microDecisionResultFor,
   type LessonSummary,
 } from '../../domain/lesson'
+import { checkpointIdsForStep } from '../../domain/widgets/lessonBlocks'
 import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
 import type { SocialFeedRecorder } from '../ports/socialFeedRecorder'
 import type { StreakTracker } from '../ports/streakTracker'
@@ -23,22 +24,15 @@ export interface AdvanceLessonInput {
   userId: string
   lessonId: string
   step: number
-  // Aposta com acerto/erro real (backlog engajamento B.2) — só faz sentido
-  // pra lição com `microDecisionOptions` preenchido (B.1); ignorado sem erro
-  // pra lição sem aposta real (checkbox de hoje continua valendo).
+  // DEPRECADO (RC.2.3): a escolha da pergunta vai em `AnswerMicroDecisionUseCase`.
+  // Aceito e ignorado, pra cliente antigo não quebrar; nunca devolve veredito
+  // aqui (devolver entregaria o gabarito sem exigir o acerto).
   selectedOption?: number
 }
 
 export interface AdvanceLessonResult {
   currentStep: number
   completed: boolean
-  // Presente só quando esta chamada incluiu `selectedOption` válido pra uma
-  // lição com aposta real (correção da revisão da PR 18) — o índice certo
-  // (`microDecisionCorrectOption`) nunca é devolvido por `GET /lessons`/
-  // `GET /lessons/:id` de antemão (`domain/lesson.buildLessonView`), só o
-  // veredito desta escolha, na resposta do `POST` que a fez.
-  microDecisionCorrect?: boolean
-  correctOptionLabel?: string
   // Presentes só quando esta chamada é quem conclui a lição pela primeira
   // vez (`completingNow` abaixo) — aditivos ao contrato já existente
   // (tarefa I.2 do backlog de engajamento, pro "teatro de recompensa" da
@@ -79,31 +73,7 @@ export class AdvanceLessonUseCase {
       throw new LessonNotFoundError('lição não encontrada')
     }
 
-    // Índice validado contra o tamanho real de `microDecisionOptions` desta
-    // lição — Zod (schemas.ts) só garante que é um inteiro >= 0, não que
-    // cabe nas opções de uma lição específica (isso é regra de negócio, não
-    // formato de payload). Lição sem opções reais nunca lança aqui: o campo
-    // simplesmente não se aplica (checkbox de hoje continua valendo).
     const { microDecisionOptions } = lesson
-    if (
-      input.selectedOption !== undefined &&
-      microDecisionOptions !== null &&
-      input.selectedOption >= microDecisionOptions.length
-    ) {
-      throw new InvalidMicroDecisionOptionError('opção de micro-decisão inválida')
-    }
-
-    // Calculado uma vez, reaproveitado nos 3 `return` abaixo — o veredito
-    // não depende de qual caminho a chamada segue (grava passo, conclui, ou
-    // perde a corrida de conclusão pra outra requisição concorrente), só de
-    // `selectedOption` ter vindo válido nesta chamada.
-    const microDecisionResult = microDecisionResultFor(lesson, input.selectedOption)
-    const microDecisionFields = microDecisionResult
-      ? {
-          microDecisionCorrect: microDecisionResult.correct,
-          correctOptionLabel: microDecisionResult.correctOptionLabel,
-        }
-      : {}
 
     const [allLessons, progress] = await Promise.all([
       this.lessonRepository.listAll(),
@@ -121,8 +91,48 @@ export class AdvanceLessonUseCase {
       throw new LessonLockedError('lição bloqueada')
     }
 
-    if (!alreadyCompleted) {
-      this.assertStepAllowed(input.step, own)
+    // Lição já concluída é só leitura (modo revisão, RC.2.1): nenhuma escrita em
+    // `current_step`/`microDecisionSelectedOption`, que corromperia conquistas e
+    // missões de acerto. O veredito da escolha ainda é devolvido (função pura,
+    // sem estado) pra quem quiser conferir, mas nada é gravado nem creditado.
+    if (alreadyCompleted && own) {
+      return {
+        currentStep: own.currentStep,
+        completed: true,
+      }
+    }
+
+    this.assertStepAllowed(input.step, own)
+
+    // Errar não avança (RC.2.3): sair da Micro-decisão (passo 1) exige a pergunta
+    // resolvida em `POST /lessons/:id/answer`. O gate só dispara na transição
+    // 1 -> 2, então quem já passou dela (ou concluiu) não é afetado.
+    if (
+      microDecisionOptions !== null &&
+      input.step >= 2 &&
+      (own?.currentStep ?? 0) < 2 &&
+      !own?.microDecisionSolvedAt
+    ) {
+      throw new MicroDecisionUnsolvedError('responda a pergunta corretamente pra continuar')
+    }
+
+    // Perguntas intermediárias (RC.3.2): sair de uma fase exige resolver as
+    // `check` dela. Mesmo critério do gate acima: só na transição de fato
+    // (quem já passou da fase, ou reenvia o passo gravado, não é afetado).
+    if ((own?.currentStep ?? 0) < input.step) {
+      const required = checkpointIdsForStep(lesson.blocks, input.step - 1)
+      if (required.length > 0) {
+        const records = await this.lessonRepository.listCheckpointsForUser(
+          input.userId,
+          input.lessonId,
+        )
+        const solved = new Set(
+          records.filter((r) => r.solvedAt !== null).map((r) => r.checkpointId),
+        )
+        if (required.some((id) => !solved.has(id))) {
+          throw new CheckpointUnsolvedError('responda as perguntas corretamente pra continuar')
+        }
+      }
     }
 
     const attemptingCompletion = !alreadyCompleted && input.step >= LESSON_UNLOCK_STEP
@@ -131,18 +141,10 @@ export class AdvanceLessonUseCase {
       const saved = await this.lessonRepository.upsertProgress(input.userId, input.lessonId, {
         currentStep: input.step,
         completedAt: alreadyCompleted ? (own?.completedAt ?? null) : null,
-        // `undefined` (nunca `null`) quando a lição não tem aposta real —
-        // `UpsertProgressInput.microDecisionSelectedOption` trata ausência
-        // como "não mexe no valor já gravado" (B.1), então isto nunca apaga
-        // uma escolha feita numa chamada anterior por engano.
-        ...(input.selectedOption !== undefined && microDecisionOptions !== null
-          ? { microDecisionSelectedOption: input.selectedOption }
-          : {}),
       })
       return {
         currentStep: saved.currentStep,
         completed: saved.completedAt !== null,
-        ...microDecisionFields,
       }
     }
 
@@ -156,19 +158,12 @@ export class AdvanceLessonUseCase {
       input.lessonId,
       input.step,
       this.clock(),
-      // Mesma condição de `upsertProgress` acima — a escolha só entra quando
-      // a lição de fato tem aposta real, pra não persistir um índice de
-      // lição que não tem `microDecisionOptions`.
-      input.selectedOption !== undefined && microDecisionOptions !== null
-        ? input.selectedOption
-        : undefined,
     )
 
     if (!completion.wonRace) {
       return {
         currentStep: completion.record.currentStep,
         completed: true,
-        ...microDecisionFields,
       }
     }
 
@@ -203,7 +198,6 @@ export class AdvanceLessonUseCase {
     return {
       currentStep: saved.currentStep,
       completed: saved.completedAt !== null,
-      ...microDecisionFields,
       xpAwarded: LESSON_XP_REWARD,
       leveledUp: xpResult.leveledUp,
       newLevel: xpResult.level,

@@ -9,7 +9,9 @@ describe('classifyOrderRejection', () => {
     })
 
     it('status diferente de 422, não classifica', () => {
-        expect(classifyOrderRejection(new ApiError(403, 'saldo insuficiente para executar a ordem'))).toBeNull()
+        expect(
+            classifyOrderRejection(new ApiError(403, 'Saldo insuficiente para essa operação.', { code: 'insufficient_balance' })),
+        ).toBeNull()
     })
 
     it('422 com code (market_closed), não classifica — tem tratamento próprio', () => {
@@ -18,23 +20,19 @@ describe('classifyOrderRejection', () => {
     })
 
     it('422 de saldo insuficiente', () => {
-        expect(
-            classifyOrderRejection(
-                new ApiError(422, 'saldo insuficiente para executar a ordem', { error: 'saldo insuficiente para executar a ordem' }),
-            ),
-        ).toBe('insufficient_balance')
+        expect(classifyOrderRejection(new ApiError(422, 'Saldo insuficiente para essa operação.', { code: 'insufficient_balance' }))).toBe(
+            'insufficient_balance',
+        )
     })
 
     it('422 de posição insuficiente', () => {
-        const err = new ApiError(422, 'quantidade em posição insuficiente para a venda', {
-            error: 'quantidade em posição insuficiente para a venda',
-        })
+        const err = new ApiError(422, 'Você não tem quantidade suficiente em carteira para essa venda.', { code: 'insufficient_position' })
         expect(classifyOrderRejection(err)).toBe('insufficient_position')
     })
 
     it('422 de outra causa (ordem pendurada furada), não classifica', () => {
-        const err = new ApiError(422, 'ordem pendurada não está mais disponível para execução', {
-            error: 'ordem pendurada não está mais disponível para execução',
+        const err = new ApiError(422, 'A oferta que casaria com a sua ordem acabou de sair do mercado. Tente de novo.', {
+            code: 'order_no_longer_available',
         })
         expect(classifyOrderRejection(err)).toBeNull()
     })

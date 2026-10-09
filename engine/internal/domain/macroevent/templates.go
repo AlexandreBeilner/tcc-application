@@ -101,7 +101,7 @@ var Templates = []Template{
 	{
 		Key:                 "inadimplencia-bancos",
 		Title:               "Aumento da inadimplência pressiona resultado dos bancos",
-		Narrative:           "A inadimplência de crédito sobe acima do esperado, obrigando os bancos a provisionar mais recursos pra cobrir perdas — pressão direta sobre o resultado do próximo trimestre.",
+		Narrative:           "A inadimplência de crédito sobe acima do esperado, obrigando os bancos a provisionar mais recursos pra cobrir perdas, com pressão direta sobre o resultado do próximo trimestre.",
 		Category:            CategorySetorialBancario,
 		Direction:           DirectionNegativo,
 		Band:                BandModerado,
@@ -120,7 +120,7 @@ var Templates = []Template{
 	{
 		Key:          "expansao-parceria-corporativa",
 		Title:        "Empresa anuncia expansão/parceria estratégica",
-		Narrative:    "A empresa anuncia uma parceria estratégica ou plano de expansão, com expectativa de resultado concentrada nos próximos ciclos — antes de qualquer número novo aparecer no balanço.",
+		Narrative:    "A empresa anuncia uma parceria estratégica ou plano de expansão, com expectativa de resultado concentrada nos próximos ciclos, antes de qualquer número novo aparecer no balanço.",
 		Category:     CategoryCorporativo,
 		Direction:    DirectionPositivo,
 		Band:         BandModerado,
@@ -129,7 +129,7 @@ var Templates = []Template{
 	{
 		Key:                 "desvalorizacao-real",
 		Title:               "Forte desvalorização do real frente ao dólar",
-		Narrative:           "O real se desvaloriza fortemente frente ao dólar: exportadoras ganham competitividade e receita em moeda forte, enquanto importadoras enfrentam custos mais altos — o mesmo evento move setores em direções opostas.",
+		Narrative:           "O real se desvaloriza fortemente frente ao dólar: exportadoras ganham competitividade e receita em moeda forte, enquanto importadoras enfrentam custos mais altos: o mesmo evento move setores em direções opostas.",
 		Category:            CategoryCambial,
 		Direction:           DirectionMisto,
 		Band:                BandModerado,
@@ -148,7 +148,7 @@ var Templates = []Template{
 	{
 		Key:                 "quebra-safra-agronegocio",
 		Title:               "Quebra de safra por evento climático reduz oferta agrícola",
-		Narrative:           "Um evento climático severo reduz a safra agrícola: quem já tinha estoque formado se beneficia do preço mais alto, enquanto quem depende da nova colheita sofre com a oferta menor — efeito misto dentro do próprio setor.",
+		Narrative:           "Um evento climático severo reduz a safra agrícola: quem já tinha estoque formado se beneficia do preço mais alto, enquanto quem depende da nova colheita sofre com a oferta menor. O efeito é misto dentro do próprio setor.",
 		Category:            CategoryAgronegocio,
 		Direction:           DirectionMisto,
 		Band:                BandModerado,

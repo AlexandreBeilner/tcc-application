@@ -11,12 +11,14 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -40,8 +42,8 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'lesson_reviewed',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
-// padrão (checkbox "já pensei"); os outros três embutem um componente já
-// existente (tarefa 6.7) em vez do checkbox. Ver `domain/lesson.ts` pro
+// padrão (sem widget embutido); os outros três embutem um componente já
+// existente (tarefa 6.7) junto da pergunta. Ver `domain/lesson.ts` pro
 // vocabulário completo e `frontend/src/pages/Lesson/index.tsx` pro switch.
 export const lessonMicroDecisionType = pgEnum('lesson_micro_decision_type', [
   'reflection',
@@ -154,7 +156,7 @@ export const lessons = pgTable(
     // renumeração reaproveitar a linha física errada, arrastando
     // `user_lesson_progress` de quem já tinha progresso pra um conteúdo
     // diferente. Ver `seedLessons.ts` pro upsert real.
-    stableKey: varchar('stable_key', { length: 20 }).notNull(),
+    stableKey: varchar('stable_key', { length: 64 }).notNull(),
     // Código do currículo (spec 5.1), ex: "0.1", "2.6.3", "3.4" — só posição
     // didática atual, mutável em renumeração (ex: M.5). Nunca usado como
     // chave de upsert do seed desde a M.6, ver `stableKey` acima.
@@ -205,6 +207,12 @@ export const lessons = pgTable(
     // progressão de todos (`buildProgression` só recebe as publicadas), sem
     // apagar o progresso de ninguém.
     published: boolean('published').notNull().default(true),
+    // Conteúdo visual por fase (RC.3.1): `{ schemaVersion, phases: { scenario,
+    // microDecision, revelation } }` de blocos tipados (texto, widgets).
+    // Nulo é o estado normal e faz o player usar `scenarioText`/
+    // `microDecisionPrompt`/`revelationText`; o contrato (Zod) vive em
+    // `modules/lessons/domain/widgets/lessonBlocks.ts`.
+    blocks: jsonb('blocks'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -267,6 +275,17 @@ export const userLessonProgress = pgTable(
     // (conquista/missão de sequência de acertos) poder consultar o
     // histórico depois, não só o momento da escolha.
     microDecisionSelectedOption: smallint('micro_decision_selected_option'),
+    // Pergunta que só avança ao acertar (RC.2.3): `microDecisionSelectedOption`
+    // passa a ser a PRIMEIRA escolha (imutável), então "acertou de primeira"
+    // continua sendo `isCorrectOption` sobre ela. As colunas abaixo guardam o
+    // resto: nº de respostas, as alternativas erradas já tentadas (desativadas
+    // na UI) e o instante do acerto (libera o avanço do passo 1 pro 2).
+    microDecisionAttempts: smallint('micro_decision_attempts').notNull().default(0),
+    microDecisionWrongOptions: smallint('micro_decision_wrong_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::smallint[]`),
+    microDecisionSolvedAt: timestamp('micro_decision_solved_at', { withTimezone: true }),
     // Dispensa (N.24): lição criada no meio do currículo depois que o usuário
     // já tinha passado daquele ponto. Não é conclusão (`completedAt` segue
     // nulo, sem XP), mas conta como "satisfeita" na progressão, então não
@@ -405,6 +424,31 @@ export const payrollState = pgTable('payroll_state', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Resposta às perguntas intermediárias (`check`, RC.3.2) de uma lição: uma
+// linha por (usuário, lição, checkpoint). `wrong_options` guarda as
+// alternativas erradas já tentadas (a UI as desativa); numérica só conta
+// tentativas. "Acertou de primeira" = resolvida com `attempts = 1`.
+export const userLessonCheckpoints = pgTable(
+  'user_lesson_checkpoints',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    checkpointId: varchar('checkpoint_id', { length: 64 }).notNull(),
+    attempts: smallint('attempts').notNull().default(0),
+    wrongOptions: smallint('wrong_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::smallint[]`),
+    solvedAt: timestamp('solved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.lessonId, table.checkpointId] })],
+)
+
 // Log de auditoria das ações administrativas (Fase N, tarefa N.4). Append-only
 // também no banco: a migration 0018 cria um trigger que recusa UPDATE e DELETE
 // (mesmo padrão de `market_events` no motor). `action` é texto (a lista
@@ -465,5 +509,55 @@ export const announcements = pgTable(
       sql`${table.endsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`,
     ),
     index('announcements_window_idx').on(table.startsAt, table.endsAt),
+  ],
+)
+
+// Snapshot do ranking, calculado por um job a cada poucas horas (o ranking não é em tempo
+// real: a tela lê esta tabela, nunca recalcula o patrimônio de todo mundo a cada abertura).
+// Uma rodada (`run_id`) grava todos os grupos (critério x janela) de uma vez, numa transação,
+// então a leitura nunca vê uma rodada pela metade. `window_kind` é 'none' no critério de
+// nível, que não usa janela. Nome e nível são copiados pra a rodada ficar consistente no
+// instante do cálculo. O histórico fica por alguns dias e some na limpeza do job.
+export const rankingSnapshots = pgTable(
+  'ranking_snapshots',
+  {
+    runId: uuid('run_id').notNull(),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull(),
+    windowKind: text('window_kind').notNull(),
+    criterion: text('criterion').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    username: text('username').notNull(),
+    level: integer('level').notNull(),
+    xp: integer('xp').notNull(),
+    profitabilityPct: doublePrecision('profitability_pct'),
+    sortKey: doublePrecision('sort_key').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.windowKind, table.criterion, table.userId] }),
+    check('ranking_snapshots_window_chk', sql`${table.windowKind} IN ('week', 'month', 'none')`),
+    index('ranking_snapshots_computed_at_idx').on(table.computedAt),
+  ],
+)
+
+// Amostras do patrimônio de cada usuário (renda fixa pelo valor de hoje) tiradas pelo job do
+// ranking logo depois do começo de cada janela (segunda 00:00 UTC e dia 1 do mês). O motor não
+// sabe avaliar a renda fixa numa data passada, então o começo da janela vem daqui: a amostra mais
+// antiga dentro de uma pequena tolerância depois do começo. Só as rodadas perto de um começo de
+// janela gravam amostras, por isso a tabela cresce devagar. `snapshot` é o `Snapshot` do ranking.
+export const rankingValuationSamples = pgTable(
+  'ranking_valuation_samples',
+  {
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.computedAt, table.userId] }),
+    index('ranking_valuation_samples_user_idx').on(table.userId),
   ],
 )

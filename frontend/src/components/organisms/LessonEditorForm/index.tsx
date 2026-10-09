@@ -35,7 +35,7 @@ interface LessonEditorFormProps {
 }
 
 const CARD_HINT =
-    'Uma linha em branco separa cartões. Comece um cartão com [revelar] para esconder o resultado atrás de um botão. {{Termo}} abre o glossário e {{ref:2.1}} vira link para a lição 2.1.'
+    'Uma linha em branco separa cartões. Comece um cartão com [revelar] para esconder o resultado atrás de um botão. {{Termo}} abre o glossário e {{ref:2.1}} vira link para outra lição, pelo código dela.'
 
 // Formulário de conteúdo de uma lição (N.23), usado na edição e na criação. Só coleta os campos; as regras de
 // verdade (aposta, chaves, ticker no catálogo) são do backend e voltam como mensagem ao salvar.
