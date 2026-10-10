@@ -82,6 +82,46 @@ describe('googleIdentityProviderAdapter', () => {
 
     await expect(provider.exchangeCode('auth-code')).rejects.toThrow()
   })
+
+  it('verifica um idToken recebido direto (SDK nativo) usando o client ID Web como audience', async () => {
+    verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-123',
+        email: 'user@example.com',
+        name: 'Usuário',
+        email_verified: true,
+      }),
+    })
+    const provider = createGoogleIdentityProvider(CONFIG)
+
+    const profile = await provider.verifyIdToken('native-id-token')
+
+    expect(profile).toEqual({
+      providerAccountId: 'google-123',
+      email: 'user@example.com',
+      name: 'Usuário',
+      emailVerified: true,
+    })
+    expect(verifyIdToken).toHaveBeenCalledWith({
+      idToken: 'native-id-token',
+      audience: CONFIG.clientId,
+    })
+    expect(getToken).not.toHaveBeenCalled()
+  })
+
+  it('lança erro quando o idToken nativo vem com payload incompleto', async () => {
+    verifyIdToken.mockResolvedValue({ getPayload: () => ({}) })
+    const provider = createGoogleIdentityProvider(CONFIG)
+
+    await expect(provider.verifyIdToken('native-id-token')).rejects.toThrow()
+  })
+
+  it('propaga o erro de assinatura/expiração da lib do Google', async () => {
+    verifyIdToken.mockRejectedValue(new Error('Token used too late'))
+    const provider = createGoogleIdentityProvider(CONFIG)
+
+    await expect(provider.verifyIdToken('expired-id-token')).rejects.toThrow(/too late/)
+  })
 })
 
 describe('createDisabledGoogleIdentityProvider', () => {
@@ -93,5 +133,10 @@ describe('createDisabledGoogleIdentityProvider', () => {
   it('lança erro claro ao tentar trocar o code', async () => {
     const provider = createDisabledGoogleIdentityProvider()
     await expect(provider.exchangeCode('code')).rejects.toThrow(/não configurado/)
+  })
+
+  it('lança erro claro ao tentar verificar um idToken', async () => {
+    const provider = createDisabledGoogleIdentityProvider()
+    await expect(provider.verifyIdToken('token')).rejects.toThrow(/não configurado/)
   })
 })

@@ -204,3 +204,7 @@
     color: var(--color-text-primary);
     font-weight: 600;
 }
+
+.terms a {
+    color: var(--color-brand-300);
+}

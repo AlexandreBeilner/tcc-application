@@ -258,7 +258,9 @@ export function Login() {
                     {mode === 'login' ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar'}
                 </button>
 
-                <p className={styles.terms}>Ao continuar, você concorda com os Termos de Uso e a Política de Privacidade.</p>
+                <p className={styles.terms}>
+                    Ao continuar, você concorda com a <Link to="/privacidade">Política de Privacidade</Link>.
+                </p>
             </div>
         </main>
     )

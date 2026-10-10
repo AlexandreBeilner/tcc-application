@@ -24,6 +24,7 @@ import type { SendEmailVerificationUseCase } from '../../application/useCases/se
 import type { VerifyEmailUseCase } from '../../application/useCases/verifyEmail'
 import {
   forgotPasswordBodySchema,
+  googleTokenBodySchema,
   loginBodySchema,
   reauthBodySchema,
   registerBodySchema,
@@ -244,6 +245,26 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       }
       console.error('falha na troca de código OAuth do Google:', err)
       res.status(502).json({ error: 'falha ao autenticar com o Google' })
+    }
+  })
+
+  // Pra login pelo app mobile (SDK nativo, `@react-native-google-signin/google-signin` —
+  // tarefa 3.3 do backlog de app mobile): o app já chega com um idToken assinado
+  // pelo Google, sem passar pelo redirect `/auth/google` (que o Google bloqueia
+  // dentro de WebView desde 2021). Aditivo — as rotas de redirect acima não mudam.
+  router.post('/auth/google/token', async (req, res) => {
+    const parsed = googleTokenBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'idToken é obrigatório' })
+      return
+    }
+
+    try {
+      const result = await deps.loginWithGoogle.execute({ idToken: parsed.data.idToken })
+      res.status(200).json({ token: result.token, user: toPublicUser(result.user) })
+    } catch (err) {
+      console.error('falha na verificação do idToken do Google:', err)
+      res.status(401).json({ error: 'idToken inválido ou expirado' })
     }
   })
 
