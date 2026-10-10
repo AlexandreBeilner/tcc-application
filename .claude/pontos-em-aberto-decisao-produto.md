@@ -1001,3 +1001,9 @@ Nenhum ponto em aberto no momento.
 - **Decididas em 2026-10-10:** (1) **ligas:** até 3 ligas ativas por assinante, até 20 membros cada, pontuação fixa por rentabilidade percentual na janela semanal ou mensal do ranking; **duelos:** 1 contra 1, 7 dias, vence a maior rentabilidade percentual, empate é empate, quem não opera no período perde por abandono, XP só por participar (nunca por vencer), até 3 duelos simultâneos por pessoa. (2) **cosméticos:** catálogo enxuto e só visível aos outros: selo PRO, 6 molduras de avatar e 8 títulos; sem temas; itens como dado no banco. (4) **preço:** 19,90 mensal e 199,90 anual (faixas redondas das lojas, mesmo valor nas três plataformas; a tela calcula o desconto do preço real).
 - **Status:** em aberto só o que sobrou: (3) parâmetros da Assembleia de Acionistas (bloqueia a MO.6.9) e (6) recompensa da indicação (bloqueia a MO.7.2). Nada bloqueia mais as MO.5.1 a 5.3.
 
+### 047 · Teto de ligas das quais uma pessoa pode participar (MO.5.2)
+
+- **Local:** `backend/src/modules/leagues` (`RespondToLeagueInvitationUseCase`).
+- **Origem:** a decisão de 2026-10-10 limita **criar** (3 ligas abertas por assinante) e o tamanho (20 pessoas), mas nada diz quantas ligas alguém pode **integrar**. Hoje não há teto: um usuário gratuito pode aceitar convites de qualquer número de amigos.
+- **Opções:** manter sem teto (o convite já exige amizade aceita, então o abuso é pequeno); ou um teto de participação (ex.: 10).
+- **Status:** em aberto, sem bloquear. Nenhum custo técnico relevante: a classificação lê o snapshot do ranking, não recalcula patrimônio por liga.

@@ -338,6 +338,9 @@ import { createMarketRouter } from './modules/market/interfaces/http/marketRoute
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 import { createBillingModule } from './modules/billing/composition'
 import { createCosmeticsModule } from './modules/cosmetics/composition'
+import { createLeaguesModule } from './modules/leagues/composition'
+import { RankingScorer } from './modules/ranking/application/rankingScorer'
+import { RankUsersByProfitabilityUseCase } from './modules/ranking/application/useCases/rankUsersByProfitability'
 import { createInProcessCosmeticsReader } from './shared/publicCosmetics'
 import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
@@ -843,6 +846,28 @@ export function createApp(deps: AppDeps = {}): Express {
     cosmeticsReader,
   )
 
+  // Ligas privadas do PRO (MO.5.2): pontuam pelo mesmo snapshot e janela do ranking oficial,
+  // só com os membros da liga. O ranking Global/Amigos não é tocado.
+  const rankUsersByProfitability = new RankUsersByProfitabilityUseCase(
+    userDirectory,
+    new RankingScorer(
+      sandboxAssetReader,
+      cachedNetWorthForRanking,
+      createInProcessLevelReader(getProgression),
+      createDrizzleRankingValuationSampleStore(db),
+    ),
+    createDrizzleRankingSnapshotStore(db),
+  )
+  const leagues = createLeaguesModule({
+    db,
+    authMiddleware,
+    proAccess: billing.proAccessGuard,
+    listActiveProUserIds: billing.listActiveProUserIds,
+    friendshipRepository,
+    rankUsers: rankUsersByProfitability,
+    cosmeticsReader,
+  })
+
   const getPublicProfile = new GetPublicProfileUseCase(
     createDrizzleProfileUserDirectory(db),
     createInProcessGamificationReader(getProgression),
@@ -1175,6 +1200,7 @@ export function createApp(deps: AppDeps = {}): Express {
   // (`BILLING_PROVIDER`), caso em que ninguém é PRO e o webhook responde 503.
   app.use(billing.router)
   app.use(cosmetics.router)
+  app.use(leagues.router)
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
