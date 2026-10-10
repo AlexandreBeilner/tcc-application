@@ -194,6 +194,7 @@ import { ListAchievementsUseCase } from './modules/achievements/application/useC
 import { createInProcessProgressSnapshotReader } from './modules/achievements/infrastructure/aggregation/inProcessProgressSnapshotReader'
 import { createDrizzleAchievementRepository } from './modules/achievements/infrastructure/persistence/drizzleAchievementRepository'
 import { createAchievementsRouter } from './modules/achievements/interfaces/http/achievementsRouter'
+import { createDrizzleActivityDayRecorder } from './modules/gamification/infrastructure/persistence/drizzleActivityDayRecorder'
 import { AwardXpUseCase } from './modules/gamification/application/useCases/awardXp'
 import { GetProgressionUseCase } from './modules/gamification/application/useCases/getProgression'
 import { TouchStreakUseCase } from './modules/gamification/application/useCases/touchStreak'
@@ -339,6 +340,7 @@ import { createAuthMiddleware } from './shared/http/authMiddleware'
 import { createBillingModule } from './modules/billing/composition'
 import { createCosmeticsModule } from './modules/cosmetics/composition'
 import { createDuelsModule } from './modules/duels/composition'
+import { createRetrospectivesModule } from './modules/retrospectives/composition'
 import { createLeaguesModule } from './modules/leagues/composition'
 import { MeasurePeriodReturnUseCase } from './modules/ranking/application/useCases/measurePeriodReturn'
 import { RecordDuelResultUseCase } from './modules/socialfeed/application/useCases/recordDuelResult'
@@ -737,7 +739,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const achievementChecker = createInProcessAchievementChecker(checkAndUnlockAchievements)
 
   const awardXp = new AwardXpUseCase(progressionRepository, achievementChecker)
-  const touchStreak = new TouchStreakUseCase(progressionRepository, achievementChecker)
+  const touchStreak = new TouchStreakUseCase(
+    progressionRepository,
+    achievementChecker,
+    createDrizzleActivityDayRecorder(db),
+  )
 
   const xpAwarder = createInProcessXpAwarder(awardXp)
   const streakTracker = createInProcessStreakTracker(touchStreak)
@@ -883,6 +889,14 @@ export function createApp(deps: AppDeps = {}): Express {
     recordDuelResult: new RecordDuelResultUseCase(socialFeedEventRepository),
     cosmeticsReader,
   })
+  // Retrospectiva mensal (MO.5.4): contagens do mês, dias de atividade e rentabilidade percentual.
+  const retrospectives = createRetrospectivesModule({
+    db,
+    authMiddleware,
+    listActiveProUserIds: billing.listActiveProUserIds,
+    measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
+  })
+
   const getPublicProfile = new GetPublicProfileUseCase(
     createDrizzleProfileUserDirectory(db),
     createInProcessGamificationReader(getProgression),
@@ -1217,6 +1231,8 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(cosmetics.router)
   app.use(leagues.router)
   app.use(duels.router)
+  app.use(retrospectives.router)
+  app.locals.generateMonthlyRetrospectives = retrospectives.generateMonthly
   // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).
   app.locals.settleDueDuels = duels.settleDueDuels
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))

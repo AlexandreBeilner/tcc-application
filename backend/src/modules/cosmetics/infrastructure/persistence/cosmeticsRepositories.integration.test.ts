@@ -29,6 +29,8 @@ describe.skipIf(!databaseUrl)('repositórios de cosméticos (banco real)', () =>
   })
 
   beforeEach(async () => {
+    await db.delete(schema.retrospectives)
+    await db.delete(schema.dailyActivity)
     await db.delete(schema.duels)
     await db.delete(schema.leagueMembers)
     await db.delete(schema.leagues)

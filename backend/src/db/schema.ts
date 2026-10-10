@@ -843,3 +843,33 @@ export const duels = pgTable(
     check('duels_distinct_players_chk', sql`${table.challengerId} <> ${table.opponentId}`),
   ],
 )
+
+// Dias em que a pessoa teve atividade qualificadora (lição ou missão concluída), um por linha (MO.5.4).
+// Dia presente = manteve a sequência; dia ausente = ficou off. Alimenta o calendário e a maior
+// sequência do mês da retrospectiva. Só o registro de atividade, nada financeiro.
+export const dailyActivity = pgTable(
+  'daily_activity',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    // Dia calendário em UTC, o mesmo do streak (`gamification/domain/streak.ts`).
+    day: date('day').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })],
+)
+
+// Retrospectiva mensal arquivada (MO.5.4): o conteúdo do mês fica gravado e nunca é recalculado,
+// então rever meses antigos independe do plano. `month` no formato AAAA-MM.
+export const retrospectives = pgTable(
+  'retrospectives',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    month: varchar('month', { length: 7 }).notNull(),
+    data: jsonb('data').notNull(),
+    generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.month] })],
+)

@@ -41,6 +41,8 @@ const BACKEND_ROUTE_NAMESPACES = [
     'leagues',
     // MO.5.3 — API dos duelos (`/duels`); as páginas são `/duelos`, sem colisão.
     'duels',
+    // MO.5.4 — API da retrospectiva (`/retrospectives`); a página é `/retrospectiva`, sem colisão.
+    'retrospectives',
     // Tarefa 6.10.8 — arquivos servidos por `express.static('/avatars', ...)`
     // no backend (`app.ts`), não uma rota de API "de verdade", mas ainda
     // assim um namespace que só o gateway sabe responder.

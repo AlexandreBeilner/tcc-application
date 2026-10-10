@@ -1,6 +1,7 @@
 import { defaultProgression } from '../../domain/progression'
 import { streakMilestoneReached, todayUtc, touch } from '../../domain/streak'
 import type { AchievementChecker, UnlockedAchievement } from '../ports/achievementChecker'
+import type { ActivityDayRecorder } from '../ports/activityDayRecorder'
 import type { ProgressionRepository } from '../ports/progressionRepository'
 
 export interface TouchStreakInput {
@@ -28,6 +29,7 @@ export class TouchStreakUseCase {
   constructor(
     private readonly progressionRepository: ProgressionRepository,
     private readonly achievementChecker: AchievementChecker,
+    private readonly activityDays?: ActivityDayRecorder,
   ) {}
 
   async execute(input: TouchStreakInput): Promise<TouchStreakResult> {
@@ -48,6 +50,13 @@ export class TouchStreakUseCase {
     // Campos de xp/nível preservados como estão — este caso de uso não é
     // dono deles (ver AwardXpUseCase, 5.1).
     await this.progressionRepository.upsert({ ...current, ...next })
+    // Dia de atividade para o calendário da retrospectiva (MO.5.4). Best-effort: a sequência já
+    // foi gravada, então falhar aqui só é logado.
+    try {
+      await this.activityDays?.record(input.userId, today)
+    } catch (err) {
+      console.error(`registro do dia de atividade falhou para userId=${input.userId}:`, err)
+    }
     // Qualquer toque de streak pode satisfazer um critério de conquista
     // (5.2) — mesmo raciocínio de AwardXpUseCase. Resultado capturado (I.2).
     // Best-effort: o streak já foi persistido acima, então uma falha aqui

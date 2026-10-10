@@ -12,6 +12,7 @@ import { CancelarInscricao } from '../pages/CancelarInscricao'
 import { Classificacao } from '../pages/Classificacao'
 import { LigaDetalhe } from '../pages/LigaDetalhe'
 import { Ligas } from '../pages/Ligas'
+import { Retrospectiva } from '../pages/Retrospectiva'
 import { DuelDetalhe } from '../pages/DuelDetalhe'
 import { Duelos } from '../pages/Duelos'
 import { CompanyProfile } from '../pages/CompanyProfile'
@@ -164,6 +165,8 @@ export const router = createBrowserRouter([
                     { path: '/ligas/:id', element: <LigaDetalhe /> },
                     // Duelos entre amigos (MO.5.3): aceitar é de graça, desafiar é PRO.
                     { path: '/duelos', element: <Duelos /> },
+                    // Retrospectiva mensal (MO.5.4): versão simples para todos, completa no PRO.
+                    { path: '/retrospectiva', element: <Retrospectiva /> },
                     { path: '/duelos/:id', element: <DuelDetalhe /> },
                     // Notícias só desbloqueia de verdade na lição que libera
                     // `news_feed` (Fase Q, reversão da decisão original de

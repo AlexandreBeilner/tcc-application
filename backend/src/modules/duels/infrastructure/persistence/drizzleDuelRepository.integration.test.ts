@@ -29,6 +29,8 @@ describe.skipIf(!databaseUrl)('repositório de duelos (banco real)', () => {
   })
 
   beforeEach(async () => {
+    await db.delete(schema.retrospectives)
+    await db.delete(schema.dailyActivity)
     await db.delete(schema.duels)
     await db.delete(schema.socialFeedEvents)
     await db.delete(schema.leagueMembers)

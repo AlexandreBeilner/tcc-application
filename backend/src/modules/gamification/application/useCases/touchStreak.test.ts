@@ -158,4 +158,34 @@ describe('TouchStreakUseCase', () => {
     expect(stored?.level).toBe(2)
     expect(stored?.currentStreak).toBe(1)
   })
+
+  it('registra o dia de atividade (uma vez por dia) e falha no registro não derruba o streak', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T12:00:00Z'))
+    const days: string[] = []
+    const recorder = {
+      async record(_userId: string, day: string) {
+        days.push(day)
+      },
+    }
+    const useCase = new TouchStreakUseCase(
+      createFakeProgressionRepository(),
+      createFakeAchievementChecker(),
+      recorder,
+    )
+    await useCase.execute({ userId: 'u1' })
+    expect(days).toEqual(['2026-08-24'])
+
+    const failing = new TouchStreakUseCase(
+      createFakeProgressionRepository(),
+      createFakeAchievementChecker(),
+      {
+        async record() {
+          throw new Error('banco fora')
+        },
+      },
+    )
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(failing.execute({ userId: 'u2' })).resolves.toMatchObject({ currentStreak: 1 })
+  })
 })

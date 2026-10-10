@@ -18,6 +18,8 @@ import { createBillingReconciliation } from './modules/billing/composition'
 import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
 import { createRedisClient } from './infra/redisClient'
+import type { GenerateMonthlyRetrospectivesUseCase } from './modules/retrospectives/application/useCases/generateMonthlyRetrospectives'
+import { startRetrospectiveScheduler } from './modules/retrospectives/infrastructure/scheduler/retrospectiveScheduler'
 import { startDuelScheduler } from './modules/duels/infrastructure/scheduler/duelScheduler'
 import type { SettleDueDuelsUseCase } from './modules/duels/application/useCases/settleDueDuels'
 import { createPayrollComposition } from './modules/payroll/composition'
@@ -34,6 +36,8 @@ const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
 // Cadência do job que encerra duelos vencidos e expira desafios (MO.5.3). O resultado é medido nos
 // instantes de início e fim, então não importa a hora em que roda; 1h dá uma espera curta.
 const DEFAULT_DUEL_SETTLE_INTERVAL_MS = 60 * 60 * 1000
+// Cadência do job das retrospectivas mensais (MO.5.4): idempotente, então checar de hora em hora é barato.
+const DEFAULT_RETROSPECTIVE_INTERVAL_MS = 60 * 60 * 1000
 // Cadência da reconciliação de assinaturas (MO.2.5): rede de segurança do webhook, não precisa ser fina.
 const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 
@@ -118,6 +122,13 @@ async function main() {
   startDuelScheduler(
     app.locals.settleDueDuels as SettleDueDuelsUseCase,
     Number(process.env.DUEL_SETTLE_INTERVAL_MS || Number.NaN) || DEFAULT_DUEL_SETTLE_INTERVAL_MS,
+  )
+
+  // Retrospectivas (MO.5.4): gera e arquiva a do mês que acabou para quem ainda não tem.
+  startRetrospectiveScheduler(
+    app.locals.generateMonthlyRetrospectives as GenerateMonthlyRetrospectivesUseCase,
+    Number(process.env.RETROSPECTIVE_INTERVAL_MS || Number.NaN) ||
+      DEFAULT_RETROSPECTIVE_INTERVAL_MS,
   )
 
   // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
