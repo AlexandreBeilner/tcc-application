@@ -2,6 +2,7 @@ import { EmailSendError } from '../../domain/errors'
 import type { OutboxEmail } from '../../domain/emailMessage'
 import { MAX_DELIVERY_ATTEMPTS, nextRetryDelayMs } from '../../domain/retryPolicy'
 import { isBlockedBySuppression } from '../../domain/suppression'
+import { sensitivePayloadFields } from '../../domain/templates/registry'
 import type { EmailOutboxRepository } from '../ports/emailOutboxRepository'
 import type { EmailRenderer } from '../ports/emailRenderer'
 import type { EmailSender } from '../ports/emailSender'
@@ -82,12 +83,13 @@ export class DeliverPendingEmailsUseCase {
       return 'suppressed'
     }
 
+    const scrub = sensitivePayloadFields(email.templateKey)
     let rendered
     try {
       rendered = this.renderer.render(email.templateKey, email.payload)
     } catch (err) {
       // Template inexistente ou payload quebrado não melhora com o tempo.
-      await this.outbox.markFailed(email.id, `render: ${describe(err)}`)
+      await this.outbox.markFailed(email.id, `render: ${describe(err)}`, scrub)
       return 'failed'
     }
 
@@ -100,13 +102,13 @@ export class DeliverPendingEmailsUseCase {
         headers: rendered.headers,
         idempotencyKey: email.id,
       })
-      await this.outbox.markSent(email.id, providerMessageId, this.now())
+      await this.outbox.markSent(email.id, providerMessageId, this.now(), scrub)
       return 'sent'
     } catch (err) {
       const permanent = err instanceof EmailSendError && err.permanent
       const delayMs = permanent ? null : nextRetryDelayMs(email.attempts)
       if (delayMs === null) {
-        await this.outbox.markFailed(email.id, describe(err))
+        await this.outbox.markFailed(email.id, describe(err), scrub)
         return 'failed'
       }
       await this.outbox.markForRetry(

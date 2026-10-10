@@ -6,6 +6,16 @@ import type { EmailCategory, OutboxEmail, OutboxStatus } from '../../domain/emai
 
 type OutboxRow = typeof emailOutbox.$inferSelect
 
+// `payload - text[]` remove as chaves do jsonb; sem campos a limpar, não mexe no payload.
+function scrubbed(fields: readonly string[]) {
+  if (fields.length === 0) return {}
+  const list = sql.join(
+    fields.map((f) => sql`${f}`),
+    sql`, `,
+  )
+  return { payload: sql`${emailOutbox.payload} - ARRAY[${list}]::text[]` }
+}
+
 function toOutboxEmail(row: OutboxRow): OutboxEmail {
   return {
     id: row.id,
@@ -75,10 +85,17 @@ export function createDrizzleEmailOutboxRepository(db: Database): EmailOutboxRep
         .sort((a, b) => a.nextAttemptAt.getTime() - b.nextAttemptAt.getTime())
     },
 
-    async markSent(id, providerMessageId, now) {
+    async markSent(id, providerMessageId, now, scrubFields = []) {
       await db
         .update(emailOutbox)
-        .set({ status: 'sent', providerMessageId, sentAt: now, lastError: null, claimedAt: null })
+        .set({
+          status: 'sent',
+          providerMessageId,
+          sentAt: now,
+          lastError: null,
+          claimedAt: null,
+          ...scrubbed(scrubFields),
+        })
         .where(eq(emailOutbox.id, id))
     },
 
@@ -89,10 +106,10 @@ export function createDrizzleEmailOutboxRepository(db: Database): EmailOutboxRep
         .where(eq(emailOutbox.id, id))
     },
 
-    async markFailed(id, error) {
+    async markFailed(id, error, scrubFields = []) {
       await db
         .update(emailOutbox)
-        .set({ status: 'failed', lastError: error, claimedAt: null })
+        .set({ status: 'failed', lastError: error, claimedAt: null, ...scrubbed(scrubFields) })
         .where(eq(emailOutbox.id, id))
     },
 

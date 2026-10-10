@@ -110,6 +110,30 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
     expect(rows.c).toMatchObject({ status: 'failed', lastError: 'inválido' })
   })
 
+  it('markSent e markFailed apagam do payload só os campos pedidos', async () => {
+    const repo = createDrizzleEmailOutboxRepository(db)
+    const now = new Date('2026-10-09T12:00:00Z')
+    const withLink = (key: string) => ({
+      ...base(key),
+      payload: { name: 'Ana', resetUrl: 'https://app/x#token=segredo' },
+    })
+    const a = await repo.enqueue(withLink('sa'))
+    const b = await repo.enqueue(withLink('sb'))
+    const c = await repo.enqueue(withLink('sc'))
+    await repo.claimBatch(10, now)
+
+    await repo.markSent(a.id, 'msg-s', now, ['resetUrl'])
+    await repo.markFailed(b.id, 'inválido', ['resetUrl', 'naoExiste'])
+    await repo.markSent(c.id, 'msg-c', now)
+
+    const rows = Object.fromEntries(
+      (await db.select().from(schema.emailOutbox)).map((r) => [r.idempotencyKey, r]),
+    )
+    expect(rows.sa.payload).toEqual({ name: 'Ana' })
+    expect(rows.sb.payload).toEqual({ name: 'Ana' })
+    expect(rows.sc.payload).toEqual({ name: 'Ana', resetUrl: 'https://app/x#token=segredo' })
+  })
+
   it('recoverStuck devolve sending antigo pra pending e falha o que esgotou tentativas', async () => {
     const repo = createDrizzleEmailOutboxRepository(db)
     const claimedAt = new Date('2026-10-09T12:00:00Z')

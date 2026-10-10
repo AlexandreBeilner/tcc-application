@@ -250,4 +250,35 @@ describe('DeliverPendingEmailsUseCase', () => {
     expect(await deliver.execute()).toMatchObject({ sent: 1, suppressed: 0 })
     expect(sender.sent).toHaveLength(1)
   })
+
+  it('apaga do payload o link com token depois de enviar e depois de falhar (EM.2.1)', async () => {
+    const { outbox, sender, suppressions } = setup()
+    const deliver = new DeliverPendingEmailsUseCase(
+      outbox,
+      suppressions,
+      createFakeEmailRenderer(['password_reset']),
+      sender,
+      { batchSize: 20, stuckAfterMs: 10 * 60_000, delayBetweenSendsMs: 0 },
+      () => T0,
+    )
+    const enqueue = (key: string) =>
+      new EnqueueEmailUseCase(outbox, suppressions).execute({
+        userId: null,
+        to: 'ana@exemplo.com',
+        templateKey: 'password_reset',
+        category: 'security',
+        payload: { name: 'Ana', resetUrl: `https://app/redefinir-senha#token=${key}` },
+        idempotencyKey: key,
+      })
+    await enqueue('enviado')
+    await deliver.execute()
+    sender.failNext(permanentError('endereço inválido'))
+    await enqueue('falho')
+    await deliver.execute()
+
+    expect(outbox.rows.map((r) => [r.status, r.payload])).toEqual([
+      ['sent', { name: 'Ana' }],
+      ['failed', { name: 'Ana' }],
+    ])
+  })
 })

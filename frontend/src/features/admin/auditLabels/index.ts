@@ -50,6 +50,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'admin.login_failed': 'Tentativa de login de administrador',
     'admin.reauth': 'Reautenticação de administrador',
     'admin.reauth_failed': 'Reautenticação de administrador recusada',
+    'admin.password_reset_denied': 'Redefinição de senha por e-mail negada a administrador',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

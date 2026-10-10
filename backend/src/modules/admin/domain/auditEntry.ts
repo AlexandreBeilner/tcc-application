@@ -49,6 +49,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.login_failed',
   'admin.reauth',
   'admin.reauth_failed',
+  'admin.password_reset_denied',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

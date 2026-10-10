@@ -28,6 +28,11 @@ export function createFakeEmailOutboxRepository(
     if (!row) throw new Error(`linha ${id} não existe`)
     return row
   }
+  const scrub = (row: FakeOutboxRow, fields: readonly string[]) => {
+    row.payload = Object.fromEntries(
+      Object.entries(row.payload).filter(([k]) => !fields.includes(k)),
+    )
+  }
   const setStatus = (row: FakeOutboxRow, status: OutboxStatus) => {
     row.status = status
   }
@@ -69,8 +74,9 @@ export function createFakeEmailOutboxRepository(
       }
       return due.map((r) => ({ ...r }))
     },
-    async markSent(id, providerMessageId, at) {
+    async markSent(id, providerMessageId, at, scrubFields = []) {
       const row = byId(id)
+      scrub(row, scrubFields)
       setStatus(row, 'sent')
       row.providerMessageId = providerMessageId
       row.sentAt = at
@@ -83,8 +89,9 @@ export function createFakeEmailOutboxRepository(
       row.nextAttemptAt = nextAttemptAt
       row.claimedAt = null
     },
-    async markFailed(id, error) {
+    async markFailed(id, error, scrubFields = []) {
       const row = byId(id)
+      scrub(row, scrubFields)
       setStatus(row, 'failed')
       row.lastError = error
     },

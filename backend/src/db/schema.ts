@@ -624,3 +624,28 @@ export const emailSuppressions = pgTable(
     ),
   ],
 )
+
+// Tokens de uso único enviados por e-mail (EM.2.1): hoje só `password_reset`, a verificação de
+// e-mail entra na EM.3.1. Só o hash SHA-256 do token é gravado; o token em claro existe apenas no
+// link do e-mail. `used_at` marca o consumo (ou a invalidação por um pedido mais novo).
+export const authEmailTokens = pgTable(
+  'auth_email_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'auth_email_tokens_kind_chk',
+      sql`${table.kind} IN ('password_reset', 'email_verification')`,
+    ),
+    index('auth_email_tokens_user_kind_idx').on(table.userId, table.kind),
+  ],
+)

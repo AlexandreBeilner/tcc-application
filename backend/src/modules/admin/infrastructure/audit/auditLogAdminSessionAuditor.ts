@@ -10,6 +10,13 @@ const ACTION_BY_KIND: Record<AdminSessionEventKind, AdminAuditAction> = {
   login_failed: 'admin.login_failed',
   reauth: 'admin.reauth',
   reauth_failed: 'admin.reauth_failed',
+  password_reset_denied: 'admin.password_reset_denied',
+}
+
+const FAILURE_MESSAGE: Partial<Record<AdminSessionEventKind, string>> = {
+  login_failed: 'senha incorreta',
+  reauth_failed: 'senha incorreta',
+  password_reset_denied: 'redefinição de senha por e-mail negada para administrador',
 }
 
 // Liga a porta do `auth` ao log de auditoria do `admin` (N.22). Falha ao
@@ -26,8 +33,8 @@ export function createAuditLogAdminSessionAuditor(
           targetType: 'session',
           targetId: adminId,
           payload: {},
-          result: kind.endsWith('_failed') ? 'failed' : 'success',
-          errorMessage: kind.endsWith('_failed') ? 'senha incorreta' : undefined,
+          result: FAILURE_MESSAGE[kind] ? 'failed' : 'success',
+          errorMessage: FAILURE_MESSAGE[kind],
         })
       } catch (err) {
         console.error('[audit] falha ao gravar sessão de admin', kind, err)

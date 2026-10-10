@@ -128,6 +128,7 @@ export type AuditAction =
     | 'admin.login_failed'
     | 'admin.reauth'
     | 'admin.reauth_failed'
+    | 'admin.password_reset_denied'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {

@@ -21,9 +21,16 @@ export interface EmailOutboxRepository {
   // Reivindica até `limit` linhas `pending` vencidas, sem bloquear nem duplicar entre
   // réplicas (`FOR UPDATE SKIP LOCKED`): passam a `sending`, `attempts + 1`, `claimedAt = now`.
   claimBatch(limit: number, now: Date): Promise<OutboxEmail[]>
-  markSent(id: string, providerMessageId: string, now: Date): Promise<void>
+  // `scrubFields`: chaves do payload apagadas ao fechar a linha (ex.: o link com token de um
+  // e-mail de reset: depois de enviado ou falho, o token em claro não fica no banco).
+  markSent(
+    id: string,
+    providerMessageId: string,
+    now: Date,
+    scrubFields?: readonly string[],
+  ): Promise<void>
   markForRetry(id: string, error: string, nextAttemptAt: Date): Promise<void>
-  markFailed(id: string, error: string): Promise<void>
+  markFailed(id: string, error: string, scrubFields?: readonly string[]): Promise<void>
   // Suprimido entre o enfileiramento e a entrega (um bounce chegou nesse intervalo).
   markSuppressed(id: string, reason: SuppressionReason): Promise<void>
   // Confirmação de entrega vinda do webhook, localizada pelo id que o provedor devolveu.

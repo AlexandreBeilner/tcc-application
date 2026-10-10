@@ -26,6 +26,9 @@ export interface EmailTemplate {
   // Payload de exemplo: alimenta a pré-visualização (`npm run email:preview`) e o teste que
   // renderiza todo template registrado.
   sample: Record<string, unknown>
+  // Campos do payload que carregam segredo (link com token): o worker os apaga do outbox assim
+  // que a linha fecha (`sent` ou `failed`), pra o token em claro não ficar no banco.
+  sensitiveFields?: readonly string[]
   build(payload: Record<string, unknown>, context: TemplateContext): EmailContent
 }
 
