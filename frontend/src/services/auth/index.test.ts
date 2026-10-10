@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { completeOnboarding, getCurrentUser, login, register } from '.'
+import { completeOnboarding, getCurrentUser, login, register, requestPasswordReset, resetPassword } from '.'
 
 describe('api/auth', () => {
     afterEach(() => {
@@ -79,5 +79,29 @@ describe('api/auth', () => {
         expect(JSON.parse(init.body)).toEqual({ onboardingCompleted: true })
         expect(init.headers.Authorization).toBe('Bearer meu-token')
         expect(result.user.onboardingCompleted).toBe(true)
+    })
+
+    it('requestPasswordReset faz POST /auth/forgot-password só com o e-mail', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202, json: async () => ({ message: 'ok' }) })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await requestPasswordReset('ana@example.com')
+
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/auth/forgot-password')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ email: 'ana@example.com' })
+        expect(init.headers.Authorization).toBeUndefined()
+    })
+
+    it('resetPassword faz POST /auth/reset-password com token e senha nova', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: 'senha redefinida' }) })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await resetPassword({ token: 'tok', newPassword: 'senha-nova-123' })
+
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/auth/reset-password')
+        expect(JSON.parse(init.body)).toEqual({ token: 'tok', newPassword: 'senha-nova-123' })
     })
 })

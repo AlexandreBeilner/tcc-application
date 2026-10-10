@@ -78,6 +78,25 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - Login com credencial inválida → estado de erro inline, sem navegação.
 - **Estados especiais:** carregando (aguardando resposta do provedor OAuth), erro de credencial.
 - **Dados envolvidos:** `users`, `user_identities`.
+- **Recuperação de senha (EM.2.3):** no modo "Entrar" há o link "Esqueci minha senha" (abaixo do campo de senha), que leva à **1.3**.
+
+### 1.3 Esqueci minha senha (`/esqueci-senha`)
+- **Objetivo:** pedir o link de redefinição de senha por e-mail, sem revelar se o e-mail tem conta.
+- **Acesso:** link "Esqueci minha senha" da **1.1** (modo "Entrar"). Pública, fora do shell.
+- **Conteúdo:** campo de e-mail, texto "Enviaremos um link para você escolher uma senha nova", botão "Enviar link", link "Voltar para a entrada". Depois de enviar, o cartão vira o aviso "Pedido enviado": "Se existir uma conta com o e-mail X, enviamos um link ... vale por 30 minutos e só pode ser usado uma vez", com "Pedir outro link" e o caminho de volta.
+- **Ações:** enviar → aviso neutro (igual para qualquer e-mail, existente ou não); "Voltar" → **1.1**.
+- **Estados especiais:** enviando; limite de pedidos (429) com mensagem própria; erro genérico.
+- **Responsivo:** cartão único centralizado (como a 1.1); no mobile ocupa a largura toda.
+- **Dados envolvidos:** `POST /auth/forgot-password` (`.docs/backend/auth.md`).
+
+### 1.4 Redefinir senha (`/redefinir-senha#token=...`)
+- **Objetivo:** concluir a troca de senha com o link recebido por e-mail.
+- **Acesso:** link do e-mail. O token vem no **fragmento** da URL (nunca na query), é lido e removido da barra de endereço na entrada. Pública, fora do shell.
+- **Conteúdo:** "Senha nova" e "Confirmar senha" (8 a 72 caracteres, mesma regra do cadastro) com o indicador de força, botão "Redefinir senha".
+- **Ações:** sucesso → aviso "Pronto, sua senha foi alterada" (sessões de outros aparelhos encerradas; a deste navegador também) com botão para a **1.1**. Link sem token, desconhecido (401), expirado ou já usado (410) → "Este link não vale mais" com "Pedir um novo link" → **1.3**.
+- **Estados especiais:** enviando; senhas diferentes (validação local); limite de tentativas (429); link inválido.
+- **Responsivo:** mesmo cartão único da 1.3.
+- **Dados envolvidos:** `POST /auth/reset-password`.
 
 ### 1.2 Onboarding / Boas-vindas
 - **Objetivo:** contextualizar o novo usuário antes de cair "sem explicação" no Portfólio — explicar que existe um saldo simulado de R$10.000 (equidade de partida, seção 3.5 da spec) e que o aprendizado acontece pela Trilha.
@@ -536,6 +555,8 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 |---|---|---|
 | 1.1 | Autenticação | Auth |
 | 1.2 | Onboarding | Auth |
+| 1.3 | Esqueci minha senha | Auth |
+| 1.4 | Redefinir senha | Auth |
 | 2.1 | Portfólio | Home |
 | 3.1 | Mapa da Trilha | Trilha |
 | 3.2 | Lição (genérica) | Trilha |

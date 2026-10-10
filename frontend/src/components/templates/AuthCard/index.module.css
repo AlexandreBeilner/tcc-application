@@ -1,0 +1,46 @@
+.page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    background: var(--color-bg-base);
+}
+
+.card {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-8);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+}
+
+.brand {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    color: var(--color-brand-300);
+    text-align: center;
+}
+
+.subtitle {
+    margin: 0;
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Telas estreitas: o cartão ocupa a largura toda e perde a moldura pesada. */
+@media (max-width: 767px) {
+    .page {
+        padding: var(--space-4);
+        align-items: flex-start;
+    }
+
+    .card {
+        padding: var(--space-6);
+    }
+}

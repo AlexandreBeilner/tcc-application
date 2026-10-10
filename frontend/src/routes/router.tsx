@@ -38,6 +38,7 @@ import { FixedIncomeList } from '../pages/FixedIncomeList'
 import { IndicadoresEconomicos } from '../pages/IndicadoresEconomicos'
 import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
+import { EsqueciSenha } from '../pages/EsqueciSenha'
 import { Market } from '../pages/Market'
 import { MeuPerfil } from '../pages/MeuPerfil'
 import { MinhasOrdens } from '../pages/MinhasOrdens'
@@ -46,6 +47,7 @@ import { NotFound } from '../pages/NotFound'
 import { Onboarding } from '../pages/Onboarding'
 import { PerfilPublico } from '../pages/PerfilPublico'
 import { Portfolio } from '../pages/Portfolio'
+import { RedefinirSenha } from '../pages/RedefinirSenha'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
@@ -67,6 +69,16 @@ export const router = createBrowserRouter([
     {
         path: '/login',
         element: <Login />,
+    },
+    // Recuperação de senha (EM.2.3): públicas, fora do shell. `/redefinir-senha` recebe o token
+    // no fragmento (`#token=...`) do link do e-mail.
+    {
+        path: '/esqueci-senha',
+        element: <EsqueciSenha />,
+    },
+    {
+        path: '/redefinir-senha',
+        element: <RedefinirSenha />,
     },
     {
         path: '/auth/callback',

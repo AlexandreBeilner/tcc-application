@@ -27,6 +27,11 @@ export interface LoginInput {
     password: string
 }
 
+export interface ResetPasswordInput {
+    token: string
+    newPassword: string
+}
+
 // Tela 9.2 (tarefa 6.10) — `PATCH /me`, mesmas 3 regras de formato do
 // cadastro, todas opcionais no backend mas sempre enviadas juntas aqui (o
 // form de Configurações não faz edição parcial de campo único). `email`

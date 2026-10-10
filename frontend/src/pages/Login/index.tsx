@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { isAccountSuspendedError } from '../../services/client'
@@ -147,6 +147,12 @@ export function Login() {
                             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                         />
                     </label>
+
+                    {mode === 'login' && (
+                        <Link className={styles.forgot} to="/esqueci-senha">
+                            Esqueci minha senha
+                        </Link>
+                    )}
 
                     {passwordStrength && (
                         <div className={styles.strength} aria-live="polite">

@@ -51,6 +51,23 @@ describe('Login (tela 1.1)', () => {
         expect(googleLoginUrl).toHaveBeenCalled()
     })
 
+    it('login mostra o link "Esqueci minha senha"; cadastro não', () => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderLogin()
+        expect(screen.getByRole('link', { name: 'Esqueci minha senha' })).toHaveAttribute('href', '/esqueci-senha')
+
+        fireEvent.click(screen.getByText('Não tem conta? Cadastre-se'))
+        expect(screen.queryByRole('link', { name: 'Esqueci minha senha' })).not.toBeInTheDocument()
+    })
+
     it('toggle troca pro modo cadastro, com nome e username extra', () => {
         vi.mocked(useAuth).mockReturnValue({
             token: null,

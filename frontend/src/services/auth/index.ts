@@ -6,6 +6,7 @@ import type {
     Identity,
     LoginInput,
     RegisterInput,
+    ResetPasswordInput,
     AuthUser,
     UpdateProfileInput,
 } from './types'
@@ -15,6 +16,7 @@ export type {
     AuthResult,
     RegisterInput,
     LoginInput,
+    ResetPasswordInput,
     UpdateProfileInput,
     ChangePasswordInput,
     Identity,
@@ -27,6 +29,17 @@ export function register(input: RegisterInput): Promise<AuthResult> {
 
 export function login(input: LoginInput): Promise<AuthResult> {
     return apiRequest<AuthResult>('/auth/login', { method: 'POST', body: input })
+}
+
+// Recuperação de senha (EM.2.2/EM.2.3). O backend responde 202 sempre igual, exista a conta ou
+// não: a tela nunca descobre (nem mostra) se o e-mail tem conta.
+export function requestPasswordReset(email: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } })
+}
+
+// `token` vem do fragmento do link do e-mail. 401 = link desconhecido, 410 = expirado ou já usado.
+export function resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/reset-password', { method: 'POST', body: input })
 }
 
 // N.22: confere a senha de quem já está logado e devolve um token novo com a
