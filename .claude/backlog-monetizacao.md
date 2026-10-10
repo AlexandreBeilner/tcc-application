@@ -22,6 +22,8 @@ os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por ses
 | M11 | Cripto/opções/derivativos, trilhas extras PRO, acesso antecipado, máquina do tempo, múltiplas carteiras e Assembleia dos Investidores ficam **adiados** (Fase H). |
 | M12 | **Checkout web: Stripe conectado ao RevenueCat** (integração Stripe Billing do RevenueCat: Stripe Checkout embutido nos fluxos do RevenueCat, Customer Portal do Stripe para cancelar e trocar plano, recibos e e-mails de cobrança pelo Stripe). O backend continua falando só com o RevenueCat. **Sem Pix**, só assinatura recorrente no cartão. Web Billing do RevenueCat descartado por ora (documentação não conferida). |
 
+**Decisões de 2026-10-10 (ponto 046):** preço final **R$ 19,90 / R$ 199,90** (a MO.1.1 só confirma que existem nas lojas); ligas até 3 por assinante e 20 membros; duelos 1v1 de 7 dias, até 3 simultâneos, XP só por participar; cosméticos: selo PRO + 6 molduras + 8 títulos, sem temas.
+
 **Ressalva de preço:** Apple e Google trabalham com faixas de preço pré-definidas, e o valor
 terminado em `,97` pode não existir em BRL. A tarefa MO.1.1 confirma o preço real nos consoles
 antes de qualquer cobrança; o preço vive só na configuração dos produtos (lojas + RevenueCat), nunca
