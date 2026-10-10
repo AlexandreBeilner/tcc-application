@@ -10,6 +10,7 @@ export interface FakeOutboxRow extends OutboxEmail {
   providerMessageId: string | null
   lastError: string | null
   sentAt: Date | null
+  deliveredAt: Date | null
 }
 
 export interface FakeEmailOutboxRepository extends EmailOutboxRepository {
@@ -44,13 +45,14 @@ export function createFakeEmailOutboxRepository(
         category: input.category,
         payload: input.payload,
         idempotencyKey: input.idempotencyKey,
-        status: 'pending',
+        status: input.suppressedBy ? 'suppressed' : 'pending',
         attempts: 0,
         nextAttemptAt: input.sendAt ?? now(),
         claimedAt: null,
         providerMessageId: null,
-        lastError: null,
+        lastError: input.suppressedBy ? `suppressed:${input.suppressedBy}` : null,
         sentAt: null,
+        deliveredAt: null,
       }
       rows.push(row)
       return { id: row.id, created: true }
@@ -85,6 +87,17 @@ export function createFakeEmailOutboxRepository(
       const row = byId(id)
       setStatus(row, 'failed')
       row.lastError = error
+    },
+    async markSuppressed(id, reason) {
+      const row = byId(id)
+      setStatus(row, 'suppressed')
+      row.lastError = `suppressed:${reason}`
+      row.claimedAt = null
+    },
+    async markDelivered(providerMessageId, at) {
+      for (const row of rows) {
+        if (row.providerMessageId === providerMessageId) row.deliveredAt = at
+      }
     },
     async recoverStuck(claimedBefore, maxAttempts) {
       const stuck = rows.filter(

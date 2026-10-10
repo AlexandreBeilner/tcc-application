@@ -3,6 +3,7 @@ import { DeliverPendingEmailsUseCase } from './deliverPendingEmails'
 import { EnqueueEmailUseCase } from './enqueueEmail'
 import { MAX_DELIVERY_ATTEMPTS } from '../../domain/retryPolicy'
 import { createFakeEmailOutboxRepository } from '../../test/fakes/fakeEmailOutboxRepository'
+import { createFakeEmailSuppressionRepository } from '../../test/fakes/fakeEmailSuppressionRepository'
 import { createFakeEmailRenderer } from '../../test/fakes/fakeEmailRenderer'
 import {
   createFakeEmailSender,
@@ -18,9 +19,11 @@ function setup(
   let clock = T0
   const outbox = createFakeEmailOutboxRepository(() => clock)
   const sender = createFakeEmailSender()
+  const suppressions = createFakeEmailSuppressionRepository()
   const sleeps: number[] = []
   const deliver = new DeliverPendingEmailsUseCase(
     outbox,
+    suppressions,
     createFakeEmailRenderer(),
     sender,
     { batchSize: 20, stuckAfterMs: 10 * 60_000, delayBetweenSendsMs: 0, ...options },
@@ -30,7 +33,7 @@ function setup(
     },
   )
   const enqueue = (key: string, templateKey = 'test') =>
-    new EnqueueEmailUseCase(outbox).execute({
+    new EnqueueEmailUseCase(outbox, suppressions).execute({
       userId: null,
       to: 'ana@exemplo.com',
       templateKey,
@@ -40,6 +43,7 @@ function setup(
     })
   return {
     outbox,
+    suppressions,
     sender,
     deliver,
     enqueue,
@@ -72,10 +76,10 @@ describe('DeliverPendingEmailsUseCase', () => {
   })
 
   it('não reenvia o que já foi enviado nem o que está agendado pro futuro', async () => {
-    const { outbox, sender, deliver, enqueue } = setup()
+    const { outbox, sender, suppressions, deliver, enqueue } = setup()
     await enqueue('a')
     await deliver.execute()
-    await new EnqueueEmailUseCase(outbox).execute({
+    await new EnqueueEmailUseCase(outbox, suppressions).execute({
       userId: null,
       to: 'b@exemplo.com',
       templateKey: 'test',
@@ -224,5 +228,26 @@ describe('DeliverPendingEmailsUseCase', () => {
 
     expect(result).toMatchObject({ recovered: 1, claimed: 0 })
     expect(outbox.rows[0].status).toBe('failed')
+  })
+
+  it('endereço que levou bounce entre o enfileiramento e a entrega não recebe: vira suppressed', async () => {
+    const { outbox, sender, suppressions, deliver, enqueue } = setup()
+    await enqueue('a')
+    await suppressions.add('ana@exemplo.com', 'bounce', T0)
+
+    const result = await deliver.execute()
+
+    expect(result).toMatchObject({ claimed: 1, suppressed: 1, sent: 0 })
+    expect(outbox.rows[0]).toMatchObject({ status: 'suppressed', lastError: 'suppressed:bounce' })
+    expect(sender.sent).toHaveLength(0)
+  })
+
+  it('reclamação não impede e-mail transacional já na fila', async () => {
+    const { sender, suppressions, deliver, enqueue } = setup()
+    await enqueue('a')
+    await suppressions.add('ana@exemplo.com', 'complaint', T0)
+
+    expect(await deliver.execute()).toMatchObject({ sent: 1, suppressed: 0 })
+    expect(sender.sent).toHaveLength(1)
   })
 })

@@ -587,6 +587,9 @@ export const emailOutbox = pgTable(
     lastError: text('last_error'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    // Confirmação de entrega que o webhook do provedor traz (EM.1.4); `sent` só diz que o
+    // provedor aceitou a mensagem.
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
   },
   (table) => [
     check(
@@ -601,5 +604,23 @@ export const emailOutbox = pgTable(
       .on(table.nextAttemptAt)
       .where(sql`${table.status} = 'pending'`),
     index('email_outbox_user_idx').on(table.userId),
+  ],
+)
+
+// Endereços que não devem receber e-mail (EM.1.4): bounce permanente, reclamação de spam e
+// descadastro total. A chave é o endereço normalizado em minúsculo, não o usuário: o bounce vale
+// pro endereço mesmo se a conta mudar. Consultada em todo enfileiramento e de novo na entrega.
+export const emailSuppressions = pgTable(
+  'email_suppressions',
+  {
+    address: varchar('address', { length: 320 }).primaryKey(),
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'email_suppressions_reason_chk',
+      sql`${table.reason} IN ('bounce', 'complaint', 'unsubscribe_all')`,
+    ),
   ],
 )

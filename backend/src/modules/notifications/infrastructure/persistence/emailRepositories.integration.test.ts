@@ -7,11 +7,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
 import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxRepository'
+import { createDrizzleEmailSuppressionRepository } from './drizzleEmailSuppressionRepository'
 
-// Teste de integração (EM.1.1): só roda com TEST_DATABASE_URL apontando pra um banco
+// Teste de integração (EM.1.1 e EM.1.4): outbox e supressão num arquivo só, porque dois arquivos migrando o mesmo banco em paralelo colidem. Só roda com TEST_DATABASE_URL apontando pra um banco
 // DESCARTÁVEL (apaga `email_outbox`). Cobre o que os fakes não provam: idempotência pela UNIQUE
 // real e a reivindicação com `FOR UPDATE SKIP LOCKED` em conexões concorrentes.
 const databaseUrl = process.env.TEST_DATABASE_URL
+const T0 = new Date('2026-10-09T12:00:00Z')
 
 // `sendAt` fixo no passado: sem ele a linha nasce com o relógio do banco, que pode ser
 // posterior ao `now` fixo que os testes passam pro worker.
@@ -25,7 +27,7 @@ const base = (key: string) => ({
   idempotencyKey: key,
 })
 
-describe.skipIf(!databaseUrl)('drizzleEmailOutboxRepository (banco real)', () => {
+describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
   let pool: Pool
   let db: Database
 
@@ -40,6 +42,7 @@ describe.skipIf(!databaseUrl)('drizzleEmailOutboxRepository (banco real)', () =>
 
   beforeEach(async () => {
     await db.delete(schema.emailOutbox)
+    await db.delete(schema.emailSuppressions)
   })
 
   afterAll(async () => {
@@ -128,5 +131,59 @@ describe.skipIf(!databaseUrl)('drizzleEmailOutboxRepository (banco real)', () =>
     )
     expect(rows.preso.status).toBe('pending')
     expect(rows.esgotado.status).toBe('failed')
+  })
+
+  it('enqueue com suppressedBy grava suppressed e o worker nunca reivindica', async () => {
+    const repo = createDrizzleEmailOutboxRepository(db)
+
+    await repo.enqueue({ ...base('barrado'), suppressedBy: 'bounce' })
+
+    const [row] = await db.select().from(schema.emailOutbox)
+    expect(row).toMatchObject({ status: 'suppressed', lastError: 'suppressed:bounce' })
+    expect(await repo.claimBatch(10, new Date('2026-10-09T12:00:00Z'))).toEqual([])
+  })
+
+  it('markSuppressed fecha a linha reivindicada e markDelivered acha pelo id do provedor', async () => {
+    const repo = createDrizzleEmailOutboxRepository(db)
+    const now = new Date('2026-10-09T12:00:00Z')
+    const a = await repo.enqueue(base('a'))
+    const b = await repo.enqueue(base('b'))
+    await repo.claimBatch(10, now)
+
+    await repo.markSuppressed(a.id, 'complaint')
+    await repo.markSent(b.id, 'msg-77', now)
+    await repo.markDelivered('msg-77', new Date('2026-10-09T12:00:05Z'))
+
+    const rows = Object.fromEntries(
+      (await db.select().from(schema.emailOutbox)).map((r) => [r.idempotencyKey, r]),
+    )
+    expect(rows.a).toMatchObject({ status: 'suppressed', lastError: 'suppressed:complaint' })
+    expect(rows.b.deliveredAt).toEqual(new Date('2026-10-09T12:00:05Z'))
+  })
+
+  it('find devolve null pra endereço limpo e o motivo pra suprimido', async () => {
+    const repo = createDrizzleEmailSuppressionRepository(db)
+    expect(await repo.find('ana@exemplo.com')).toBeNull()
+
+    await repo.add('ana@exemplo.com', 'complaint', T0)
+
+    expect(await repo.find('ana@exemplo.com')).toBe('complaint')
+  })
+
+  it('add é idempotente e só sobe de gravidade, nunca desce', async () => {
+    const repo = createDrizzleEmailSuppressionRepository(db)
+
+    await repo.add('ana@exemplo.com', 'unsubscribe_all', T0)
+    await repo.add('ana@exemplo.com', 'complaint', T0)
+    expect(await repo.find('ana@exemplo.com')).toBe('complaint')
+
+    await repo.add('ana@exemplo.com', 'bounce', T0)
+    expect(await repo.find('ana@exemplo.com')).toBe('bounce')
+
+    await repo.add('ana@exemplo.com', 'complaint', T0)
+    await repo.add('ana@exemplo.com', 'unsubscribe_all', T0)
+    await repo.add('ana@exemplo.com', 'bounce', T0)
+    expect(await repo.find('ana@exemplo.com')).toBe('bounce')
+    expect(await db.select().from(schema.emailSuppressions)).toHaveLength(1)
   })
 })

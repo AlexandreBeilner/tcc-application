@@ -1,4 +1,5 @@
 import type { EmailCategory, OutboxEmail } from '../../domain/emailMessage'
+import type { SuppressionReason } from '../../domain/suppression'
 
 export interface NewOutboxEmail {
   userId: string | null
@@ -9,6 +10,9 @@ export interface NewOutboxEmail {
   idempotencyKey: string
   // Padrão: agora. Permite agendar (ex.: lote de comunicado).
   sendAt?: Date
+  // Endereço suprimido na hora de enfileirar: a linha nasce `suppressed` (nunca é enviada, mas
+  // fica registrada pra explicar por que o e-mail não chegou).
+  suppressedBy?: SuppressionReason
 }
 
 export interface EmailOutboxRepository {
@@ -20,6 +24,10 @@ export interface EmailOutboxRepository {
   markSent(id: string, providerMessageId: string, now: Date): Promise<void>
   markForRetry(id: string, error: string, nextAttemptAt: Date): Promise<void>
   markFailed(id: string, error: string): Promise<void>
+  // Suprimido entre o enfileiramento e a entrega (um bounce chegou nesse intervalo).
+  markSuppressed(id: string, reason: SuppressionReason): Promise<void>
+  // Confirmação de entrega vinda do webhook, localizada pelo id que o provedor devolveu.
+  markDelivered(providerMessageId: string, at: Date): Promise<void>
   // Linhas `sending` reivindicadas antes de `claimedBefore` (processo caiu no meio): voltam a
   // `pending`, ou vão a `failed` se já esgotaram `maxAttempts`. Devolve quantas mexeu.
   recoverStuck(claimedBefore: Date, maxAttempts: number): Promise<number>

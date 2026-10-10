@@ -34,6 +34,9 @@ export function createDrizzleEmailOutboxRepository(db: Database): EmailOutboxRep
           payload: input.payload,
           idempotencyKey: input.idempotencyKey,
           ...(input.sendAt ? { nextAttemptAt: input.sendAt } : {}),
+          ...(input.suppressedBy
+            ? { status: 'suppressed', lastError: `suppressed:${input.suppressedBy}` }
+            : {}),
         })
         .onConflictDoNothing({ target: emailOutbox.idempotencyKey })
         .returning({ id: emailOutbox.id })
@@ -91,6 +94,20 @@ export function createDrizzleEmailOutboxRepository(db: Database): EmailOutboxRep
         .update(emailOutbox)
         .set({ status: 'failed', lastError: error, claimedAt: null })
         .where(eq(emailOutbox.id, id))
+    },
+
+    async markSuppressed(id, reason) {
+      await db
+        .update(emailOutbox)
+        .set({ status: 'suppressed', lastError: `suppressed:${reason}`, claimedAt: null })
+        .where(eq(emailOutbox.id, id))
+    },
+
+    async markDelivered(providerMessageId, at) {
+      await db
+        .update(emailOutbox)
+        .set({ deliveredAt: at })
+        .where(eq(emailOutbox.providerMessageId, providerMessageId))
     },
 
     async recoverStuck(claimedBefore, maxAttempts) {

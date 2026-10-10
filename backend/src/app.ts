@@ -1,5 +1,5 @@
 import cors from 'cors'
-import express, { Express } from 'express'
+import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
 import { healthRouter } from './routes/health'
@@ -334,6 +334,9 @@ export interface AppDeps {
   userRepository?: UserRepository
   tokenIssuer?: TokenIssuer
   googleIdentityProvider?: GoogleIdentityProvider
+  // Webhook do provedor de e-mail (EM.1.4): precisa do corpo bruto, então é montado antes do
+  // `express.json()`.
+  emailWebhookRouter?: Router
 }
 
 function resolveGoogleIdentityProvider(): GoogleIdentityProvider {
@@ -748,6 +751,7 @@ export function createApp(deps: AppDeps = {}): Express {
   // gateway e o limitador de taxa (N.22) trataria todo mundo como um cliente só.
   app.set('trust proxy', 1)
   app.use(cors({ origin: frontendUrl }))
+  if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
   app.use(express.json())
   app.use(healthRouter)
   app.use(statusRouter)

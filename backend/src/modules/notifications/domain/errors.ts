@@ -10,3 +10,11 @@ export class EmailSendError extends Error {
     this.name = 'EmailSendError'
   }
 }
+
+// Webhook sem assinatura válida (ou com timestamp velho demais): vira 400 e nada é processado.
+export class InvalidWebhookSignatureError extends Error {
+  constructor(message = 'assinatura do webhook inválida') {
+    super(message)
+    this.name = 'InvalidWebhookSignatureError'
+  }
+}

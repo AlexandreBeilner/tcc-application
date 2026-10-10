@@ -1,9 +1,11 @@
 import { EmailSendError } from '../../domain/errors'
 import type { OutboxEmail } from '../../domain/emailMessage'
 import { MAX_DELIVERY_ATTEMPTS, nextRetryDelayMs } from '../../domain/retryPolicy'
+import { isBlockedBySuppression } from '../../domain/suppression'
 import type { EmailOutboxRepository } from '../ports/emailOutboxRepository'
 import type { EmailRenderer } from '../ports/emailRenderer'
 import type { EmailSender } from '../ports/emailSender'
+import type { EmailSuppressionRepository } from '../ports/emailSuppressionRepository'
 
 export interface DeliverPendingEmailsOptions {
   batchSize: number
@@ -19,6 +21,7 @@ export interface DeliverPendingEmailsResult {
   sent: number
   retried: number
   failed: number
+  suppressed: number
   recovered: number
 }
 
@@ -34,6 +37,7 @@ export const DEFAULT_DELIVER_OPTIONS: DeliverPendingEmailsOptions = {
 export class DeliverPendingEmailsUseCase {
   constructor(
     private readonly outbox: EmailOutboxRepository,
+    private readonly suppressions: EmailSuppressionRepository,
     private readonly renderer: EmailRenderer,
     private readonly sender: EmailSender,
     private readonly options: DeliverPendingEmailsOptions = DEFAULT_DELIVER_OPTIONS,
@@ -55,6 +59,7 @@ export class DeliverPendingEmailsUseCase {
       sent: 0,
       retried: 0,
       failed: 0,
+      suppressed: 0,
       recovered,
     }
     for (const [index, email] of batch.entries()) {
@@ -67,7 +72,16 @@ export class DeliverPendingEmailsUseCase {
     return result
   }
 
-  private async deliverOne(email: OutboxEmail): Promise<'sent' | 'retried' | 'failed'> {
+  private async deliverOne(
+    email: OutboxEmail,
+  ): Promise<'sent' | 'retried' | 'failed' | 'suppressed'> {
+    // Um bounce pode ter chegado depois que a linha entrou na fila: confere de novo antes de enviar.
+    const reason = await this.suppressions.find(email.toAddress)
+    if (reason && isBlockedBySuppression(reason, email.category)) {
+      await this.outbox.markSuppressed(email.id, reason)
+      return 'suppressed'
+    }
+
     let rendered
     try {
       rendered = this.renderer.render(email.templateKey, email.payload)

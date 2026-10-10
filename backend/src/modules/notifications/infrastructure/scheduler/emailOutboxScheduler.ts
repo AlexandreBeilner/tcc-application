@@ -17,7 +17,7 @@ export function startEmailOutboxScheduler(
       const result = await deliverPendingEmails.execute()
       if (result.claimed > 0 || result.recovered > 0) {
         console.log(
-          `e-mail: ${result.sent} enviado(s), ${result.retried} reagendado(s), ${result.failed} falha(s), ${result.recovered} recuperado(s)`,
+          `e-mail: ${result.sent} enviado(s), ${result.retried} reagendado(s), ${result.failed} falha(s), ${result.suppressed} suprimido(s), ${result.recovered} recuperado(s)`,
         )
       }
     } catch (err) {

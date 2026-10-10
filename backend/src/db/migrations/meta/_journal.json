@@ -218,6 +218,13 @@
       "when": 1792200000000,
       "tag": "0030_add_email_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792300000000,
+      "tag": "0031_add_email_suppressions",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,13 @@ import { EnqueueEmailUseCase } from './application/useCases/enqueueEmail'
 import type { EmailConfig } from './infrastructure/config/emailConfig'
 import { createLogEmailSender } from './infrastructure/log/logEmailSender'
 import { createDrizzleEmailOutboxRepository } from './infrastructure/persistence/drizzleEmailOutboxRepository'
+import { createDrizzleEmailSuppressionRepository } from './infrastructure/persistence/drizzleEmailSuppressionRepository'
+import { ReceiveProviderWebhookUseCase } from './application/useCases/receiveProviderWebhook'
+import { createEmailWebhookRouter } from './interfaces/http/webhookRouter'
+import {
+  createResendWebhookParser,
+  createResendWebhooks,
+} from './infrastructure/resend/resendWebhookParser'
 import {
   createResendClient,
   createResendEmailSender,
@@ -36,6 +43,8 @@ export interface NotificationsCompositionDeps {
   emailSender: EmailSender
   emailRenderer: EmailRenderer
   deliverOptions?: Partial<DeliverPendingEmailsOptions>
+  // Credenciais do Resend pra verificar a assinatura do webhook (EM.1.4).
+  webhook?: { apiKey: string; secret: string }
 }
 
 // Composição isolada de `createApp` (mesmo desenho de `payroll`/`ranking`): o envio é processo
@@ -43,12 +52,30 @@ export interface NotificationsCompositionDeps {
 // cada um); `deliverPendingEmails` é o que o scheduler executa.
 export function createNotificationsComposition(db: Database, deps: NotificationsCompositionDeps) {
   const outbox = createDrizzleEmailOutboxRepository(db)
-  const enqueueEmail = new EnqueueEmailUseCase(outbox)
+  const suppressions = createDrizzleEmailSuppressionRepository(db)
+  const enqueueEmail = new EnqueueEmailUseCase(outbox, suppressions)
   const deliverPendingEmails = new DeliverPendingEmailsUseCase(
     outbox,
+    suppressions,
     deps.emailRenderer,
     deps.emailSender,
     { ...DEFAULT_DELIVER_OPTIONS, ...deps.deliverOptions },
   )
-  return { enqueueEmail, deliverPendingEmails }
+
+  // O webhook só existe com o Resend e o segredo configurados (`createEmailWebhookRouter` é
+  // montado em `app.ts` antes do `express.json()`); sem ele, `undefined` e a rota não existe.
+  const emailWebhookRouter =
+    deps.webhook &&
+    createEmailWebhookRouter({
+      receiveProviderWebhook: new ReceiveProviderWebhookUseCase(
+        createResendWebhookParser({
+          webhooks: createResendWebhooks(deps.webhook.apiKey),
+          webhookSecret: deps.webhook.secret,
+        }),
+        outbox,
+        suppressions,
+      ),
+    })
+
+  return { enqueueEmail, deliverPendingEmails, emailWebhookRouter }
 }

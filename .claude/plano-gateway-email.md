@@ -262,3 +262,17 @@ Push notification e SMS; e-mail de marketing livre/campanhas manuais pelo admin;
 | Várias réplicas do backend | `SKIP LOCKED` no worker já é seguro; rate limit em memória precisa migrar pro Redis (já previsto em `rateLimit.ts`). |
 | Spam por pedido de amizade usando nosso domínio | Todo usuário é verificado (D2), opt-in do destinatário, teto diário por destinatário. |
 | Cadastro depende de o e-mail chegar (D2 bloqueia o login) | Reenvio sempre visível, outbox com retry, alerta de fila no admin (EM.8.1), `EMAIL_PROVIDER=log` em desenvolvimento; provedor fora do ar atrasa novos cadastros, não quem já verificou. |
+
+## 11. Passo a passo do autor: domínio, chave e webhook (pré-requisito da EM.1.4 com envio real)
+
+Nada disso é código; precisa ser feito uma vez, e tudo antes de enviar para usuário real.
+
+1. **Domínio de envio.** Em Resend > Domains, adicionar um **subdomínio** (ex.: `send.seudominio.com`), não o domínio principal. Região: escolher a mais próxima dos usuários.
+2. **DNS.** O Resend mostra os registros para copiar no provedor de DNS: `MX` e `TXT` de SPF (no subdomínio de envio) e `TXT` de DKIM (`resend._domainkey`). Aguardar o status **Verified**. Depois, criar o `TXT` de **DMARC** em `_dmarc.seudominio.com` com `v=DMARC1; p=none; rua=mailto:alguem@seudominio.com` (começar em `p=none`, subir para `quarantine` quando os relatórios estiverem limpos).
+3. **Rastreio.** Em Domains > o domínio > configurações, **desligar open tracking e click tracking**. O link de recuperação de senha não pode passar por redirecionamento de terceiro.
+4. **Chave de API.** Em API Keys, criar uma chave com permissão **Sending access** restrita a esse domínio (uma por ambiente). Vai em `RESEND_API_KEY`. Nunca commitar.
+5. **Remetente.** `EMAIL_FROM="Investimenta <no-reply@send.seudominio.com>"` e, se quiser resposta humana, `EMAIL_REPLY_TO` com um endereço que alguém lê.
+6. **Teste de envio.** `EMAIL_PROVIDER=resend RESEND_API_KEY=... EMAIL_FROM=... npm run email:test -- seu@email.com` (no `backend/`). Conferir que chegou na caixa de entrada e não no spam, e abrir "mostrar original" para ver `SPF`, `DKIM` e `DMARC` como `PASS`.
+7. **Webhook.** Em Webhooks > Add endpoint, URL `https://<endereço público do gateway>/webhooks/resend`, eventos `email.delivered`, `email.bounced` e `email.complained`. Copiar o **Signing Secret** (`whsec_...`) para `RESEND_WEBHOOK_SECRET` e reiniciar o backend (sem ele a rota não existe e o backend avisa no log).
+8. **Conferir o webhook.** Mandar um e-mail de teste para `bounced@resend.dev` (endereço de teste do Resend que sempre dá bounce) e confirmar a linha em `email_suppressions` e a resposta `200` na aba de entregas do webhook.
+
