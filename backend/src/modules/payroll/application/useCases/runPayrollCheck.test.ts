@@ -4,6 +4,7 @@ import { CreditMonthlyPayrollForUserUseCase } from './creditMonthlyPayrollForUse
 import { createFakeLevelReader } from '../../test/fakes/fakeLevelReader'
 import { createFakePayrollCalendarReader } from '../../test/fakes/fakePayrollCalendarReader'
 import { createFakePayrollStateRepository } from '../../test/fakes/fakePayrollStateRepository'
+import { createFakeSalaryMailer } from '../../test/fakes/fakeSalaryMailer'
 import { createFakeSalaryCrediter } from '../../test/fakes/fakeSalaryCrediter'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 
@@ -21,6 +22,7 @@ describe('RunPayrollCheckUseCase', () => {
       levelReader,
       stateRepository,
       crediter,
+      createFakeSalaryMailer(),
     )
     const useCase = new RunPayrollCheckUseCase(userDirectory, calendarReader, creditForUser, 3)
 
@@ -46,6 +48,7 @@ describe('RunPayrollCheckUseCase', () => {
       levelReader,
       stateRepository,
       crediter,
+      createFakeSalaryMailer(),
     )
     const useCase = new RunPayrollCheckUseCase(userDirectory, calendarReader, creditForUser, 3)
 

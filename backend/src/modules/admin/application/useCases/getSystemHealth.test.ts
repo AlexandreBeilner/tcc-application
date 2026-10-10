@@ -44,7 +44,11 @@ describe('GetSystemHealthUseCase', () => {
 
   it('um componente que falha vira "fora" com o motivo e os outros seguem ok', async () => {
     const health = byKey(
-      await new GetSystemHealthUseCase(probes({ redis: failing('ECONNREFUSED') }), outbox, 1000).execute(),
+      await new GetSystemHealthUseCase(
+        probes({ redis: failing('ECONNREFUSED') }),
+        outbox,
+        1000,
+      ).execute(),
     )
     expect(health.redis).toMatchObject({ status: 'fora', latency_ms: null, detail: 'ECONNREFUSED' })
     expect(health.engine.status).toBe('ok')
@@ -52,7 +56,9 @@ describe('GetSystemHealthUseCase', () => {
   })
 
   it('um componente que não responde no prazo vira "fora"', async () => {
-    const health = byKey(await new GetSystemHealthUseCase(probes({ engine: never }), outbox, 30).execute())
+    const health = byKey(
+      await new GetSystemHealthUseCase(probes({ engine: never }), outbox, 30).execute(),
+    )
     expect(health.engine.status).toBe('fora')
     expect(health.engine.detail).toContain('sem resposta')
   })

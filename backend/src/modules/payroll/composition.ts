@@ -4,6 +4,9 @@ import { createDrizzleProgressionRepository } from '../gamification/infrastructu
 import { GetMarketCalendarUseCase } from '../market/application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from '../market/application/useCases/getMarketClock'
 import { createEngineMarketCalendarReader } from '../market/infrastructure/engine/engineMarketCalendarReader'
+import type { EnqueueEmailUseCase } from '../notifications/application/useCases/enqueueEmail'
+import { createDrizzleRecipientDirectory } from '../notifications/infrastructure/persistence/drizzleRecipientDirectory'
+import { createNotificationsSalaryMailer } from './infrastructure/notifications/notificationsSalaryMailer'
 import { CreditMonthlyPayrollForUserUseCase } from './application/useCases/creditMonthlyPayrollForUser'
 import { RunPayrollCheckUseCase } from './application/useCases/runPayrollCheck'
 import { createEngineSalaryCrediter } from './infrastructure/engine/engineSalaryCrediter'
@@ -27,7 +30,11 @@ function positiveIntFromEnv(raw: string | undefined, fallback: number): number {
 // estado próprio além de `db`/`engineUrl`, então duplicar a construção
 // aqui é mais simples que replumbar `createApp` só pra exportar essas
 // instâncias.
-export function createPayrollComposition(db: Database, engineUrl: string) {
+export function createPayrollComposition(
+  db: Database,
+  engineUrl: string,
+  enqueueEmail: EnqueueEmailUseCase,
+) {
   const getProgression = new GetProgressionUseCase(createDrizzleProgressionRepository(db))
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
@@ -37,6 +44,11 @@ export function createPayrollComposition(db: Database, engineUrl: string) {
     createInProcessLevelReader(getProgression),
     createDrizzlePayrollStateRepository(db),
     createEngineSalaryCrediter(engineUrl),
+    // Aviso do salário por e-mail (EM.7.2): só para quem ligou o engajamento.
+    createNotificationsSalaryMailer({
+      enqueueEmail,
+      recipients: createDrizzleRecipientDirectory(db),
+    }),
   )
 
   // Mesmo espírito de `TICK_MAX_CATCHUP` do motor (S.3) — teto de meses

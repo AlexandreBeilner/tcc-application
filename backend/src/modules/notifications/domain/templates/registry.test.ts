@@ -189,3 +189,47 @@ describe('resumo semanal (EM.7.1)', () => {
     expect(text).not.toContain('missão')
   })
 })
+
+describe('avisos de engajamento do EM.7.2', () => {
+  it('salário de um mês: valor em reais, mês por extenso, sem travessão', () => {
+    const template = EMAIL_TEMPLATES.salary_credited
+    const text = bodyText('salary_credited', template.sample)
+
+    expect(template.category).toBe('engagement')
+    expect(text).toContain('de outubro de 2026')
+    expect(text).toContain('R$ 1.000,00')
+    expect(text).not.toContain('—')
+  })
+
+  it('catch-up de vários meses vira um e-mail só, com o total', () => {
+    const text = bodyText('salary_credited', {
+      name: 'Ana',
+      firstMonth: '2026-08',
+      lastMonth: '2026-10',
+      months: 3,
+      amountPerMonth: 500,
+    })
+
+    expect(text).toContain('de agosto de 2026 a outubro de 2026')
+    expect(text).toContain('3 meses de R$ 500,00')
+    expect(text).toContain('R$ 1.500,00 no total')
+  })
+
+  it('salário sem valor é recusado na montagem', () => {
+    expect(() => EMAIL_TEMPLATES.salary_credited.build({ name: 'Ana' }, ctx)).toThrow(
+      /amountPerMonth/,
+    )
+  })
+
+  it('conquista rara leva só nome e descrição da conquista, nunca contagem de quem a tem', () => {
+    const template = EMAIL_TEMPLATES.rare_achievement
+    const content = template.build(template.sample, ctx)
+    const text = bodyText('rare_achievement', template.sample)
+
+    expect(template.category).toBe('engagement')
+    expect(content.subject).toBe('Você desbloqueou a conquista Fiel')
+    expect(text).toContain('30 dias seguidos de atividade.')
+    expect(text).not.toMatch(/\d+%|\d+ pessoas/)
+    expect(JSON.stringify(content)).not.toContain('—')
+  })
+})

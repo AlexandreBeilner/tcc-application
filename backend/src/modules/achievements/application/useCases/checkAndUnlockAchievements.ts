@@ -1,4 +1,8 @@
 import { isSatisfied, type Achievement } from '../../domain/achievement'
+import { isRareAchievement } from '../../domain/rarity'
+import { notifySafely } from '../notifySafely'
+import type { AchievementMailer } from '../ports/achievementMailer'
+import type { AchievementRarityReader } from '../ports/achievementRarityReader'
 import type { AchievementRepository } from '../ports/achievementRepository'
 import type { ProgressSnapshotReader } from '../ports/progressSnapshotReader'
 
@@ -15,6 +19,8 @@ export class CheckAndUnlockAchievementsUseCase {
   constructor(
     private readonly achievementRepository: AchievementRepository,
     private readonly progressSnapshotReader: ProgressSnapshotReader,
+    private readonly rarityReader: AchievementRarityReader,
+    private readonly mailer: AchievementMailer,
   ) {}
 
   async execute(input: CheckAndUnlockAchievementsInput): Promise<Achievement[]> {
@@ -35,6 +41,15 @@ export class CheckAndUnlockAchievementsUseCase {
         await this.achievementRepository.unlock(input.userId, achievement.id)
         newlyUnlocked.push(achievement)
       }
+    }
+
+    // E-mail de conquista rara (EM.7.2): depois de gravar, e nunca em volta do desbloqueio.
+    for (const achievement of newlyUnlocked) {
+      await notifySafely('o aviso de conquista rara', async () => {
+        if (isRareAchievement(await this.rarityReader.getRarity(achievement.id))) {
+          await this.mailer.sendRareUnlocked({ userId: input.userId, achievement })
+        }
+      })
     }
 
     return newlyUnlocked

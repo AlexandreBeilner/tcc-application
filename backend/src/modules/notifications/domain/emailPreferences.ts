@@ -19,6 +19,8 @@ export function isCategoryEnabled(preferences: EmailPreferences, category: Email
 // O que a regra de elegibilidade precisa saber do destinatário, sem importar o módulo `auth`.
 export interface RecipientInfo {
   address: string
+  // Nome de exibição, para o "Olá, Ana" dos e-mails (opcional: nem todo leitor precisa dele).
+  name?: string
   status: 'active' | 'suspended'
   emailVerified: boolean
 }

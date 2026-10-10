@@ -33,7 +33,9 @@ describe('classifyOutbox', () => {
   })
 
   it('falhas só alertam a partir do limite', () => {
-    expect(classifyOutbox({ ...stats, failedLast24h: OUTBOX_FAILED_ALERT_COUNT - 1 }).status).toBe('ok')
+    expect(classifyOutbox({ ...stats, failedLast24h: OUTBOX_FAILED_ALERT_COUNT - 1 }).status).toBe(
+      'ok',
+    )
     const alert = classifyOutbox({ ...stats, failedLast24h: OUTBOX_FAILED_ALERT_COUNT })
     expect(alert.status).toBe('degradado')
     expect(alert.detail).toContain('falhas acumulando')

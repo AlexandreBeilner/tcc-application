@@ -5,6 +5,10 @@ import {
   AchievementNotFoundError,
   InvalidAchievementError,
 } from '../../domain/errors'
+import {
+  createFakeAchievementMailer,
+  createFakeRarityReader,
+} from '../../test/fakes/fakeAchievementNotifications'
 import { createFakeAchievementRepository } from '../../test/fakes/fakeAchievementRepository'
 import { createFakeProgressSnapshotReader } from '../../test/fakes/fakeProgressSnapshotReader'
 import { CheckAndUnlockAchievementsUseCase } from './checkAndUnlockAchievements'
@@ -153,7 +157,12 @@ describe('conquista desativada', () => {
     return {
       repository,
       update,
-      check: new CheckAndUnlockAchievementsUseCase(repository, snapshot),
+      check: new CheckAndUnlockAchievementsUseCase(
+        repository,
+        snapshot,
+        createFakeRarityReader(),
+        createFakeAchievementMailer(),
+      ),
       listForUser: new ListAchievementsUseCase(repository, snapshot),
     }
   }

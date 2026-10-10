@@ -17,12 +17,7 @@ export interface SystemHealth {
   components: ComponentHealth[]
 }
 
-const ORDER: ProbedKey[] = [
-  'engine',
-  'gamification_db',
-  'market_db',
-  'redis',
-]
+const ORDER: ProbedKey[] = ['engine', 'gamification_db', 'market_db', 'redis']
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout

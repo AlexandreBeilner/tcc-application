@@ -2,7 +2,9 @@ import { monthlySalaryForLevel } from '../../domain/salary'
 import { monthsToPay } from '../../domain/payrollDecision'
 import type { LevelReader } from '../ports/levelReader'
 import type { PayrollStateRepository } from '../ports/payrollStateRepository'
+import { notifySafely } from '../notifySafely'
 import type { SalaryCrediter } from '../ports/salaryCrediter'
+import type { SalaryMailer } from '../ports/salaryMailer'
 
 export interface CreditMonthlyPayrollForUserInput {
   userId: string
@@ -37,6 +39,7 @@ export class CreditMonthlyPayrollForUserUseCase {
     private readonly levelReader: LevelReader,
     private readonly payrollStateRepository: PayrollStateRepository,
     private readonly salaryCrediter: SalaryCrediter,
+    private readonly salaryMailer: SalaryMailer,
   ) {}
 
   async execute(
@@ -61,6 +64,15 @@ export class CreditMonthlyPayrollForUserUseCase {
       await this.salaryCrediter.credit(input.userId, amountPerMonth, monthKey)
       await this.payrollStateRepository.setLastPaidMonth(input.userId, monthKey)
     }
+
+    // Um aviso por rodada (EM.7.2), depois de tudo gravado.
+    await notifySafely('o aviso de salário', () =>
+      this.salaryMailer.sendSalaryCredited({
+        userId: input.userId,
+        monthKeys: months,
+        amountPerMonth,
+      }),
+    )
 
     return { monthsPaid: months, amountPerMonth }
   }

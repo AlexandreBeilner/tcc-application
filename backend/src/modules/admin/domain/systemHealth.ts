@@ -3,12 +3,7 @@
 export type HealthStatus = 'ok' | 'degradado' | 'fora'
 
 export type HealthComponentKey =
-  | 'backend'
-  | 'engine'
-  | 'gamification_db'
-  | 'market_db'
-  | 'redis'
-  | 'email_outbox'
+  'backend' | 'engine' | 'gamification_db' | 'market_db' | 'redis' | 'email_outbox'
 
 export interface ComponentHealth {
   key: HealthComponentKey

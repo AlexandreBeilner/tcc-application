@@ -975,3 +975,12 @@ Nenhum ponto em aberto no momento.
 - **Opções:** (a) recusar o vínculo se a conta local não estiver verificada; (b) vincular e zerar a senha local, só com `email_verified` do Google; (c) manter.
 - **Recomendação (D3 em `.claude/plano-gateway-email.md`):** (b). Entra na tarefa EM.3.2 do plano.
 - **Status:** ✅ resolvido (2026-10-10, EM.3.2): `LoginWithGoogleUseCase` só vincula conta local com `email_verified` do Google; conta local não verificada tem a senha zerada, as sessões encerradas e o e-mail marcado como verificado. Teste do pré-sequestro em `loginWithGoogle.test.ts`.
+
+### 044 · O que é "conquista rara" no e-mail de conquista (EM.7.2, E14)
+
+- **Local:** `backend/src/modules/achievements/domain/rarity.ts` (`RARE_MAX_HOLDER_SHARE = 0.1`, `RARE_MIN_POPULATION = 20`).
+- **Origem:** o backlog do e-mail pede aviso de "conquista rara desbloqueada", mas o catálogo não tem o conceito de raridade em nenhum documento.
+- **O que foi feito (provisório):** rara = no máximo 10% dos jogadores ativos (usuário comum, ativo, não anonimizado) a têm, contando quem acabou de desbloquear, e só com 20 ou mais jogadores. Medido ao vivo com 23 jogadores: "Formado na Trilha", "Primeira Operação" e "Voltou pra Revisar" contam como raras, porque cada uma tem 1 dono.
+- **Por que isso pode estar errado:** a raridade é dinâmica, então no começo da vida do produto quase toda conquista é "rara" para quem a ganha primeiro, mesmo as fáceis (Primeira Operação), e deixa de ser quando a base cresce. O e-mail diz "poucas pessoas têm", o que é verdade no momento do envio, mas pode soar exagerado.
+- **Opções:** (a) manter a regra dinâmica; (b) marcar no catálogo (campo `is_rare` ou `rarity`, editável no painel de conquistas) quais conquistas são raras de verdade, independente da base; (c) combinar: marcada como rara no catálogo **e** abaixo do limite.
+- **Status:** em aberto. Aviso é opt-in, então o risco é pequeno; a decisão muda só a lista de conquistas que disparam e-mail.

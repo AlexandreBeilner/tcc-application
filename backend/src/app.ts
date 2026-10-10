@@ -241,6 +241,8 @@ import { SearchUsersUseCase } from './modules/friendships/application/useCases/s
 import { SendFriendRequestUseCase } from './modules/friendships/application/useCases/sendFriendRequest'
 import { createDrizzleFriendshipRepository } from './modules/friendships/infrastructure/persistence/drizzleFriendshipRepository'
 import { createDrizzleUserDirectory as createDrizzleFriendshipUserDirectory } from './modules/friendships/infrastructure/persistence/drizzleUserDirectory'
+import { createDrizzleAchievementRarityReader } from './modules/achievements/infrastructure/persistence/drizzleAchievementRarityReader'
+import { createNotificationsAchievementMailer } from './modules/achievements/infrastructure/notifications/notificationsAchievementMailer'
 import { createNotificationsFriendRequestMailer } from './modules/friendships/infrastructure/notifications/notificationsFriendRequestMailer'
 import { createInProcessFriendProfileReader } from './modules/friendships/infrastructure/profile/inProcessFriendProfileReader'
 import { createDrizzleRecipientDirectory } from './modules/notifications/infrastructure/persistence/drizzleRecipientDirectory'
@@ -692,9 +694,15 @@ export function createApp(deps: AppDeps = {}): Express {
     getNetWorth,
     sandboxAssetReader,
   })
+  // Aviso de conquista rara por e-mail (EM.7.2): só para quem ligou o engajamento.
   const checkAndUnlockAchievements = new CheckAndUnlockAchievementsUseCase(
     achievementRepository,
     progressSnapshotReader,
+    createDrizzleAchievementRarityReader(db),
+    createNotificationsAchievementMailer({
+      enqueueEmail,
+      recipients: createDrizzleRecipientDirectory(db),
+    }),
   )
   const listAchievements = new ListAchievementsUseCase(
     achievementRepository,

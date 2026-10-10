@@ -6,6 +6,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { createDrizzleAchievementRarityReader } from '../../../achievements/infrastructure/persistence/drizzleAchievementRarityReader'
 import { createDrizzleEmailOutboxHealthReader } from '../../../admin/infrastructure/health/emailOutboxHealthReader'
 import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxRepository'
 import { createDrizzleEmailPreferencesRepository } from './drizzleEmailPreferencesRepository'
@@ -274,6 +275,7 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
 
       expect(await directory.find(active.id)).toEqual({
         address: 'em61-dir-ativo@exemplo.com',
+        name: 'Ana dir-ativo',
         status: 'active',
         emailVerified: true,
       })
@@ -401,7 +403,10 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
       const suspended = await create('susp', { status: 'suspended' })
       const unverified = await create('unver', { emailVerifiedAt: null })
       const anonymized = await create('anon', { email: 'em71-anon@anonimo.invalid' })
-      await db.insert(schema.userProgression).values({ userId: ok.id, level: 7 })
+      await db
+        .insert(schema.userProgression)
+        .values({ userId: ok.id, level: 7 })
+        .onConflictDoUpdate({ target: schema.userProgression.userId, set: { level: 7 } })
 
       const [big, small] = await db
         .insert(schema.dailyMissions)
@@ -485,5 +490,55 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
       expect(new Set(ids).size).toBe(ids.length)
       expect(ids.sort()).toEqual(users.map((u) => u.id).sort())
     })
+  })
+
+  it('raridade da conquista (EM.7.2) conta só jogador ativo e não anonimizado', async () => {
+    await db.delete(schema.userAchievements)
+    const mk = async (suffix: string, extra: Partial<typeof schema.users.$inferInsert> = {}) => {
+      const [u] = await db
+        .insert(schema.users)
+        .values({
+          name: suffix,
+          email: `em72-${suffix}@exemplo.com`,
+          username: `em72_${suffix}`,
+          ...extra,
+        })
+        .onConflictDoUpdate({
+          target: schema.users.email,
+          set: { role: 'user', status: 'active', ...extra },
+        })
+        .returning()
+      return u
+    }
+    const a = await mk('a')
+    const b = await mk('b')
+    const suspended = await mk('susp', { status: 'suspended' })
+    const admin = await mk('adm', { role: 'admin' })
+    const anon = await mk('anon', { email: 'em72-anon@anonimo.invalid' })
+    const [ach] = await db
+      .insert(schema.achievements)
+      .values({
+        name: 'em72',
+        criteriaType: 'trades_executed',
+        criteriaValue: 1,
+      })
+      .returning()
+    await db
+      .insert(schema.userAchievements)
+      .values([a, suspended, admin, anon].map((u) => ({ userId: u.id, achievementId: ach.id })))
+
+    const rarity = await createDrizzleAchievementRarityReader(db).getRarity(ach.id)
+    const players = await db
+      .select()
+      .from(schema.users)
+      .then((rows) =>
+        rows.filter(
+          (u) => u.role === 'user' && u.status === 'active' && !u.email.endsWith('.invalid'),
+        ),
+      )
+
+    expect(rarity.holders).toBe(1)
+    expect(rarity.population).toBe(players.length)
+    expect(players.map((u) => u.id)).toContain(b.id)
   })
 })

@@ -9,6 +9,7 @@ export function createDrizzleRecipientDirectory(db: Database): RecipientDirector
       const [row] = await db
         .select({
           email: users.email,
+          name: users.name,
           status: users.status,
           emailVerifiedAt: users.emailVerifiedAt,
         })
@@ -18,6 +19,7 @@ export function createDrizzleRecipientDirectory(db: Database): RecipientDirector
       if (!row) return null
       return {
         address: row.email,
+        name: row.name,
         status: row.status === 'suspended' ? 'suspended' : 'active',
         emailVerified: row.emailVerifiedAt !== null,
       }

@@ -1,5 +1,5 @@
 import type { EmailContent, EmailTemplate } from './emailContent'
-import { optionalString, requireString } from './emailContent'
+import { optionalString, requireString, TemplatePayloadError } from './emailContent'
 
 // Data e hora em Brasília, ex.: "12/10/2026 às 23:00". Valor ausente ou inválido vira `undefined`.
 function formatInstant(value: unknown): string | undefined {
@@ -44,6 +44,35 @@ function friendStatsSentence(
     parts.push(`teve rentabilidade de ${formatSignedPct(returnPct)} na semana`)
   }
   return `${username} ${parts.join(' e ')}.`
+}
+
+const MONTH_NAMES = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+]
+
+// "2026-10" vira "outubro de 2026" (mês do calendário simulado).
+function formatMonthKey(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value)
+  if (!match) return undefined
+  return `${MONTH_NAMES[Number(match[2]) - 1]} de ${match[1]}`
+}
+
+function formatBrl(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+    .format(value)
+    .replace(/\u00a0/g, ' ')
 }
 
 // Catálogo de templates. Cada tarefa que envia um e-mail novo registra o dela aqui, com a
@@ -266,6 +295,78 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
         subject: 'Seu resumo da semana',
         preheader: 'Seu nível, a evolução da semana e a missão de hoje.',
         blocks,
+      }
+    },
+  },
+  // Conquista rara desbloqueada (EM.7.2, E14). Categoria `engagement`. Só o nome e a descrição da
+  // conquista: quantas pessoas a têm ou quem são nunca entra no e-mail (RNF09 e privacidade).
+  rare_achievement: {
+    category: 'engagement',
+    sample: {
+      name: 'Ana',
+      achievementName: 'Fiel',
+      achievementDescription: '30 dias seguidos de atividade.',
+    },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const achievement = requireString(payload, 'achievementName')
+      const description = optionalString(payload, 'achievementDescription')
+      return {
+        subject: `Você desbloqueou a conquista ${achievement}`,
+        preheader: 'Poucas pessoas chegaram até aqui.',
+        blocks: [
+          { type: 'heading', text: 'Conquista rara desbloqueada' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Parabéns, ${name}. ` : 'Parabéns. '}Você desbloqueou a conquista ${achievement}, que poucas pessoas têm.`,
+          },
+          ...(description ? [{ type: 'paragraph' as const, text: description }] : []),
+          { type: 'button', label: 'Ver minhas conquistas', url: `${appUrl}/conquistas` },
+        ],
+      }
+    },
+  },
+  // Salário simulado creditado (EM.7.2, E11). Categoria `engagement`. O valor é o do próprio
+  // destinatário (nunca de outro usuário, RNF09). Depois de um período fora do ar, vários meses
+  // são creditados de uma vez e viram um e-mail só.
+  salary_credited: {
+    category: 'engagement',
+    sample: {
+      name: 'Ana',
+      firstMonth: '2026-10',
+      lastMonth: '2026-10',
+      months: 1,
+      amountPerMonth: 1000,
+    },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const amount = typeof payload.amountPerMonth === 'number' ? payload.amountPerMonth : undefined
+      if (amount === undefined) {
+        throw new TemplatePayloadError('payload sem "amountPerMonth" (número obrigatório)')
+      }
+      const months = typeof payload.months === 'number' && payload.months > 1 ? payload.months : 1
+      const last = formatMonthKey(payload.lastMonth)
+      const first = formatMonthKey(payload.firstMonth)
+      const greeting = name ? `Olá, ${name}. ` : ''
+      const text =
+        months === 1
+          ? `${greeting}Seu salário simulado${last ? ` de ${last}` : ''} foi creditado: ${formatBrl(amount)} no seu caixa.`
+          : `${greeting}Seus salários simulados${first && last ? ` de ${first} a ${last}` : ''} foram creditados: ${months} meses de ${formatBrl(amount)}, ${formatBrl(amount * months)} no total, no seu caixa.`
+      return {
+        subject:
+          months === 1
+            ? 'Seu salário simulado foi creditado'
+            : 'Seus salários simulados foram creditados',
+        preheader: 'Dinheiro novo no caixa, pronto para investir.',
+        blocks: [
+          { type: 'heading', text: 'Salário creditado' },
+          { type: 'paragraph', text },
+          {
+            type: 'paragraph',
+            text: 'O salário cai direto no caixa para você investir como quiser e não conta como rentabilidade no ranking.',
+          },
+          { type: 'button', label: 'Ver minha carteira', url: appUrl },
+        ],
       }
     },
   },

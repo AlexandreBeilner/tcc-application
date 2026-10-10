@@ -79,7 +79,7 @@ async function main() {
   const engineUrl = process.env.ENGINE_URL ?? 'http://localhost:8080'
   const payrollCheckIntervalMs =
     Number(process.env.PAYROLL_CHECK_INTERVAL_MS || Number.NaN) || DEFAULT_PAYROLL_CHECK_INTERVAL_MS
-  const { runPayrollCheck } = createPayrollComposition(db, engineUrl)
+  const { runPayrollCheck } = createPayrollComposition(db, engineUrl, enqueueEmail)
   startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
 
   startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails)

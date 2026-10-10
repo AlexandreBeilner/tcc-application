@@ -19,7 +19,7 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 | Segredos | O link com token de um e-mail de segurança fica no `payload` só até a linha fechar (`sensitiveFields` do template): depois de `sent` ou `failed`, o token em claro some do banco. |
 | Log | Os adapters não registram destinatário completo nem token. |
 
-**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test` (transacional); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social); `weekly_digest` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
+**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test` (transacional); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social); `weekly_digest`, `salary_credited`, `rare_achievement` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
 
 **Configuração.**
 
@@ -106,6 +106,13 @@ Categoria `engagement`: sempre opt-in (D8), com `List-Unsubscribe` e o link de c
 ### Resumo semanal (EM.7.1, E12)
 
 `SendWeeklyDigestUseCase`, template `weekly_digest`. **Janela:** segunda-feira, das 9h às 20h59 de Brasília (quem liga a opção na segunda à tarde ainda recebe o da semana). **Chave:** `weekly-digest:<userId>:<segunda de Brasília>`, um por pessoa por semana. **Conteúdo (RNF09):** nível, rentabilidade percentual da semana (do último `ranking_snapshots`, critério geral, janela semanal, sem chamar o motor) e uma missão do dia ainda pendente (a de maior XP, mais a contagem das outras). Sem valor absoluto de patrimônio. **Tom:** rentabilidade negativa nunca aparece como número nem como perda, a mensagem fala do mercado e convida a rever a carteira com calma; quem não está no ranking recebe sem o percentual.
+
+### Salário creditado e conquista rara (EM.7.2, E11 e E14)
+
+Os dois são disparados pelo módulo dono do fato, por uma port própria (`SalaryMailer` em `payroll`, `AchievementMailer` em `achievements`) com adapter sobre `EnqueueEmailUseCase`; só enfileiram para quem ligou `engagement`, e uma falha ao enfileirar só é logada (nunca desfaz o pagamento nem o desbloqueio).
+
+- **`salary_credited`:** `CreditMonthlyPayrollForUserUseCase` avisa uma vez por rodada, depois de creditar e gravar o mês. Chave `salary:<userId>:<último mês creditado>`, então repetir a rodada não duplica; um catch-up de vários meses (backend fora do ar) vira **um** e-mail com os meses, o valor por mês e o total. O valor é o do próprio destinatário (RNF09 vale entre usuários). O texto lembra que o salário não conta como rentabilidade no ranking.
+- **`rare_achievement`:** `CheckAndUnlockAchievementsUseCase` avisa depois de gravar o desbloqueio, só se a conquista for rara (`isRareAchievement`: no máximo 10% dos jogadores ativos a têm, com base de pelo menos 20; regra provisória, ver ponto 044 de `pontos-em-aberto-decisao-produto.md`). Chave `achievement-rare:<userId>:<conquistaId>`. O e-mail leva só o nome e a descrição da conquista, nunca quantas pessoas a têm.
 
 ### Exportação e exclusão de conta (LGPD)
 
