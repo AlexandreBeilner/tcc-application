@@ -347,7 +347,10 @@ import { RecordDuelResultUseCase } from './modules/socialfeed/application/useCas
 import { RankingScorer } from './modules/ranking/application/rankingScorer'
 import { RankUsersByProfitabilityUseCase } from './modules/ranking/application/useCases/rankUsersByProfitability'
 import { createInProcessCosmeticsReader } from './shared/publicCosmetics'
-import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
+import {
+  loadBillingConfig,
+  loadBillingPrices,
+} from './modules/billing/infrastructure/config/billingConfig'
 import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
 import { noStore } from './shared/http/noStore'
 import { createRateLimiter } from './shared/http/rateLimit'
@@ -504,6 +507,7 @@ export function createApp(deps: AppDeps = {}): Express {
     db,
     redis: redisClient,
     config: loadBillingConfig(process.env),
+    prices: loadBillingPrices(process.env),
     authMiddleware,
     enqueueEmail,
   })

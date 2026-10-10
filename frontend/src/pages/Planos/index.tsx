@@ -1,14 +1,16 @@
 import { ArrowLeft, Check } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { describePlan } from '../../features/billing/describePlan'
 import { isNativeApp, nativePlatform } from '../../features/billing/isNativeApp'
+import { useReportFunnel } from '../../features/billing/useReportFunnel'
 import { usePurchaseFlow } from '../../features/billing/usePurchaseFlow'
 import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useWebPlansQuery } from '../../features/billing/useWebPlans'
 import { annualDiscountPercent, annualPerMonth } from '../../features/billing/webPurchases'
 import type { WebPlan } from '../../features/billing/webPurchases'
-import type { BillingStatus } from '../../services/billing'
+import type { BillingStatus, FunnelSource } from '../../services/billing'
 import styles from './index.module.css'
 
 const PRO_BENEFITS = [
@@ -24,6 +26,15 @@ const ALWAYS_FREE = [
     'XP, nível, sequência, missões e conquistas',
     'Ranking, amigos e feed',
 ]
+
+const FUNNEL_SOURCES: FunnelSource[] = ['league', 'duel', 'cosmetics', 'retrospective']
+
+// Ponto de convite de onde a pessoa veio (o `ProInvite` manda no estado do link); sem ele, abriu
+// os planos direto.
+function funnelSourceFrom(state: unknown): FunnelSource {
+    const source = typeof state === 'object' && state !== null ? (state as { proSource?: unknown }).proSource : undefined
+    return FUNNEL_SOURCES.find((candidate) => candidate === source) ?? 'direct'
+}
 
 const PLAN_NAMES: Record<string, string> = { monthly: 'mensal', annual: 'anual' }
 
@@ -106,8 +117,22 @@ export function Planos() {
     const billingEnabled = status?.billingEnabled ?? false
     const plansQuery = useWebPlansQuery(billingEnabled && !status?.isPro)
     const purchase = usePurchaseFlow()
+    const reportFunnel = useReportFunnel()
+    const source = funnelSourceFrom(useLocation().state)
+    const showsPlans = Boolean(status && billingEnabled && !status.isPro)
     const busy = purchase.phase === 'checkout' || purchase.phase === 'restoring' || purchase.phase === 'confirming'
     const restoring = purchase.action === 'restore'
+
+    // Funil (MO.7.1): abriu os planos como quem ainda pode assinar (quem já é PRO ou com a cobrança
+    // desligada não conta).
+    useEffect(() => {
+        if (showsPlans) reportFunnel({ event: 'plans_opened', source })
+    }, [showsPlans, source, reportFunnel])
+
+    function choosePlan(plan: WebPlan) {
+        reportFunnel({ event: 'purchase_started', source, plan: plan.id })
+        void purchase.start(plan)
+    }
 
     return (
         <main className={styles.page}>
@@ -164,7 +189,7 @@ export function Planos() {
                                 <p className={styles.error}>Não foi possível carregar os preços agora. Tente novamente em instantes.</p>
                             )}
                             {plansQuery.data && plansQuery.data.length > 0 && (
-                                <PlanOptions plans={plansQuery.data} onChoose={purchase.start} busy={busy} />
+                                <PlanOptions plans={plansQuery.data} onChoose={choosePlan} busy={busy} />
                             )}
                             {purchase.canRestore && (
                                 <div className={styles.restore}>

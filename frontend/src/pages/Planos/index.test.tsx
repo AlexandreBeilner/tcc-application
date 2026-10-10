@@ -4,13 +4,14 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useWebPurchases } from '../../features/billing/useWebPurchases'
-import { getBillingStatus } from '../../services/billing'
+import { resetReportedFunnel } from '../../features/billing/useReportFunnel'
+import { getBillingStatus, reportFunnelEvent } from '../../services/billing'
 import type { BillingStatus } from '../../services/billing'
 import type { WebPlan } from '../../features/billing/webPurchases'
 import { Planos } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../features/billing/useWebPurchases', () => ({ useWebPurchases: vi.fn() }))
 
 const FREE: BillingStatus = {
@@ -27,11 +28,11 @@ const FREE: BillingStatus = {
 const MONTHLY: WebPlan = { id: 'monthly', formattedPrice: 'R$ 19,97', amountMicros: 19_970_000, currency: 'BRL', handle: {} }
 const ANNUAL: WebPlan = { id: 'annual', formattedPrice: 'R$ 199,97', amountMicros: 199_970_000, currency: 'BRL', handle: {} }
 
-function renderPage() {
+function renderPage(state?: unknown) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
         <QueryClientProvider client={queryClient}>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={[{ pathname: '/planos', state }]}>
                 <Planos />
             </MemoryRouter>
         </QueryClientProvider>,
@@ -40,6 +41,7 @@ function renderPage() {
 
 describe('Planos (MO.3.1)', () => {
     beforeEach(() => {
+        resetReportedFunnel()
         vi.mocked(useAuth).mockReturnValue({
             token: 'token',
             user: { id: 'u1', name: 'Ana', email: 'ana@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
@@ -193,5 +195,42 @@ describe('Planos (MO.3.1)', () => {
         renderPage()
 
         expect(await screen.findByText(/Não foi possível carregar os preços/)).toBeInTheDocument()
+    })
+
+    it('funil: reporta a abertura dos planos com o ponto de convite de onde veio', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage({ proSource: 'duel' })
+
+        await screen.findByText('R$ 19,97')
+        await waitFor(() => expect(reportFunnelEvent).toHaveBeenCalledWith('token', { event: 'plans_opened', source: 'duel' }))
+    })
+
+    it('funil: sem convite de origem (ou origem desconhecida) vira "direct"', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage({ proSource: 'qualquer-coisa' })
+
+        await screen.findByText('R$ 19,97')
+        await waitFor(() => expect(reportFunnelEvent).toHaveBeenCalledWith('token', { event: 'plans_opened', source: 'direct' }))
+    })
+
+    it('funil: quem já é PRO não conta como abertura de planos', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue({ ...FREE, isPro: true, state: 'active', plan: 'monthly', store: 'stripe' })
+        renderPage()
+
+        await screen.findByText('Você já é PRO')
+        expect(reportFunnelEvent).not.toHaveBeenCalled()
+    })
+
+    it('funil: escolher um plano reporta a compra iniciada com o plano', async () => {
+        const purchase = vi.fn().mockResolvedValue('cancelled')
+        vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([MONTHLY, ANNUAL]), purchase })
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage({ proSource: 'league' })
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Assinar anual' }))
+
+        await waitFor(() =>
+            expect(reportFunnelEvent).toHaveBeenCalledWith('token', { event: 'purchase_started', source: 'league', plan: 'annual' }),
+        )
     })
 })

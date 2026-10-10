@@ -45,6 +45,11 @@ export function createDrizzleSubscriptionRepository(db: Database): SubscriptionR
       return rows.map(toSubscription)
     },
 
+    async listAll() {
+      const rows = await db.select().from(subscriptions)
+      return rows.map(toSubscription)
+    },
+
     async upsert(subscription) {
       const { userId, ...values } = subscription
       await db

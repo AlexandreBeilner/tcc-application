@@ -19,7 +19,7 @@ vi.mock('../../services/auth', () => ({
     uploadAvatar: vi.fn(),
 }))
 
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/emailPreferences', () => ({
     getEmailPreferences: vi.fn(),
     updateEmailPreferences: vi.fn(),

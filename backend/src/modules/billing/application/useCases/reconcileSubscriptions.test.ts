@@ -3,6 +3,7 @@ import type { ReconciliationAudience } from '../ports/reconciliationAudience'
 import {
   createFakeEntitlementProvider,
   createFakeBillingMailer,
+  createFakeFunnelRecorder,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -33,6 +34,7 @@ function setup(ids: string[]) {
     repo,
     createFakeSubscriptionCache(),
     createFakeBillingMailer(),
+    createFakeFunnelRecorder(),
     () => NOW,
   )
   const useCase = new ReconcileSubscriptionsUseCase(audience, sync, OPTIONS, () => NOW)

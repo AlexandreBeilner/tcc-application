@@ -10,7 +10,7 @@ import { createLeague } from '../../../services/leagues'
 import { LeagueCreateForm } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../../services/leagues', () => ({ createLeague: vi.fn() }))
 
 const PRO: BillingStatus = {

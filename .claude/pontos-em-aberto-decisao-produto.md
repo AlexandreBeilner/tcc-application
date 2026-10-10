@@ -1007,3 +1007,7 @@ Nenhum ponto em aberto no momento.
 - **Origem:** a decisão de 2026-10-10 limita **criar** (3 ligas abertas por assinante) e o tamanho (20 pessoas), mas nada diz quantas ligas alguém pode **integrar**. Hoje não há teto: um usuário gratuito pode aceitar convites de qualquer número de amigos.
 - **Opções:** manter sem teto (o convite já exige amizade aceita, então o abuso é pequeno); ou um teto de participação (ex.: 10).
 - **Status:** em aberto, sem bloquear. Nenhum custo técnico relevante: a classificação lê o snapshot do ranking, não recalcula patrimônio por liga.
+
+### 048 · Política de Privacidade não cita a medição do funil de conversão (MO.7.1), achado em 2026-10-10
+
+O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convite ao PRO, abriu os planos, iniciou a compra, assinou ou cancelou, com o ponto de origem). Não sai da plataforma e não tem valor nem patrimônio, mas é tratamento de dado de uso por pessoa identificada. **Decisão do autor:** incluir um parágrafo na Política de Privacidade (`/privacidade`) e definir por quanto tempo os eventos ficam (hoje, indefinidamente) e se `DELETE /me` deve apagá-los (hoje a conta é anonimizada e as linhas ficam ligadas ao id).

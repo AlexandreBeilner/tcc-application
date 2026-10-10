@@ -13,6 +13,7 @@ Backlog: `.claude/backlog-monetizacao.md` (Fase B, MO.2.x). A verdade sobre quem
 | `REVENUECAT_API_BASE_URL` | `https://api.revenuecat.com/v1` | |
 | `REVENUECAT_TIMEOUT_MS` | `10000` | |
 | `BILLING_RECONCILE_INTERVAL_MS` | 6 h | Cadência da reconciliação |
+| `BILLING_PRICE_MONTHLY_CENTS`, `BILLING_PRICE_ANNUAL_CENTS` | vazio | Preços em **centavos**, só para o painel de conversão estimar a receita recorrente (MO.7.1). O preço de verdade vive nas lojas e no RevenueCat. Vazios = o painel mostra o resto e a receita estimada fica em branco. Valor que não é inteiro positivo derruba a subida |
 
 ### `GET /billing/status`
 
@@ -54,6 +55,32 @@ Para testar o app sem contas de loja nem RevenueCat. Fora do modo `dev` estas ro
 - **Autenticação:** Bearer token
 - **Sucesso:** `204`. Encerra a vigência agora (a linha fica, como no fluxo real); sem assinatura não faz nada
 - **Erros:** `401`; `404` fora do modo `dev`
+
+## Funil e painel de conversão (MO.1.3 / MO.7.1)
+
+Medição própria no Postgres (`funnel_events`), sem ferramenta de terceiro: nenhum dado de usuário sai da plataforma. Um evento guarda só quem, qual passo, de que ponto de convite e (na compra) qual plano; **nunca valor em reais nem patrimônio** (RNF09). Passos: `invite_viewed`, `plans_opened`, `purchase_started` (reportados pelo app) e `subscribed`, `cancelled` (gravados só pelo servidor, a partir dos mesmos fatos que geram o e-mail de boas-vindas e o de encerramento; assinatura de teste das lojas e concessão promocional não geram evento). Pontos de convite (`source`): `league`, `duel`, `cosmetics`, `retrospective` (os quatro convites) e `direct` (abriu `/planos` sem passar por um convite). A gravação é idempotente por `dedupe_key`.
+
+### `POST /billing/funnel`
+
+- **Autenticação:** Bearer token
+- **Payload:** `{ event: 'invite_viewed' | 'plans_opened' | 'purchase_started', source?: 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'direct', plan?: 'monthly' | 'annual' }`
+- **Sucesso:** `204`
+- **Erros:** `400` corpo fora do contrato (inclusive `subscribed`/`cancelled`, que o cliente não pode reportar); `401` token ausente ou inválido
+- **Regra:** no máximo um evento por pessoa, evento, origem e dia (UTC); repetir o mesmo no dia não grava de novo e responde `204` igual. Não depende de a pessoa ser PRO nem de a cobrança estar ligada.
+
+### `GET /admin/billing/conversion?days=30`
+
+- **Autenticação:** Bearer token, `role = admin` (`403` para os demais). Só leitura, fora da auditoria
+- **Query:** `days` = `7`, `30` (padrão) ou `90`
+- **Sucesso:** `200`
+  - `subscribers`: `{ active, monthly, annual, unknown }` (ativos agora; `unknown` = plano que não dá para inferir)
+  - `recurringRevenueCents`: receita recorrente mensal estimada em centavos (mensal pelo preço cheio, anual dividido por 12), ou `null` sem os dois preços configurados
+  - `churn`: `{ cancelled, startOfWindow, rate }` com `rate = cancelled / startOfWindow` (ou `null` sem base)
+  - `funnel`: pessoas distintas na janela em `lessonCompleted` (do progresso das lições), `inviteViewed`, `plansOpened`, `purchaseStarted`, `subscribed`, `cancelled`
+  - `bySource`: uma linha por ponto de convite (sempre os cinco, em ordem fixa) com `reached` (pessoas com qualquer evento ali), `inviteViewed`, `plansOpened`, `purchaseStarted`, `subscribed` e `conversionRate` (`subscribed / reached`, ou `null`)
+  - `windowDays`, `generatedAt`
+- **Erros:** `400` `days` fora de 7/30/90; `401`; `403`
+- **Regra:** só conta assinatura de cliente pagante (fora conta de teste das lojas e concessão promocional). Ativa/vencida usa `isActive` com a hora de agora. `churn.startOfWindow` é reconstruído (ativos hoje - quem assinou na janela + quem cancelou na janela), então é uma estimativa. "Assinou" por ponto conta quem teve contato com o ponto e assinou **depois**, na janela; uma pessoa pode contar em mais de um ponto. Lê a tabela `subscriptions` inteira (o volume é o de quem assina ou assinou, não o de usuários).
 
 ## Gating de feature PRO (para os outros módulos)
 

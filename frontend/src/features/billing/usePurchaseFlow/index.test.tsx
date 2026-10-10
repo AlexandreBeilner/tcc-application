@@ -10,7 +10,7 @@ import type { WebPlan, WebPurchases } from '../webPurchases'
 import { usePurchaseFlow } from '.'
 
 vi.mock('../../auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../useWebPurchases', () => ({ useWebPurchases: vi.fn() }))
 
 const FREE: BillingStatus = {

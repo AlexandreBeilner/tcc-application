@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { dismissProInvite, isProInviteDismissed } from '../../../features/billing/proInviteDismissal'
 import { useBillingStatusQuery } from '../../../features/billing/useBillingStatus'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useReportFunnel } from '../../../features/billing/useReportFunnel'
 import styles from './index.module.css'
 import type { ProInviteProps } from './types'
 
@@ -12,7 +13,15 @@ export function ProInvite({ context, title, children }: ProInviteProps) {
     const billing = useBillingStatusQuery().data
     const [dismissed, setDismissed] = useState(() => isProInviteDismissed(context))
 
-    if (!billing || billing.isPro || !billing.billingEnabled || dismissed) return null
+    const reportFunnel = useReportFunnel()
+    const visible = Boolean(billing && !billing.isPro && billing.billingEnabled && !dismissed)
+
+    // Funil (MO.7.1): o convite só conta quando realmente aparece para a pessoa.
+    useEffect(() => {
+        if (visible) reportFunnel({ event: 'invite_viewed', source: context })
+    }, [visible, context, reportFunnel])
+
+    if (!visible) return null
 
     function handleDismiss() {
         dismissProInvite(context)
@@ -24,7 +33,7 @@ export function ProInvite({ context, title, children }: ProInviteProps) {
             {title && <h2 className={styles.title}>{title}</h2>}
             <p className={styles.text}>{children}</p>
             <div className={styles.actions}>
-                <Link className={styles.link} to="/planos">
+                <Link className={styles.link} to="/planos" state={{ proSource: context }}>
                     Conhecer o PRO
                 </Link>
                 <button type="button" className={styles.dismiss} onClick={handleDismiss}>

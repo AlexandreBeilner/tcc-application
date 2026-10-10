@@ -5,6 +5,8 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { GetSubscriptionStatusUseCase } from '../../application/useCases/getSubscriptionStatus'
 import { HandleBillingWebhookUseCase } from '../../application/useCases/handleBillingWebhook'
+import { GetBillingConversionUseCase } from '../../application/useCases/getBillingConversion'
+import { RecordFunnelEventUseCase } from '../../application/useCases/recordFunnelEvent'
 import { DevSubscriptionUseCase } from '../../application/useCases/devSubscription'
 import { SyncSubscriptionUseCase } from '../../application/useCases/syncSubscription'
 import { buildSubscription } from '../../domain/subscription'
@@ -13,6 +15,7 @@ import {
   createFakeBillingWebhookEventLog,
   createFakeEntitlementProvider,
   createFakeBillingMailer,
+  createFakeFunnelRecorder,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -22,6 +25,14 @@ import { createBillingRouter } from './billingRouter'
 const PRO_USER = '11111111-1111-4111-8111-111111111111'
 const FREE_USER = '22222222-2222-4222-8222-222222222222'
 const SECRET = 'Bearer segredo'
+const EMPTY_STEPS = {
+  lessonCompleted: 0,
+  inviteViewed: 0,
+  plansOpened: 0,
+  purchaseStarted: 0,
+  subscribed: 0,
+  cancelled: 0,
+}
 
 function buildApp(options: { webhookEnabled?: boolean; devEnabled?: boolean } = {}) {
   const { webhookEnabled = true, devEnabled = false } = options
@@ -35,11 +46,13 @@ function buildApp(options: { webhookEnabled?: boolean; devEnabled?: boolean } = 
   ])
   const cache = createFakeSubscriptionCache()
   const provider = createFakeEntitlementProvider({ [FREE_USER]: entitlement({ store: 'stripe' }) })
+  const funnel = createFakeFunnelRecorder()
   const sync = new SyncSubscriptionUseCase(
     provider,
     repo,
     cache,
     createFakeBillingMailer(),
+    funnel,
     () => NOW,
   )
   const handle = new HandleBillingWebhookUseCase(
@@ -55,11 +68,18 @@ function buildApp(options: { webhookEnabled?: boolean; devEnabled?: boolean } = 
     createBillingRouter({
       getSubscriptionStatus: new GetSubscriptionStatusUseCase(repo, cache, () => NOW),
       authMiddleware: createAuthMiddleware(tokenIssuer),
-      dev: devEnabled ? new DevSubscriptionUseCase(repo, cache, () => NOW) : undefined,
+      recordFunnelEvent: new RecordFunnelEventUseCase(funnel, () => NOW),
+      getBillingConversion: new GetBillingConversionUseCase(
+        repo,
+        { summarize: async () => ({ steps: EMPTY_STEPS, bySource: [] }) },
+        { monthlyCents: 1990, annualCents: 19990 },
+        () => NOW,
+      ),
+      dev: devEnabled ? new DevSubscriptionUseCase(repo, cache, funnel, () => NOW) : undefined,
       webhook: webhookEnabled ? { handle, isAuthorized: (h) => h === SECRET } : undefined,
     }),
   )
-  return { app, tokenIssuer, repo, provider }
+  return { app, tokenIssuer, repo, provider, funnel }
 }
 
 describe('GET /billing/status', () => {
@@ -253,5 +273,75 @@ describe('rotas de compra falsa (/billing/dev/*)', () => {
 
     const cancelled = await request(app).delete('/billing/dev/subscription').set('Authorization', header)
     expect(cancelled.status).toBe(204)
+  })
+})
+
+describe('POST /billing/funnel', () => {
+  beforeEach(() => {
+    process.env.JWT_SECRET = 'segredo-de-teste'
+  })
+  const auth = (tokenIssuer: ReturnType<typeof buildApp>['tokenIssuer']) =>
+    `Bearer ${tokenIssuer.issue({ sub: FREE_USER, role: 'user' })}`
+
+  it('401 sem token', async () => {
+    const res = await request(buildApp().app).post('/billing/funnel').send({ event: 'plans_opened' })
+    expect(res.status).toBe(401)
+  })
+
+  it('204 e grava o evento da própria pessoa', async () => {
+    const { app, tokenIssuer, funnel } = buildApp()
+    const res = await request(app)
+      .post('/billing/funnel')
+      .set('Authorization', auth(tokenIssuer))
+      .send({ event: 'invite_viewed', source: 'duel' })
+
+    expect(res.status).toBe(204)
+    expect(funnel.events).toMatchObject([{ userId: FREE_USER, name: 'invite_viewed', source: 'duel' }])
+  })
+
+  it('400 para evento que só o servidor grava, origem ou plano desconhecidos', async () => {
+    const { app, tokenIssuer, funnel } = buildApp()
+    for (const body of [{ event: 'subscribed' }, { event: 'plans_opened', source: 'x' }, { event: 'purchase_started', plan: 'weekly' }, {}]) {
+      const res = await request(app).post('/billing/funnel').set('Authorization', auth(tokenIssuer)).send(body)
+      expect(res.status).toBe(400)
+    }
+    expect(funnel.events).toHaveLength(0)
+  })
+})
+
+describe('GET /admin/billing/conversion', () => {
+  beforeEach(() => {
+    process.env.JWT_SECRET = 'segredo-de-teste'
+  })
+
+  it('401 sem token e 403 para quem não é admin', async () => {
+    const { app, tokenIssuer } = buildApp()
+    expect((await request(app).get('/admin/billing/conversion')).status).toBe(401)
+    const user = tokenIssuer.issue({ sub: FREE_USER, role: 'user' })
+    const res = await request(app).get('/admin/billing/conversion').set('Authorization', `Bearer ${user}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('admin recebe as métricas, com 30 dias por padrão', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const admin = tokenIssuer.issue({ sub: FREE_USER, role: 'admin' })
+
+    const res = await request(app).get('/admin/billing/conversion').set('Authorization', `Bearer ${admin}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({
+      windowDays: 30,
+      subscribers: { active: 1, monthly: 1, annual: 0, unknown: 0 },
+      recurringRevenueCents: 1990,
+    })
+  })
+
+  it('400 para janela fora de 7, 30 ou 90', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const admin = tokenIssuer.issue({ sub: FREE_USER, role: 'admin' })
+    const res = await request(app).get('/admin/billing/conversion?days=5').set('Authorization', `Bearer ${admin}`)
+    expect(res.status).toBe(400)
+    const ok = await request(app).get('/admin/billing/conversion?days=7').set('Authorization', `Bearer ${admin}`)
+    expect(ok.body.windowDays).toBe(7)
   })
 })

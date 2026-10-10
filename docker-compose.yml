@@ -82,6 +82,8 @@ services:
       # responde 503. Com `revenuecat`, a chave secreta (sk_...) e o valor do cabeçalho
       # Authorization configurado no webhook do painel são obrigatórios. Nunca commitar valores.
       BILLING_PROVIDER: ${BILLING_PROVIDER:-disabled}
+      BILLING_PRICE_MONTHLY_CENTS: ${BILLING_PRICE_MONTHLY_CENTS:-}
+      BILLING_PRICE_ANNUAL_CENTS: ${BILLING_PRICE_ANNUAL_CENTS:-}
       REVENUECAT_SECRET_KEY: ${REVENUECAT_SECRET_KEY:-}
       REVENUECAT_WEBHOOK_AUTH: ${REVENUECAT_WEBHOOK_AUTH:-}
       REVENUECAT_ENTITLEMENT_ID: ${REVENUECAT_ENTITLEMENT_ID:-}

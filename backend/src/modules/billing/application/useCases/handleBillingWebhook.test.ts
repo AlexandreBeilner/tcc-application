@@ -4,6 +4,7 @@ import {
   createFakeBillingWebhookEventLog,
   createFakeEntitlementProvider,
   createFakeBillingMailer,
+  createFakeFunnelRecorder,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -23,6 +24,7 @@ function setup() {
     repo,
     createFakeSubscriptionCache(),
     createFakeBillingMailer(),
+    createFakeFunnelRecorder(),
     () => NOW,
   )
   const useCase = new HandleBillingWebhookUseCase(

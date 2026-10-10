@@ -9,7 +9,7 @@ import type { Duel } from '../../services/duels'
 import { Duelos } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/duels', () => ({ listDuels: vi.fn(), respondToDuel: vi.fn(), createDuel: vi.fn() }))
 vi.mock('../../services/friendships', () => ({
     listFriends: vi.fn().mockResolvedValue({ friends: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 }),

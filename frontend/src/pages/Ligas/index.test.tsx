@@ -9,7 +9,7 @@ import type { LeagueSummary } from '../../services/leagues'
 import { Ligas } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/leagues', () => ({ listLeagues: vi.fn(), respondToLeagueInvitation: vi.fn(), createLeague: vi.fn() }))
 
 const league = (overrides: Partial<LeagueSummary>): LeagueSummary => ({

@@ -3,6 +3,7 @@ import { buildSubscription } from '../../domain/subscription'
 import {
   createFakeEntitlementProvider,
   createFakeBillingMailer,
+  createFakeFunnelRecorder,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -14,8 +15,9 @@ function setup(initial: Record<string, ReturnType<typeof entitlement> | null> = 
   const repo = createFakeSubscriptionRepository()
   const cache = createFakeSubscriptionCache()
   const mailer = createFakeBillingMailer()
-  const useCase = new SyncSubscriptionUseCase(provider, repo, cache, mailer, () => NOW)
-  return { provider, repo, cache, mailer, useCase }
+  const funnel = createFakeFunnelRecorder()
+  const useCase = new SyncSubscriptionUseCase(provider, repo, cache, mailer, funnel, () => NOW)
+  return { provider, repo, cache, mailer, funnel, useCase }
 }
 
 describe('SyncSubscriptionUseCase', () => {
@@ -123,5 +125,31 @@ describe('SyncSubscriptionUseCase', () => {
     mailer.failWith = undefined
     await useCase.execute('u1')
     expect(mailer.sent.map((m) => m.email.kind)).toEqual(['welcome'])
+  })
+
+  it('funil: nova assinatura vira "assinou" uma vez só, mesmo sincronizando de novo', async () => {
+    const { funnel, useCase } = setup({ u1: entitlement() })
+
+    await useCase.execute('u1')
+    await useCase.execute('u1')
+
+    expect(funnel.events.map((e) => [e.userId, e.name, e.plan])).toEqual([
+      ['u1', 'subscribed', 'monthly'],
+    ])
+  })
+
+  it('funil: assinatura que venceu vira "cancelou"', async () => {
+    const { repo, funnel, useCase } = setup({ u1: entitlement({ expiresAt: day(-1) }) })
+    repo.rows.set('u1', buildSubscription('u1', entitlement(), day(-5), null))
+
+    await useCase.execute('u1')
+
+    expect(funnel.events.map((e) => e.name)).toEqual(['cancelled'])
+  })
+
+  it('funil: conta de teste das lojas não conta como cliente', async () => {
+    const { funnel, useCase } = setup({ u1: entitlement({ isSandbox: true }) })
+    await useCase.execute('u1')
+    expect(funnel.events).toHaveLength(0)
   })
 })

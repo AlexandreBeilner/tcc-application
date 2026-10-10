@@ -873,3 +873,38 @@ export const retrospectives = pgTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.month] })],
 )
+
+// Funil de conversão do PRO (MO.1.3/MO.7.1): eventos próprios, sem terceiro. Guarda só quem fez o
+// quê e onde (ponto de convite), nunca valor em reais nem patrimônio (RNF09). `dedupe_key` torna a
+// gravação idempotente: o cliente reporta no máximo um evento por pessoa, nome, origem e dia, e os
+// eventos de servidor (assinou, cancelou) usam a chave do próprio fato.
+export const funnelEvents = pgTable(
+  'funnel_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    name: text('name').notNull(),
+    source: text('source'),
+    plan: text('plan'),
+    dedupeKey: varchar('dedupe_key', { length: 200 }).notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'funnel_events_name_chk',
+      sql`${table.name} IN ('invite_viewed', 'plans_opened', 'purchase_started', 'subscribed', 'cancelled')`,
+    ),
+    check(
+      'funnel_events_source_chk',
+      sql`${table.source} IS NULL OR ${table.source} IN ('league', 'duel', 'cosmetics', 'retrospective', 'direct')`,
+    ),
+    check(
+      'funnel_events_plan_chk',
+      sql`${table.plan} IS NULL OR ${table.plan} IN ('monthly', 'annual', 'unknown')`,
+    ),
+    index('funnel_events_name_created_idx').on(table.name, table.createdAt),
+    index('funnel_events_user_idx').on(table.userId),
+  ],
+)

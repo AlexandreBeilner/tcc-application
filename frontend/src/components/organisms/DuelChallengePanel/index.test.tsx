@@ -10,7 +10,7 @@ import { createDuel } from '../../../services/duels'
 import { DuelChallengePanel } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../../services/duels', () => ({ createDuel: vi.fn() }))
 vi.mock('../../../services/friendships', () => ({
     listFriends: vi.fn().mockResolvedValue({

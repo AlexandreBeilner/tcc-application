@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createFakeSubscriptionCache, createFakeSubscriptionRepository } from '../../test/fakes/fakes'
+import { createFakeFunnelRecorder, createFakeSubscriptionCache, createFakeSubscriptionRepository } from '../../test/fakes/fakes'
 import { NOW } from '../../test/fixtures'
 import { toStatus } from '../../domain/subscription'
 import { DEV_PRODUCT_PREFIX, DevSubscriptionUseCase } from './devSubscription'
@@ -7,7 +7,8 @@ import { DEV_PRODUCT_PREFIX, DevSubscriptionUseCase } from './devSubscription'
 function setup() {
   const repo = createFakeSubscriptionRepository([])
   const cache = createFakeSubscriptionCache()
-  return { repo, cache, useCase: new DevSubscriptionUseCase(repo, cache, () => NOW) }
+  const funnel = createFakeFunnelRecorder()
+  return { repo, cache, funnel, useCase: new DevSubscriptionUseCase(repo, cache, funnel, () => NOW) }
 }
 
 describe('DevSubscriptionUseCase', () => {
@@ -41,9 +42,20 @@ describe('DevSubscriptionUseCase', () => {
     expect(toStatus(repo.rows.get('u1') ?? null, new Date(NOW.getTime() + 1000)).isPro).toBe(false)
   })
 
+  it('registra "assinou" e "cancelou" no funil', async () => {
+    const { funnel, useCase } = setup()
+    await useCase.purchase('u1', 'annual', 'play_store')
+    await useCase.cancel('u1')
+    expect(funnel.events.map((e) => [e.name, e.plan])).toEqual([
+      ['subscribed', 'annual'],
+      ['cancelled', 'annual'],
+    ])
+  })
+
   it('cancelar quem nunca assinou não faz nada', async () => {
-    const { repo, useCase } = setup()
+    const { repo, funnel, useCase } = setup()
     await useCase.cancel('u1')
     expect(repo.rows.size).toBe(0)
+    expect(funnel.events).toHaveLength(0)
   })
 })

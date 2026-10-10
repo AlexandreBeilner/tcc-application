@@ -1,5 +1,6 @@
 import { buildSubscription } from '../../domain/subscription'
 import type { SubscriptionStore } from '../../domain/subscription'
+import type { FunnelRecorder } from '../ports/funnelRecorder'
 import type { SubscriptionCache } from '../ports/subscriptionCache'
 import type { SubscriptionRepository } from '../ports/subscriptionRepository'
 
@@ -21,11 +22,20 @@ export class DevSubscriptionUseCase {
   constructor(
     private readonly subscriptions: SubscriptionRepository,
     private readonly cache: SubscriptionCache,
+    private readonly funnel: FunnelRecorder,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   async purchase(userId: string, plan: DevPlan, store: DevStore): Promise<void> {
     const at = this.now()
+    await this.funnel.record({
+      userId,
+      name: 'subscribed',
+      source: null,
+      plan,
+      dedupeKey: `dev-subscribed:${userId}:${at.getTime()}`,
+      at,
+    })
     await this.subscriptions.upsert(
       buildSubscription(
         userId,
@@ -53,6 +63,14 @@ export class DevSubscriptionUseCase {
     const existing = await this.subscriptions.find(userId)
     if (existing) {
       const at = this.now()
+      await this.funnel.record({
+        userId,
+        name: 'cancelled',
+        source: null,
+        plan: existing.period,
+        dedupeKey: `dev-cancelled:${userId}:${at.getTime()}`,
+        at,
+      })
       await this.subscriptions.upsert({ ...existing, expiresAt: at, graceExpiresAt: null, updatedAt: at })
     }
     await this.cache.invalidate(userId)

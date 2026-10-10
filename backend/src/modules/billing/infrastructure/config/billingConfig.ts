@@ -1,3 +1,5 @@
+import type { BillingPrices } from '../../domain/funnel'
+
 // Leitura e validação das variáveis de ambiente de cobrança (MO.2.2). Função pura: recebe o `env`
 // e devolve a configuração ou lança com a lista do que está errado, pra o processo cair na subida.
 //
@@ -84,5 +86,26 @@ export function loadBillingConfig(env: NodeJS.ProcessEnv): BillingConfig {
     entitlementId: read('REVENUECAT_ENTITLEMENT_ID') ?? DEFAULT_ENTITLEMENT_ID,
     apiBaseUrl: (read('REVENUECAT_API_BASE_URL') ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ''),
     requestTimeoutMs,
+  }
+}
+
+// Preços em centavos, só para estimar a receita recorrente no painel admin (MO.7.1). Opcionais: o
+// preço de verdade vive nas lojas e no RevenueCat, nunca em código; sem eles o painel mostra o
+// resto e avisa que a receita estimada precisa dos dois valores.
+export function loadBillingPrices(env: NodeJS.ProcessEnv): BillingPrices {
+  const read = (name: string): number | null => {
+    const raw = env[name]?.trim()
+    if (!raw) return null
+    const parsed = Number(raw)
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(
+        `Configuração de cobrança inválida: ${name} deve ser um inteiro positivo em centavos`,
+      )
+    }
+    return parsed
+  }
+  return {
+    monthlyCents: read('BILLING_PRICE_MONTHLY_CENTS'),
+    annualCents: read('BILLING_PRICE_ANNUAL_CENTS'),
   }
 }

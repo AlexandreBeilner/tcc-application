@@ -13,12 +13,12 @@ function renderNav(path = '/admin', onNavigate?: () => void) {
 }
 
 describe('AdminNav (N.3)', () => {
-    it('lista as 9 seções na ordem do backlog', () => {
+    it('lista as 10 seções na ordem do backlog', () => {
         renderNav()
         const labels = screen.getAllByRole('listitem').map((item) => item.textContent)
         expect(labels).toHaveLength(ADMIN_SECTIONS.length)
         expect(labels[0]).toContain('Visão geral')
-        expect(labels[8]).toContain('Auditoria')
+        expect(labels[9]).toContain('Auditoria')
     })
 
     it('seção com rota vira link, inclusive Sistema (N.20)', () => {

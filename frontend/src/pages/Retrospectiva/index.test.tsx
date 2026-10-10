@@ -10,7 +10,7 @@ import type { Retrospective } from '../../services/retrospectives'
 import { Retrospectiva } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/cosmetics', () => ({ getMyCosmetics: vi.fn() }))
 vi.mock('../../services/retrospectives', () => ({ listRetrospectiveMonths: vi.fn(), getRetrospective: vi.fn() }))
 

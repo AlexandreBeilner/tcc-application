@@ -9,7 +9,7 @@ import { useWebPurchases } from '../../../features/billing/useWebPurchases'
 import { PlanSection } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../../features/billing/useWebPurchases', () => ({ useWebPurchases: vi.fn() }))
 
 const NONE: BillingStatus = {

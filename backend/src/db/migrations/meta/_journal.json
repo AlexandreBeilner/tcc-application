@@ -288,6 +288,13 @@
       "when": 1793200000000,
       "tag": "0040_add_daily_activity_retrospectives",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0041_add_funnel_events",
+      "breakpoints": true
     }
   ]
 }

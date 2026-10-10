@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadBillingConfig } from './billingConfig'
+import { loadBillingConfig, loadBillingPrices } from './billingConfig'
 
 describe('loadBillingConfig', () => {
   it('sem variável nenhuma, a cobrança fica desligada', () => {
@@ -72,5 +72,24 @@ describe('loadBillingConfig', () => {
         REVENUECAT_TIMEOUT_MS: 'abc',
       }),
     ).toThrow(/REVENUECAT_TIMEOUT_MS/)
+  })
+})
+
+describe('loadBillingPrices', () => {
+  it('sem variáveis, os dois preços são nulos', () => {
+    expect(loadBillingPrices({})).toEqual({ monthlyCents: null, annualCents: null })
+  })
+
+  it('lê os dois preços em centavos', () => {
+    expect(loadBillingPrices({ BILLING_PRICE_MONTHLY_CENTS: '1990', BILLING_PRICE_ANNUAL_CENTS: '19990' })).toEqual({
+      monthlyCents: 1990,
+      annualCents: 19990,
+    })
+  })
+
+  it('recusa valor que não é inteiro positivo', () => {
+    for (const bad of ['19,90', '-1', '0', 'abc', '19.9']) {
+      expect(() => loadBillingPrices({ BILLING_PRICE_MONTHLY_CENTS: bad })).toThrow(/BILLING_PRICE_MONTHLY_CENTS/)
+    }
   })
 })

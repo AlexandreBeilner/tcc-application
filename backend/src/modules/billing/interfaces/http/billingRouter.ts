@@ -6,11 +6,21 @@ import type {
   HandleBillingWebhookUseCase,
 } from '../../application/useCases/handleBillingWebhook'
 import type { DevSubscriptionUseCase } from '../../application/useCases/devSubscription'
-import { devPurchaseBodySchema, webhookBodySchema, type WebhookBody } from './schemas'
+import type { GetBillingConversionUseCase } from '../../application/useCases/getBillingConversion'
+import type { RecordFunnelEventUseCase } from '../../application/useCases/recordFunnelEvent'
+import {
+  conversionQuerySchema,
+  devPurchaseBodySchema,
+  funnelBodySchema,
+  webhookBodySchema,
+  type WebhookBody,
+} from './schemas'
 
 export interface BillingRouterDeps {
   getSubscriptionStatus: GetSubscriptionStatusUseCase
   authMiddleware: AuthMiddleware
+  recordFunnelEvent: RecordFunnelEventUseCase
+  getBillingConversion: GetBillingConversionUseCase
   // Sem isto a cobrança está desligada (`BILLING_PROVIDER=disabled`): o webhook responde 503 e o
   // status devolve `billingEnabled: false`, pra o frontend esconder a compra.
   // Compra falsa do app em desenvolvimento (`BILLING_PROVIDER=dev`). Ausente em qualquer outro modo:
@@ -52,6 +62,37 @@ export function createBillingRouter(deps: BillingRouterDeps): Router {
     const status = await deps.getSubscriptionStatus.execute(req.auth.userId)
     res.status(200).json({ ...status, billingEnabled: deps.webhook !== undefined || deps.dev !== undefined })
   })
+
+  // Evento do funil de conversão (MO.7.1), reportado pelo app: viu convite, abriu /planos, iniciou
+  // compra. Só nomes e ponto de origem; nenhum valor. Idempotente por pessoa, evento, origem e dia.
+  router.post('/billing/funnel', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+    const parsed = funnelBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'corpo inválido' })
+      return
+    }
+    await deps.recordFunnelEvent.execute(req.auth.userId, parsed.data)
+    res.status(204).end()
+  })
+
+  // Painel de conversão do admin (MO.7.1). Só leitura, por isso fora da auditoria.
+  router.get(
+    '/admin/billing/conversion',
+    deps.authMiddleware.authenticate,
+    deps.authMiddleware.requireRole('admin'),
+    async (req, res) => {
+      const parsed = conversionQuerySchema.safeParse(req.query)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'days deve ser 7, 30 ou 90' })
+        return
+      }
+      res.status(200).json(await deps.getBillingConversion.execute(parsed.data.days))
+    },
+  )
 
   // `POST /billing/webhook`: sem JWT, autenticado pelo cabeçalho que configuramos no RevenueCat.
   // 200 também pra evento repetido ou irrelevante (senão o RevenueCat reenviaria); erro nosso ou do

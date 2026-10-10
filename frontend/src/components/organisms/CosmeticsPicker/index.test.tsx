@@ -11,7 +11,7 @@ import type { MyCosmetics } from '../../../services/cosmetics'
 import { CosmeticsPicker } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../../services/cosmetics', () => ({
     getMyCosmetics: vi.fn(),
     equipCosmetic: vi.fn(),

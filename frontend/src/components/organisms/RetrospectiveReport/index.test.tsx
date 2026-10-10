@@ -9,7 +9,7 @@ import type { Retrospective } from '../../../services/retrospectives'
 import { RetrospectiveReport } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../../features/retrospective/shareCard', async (importOriginal) => {
     const original = await importOriginal<typeof import('../../../features/retrospective/shareCard')>()
     return {

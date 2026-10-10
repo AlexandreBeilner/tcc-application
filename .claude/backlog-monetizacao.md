@@ -111,13 +111,14 @@ iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────�
 - **Aceite:** textos publicados no app; decisão fiscal registrada.
 - **Dependências:** MO.1.1.
 
-### MO.1.3 · Medição mínima antes de vender
+### MO.1.3 · Medição mínima antes de vender ✅ (2026-10-10)
 - **Descrição:** hoje não há telemetria. Sem funil não dá pra ajustar preço nem upsell.
 - **O que fazer:** escolher a ferramenta (a decidir, respeitando LGPD e o RNF09: nada de patrimônio
   absoluto em evento), e instrumentar o funil mínimo: lição concluída → viu paywall → iniciou
   compra → assinou → cancelou. Detalhado na MO.7.1; aqui só a decisão da ferramenta.
 - **Aceite:** ferramenta escolhida e registrada.
 - **Dependências:** nenhuma.
+- **Entregável:** **decisão do autor (2026-10-10): eventos próprios no Postgres**, sem ferramenta de terceiro. Motivos: nenhum dado de usuário sai da plataforma (sem consentimento extra nem conta nova), serve direto ao painel da MO.7.1 e não depende das contas de loja/RevenueCat. Alternativa descartada: PostHog ou similar (dashboards prontos, mas dado a terceiro, aviso na Política de Privacidade e ainda precisaria de painel próprio). Regra mantida: evento só tem quem, passo, ponto de convite e plano, nunca patrimônio absoluto (RNF09) nem valor em reais.
 
 ---
 
@@ -506,11 +507,12 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
 
 ## Fase G — Crescimento e medição
 
-### MO.7.1 · Funil e painel de conversão
+### MO.7.1 · Funil e painel de conversão ✅ (2026-10-10, aceite com o RevenueCat pendente)
 - **Descrição:** eventos do funil (MO.1.3) e uma visão no painel admin: assinantes ativos, mensal x
   anual, churn mensal, receita recorrente estimada, conversão por ponto de convite e por âncora.
 - **Aceite:** números batem com o painel do RevenueCat numa amostra.
 - **Dependências:** MO.2.3, MO.1.3.
+- **Entregável:** **Backend:** tabela `funnel_events` (migração 0041, idempotente por `dedupe_key`); ports `FunnelRecorder`/`FunnelReader`, adapter Drizzle, `RecordFunnelEventUseCase`, `GetBillingConversionUseCase`; domínio puro `funnel.ts` (métricas, chave por pessoa/evento/origem/dia, mapeamento do ciclo de vida). `subscribed` e `cancelled` são gravados só pelo servidor, a partir dos mesmos fatos dos e-mails de boas-vindas e de encerramento (`SyncSubscriptionUseCase` e a compra falsa `dev`); conta de teste das lojas e concessão promocional não geram evento nem entram nas métricas. Rotas `POST /billing/funnel` (3 passos do cliente) e `GET /admin/billing/conversion?days=7|30|90` (só admin), em `.docs/backend/billing.md`. Preços para a receita estimada só por configuração (`BILLING_PRICE_MONTHLY_CENTS`/`BILLING_PRICE_ANNUAL_CENTS`, no compose); sem eles a receita fica em branco, nunca um valor fixo no código. **Frontend:** `useReportFunnel` (dispara e esquece, uma vez por visita), `ProInvite` reporta o convite visto e passa o ponto de origem no estado do link, `/planos` reporta `plans_opened` (origem ou `direct`; não conta quem já é PRO) e `purchase_started` com o plano; página `/admin/assinaturas` (nova seção "Assinaturas") com assinantes por plano, receita estimada, churn, funil em barras e tabela por ponto de convite, 3 janelas, responsiva. "Lição concluída" no topo do funil vem do progresso das lições que já existe. Testes: backend (domínio, casos de uso, router, sync/dev, config, integração em banco descartável) e frontend (hook, `ProInvite`, `Planos`, página admin); lint, build e suíte completa verdes. **Validado de ponta a ponta** com o backend em `BILLING_PROVIDER=dev` e os preços configurados: eventos gravados (4 chamadas, 3 linhas, a repetida foi ignorada), compra falsa virou `subscribed`, `403` para quem não é admin, métricas conferidas por curl; dados de teste removidos e backend devolvido à configuração padrão. **Estimativas a saber:** o churn reconstrói a base (ativos de hoje - quem assinou + quem cancelou na janela); "assinou" por ponto é quem teve contato e assinou depois, e uma pessoa pode contar em mais de um ponto. **Pendente:** (a) o aceite "números batem com o painel do RevenueCat" exige a conta (MO.1.1); (b) a passada visual da página admin no navegador nos 3 breakpoints não foi feita (promover uma conta a admin no banco foi negado pelo ambiente nesta sessão); a tela tem teste de componente e a API foi conferida por curl, falta olhar a tela em 320/768/1024 px; (c) a Política de Privacidade deve citar a medição própria do funil antes de ir a produção (ver ponto 048).
 
 ### MO.7.2 · Indicação entre amigos
 - **Descrição:** amigo que assina por indicação dá dias de PRO para os dois, via concessão

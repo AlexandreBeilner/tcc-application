@@ -1,3 +1,5 @@
+import type { FunnelRecorder } from '../../application/ports/funnelRecorder'
+import type { FunnelEvent } from '../../domain/funnel'
 import type { BillingMailer } from '../../application/ports/billingMailer'
 import type { ProLifecycleEmail } from '../../domain/lifecycleEmails'
 import type { BillingUserLookup } from '../../application/ports/billingUserLookup'
@@ -25,6 +27,9 @@ export function createFakeSubscriptionRepository(
     },
     async findMany(userIds) {
       return userIds.flatMap((id) => rows.get(id) ?? [])
+    },
+    async listAll() {
+      return [...rows.values()]
     },
     async upsert(subscription) {
       rows.set(subscription.userId, subscription)
@@ -117,4 +122,19 @@ export function createFakeBillingMailer(): FakeBillingMailer {
     },
   }
   return fake
+}
+
+export interface FakeFunnelRecorder extends FunnelRecorder {
+  events: FunnelEvent[]
+}
+
+// Idempotente por `dedupeKey`, como o adapter real.
+export function createFakeFunnelRecorder(): FakeFunnelRecorder {
+  const events: FunnelEvent[] = []
+  return {
+    events,
+    async record(event) {
+      if (!events.some((e) => e.dedupeKey === event.dedupeKey)) events.push(event)
+    },
+  }
 }

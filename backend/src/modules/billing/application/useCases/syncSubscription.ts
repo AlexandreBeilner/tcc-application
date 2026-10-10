@@ -1,7 +1,9 @@
+import { lifecycleFunnelEvent } from '../../domain/funnel'
 import { lifecycleEmails } from '../../domain/lifecycleEmails'
 import { buildSubscription, isActive } from '../../domain/subscription'
 import type { Subscription } from '../../domain/subscription'
 import type { BillingMailer } from '../ports/billingMailer'
+import type { FunnelRecorder } from '../ports/funnelRecorder'
 import type { EntitlementProvider } from '../ports/entitlementProvider'
 import type { SubscriptionCache } from '../ports/subscriptionCache'
 import type { SubscriptionRepository } from '../ports/subscriptionRepository'
@@ -15,6 +17,7 @@ export class SyncSubscriptionUseCase {
     private readonly subscriptions: SubscriptionRepository,
     private readonly cache: SubscriptionCache,
     private readonly mailer: BillingMailer,
+    private readonly funnel: FunnelRecorder,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -44,6 +47,9 @@ export class SyncSubscriptionUseCase {
       // falhar ao gravar só repete a mesma chave, que o outbox ignora.
       for (const email of lifecycleEmails(existing, next, at)) {
         await this.mailer.send(userId, email)
+        // Funil da MO.7.1: o mesmo fato do e-mail, com a mesma ordem de segurança (idempotente).
+        const event = lifecycleFunnelEvent(email, next, at)
+        if (event) await this.funnel.record(event)
       }
       await this.subscriptions.upsert(next)
     }

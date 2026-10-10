@@ -4,12 +4,13 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { dismissProInvite } from '../../../features/billing/proInviteDismissal'
-import { getBillingStatus } from '../../../services/billing'
+import { resetReportedFunnel } from '../../../features/billing/useReportFunnel'
+import { getBillingStatus, reportFunnelEvent } from '../../../services/billing'
 import type { BillingStatus } from '../../../services/billing'
 import { ProInvite } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 
 const FREE: BillingStatus = {
     isPro: false,
@@ -38,7 +39,10 @@ function renderInvite(billing: Partial<BillingStatus> = {}) {
 }
 
 describe('ProInvite (MO.5.5)', () => {
-    beforeEach(() => localStorage.clear())
+    beforeEach(() => {
+        localStorage.clear()
+        resetReportedFunnel()
+    })
     afterEach(() => {
         vi.clearAllMocks()
         delete (window as unknown as Record<string, unknown>).ReactNativeWebView
@@ -81,5 +85,18 @@ describe('ProInvite (MO.5.5)', () => {
         renderInvite()
         expect(await screen.findByText('Faz parte do plano PRO.')).toBeInTheDocument()
         expect(screen.getByRole('link', { name: 'Conhecer o PRO' })).toHaveAttribute('href', '/planos')
+    })
+
+    it('funil: reporta o convite visto uma vez, com o ponto de origem, e o link leva a origem aos planos', async () => {
+        renderInvite()
+        await screen.findByText('Faz parte do plano PRO.')
+        await waitFor(() => expect(reportFunnelEvent).toHaveBeenCalledTimes(1))
+        expect(reportFunnelEvent).toHaveBeenCalledWith('t', { event: 'invite_viewed', source: 'league' })
+    })
+
+    it('funil: convite que não aparece (já é PRO) não é reportado', async () => {
+        renderInvite({ isPro: true })
+        await waitFor(() => expect(getBillingStatus).toHaveBeenCalled())
+        expect(reportFunnelEvent).not.toHaveBeenCalled()
     })
 })

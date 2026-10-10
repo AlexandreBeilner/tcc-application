@@ -6,6 +6,13 @@ import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import { ProAccessGuard } from './application/proAccessGuard'
 import { GetSubscriptionStatusUseCase } from './application/useCases/getSubscriptionStatus'
 import { DevSubscriptionUseCase } from './application/useCases/devSubscription'
+import type { BillingPrices } from './domain/funnel'
+import { GetBillingConversionUseCase } from './application/useCases/getBillingConversion'
+import { RecordFunnelEventUseCase } from './application/useCases/recordFunnelEvent'
+import {
+  createDrizzleFunnelReader,
+  createDrizzleFunnelRecorder,
+} from './infrastructure/persistence/drizzleFunnelEvents'
 import { ListActiveProUserIdsUseCase } from './application/useCases/listActiveProUserIds'
 import { HandleBillingWebhookUseCase } from './application/useCases/handleBillingWebhook'
 import { ReconcileSubscriptionsUseCase } from './application/useCases/reconcileSubscriptions'
@@ -28,6 +35,8 @@ export interface BillingCoreDeps {
   config: BillingConfig
   // Avisos do ciclo de vida do PRO (MO.3.4) entram no outbox do módulo `notifications`.
   enqueueEmail: Pick<EnqueueEmailUseCase, 'execute'>
+  // Preços em centavos só pra estimar a receita no painel (MO.7.1); ausentes = sem estimativa.
+  prices?: BillingPrices
 }
 
 export interface BillingCompositionDeps extends BillingCoreDeps {
@@ -39,6 +48,7 @@ export interface BillingCompositionDeps extends BillingCoreDeps {
 function createBillingCore(deps: BillingCoreDeps) {
   const subscriptions = createDrizzleSubscriptionRepository(deps.db)
   const cache = createRedisSubscriptionCache(deps.redis)
+  const funnelRecorder = createDrizzleFunnelRecorder(deps.db)
 
   const provider =
     deps.config.provider === 'revenuecat'
@@ -59,6 +69,7 @@ function createBillingCore(deps: BillingCoreDeps) {
       enqueueEmail: deps.enqueueEmail,
       recipients: createDrizzleRecipientDirectory(deps.db),
     }),
+    funnelRecorder,
   )
   const handleWebhook = new HandleBillingWebhookUseCase(
     createDrizzleBillingWebhookEventLog(deps.db),
@@ -78,6 +89,13 @@ function createBillingCore(deps: BillingCoreDeps) {
     handleWebhook,
     reconcileSubscriptions,
     listActiveProUserIds,
+    funnelRecorder,
+    recordFunnelEvent: new RecordFunnelEventUseCase(funnelRecorder),
+    getBillingConversion: new GetBillingConversionUseCase(
+      subscriptions,
+      createDrizzleFunnelReader(deps.db),
+      deps.prices ?? { monthlyCents: null, annualCents: null },
+    ),
   }
 }
 
@@ -96,9 +114,11 @@ export function createBillingModule(deps: BillingCompositionDeps) {
   const router = createBillingRouter({
     getSubscriptionStatus: core.getSubscriptionStatus,
     authMiddleware: deps.authMiddleware,
+    recordFunnelEvent: core.recordFunnelEvent,
+    getBillingConversion: core.getBillingConversion,
     dev:
       deps.config.provider === 'dev'
-        ? new DevSubscriptionUseCase(core.subscriptions, core.cache)
+        ? new DevSubscriptionUseCase(core.subscriptions, core.cache, core.funnelRecorder)
         : undefined,
     webhook:
       deps.config.provider === 'revenuecat'
