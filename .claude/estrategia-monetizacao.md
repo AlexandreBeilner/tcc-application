@@ -1,6 +1,17 @@
 # Proposta — estratégia de monetização
 
-> **Status: proposta, não é decisão fechada.** Nasceu de uma discussão do autor sobre transformar o
+> **Atualização 2026-10-10 — decisões fechadas pelo autor** (backlog em
+> `backlog-monetizacao.md`): **B2C puro**; assinatura em **web, Android e iOS** via **RevenueCat**;
+> **mensal R$ 19,97 e anual R$ 199,97, sem trial** (sujeito às faixas de BRL das lojas). O PRO é
+> **guiado por desejo, não por conteúdo**: âncoras são **ligas privadas e duelos**, **identidade
+> visível** (cosméticos, molduras, selo) e **retrospectiva compartilhável**, mais a **Assembleia de
+> Acionistas** (seção 5, reescrita: só PRO vota, evento público, quem não paga ganha 1 crédito de voto
+> por mês, desenho extensível a outros tipos de assembleia). **Fora do plano:** Conselho PRO.
+> **Adiados:** cripto/opções, trilhas extras, acesso antecipado, máquina do tempo (cenários),
+> múltiplas carteiras e Assembleia dos Investidores. Onde o texto abaixo diz "33 lições", leia "as
+> lições centrais" (o currículo hoje passa de 40).
+>
+> **Status original: proposta, não é decisão fechada.** Nasceu de uma discussão do autor sobre transformar o
 > app de protótipo de TCC em produto real com usuários — o que traz custo de infraestrutura e, com
 > ele, a pergunta de como gerar retorno. A ideia original era um sistema de energia (ação consome,
 > recarrega com o tempo, dá pra comprar recarga ou assinar plano com energia infinita). Essa ideia
@@ -67,7 +78,15 @@ uma plataforma nova e desconhecida não empresta valor de currículo a quem exib
 diferente de uma Coursera/Alura já estabelecida. Só voltaria a fazer sentido se a plataforma
 ganhar reconhecimento de mercado depois de lançada, não como estratégia de lançamento.
 
-### Assinatura PRO (cobrança mensal) — tudo incluso, sem item avulso
+### Assinatura PRO (mensal ou anual) — tudo incluso, sem item avulso
+
+**Planos e plataformas (decidido em 2026-10-10):** mensal R$ 19,97 e anual R$ 199,97 (equivale a
+~R$ 16,66/mês, "dois meses grátis"), sem período de teste gratuito. Valem igual na web, no Android
+e no iOS; a cobrança passa pela loja de cada plataforma (as lojas exigem isso dentro de apps e
+ficam com comissão), mas o usuário vê **um** plano PRO só, reconhecido em qualquer lugar onde
+entrar com a mesma conta. Sem trial, a conversão depende de o grátis já mostrar valor e de o
+convite aparecer no ponto certo (portão de trilha, ligas, troféus), sempre como convite. Ver
+`analise-tecnica-monetizacao.md` (revisão de 2026-10-10) para o desenho técnico.
 
 Decisão do autor: uma assinatura recorrente só, não um cardápio de compras avulsas (nada de comprar
 pacote por pacote separadamente). Mais simples de vender ("PRO por R$X/mês, ponto") e mais simples
@@ -81,36 +100,32 @@ a partir de dados/infraestrutura que já existem, sem curadoria humana recorrent
 por usuário — a monetização não pode depender de operação manual, só do que a aplicação já faz
 sozinha.
 
-**Âncoras — o que sozinho já justificaria assinar** (o resto da lista é o que deixa o plano mais
-redondo, não o que vende ele):
+**Princípio da seleção (2026-10-10):** com dinheiro fictício ninguém paga por *utilidade*, paga por
+**identidade, competição e orgulho**. Conteúdo textual avulso é fácil de achar de graça e vende mal;
+o que não se acha fora é praticar sem risco com amigos. Por isso o PRO é montado em volta de desejo.
 
-- **Ligas privadas customizadas com amigos**: hoje o ranking é só Global e Amigos, com regra fixa.
-  Assinante cria liga própria (nome, regra de pontuação, janela de tempo) pra competir só com um
-  grupo específico — forte gatilho social (Impulso 5), sem tocar no ranking oficial, que continua
-  igual pra todo mundo.
-- **Pacote de trilhas/lições extras**: as 33 lições centrais continuam grátis pra sempre — é o
-  corpo avaliado pela TCC. Trilhas adicionais (temas mais avançados ou de nicho) ficam disponíveis
-  enquanto a assinatura estiver ativa, reaproveitando 100% da infraestrutura de trilha/lição já
-  existente.
+**Âncoras — o que sozinho já justificaria assinar:**
 
-**Complementares — tornam o plano mais completo**:
+- **Ligas privadas e duelos com amigos**: hoje o ranking é só Global e Amigos, com regra fixa.
+  Assinante cria liga própria (nome, regra de pontuação, janela de tempo) ou desafia um amigo num
+  duelo de duração fixa. Quem é convidado **não precisa ser PRO** para participar. Forte gatilho
+  social (Impulso 5), sem tocar no ranking oficial.
+- **Identidade visível**: molduras, títulos, temas e o selo PRO, **visíveis para os outros** no
+  ranking, no feed e no perfil. Cosmético que só o dono vê não vende. Nunca representa conquista
+  real de aprendizado (essas ficam grátis).
+- **Retrospectiva compartilhável**: resumo mensal (e anual depois) da jornada, em cartões com imagem
+  para compartilhar. Só percentual, nível e conquistas, nunca patrimônio absoluto (RNF09). Versão
+  simples para todos, completa e personalizada no PRO.
+- **Assembleia de Acionistas** (seção 5): o PRO vota decisões que mudam os fundamentos das
+  empresas, para todo o mercado. É a âncora de "estou influenciando o app", mas só funciona com base
+  de assinantes, por isso entra depois das três acima.
 
-- **Múltiplas carteiras simultâneas ("sandboxes")**: hoje o usuário tem uma carteira só. Assinatura
-  libera rodar 2-3 em paralelo (comparar estratégias, ou resetar uma carteira nova sem perder
-  XP/streak/histórico da principal). Funcional, não bloqueia quem tem uma carteira só de graça.
-- **Cenários extras de simulação**: o motor já tem um catálogo de templates de evento macro
-  (`engine/internal/domain/macroevent/templates.go`). Um "modo cenário" deixa o assinante rodar a
-  própria carteira contra um cenário pré-fabricado (ex: simular uma crise, um boom de commodities)
-  sob demanda, em vez de esperar o evento sortear naturalmente.
-- **Acesso antecipado a conteúdo novo**: quando uma trilha extra ou cenário novo é lançado,
-  assinante joga alguns dias antes de virar disponível pra todo mundo. Não é exclusividade
-  permanente — o conteúdo eventualmente chega a todos, só a ordem de acesso muda.
-- **Cosméticos exclusivos**: temas, moldura/avatar de perfil, emblemas visuais extras — nunca
-  emblemas que representem conquista real de aprendizado (esses ficam grátis, são o Impulso 4 já
-  planejado pra sala de troféus).
-- **Poder de agenda nas Assembleias** (seções 4 e 5): propor pauta na Assembleia dos Investidores e
-  na Assembleia de Acionistas. Nunca poder de resultado — quem decide continua sendo o voto de
-  todos (flat na seção 4, proporcional a ações na seção 5).
+**Complementares:** selo e cartão de investidor compartilhável (o básico grátis, a personalização PRO).
+
+**Adiados (ver Fase H do backlog):** trilhas de conteúdo extras e acesso antecipado (voltam só se vierem
+junto de um mercado avançado, lição mais simulação), cripto e opções como mercado jogável (exigem
+trabalho grande no motor e cuidado de tom com alavancagem gamificada), máquina do tempo (cenários
+sob demanda), múltiplas carteiras e Assembleia dos Investidores.
 
 Ideia registrada mas não aprofundada (baixa prioridade, fica só como nota): remoção de anúncios,
 caso anúncio venha a ser introduzido como fonte de receita adicional no futuro — hoje não é parte
@@ -119,9 +134,9 @@ ativa da proposta.
 ### O que acontece quando o assinante cancela
 
 Segue o princípio da seção 2 — **nunca esconder progresso já conquistado**. Cancelar não apaga
-nada: ligas criadas, carteiras extras e cosméticos ficam arquivados/inativos, não deletados: se a
+nada: ligas e duelos criados, cosméticos e retrospectivas ficam arquivados/inativos, não deletados: se a
 pessoa assinar de novo, tudo volta. Só as *capacidades* que dependem de assinatura ativa (criar liga
-nova, ter carteira extra ativa, propor pauta, acesso antecipado) pausam — o que já foi conquistado
+ou duelo, equipar cosmético, propor pauta, votar sem crédito) pausam — o que já foi conquistado
 (XP, badges, lições concluídas mesmo as de pacote extra) nunca some.
 
 ## 4. Mecânica colaborativa — "Assembleia dos Investidores" (Impulso 5)
@@ -157,48 +172,67 @@ resolve isso:
   Investidores"), não literalmente "vocês são o Banco Central" — mantém o clima gamificado sem
   forçar um realismo estranho.
 
-## 5. Mecânica colaborativa — "Assembleia de Acionistas" (por empresa)
+## 5. Assembleia de Acionistas (por empresa) — revisada em 2026-10-10
 
-Irmã da Assembleia dos Investidores (seção 4), mas em outra granularidade: em vez de uma decisão
-macro pra plataforma inteira, é uma assembleia por empresa específica da Renda Variável, espelhando
-assembleia de acionistas do mundo real (RF21 já separa indicador por classe de ativo — essa mecânica
-vive dentro desse mesmo recorte, só ações).
+Irmã da Assembleia dos Investidores (seção 4, **adiada**), mas por empresa da Renda Variável,
+espelhando assembleia de acionistas real (RF21 já separa indicador por classe; vive só em ações).
 
-A primeira versão discutida era peso de voto 5x pra quem tem plano pago. Descartada: diferente da
-Assembleia dos Investidores (efeito igual pra todo mundo, sem posição individual em jogo), aqui um
-usuário PRO que segura a ação da empresa X ganharia 5x de poder pra votar decisões que podem
-beneficiar a própria posição dele — pay-to-win direto sobre um ativo específico, a mesma armadilha
-do sistema de energia (seção 1) e do voto ponderado por conta (seção 4), só que mais grave por ser
-por ativo.
+**Mudança em relação à versão anterior.** A versão de setembro descartava voto com poder por plano
+(pay-to-win). O autor reabriu a decisão: **só o PRO vota**, o evento é visível para todos, e o
+resultado afeta todos igualmente, o que ele considera aceitável. Em troca, o desenho adota proteções
+para a mecânica não virar vantagem de mercado nem prejudicar o app:
 
-Modelo adotado no lugar:
+- **Peso pelas ações, só entre quem votou.** Peso do voto é a quantidade de ações do usuário **na
+  data de corte** (posição na abertura, como a data-ex dos proventos), nunca por plano nem por
+  quanto se pagou. **Bots não votam** (quase todo o float é deles); por isso o peso é proporcional
+  entre os votantes, não ao total de ações, senão nunca haveria quórum.
+- **Mínimo de votantes distintos** (configurável, ponto de partida 3). Abaixo disso a pauta não
+  passa e nada muda; empate mantém o status quo. Evita uma pessoa decidir sozinha uma empresa.
+- **Resultado público antes de valer.** Fecha, aparece para todos, e o efeito só se aplica no
+  próximo ciclo; quem não vota pode se posicionar igual a quem votou.
+- **Pautas de dois lados, de um catálogo fechado** (ex.: distribuir mais dividendos contra reinvestir
+  para crescer), cada opção com ganho e perda, sem texto livre e sem curadoria humana.
+- **Efeito só nos fundamentos, nunca no preço direto.** O preço continua vindo da negociação dos
+  bots reagindo. Efeito limitado em faixa, **gradual**, no máximo uma mudança por empresa por
+  trimestre. Protege o mercado e o ranking de choques.
+- **Sem recompensa por vencer.** XP e conquista só por participar.
+- **Dinâmica:** abre alguns dias depois do balanço, aparece no Calendário, placar público ao vivo,
+  voto mutável até fechar, ficha da pauta com o ganho e a perda de cada opção, pauta proposta pelo PRO
+  e escolhida por apoio, resultado vira notícia e item no feed.
 
-- **Voto ponderado por ações que o usuário possui daquela empresa, não por plano** — todo acionista
-  vota (pago ou não), peso proporcional à posição real, exatamente como assembleia de acionista
-  funciona no mundo real (skin in the game, não assinatura). Reforça a mecânica de governança
-  corporativa como conteúdo educacional, não só como monetização.
-- **Plano PRO ganha poder de agenda, não poder de resultado**: pode propor, dentre um catálogo
-  pré-definido (sem curadoria humana por proposta), qual pauta entra na próxima assembleia daquela
-  empresa. Quem decide se a pauta passa continua sendo o voto proporcional de todos os acionistas.
-- Resultado da votação altera fundamentos da empresa (ex: política de dividendos, recompra) **pra
-  todo acionista igual**, pago ou não — mesma regra de "nunca vender vantagem privada sobre o
-  resultado" da seção 4.
+**Crédito de voto para quem não paga.** Quem não é PRO recebe **1 voto por mês**, usado numa
+assembleia de empresa que possui (precisa de posição na data de corte, e-mail verificado e nível
+mínimo). É funcionalidade a mais, **não é o centro do PRO** e não bloqueia nada do app; o PRO tem
+assento permanente. Cuidado de enquadramento: nunca texto do tipo "você ficou sem votos, assine", que
+seria a escassez que já descartamos.
+
+**Extensível.** O desenho trata a assembleia como um `kind` (hoje só `shareholder`), com política de
+elegibilidade, de peso e de efeito próprias, para plugar depois a Assembleia dos Investidores sem
+mexer no núcleo. Detalhe técnico em `analise-tecnica-monetizacao.md` (seção 0.1).
 
 ## 6. O que nunca vira paywall
 
-Conteúdo educacional (as 33 lições centrais e o que vier depois de graça), XP/nível/streak/
+Conteúdo educacional (as lições centrais, a Trilha F de finanças do dia a dia e o que vier depois de graça), XP/nível/streak/
 conquistas, a ação de comprar/vender, o valor de rentabilidade percentual/nível exposto no ranking
 (RNF09 já proíbe expor patrimônio absoluto — isso vale independente de plano), e o resultado de
-qualquer evento de mercado ou assembleia — quem decide o quê acontece é o voto (flat na seção 4,
-proporcional a ações na seção 5), nunca uma vantagem privada comprada sobre o resultado.
+qualquer evento de mercado ou assembleia — quem decide o quê acontece é o voto (peso pelas ações
+na data de corte, seção 5), o resultado é público antes de valer e vale igual para todos, nunca uma
+vantagem privada comprada sobre o resultado.
 
 ## 7. O que falta pra essa proposta virar decisão fechada
 
-- **Preço e nome dos planos** — não dá pra decidir sem usuários reais e sem saber o custo de infra
-  em produção; a plataforma hoje não instrumenta telemetria de uso (mesma ressalva já registrada em
-  `proposta-engajamento-licoes.md`).
-- **Se a TCC comporta esse escopo** — implementar gateway de pagamento, planos e feature-gating é
-  trabalho de engenharia real que compete com o roadmap de 8 semanas. Decisão do autor: por ora fica
-  só documentado, sem tarefa de backlog aberta.
-- **Validação de mercado** — a motivação (custo com usuários reais) ainda é hipotética; faz sentido
-  reavaliar esse documento quando/se houver usuários de fato, não antes.
+Resolvido em 2026-10-10:
+
+- **Preço e planos**: mensal R$ 19,97 e anual R$ 199,97, sem trial (confirmar o valor exato nas
+  faixas de BRL das lojas, tarefa MO.1.1). O custo de infra em produção continua sem medição, então
+  o preço é ponto de partida a validar (MO.6.3), não valor definitivo.
+- **Escopo**: o autor decidiu avançar; o trabalho está quebrado em `backlog-monetizacao.md`, em
+  fases que não competem com o roadmap original da TCC.
+- **Público**: B2C.
+
+Ainda em aberto:
+
+- **Validação de mercado**: a conversão real só se mede com usuários (MO.1.3 e MO.6.1).
+- **Limites das ligas e duelos, parâmetros da assembleia e catálogo de cosméticos**: ponto 046 em
+  `pontos-em-aberto-decisao-produto.md`.
+- **Pré-requisitos legais e fiscais** antes de cobrar (MO.1.2).

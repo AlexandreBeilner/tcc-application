@@ -992,3 +992,11 @@ Nenhum ponto em aberto no momento.
 - **O que foi feito (provisório):** (1) o job nasce **desligado** e só liga com `EMAIL_STREAK_REMINDER=on`, para honrar o "medir antes"; (2) só quem tem sequência de 3 dias ou mais (1 ou 2 dias não é algo a manter); (3) janela da tarde, 17h a 19h59 de Brasília, porque o dia da sequência é em UTC e termina às 21h de Brasília (o e-mail diz isso com todas as letras); (4) o teto de 1 por dia vale só para este lembrete, não é compartilhado com o resumo semanal nem com os avisos de salário e conquista.
 - **Opções:** ligar por padrão depois de olhar as métricas (cancelamento, reclamação abaixo de 0,1%, abandono da trilha); mudar a sequência mínima; ou um teto único de 1 e-mail de engajamento por dia somando os quatro tipos.
 - **Status:** em aberto. Nada a corrigir no código para decidir; é ligar a variável quando as métricas da Fase G (EM.7.1) estiverem boas.
+
+### 046 · Decisões de produto abertas da monetização (backlog-monetizacao.md)
+
+- **Local:** `.claude/backlog-monetizacao.md` (MO.1.1, MO.5.1, MO.5.4, MO.6.2) e `.claude/estrategia-monetizacao.md`.
+- **Origem:** ao fechar os planos (2026-10-10) ficaram perguntas que nenhum documento responde.
+- **Perguntas:** (1) **limites das ligas e duelos** (quantas ligas por assinante, quantos membros, regra de pontuação livre ou de catálogo, duração do duelo); (2) **catálogo inicial de cosméticos** (quais itens, quais visíveis para os outros); (3) **parâmetros da Assembleia de Acionistas** (mínimo de votantes, duração, faixa de efeito por indicador, cooldown, nível mínimo para o crédito mensal, tamanho do catálogo de pautas); (4) **preço final** nas faixas de BRL das lojas (19,97 pode não existir); (5) **checkout web**: Web Billing do RevenueCat ou integração com o Stripe Billing, e se Pix é requisito; (6) **recompensa da indicação** (quantos dias de PRO, teto por pessoa).
+- **Status:** em aberto. Nada bloqueia as Fases B e C do backlog; a (1) bloqueia a MO.5.2/5.3, a (2) a MO.5.1, a (3) a MO.6.9, a (6) a MO.7.2.
+

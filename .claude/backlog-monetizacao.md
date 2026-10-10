@@ -1,0 +1,475 @@
+# Backlog — Monetização (assinatura PRO, B2C, multiplataforma)
+
+Backlog executável derivado de `.claude/estrategia-monetizacao.md` (produto) e
+`.claude/analise-tecnica-monetizacao.md` (técnica), com as decisões fechadas pelo autor em
+**2026-10-10**. Mesma relação que `backlog-app-mobile.md` tem com o documento de arquitetura dele:
+os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por sessão.
+
+## Decisões fechadas (2026-10-10)
+
+| # | Decisão |
+|---|---|
+| M1 | **B2C puro.** Turmas/escolas (B2B) estão fora do plano. |
+| M2 | **Assinatura em todas as plataformas**: web, Android e iOS. |
+| M3 | **RevenueCat** é a camada única de assinatura (Stripe na web, Google Play Billing no Android, StoreKit no iOS). O backend não fala com Stripe, Apple nem Google diretamente. |
+| M4 | **Dois planos, sem trial**: mensal **R$ 19,97** e anual **R$ 199,97** (~R$ 16,66/mês, ~17% de desconto). Um único entitlement `pro`. |
+| M5 | **Pagamento nunca bloqueia o core loop** (lições centrais, XP/streak, compra/venda, ranking oficial). Cancelar nunca apaga progresso, só pausa capacidades. Regras da seção 2 e 6 da estratégia continuam valendo. |
+| M6 | **Upsell só como convite**, nunca escassez ou cronômetro (limite ético de `proposta-engajamento-licoes.md`). |
+| M7 | **O PRO é guiado por desejo, não por conteúdo.** Âncoras: ligas privadas e duelos, identidade visível (cosméticos, molduras, selo) e retrospectiva compartilhável; a quarta é a Assembleia de Acionistas (M8). Conteúdo avulso vende mal e fica fora do centro. |
+| M8 | **Assembleia de Acionistas:** só PRO vota, o evento é público, o peso é pelas ações na data de corte entre quem votou, bots não votam, o efeito vale igual para todos. Quem não paga ganha **1 crédito de voto por mês**, como funcionalidade a mais. |
+| M9 | O desenho da assembleia é **extensível por `kind`**; só `shareholder` entra agora. |
+| M10 | **Conselho PRO fora** do plano. |
+| M11 | Cripto/opções/derivativos, trilhas extras PRO, acesso antecipado, máquina do tempo, múltiplas carteiras e Assembleia dos Investidores ficam **adiados** (Fase H). |
+
+**Ressalva de preço:** Apple e Google trabalham com faixas de preço pré-definidas, e o valor
+terminado em `,97` pode não existir em BRL. A tarefa MO.1.1 confirma o preço real nos consoles
+antes de qualquer cobrança; o preço vive só na configuração dos produtos (lojas + RevenueCat), nunca
+hardcoded em código ou lição. Meta: mesmo valor nas três plataformas.
+
+## Como usar este arquivo
+
+1. Siga a ordem das fases (A → H; a H é só lista de adiados). A Fase A é quase toda trabalho fora do código (contas, lojas,
+   termos) e **bloqueia a produção**, não o desenvolvimento: dá pra começar a Fase B em paralelo com
+   RevenueCat em modo de teste.
+2. Cada tarefa é escopo de uma sessão. Ao concluir, marque ✅ e acrescente o bullet de Entregável
+   (e marque no `backlog-pendencias-consolidado.md`, se a tarefa estiver listada lá).
+3. **Fases B, C, E e F tocam `backend/`** (a F também toca `engine/`, com o checklist do Go): passam pelo checklist obrigatório do `CLAUDE.md` inteiro
+   (port em `application/ports/`, adapter em `infrastructure/`, Zod na borda, teste no mesmo commit,
+   `.docs/backend/billing.md` atualizado, lint/build/test, `docker compose up`).
+4. **Gating de plano nunca é claim de JWT**: sempre consulta ao caso de uso de status (análise
+   técnica, seção 5). Toda feature PRO responde `403 { error: 'requer plano PRO' }`, nunca `404`.
+5. **Verifique a documentação atual do RevenueCat, da Apple e do Google antes de implementar**:
+   nomes de eventos, cabeçalhos do webhook, produtos web e regras de loja mudam. O que está aqui é o
+   desenho, não a referência de API.
+6. Decisão de produto que não esteja aqui: pare e pergunte (regra 6 do `CLAUDE.md`) ou registre em
+   `pontos-em-aberto-decisao-produto.md` (ponto 046 já abre as perguntas conhecidas).
+
+## Arquitetura em uma tela
+
+```
+Web (SPA)  ─ compra via checkout web do RevenueCat/Stripe ─┐
+Android    ─ compra via Play Billing (SDK react-native-purchases) ─┤
+iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────┤
+                                                                   ▼
+                                                    RevenueCat (entitlement "pro")
+                                                                   │ webhook + REST
+                                                                   ▼
+        backend/modules/billing  (projeção local `subscriptions`, uma linha por usuário)
+                                                                   │
+                         getSubscriptionStatusUseCase  ◄── gating das features PRO
+```
+
+- `app_user_id` do RevenueCat = **`users.id`** (UUID). O app e a web fazem `logIn(userId)` antes de
+  qualquer compra; nunca comprar como anônimo.
+- O webhook é só um aviso: ao recebê-lo, o backend **consulta a API REST do RevenueCat** pelo estado
+  atual do assinante e grava a projeção (robusto a eventos fora de ordem e repetidos). Idempotência
+  por id de evento.
+- `isActive(subscription, now)` é uma função pura em `domain/`: PRO se `expiresAt > now` (ou sem
+  vencimento, no caso de concessão promocional). Assim um webhook de expiração perdido não deixa
+  alguém PRO para sempre.
+- Cancelar/gerenciar: o link depende de onde a pessoa assinou (`store`): Stripe/web, App Store ou
+  Play Store. A tela mostra o destino certo.
+- Dentro do app (WebView) o botão de assinar **não pode** levar a pagamento web (regra das lojas):
+  o SPA detecta que está no app e troca o CTA por uma chamada à compra nativa (Fase D).
+
+---
+
+## Fase A — Pré-requisitos fora do código (bloqueiam produção)
+
+### MO.1.1 · Contas, produtos e preço nas lojas
+- **Descrição:** abrir/validar as contas e criar os produtos. Trabalho do autor com apoio do Claude
+  em checklist; nenhum código.
+- **O que fazer:**
+  - Conta Apple Developer (App Store Connect) e Google Play Console (taxas anuais/únicas, conferir
+    valor atual); conta RevenueCat; conta Stripe ativa para o Brasil (precisa de pessoa jurídica ou
+    MEI, conferir exigência atual).
+  - Criar os dois produtos de assinatura (mensal e anual) em cada loja e no Stripe, no mesmo grupo
+    de assinatura, e mapear ambos para o entitlement `pro` no RevenueCat (um Offering `default`
+    com os dois pacotes).
+  - **Confirmar o preço realmente disponível** em BRL em cada loja (M4: `19,97`/`199,97` pode virar
+    `19,90`/`199,90`), registrar o valor final aqui e na estratégia.
+  - Decidir o que oferecer na web: checkout próprio do RevenueCat (Web Billing) ou a integração com
+    o Stripe Billing; conferir quais meios de pagamento cada um aceita no Brasil (Pix incluso?).
+    Registrar a escolha.
+- **Aceite:** `Offering default` visível no painel do RevenueCat com os dois pacotes nas três lojas
+  em modo de teste/sandbox; preço final registrado neste arquivo.
+- **Dependências:** nenhuma.
+
+### MO.1.2 · Termos, reembolso e fiscal
+- **Descrição:** o mínimo legal para cobrar.
+- **O que fazer:**
+  - Termos de assinatura e política de reembolso (na web vale o direito de arrependimento de 7
+    dias do CDC; nas lojas o reembolso é pela loja). Atualizar `PrivacidadeLgpd` com o operador
+    novo (RevenueCat e Stripe, transferência internacional), no mesmo molde da EM.8.2.
+  - Definir como emitir nota fiscal (o Stripe não emite NF-e brasileira) e o regime tributário;
+    conversar com contador. Registrar a decisão, sem implementar emissão automática nesta fase.
+- **Aceite:** textos publicados no app; decisão fiscal registrada.
+- **Dependências:** MO.1.1.
+
+### MO.1.3 · Medição mínima antes de vender
+- **Descrição:** hoje não há telemetria. Sem funil não dá pra ajustar preço nem upsell.
+- **O que fazer:** escolher a ferramenta (a decidir, respeitando LGPD e o RNF09: nada de patrimônio
+  absoluto em evento), e instrumentar o funil mínimo: lição concluída → viu paywall → iniciou
+  compra → assinou → cancelou. Detalhado na MO.7.1; aqui só a decisão da ferramenta.
+- **Aceite:** ferramenta escolhida e registrada.
+- **Dependências:** nenhuma.
+
+---
+
+## Fase B — Fundação do módulo `billing` (backend)
+
+Objetivo: o backend sabe com certeza quem é PRO, sem nenhuma feature gateada ainda. Critério da
+fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar volta para free.
+
+### MO.2.1 · Domínio, tabelas e migração
+- **Descrição:** `backend/src/modules/billing/domain/` e tabelas no banco `gamification`.
+- **O que fazer:**
+  - `subscription.ts`: entidade e `isActive(subscription, now)` pura (regra em M-arquitetura acima).
+    Estados: `active`, `billing_issue`, `expired`, `none`. Carência de pagamento segue a do
+    RevenueCat/loja (se o entitlement continua ativo, continua PRO).
+  - Tabelas: `subscriptions` (`user_id` PK, `store` stripe|app_store|play_store|promotional,
+    `product_id`, `period` monthly|annual, `status`, `expires_at`, `will_renew`, `management_url`,
+    `last_event_at`, `updated_at`) e `billing_webhook_events` (`id` PK = id do evento, `processed_at`).
+  - Migração Drizzle (atenção a `drizzle-generate-needs-tty` e ao `when` crescente do journal).
+- **Aceite:** testes de `isActive` table-driven (ativo, vencido, sem vencimento, billing issue em
+  carência); migração aplica no `docker compose up`.
+- **Dependências:** nenhuma.
+
+### MO.2.2 · Ports e adapter RevenueCat
+- **Descrição:** `application/ports/` e `infrastructure/revenuecat/`.
+- **O que fazer:**
+  - Ports pequenas: `EntitlementProvider` (`getSubscriber(userId)` devolve o estado do entitlement
+    `pro`), `SubscriptionRepository`, `WebhookEventLog`.
+  - Adapter real com a API REST do RevenueCat (chave secreta só por env: `REVENUECAT_SECRET_KEY`,
+    `REVENUECAT_WEBHOOK_AUTH`); nenhum import do SDK/HTTP fora de `infrastructure/`.
+  - Fakes em `test/fakes/`.
+- **Aceite:** adapter testado contra respostas gravadas (fixtures) da API; lint bloqueia import de
+  infraestrutura em `domain/`/`application/`.
+- **Dependências:** MO.2.1.
+
+### MO.2.3 · Webhook e status (rotas)
+- **Descrição:** casos de uso `HandleBillingWebhookUseCase` e `GetSubscriptionStatusUseCase` e as rotas.
+- **O que fazer:**
+  - `POST /billing/webhook` (público; autenticado pelo cabeçalho secreto configurado no
+    RevenueCat, comparação em tempo constante): registra o id do evento (idempotência, mesma
+    transação), consulta `EntitlementProvider` pelo `app_user_id` do evento e dá upsert na
+    projeção. Responde 200 também para evento repetido; 4xx/5xx só em erro real (para o
+    RevenueCat reenviar).
+  - Eventos relevantes: compra inicial, renovação, mudança de produto, cancelamento (ainda ativo até
+    vencer), reativação, problema de cobrança, expiração, transferência entre contas. Qualquer
+    outro evento é registrado e ignorado.
+  - `GET /billing/status` (autenticado): `{ isPro, plan, store, expiresAt, willRenew, managementUrl }`.
+    **Nunca** devolver dado de cobrança além disso.
+  - Documentar em `.docs/backend/billing.md`.
+- **Aceite:** teste de caso de uso com fakes (evento repetido não reaplica, evento fora de ordem
+  converge, usuário inexistente é ignorado com log); teste de router (supertest) com e sem o
+  cabeçalho; ponta a ponta com RevenueCat em sandbox.
+- **Dependências:** MO.2.2.
+
+### MO.2.4 · Gating e cache de status
+- **Descrição:** o helper que toda feature PRO vai usar.
+- **O que fazer:** `GetSubscriptionStatusUseCase` consultado dentro de cada caso de uso gateado
+  (nunca middleware genérico nem claim de JWT); cache Redis com TTL curto (poucos segundos),
+  invalidado ao processar webhook do usuário; erro padrão `403 { error: 'requer plano PRO' }`.
+- **Aceite:** teste provando que um cancelamento processado reflete na próxima requisição mesmo com
+  token antigo; teste do cache (hit, invalidação).
+- **Dependências:** MO.2.3.
+
+### MO.2.5 · Reconciliação e concessão administrativa
+- **Descrição:** rede de segurança e ferramenta de suporte.
+- **O que fazer:**
+  - Job periódico (mesmo padrão dos jobs Node existentes, ex.: snapshot de ranking) que reconsulta
+    no RevenueCat quem tem projeção ativa perto de vencer ou divergente, e corrige.
+  - Painel admin: ver o plano de um usuário e **conceder PRO promocional** por período (via API de
+    entitlement promocional do RevenueCat, para continuar uma só fonte da verdade); registrar em
+    auditoria.
+- **Aceite:** teste do job com divergência plantada; concessão aparece em `GET /billing/status`;
+  `.docs/backend/admin.md` e `billing.md` atualizados.
+- **Dependências:** MO.2.3.
+
+---
+
+## Fase C — Web: planos, compra e gerenciamento
+
+### MO.3.1 · Tela de planos (`/planos`)
+- **Descrição:** tela nova nos três breakpoints (CLAUDE.md), seguindo `identidade-visual-*`. Mostra
+  o que o PRO inclui, mensal e anual lado a lado (anual com o desconto calculado do preço real,
+  nunca texto fixo), e deixa explícito o que continua grátis para sempre. Sem escassez, sem contador.
+- **Aceite:** tela responsiva; textos sem travessão e sem jargão; preços vêm do Offering (não
+  hardcoded); estado "você já é PRO" mostra o plano atual em vez do botão de compra.
+- **Dependências:** MO.2.3.
+
+### MO.3.2 · Compra na web e retorno
+- **Descrição:** botão de assinar abre o checkout web escolhido na MO.1.1, com `app_user_id` =
+  `users.id`; ao voltar, a tela consulta `GET /billing/status` em polling curto até confirmar
+  (a verdade é o webhook, nunca o redirect de sucesso).
+- **Aceite:** compra em sandbox leva a PRO na tela sem recarregar; cancelamento no checkout volta
+  sem efeito; estado "processando" tem limite de tempo e mensagem de ajuda.
+- **Dependências:** MO.3.1, MO.1.1.
+
+### MO.3.3 · Gerenciar assinatura
+- **Descrição:** em Configurações, bloco "Seu plano": plano, próxima renovação ou data de término,
+  e botão que leva ao destino certo conforme `store` (portal do checkout web, ajustes de assinaturas
+  da App Store ou da Play Store). Instrução textual para quem assinou em outra plataforma.
+- **Aceite:** cada valor de `store` mostra o destino e o texto corretos; cancelada mas ainda ativa
+  mostra "PRO até dd/mm".
+- **Dependências:** MO.3.2.
+
+### MO.3.4 · E-mails do ciclo de vida PRO
+- **Descrição:** no módulo `notifications` (port e outbox já existentes): boas-vindas ao PRO,
+  problema de cobrança (pedir para atualizar o pagamento, com o link certo por loja), assinatura
+  encerrada (reafirmando que nada foi apagado). E-mail transacional, não depende de opt-in de
+  marketing; recibo continua sendo da loja/checkout.
+- **Aceite:** três templates em funções TS puras testadas; disparo idempotente por evento de
+  billing; tom sem culpa nem escassez.
+- **Dependências:** MO.2.3 (e EM.1.x, já concluídas).
+
+---
+
+## Fase D — App mobile: compra nativa
+
+Todas tocam `mobile/` e dependem da Fase 1 do `backlog-app-mobile.md` (app rodando). Ver a
+arquitetura do app para a ponte WebView.
+
+### MO.4.1 · SDK de compras no app
+- **Descrição:** `react-native-purchases` (RevenueCat) configurado por plataforma; `logIn(userId)`
+  quando a sessão do app é estabelecida e `logOut` ao sair.
+- **Aceite:** em build debug, o app lista o Offering `default` no log e o `app_user_id` coincide com
+  `users.id`.
+- **Dependências:** `backlog-app-mobile.md` 2.1 (ponte de sessão), MO.1.1.
+
+### MO.4.2 · Ponte WebView ↔ compra nativa
+- **Descrição:** o SPA detecta que roda no app (flag injetada) e, em vez de abrir o checkout web, envia
+  `{ type: 'purchase', plan: 'monthly' | 'annual' }` por `postMessage`; o app chama a compra
+  nativa e devolve `{ ok | cancelled | error }`; o SPA refaz o polling de status.
+- **Aceite:** compra em sandbox no emulador/dispositivo resulta em PRO na tela; usuário cancelando a
+  folha de pagamento volta sem erro; nenhum link de pagamento web aparece dentro do app.
+- **Dependências:** MO.4.1, MO.3.1.
+
+### MO.4.3 · Restaurar compras e gerenciar por loja
+- **Descrição:** botão "Restaurar compras" (exigido pelas lojas), link de gerenciar assinatura da
+  loja correta, e comportamento claro quando o mesmo usuário assinou em outra plataforma.
+- **Aceite:** reinstalar o app e restaurar devolve o PRO; conta com assinatura em outra loja não
+  oferece nova compra (evita cobrança dupla).
+- **Dependências:** MO.4.2, MO.3.3.
+
+### MO.4.4 · Teste em sandbox e checklist de revisão das lojas
+- **Descrição:** roteiro com testadores de licença (Google) e conta sandbox (Apple); cobrir compra,
+  renovação, cancelamento, falha de cobrança e reembolso. Checklist das regras de revisão (descrição
+  da assinatura, preço, link de termos e privacidade, restaurar compras, sem desvio de pagamento).
+- **Aceite:** roteiro executado e registrado; checklist assinado antes do envio para revisão.
+- **Dependências:** MO.4.3. Validação de iOS fica com o resto da validação iOS (Fase 4 do app).
+
+---
+
+## Fase E — Âncoras do PRO: identidade, ligas, duelos, retrospectiva
+
+Princípio (M7): o PRO precisa dar **vontade de ter** (competir com amigos, ser visto, ter orgulho de
+mostrar), não ser só uma lista de utilidades. Nenhuma tarefa esconde algo já conquistado, e todas
+seguem a regra de cancelamento (arquivar, nunca apagar). Dependem da Fase B; as que têm tela de
+compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend (três breakpoints).
+
+### MO.5.1 · Identidade visível (cosméticos, molduras, títulos e selo PRO)
+- **Descrição:** tabelas `cosmetic_items` e `user_cosmetics` (nunca reusar o catálogo de conquistas;
+  emblema de conquista real continua grátis). Itens: temas, molduras de avatar, títulos e o selo PRO.
+  Extensão do módulo `profile`. **O que vende é a visibilidade:** moldura, título e selo aparecem
+  para os outros no ranking, no feed social, na busca de amigos e no perfil público; cosmético que só
+  o dono vê não entra. Seletor em Configurações/Perfil.
+- **Aceite:** o item equipado aparece nas telas citadas para outro usuário; cancelar desequipa e
+  arquiva, reativar restaura; nenhum cosmético muda a ordem do ranking nem expõe patrimônio absoluto
+  (RNF09); testes do arquivamento e da reativação.
+- **Dependências:** MO.2.4.
+
+### MO.5.2 · Ligas privadas (3 sessões)
+- **a) Domínio e dados:** módulo novo `leagues` (consome `ranking` por porta): `leagues`,
+  `league_members`; janela e regra de pontuação a partir de `ranking/domain/window.ts`; só
+  rentabilidade percentual, nunca patrimônio absoluto (RNF09).
+- **b) Casos de uso e rotas:** criar liga exige PRO; **participar** não exige (membro gratuito entra
+  na liga de um amigo PRO); convite só entre amigos com amizade aceita. Liga cujo criador cancelou
+  fica arquivada e volta na reativação.
+- **c) Frontend:** criar e gerenciar liga, e variante do ranking por liga.
+- **Aceite:** ranking oficial Global/Amigos intacto; testes de gating, convite e arquivamento;
+  `.docs/backend/leagues.md`.
+- **Dependências:** MO.2.4. Decisão aberta (ponto 046): quantas ligas por assinante, quantos membros.
+
+### MO.5.3 · Duelos entre amigos
+- **Descrição:** desafio de duração fixa (por exemplo 7 dias) entre dois amigos, vence quem tiver a
+  maior rentabilidade percentual no período. Reaproveita o cálculo e a janela das ligas. Criar o
+  duelo é PRO; **aceitar** não exige PRO. Resultado vira item do feed social e, opcionalmente,
+  e-mail (opt-in existente). Sem XP por vencer, só por participar (evita incentivo a risco).
+- **Aceite:** empate e abandono tratados; duelo de quem cancelou o PRO termina normalmente (arquivar,
+  nunca apagar); testes de caso de uso e router.
+- **Dependências:** MO.5.2a.
+
+### MO.5.4 · Retrospectiva compartilhável (mensal; anual depois)
+- **Descrição:** resumo da jornada do mês: lições concluídas, maior sequência, melhor decisão em
+  percentual, evolução de nível, conquistas e duelos/ligas. Apresentação em cartões, com imagem
+  exportável para compartilhar. **Nunca patrimônio absoluto** (só percentual, nível e conquistas).
+  Versão simples para todos; a completa e a imagem personalizada com a identidade da MO.5.1 são PRO.
+  Geração por job mensal (padrão dos jobs Node existentes), sem curadoria humana.
+- **Aceite:** conteúdo calculado só de dados que já existem; imagem exportável sem dado sensível;
+  teste do job e do cálculo; revisão contra a regra "nunca culpa nem escassez".
+- **Dependências:** MO.5.1, MO.5.2 (para citar ligas), MO.2.4.
+
+### MO.5.5 · Convite contextual para o PRO
+- **Descrição:** onde o convite aparece, sempre dispensável e sem repetição agressiva: criar liga ou
+  duelo, perfil/cosméticos, a retrospectiva, a assembleia (Fase F) e uma linha opcional no resumo
+  semanal por e-mail (respeitando o opt-in). Pode incluir o teste de interesse "tenho interesse" por
+  âncora antes de construir a seguinte, medido pelo funil da MO.7.1.
+- **Aceite:** nenhum convite bloqueia ação do core loop; dispensar lembra a escolha; revisado contra
+  `proposta-engajamento-licoes.md`.
+- **Dependências:** MO.5.1, MO.3.1.
+
+---
+
+## Fase F — Assembleia de Acionistas (PRO decide, todos veem)
+
+Quarta âncora do PRO e a que mais dá a sensação de "estou influenciando o app". Depende de haver
+base de assinantes para as assembleias terem votantes; construir **depois** das âncoras da Fase E.
+Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 0.1).
+
+**Regras fechadas (autor, 2026-10-10):**
+- **Só PRO vota; o evento é visível para todos.** Pauta, opções, ficha e placar são públicos.
+- **Crédito mensal para quem não paga:** 1 voto por mês, usado numa assembleia de uma empresa que a
+  pessoa possui. Enquadrado como funcionalidade a mais, nunca como bloqueio do app. Exige e-mail
+  verificado e nível mínimo (valor em configuração).
+- **Bots não votam.** O peso do voto é a quantidade de ações do usuário na **data de corte**
+  (posição na abertura), calculado **entre quem votou**.
+- **Efeito igual para todo acionista**, pago ou não.
+- **Mínimo de votantes distintos** (configurável, ponto de partida 3); abaixo disso a pauta não passa
+  e nada muda. Empate mantém o status quo.
+- **Pautas de um catálogo fechado, de dois lados** (cada opção tem ganho e perda), sem texto livre e
+  sem curadoria humana. PRO propõe pautas; as mais apoiadas entram na próxima assembleia da empresa.
+- **Efeito só nos fundamentos**, nunca no preço direto: o preço continua vindo da negociação dos
+  bots reagindo. Efeito limitado em faixa, aplicado de forma gradual, no máximo uma mudança por
+  empresa por trimestre.
+- **Sem recompensa por vencer:** XP e conquista só por participar.
+- **Extensível:** o desenho trata a assembleia como um `kind`; só `shareholder` entra agora.
+
+### MO.6.1 · Fundação genérica de assembleia (backend)
+- **Descrição:** módulo `assemblies` (DDD lite). Domínio: `Assembly` (`kind`, `subject_ref`,
+  `opens_at`, `snapshot_at`, `closes_at`, `effect_applies_at`, `status`), `AgendaOption`, `Vote`.
+  Três políticas por `kind`, escolhidas por uma tabela de registro em `application/` (sem `if kind`
+  espalhado): `EligibilityPolicy`, `WeightPolicy`, `EffectApplier`. Implementação inicial só de
+  `shareholder`. Tabelas: `assemblies`, `assembly_options`, `assembly_votes`, `assembly_vote_credits`.
+- **Aceite:** testes de domínio table-driven (peso entre votantes, mínimo de votantes, empate,
+  mudança de voto até fechar); adicionar um `kind` fictício nos testes sem alterar o núcleo; lint de
+  camadas verde.
+- **Dependências:** MO.2.4.
+
+### MO.6.2 · Motor: data de corte e decisão como evento (Go)
+- **Descrição:** pacote novo em `engine/internal/domain/` (por exemplo `corporategovernance`):
+  (1) **snapshot de posições** da empresa na abertura, só contas de usuário (`is_bot` excluído),
+  em tabela própria; (2) endpoint para registrar a **decisão** de uma assembleia, idempotente pelo id
+  da assembleia, gravada em `market_events` **antes** de qualquer efeito (regra de Event Sourcing do
+  projeto); (3) catálogo de efeitos como funções puras com faixa máxima, aplicação gradual em N
+  ticks e cooldown por empresa. Parâmetros em `enginesetting`, nunca fixos.
+- **Aceite:** testes table-driven dos efeitos (limites, gradualidade, cooldown, determinismo por
+  seed, RNF08); teste de integração em banco descartável (lembrar: `market_events` é append-only);
+  `.docs/engine/<pacote>.md`; `golangci-lint` verde.
+- **Dependências:** nenhuma de billing; usa `fundamentals`, `dividend`, `macroevent` como
+  referência.
+
+### MO.6.3 · Ciclo de vida: abrir, fechar e aplicar
+- **Descrição:** job que abre a assembleia alguns dias depois do balanço da empresa (evento já no
+  Calendário), pede o snapshot ao motor (port `HoldingsSnapshotProvider`), fecha na data prevista,
+  apura, envia a decisão ao motor e marca o resultado. O resultado fica **público antes** de o
+  efeito valer (próximo ciclo). Entra no Calendário como evento de mercado.
+- **Aceite:** reexecução do job não duplica abertura nem decisão; assembleia sem mínimo de votantes
+  fecha como "não aprovada"; teste com relógio falso.
+- **Dependências:** MO.6.1, MO.6.2.
+
+### MO.6.4 · Voto, elegibilidade e crédito mensal
+- **Descrição:** `CastVoteUseCase`: exige posição no snapshot (nunca bot), plano PRO **ou** crédito
+  do mês disponível; consome 1 crédito só no primeiro voto da assembleia (mudar o voto até o fechamento
+  não consome outro; PRO não consome). Crédito por mês de calendário (fuso de Brasília). Exige e-mail
+  verificado e nível mínimo para o crédito.
+- **Aceite:** testes de cada ramo (PRO, crédito, sem crédito, sem posição, bot, voto repetido,
+  mudança de voto); `403 { error: 'requer plano PRO ou crédito de voto' }`; `.docs/backend/assemblies.md`.
+- **Dependências:** MO.6.1, MO.2.4.
+
+### MO.6.5 · Propostas de pauta e apoio
+- **Descrição:** catálogo `agenda_templates` (tipo, opções com ganho/perda e efeito). PRO propõe uma
+  pauta do catálogo para uma empresa que possui e apoia as dos outros; as mais apoiadas entram na
+  próxima assembleia, respeitando o cooldown. Teto de propostas por PRO por mês.
+- **Aceite:** sem texto livre; testes de ordenação por apoio, teto e cooldown.
+- **Dependências:** MO.6.1, MO.6.4.
+
+### MO.6.6 · Telas (frontend)
+- **Descrição:** lista de assembleias, detalhe com **ficha da pauta** (as duas opções com ganho e
+  perda e a faixa de efeito, sem recomendar lado), **placar ao vivo** (polling curto, cache Redis),
+  botão de voto com o saldo de crédito para o gratuito e convite ao PRO sem pressão, resultado e
+  histórico. Linguagem de narrativa do app, nunca "vocês são o Banco Central".
+- **Aceite:** três breakpoints; placar atualiza em segundos sem WebSocket; nenhum texto de escassez.
+- **Dependências:** MO.6.4.
+
+### MO.6.7 · O mundo reage
+- **Descrição:** resultado vira notícia (módulo `news`), item no feed social e, para acionistas, e-mail
+  opt-in no `notifications`. XP pequeno e conquista "Acionista ativo" **só por participar**.
+- **Aceite:** nada é concedido por estar no lado vencedor; e-mail idempotente por assembleia.
+- **Dependências:** MO.6.3.
+
+### MO.6.8 · Admin: pausa, auditoria e parâmetros
+- **Descrição:** no painel admin: pausar/retomar assembleias (padrão das pausas de negociação), ver
+  votos e resultado com auditoria, editar parâmetros (mínimo de votantes, duração, faixas de efeito,
+  cooldown, nível mínimo) e o catálogo de pautas.
+- **Aceite:** pausa impede abertura e aplicação sem perder estado; `.docs/backend/admin.md` atualizado.
+- **Dependências:** MO.6.3.
+
+### MO.6.9 · Calibração antes de ligar
+- **Descrição:** simular em escala (catálogo e usuários sintéticos maiores que os de hoje, diretriz
+  "projetar para crescer") o efeito acumulado das assembleias nos fundamentos, no preço (via reação
+  dos bots) e no ranking; ajustar faixas e cooldown. Ligar por variável de ambiente, desligado por
+  padrão.
+- **Aceite:** relatório com os números e as faixas escolhidas; nenhuma empresa sai de uma faixa
+  plausível em 12 meses simulados; ranking não é dominado por quem segura a empresa decidida.
+- **Dependências:** MO.6.2, MO.6.3.
+
+---
+
+## Fase G — Crescimento e medição
+
+### MO.7.1 · Funil e painel de conversão
+- **Descrição:** eventos do funil (MO.1.3) e uma visão no painel admin: assinantes ativos, mensal x
+  anual, churn mensal, receita recorrente estimada, conversão por ponto de convite e por âncora.
+- **Aceite:** números batem com o painel do RevenueCat numa amostra.
+- **Dependências:** MO.2.3, MO.1.3.
+
+### MO.7.2 · Indicação entre amigos
+- **Descrição:** amigo que assina por indicação dá dias de PRO para os dois, via concessão
+  promocional (MO.2.5), com teto por pessoa. Usa o grafo de amizade existente.
+- **Aceite:** abuso básico bloqueado (mesma conta, teto); recompensa confirmada pelo autor antes.
+- **Dependências:** MO.2.5, MO.7.1.
+
+### MO.7.3 · Teste de preço e desconto do anual
+- **Descrição:** com dados reais, avaliar anual a ~17% contra 25 a 30% e a faixa do mensal; só mexer
+  no preço pela configuração dos produtos.
+- **Aceite:** decisão registrada com os números.
+- **Dependências:** MO.7.1 e volume de assinantes suficiente.
+
+---
+
+## Fase H — Adiado, não abrir tarefa
+
+| Item | Por que adiado | Condição para reabrir |
+|---|---|---|
+| Assembleia dos Investidores (voto decide Selic ou taxação setorial, afeta o mercado todo) | Autor adiou; o desenho da Fase F já é extensível por `kind` | MO.6.1 pronto e Fase F validada; precisa fazer `selic.NextCalendarRate` aceitar um resultado externo |
+| Máquina do tempo (cenários sob demanda) | Não pode reusar o disparo de evento macro global; decisão entre sandbox roteirizado e ambiente novo | Decisão de produto e sinal de demanda |
+| Múltiplas carteiras | Desacopla `Account` de `UserID` no motor, maior risco do projeto; pergunta aberta sobre qual carteira entra no ranking | Sessão própria de levantamento no `engine/` + resposta do autor |
+| Conselho PRO (voto na próxima trilha/funcionalidade) | **Autor decidiu que não entra** | Só se o autor reabrir |
+| Cripto, opções e derivativos como mercado jogável | Não é o centro do PRO; exigem trabalho grande no motor e cuidado de tom (alavancagem gamificada) e regulatório | Demanda comprovada; cripto primeiro |
+| Trilhas de conteúdo extras PRO e acesso antecipado | Conteúdo puro vende mal; o que é útil e gratuito (Trilha F) continua grátis | Se vierem junto de um mercado avançado (lição + simulação) |
+| Remoção de anúncios | Não há anúncios | Só se anúncio virar fonte de receita |
+
+---
+
+## Sequência sugerida
+
+`MO.1.1 → 1.3 → 2.1 → 2.2 → 2.3 → 2.4 → 3.1 → 3.2 → 3.3 → 5.1 → 5.2 → 1.2 → 3.4 → 2.5 → 5.3 → 5.4 → 5.5 → (app) 4.1 → 4.2 → 4.3 → 4.4 → 7.1 → 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 6.6 → 6.7 → 6.8 → 6.9 → 7.2 → 7.3`
+
+Racional: fundação e web primeiro, porque RevenueCat em sandbox valida o desenho inteiro sem o app.
+Identidade e ligas vêm antes por serem a base social que vende o PRO. A Fase F fica depois da
+medição (MO.7.1) porque só vale construir a Assembleia, a mais cara, quando houver sinal de
+interesse e assinantes para votar; a MO.6.9 antecede ligar qualquer efeito no mercado real. Termos e
+fiscal (MO.1.2) precisam estar prontos **antes de cobrar de verdade**, não antes de desenvolver.
+Nenhuma cobrança real sai sem MO.1.2, MO.2.5 (reconciliação) e, no caso do app, MO.4.4.

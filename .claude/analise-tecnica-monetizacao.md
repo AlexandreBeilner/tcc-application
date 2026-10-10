@@ -12,7 +12,87 @@
 > Toda referência de arquivo/linha abaixo foi conferida no código real em 2026-09-09 (não é
 > suposição sobre a spec) — se o código mudar depois, revalidar antes de reusar isto num backlog.
 
-## 1. Por que Stripe e o que isso implica
+## 0. Revisão de 2026-10-10 — multiplataforma com RevenueCat (leia primeiro)
+
+O autor fechou: assinatura em **web, Android e iOS**, B2C, planos mensal/anual sem trial, e
+**RevenueCat** como camada única. Isso **substitui** o desenho "só Stripe" das seções 1, 4, 6, 7 e 8
+abaixo; elas ficam como referência de conceitos (idempotência, corpo raw, reconciliação), mas o que
+vale para implementar é o resumo desta seção e o `backlog-monetizacao.md`.
+
+| Antes (seções 1 a 8) | Agora |
+|---|---|
+| Backend fala com o Stripe (`paymentGateway`, Checkout, Billing Portal) | Backend só fala com o **RevenueCat** (port `EntitlementProvider`, REST). Stripe, Apple e Google ficam atrás dele |
+| `stripe_customer_id`, `stripe_subscription_id` | `app_user_id` do RevenueCat = **`users.id`**; sem coluna de cliente |
+| Webhook do Stripe com assinatura e corpo raw | Webhook do RevenueCat autenticado por **cabeçalho secreto** (comparação em tempo constante); não exige corpo raw, mas o `express.json()` global continua ok |
+| O evento carrega o estado | O evento é só **aviso**: o backend reconsulta a API REST e grava a projeção (robusto a eventos fora de ordem) |
+| `status` espelha o Stripe | `isActive` é função pura: PRO se `expiresAt > now`; webhook de expiração perdido não deixa ninguém PRO para sempre |
+| Tabela `subscriptions` com campos Stripe | `subscriptions` com `store` (stripe, app_store, play_store, promotional), `product_id`, `period`, `expires_at`, `will_renew`, `management_url` |
+| Cancelar = Billing Portal do Stripe | Destino depende de `store` (portal web, ajustes da App Store, Play Store) |
+| Compra só por redirect web | **No app, compra nativa** (`react-native-purchases`) via ponte WebView; **dentro do app nenhum link de pagamento web** (regra das lojas) |
+| Preço no Price do Stripe | Preço nos produtos de cada loja + Offering do RevenueCat; nunca hardcoded |
+
+Novidades de risco que a revisão traz:
+
+- **Mesmo usuário assinando em duas plataformas** (cobrança dupla): a tela de planos e o app
+  precisam checar o status antes de oferecer compra (MO.4.3).
+- **Usuário anônimo comprando antes do login**: proibido; sempre `logIn(userId)` antes da compra,
+  senão o entitlement fica preso a um ID anônimo (transferência entre contas é evento a tratar).
+- **Reembolso e chargeback** chegam por canais diferentes em cada loja; o desenho só reage ao estado
+  do entitlement no RevenueCat.
+- **Dependência externa nova** (RevenueCat): fora do ar, o backend continua servindo a última
+  projeção local; a reconciliação (MO.2.5) corrige depois. Operador novo na LGPD (MO.1.2).
+- **Pix e meios locais** na web dependem do produto web escolhido (MO.1.1); não presumir.
+- Itens das seções 9.4, 9.5 e 9.8 (carteiras, cenários, Assembleia dos Investidores) seguem válidos
+  como análise, mas estão **adiados** (Fase H do backlog). A 9.9 foi substituída pela seção 0.1. As
+  seções 9.2, 9.3, 9.6 e 9.7 foram reorganizadas pelo backlog: ligas e cosméticos viraram âncoras
+  (Fase E); trilhas extras e acesso antecipado foram adiados. A contagem "33 lições" da seção 9.3 deve ser
+  lida como "as lições centrais" (hoje mais de 40).
+
+## 0.1 Assembleia de Acionistas — desenho técnico extensível (2026-10-10)
+
+Substitui as seções 9.8 e 9.9 para a Assembleia de Acionistas (regras de produto em
+`estrategia-monetizacao.md`, seção 5). A Assembleia dos Investidores (9.8) continua válida como
+análise, adiada, e é o primeiro `kind` extra previsto.
+
+**Quem faz o quê.** O PRO vive no backend, as posições vivem no motor. Então:
+
+- **Backend, módulo `assemblies` (DDD lite):** dono do ciclo da assembleia, do catálogo de pautas, das
+  propostas e apoios, dos votos, do crédito mensal e da apuração. Consulta o plano pelo caso de uso de
+  status (seção 5), nunca por claim de JWT.
+- **Motor (Go), pacote de governança:** dono do **snapshot de posições** na data de corte (só contas
+  de usuário, `is_bot` fora) e da **aplicação do efeito** nos fundamentos. Recebe a decisão por
+  endpoint **idempotente** pelo id da assembleia e a grava em `market_events` antes de qualquer
+  efeito (regra de Event Sourcing), o que mantém o determinismo por seed (RNF08).
+- **Fronteira:** o backend pede o snapshot por uma port (`HoldingsSnapshotProvider`), calcula o
+  resultado com os pesos devolvidos e envia a decisão ao motor por outra port. Nenhum SQL do mercado
+  no Node.
+
+**Extensibilidade por `kind`.** `Assembly` carrega `kind` e `subject_ref` (empresa hoje, mercado
+inteiro amanhã). Três políticas por kind, resolvidas por um registro (sem `if kind` espalhado):
+
+| Política | `shareholder` (agora) | `investor_macro` (futuro) |
+|---|---|---|
+| Elegibilidade | posição no snapshot, nunca bot; PRO ou crédito do mês | PRO (ou crédito); sem posição |
+| Peso | ações na data de corte, entre quem votou | 1 por conta |
+| Efeito | ajuste limitado dos fundamentos da empresa | resultado entra como entrada de `selic.NextCalendarRate` ou evento macro setorial |
+
+Adicionar um kind é implementar as três políticas e registrar; o núcleo (abrir, votar, apurar,
+auditar) não muda. Um teste com um kind fictício deve provar isso.
+
+**Pontos de atenção:**
+- **Mínimo de votantes e data de corte** são regra de domínio testável, não de rota.
+- **Parâmetros** (mínimo de votantes, duração, faixas de efeito, cooldown, nível mínimo do crédito)
+  em configuração (`enginesetting` no motor, tabela de parâmetros no backend), nunca fixos.
+- **Crédito mensal:** tabela própria, 1 por mês de calendário (fuso de Brasília), consumido no
+  primeiro voto da assembleia; mudar o voto não consome outro; PRO não consome.
+- **Anti-abuso:** snapshot na abertura (ninguém compra ação só para votar), e-mail verificado e nível
+  mínimo para o crédito, bots excluídos.
+- **Ranking:** como quem possui a ação ganha ou perde posição, o efeito tem faixa pequena, é gradual
+  e tem cooldown; a calibração em escala (MO.6.9) é pré-condição para ligar em produção.
+- **Placar ao vivo:** polling curto sobre contagem em cache Redis; sem WebSocket.
+- **Pausa e auditoria no admin**, no padrão das pausas de negociação.
+
+## 1. Por que Stripe e o que isso implica (superado pela seção 0 na parte de integração)
 
 O autor já indicou Stripe como gateway. Conceitos do Stripe que este produto usa diretamente:
 
@@ -54,9 +134,8 @@ em integrações Stripe e não é aceitável aqui — dinheiro real entra no pri
 
 Documentado pra não ser redecidido do zero numa sessão futura, mas nenhuma tem resposta aqui:
 
-- Preço e moeda de exibição (BRL confirmado pelo mercado-alvo, valor não).
-- Trial gratuito (ex.: 7 dias) ou não — muda o fluxo de Checkout (`subscription_data.trial_period_days`)
-  e adiciona o evento `customer.subscription.trial_will_end` à lista da seção 6.
+- ~~Preço e moeda~~ **Decidido 2026-10-10:** BRL, mensal R$ 19,97 e anual R$ 199,97 (sujeito às faixas das lojas).
+- ~~Trial gratuito~~ **Decidido 2026-10-10:** sem trial.
 - Nota fiscal/Stripe Tax: o produto brasileiro pode exigir emissão de NF-e por fora do Stripe
   (Stripe Tax não emite NF-e brasileira). Isso é trabalho de integração adicional não coberto aqui
   se vier a ser exigido — hoje sinalizado, não dimensionado.
@@ -291,7 +370,7 @@ quem pode ser convidado, mas precisa de tabela própria (uma liga não é o rank
 O menor risco técnico da lista — reaproveita 100% a infraestrutura de `lessons` já existente
 (`backend/src/db/schema.ts` `lessons`/`userLessonProgress`).
 
-- Uma coluna nova em `lessons` (ex.: `tier: 'free' | 'pro'`, default `'free'` — as 33 lições
+- Uma coluna nova em `lessons` (ex.: `tier: 'free' | 'pro'`, default `'free'` — as lições
   centrais nunca mudam de tier, migração só adiciona a coluna, não reclassifica nada existente).
 - Gating no caso de uso que serve o conteúdo da lição (`lessons/application/useCases`) — usuário
   free vê a lição no mapa da trilha (nunca esconder que existe, mesma regra da seção 6 da
@@ -467,12 +546,9 @@ uma).
 
 ## 11. O que este documento não resolve
 
-- Preço, nome do plano, se a TCC comporta esse escopo — seção 7 de `estrategia-monetizacao.md`
-  segue em aberto, isso não muda aqui.
+- ~~Preço, nome do plano, escopo~~ resolvidos em 2026-10-10 (seção 0 e `estrategia-monetizacao.md`).
 - A decisão de produto pendente da seção 9.4 (qual carteira aparece no ranking) e da seção 9.5
   (onde roda o cenário sob demanda) — ambas precisam de resposta do autor antes de virar tarefa,
   regra 5 do `CLAUDE.md`.
-- Nenhuma tarefa foi aberta em `.claude/backlog-plataforma-investimentos.md` nem em
-  `backlog-engajamento-gamificacao.md` a partir desta análise — fica documentado aqui até o autor
-  decidir avançar, mesmo tratamento que a proposta de engajamento recebeu antes de virar backlog
-  executável.
+- ~~Nenhuma tarefa aberta~~ A análise virou `backlog-monetizacao.md` em 2026-10-10 (Fases A a G);
+  este documento fica como o "porquê" técnico.
