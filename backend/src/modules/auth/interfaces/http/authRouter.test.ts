@@ -165,6 +165,61 @@ describe('auth routes', () => {
     expect(res.headers.location).toContain('/auth/callback#token=')
   })
 
+  it('POST /auth/google/token autentica com um idToken do SDK nativo', async () => {
+    const res = await request(buildApp()).post('/auth/google/token').send({
+      idToken: 'native-id-token',
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.body.user.email).toBe('google@example.com')
+    expect(typeof res.body.token).toBe('string')
+  })
+
+  it('POST /auth/google/token recusa payload sem idToken', async () => {
+    const res = await request(buildApp()).post('/auth/google/token').send({})
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /auth/google/token responde 401 quando o idToken é inválido/expirado', async () => {
+    const app = express()
+    app.use(express.json())
+    const userRepository = createFakeUserRepository()
+    const tokenIssuer = createFakeTokenIssuer()
+    const googleIdentityProvider = {
+      buildAuthUrl: () => 'https://fake-google-auth.example.com',
+      exchangeCode: async () => {
+        throw new Error('não usado neste teste')
+      },
+      verifyIdToken: async () => {
+        throw new Error('Token used too late')
+      },
+    }
+    app.use(
+      createAuthRouter({
+        registerUser: new RegisterUserUseCase(
+          userRepository,
+          createFakePasswordHasher(),
+          tokenIssuer,
+          createFakeAccountProvisioner(),
+        ),
+        loginUser: new LoginUserUseCase(userRepository, createFakePasswordHasher(), tokenIssuer),
+        getCurrentUser: new GetCurrentUserUseCase(userRepository),
+        loginWithGoogle: new LoginWithGoogleUseCase(
+          userRepository,
+          googleIdentityProvider,
+          tokenIssuer,
+          createFakeAccountProvisioner(),
+        ),
+        googleIdentityProvider,
+        authMiddleware: createAuthMiddleware(tokenIssuer),
+      }),
+    )
+
+    const res = await request(app).post('/auth/google/token').send({ idToken: 'expired' })
+
+    expect(res.status).toBe(401)
+  })
+
   describe('POST /auth/reauth', () => {
     async function registerAndLogin(app: ReturnType<typeof buildApp>) {
       const res = await request(app).post('/auth/register').send({

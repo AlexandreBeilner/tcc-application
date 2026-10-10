@@ -6,9 +6,7 @@ import type { TokenIssuer } from '../ports/tokenIssuer'
 import type { UserRepository } from '../ports/userRepository'
 import { generateUniqueUsername, usernameFromEmail } from '../services/usernameGenerator'
 
-export interface LoginWithGoogleInput {
-  code: string
-}
+export type LoginWithGoogleInput = { code: string } | { idToken: string }
 
 export interface LoginWithGoogleResult {
   user: User
@@ -24,7 +22,10 @@ export class LoginWithGoogleUseCase {
   ) {}
 
   async execute(input: LoginWithGoogleInput): Promise<LoginWithGoogleResult> {
-    const profile = await this.googleIdentityProvider.exchangeCode(input.code)
+    const profile =
+      'code' in input
+        ? await this.googleIdentityProvider.exchangeCode(input.code)
+        : await this.googleIdentityProvider.verifyIdToken(input.idToken)
 
     const existingIdentity = await this.userRepository.findIdentity(
       'google',

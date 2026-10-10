@@ -41,8 +41,19 @@ não trava numa tela branca se a rede cair. Sem nenhuma peça de autenticação 
 por e-mail/senha já é suficiente pra validar tudo desta fase, porque é só um POST JSON (não passa
 pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 
-### 1.1 · Bootstrap do projeto React Native
+### 1.1 · Bootstrap do projeto React Native ✅
 
+- **Entregável:** `mobile/` criado na raiz do monorepo via
+  `npx @react-native-community/cli@latest init Investimenta --directory mobile --pm npm`
+  (RN 0.87.1, template TypeScript, New Architecture default). AVD `Pixel_Test_API35` (API 35,
+  x86_64) criado e validado ponta a ponta: `npx react-native run-android` builda (Gradle 9.4.1,
+  ~13min na primeira vez por download de dependência) e instala `com.investimenta` no emulador;
+  Metro precisou ser iniciado manualmente em background (`npx react-native start`) porque o
+  ambiente headless não tem terminal pra CLI abrir sozinha — sessões futuras que rodarem
+  `run-android` neste ambiente devem fazer o mesmo. Tela padrão do template ("Welcome to React
+  Native") confirmada via screenshot do emulador. `.gitignore` gerado pelo template já cobre
+  `android/app/build/`, `ios/Pods/` e `*.keystore` (com exceção do `debug.keystore`) sem
+  necessidade de ajuste manual. Nenhum arquivo fora de `mobile/` foi alterado.
 - **Descrição:** criar o projeto RN "puro" (sem Expo) que vai virar a casca do app, e confirmar que
   o toolchain nativo funciona de ponta a ponta antes de escrever qualquer lógica. Esta tarefa é
   deliberadamente separada de "adicionar o WebView" (1.2) — problema de ambiente (SDK do Android,
@@ -65,8 +76,35 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 - **Referências:** arquitetura-app-mobile §3 (onde o projeto vive), §4 (setup/versão do RN).
 - **Dependências:** nenhuma.
 
-### 1.2 · WebView real: variantes de build, rede e login e-mail/senha ponta a ponta
+### 1.2 · WebView real: variantes de build, rede e login e-mail/senha ponta a ponta ✅
 
+- **Entregável:** `react-native-webview`/`react-native-config` instalados; `App.tsx` troca a tela de
+  template por um `WebView` único apontando pra `Config.APP_WEB_URL` (`domStorageEnabled`,
+  `javaScriptEnabled`, `mixedContentMode="never"`). Duas variantes via `.env.debug`/`.env.release`
+  mapeadas em `android/app/build.gradle` (`project.ext.envConfigFiles`, sem product flavor
+  nenhum): debug aponta pro **dev server do Vite** (`http://10.0.2.2:5173`, não o gateway direto —
+  o gateway só serve API/JSON, quem serve o HTML do SPA é o Vite; achado desta sessão, corrige uma
+  imprecisão do texto original da tarefa/arquitetura), release aponta pra um placeholder de URL de
+  produção documentado (`.env.release`). `network_security_config.xml` em `android/app/src/debug/`
+  libera cleartext só pra `10.0.2.2` (WebView) **e** `localhost` (cliente de dev embutido do RN que
+  busca o bundle JS via Metro/`adb reverse`, canal totalmente separado do WebView — sem essa segunda
+  entrada o app builda mas trava em "Unable to load script." assim que abre); manifest debug-only
+  referencia o XML, manifest principal/release nunca tem essa possibilidade. Corrigido também um bug
+  de edge-to-edge descoberto ao validar: `App.tsx` original não repassava `useSafeAreaInsets()` pro
+  WebView, então a TopBar ficava atrás da status bar e a TabBar do próprio SPA ficava exatamente sob
+  a barra de navegação 3-botões do Android, tornando-a impossível de tocar — corrigido com
+  `paddingTop`/`paddingBottom` dos insets no container do WebView.
+  Validado ponta a ponta no emulador (AVD API 35) contra `docker compose up` local (gateway) +
+  `vite --host 0.0.0.0` (frontend): cadastro de usuário novo por e-mail/senha funciona (rota already
+  existente, sem depender da Fase 3), trilha completa (33 lições) carrega com dado real do backend,
+  navegação por 3+ telas (onboarding → trilha → lição → volta) e pela TabBar funciona, `docker compose`
+  precisou de `FRONTEND_URL=http://10.0.2.2:5173` (CORS bate com a origem que o WebView apresenta,
+  arquitetura-app-mobile seção 6). Sessão sobrevive a `am force-stop` + reabertura (prova de
+  `domStorageEnabled` funcionando). Build de release inspecionado (manifest mesclado) confirma
+  `android:usesCleartextTraffic="false"` e nenhuma referência a `networkSecurityConfig` — sem
+  possibilidade de cleartext. `__mocks__/react-native-config.js` e `__mocks__/react-native-webview.js`
+  adicionados pro Jest (ambos os pacotes publicam entry point ESM/nativo que quebra o parser sem
+  mock).
 - **Descrição:** esta é a tarefa que faz o app deixar de ser um template e passar a carregar o
   produto de verdade. Cobre três coisas que só fazem sentido resolvidas juntas (todas são
   pré-requisito umas das outras pra sequer conseguir ver a tela de login): a lib de WebView com as
@@ -100,8 +138,45 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
   (variáveis de ambiente/build variants).
 - **Dependências:** 1.1.
 
-### 1.3 · Navegação nativa (botão voltar Android, gesto iOS, links externos)
+### 1.3 · Navegação nativa (botão voltar Android, gesto iOS, links externos) ✅
 
+- **Entregável:** `App.tsx` ganhou `BackHandler` (`hardwareBackPress`) lendo `canGoBack` do último
+  `onNavigationStateChange` via `ref` (não `state`, pra não reregistrar o listener a cada navegação);
+  se `true`, chama `webviewRef.current.goBack()` e consome o evento; se `false`, devolve `false` e
+  deixa o comportamento padrão do Android fechar a activity — sem diálogo de confirmação (decisão do
+  autor, 2026-09-10). `allowsBackForwardNavigationGestures` (iOS, não testável neste ambiente Linux —
+  Fase 4) e `originWhitelist` (regex derivado de `Config.APP_WEB_URL`, escapando os caracteres
+  especiais da URL) + `onShouldStartLoadWithRequest` (abre `http`/`https` fora da origem via
+  `Linking.openURL`, bloqueia o carregamento dentro do WebView) também adicionados. Descoberto durante
+  a tarefa: `react-native-webview@14.0.1` publica a entrada `"typings"` do `package.json` apontando
+  pro `index.d.ts` legado da raiz (classe genérica `WebView<P = undefined>`, de antes do componente
+  virar forwardRef) — usar `ref` nesse tipo colapsa toda prop pra `never` (erro de overload do JSX); o
+  par correto do runtime atual (`lib/WebView.{android,ios}.d.ts`) por sua vez tipa o ref como
+  `RefAttributes<unknown>`, sem os métodos imperativos. Corrigido com um `types/react-native-webview.d.ts`
+  local (módulo de augmentation com o shape real: props das 3 plataformas + um `WebViewHandle` com só
+  os métodos que o app chama) e `paths` no `tsconfig.json` redirecionando `react-native-webview` pra
+  esse arquivo — não muda o bundle (Metro continua resolvendo o pacote real via `node_modules`), só a
+  lente de type-checking do `tsc`. Validado ponta a ponta no emulador (AVD API 35) contra
+  `docker compose up` + `vite --host 0.0.0.0`: navegação em 2+ níveis (Trilha → menu do avatar →
+  Configurações, URL real muda pra `/configuracoes` conforme log do gateway) e botão físico de voltar
+  volta a SPA passo a passo (Configurações → Trilha) sem fechar o app; voltar de novo na Trilha (raiz)
+  fecha a activity direto pro launcher, sem diálogo, confirmado via `dumpsys activity activities`
+  (processo do app permanece vivo, só sai de foreground). `npx tsc --noEmit`, `npm run lint` e
+  `npm test` passam.
+  **Correção pós-merge (revisão da Fase 1, PR #20):** o `originWhitelist` descrito acima — regex
+  montada na mão escapando `Config.APP_WEB_URL` — não funcionava: `react-native-webview` escapa a
+  entrada inteira de novo antes de expandir `*` pra `.*` (`WebViewShared.tsx`,
+  `originWhitelistToRegex`), então uma entrada já escapada por nós sofria duplo escape e não batia
+  nem com a própria origem do app. Efeito: toda navegação top-level (inclusive same-origin) caía no
+  ramo de "fora do whitelist" da lib e ia pro browser externo via `Linking.openURL`, e o
+  `onShouldStartLoadWithRequest` do app virava código morto — mascarado porque a validação manual
+  desta tarefa só exercitou navegação client-side (`pushState`) do SPA, que nunca passa por esse
+  código. `isWithinAppOrigin` também tinha um `startsWith(APP_WEB_URL)` enganável por um host com a
+  origem legítima como prefixo literal (ex. `.../5173.evil.com`). Ambos corrigidos: `ORIGIN_WHITELIST`
+  agora é a URL crua com um `*` literal (formato que a lib já espera, sem escape manual);
+  `isWithinAppOrigin` compara `URL.origin` exato. Testes de regressão adicionados em
+  `__tests__/App.test.tsx` (antes só havia um smoke test de render) — um deles replica o algoritmo
+  real de compilação do `originWhitelist` da lib pra travar a regressão sem emulador.
 - **Descrição:** sem isso, o app "funciona" mas se comporta como um navegador solto, não como um
   app — o botão físico de voltar do Android sai do app em vez de navegar o SPA pra trás, e qualquer
   link que o SPA abrir (ex. termos de uso) fica preso dentro do próprio WebView em vez de abrir o
@@ -124,8 +199,24 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 - **Referências:** arquitetura-app-mobile §5.
 - **Dependências:** 1.2.
 
-### 1.4 · Tela nativa de erro/sem conexão
+### 1.4 · Tela nativa de erro/sem conexão ✅
 
+- **Entregável:** `App.tsx` ganhou `renderError` no `WebView`: uma tela nativa simples ("Sem conexão" +
+  "Tentar novamente", tokens dark de `identidade-visual-tokens.md`) que chama `webviewRef.current.reload()`
+  no botão. Achado ao validar: `react-native-webview` renderiza o retorno de `renderError` como
+  **irmão** do WebView nativo dentro do mesmo container flex (`{webView}{otherView}`,
+  `WebView.android.tsx`), não como substituto — sem `position: 'absolute'` cobrindo 100% da área
+  (mesmo padrão que a própria lib usa no seu `defaultRenderError`, `WebView.styles.ts`), a tela custom
+  aparecia empilhada ABAIXO da página de erro nativa do Android/Chromium ("Webpage not available",
+  branca) em vez de escondê-la — o engine trata esse interstitial como conteúdo "carregado com
+  sucesso" e nenhum callback da lib consegue suprimi-lo, só cobrir por cima. Corrigido com
+  `position: 'absolute'` + `width`/`height: '100%'` no container da tela de erro. Validado ponta a
+  ponta no emulador (AVD API 35): matar o `vite` (não `docker compose stop` — o WebView aponta pro
+  dev server do Vite, não pro gateway direto, mesma correção de entendimento já registrada na 1.2) e
+  reabrir o app mostra só a tela nativa de erro, sem nenhum pixel da página de sistema; religar o
+  Vite e apertar "Tentar novamente" carrega a Trilha normalmente sem reiniciar o processo do app
+  (confirmado sem `am force-stop` entre o retry e a tela carregada). `npx tsc --noEmit`,
+  `npm run lint` e `npm test` passam.
 - **Descrição:** hoje, se a rede cair ou o backend estiver fora do ar, um WebView sem tratamento
   mostra uma tela de erro genérica do sistema (ou branca) — ruim pra qualquer app, e citado
   explicitamente como parte do que a Apple espera de um WebView "não preguiçoso" (Guideline 4.2,
@@ -152,8 +243,41 @@ replica sozinho — persistência de sessão robusta, upload de arquivo e downlo
 depende de login Google (Fase 3) — todas são validáveis com o login por e-mail/senha que já
 funciona desde a 1.2.
 
-### 2.1 · Ponte de sessão segura (Keychain/Keystore)
+### 2.1 · Ponte de sessão segura (Keychain/Keystore) ✅
 
+- **Entregável:** `react-native-keychain@10` instalado. `sessionBridge.ts` novo (funções puras/
+  testáveis, sem efeito colateral): `buildAuthWatcherScript()` — `injectedJavaScript` que instala
+  um `setInterval` de 1s lendo `localStorage.getItem('tcc.auth.token')` e faz `postMessage` só
+  quando o valor muda (login ou logout) — poll em vez de `onNavigationStateChange` porque o React
+  Router navega via `pushState`, que não dispara esse callback do lado nativo de forma confiável;
+  `buildAuthTokenReinjectionScript(token)` — `injectedJavaScriptBeforeContentLoaded` que reescreve a
+  mesma chave de `localStorage` a partir do valor salvo no Keychain antes do SPA montar (string
+  vazia quando não há token salvo); `parseAuthTokenChangedMessage(data)` — parser defensivo do
+  payload de `onMessage`. `App.tsx`: `AUTH_KEYCHAIN_SERVICE` (`br.com.investimenta.auth`, exportada
+  pra teste) escopando as credenciais; efeito no mount lê `Keychain.getGenericPassword` (token vira
+  state `authToken`); `<WebView>` só monta depois que essa leitura resolve (`isSessionReady`) — sem
+  esse gate, o primeiro carregamento usaria um script de reinjeção "vazio" antes do Keychain
+  responder; `handleMessage` grava (`setGenericPassword`) ou limpa (`resetGenericPassword`) o
+  Keychain conforme o token da mensagem, espelhando em `authToken` pro próximo reload reinjetar o
+  valor certo. `types/react-native-webview.d.ts` ganhou `WebViewMessageEvent` no re-export (mesmo
+  padrão de augmentation da tarefa 1.3, só faltava esse tipo). Dois mocks manuais novos pro Jest
+  (mesma mecânica de `__mocks__/react-native-config.js`): `react-native-keychain.js` (stubs
+  `jest.fn()`) e `react-native-safe-area-context.js` (reexporta o mock oficial da lib,
+  `react-native-safe-area-context/jest/mock` — sem ele `<SafeAreaProvider>` não resolve métricas
+  iniciais em ambiente Jest e nunca renderiza os filhos; achado desta sessão, nenhum teste anterior
+  havia inspecionado a árvore renderizada de `<AppContent>` de verdade). `sessionBridge.test.ts`
+  (script do watcher executado como JS puro contra um `localStorage`/`window` simulados, sem
+  emulador) e testes novos em `App.test.tsx` (leitura/gravação/limpeza do Keychain via o `<WebView>`
+  mockado) — 19 testes no total, `npx tsc --noEmit`, `npm run lint` e `npm test` passam.
+  Validado ponta a ponta no emulador (AVD API 35) contra `docker compose up` + `vite --host
+  0.0.0.0`: cadastro de conta nova grava o token no Keychain (arquivo `RN_KEYCHAIN.preferences_pb`
+  criado no instante do cadastro, confirmado via `run-as`); logout dentro do app limpa a sessão
+  (reabrir mostra a tela de login, não a Trilha); com o usuário logado, apagar só o diretório
+  `app_webview/Default/Local Storage` do app via `run-as` (mesma classe de perda de dados do WebView
+  descrita na arquitetura pro iOS, simulável no Android apagando o diretório) sem tocar no Keychain,
+  e reabrir o app — a sessão foi restaurada (tela pós-login, não a de login) e o gateway registrou
+  `GET /auth/me` retornando `200` logo na largada, confirmando que o token reinjetado era válido, não
+  sobra de estado antigo.
 - **Descrição:** mesmo com `domStorageEnabled=true` (1.2), o `localStorage` de um WebView é mais
   frágil que o de um navegador desktop — em especial no iOS, que pode liberar espaço em disco
   apagando dados de WebView sob pressão de armazenamento, deslogando o usuário sem motivo aparente.
@@ -181,8 +305,34 @@ funciona desde a 1.2.
 - **Referências:** arquitetura-app-mobile §8.
 - **Dependências:** 1.2.
 
-### 2.2 · Upload de avatar dentro do WebView
+### 2.2 · Upload de avatar dentro do WebView ✅
 
+- **Entregável:** nenhuma mudança de código — a tarefa se confirmou 100% validação, como a descrição
+  já antecipava. Investigado o source do `react-native-webview@14` (`RNCWebChromeClient.java`,
+  `RNCWebViewModuleImpl.java`): `onShowFileChooser` já é implementado incondicionalmente pela lib
+  (não depende de nenhuma prop do componente `<WebView>`) e monta o intent de seleção com
+  `Intent.ACTION_GET_CONTENT` + `CATEGORY_OPENABLE` (`getFileChooserIntent`) — isso delega a seleção
+  pro seletor do sistema via Storage Access Framework, que roda em processo próprio e devolve só uma
+  `content://` URI com permissão de leitura escopada ao app chamador. Esse caminho **nunca precisou**
+  de `READ_MEDIA_IMAGES`/`READ_EXTERNAL_STORAGE` em nenhuma API level — a permissão de mídia só é
+  necessária pra quem consulta o `MediaStore` diretamente, não pra quem usa
+  `ACTION_GET_CONTENT`/`ACTION_OPEN_DOCUMENT`. Confirmado contra o manifest real do projeto
+  (`android/app/src/main/AndroidManifest.xml`): só `INTERNET` declarado, nenhuma permissão de
+  mídia/câmera — e o fluxo funcionou sem nenhum prompt de permissão em tempo de execução. Também
+  verificado `needsCameraPermission()`: como o manifest não declara `CAMERA`, a lib nem tenta pedir
+  permissão de câmera, só oferece "Camera"/"Media picker" no chooser nativo (a opção de câmera some
+  sozinha se a permissão fosse declarada e negada, nenhum código do app precisa tratar esse caso).
+  Validado ponta a ponta no emulador (AVD API 35, `targetSdkVersion 36`/API 36) contra
+  `docker compose up` + `vite --host 0.0.0.0`, com uma imagem de teste indexada no MediaStore do
+  emulador (`adb push` + broadcast de `MEDIA_SCANNER_SCAN_FILE`): Configurações → "Alterar foto" abre
+  o chooser nativo do Android (Camera / Media picker) sem nenhum diálogo de permissão → "Media
+  picker" abre o **Photo Picker do sistema** (`com.android.providers.media.module`, o seletor
+  scoped-storage moderno, texto "This app can only access the photos you select") → selecionar a
+  imagem fecha o picker e a tela de Configurações já mostra o avatar novo (no header e no card de
+  perfil) sem reload. Log do gateway confirma `POST /me/avatar` → `200` seguido de
+  `GET /avatars/<uuid>.png` → `200` com o tamanho exato do arquivo de teste enviado (913 bytes) — a
+  imagem persistida bate com a enviada, não é cache/estado velho. `adb logcat` sem nenhum
+  `FATAL EXCEPTION`/crash durante todo o fluxo.
 - **Descrição:** a tela de Configurações (`Configuracoes/index.tsx`) já tem
   `<input type="file" accept="image/jpeg,image/png,image/webp">` pra trocar a foto de perfil.
   Versões atuais do `react-native-webview` já interceptam esse seletor nativamente (Android via
@@ -201,8 +351,58 @@ funciona desde a 1.2.
 - **Referências:** arquitetura-app-mobile §9 (parte de upload).
 - **Dependências:** 1.2, 2.1 (precisa estar logado pra chegar em Configurações).
 
-### 2.3 · Ponte de download (exportação de dados LGPD)
+### 2.3 · Ponte de download (exportação de dados LGPD) ✅
 
+- **Entregável:** `downloadBridge.ts` novo (mesmo padrão de `sessionBridge.ts`, tarefa 2.1 — funções
+  puras/testáveis, efeito colateral fica em `App.tsx`): `buildDownloadInterceptorScript()` —
+  `injectedJavaScript` que instala um listener de `click` em **fase de captura** no `document`
+  (roda antes de qualquer handler do SPA, inclusive o `link.click()` disparado por
+  `PrivacidadeLgpd.handleExport`), detecta `event.target.closest('a[download]')` com `href`
+  começando em `blob:`, chama `preventDefault`/`stopImmediatePropagation`, busca o próprio blob via
+  `fetch` (mesma origem, já em memória) e converte pra base64 via `FileReader.readAsDataURL`, então
+  `postMessage` pro nativo; `parseFileDownloadMessage(data)` — parser defensivo do payload,
+  mesma disciplina de `parseAuthTokenChangedMessage`. `App.tsx`: os dois scripts injetados (ponte de
+  sessão da 2.1 + ponte de download desta tarefa) concatenados numa constante de módulo
+  `INJECTED_JAVASCRIPT` (cada um com seu próprio guard de idempotência); `handleMessage` agora tenta
+  parsear como mensagem de auth primeiro, senão como mensagem de download.
+  **Desvio deliberado da sugestão original do backlog, com achado desta sessão:** investigado
+  `Share.js` do próprio núcleo do React Native — no Android, `Share.share()` **descarta silenciosamente
+  o campo `url`** antes de chamar o módulo nativo (`newContent = { title, message }`, sem `url`; o
+  comentário da própria lib já documenta `url` como "(iOS)" apenas) — ou seja, a sugestão original
+  ("gravar em disco com react-native-fs/blob-util, abrir `Share.share({ url: 'file://...' })`") não
+  funcionaria no Android de jeito nenhum, o arquivo nunca chegaria no share sheet. Substituído por
+  `react-native-share` (mantido ativamente, última publicação às vésperas desta sessão, com
+  `codegenConfig` próprio — compatível com New Architecture): `Share.open({ url:
+  'data:<mime>;base64,<base64>', filename, type, useInternalStorage: true, failOnCancel: false })`
+  materializa o arquivo sozinho (cache **interno** do app — `useInternalStorage: true`, nenhuma
+  permissão de storage envolvida) e monta um `Intent.ACTION_SEND` de verdade com `FileProvider`
+  próprio da lib (`RNShareFileProvider`, autoridade `<package>.rnshare.fileprovider`, já registrado
+  no manifest da própria AAR — nada pra configurar no app) — abordagem estritamente melhor que
+  gravar à mão com `react-native-fs`/`react-native-blob-util` (que exigiria configurar um
+  `FileProvider` próprio) e que a única alternativa cogitada com `react-native-blob-util` sozinho
+  (`android.actionViewIntent`, `Intent.ACTION_VIEW`) — essa última é "abrir com", não "compartilhar
+  com", e depende de existir um app instalado que trate o mime type como visualização. Nenhuma
+  dependência de `react-native-fs`/`react-native-blob-util` foi instalada. `__mocks__/react-native-
+  share.js` novo (mesma mecânica de mock manual dos outros pacotes nativos) e `downloadBridge.test.ts`
+  (script executado como JS puro contra `document`/`fetch`/`FileReader` simulados, sem emulador,
+  mesma mecânica de `sessionBridge.test.ts`) + testes novos em `App.test.tsx` cobrindo a mensagem de
+  download chamando `Share.open` com os parâmetros certos e um cancelamento/erro do share sheet não
+  derrubando o app — 29 testes no total, `npx tsc --noEmit`, `npm run lint` e `npm test` passam.
+  Validado ponta a ponta no emulador (AVD API 35) contra `docker compose up` + `vite --host
+  0.0.0.0`: Privacidade e LGPD → "Exportar dados" intercepta o clique (nenhum comportamento de
+  browser/tela branca), abre o share sheet nativo do Android (`Intent.ACTION_SEND`, confirmado —
+  ver nota abaixo) e o arquivo `meus-dados.json` foi conferido via `run-as` diretamente no
+  armazenamento privado do app (`cache/Download/meus-dados.json`), com o JSON completo e correto
+  (usuário, progressão, lições, conquistas — dados reais da conta de teste, não vazio/corrompido).
+  **Limitação do ambiente, não do app:** este AVD (imagem mínima, sem Gmail/Drive/WhatsApp/Bluetooth)
+  não tem nenhum app instalado que aceite `ACTION_SEND` de `application/json` — o share sheet abre e
+  mostra "No apps can perform this action", que é a resposta padrão do `ResolverActivity` do Android
+  quando o Intent é válido mas zero apps o resolvem, não um erro do app (mesma classe de limitação
+  que a tarefa 2.2 teria enfrentado com `react-native-blob-util`/`ACTION_VIEW`). Um dispositivo/AVD
+  com qualquer app de compartilhamento real completaria o fluxo sem nenhuma mudança de código — a
+  gravação do arquivo com conteúdo correto e o `Intent.ACTION_SEND` corretamente montado (confirmado
+  via `run-as`) são a evidência disponível de que a ponte funciona ponta a ponta até o limite do que
+  este ambiente consegue exercitar.
 - **Descrição:** o gap mais real e menos óbvio da análise. A tela de Privacidade/LGPD
   (`PrivacidadeLgpd/index.tsx:45-49`, requisito formal RNF04) gera o arquivo de exportação via
   `Blob` + `URL.createObjectURL` + `<a download>` clicado por script — um `<a download>` com URL
@@ -234,8 +434,27 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
 2026-09-10) — não o redirect atual, que o Google bloqueia dentro de WebView desde 2021
 (`disallowed_useragent`). É a fase que toca `backend/`.
 
-### 3.1 · Identificadores técnicos + Google Cloud Console (Android/iOS)
+### 3.1 · Identificadores técnicos + Google Cloud Console (Android/iOS) ✅
 
+- **Entregável:** `applicationId`/`namespace` Android já existiam como `com.investimenta`
+  (`android/app/build.gradle`, gerado desde a 1.1); bundle identifier iOS trocado do placeholder do
+  template RN (`org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)`) pra `com.investimenta`
+  (`ios/Investimenta.xcodeproj/project.pbxproj`, `PRODUCT_BUNDLE_IDENTIFIER`, configs Debug e
+  Release) — mesmo valor do Android, por consistência, já que ambos são só identificador técnico
+  interno por ora. Fingerprint SHA-1 do keystore de debug extraído de
+  `mobile/android/app/debug.keystore` (não `~/.android/debug.keystore` — o keystore vive dentro do
+  próprio projeto, achado desta sessão): `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+  Dois client IDs OAuth novos criados pelo autor no Google Cloud Console (Android: pacote
+  `com.investimenta` + SHA-1 acima; iOS: bundle ID `com.investimenta`), sem mexer no client ID "Web
+  application" existente. Documentados como `GOOGLE_ANDROID_CLIENT_ID`/`GOOGLE_IOS_CLIENT_ID` em
+  `mobile/.env.debug` **e** `mobile/.env.release` (react-native-config) — não são segredo (client ID
+  OAuth de app nativo é identificador público, diferente do client secret do fluxo web, que
+  permanece intocado), então commitá-los nesses arquivos já versionados segue a mesma disciplina do
+  resto do projeto. `.env.release` documenta explicitamente que o client ID Android ali reaproveita
+  o mesmo valor amarrado ao SHA-1 de **debug** por ora — login Google em build de release só
+  funciona de verdade depois que existir keystore de release e (outro client ID ou) um segundo
+  fingerprint cadastrado nele, trabalho da tarefa 4.3. `npx tsc --noEmit`, `npm run lint` e
+  `npm test` seguem passando; nenhum arquivo fora de `mobile/` tocado.
 - **Descrição:** pré-requisito silencioso do login Google — mesmo que ícone/nome/splash finais do
   app fiquem pra Fase 4 (decisão do autor), o **identificador técnico** do app precisa existir
   antes, porque o Google exige um client ID OAuth por plataforma amarrado a esse identificador.
@@ -261,8 +480,35 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   identidade visual).
 - **Dependências:** 1.1.
 
-### 3.2 · Backend: endpoint de troca de idToken Google por JWT
+### 3.2 · Backend: endpoint de troca de idToken Google por JWT ✅
 
+- **Entregável:** implementado exatamente como desenhado (arquivos já existentes, sem reescrita).
+  `GoogleIdentityProvider` (porta) ganhou `verifyIdToken(idToken): Promise<GoogleProfile>`.
+  `googleIdentityProviderAdapter.ts`: lógica de "verificar idToken + montar `GoogleProfile`" extraída
+  pra uma função interna (`verifyAndBuildProfile`) compartilhada por `exchangeCode` (fluxo web) e
+  pelo novo `verifyIdToken` (fluxo nativo) — **os dois usam `audience: config.clientId` (client ID
+  Web)**, achado já registrado em `runbook-mudanca-identidade-app-conta-google.md` seção 0 e
+  corrigido nesta mesma sessão antes de implementar (o texto original desta tarefa dizia Android/iOS,
+  estava errado). `createDisabledGoogleIdentityProvider` ganhou o mesmo `verifyIdToken` que lança o
+  erro claro de configuração ausente. `LoginWithGoogleInput` virou união
+  `{ code: string } | { idToken: string }`; `execute` despacha por `'code' in input` — todo o resto
+  do método (achar/criar usuário e identidade, capital inicial RNF06) inalterado. Rota nova
+  `POST /auth/google/token` em `authRouter.ts` (schema `googleTokenBodySchema` novo em
+  `schemas.ts`, `idToken: string` não-vazio): `400` se ausente, `401` com log de erro se
+  `LoginWithGoogleUseCase` lançar (idToken inválido/expirado/audience errada), `200` com
+  `{ token, user }` no mesmo formato de `/auth/login`/`/auth/register` em caso de sucesso. Rotas
+  `GET /auth/google`/`GET /auth/google/callback` inalteradas. Testes novos nos três níveis
+  (`fakeGoogleIdentityProvider.verifyIdToken`, caso de uso, adapter real com mock de
+  `google-auth-library` cobrindo sucesso/payload incompleto/erro de assinatura-expiração propagado,
+  router via supertest cobrindo sucesso/400/401) — 10 testes novos, 570 no total no módulo
+  `backend/`, todos passando. `npm run build`, `npm run lint` e `npm test` passam.
+  `.docs/backend/auth.md` documenta a rota nova, incluindo a nota sobre `audience` ser o client ID
+  Web. Validado via `docker compose up --build backend`: `POST /auth/google/token` sem `idToken` →
+  `400`; com um idToken qualquer → `401` (log do container confirma o motivo real: login Google
+  segue **desabilitado** neste ambiente por não haver `backend/.env` com credenciais reais — esta
+  sessão não tem acesso a um idToken genuíno nem ao client secret Web pra validar contra o Google de
+  verdade). Validação completa com um idToken real do SDK fica condicionada à tarefa 3.3 existir e
+  `backend/.env` estar configurado, exatamente como o critério de aceite desta tarefa já previa.
 - **Descrição:** o SDK nativo (`@react-native-google-signin/google-signin`, integrado na 3.3)
   devolve um `idToken` assinado direto no app, sem passar pelo redirect `/auth/google` atual. O
   backend precisa de uma porta de entrada nova pra validar esse `idToken` e emitir o JWT da própria
@@ -276,7 +522,13 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   - `infrastructure/google/googleIdentityProviderAdapter.ts` já usa `google-auth-library`
     (`OAuth2Client`) pro fluxo web — **a mesma lib expõe `OAuth2Client.verifyIdToken({ idToken,
     audience })`**, então não é preciso nenhuma dependência nova, só um método a mais no adapter
-    real, usando o(s) client ID(s) Android/iOS da 3.1 como `audience` aceito.
+    real. **Correção registrada em `runbook-mudanca-identidade-app-conta-google.md` (seção 0):** o
+    `audience` aceito aqui é o **client ID Web** (o mesmo `config.clientId`/`GOOGLE_CLIENT_ID` já
+    usado por `exchangeCode` acima), **não** os client IDs Android/iOS da 3.1 — o
+    `@react-native-google-signin/google-signin` emite o `idToken` com `aud` = o `webClientId`
+    passado em `GoogleSignin.configure()` (padrão documentado do Google Sign-In nativo), os client
+    IDs Android/iOS só autenticam o app nativo junto ao Google (pacote+SHA-1/bundle ID), não aparecem
+    como `audience` no token verificado pelo backend.
   - `application/useCases/loginWithGoogle.ts` (`LoginWithGoogleUseCase`) hoje recebe
     `{ code: string }` e chama `googleIdentityProvider.exchangeCode(code)`. Generalizar
     `LoginWithGoogleInput` pra uma união (`{ code: string } | { idToken: string }`) e, dentro de
@@ -299,17 +551,83 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   chegar no caso de uso); `docker compose up` validando a rota nova com um `idToken` real gerado
   por um teste manual do SDK (pode ser feito só depois da 3.3 existir, mas a rota em si é testável
   isoladamente com um `idToken` de teste/mock de integração).
-- **Referências:** arquitetura-app-mobile §7. Arquivos citados acima já existem no código —
-  conferir contra o estado atual antes de assumir, como qualquer tarefa de `backend/`.
-- **Dependências:** 3.1 (precisa do client ID como `audience`).
+- **Referências:** arquitetura-app-mobile §7, `runbook-mudanca-identidade-app-conta-google.md`
+  seção 0 (por que o `audience` é o client ID Web, não Android/iOS). Arquivos citados acima já
+  existem no código — conferir contra o estado atual antes de assumir, como qualquer tarefa de
+  `backend/`.
+- **Dependências:** nenhuma de verdade sobre o `audience` (o client ID Web já existe desde antes da
+  3.1) — mantida como dependência da 3.1 só porque a validação via `docker compose up` desta tarefa
+  usa um `idToken` real, que só dá pra gerar depois que o SDK nativo (3.3) estiver configurado com
+  os client IDs Android/iOS da 3.1.
 
-### 3.3 · Mobile: SDK nativo de login Google ponta a ponta
+### 3.3 · Mobile: SDK nativo de login Google ponta a ponta ✅ (código completo; login com conta real pendente — ver nota)
 
+- **Entregável:** `@react-native-google-signin/google-signin@16.1.5` instalado. `GoogleSignin.configure()`
+  chamado uma vez em `App.tsx` (module scope), com `webClientId` = `GOOGLE_WEB_CLIENT_ID` (client ID
+  **Web**, novo em `mobile/.env.debug`/`.env.release` — confirmado com o autor que é o mesmo já usado
+  pelo backend, não um client novo) e `iosClientId` = `GOOGLE_IOS_CLIENT_ID` (da 3.1); guardado atrás
+  de um `if (GOOGLE_WEB_CLIENT_ID)` pra não derrubar o app num ambiente sem essa env var (mesmo
+  princípio de `createDisabledGoogleIdentityProvider` no backend). UI 100% dentro do SPA — decisão
+  desta sessão, entre as duas opções que a tarefa deixava em aberto: `googleSignInBridge.ts` novo
+  (mesmo padrão de `sessionBridge.ts`/`downloadBridge.ts` — funções puras/testáveis, efeito colateral
+  fica em `App.tsx`) intercepta o clique no link "Entrar com Google" já existente
+  (`frontend/src/pages/Login/index.tsx`, **sem nenhuma mudança no frontend/**) comparando o `pathname`
+  resolvido do `href` contra `/auth/google` (funciona com o link relativo ou absoluto, indiferente de
+  `VITE_GATEWAY_URL`), e avisa o nativo via `postMessage`. `App.tsx.signInWithGoogle` (novo):
+  `GoogleSignin.hasPlayServices()` → `GoogleSignin.signIn()` → se `type !== 'success'` (cancelamento),
+  retorna sem fazer nada → `POST ${API_BASE_URL}/auth/google/token` (3.2) com o `idToken` → grava o JWT
+  recebido no Keychain (mesmo serviço da 2.1) → **reinjeta e recarrega a sessão já em execução**
+  (`webviewRef.current.injectJavaScript(buildAuthTokenReinjectionScript(token) +
+  'window.location.reload();true;')`, reaproveitando a função de reinjeção da 2.1) — necessário porque
+  o `AuthContext` do SPA só lê `localStorage` uma vez, no mount; sem o reload, o token ficaria salvo
+  mas a tela de login não perceberia a sessão nova. Qualquer falha (Play Services ausente, cancelamento
+  tratado à parte, backend rejeitando o idToken) cai num `catch` único que mostra `Alert.alert` nativo
+  ("Não foi possível entrar com o Google — Tente novamente em instantes"), sem crashar o app. `API_BASE_URL`
+  novo em `.env.debug`/`.env.release` (origem do gateway pra chamada HTTP nativa, fora do WebView — não
+  confundir com `APP_WEB_URL`, a origem da página).
+  `__mocks__/@react-native-google-signin/google-signin.js` novo; `__mocks__/react-native-webview.js`
+  evoluiu de `WebView = View` pra um `forwardRef`+`useImperativeHandle` com os métodos imperativos
+  (`injectJavaScript` etc.) como `jest.fn()` de módulo — sem isso `webviewRef.current` no teste seria a
+  instância crua da View, sem esses métodos. **Achado de teste (não numérico/de produto, só de
+  ferramenta):** `jest.requireMock('react-native-webview')` cria uma instância de mock ISOLADA da que o
+  `import` estático de `App.tsx` usa (jest.fn()s diferentes, mesmo módulo) — corrigido usando
+  `import * as WebviewModule` (mesmo mecanismo de resolução que `App.tsx`) com cast de tipo, não
+  `jest.requireMock`. `googleSignInBridge.test.ts` novo (interceptor + parser, mesma mecânica sem
+  emulador de `downloadBridge.test.ts`) e testes novos em `App.test.tsx` (sucesso completo grava
+  Keychain+reinjeta+recarrega; cancelamento não chama backend; idToken rejeitado mostra alerta sem
+  derrubar o app) — 41 testes no total no módulo mobile, `npx tsc --noEmit`, `npm run lint` e
+  `npm test` passam. `./gradlew :app:assembleDebug` builda limpo com a dependência nova (só um aviso
+  benigno da própria lib sobre atributo `package` no manifest dela, não nosso código).
+  **Validação no emulador (AVD `Pixel_Test_API35`, imagem "Default"/AOSP, sem Google Play — confirmado
+  via `adb shell pm list packages`, nenhum pacote `gms`/`vending`):** perguntado ao autor se queria criar
+  um AVD com Google Play pra validar com conta real agora ou deixar pra depois — resposta: deixar pra
+  depois. Dentro do que este AVD permite, a validação foi completa: `docker compose up --build backend`
+  com credenciais reais do Google (client ID/secret que o autor forneceu) confirma o backend rejeitando
+  um idToken forjado através da biblioteca real do Google (`google-auth-library`) contra a infraestrutura
+  real do Google (progressão de erros observada: "Wrong number of segments" → "No pem found for envelope",
+  a segunda exige uma consulta de verdade às chaves públicas do Google, não é mais o fallback
+  "desabilitado" da 3.2); app instalado e aberto no emulador sem crash com `GoogleSignin.configure()`
+  ativo (sessão restaurada de uma validação anterior carregou normalmente, sem regressão); app deslogado
+  (`pm clear`) mostra a tela de login; tocar "Entrar com Google" intercepta o clique (sem navegação de
+  browser/tela branca), chama `hasPlayServices()`, que rejeita de verdade
+  (`GooglePlayServicesUtil: com.investimenta requires the Google Play Store, but it is missing` no
+  logcat) e o app mostra o alerta nativo de erro tratado, sem crashar — prova de que o `catch` único
+  cobre esse caminho de erro real, não só em teste unitário. **O que fica pendente, explicitamente por
+  decisão do autor:** login de ponta a ponta com uma conta Google real exige um AVD com imagem
+  `google_apis_playstore` (ou dispositivo físico) e uma conta de teste — nenhuma mudança de código
+  esperada pra essa validação, só ambiente. Sessão também criou `.env` na raiz (gitignored, mesma
+  disciplina de `backend/.env`) com as credenciais reais fornecidas, pra deixar o `docker compose`
+  local já configurado quando essa validação acontecer.
 - **Descrição:** fecha o ciclo — o app obtém o `idToken` nativo, troca pelo JWT da aplicação (3.2),
   e aplica esse JWT pela mesma ponte de sessão da 2.1 (não é um mecanismo novo, é o mesmo).
 - **O que fazer:**
-  - Instalar `@react-native-google-signin/google-signin`, configurar com o client ID Android/iOS
-    da 3.1.
+  - Instalar `@react-native-google-signin/google-signin`. `GoogleSignin.configure()` precisa do
+    **`webClientId`** (o client ID **Web** já existente, mesmo valor de `GOOGLE_CLIENT_ID` do
+    backend — é isso que faz o SDK emitir um `idToken` verificável, ver
+    `runbook-mudanca-identidade-app-conta-google.md` seção 0); os client IDs Android/iOS da 3.1
+    também entram na configuração (a lib os detecta via `google-services.json`/
+    `GoogleService-Info.plist` ou explicitamente, conforme a doc da lib), mas servem só pra
+    autenticar o app nativo junto ao Google, não aparecem como `audience` do token.
   - Botão "Continuar com Google" na tela nativa (ou um gatilho a partir de um botão equivalente
     dentro do próprio WebView via `postMessage`, se preferir manter a UI de login 100% dentro do
     SPA — qualquer uma das duas funciona, mas **a chamada ao SDK do Google em si tem que ser
