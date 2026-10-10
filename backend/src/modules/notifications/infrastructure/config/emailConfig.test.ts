@@ -15,6 +15,7 @@ describe('loadEmailConfig', () => {
       delayBetweenSendsMs: 500,
       outboxIntervalMs: 5_000,
       engagementIntervalMs: 900_000,
+      streakReminderEnabled: false,
     })
   })
 
@@ -47,6 +48,7 @@ describe('loadEmailConfig', () => {
       delayBetweenSendsMs: 250,
       outboxIntervalMs: 2_000,
       engagementIntervalMs: 900_000,
+      streakReminderEnabled: false,
     })
   })
 
@@ -60,5 +62,17 @@ describe('loadEmailConfig', () => {
     expect(
       loadEmailConfig({ EMAIL_PROVIDER: 'log', EMAIL_SEND_RPS: '3' }).delayBetweenSendsMs,
     ).toBe(334)
+  })
+
+  it('o lembrete de sequência nasce desligado e só liga com EMAIL_STREAK_REMINDER=on', () => {
+    const base = { EMAIL_PROVIDER: 'log' }
+
+    expect(loadEmailConfig(base).streakReminderEnabled).toBe(false)
+    expect(loadEmailConfig({ ...base, EMAIL_STREAK_REMINDER: 'off' }).streakReminderEnabled).toBe(
+      false,
+    )
+    expect(loadEmailConfig({ ...base, EMAIL_STREAK_REMINDER: 'ON' }).streakReminderEnabled).toBe(
+      true,
+    )
   })
 })

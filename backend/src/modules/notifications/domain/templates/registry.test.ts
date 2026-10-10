@@ -233,3 +233,24 @@ describe('avisos de engajamento do EM.7.2', () => {
     expect(JSON.stringify(content)).not.toContain('—')
   })
 })
+
+describe('lembrete de sequência (EM.7.3)', () => {
+  const template = EMAIL_TEMPLATES.streak_reminder
+
+  it('é um convite: fato + pergunta, sem escassez, culpa nem contagem regressiva', () => {
+    const content = template.build(template.sample, ctx)
+    const text = bodyText('streak_reminder', template.sample)
+
+    expect(template.category).toBe('engagement')
+    expect(content.subject).toBe('Sua sequência de 12 dias segue de pé')
+    expect(text).toContain('segue de pé até as 21h de hoje')
+    expect(text).toContain('Quer fazer uma lição rápida?')
+    expect(JSON.stringify(content)).not.toMatch(
+      /perd|última chance|corra|urgente|não deixe|desperdi|falta pouco|restam|—/i,
+    )
+  })
+
+  it('sem o tamanho da sequência é recusado na montagem', () => {
+    expect(() => template.build({ name: 'Ana' }, ctx)).toThrow(/streak/)
+  })
+})

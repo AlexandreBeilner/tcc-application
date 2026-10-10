@@ -55,6 +55,7 @@ async function main() {
     deliverPendingEmails,
     purgeOldEmails,
     sendWeeklyDigest,
+    sendStreakReminders,
     emailWebhookRouter,
   } = createNotificationsComposition(db, {
     emailSender: createEmailSender(emailConfig),
@@ -83,8 +84,15 @@ async function main() {
   startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
 
   startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails)
+  // O lembrete de sequência (EM.7.3) só liga com `EMAIL_STREAK_REMINDER=on`: o plano manda medir
+  // cancelamento e reclamação do resumo semanal antes.
   startEngagementScheduler(
-    [{ name: 'resumo semanal', execute: () => sendWeeklyDigest.execute() }],
+    [
+      { name: 'resumo semanal', execute: () => sendWeeklyDigest.execute() },
+      ...(emailConfig.streakReminderEnabled
+        ? [{ name: 'lembrete de sequência', execute: () => sendStreakReminders.execute() }]
+        : []),
+    ],
     emailConfig.engagementIntervalMs,
   )
 

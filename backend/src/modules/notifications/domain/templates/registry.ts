@@ -370,6 +370,32 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       }
     },
   },
+  // Lembrete de sequência (EM.7.3, E13, D9). Categoria `engagement`. É um convite: diz o fato
+  // (a sequência segue de pé até a virada do dia) e oferece uma lição rápida, sem pedir pressa,
+  // sem culpa e sem falar do que se perde. O dia da sequência termina às 21h de Brasília.
+  streak_reminder: {
+    category: 'engagement',
+    sample: { name: 'Ana', streak: 12 },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const streak = typeof payload.streak === 'number' ? payload.streak : undefined
+      if (streak === undefined) {
+        throw new TemplatePayloadError('payload sem "streak" (número obrigatório)')
+      }
+      return {
+        subject: `Sua sequência de ${streak} dias segue de pé`,
+        preheader: 'Que tal uma lição rápida hoje?',
+        blocks: [
+          { type: 'heading', text: `Sua sequência de ${streak} dias segue de pé` },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}Ela segue de pé até as 21h de hoje (horário de Brasília). Quer fazer uma lição rápida?`,
+          },
+          { type: 'button', label: 'Fazer uma lição', url: `${appUrl}/trilha` },
+        ],
+      }
+    },
+  },
   welcome: {
     category: 'transactional',
     sample: { name: 'Ana' },

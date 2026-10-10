@@ -12,6 +12,7 @@ import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxReposito
 import { createDrizzleEmailPreferencesRepository } from './drizzleEmailPreferencesRepository'
 import { createDrizzleEmailSuppressionRepository } from './drizzleEmailSuppressionRepository'
 import { createDrizzleRecipientDirectory } from './drizzleRecipientDirectory'
+import { createDrizzleStreakReminderAudience } from './drizzleStreakReminderAudience'
 import { createDrizzleWeeklyDigestAudience } from './drizzleWeeklyDigestAudience'
 
 // Teste de integração (EM.1.1 e EM.1.4): outbox e supressão num arquivo só, porque dois arquivos migrando o mesmo banco em paralelo colidem. Só roda com TEST_DATABASE_URL apontando pra um banco
@@ -540,5 +541,65 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
     expect(rarity.holders).toBe(1)
     expect(rarity.population).toBe(players.length)
     expect(players.map((u) => u.id)).toContain(b.id)
+  })
+
+  describe('audiência do lembrete de sequência (EM.7.3)', () => {
+    const mk = async (
+      suffix: string,
+      progression: { streak: number; last: string | null },
+      user: Partial<typeof schema.users.$inferInsert> = {},
+      engagement = true,
+    ) => {
+      const [u] = await db
+        .insert(schema.users)
+        .values({
+          name: suffix,
+          email: `em73-${suffix}@exemplo.com`,
+          username: `em73_${suffix}`,
+          emailVerifiedAt: new Date('2026-01-01T00:00:00Z'),
+          ...user,
+        })
+        .onConflictDoUpdate({
+          target: schema.users.email,
+          set: { status: 'active', emailVerifiedAt: new Date('2026-01-01T00:00:00Z'), ...user },
+        })
+        .returning()
+      await db
+        .insert(schema.emailPreferences)
+        .values({ userId: u.id, engagement })
+        .onConflictDoUpdate({ target: schema.emailPreferences.userId, set: { engagement } })
+      await db
+        .insert(schema.userProgression)
+        .values({
+          userId: u.id,
+          currentStreak: progression.streak,
+          lastQualifyingActivityDate: progression.last,
+        })
+        .onConflictDoUpdate({
+          target: schema.userProgression.userId,
+          set: { currentStreak: progression.streak, lastQualifyingActivityDate: progression.last },
+        })
+      return u
+    }
+
+    it('traz só quem fez a última atividade ontem, com sequência mínima e pode receber', async () => {
+      const ok = await mk('ok', { streak: 5, last: '2026-10-11' })
+      await mk('hoje', { streak: 5, last: '2026-10-12' })
+      await mk('antes', { streak: 5, last: '2026-10-09' })
+      await mk('curta', { streak: 2, last: '2026-10-11' })
+      await mk('susp', { streak: 5, last: '2026-10-11' }, { status: 'suspended' })
+      await mk('noopt', { streak: 5, last: '2026-10-11' }, {}, false)
+      await mk('unver', { streak: 5, last: '2026-10-11' }, { emailVerifiedAt: null })
+
+      const page = await createDrizzleStreakReminderAudience(db).listPage(null, 100, {
+        lastActivityDay: '2026-10-11',
+        minStreak: 3,
+      })
+      const mine = page.filter((c) => c.address.startsWith('em73-'))
+
+      expect(mine).toEqual([
+        { userId: ok.id, address: 'em73-ok@exemplo.com', name: 'ok', currentStreak: 5 },
+      ])
+    })
   })
 })

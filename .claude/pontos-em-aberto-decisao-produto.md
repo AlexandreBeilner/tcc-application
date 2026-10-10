@@ -984,3 +984,11 @@ Nenhum ponto em aberto no momento.
 - **Por que isso pode estar errado:** a raridade é dinâmica, então no começo da vida do produto quase toda conquista é "rara" para quem a ganha primeiro, mesmo as fáceis (Primeira Operação), e deixa de ser quando a base cresce. O e-mail diz "poucas pessoas têm", o que é verdade no momento do envio, mas pode soar exagerado.
 - **Opções:** (a) manter a regra dinâmica; (b) marcar no catálogo (campo `is_rare` ou `rarity`, editável no painel de conquistas) quais conquistas são raras de verdade, independente da base; (c) combinar: marcada como rara no catálogo **e** abaixo do limite.
 - **Status:** em aberto. Aviso é opt-in, então o risco é pequeno; a decisão muda só a lista de conquistas que disparam e-mail.
+
+### 045 · Regras do lembrete de sequência em risco por e-mail (EM.7.3)
+
+- **Local:** `backend/src/modules/notifications/domain/engagement/streakReminder.ts` (`MIN_STREAK_FOR_REMINDER = 3`, janela 17h a 19h59 de Brasília) e a variável `EMAIL_STREAK_REMINDER`.
+- **Origem:** o backlog descreve o lembrete (opt-in, teto de 1 por dia, tom de convite) mas não dá a sequência mínima, o horário, nem diz se ele nasce ligado, e o plano manda medir cancelamento e reclamação do resumo semanal antes.
+- **O que foi feito (provisório):** (1) o job nasce **desligado** e só liga com `EMAIL_STREAK_REMINDER=on`, para honrar o "medir antes"; (2) só quem tem sequência de 3 dias ou mais (1 ou 2 dias não é algo a manter); (3) janela da tarde, 17h a 19h59 de Brasília, porque o dia da sequência é em UTC e termina às 21h de Brasília (o e-mail diz isso com todas as letras); (4) o teto de 1 por dia vale só para este lembrete, não é compartilhado com o resumo semanal nem com os avisos de salário e conquista.
+- **Opções:** ligar por padrão depois de olhar as métricas (cancelamento, reclamação abaixo de 0,1%, abandono da trilha); mudar a sequência mínima; ou um teto único de 1 e-mail de engajamento por dia somando os quatro tipos.
+- **Status:** em aberto. Nada a corrigir no código para decidir; é ligar a variável quando as métricas da Fase G (EM.7.1) estiverem boas.

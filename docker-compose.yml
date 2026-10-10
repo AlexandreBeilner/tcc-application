@@ -76,6 +76,8 @@ services:
       EMAIL_SEND_RPS: ${EMAIL_SEND_RPS:-}
       EMAIL_OUTBOX_INTERVAL_MS: ${EMAIL_OUTBOX_INTERVAL_MS:-}
       EMAIL_ENGAGEMENT_INTERVAL_MS: ${EMAIL_ENGAGEMENT_INTERVAL_MS:-}
+      # EM.7.3: lembrete de sequência em risco, desligado até medir o resumo semanal ("on" liga).
+      EMAIL_STREAK_REMINDER: ${EMAIL_STREAK_REMINDER:-}
       # EM.6.1: link de cancelar inscrição dos e-mails opcionais. PUBLIC_API_URL é o endereço
       # público do gateway (o `List-Unsubscribe-Post` precisa de uma URL que aceite POST);
       # EMAIL_UNSUBSCRIBE_SECRET assina o token (vazio = usa o JWT_SECRET).
