@@ -32,6 +32,8 @@ describe.skipIf(!databaseUrl)('repositórios de cobrança (banco real)', () => {
   })
 
   beforeEach(async () => {
+    await db.delete(schema.leagueMembers)
+    await db.delete(schema.leagues)
     await db.delete(schema.subscriptions)
     await db.delete(schema.billingWebhookEvents)
     await db.delete(schema.emailOutbox)

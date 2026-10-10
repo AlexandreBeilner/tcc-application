@@ -746,3 +746,51 @@ export const userCosmetics = pgTable(
     check('user_cosmetics_kind_chk', sql`${table.kind} IN ('frame', 'title')`),
   ],
 )
+
+// Ligas privadas do PRO (MO.5.2). Só quem é PRO cria (até 3 abertas por pessoa); qualquer amigo
+// convidado entra sem plano. A pontuação não é coluna: é sempre a rentabilidade percentual da
+// janela do ranking (`window_kind`), nunca patrimônio absoluto (RNF09). "Arquivada" quando o
+// dono cancela o PRO não é estado gravado, é derivado do plano do dono a cada leitura (volta
+// sozinha na reativação). `closed_at` é o encerramento voluntário pelo dono (libera a vaga das 3).
+export const leagues = pgTable(
+  'leagues',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id),
+    name: varchar('name', { length: 40 }).notNull(),
+    windowKind: text('window_kind').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('leagues_owner_idx').on(table.ownerId),
+    check('leagues_window_kind_chk', sql`${table.windowKind} IN ('week', 'month')`),
+  ],
+)
+
+// Participação numa liga. `invited` = convite pendente (só entre amigos aceitos); `active` =
+// participa do ranking da liga. O dono é um membro `active` desde a criação.
+export const leagueMembers = pgTable(
+  'league_members',
+  {
+    leagueId: uuid('league_id')
+      .notNull()
+      .references(() => leagues.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull(),
+    invitedBy: uuid('invited_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    joinedAt: timestamp('joined_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.leagueId, table.userId] }),
+    index('league_members_user_idx').on(table.userId),
+    check('league_members_status_chk', sql`${table.status} IN ('invited', 'active')`),
+  ],
+)
