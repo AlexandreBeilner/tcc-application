@@ -5,6 +5,7 @@ import { createDrizzleRecipientDirectory } from '../notifications/infrastructure
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import { ProAccessGuard } from './application/proAccessGuard'
 import { GetSubscriptionStatusUseCase } from './application/useCases/getSubscriptionStatus'
+import { DevSubscriptionUseCase } from './application/useCases/devSubscription'
 import { ListActiveProUserIdsUseCase } from './application/useCases/listActiveProUserIds'
 import { HandleBillingWebhookUseCase } from './application/useCases/handleBillingWebhook'
 import { ReconcileSubscriptionsUseCase } from './application/useCases/reconcileSubscriptions'
@@ -70,6 +71,8 @@ function createBillingCore(deps: BillingCoreDeps) {
   )
   const listActiveProUserIds = new ListActiveProUserIdsUseCase(subscriptions)
   return {
+    subscriptions,
+    cache,
     getSubscriptionStatus,
     syncSubscription,
     handleWebhook,
@@ -93,6 +96,10 @@ export function createBillingModule(deps: BillingCompositionDeps) {
   const router = createBillingRouter({
     getSubscriptionStatus: core.getSubscriptionStatus,
     authMiddleware: deps.authMiddleware,
+    dev:
+      deps.config.provider === 'dev'
+        ? new DevSubscriptionUseCase(core.subscriptions, core.cache)
+        : undefined,
     webhook:
       deps.config.provider === 'revenuecat'
         ? {

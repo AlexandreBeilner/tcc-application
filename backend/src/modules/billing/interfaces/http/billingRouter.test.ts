@@ -5,6 +5,7 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { GetSubscriptionStatusUseCase } from '../../application/useCases/getSubscriptionStatus'
 import { HandleBillingWebhookUseCase } from '../../application/useCases/handleBillingWebhook'
+import { DevSubscriptionUseCase } from '../../application/useCases/devSubscription'
 import { SyncSubscriptionUseCase } from '../../application/useCases/syncSubscription'
 import { buildSubscription } from '../../domain/subscription'
 import {
@@ -22,8 +23,8 @@ const PRO_USER = '11111111-1111-4111-8111-111111111111'
 const FREE_USER = '22222222-2222-4222-8222-222222222222'
 const SECRET = 'Bearer segredo'
 
-function buildApp(options: { webhookEnabled?: boolean } = {}) {
-  const { webhookEnabled = true } = options
+function buildApp(options: { webhookEnabled?: boolean; devEnabled?: boolean } = {}) {
+  const { webhookEnabled = true, devEnabled = false } = options
   const repo = createFakeSubscriptionRepository([
     buildSubscription(
       PRO_USER,
@@ -54,6 +55,7 @@ function buildApp(options: { webhookEnabled?: boolean } = {}) {
     createBillingRouter({
       getSubscriptionStatus: new GetSubscriptionStatusUseCase(repo, cache, () => NOW),
       authMiddleware: createAuthMiddleware(tokenIssuer),
+      dev: devEnabled ? new DevSubscriptionUseCase(repo, cache, () => NOW) : undefined,
       webhook: webhookEnabled ? { handle, isAuthorized: (h) => h === SECRET } : undefined,
     }),
   )
@@ -206,5 +208,50 @@ describe('POST /billing/webhook', () => {
       .set('Authorization', SECRET)
       .send(body())
     expect(res.status).toBe(503)
+  })
+})
+
+describe('rotas de compra falsa (/billing/dev/*)', () => {
+  beforeEach(() => {
+    process.env.JWT_SECRET = 'segredo-de-teste'
+  })
+
+  const auth = (tokenIssuer: ReturnType<typeof buildApp>['tokenIssuer']) =>
+    `Bearer ${tokenIssuer.issue({ sub: FREE_USER, role: 'user' })}`
+
+  it('fora do modo dev as rotas não existem', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const res = await request(app)
+      .post('/billing/dev/purchase')
+      .set('Authorization', auth(tokenIssuer))
+      .send({ plan: 'monthly', store: 'play_store' })
+    expect(res.status).toBe(404)
+  })
+
+  it('401 sem token', async () => {
+    const { app } = buildApp({ devEnabled: true, webhookEnabled: false })
+    const res = await request(app).post('/billing/dev/purchase').send({ plan: 'monthly', store: 'play_store' })
+    expect(res.status).toBe(401)
+  })
+
+  it('400 com plano ou loja fora do contrato', async () => {
+    const { app, tokenIssuer } = buildApp({ devEnabled: true, webhookEnabled: false })
+    for (const body of [{ plan: 'weekly', store: 'play_store' }, { plan: 'monthly', store: 'stripe' }, {}]) {
+      const res = await request(app).post('/billing/dev/purchase').set('Authorization', auth(tokenIssuer)).send(body)
+      expect(res.status).toBe(400)
+    }
+  })
+
+  it('compra vira PRO em /billing/status (billingEnabled true só com dev) e cancelar volta a free', async () => {
+    const { app, tokenIssuer } = buildApp({ devEnabled: true, webhookEnabled: false })
+    const header = auth(tokenIssuer)
+
+    const bought = await request(app).post('/billing/dev/purchase').set('Authorization', header).send({ plan: 'annual', store: 'app_store' })
+    expect(bought.status).toBe(204)
+    const pro = await request(app).get('/billing/status').set('Authorization', header)
+    expect(pro.body).toMatchObject({ isPro: true, plan: 'annual', store: 'app_store', billingEnabled: true })
+
+    const cancelled = await request(app).delete('/billing/dev/subscription').set('Authorization', header)
+    expect(cancelled.status).toBe(204)
   })
 })

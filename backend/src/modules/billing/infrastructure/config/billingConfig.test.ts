@@ -48,6 +48,15 @@ describe('loadBillingConfig', () => {
     )
   })
 
+  it('dev liga a compra falsa, sem credenciais', () => {
+    expect(loadBillingConfig({ BILLING_PROVIDER: 'dev' })).toEqual({ provider: 'dev' })
+    expect(loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'development' })).toEqual({ provider: 'dev' })
+  })
+
+  it('dev é recusado em produção', () => {
+    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'production' })).toThrow(/produção/)
+  })
+
   it('provedor desconhecido derruba a subida', () => {
     expect(() => loadBillingConfig({ BILLING_PROVIDER: 'stripe' })).toThrow(/BILLING_PROVIDER/)
   })

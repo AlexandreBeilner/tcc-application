@@ -18,6 +18,10 @@ import App, {
 import { AUTH_TOKEN_CHANGED_MESSAGE_TYPE } from '../sessionBridge';
 import { FILE_DOWNLOAD_MESSAGE_TYPE } from '../downloadBridge';
 import { GOOGLE_SIGNIN_REQUESTED_MESSAGE_TYPE } from '../googleSignInBridge';
+import {
+  PURCHASES_REQUEST_MESSAGE_TYPE,
+  PURCHASES_RESPONSE_EVENT,
+} from '../purchasesBridge';
 
 // __mocks__/react-native-webview.js exporta `injectJavaScript` como um
 // jest.fn() de módulo, mas o augmentation de tipos em
@@ -92,7 +96,10 @@ describe('ponte de sessão (Keychain)', () => {
       service: AUTH_KEYCHAIN_SERVICE,
     });
     const webview = getWebViewInstance(root.root);
-    expect(webview.props.injectedJavaScriptBeforeContentLoaded).toBe('');
+    // Só o script de plataforma (MO.4.2): nada de reinjeção de token.
+    const script = webview.props.injectedJavaScriptBeforeContentLoaded;
+    expect(script).toContain('__investimentaNative');
+    expect(script).not.toContain('localStorage');
   });
 
   test('restaura token salvo no Keychain e reinjeta no primeiro carregamento', async () => {
@@ -311,6 +318,48 @@ describe('login Google nativo (SDK, tarefa 3.3)', () => {
     );
 
     alertSpy.mockRestore();
+  });
+});
+
+describe('ponte de compra nativa (MO.4.2)', () => {
+  test('pedido de planos volta ao SPA como evento, com os planos da camada de compras', async () => {
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+    const root = await renderApp();
+    const webview = getWebViewInstance(root.root);
+
+    await ReactTestRenderer.act(async () => {
+      webview.props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: PURCHASES_REQUEST_MESSAGE_TYPE,
+            requestId: 'abc',
+            op: 'plans',
+          }),
+        },
+      });
+    });
+
+    expect(webviewMock.injectJavaScript).toHaveBeenCalledTimes(1);
+    const script = webviewMock.injectJavaScript.mock.calls[0][0] as string;
+    expect(script).toContain(PURCHASES_RESPONSE_EVENT);
+    expect(script).toContain('abc');
+    expect(script).toContain('(teste)');
+  });
+
+  test('pedido malformado é ignorado, sem resposta', async () => {
+    (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce(false);
+    const root = await renderApp();
+    const webview = getWebViewInstance(root.root);
+
+    await ReactTestRenderer.act(async () => {
+      webview.props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({ type: PURCHASES_REQUEST_MESSAGE_TYPE, op: 'plans' }),
+        },
+      });
+    });
+
+    expect(webviewMock.injectJavaScript).not.toHaveBeenCalled();
   });
 });
 

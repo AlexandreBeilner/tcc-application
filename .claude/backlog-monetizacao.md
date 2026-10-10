@@ -250,12 +250,14 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
 Todas tocam `mobile/` e dependem da Fase 1 do `backlog-app-mobile.md` (app rodando). Ver a
 arquitetura do app para a ponte WebView.
 
-### MO.4.1 · SDK de compras no app
+### MO.4.1 · SDK de compras no app ✅ parcial (2026-10-10: camada + falsa em debug; real sem conta)
 - **Descrição:** `react-native-purchases` (RevenueCat) configurado por plataforma; `logIn(userId)`
   quando a sessão do app é estabelecida e `logOut` ao sair.
 - **Aceite:** em build debug, o app lista o Offering `default` no log e o `app_user_id` coincide com
   `users.id`.
 - **Dependências:** `backlog-app-mobile.md` 2.1 (ponte de sessão), MO.1.1.
+
+- **Entregável:** `mobile/purchases/`: interface `PurchasesService` (`logIn`, `logOut`, `listPlans`, `purchase`, `restore`, `managementUrl`), implementação real `revenueCatPurchases` (única que importa `react-native-purchases@10.12.2`; operações de sessão em fila, nunca compra como anônimo, cancelamento do usuário não é erro), implementação falsa `fakePurchases` e a fábrica `createPurchasesService`, escolhida por `PURCHASES_MODE` (`.env.debug` = `fake`, `.env.release` = `revenuecat`; chaves `REVENUECAT_ANDROID_API_KEY`/`REVENUECAT_IOS_API_KEY` em branco). `App.tsx` faz `logIn(users.id)` (lido do `sub` do JWT guardado) quando a sessão é estabelecida e `logOut` ao sair. **Segurança do falso:** (a) a fábrica só o devolve com `__DEV__`, em release `fake` vira "indisponível"; (b) ele grava por `POST /billing/dev/purchase`, rota que só existe com `BILLING_PROVIDER=dev`, e a configuração do backend **recusa a subida** com `NODE_ENV=production`; (c) o produto gravado tem prefixo `dev.fake.` e os preços exibidos levam o sufixo "(teste)". O SPA não precisa distinguir: a barreira é o servidor. Backend: novo provedor `dev` (`DevSubscriptionUseCase`, `POST /billing/dev/purchase`, `DELETE /billing/dev/subscription`, documentados em `.docs/backend/billing.md`); `billingEnabled` é true também nele. **Test Store do RevenueCat:** a documentação confirma que funciona sem conta de loja, mas exige projeto e chave no RevenueCat (que também não existem) e o SDK derruba o app se a chave de Test Store for usada em release, por isso não foi usado. Testes: 8 do backend novos, 25 novos no mobile (jest). **Pendente (precisa de conta):** conferir o adaptador real contra o RevenueCat (Offering `default` com pacotes mensal/anual, `app_user_id` = `users.id` no painel, log do Offering em debug), instalar os pods no iOS (`pod install`, só em macOS).
 
 ### MO.4.2 · Ponte WebView ↔ compra nativa
 - **Descrição:** o SPA detecta que roda no app (flag injetada) e, em vez de abrir o checkout web, envia

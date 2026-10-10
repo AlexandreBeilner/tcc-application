@@ -5,13 +5,17 @@ import type {
   BillingWebhookEvent,
   HandleBillingWebhookUseCase,
 } from '../../application/useCases/handleBillingWebhook'
-import { webhookBodySchema, type WebhookBody } from './schemas'
+import type { DevSubscriptionUseCase } from '../../application/useCases/devSubscription'
+import { devPurchaseBodySchema, webhookBodySchema, type WebhookBody } from './schemas'
 
 export interface BillingRouterDeps {
   getSubscriptionStatus: GetSubscriptionStatusUseCase
   authMiddleware: AuthMiddleware
   // Sem isto a cobrança está desligada (`BILLING_PROVIDER=disabled`): o webhook responde 503 e o
   // status devolve `billingEnabled: false`, pra o frontend esconder a compra.
+  // Compra falsa do app em desenvolvimento (`BILLING_PROVIDER=dev`). Ausente em qualquer outro modo:
+  // as rotas `/billing/dev/*` nem existem (404).
+  dev?: DevSubscriptionUseCase
   webhook?: {
     handle: HandleBillingWebhookUseCase
     // Confere o cabeçalho `Authorization` do RevenueCat em tempo constante.
@@ -46,7 +50,7 @@ export function createBillingRouter(deps: BillingRouterDeps): Router {
       return
     }
     const status = await deps.getSubscriptionStatus.execute(req.auth.userId)
-    res.status(200).json({ ...status, billingEnabled: deps.webhook !== undefined })
+    res.status(200).json({ ...status, billingEnabled: deps.webhook !== undefined || deps.dev !== undefined })
   })
 
   // `POST /billing/webhook`: sem JWT, autenticado pelo cabeçalho que configuramos no RevenueCat.
@@ -76,6 +80,32 @@ export function createBillingRouter(deps: BillingRouterDeps): Router {
       res.status(500).json({ error: 'erro ao processar o webhook' })
     }
   })
+
+  if (deps.dev) {
+    const dev = deps.dev
+    router.post('/billing/dev/purchase', deps.authMiddleware.authenticate, async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+      const parsed = devPurchaseBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'corpo inválido' })
+        return
+      }
+      await dev.purchase(req.auth.userId, parsed.data.plan, parsed.data.store)
+      res.status(204).end()
+    })
+
+    router.delete('/billing/dev/subscription', deps.authMiddleware.authenticate, async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+      await dev.cancel(req.auth.userId)
+      res.status(204).end()
+    })
+  }
 
   return router
 }

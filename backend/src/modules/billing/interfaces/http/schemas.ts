@@ -18,3 +18,8 @@ export const webhookBodySchema = z.object({
 })
 
 export type WebhookBody = z.infer<typeof webhookBodySchema>
+
+export const devPurchaseBodySchema = z.object({
+  plan: z.enum(['monthly', 'annual']),
+  store: z.enum(['app_store', 'play_store']),
+})

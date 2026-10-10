@@ -4,10 +4,16 @@
 // `BILLING_PROVIDER` tem padrão `disabled`: as credenciais do RevenueCat só existem no fim, e sem
 // elas o app inteiro tem de continuar funcionando (todo mundo free, webhook fora do ar). Um deploy
 // que cobra de verdade diz `revenuecat` de propósito.
-export type BillingConfig = RevenueCatBillingConfig | DisabledBillingConfig
+export type BillingConfig = RevenueCatBillingConfig | DisabledBillingConfig | DevBillingConfig
 
 export interface DisabledBillingConfig {
   provider: 'disabled'
+}
+
+// Só para desenvolvimento (MO.4.1): o app em debug "compra" gravando uma assinatura de teste, sem
+// RevenueCat nem loja. Recusado quando `NODE_ENV=production`.
+export interface DevBillingConfig {
+  provider: 'dev'
 }
 
 export interface RevenueCatBillingConfig {
@@ -31,10 +37,16 @@ export function loadBillingConfig(env: NodeJS.ProcessEnv): BillingConfig {
   const provider = read('BILLING_PROVIDER') ?? 'disabled'
 
   if (provider === 'disabled') return { provider: 'disabled' }
+  if (provider === 'dev') {
+    if (read('NODE_ENV') === 'production') {
+      throw new Error('Configuração de cobrança inválida: BILLING_PROVIDER=dev é recusado em produção')
+    }
+    return { provider: 'dev' }
+  }
 
   const problems: string[] = []
   if (provider !== 'revenuecat') {
-    problems.push('BILLING_PROVIDER deve ser "revenuecat" ou "disabled"')
+    problems.push('BILLING_PROVIDER deve ser "revenuecat", "disabled" ou "dev"')
   }
   const secretKey = read('REVENUECAT_SECRET_KEY')
   if (!secretKey)
