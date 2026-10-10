@@ -41,6 +41,7 @@ export class FakeAnnouncementRepository implements AnnouncementRepository {
       severity: input.severity,
       kind: input.kind,
       dismissible: input.dismissible,
+      notifyByEmail: input.notifyByEmail,
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       linkedHaltId: input.linkedHaltId ?? null,

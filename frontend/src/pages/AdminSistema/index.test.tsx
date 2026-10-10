@@ -36,6 +36,7 @@ const announcement = (overrides: Partial<AdminAnnouncement>): AdminAnnouncement 
     severity: 'warning',
     kind: 'notice',
     dismissible: true,
+    notify_by_email: false,
     starts_at: '2026-10-06T10:00:00Z',
     ends_at: null,
     linked_halt_id: null,
@@ -132,6 +133,33 @@ describe('AdminSistema (N.20)', () => {
                 pause_trading: false,
             }),
         )
+    })
+
+    it('manutenção com o aviso por e-mail marcado envia notify_by_email', async () => {
+        vi.mocked(startMaintenance).mockResolvedValue(announcement({ kind: 'maintenance', severity: 'critical', dismissible: false }))
+        renderPage()
+        fireEvent.change(await screen.findByPlaceholderText('Ex: Manutenção às 22h'), { target: { value: 'Manutenção às 22h' } })
+        fireEvent.change(screen.getByPlaceholderText(/volta em cerca de uma hora/), { target: { value: 'Voltamos logo.' } })
+        fireEvent.click(screen.getByLabelText(/Avisar também por e-mail quem tem o e-mail confirmado$/))
+        fireEvent.click(screen.getByRole('button', { name: 'Iniciar manutenção' }))
+
+        await waitFor(() =>
+            expect(startMaintenance).toHaveBeenCalledWith('tok', {
+                title: 'Manutenção às 22h',
+                body: 'Voltamos logo.',
+                ends_at: null,
+                pause_trading: false,
+                notify_by_email: true,
+            }),
+        )
+        expect(await screen.findByText('Manutenção iniciada. O envio por e-mail começou.')).toBeInTheDocument()
+    })
+
+    it('e-mail no comunicado só vale para crítico: a opção fica travada em "Informativo"', async () => {
+        renderPage()
+        const checkbox = await screen.findByLabelText(/Avisar também por e-mail quem tem o e-mail confirmado \(só comunicado crítico/)
+
+        expect(checkbox).toBeDisabled()
     })
 
     it('manutenção com pausa exige digitar PAUSAR TUDO antes de enviar', async () => {

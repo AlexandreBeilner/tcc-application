@@ -81,7 +81,10 @@ export function AdminAnnouncementsPanel({ announcements, saving, endingId, onSav
                             aria-label="Severidade"
                             value={values.severity}
                             options={SEVERITY_OPTIONS}
-                            onChange={(value) => set('severity', value as AnnouncementSeverity)}
+                            onChange={(value) => {
+                                set('severity', value as AnnouncementSeverity)
+                                if (value !== 'critical') set('notifyByEmail', false)
+                            }}
                         />
                     </label>
                     <label className={styles.field}>
@@ -107,6 +110,20 @@ export function AdminAnnouncementsPanel({ announcements, saving, endingId, onSav
                     <input type="checkbox" checked={values.dismissible} onChange={(event) => set('dismissible', event.target.checked)} />
                     <span>O usuário pode dispensar a faixa</span>
                 </label>
+                {!editingId && (
+                    <label className={styles.check}>
+                        <input
+                            type="checkbox"
+                            checked={values.notifyByEmail}
+                            disabled={values.severity !== 'critical'}
+                            onChange={(event) => set('notifyByEmail', event.target.checked)}
+                        />
+                        <span>
+                            Avisar também por e-mail quem tem o e-mail confirmado (só comunicado crítico; o envio sai uma vez, na
+                            publicação)
+                        </span>
+                    </label>
+                )}
                 {touched && problem && (
                     <p className={styles.error} role="alert">
                         {problem}
@@ -142,6 +159,7 @@ export function AdminAnnouncementsPanel({ announcements, saving, endingId, onSav
                                 De {formatDateTime(announcement.starts_at)}
                                 {announcement.ends_at ? ` até ${formatDateTime(announcement.ends_at)}` : ', sem fim definido'}
                                 {announcement.dismissible ? '' : ', não dispensável'}
+                                {announcement.notify_by_email ? ', avisado por e-mail' : ''}
                                 {announcement.linked_halt_id ? ', com pausa de negociação' : ''}
                             </p>
                             {announcement.status !== 'ended' && (

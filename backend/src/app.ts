@@ -152,6 +152,12 @@ import {
   UpdateAnnouncementUseCase,
 } from './modules/announcements/application/useCases/announcements'
 import { createAnnouncementsRouter } from './modules/announcements/interfaces/http/announcementsRouter'
+import {
+  BroadcastAnnouncementEmailUseCase,
+  createBackgroundAnnouncementBroadcaster,
+} from './modules/admin/application/useCases/broadcastAnnouncementEmail'
+import { createDrizzleAnnouncementRecipients } from './modules/admin/infrastructure/announcements/drizzleAnnouncementRecipients'
+import { createNotificationsAnnouncementMailer } from './modules/admin/infrastructure/announcements/notificationsAnnouncementMailer'
 import { createInProcessAnnouncementAdmin } from './modules/admin/infrastructure/announcements/inProcessAnnouncementAdmin'
 import {
   CreateAdminAnnouncementUseCase,
@@ -355,7 +361,12 @@ export interface AppDeps {
   // Enfileirar e-mail (módulo `notifications`): o `server.ts` passa o mesmo da composição do
   // worker; sem ele, `createApp` monta um próprio sobre o mesmo banco.
   enqueueEmail?: Pick<EnqueueEmailUseCase, 'execute'>
+  // Intervalo entre e-mails de um lote (comunicado), derivado de `EMAIL_SEND_RPS` (EM.5.2).
+  emailSpacingMs?: number
 }
+
+// Espaçamento padrão do lote (2 e-mails por segundo, o padrão de `EMAIL_SEND_RPS`).
+const DEFAULT_EMAIL_SPACING_MS = 500
 
 function resolveGoogleIdentityProvider(): GoogleIdentityProvider {
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -564,9 +575,17 @@ export function createApp(deps: AppDeps = {}): Express {
     endAnnouncement: new EndAnnouncementUseCase(announcementRepository),
   })
   const listAdminAnnouncements = new ListAdminAnnouncementsUseCase(announcementAdmin)
+  const announcementBroadcaster = createBackgroundAnnouncementBroadcaster(
+    new BroadcastAnnouncementEmailUseCase(
+      createDrizzleAnnouncementRecipients(db),
+      createNotificationsAnnouncementMailer({ enqueueEmail }),
+      deps.emailSpacingMs ?? DEFAULT_EMAIL_SPACING_MS,
+    ),
+  )
   const createAdminAnnouncement = new CreateAdminAnnouncementUseCase(
     announcementAdmin,
     recordAdminAction,
+    announcementBroadcaster,
   )
   const updateAdminAnnouncement = new UpdateAdminAnnouncementUseCase(
     announcementAdmin,
@@ -582,6 +601,7 @@ export function createApp(deps: AppDeps = {}): Express {
     pauseTrading,
     liftTradingHalt,
     recordAdminAction,
+    announcementBroadcaster,
   )
   // Integridade financeira e exportação CSV (N.21).
   const integrityAdmin = createEngineIntegrityAdmin(engineUrl)

@@ -9,7 +9,7 @@ import styles from './index.module.css'
 
 export type { AdminMaintenancePanelProps, MaintenanceFormValues } from './types'
 
-const EMPTY: MaintenanceFormValues = { title: '', body: '', endsAt: '', pauseTrading: false }
+const EMPTY: MaintenanceFormValues = { title: '', body: '', endsAt: '', pauseTrading: false, notifyByEmail: false }
 
 function problemOf(values: MaintenanceFormValues): string | null {
     const title = values.title.trim()
@@ -115,6 +115,10 @@ export function AdminMaintenancePanel({ open, busy, onStart, onEnd }: AdminMaint
             <label className={styles.check}>
                 <input type="checkbox" checked={values.pauseTrading} onChange={(event) => set('pauseTrading', event.target.checked)} />
                 <span>Pausar a negociação de todo o mercado enquanto durar</span>
+            </label>
+            <label className={styles.check}>
+                <input type="checkbox" checked={values.notifyByEmail} onChange={(event) => set('notifyByEmail', event.target.checked)} />
+                <span>Avisar também por e-mail quem tem o e-mail confirmado</span>
             </label>
             {touched && problem && (
                 <p className={styles.error} role="alert">

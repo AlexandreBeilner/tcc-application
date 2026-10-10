@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FakeAnnouncementRepository } from '../../test/fakes/fakeAnnouncementRepository'
 import type { AnnouncementDraft } from '../../domain/announcement'
-import { AnnouncementConflictError, AnnouncementNotFoundError } from '../../domain/errors'
+import {
+  AnnouncementConflictError,
+  AnnouncementNotFoundError,
+  InvalidAnnouncementError,
+} from '../../domain/errors'
 import {
   CreateAnnouncementUseCase,
   EndAnnouncementUseCase,
@@ -19,6 +23,7 @@ const draft: AnnouncementDraft = {
   body: 'Texto',
   severity: 'info',
   dismissible: true,
+  notifyByEmail: false,
   startsAt: new Date(NOW.getTime() - hour),
   endsAt: new Date(NOW.getTime() + hour),
 }
@@ -64,6 +69,42 @@ describe('announcements', () => {
     })
     const entries = await new ListAnnouncementsUseCase(repository, clock).execute()
     expect(entries.map((e) => e.status).sort()).toEqual(['active', 'scheduled'])
+  })
+
+  it('e-mail só para comunicado crítico: o resto fica no banner do app (EM.5.2)', async () => {
+    await expect(
+      create.execute({
+        draft: { ...draft, severity: 'warning', notifyByEmail: true },
+        createdBy: 'a',
+      }),
+    ).rejects.toBeInstanceOf(InvalidAnnouncementError)
+
+    const critical = await create.execute({
+      draft: { ...draft, severity: 'critical', notifyByEmail: true },
+      createdBy: 'a',
+    })
+    expect(critical.notifyByEmail).toBe(true)
+  })
+
+  it('manutenção pode pedir e-mail mesmo vindo com outra severidade (nasce crítica)', async () => {
+    const maintenance = await create.execute({
+      draft: { ...draft, severity: 'info', notifyByEmail: true, endsAt: null },
+      createdBy: 'a',
+      maintenance: { linkedHaltId: null },
+    })
+    expect(maintenance.notifyByEmail).toBe(true)
+  })
+
+  it('editar não muda o pedido de e-mail (o lote já saiu)', async () => {
+    const created = await create.execute({
+      draft: { ...draft, severity: 'critical', notifyByEmail: true },
+      createdBy: 'a',
+    })
+    const updated = await new UpdateAnnouncementUseCase(repository, clock).execute(created.id, {
+      severity: 'info',
+      title: 'Outro',
+    })
+    expect(updated.notifyByEmail).toBe(true)
   })
 
   it('manutenção nasce crítica e não dispensável, e só pode haver uma em aberto', async () => {

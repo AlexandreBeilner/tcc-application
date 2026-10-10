@@ -61,7 +61,12 @@ async function main() {
     },
   )
 
-  createApp({ userRepository, emailWebhookRouter, enqueueEmail }).listen(port, () => {
+  createApp({
+    userRepository,
+    emailWebhookRouter,
+    enqueueEmail,
+    emailSpacingMs: emailConfig.delayBetweenSendsMs,
+  }).listen(port, () => {
     console.log(`backend gamificado escutando na porta ${port}`)
   })
 

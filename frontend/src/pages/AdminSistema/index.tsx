@@ -73,8 +73,16 @@ export function AdminSistema() {
             return
         }
         create.mutate(
-            { ...body, ...(startsAt ? { starts_at: startsAt } : {}), ends_at: endsAt ?? null },
-            { onSuccess: onSuccess('Comunicado publicado.'), onError },
+            {
+                ...body,
+                ...(values.notifyByEmail ? { notify_by_email: true } : {}),
+                ...(startsAt ? { starts_at: startsAt } : {}),
+                ends_at: endsAt ?? null,
+            },
+            {
+                onSuccess: onSuccess(values.notifyByEmail ? 'Comunicado publicado. O envio por e-mail começou.' : 'Comunicado publicado.'),
+                onError,
+            },
         )
     }
 
@@ -101,9 +109,13 @@ export function AdminSistema() {
                 body: values.body.trim(),
                 ends_at: localInputToIso(values.endsAt) ?? null,
                 pause_trading: values.pauseTrading,
+                ...(values.notifyByEmail ? { notify_by_email: true } : {}),
             },
             {
-                onSuccess: () => setNotice(values.pauseTrading ? 'Manutenção iniciada e negociação pausada.' : 'Manutenção iniciada.'),
+                onSuccess: () => {
+                    const base = values.pauseTrading ? 'Manutenção iniciada e negociação pausada.' : 'Manutenção iniciada.'
+                    setNotice(values.notifyByEmail ? `${base} O envio por e-mail começou.` : base)
+                },
                 onError: (err) => setError(describeAnnouncementError(err)),
             },
         )

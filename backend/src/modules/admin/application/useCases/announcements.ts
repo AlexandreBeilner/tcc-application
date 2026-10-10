@@ -3,6 +3,7 @@ import {
   TradingHaltConflictError,
   TradingHaltNotFoundError,
 } from '../../domain/errors'
+import type { AnnouncementBroadcaster } from '../ports/announcementBroadcast'
 import type {
   AdminAnnouncement,
   AnnouncementAdmin,
@@ -23,21 +24,39 @@ export class ListAdminAnnouncementsUseCase {
 }
 
 // Só o que foi pedido, em snake_case, pro log de auditoria.
-function changesPayload(changes: AnnouncementChanges): Record<string, unknown> {
+function changesPayload(
+  changes: AnnouncementChanges & { notifyByEmail?: boolean },
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {}
   if (changes.title !== undefined) payload.title = changes.title
   if (changes.body !== undefined) payload.body = changes.body
   if (changes.severity !== undefined) payload.severity = changes.severity
   if (changes.dismissible !== undefined) payload.dismissible = changes.dismissible
+  if (changes.notifyByEmail) payload.notify_by_email = true
   if (changes.startsAt !== undefined) payload.starts_at = changes.startsAt.toISOString()
   if (changes.endsAt !== undefined) payload.ends_at = changes.endsAt?.toISOString() ?? null
   return payload
+}
+
+// O comunicado já está no ar: falha ao iniciar o lote de e-mails só é logada, nunca derruba a
+// criação (o banner do app já avisa).
+async function startEmailsSafely(
+  broadcaster: AnnouncementBroadcaster,
+  announcement: AdminAnnouncement,
+): Promise<void> {
+  if (!announcement.notifyByEmail) return
+  try {
+    await broadcaster.start(announcement)
+  } catch (err) {
+    console.error('[announcements] falha ao iniciar o envio por e-mail', announcement.id, err)
+  }
 }
 
 export class CreateAdminAnnouncementUseCase {
   constructor(
     private readonly announcementAdmin: AnnouncementAdmin,
     private readonly recordAdminAction: RecordAdminActionUseCase,
+    private readonly broadcaster: AnnouncementBroadcaster,
   ) {}
 
   execute(adminId: string, input: AnnouncementInput): Promise<AdminAnnouncement> {
@@ -48,7 +67,11 @@ export class CreateAdminAnnouncementUseCase {
         targetType: 'announcement',
         payload: changesPayload(input),
       },
-      () => this.announcementAdmin.create(adminId, input),
+      async () => {
+        const created = await this.announcementAdmin.create(adminId, input)
+        await startEmailsSafely(this.broadcaster, created)
+        return created
+      },
       (created) => ({ targetId: created.id }),
     )
   }
@@ -81,6 +104,8 @@ export interface StartMaintenanceInput {
   endsAt: Date | null
   // Liga a pausa global de negociação junto com o aviso.
   pauseTrading: boolean
+  // Avisa também por e-mail quem tem e-mail verificado (E9).
+  notifyByEmail: boolean
 }
 
 // Modo de manutenção (N.20): abre um aviso crítico e, se pedido, a pausa global (N.9). A pausa
@@ -93,6 +118,7 @@ export class StartMaintenanceUseCase {
     private readonly pauseTrading: PauseTradingUseCase,
     private readonly liftTradingHalt: LiftTradingHaltUseCase,
     private readonly recordAdminAction: RecordAdminActionUseCase,
+    private readonly broadcaster: AnnouncementBroadcaster,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -116,6 +142,7 @@ export class StartMaintenanceUseCase {
           starts_at: startsAt.toISOString(),
           ends_at: input.endsAt?.toISOString() ?? null,
           pause_trading: input.pauseTrading,
+          ...(input.notifyByEmail ? { notify_by_email: true } : {}),
         },
       },
       async () => {
@@ -126,13 +153,16 @@ export class StartMaintenanceUseCase {
             })
           : null
         try {
-          return await this.announcementAdmin.startMaintenance(adminId, {
+          const created = await this.announcementAdmin.startMaintenance(adminId, {
             title: input.title,
             body: input.body,
             startsAt,
             endsAt: input.endsAt,
             linkedHaltId: halt?.id ?? null,
+            notifyByEmail: input.notifyByEmail,
           })
+          await startEmailsSafely(this.broadcaster, created)
+          return created
         } catch (err) {
           if (halt) await this.liftBestEffort(adminId, halt.id)
           throw err

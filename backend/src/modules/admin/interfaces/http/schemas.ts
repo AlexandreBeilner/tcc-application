@@ -446,6 +446,8 @@ export const createAnnouncementBodySchema = z.object({
   body: z.string(),
   severity: z.enum(['info', 'warning', 'critical']),
   dismissible: z.boolean().default(true),
+  // Também por e-mail (EM.5.2): só `severity: critical` e só a quem tem e-mail verificado.
+  notify_by_email: z.boolean().default(false),
   starts_at: isoDate.optional(),
   ends_at: isoDate.nullable().optional(),
 })
@@ -469,6 +471,7 @@ export const startMaintenanceBodySchema = z.object({
   starts_at: isoDate.optional(),
   ends_at: isoDate.nullable().optional(),
   pause_trading: z.boolean().default(false),
+  notify_by_email: z.boolean().default(false),
 })
 
 // GET /admin/exports/:dataset (N.21): período inclusivo (ISO 8601 com fuso) e teto de linhas.

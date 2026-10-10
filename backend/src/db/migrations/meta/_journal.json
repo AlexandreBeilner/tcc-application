@@ -239,6 +239,13 @@
       "when": 1792500000000,
       "tag": "0033_add_users_email_verified_at",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0034_add_announcements_notify_by_email",
+      "breakpoints": true
     }
   ]
 }

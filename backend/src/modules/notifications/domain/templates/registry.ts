@@ -1,5 +1,23 @@
-import type { EmailTemplate } from './emailContent'
+import type { EmailContent, EmailTemplate } from './emailContent'
 import { optionalString, requireString } from './emailContent'
+
+// Data e hora em Brasília, ex.: "12/10/2026 às 23:00". Valor ausente ou inválido vira `undefined`.
+function formatInstant(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
+  return `${get('day')}/${get('month')}/${get('year')} às ${get('hour')}:${get('minute')}`
+}
 
 // Catálogo de templates. Cada tarefa que envia um e-mail novo registra o dela aqui, com a
 // categoria (decide se é opcional, EM.6.1) e um payload de exemplo.
@@ -255,6 +273,44 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
           { type: 'button', label: 'Ver meu perfil', url: `${appUrl}/perfil` },
           { type: 'note', text: 'Se tiver dúvida sobre o ajuste, responda a este e-mail.' },
         ],
+      }
+    },
+  },
+  // Comunicado crítico e aviso de manutenção (EM.5.2, E9). Datas em horário de Brasília.
+  announcement: {
+    category: 'transactional',
+    sample: {
+      name: 'Ana',
+      title: 'Manutenção programada',
+      body: 'O mercado ficará pausado enquanto atualizamos o sistema.',
+      kind: 'maintenance',
+      startsAt: '2026-10-12T02:00:00.000Z',
+      endsAt: '2026-10-12T04:00:00.000Z',
+    },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const title = requireString(payload, 'title').replace(/\s+/g, ' ')
+      const body = requireString(payload, 'body')
+      const isMaintenance = payload.kind === 'maintenance'
+      const startsAt = formatInstant(payload.startsAt)
+      const endsAt = formatInstant(payload.endsAt)
+      const blocks: EmailContent['blocks'] = [
+        { type: 'heading', text: title },
+        { type: 'paragraph', text: `${name ? `Olá, ${name}. ` : ''}${body}` },
+      ]
+      if (isMaintenance && startsAt) {
+        blocks.push({
+          type: 'paragraph',
+          text: endsAt
+            ? `Quando: de ${startsAt} até ${endsAt} (horário de Brasília).`
+            : `Quando: a partir de ${startsAt} (horário de Brasília).`,
+        })
+      }
+      blocks.push({ type: 'button', label: 'Abrir a plataforma', url: appUrl })
+      return {
+        subject: isMaintenance ? `Manutenção: ${title}` : title,
+        preheader: body.slice(0, 120),
+        blocks,
       }
     },
   },

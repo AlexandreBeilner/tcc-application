@@ -1051,6 +1051,7 @@ export interface AdminAnnouncement {
     severity: AnnouncementSeverity
     kind: AnnouncementKind
     dismissible: boolean
+    notify_by_email: boolean
     starts_at: string
     ends_at: string | null
     linked_halt_id: string | null
@@ -1063,17 +1064,20 @@ export interface AnnouncementInput {
     body: string
     severity: AnnouncementSeverity
     dismissible: boolean
+    // Também por e-mail, só para crítico e só na criação (o lote sai uma vez).
+    notify_by_email?: boolean
     starts_at?: string
     ends_at?: string | null
 }
 
-export type AnnouncementPatch = Partial<AnnouncementInput>
+export type AnnouncementPatch = Partial<Omit<AnnouncementInput, 'notify_by_email'>>
 
 export interface MaintenanceInput {
     title: string
     body: string
     ends_at?: string | null
     pause_trading: boolean
+    notify_by_email?: boolean
 }
 
 export interface EndAnnouncementResult {

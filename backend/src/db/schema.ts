@@ -496,6 +496,8 @@ export const announcements = pgTable(
     severity: text('severity').notNull(),
     kind: text('kind').notNull().default('notice'),
     dismissible: boolean('dismissible').notNull().default(true),
+    // Aviso também por e-mail (EM.5.2): só a quem tem e-mail verificado, e só para crítico.
+    notifyByEmail: boolean('notify_by_email').notNull().default(false),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }),
     linkedHaltId: uuid('linked_halt_id'),

@@ -62,3 +62,43 @@ describe('avisos de ciclo de vida (EM.5.1)', () => {
     expect(JSON.stringify(adjusted)).toContain('R$ 50,00 foram creditados')
   })
 })
+
+describe('comunicado por e-mail (EM.5.2)', () => {
+  const base = {
+    name: 'Ana',
+    title: 'Manutenção programada',
+    body: 'O mercado ficará pausado.',
+    kind: 'maintenance',
+    startsAt: '2026-10-12T02:00:00.000Z',
+    endsAt: '2026-10-12T04:30:00.000Z',
+  }
+
+  it('manutenção mostra a janela em horário de Brasília', () => {
+    const text = bodyText('announcement', base)
+
+    expect(text).toContain('de 11/10/2026 às 23:00 até 12/10/2026 às 01:30 (horário de Brasília)')
+  })
+
+  it('manutenção sem fim diz "a partir de"', () => {
+    expect(bodyText('announcement', { ...base, endsAt: null })).toContain(
+      'a partir de 11/10/2026 às 23:00',
+    )
+  })
+
+  it('comunicado comum não mostra janela, e o assunto não ganha prefixo', () => {
+    const content = EMAIL_TEMPLATES.announcement.build({ ...base, kind: 'notice' }, ctx)
+
+    expect(bodyText('announcement', { ...base, kind: 'notice' })).not.toContain('Quando')
+    expect(content.subject).toBe('Manutenção programada')
+  })
+
+  it('título com quebra de linha não quebra o assunto', () => {
+    const content = EMAIL_TEMPLATES.announcement.build({ ...base, title: 'Linha 1\nLinha 2' }, ctx)
+
+    expect(content.subject).not.toMatch(/[\r\n]/)
+  })
+
+  it('é transacional: aviso crítico não é opcional', () => {
+    expect(EMAIL_TEMPLATES.announcement.category).toBe('transactional')
+  })
+})

@@ -8,7 +8,11 @@ import {
   type AnnouncementPatch,
   type AnnouncementStatus,
 } from '../../domain/announcement'
-import { AnnouncementConflictError, AnnouncementNotFoundError } from '../../domain/errors'
+import {
+  AnnouncementConflictError,
+  AnnouncementNotFoundError,
+  InvalidAnnouncementError,
+} from '../../domain/errors'
 import type { AnnouncementRepository } from '../ports/announcementRepository'
 
 export type Clock = () => Date
@@ -64,6 +68,10 @@ export class CreateAnnouncementUseCase {
   async execute(input: CreateAnnouncementInput): Promise<Announcement> {
     if (!input.maintenance) {
       const draft = validateAnnouncementDraft(input.draft)
+      // E-mail em massa só para o que é crítico: o resto fica no banner do app (EM.5.2).
+      if (draft.notifyByEmail && draft.severity !== 'critical') {
+        throw new InvalidAnnouncementError('só comunicado crítico pode ser enviado por e-mail')
+      }
       return this.repository.create({ ...draft, kind: 'notice', createdBy: input.createdBy })
     }
     const draft = validateAnnouncementDraft({

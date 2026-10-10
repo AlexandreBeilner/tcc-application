@@ -474,19 +474,19 @@ Todas exigem `role = admin`. Proxy do motor (ver `.docs/engine/admin.md#cadastro
 
 ### Comunicados e modo de manutenção (tarefa N.20)
 
-Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Criar, editar e encerrar comunicado é auditado e **não** pede senha recente (não apaga dado de ninguém). A leitura que o app do usuário faz está em `GET /announcements` (`.docs/backend/announcements.md`). Tabela `announcements` (migration `0023`, sem backfill).
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Criar, editar e encerrar comunicado é auditado e **não** pede senha recente (não apaga dado de ninguém). A leitura que o app do usuário faz está em `GET /announcements` (`.docs/backend/announcements.md`). Tabela `announcements` (migration `0023`, sem backfill; `notify_by_email` na `0034`, padrão `false`).
 
 Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto puro**, `<` e `>` são recusados (o app exibe como texto, nunca como HTML); `severity` ∈ `info` | `warning` | `critical`; janela `[starts_at, ends_at)` (no instante do fim já saiu do ar), `ends_at` ausente ou `null` = até alguém encerrar, `starts_at` ausente = agora. `status` é derivado na leitura: `scheduled` | `active` | `ended`.
 
 #### `GET /admin/announcements`
 
-- **Sucesso:** `200` → `{ announcements: [{ id, title, body, severity, kind ('notice' | 'maintenance'), dismissible, starts_at, ends_at | null, linked_halt_id | null, status, created_at }] }`, mais recente primeiro, até 100.
+- **Sucesso:** `200` → `{ announcements: [{ id, title, body, severity, kind ('notice' | 'maintenance'), dismissible, notify_by_email, starts_at, ends_at | null, linked_halt_id | null, status, created_at }] }`, mais recente primeiro, até 100.
 
 #### `POST /admin/announcements`
 
-- **Payload (JSON):** `title`, `body`, `severity`, `dismissible` (padrão `true`), `starts_at`, `ends_at` (ISO 8601 com fuso), validados por `createAnnouncementBodySchema`. O criador vem do token.
-- **Sucesso:** `201` → o comunicado.
-- **Erros:** `400` — formato (severidade fora da lista, data malformada); `422` — regra de domínio (tamanho, `<`/`>`, fim não posterior ao início).
+- **Payload (JSON):** `title`, `body`, `severity`, `dismissible` (padrão `true`), `notify_by_email` (padrão `false`), `starts_at`, `ends_at` (ISO 8601 com fuso), validados por `createAnnouncementBodySchema`. O criador vem do token.
+- **Sucesso:** `201` → o comunicado. *(EM.5.2, E9.)* Com `notify_by_email: true` o comunicado também vai por e-mail (template `announcement`, categoria `transactional`, então não é opcional) a todas as contas **ativas, com e-mail verificado e não anonimizadas**; suspenso não recebe. O lote **sai uma vez, na criação**, mesmo para comunicado agendado (a manutenção programada avisa com antecedência e o e-mail traz a janela em horário de Brasília). A resposta não espera o lote: o enfileiramento roda em segundo plano, paginado por 200 usuários, um e-mail do outbox por (comunicado, usuário) (`announcement:<id>:<userId>`, idempotente). Cada e-mail ganha um horário de envio espaçado em `1000 / EMAIL_SEND_RPS` ms, então o lote vira uma fila comprida que não passa do limite do provedor, e um e-mail de segurança enfileirado no meio (reset de senha) sai antes do restante do lote em vez de esperar o fim. Falha ao iniciar o lote só é logada: o comunicado já está no ar. Editar (`PATCH`) nunca reenvia.
+- **Erros:** `400` — formato (severidade fora da lista, data malformada); `422` — regra de domínio (tamanho, `<`/`>`, fim não posterior ao início, ou `notify_by_email` em comunicado que não é `critical`).
 - **Auditoria:** `announcement.create`, `target_type = announcement`, `target_id` = id, `payload` = o que foi pedido; recusa grava `result = failed`.
 
 #### `PATCH /admin/announcements/:id`
@@ -503,10 +503,10 @@ Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto pu
 
 #### `POST /admin/maintenance`
 
-- **Payload (JSON):** `title`, `body`, `ends_at` (opcional), `starts_at` (opcional) e `pause_trading` (padrão `false`), validados por `startMaintenanceBodySchema`.
+- **Payload (JSON):** `title`, `body`, `ends_at` (opcional), `starts_at` (opcional), `pause_trading` (padrão `false`) e `notify_by_email` (padrão `false`, mesmo lote do comunicado crítico; a manutenção já nasce crítica), validados por `startMaintenanceBodySchema`.
 - **Sucesso:** `201` → o aviso, sempre `kind = maintenance`, `severity = critical`, `dismissible = false`. Com `pause_trading`, abre antes a **pausa global de negociação** (N.9, mesma regra: ordem nova de usuário e de bot recusada, tick segue) e grava o id dela em `linked_halt_id`; encerrar a manutenção (`/end`) a levanta. Se o aviso falhar depois de a pausa abrir, a pausa é levantada de volta.
 - **Erros:** `400` formato; `401 reauth_required` **só quando `pause_trading` é `true`** (mesma ação destrutiva da pausa); `409` já existe manutenção em aberto (ou já existe pausa global vigente); `422` regra de domínio, ou `pause_trading` junto com `starts_at` (a pausa vale já, então a manutenção também começa agora).
-- **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }`; com pausa, a linha `trading.halt` também é gravada.
+- **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }` (mais `notify_by_email: true` quando pedido); com pausa, a linha `trading.halt` também é gravada.
 
 ### Integridade financeira e exportação CSV (tarefa N.21)
 

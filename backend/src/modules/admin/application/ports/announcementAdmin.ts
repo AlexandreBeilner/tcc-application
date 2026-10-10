@@ -9,6 +9,7 @@ export interface AdminAnnouncement {
   severity: AnnouncementSeverity
   kind: AnnouncementKind
   dismissible: boolean
+  notifyByEmail: boolean
   startsAt: Date
   endsAt: Date | null
   // Pausa global aberta junto com a manutenção (levantada ao encerrá-la).
@@ -23,6 +24,7 @@ export interface AnnouncementInput {
   body: string
   severity: AnnouncementSeverity
   dismissible: boolean
+  notifyByEmail: boolean
   startsAt: Date
   endsAt: Date | null
 }
@@ -42,6 +44,7 @@ export interface MaintenanceInput {
   startsAt: Date
   endsAt: Date | null
   linkedHaltId: string | null
+  notifyByEmail: boolean
 }
 
 export interface EndedAnnouncement {

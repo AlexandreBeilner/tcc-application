@@ -37,7 +37,13 @@ describe.skipIf(!databaseUrl)('drizzleAnnouncementRepository (banco real)', () =
     await pool.end()
   })
 
-  const base = { title: 'Aviso', body: 'Texto', severity: 'info' as const, dismissible: true }
+  const base = {
+    title: 'Aviso',
+    body: 'Texto',
+    severity: 'info' as const,
+    dismissible: true,
+    notifyByEmail: false,
+  }
 
   it('lista só o que está no ar na janela, fim exclusivo', async () => {
     const repository = createDrizzleAnnouncementRepository(db)

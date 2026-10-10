@@ -19,7 +19,12 @@ describe('GET /announcements', () => {
     const tokenIssuer = createFakeTokenIssuer()
     const repository = new FakeAnnouncementRepository()
     const create = new CreateAnnouncementUseCase(repository, clock)
-    const base = { body: 'Texto', severity: 'info' as const, dismissible: true }
+    const base = {
+      body: 'Texto',
+      severity: 'info' as const,
+      dismissible: true,
+      notifyByEmail: false,
+    }
     await create.execute({
       createdBy: 'a',
       draft: {

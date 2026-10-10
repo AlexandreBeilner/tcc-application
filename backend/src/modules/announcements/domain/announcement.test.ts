@@ -16,6 +16,7 @@ const draft: AnnouncementDraft = {
   body: 'O app volta em uma hora.',
   severity: 'warning',
   dismissible: true,
+  notifyByEmail: false,
   startsAt: t('2026-10-06T10:00:00Z'),
   endsAt: t('2026-10-06T12:00:00Z'),
 }

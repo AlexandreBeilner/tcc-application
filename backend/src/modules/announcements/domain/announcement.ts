@@ -17,6 +17,8 @@ export interface Announcement {
   severity: AnnouncementSeverity
   kind: AnnouncementKind
   dismissible: boolean
+  // Também enviado por e-mail na criação (EM.5.2). Não se edita depois: o e-mail já saiu.
+  notifyByEmail: boolean
   startsAt: Date
   // Nulo = fica até alguém encerrar.
   endsAt: Date | null
@@ -32,6 +34,7 @@ export interface AnnouncementDraft {
   body: string
   severity: AnnouncementSeverity
   dismissible: boolean
+  notifyByEmail: boolean
   startsAt: Date
   endsAt: Date | null
 }
@@ -102,6 +105,7 @@ export function applyAnnouncementPatch(
     body: patch.body ?? current.body,
     severity: patch.severity ?? current.severity,
     dismissible: patch.dismissible ?? current.dismissible,
+    notifyByEmail: current.notifyByEmail,
     startsAt: patch.startsAt ?? current.startsAt,
     endsAt: patch.endsAt === undefined ? current.endsAt : patch.endsAt,
   })
