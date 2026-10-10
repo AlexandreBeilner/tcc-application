@@ -52,6 +52,36 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 ---
 
+### `POST /auth/forgot-password`
+
+*(EM.2.2.)* Pede o link de redefinição de senha por e-mail.
+
+- **Autenticação:** público.
+- **Payload (JSON):** `email` (formato válido, ≤100 caracteres, normalizado pra minúsculo).
+- **Sucesso:** `202` → `{ message }`, **sempre a mesma resposta**, exista a conta ou não (não vaza quais e-mails têm conta).
+- **Erros:**
+  - `400` — `email` ausente ou em formato inválido.
+  - `429` — `{ error }` com `Retry-After`: mais de 20 pedidos em 15 minutos pelo mesmo IP **ou** mais de 3 em 15 minutos para o mesmo e-mail (conta mesmo quando a conta não existe).
+- **Regra:** `RequestPasswordResetUseCase`. Cria um token de 32 bytes aleatórios (só o hash SHA-256 vai ao banco, tabela `auth_email_tokens`), válido por **30 minutos** e de uso único; um pedido novo invalida o link anterior. O e-mail (`password_reset`, categoria segurança) entra no outbox e é enviado pelo worker, com o link `${FRONTEND_URL}/redefinir-senha#token=...` (token no fragmento, que não chega ao servidor nem a logs). Conta só-Google recebe o mesmo e-mail e cria a primeira senha pelo link. Conta `role = admin` **não** redefine senha por e-mail: nada é enviado e a tentativa fica no `admin_audit_log` como `admin.password_reset_denied`. Conta anonimizada (`@anonimo.invalid`) nunca recebe e-mail.
+
+---
+
+### `POST /auth/reset-password`
+
+*(EM.2.2.)* Conclui a redefinição com o token do link.
+
+- **Autenticação:** público (o token é a credencial).
+- **Payload (JSON):** `token` (texto, 1–200 caracteres), `newPassword` (8–72 caracteres, mesma regra do cadastro).
+- **Sucesso:** `200` → `{ message: "senha redefinida" }`.
+- **Erros:**
+  - `400` — payload fora do schema (senha curta ou longa demais, token ausente). Não consome o token.
+  - `401` — `{ error: "invalid_token" }`: token desconhecido (ou de conta admin).
+  - `410` — `{ error: "token_expired" }` (passou dos 30 minutos) ou `{ error: "token_used" }` (link já usado ou substituído por um pedido mais novo). O frontend oferece pedir outro link.
+  - `429` — mais de 20 tentativas em 15 minutos pelo mesmo IP.
+- **Regra:** `ResetPasswordUseCase`. Consome o token de forma atômica (duas requisições com o mesmo link: só uma passa), grava a senha nova, encerra **todas** as sessões abertas (`revokeSessions`, o JWT antigo passa a ser recusado) e enfileira o aviso "sua senha foi alterada" (`password_changed`, sem token no corpo). Falha ao enfileirar o aviso não desfaz a troca.
+
+---
+
 ### `GET /auth/google`
 
 - **Autenticação:** público.

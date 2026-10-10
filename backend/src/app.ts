@@ -328,6 +328,18 @@ import { UserSessionGuard } from './modules/auth/application/services/userSessio
 import { noStore } from './shared/http/noStore'
 import { createRateLimiter } from './shared/http/rateLimit'
 import { ReauthenticateUseCase } from './modules/auth/application/useCases/reauthenticate'
+import { RequestPasswordResetUseCase } from './modules/auth/application/useCases/requestPasswordReset'
+import { ResetPasswordUseCase } from './modules/auth/application/useCases/resetPassword'
+import { createNotificationsAuthMailer } from './modules/auth/infrastructure/notifications/notificationsAuthMailer'
+import { createDrizzleAuthEmailTokenRepository } from './modules/auth/infrastructure/persistence/drizzleAuthEmailTokenRepository'
+import { createCryptoEmailTokenGenerator } from './modules/auth/infrastructure/security/cryptoEmailTokenGenerator'
+import {
+  createForgotPasswordRateLimiters,
+  createResetPasswordRateLimiter,
+} from './modules/auth/interfaces/http/passwordResetRateLimit'
+import { EnqueueEmailUseCase } from './modules/notifications/application/useCases/enqueueEmail'
+import { createDrizzleEmailOutboxRepository } from './modules/notifications/infrastructure/persistence/drizzleEmailOutboxRepository'
+import { createDrizzleEmailSuppressionRepository } from './modules/notifications/infrastructure/persistence/drizzleEmailSuppressionRepository'
 import { createAuditLogAdminSessionAuditor } from './modules/admin/infrastructure/audit/auditLogAdminSessionAuditor'
 
 export interface AppDeps {
@@ -337,6 +349,9 @@ export interface AppDeps {
   // Webhook do provedor de e-mail (EM.1.4): precisa do corpo bruto, então é montado antes do
   // `express.json()`.
   emailWebhookRouter?: Router
+  // Enfileirar e-mail (módulo `notifications`): o `server.ts` passa o mesmo da composição do
+  // worker; sem ele, `createApp` monta um próprio sobre o mesmo banco.
+  enqueueEmail?: Pick<EnqueueEmailUseCase, 'execute'>
 }
 
 function resolveGoogleIdentityProvider(): GoogleIdentityProvider {
@@ -456,6 +471,32 @@ export function createApp(deps: AppDeps = {}): Express {
     passwordHasher,
     tokenIssuer,
     adminSessionAuditor,
+  )
+  const enqueueEmail =
+    deps.enqueueEmail ??
+    new EnqueueEmailUseCase(
+      createDrizzleEmailOutboxRepository(db),
+      createDrizzleEmailSuppressionRepository(db),
+    )
+  const authEmailTokens = createDrizzleAuthEmailTokenRepository(db)
+  const emailTokenGenerator = createCryptoEmailTokenGenerator()
+  const authMailer = createNotificationsAuthMailer({
+    enqueueEmail,
+    appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  })
+  const requestPasswordReset = new RequestPasswordResetUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    authMailer,
+    adminSessionAuditor,
+  )
+  const resetPassword = new ResetPasswordUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    passwordHasher,
+    authMailer,
   )
   const recordAdminAction = new RecordAdminActionUseCase(auditLogRepository)
   const listAuditLog = new ListAuditLogUseCase(auditLogRepository)
@@ -761,6 +802,9 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use('/avatars', express.static(avatarStorageDir))
   // Conferência de senha é alvo de força bruta: teto bem menor que o do painel.
   app.use('/auth/reauth', createRateLimiter({ windowMs: 5 * 60_000, max: 10 }))
+  // Recuperação de senha (EM.2.2): teto por IP e por e-mail no pedido, por IP na troca.
+  app.use('/auth/forgot-password', ...createForgotPasswordRateLimiters())
+  app.use('/auth/reset-password', createResetPasswordRateLimiter())
   app.use(
     createAuthRouter({
       registerUser,
@@ -768,6 +812,8 @@ export function createApp(deps: AppDeps = {}): Express {
       getCurrentUser,
       loginWithGoogle,
       reauthenticate,
+      requestPasswordReset,
+      resetPassword,
       googleIdentityProvider,
       authMiddleware,
     }),

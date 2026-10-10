@@ -7,6 +7,11 @@ import { LoginUserUseCase } from '../../application/useCases/loginUser'
 import { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
 import { ReauthenticateUseCase } from '../../application/useCases/reauthenticate'
 import { RegisterUserUseCase } from '../../application/useCases/registerUser'
+import { RequestPasswordResetUseCase } from '../../application/useCases/requestPasswordReset'
+import { ResetPasswordUseCase } from '../../application/useCases/resetPassword'
+import { createFakeAuthEmailTokenRepository } from '../../test/fakes/fakeAuthEmailTokenRepository'
+import { createFakeAuthMailer } from '../../test/fakes/fakeAuthMailer'
+import { createFakeEmailTokenGenerator } from '../../test/fakes/fakeEmailTokenGenerator'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeGoogleIdentityProvider } from '../../test/fakes/fakeGoogleIdentityProvider'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
@@ -25,6 +30,9 @@ function buildApp() {
     name: 'Usuário Google',
   })
   const authMiddleware = createAuthMiddleware(tokenIssuer)
+  const authEmailTokens = createFakeAuthEmailTokenRepository()
+  const authMailer = createFakeAuthMailer()
+  const emailTokenGenerator = createFakeEmailTokenGenerator()
 
   const app = express()
   app.use(express.json())
@@ -45,11 +53,24 @@ function buildApp() {
         accountProvisioner,
       ),
       reauthenticate: new ReauthenticateUseCase(userRepository, passwordHasher, tokenIssuer),
+      requestPasswordReset: new RequestPasswordResetUseCase(
+        userRepository,
+        authEmailTokens,
+        emailTokenGenerator,
+        authMailer,
+      ),
+      resetPassword: new ResetPasswordUseCase(
+        userRepository,
+        authEmailTokens,
+        emailTokenGenerator,
+        passwordHasher,
+        authMailer,
+      ),
       googleIdentityProvider,
       authMiddleware,
     }),
   )
-  return app
+  return Object.assign(app, { authMailer, authEmailTokens, userRepository })
 }
 
 describe('auth routes', () => {
@@ -205,6 +226,114 @@ describe('auth routes', () => {
           .status,
       ).toBe(400)
       expect((await request(app).post('/auth/reauth').send({ password: 'x' })).status).toBe(401)
+    })
+  })
+
+  describe('recuperação de senha (EM.2.2)', () => {
+    async function registered(app: ReturnType<typeof buildApp>) {
+      await request(app).post('/auth/register').send({
+        name: 'Ana',
+        email: 'ana@example.com',
+        username: 'anaa',
+        password: 'senha-antiga-1',
+      })
+    }
+
+    it('POST /auth/forgot-password responde 202 igual para e-mail existente e inexistente', async () => {
+      const app = buildApp()
+      await registered(app)
+
+      const existing = await request(app)
+        .post('/auth/forgot-password')
+        .send({ email: 'ana@example.com' })
+      const missing = await request(app)
+        .post('/auth/forgot-password')
+        .send({ email: 'x@example.com' })
+
+      expect(existing.status).toBe(202)
+      expect(missing.status).toBe(202)
+      expect(missing.body).toEqual(existing.body)
+      expect(app.authMailer.resets).toHaveLength(1)
+    })
+
+    it('POST /auth/forgot-password recusa e-mail inválido com 400', async () => {
+      const res = await request(buildApp())
+        .post('/auth/forgot-password')
+        .send({ email: 'nao-e-email' })
+
+      expect(res.status).toBe(400)
+    })
+
+    it('POST /auth/reset-password troca a senha, e o login passa a valer só com a nova', async () => {
+      const app = buildApp()
+      await registered(app)
+      await request(app).post('/auth/forgot-password').send({ email: 'ana@example.com' })
+      const { token } = app.authMailer.resets[0]
+
+      const reset = await request(app)
+        .post('/auth/reset-password')
+        .send({ token, newPassword: 'senha-nova-123' })
+      const oldLogin = await request(app)
+        .post('/auth/login')
+        .send({ email: 'ana@example.com', password: 'senha-antiga-1' })
+      const newLogin = await request(app)
+        .post('/auth/login')
+        .send({ email: 'ana@example.com', password: 'senha-nova-123' })
+
+      expect(reset.status).toBe(200)
+      expect(oldLogin.status).toBe(401)
+      expect(newLogin.status).toBe(200)
+    })
+
+    it('POST /auth/reset-password recusa senha curta com 400 sem gastar o token', async () => {
+      const app = buildApp()
+      await registered(app)
+      await request(app).post('/auth/forgot-password').send({ email: 'ana@example.com' })
+      const { token } = app.authMailer.resets[0]
+
+      const short = await request(app)
+        .post('/auth/reset-password')
+        .send({ token, newPassword: 'curta' })
+      const ok = await request(app)
+        .post('/auth/reset-password')
+        .send({ token, newPassword: 'senha-nova-123' })
+
+      expect(short.status).toBe(400)
+      expect(ok.status).toBe(200)
+    })
+
+    it('POST /auth/reset-password: token desconhecido 401, usado 410', async () => {
+      const app = buildApp()
+      await registered(app)
+      await request(app).post('/auth/forgot-password').send({ email: 'ana@example.com' })
+      const { token } = app.authMailer.resets[0]
+      const body = { token, newPassword: 'senha-nova-123' }
+
+      const unknown = await request(app)
+        .post('/auth/reset-password')
+        .send({ token: 'nao-existe', newPassword: 'senha-nova-123' })
+      await request(app).post('/auth/reset-password').send(body)
+      const used = await request(app).post('/auth/reset-password').send(body)
+
+      expect(unknown.status).toBe(401)
+      expect(unknown.body).toEqual({ error: 'invalid_token' })
+      expect(used.status).toBe(410)
+      expect(used.body).toEqual({ error: 'token_used' })
+    })
+
+    it('POST /auth/reset-password: token expirado devolve 410 token_expired', async () => {
+      const app = buildApp()
+      await registered(app)
+      await request(app).post('/auth/forgot-password').send({ email: 'ana@example.com' })
+      const { token } = app.authMailer.resets[0]
+      app.authEmailTokens.rows[0].expiresAt = new Date(Date.now() - 1000)
+
+      const res = await request(app)
+        .post('/auth/reset-password')
+        .send({ token, newPassword: 'senha-nova-123' })
+
+      expect(res.status).toBe(410)
+      expect(res.body).toEqual({ error: 'token_expired' })
     })
   })
 })

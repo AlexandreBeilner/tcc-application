@@ -48,17 +48,20 @@ async function main() {
       'e-mail: RESEND_WEBHOOK_SECRET ausente. Bounces e reclamações não serão processados e a lista de supressão não se alimenta: configure antes de enviar para usuários reais.',
     )
   }
-  const { deliverPendingEmails, emailWebhookRouter } = createNotificationsComposition(db, {
-    emailSender: createEmailSender(emailConfig),
-    emailRenderer: createHtmlEmailRenderer({
-      brandName: EMAIL_BRAND_NAME,
-      appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
-    }),
-    deliverOptions: { delayBetweenSendsMs: emailConfig.delayBetweenSendsMs },
-    webhook,
-  })
+  const { enqueueEmail, deliverPendingEmails, emailWebhookRouter } = createNotificationsComposition(
+    db,
+    {
+      emailSender: createEmailSender(emailConfig),
+      emailRenderer: createHtmlEmailRenderer({
+        brandName: EMAIL_BRAND_NAME,
+        appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+      }),
+      deliverOptions: { delayBetweenSendsMs: emailConfig.delayBetweenSendsMs },
+      webhook,
+    },
+  )
 
-  createApp({ userRepository, emailWebhookRouter }).listen(port, () => {
+  createApp({ userRepository, emailWebhookRouter, enqueueEmail }).listen(port, () => {
     console.log(`backend gamificado escutando na porta ${port}`)
   })
 

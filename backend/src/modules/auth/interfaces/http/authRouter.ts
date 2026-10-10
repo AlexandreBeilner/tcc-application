@@ -5,6 +5,7 @@ import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
   AccountSuspendedError,
   EmailAlreadyInUseError,
+  InvalidEmailTokenError,
   InvalidCredentialsError,
   UsernameAlreadyInUseError,
   UserNotFoundError,
@@ -15,7 +16,15 @@ import type { LoginUserUseCase } from '../../application/useCases/loginUser'
 import type { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
 import type { ReauthenticateUseCase } from '../../application/useCases/reauthenticate'
 import type { RegisterUserUseCase } from '../../application/useCases/registerUser'
-import { loginBodySchema, reauthBodySchema, registerBodySchema } from './schemas'
+import type { RequestPasswordResetUseCase } from '../../application/useCases/requestPasswordReset'
+import type { ResetPasswordUseCase } from '../../application/useCases/resetPassword'
+import {
+  forgotPasswordBodySchema,
+  loginBodySchema,
+  reauthBodySchema,
+  registerBodySchema,
+  resetPasswordBodySchema,
+} from './schemas'
 import { toPublicUser } from './userSerializer'
 
 export interface AuthRouterDeps {
@@ -24,6 +33,8 @@ export interface AuthRouterDeps {
   getCurrentUser: GetCurrentUserUseCase
   loginWithGoogle: LoginWithGoogleUseCase
   reauthenticate: ReauthenticateUseCase
+  requestPasswordReset: RequestPasswordResetUseCase
+  resetPassword: ResetPasswordUseCase
   googleIdentityProvider: GoogleIdentityProvider
   authMiddleware: AuthMiddleware
 }
@@ -69,6 +80,47 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       }
       if (err instanceof AccountSuspendedError) {
         res.status(403).json({ error: 'account_suspended' })
+        return
+      }
+      throw err
+    }
+  })
+
+  // EM.2.2: resposta idêntica exista a conta ou não (sem enumeração de e-mail). O trabalho pesado
+  // é só gravar no outbox, então o tempo de resposta também não denuncia.
+  router.post('/auth/forgot-password', async (req, res) => {
+    const parsed = forgotPasswordBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'e-mail inválido' })
+      return
+    }
+
+    await deps.requestPasswordReset.execute({ email: parsed.data.email })
+    res.status(202).json({
+      message: 'Se existir uma conta com esse e-mail, enviamos um link para redefinir a senha.',
+    })
+  })
+
+  router.post('/auth/reset-password', async (req, res) => {
+    const parsed = resetPasswordBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'dados de redefinição inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      await deps.resetPassword.execute(parsed.data)
+      res.status(200).json({ message: 'senha redefinida' })
+    } catch (err) {
+      if (err instanceof InvalidEmailTokenError) {
+        // Desconhecido => 401; existiu mas venceu ou já foi usado => 410 (o frontend oferece pedir outro).
+        if (err.reason === 'invalid') {
+          res.status(401).json({ error: 'invalid_token' })
+          return
+        }
+        res.status(410).json({ error: err.reason === 'expired' ? 'token_expired' : 'token_used' })
         return
       }
       throw err

@@ -53,3 +53,14 @@ export const changePasswordBodySchema = z.object({
   currentPassword: z.string().min(1).optional(),
   newPassword: z.string().min(8).max(72),
 })
+
+export const forgotPasswordBodySchema = z.object({
+  email: z.email().trim().toLowerCase().max(100),
+})
+
+export const resetPasswordBodySchema = z.object({
+  // O token tem 43 caracteres (32 bytes em base64url); o teto só barra lixo grande.
+  token: z.string().trim().min(1).max(200),
+  // Mesma regra do cadastro e da troca de senha: 8 a 72 (limite do bcrypt).
+  newPassword: z.string().min(8).max(72),
+})
