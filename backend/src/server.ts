@@ -14,6 +14,10 @@ import { createHtmlEmailRenderer } from './modules/notifications/infrastructure/
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createRankingSnapshotComposition } from './modules/ranking/composition'
 import { startRankingSnapshotScheduler } from './modules/ranking/infrastructure/scheduler/rankingSnapshotScheduler'
+import { createBillingReconciliation } from './modules/billing/composition'
+import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
+import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
+import { createRedisClient } from './infra/redisClient'
 import { createPayrollComposition } from './modules/payroll/composition'
 import { startPayrollScheduler } from './modules/payroll/infrastructure/scheduler/payrollScheduler'
 
@@ -25,6 +29,8 @@ const port = Number(process.env.PORT) || 3000
 const DEFAULT_PAYROLL_CHECK_INTERVAL_MS = 60 * 60 * 1000
 // Cadência do job que recalcula o ranking (3h). A tela lê o snapshot, nunca recalcula.
 const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
+// Cadência da reconciliação de assinaturas (MO.2.5): rede de segurança do webhook, não precisa ser fina.
+const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 async function main() {
   // Configuração de e-mail (EM.1.2): valida na subida, pra uma chave faltando derrubar o
@@ -101,6 +107,22 @@ async function main() {
     DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS
   const { computeRankingSnapshot } = createRankingSnapshotComposition(db, engineUrl)
   startRankingSnapshotScheduler(computeRankingSnapshot, rankingSnapshotIntervalMs)
+
+  // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
+  const billingConfig = loadBillingConfig(process.env)
+  console.log(`cobrança: provedor "${billingConfig.provider}" configurado`)
+  if (billingConfig.provider === 'revenuecat') {
+    const reconcileSubscriptions = createBillingReconciliation({
+      db,
+      redis: createRedisClient(process.env.REDIS_URL ?? 'redis://localhost:6379'),
+      config: billingConfig,
+    })
+    startBillingReconciliationScheduler(
+      reconcileSubscriptions,
+      Number(process.env.BILLING_RECONCILE_INTERVAL_MS || Number.NaN) ||
+        DEFAULT_BILLING_RECONCILE_INTERVAL_MS,
+    )
+  }
 }
 
 main().catch((err) => {

@@ -336,6 +336,8 @@ import { createEngineOrderExecutor } from './modules/market/infrastructure/engin
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
+import { createBillingModule } from './modules/billing/composition'
+import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
 import { noStore } from './shared/http/noStore'
 import { createRateLimiter } from './shared/http/rateLimit'
@@ -472,6 +474,12 @@ export function createApp(deps: AppDeps = {}): Express {
 
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
   const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
+  const billing = createBillingModule({
+    db,
+    redis: redisClient,
+    config: loadBillingConfig(process.env),
+    authMiddleware,
+  })
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
   const loginUser = new LoginUserUseCase(
@@ -1143,6 +1151,9 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
+  // Cobrança (MO.2.3): plano do usuário e webhook do RevenueCat. Desligada por padrão
+  // (`BILLING_PROVIDER`), caso em que ninguém é PRO e o webhook responde 503.
+  app.use(billing.router)
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))

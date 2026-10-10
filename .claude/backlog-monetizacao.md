@@ -121,7 +121,7 @@ iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────�
 Objetivo: o backend sabe com certeza quem é PRO, sem nenhuma feature gateada ainda. Critério da
 fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar volta para free.
 
-### MO.2.1 · Domínio, tabelas e migração
+### MO.2.1 · Domínio, tabelas e migração ✅ (2026-10-10)
 - **Descrição:** `backend/src/modules/billing/domain/` e tabelas no banco `gamification`.
 - **O que fazer:**
   - `subscription.ts`: entidade e `isActive(subscription, now)` pura (regra em M-arquitetura acima).
@@ -135,7 +135,8 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
   carência); migração aplica no `docker compose up`.
 - **Dependências:** nenhuma.
 
-### MO.2.2 · Ports e adapter RevenueCat
+- **Entregável:** `domain/subscription.ts` (`isActive`, `subscriptionState`, `willRenew`, `inferPeriod`, `toStatus`, todas puras) e `domain/errors.ts`; tabelas `subscriptions` e `billing_webhook_events` (migração `0036_add_subscriptions`, `when` ajustado à mão porque o gerado era menor que o da 0035). **Desvio:** o `status` não é coluna, é derivado na leitura a partir de fatos gravados (`expires_at`, `grace_expires_at`, `billing_issue_detected_at`, `unsubscribe_detected_at`, `refunded_at`), porque ativo/vencido depende da hora de agora. Testes de domínio table-driven; integração em banco descartável (constraints, upsert, idempotência do log).
+### MO.2.2 · Ports e adapter RevenueCat ✅ (2026-10-10)
 - **Descrição:** `application/ports/` e `infrastructure/revenuecat/`.
 - **O que fazer:**
   - Ports pequenas: `EntitlementProvider` (`getSubscriber(userId)` devolve o estado do entitlement
@@ -147,7 +148,8 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
   infraestrutura em `domain/`/`application/`.
 - **Dependências:** MO.2.1.
 
-### MO.2.3 · Webhook e status (rotas)
+- **Entregável:** ports `EntitlementProvider`, `SubscriptionRepository`, `BillingWebhookEventLog`, `BillingUserLookup`, `SubscriptionCache` e `ReconciliationAudience`; adapter REST (`GET /v1/subscribers/{id}`, Bearer com a chave secreta, timeout, resposta validada com Zod) testado com fixtures no formato da documentação; `loadBillingConfig` (`BILLING_PROVIDER` padrão `disabled`, `REVENUECAT_*`); fakes em `test/fakes/`. Formato lido da documentação atual do RevenueCat em 2026-10-10 (customer info model e tipos de evento). **Ressalva:** nunca rodou contra o RevenueCat real, só contra fixtures e um servidor falso; conferir com a chave de teste quando existir.
+### MO.2.3 · Webhook e status (rotas) ✅ (2026-10-10)
 - **Descrição:** casos de uso `HandleBillingWebhookUseCase` e `GetSubscriptionStatusUseCase` e as rotas.
 - **O que fazer:**
   - `POST /billing/webhook` (público; autenticado pelo cabeçalho secreto configurado no
@@ -166,7 +168,8 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
   cabeçalho; ponta a ponta com RevenueCat em sandbox.
 - **Dependências:** MO.2.2.
 
-### MO.2.4 · Gating e cache de status
+- **Entregável:** `GET /billing/status` e `POST /billing/webhook` (`.docs/backend/billing.md`). Webhook autenticado pelo cabeçalho `Authorization` configurado no painel (comparação em tempo constante), 200 também para repetido/ignorado, 500 em falha (o RevenueCat reenvia 5 vezes), 503 desligado. Tipos tratados: compra, renovação, cancelamento, reativação, expiração, problema de cobrança, troca de produto, extensão, pausa, reembolso revertido, transferência, resgate e alias; os demais são registrados e ignorados. **Desvio:** o id do evento é gravado só depois de processar (o efeito é convergente), então uma falha deixa o evento reprocessável. Validado de ponta a ponta com o backend local, um banco descartável e um RevenueCat falso: compra, repetição, TEST, transferência e perda do entitlement com o mesmo JWT.
+### MO.2.4 · Gating e cache de status ✅ (2026-10-10)
 - **Descrição:** o helper que toda feature PRO vai usar.
 - **O que fazer:** `GetSubscriptionStatusUseCase` consultado dentro de cada caso de uso gateado
   (nunca middleware genérico nem claim de JWT); cache Redis com TTL curto (poucos segundos),
@@ -175,7 +178,8 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
   token antigo; teste do cache (hit, invalidação).
 - **Dependências:** MO.2.3.
 
-### MO.2.5 · Reconciliação e concessão administrativa
+- **Entregável:** `GetSubscriptionStatusUseCase` com cache Redis de 30 s que guarda os **fatos** (a decisão usa a hora de agora, então vencimento no meio do TTL não vira PRO), invalidado pelo webhook; `ProAccessGuard.assertPro(userId)` lança `ProRequiredError`, que o `jsonErrorHandler` converte em `403 { error: 'requer plano PRO' }`. Testes: cancelamento vale na próxima leitura sem depender do token, vencimento no TTL, Redis fora do ar cai pro banco.
+### MO.2.5 · Reconciliação e concessão administrativa (parcial: reconciliação ✅ 2026-10-10, concessão pendente)
 - **Descrição:** rede de segurança e ferramenta de suporte.
 - **O que fazer:**
   - Job periódico (mesmo padrão dos jobs Node existentes, ex.: snapshot de ranking) que reconsulta
@@ -187,6 +191,7 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
   `.docs/backend/admin.md` e `billing.md` atualizados.
 - **Dependências:** MO.2.3.
 
+- **Entregável (parcial):** `ReconcileSubscriptionsUseCase` + `startBillingReconciliationScheduler`, ligado no `server.ts` só com `BILLING_PROVIDER=revenuecat` (a cada 6 h, `BILLING_RECONCILE_INTERVAL_MS`): reconsulta quem tem projeção parada há mais de 12 h e vigência ativa ou vencida há menos de 3 dias, em lotes de 200, mais velhos primeiro; falha isolada não para o lote. **Pendente:** concessão de PRO promocional pelo painel admin. A referência do endpoint de concessão do RevenueCat não abriu pela ferramenta de leitura (404 nas páginas v1 e v2.3); só há indício, por fontes secundárias, de `POST /v1/subscribers/{id}/entitlements/{ent}/promotional` e da regra de que a nova concessão só vale se vencer 2 h depois da existente. Não escrevi adapter de memória: conferir a documentação atual (v1 ou a API v2 de concessão e revogação) com a chave em mãos e depois ligar ao painel com auditoria.
 ---
 
 ## Fase C — Web: planos, compra e gerenciamento

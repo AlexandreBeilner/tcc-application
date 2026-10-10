@@ -666,3 +666,45 @@ export const authEmailTokens = pgTable(
     index('auth_email_tokens_user_kind_idx').on(table.userId, table.kind),
   ],
 )
+
+// Projeção local do direito ao PRO (MO.2.1), uma linha por usuário. A verdade é o RevenueCat:
+// esta tabela só guarda o que a última consulta devolveu (fatos, não um "status" gravado, porque
+// ativo/vencido depende da hora de agora). Sem linha = nunca assinou. Nunca guarda dado de cartão.
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id),
+    store: text('store').notNull(),
+    productId: varchar('product_id', { length: 200 }).notNull(),
+    period: text('period').notNull().default('unknown'),
+    purchasedAt: timestamp('purchased_at', { withTimezone: true }),
+    // Nulo = sem vencimento (concessão promocional vitalícia).
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    graceExpiresAt: timestamp('grace_expires_at', { withTimezone: true }),
+    billingIssueDetectedAt: timestamp('billing_issue_detected_at', { withTimezone: true }),
+    unsubscribeDetectedAt: timestamp('unsubscribe_detected_at', { withTimezone: true }),
+    refundedAt: timestamp('refunded_at', { withTimezone: true }),
+    isSandbox: boolean('is_sandbox').notNull().default(false),
+    managementUrl: text('management_url'),
+    lastEventAt: timestamp('last_event_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'subscriptions_store_chk',
+      sql`${table.store} IN ('app_store', 'play_store', 'stripe', 'rc_billing', 'promotional', 'other')`,
+    ),
+    check('subscriptions_period_chk', sql`${table.period} IN ('monthly', 'annual', 'unknown')`),
+  ],
+)
+
+// Eventos do webhook do RevenueCat já tratados (MO.2.1). A chave é o id do próprio evento, não um
+// id nosso. O efeito do webhook é reconsultar o estado e regravar a projeção (convergente), então
+// isto é auditoria e atalho contra reprocessar repetição, não o que garante a correção.
+export const billingWebhookEvents = pgTable('billing_webhook_events', {
+  id: varchar('id', { length: 200 }).primaryKey(),
+  eventType: varchar('event_type', { length: 60 }).notNull(),
+  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+})

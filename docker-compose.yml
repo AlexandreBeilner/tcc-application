@@ -78,6 +78,14 @@ services:
       EMAIL_ENGAGEMENT_INTERVAL_MS: ${EMAIL_ENGAGEMENT_INTERVAL_MS:-}
       # EM.7.3: lembrete de sequência em risco, desligado até medir o resumo semanal ("on" liga).
       EMAIL_STREAK_REMINDER: ${EMAIL_STREAK_REMINDER:-}
+      # MO.2.x (cobrança PRO). `disabled` é o padrão: sem credenciais todo mundo é free e o webhook
+      # responde 503. Com `revenuecat`, a chave secreta (sk_...) e o valor do cabeçalho
+      # Authorization configurado no webhook do painel são obrigatórios. Nunca commitar valores.
+      BILLING_PROVIDER: ${BILLING_PROVIDER:-disabled}
+      REVENUECAT_SECRET_KEY: ${REVENUECAT_SECRET_KEY:-}
+      REVENUECAT_WEBHOOK_AUTH: ${REVENUECAT_WEBHOOK_AUTH:-}
+      REVENUECAT_ENTITLEMENT_ID: ${REVENUECAT_ENTITLEMENT_ID:-}
+      BILLING_RECONCILE_INTERVAL_MS: ${BILLING_RECONCILE_INTERVAL_MS:-}
       # EM.6.1: link de cancelar inscrição dos e-mails opcionais. PUBLIC_API_URL é o endereço
       # público do gateway (o `List-Unsubscribe-Post` precisa de uma URL que aceite POST);
       # EMAIL_UNSUBSCRIBE_SECRET assina o token (vazio = usa o JWT_SECRET).
