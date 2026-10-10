@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
 import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
+import { PlanSection } from '../../components/organisms/PlanSection'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
 import { useTheme } from '../../features/theme/ThemeContext'
@@ -306,6 +307,7 @@ export function Configuracoes() {
                         </form>
                     </section>
 
+                    <PlanSection />
                     <EmailPreferencesSection />
 
                     <section className={styles.section}>

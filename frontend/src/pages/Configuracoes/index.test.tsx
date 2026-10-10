@@ -6,6 +6,7 @@ import { useAuth } from '../../features/auth/AuthContext'
 import { useTheme } from '../../features/theme/ThemeContext'
 import { ApiError } from '../../services/client'
 import { changePassword, listIdentities, updateProfile, uploadAvatar } from '../../services/auth'
+import { getBillingStatus } from '../../services/billing'
 import { getEmailPreferences } from '../../services/emailPreferences'
 import { Configuracoes } from '.'
 
@@ -18,6 +19,7 @@ vi.mock('../../services/auth', () => ({
     uploadAvatar: vi.fn(),
 }))
 
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn() }))
 vi.mock('../../services/emailPreferences', () => ({
     getEmailPreferences: vi.fn(),
     updateEmailPreferences: vi.fn(),
@@ -47,6 +49,16 @@ describe('Configuracoes (tela 9.2)', () => {
             setUser,
         })
         vi.mocked(useTheme).mockReturnValue({ theme: 'dark', setTheme })
+        vi.mocked(getBillingStatus).mockResolvedValue({
+            isPro: false,
+            state: 'none',
+            plan: null,
+            store: null,
+            expiresAt: null,
+            willRenew: false,
+            managementUrl: null,
+            billingEnabled: false,
+        })
         vi.mocked(getEmailPreferences).mockResolvedValue({ preferences: { social: false, engagement: false }, suppression: null })
         vi.mocked(listIdentities).mockResolvedValue({
             identities: [{ id: 'i1', userId: 'u1', providerName: 'google', providerAccountId: 'g1' }],
