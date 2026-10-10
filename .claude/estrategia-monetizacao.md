@@ -1,7 +1,7 @@
 # Proposta — estratégia de monetização
 
 > **Atualização 2026-10-10 — decisões fechadas pelo autor** (backlog em
-> `backlog-monetizacao.md`): **B2C puro**; assinatura em **web, Android e iOS** via **RevenueCat**;
+> `backlog-monetizacao.md`): **B2C puro**; assinatura em **web, Android e iOS** via **RevenueCat** (na web, Stripe conectado a ele, sem Pix);
 > **mensal R$ 19,97 e anual R$ 199,97, sem trial** (sujeito às faixas de BRL das lojas). O PRO é
 > **guiado por desejo, não por conteúdo**: âncoras são **ligas privadas e duelos**, **identidade
 > visível** (cosméticos, molduras, selo) e **retrospectiva compartilhável**, mais a **Assembleia de

@@ -20,6 +20,7 @@ os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por ses
 | M9 | O desenho da assembleia é **extensível por `kind`**; só `shareholder` entra agora. |
 | M10 | **Conselho PRO fora** do plano. |
 | M11 | Cripto/opções/derivativos, trilhas extras PRO, acesso antecipado, máquina do tempo, múltiplas carteiras e Assembleia dos Investidores ficam **adiados** (Fase H). |
+| M12 | **Checkout web: Stripe conectado ao RevenueCat** (integração Stripe Billing do RevenueCat: Stripe Checkout embutido nos fluxos do RevenueCat, Customer Portal do Stripe para cancelar e trocar plano, recibos e e-mails de cobrança pelo Stripe). O backend continua falando só com o RevenueCat. **Sem Pix**, só assinatura recorrente no cartão. Web Billing do RevenueCat descartado por ora (documentação não conferida). |
 
 **Ressalva de preço:** Apple e Google trabalham com faixas de preço pré-definidas, e o valor
 terminado em `,97` pode não existir em BRL. A tarefa MO.1.1 confirma o preço real nos consoles
@@ -88,9 +89,11 @@ iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────�
     com os dois pacotes).
   - **Confirmar o preço realmente disponível** em BRL em cada loja (M4: `19,97`/`199,97` pode virar
     `19,90`/`199,90`), registrar o valor final aqui e na estratégia.
-  - Decidir o que oferecer na web: checkout próprio do RevenueCat (Web Billing) ou a integração com
-    o Stripe Billing; conferir quais meios de pagamento cada um aceita no Brasil (Pix incluso?).
-    Registrar a escolha.
+  - Web (M12): conectar a conta Stripe ao RevenueCat (só o dono do projeto conecta; instalar o app do
+    RevenueCat pelo marketplace do Stripe), criar os produtos e preços recorrentes no Stripe (um
+    preço por produto, só valor fixo recorrente, sem camadas nem uso), importá-los no catálogo do
+    RevenueCat e ligá-los ao Offering `default`. Registrar o domínio no Stripe se a compra for
+    iniciada pelo SDK web. Conferir a documentação atual na hora, a integração muda.
 - **Aceite:** `Offering default` visível no painel do RevenueCat com os dois pacotes nas três lojas
   em modo de teste/sandbox; preço final registrado neste arquivo.
 - **Dependências:** nenhuma.
@@ -205,8 +208,9 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
 - **Dependências:** MO.2.3.
 
 ### MO.3.2 · Compra na web e retorno
-- **Descrição:** botão de assinar abre o checkout web escolhido na MO.1.1, com `app_user_id` =
-  `users.id`; ao voltar, a tela consulta `GET /billing/status` em polling curto até confirmar
+- **Descrição:** botão de assinar abre o Stripe Checkout pelo fluxo do RevenueCat (M12), com
+  `app_user_id` = `users.id` (conferir na documentação atual de compra web como o id é passado, antes
+  de implementar); ao voltar, a tela consulta `GET /billing/status` em polling curto até confirmar
   (a verdade é o webhook, nunca o redirect de sucesso).
 - **Aceite:** compra em sandbox leva a PRO na tela sem recarregar; cancelamento no checkout volta
   sem efeito; estado "processando" tem limite de tempo e mensagem de ajuda.

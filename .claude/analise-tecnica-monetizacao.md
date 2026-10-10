@@ -41,7 +41,7 @@ Novidades de risco que a revisão traz:
   do entitlement no RevenueCat.
 - **Dependência externa nova** (RevenueCat): fora do ar, o backend continua servindo a última
   projeção local; a reconciliação (MO.2.5) corrige depois. Operador novo na LGPD (MO.1.2).
-- **Pix e meios locais** na web dependem do produto web escolhido (MO.1.1); não presumir.
+- **Web (decidido em 2026-10-10):** Stripe conectado ao RevenueCat, sem Pix. O Checkout, o Customer Portal e os recibos são do Stripe; o backend só enxerga o RevenueCat. Limitações documentadas da integração: só preço recorrente por unidade; métodos com redirecionamento fora; cancelamento pode levar até 2 h para chegar ao RevenueCat.
 - Itens das seções 9.4, 9.5 e 9.8 (carteiras, cenários, Assembleia dos Investidores) seguem válidos
   como análise, mas estão **adiados** (Fase H do backlog). A 9.9 foi substituída pela seção 0.1. As
   seções 9.2, 9.3, 9.6 e 9.7 foram reorganizadas pelo backlog: ligas e cosméticos viraram âncoras
