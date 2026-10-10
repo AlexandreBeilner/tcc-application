@@ -4,6 +4,7 @@ import {
   FriendshipAlreadyExistsError,
   SelfFriendshipError,
 } from '../../domain/errors'
+import { createFakeFriendRequestMailer } from '../../test/fakes/fakeFriendRequestMailer'
 import { createFakeFriendshipRepository } from '../../test/fakes/fakeFriendshipRepository'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { SendFriendRequestUseCase } from './sendFriendRequest'
@@ -14,12 +15,14 @@ const bob = { id: 'u-bob', username: 'bob', name: 'Bob', avatarUrl: null }
 describe('SendFriendRequestUseCase', () => {
   let friendshipRepository: ReturnType<typeof createFakeFriendshipRepository>
   let userDirectory: ReturnType<typeof createFakeUserDirectory>
+  let mailer: ReturnType<typeof createFakeFriendRequestMailer>
   let useCase: SendFriendRequestUseCase
 
   beforeEach(() => {
     friendshipRepository = createFakeFriendshipRepository()
     userDirectory = createFakeUserDirectory([alice, bob])
-    useCase = new SendFriendRequestUseCase(friendshipRepository, userDirectory)
+    mailer = createFakeFriendRequestMailer()
+    useCase = new SendFriendRequestUseCase(friendshipRepository, userDirectory, mailer)
   })
 
   it('cria uma solicitação pendente', async () => {
@@ -82,5 +85,50 @@ describe('SendFriendRequestUseCase', () => {
     expect(friendship.status).toBe('accepted')
     expect(friendship.requesterId).toBe(bob.id)
     expect(friendship.addresseeId).toBe(alice.id)
+  })
+
+  describe('aviso por e-mail (EM.6.2)', () => {
+    it('um pedido novo avisa o destinatário', async () => {
+      await useCase.execute({ requesterId: alice.id, addresseeUsername: bob.username })
+
+      expect(mailer.received).toEqual([{ requesterId: alice.id, addresseeId: bob.id }])
+      expect(mailer.accepted).toEqual([])
+    })
+
+    it('pedido mútuo vira amizade e avisa quem pediu primeiro, não o destinatário do pedido novo', async () => {
+      await useCase.execute({ requesterId: bob.id, addresseeUsername: alice.username })
+      mailer.received.length = 0
+
+      await useCase.execute({ requesterId: alice.id, addresseeUsername: bob.username })
+
+      expect(mailer.received).toEqual([])
+      expect(mailer.accepted).toEqual([{ requesterId: bob.id, accepterId: alice.id }])
+    })
+
+    it('pedido recusado por regra (duplicado, auto, inexistente) não envia nada', async () => {
+      await useCase.execute({ requesterId: alice.id, addresseeUsername: bob.username })
+      mailer.received.length = 0
+
+      await expect(
+        useCase.execute({ requesterId: alice.id, addresseeUsername: bob.username }),
+      ).rejects.toThrow(FriendshipAlreadyExistsError)
+      await expect(
+        useCase.execute({ requesterId: alice.id, addresseeUsername: alice.username }),
+      ).rejects.toThrow(SelfFriendshipError)
+
+      expect(mailer.received).toEqual([])
+    })
+
+    it('falha ao enfileirar o e-mail não derruba o pedido', async () => {
+      mailer.failWith(new Error('outbox fora do ar'))
+
+      const friendship = await useCase.execute({
+        requesterId: alice.id,
+        addresseeUsername: bob.username,
+      })
+
+      expect(friendship.status).toBe('pending')
+      expect(await friendshipRepository.findById(friendship.id)).toBeDefined()
+    })
   })
 })

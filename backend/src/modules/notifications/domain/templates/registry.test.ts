@@ -102,3 +102,59 @@ describe('comunicado por e-mail (EM.5.2)', () => {
     expect(EMAIL_TEMPLATES.announcement.category).toBe('transactional')
   })
 })
+
+describe('e-mails de amizade (EM.6.2)', () => {
+  const payload = { name: 'Ana', friendUsername: 'bia_invest', level: 12, returnPct: 3.2 }
+
+  it('são sociais (opt-in) e levam só username, nível e percentual com sinal, em pt-BR', () => {
+    const received = EMAIL_TEMPLATES.friend_request_received
+    const text = bodyText('friend_request_received', payload)
+
+    expect(received.category).toBe('social')
+    expect(EMAIL_TEMPLATES.friend_request_accepted.category).toBe('social')
+    expect(received.build(payload, ctx).subject).toBe('bia_invest enviou um pedido de amizade')
+    expect(text).toContain('bia_invest está no nível 12 e teve rentabilidade de +3,2% na semana.')
+    expect(JSON.stringify(received.build(payload, ctx))).toContain(
+      'https://app.exemplo.com/amigos/solicitacoes',
+    )
+  })
+
+  it('o percentual negativo mantém o sinal e o aceite aponta para a lista de amigos', () => {
+    const content = EMAIL_TEMPLATES.friend_request_accepted.build(
+      { ...payload, returnPct: -1.4 },
+      ctx,
+    )
+
+    expect(content.subject).toBe('bia_invest aceitou seu pedido de amizade')
+    expect(JSON.stringify(content)).toContain('rentabilidade de -1,4% na semana')
+    expect(JSON.stringify(content)).toContain('https://app.exemplo.com/amigos')
+  })
+
+  it('rentabilidade zero sai sem sinal', () => {
+    expect(bodyText('friend_request_received', { ...payload, returnPct: 0 })).toContain(
+      'rentabilidade de 0,0% na semana',
+    )
+  })
+
+  it('sem nível e percentual, a frase de estatísticas some em vez de sair quebrada', () => {
+    const text = bodyText('friend_request_received', { name: 'Ana', friendUsername: 'bia_invest' })
+
+    expect(text).not.toContain('nível')
+    expect(text).not.toContain('undefined')
+  })
+
+  it('sem o username de quem pediu, recusa montar', () => {
+    expect(() => EMAIL_TEMPLATES.friend_request_received.build({ name: 'Ana' }, ctx)).toThrow(
+      /friendUsername/,
+    )
+  })
+
+  it('nenhum texto usa travessão', () => {
+    expect(
+      JSON.stringify(EMAIL_TEMPLATES.friend_request_received.build(payload, ctx)),
+    ).not.toContain('—')
+    expect(
+      JSON.stringify(EMAIL_TEMPLATES.friend_request_accepted.build(payload, ctx)),
+    ).not.toContain('—')
+  })
+})

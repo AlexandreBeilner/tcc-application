@@ -19,6 +19,33 @@ function formatInstant(value: unknown): string | undefined {
   return `${get('day')}/${get('month')}/${get('year')} às ${get('hour')}:${get('minute')}`
 }
 
+// Rentabilidade percentual com sinal, em pt-BR (ex.: "+3,2%", "-1,0%"). Nunca valor absoluto de
+// patrimônio (RNF09): o e-mail social só carrega username, nível e esse percentual.
+function formatSignedPct(value: number): string {
+  const formatted = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    signDisplay: 'exceptZero',
+  }).format(value)
+  return `${formatted}%`
+}
+
+// "alice está no nível 12 e teve rentabilidade de +3,2% na semana." (partes que faltarem saem).
+function friendStatsSentence(
+  payload: Record<string, unknown>,
+  username: string,
+): string | undefined {
+  const level = typeof payload.level === 'number' ? payload.level : undefined
+  const returnPct = typeof payload.returnPct === 'number' ? payload.returnPct : undefined
+  if (level === undefined && returnPct === undefined) return undefined
+  const parts: string[] = []
+  if (level !== undefined) parts.push(`está no nível ${level}`)
+  if (returnPct !== undefined) {
+    parts.push(`teve rentabilidade de ${formatSignedPct(returnPct)} na semana`)
+  }
+  return `${username} ${parts.join(' e ')}.`
+}
+
 // Catálogo de templates. Cada tarefa que envia um e-mail novo registra o dela aqui, com a
 // categoria (decide se é opcional, EM.6.1) e um payload de exemplo.
 export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
@@ -140,6 +167,53 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
   },
   // Ciclo de vida da conta (EM.5.1). Nenhum leva link com token; os botões só apontam para telas
   // públicas ou para a trilha. "Como contestar" é responder ao e-mail (`EMAIL_REPLY_TO`).
+  // Pedido de amizade recebido (EM.6.2, E8). Categoria `social`: só sai para quem ligou. O corpo
+  // leva apenas username, nível e rentabilidade percentual de quem pediu (RNF09), nunca patrimônio.
+  friend_request_received: {
+    category: 'social',
+    sample: { name: 'Ana', friendUsername: 'bia_invest', level: 12, returnPct: 3.2 },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const friend = requireString(payload, 'friendUsername')
+      const stats = friendStatsSentence(payload, friend)
+      return {
+        subject: `${friend} enviou um pedido de amizade`,
+        preheader: 'Aceite para acompanhar o ranking juntos.',
+        blocks: [
+          { type: 'heading', text: 'Você recebeu um pedido de amizade' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}${friend} quer ser seu amigo na plataforma. Amigos aparecem no ranking um do outro, sem mostrar o valor do patrimônio de ninguém.`,
+          },
+          ...(stats ? [{ type: 'paragraph' as const, text: stats }] : []),
+          { type: 'button', label: 'Ver o pedido', url: `${appUrl}/amigos/solicitacoes` },
+        ],
+      }
+    },
+  },
+  // Pedido de amizade aceito (EM.6.2, E8). Mesmas regras do anterior.
+  friend_request_accepted: {
+    category: 'social',
+    sample: { name: 'Ana', friendUsername: 'bia_invest', level: 12, returnPct: -1.4 },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const friend = requireString(payload, 'friendUsername')
+      const stats = friendStatsSentence(payload, friend)
+      return {
+        subject: `${friend} aceitou seu pedido de amizade`,
+        preheader: 'Agora vocês se acompanham no ranking de amigos.',
+        blocks: [
+          { type: 'heading', text: 'Pedido de amizade aceito' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}${friend} aceitou seu pedido. Vocês já aparecem no ranking de amigos um do outro.`,
+          },
+          ...(stats ? [{ type: 'paragraph' as const, text: stats }] : []),
+          { type: 'button', label: 'Ver meus amigos', url: `${appUrl}/amigos` },
+        ],
+      }
+    },
+  },
   welcome: {
     category: 'transactional',
     sample: { name: 'Ana' },

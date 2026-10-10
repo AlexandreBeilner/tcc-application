@@ -28,7 +28,7 @@ Módulo: `backend/src/modules/friendships/`. Sobre a tabela `friendships` (já e
   - `401` — token ausente ou inválido/expirado.
   - `404` — `addresseeUsername` não corresponde a nenhum usuário.
   - `409` — solicitação já existe na mesma direção, ou os dois já são amigos.
-- **Regra:** `SendFriendRequestUseCase`. Decisão de escopo desta sessão, não confirmada explicitamente: se o destinatário já tinha enviado uma solicitação na direção oposta (pedido mútuo), a nova solicitação aceita automaticamente a existente (`status: accepted` na resposta) em vez de criar uma segunda linha — sinalizar se a intenção for sempre exigir uma ação explícita de aceite mesmo nesse caso.
+- **Regra:** `SendFriendRequestUseCase`. Decisão de escopo desta sessão, não confirmada explicitamente: se o destinatário já tinha enviado uma solicitação na direção oposta (pedido mútuo), a nova solicitação aceita automaticamente a existente (`status: accepted` na resposta) em vez de criar uma segunda linha — sinalizar se a intenção for sempre exigir uma ação explícita de aceite mesmo nesse caso. *(EM.6.2.)* **Aviso por e-mail:** depois de gravar, enfileira `friend_request_received` para o destinatário (no pedido mútuo, o aviso é de aceite e vai para quem pediu primeiro). É e-mail **social, opt-in** (`GET/PATCH /me/email-preferences`, desligado por padrão): só sai com "Amigos" ligado, e-mail verificado e conta ativa. O corpo leva só username, nível e rentabilidade percentual da semana de quem pediu (RNF09: nunca patrimônio). **Teto de 1 e-mail social por destinatário por dia** (dia de Brasília, pela chave de idempotência `social-daily:<destinatário>:<dia>`, que vale para pedidos e aceites juntos): o resto do dia o pedido só aparece na tela de solicitações. Falha ao enfileirar só é logada e nunca desfaz o pedido.
 
 ---
 
@@ -41,7 +41,7 @@ Módulo: `backend/src/modules/friendships/`. Sobre a tabela `friendships` (já e
   - `401` — token ausente ou inválido/expirado.
   - `403` — quem chama não é o `addressee` da solicitação.
   - `404` — solicitação inexistente.
-- **Regra:** `RespondToFriendRequestUseCase`.
+- **Regra:** `RespondToFriendRequestUseCase`. *(EM.6.2.)* Ao aceitar (a primeira vez; repetir é idempotente e não reenvia), enfileira `friend_request_accepted` para quem pediu, com as mesmas regras de opt-in, conteúdo e teto diário do `POST /friendships`.
 
 ---
 

@@ -240,6 +240,9 @@ import { SearchUsersUseCase } from './modules/friendships/application/useCases/s
 import { SendFriendRequestUseCase } from './modules/friendships/application/useCases/sendFriendRequest'
 import { createDrizzleFriendshipRepository } from './modules/friendships/infrastructure/persistence/drizzleFriendshipRepository'
 import { createDrizzleUserDirectory as createDrizzleFriendshipUserDirectory } from './modules/friendships/infrastructure/persistence/drizzleUserDirectory'
+import { createNotificationsFriendRequestMailer } from './modules/friendships/infrastructure/notifications/notificationsFriendRequestMailer'
+import { createInProcessFriendProfileReader } from './modules/friendships/infrastructure/profile/inProcessFriendProfileReader'
+import { createDrizzleRecipientDirectory } from './modules/notifications/infrastructure/persistence/drizzleRecipientDirectory'
 import { createFriendshipsRouter } from './modules/friendships/interfaces/http/friendshipsRouter'
 import { CompleteMissionUseCase } from './modules/missions/application/useCases/completeMission'
 import { ExportMissionProgressUseCase } from './modules/missions/application/useCases/exportMissionProgress'
@@ -366,7 +369,7 @@ export interface AppDeps {
   emailWebhookRouter?: Router
   // Enfileirar e-mail (módulo `notifications`): o `server.ts` passa o mesmo da composição do
   // worker; sem ele, `createApp` monta um próprio sobre o mesmo banco.
-  enqueueEmail?: Pick<ReturnType<typeof createEnqueueEmailUseCase>, 'execute'>
+  enqueueEmail?: Pick<ReturnType<typeof createEnqueueEmailUseCase>, 'execute' | 'acceptsOptional'>
   // Intervalo entre e-mails de um lote (comunicado), derivado de `EMAIL_SEND_RPS` (EM.5.2).
   emailSpacingMs?: number
 }
@@ -752,11 +755,25 @@ export function createApp(deps: AppDeps = {}): Express {
 
   const friendshipUserDirectory = createDrizzleFriendshipUserDirectory(db)
   const searchUsers = new SearchUsersUseCase(friendshipUserDirectory)
+  // Aviso por e-mail de pedido de amizade (EM.6.2). O `getPublicProfile` é declarado mais abaixo
+  // (depende do ranking), então o leitor de perfil resolve na hora do envio.
+  const friendRequestMailer = createNotificationsFriendRequestMailer({
+    enqueueEmail,
+    recipients: createDrizzleRecipientDirectory(db),
+    userDirectory: friendshipUserDirectory,
+    profiles: createInProcessFriendProfileReader({
+      execute: (input) => getPublicProfile.execute(input),
+    }),
+  })
   const sendFriendRequest = new SendFriendRequestUseCase(
     friendshipRepository,
     friendshipUserDirectory,
+    friendRequestMailer,
   )
-  const respondToFriendRequest = new RespondToFriendRequestUseCase(friendshipRepository)
+  const respondToFriendRequest = new RespondToFriendRequestUseCase(
+    friendshipRepository,
+    friendRequestMailer,
+  )
   const removeFriendship = new RemoveFriendshipUseCase(friendshipRepository)
   const listFriends = new ListFriendsUseCase(friendshipRepository, friendshipUserDirectory)
   const listFriendRequests = new ListFriendRequestsUseCase(

@@ -88,6 +88,13 @@ export class EnqueueEmailUseCase {
     return { status: created ? 'enqueued' : 'duplicate', id }
   }
 
+  // Pré-checagem barata para quem monta um payload caro (ex.: nível e rentabilidade no e-mail de
+  // amizade): como tudo nasce desligado (D8), quase ninguém passa, então não vale calcular nada
+  // antes de saber que o destinatário aceita o e-mail. `execute` confere tudo de novo.
+  async acceptsOptional(userId: string, category: OptionalEmailCategory): Promise<boolean> {
+    return !(await this.checkOptional(userId, category)).rejected
+  }
+
   private async checkOptional(
     userId: string | null,
     category: OptionalEmailCategory,

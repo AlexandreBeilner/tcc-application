@@ -1,5 +1,7 @@
 import type { Friendship } from '../../domain/friendship'
 import { FriendshipNotFoundError, NotAuthorizedError } from '../../domain/errors'
+import { notifySafely } from '../notifySafely'
+import type { FriendRequestMailer } from '../ports/friendRequestMailer'
 import type { FriendshipRepository } from '../ports/friendshipRepository'
 
 export interface RespondToFriendRequestInput {
@@ -8,7 +10,10 @@ export interface RespondToFriendRequestInput {
 }
 
 export class RespondToFriendRequestUseCase {
-  constructor(private readonly friendshipRepository: FriendshipRepository) {}
+  constructor(
+    private readonly friendshipRepository: FriendshipRepository,
+    private readonly mailer: FriendRequestMailer,
+  ) {}
 
   async execute(input: RespondToFriendRequestInput): Promise<Friendship> {
     const friendship = await this.friendshipRepository.findById(input.friendshipId)
@@ -23,6 +28,13 @@ export class RespondToFriendRequestUseCase {
       return friendship
     }
 
-    return this.friendshipRepository.accept(input.friendshipId)
+    const accepted = await this.friendshipRepository.accept(input.friendshipId)
+    await notifySafely('o aviso de pedido de amizade aceito', () =>
+      this.mailer.sendRequestAccepted({
+        requesterId: friendship.requesterId,
+        accepterId: input.userId,
+      }),
+    )
+    return accepted
   }
 }

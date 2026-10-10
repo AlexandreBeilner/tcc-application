@@ -211,6 +211,18 @@ describe('EnqueueEmailUseCase', () => {
       })
     })
 
+    it('acceptsOptional diz se o destinatário aceita, sem gravar nada', async () => {
+      const optedIn = setup({})
+      const optedOut = setup({}, {})
+      const suspended = setup({ status: 'suspended' })
+
+      expect(await optedIn.useCase.acceptsOptional('user-1', 'social')).toBe(true)
+      expect(await optedIn.useCase.acceptsOptional('user-1', 'engagement')).toBe(false)
+      expect(await optedOut.useCase.acceptsOptional('user-1', 'social')).toBe(false)
+      expect(await suspended.useCase.acceptsOptional('user-1', 'social')).toBe(false)
+      expect(optedIn.outbox.rows).toHaveLength(0)
+    })
+
     it('segurança e transacional ignoram preferência e elegibilidade', async () => {
       const { outbox, useCase } = setup({ status: 'suspended' }, {})
 
