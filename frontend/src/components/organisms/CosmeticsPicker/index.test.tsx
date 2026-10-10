@@ -59,6 +59,7 @@ describe('CosmeticsPicker (MO.5.1)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
         vi.mocked(getBillingStatus).mockResolvedValue(BILLING)
+        localStorage.clear()
     })
     afterEach(() => vi.clearAllMocks())
 
@@ -90,6 +91,7 @@ describe('CosmeticsPicker (MO.5.1)', () => {
     })
 
     it('quem não é PRO vê a vitrine sem poder escolher, com convite para conhecer o plano', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue({ ...BILLING, isPro: false, state: 'none' })
         vi.mocked(getMyCosmetics).mockResolvedValue(mine({ isPro: false, display: { isPro: false, frame: null, title: null } }))
         renderPicker()
 
@@ -98,6 +100,7 @@ describe('CosmeticsPicker (MO.5.1)', () => {
     })
 
     it('quem cancelou vê que a escolha anterior continua guardada', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue({ ...BILLING, isPro: false, state: 'none' })
         vi.mocked(getMyCosmetics).mockResolvedValue(
             mine({ isPro: false, selection: { frame: 'frame_aurora', title: null }, display: { isPro: false, frame: null, title: null } }),
         )

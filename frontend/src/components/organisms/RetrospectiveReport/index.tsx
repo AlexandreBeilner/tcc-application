@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { formatSignedPercent } from '../../../features/market/format'
 import { buildShareText, monthLabel, renderShareBlob, shareOrDownload } from '../../../features/retrospective/shareCard'
 import { Button } from '../../atoms/Button'
 import { ActivityCalendar } from '../../molecules/ActivityCalendar'
 import { MetricTile } from '../../molecules/MetricTile'
+import { ProInvite } from '../../molecules/ProInvite'
 import type { RetrospectiveReportProps } from './types'
 import styles from './index.module.css'
 
@@ -17,7 +17,7 @@ function plural(count: number, one: string, many: string): string {
 // Retrospectiva de um mês (MO.5.4): cartões com as 3 métricas de todos e, no PRO, calendário de
 // dias, maior sequência, rentabilidade do mês (só percentual), duelos e ligas. Tom de celebração:
 // mês sem atividade vira convite para voltar, nunca cobrança nem escassez.
-export function RetrospectiveReport({ retrospective, identity, billingEnabled }: RetrospectiveReportProps) {
+export function RetrospectiveReport({ retrospective, identity }: RetrospectiveReportProps) {
     const [status, setStatus] = useState<'idle' | 'working' | 'shared' | 'downloaded' | 'failed'>('idle')
     const premium = retrospective.premium
 
@@ -76,15 +76,10 @@ export function RetrospectiveReport({ retrospective, identity, billingEnabled }:
                     </div>
                 </>
             ) : (
-                billingEnabled && (
-                    <p className={styles.invite}>
-                        A versão completa traz o calendário de dias, a maior sequência, a rentabilidade do mês e os duelos, com uma imagem
-                        personalizada para compartilhar.{' '}
-                        <Link className={styles.link} to="/planos">
-                            Conhecer o PRO
-                        </Link>
-                    </p>
-                )
+                <ProInvite context="retrospective">
+                    A versão completa traz o calendário de dias, a maior sequência, a rentabilidade do mês e os duelos, com uma imagem
+                    personalizada para compartilhar.
+                </ProInvite>
             )}
 
             <div className={styles.actions}>

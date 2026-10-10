@@ -63,10 +63,3 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
 }
-
-.link {
-    align-self: flex-start;
-    color: var(--color-brand-500);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-}

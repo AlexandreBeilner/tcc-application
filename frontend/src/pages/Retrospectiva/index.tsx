@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { RetrospectiveReport } from '../../components/organisms/RetrospectiveReport'
 import { useAuth } from '../../features/auth/AuthContext'
-import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useMyCosmeticsQuery } from '../../features/cosmetics/useMyCosmetics'
 import { useRetrospectiveMonthsQuery, useRetrospectiveQuery } from '../../features/retrospective/useRetrospective'
 import { monthLabel } from '../../features/retrospective/shareCard'
@@ -16,7 +15,6 @@ export function Retrospectiva() {
     const { user } = useAuth()
     const monthsQuery = useRetrospectiveMonthsQuery()
     const mine = useMyCosmeticsQuery().data
-    const billing = useBillingStatusQuery().data
     const [chosen, setChosen] = useState<string | null>(null)
     const months = monthsQuery.data ?? []
     const month = chosen ?? months[0] ?? null
@@ -70,7 +68,6 @@ export function Retrospectiva() {
             {query.data && user && (
                 <RetrospectiveReport
                     retrospective={query.data}
-                    billingEnabled={billing?.billingEnabled ?? false}
                     identity={{
                         username: user.username,
                         isPro: query.data.full && (mine?.display.isPro ?? false),

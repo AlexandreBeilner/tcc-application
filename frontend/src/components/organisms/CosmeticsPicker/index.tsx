@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { Avatar } from '../../atoms/Avatar'
 import { CosmeticTags } from '../../molecules/CosmeticTags'
 import { useBillingStatusQuery } from '../../../features/billing/useBillingStatus'
@@ -6,6 +5,7 @@ import { useCosmeticChangeMutation, useMyCosmeticsQuery } from '../../../feature
 import { isProRequiredError } from '../../../services/client'
 import type { CosmeticItem, CosmeticKind } from '../../../services/cosmetics'
 import { formatApiError } from '../../../utils/formatApiError'
+import { ProInvite } from '../../molecules/ProInvite'
 import type { CosmeticsPickerProps } from './types'
 import styles from './index.module.css'
 
@@ -58,14 +58,11 @@ export function CosmeticsPicker({ username, avatarUrl }: CosmeticsPickerProps) {
             </div>
 
             {!mine.isPro && (
-                <p className={styles.invite}>
+                <ProInvite context="cosmetics">
                     {hasArchivedChoice
-                        ? 'Suas escolhas continuam guardadas e voltam quando você assinar de novo. '
-                        : 'Molduras e títulos fazem parte do plano PRO. '}
-                    <Link className={styles.link} to="/planos">
-                        Conhecer o PRO
-                    </Link>
-                </p>
+                        ? 'Suas escolhas continuam guardadas e voltam quando você assinar de novo.'
+                        : 'Molduras e títulos fazem parte do plano PRO.'}
+                </ProInvite>
             )}
 
             <div className={styles.group} role="group" aria-label="Moldura do avatar">

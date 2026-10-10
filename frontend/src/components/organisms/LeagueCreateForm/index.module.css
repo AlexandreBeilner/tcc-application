@@ -21,13 +21,6 @@
     font-size: var(--font-size-sm);
 }
 
-.link {
-    align-self: flex-start;
-    color: var(--color-brand-500);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-}
-
 .form {
     display: flex;
     flex-direction: column;

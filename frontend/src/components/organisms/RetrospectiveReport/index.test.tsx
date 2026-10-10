@@ -1,9 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useAuth } from '../../../features/auth/AuthContext'
+import { getBillingStatus } from '../../../services/billing'
+import type { BillingStatus } from '../../../services/billing'
 import type { Retrospective } from '../../../services/retrospectives'
 import { RetrospectiveReport } from '.'
 
+vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
 vi.mock('../../../features/retrospective/shareCard', async (importOriginal) => {
     const original = await importOriginal<typeof import('../../../features/retrospective/shareCard')>()
     return {
@@ -42,34 +48,51 @@ const FULL: Retrospective = {
 
 const IDENTITY = { username: 'ana', isPro: false, frame: null, title: null }
 
-function renderReport(retro: Retrospective, billingEnabled = true) {
+const FREE_PLAN: BillingStatus = {
+    isPro: false,
+    state: 'none',
+    plan: null,
+    store: null,
+    expiresAt: null,
+    willRenew: false,
+    managementUrl: null,
+    billingEnabled: true,
+}
+
+function renderReport(retro: Retrospective, billing: Partial<BillingStatus> = {}) {
+    vi.mocked(useAuth).mockReturnValue({ token: 't' } as ReturnType<typeof useAuth>)
+    vi.mocked(getBillingStatus).mockResolvedValue({ ...FREE_PLAN, ...billing })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
-        <MemoryRouter>
-            <RetrospectiveReport retrospective={retro} identity={IDENTITY} billingEnabled={billingEnabled} />
-        </MemoryRouter>,
+        <QueryClientProvider client={queryClient}>
+            <MemoryRouter>
+                <RetrospectiveReport retrospective={retro} identity={IDENTITY} />
+            </MemoryRouter>
+        </QueryClientProvider>,
     )
 }
 
 describe('RetrospectiveReport (MO.5.4)', () => {
     afterEach(() => vi.clearAllMocks())
 
-    it('versão simples mostra as 3 métricas e o convite para o completo, sem cobrança', () => {
+    it('versão simples mostra as 3 métricas e o convite para o completo, sem cobrança', async () => {
         renderReport(FREE)
 
         expect(screen.getByText('Lições concluídas')).toBeInTheDocument()
         expect(screen.getByText('Conquistas: Primeira Semana, Estudioso.')).toBeInTheDocument()
         expect(screen.queryByText('Maior sequência')).toBeNull()
         expect(screen.queryByLabelText('Dias do mês')).toBeNull()
-        expect(screen.getByRole('link', { name: 'Conhecer o PRO' })).toHaveAttribute('href', '/planos')
+        expect(await screen.findByRole('link', { name: 'Conhecer o PRO' })).toHaveAttribute('href', '/planos')
     })
 
-    it('cobrança desligada não convida', () => {
-        renderReport(FREE, false)
+    it('cobrança desligada não convida', async () => {
+        renderReport(FREE, { billingEnabled: false })
+        await waitFor(() => expect(getBillingStatus).toHaveBeenCalled())
         expect(screen.queryByRole('link', { name: 'Conhecer o PRO' })).toBeNull()
     })
 
     it('versão completa mostra sequência, rentabilidade em percentual, duelos, ligas e o calendário', () => {
-        renderReport(FULL)
+        renderReport(FULL, { isPro: true, state: 'active' })
 
         expect(screen.getByText('3 dias')).toBeInTheDocument()
         expect(screen.getByText('+4,2%')).toBeInTheDocument()

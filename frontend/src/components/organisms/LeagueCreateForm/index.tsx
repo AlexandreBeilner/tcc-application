@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { useBillingStatusQuery } from '../../../features/billing/useBillingStatus'
 import { useCreateLeagueMutation } from '../../../features/leagues/useLeagues'
 import { isProRequiredError } from '../../../services/client'
 import type { LeagueWindow } from '../../../services/leagues'
 import { formatApiError } from '../../../utils/formatApiError'
 import { Button } from '../../atoms/Button'
+import { ProInvite } from '../../molecules/ProInvite'
 import type { LeagueCreateFormProps } from './types'
 import styles from './index.module.css'
 
@@ -28,17 +28,9 @@ export function LeagueCreateForm({ onCreated }: LeagueCreateFormProps) {
     if (billing && !billing.isPro) {
         if (!billing.billingEnabled) return null
         return (
-            <section className={styles.section} aria-labelledby="league-create-title">
-                <h2 id="league-create-title" className={styles.title}>
-                    Criar uma liga
-                </h2>
-                <p className={styles.note}>
-                    Criar ligas com seus amigos faz parte do plano PRO. Participar da liga de um amigo é sempre de graça.
-                </p>
-                <Link className={styles.link} to="/planos">
-                    Conhecer o PRO
-                </Link>
-            </section>
+            <ProInvite context="league" title="Criar uma liga">
+                Criar ligas com seus amigos faz parte do plano PRO. Participar da liga de um amigo é sempre de graça.
+            </ProInvite>
         )
     }
 
