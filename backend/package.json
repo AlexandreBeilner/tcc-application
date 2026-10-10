@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "email:preview": "tsx src/scripts/previewEmails.ts",
     "email:test": "tsx src/scripts/sendTestEmail.ts",
     "db:generate": "drizzle-kit generate",
     "db:seed:admin": "tsx src/db/seed.ts",

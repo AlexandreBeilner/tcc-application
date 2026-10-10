@@ -15,6 +15,9 @@ import {
   createResendEmailSender,
 } from './infrastructure/resend/resendEmailSender'
 
+// Nome mostrado no cabeçalho e no rodapé dos e-mails (o mesmo do `<title>` do frontend).
+export const EMAIL_BRAND_NAME = 'Investimenta'
+
 // Único lugar que escolhe o transporte concreto a partir da configuração (`loadEmailConfig`).
 export function createEmailSender(config: EmailConfig): EmailSender {
   if (config.provider === 'resend') {

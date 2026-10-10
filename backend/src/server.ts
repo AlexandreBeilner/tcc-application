@@ -1,7 +1,14 @@
 import { createApp } from './app'
 import { createDb } from './db/client'
 import { runMigrations } from './db/migrate'
+import {
+  createEmailSender,
+  createNotificationsComposition,
+  EMAIL_BRAND_NAME,
+} from './modules/notifications/composition'
 import { loadEmailConfig } from './modules/notifications/infrastructure/config/emailConfig'
+import { startEmailOutboxScheduler } from './modules/notifications/infrastructure/scheduler/emailOutboxScheduler'
+import { createHtmlEmailRenderer } from './modules/notifications/infrastructure/templates/htmlEmailRenderer'
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createRankingSnapshotComposition } from './modules/ranking/composition'
 import { startRankingSnapshotScheduler } from './modules/ranking/infrastructure/scheduler/rankingSnapshotScheduler'
@@ -19,8 +26,7 @@ const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
 
 async function main() {
   // Configuração de e-mail (EM.1.2): valida na subida, pra uma chave faltando derrubar o
-  // processo aqui e não na primeira requisição. O worker em si é ligado na EM.1.3, quando o
-  // renderer de templates existir.
+  // processo aqui e não na primeira requisição. O worker do outbox liga mais abaixo.
   const emailConfig = loadEmailConfig(process.env)
   console.log(`e-mail: provedor "${emailConfig.provider}" configurado`)
 
@@ -42,6 +48,16 @@ async function main() {
     Number(process.env.PAYROLL_CHECK_INTERVAL_MS || Number.NaN) || DEFAULT_PAYROLL_CHECK_INTERVAL_MS
   const { runPayrollCheck } = createPayrollComposition(db, engineUrl)
   startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
+
+  const { deliverPendingEmails } = createNotificationsComposition(db, {
+    emailSender: createEmailSender(emailConfig),
+    emailRenderer: createHtmlEmailRenderer({
+      brandName: EMAIL_BRAND_NAME,
+      appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    }),
+    deliverOptions: { delayBetweenSendsMs: emailConfig.delayBetweenSendsMs },
+  })
+  startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs)
 
   const rankingSnapshotIntervalMs =
     Number(process.env.RANKING_SNAPSHOT_INTERVAL_MS || Number.NaN) ||
