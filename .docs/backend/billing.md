@@ -6,10 +6,10 @@ Backlog: `.claude/backlog-monetizacao.md` (Fase B, MO.2.x). A verdade sobre quem
 
 | Variável | Padrão | Uso |
 |---|---|---|
-| `BILLING_PROVIDER` | `disabled` | `revenuecat` liga a cobrança. `disabled`: ninguém é PRO e o webhook responde 503. `dev`: só desenvolvimento, liga a compra falsa do app (rotas `/billing/dev/*`, abaixo); a subida é **recusada** com `NODE_ENV=production` |
+| `BILLING_PROVIDER` | `disabled` | `revenuecat` liga a cobrança. `disabled`: ninguém é PRO e o webhook responde 503. `dev`: só desenvolvimento, liga a compra falsa do app (rotas `/billing/dev/*`, abaixo); a subida é **recusada** se houver `REVENUECAT_SECRET_KEY` ou `EMAIL_PROVIDER=resend` (credenciais de um deploy real; `NODE_ENV` não serve, a imagem Docker sempre roda com `production`) |
 | `REVENUECAT_SECRET_KEY` | | Chave secreta da API REST (obrigatória com `revenuecat`) |
 | `REVENUECAT_WEBHOOK_AUTH` | | Valor exato do cabeçalho `Authorization` configurado no webhook do painel (obrigatória com `revenuecat`) |
-| `REVENUECAT_ENTITLEMENT_ID` | `pro` | Identificador do entitlement no painel |
+| `REVENUECAT_ENTITLEMENT_ID` | `selucra_pro` | Identificador do entitlement no painel |
 | `REVENUECAT_API_BASE_URL` | `https://api.revenuecat.com/v1` | |
 | `REVENUECAT_TIMEOUT_MS` | `10000` | |
 | `BILLING_RECONCILE_INTERVAL_MS` | 6 h | Cadência da reconciliação |
@@ -39,7 +39,7 @@ Backlog: `.claude/backlog-monetizacao.md` (Fase B, MO.2.x). A verdade sobre quem
 
 ## Compra falsa para desenvolvimento (`BILLING_PROVIDER=dev`, MO.4.1)
 
-Para testar o app sem contas de loja nem RevenueCat. Fora do modo `dev` estas rotas **não existem** (404) e `loadBillingConfig` derruba a subida se `dev` vier com `NODE_ENV=production`. `GET /billing/status` devolve `billingEnabled: true` neste modo. Não há webhook nem reconciliação (503 / job desligado).
+Para testar o app sem contas de loja nem RevenueCat. Fora do modo `dev` estas rotas **não existem** (404) e `loadBillingConfig` derruba a subida se `dev` vier junto de credenciais reais (acima). `GET /billing/status` devolve `billingEnabled: true` neste modo. Não há webhook nem reconciliação (503 / job desligado).
 
 ### `POST /billing/dev/purchase`
 

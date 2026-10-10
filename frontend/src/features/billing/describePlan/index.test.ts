@@ -63,4 +63,37 @@ describe('describePlan (MO.3.3)', () => {
         expect(d.headline).toBe('Plano grátis')
         expect(d.action?.href).toBe('/planos')
     })
+
+    describe('assinou em outra plataforma (MO.4.3)', () => {
+        it('web, visto no app: avisa que já vale e não oferece link de pagamento', () => {
+            const d = describePlan(ACTIVE, true, 'android')
+            expect(d.instruction).toMatch(/pela web.*já vale aqui no app, não é preciso assinar de novo/)
+            expect(d.action).toBeNull()
+        })
+
+        it('App Store vista no Android: avisa, e o destino de gerenciar continua a página da loja certa', () => {
+            const d = describePlan({ ...ACTIVE, store: 'app_store', managementUrl: null }, true, 'android')
+            expect(d.instruction).toMatch(/pela App Store.*não é preciso assinar de novo/)
+            expect(d.action?.href).toBe(APP_STORE_SUBSCRIPTIONS_URL)
+        })
+
+        it('Google Play visto no iOS: avisa', () => {
+            const d = describePlan({ ...ACTIVE, store: 'play_store', managementUrl: null }, true, 'ios')
+            expect(d.instruction).toMatch(/pelo Google Play.*não é preciso assinar de novo/)
+        })
+
+        it('assinou na loja deste mesmo aparelho: sem aviso', () => {
+            expect(describePlan({ ...ACTIVE, store: 'play_store', managementUrl: null }, true, 'android').instruction).toBeNull()
+            expect(describePlan({ ...ACTIVE, store: 'app_store', managementUrl: null }, true, 'ios').instruction).toBeNull()
+        })
+
+        it('no navegador ou sem plataforma conhecida não avisa', () => {
+            expect(describePlan({ ...ACTIVE, store: 'play_store' }, false, 'android').instruction).toBeNull()
+            expect(describePlan({ ...ACTIVE, store: 'play_store' }, true, null).instruction).toBeNull()
+        })
+
+        it('plano expirado não leva aviso de "já vale"', () => {
+            expect(describePlan({ ...ACTIVE, isPro: false, state: 'expired', store: 'app_store' }, true, 'android').instruction).toBeNull()
+        })
+    })
 })

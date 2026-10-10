@@ -23,7 +23,7 @@ describe('buildAuthWatcherScript', () => {
   // unidade do próprio script, executado como JS "puro" (sem localStorage
   // real) pra travar a lógica de detecção de mudança sem precisar de
   // emulador. localStorage/window/setInterval são simulados manualmente.
-  test('só chama postMessage quando o valor da chave muda', () => {
+  test('avisa a sessão já existente e depois só quando o valor da chave muda', () => {
     jest.useFakeTimers();
 
     const store: Record<string, string | null> = {
@@ -47,26 +47,41 @@ describe('buildAuthWatcherScript', () => {
     );
     run(fakeWindow, fakeLocalStorage, setInterval);
 
+    // Sessão que já existia ao carregar: avisada uma vez, na hora (MO.4.1).
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({
+      type: AUTH_TOKEN_CHANGED_MESSAGE_TYPE,
+      token: 'token-inicial',
+    });
+
     jest.advanceTimersByTime(1000);
-    expect(postMessage).not.toHaveBeenCalled();
+    expect(postMessage).toHaveBeenCalledTimes(1);
 
     store[AUTH_TOKEN_STORAGE_KEY] = 'token-novo';
     jest.advanceTimersByTime(1000);
-    expect(postMessage).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(postMessage.mock.calls[1][0])).toEqual({
       type: AUTH_TOKEN_CHANGED_MESSAGE_TYPE,
       token: 'token-novo',
     });
 
     store[AUTH_TOKEN_STORAGE_KEY] = null;
     jest.advanceTimersByTime(1000);
-    expect(postMessage).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(postMessage.mock.calls[1][0])).toEqual({
+    expect(postMessage).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(postMessage.mock.calls[2][0])).toEqual({
       type: AUTH_TOKEN_CHANGED_MESSAGE_TYPE,
       token: null,
     });
 
     jest.useRealTimers();
+  });
+});
+
+describe('AUTH_TOKEN_STORAGE_KEY', () => {
+  // Trava a chave igual à "current" de frontend/src/utils/storage/index.ts: a RC.1.4 renomeou a do
+  // SPA e a ponte ficou cega ao login (achado na MO.4.1).
+  test('é a chave atual do SPA', () => {
+    expect(AUTH_TOKEN_STORAGE_KEY).toBe('app.auth.token');
   });
 });
 
@@ -115,7 +130,9 @@ describe('parseAuthTokenChangedMessage', () => {
     expect(
       parseAuthTokenChangedMessage(JSON.stringify({ type: 'outra-coisa' })),
     ).toBeNull();
-    expect(parseAuthTokenChangedMessage(JSON.stringify('string solta'))).toBeNull();
+    expect(
+      parseAuthTokenChangedMessage(JSON.stringify('string solta')),
+    ).toBeNull();
     expect(parseAuthTokenChangedMessage(JSON.stringify(42))).toBeNull();
   });
 

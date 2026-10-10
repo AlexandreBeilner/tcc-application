@@ -152,7 +152,7 @@ describe('createRevenueCatPurchases', () => {
     const service = createRevenueCatPurchases({ apiKey: 'k' });
     await service.logIn('u1');
     expect(await service.restore()).toEqual({ hasPro: false });
-    rc.restorePurchases.mockResolvedValueOnce({ entitlements: { active: { pro: {} } } });
+    rc.restorePurchases.mockResolvedValueOnce({ entitlements: { active: { selucra_pro: {} } } });
     expect(await service.restore()).toEqual({ hasPro: true });
   });
 

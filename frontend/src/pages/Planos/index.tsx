@@ -1,6 +1,8 @@
 import { ArrowLeft, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
+import { describePlan } from '../../features/billing/describePlan'
+import { isNativeApp, nativePlatform } from '../../features/billing/isNativeApp'
 import { usePurchaseFlow } from '../../features/billing/usePurchaseFlow'
 import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useWebPlansQuery } from '../../features/billing/useWebPlans'
@@ -30,6 +32,8 @@ function formatDate(iso: string): string {
 }
 
 function CurrentPlan({ status }: { status: BillingStatus }) {
+    // Dentro do app, quem assinou por outra plataforma lê que o PRO já vale aqui (nunca há nova compra).
+    const notice = describePlan(status, isNativeApp(), nativePlatform()).instruction
     const planName = status.plan ? PLAN_NAMES[status.plan] : null
     return (
         <section className={styles.current} aria-label="Seu plano">
@@ -42,6 +46,7 @@ function CurrentPlan({ status }: { status: BillingStatus }) {
                         : `PRO até ${formatDate(status.expiresAt)}.`
                     : 'Sem data de término.'}
             </p>
+            {notice && <p className={styles.note}>{notice}</p>}
             <Link to="/configuracoes" className={styles.link}>
                 Gerenciar em Configurações
             </Link>
@@ -101,7 +106,8 @@ export function Planos() {
     const billingEnabled = status?.billingEnabled ?? false
     const plansQuery = useWebPlansQuery(billingEnabled && !status?.isPro)
     const purchase = usePurchaseFlow()
-    const busy = purchase.phase === 'checkout' || purchase.phase === 'confirming'
+    const busy = purchase.phase === 'checkout' || purchase.phase === 'restoring' || purchase.phase === 'confirming'
+    const restoring = purchase.action === 'restore'
 
     return (
         <main className={styles.page}>
@@ -160,19 +166,40 @@ export function Planos() {
                             {plansQuery.data && plansQuery.data.length > 0 && (
                                 <PlanOptions plans={plansQuery.data} onChoose={purchase.start} busy={busy} />
                             )}
+                            {purchase.canRestore && (
+                                <div className={styles.restore}>
+                                    <Button variant="secondary" onClick={purchase.restore} disabled={busy}>
+                                        Restaurar compras
+                                    </Button>
+                                    <p className={styles.note}>Já assinou antes, ou trocou de aparelho? Restaure a sua assinatura.</p>
+                                </div>
+                            )}
+                            {purchase.phase === 'restoring' && <p className={styles.notice}>Procurando as suas compras…</p>}
                             {purchase.phase === 'confirming' && (
-                                <p className={styles.notice}>Pagamento recebido. Estamos liberando o seu PRO, só um instante.</p>
+                                <p className={styles.notice}>
+                                    {restoring
+                                        ? 'Encontramos a sua assinatura. Estamos liberando o seu PRO, só um instante.'
+                                        : 'Pagamento recebido. Estamos liberando o seu PRO, só um instante.'}
+                                </p>
+                            )}
+                            {purchase.phase === 'nothing-to-restore' && (
+                                <p className={styles.notice}>
+                                    Não encontramos nenhuma assinatura ativa nesta conta da loja. Se você assinou por outro caminho, como a
+                                    web, o seu PRO aparece aqui quando você entra com a mesma conta do Investimenta.
+                                </p>
                             )}
                             {purchase.phase === 'timeout' && (
                                 <p className={styles.notice}>
-                                    Seu pagamento está demorando para ser confirmado. Não pague de novo: volte em alguns minutos. Se o PRO
-                                    não aparecer, fale com o suporte.
+                                    {restoring
+                                        ? 'Encontramos a sua assinatura, mas a confirmação está demorando. Volte em alguns minutos. Se o PRO não aparecer, fale com o suporte.'
+                                        : 'Seu pagamento está demorando para ser confirmado. Não pague de novo: volte em alguns minutos. Se o PRO não aparecer, fale com o suporte.'}
                                 </p>
                             )}
                             {purchase.phase === 'error' && (
                                 <p className={styles.error}>
-                                    Não foi possível concluir a assinatura agora. Confira o seu plano em alguns minutos antes de tentar de
-                                    novo.
+                                    {restoring
+                                        ? 'Não foi possível restaurar as suas compras agora. Tente de novo em instantes.'
+                                        : 'Não foi possível concluir a assinatura agora. Confira o seu plano em alguns minutos antes de tentar de novo.'}
                                 </p>
                             )}
                         </section>

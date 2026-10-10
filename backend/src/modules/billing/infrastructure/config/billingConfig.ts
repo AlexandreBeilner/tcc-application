@@ -11,7 +11,7 @@ export interface DisabledBillingConfig {
 }
 
 // Só para desenvolvimento (MO.4.1): o app em debug "compra" gravando uma assinatura de teste, sem
-// RevenueCat nem loja. Recusado quando `NODE_ENV=production`.
+// RevenueCat nem loja. Recusado quando o ambiente tem credenciais reais (ver `loadBillingConfig`).
 export interface DevBillingConfig {
   provider: 'dev'
 }
@@ -28,7 +28,7 @@ export interface RevenueCatBillingConfig {
   requestTimeoutMs: number
 }
 
-const DEFAULT_ENTITLEMENT_ID = 'pro'
+const DEFAULT_ENTITLEMENT_ID = 'selucra_pro'
 const DEFAULT_API_BASE_URL = 'https://api.revenuecat.com/v1'
 const DEFAULT_TIMEOUT_MS = 10_000
 
@@ -38,8 +38,14 @@ export function loadBillingConfig(env: NodeJS.ProcessEnv): BillingConfig {
 
   if (provider === 'disabled') return { provider: 'disabled' }
   if (provider === 'dev') {
-    if (read('NODE_ENV') === 'production') {
-      throw new Error('Configuração de cobrança inválida: BILLING_PROVIDER=dev é recusado em produção')
+    // A imagem do backend roda com `NODE_ENV=production` até no `docker compose up` local, então
+    // NODE_ENV não distingue ambiente (mesma ressalva de `emailConfig.ts`). O que distingue um
+    // deploy real é ter credenciais reais: com a chave do RevenueCat ou o e-mail de verdade
+    // configurados, a compra falsa é recusada na subida.
+    if (read('REVENUECAT_SECRET_KEY') || read('EMAIL_PROVIDER') === 'resend') {
+      throw new Error(
+        'Configuração de cobrança inválida: BILLING_PROVIDER=dev é só para desenvolvimento e é recusado com REVENUECAT_SECRET_KEY ou EMAIL_PROVIDER=resend',
+      )
     }
     return { provider: 'dev' }
   }

@@ -133,6 +133,60 @@ describe('Planos (MO.3.1)', () => {
         }
     })
 
+    it('dentro do app, "Restaurar compras" devolve o PRO quando a loja tem a assinatura', async () => {
+        const restore = vi.fn().mockResolvedValue({ hasPro: true })
+        vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([MONTHLY, ANNUAL]), purchase: vi.fn(), restore })
+        vi.mocked(getBillingStatus)
+            .mockResolvedValueOnce(FREE)
+            .mockResolvedValue({ ...FREE, isPro: true, state: 'active', plan: 'annual', store: 'play_store' })
+        renderPage()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Restaurar compras' }))
+
+        await waitFor(() => expect(restore).toHaveBeenCalled())
+        expect(await screen.findByText('Você já é PRO', {}, { timeout: 5000 })).toBeInTheDocument()
+    })
+
+    it('restaurar sem assinatura na loja explica, sem erro', async () => {
+        const restore = vi.fn().mockResolvedValue({ hasPro: false })
+        vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([MONTHLY, ANNUAL]), purchase: vi.fn(), restore })
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Restaurar compras' }))
+
+        expect(await screen.findByText(/Não encontramos nenhuma assinatura ativa/)).toBeInTheDocument()
+    })
+
+    it('na web não há botão de restaurar', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage()
+        await screen.findByText('R$ 19,97')
+        expect(screen.queryByRole('button', { name: 'Restaurar compras' })).not.toBeInTheDocument()
+    })
+
+    it('no app, quem assinou por outra plataforma lê que já vale e não vê compra', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue({
+            ...FREE,
+            isPro: true,
+            state: 'active',
+            plan: 'monthly',
+            store: 'stripe',
+            expiresAt: '2027-03-01T12:00:00.000Z',
+            willRenew: true,
+        })
+        Object.defineProperty(window, 'ReactNativeWebView', { value: {}, configurable: true })
+        Object.defineProperty(window, '__investimentaNative', { value: { platform: 'android' }, configurable: true })
+        try {
+            renderPage()
+            expect(await screen.findByText(/não é preciso assinar de novo/)).toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: /Assinar|Restaurar/ })).not.toBeInTheDocument()
+        } finally {
+            delete (window as unknown as Record<string, unknown>).ReactNativeWebView
+            delete (window as unknown as Record<string, unknown>).__investimentaNative
+        }
+    })
+
     it('mostra erro se o preço não carrega', async () => {
         vi.mocked(getBillingStatus).mockResolvedValue(FREE)
         vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockRejectedValue(new Error('x')), purchase: vi.fn() })

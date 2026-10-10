@@ -14,7 +14,7 @@ import type {
   StorePlan,
 } from './types';
 
-const ENTITLEMENT_ID = 'pro';
+const ENTITLEMENT_ID = 'selucra_pro';
 
 interface PurchasesError {
   userCancelled?: boolean;

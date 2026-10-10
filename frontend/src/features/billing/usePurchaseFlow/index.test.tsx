@@ -103,4 +103,47 @@ describe('usePurchaseFlow (MO.3.2)', () => {
 
         expect(result.current.phase).toBe('error')
     })
+
+    describe('restaurar compras (MO.4.3)', () => {
+        beforeEach(() => {
+            purchases.restore = vi.fn()
+        })
+
+        it('sem restauração na porta (web), não há o que restaurar', () => {
+            vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn(), purchase: vi.fn() })
+            const { result } = renderHook(() => usePurchaseFlow(), { wrapper })
+            expect(result.current.canRestore).toBe(false)
+        })
+
+        it('a loja devolve PRO: espera o servidor confirmar', async () => {
+            vi.mocked(purchases.restore!).mockResolvedValue({ hasPro: true })
+            vi.mocked(getBillingStatus).mockResolvedValueOnce(FREE).mockResolvedValue(PRO)
+            const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+            await act(() => result.current.restore())
+
+            expect(getBillingStatus).toHaveBeenCalledTimes(2)
+            expect(result.current.phase).toBe('idle')
+        })
+
+        it('a loja não tem assinatura: avisa, sem consultar o servidor', async () => {
+            vi.mocked(purchases.restore!).mockResolvedValue({ hasPro: false })
+            const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+            await act(() => result.current.restore())
+
+            expect(result.current.phase).toBe('nothing-to-restore')
+            expect(getBillingStatus).not.toHaveBeenCalled()
+        })
+
+        it('falha da loja vira erro, com a ação de restaurar', async () => {
+            vi.mocked(purchases.restore!).mockRejectedValue(new Error('x'))
+            const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+            await act(() => result.current.restore())
+
+            expect(result.current.phase).toBe('error')
+            expect(result.current.action).toBe('restore')
+        })
+    })
 })

@@ -30,6 +30,11 @@
 
 .action {
     align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
     color: var(--color-brand-500);
     font-size: var(--font-size-sm);
     font-weight: 600;

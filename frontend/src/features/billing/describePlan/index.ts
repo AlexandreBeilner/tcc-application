@@ -1,4 +1,5 @@
 import type { BillingStatus, SubscriptionStore } from '../../../services/billing'
+import type { NativePlatform } from '../isNativeApp'
 
 export interface PlanDescription {
     headline: string
@@ -26,6 +27,23 @@ const STORE_LABELS: Record<SubscriptionStore, string> = {
 
 function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('pt-BR')
+}
+
+// Loja em que este app cobra (App Store no iOS, Google Play no Android).
+const OWN_STORE: Record<NativePlatform, SubscriptionStore> = { ios: 'app_store', android: 'play_store' }
+
+// Quem assinou por outra plataforma já é PRO aqui (o direito é da conta): o app avisa para não
+// assinar de novo e nunca oferece nova compra, o que evitaria cobrança dupla.
+function elsewhereNotice(status: BillingStatus, inApp: boolean, platform: NativePlatform | null): string | null {
+    if (!inApp || !platform || !status.store || status.store === OWN_STORE[platform]) return null
+    const origin: Partial<Record<SubscriptionStore, string>> = {
+        app_store: 'pela App Store',
+        play_store: 'pelo Google Play',
+        stripe: 'pela web',
+        rc_billing: 'pela web',
+    }
+    const where = origin[status.store]
+    return where ? `Você assinou ${where}. O seu PRO já vale aqui no app, não é preciso assinar de novo.` : null
 }
 
 function storeAction(status: BillingStatus, inApp: boolean): Pick<PlanDescription, 'action' | 'instruction'> {
@@ -60,10 +78,15 @@ function storeAction(status: BillingStatus, inApp: boolean): Pick<PlanDescriptio
 
 // Bloco "Seu plano" de Configurações (MO.3.3): o texto e o destino certos para cada estado e
 // para cada loja de origem. Cancelar nunca apaga progresso, e o texto sempre diz isso.
-export function describePlan(status: BillingStatus, inApp: boolean): PlanDescription {
+export function describePlan(status: BillingStatus, inApp: boolean, platform: NativePlatform | null = null): PlanDescription {
     const planName = status.plan && status.plan !== 'unknown' ? ` ${PLAN_NAMES[status.plan]}` : ''
     const origin = status.store ? ` ${STORE_LABELS[status.store]}` : ''
-    const manage = storeAction(status, inApp)
+    const baseManage = storeAction(status, inApp)
+    const notice = status.state === 'active' || status.state === 'billing_issue' ? elsewhereNotice(status, inApp, platform) : null
+    const manage = {
+        action: baseManage.action,
+        instruction: notice ? [notice, baseManage.instruction].filter(Boolean).join(' ') : baseManage.instruction,
+    }
 
     if (status.state === 'none') {
         return {

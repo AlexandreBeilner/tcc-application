@@ -20,7 +20,7 @@ describe('loadBillingConfig', () => {
       provider: 'revenuecat',
       secretKey: 'sk_test',
       webhookAuthorization: 'Bearer segredo',
-      entitlementId: 'pro',
+      entitlementId: 'selucra_pro',
       apiBaseUrl: 'https://api.revenuecat.com/v1',
       requestTimeoutMs: 10_000,
     })
@@ -50,11 +50,13 @@ describe('loadBillingConfig', () => {
 
   it('dev liga a compra falsa, sem credenciais', () => {
     expect(loadBillingConfig({ BILLING_PROVIDER: 'dev' })).toEqual({ provider: 'dev' })
-    expect(loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'development' })).toEqual({ provider: 'dev' })
+    // NODE_ENV=production é o valor da imagem Docker até no desenvolvimento local: não conta.
+    expect(loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'production' })).toEqual({ provider: 'dev' })
   })
 
-  it('dev é recusado em produção', () => {
-    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'production' })).toThrow(/produção/)
+  it('dev é recusado quando há credencial de um deploy real', () => {
+    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', REVENUECAT_SECRET_KEY: 'sk_live' })).toThrow(/só para desenvolvimento/)
+    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', EMAIL_PROVIDER: 'resend' })).toThrow(/só para desenvolvimento/)
   })
 
   it('provedor desconhecido derruba a subida', () => {
