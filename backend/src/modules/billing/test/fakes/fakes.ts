@@ -1,3 +1,5 @@
+import type { BillingMailer } from '../../application/ports/billingMailer'
+import type { ProLifecycleEmail } from '../../domain/lifecycleEmails'
 import type { BillingUserLookup } from '../../application/ports/billingUserLookup'
 import type { BillingWebhookEventLog } from '../../application/ports/billingWebhookEventLog'
 import type { EntitlementProvider } from '../../application/ports/entitlementProvider'
@@ -96,4 +98,20 @@ export function createFakeBillingUserLookup(knownUserIds: string[]): BillingUser
       return candidateIds.filter((id) => known.has(id))
     },
   }
+}
+
+export interface FakeBillingMailer extends BillingMailer {
+  sent: Array<{ userId: string; email: ProLifecycleEmail }>
+  failWith?: Error
+}
+
+export function createFakeBillingMailer(): FakeBillingMailer {
+  const fake: FakeBillingMailer = {
+    sent: [],
+    async send(userId, email) {
+      if (fake.failWith) throw fake.failWith
+      fake.sent.push({ userId, email })
+    },
+  }
+  return fake
 }

@@ -1,11 +1,14 @@
 import type { Redis } from 'ioredis'
 import type { Database } from '../../db/client'
+import type { EnqueueEmailUseCase } from '../notifications/application/useCases/enqueueEmail'
+import { createDrizzleRecipientDirectory } from '../notifications/infrastructure/persistence/drizzleRecipientDirectory'
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import { ProAccessGuard } from './application/proAccessGuard'
 import { GetSubscriptionStatusUseCase } from './application/useCases/getSubscriptionStatus'
 import { HandleBillingWebhookUseCase } from './application/useCases/handleBillingWebhook'
 import { ReconcileSubscriptionsUseCase } from './application/useCases/reconcileSubscriptions'
 import { SyncSubscriptionUseCase } from './application/useCases/syncSubscription'
+import { createNotificationsBillingMailer } from './infrastructure/notifications/notificationsBillingMailer'
 import { createRedisSubscriptionCache } from './infrastructure/cache/redisSubscriptionCache'
 import type { BillingConfig } from './infrastructure/config/billingConfig'
 import { createDrizzleBillingUserLookup } from './infrastructure/persistence/drizzleBillingUserLookup'
@@ -21,6 +24,8 @@ export interface BillingCoreDeps {
   db: Database
   redis: Redis
   config: BillingConfig
+  // Avisos do ciclo de vida do PRO (MO.3.4) entram no outbox do módulo `notifications`.
+  enqueueEmail: Pick<EnqueueEmailUseCase, 'execute'>
 }
 
 export interface BillingCompositionDeps extends BillingCoreDeps {
@@ -44,7 +49,15 @@ function createBillingCore(deps: BillingCoreDeps) {
       : createDisabledEntitlementProvider()
 
   const getSubscriptionStatus = new GetSubscriptionStatusUseCase(subscriptions, cache)
-  const syncSubscription = new SyncSubscriptionUseCase(provider, subscriptions, cache)
+  const syncSubscription = new SyncSubscriptionUseCase(
+    provider,
+    subscriptions,
+    cache,
+    createNotificationsBillingMailer({
+      enqueueEmail: deps.enqueueEmail,
+      recipients: createDrizzleRecipientDirectory(deps.db),
+    }),
+  )
   const handleWebhook = new HandleBillingWebhookUseCase(
     createDrizzleBillingWebhookEventLog(deps.db),
     createDrizzleBillingUserLookup(deps.db),

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReconciliationAudience } from '../ports/reconciliationAudience'
 import {
   createFakeEntitlementProvider,
+  createFakeBillingMailer,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -27,7 +28,13 @@ function setup(ids: string[]) {
   }
   const provider = createFakeEntitlementProvider()
   const repo = createFakeSubscriptionRepository()
-  const sync = new SyncSubscriptionUseCase(provider, repo, createFakeSubscriptionCache(), () => NOW)
+  const sync = new SyncSubscriptionUseCase(
+    provider,
+    repo,
+    createFakeSubscriptionCache(),
+    createFakeBillingMailer(),
+    () => NOW,
+  )
   const useCase = new ReconcileSubscriptionsUseCase(audience, sync, OPTIONS, () => NOW)
   return { calls, provider, repo, useCase }
 }

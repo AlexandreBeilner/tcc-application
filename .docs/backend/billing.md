@@ -41,6 +41,18 @@ Backlog: `.claude/backlog-monetizacao.md` (Fase B, MO.2.x). A verdade sobre quem
 
 Nenhuma rota própria. Um caso de uso gateado injeta `ProAccessGuard` (exportado por `createBillingModule`) e chama `await guard.assertPro(userId)`; sem plano ativo lança `ProRequiredError` (`code: 'PRO_REQUIRED'`), que o `jsonErrorHandler` converte em **`403 { "error": "requer plano PRO" }`** (nunca 404). Toda rota que gateia deve documentar esse erro no arquivo do próprio módulo.
 
+## E-mails do ciclo de vida (MO.3.4)
+
+Sem rota nova. `SyncSubscriptionUseCase` compara a projeção anterior com a nova (`lifecycleEmails`, função pura) e enfileira no outbox do módulo `notifications`, categoria `transactional` (sem opt-out; o recibo continua sendo da loja/checkout):
+
+| Template | Quando | Chave de idempotência |
+|---|---|---|
+| `pro_welcome` | primeira assinatura, ou volta depois de mais de 7 dias sem PRO (renovação com webhook atrasado não conta) | `pro-welcome:<userId>:<purchasedAt>` |
+| `pro_billing_issue` | falha de cobrança nova (`billingIssueDetectedAt` mudou); leva o link de gerenciar da loja (o do provedor, ou a página oficial de assinaturas da App Store/Play Store) | `pro-billing-issue:<userId>:<detectedAt>` |
+| `pro_ended` | assinatura vencida e sem carência, para quem já tinha projeção gravada | `pro-ended:<userId>:<expiresAt>` |
+
+A chave é a do **fato**, então webhook repetido, reconciliação ou reenvio não duplicam. Os avisos entram no outbox **antes** de gravar a projeção: se o enfileiramento falhar, nada é gravado e o reenvio do webhook (500) ainda detecta a transição.
+
 ## Jobs
 
 - **Reconciliação** (rede de segurança do webhook): a cada 6 h (só com `BILLING_PROVIDER=revenuecat`) reconsulta quem tem projeção parada há mais de 12 h e vigência ativa ou vencida há menos de 3 dias, em lote de 200, mais velhos primeiro, com 200 ms entre consultas. Uma falha isolada não para o lote.

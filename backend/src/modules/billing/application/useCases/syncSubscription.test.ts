@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildSubscription } from '../../domain/subscription'
 import {
   createFakeEntitlementProvider,
+  createFakeBillingMailer,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -12,8 +13,9 @@ function setup(initial: Record<string, ReturnType<typeof entitlement> | null> = 
   const provider = createFakeEntitlementProvider(initial)
   const repo = createFakeSubscriptionRepository()
   const cache = createFakeSubscriptionCache()
-  const useCase = new SyncSubscriptionUseCase(provider, repo, cache, () => NOW)
-  return { provider, repo, cache, useCase }
+  const mailer = createFakeBillingMailer()
+  const useCase = new SyncSubscriptionUseCase(provider, repo, cache, mailer, () => NOW)
+  return { provider, repo, cache, mailer, useCase }
 }
 
 describe('SyncSubscriptionUseCase', () => {
@@ -87,5 +89,39 @@ describe('SyncSubscriptionUseCase', () => {
     await expect(useCase.execute('u1')).rejects.toThrow('RevenueCat fora do ar')
     expect(repo.rows.size).toBe(0)
     expect(cache.invalidated).toEqual([])
+  })
+  it('primeira assinatura enfileira as boas-vindas, uma vez só mesmo repetindo a sincronização', async () => {
+    const { mailer, useCase } = setup({ u1: entitlement() })
+
+    await useCase.execute('u1')
+    await useCase.execute('u1')
+
+    expect(mailer.sent).toHaveLength(1)
+    expect(mailer.sent[0]).toMatchObject({
+      userId: 'u1',
+      email: { kind: 'welcome', plan: 'monthly' },
+    })
+  })
+
+  it('assinatura que venceu avisa o encerramento', async () => {
+    const { repo, mailer, useCase } = setup({ u1: entitlement({ expiresAt: day(-1) }) })
+    repo.rows.set('u1', buildSubscription('u1', entitlement(), day(-5), null))
+
+    await useCase.execute('u1')
+
+    expect(mailer.sent.map((m) => m.email.kind)).toEqual(['ended'])
+  })
+
+  it('falha ao enfileirar o e-mail sobe e não grava, pra o reenvio do webhook refazer o aviso', async () => {
+    const { repo, cache, mailer, useCase } = setup({ u1: entitlement() })
+    mailer.failWith = new Error('outbox fora')
+
+    await expect(useCase.execute('u1')).rejects.toThrow('outbox fora')
+    expect(repo.rows.size).toBe(0)
+    expect(cache.invalidated).toEqual([])
+
+    mailer.failWith = undefined
+    await useCase.execute('u1')
+    expect(mailer.sent.map((m) => m.email.kind)).toEqual(['welcome'])
   })
 })

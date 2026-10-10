@@ -11,6 +11,7 @@ import {
   createFakeBillingUserLookup,
   createFakeBillingWebhookEventLog,
   createFakeEntitlementProvider,
+  createFakeBillingMailer,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -33,7 +34,13 @@ function buildApp(options: { webhookEnabled?: boolean } = {}) {
   ])
   const cache = createFakeSubscriptionCache()
   const provider = createFakeEntitlementProvider({ [FREE_USER]: entitlement({ store: 'stripe' }) })
-  const sync = new SyncSubscriptionUseCase(provider, repo, cache, () => NOW)
+  const sync = new SyncSubscriptionUseCase(
+    provider,
+    repo,
+    cache,
+    createFakeBillingMailer(),
+    () => NOW,
+  )
   const handle = new HandleBillingWebhookUseCase(
     createFakeBillingWebhookEventLog(),
     createFakeBillingUserLookup([PRO_USER, FREE_USER]),

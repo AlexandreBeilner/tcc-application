@@ -254,3 +254,50 @@ describe('lembrete de sequência (EM.7.3)', () => {
     expect(() => template.build({ name: 'Ana' }, ctx)).toThrow(/streak/)
   })
 })
+
+describe('ciclo de vida do PRO (MO.3.4)', () => {
+  it('os três são transacionais, sem token e sem travessão', () => {
+    for (const key of ['pro_welcome', 'pro_billing_issue', 'pro_ended']) {
+      const template = EMAIL_TEMPLATES[key]
+      const content = template.build(template.sample, ctx)
+
+      expect(template.category).toBe('transactional')
+      expect(template.sensitiveFields).toBeUndefined()
+      expect(JSON.stringify(content)).not.toContain('—')
+    }
+  })
+
+  it('boas-vindas citam o plano e apontam para Configurações', () => {
+    const content = EMAIL_TEMPLATES.pro_welcome.build({ name: 'Ana', plan: 'annual' }, ctx)
+
+    expect(JSON.stringify(content)).toContain('plano anual')
+    expect(JSON.stringify(content)).toContain('https://app.exemplo.com/configuracoes')
+    expect(
+      JSON.stringify(EMAIL_TEMPLATES.pro_welcome.build({ plan: 'unknown' }, ctx)),
+    ).not.toContain('plano unknown')
+  })
+
+  it('problema de cobrança usa o link da loja e cai em Configurações sem link', () => {
+    const withLink = EMAIL_TEMPLATES.pro_billing_issue.build(
+      {
+        storeLabel: 'Google Play',
+        manageUrl: 'https://play.google.com/store/account/subscriptions',
+      },
+      ctx,
+    )
+    const without = EMAIL_TEMPLATES.pro_billing_issue.build({}, ctx)
+
+    expect(JSON.stringify(withLink)).toContain(
+      'https://play.google.com/store/account/subscriptions',
+    )
+    expect(JSON.stringify(without)).toContain('https://app.exemplo.com/configuracoes')
+    expect(bodyText('pro_billing_issue', {})).toContain('nada do que você conquistou é apagado')
+  })
+
+  it('encerrada reafirma que nada foi apagado e sem tom de culpa ou escassez', () => {
+    const text = bodyText('pro_ended', { name: 'Ana' })
+
+    expect(text).toContain('Nada do que você conquistou foi apagado')
+    expect(text).not.toMatch(/última chance|perde|apenas hoje/i)
+  })
+})

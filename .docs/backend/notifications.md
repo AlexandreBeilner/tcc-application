@@ -19,7 +19,7 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 | Segredos | O link com token de um e-mail de segurança fica no `payload` só até a linha fechar (`sensitiveFields` do template): depois de `sent` ou `failed`, o token em claro some do banco. |
 | Log | Os adapters não registram destinatário completo nem token. |
 
-**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test` (transacional); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social); `weekly_digest`, `salary_credited`, `rare_achievement`, `streak_reminder` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
+**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test`, `pro_welcome`, `pro_billing_issue`, `pro_ended` (transacional; os três do PRO vêm do módulo `billing`, MO.3.4); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social); `weekly_digest`, `salary_credited`, `rare_achievement`, `streak_reminder` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
 
 **Configuração.**
 

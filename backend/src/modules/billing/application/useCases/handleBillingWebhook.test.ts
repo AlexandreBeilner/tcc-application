@@ -3,6 +3,7 @@ import {
   createFakeBillingUserLookup,
   createFakeBillingWebhookEventLog,
   createFakeEntitlementProvider,
+  createFakeBillingMailer,
   createFakeSubscriptionCache,
   createFakeSubscriptionRepository,
 } from '../../test/fakes/fakes'
@@ -17,7 +18,13 @@ function setup() {
   const provider = createFakeEntitlementProvider({ [USER_A]: entitlement(), [USER_B]: null })
   const repo = createFakeSubscriptionRepository()
   const log = createFakeBillingWebhookEventLog()
-  const sync = new SyncSubscriptionUseCase(provider, repo, createFakeSubscriptionCache(), () => NOW)
+  const sync = new SyncSubscriptionUseCase(
+    provider,
+    repo,
+    createFakeSubscriptionCache(),
+    createFakeBillingMailer(),
+    () => NOW,
+  )
   const useCase = new HandleBillingWebhookUseCase(
     log,
     createFakeBillingUserLookup([USER_A, USER_B]),

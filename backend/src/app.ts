@@ -474,12 +474,6 @@ export function createApp(deps: AppDeps = {}): Express {
 
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
   const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
-  const billing = createBillingModule({
-    db,
-    redis: redisClient,
-    config: loadBillingConfig(process.env),
-    authMiddleware,
-  })
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
   const loginUser = new LoginUserUseCase(
@@ -496,6 +490,13 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   const emailLinks = loadEmailLinksConfig(process.env)
   const enqueueEmail = deps.enqueueEmail ?? createEnqueueEmailUseCase(db, emailLinks)
+  const billing = createBillingModule({
+    db,
+    redis: redisClient,
+    config: loadBillingConfig(process.env),
+    authMiddleware,
+    enqueueEmail,
+  })
   const { getEmailPreferences, eraseEmailData, emailPreferencesRouter } =
     createEmailPreferencesComposition(db, emailLinks, authMiddleware)
   const authEmailTokens = createDrizzleAuthEmailTokenRepository(db)

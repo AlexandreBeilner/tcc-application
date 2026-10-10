@@ -116,6 +116,7 @@ async function main() {
       db,
       redis: createRedisClient(process.env.REDIS_URL ?? 'redis://localhost:6379'),
       config: billingConfig,
+      enqueueEmail,
     })
     startBillingReconciliationScheduler(
       reconcileSubscriptions,
