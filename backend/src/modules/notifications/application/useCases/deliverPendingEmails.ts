@@ -1,9 +1,10 @@
 import { EmailSendError } from '../../domain/errors'
-import type { OutboxEmail } from '../../domain/emailMessage'
 import { MAX_DELIVERY_ATTEMPTS, nextRetryDelayMs } from '../../domain/retryPolicy'
+import { isOptionalCategory, type OutboxEmail } from '../../domain/emailMessage'
 import { isBlockedBySuppression } from '../../domain/suppression'
 import { sensitivePayloadFields } from '../../domain/templates/registry'
 import type { EmailOutboxRepository } from '../ports/emailOutboxRepository'
+import type { EmailPreferencesRepository } from '../ports/emailPreferencesRepository'
 import type { EmailRenderer } from '../ports/emailRenderer'
 import type { EmailSender } from '../ports/emailSender'
 import type { EmailSuppressionRepository } from '../ports/emailSuppressionRepository'
@@ -39,6 +40,7 @@ export class DeliverPendingEmailsUseCase {
   constructor(
     private readonly outbox: EmailOutboxRepository,
     private readonly suppressions: EmailSuppressionRepository,
+    private readonly preferences: EmailPreferencesRepository,
     private readonly renderer: EmailRenderer,
     private readonly sender: EmailSender,
     private readonly options: DeliverPendingEmailsOptions = DEFAULT_DELIVER_OPTIONS,
@@ -83,7 +85,21 @@ export class DeliverPendingEmailsUseCase {
       return 'suppressed'
     }
 
-    const scrub = sensitivePayloadFields(email.templateKey)
+    // Quem cancelou a categoria depois que o e-mail entrou na fila (ex.: lote já agendado) não
+    // recebe: o cancelamento vale na hora, não só para os próximos.
+    if (isOptionalCategory(email.category) && email.userId) {
+      const preferences = await this.preferences.get(email.userId)
+      if (!preferences[email.category]) {
+        await this.outbox.markSuppressed(email.id, 'unsubscribed')
+        return 'suppressed'
+      }
+    }
+
+    // O link de cancelar carrega um token que desliga a categoria: não fica no banco depois
+    // que a linha fecha.
+    const scrub = isOptionalCategory(email.category)
+      ? [...sensitivePayloadFields(email.templateKey), 'unsubscribeUrl']
+      : sensitivePayloadFields(email.templateKey)
     let rendered
     try {
       rendered = this.renderer.render(email.templateKey, email.payload)

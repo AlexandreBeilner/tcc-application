@@ -1,4 +1,5 @@
 import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../test/fakes/fakeEmailDataEraser'
 import { describe, expect, it } from 'vitest'
 import { UserNotFoundError } from '../../domain/errors'
 import { createFakeAvatarStorage } from '../../test/fakes/fakeAvatarStorage'
@@ -24,6 +25,7 @@ describe('AnonymizeAccountUseCase', () => {
       userRepository,
       avatarStorage,
       createFakeAccountMailer(),
+      createFakeEmailDataEraser(),
     )
 
     await useCase.execute({ userId: user.id })
@@ -52,6 +54,7 @@ describe('AnonymizeAccountUseCase', () => {
       userRepository,
       avatarStorage,
       createFakeAccountMailer(),
+      createFakeEmailDataEraser(),
     )
 
     await useCase.execute({ userId: user.id })
@@ -75,6 +78,7 @@ describe('AnonymizeAccountUseCase', () => {
       userRepository,
       avatarStorage,
       createFakeAccountMailer(),
+      createFakeEmailDataEraser(),
     )
 
     await useCase.execute({ userId: user.id })
@@ -89,6 +93,7 @@ describe('AnonymizeAccountUseCase', () => {
       userRepository,
       avatarStorage,
       createFakeAccountMailer(),
+      createFakeEmailDataEraser(),
     )
 
     await expect(useCase.execute({ userId: 'nope' })).rejects.toBeInstanceOf(UserNotFoundError)
@@ -105,8 +110,14 @@ describe('AnonymizeAccountUseCase', () => {
         username: 'alexandreb',
         passwordHash: 'hashed:senha',
       })
-      const useCase = new AnonymizeAccountUseCase(userRepository, storage, accountMailer)
-      return { userRepository, accountMailer, user, useCase }
+      const emailDataEraser = createFakeEmailDataEraser()
+      const useCase = new AnonymizeAccountUseCase(
+        userRepository,
+        storage,
+        accountMailer,
+        emailDataEraser,
+      )
+      return { userRepository, accountMailer, emailDataEraser, user, useCase }
     }
 
     it('confirma ao endereço real, antes de ele virar `.invalid`', async () => {
@@ -138,5 +149,26 @@ describe('AnonymizeAccountUseCase', () => {
 
       expect(accountMailer.deletions).toEqual([])
     })
+  })
+
+  it('apaga os dados de e-mail do usuário depois de anonimizar (EM.6.1)', async () => {
+    const userRepository = createFakeUserRepository()
+    const { storage } = createFakeAvatarStorage()
+    const user = await userRepository.createUser({
+      name: 'Alexandre',
+      email: 'a@example.com',
+      username: 'alexandreb',
+      passwordHash: 'hashed:senha',
+    })
+    const emailDataEraser = createFakeEmailDataEraser()
+
+    await new AnonymizeAccountUseCase(
+      userRepository,
+      storage,
+      createFakeAccountMailer(),
+      emailDataEraser,
+    ).execute({ userId: user.id })
+
+    expect(emailDataEraser.erased).toEqual([user.id])
   })
 })

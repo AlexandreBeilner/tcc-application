@@ -8,6 +8,7 @@ import { AssetDetail } from '../pages/AssetDetail'
 import { AuthCallback } from '../pages/AuthCallback'
 import { BuscarAmigos } from '../pages/BuscarAmigos'
 import { Calculator } from '../pages/Calculator'
+import { CancelarInscricao } from '../pages/CancelarInscricao'
 import { Classificacao } from '../pages/Classificacao'
 import { CompanyProfile } from '../pages/CompanyProfile'
 import { Configuracoes } from '../pages/Configuracoes'
@@ -85,6 +86,11 @@ export const router = createBrowserRouter([
     {
         path: '/verificar-email',
         element: <VerificarEmail />,
+    },
+    // Cancelar inscrição de e-mail opcional (EM.6.1): pública, o token vem no fragmento do link.
+    {
+        path: '/cancelar-inscricao',
+        element: <CancelarInscricao />,
     },
     {
         path: '/auth/callback',

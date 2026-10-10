@@ -1,4 +1,5 @@
 import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../../auth/test/fakes/fakeEmailDataEraser'
 import { describe, expect, it } from 'vitest'
 import { AnonymizeAccountUseCase } from '../../../auth/application/useCases/anonymizeAccount'
 import { createFakeAuthMailer } from '../../../auth/test/fakes/fakeAuthMailer'
@@ -66,7 +67,12 @@ async function build() {
     ),
     remove: new DeleteUserAccountUseCase(
       userRepository,
-      new AnonymizeAccountUseCase(userRepository, createFakeAvatarStorage(), accountMailer),
+      new AnonymizeAccountUseCase(
+        userRepository,
+        createFakeAvatarStorage(),
+        accountMailer,
+        createFakeEmailDataEraser(),
+      ),
       record,
     ),
     now,

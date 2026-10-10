@@ -151,3 +151,12 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
 }
+
+/* Passo de e-mail (EM.6.1): as opções ocupam a largura do slide, uma por linha em todos os
+   breakpoints (o slide tem largura máxima de 420px, então lado a lado não cabe). */
+.optIn {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+}

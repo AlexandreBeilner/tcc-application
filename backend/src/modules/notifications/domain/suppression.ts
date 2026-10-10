@@ -15,3 +15,7 @@ export function isBlockedBySuppression(
 ): boolean {
   return reason === 'bounce' || isOptionalCategory(category)
 }
+
+// Por que uma linha do outbox virou `suppressed` sem ser enviada: um dos motivos acima, ou
+// `unsubscribed` (a pessoa desligou a categoria depois que o e-mail entrou na fila, EM.6.1).
+export type SkipReason = SuppressionReason | 'unsubscribed'

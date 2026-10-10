@@ -116,5 +116,12 @@ export function createFakeEmailOutboxRepository(
       }
       return stuck.length
     },
+    async deleteByUser(userId, { keepTemplateKeys }) {
+      const doomed = rows.filter(
+        (r) => r.userId === userId && !keepTemplateKeys.includes(r.templateKey),
+      )
+      for (const row of doomed) rows.splice(rows.indexOf(row), 1)
+      return doomed.length
+    },
   }
 }

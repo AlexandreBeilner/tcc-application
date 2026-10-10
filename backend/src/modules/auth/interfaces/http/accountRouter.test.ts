@@ -1,4 +1,6 @@
 import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../test/fakes/fakeEmailDataEraser'
+import { createFakeEmailPreferencesExporter } from '../../test/fakes/fakeEmailPreferencesExporter'
 import express from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
@@ -51,6 +53,7 @@ async function buildApp() {
     createFakeAchievementsExporter(),
     createFakeFriendshipsExporter(),
     createFakeMissionProgressExporter(),
+    createFakeEmailPreferencesExporter(),
     createFakeAccountMailer(),
   )
   const { storage: avatarStorage, saved: savedAvatars } = createFakeAvatarStorage()
@@ -58,6 +61,7 @@ async function buildApp() {
     userRepository,
     avatarStorage,
     createFakeAccountMailer(),
+    createFakeEmailDataEraser(),
   )
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const tokenIssuer = createFakeTokenIssuer()

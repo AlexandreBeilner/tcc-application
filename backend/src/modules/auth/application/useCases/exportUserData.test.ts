@@ -1,3 +1,4 @@
+import { createFakeEmailPreferencesExporter } from '../../test/fakes/fakeEmailPreferencesExporter'
 import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
 import { describe, expect, it } from 'vitest'
 import { UserNotFoundError } from '../../domain/errors'
@@ -61,6 +62,7 @@ async function build() {
         { missionId: 'm1', missionDate: '2026-08-24', status: 'completed', completedAt: null },
       ],
     }),
+    createFakeEmailPreferencesExporter({ [alice.id]: { social: true, engagement: false } }),
     accountMailer,
     () => 'evento-1',
   )
@@ -80,6 +82,7 @@ describe('ExportUserDataUseCase', () => {
     expect(result.achievements).toHaveLength(1)
     expect(result.friendships).toHaveLength(1)
     expect(result.missionProgress).toHaveLength(1)
+    expect(result.emailPreferences).toEqual({ social: true, engagement: false })
   })
 
   it('nunca inclui password_hash no bloco de usuário', async () => {

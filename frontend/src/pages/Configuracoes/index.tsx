@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Moon, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
+import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
 import { useTheme } from '../../features/theme/ThemeContext'
@@ -304,6 +305,8 @@ export function Configuracoes() {
                             </Button>
                         </form>
                     </section>
+
+                    <EmailPreferencesSection />
 
                     <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Aparência</h2>

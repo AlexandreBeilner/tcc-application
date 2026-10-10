@@ -1,6 +1,7 @@
 import { UserNotFoundError } from '../../domain/errors'
 import { notifySafely } from '../notifySafely'
 import type { AccountMailer } from '../ports/accountMailer'
+import type { EmailDataEraser } from '../ports/emailDataEraser'
 import type { AvatarStorage } from '../ports/avatarStorage'
 import type { UserRepository } from '../ports/userRepository'
 
@@ -25,6 +26,7 @@ export class AnonymizeAccountUseCase {
     private readonly userRepository: UserRepository,
     private readonly avatarStorage: AvatarStorage,
     private readonly accountMailer: AccountMailer,
+    private readonly emailDataEraser: EmailDataEraser,
   ) {}
 
   async execute(input: AnonymizeAccountInput): Promise<void> {
@@ -57,6 +59,9 @@ export class AnonymizeAccountUseCase {
     await this.userRepository.deleteIdentitiesForUser(input.userId)
     // Encerra as sessões abertas (N.16): token emitido antes da exclusão não vale mais.
     await this.userRepository.revokeSessions(input.userId)
+    // Preferências de e-mail e linhas do outbox (endereço e payload são dado pessoal) somem
+    // junto, menos a confirmação de exclusão que ainda está para sair (EM.6.1).
+    await this.emailDataEraser.eraseForUser(input.userId)
 
     if (user.avatarPath) {
       await this.avatarStorage.delete(user.avatarPath)

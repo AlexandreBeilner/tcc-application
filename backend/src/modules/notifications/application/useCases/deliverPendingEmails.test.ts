@@ -4,6 +4,9 @@ import { EnqueueEmailUseCase } from './enqueueEmail'
 import { MAX_DELIVERY_ATTEMPTS } from '../../domain/retryPolicy'
 import { createFakeEmailOutboxRepository } from '../../test/fakes/fakeEmailOutboxRepository'
 import { createFakeEmailSuppressionRepository } from '../../test/fakes/fakeEmailSuppressionRepository'
+import { createFakeEmailPreferencesRepository } from '../../test/fakes/fakeEmailPreferencesRepository'
+import { createFakeOptionalEmailDeps } from '../../test/fakes/fakeOptionalEmailDeps'
+import { createFakeRecipientDirectory } from '../../test/fakes/fakeRecipientDirectory'
 import { createFakeEmailRenderer } from '../../test/fakes/fakeEmailRenderer'
 import {
   createFakeEmailSender,
@@ -14,16 +17,18 @@ import {
 const T0 = new Date('2026-10-09T12:00:00Z')
 
 function setup(
-  options: Partial<ConstructorParameters<typeof DeliverPendingEmailsUseCase>[3]> = {},
+  options: Partial<ConstructorParameters<typeof DeliverPendingEmailsUseCase>[4]> = {},
 ) {
   let clock = T0
   const outbox = createFakeEmailOutboxRepository(() => clock)
   const sender = createFakeEmailSender()
   const suppressions = createFakeEmailSuppressionRepository()
+  const preferences = createFakeEmailPreferencesRepository()
   const sleeps: number[] = []
   const deliver = new DeliverPendingEmailsUseCase(
     outbox,
     suppressions,
+    preferences,
     createFakeEmailRenderer(),
     sender,
     { batchSize: 20, stuckAfterMs: 10 * 60_000, delayBetweenSendsMs: 0, ...options },
@@ -33,7 +38,7 @@ function setup(
     },
   )
   const enqueue = (key: string, templateKey = 'test') =>
-    new EnqueueEmailUseCase(outbox, suppressions).execute({
+    new EnqueueEmailUseCase(outbox, suppressions, createFakeOptionalEmailDeps()).execute({
       userId: null,
       to: 'ana@exemplo.com',
       templateKey,
@@ -44,6 +49,7 @@ function setup(
   return {
     outbox,
     suppressions,
+    preferences,
     sender,
     deliver,
     enqueue,
@@ -79,7 +85,7 @@ describe('DeliverPendingEmailsUseCase', () => {
     const { outbox, sender, suppressions, deliver, enqueue } = setup()
     await enqueue('a')
     await deliver.execute()
-    await new EnqueueEmailUseCase(outbox, suppressions).execute({
+    await new EnqueueEmailUseCase(outbox, suppressions, createFakeOptionalEmailDeps()).execute({
       userId: null,
       to: 'b@exemplo.com',
       templateKey: 'test',
@@ -251,18 +257,75 @@ describe('DeliverPendingEmailsUseCase', () => {
     expect(sender.sent).toHaveLength(1)
   })
 
+  describe('e-mail opcional (EM.6.1)', () => {
+    const optional = {
+      userId: 'user-1',
+      to: 'ana@exemplo.com',
+      templateKey: 'test',
+      category: 'social' as const,
+      payload: { n: 1 },
+      idempotencyKey: 'social:1',
+    }
+    const eligible = {
+      address: 'ana@exemplo.com',
+      status: 'active' as const,
+      emailVerified: true,
+    }
+
+    it('quem cancelou a categoria depois de entrar na fila não recebe', async () => {
+      const { outbox, sender, suppressions, preferences, deliver } = setup()
+      await preferences.update('user-1', { social: true }, T0)
+      await new EnqueueEmailUseCase(
+        outbox,
+        suppressions,
+        createFakeOptionalEmailDeps({
+          preferences,
+          recipients: createFakeRecipientDirectory({ 'user-1': eligible }),
+        }),
+      ).execute(optional)
+      await preferences.update('user-1', { social: false }, T0)
+
+      expect(await deliver.execute()).toMatchObject({ sent: 0, suppressed: 1 })
+
+      expect(sender.sent).toHaveLength(0)
+      expect(outbox.rows[0]).toMatchObject({
+        status: 'suppressed',
+        lastError: 'suppressed:unsubscribed',
+      })
+    })
+
+    it('envia quando a preferência segue ligada e apaga o link de cancelar do payload', async () => {
+      const { outbox, sender, suppressions, preferences, deliver } = setup()
+      await preferences.update('user-1', { social: true }, T0)
+      await new EnqueueEmailUseCase(
+        outbox,
+        suppressions,
+        createFakeOptionalEmailDeps({
+          preferences,
+          recipients: createFakeRecipientDirectory({ 'user-1': eligible }),
+        }),
+      ).execute(optional)
+
+      expect(await deliver.execute()).toMatchObject({ sent: 1, suppressed: 0 })
+
+      expect(sender.sent).toHaveLength(1)
+      expect(outbox.rows[0].payload).not.toHaveProperty('unsubscribeUrl')
+    })
+  })
+
   it('apaga do payload o link com token depois de enviar e depois de falhar (EM.2.1)', async () => {
     const { outbox, sender, suppressions } = setup()
     const deliver = new DeliverPendingEmailsUseCase(
       outbox,
       suppressions,
+      createFakeEmailPreferencesRepository(),
       createFakeEmailRenderer(['password_reset']),
       sender,
       { batchSize: 20, stuckAfterMs: 10 * 60_000, delayBetweenSendsMs: 0 },
       () => T0,
     )
     const enqueue = (key: string) =>
-      new EnqueueEmailUseCase(outbox, suppressions).execute({
+      new EnqueueEmailUseCase(outbox, suppressions, createFakeOptionalEmailDeps()).execute({
         userId: null,
         to: 'ana@exemplo.com',
         templateKey: 'password_reset',

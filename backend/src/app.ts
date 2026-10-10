@@ -346,9 +346,15 @@ import {
   createForgotPasswordRateLimiters,
   createResetPasswordRateLimiter,
 } from './modules/auth/interfaces/http/passwordResetRateLimit'
-import { EnqueueEmailUseCase } from './modules/notifications/application/useCases/enqueueEmail'
-import { createDrizzleEmailOutboxRepository } from './modules/notifications/infrastructure/persistence/drizzleEmailOutboxRepository'
-import { createDrizzleEmailSuppressionRepository } from './modules/notifications/infrastructure/persistence/drizzleEmailSuppressionRepository'
+import {
+  createEmailPreferencesComposition,
+  createEnqueueEmailUseCase,
+} from './modules/notifications/composition'
+import { loadEmailLinksConfig } from './modules/notifications/infrastructure/config/emailLinksConfig'
+import {
+  createInProcessEmailDataEraser,
+  createInProcessEmailPreferencesExporter,
+} from './modules/auth/infrastructure/notifications/notificationsEmailPreferences'
 import { createAuditLogAdminSessionAuditor } from './modules/admin/infrastructure/audit/auditLogAdminSessionAuditor'
 
 export interface AppDeps {
@@ -360,7 +366,7 @@ export interface AppDeps {
   emailWebhookRouter?: Router
   // Enfileirar e-mail (módulo `notifications`): o `server.ts` passa o mesmo da composição do
   // worker; sem ele, `createApp` monta um próprio sobre o mesmo banco.
-  enqueueEmail?: Pick<EnqueueEmailUseCase, 'execute'>
+  enqueueEmail?: Pick<ReturnType<typeof createEnqueueEmailUseCase>, 'execute'>
   // Intervalo entre e-mails de um lote (comunicado), derivado de `EMAIL_SEND_RPS` (EM.5.2).
   emailSpacingMs?: number
 }
@@ -474,12 +480,10 @@ export function createApp(deps: AppDeps = {}): Express {
     tokenIssuer,
     adminSessionAuditor,
   )
-  const enqueueEmail =
-    deps.enqueueEmail ??
-    new EnqueueEmailUseCase(
-      createDrizzleEmailOutboxRepository(db),
-      createDrizzleEmailSuppressionRepository(db),
-    )
+  const emailLinks = loadEmailLinksConfig(process.env)
+  const enqueueEmail = deps.enqueueEmail ?? createEnqueueEmailUseCase(db, emailLinks)
+  const { getEmailPreferences, eraseEmailData, emailPreferencesRouter } =
+    createEmailPreferencesComposition(db, emailLinks, authMiddleware)
   const authEmailTokens = createDrizzleAuthEmailTokenRepository(db)
   const emailTokenGenerator = createCryptoEmailTokenGenerator()
   const authMailer = createNotificationsAuthMailer({
@@ -799,7 +803,12 @@ export function createApp(deps: AppDeps = {}): Express {
   const avatarStorageDir = process.env.AVATAR_STORAGE_DIR ?? '/data/avatars'
   const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage, accountMailer)
+  const anonymizeAccount = new AnonymizeAccountUseCase(
+    userRepository,
+    avatarStorage,
+    accountMailer,
+    createInProcessEmailDataEraser(eraseEmailData),
+  )
   // Reaproveitados pelo detalhe de usuário do painel admin (N.16).
   const progressionExporter = createInProcessProgressionExporter(getProgression)
   const achievementsExporter = createInProcessAchievementsExporter(
@@ -815,6 +824,7 @@ export function createApp(deps: AppDeps = {}): Express {
     achievementsExporter,
     friendshipsExporter,
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
+    createInProcessEmailPreferencesExporter(getEmailPreferences),
     accountMailer,
   )
 
@@ -846,6 +856,8 @@ export function createApp(deps: AppDeps = {}): Express {
   // Verificação de e-mail (EM.3.1): reenvio com o mesmo teto por IP e por e-mail do reset.
   app.use('/auth/resend-verification', ...createForgotPasswordRateLimiters())
   app.use('/auth/verify-email', createResetPasswordRateLimiter())
+  // Cancelar inscrição (EM.6.1): rota pública, só freia laço descontrolado.
+  app.use('/email', createRateLimiter({ windowMs: 60_000, max: 30 }))
   app.use(
     createAuthRouter({
       registerUser,
@@ -872,6 +884,7 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  app.use(emailPreferencesRouter)
   // N.22: respostas do painel nunca em cache e teto de requisições por IP
   // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
   app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))

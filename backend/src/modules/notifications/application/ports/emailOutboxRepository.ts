@@ -1,5 +1,5 @@
 import type { EmailCategory, OutboxEmail } from '../../domain/emailMessage'
-import type { SuppressionReason } from '../../domain/suppression'
+import type { SkipReason } from '../../domain/suppression'
 
 export interface NewOutboxEmail {
   userId: string | null
@@ -12,7 +12,7 @@ export interface NewOutboxEmail {
   sendAt?: Date
   // Endereço suprimido na hora de enfileirar: a linha nasce `suppressed` (nunca é enviada, mas
   // fica registrada pra explicar por que o e-mail não chegou).
-  suppressedBy?: SuppressionReason
+  suppressedBy?: SkipReason
 }
 
 export interface EmailOutboxRepository {
@@ -32,10 +32,13 @@ export interface EmailOutboxRepository {
   markForRetry(id: string, error: string, nextAttemptAt: Date): Promise<void>
   markFailed(id: string, error: string, scrubFields?: readonly string[]): Promise<void>
   // Suprimido entre o enfileiramento e a entrega (um bounce chegou nesse intervalo).
-  markSuppressed(id: string, reason: SuppressionReason): Promise<void>
+  markSuppressed(id: string, reason: SkipReason): Promise<void>
   // Confirmação de entrega vinda do webhook, localizada pelo id que o provedor devolveu.
   markDelivered(providerMessageId: string, at: Date): Promise<void>
   // Linhas `sending` reivindicadas antes de `claimedBefore` (processo caiu no meio): voltam a
   // `pending`, ou vão a `failed` se já esgotaram `maxAttempts`. Devolve quantas mexeu.
   recoverStuck(claimedBefore: Date, maxAttempts: number): Promise<number>
+  // Exclusão de conta (LGPD): apaga as linhas do usuário, menos as dos templates em
+  // `keepTemplateKeys` (a confirmação de exclusão, que ainda precisa sair). Devolve quantas apagou.
+  deleteByUser(userId: string, options: { keepTemplateKeys: readonly string[] }): Promise<number>
 }

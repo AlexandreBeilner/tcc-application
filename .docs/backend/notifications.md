@@ -1,6 +1,6 @@
 # `notifications`: envio de e-mail (outbox, supressão e webhook do provedor)
 
-Módulo: `backend/src/modules/notifications/`. Desenho em `.claude/plano-gateway-email.md` e tarefas em `.claude/backlog-email.md`. Hoje só expõe a rota do webhook do provedor; o envio em si é interno (outros módulos enfileiram, um worker entrega).
+Módulo: `backend/src/modules/notifications/`. Desenho em `.claude/plano-gateway-email.md` e tarefas em `.claude/backlog-email.md`. Expõe a rota do webhook do provedor e as de preferências/cancelamento de inscrição; o envio em si é interno (outros módulos enfileiram, um worker entrega).
 
 ---
 
@@ -22,3 +22,53 @@ Consultada em todo enfileiramento (`EnqueueEmailUseCase`) e de novo na entrega (
 |---|---|
 | `bounce` | tudo, inclusive segurança (insistir num endereço inexistente só piora a reputação do domínio) |
 | `complaint`, `unsubscribe_all` | só e-mail opcional (social, engajamento); recuperação de senha e verificação continuam saindo |
+
+---
+
+## Preferências e cancelamento de inscrição (EM.6.1)
+
+Duas categorias de e-mail são **opcionais**: `social` (ex.: pedido de amizade) e `engagement` (resumo semanal, salário, conquista rara, lembrete de sequência). Ambas nascem **desligadas** (D8: nenhum e-mail opcional sem pedido explícito). `security` e `transactional` (reset, verificação, suspensão, exclusão, comunicado crítico) **não são desligáveis** e não aparecem no contrato.
+
+**Regra do enfileiramento (`EnqueueEmailUseCase`), só para categoria opcional:** exige `userId` conhecido, conta **ativa** (suspensa não recebe nada opcional), com e-mail **verificado** e não anonimizada, e a categoria **ligada** pelo usuário; senão devolve `rejected` (`recipient_unknown`, `recipient_not_eligible` ou `not_opted_in`) e **nada é gravado**. Passando, injeta `unsubscribeUrl` no payload, e o renderer manda o `List-Unsubscribe` + `List-Unsubscribe-Post` e o link no rodapé. A entrega confere a preferência de novo: quem cancelou depois que o e-mail entrou na fila (lote agendado) não recebe (`status = 'suppressed'`, `last_error = 'suppressed:unsubscribed'`). O link de cancelar é apagado do payload quando a linha fecha.
+
+### `GET /me/email-preferences`
+
+- **Autenticação:** Bearer token.
+- **Payload:** nenhum.
+- **Sucesso:** `200` → `{ preferences: { social: boolean, engagement: boolean }, suppression: "bounce" | "complaint" | "unsubscribe_all" | null }`. `suppression` diz por que o **endereço da conta** não recebe e-mail (bounce: o endereço não entrega; reclamação: foi marcado como spam); a tela de Configurações mostra o aviso.
+- **Erros:** `401` — token ausente ou inválido.
+- **Regra:** `GetEmailPreferencesUseCase`. Sem linha gravada, tudo `false`.
+
+### `PATCH /me/email-preferences`
+
+- **Autenticação:** Bearer token.
+- **Payload:** `{ social?: boolean, engagement?: boolean }`, ao menos um campo, nenhum campo desconhecido (`security: false` é `400`, não é ignorado).
+- **Sucesso:** `200` → `{ preferences: { social, engagement } }` (estado final).
+- **Erros:** `400` — payload inválido; `401` — token ausente ou inválido.
+- **Regra:** `UpdateEmailPreferencesUseCase`. Upsert parcial: só as categorias informadas mudam. Usada pela tela de Configurações e pela pergunta do onboarding (tela 1.2).
+
+### `GET /email/unsubscribe?token=...`
+
+- **Autenticação:** público (o token assinado é a autorização).
+- **Sucesso:** `302` para `${FRONTEND_URL}/cancelar-inscricao#token=<token>` (página de confirmação do frontend). **Nunca cancela nada**: scanners de e-mail "clicam" em todo link, e um `GET` que cancelasse descadastraria todo mundo sozinho.
+- **Erros:** `400` — sem `token`.
+
+### `POST /email/unsubscribe`
+
+- **Autenticação:** público; o token HMAC no link é a autorização (sem login, descadastro de um clique).
+- **Payload:** `token` na query (é a URL do `List-Unsubscribe`, que Gmail/Yahoo chamam por POST com `List-Unsubscribe=One-Click` no corpo) **ou** `{ token }` no JSON (página de confirmação do frontend). Máx. 400 caracteres.
+- **Sucesso:** `200` → `{ status: "cancelado", category: "social" | "engagement" }`.
+- **Erros:** `400` — token ausente, adulterado, truncado ou de categoria inválida (não é `401` de propósito: não há sessão, e `401` dispararia o tratamento de sessão expirada do frontend). Limite de 30 requisições por minuto por IP.
+- **Regra:** `UnsubscribeByTokenUseCase`. O token é `<userId>.<categoria>.<HMAC-SHA256>` (base64url), assinado com `EMAIL_UNSUBSCRIBE_SECRET` (reserva: `JWT_SECRET`), com rótulo de finalidade na mensagem assinada; **não expira**. Desliga só a categoria do e-mail em questão, é idempotente e reversível em Configurações (ligar de novo é um consentimento novo). O cancelamento mexe nas **preferências** (não na lista de supressão, que é por endereço e não tem como ser desfeita pelo usuário).
+
+### Configuração
+
+| Variável | Para quê |
+|---|---|
+| `PUBLIC_API_URL` | URL pública do gateway, base do link de cancelar (o `List-Unsubscribe-Post` precisa de uma URL que aceite POST). Padrão `http://localhost:8000`. |
+| `EMAIL_UNSUBSCRIBE_SECRET` | Segredo do HMAC do token. Vazio usa o `JWT_SECRET`. |
+| `FRONTEND_URL` | Destino do redirecionamento do `GET`. |
+
+### Exportação e exclusão de conta (LGPD)
+
+`GET /me/export` ganhou `emailPreferences` (`.docs/backend/auth.md`). `DELETE /me` (e a exclusão pelo admin) apaga a linha de `email_preferences` e as linhas do `email_outbox` do usuário (endereço e payload são dado pessoal), **menos** a confirmação `account_deleted`, que ainda precisa sair; a limpeza dessa última é da retenção (EM.8.2). A supressão por endereço fica: é do endereço, não da pessoa.

@@ -28,7 +28,9 @@ export interface OutboxEmail {
   nextAttemptAt: Date
 }
 
-export function isOptionalCategory(category: EmailCategory): boolean {
+export type OptionalEmailCategory = 'social' | 'engagement'
+
+export function isOptionalCategory(category: EmailCategory): category is OptionalEmailCategory {
   return category === 'social' || category === 'engagement'
 }
 

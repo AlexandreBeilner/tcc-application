@@ -107,10 +107,19 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Responsivo:** mesmo cartão único da 1.3.
 - **Dados envolvidos:** `POST /auth/verify-email`, `POST /auth/resend-verification`.
 
+### 1.6 Cancelar inscrição de e-mail (`/cancelar-inscricao#token=...`)
+- **Objetivo:** desligar uma categoria opcional de e-mail com um clique, sem login (EM.6.1).
+- **Acesso:** link "cancelar inscrição" do rodapé de um e-mail opcional (a URL da API redireciona para cá). O token vem no **fragmento** e sai da barra de endereço ao abrir. Pública, fora do shell.
+- **Conteúdo:** "Quer deixar de receber estes e-mails?" com o botão "Cancelar inscrição" e o link "Manter e voltar para a plataforma". **Abrir a página nunca cancela** (scanners de e-mail abrem todo link); só o botão confirma. Sucesso → "Pronto, você não vai mais receber esses e-mails", diz qual categoria foi desligada, lembra que os avisos de segurança continuam e aponta para Configurações para ligar de novo.
+- **Estados especiais:** pronto; cancelando; cancelado; link inválido (sem token ou 400); erro de rede (mostra o erro e permite repetir com o mesmo token).
+- **Responsivo:** mesmo cartão único da 1.3.
+- **Dados envolvidos:** `POST /email/unsubscribe`.
+
 ### 1.2 Onboarding / Boas-vindas
 - **Objetivo:** contextualizar o novo usuário antes de cair "sem explicação" no Portfólio — explicar que existe um saldo simulado de R$10.000 (equidade de partida, seção 3.5 da spec) e que o aprendizado acontece pela Trilha.
 - **Acesso:** apenas na primeira sessão após cadastro (1.1).
 - **Conteúdo:** 2–3 telas curtas (carrossel), tom leve: "Você começa com R$10.000 simulados", "Aprenda fazendo, não lendo", "Compita com amigos, não só com estranhos" (gancho pro sistema social).
+- **Pergunta de e-mail (EM.6.1, D8):** o último passo do carrossel pergunta se a pessoa quer e-mails opcionais ("Amigos" e "Resumo e lembretes"), **tudo desmarcado**. "Começar" grava só o que foi marcado; "Pular" nunca liga nada. Falha ao gravar não trava o onboarding (o padrão é desligado). Avisos de segurança da conta sempre são enviados e a pergunta diz isso.
 - **Ações:** CTA final "Começar" → **4.1 Mapa da Trilha** (não direto pro Portfólio — força o primeiro contato com a lição 0.1).
 - **Estados especiais:** pulável ("pular" leva direto ao Portfólio, mas não recomendado como padrão).
 - **Dados envolvidos:** nenhum dado persistido além de uma flag `onboarding_completed` em `users` (campo a acrescentar).
@@ -418,10 +427,10 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 ### 9.2 Configurações de Conta
 - **Objetivo:** dados cadastrais e credenciais.
 - **Acesso:** a partir de 9.1, ou direto do menu do avatar.
-- **Conteúdo:** nome, e-mail, username, alteração de senha, provedores conectados (OAuth).
+- **Conteúdo:** nome, e-mail, username, alteração de senha, provedores conectados (OAuth) e a seção **E-mails** (EM.6.1): duas caixas, "Amigos" e "Resumo e lembretes", desligadas por padrão, cada clique grava na hora. Avisa quando o endereço da conta não recebe e-mail (bounce ou reclamação de spam). Segurança e avisos da conta não aparecem como opção porque nunca são desligáveis.
 - **Ações:** "Salvar" → confirmação inline, sem navegação.
 - **Estados especiais:** conflito de username já em uso.
-- **Dados envolvidos:** `users`, `user_identities`.
+- **Dados envolvidos:** `users`, `user_identities`, `email_preferences` (`GET/PATCH /me/email-preferences`).
 
 ### 9.3 Privacidade e LGPD
 - **Objetivo:** cumprir RNF04 (gestão de consentimento, portabilidade, anonimização). Nesta fase não há controle de visibilidade de perfil configurável (decisão da spec v0.4, seção 8.2) — todo perfil é público por padrão, então esta tela fica restrita à gestão de dados pessoais exigida por lei, sem se misturar com o sistema social.
@@ -567,6 +576,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 1.3 | Esqueci minha senha | Auth |
 | 1.4 | Redefinir senha | Auth |
 | 1.5 | Verificar e-mail | Auth |
+| 1.6 | Cancelar inscrição de e-mail | Auth |
 | 2.1 | Portfólio | Home |
 | 3.1 | Mapa da Trilha | Trilha |
 | 3.2 | Lição (genérica) | Trilha |

@@ -7,7 +7,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
 import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxRepository'
+import { createDrizzleEmailPreferencesRepository } from './drizzleEmailPreferencesRepository'
 import { createDrizzleEmailSuppressionRepository } from './drizzleEmailSuppressionRepository'
+import { createDrizzleRecipientDirectory } from './drizzleRecipientDirectory'
 
 // Teste de integração (EM.1.1 e EM.1.4): outbox e supressão num arquivo só, porque dois arquivos migrando o mesmo banco em paralelo colidem. Só roda com TEST_DATABASE_URL apontando pra um banco
 // DESCARTÁVEL (apaga `email_outbox`). Cobre o que os fakes não provam: idempotência pela UNIQUE
@@ -43,6 +45,7 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
   beforeEach(async () => {
     await db.delete(schema.emailOutbox)
     await db.delete(schema.emailSuppressions)
+    await db.delete(schema.emailPreferences)
   })
 
   afterAll(async () => {
@@ -209,5 +212,90 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
     await repo.add('ana@exemplo.com', 'bounce', T0)
     expect(await repo.find('ana@exemplo.com')).toBe('bounce')
     expect(await db.select().from(schema.emailSuppressions)).toHaveLength(1)
+  })
+
+  describe('preferências, destinatário e apagamento (EM.6.1)', () => {
+    const createUser = async (
+      suffix: string,
+      extra: Partial<typeof schema.users.$inferInsert> = {},
+    ) => {
+      const [user] = await db
+        .insert(schema.users)
+        .values({
+          name: `Ana ${suffix}`,
+          email: `em61-${suffix}@exemplo.com`,
+          username: `em61_${suffix}`,
+          ...extra,
+        })
+        .onConflictDoUpdate({
+          target: schema.users.email,
+          set: { status: 'active', emailVerifiedAt: null, ...extra },
+        })
+        .returning()
+      return user
+    }
+
+    it('sem linha, tudo desligado; update é upsert parcial e devolve o estado final', async () => {
+      const repo = createDrizzleEmailPreferencesRepository(db)
+      const user = await createUser('prefs')
+
+      expect(await repo.get(user.id)).toEqual({ social: false, engagement: false })
+
+      expect(await repo.update(user.id, { engagement: true }, T0)).toEqual({
+        social: false,
+        engagement: true,
+      })
+      expect(await repo.update(user.id, { social: true }, T0)).toEqual({
+        social: true,
+        engagement: true,
+      })
+      expect(await repo.update(user.id, { engagement: false }, T0)).toEqual({
+        social: true,
+        engagement: false,
+      })
+      expect(await repo.get(user.id)).toEqual({ social: true, engagement: false })
+      expect(
+        await db
+          .select()
+          .from(schema.emailPreferences)
+          .where(eq(schema.emailPreferences.userId, user.id)),
+      ).toHaveLength(1)
+
+      await repo.deleteForUser(user.id)
+      expect(await repo.get(user.id)).toEqual({ social: false, engagement: false })
+    })
+
+    it('o diretório de destinatários lê status e verificação do usuário', async () => {
+      const directory = createDrizzleRecipientDirectory(db)
+      const active = await createUser('dir-ativo', { emailVerifiedAt: T0 })
+      const suspended = await createUser('dir-susp', { status: 'suspended' })
+
+      expect(await directory.find(active.id)).toEqual({
+        address: 'em61-dir-ativo@exemplo.com',
+        status: 'active',
+        emailVerified: true,
+      })
+      expect(await directory.find(suspended.id)).toMatchObject({
+        status: 'suspended',
+        emailVerified: false,
+      })
+      expect(await directory.find('00000000-0000-4000-8000-000000000000')).toBeNull()
+    })
+
+    it('deleteByUser apaga as linhas do usuário e preserva os templates mantidos e as dos outros', async () => {
+      const repo = createDrizzleEmailOutboxRepository(db)
+      const ana = await createUser('del-ana')
+      const bia = await createUser('del-bia')
+      await repo.enqueue({ ...base('a1'), userId: ana.id, templateKey: 'welcome' })
+      await repo.enqueue({ ...base('a2'), userId: ana.id, templateKey: 'account_deleted' })
+      await repo.enqueue({ ...base('b1'), userId: bia.id, templateKey: 'welcome' })
+      await repo.enqueue(base('sem-usuario'))
+
+      const deleted = await repo.deleteByUser(ana.id, { keepTemplateKeys: ['account_deleted'] })
+
+      expect(deleted).toBe(1)
+      const keys = (await db.select().from(schema.emailOutbox)).map((r) => r.idempotencyKey).sort()
+      expect(keys).toEqual(['a2', 'b1', 'sem-usuario'])
+    })
   })
 })

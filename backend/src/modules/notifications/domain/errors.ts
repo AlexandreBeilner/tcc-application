@@ -18,3 +18,11 @@ export class InvalidWebhookSignatureError extends Error {
     this.name = 'InvalidWebhookSignatureError'
   }
 }
+
+// Link de cancelamento adulterado, truncado ou de outra chave: não revela nada além de "inválido".
+export class InvalidUnsubscribeTokenError extends Error {
+  constructor(message = 'link de cancelamento inválido') {
+    super(message)
+    this.name = 'InvalidUnsubscribeTokenError'
+  }
+}

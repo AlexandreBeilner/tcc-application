@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { FastForward, Wallet, Target, Users, HandCoins } from 'lucide-react'
+import { FastForward, Wallet, Target, Users, HandCoins, Mail } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
 import { completeOnboarding } from '../../services/auth'
+import { updateEmailPreferences } from '../../services/emailPreferences'
+import type { EmailPreferences } from '../../services/emailPreferences'
+import { EmailCategoryOption } from '../../components/molecules/EmailCategoryOption'
+import { EMAIL_CATEGORIES, EMAIL_CATEGORY_COPY } from '../../features/emailPreferences/emailCategoryCopy'
 import { Button } from '../../components/atoms/Button'
 import { formatCurrency } from '../../features/portfolio/format'
 import styles from './index.module.css'
@@ -73,6 +77,11 @@ const SLIDES: Slide[] = [
     },
 ]
 
+// Passo final (EM.6.1, D8): pergunta se a pessoa quer e-mails opcionais. Tudo começa desligado, e
+// "Pular" nunca liga nada. A escolha é gravada em `finish()` junto com o fim do onboarding.
+const PREFERENCES_STEP = SLIDES.length
+const STEP_COUNT = SLIDES.length + 1
+
 function TimeVisual() {
     return (
         <div className={styles.timeVisual}>
@@ -128,9 +137,10 @@ export function Onboarding() {
     const { token, user, setUser } = useAuth()
     const navigate = useNavigate()
     const [step, setStep] = useState(0)
+    const [emailChoices, setEmailChoices] = useState<EmailPreferences>({ social: false, engagement: false })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const isLastSlide = step === SLIDES.length - 1
+    const isPreferencesStep = step === PREFERENCES_STEP
 
     // Onboarding concluído (segunda visita à URL, ex: voltar no navegador) —
     // não repetir o carrossel. `!isSubmitting` evita uma corrida com
@@ -142,11 +152,16 @@ export function Onboarding() {
         return <Navigate to="/" replace />
     }
 
-    async function finish() {
+    async function finish(saveEmailChoices: boolean) {
         if (isSubmitting || !token) return
         setIsSubmitting(true)
         setError(null)
         try {
+            // Falhar em gravar a escolha de e-mail não trava o onboarding: o padrão é desligado
+            // (nenhum e-mail opcional), e a pessoa liga depois em Configurações.
+            if (saveEmailChoices && (emailChoices.social || emailChoices.engagement)) {
+                await updateEmailPreferences(token, emailChoices).catch(() => undefined)
+            }
             const result = await completeOnboarding(token)
             setUser(result.user)
             navigate('/trilha', { replace: true })
@@ -157,30 +172,55 @@ export function Onboarding() {
     }
 
     function handleNext() {
-        if (isLastSlide) {
-            void finish()
+        if (isPreferencesStep) {
+            void finish(true)
             return
         }
         setStep((s) => s + 1)
     }
 
-    const slide = SLIDES[step]
+    const slide = isPreferencesStep ? null : SLIDES[step]
 
     return (
         <main className={styles.page}>
-            <button type="button" className={styles.skip} onClick={() => void finish()}>
+            <button type="button" className={styles.skip} onClick={() => void finish(false)}>
                 Pular
             </button>
 
-            <div className={styles.slide}>
-                <span className={styles.icon} aria-hidden="true">
-                    <slide.Icon size={28} strokeWidth={2} />
-                </span>
-                <h1 className={styles.title}>{slide.title}</h1>
-                <p className={styles.body}>{slide.body}</p>
-                {slide.visual === 'time' && <TimeVisual />}
-                {slide.visual === 'salary' && <SalaryVisual />}
-            </div>
+            {slide ? (
+                <div className={styles.slide}>
+                    <span className={styles.icon} aria-hidden="true">
+                        <slide.Icon size={28} strokeWidth={2} />
+                    </span>
+                    <h1 className={styles.title}>{slide.title}</h1>
+                    <p className={styles.body}>{slide.body}</p>
+                    {slide.visual === 'time' && <TimeVisual />}
+                    {slide.visual === 'salary' && <SalaryVisual />}
+                </div>
+            ) : (
+                <div className={styles.slide}>
+                    <span className={styles.icon} aria-hidden="true">
+                        <Mail size={28} strokeWidth={2} />
+                    </span>
+                    <h1 className={styles.title}>Quer receber e-mails da plataforma?</h1>
+                    <p className={styles.body}>
+                        Tudo começa desligado e você muda quando quiser em Configurações. Os avisos de segurança da conta, como redefinir a
+                        senha, sempre são enviados.
+                    </p>
+                    <div className={styles.optIn}>
+                        {EMAIL_CATEGORIES.map((category) => (
+                            <EmailCategoryOption
+                                key={category}
+                                title={EMAIL_CATEGORY_COPY[category].title}
+                                description={EMAIL_CATEGORY_COPY[category].description}
+                                checked={emailChoices[category]}
+                                disabled={isSubmitting}
+                                onChange={(checked) => setEmailChoices((current) => ({ ...current, [category]: checked }))}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className={styles.footer}>
                 {error && (
@@ -189,12 +229,12 @@ export function Onboarding() {
                     </p>
                 )}
                 <div className={styles.dots}>
-                    {SLIDES.map((s, index) => (
-                        <span key={s.title} className={index === step ? `${styles.dot} ${styles.dotActive}` : styles.dot} />
+                    {Array.from({ length: STEP_COUNT }, (_, index) => (
+                        <span key={index} className={index === step ? `${styles.dot} ${styles.dotActive}` : styles.dot} />
                     ))}
                 </div>
                 <Button fullWidth onClick={handleNext} disabled={isSubmitting}>
-                    {isLastSlide ? 'Começar' : 'Próximo'}
+                    {isPreferencesStep ? 'Começar' : 'Próximo'}
                 </Button>
             </div>
         </main>

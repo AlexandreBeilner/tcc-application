@@ -7,6 +7,19 @@ import {
   type DeliverPendingEmailsOptions,
 } from './application/useCases/deliverPendingEmails'
 import { EnqueueEmailUseCase } from './application/useCases/enqueueEmail'
+import { EraseEmailDataUseCase } from './application/useCases/eraseEmailData'
+import { GetEmailPreferencesUseCase } from './application/useCases/getEmailPreferences'
+import { UnsubscribeByTokenUseCase } from './application/useCases/unsubscribeByToken'
+import { UpdateEmailPreferencesUseCase } from './application/useCases/updateEmailPreferences'
+import type { EmailLinksConfig } from './infrastructure/config/emailLinksConfig'
+import { createDrizzleEmailPreferencesRepository } from './infrastructure/persistence/drizzleEmailPreferencesRepository'
+import { createDrizzleRecipientDirectory } from './infrastructure/persistence/drizzleRecipientDirectory'
+import {
+  createHmacUnsubscribeTokens,
+  createUnsubscribeLinks,
+} from './infrastructure/unsubscribe/hmacUnsubscribeTokens'
+import type { AuthMiddleware } from '../../shared/http/authMiddleware'
+import { createEmailPreferencesRouter } from './interfaces/http/preferencesRouter'
 import type { EmailConfig } from './infrastructure/config/emailConfig'
 import { createLogEmailSender } from './infrastructure/log/logEmailSender'
 import { createDrizzleEmailOutboxRepository } from './infrastructure/persistence/drizzleEmailOutboxRepository'
@@ -42,9 +55,55 @@ export interface NotificationsCompositionDeps {
   // o worker (`server.ts`) decide, não este módulo.
   emailSender: EmailSender
   emailRenderer: EmailRenderer
+  // Segredo e URLs dos links que os e-mails opcionais carregam (EM.6.1).
+  links: EmailLinksConfig
   deliverOptions?: Partial<DeliverPendingEmailsOptions>
   // Credenciais do Resend pra verificar a assinatura do webhook (EM.1.4).
   webhook?: { apiKey: string; secret: string }
+}
+
+// Peças que o enfileiramento de e-mail opcional e as rotas de preferência compartilham. Os
+// adapters são sem estado, então `server.ts` (worker) e `app.ts` (rotas) podem montar cada um o seu.
+function createPreferenceParts(db: Database, links: EmailLinksConfig) {
+  const preferences = createDrizzleEmailPreferencesRepository(db)
+  const recipients = createDrizzleRecipientDirectory(db)
+  const unsubscribeTokens = createHmacUnsubscribeTokens(links.unsubscribeSecret)
+  const unsubscribeLinks = createUnsubscribeLinks(unsubscribeTokens, links.apiBaseUrl)
+  return { preferences, recipients, unsubscribeTokens, unsubscribeLinks }
+}
+
+// `EnqueueEmailUseCase` completo (supressão, preferência, elegibilidade e link de cancelar).
+export function createEnqueueEmailUseCase(db: Database, links: EmailLinksConfig) {
+  const { preferences, recipients, unsubscribeLinks } = createPreferenceParts(db, links)
+  return new EnqueueEmailUseCase(
+    createDrizzleEmailOutboxRepository(db),
+    createDrizzleEmailSuppressionRepository(db),
+    { preferences, recipients, unsubscribeLinks },
+  )
+}
+
+// Preferências de e-mail (EM.6.1): casos de uso, a rota pública/autenticada e o apagamento da
+// exclusão de conta. Quem monta `app.ts` entrega o `authMiddleware`.
+export function createEmailPreferencesComposition(
+  db: Database,
+  links: EmailLinksConfig,
+  authMiddleware: AuthMiddleware,
+) {
+  const { preferences, recipients, unsubscribeTokens } = createPreferenceParts(db, links)
+  const suppressions = createDrizzleEmailSuppressionRepository(db)
+  const getEmailPreferences = new GetEmailPreferencesUseCase(preferences, recipients, suppressions)
+  const eraseEmailData = new EraseEmailDataUseCase(
+    createDrizzleEmailOutboxRepository(db),
+    preferences,
+  )
+  const emailPreferencesRouter = createEmailPreferencesRouter({
+    getEmailPreferences,
+    updateEmailPreferences: new UpdateEmailPreferencesUseCase(preferences),
+    unsubscribeByToken: new UnsubscribeByTokenUseCase(unsubscribeTokens, preferences),
+    authMiddleware,
+    unsubscribePageUrl: `${links.frontendUrl.replace(/\/+$/, '')}/cancelar-inscricao`,
+  })
+  return { getEmailPreferences, eraseEmailData, emailPreferencesRouter }
 }
 
 // Composição isolada de `createApp` (mesmo desenho de `payroll`/`ranking`): o envio é processo
@@ -53,10 +112,16 @@ export interface NotificationsCompositionDeps {
 export function createNotificationsComposition(db: Database, deps: NotificationsCompositionDeps) {
   const outbox = createDrizzleEmailOutboxRepository(db)
   const suppressions = createDrizzleEmailSuppressionRepository(db)
-  const enqueueEmail = new EnqueueEmailUseCase(outbox, suppressions)
+  const { preferences, recipients, unsubscribeLinks } = createPreferenceParts(db, deps.links)
+  const enqueueEmail = new EnqueueEmailUseCase(outbox, suppressions, {
+    preferences,
+    recipients,
+    unsubscribeLinks,
+  })
   const deliverPendingEmails = new DeliverPendingEmailsUseCase(
     outbox,
     suppressions,
+    preferences,
     deps.emailRenderer,
     deps.emailSender,
     { ...DEFAULT_DELIVER_OPTIONS, ...deps.deliverOptions },

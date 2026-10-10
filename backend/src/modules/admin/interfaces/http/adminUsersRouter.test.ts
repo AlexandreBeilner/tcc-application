@@ -1,4 +1,5 @@
 import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../../auth/test/fakes/fakeEmailDataEraser'
 import express from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -83,6 +84,7 @@ async function buildApp() {
           userRepository,
           createFakeAvatarStorage(),
           createFakeAccountMailer(),
+          createFakeEmailDataEraser(),
         ),
         record,
       ),

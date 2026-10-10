@@ -6,6 +6,7 @@ import {
   createNotificationsComposition,
   EMAIL_BRAND_NAME,
 } from './modules/notifications/composition'
+import { loadEmailLinksConfig } from './modules/notifications/infrastructure/config/emailLinksConfig'
 import { loadEmailConfig } from './modules/notifications/infrastructure/config/emailConfig'
 import { startEmailOutboxScheduler } from './modules/notifications/infrastructure/scheduler/emailOutboxScheduler'
 import { createHtmlEmailRenderer } from './modules/notifications/infrastructure/templates/htmlEmailRenderer'
@@ -56,6 +57,7 @@ async function main() {
         brandName: EMAIL_BRAND_NAME,
         appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
       }),
+      links: loadEmailLinksConfig(process.env),
       deliverOptions: { delayBetweenSendsMs: emailConfig.delayBetweenSendsMs },
       webhook,
     },

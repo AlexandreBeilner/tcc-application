@@ -630,6 +630,18 @@ export const emailSuppressions = pgTable(
   ],
 )
 
+// Preferências de e-mail por categoria opcional (EM.6.1). Sem linha = tudo desligado (D8): a linha
+// só nasce quando a pessoa liga ou desliga algo (onboarding, Configurações ou link de cancelar).
+// Segurança e transacional não têm coluna: nunca são desligáveis.
+export const emailPreferences = pgTable('email_preferences', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  social: boolean('social').notNull().default(false),
+  engagement: boolean('engagement').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // Tokens de uso único enviados por e-mail (EM.2.1): hoje só `password_reset`, a verificação de
 // e-mail entra na EM.3.1. Só o hash SHA-256 do token é gravado; o token em claro existe apenas no
 // link do e-mail. `used_at` marca o consumo (ou a invalidação por um pedido mais novo).

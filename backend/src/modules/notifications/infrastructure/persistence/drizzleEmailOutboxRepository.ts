@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from 'drizzle-orm'
+import { and, eq, lt, notInArray, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { emailOutbox } from '../../../../db/schema'
 import type { EmailOutboxRepository } from '../../application/ports/emailOutboxRepository'
@@ -136,6 +136,21 @@ export function createDrizzleEmailOutboxRepository(db: Database): EmailOutboxRep
           claimedAt: null,
         })
         .where(and(eq(emailOutbox.status, 'sending'), lt(emailOutbox.claimedAt, claimedBefore)))
+        .returning({ id: emailOutbox.id })
+      return rows.length
+    },
+
+    async deleteByUser(userId, { keepTemplateKeys }) {
+      const rows = await db
+        .delete(emailOutbox)
+        .where(
+          and(
+            eq(emailOutbox.userId, userId),
+            keepTemplateKeys.length > 0
+              ? notInArray(emailOutbox.templateKey, [...keepTemplateKeys])
+              : undefined,
+          ),
+        )
         .returning({ id: emailOutbox.id })
       return rows.length
     },
