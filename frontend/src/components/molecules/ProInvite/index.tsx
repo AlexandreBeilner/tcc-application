@@ -21,7 +21,7 @@ export function ProInvite({ context, title, children }: ProInviteProps) {
     }
 
     return (
-        <aside className={styles.invite} aria-label={title ?? 'Convite para o plano PRO'}>
+        <div className={styles.invite}>
             {title && <h2 className={styles.title}>{title}</h2>}
             <p className={styles.text}>{children}</p>
             <div className={styles.actions}>
@@ -34,6 +34,6 @@ export function ProInvite({ context, title, children }: ProInviteProps) {
                     Agora não
                 </button>
             </div>
-        </aside>
+        </div>
     )
 }

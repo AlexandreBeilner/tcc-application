@@ -354,7 +354,7 @@ compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend 
 - **Entregável:** só frontend (sem rota nova). Molécula `components/molecules/ProInvite` (props `context`, `title?`, texto como filho): some para quem já é PRO e com `billingEnabled=false` (consulta o status do plano ela mesma, uma regra só), é dispensável pelo botão "Agora não" e lembra a escolha em `localStorage` por **contexto** durante **30 dias** (`features/billing/proInviteDismissal`, chave nova `app.proInvite.dismissed` em `STORAGE_KEYS`, JSON `{contexto: timestamp}`, leitura tolerante a valor corrompido e a armazenamento indisponível). Dentro do app (`isNativeApp()`) não renderiza o link para `/planos`, só o texto neutro e a dispensa. Substituiu os convites fixos de `LeagueCreateForm`, `DuelChallengePanel`, `CosmeticsPicker` e `RetrospectiveReport` (esta perdeu a prop `billingEnabled`); em liga e duelo o convite carrega o título da seção, que some junto ao dispensar. Nenhum convite fica no caminho de ação do core loop. Texto sem culpa, sem escassez e sem travessão (revisado contra `proposta-engajamento-licoes.md`). Testes: módulo de dispensa, molécula (PRO, cobrança desligada, dispensa, 30 dias, app nativo) e os quatro consumidores.
   - **Fora do escopo desta entrega (de propósito):** o convite da **assembleia** (nasce com a Fase F), a **linha opcional no resumo semanal por e-mail** (precisa do opt-in de engajamento da `backlog-email.md`) e o teste "tenho interesse" por âncora (precisa do funil da **MO.7.1**).
 
-### MO.5.6 · Validação completa da Fase E no WebView, em resolução mobile
+### MO.5.6 · Validação completa da Fase E no WebView, em resolução mobile ✅ parcial (2026-10-10: navegador; app pendente)
 - **Descrição:** a Fase E foi conferida no navegador do desktop e, pontualmente, em 390 px. Esta tarefa
   valida **tudo da fase dentro do app** (React Native + WebView, Android primeiro, iOS quando houver
   ambiente) em resolução de celular, porque o WebView muda coisas que o navegador esconde: área segura
@@ -383,6 +383,13 @@ compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend 
   pronta para publicação.
 - **Dependências:** MO.5.1 a 5.5; `backlog-app-mobile.md` Fase 1 (app rodando no emulador) e, para o compartilhar/baixar
   imagem, a tarefa de download de arquivo (Fase 2). A parte de compra nativa (MO.4.x) não entra aqui.
+
+- **Entregável (parte feita, 2026-10-10, sem o app):** como o app ainda não roda, a passada foi no **navegador**, com o frontend em iframes de 320, 390 e 768 px (media queries reais), backend com a cobrança ligada (`BILLING_PROVIDER=revenuecat` com chaves de mentira, só leitura de status) e duas contas de teste, uma gratuita e uma PRO (linha em `subscriptions`). Tudo revertido ao fim: contas anonimizadas por `DELETE /me`, assinatura apagada, backend reiniciado com a configuração padrão, Vite parado.
+  - **Passou:** `/ligas`, `/duelos` e `/configuracoes` nos 3 tamanhos sem rolagem horizontal; convite ao PRO aparece para a conta gratuita e some para a PRO (que vê o formulário de criar liga e o de desafiar); alvos de toque do convite com pelo menos 44 px; sem travessão; dispensar esconde na hora e a escolha persiste ao recarregar (`{"duel": timestamp}` na chave `app.proInvite.dismissed`).
+  - **Defeito achado e corrigido:** o convite era um `<aside>` dentro do `<aside>` da página (landmark aninhado e `aria-label` repetido); virou `<div>`.
+  - **Achado fora do escopo:** o link "Privacidade e LGPD" em Configurações tem 17 px de altura (abaixo de 44 px). Não é da Fase E; fica como ajuste pequeno em Configurações.
+  - **Não deu para validar no navegador e fica para o app:** convite sem link para `/planos` dentro do WebView (coberto só por teste unitário, a injeção de `ReactNativeWebView` não sobrevive à navegação do iframe); `/retrospectiva` com relatório (conta nova não tem mês fechado, o job é mensal; os cartões e a imagem ficam cobertos por teste unitário); menu de compartilhar/baixar a imagem 1080x1350 no WebView, área segura, teclado cobrindo formulário, toque, girar a tela, tema claro, rede lenta/offline, selo/moldura/título nas telas sociais com duas contas amigas, liga e duelo em andamento, ligas pausadas por cancelamento.
+  - **Pendente para fechar a tarefa:** repetir o roteiro completo no emulador Android quando a Fase 1 do app estiver rodando (e o download de arquivo da Fase 2 para a imagem). Só então a Fase E está pronta para publicação.
 
 ---
 
