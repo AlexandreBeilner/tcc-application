@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Só existe em src/debug/ (nunca em src/main/ ou src/release/) — cleartext
+  liberado apenas pros hosts de desenvolvimento. Build de release nunca deve
+  sequer ter a possibilidade de cleartext liberado
+  (arquitetura-app-mobile-react-native-webview.md, seção 6).
+
+  Dois domínios, dois motivos diferentes (achado nesta sessão, não é
+  redundância): "10.0.2.2" é o alias do loopback da máquina host visto de
+  dentro do emulador — é o que o WebView carrega (App.tsx, Config.APP_WEB_URL).
+  "localhost" é usado pelo cliente de dev embutido do próprio React Native
+  (ReactInstance/BridgelessReact) pra buscar o bundle JS em Metro via
+  `adb reverse tcp:8081 tcp:8081` — um cliente de rede nativo totalmente
+  separado do WebView, que por padrão nunca fala com "10.0.2.2:8081". Sem essa
+  segunda entrada, o app builda e instala normalmente mas trava em
+  "Unable to load script." / "CLEARTEXT communication to localhost not
+  permitted by network security policy" assim que abre.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

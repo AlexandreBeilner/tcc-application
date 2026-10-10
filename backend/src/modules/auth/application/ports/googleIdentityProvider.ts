@@ -7,4 +7,5 @@ export interface GoogleProfile {
 export interface GoogleIdentityProvider {
   buildAuthUrl(state: string): string
   exchangeCode(code: string): Promise<GoogleProfile>
+  verifyIdToken(idToken: string): Promise<GoogleProfile>
 }

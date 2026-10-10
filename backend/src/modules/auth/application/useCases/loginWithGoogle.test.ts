@@ -73,6 +73,24 @@ describe('LoginWithGoogleUseCase', () => {
     expect(accountProvisioner.provisionedUserIds).toEqual([first.user.id])
   })
 
+  it('aceita idToken (SDK nativo do app mobile) no lugar de code, mesmo fluxo de achar/criar', async () => {
+    const userRepository = createFakeUserRepository()
+    const accountProvisioner = createFakeAccountProvisioner()
+    const useCase = new LoginWithGoogleUseCase(
+      userRepository,
+      createFakeGoogleIdentityProvider(PROFILE),
+      createFakeTokenIssuer(),
+      accountProvisioner,
+    )
+
+    const result = await useCase.execute({ idToken: 'native-id-token' })
+
+    expect(result.user.email).toBe(PROFILE.email)
+    const identity = await userRepository.findIdentity('google', PROFILE.providerAccountId)
+    expect(identity?.userId).toBe(result.user.id)
+    expect(accountProvisioner.provisionedUserIds).toEqual([result.user.id])
+  })
+
   it('recusa conta suspensa e não vincula identidade nova a ela (N.16)', async () => {
     const userRepository = createFakeUserRepository()
     const suspended = await userRepository.createUser({

@@ -46,6 +46,7 @@ import { NotFound } from '../pages/NotFound'
 import { Onboarding } from '../pages/Onboarding'
 import { PerfilPublico } from '../pages/PerfilPublico'
 import { Portfolio } from '../pages/Portfolio'
+import { PoliticaPrivacidade } from '../pages/PoliticaPrivacidade'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
@@ -71,6 +72,12 @@ export const router = createBrowserRouter([
     {
         path: '/auth/callback',
         element: <AuthCallback />,
+    },
+    // Tarefa 4.2 (app mobile): política pública, sem login, a URL que vai
+    // nos formulários da Google Play e da App Store.
+    {
+        path: '/privacidade',
+        element: <PoliticaPrivacidade />,
     },
     {
         element: <ProtectedRoute />,
