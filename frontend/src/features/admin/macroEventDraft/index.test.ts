@@ -115,6 +115,7 @@ describe('buildMacroEventSummaryRows', () => {
             { label: 'Magnitude', value: 'Moderado' },
             { label: 'Efeitos', value: 'Preço + Fundamentos' },
             { label: 'Alvos', value: 'Setor: Mineração' },
+            { label: 'Efeito começa', value: 'No próximo tick (já)' },
         ])
     })
 
@@ -138,6 +139,7 @@ describe('buildMacroEventSummaryRows', () => {
             { label: 'Magnitude', value: 'Severo' },
             { label: 'Efeitos', value: 'Fundamentos' },
             { label: 'Alvos', value: 'Setor: Mineração' },
+            { label: 'Efeito começa', value: 'No próximo tick (já)' },
         ])
     })
 
@@ -158,5 +160,81 @@ describe('buildMacroEventSummaryRows', () => {
             targets: [{ id: 't1', kind: 'sector', value: '' }],
         })
         expect(buildMacroEventSummaryRows(draft).find((row) => row.label === 'Alvos')).toEqual({ label: 'Alvos', value: '(nenhum)' })
+    })
+})
+
+describe('agendamento (N.11)', () => {
+    it('sem dia de aplicação não manda apply_on_day e a prévia diz que dispara já', () => {
+        const draft = draftWithTarget({ mode: 'template', templateKey: 'alta-minerio-ferro' })
+        expect(buildTriggerMacroEventInput(draft)).not.toHaveProperty('apply_on_day')
+    })
+
+    it('com dia de aplicação manda apply_on_day nas duas variantes e a prévia mostra o agendamento', () => {
+        const template = draftWithTarget({ mode: 'template', templateKey: 'alta-minerio-ferro', applyOnDay: ' 130 ' })
+        expect(buildTriggerMacroEventInput(template)).toMatchObject({ apply_on_day: 130 })
+        const adhoc = draftWithTarget({ mode: 'adhoc', title: 't', narrative: 'n', applyOnDay: '130' })
+        expect(buildTriggerMacroEventInput(adhoc)).toMatchObject({ apply_on_day: 130 })
+        expect(buildMacroEventSummaryRows(template).find((row) => row.label === 'Efeito começa')).toEqual({
+            label: 'Efeito começa',
+            value: 'No dia simulado 130 (agendado)',
+        })
+    })
+
+    it('valida o dia: inteiro e posterior ao dia simulado atual quando o relógio é conhecido', () => {
+        const base = { mode: 'template' as const, templateKey: 'alta-minerio-ferro' }
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: 'amanhã' }), 100)).toContain(
+            'O dia de aplicação precisa ser um número inteiro.',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '100' }), 100)).toContain(
+            'O dia de aplicação precisa ser posterior ao dia simulado atual (100).',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '101' }), 100)).toEqual([])
+        // Sem o relógio carregado, só o formato é conferido; o motor recusa o resto (400).
+        expect(validateMacroEventDraft(draftWithTarget({ ...base, applyOnDay: '5' }))).toEqual([])
+    })
+})
+
+describe('antecedência de aparição (N.25)', () => {
+    const scheduled = { mode: 'template' as const, templateKey: 'alta-minerio-ferro', applyOnDay: '130' }
+
+    it('vazia não manda reveal_lead_days e a prévia diz que é a véspera', () => {
+        const draft = draftWithTarget(scheduled)
+        expect(buildTriggerMacroEventInput(draft)).not.toHaveProperty('reveal_lead_days')
+        expect(buildMacroEventSummaryRows(draft).at(-1)).toEqual({ label: 'Jogador vê o evento', value: 'Na véspera do efeito (padrão)' })
+    })
+
+    it('manda reveal_lead_days nas duas variantes, inclusive 0, e a prévia descreve a escolha', () => {
+        const template = draftWithTarget({ ...scheduled, revealLeadDays: ' 5 ' })
+        expect(buildTriggerMacroEventInput(template)).toMatchObject({ apply_on_day: 130, reveal_lead_days: 5 })
+        const adhoc = draftWithTarget({ mode: 'adhoc', title: 't', narrative: 'n', applyOnDay: '130', revealLeadDays: '0' })
+        expect(buildTriggerMacroEventInput(adhoc)).toMatchObject({ reveal_lead_days: 0 })
+        expect(buildMacroEventSummaryRows(template).at(-1)?.value).toBe('5 dias antes do efeito')
+        expect(buildMacroEventSummaryRows(adhoc).at(-1)?.value).toBe('Só quando o efeito começa')
+        expect(buildMacroEventSummaryRows(draftWithTarget({ ...scheduled, revealLeadDays: '1' })).at(-1)?.value).toBe(
+            '1 dia antes do efeito',
+        )
+    })
+
+    it('sem agendamento a antecedência é ignorada: nem vai no payload nem aparece na prévia', () => {
+        const draft = draftWithTarget({ mode: 'template', templateKey: 'alta-minerio-ferro', revealLeadDays: '5' })
+        expect(buildTriggerMacroEventInput(draft)).not.toHaveProperty('reveal_lead_days')
+        expect(buildMacroEventSummaryRows(draft).some((row) => row.label === 'Jogador vê o evento')).toBe(false)
+        expect(validateMacroEventDraft(draftWithTarget({ ...draft, revealLeadDays: 'cedo' }), 100)).toEqual([])
+    })
+
+    it('valida: inteiro e no máximo os dias que faltam até o efeito', () => {
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: 'cedo' }), 100)).toContain(
+            'A antecedência precisa ser um número inteiro, 0 ou maior.',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '-1' }), 100)).toContain(
+            'A antecedência precisa ser um número inteiro, 0 ou maior.',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '31' }), 100)).toContain(
+            'A antecedência não pode passar de 30 dias (o efeito começa em 30 dias).',
+        )
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '30' }), 100)).toEqual([])
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '0' }), 100)).toEqual([])
+        // Sem o relógio, só o formato é conferido; o motor recusa o resto.
+        expect(validateMacroEventDraft(draftWithTarget({ ...scheduled, revealLeadDays: '999' }))).toEqual([])
     })
 })

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../features/auth/AuthContext'
 import { Onboarding } from '.'
 
-const TOKEN_STORAGE_KEY = 'tcc.auth.token'
+const TOKEN_STORAGE_KEY = 'app.auth.token'
 
 // Regressão de um bug encontrado na validação de ponta a ponta da tarefa
 // 6.2 (docker compose up + Chrome real): com <AuthContext> de verdade (não

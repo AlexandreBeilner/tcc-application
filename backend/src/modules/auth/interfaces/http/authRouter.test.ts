@@ -5,6 +5,7 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { GetCurrentUserUseCase } from '../../application/useCases/getCurrentUser'
 import { LoginUserUseCase } from '../../application/useCases/loginUser'
 import { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
+import { ReauthenticateUseCase } from '../../application/useCases/reauthenticate'
 import { RegisterUserUseCase } from '../../application/useCases/registerUser'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeGoogleIdentityProvider } from '../../test/fakes/fakeGoogleIdentityProvider'
@@ -43,6 +44,7 @@ function buildApp() {
         tokenIssuer,
         accountProvisioner,
       ),
+      reauthenticate: new ReauthenticateUseCase(userRepository, passwordHasher, tokenIssuer),
       googleIdentityProvider,
       authMiddleware,
     }),
@@ -216,5 +218,48 @@ describe('auth routes', () => {
     const res = await request(app).post('/auth/google/token').send({ idToken: 'expired' })
 
     expect(res.status).toBe(401)
+  })
+
+  describe('POST /auth/reauth', () => {
+    async function registerAndLogin(app: ReturnType<typeof buildApp>) {
+      const res = await request(app).post('/auth/register').send({
+        name: 'Alexandre',
+        email: 'reauth@example.com',
+        username: 'reauth',
+        password: 'senha-forte-123',
+      })
+      return res.body.token as string
+    }
+
+    it('devolve token novo quando a senha confere', async () => {
+      const app = buildApp()
+      const token = await registerAndLogin(app)
+      const res = await request(app)
+        .post('/auth/reauth')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'senha-forte-123' })
+      expect(res.status).toBe(200)
+      expect(typeof res.body.token).toBe('string')
+    })
+
+    it('retorna 401 com senha incorreta', async () => {
+      const app = buildApp()
+      const token = await registerAndLogin(app)
+      const res = await request(app)
+        .post('/auth/reauth')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'errada' })
+      expect(res.status).toBe(401)
+    })
+
+    it('retorna 400 sem senha e 401 sem token', async () => {
+      const app = buildApp()
+      const token = await registerAndLogin(app)
+      expect(
+        (await request(app).post('/auth/reauth').set('Authorization', `Bearer ${token}`).send({}))
+          .status,
+      ).toBe(400)
+      expect((await request(app).post('/auth/reauth').send({ password: 'x' })).status).toBe(401)
+    })
   })
 })

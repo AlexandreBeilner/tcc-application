@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // assetCatalogReader é o colaborador que os handlers de /assets precisam
@@ -20,8 +22,20 @@ type assetCatalogReader interface {
 	ListAssets(ctx context.Context, assetType string) ([]catalog.AssetRecord, error)
 	FindAssetByID(ctx context.Context, id string) (catalog.AssetRecord, bool, error)
 	FindFixedIncomeSpecialization(ctx context.Context, assetID string) (catalog.FixedIncomeSpecialization, bool, error)
+	// CurrentSelicRatePct devolve a Selic simulada corrente (%) —
+	// consumida só por handleFixedIncomeSimulate (achado do teste de ponta
+	// a ponta da Fase L, fixedincome.go) pra projetar produto pós-fixado
+	// (fixedincome.IsPostFixado). ok = false antes do primeiro tick do
+	// Temporizador.
+	CurrentSelicRatePct(ctx context.Context) (float64, bool, error)
+	// CurrentSimulatedDay devolve market_calendar.current_day — o "agora" do
+	// Dividend Yield de 12 meses e da simulação de renda fixa (tarefa S.1).
+	CurrentSimulatedDay(ctx context.Context) (int, error)
 	FindEquitySpecialization(ctx context.Context, assetID string) (catalog.EquitySpecialization, bool, error)
 	FindETFDetails(ctx context.Context, assetID string) (etf.Details, bool, error)
+	// FindLatestETFNAV devolve o NAV mais recente e as cotas emitidas do ETF
+	// (tarefa R.3); found = false antes da emissão inicial.
+	FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error)
 	FindFIIDetails(ctx context.Context, assetID string) (fii.Details, bool, error)
 	// FindCurrentQuote/ListCurrentQuotes devolvem a cotação corrente
 	// (asset_quotes, tarefa 3.11) — só existe pra acao/etf/fii, e só depois
@@ -201,8 +215,8 @@ func toDividendHistoryResponse(history []catalog.DividendHistoryEntry) []dividen
 }
 
 // sumDividendsLast12Months soma value_per_share de todo DividendHistoryEntry
-// pago (PaymentDate, relógio real — mesma convenção de company_fundamentals.
-// period_date) nos últimos 12 meses a partir de now — insumo de
+// pago (PaymentDate, data simulada) nos últimos 12 meses simulados a partir
+// de now (a data do dia simulado corrente, simcalendar.DateOf) — insumo de
 // dividend.Yield.
 func sumDividendsLast12Months(history []catalog.DividendHistoryEntry, now time.Time) float64 {
 	cutoff := now.AddDate(-1, 0, 0)
@@ -227,6 +241,16 @@ type etfDetailResponse struct {
 	BenchmarkIndex     string               `json:"benchmark_index"`
 	MethodologySummary string               `json:"methodology_summary,omitempty"`
 	Holdings           []etfHoldingResponse `json:"holdings"`
+	// NAV, PremiumPct e SharesOutstanding (tarefa R.3) só vêm depois da
+	// emissão inicial e do primeiro tick seguinte.
+	NAV               *float64 `json:"nav,omitempty"`
+	PremiumPct        *float64 `json:"premium_pct,omitempty"`
+	NAVDay            *int     `json:"nav_day,omitempty"`
+	SharesOutstanding *int64   `json:"shares_outstanding,omitempty"`
+	// TrackingErrorPct e DividendHistory (tarefa R.11): desvio do NAV contra o
+	// índice teórico e proventos que o fundo distribuiu aos cotistas (R.8).
+	TrackingErrorPct *float64                       `json:"tracking_error_pct,omitempty"`
+	DividendHistory  []dividendHistoryEntryResponse `json:"dividend_history"`
 }
 
 // fiiDetailResponse traz os campos próprios por perfil (tijolo/papel,
@@ -243,8 +267,14 @@ type fiiDetailResponse struct {
 	// (dividend_events) e mesmo cálculo (dividend.Yield) do bloco de ação,
 	// nunca o layout de equityIndicatorsResponse (RF21, CLAUDE.md: FII não
 	// mostra indicador de empresa nenhum).
-	DividendYield   *float64                       `json:"dividend_yield,omitempty"`
-	DividendHistory []dividendHistoryEntryResponse `json:"dividend_history"`
+	DividendYield *float64 `json:"dividend_yield,omitempty"`
+	// PriceToBookValue (tarefa U.6, achado 024) é o P/VP do FII: cotação
+	// corrente sobre o valor patrimonial por cota (net_worth no tijolo,
+	// portfolio_value no papel, dividido pelas cotas em circulação). Omitido
+	// sem cotação, sem valor-base ou sem cotas. É a âncora do preço justo do
+	// Fundamentalista (fii.FairPrice).
+	PriceToBookValue *float64                       `json:"price_to_book_value,omitempty"`
+	DividendHistory  []dividendHistoryEntryResponse `json:"dividend_history"`
 }
 
 type assetDetailResponse struct {
@@ -255,6 +285,20 @@ type assetDetailResponse struct {
 	FII         *fiiDetailResponse         `json:"fii,omitempty"`
 }
 
+// fiiPriceToBook calcula o P/VP do FII (preço ÷ valor patrimonial por cota),
+// reaproveitando fundamentals.PriceToBookValue. ok = false sem valor-base,
+// sem cotas ou sem cotação válida.
+func fiiPriceToBook(d fii.Details, price float64) (float64, bool) {
+	baseValue := d.NetWorth
+	if d.Type == fii.TypePapel {
+		baseValue = d.PortfolioValue
+	}
+	if baseValue == nil || d.OutstandingShares == nil || *d.OutstandingShares <= 0 {
+		return 0, false
+	}
+	return fundamentals.PriceToBookValue(price, *baseValue/float64(*d.OutstandingShares))
+}
+
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -263,6 +307,24 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeCatalogError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeMarketClosedIfClosed responde 422 com code market_closed (tarefa S.11)
+// e devolve true quando err é a recusa de negociar em fim de semana simulado.
+// opens_on é a data da próxima abertura e days_until_open quantos dias
+// simulados faltam, pro cliente montar "abre segunda 12/01" sem outra chamada.
+func writeMarketClosedIfClosed(w http.ResponseWriter, err error) bool {
+	var closed *simcalendar.MarketClosedError
+	if !errors.As(err, &closed) {
+		return false
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+		"error":           "Mercado fechado: fim de semana simulado. Abre na segunda-feira, " + closed.OpensOn().Format("02/01") + ".",
+		"code":            "market_closed",
+		"opens_on":        closed.OpensOn().Format(dateLayout),
+		"days_until_open": closed.DaysUntilOpen(),
+	})
+	return true
 }
 
 // handleListAssets serve GET /assets, com filtro opcional por `type` (um
@@ -337,6 +399,12 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 		}
 		resp := assetDetailResponse{assetSummaryResponse: toAssetSummaryResponse(rec, quotePtr)}
 
+		today, err := catalogReader.CurrentSimulatedDay(r.Context())
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar dia simulado corrente")
+			return
+		}
+
 		switch rec.Type {
 		case catalog.AssetAcao:
 			spec, found, err := catalogReader.FindEquitySpecialization(r.Context(), rec.ID)
@@ -376,7 +444,7 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				}
 				equityDetail.DividendHistory = toDividendHistoryResponse(dividendHistory)
 				if quotePtr != nil {
-					sum := sumDividendsLast12Months(dividendHistory, time.Now())
+					sum := sumDividendsLast12Months(dividendHistory, simcalendar.DateOf(today))
 					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
 						indicators.DividendYield = &v
 						hasIndicators = true
@@ -400,10 +468,25 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 				for _, h := range details.Holdings {
 					holdings = append(holdings, etfHoldingResponse{ConstituentName: h.ConstituentName, WeightPct: h.WeightPct})
 				}
+				dividendHistory, err := catalogReader.ListDividendHistory(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar histórico de proventos")
+					return
+				}
 				resp.ETF = &etfDetailResponse{
 					BenchmarkIndex:     details.BenchmarkIndex,
 					MethodologySummary: details.MethodologySummary,
 					Holdings:           holdings,
+					DividendHistory:    toDividendHistoryResponse(dividendHistory),
+				}
+				nav, navFound, err := catalogReader.FindLatestETFNAV(r.Context(), rec.ID)
+				if err != nil {
+					writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar NAV do ETF")
+					return
+				}
+				if navFound {
+					resp.ETF.NAV, resp.ETF.PremiumPct, resp.ETF.NAVDay, resp.ETF.SharesOutstanding = &nav.NAV, &nav.PremiumPct, &nav.SimulatedDay, &nav.OutstandingShares
+					resp.ETF.TrackingErrorPct = nav.TrackingErrorPct
 				}
 			}
 		case catalog.AssetFII:
@@ -429,9 +512,12 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 					DividendHistory: toDividendHistoryResponse(dividendHistory),
 				}
 				if quotePtr != nil {
-					sum := sumDividendsLast12Months(dividendHistory, time.Now())
+					sum := sumDividendsLast12Months(dividendHistory, simcalendar.DateOf(today))
 					if v, ok := dividend.Yield(sum, quotePtr.Price); ok {
 						fiiDetail.DividendYield = &v
+					}
+					if v, ok := fiiPriceToBook(details, quotePtr.Price); ok {
+						fiiDetail.PriceToBookValue = &v
 					}
 				}
 				resp.FII = fiiDetail

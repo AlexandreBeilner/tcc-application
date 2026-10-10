@@ -31,7 +31,24 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Erros:**
   - `400` — `email`/`password` ausentes ou em formato inválido.
   - `401` — credenciais inválidas: e-mail não encontrado, senha incorreta, **ou** conta criada só via Google (sem `password_hash` local) tentando logar por senha. As três situações retornam a mesma mensagem genérica, de propósito (não vazar se um e-mail existe).
-- **Regra:** `LoginUserUseCase`.
+  - `403` — `{ error: "account_suspended" }`: senha correta, mas a conta foi suspensa pelo painel admin (N.16). Só aparece depois de a senha conferir, então quem erra a senha nunca descobre que a conta está suspensa. No login com Google o callback redireciona para `${FRONTEND_URL}/auth/callback#error=account_suspended`.
+- **Regra:** `LoginUserUseCase`. O token carrega `tokenVersion` (versão de sessão da conta, N.16) e `authTime` (momento da conferência da senha) e expira em **7 dias** para `role: 'user'` e em **2 horas** para `role: 'admin'` (N.22). Login e tentativa falha de uma conta `admin` são gravados no `admin_audit_log` (`admin.login`, `admin.login_failed`).
+
+---
+
+### `POST /auth/reauth`
+
+*(N.22.)* Reautenticação: confere a senha de quem já está logado e devolve um token novo com `authTime` recém-atualizado. As ações destrutivas do painel admin exigem `authTime` de até **5 minutos** (`401 { error: "reauth_required" }` quando venceu) — o frontend pede a senha, chama esta rota, troca o token e repete a ação.
+
+- **Autenticação:** Bearer token.
+- **Payload (JSON):** `password` (não vazio).
+- **Sucesso:** `200` → `{ token }`.
+- **Erros:**
+  - `400` — `password` ausente.
+  - `401` — token ausente/inválido, **ou** senha incorreta (inclusive conta sem senha local, só Google).
+  - `404` — usuário do token não existe mais.
+  - `429` — mais de 10 tentativas em 5 minutos pelo mesmo IP.
+- **Regra:** `ReauthenticateUseCase`. Para `role: 'admin'`, grava `admin.reauth` / `admin.reauth_failed` no log de auditoria. Reautenticar não estende a expiração do token além da regra de 7 dias / 2 horas, que recomeça no token novo.
 
 ---
 
@@ -152,3 +169,10 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `404` — token válido mas o usuário não existe mais.
 - **Regra:** `UploadAvatarUseCase`. Arquivo salvo em disco (volume Docker persistente `avatar_data`, `AVATAR_STORAGE_DIR`/`diskAvatarStorage.ts`) — só o nome do arquivo em `users.avatar_path`, nunca base64 numa coluna. Tipo/tamanho validados no use case (regra de negócio, testável sem Express), não só no `multer` do router (`avatarUpload`, `limits.fileSize`) — defesa em profundidade. Ao trocar de foto, o arquivo anterior é apagado só depois do novo caminho já estar persistido no banco (nunca fica sem avatar nenhum se a escrita falhar no meio). Servido de volta em `GET /avatars/<arquivo>` (`express.static`, montado na composição de `app.ts`) — sem rota de download dedicada, o navegador já resolve `<img src>` direto.
 - **Nota:** o backend não tem um handler de erro HTTP central (`app.ts` não registra um middleware de 4 argumentos) — um arquivo maior que o limite do `multer` propaga um erro não capturado que cai no handler default do Express (resposta HTML, não JSON), mesmo comportamento de qualquer `throw` não tratado nas demais rotas do módulo. Não é regressão desta tarefa, é o padrão já existente em todo o backend.
+
+
+---
+
+## Suspensão e sessão (tarefa N.16)
+
+Toda rota autenticada passa pelo `authMiddleware`, que depois de validar a assinatura consulta o usuário (uma leitura por chave primária, sem cache de propósito): conta suspensa recebe `403 { error: "account_suspended" }` e token com `tokenVersion` diferente do atual da conta recebe `401 { error: "sessão encerrada" }`. É isso que dá efeito imediato a "suspender" e "forçar logout" num JWT stateless. Token emitido antes da N.16 não tem o claim e vale como versão 0, a versão inicial de toda conta, então ninguém é deslogado pela migração. `DELETE /me` também revoga as sessões. O frontend trata os dois erros como fim de sessão. Gestão pelo painel: `.docs/backend/admin.md`.

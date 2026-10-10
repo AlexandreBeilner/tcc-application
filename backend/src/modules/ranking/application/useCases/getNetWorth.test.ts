@@ -23,6 +23,9 @@ describe('GetNetWorthUseCase', () => {
         fixedIncomeValue: 0,
         tradesExecuted: 0,
         total: 11000,
+        investedCost: 0,
+        disinvestedProceeds: 0,
+        dividendsReceived: 0,
       },
     })
     const useCase = new GetNetWorthUseCase(

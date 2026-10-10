@@ -3,7 +3,8 @@ import type { SubmitEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
-import { ApiError } from '../../services/client'
+import { isAccountSuspendedError } from '../../services/client'
+import { formatApiError } from '../../utils/formatApiError'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
 import { Button } from '../../components/atoms/Button'
 import type { Mode } from './types'
@@ -27,6 +28,9 @@ const STRENGTH_LABEL: Record<'weak' | 'medium' | 'strong', string> = {
 // 9.2/`Configuracoes`) e um indicador visual de força
 // (`features/auth/passwordStrength`, heurística pura e testada) — nenhum
 // dos dois existe no modo login, só no `register`.
+// Texto da recusa de login de conta suspensa pelo painel (N.16); o backend só manda o código.
+const SUSPENDED_MESSAGE = 'Sua conta está suspensa. Fale com o suporte para entender o motivo.'
+
 export function Login() {
     const [mode, setMode] = useState<Mode>('login')
     const [name, setName] = useState('')
@@ -62,10 +66,13 @@ export function Login() {
             login(result.token, result.user)
             navigate('/', { replace: true })
         } catch (err) {
-            // 401 (login) e 409 (cadastro, e-mail/username) já chegam com
-            // mensagens distintas do backend (.docs/backend/auth.md) — exibir
-            // `err.message` direto satisfaz os dois casos sem remapear nada aqui.
-            setError(err instanceof ApiError ? err.message : 'Não foi possível completar a operação.')
+            // 401 (login) e 409 (cadastro) chegam com mensagens distintas do backend
+            // (.docs/backend/auth.md); `formatApiError` repassa as duas.
+            if (isAccountSuspendedError(err)) {
+                setError(SUSPENDED_MESSAGE)
+            } else {
+                setError(formatApiError(err, 'Não foi possível completar a operação.'))
+            }
             setIsSubmitting(false)
         }
     }

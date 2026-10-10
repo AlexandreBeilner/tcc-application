@@ -3,6 +3,7 @@ package macroeventtrigger
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/macroevent"
@@ -16,6 +17,25 @@ type fakeRepository struct {
 	persistErr     error
 	persistedEvent macroevent.Event
 	persistCalled  bool
+	// assets define o catálogo do fake (asset_id -> tem empresa). Nil = todo
+	// asset_id existe e é uma ação com empresa.
+	assets   map[string]bool
+	assetErr error
+}
+
+func (f *fakeRepository) AssetsWithCompany(_ context.Context, ids []string) (map[string]bool, error) {
+	if f.assetErr != nil {
+		return nil, f.assetErr
+	}
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if f.assets == nil {
+			out[id] = true
+		} else if hasCompany, ok := f.assets[id]; ok {
+			out[id] = hasCompany
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeRepository) LoadCurrentDay(_ context.Context) (int, error) {
@@ -129,8 +149,10 @@ func TestTrigger_AvulsoValidoSoAfetaPreco(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}
-	if event.TriggeredOnDay != 3 {
-		t.Errorf("TriggeredOnDay = %d, want 3", event.TriggeredOnDay)
+	// currentDay+1, não currentDay: dia 3 já foi simulado, o próximo tick
+	// a rodar computa newDay=4 — ver comentário em Service.Trigger.
+	if event.TriggeredOnDay != 4 {
+		t.Errorf("TriggeredOnDay = %d, want 4 (currentDay+1)", event.TriggeredOnDay)
 	}
 	if event.DurationDays != 2 {
 		t.Errorf("DurationDays = %d, want 2 (BandModerado)", event.DurationDays)
@@ -149,9 +171,44 @@ func TestTrigger_AvulsoValidoSoAfetaPreco(t *testing.T) {
 	}
 }
 
+// TestTrigger_TriggeredOnDayFicaAtivoNoProximoTick é a regressão do achado
+// de review "BandLeve nunca tem efeito de preço aplicado": TriggeredOnDay
+// precisa ser o primeiro dia que um tick futuro de fato avalia (currentDay
+// do Temporizador já é um dia fechado, nenhum tick futuro recomputa
+// currentDay) — sem o +1, macroevent.IsPriceEffectActive(triggeredOnDay,
+// durationDays=1, currentDay+1) nunca é true, e um evento BandLeve não tem
+// nenhum dia simulado em que seu efeito de preço é lido.
+func TestTrigger_TriggeredOnDayFicaAtivoNoProximoTick(t *testing.T) {
+	repo := &fakeRepository{currentDay: 5}
+	svc := NewService(repo)
+	direction := macroevent.DirectionNegativo
+	band := macroevent.BandLeve
+
+	req := Request{
+		Title:               ptr("t"),
+		Narrative:           ptr("n"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{AssetID: ptr("asset-1")}},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+
+	nextTickDay := repo.currentDay + 1
+	if !macroevent.IsPriceEffectActive(event.TriggeredOnDay, event.DurationDays, nextTickDay) {
+		t.Errorf("IsPriceEffectActive(%d, %d, %d) = false, want true (o próximo tick a rodar depois do disparo precisa observar o efeito)",
+			event.TriggeredOnDay, event.DurationDays, nextTickDay)
+	}
+}
+
 // TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte cobre o critério
 // de aceite "fundamentals_report_day calculado respeita a regra de corte
-// de 2 dias" — os dois lados do corte, com o ciclo global de 14 dias
+// de 2 dias" — os dois lados do corte, com o ciclo global de 91 dias
 // (fundamentals.DefaultReportFrequencyDays).
 func TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte(t *testing.T) {
 	tests := []struct {
@@ -159,8 +216,8 @@ func TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte(t *testing.T) {
 		currentDay int
 		want       int
 	}{
-		{"exatamente 2 dias de antecedência vai pro relatório mais próximo (dia 14)", 12, 14},
-		{"1 dia de antecedência empurra pro próximo ciclo (dia 28)", 13, 28},
+		{"exatamente 2 dias de antecedência vai pro relatório mais próximo (dia 91)", 89, 91},
+		{"1 dia de antecedência empurra pro próximo ciclo (dia 182)", 90, 182},
 	}
 
 	for _, tt := range tests {
@@ -248,6 +305,127 @@ func TestTrigger_ErroAoCarregarDiaCorrentePropaga(t *testing.T) {
 	}
 }
 
+// TestTrigger_EventoMistoComDirecaoPropriaPorAlvo cobre o critério de
+// aceite principal da tarefa E.1: um evento "misto" com 2 alvos de sinais
+// opostos (o caso didático da spec — câmbio beneficia Exportador,
+// prejudica Importador, no mesmo evento) — cada alvo precisa carregar sua
+// própria direção corretamente, com o efeito de preço amostrado com o
+// sinal certo por alvo (não mais um único sinal sorteado pro evento
+// inteiro aplicado a todos).
+func TestTrigger_EventoMistoComDirecaoPropriaPorAlvo(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionMisto
+	band := macroevent.BandModerado
+	positivo := macroevent.DirectionPositivo
+	negativo := macroevent.DirectionNegativo
+
+	req := Request{
+		Title:               ptr("desvalorização do real"),
+		Narrative:           ptr("exportadoras ganham, importadoras perdem"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets: []TargetInput{
+			{Sector: ptr("Mineração"), Direction: &positivo},
+			{Sector: ptr("Tecnologia"), Direction: &negativo},
+		},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(event.Targets) != 2 {
+		t.Fatalf("len(Targets) = %d, want 2", len(event.Targets))
+	}
+
+	exportador := event.Targets[0]
+	importador := event.Targets[1]
+
+	if exportador.Direction == nil || *exportador.Direction != macroevent.DirectionPositivo {
+		t.Fatalf("exportador.Direction = %v, want %v", exportador.Direction, macroevent.DirectionPositivo)
+	}
+	if importador.Direction == nil || *importador.Direction != macroevent.DirectionNegativo {
+		t.Fatalf("importador.Direction = %v, want %v", importador.Direction, macroevent.DirectionNegativo)
+	}
+
+	if exportador.PriceEffectPct == nil || *exportador.PriceEffectPct <= 0 {
+		t.Fatalf("exportador.PriceEffectPct = %v, want positivo", exportador.PriceEffectPct)
+	}
+	if importador.PriceEffectPct == nil || *importador.PriceEffectPct >= 0 {
+		t.Fatalf("importador.PriceEffectPct = %v, want negativo", importador.PriceEffectPct)
+	}
+}
+
+// TestTrigger_EventoNaoMistoNaoPrecisaDeclararDirecaoPorAlvo é o teste de
+// regressão do critério de aceite da E.1: um evento "não-misto" continua
+// funcionando sem que nenhum Target declare direção própria — os alvos
+// ficam com Direction/PriceEffectPct/FundamentalsEffectPct nil (herdam o
+// efeito do evento, exatamente como antes da E.1).
+func TestTrigger_EventoNaoMistoNaoPrecisaDeclararDirecaoPorAlvo(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionNegativo
+	band := macroevent.BandLeve
+
+	req := Request{
+		Title:               ptr("evento simples"),
+		Narrative:           ptr("narrativa"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{Sector: ptr("Mineração")}},
+	}
+
+	_, event, err := svc.Trigger(context.Background(), req)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(event.Targets) != 1 {
+		t.Fatalf("len(Targets) = %d, want 1", len(event.Targets))
+	}
+
+	target := event.Targets[0]
+	if target.Direction != nil {
+		t.Errorf("target.Direction = %v, want nil (evento não-misto não precisa declarar por alvo)", *target.Direction)
+	}
+	if target.PriceEffectPct != nil {
+		t.Errorf("target.PriceEffectPct = %v, want nil (herda Event.PriceEffectPct)", *target.PriceEffectPct)
+	}
+	if event.PriceEffectPct == nil {
+		t.Fatal("event.PriceEffectPct = nil, want amostrado")
+	}
+}
+
+func TestTrigger_AlvoComDirecaoMistaEhRejeitado(t *testing.T) {
+	repo := &fakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionMisto
+	band := macroevent.BandModerado
+	misto := macroevent.DirectionMisto
+
+	req := Request{
+		Title:               ptr("t"),
+		Narrative:           ptr("n"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(false),
+		Targets:             []TargetInput{{Sector: ptr("Mineração"), Direction: &misto}},
+	}
+
+	_, _, err := svc.Trigger(context.Background(), req)
+	if !errors.Is(err, macroevent.ErrTargetDirectionMustBeSigned) {
+		t.Errorf("err = %v, want %v", err, macroevent.ErrTargetDirectionMustBeSigned)
+	}
+	if repo.persistCalled {
+		t.Error("Persist não deveria ser chamado com direção de alvo misto")
+	}
+}
+
 func TestTrigger_ErroAoPersistirPropaga(t *testing.T) {
 	repo := &fakeRepository{currentDay: 1, persistErr: errors.New("falha de escrita")}
 	svc := NewService(repo)
@@ -259,4 +437,268 @@ func TestTrigger_ErroAoPersistirPropaga(t *testing.T) {
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Persist")
 	}
+}
+
+// concurrentFakeRepository é fakeRepository com Persist seguro pra chamada
+// concorrente (mutex própria) — usado só por
+// TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng, que dispara Trigger
+// de várias goroutines ao mesmo tempo (o cenário real de dois admins, ou um
+// duplo clique, batendo em POST /macro-events quase juntos).
+type concurrentFakeRepository struct {
+	mu         sync.Mutex
+	currentDay int
+	calls      int
+}
+
+func (f *concurrentFakeRepository) LoadCurrentDay(_ context.Context) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.currentDay, nil
+}
+
+func (f *concurrentFakeRepository) Persist(_ context.Context, _ macroevent.Event) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	return "event-id", nil
+}
+
+// TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng cobre o achado do
+// review do PR da E.1/E.2: s.rng é um *rand.Rand compartilhado por todo
+// disparo (NewService), e Trigger/sampleTargetEffects passaram a chamá-lo
+// várias vezes por disparo — sem a trava (rngMu, ver doc de Service), duas
+// chamadas concorrentes de Trigger dariam uma data race real (detectável
+// com `go test -race ./...`, que este teste sozinho não liga, mas que passa
+// a não falhar mais nele depois da correção). Evento "misto" com 2 alvos de
+// direção própria maximiza quantas vezes cada goroutine toca s.rng.
+func TestTrigger_ChamadasConcorrentesNaoTemDataRaceNoRng(t *testing.T) {
+	repo := &concurrentFakeRepository{currentDay: 1}
+	svc := NewService(repo)
+	direction := macroevent.DirectionMisto
+	band := macroevent.BandSevero
+	positivo := macroevent.DirectionPositivo
+	negativo := macroevent.DirectionNegativo
+
+	req := Request{
+		Title:               ptr("evento concorrente"),
+		Narrative:           ptr("narrativa"),
+		Direction:           &direction,
+		MagnitudeBand:       &band,
+		AffectsPrice:        ptr(true),
+		AffectsFundamentals: ptr(true),
+		Targets: []TargetInput{
+			{Sector: ptr("Mineração"), Direction: &positivo},
+			{Sector: ptr("Tecnologia"), Direction: &negativo},
+		},
+	}
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	errs := make([]error, goroutines)
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, _, err := svc.Trigger(context.Background(), req)
+			errs[i] = err
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("goroutine %d: err = %v, want nil", i, err)
+		}
+	}
+	if repo.calls != goroutines {
+		t.Errorf("Persist calls = %d, want %d", repo.calls, goroutines)
+	}
+}
+
+// TestTrigger_AlvoDeAtivoSemEmpresaOuInexistenteEhRejeitado cobre o achado
+// 028: FII/ETF/renda fixa (sem empresa) e id inexistente são recusados antes
+// de persistir; ação e alvo de setor/risk_class seguem aceitos.
+func TestTrigger_AlvoDeAtivoSemEmpresaOuInexistenteEhRejeitado(t *testing.T) {
+	assets := map[string]bool{"acao-1": true, "acao-2": true, "fii-1": false}
+	tests := []struct {
+		name    string
+		targets []TargetInput
+		wantErr error
+	}{
+		{"ação é válida", []TargetInput{{AssetID: ptr("acao-1")}}, nil},
+		{"duas ações são válidas", []TargetInput{{AssetID: ptr("acao-1")}, {AssetID: ptr("acao-2")}}, nil},
+		{"FII é recusado", []TargetInput{{AssetID: ptr("fii-1")}}, ErrAssetNotTargetable},
+		{"FII misturado com ação recusa o evento inteiro", []TargetInput{{AssetID: ptr("acao-1")}, {AssetID: ptr("fii-1")}}, ErrAssetNotTargetable},
+		{"ativo inexistente", []TargetInput{{AssetID: ptr("nao-existe")}}, ErrUnknownTargetAsset},
+		{"id malformado vira inexistente", []TargetInput{{AssetID: ptr("'; DROP TABLE assets;--")}}, ErrUnknownTargetAsset},
+		{"alvo de setor não consulta ativos", []TargetInput{{Sector: ptr("Mineração")}}, nil},
+		{"alvo de risk_class não consulta ativos", []TargetInput{{RiskClass: ptr("Conservador")}}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{currentDay: 1, assets: assets}
+			_, _, err := NewService(repo).Trigger(context.Background(), Request{
+				TemplateKey: ptr("legislacao-ambiental-mineracao"),
+				Targets:     tt.targets,
+			})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if persisted := repo.persistCalled; persisted != (tt.wantErr == nil) {
+				t.Errorf("Persist chamado = %v, want %v", persisted, tt.wantErr == nil)
+			}
+		})
+	}
+}
+
+func TestTrigger_ErroAoConsultarAtivosPropagaSemPersistir(t *testing.T) {
+	boom := errors.New("banco fora")
+	repo := &fakeRepository{currentDay: 1, assetErr: boom}
+	_, _, err := NewService(repo).Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{AssetID: ptr("acao-1")}},
+	})
+	if !errors.Is(err, boom) || repo.persistCalled {
+		t.Errorf("err = %v persistCalled = %v, want %v/false", err, repo.persistCalled, boom)
+	}
+}
+
+func (f *concurrentFakeRepository) AssetsWithCompany(_ context.Context, ids []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
+}
+
+// Agendar (N.11): ApplyOnDay move o primeiro dia de efeito, o evento continua pendente
+// e a janela de corte do relatório conta a partir da véspera do efeito.
+func TestTrigger_AgendadoComecaNoDiaEscolhido(t *testing.T) {
+	repo := &fakeRepository{currentDay: 3}
+	svc := NewService(repo)
+	direction := macroevent.DirectionPositivo
+	band := macroevent.BandSevero
+	apply := 40
+
+	_, event, err := svc.Trigger(context.Background(), Request{
+		Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+		AffectsPrice: ptr(true), AffectsFundamentals: ptr(true),
+		Targets:    []TargetInput{{AssetID: ptr("asset-1")}},
+		ApplyOnDay: &apply,
+	})
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if event.TriggeredOnDay != 40 || event.Status != macroevent.StatusPendente {
+		t.Errorf("TriggeredOnDay = %d, status = %s, want 40 e pendente", event.TriggeredOnDay, event.Status)
+	}
+	// Com o efeito começando no dia 40, o relatório de referência é o ciclo que fecha
+	// depois de 39, não o que já passou quando o evento foi cadastrado no dia 3.
+	immediate, _ := func() (macroevent.Event, error) {
+		_, e, err := NewService(&fakeRepository{currentDay: 39}).Trigger(context.Background(), Request{
+			Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+			AffectsPrice: ptr(true), AffectsFundamentals: ptr(true), Targets: []TargetInput{{AssetID: ptr("asset-1")}},
+		})
+		return e, err
+	}()
+	if *event.FundamentalsReportDay != *immediate.FundamentalsReportDay {
+		t.Errorf("report day agendado = %d, disparo imediato no dia 39 = %d, want iguais", *event.FundamentalsReportDay, *immediate.FundamentalsReportDay)
+	}
+}
+
+func TestTrigger_ApplyOnDayInvalidoNaoPersiste(t *testing.T) {
+	tests := []struct {
+		name  string
+		apply int
+		want  error
+	}{
+		{"hoje", 3, macroevent.ErrApplyDayInPast},
+		{"passado", 1, macroevent.ErrApplyDayInPast},
+		{"além do teto", 3 + macroevent.MaxScheduleAheadDays + 1, macroevent.ErrApplyDayTooFar},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{currentDay: 3}
+			direction := macroevent.DirectionPositivo
+			band := macroevent.BandLeve
+			apply := tt.apply
+			_, _, err := NewService(repo).Trigger(context.Background(), Request{
+				Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+				AffectsPrice: ptr(true), AffectsFundamentals: ptr(false),
+				Targets:    []TargetInput{{AssetID: ptr("asset-1")}},
+				ApplyOnDay: &apply,
+			})
+			if !errors.Is(err, tt.want) {
+				t.Errorf("err = %v, want %v", err, tt.want)
+			}
+			if repo.persistCalled {
+				t.Error("Persist chamado com dia inválido")
+			}
+		})
+	}
+}
+
+func TestTrigger_RevealLeadDays(t *testing.T) {
+	trigger := func(t *testing.T, apply, lead *int) (macroevent.Event, error) {
+		t.Helper()
+		repo := &fakeRepository{currentDay: 3}
+		direction := macroevent.DirectionPositivo
+		band := macroevent.BandLeve
+		_, event, err := NewService(repo).Trigger(context.Background(), Request{
+			Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+			AffectsPrice: ptr(true), AffectsFundamentals: ptr(false),
+			Targets:        []TargetInput{{AssetID: ptr("asset-1")}},
+			ApplyOnDay:     apply,
+			RevealLeadDays: lead,
+		})
+		return event, err
+	}
+	day := func(n int) *int { return &n }
+
+	t.Run("sem escolha usa a véspera, agendado ou não", func(t *testing.T) {
+		for _, apply := range []*int{nil, day(20)} {
+			event, err := trigger(t, apply, nil)
+			if err != nil {
+				t.Fatalf("Trigger: %v", err)
+			}
+			if event.RevealLeadDays != macroevent.DefaultRevealLeadDays {
+				t.Errorf("RevealLeadDays = %d, want %d", event.RevealLeadDays, macroevent.DefaultRevealLeadDays)
+			}
+		}
+	})
+
+	t.Run("antecedência escolhida vai pro evento", func(t *testing.T) {
+		event, err := trigger(t, day(20), day(5))
+		if err != nil {
+			t.Fatalf("Trigger: %v", err)
+		}
+		if event.RevealLeadDays != 5 {
+			t.Errorf("RevealLeadDays = %d, want 5", event.RevealLeadDays)
+		}
+	})
+
+	t.Run("antecedência maior que os dias até o efeito é recusada e nada é persistido", func(t *testing.T) {
+		repo := &fakeRepository{currentDay: 3}
+		direction := macroevent.DirectionPositivo
+		band := macroevent.BandLeve
+		_, _, err := NewService(repo).Trigger(context.Background(), Request{
+			Title: ptr("t"), Narrative: ptr("n"), Direction: &direction, MagnitudeBand: &band,
+			AffectsPrice: ptr(true), AffectsFundamentals: ptr(false),
+			Targets:        []TargetInput{{AssetID: ptr("asset-1")}},
+			ApplyOnDay:     day(10),
+			RevealLeadDays: day(8),
+		})
+		if !errors.Is(err, macroevent.ErrRevealLeadTooLong) {
+			t.Errorf("err = %v, want ErrRevealLeadTooLong", err)
+		}
+		if repo.persistCalled {
+			t.Error("Persist chamado com antecedência inválida")
+		}
+	})
+
+	t.Run("antecedência negativa é recusada", func(t *testing.T) {
+		if _, err := trigger(t, day(10), day(-1)); !errors.Is(err, macroevent.ErrRevealLeadNegative) {
+			t.Errorf("err = %v, want ErrRevealLeadNegative", err)
+		}
+	})
 }

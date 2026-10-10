@@ -1,0 +1,90 @@
+.page {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Mobile/tablet: coluna única (identidade-visual-padroes.md §7) — o grid de
+   cards por trilha já vira 2 colunas a partir do tablet (mesmo padrão de
+   `NetWorthCards`), mas o layout geral só ganha a coluna lateral fixa a
+   partir do desktop. */
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        align-items: start;
+        gap: var(--space-8);
+    }
+
+    .sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+}
+
+.header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.progress {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+@media (min-width: 768px) {
+    .grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.glossaryLink {
+    font-size: var(--font-size-sm);
+    color: var(--color-brand-500);
+}

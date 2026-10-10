@@ -52,28 +52,6 @@
     background: var(--color-brand-500);
 }
 
-/* Progresso fino interno à fase (tarefa A.1) — pontinhos menores que os
-   segmentos da barra de 4 fases, marcando a posição entre cartões. */
-.cardDots {
-    display: flex;
-    gap: var(--space-1);
-}
-
-.cardDot {
-    width: 6px;
-    height: 6px;
-    border-radius: var(--radius-full);
-    background: var(--color-border);
-}
-
-.cardDot.done {
-    background: var(--color-gamify-500);
-}
-
-.cardDot.current {
-    background: var(--color-brand-500);
-}
-
 .card {
     display: flex;
     flex-direction: column;
@@ -119,45 +97,6 @@
     color: var(--color-text-primary);
 }
 
-.body {
-    margin: 0;
-    color: var(--color-text-secondary);
-    line-height: 1.6;
-}
-
-/* Elenco recorrente (tarefa C.2) — sublinhado sólido (navega de verdade),
-   diferente do tracejado do `GlossaryTerm` (só mostra um popover no lugar). */
-.refLink {
-    color: var(--color-brand-300);
-    text-decoration: underline;
-}
-
-/* Revelação progressiva (tarefa A.3) — mesma altura/alinhamento do `.body`
-   que substitui, pra não pular layout quando o texto aparece no lugar. */
-.revealButton {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    align-self: flex-start;
-    font-family: inherit;
-    font-size: var(--font-size-md);
-    font-weight: 600;
-    color: var(--color-brand-300);
-    background: none;
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    cursor: pointer;
-}
-
-.confirmRow {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-}
-
 /* Aposta com acerto/erro real (backlog engajamento B.3) — lista vertical de
    botões funciona igual nos 3 breakpoints (o card já é coluna única de
    largura máxima 720px), sem regra própria por tamanho de tela. */
@@ -188,12 +127,40 @@
     background: var(--color-brand-100);
 }
 
+/* Alternativa errada (RC.2.4): descartada, nunca vermelha (o vermelho é de
+   dado financeiro, tokens §2.3). */
+.optionWrong {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.answerFeedback {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.answerFeedbackCorrect {
+    color: var(--color-gain-500);
+    font-weight: 600;
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 /* Badge da Revelação (B.3) — "acertou" reaproveita a semântica de ganho
    financeiro por decisão explícita da tarefa; "quase" fica neutro, nunca
    `--color-loss-*` (identidade-visual-tokens.md §2.3 reserva vermelho pra
    dado financeiro real, não pra feedback de UI genérico). */
-.answerBadgeCorrect,
-.answerBadgeAlmost {
+.answerBadgeCorrect {
     display: inline-flex;
     align-self: flex-start;
     font-size: var(--font-size-sm);
@@ -205,12 +172,6 @@
 .answerBadgeCorrect {
     color: var(--color-gain-500);
     background: var(--color-gain-100);
-}
-
-.answerBadgeAlmost {
-    color: var(--color-text-secondary);
-    background: var(--color-bg-surface-elevated);
-    border: 1px solid var(--color-border);
 }
 
 .ctaRow {
@@ -227,4 +188,34 @@
 
 .error {
     color: var(--color-feedback-error-500);
+}
+
+/* Cartão de widget (RC.3.1). Mobile/tablet: tudo empilhado, widget em largura
+   total. Desktop (>= 1024px): composição própria, texto/CTA numa coluna e o
+   widget numa coluna maior ao lado, em vez de widget empilhado abaixo de um
+   texto estreito com laterais mortas. */
+.widgetStage {
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .page:has(.hasWidget) {
+        max-width: 1040px;
+    }
+
+    .hasWidget {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        column-gap: var(--space-8);
+        align-content: start;
+    }
+
+    .hasWidget > * {
+        grid-column: 1;
+    }
+
+    .hasWidget > .widgetStage {
+        grid-column: 2;
+        grid-row: 1 / span 6;
+    }
 }

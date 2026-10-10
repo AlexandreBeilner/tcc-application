@@ -1,0 +1,32 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+/* Mesma tela-tipo "lista com abas" de `pages/EquityList`/`pages/FixedIncomeList`
+   (identidade-visual-padroes.md) — desktop ganha mais largura pra tabela em
+   vez de deixar espaço morto nas laterais. */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1080px;
+    }
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}

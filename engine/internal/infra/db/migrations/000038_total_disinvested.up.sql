@@ -1,0 +1,12 @@
+-- Fase T.1 do backlog-motor-mercado-realista: rentabilidade sobre capital de
+-- risco precisa de disinvestedProceeds (soma bruta de vendas + resgates de
+-- renda fixa) simétrico a total_invested (migration 000001) e
+-- total_dividends_received (idem) — hoje só current_balance é creditado na
+-- venda/resgate (order_execution_repository.go, fixed_income_execution_repository.go),
+-- sem nenhum acumulador equivalente. Mesmo padrão de ALTER TABLE das
+-- migrations 000010/000011 (is_bot/is_active).
+-- Renumerada de 000035 para 000038: a 7.2 (company_base_growth_pct) e a T.1 foram
+-- mescladas com o mesmo número 000035, e o golang-migrate recusa número duplicado
+-- ("duplicate migration file") em qualquer banco novo. IF NOT EXISTS mantém a
+-- migration segura num banco que já a tenha aplicado sob o número antigo.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS total_disinvested numeric(15, 2) NOT NULL DEFAULT 0;

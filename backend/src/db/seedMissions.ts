@@ -6,7 +6,7 @@ import {
 import { createDb } from './client'
 import { dailyMissions } from './schema'
 
-interface MissionSeed {
+export interface MissionSeed {
   key: string
   title: string
   description: string
@@ -21,7 +21,7 @@ interface MissionSeed {
 // identificador estável que código cliente usa pra achar uma missão
 // específica — `title` pode mudar (correção de texto, tradução) sem quebrar
 // esse casamento.
-const MISSION_SEEDS: MissionSeed[] = [
+export const MISSION_SEEDS: MissionSeed[] = [
   {
     key: 'lesson_complete',
     title: 'Complete uma lição da trilha',
@@ -34,7 +34,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     key: 'calculator_compare',
     title: 'Compare dois produtos de renda fixa na calculadora',
     description: 'Use a calculadora financeira pra comparar dois produtos de renda fixa.',
-    completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase',
+    completionCriteria: 'Reportado pelo cliente, sem verificação cruzada nesta fase',
     xpReward: 30,
     requiresLessonCompletion: false,
   },
@@ -42,7 +42,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     key: 'feed_read',
     title: 'Consulte o feed de notícias',
     description: 'Abra o feed de notícias de mercado e leia pelo menos um evento.',
-    completionCriteria: 'Reportado pelo cliente — sem verificação cruzada nesta fase',
+    completionCriteria: 'Reportado pelo cliente, sem verificação cruzada nesta fase',
     xpReward: 30,
     requiresLessonCompletion: false,
   },
@@ -98,7 +98,9 @@ async function main() {
   process.exit(0)
 }
 
-main().catch((err) => {
-  console.error('erro ao rodar seed de missões:', err)
-  process.exit(1)
-})
+if (process.env.VITEST === undefined) {
+  main().catch((err) => {
+    console.error('erro ao rodar seed de missões:', err)
+    process.exit(1)
+  })
+}

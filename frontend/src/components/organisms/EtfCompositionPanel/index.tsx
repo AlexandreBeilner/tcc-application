@@ -1,4 +1,5 @@
-import { formatDecimal } from '../../../features/market/format'
+import { formatDecimal, formatSignedPercent } from '../../../features/market/format'
+import { formatCurrency } from '../../../features/portfolio/format'
 import type { EtfCompositionPanelProps } from './types'
 import styles from './index.module.css'
 
@@ -18,6 +19,37 @@ export function EtfCompositionPanel({ etf }: EtfCompositionPanelProps) {
             </div>
 
             {etf.methodology_summary && <p className={styles.methodology}>{etf.methodology_summary}</p>}
+
+            {etf.nav !== undefined && (
+                <div className={styles.metrics}>
+                    <div className={styles.row}>
+                        <span className={styles.label}>Valor patrimonial (NAV) por cota</span>
+                        <span className={`${styles.value} tabular-nums`}>{formatCurrency(etf.nav)}</span>
+                    </div>
+                    {etf.premium_pct !== undefined && (
+                        <div className={styles.row}>
+                            <span className={styles.label}>{etf.premium_pct < 0 ? 'Deságio sobre o NAV' : 'Ágio sobre o NAV'}</span>
+                            <span className={`${styles.value} tabular-nums`}>{formatSignedPercent(etf.premium_pct)}</span>
+                        </div>
+                    )}
+                    {etf.tracking_error_pct !== undefined && (
+                        <div className={styles.row}>
+                            <span className={styles.label}>Desvio contra o índice (tracking error)</span>
+                            <span className={`${styles.value} tabular-nums`}>{formatSignedPercent(etf.tracking_error_pct)}</span>
+                        </div>
+                    )}
+                    {etf.shares_outstanding !== undefined && (
+                        <div className={styles.row}>
+                            <span className={styles.label}>Cotas emitidas</span>
+                            <span className={`${styles.value} tabular-nums`}>{etf.shares_outstanding.toLocaleString('pt-BR')}</span>
+                        </div>
+                    )}
+                    <p className={styles.methodology}>
+                        O NAV é o valor real da cesta dividido pelas cotas. O preço no mercado oscila em torno dele: acima é ágio, abaixo é
+                        deságio. Um participante autorizado cria ou resgata cotas quando a diferença fica grande.
+                    </p>
+                </div>
+            )}
 
             {etf.holdings.length > 0 ? (
                 <ul className={styles.holdings}>

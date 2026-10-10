@@ -32,23 +32,99 @@ var (
 	ErrMissingCreditRiskRating = errors.New("classificação de risco de crédito é obrigatória para este produto")
 )
 
-// classification fixa emissor e isenção de IR por tipo de produto — regra
-// de negócio, não atributo livre (spec seção 4: "LCI/LCA/CRI/CRA isentos
-// de IR vs CDB/Tesouro tributados"; CDB/LCI/LCA emitidos por bancos,
-// CRI/CRA por securitizadoras, Tesouro pelo governo — TCC lições 1.3/1.5/1.9
-// do currículo).
+// IndexType classifica como o rendimento de um produto de renda fixa é
+// determinado (TCC cap. 2.2) — consumido pelas tarefas L.1/L.2
+// (backlog-motor-mercado-realista) pra decidir a fórmula de precificação
+// certa em fixedincomeexecution.Purchase/Redeem, e pela L.3 (restringir
+// marcação a mercado a produtos com taxa travada na compra — Prefixado e
+// IPCA+, spec 3.2.1 — excluindo os pós-fixados; decisão confirmada com o
+// usuário).
+type IndexType string
+
+const (
+	// IndexPrefixado trava a taxa contratada na compra pro resto da vida
+	// do título — deságio nominal sobre o Valor Nominal (PrefixedPrice),
+	// sujeito a marcação a mercado se vendido antes do vencimento (TCC cap.
+	// 2.2.3). Só Tesouro Prefixado é assim de verdade.
+	IndexPrefixado IndexType = "prefixado"
+	// IndexPosFixado rende de acordo com um percentual do CDI/Selic
+	// simulada, que varia dia a dia (TCC lição 1.2/3.3, ex: "CDB 110% CDI",
+	// "LCI 90% CDI") — nunca uma taxa travada na compra, nunca marcado a
+	// mercado (não há "taxa de mercado" separada da própria Selic pra um
+	// produto que já rende ela mesma). Tesouro Selic, CDB, LCI, LCA, CRI,
+	// CRA (L.3, proposta seção 9, item 3, lista os 6 juntos como
+	// "isentos de risco de mercado").
+	IndexPosFixado IndexType = "pos_fixado"
+	// IndexIPCAMais rende IPCA + uma taxa real contratada (VNA), via
+	// fixedincome.VNAProjected/IPCAPrice (tarefa L.2 liga as duas fórmulas
+	// em fixedincomeexecution.Purchase/Redeem — antes disso, IPCA+
+	// reaproveitava o deságio nominal do Prefixado). Só Tesouro IPCA+. A
+	// taxa real contratada funciona como uma prefixada sobre o VNA, então
+	// segue sujeita a marcação a mercado se vendida antes do vencimento
+	// (fixedincome.IPCAEarlyRedemption) — mesmo grupo do IndexPrefixado
+	// pra esse efeito, decisão confirmada com o usuário na L.3.
+	IndexIPCAMais IndexType = "ipca_mais"
+)
+
+// classification fixa emissor, isenção de IR e o índice de rendimento por
+// tipo de produto — regra de negócio, não atributo livre (spec seção 4:
+// "LCI/LCA/CRI/CRA isentos de IR vs CDB/Tesouro tributados"; CDB/LCI/LCA
+// emitidos por bancos, CRI/CRA por securitizadoras, Tesouro pelo governo —
+// TCC lições 1.3/1.5/1.9 do currículo).
 var classification = map[ProductType]struct {
 	Issuer    IssuerType
 	TaxExempt bool
+	Index     IndexType
 }{
-	ProductTesouroSelic:     {IssuerTesouro, false},
-	ProductTesouroPrefixado: {IssuerTesouro, false},
-	ProductTesouroIPCA:      {IssuerTesouro, false},
-	ProductCDB:              {IssuerBanco, false},
-	ProductLCI:              {IssuerBanco, true},
-	ProductLCA:              {IssuerBanco, true},
-	ProductCRI:              {IssuerSecuritizadora, true},
-	ProductCRA:              {IssuerSecuritizadora, true},
+	ProductTesouroSelic:     {IssuerTesouro, false, IndexPosFixado},
+	ProductTesouroPrefixado: {IssuerTesouro, false, IndexPrefixado},
+	ProductTesouroIPCA:      {IssuerTesouro, false, IndexIPCAMais},
+	ProductCDB:              {IssuerBanco, false, IndexPosFixado},
+	ProductLCI:              {IssuerBanco, true, IndexPosFixado},
+	ProductLCA:              {IssuerBanco, true, IndexPosFixado},
+	ProductCRI:              {IssuerSecuritizadora, true, IndexPosFixado},
+	ProductCRA:              {IssuerSecuritizadora, true, IndexPosFixado},
+}
+
+// IndexOf devolve o IndexType de productType, ok = false se o tipo for
+// desconhecido (mesmo tratamento de erro "silencioso" de RequiresCreditRiskRating
+// — quem chama decide o que fazer com um tipo fora do catálogo).
+func IndexOf(productType ProductType) (IndexType, bool) {
+	c, ok := classification[productType]
+	if !ok {
+		return "", false
+	}
+	return c.Index, true
+}
+
+// IsPostFixado indica se productType rende de acordo com um percentual do
+// CDI/Selic simulada, que varia dia a dia, em vez de uma taxa travada na
+// compra (IndexPrefixado) ou do VNA do IPCA (IndexIPCAMais) — usado por
+// fixedincomeexecution.Purchase/Redeem (tarefa L.1) pra escolher entre
+// fixedincome.PrefixedPrice e fixedincome.PostFixedValue.
+func IsPostFixado(productType ProductType) bool {
+	idx, ok := IndexOf(productType)
+	return ok && idx == IndexPosFixado
+}
+
+// IsPrefixado indica se productType trava uma taxa nominal contratada na
+// compra, deságio sobre o Valor Nominal (IndexPrefixado) — usado pela
+// tarefa L.4 pra decidir quando a taxa OFERTADA hoje (fixed_income_assets.
+// interest_rate, reinterpretado como spread) precisa acompanhar a Selic
+// simulada corrente via fixedincome.OfferedRate, em vez de ficar travada
+// no valor do seed pra sempre. Só Tesouro Prefixado hoje.
+func IsPrefixado(productType ProductType) bool {
+	idx, ok := IndexOf(productType)
+	return ok && idx == IndexPrefixado
+}
+
+// IsIPCAMais indica se productType rende IPCA + uma taxa real contratada,
+// via VNA (IndexIPCAMais) — usado por fixedincomeexecution.Purchase/Redeem
+// (tarefa L.2) pra escolher fixedincome.VNAProjected/IPCAPrice em vez de
+// PrefixedPrice. Só Tesouro IPCA+ hoje.
+func IsIPCAMais(productType ProductType) bool {
+	idx, ok := IndexOf(productType)
+	return ok && idx == IndexIPCAMais
 }
 
 // RequiresCreditRiskRating indica se o produto precisa de uma

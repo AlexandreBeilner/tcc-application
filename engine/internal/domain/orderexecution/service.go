@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // incomingOrderID é um ID de placeholder pra ordem recebida durante o
@@ -20,6 +21,11 @@ type Request struct {
 	Type     orderbook.Type
 	Price    float64 // ignorado por ordens a mercado
 	Quantity int
+	// SimulatedDay é preenchido por SubmitWithContext a partir de
+	// Context.SimulatedDay (achado 005 parte A) — quem monta um Request não
+	// precisa saber o dia simulado corrente, só Persist precisa dele pra
+	// gravar order_book.simulated_day.
+	SimulatedDay int
 }
 
 // Repository é o colaborador que Service precisa pra ler o contexto de
@@ -37,8 +43,33 @@ type Repository interface {
 	// imutável em market_events de cada Fill (real e sintético) **antes**
 	// de projetar em accounts/positions/order_book — Event Sourcing é a
 	// fonte da verdade financeira (CLAUDE.md). Nunca chamado se Execute
-	// devolveu erro (nada é persistido de uma ordem rejeitada).
-	Persist(ctx context.Context, req Request, outcome Outcome) error
+	// devolveu erro (nada é persistido de uma ordem rejeitada). Devolve o
+	// id da linha recém-criada em order_book (tarefa O.3, achado 012) —
+	// SubmitWithContext repassa pra Outcome.OrderID.
+	Persist(ctx context.Context, req Request, outcome Outcome) (orderID string, err error)
+	// CancelOrder marca como cancelled a ordem orderID de userID (tarefa
+	// O.1), validando dono e status antes de mudar o estado: devolve
+	// ErrOrderNotFound se a ordem não existe ou pertence a outro usuário,
+	// ErrOrderNotCancellable se já está filled/cancelled. filled_quantity
+	// não é revertido — cancelar não passa por Event Sourcing, mesma
+	// decisão de escopo de ExpireStaleOrders/CancelUserRestingOrders
+	// (nenhuma ordem pendurada reserva saldo/posição na submissão).
+	CancelOrder(ctx context.Context, orderID, userID string) error
+	// ListOrders devolve todas as ordens de userID (tarefa O.3, GET
+	// /orders), mais recente primeiro, sem paginação (escopo de
+	// protótipo) — fecha o achado 012: sem isso, POST /orders/{id}/cancel
+	// (O.1) não tinha nenhum caminho real pelo qual um cliente descobrisse
+	// qual id passar depois de um reload.
+	ListOrders(ctx context.Context, userID string) ([]OrderRecord, error)
+	// AssetBook devolve a leitura pública do book de assetID (tarefa S.5):
+	// melhor bid/ask, ponto médio e profundidade agregada nos `depth`
+	// primeiros níveis de cada lado — nunca id nem dono de ordem
+	// individual. Ativo sandbox devolve só o preço do roteiro em vez de
+	// book (doc de BookResult). userID é opcional (string vazia): só
+	// resolve o dia do roteiro sandbox específico desse usuário; sem ele
+	// cai no dia 0, mesmo fallback de quem nunca operou esse ativo
+	// (sandboxDayIndex).
+	AssetBook(ctx context.Context, assetID, userID string, depth int) (BookResult, error)
 }
 
 // Service orquestra a execução de uma ordem ponta a ponta (tarefa 3.12):
@@ -61,9 +92,50 @@ func (s *Service) Submit(ctx context.Context, req Request) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
+	return s.SubmitWithContext(ctx, req, execCtx)
+}
+
+// SubmitByUser é Submit pro usuário humano (POST /orders): recusa com
+// *simcalendar.MarketClosedError quando o mercado está fechado no fim de semana
+// simulado (tarefa S.11), sem gravar nada. Só o usuário é barrado: bots de
+// liquidez e o ETF (rebalanceamento e arbitragem, que rodam em todo tick, fim de
+// semana incluso) são atores do sistema e seguem por Submit. Sandbox (Modo
+// Aprendizado) e Cancel também seguem abertos.
+func (s *Service) SubmitByUser(ctx context.Context, req Request) (Outcome, error) {
+	execCtx, err := s.repo.LoadContext(ctx, req.AssetID, req.UserID)
+	if err != nil {
+		return Outcome{}, err
+	}
+	if !execCtx.Sandbox {
+		if err := simcalendar.CheckMarketOpen(execCtx.SimulatedDay); err != nil {
+			return Outcome{}, err
+		}
+	}
+	return s.SubmitWithContext(ctx, req, execCtx)
+}
+
+// SubmitWithContext é Submit pulando o LoadContext, pro chamador que já leu
+// um Context válido pra esse mesmo assetID/userID e sabe que nada mudou
+// desde então (Context é um snapshot imutável, passado por valor — Execute
+// nunca o muta). Único chamador hoje: tick.runIntradayRounds (rounds.go),
+// que já chama OrderContextLoader.LoadContext pra montar a decisão do bot
+// antes de decidir a ordem — reler o mesmo contexto de novo aqui seria um
+// round trip ao banco puramente redundante pro caso comum (achado de
+// review: 1 decisão por bot/rodada, só ArchetypeMarketMaker decide mais de
+// uma). Só serve pra ESSA primeira ordem: uma segunda ordem do mesmo bot na
+// mesma rodada pode ter saldo/posição diferentes por causa do fill da
+// primeira, e precisa voltar a usar Submit (recarrega fresco).
+func (s *Service) SubmitWithContext(ctx context.Context, req Request, execCtx Context) (Outcome, error) {
+	// SimulatedDay sempre vem do Context recém-carregado, nunca do que o
+	// chamador já tinha em req (achado 005 parte A) — LoadContext é a única
+	// fonte confiável do dia simulado corrente (market_calendar), tanto pra
+	// ordem humana (POST /orders, via Submit) quanto pra ordem de bot
+	// (rounds.go, que já leu esse mesmo Context antes de decidir).
+	req.SimulatedDay = execCtx.SimulatedDay
 
 	incoming := orderbook.Order{
 		ID:       incomingOrderID,
+		UserID:   req.UserID,
 		Side:     req.Side,
 		Type:     req.Type,
 		Price:    req.Price,
@@ -75,8 +147,32 @@ func (s *Service) Submit(ctx context.Context, req Request) (Outcome, error) {
 		return Outcome{}, err
 	}
 
-	if err := s.repo.Persist(ctx, req, outcome); err != nil {
+	orderID, err := s.repo.Persist(ctx, req, outcome)
+	if err != nil {
 		return Outcome{}, err
 	}
+	outcome.OrderID = orderID
 	return outcome, nil
+}
+
+// Cancel marca como cancelled uma ordem pendente/parcial de userID (tarefa
+// O.1) — sem regra de domínio própria (nenhum recálculo de book/saldo/
+// posição envolvido, só uma transição de status), repassa direto pro
+// repositório, que decide dono/status.
+func (s *Service) Cancel(ctx context.Context, orderID, userID string) error {
+	return s.repo.CancelOrder(ctx, orderID, userID)
+}
+
+// ListOrders devolve todas as ordens de userID (tarefa O.3) — sem regra de
+// domínio própria, repassa direto pro repositório.
+func (s *Service) ListOrders(ctx context.Context, userID string) ([]OrderRecord, error) {
+	return s.repo.ListOrders(ctx, userID)
+}
+
+// AssetBook devolve a leitura pública do book de assetID (tarefa S.5) —
+// sem regra de domínio própria (a agregação em níveis de preço já é pura,
+// orderbook.BuildSnapshot, chamada dentro do repositório), repassa direto
+// pro repositório.
+func (s *Service) AssetBook(ctx context.Context, assetID, userID string, depth int) (BookResult, error) {
+	return s.repo.AssetBook(ctx, assetID, userID, depth)
 }

@@ -1,6 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { PieChart, Map, CandlestickChart, Calculator, Trophy, Lock } from 'lucide-react'
-import { findLessonUnlocking } from '../../../features/lessons/unlockedKeys'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import styles from './index.module.css'
 
@@ -11,17 +10,22 @@ import styles from './index.module.css'
 // `unlockKey` (tarefa 7.0.1): Portfólio/Calculadora só viram link de
 // verdade depois de 0.1/0.2 concluídas — antes disso a aba fica travada
 // (ícone de cadeado, cor apagada), mesmo gate real de `RequiresUnlock` que
-// protege as rotas (aqui é só o reflexo visual, não a garantia). Travada
-// não é beco sem saída (tarefa J.1): clicar navega pra lição que
-// desbloqueia aquela chave, mesmo comportamento de
-// `useLockedAssetGate.selectOrRedirectToLesson`. Legenda com o código da
-// lição (tarefa J.2) só aparece em tablet/desktop (`.lockHint`, escondida
-// via CSS abaixo de 768px) — mobile (barra inferior fixa) confia só no
-// toque como caminho, pra não quebrar o layout compacto dos 5 itens.
-// Enquanto `GET /lessons` ainda não resolveu ou falhou (`isLoading`/
-// `isError`), `unlockedKeys` vem vazio sem significar "nada desbloqueado"
-// — renderiza como link normal nesse meio-tempo pra não piscar cadeado
-// numa aba que o usuário já desbloqueou (mesmo cuidado de `RequiresUnlock`).
+// protege as rotas (aqui é só o reflexo visual, não a garantia). Clicar
+// numa aba travada navega pra ela mesma (`to`), nunca pra outro lugar —
+// reversão da J.1 ("clicar leva direto pra lição que desbloqueia"), que a
+// Fase Q tornou inconsistente com o resto do app: "bloqueio é parede em
+// todo lugar macro" significa que a própria rota (já protegida por
+// `RequiresUnlock`) mostra o card de bloqueio (`LockedGate`) no lugar do
+// conteúdo — a `TabBar` não precisa mais calcular/repassar hint de
+// desbloqueio, `RequiresUnlock` já faz isso. A legenda visível com o
+// código da lição (`.lockHint`, tarefa J.2) saiu na Fase Q — "Lição X.X"
+// não pode aparecer em nenhum texto de UI fora do próprio Mapa da Trilha
+// (decisão do autor, 2026-09-12); o `aria-label` também não cita mais o
+// código, só o rótulo da aba. Enquanto `GET /lessons` ainda não resolveu
+// ou falhou (`isLoading`/`isError`), `unlockedKeys` vem vazio sem
+// significar "nada desbloqueado" — renderiza como link normal nesse
+// meio-tempo pra não piscar cadeado numa aba que o usuário já desbloqueou
+// (mesmo cuidado de `RequiresUnlock`).
 const TABS = [
     { to: '/', label: 'Portfólio', end: true, Icon: PieChart, unlockKey: 'portfolio' },
     { to: '/trilha', label: 'Trilha', Icon: Map, unlockKey: undefined },
@@ -32,7 +36,7 @@ const TABS = [
 
 export function TabBar() {
     const navigate = useNavigate()
-    const { unlockedKeys, lessons, isLoading, isError } = useUnlockedKeys()
+    const { unlockedKeys, isLoading, isError } = useUnlockedKeys()
 
     return (
         <nav className={styles.tabBar} aria-label="Navegação principal">
@@ -40,24 +44,16 @@ export function TabBar() {
                 const locked = !isLoading && !isError && unlockKey !== undefined && !unlockedKeys.has(unlockKey)
 
                 if (locked) {
-                    const hint = findLessonUnlocking(unlockKey, lessons)
-                    const ariaLabel = hint ? `${label} travado, desbloqueia na lição ${hint.code}` : `${label} travado pela trilha`
-
                     return (
                         <button
                             key={to}
                             type="button"
                             className={`${styles.tab} ${styles.locked}`}
-                            aria-label={ariaLabel}
-                            onClick={() => navigate(hint ? `/trilha/${hint.id}` : '/trilha')}
+                            aria-label={`${label} travado pela trilha`}
+                            onClick={() => navigate(to)}
                         >
                             <Lock size={18} strokeWidth={2} aria-hidden="true" />
                             <span aria-hidden="true">{label}</span>
-                            {hint && (
-                                <span aria-hidden="true" className={styles.lockHint}>
-                                    Lição {hint.code}
-                                </span>
-                            )}
                         </button>
                     )
                 }

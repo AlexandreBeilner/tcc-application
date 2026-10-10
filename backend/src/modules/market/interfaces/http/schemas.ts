@@ -17,10 +17,35 @@ const ASSET_TYPES = [
 
 export const listAssetsQuerySchema = z.object({
   type: z.enum(ASSET_TYPES).optional(),
+  // Query string só carrega texto; `z.coerce.boolean()` trataria "false"
+  // como true.
+  include_sandbox: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
 })
 
 export const getAssetQuotesQuerySchema = z.object({
   days: z.coerce.number().int().min(1).optional(),
+})
+
+// Mesma convenção de coerção de getAssetQuotesQuerySchema — `days` aqui é
+// quantos dias simulados de histórico de Selic/IPCA vêm na resposta
+// (motor aplica o próprio default, tarefa M.2/M.3).
+export const indicatorHistoryQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).optional(),
+})
+
+// Janela do calendário em datas AAAA-MM-DD (o motor valida o teto de 92 dias e
+// from <= to). O usuário nunca vem daqui: é sempre o do token.
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'use AAAA-MM-DD')
+export const marketCalendarQuerySchema = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  // RC.6.1: `mine` só os fatos que afetam o usuário; `all` (padrão do motor) também o
+  // mercado, até `market_limit` fatos (0 a 200).
+  scope: z.enum(['mine', 'all']).optional(),
+  market_limit: z.coerce.number().int().min(0).max(200).optional(),
 })
 
 // Mesma convenção de paginação de `listMacroEventsQuerySchema`
@@ -30,6 +55,11 @@ export const listMyEventsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 })
 
+// Tetos só de sanidade da borda: acima disso o valor nem cabe no `numeric`
+// do banco e virava 500 (ex: preço 1e308) em vez de 400.
+const MAX_ORDER_PRICE = 1_000_000
+const MAX_FIXED_INCOME_AMOUNT = 1_000_000_000
+
 // `user_id` nunca faz parte do schema do corpo — é sempre injetado pelo
 // router a partir de `req.auth.userId` (tarefa 6.0.3), nunca aceito do
 // cliente.
@@ -38,7 +68,7 @@ export const placeOrderBodySchema = z
     asset_id: z.uuid(),
     side: z.enum(['buy', 'sell']),
     type: z.enum(['market', 'limit']),
-    price: z.number().positive().optional(),
+    price: z.number().positive().max(MAX_ORDER_PRICE).optional(),
     quantity: z.number().int().positive(),
   })
   .refine((body) => body.type !== 'limit' || body.price !== undefined, {
@@ -48,7 +78,7 @@ export const placeOrderBodySchema = z
 
 export const purchaseFixedIncomeBodySchema = z.object({
   asset_id: z.uuid(),
-  amount: z.number().positive(),
+  amount: z.number().positive().max(MAX_FIXED_INCOME_AMOUNT),
 })
 
 export const redeemFixedIncomeBodySchema = z.object({

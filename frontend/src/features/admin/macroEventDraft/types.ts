@@ -26,4 +26,8 @@ export interface MacroEventDraft {
     affectsPrice: boolean
     affectsFundamentals: boolean
     targets: MacroEventTargetDraft[]
+    // Dia simulado em que o efeito começa (N.11); vazio dispara já.
+    applyOnDay: string
+    // Antecedência com que o jogador vê o evento agendado (N.25); vazio usa a véspera. Só vale com `applyOnDay`.
+    revealLeadDays: string
 }

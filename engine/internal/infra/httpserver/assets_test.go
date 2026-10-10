@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -27,6 +28,10 @@ type fakeCatalogReader struct {
 	fixedIncome    catalog.FixedIncomeSpecialization
 	fixedIncomeOK  bool
 	fixedIncomeErr error
+
+	selicRate    float64
+	selicRateOK  bool
+	selicRateErr error
 
 	equity    catalog.EquitySpecialization
 	equityOK  bool
@@ -60,6 +65,10 @@ type fakeCatalogReader struct {
 	quoteHistory    []catalog.QuoteHistoryEntry
 	quoteHistoryErr error
 
+	etfNAV      catalog.ETFNAV
+	etfNAVFound bool
+	etfNAVErr   error
+
 	latestFundamentals    catalog.FundamentalsSnapshot
 	latestFundamentalsOK  bool
 	latestFundamentalsErr error
@@ -80,8 +89,20 @@ func (f *fakeCatalogReader) FindFixedIncomeSpecialization(_ context.Context, _ s
 	return f.fixedIncome, f.fixedIncomeOK, f.fixedIncomeErr
 }
 
+func (f *fakeCatalogReader) CurrentSimulatedDay(_ context.Context) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeCatalogReader) CurrentSelicRatePct(_ context.Context) (float64, bool, error) {
+	return f.selicRate, f.selicRateOK, f.selicRateErr
+}
+
 func (f *fakeCatalogReader) FindEquitySpecialization(_ context.Context, _ string) (catalog.EquitySpecialization, bool, error) {
 	return f.equity, f.equityOK, f.equityErr
+}
+
+func (f *fakeCatalogReader) FindLatestETFNAV(_ context.Context, _ string) (catalog.ETFNAV, bool, error) {
+	return f.etfNAV, f.etfNAVFound, f.etfNAVErr
 }
 
 func (f *fakeCatalogReader) FindETFDetails(_ context.Context, _ string) (etf.Details, bool, error) {
@@ -128,7 +149,7 @@ func getCatalog(t *testing.T, reader catalogReader, path string) *httptest.Respo
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -477,6 +498,76 @@ func TestHandleGetAsset_ETF(t *testing.T) {
 	if body.FixedIncome != nil || body.Equity != nil || body.FII != nil {
 		t.Errorf("classes erradas preenchidas: %+v", body)
 	}
+	if body.ETF.NAV != nil || body.ETF.SharesOutstanding != nil {
+		t.Errorf("NAV = %+v, want ausente antes da emissão inicial", body.ETF)
+	}
+}
+
+func TestHandleGetAsset_ETFComNAV(t *testing.T) {
+	trackingError := 2.75
+	reader := &fakeCatalogReader{
+		asset: catalog.AssetRecord{
+			ID:    "1",
+			Asset: catalog.Asset{Ticker: "SINT11", Name: "ETF Índice Sintético", Type: catalog.AssetETF},
+		},
+		assetFound:  true,
+		etfDetails:  etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
+		etfOK:       true,
+		etfNAV:      catalog.ETFNAV{SimulatedDay: 7, NAV: 101.25, PremiumPct: -1.5, TrackingErrorPct: &trackingError, OutstandingShares: 10000},
+		etfNAVFound: true,
+		dividendHistory: []catalog.DividendHistoryEntry{
+			{ValuePerShare: 0.42, ExDate: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), PaymentDate: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)},
+		},
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body assetDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.ETF == nil || body.ETF.NAV == nil || *body.ETF.NAV != 101.25 || *body.ETF.PremiumPct != -1.5 ||
+		*body.ETF.NAVDay != 7 || *body.ETF.SharesOutstanding != 10000 {
+		t.Errorf("ETF = %+v, want NAV 101.25, ágio -1.5, dia 7, 10000 cotas", body.ETF)
+	}
+	if body.ETF.TrackingErrorPct == nil || *body.ETF.TrackingErrorPct != 2.75 {
+		t.Errorf("TrackingErrorPct = %v, want 2.75", body.ETF.TrackingErrorPct)
+	}
+	if len(body.ETF.DividendHistory) != 1 || body.ETF.DividendHistory[0].ValuePerShare != 0.42 {
+		t.Errorf("DividendHistory = %+v, want 1 provento de 0.42 por cota", body.ETF.DividendHistory)
+	}
+}
+
+func TestHandleGetAsset_ETFErroAoBuscarProventos(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:              catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "SINT11", Name: "ETF", Type: catalog.AssetETF}},
+		assetFound:         true,
+		etfDetails:         etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
+		etfOK:              true,
+		dividendHistoryErr: context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAsset_ETFErroAoBuscarNAV(t *testing.T) {
+	reader := &fakeCatalogReader{
+		asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "SINT11", Name: "ETF", Type: catalog.AssetETF}},
+		assetFound: true,
+		etfDetails: etf.Details{BenchmarkIndex: "Ibovespa", Holdings: []etf.Holding{{ConstituentName: "X", WeightPct: 100}}},
+		etfOK:      true,
+		etfNAVErr:  context.DeadlineExceeded,
+	}
+
+	rec := getCatalog(t, reader, "/assets/1")
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
 }
 
 func TestHandleGetAsset_FII(t *testing.T) {
@@ -803,3 +894,57 @@ func TestHandleGetAssetQuoteHistory_ErroInterno(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
+
+// TestHandleGetAsset_FIIPriceToBook cobre a tarefa U.6: o P/VP do FII é o
+// preço sobre o valor patrimonial por cota (tijolo: net_worth; papel:
+// portfolio_value), e some quando falta cotação, valor-base ou cotas.
+func TestHandleGetAsset_FIIPriceToBook(t *testing.T) {
+	shares := int64(1_000_000)
+	netWorth := 133_333_333.33
+	portfolio := 100_000_000.0
+	zeroShares := int64(0)
+
+	tests := []struct {
+		name    string
+		details fii.Details
+		quote   bool
+		want    *float64
+	}{
+		{"tijolo com cotação", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth, OutstandingShares: &shares}, true, ptrFloat(75.0 / (133_333_333.33 / 1_000_000))},
+		{"papel usa portfolio_value", fii.Details{Type: fii.TypePapel, PortfolioValue: &portfolio, OutstandingShares: &shares}, true, ptrFloat(0.75)},
+		{"sem cotação", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth, OutstandingShares: &shares}, false, nil},
+		{"sem cotas", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth}, true, nil},
+		{"cotas zero", fii.Details{Type: fii.TypeTijolo, NetWorth: &netWorth, OutstandingShares: &zeroShares}, true, nil},
+		{"sem valor-base", fii.Details{Type: fii.TypePapel, OutstandingShares: &shares}, true, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := &fakeCatalogReader{
+				asset:      catalog.AssetRecord{ID: "1", Asset: catalog.Asset{Ticker: "TJLO11", Name: "FII", Type: catalog.AssetFII}},
+				assetFound: true,
+				fiiDetails: tt.details,
+				fiiOK:      true,
+			}
+			if tt.quote {
+				reader.currentQuote, reader.currentQuoteFound = catalog.Quote{Price: 75}, true
+			}
+			rec := getCatalog(t, reader, "/assets/1")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+			}
+			var body assetDetailResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			got := body.FII.PriceToBookValue
+			switch {
+			case tt.want == nil && got != nil:
+				t.Fatalf("PriceToBookValue = %v, want omitido", *got)
+			case tt.want != nil && (got == nil || math.Abs(*got-*tt.want) > 1e-9):
+				t.Fatalf("PriceToBookValue = %v, want %v", got, *tt.want)
+			}
+		})
+	}
+}
+
+func ptrFloat(v float64) *float64 { return &v }

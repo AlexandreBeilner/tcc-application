@@ -1,0 +1,60 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1160px;
+    }
+}
+
+.loading,
+.error {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.title {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* Mobile/tablet: gráficos empilhados. Desktop (identidade-visual-padroes.md
+   §7): Selic e IPCA lado a lado, composição própria em vez de coluna
+   única esticada. */
+.charts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+@media (min-width: 1024px) {
+    .charts {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        align-items: start;
+        gap: var(--space-4);
+    }
+}

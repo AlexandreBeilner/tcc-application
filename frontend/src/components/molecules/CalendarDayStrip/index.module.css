@@ -1,0 +1,134 @@
+/* `overflow-y: hidden` é obrigatório (armadilha 0 da S.12): sem ele o eixo
+   vertical vira `auto` e a borda de 2px de hoje ou o outline de foco criam uma
+   rolagem vertical dentro da faixa. A folga do padding acomoda borda e foco. */
+.strip {
+    display: grid;
+    flex: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 58px;
+    gap: 6px;
+    padding: 4px 4px 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .strip {
+        grid-auto-columns: minmax(0, 1fr);
+        overflow: visible;
+    }
+}
+
+.day {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 92px;
+    padding: var(--space-2) 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    scroll-snap-align: center;
+    outline-offset: -2px;
+}
+
+.day:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+}
+
+.weekday {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.dayNumber {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.marks {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 16px;
+    color: var(--color-brand-300);
+}
+
+.mineMark {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 5px;
+    border-radius: 9px;
+    background: var(--color-brand-500);
+    color: var(--color-bg-base);
+    font-size: 10.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.marketMark {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 3px;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: 9px;
+    color: var(--color-text-secondary);
+}
+
+.status {
+    font-size: 10px;
+    color: var(--color-text-muted);
+}
+
+.future {
+    border-style: dashed;
+    background: transparent;
+}
+
+.weekend {
+    background: var(--color-bg-surface-elevated);
+}
+
+.weekend .dayNumber {
+    color: var(--color-text-secondary);
+}
+
+/* Fim do trimestre: bloco dourado, com o rótulo em texto (cor nunca sozinha). */
+.report {
+    border-color: var(--color-gamify-500);
+    background: var(--color-gamify-100);
+}
+
+.report .marks,
+.report .status {
+    color: var(--color-gamify-500);
+    font-weight: 600;
+}
+
+.today {
+    border: 2px solid var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
+.today .weekday {
+    color: var(--color-brand-300);
+    font-weight: 600;
+}
+
+.day[aria-pressed='true']:not(.today) {
+    border-style: solid;
+    border-color: var(--color-text-primary);
+}

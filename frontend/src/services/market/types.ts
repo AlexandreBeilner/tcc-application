@@ -4,7 +4,7 @@
 // donut de distribuição e da separação visual "Mercado Ao Vivo vs.
 // Sandbox" da tela 2.1 (tarefa 6.3) — o agrupamento acontece aqui no
 // frontend, a resposta não separa em dois blocos.
-export interface MyAccountPosition {
+interface BaseMyAccountPosition {
     assetId: string
     ticker: string
     name: string
@@ -14,7 +14,18 @@ export interface MyAccountPosition {
     averagePrice: number
 }
 
-export interface MyAccountFixedIncomePosition extends MyAccountPosition {
+// dividendsReceived (tarefa S.15) só existe em renda variável — renda fixa
+// não gera provento (`dividend_payment`), por isso não fica na base
+// compartilhada com MyAccountFixedIncomePosition.
+export interface MyAccountPosition extends BaseMyAccountPosition {
+    dividendsReceived: number
+    // Preço de marcação a mercado (tarefa S.6) — ponto médio do book do
+    // ativo, com fallback pro último negócio quando falta um dos lados.
+    // Ausente pra posição sandbox (nunca teve book real).
+    markPrice?: number
+}
+
+export interface MyAccountFixedIncomePosition extends BaseMyAccountPosition {
     averageRate: number
 }
 
@@ -119,6 +130,16 @@ export interface EtfDetail {
     benchmark_index: string
     methodology_summary?: string
     holdings: EtfHolding[]
+    // Tarefa R.3/R.7/R.11: ausentes até a emissão inicial e o primeiro tick
+    // seguinte (`nav`, `premium_pct`, `nav_day`, `shares_outstanding`) e
+    // enquanto o fundo não tem índice teórico gravado (`tracking_error_pct`).
+    // `premium_pct` e `tracking_error_pct` já vêm em pontos percentuais.
+    nav?: number
+    premium_pct?: number
+    nav_day?: number
+    shares_outstanding?: number
+    tracking_error_pct?: number
+    dividend_history: DividendHistoryEntry[]
 }
 
 export interface FiiDetail {
@@ -129,6 +150,7 @@ export interface FiiDetail {
     indexador?: string
     portfolio_value?: number
     dividend_yield?: number
+    price_to_book_value?: number
     dividend_history: DividendHistoryEntry[]
 }
 
@@ -142,6 +164,43 @@ export interface AssetDetail extends AssetSummary {
 export interface QuoteHistoryEntry {
     simulated_day: number
     price: number
+}
+
+// `GET /market/assets/:id/book` (tarefa S.5) — proxy 1:1 do motor. Cada
+// nível é a soma agregada de ordens `limit` pendentes naquele preço, do
+// melhor preço pro pior (bids do maior pro menor, asks do menor pro
+// maior), recortado aos 5 melhores de cada lado. Ativo do Mercado Ao Vivo:
+// `bids`/`asks` vêm `null` (nunca `[]`) quando o lado está vazio;
+// `mid_price` também é `null` com só um lado disponível. Ativo sandbox:
+// só `price` vem preenchido (preço do roteiro), os 5 campos de book vêm
+// `null` — sandbox nunca teve, nem vai ter, contraparte real (RF12/RNF08).
+export interface BookLevel {
+    price: number
+    quantity: number
+}
+
+export interface AssetBook {
+    is_sandbox: boolean
+    price: number | null
+    best_bid: number | null
+    best_ask: number | null
+    mid_price: number | null
+    bids: BookLevel[] | null
+    asks: BookLevel[] | null
+}
+
+// `GET /market/indicators` (tarefa M.3) — proxy 1:1 do motor
+// (`GET /market/indicators/history`, `.docs/engine/tick.md`), snake_case
+// sem tradução como o resto desta seção. `selic_rate` já vem em pontos
+// percentuais (ex: `9.75` = 9,75% a.a., mesma convenção de
+// `fixed_income.interest_rate` — `formatRatePercent`); `ipca_monthly_rate`/
+// `ipca_accumulated_12m` vêm como razão 0–1 (mesma convenção de
+// `roe`/`dividend_yield` — `formatPercentage`), não em pontos percentuais.
+export interface IndicatorHistoryEntry {
+    simulated_day: number
+    selic_rate: number
+    ipca_monthly_rate: number
+    ipca_accumulated_12m: number
 }
 
 export interface CompanyAssetSummary {
@@ -176,6 +235,8 @@ export interface MarketEvent {
 
 export type OrderSide = 'buy' | 'sell'
 export type OrderType = 'market' | 'limit'
+export type OrderStatus = 'pending' | 'partially_filled' | 'filled' | 'cancelled'
+export type OrderCancelReason = 'user_cancelled' | 'expired' | 'no_liquidity' | 'requoted' | 'insufficient_funds' | 'admin'
 
 export interface PlaceOrderInput {
     asset_id: string
@@ -192,9 +253,31 @@ export interface OrderFill {
 }
 
 export interface PlaceOrderResult {
+    order_id: string
     filled_quantity: number
     remaining_quantity: number
     fills: OrderFill[]
+}
+
+// `GET /market/orders` (tarefa O.3) — proxy 1:1 de `GET /orders` do motor,
+// já enriquecido com `ticker`/`name` pelo backend (`CatalogReader`,
+// `.docs/backend/market.md`). `cancel_reason` só aparece (`omitempty`,
+// backend) quando `status = cancelled`. Sustenta a tela "Minhas Ordens"
+// (O.4) — o agrupamento em Pendentes/Executadas/Recusadas é client-side,
+// não desta rota.
+export interface MyOrderRecord {
+    order_id: string
+    asset_id: string
+    ticker: string
+    name: string
+    side: OrderSide
+    type: OrderType
+    quantity: number
+    filled_quantity: number
+    price: number
+    status: OrderStatus
+    cancel_reason?: OrderCancelReason
+    created_at: string
 }
 
 export interface SimulateFixedIncomeInput {
@@ -247,4 +330,100 @@ export interface RedeemFixedIncomeResult {
     net_value: number
     tax_rate: number
     mark_to_market: MarkToMarket
+}
+
+// Espelha `GET /market/clock` (`.docs/backend/market.md`, tarefa S.10), proxy 1:1
+// do motor. `weekday` é o código estável (`sun`..`sat`); `next_tick_at` é
+// `null` quando a agenda automática do motor está desligada.
+export interface MarketClock {
+    simulated_day: number
+    date: string
+    weekday: string
+    market_open: boolean
+    days_until_open: number
+    days_per_real_day: number
+    next_tick_at: string | null
+    quarter_day: number
+    quarter_length: number
+}
+
+// Linha do tempo do mercado (tarefa S.10/S.12): um item por dia da janela, dias
+// sem fato vêm com `events: []`. Só os campos do tipo vêm preenchidos.
+export type CalendarEventKind =
+    | 'macro_event'
+    | 'copom'
+    | 'report'
+    | 'dividend_ex_date'
+    | 'dividend_payment_date'
+    | 'order_executed'
+    | 'dividend_received'
+    | 'fixed_income_purchase'
+    | 'fixed_income_redemption'
+    | 'fixed_income_maturity'
+    | 'salary_payment'
+
+export interface CalendarEvent {
+    kind: CalendarEventKind
+    scope: 'global' | 'user'
+    future: boolean
+    title?: string
+    direction?: string
+    ticker?: string
+    side?: 'buy' | 'sell'
+    quantity?: number
+    unit_value?: number
+    selic_rate?: number
+    previous_selic_rate?: number
+    // reference_month ('AAAA-MM', achado 025) só vem em salary_payment — o mês
+    // a que aquele salário se refere, que pode divergir do dia deste evento
+    // num catch-up de vários meses atrasados de uma vez (backend, T.5).
+    reference_month?: string
+    // Relevância pro usuário do token (RC.6.1), calculada no motor. Os quatro
+    // campos abaixo só vêm em `mine` com valor do próprio usuário (RNF09).
+    relevance: CalendarRelevance
+    relevance_reason?: CalendarRelevanceReason
+    // Provento: exato (`amount_is_estimate` falso) depois da data-ex, estimado antes.
+    estimated_amount?: number
+    amount_is_estimate?: boolean
+    user_quantity?: number
+}
+
+export type CalendarRelevance = 'mine' | 'market'
+export type CalendarRelevanceReason = 'position' | 'own_fact' | 'fixed_income_position' | 'salary'
+export type CalendarScope = 'mine' | 'all'
+
+// Fatos do dia por relevância, contados antes do corte por `market_limit`.
+export interface CalendarDaySummary {
+    mine_count: number
+    market_count: number
+}
+
+export interface CalendarDay {
+    simulated_day: number
+    date: string
+    weekday: string
+    market_open: boolean
+    summary: CalendarDaySummary
+    events: CalendarEvent[]
+}
+
+export interface MarketCalendar {
+    from_day: number
+    to_day: number
+    // Fatos de mercado na janela antes do corte e quantos vieram.
+    market_total: number
+    market_shown: number
+    days: CalendarDay[]
+}
+
+export interface MarketCalendarOptions {
+    scope?: CalendarScope
+    marketLimit?: number
+}
+
+// `GET /market/halts` (tarefa N.9): pausa de negociação vigente, só o que o usuário pode
+// saber. Nunca o motivo interno nem quem pausou.
+export interface TradingHaltStatus {
+    global: boolean
+    asset_ids: string[]
 }

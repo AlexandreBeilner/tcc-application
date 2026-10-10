@@ -1,3 +1,4 @@
+import { formatUpdatedAgo } from '../../utils/formatUpdatedAgo'
 import { useState } from 'react'
 import { RankingBoard } from '../../components/organisms/RankingBoard'
 import { useRankingQuery } from '../../features/ranking/useRankingQuery'
@@ -103,7 +104,15 @@ export function Classificacao() {
 
             <div className={styles.layout}>
                 <div className={styles.main}>
-                    <p className={styles.note}>Só o patrimônio do Mercado Ao Vivo conta pro ranking. O Sandbox não entra.</p>
+                    <p className={styles.note}>
+                        Só o patrimônio do Mercado Ao Vivo conta pro ranking. O Sandbox não entra.
+                        {rankingQuery.data?.updatedAt &&
+                            ` ${formatUpdatedAgo(rankingQuery.data.updatedAt)}, a classificação é recalculada a cada 3 horas.`}
+                    </p>
+                    <p className={styles.note}>
+                        A renda fixa entra pelo valor de hoje, já descontado o Imposto de Renda, como se você resgatasse. Quem acabou de
+                        entrar vê a própria posição na hora, mesmo antes da próxima atualização.
+                    </p>
 
                     {rankingQuery.isError && (
                         <p className={styles.error} role="alert">

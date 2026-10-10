@@ -23,13 +23,14 @@ type fixedIncomePositionLister interface {
 }
 
 type positionResponse struct {
-	AssetID      string  `json:"asset_id"`
-	Ticker       string  `json:"ticker"`
-	Name         string  `json:"name"`
-	Type         string  `json:"type"`
-	IsSandbox    bool    `json:"is_sandbox"`
-	Quantity     int     `json:"quantity"`
-	AveragePrice float64 `json:"average_price"`
+	AssetID           string  `json:"asset_id"`
+	Ticker            string  `json:"ticker"`
+	Name              string  `json:"name"`
+	Type              string  `json:"type"`
+	IsSandbox         bool    `json:"is_sandbox"`
+	Quantity          int     `json:"quantity"`
+	AveragePrice      float64 `json:"average_price"`
+	DividendsReceived float64 `json:"dividends_received"`
 }
 
 type userFixedIncomePositionResponse struct {
@@ -41,6 +42,10 @@ type userFixedIncomePositionResponse struct {
 	Quantity     float64 `json:"quantity"`
 	AveragePrice float64 `json:"average_price"`
 	AverageRate  float64 `json:"average_rate"`
+	// CurrentValue (bruto de IR) e NetValue (líquido, o que o resgate creditaria hoje) só vêm com
+	// ?valuation=true e fora do sandbox. Ausentes quando a avaliação falhou: quem lê cai no custo.
+	CurrentValue *float64 `json:"current_value,omitempty"`
+	NetValue     *float64 `json:"net_value,omitempty"`
 }
 
 // requireUserIDParam lê ?user_id= da query string e valida como UUID —
@@ -81,13 +86,14 @@ func handleListPositions(positions positionLister) http.HandlerFunc {
 		resp := make([]positionResponse, 0, len(records))
 		for _, rec := range records {
 			resp = append(resp, positionResponse{
-				AssetID:      rec.AssetID,
-				Ticker:       rec.AssetTicker,
-				Name:         rec.AssetName,
-				Type:         rec.AssetType,
-				IsSandbox:    rec.IsSandbox,
-				Quantity:     rec.Quantity,
-				AveragePrice: rec.AveragePrice,
+				AssetID:           rec.AssetID,
+				Ticker:            rec.AssetTicker,
+				Name:              rec.AssetName,
+				Type:              rec.AssetType,
+				IsSandbox:         rec.IsSandbox,
+				Quantity:          rec.Quantity,
+				AveragePrice:      rec.AveragePrice,
+				DividendsReceived: rec.DividendsReceived,
 			})
 		}
 		writeJSON(w, http.StatusOK, resp)
@@ -96,8 +102,10 @@ func handleListPositions(positions positionLister) http.HandlerFunc {
 
 // handleListFixedIncomePositions serve GET /fixed-income/positions?user_id=
 // — mesmo padrão de handleListPositions, pra fixed_income_positions,
-// incluindo average_rate (tarefa 4.7) e is_sandbox (tarefa 4.11).
-func handleListFixedIncomePositions(positions fixedIncomePositionLister) http.HandlerFunc {
+// incluindo average_rate (tarefa 4.7) e is_sandbox (tarefa 4.11). Com ?valuation=true cada
+// posição de Mercado Ao Vivo ganha current_value/net_value (valor de hoje pela mesma conta do
+// resgate); fica opt-in porque custa uma consulta por posição.
+func handleListFixedIncomePositions(positions fixedIncomePositionLister, valuer fixedIncomeExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if positions == nil {
 			writeCatalogError(w, http.StatusServiceUnavailable, "serviço de posições indisponível")
@@ -115,9 +123,10 @@ func handleListFixedIncomePositions(positions fixedIncomePositionLister) http.Ha
 			return
 		}
 
+		withValuation := r.URL.Query().Get("valuation") == "true" && valuer != nil
 		resp := make([]userFixedIncomePositionResponse, 0, len(records))
 		for _, rec := range records {
-			resp = append(resp, userFixedIncomePositionResponse{
+			item := userFixedIncomePositionResponse{
 				AssetID:      rec.AssetID,
 				Ticker:       rec.AssetTicker,
 				Name:         rec.AssetName,
@@ -126,7 +135,14 @@ func handleListFixedIncomePositions(positions fixedIncomePositionLister) http.Ha
 				Quantity:     rec.Quantity,
 				AveragePrice: rec.AveragePrice,
 				AverageRate:  rec.AverageRate,
-			})
+			}
+			if withValuation && !rec.IsSandbox {
+				if outcome, err := valuer.Value(r.Context(), userID, rec.AssetID); err == nil {
+					item.CurrentValue = &outcome.TotalValue
+					item.NetValue = &outcome.NetValue
+				}
+			}
+			resp = append(resp, item)
 		}
 		writeJSON(w, http.StatusOK, resp)
 	}

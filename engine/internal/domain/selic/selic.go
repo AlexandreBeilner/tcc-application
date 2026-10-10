@@ -18,6 +18,22 @@ const (
 	// DefaultDailyVolatility é o desvio-padrão do ruído por passo, em
 	// pontos percentuais de taxa anual.
 	DefaultDailyVolatility = 0.15
+	// DefaultInflationWeight é o peso do termo de reação ao desvio do IPCA
+	// acumulado frente à meta (tarefa I.1, proposta seção 6). Recalibrado
+	// (achado 007, pontos-em-aberto-decisao-produto.md, decisão do autor em
+	// 2026-09-19) — o valor original (1.5, "coeficiente clássico da regra
+	// de Taylor") tomava o coeficiente clássico ao pé da letra sem
+	// considerar que `ipcaAccumulatedDeviation` é decimal (0.02 = 2 p.p.,
+	// mesma convenção de `ipca.Config`), não pontos percentuais inteiros
+	// como `Neutral`: nessa escala, 1.5 deixava o termo praticamente inerte
+	// (só reagia a choques acima de 8,33 p.p.). 7.5 foi escolhido simulando
+	// `NextCalendarRate` contra `ReversionSpeed`/`CopomStepIncrement`
+	// (mesma composição que qualquer novo valor precisa respeitar, não só
+	// o termo isolado): ignora desvio de ruído (<1 p.p.), reage em passos
+	// de 0,25 realistas a um desvio persistente de 2-5 p.p. e converge a um
+	// deslocamento estável (não diverge) enquanto o desvio persistir — ver
+	// TestNextCalendarRate_DesvioRealistaDeIPCAReageDeFormaGradualEEstavel.
+	DefaultInflationWeight = 7.5
 )
 
 // Config parametriza o processo estocástico da Selic simulada. Initial é a
@@ -27,18 +43,25 @@ type Config struct {
 	Neutral        float64
 	ReversionSpeed float64
 	Volatility     float64
-	Seed           int64
+	// InflationWeight pondera o termo `peso_inflação × (IPCA_acumulado −
+	// meta_IPCA)` da regra de reação (tarefa I.1) — somado ao termo de
+	// reversão à média já existente antes de cada decisão do Copom.
+	// InflationWeight = 0 desativa o termo por completo, reproduzindo
+	// exatamente a fórmula anterior a esta tarefa (retrocompatibilidade).
+	InflationWeight float64
+	Seed            int64
 }
 
 // DefaultConfig monta a configuração de referência da spec 3.2.2, variando
 // só os dois parâmetros que mudam por simulação: taxa inicial e seed.
 func DefaultConfig(initial float64, seed int64) Config {
 	return Config{
-		Initial:        initial,
-		Neutral:        DefaultNeutralRate,
-		ReversionSpeed: DefaultReversionSpeed,
-		Volatility:     DefaultDailyVolatility,
-		Seed:           seed,
+		Initial:         initial,
+		Neutral:         DefaultNeutralRate,
+		ReversionSpeed:  DefaultReversionSpeed,
+		Volatility:      DefaultDailyVolatility,
+		InflationWeight: DefaultInflationWeight,
+		Seed:            seed,
 	}
 }
 

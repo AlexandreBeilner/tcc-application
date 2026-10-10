@@ -16,7 +16,7 @@ Catálogo (3 missões da spec 6.1 + 2 do backlog engajamento H.2/H.3, seed em `n
 
 - **Autenticação:** Bearer token (qualquer usuário autenticado).
 - **Payload:** nenhum.
-- **Sucesso:** `200` → `{ missions: [{ id, key, title, description, completionCriteria, xpReward, requiresLessonCompletion, status }] }`. `status` é `pending`/`completed`, calculado por usuário e por dia (UTC). Gera a linha `pending` de hoje sob demanda, no primeiro `GET` do dia — não existe job de meia-noite.
+- **Sucesso:** `200` → `{ missions: [{ id, key, title, description, completionCriteria, xpReward, requiresLessonCompletion, status }] }`. `status` é `pending`/`completed`, calculado por usuário e por dia (UTC). Gera a linha `pending` de hoje sob demanda, no primeiro `GET` do dia — não existe job de meia-noite. **Só as missões ativas** (N.19): uma missão desativada pelo painel (`daily_missions.is_active = false`) não é sorteada pro dia, nem ganha linha de progresso nova, nem aparece aqui; reativar a devolve.
 - **Erros:** `401` — token ausente ou inválido/expirado.
 - **Regra:** `ListDailyMissionsUseCase`.
 
@@ -26,18 +26,25 @@ Catálogo (3 missões da spec 6.1 + 2 do backlog engajamento H.2/H.3, seed em `n
 
 - **Autenticação:** Bearer token.
 - **Payload:** nenhum (conclusão é auto-reportada pelo cliente, exceto na verificação cruzada abaixo).
-- **Sucesso:** `200` → `{ status: 'completed' }`, mais `xpAwarded`, `leveledUp`, `streakMilestone`, `unlockedAchievements` **só na chamada que de fato credita xp** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer resposta idempotente, ver abaixo):
+- **Sucesso:** `200` → `{ status: 'completed' }`, mais `xpAwarded`, `leveledUp`, `newLevel`, `streakMilestone`, `unlockedAchievements` **só na chamada que de fato credita xp** (campos aditivos, tarefa I.2 do backlog de engajamento — ausentes em qualquer resposta idempotente, ver abaixo):
   - `xpAwarded` — sempre `mission.xpReward` quando presente.
   - `leveledUp` — `true` se esse crédito cruzou o limiar do próximo nível.
+  - `newLevel` — nível após este crédito (tarefa T.10, Fase de mercado realista) — sempre presente junto com `leveledUp`, mesmo quando `false`; consumido pelo frontend pra calcular o salário mensal novo no reveal de level-up sem round-trip extra (`monthlySalaryForLevel`, fórmula duplicada no frontend, fonte real em `backend/src/modules/payroll/domain/salary.ts`).
   - `streakMilestone` — `7`, `30` ou `null`.
   - `unlockedAchievements` — `{ id, name, description }[]`, união das conquistas recém-desbloqueadas pelo crédito de xp e pelo toque de streak.
 
-  Idempotente — reenviar depois de já concluída no dia não credita xp/streak de novo, apenas confirma o status (resposta só com `{ status: 'completed' }`, sem os 4 campos acima). Idempotência garantida por transição atômica no banco (`markCompleted`, UPSERT com `ON CONFLICT ... DO UPDATE ... WHERE status = 'pending' RETURNING`), não só pela leitura prévia de `findProgress` — duas requisições concorrentes pra mesma missão/dia (rede duplicando a chamada, ou alguém automatizando chamadas deliberadas pro endpoint) só creditam xp uma vez: o Postgres serializa via lock de linha, e só quem de fato transiciona `pending → completed` credita (e só esse quem recebe os 4 campos de volta).
+  Idempotente — reenviar depois de já concluída no dia não credita xp/streak de novo, apenas confirma o status (resposta só com `{ status: 'completed' }`, sem os 5 campos acima). Idempotência garantida por transição atômica no banco (`markCompleted`, UPSERT com `ON CONFLICT ... DO UPDATE ... WHERE status = 'pending' RETURNING`), não só pela leitura prévia de `findProgress` — duas requisições concorrentes pra mesma missão/dia (rede duplicando a chamada, ou alguém automatizando chamadas deliberadas pro endpoint) só creditam xp uma vez: o Postgres serializa via lock de linha, e só quem de fato transiciona `pending → completed` credita (e só esse quem recebe os 5 campos de volta).
 - **Erros:**
   - `401` — token ausente ou inválido/expirado.
-  - `404` — missão inexistente no catálogo.
+  - `404` — missão inexistente no catálogo, **ou desativada pelo painel** (N.19): nada é creditado. Quem já concluiu a missão antes de ela ser desativada mantém o XP e o streak.
   - `422` — missão com `requiresLessonCompletion = true` sem nenhuma lição concluída no dia (UTC), **ou** missão `review_old_lesson` sem nenhuma lição antiga (>14 dias) revisada hoje, **ou** missão `micro_decision_streak_today` sem 3 acertos seguidos hoje na Micro-decisão.
 - **Regra:** `CompleteMissionUseCase`. Marca `completed`, credita `xpReward` via `xpAwarder` (motivo `missao:<id>`) e chama `streakTracker.touch` — conclusão de **qualquer** missão já mantém o streak (decisão da 5.3, não exige todas as missões do dia). `xpAwarder`/`streakTracker` (`missions/application/ports/`) devolvem o resultado real desde a I.2, mesma mudança de `.docs/backend/lessons.md`.
+
+---
+
+## Catálogo operável pelo painel (N.19)
+
+`daily_missions.is_active` (migration `0021`, default `true`: tudo que já existe nasce ativo). O painel (`GET/PATCH /admin/gamification/missions`, `.docs/backend/admin.md`) edita título, descrição e XP (inteiro de 1 a 500) e liga/desliga; **não cria missão nova nem muda o tipo de conferência**, porque cada tipo (`lesson_completion`, `server_check`, `client_reported`) é código, e uma missão nova sem conferência seria XP de graça. `MissionRepository.listCatalog()` devolve só as ativas (é o conjunto do qual o dia é montado); `listAll()` traz todas, só pro painel. O seed (`db:seed:missions`) continua só inserindo por `key`, então não desfaz uma edição do painel.
 
 ---
 

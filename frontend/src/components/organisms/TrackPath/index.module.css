@@ -1,0 +1,256 @@
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* Sem card/borda ao redor (ao contrário do gráfico horizontal antigo,
+   embutido no acordeão) — o mapa ocupa a coluna de conteúdo inteira da
+   página própria, mockup O.0 mostra ele direto sobre o fundo da página.
+   Altura real em px
+   (`layout.height`, sem limite) — a rolagem vertical é a nativa da página,
+   nunca um `overflow` próprio. */
+.canvas {
+    position: relative;
+    width: 100%;
+    /* Grade quadrada em CSS (não mais um <pattern> no SVG, que o
+       `preserveAspectRatio="none"` esticava só em X): cobre sempre a altura
+       inteira do canvas, em qualquer tema, via token `--grid-line`. */
+    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+}
+
+.svg {
+    display: block;
+    width: 100%;
+}
+
+.hereMarker {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    border-top: 1.5px dashed var(--color-brand-500);
+    pointer-events: none;
+}
+
+/* Filha do `.nodeWrap` do nó atual: centrada acima do círculo (meia altura
+   do nó + folga pro anel pulsante), com z-index acima dos demais nós. */
+.hereTag {
+    position: absolute;
+    bottom: 34px;
+    left: 0;
+    transform: translateX(-50%);
+    z-index: 2;
+    pointer-events: none;
+    background: var(--color-brand-500);
+    color: #fff;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.nodeWrapCurrent {
+    z-index: 3;
+}
+
+/* Âncora de tamanho zero na coordenada exata do path — nó, título e
+   bandeira são todos posicionados A PARTIR dela, nunca o inverso (mockup
+   O.0: "o nó fica sempre no ponto exato da linha"). */
+.nodeWrap {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.node {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.node:hover {
+    filter: brightness(1.12);
+}
+
+.locked {
+    background: var(--color-bg-surface);
+    border: 2px dashed var(--color-border-strong);
+    color: var(--color-text-muted);
+}
+
+.completed {
+    background: var(--accent);
+    border: none;
+    color: var(--color-bg-base);
+}
+
+.available {
+    position: relative;
+    background: var(--color-bg-surface);
+    border: 2.5px solid var(--accent);
+    color: var(--accent);
+}
+
+/* Anel pulsante do nó `available` — mesmo motivo "você está aqui" (§2),
+   só o reforço animado; a linha-guia horizontal já entrega a informação,
+   então o pseudo-elemento nunca carrega texto próprio. */
+.available::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    border: 2px solid var(--accent);
+    opacity: 0.5;
+    animation: ringPulse 2.2s ease-out infinite;
+}
+
+@keyframes ringPulse {
+    0% {
+        transform: scale(0.85);
+        opacity: 0.5;
+    }
+    70%,
+    100% {
+        transform: scale(1.35);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .available::after {
+        animation: none;
+        opacity: 0;
+    }
+}
+
+.nodeMeta {
+    position: absolute;
+    top: 0;
+    transform: translateY(-50%);
+    width: clamp(120px, 40vw, 168px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.metaRight {
+    left: 32px;
+    text-align: left;
+}
+
+.metaLeft {
+    right: 32px;
+    text-align: right;
+}
+
+.nodeCode {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+}
+
+.metaLeft .nodeCode {
+    align-self: flex-end;
+}
+
+.nodeTitle {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-text-primary);
+}
+
+.reviewTag {
+    align-self: flex-start;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.metaLeft .reviewTag {
+    align-self: flex-end;
+}
+
+.nodeTitleLocked {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+/* Dentro da coluna de `.nodeMeta` (achado P.1), não mais uma tag flutuante
+   de largura livre embaixo do nó — o card de 300px de largura virtual não
+   aguenta `nowrap` com o texto real (~165 caracteres no pior caso, lição
+   2.8). Mesma largura que já quebra linha pro título (`clamp(120px, 40vw,
+   168px)`, herdada do pai por ser item de flex-column sem `align-self`
+   próprio). `<button>`: clique/toque alterna truncamento (`.flagText`) por
+   texto inteiro (`.flagTextExpanded`) — reset dos estilos nativos de botão
+   porque o visual é o mesmo badge de antes, só o container que mudou. */
+.flag {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-gamify-500);
+    background: var(--color-gamify-100);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 3px 7px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.metaLeft .flag {
+    flex-direction: row-reverse;
+    text-align: right;
+}
+
+.flagText {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.flagTextExpanded {
+    display: block;
+}
+
+.hint {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+@media (min-width: 1024px) {
+    .hereTag {
+        bottom: 40px;
+    }
+
+    .node {
+        width: 48px;
+        height: 48px;
+    }
+}

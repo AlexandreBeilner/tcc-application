@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { Wallet, Target, Users } from 'lucide-react'
+import { FastForward, Wallet, Target, Users, HandCoins } from 'lucide-react'
 import { useAuth } from '../../features/auth/AuthContext'
 import { completeOnboarding } from '../../services/auth'
-import { ApiError } from '../../services/client'
 import { Button } from '../../components/atoms/Button'
+import { formatCurrency } from '../../features/portfolio/format'
 import styles from './index.module.css'
+import { formatApiError } from '../../utils/formatApiError'
 
 // Tela 1.2 (tarefa 6.2) — carrossel de 3 telas curtas (inventário 1.2),
 // só na primeira sessão após cadastro. CTA final "Começar" e "pular"
@@ -14,7 +15,35 @@ import styles from './index.module.css'
 // 0.1) — depois de marcar `onboardingCompleted` via `PATCH /me` (6.0.4),
 // nunca um flag local. Ícone por slide (identidade-visual-padroes.md,
 // Octalysis "Epic Meaning") — a única variação visual antes era o texto.
-const SLIDES = [
+// O slide do tempo acelerado (S.12) leva um desenho a mais (`visual: 'time'`):
+// 1 dia real contra N dias de mercado e a semana com sábado e domingo tracejados.
+// O slide do salário (T.11) reusa o mesmo padrão de `compareBox` (`visual: 'salary'`):
+// dois níveis de referência mostrando o valor crescendo, mesmo `HandCoins` do
+// resto do salário (`SalaryIndicator`/`CalendarKindIcon`).
+const WEEK_DAYS = ['seg', 'ter', 'qua', 'qui', 'sex'] as const
+const WEEKEND_DAYS = ['sáb', 'dom'] as const
+const SALARY_LEVEL_EXAMPLES = [10, 30] as const
+
+// Fórmula pura duplicada do backend (`backend/src/modules/payroll/domain/salary.ts`,
+// fonte real, ver T.3); frontend/backend não compartilham código TS (mesmo tipo
+// de duplicação já aceito no reveal de level-up, T.10, e na Fase S/T.6 entre Go
+// e Node) — aqui só pra ilustrar os valores de referência do slide, sem
+// round-trip pro backend.
+function monthlySalaryForLevel(level: number): number {
+    const tier = Math.ceil(level / 10)
+    const fullTiersSum = (1000 * (tier - 1) * tier) / 2
+    const levelsIntoTier = level - 10 * (tier - 1)
+    return fullTiersSum + 100 * tier * levelsIntoTier
+}
+
+interface Slide {
+    title: string
+    body: string
+    Icon: typeof Wallet
+    visual?: 'time' | 'salary'
+}
+
+const SLIDES: Slide[] = [
     {
         title: 'Você começa com R$ 10.000 simulados',
         body: 'Esse é o seu capital inicial no mercado ao vivo: dinheiro de mentira, decisões de verdade.',
@@ -26,11 +55,74 @@ const SLIDES = [
         Icon: Target,
     },
     {
+        title: 'Aqui o tempo passa mais rápido',
+        body: 'Para você ver o efeito dos investimentos sem esperar meses, o mercado simulado anda 5 dias a cada dia real. Como no mundo real, ele fecha no sábado e no domingo: nesses dias você estuda, faz lições e treina no Modo Aprendizado, e as ordens esperam a segunda.',
+        Icon: FastForward,
+        visual: 'time',
+    },
+    {
+        title: 'Seu salário cresce com você',
+        body: 'Além do que você ganha investindo, todo mês você recebe um salário simulado que sobe conforme seu nível sobe. Ele cai sozinho na sua conta no 5º dia útil do mês, sem precisar fazer nada.',
+        Icon: HandCoins,
+        visual: 'salary',
+    },
+    {
         title: 'Compita com amigos, não só com estranhos',
         body: 'Adicione amigos e acompanhe quem rende mais no ranking, sem expor o valor do seu patrimônio.',
         Icon: Users,
     },
 ]
+
+function TimeVisual() {
+    return (
+        <div className={styles.timeVisual}>
+            <div className={styles.compare}>
+                <div className={styles.compareBox}>
+                    <b>1 dia</b>
+                    <span>no seu relógio</span>
+                </div>
+                <FastForward size={22} strokeWidth={2} aria-hidden="true" />
+                <div className={styles.compareBox}>
+                    <b>5 dias</b>
+                    <span>no mercado</span>
+                </div>
+            </div>
+            <div
+                className={styles.weekbar}
+                role="img"
+                aria-label="Semana do mercado: aberto de segunda a sexta, fechado no sábado e no domingo"
+            >
+                {WEEK_DAYS.map((day) => (
+                    <span key={day} className={styles.weekDay}>
+                        {day}
+                    </span>
+                ))}
+                {WEEKEND_DAYS.map((day) => (
+                    <span key={day} className={`${styles.weekDay} ${styles.weekDayClosed}`}>
+                        {day}
+                    </span>
+                ))}
+            </div>
+            <p className={styles.timeHint}>Você acompanha tudo pelo relógio no topo da tela e pelo Calendário.</p>
+        </div>
+    )
+}
+
+function SalaryVisual() {
+    return (
+        <div className={styles.timeVisual}>
+            <div className={styles.compare}>
+                {SALARY_LEVEL_EXAMPLES.map((level) => (
+                    <div key={level} className={styles.compareBox}>
+                        <b>{formatCurrency(monthlySalaryForLevel(level))}</b>
+                        <span>no nível {level}</span>
+                    </div>
+                ))}
+            </div>
+            <p className={styles.timeHint}>Marcado no Calendário no dia em que cai, todo mês.</p>
+        </div>
+    )
+}
 
 export function Onboarding() {
     const { token, user, setUser } = useAuth()
@@ -59,7 +151,7 @@ export function Onboarding() {
             setUser(result.user)
             navigate('/trilha', { replace: true })
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Não foi possível continuar. Tente novamente.')
+            setError(formatApiError(err, 'Não foi possível continuar. Tente novamente.'))
             setIsSubmitting(false)
         }
     }
@@ -86,6 +178,8 @@ export function Onboarding() {
                 </span>
                 <h1 className={styles.title}>{slide.title}</h1>
                 <p className={styles.body}>{slide.body}</p>
+                {slide.visual === 'time' && <TimeVisual />}
+                {slide.visual === 'salary' && <SalaryVisual />}
             </div>
 
             <div className={styles.footer}>

@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import { listNews, markNewsEventSeen } from '../../services/news'
 import { listAssets } from '../../services/market'
@@ -11,7 +10,6 @@ import { completeMission, listMissions } from '../../services/missions'
 import { News } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
 vi.mock('../../services/news', () => ({ listNews: vi.fn(), markNewsEventSeen: vi.fn() }))
 vi.mock('../../services/market', () => ({ listAssets: vi.fn() }))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
@@ -55,9 +53,6 @@ describe('News (tela 5.1)', () => {
         vi.mocked(listMissions).mockResolvedValue({ missions: [feedMission] })
         vi.mocked(completeMission).mockResolvedValue({ status: 'completed' })
         vi.mocked(markNewsEventSeen).mockResolvedValue(undefined)
-        // Desbloqueado por padrão — os testes deste arquivo não são sobre o
-        // aviso de gate da tarefa 7.0.1 (ver describe dedicado abaixo).
-        vi.mocked(useUnlockedKeys).mockReturnValue({ unlockedKeys: new Set(['news_feed']), lessons: [], isLoading: false, isError: false })
     })
 
     afterEach(() => vi.clearAllMocks())
@@ -180,7 +175,7 @@ describe('News (tela 5.1)', () => {
 
         renderPage()
         await screen.findByText('Evento 0')
-        expect(localStorage.getItem('tcc.news.lastSeenId')).toBe('p1-0')
+        expect(localStorage.getItem('app.news.lastSeenId')).toBe('p1-0')
 
         fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }))
         await screen.findByText('Evento da segunda página')
@@ -188,7 +183,7 @@ describe('News (tela 5.1)', () => {
         // `p1-0` continua sendo o marcador — se a página 2 (mais antiga)
         // sobrescrevesse pra `p2-0`, eventos pendentes entre os dois
         // voltariam a contar como não vistos.
-        expect(localStorage.getItem('tcc.news.lastSeenId')).toBe('p1-0')
+        expect(localStorage.getItem('app.news.lastSeenId')).toBe('p1-0')
     })
 
     it('estado vazio sem eventos disparados', async () => {
@@ -407,41 +402,10 @@ describe('News (tela 5.1)', () => {
         await waitFor(() => expect(listMissions).toHaveBeenCalled())
         expect(markNewsEventSeen).not.toHaveBeenCalled()
     })
-
-    it('avisa (sem bloquear) quando news_feed ainda não foi desbloqueado (tarefa 7.0.1)', async () => {
-        vi.mocked(useUnlockedKeys).mockReturnValue({
-            unlockedKeys: new Set(),
-            lessons: [
-                {
-                    id: 'lesson-2-4',
-                    code: '2.4',
-                    title: 'Lendo notícias de mercado',
-                    trackNumber: 2,
-                    trackName: 'Renda Variável',
-                    sortOrder: 11,
-                    centralConcept: 'x',
-                    scenarioText: '',
-                    microDecisionPrompt: '',
-                    microDecisionType: 'reflection',
-                    microDecisionAssetTicker: null,
-                    revelationText: '',
-                    unlocksDescription: '',
-                    unlocksKeys: ['news_feed'],
-                    unlocksAssetTicker: null,
-                    microDecisionOptions: null,
-                    status: 'available',
-                    currentStep: 0,
-                },
-            ],
-            isLoading: false,
-            isError: false,
-        })
-        vi.mocked(listNews).mockResolvedValue({ events: [], total_entries: 0 })
-
-        renderPage()
-
-        expect(await screen.findByText(/Desbloqueia de verdade na lição 2.4/)).toBeInTheDocument()
-        // Feed continua acessível mesmo travado — não é bloqueio rígido.
-        await waitFor(() => expect(listNews).toHaveBeenCalled())
-    })
 })
+
+// O gate de `news_feed` saiu deste componente na Fase Q — virou
+// `RequiresUnlock` na rota (`routes/router.tsx`), coberto pelos testes
+// genéricos de `features/lessons/RequiresUnlock/index.test.tsx`. Este
+// componente não sabe mais renderizar um estado "travado" (não precisa:
+// nunca monta se a chave não estiver desbloqueada).

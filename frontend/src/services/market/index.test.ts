@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+    cancelOrder,
     getAsset,
+    getAssetBook,
     getAssetQuotes,
     getCompany,
+    getIndicatorHistory,
+    getMarketCalendar,
+    getMarketClock,
     getMyAccount,
     listAssets,
     listMyEvents,
+    listMyOrders,
     placeOrder,
     purchaseFixedIncome,
     redeemFixedIncome,
@@ -43,16 +49,70 @@ describe('services/market', () => {
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets?type=cdb')
     })
 
+    it('listAssets pede sandbox só quando includeSandbox, combinável com type', async () => {
+        const fetchMock = mockFetchOnce({ assets: [] })
+        await listAssets('token', undefined, true)
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/assets?include_sandbox=true')
+
+        const combined = mockFetchOnce({ assets: [] })
+        await listAssets('token', 'acao', true)
+        expect(combined.mock.calls[0][0]).toBe('/market/assets?type=acao&include_sandbox=true')
+    })
+
     it('getAsset faz GET /market/assets/:id', async () => {
         const fetchMock = mockFetchOnce({ asset: { id: 'a1' } })
         await getAsset('token', 'a1')
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1')
     })
 
+    it('getAssetBook faz GET /market/assets/:id/book', async () => {
+        const fetchMock = mockFetchOnce({
+            book: { is_sandbox: false, price: null, best_bid: 29.9, best_ask: 30.1, mid_price: 30, bids: null, asks: null },
+        })
+        await getAssetBook('token', 'a1')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1/book')
+    })
+
     it('getAssetQuotes repassa days quando informado', async () => {
         const fetchMock = mockFetchOnce({ quotes: [] })
         await getAssetQuotes('token', 'a1', 90)
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1/quotes?days=90')
+    })
+
+    it('getIndicatorHistory sem days faz GET /market/indicators sem query', async () => {
+        const fetchMock = mockFetchOnce({ indicators: [] })
+        await getIndicatorHistory('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/indicators')
+    })
+
+    it('getIndicatorHistory repassa days quando informado', async () => {
+        const fetchMock = mockFetchOnce({ indicators: [] })
+        await getIndicatorHistory('token', 180)
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/indicators?days=180')
+    })
+
+    it('getMarketClock faz GET /market/clock', async () => {
+        const fetchMock = mockFetchOnce({ simulated_day: 5, market_open: false })
+        await getMarketClock('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/clock')
+    })
+
+    it('getMarketCalendar faz GET /market/calendar com a janela em query string', async () => {
+        const fetchMock = mockFetchOnce({ from_day: 1, to_day: 2, days: [] })
+        await getMarketCalendar('token', '2026-01-05', '2026-01-19')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/calendar?from=2026-01-05&to=2026-01-19')
+    })
+
+    it('getMarketCalendar repassa scope e market_limit', async () => {
+        const fetchMock = mockFetchOnce({ from_day: 1, to_day: 2, market_total: 0, market_shown: 0, days: [] })
+        await getMarketCalendar('token', '2026-01-05', '2026-01-19', { scope: 'mine', marketLimit: 20 })
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/calendar?from=2026-01-05&to=2026-01-19&scope=mine&market_limit=20')
+    })
+
+    it('getMarketCalendar sem janela não manda query string', async () => {
+        const fetchMock = mockFetchOnce({ from_day: 1, to_day: 2, days: [] })
+        await getMarketCalendar('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/calendar')
     })
 
     it('getCompany faz GET /market/companies/:id', async () => {
@@ -74,6 +134,22 @@ describe('services/market', () => {
         expect(url).toBe('/market/orders')
         expect(init.method).toBe('POST')
         expect(JSON.parse(init.body)).toEqual({ asset_id: 'a1', side: 'buy', type: 'market', quantity: 10 })
+    })
+
+    it('listMyOrders faz GET /market/orders', async () => {
+        const fetchMock = mockFetchOnce({ orders: [] })
+        await listMyOrders('token')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/market/orders')
+        expect(init.headers.Authorization).toBe('Bearer token')
+    })
+
+    it('cancelOrder faz POST /market/orders/:id/cancel', async () => {
+        const fetchMock = mockFetchOnce(undefined, 204)
+        await cancelOrder('token', 'order-1')
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/market/orders/order-1/cancel')
+        expect(init.method).toBe('POST')
     })
 
     it('simulateFixedIncome faz GET com query string', async () => {

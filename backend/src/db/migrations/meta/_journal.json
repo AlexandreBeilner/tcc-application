@@ -106,6 +106,111 @@
       "when": 1788992390264,
       "tag": "0014_add_achievement_criteria_quality_types",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789911284228,
+      "tag": "0015_add_lesson_live_macro_indicator_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789925238091,
+      "tag": "0016_add_lesson_stable_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790548832458,
+      "tag": "0017_add_payroll_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791037574901,
+      "tag": "0018_add_admin_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0019_add_lesson_progress_waived_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0020_add_user_suspension_and_token_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0021_add_catalog_active_and_achievement_seed_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0022_add_lesson_micro_decision_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0023_add_lesson_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0024_add_user_lesson_checkpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791700000000,
+      "tag": "0025_widen_lesson_stable_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791800000000,
+      "tag": "0026_add_ranking_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0027_add_ranking_valuation_samples",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0028_add_lesson_published_and_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792100000000,
+      "tag": "0029_add_announcements",
+      "breakpoints": true
     }
   ]
 }

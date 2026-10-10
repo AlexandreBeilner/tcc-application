@@ -24,6 +24,10 @@ export const googleTokenBodySchema = z.object({
   idToken: z.string().min(1),
 })
 
+export const reauthBodySchema = z.object({
+  password: z.string().min(1),
+})
+
 export const updateProfileBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),

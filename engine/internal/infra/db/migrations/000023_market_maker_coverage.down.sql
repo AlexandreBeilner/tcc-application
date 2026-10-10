@@ -1,0 +1,3 @@
+DROP TABLE market_maker_coverage;
+ALTER TABLE bot_personalities DROP CONSTRAINT bot_personalities_max_covered_assets_chk;
+ALTER TABLE bot_personalities DROP COLUMN max_covered_assets;

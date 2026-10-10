@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/orderbook"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 type fakeRepository struct {
@@ -15,21 +16,54 @@ type fakeRepository struct {
 	persistedReq     Request
 	persistedOutcome Outcome
 	persistCalled    bool
+	persistOrderID   string
+	cancelErr        error
+	cancelledOrderID string
+	cancelledUserID  string
+	listOrders       []OrderRecord
+	listOrdersErr    error
+	listedUserID     string
+	assetBookResult  BookResult
+	assetBookErr     error
+	bookAssetID      string
+	bookUserID       string
+	bookDepth        int
 }
 
 func (f *fakeRepository) LoadContext(_ context.Context, _, _ string) (Context, error) {
 	return f.loadCtx, f.loadErr
 }
 
-func (f *fakeRepository) Persist(_ context.Context, req Request, outcome Outcome) error {
+func (f *fakeRepository) Persist(_ context.Context, req Request, outcome Outcome) (string, error) {
 	f.persistCalled = true
 	f.persistedReq = req
 	f.persistedOutcome = outcome
-	return f.persistErr
+	return f.persistOrderID, f.persistErr
+}
+
+func (f *fakeRepository) CancelOrder(_ context.Context, orderID, userID string) error {
+	f.cancelledOrderID = orderID
+	f.cancelledUserID = userID
+	return f.cancelErr
+}
+
+func (f *fakeRepository) ListOrders(_ context.Context, userID string) ([]OrderRecord, error) {
+	f.listedUserID = userID
+	return f.listOrders, f.listOrdersErr
+}
+
+func (f *fakeRepository) AssetBook(_ context.Context, assetID, userID string, depth int) (BookResult, error) {
+	f.bookAssetID, f.bookUserID, f.bookDepth = assetID, userID, depth
+	return f.assetBookResult, f.assetBookErr
 }
 
 func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
-	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000}}
+	// Sandbox: true só pra exercitar um cenário de execução garantida sem
+	// precisar montar liquidez real (tarefa A.2 — Mercado Ao Vivo não tem
+	// mais preenchimento sintético; este teste valida a orquestração de
+	// Service.Submit, não a mecânica de liquidez em si, que já tem
+	// cobertura própria em orderexecution_test.go).
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true}}
 	svc := NewService(repo)
 
 	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
@@ -49,7 +83,7 @@ func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
 }
 
 func TestService_Submit_OrdemRejeitadaNaoPersisteNada(t *testing.T) {
-	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1}}
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1, Sandbox: true}}
 	svc := NewService(repo)
 
 	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
@@ -75,6 +109,153 @@ func TestService_Submit_ErroAoCarregarContexto(t *testing.T) {
 	}
 }
 
+// TestService_SubmitWithContext_NaoChamaLoadContext cobre o achado de review
+// "runIntradayRounds carrega o mesmo contexto duas vezes": um chamador que já
+// tem um Context válido (ex: tick.runIntradayRounds, que já leu via
+// OrderContextLoader.LoadContext pra montar a decisão do bot) usa
+// SubmitWithContext pra pular a releitura redundante — Execute/Persist
+// seguem no mesmo caminho de Submit, só o LoadContext é evitado.
+func TestService_SubmitWithContext_NaoChamaLoadContext(t *testing.T) {
+	repo := &fakeRepository{loadErr: errors.New("LoadContext não deveria ser chamado")}
+	svc := NewService(repo)
+
+	execCtx := Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
+
+	outcome, err := svc.SubmitWithContext(context.Background(), req, execCtx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil (LoadContext nunca deveria ser consultado)", err)
+	}
+	if outcome.FilledQuantity != 10 {
+		t.Errorf("FilledQuantity = %d, want 10", outcome.FilledQuantity)
+	}
+	if !repo.persistCalled {
+		t.Fatal("Persist não foi chamado pra ordem válida")
+	}
+}
+
+// TestService_SubmitWithContext_CarimbaSimulatedDayDoContexto cobre o
+// achado 005 parte A (pontos-em-aberto-decisao-produto.md): SimulatedDay
+// persistido vem sempre de execCtx.SimulatedDay (a leitura fresca de
+// market_calendar.current_day feita por Repository.LoadContext), nunca do
+// valor que o chamador já tinha em Request — nem tick.runIntradayRounds
+// (que não preenche SimulatedDay, achado 005 parte A.2) nem qualquer outro
+// chamador precisam saber o dia simulado corrente de antemão.
+func TestService_SubmitWithContext_CarimbaSimulatedDayDoContexto(t *testing.T) {
+	repo := &fakeRepository{}
+	svc := NewService(repo)
+
+	execCtx := Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true, SimulatedDay: 7}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10, SimulatedDay: 999}
+
+	if _, err := svc.SubmitWithContext(context.Background(), req, execCtx); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if repo.persistedReq.SimulatedDay != 7 {
+		t.Errorf("persistedReq.SimulatedDay = %d, want 7 (do Context, não do valor que o chamador já tinha em req)", repo.persistedReq.SimulatedDay)
+	}
+}
+
+// TestService_Cancel_RepassaProRepositorio cobre a tarefa O.1: Cancel não
+// tem regra de domínio própria (nenhum recálculo de book/saldo/posição),
+// só repassa orderID/userID pro repositório, que decide dono/status.
+func TestService_Cancel_RepassaProRepositorio(t *testing.T) {
+	repo := &fakeRepository{}
+	svc := NewService(repo)
+
+	if err := svc.Cancel(context.Background(), "order-1", "user-1"); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if repo.cancelledOrderID != "order-1" || repo.cancelledUserID != "user-1" {
+		t.Errorf("CancelOrder chamado com (%q, %q), want (%q, %q)", repo.cancelledOrderID, repo.cancelledUserID, "order-1", "user-1")
+	}
+}
+
+func TestService_Cancel_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{cancelErr: ErrOrderNotCancellable}
+	svc := NewService(repo)
+
+	if err := svc.Cancel(context.Background(), "order-1", "user-1"); err != ErrOrderNotCancellable {
+		t.Fatalf("err = %v, want %v", err, ErrOrderNotCancellable)
+	}
+}
+
+// TestService_SubmitWithContext_PropagaOrderIDDoRepositorio cobre a tarefa
+// O.3 (achado 012): Outcome.OrderID devolvido pro chamador é sempre o id
+// que Repository.Persist devolveu, nunca algo calculado localmente.
+func TestService_SubmitWithContext_PropagaOrderIDDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{persistOrderID: "order-123"}
+	svc := NewService(repo)
+
+	execCtx := Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
+
+	outcome, err := svc.SubmitWithContext(context.Background(), req, execCtx)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.OrderID != "order-123" {
+		t.Errorf("OrderID = %q, want %q", outcome.OrderID, "order-123")
+	}
+}
+
+// TestService_ListOrders_RepassaProRepositorio cobre a tarefa O.3: sem
+// regra de domínio própria, ListOrders só repassa userID pro repositório.
+func TestService_ListOrders_RepassaProRepositorio(t *testing.T) {
+	want := []OrderRecord{{ID: "o1"}, {ID: "o2"}}
+	repo := &fakeRepository{listOrders: want}
+	svc := NewService(repo)
+
+	got, err := svc.ListOrders(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if len(got) != 2 || got[0].ID != "o1" || got[1].ID != "o2" {
+		t.Errorf("ListOrders = %+v, want %+v", got, want)
+	}
+	if repo.listedUserID != "user-1" {
+		t.Errorf("listedUserID = %q, want %q", repo.listedUserID, "user-1")
+	}
+}
+
+func TestService_ListOrders_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{listOrdersErr: errors.New("falha de leitura")}
+	svc := NewService(repo)
+
+	if _, err := svc.ListOrders(context.Background(), "user-1"); err == nil {
+		t.Fatal("err = nil, want erro propagado de ListOrders")
+	}
+}
+
+// TestService_AssetBook_RepassaProRepositorio cobre a tarefa S.5: sem regra
+// de domínio própria, AssetBook só repassa assetID/userID/depth pro
+// repositório.
+func TestService_AssetBook_RepassaProRepositorio(t *testing.T) {
+	want := BookResult{Sandbox: true, SandboxPrice: 42}
+	repo := &fakeRepository{assetBookResult: want}
+	svc := NewService(repo)
+
+	got, err := svc.AssetBook(context.Background(), "asset-1", "user-1", 5)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if got.Sandbox != want.Sandbox || got.SandboxPrice != want.SandboxPrice {
+		t.Errorf("AssetBook = %+v, want %+v", got, want)
+	}
+	if repo.bookAssetID != "asset-1" || repo.bookUserID != "user-1" || repo.bookDepth != 5 {
+		t.Errorf("repo recebeu (%q, %q, %d), want (%q, %q, %d)", repo.bookAssetID, repo.bookUserID, repo.bookDepth, "asset-1", "user-1", 5)
+	}
+}
+
+func TestService_AssetBook_PropagaErroDoRepositorio(t *testing.T) {
+	repo := &fakeRepository{assetBookErr: errors.New("falha de leitura")}
+	svc := NewService(repo)
+
+	if _, err := svc.AssetBook(context.Background(), "asset-1", "user-1", 5); err == nil {
+		t.Fatal("err = nil, want erro propagado de AssetBook")
+	}
+}
+
 func TestService_Submit_ErroAoPersistir(t *testing.T) {
 	repo := &fakeRepository{
 		loadCtx:    Context{ReferencePrice: 25, IncomingUserBalance: 1000},
@@ -85,5 +266,54 @@ func TestService_Submit_ErroAoPersistir(t *testing.T) {
 	_, err := svc.Submit(context.Background(), Request{Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1})
 	if err == nil {
 		t.Fatal("err = nil, want erro propagado de Persist")
+	}
+}
+
+func TestService_Submit_MercadoFechadoNoFimDeSemanaNaoPersisteNada(t *testing.T) {
+	for _, day := range []int{5, 6} { // sábado e domingo simulados
+		repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, SimulatedDay: day}}
+		svc := NewService(repo)
+
+		_, err := svc.SubmitByUser(context.Background(), Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1})
+		var closed *simcalendar.MarketClosedError
+		if !errors.As(err, &closed) {
+			t.Fatalf("dia %d: err = %v, quer *MarketClosedError", day, err)
+		}
+		if repo.persistCalled {
+			t.Errorf("dia %d: nada pode ser gravado com o mercado fechado", day)
+		}
+	}
+}
+
+func TestService_Submit_SandboxSegueAbertoNoFimDeSemana(t *testing.T) {
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, Sandbox: true, SimulatedDay: 5}}
+	svc := NewService(repo)
+
+	if _, err := svc.SubmitByUser(context.Background(), Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 1}); err != nil {
+		t.Fatalf("err = %v, sandbox deve operar no fim de semana", err)
+	}
+	if !repo.persistCalled {
+		t.Error("ordem sandbox deveria ser gravada")
+	}
+}
+
+func TestService_Cancel_SegueAbertoNoFimDeSemana(t *testing.T) {
+	repo := &fakeRepository{loadCtx: Context{SimulatedDay: 5}}
+	if err := NewService(repo).Cancel(context.Background(), "o1", "u1"); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if repo.cancelledOrderID != "o1" {
+		t.Error("cancelamento deveria chegar ao repositório")
+	}
+}
+
+// Bots de liquidez e o ETF (rebalanceamento e arbitragem) são atores do sistema
+// e rodam em todo tick, fim de semana incluso: Submit nunca fecha o mercado.
+func TestService_Submit_AtoresDoSistemaNaoSaoBarradosNoFimDeSemana(t *testing.T) {
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1000, SimulatedDay: 6}}
+	_, err := NewService(repo).Submit(context.Background(), Request{UserID: "bot", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 20, Quantity: 1})
+	var closed *simcalendar.MarketClosedError
+	if errors.As(err, &closed) {
+		t.Fatalf("Submit não pode fechar o mercado, err = %v", err)
 	}
 }

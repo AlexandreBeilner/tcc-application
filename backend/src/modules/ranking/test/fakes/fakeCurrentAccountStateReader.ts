@@ -7,6 +7,9 @@ const EMPTY_SNAPSHOT: Snapshot = {
   fixedIncomeValue: 0,
   tradesExecuted: 0,
   total: 0,
+  investedCost: 0,
+  disinvestedProceeds: 0,
+  dividendsReceived: 0,
 }
 
 export function createFakeCurrentAccountStateReader(

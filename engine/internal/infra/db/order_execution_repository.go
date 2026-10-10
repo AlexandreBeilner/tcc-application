@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/lib/pq"
+
 	"tcc-investimentos/engine/internal/domain"
+	"tcc-investimentos/engine/internal/domain/bot"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/orderbook"
 	"tcc-investimentos/engine/internal/domain/orderexecution"
@@ -37,25 +40,36 @@ func NewOrderExecutionRepository(db *sql.DB, cache quoteCache) *OrderExecutionRe
 // e posição atuais do usuário da ordem recebida, o preço de referência
 // corrente e as ordens reais pendentes desse ativo, em ordem de chegada.
 func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, userID string) (orderexecution.Context, error) {
+	// Saldo e posição numa consulta só (tarefa Q.1): LEFT JOIN, porque o usuário
+	// pode não ter posição no ativo (quantity e created_at ficam NULL).
 	var balance float64
+	var positionQty sql.NullInt64
+	var positionCreatedDay sql.NullInt64
+	// A pausa de negociação vigente que barra o ativo (N.9) vem na mesma consulta,
+	// sem ida extra ao banco: a global tem prioridade (a mais restritiva).
+	var haltScope sql.NullString
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT current_balance FROM accounts WHERE user_id = $1`, userID,
-	).Scan(&balance); err != nil {
+		`SELECT a.current_balance, p.quantity, p.created_day,
+		        (SELECT h.scope FROM trading_halts h
+		         WHERE h.lifted_at IS NULL AND (h.scope = 'global' OR h.asset_id = $2)
+		         ORDER BY (h.scope = 'global') DESC LIMIT 1)
+		 FROM accounts a
+		 LEFT JOIN positions p ON p.user_id = a.user_id AND p.asset_id = $2
+		 WHERE a.user_id = $1`, userID, assetID,
+	).Scan(&balance, &positionQty, &positionCreatedDay, &haltScope); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return orderexecution.Context{}, orderexecution.ErrAccountNotFound
 		}
 		return orderexecution.Context{}, err
 	}
+	heldQty := int(positionQty.Int64)
 
-	var positionQty int
-	var positionCreatedAt sql.NullTime
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT quantity, created_at FROM positions WHERE user_id = $1 AND asset_id = $2`, userID, assetID,
-	).Scan(&positionQty, &positionCreatedAt); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	static, err := r.assetStatic(ctx, assetID)
+	if err != nil {
 		return orderexecution.Context{}, err
 	}
 
-	referencePrice, err := r.referencePrice(ctx, assetID, positionQty, positionCreatedAt)
+	referencePrice, err := r.referencePrice(ctx, assetID, static, heldQty, positionCreatedDay)
 	if err != nil {
 		return orderexecution.Context{}, err
 	}
@@ -65,40 +79,293 @@ func (r *OrderExecutionRepository) LoadContext(ctx context.Context, assetID, use
 		return orderexecution.Context{}, err
 	}
 
+	var outstandingShares *int64
+	var totalHeldExcludingIncoming int64
+	if static.outstandingShares.Valid {
+		shares := static.outstandingShares.Int64
+		outstandingShares = &shares
+		totalHeldExcludingIncoming, err = r.totalHeldExcluding(ctx, assetID, userID)
+		if err != nil {
+			return orderexecution.Context{}, err
+		}
+	}
+
+	simulatedDay, err := r.currentSimulatedDayScoped(ctx)
+	if err != nil {
+		return orderexecution.Context{}, err
+	}
+
+	var halt *orderexecution.HaltInfo
+	if haltScope.Valid {
+		halt = &orderexecution.HaltInfo{Global: haltScope.String == "global"}
+	}
+
 	return orderexecution.Context{
-		ReferencePrice:       referencePrice,
-		Resting:              resting,
-		IncomingUserBalance:  balance,
-		IncomingUserPosition: positionQty,
+		Halt:                       halt,
+		ReferencePrice:             referencePrice,
+		Resting:                    resting,
+		IncomingUserBalance:        balance,
+		IncomingUserPosition:       heldQty,
+		Sandbox:                    static.isSandbox,
+		OutstandingShares:          outstandingShares,
+		TotalHeldExcludingIncoming: totalHeldExcludingIncoming,
+		SimulatedDay:               simulatedDay,
 	}, nil
 }
 
-// referencePrice resolve o preço de referência (usado pelo preenchimento
-// sintético de ordem a mercado — orderexecution.Execute): ativo sandbox
-// (RF12, tarefa 4.11) usa sandbox.PriceScript, indexado pelo ticker (não dá
-// pra indexar por assetID em tempo de compilação — gerado pelo Postgres) e
-// pelo dia decorrido desde a primeira operação do usuário da ordem *nesse
-// ativo* (positionCreatedAt/positionQty — sandboxDayIndex reinicia em dia 0
-// se ele ainda não tinha posição nenhuma OU se a posição existente está
-// zerada, ver doc de sandboxDayIndex), nunca asset_quotes — o Temporizador
-// nunca gera cotação pra ativo sandbox (ver tick.md). Ativo do Mercado Ao
-// Vivo mantém o comportamento original: última linha de asset_quotes
-// (tarefa 3.11), tick.DefaultInitialPrice se ainda não há nenhuma.
-func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, positionQty int, positionCreatedAt sql.NullTime) (float64, error) {
-	var ticker string
-	var isSandbox bool
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT ticker, is_sandbox FROM assets WHERE id = $1`, assetID,
-	).Scan(&ticker, &isSandbox); err != nil {
+// assetStatic são os dados de um ativo que não mudam durante um tick: ticker,
+// se é sandbox e o float (outstanding_shares, NULL para ativo sem float, como
+// ETF e renda fixa).
+type assetStatic struct {
+	ticker            string
+	isSandbox         bool
+	outstandingShares sql.NullInt64
+}
+
+// assetStatic lê ticker, is_sandbox e outstanding_shares numa consulta só (eram
+// duas) e, dentro de um WithReadScope, uma vez por ativo por tick.
+func (r *OrderExecutionRepository) assetStatic(ctx context.Context, assetID string) (assetStatic, error) {
+	return scopeFrom(ctx).asset(assetID, func() (assetStatic, error) {
+		var st assetStatic
+		err := r.db.QueryRowContext(ctx,
+			`SELECT a.ticker, a.is_sandbox, via.outstanding_shares
+			 FROM assets a
+			 LEFT JOIN variable_income_assets via ON via.asset_id = a.id
+			 WHERE a.id = $1`, assetID,
+		).Scan(&st.ticker, &st.isSandbox, &st.outstandingShares)
+		return st, err
+	})
+}
+
+// currentSimulatedDayScoped é currentSimulatedDay com o cache de leitura do
+// tick: o dia simulado só muda em SaveTick, no fim do tick.
+func (r *OrderExecutionRepository) currentSimulatedDayScoped(ctx context.Context) (int, error) {
+	return scopeFrom(ctx).day(func() (int, error) { return r.currentSimulatedDay(ctx) })
+}
+
+// currentSimulatedDay lê market_calendar.current_day (achado 005 parte A,
+// pontos-em-aberto-decisao-produto.md) — 0 quando o Temporizador nunca
+// rodou (motor recém-subido, tabela ainda vazia), mesmo fallback que
+// tick.Service.Run já usa (State{Day: 0, ...}). Chamado por LoadContext pra
+// carimbar Context.SimulatedDay, repassado por Service.SubmitWithContext
+// pra Request.SimulatedDay antes de persistir.
+func (r *OrderExecutionRepository) currentSimulatedDay(ctx context.Context) (int, error) {
+	var day int
+	err := r.db.QueryRowContext(ctx, `SELECT current_day FROM market_calendar WHERE id = 1`).Scan(&day)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return day, err
+}
+
+// ExpireStaleOrders cancela toda ordem ainda pendente/parcial de um dia
+// simulado anterior a currentSimulatedDay (achado 005 parte A) — sem isso,
+// order_book cresce sem limite e uma ordem de dias passados (ex: gerada por
+// um bot cujo caixa excedia o float do ativo, achado 005 original) continua
+// pendurada disputando liquidez indefinidamente, travando o preço de
+// fechamento. Chamado por tick.Service.Run antes de runIntradayRounds do
+// dia novo — nenhuma ordem de um dia anterior chega a competir pela
+// liquidez do dia que está começando. Cancelar não reverte saldo/posição
+// (nada é reservado na submissão de uma ordem — só o fill move dinheiro,
+// orderexecution.go), então um UPDATE simples é suficiente e correto, sem
+// precisar de evento novo em market_events (Event Sourcing só exige evento
+// pra escrita de saldo/posição, CLAUDE.md). Devolve quantas ordens
+// expiraram, só pra observabilidade (mesmo padrão de bot_fills_count/
+// dividends_paid_count na resposta de POST /admin/tick).
+//
+// Exceção (tarefa P.5, proposta-cobertura-market-maker.md seção 3.7): ordem de
+// Market Maker ATIVO não expira por dia. A cotação dele é "de pé", como a de um
+// formador real, e a manutenção de cotação (P.4) a substitui por
+// cancel_reason = 'requoted' quando o preço sai da tolerância ou o lado é
+// consumido; expirá-la todo dia fazia o primeiro turno de cada dia recotar o
+// catálogo inteiro. Market Maker inativo (is_active = false) perde a exceção e
+// suas ordens expiram normalmente, então desativar um bot tira a cotação dele
+// do book no tick seguinte, sem ninguém precisar cancelar à mão.
+func (r *OrderExecutionRepository) ExpireStaleOrders(ctx context.Context, currentSimulatedDay int) (int, error) {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE order_book ob SET status = 'cancelled', cancel_reason = 'expired'
+		 WHERE ob.status IN ('pending', 'partially_filled') AND ob.simulated_day < $1
+		   AND NOT EXISTS (
+		     SELECT 1 FROM bot_personalities bp
+		     JOIN accounts a ON a.user_id = bp.account_id
+		     WHERE bp.account_id = ob.user_id AND bp.archetype = 'market_maker' AND a.is_active
+		   )`,
+		currentSimulatedDay,
+	)
+	if err != nil {
 		return 0, err
 	}
+	affected, err := result.RowsAffected()
+	return int(affected), err
+}
 
-	if isSandbox {
-		script, ok := sandbox.PriceScriptForTicker(ticker)
-		if !ok {
-			return 0, ErrSandboxScriptNotFound
+// ListRestingOrders devolve, numa consulta só, as ordens ainda
+// pendentes/parciais de userID em cada um de assetIDs (tarefa P.4), com a
+// quantidade que ainda falta executar, ordenadas por chegada. Ativo sem
+// ordem em repouso não aparece no mapa. É a leitura em lote da manutenção de
+// cotação do Market Maker: uma consulta por Market Maker e rodada, não uma por
+// ativo coberto.
+func (r *OrderExecutionRepository) ListRestingOrders(ctx context.Context, userID string, assetIDs []string) (map[string][]bot.RestingQuote, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, asset_id, side, price, quantity - filled_quantity
+		 FROM order_book
+		 WHERE user_id = $1 AND asset_id = ANY($2) AND type = 'limit' AND status IN ('pending', 'partially_filled')
+		 ORDER BY created_at ASC`,
+		userID, pq.Array(assetIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	resting := make(map[string][]bot.RestingQuote)
+	for rows.Next() {
+		var assetID, side string
+		var quote bot.RestingQuote
+		if err := rows.Scan(&quote.ID, &assetID, &side, &quote.Price, &quote.RemainingQuantity); err != nil {
+			return nil, err
 		}
-		return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedAt, float64(positionQty))), nil
+		quote.Side = orderbook.Side(side)
+		resting[assetID] = append(resting[assetID], quote)
+	}
+	return resting, rows.Err()
+}
+
+// CancelRestingOrders marca como cancelled, com o motivo 'requoted', as ordens
+// orderIDs que ainda estão pendentes/parciais (tarefa P.4, substitui o antigo
+// CancelUserRestingOrders, que cancelava toda a cotação do ativo). Cancelar
+// não reverte saldo/posição (nada é reservado na submissão, orderexecution.go),
+// então um UPDATE simples basta, sem evento em market_events. Ordem que já não
+// está em repouso (executada por completo no meio-tempo) é ignorada.
+func (r *OrderExecutionRepository) CancelRestingOrders(ctx context.Context, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'requoted'
+		 WHERE id = ANY($1) AND status IN ('pending', 'partially_filled')`,
+		pq.Array(orderIDs),
+	)
+	return err
+}
+
+// CancelOrder marca como cancelled a ordem orderID de userID (tarefa O.1,
+// cancelamento manual pelo próprio usuário) — diferente de
+// ExpireStaleOrders/CancelUserRestingOrders acima (bulk, disparados pelo
+// sistema/bot), esta é uma única ordem por ID, disparada por uma rota HTTP
+// nova. Lê dono e status com FOR UPDATE antes de decidir: um UPDATE ...
+// WHERE sozinho não teria como distinguir "ordem não existe", "ordem é de
+// outro usuário" e "ordem já não está mais pending/partially_filled" a
+// partir de "0 linhas afetadas" — o handler HTTP precisa da causa certa
+// pra mapear pro status certo (404 vs. 409). As duas primeiras causas
+// colapsam no mesmo ErrOrderNotFound de propósito (não vazar que um ID de
+// ordem alheio existe). Cancelar não reverte saldo/posição nem
+// filled_quantity já executado (mesma decisão de escopo de
+// ExpireStaleOrders: nenhuma ordem pendurada reserva nada na submissão,
+// orderexecution.go), então não passa por Event Sourcing.
+func (r *OrderExecutionRepository) CancelOrder(ctx context.Context, orderID, userID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var ownerID, status string
+	err = tx.QueryRowContext(ctx,
+		`SELECT user_id, status FROM order_book WHERE id = $1 FOR UPDATE`, orderID,
+	).Scan(&ownerID, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return orderexecution.ErrOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if ownerID != userID {
+		return orderexecution.ErrOrderNotFound
+	}
+	if status != "pending" && status != "partially_filled" {
+		return orderexecution.ErrOrderNotCancellable
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'user_cancelled' WHERE id = $1`, orderID,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// ListOrders devolve todas as ordens de userID (tarefa O.3, GET /orders),
+// mais recente primeiro, sem paginação (escopo de protótipo) — fecha o
+// achado 012 (pontos-em-aberto-decisao-produto.md): sem esta rota,
+// CancelOrder não tinha nenhum caminho real pelo qual um cliente
+// descobrisse qual id de ordem passar depois de um reload de página.
+func (r *OrderExecutionRepository) ListOrders(ctx context.Context, userID string) ([]orderexecution.OrderRecord, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, asset_id, side, type, quantity, filled_quantity, price, status, cancel_reason, created_at
+		 FROM order_book
+		 WHERE user_id = $1
+		 ORDER BY created_at DESC`, userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	records := make([]orderexecution.OrderRecord, 0)
+	for rows.Next() {
+		var rec orderexecution.OrderRecord
+		var side, orderType, status string
+		var cancelReason sql.NullString
+		if err := rows.Scan(
+			&rec.ID, &rec.AssetID, &side, &orderType, &rec.Quantity, &rec.FilledQuantity,
+			&rec.Price, &status, &cancelReason, &rec.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		rec.Side, rec.Type, rec.Status = orderbook.Side(side), orderbook.Type(orderType), status
+		if cancelReason.Valid {
+			reason := orderexecution.CancelReason(cancelReason.String)
+			rec.CancelReason = &reason
+		}
+		records = append(records, rec)
+	}
+	return records, rows.Err()
+}
+
+// totalHeldExcluding soma as posições de todos os detentores do ativo menos as
+// do próprio usuário da ordem (insumo de position.ValidateFloatCeiling). O
+// float em si (outstanding_shares) vem de assetStatic.
+func (r *OrderExecutionRepository) totalHeldExcluding(ctx context.Context, assetID, userID string) (int64, error) {
+	var total int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(quantity), 0) FROM positions WHERE asset_id = $1 AND user_id != $2`, assetID, userID,
+	).Scan(&total)
+	return total, err
+}
+
+// referencePrice resolve o preço de referência e se o ativo é sandbox —
+// isSandbox é repassado pro chamador (orderexecution.Context.Sandbox)
+// porque só ativo sandbox (RF12/RNF08, tarefa 4.11) ainda recebe
+// preenchimento sintético de ordem a mercado (tarefa A.2, proposta
+// motor-mercado-realista 2.7 — sandbox fica fora do redesenho de liquidez
+// real). Preço de ativo sandbox usa sandbox.PriceScript, indexado pelo
+// ticker (não dá pra indexar por assetID em tempo de compilação — gerado
+// pelo Postgres) e pelo dia decorrido desde a primeira operação do usuário
+// da ordem *nesse ativo* (positionCreatedDay/positionQty — sandboxDayIndex
+// reinicia em dia 0 se ele ainda não tinha posição nenhuma OU se a posição
+// existente está zerada, ver doc de sandboxDayIndex), nunca asset_quotes —
+// o Temporizador nunca gera cotação pra ativo sandbox (ver tick.md). Ativo
+// do Mercado Ao Vivo mantém o comportamento original: última linha de
+// asset_quotes (tarefa 3.11), tick.DefaultInitialPrice se ainda não há
+// nenhuma — mas ali o preço de referência agora só serve pra exibição
+// (ex: weightedAveragePrice de uma ordem sem nenhum fill real), nunca mais
+// pra preencher a ordem sinteticamente.
+func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID string, static assetStatic, positionQty int, positionCreatedDay sql.NullInt64) (float64, error) {
+	ticker, isSandbox := static.ticker, static.isSandbox
+	if isSandbox {
+		return r.sandboxPriceForUser(ctx, ticker, positionQty, positionCreatedDay)
 	}
 
 	// Cache de leitura (tarefa 5.7) — mesma última cotação que
@@ -112,6 +379,23 @@ func (r *OrderExecutionRepository) referencePrice(ctx context.Context, assetID s
 		return tick.DefaultInitialPrice, nil
 	}
 	return quote.Price, nil
+}
+
+// sandboxPriceForUser é o núcleo comum do ramo sandbox de referencePrice
+// (ordem real) e de AssetBook (leitura pública, tarefa S.5): preço do
+// roteiro (sandbox.PriceScript, indexado pelo ticker) no dia resolvido por
+// sandboxDayIndex a partir da posição do usuário nesse ativo — dia 0 sem
+// posição (ver doc de sandboxDayIndex).
+func (r *OrderExecutionRepository) sandboxPriceForUser(ctx context.Context, ticker string, positionQty int, positionCreatedDay sql.NullInt64) (float64, error) {
+	script, ok := sandbox.PriceScriptForTicker(ticker)
+	if !ok {
+		return 0, ErrSandboxScriptNotFound
+	}
+	today, err := r.currentSimulatedDayScoped(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return sandbox.PriceOnDay(script, sandboxDayIndex(positionCreatedDay, float64(positionQty), today)), nil
 }
 
 func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Context, assetID string) (catalog.Quote, bool, error) {
@@ -128,12 +412,95 @@ func (r *OrderExecutionRepository) loadLatestQuoteFromPostgres(ctx context.Conte
 	return catalog.Quote{Price: price}, true, nil
 }
 
-func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetID string) ([]orderexecution.RestingOrder, error) {
+// AssetBook devolve a leitura pública do book de assetID (tarefa S.5) —
+// ativo sandbox devolve só o preço do roteiro (RF12/RNF08: sandbox nunca
+// teve, nem vai ter, contraparte real, doc do pacote orderexecution), sem
+// nenhum dos campos de book; ativo do Mercado Ao Vivo devolve o snapshot
+// agregado por preço, sem nunca ler saldo/posição de dono nenhum (só
+// BookLevels, diferente de loadRestingOrders, que existe pra matching real
+// e por isso carrega Owner).
+func (r *OrderExecutionRepository) AssetBook(ctx context.Context, assetID, userID string, depth int) (orderexecution.BookResult, error) {
+	static, err := r.assetStatic(ctx, assetID)
+	if err != nil {
+		return orderexecution.BookResult{}, err
+	}
+
+	if static.isSandbox {
+		var positionQty int64
+		var positionCreatedDay sql.NullInt64
+		if userID != "" {
+			err := r.db.QueryRowContext(ctx,
+				`SELECT quantity, created_day FROM positions WHERE user_id = $1 AND asset_id = $2`, userID, assetID,
+			).Scan(&positionQty, &positionCreatedDay)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return orderexecution.BookResult{}, err
+			}
+		}
+		price, err := r.sandboxPriceForUser(ctx, static.ticker, int(positionQty), positionCreatedDay)
+		if err != nil {
+			return orderexecution.BookResult{}, err
+		}
+		return orderexecution.BookResult{Sandbox: true, SandboxPrice: price}, nil
+	}
+
+	bids, asks, err := r.BookLevels(ctx, assetID)
+	if err != nil {
+		return orderexecution.BookResult{}, err
+	}
+	return orderexecution.BookResult{Book: orderbook.BuildSnapshot(bids, asks, depth)}, nil
+}
+
+// BookLevels lê a profundidade em repouso de assetID já agregada por preço
+// (tarefa S.5) — mesmo filtro de loadRestingOrders (só `limit`,
+// pending/partially_filled), mas sem id nem dono de ordem: nunca deve vazar
+// identidade nem tamanho de ordem individual (critério de aceite de S.5).
+func (r *OrderExecutionRepository) BookLevels(ctx context.Context, assetID string) (bids, asks []orderbook.Level, err error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, side, type, price, quantity - filled_quantity AS remaining
+		`SELECT side, price, SUM(quantity - filled_quantity) AS remaining
 		 FROM order_book
-		 WHERE asset_id = $1 AND status IN ('pending', 'partially_filled')
-		 ORDER BY created_at ASC`, assetID,
+		 WHERE asset_id = $1 AND type = 'limit' AND status IN ('pending', 'partially_filled')
+		 GROUP BY side, price`,
+		assetID,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var side string
+		var level orderbook.Level
+		if err := rows.Scan(&side, &level.Price, &level.Quantity); err != nil {
+			return nil, nil, err
+		}
+		if orderbook.Side(side) == orderbook.SideBuy {
+			bids = append(bids, level)
+		} else {
+			asks = append(asks, level)
+		}
+	}
+	return bids, asks, rows.Err()
+}
+
+// loadRestingOrders só lê ordens `limit` (tarefa A.2): ordem `market` nunca
+// fica pendurada no book, mesmo quando sobra quantidade sem contraparte
+// real (`orderexecution.Execute` já garante isso no Outcome), mas a linha
+// dela em order_book pode ainda assim ter status `pending`/`partially_filled`
+// (reflete quantidade pedida vs. preenchida, pra auditoria) — sem esse
+// filtro por `type`, essa linha voltaria a ser lida aqui como se fosse
+// liquidez real pendurada, corrompendo o replay de orderbook.Book.Submit.
+func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetID string) ([]orderexecution.RestingOrder, error) {
+	// O saldo e a posição do dono vêm na mesma consulta (sem comando extra por
+	// contraparte): ordem em repouso não reserva nada, então Execute revalida o
+	// dono no match (achado 015).
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT o.id, o.user_id, o.side, o.type, o.price, o.quantity - o.filled_quantity AS remaining,
+		        a.current_balance, COALESCE(p.quantity, 0)
+		 FROM order_book o
+		 JOIN accounts a ON a.user_id = o.user_id
+		 LEFT JOIN positions p ON p.user_id = o.user_id AND p.asset_id = o.asset_id
+		 WHERE o.asset_id = $1 AND o.type = 'limit' AND o.status IN ('pending', 'partially_filled')
+		 ORDER BY o.created_at ASC`, assetID,
 	)
 	if err != nil {
 		return nil, err
@@ -144,22 +511,25 @@ func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetI
 	for rows.Next() {
 		var ro orderexecution.RestingOrder
 		var side, orderType string
-		if err := rows.Scan(&ro.ID, &ro.UserID, &side, &orderType, &ro.Price, &ro.RemainingQuantity); err != nil {
+		var owner orderexecution.OwnerHoldings
+		if err := rows.Scan(&ro.ID, &ro.UserID, &side, &orderType, &ro.Price, &ro.RemainingQuantity, &owner.Balance, &owner.Position); err != nil {
 			return nil, err
 		}
 		ro.Side, ro.Type = orderbook.Side(side), orderbook.Type(orderType)
+		ro.Owner = &owner
 		resting = append(resting, ro)
 	}
 	return resting, rows.Err()
 }
 
 // Persist grava o resultado de orderexecution.Execute atomicamente: pra
-// cada Fill (real ou sintético), o evento imutável em market_events de cada
-// lado envolvido é gravado **antes** de projetar em accounts/positions —
-// Event Sourcing é a fonte da verdade financeira (CLAUDE.md) — e só então a
-// própria ordem recebida é inserida em order_book. Fill sintético
-// (orderexecution.MarketCounterparty) só projeta o lado do usuário que
-// enviou a ordem; não existe uma conta/posição real do outro lado.
+// cada Fill (real, ou sintético só no caso sandbox — tarefa A.2), o evento
+// imutável em market_events de cada lado envolvido é gravado **antes** de
+// projetar em accounts/positions — Event Sourcing é a fonte da verdade
+// financeira (CLAUDE.md) — e só então a própria ordem recebida é inserida
+// em order_book. Fill sintético (orderexecution.MarketCounterparty) só
+// projeta o lado do usuário que enviou a ordem; não existe uma conta/
+// posição real do outro lado.
 //
 // Limitação de escopo conhecida (3.12): a validação de saldo/posição
 // acontece em Execute contra o snapshot lido por LoadContext, sem lock —
@@ -172,16 +542,23 @@ func (r *OrderExecutionRepository) loadRestingOrders(ctx context.Context, assetI
 // na demonstração); uma correção completa exigiria mover a leitura de
 // saldo/posição pra dentro desta mesma transação, com FOR UPDATE, antes de
 // chamar Execute.
-func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecution.Request, outcome orderexecution.Outcome) error {
+//
+// Devolve o id da linha de order_book recém-criada pra ordem recebida
+// (tarefa O.3, achado 012) — insertIncomingOrder usa RETURNING id.
+func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecution.Request, outcome orderexecution.Outcome) (string, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := cancelInvalidResting(ctx, tx, outcome.InvalidRestingOrderIDs); err != nil {
+		return "", err
+	}
+
 	for _, fill := range outcome.Fills {
 		if err := applyFillSide(ctx, tx, req.AssetID, req.UserID, req.Side, fill.Quantity, fill.Price); err != nil {
-			return err
+			return "", mapFundsViolation(err)
 		}
 		if !fill.IsSynthetic() {
 			counterpartySide := orderbook.SideSell
@@ -189,19 +566,54 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 				counterpartySide = orderbook.SideBuy
 			}
 			if err := applyFillSide(ctx, tx, req.AssetID, fill.CounterpartyUserID, counterpartySide, fill.Quantity, fill.Price); err != nil {
-				return err
+				return "", mapFundsViolation(err)
 			}
 			if err := fillRestingOrder(ctx, tx, fill.CounterpartyOrderID, fill.Quantity); err != nil {
-				return err
+				return "", err
 			}
 		}
 	}
 
-	if err := insertIncomingOrder(ctx, tx, req, outcome); err != nil {
-		return err
+	orderID, err := insertIncomingOrder(ctx, tx, req, outcome)
+	if err != nil {
+		return "", err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return orderID, nil
+}
+
+// mapFundsViolation traduz a violação dos CHECKs de saldo e posição não negativos
+// (migration 000025, rede de proteção contra a janela de concorrência entre a
+// leitura do contexto e a gravação) na rejeição de negócio equivalente.
+func mapFundsViolation(err error) error {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) || pqErr.Code != "23514" {
+		return err
+	}
+	switch pqErr.Constraint {
+	case "accounts_balance_non_negative_chk":
+		return orderexecution.ErrInsufficientBalance
+	case "positions_quantity_non_negative_chk":
+		return orderexecution.ErrInsufficientPosition
+	}
+	return err
+}
+
+// cancelInvalidResting cancela, na transação do submissor, as ordens em repouso
+// que o match pulou porque o dono não podia honrá-las (achado 015).
+func cancelInvalidResting(ctx context.Context, tx *sql.Tx, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'insufficient_funds'
+		 WHERE id = ANY($1) AND status IN ('pending', 'partially_filled')`,
+		pq.Array(orderIDs),
+	)
+	return err
 }
 
 // applyFillSide grava o evento e projeta saldo/posição de um dos lados de
@@ -232,7 +644,7 @@ func applyFillSide(ctx context.Context, tx *sql.Tx, assetID, userID string, side
 		}
 	} else {
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE accounts SET current_balance = current_balance + $1, updated_at = now() WHERE user_id = $2`,
+			`UPDATE accounts SET current_balance = current_balance + $1, total_disinvested = total_disinvested + $1, updated_at = now() WHERE user_id = $2`,
 			cost, userID,
 		); err != nil {
 			return err
@@ -267,10 +679,11 @@ func applyPositionFill(ctx context.Context, tx *sql.Tx, userID, assetID string, 
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO positions (user_id, asset_id, quantity, average_price)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO positions (user_id, asset_id, quantity, average_price, created_day)
+		 VALUES ($1, $2, $3, $4, COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0))
 		 ON CONFLICT (user_id, asset_id) DO UPDATE SET
-		   quantity = EXCLUDED.quantity, average_price = EXCLUDED.average_price, updated_at = now()`,
+		   quantity = EXCLUDED.quantity, average_price = EXCLUDED.average_price, updated_at = now(),
+		   created_day = CASE WHEN positions.quantity = 0 THEN EXCLUDED.created_day ELSE positions.created_day END`,
 		userID, assetID, next.Quantity, next.AveragePrice,
 	)
 	return err
@@ -279,30 +692,76 @@ func applyPositionFill(ctx context.Context, tx *sql.Tx, userID, assetID string, 
 // fillRestingOrder incrementa filled_quantity de uma ordem real que já
 // estava pendurada no book e atualiza seu status — cálculo feito inteiro
 // em SQL (sem round-trip extra pra ler a quantidade original) porque
-// quantity (original) já está na mesma linha.
+// quantity (original) já está na mesma linha. `AND status IN ('pending',
+// 'partially_filled')` (achado ao vivo, sessão da tarefa O.1) fecha uma
+// corrida real contra CancelOrder: Execute decide este match contra
+// Context.Resting, lido por LoadContext **fora** de transação — se o dono
+// da ordem pendurada a cancelar (CancelOrder, que toma FOR UPDATE nessa
+// mesma linha) entre essa leitura e este UPDATE, o UPDATE sem essa
+// cláusula corria pra depois de CancelOrder commitar (mesmo lock de linha
+// do Postgres serializa as duas escritas) e sobrescrevia 'cancelled' de
+// volta pra 'partially_filled'/'filled' — reproduzido manualmente contra
+// Postgres real com duas transações concorrentes (BEGIN; SELECT ... FOR
+// UPDATE; sleep; UPDATE status='cancelled'; COMMIT — correndo contra
+// BEGIN; sleep; este UPDATE; COMMIT). affected == 0 agora sinaliza que a
+// ordem pendurada não está mais disponível (foi cancelada, ou terminou de
+// preencher por outro caminho, no intervalo) — ErrRestingOrderNoLongerAvailable
+// aborta a transação inteira do submissor (defer tx.Rollback() em
+// Persist), mesma consequência de ErrInsufficientPosition contra a mesma
+// ordem "furada" (achado 005): nenhum saldo/posição já debitado nesta
+// mesma transação (applyFillSide, chamado antes deste ponto pros dois
+// lados do Fill) fica de pé.
 func fillRestingOrder(ctx context.Context, tx *sql.Tx, orderID string, quantity int) error {
-	_, err := tx.ExecContext(ctx,
+	result, err := tx.ExecContext(ctx,
 		`UPDATE order_book SET
 		   filled_quantity = filled_quantity + $1,
 		   status = (CASE WHEN filled_quantity + $1 >= quantity THEN 'filled' ELSE 'partially_filled' END)::order_status
-		 WHERE id = $2`,
+		 WHERE id = $2 AND status IN ('pending', 'partially_filled')`,
 		quantity, orderID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return orderexecution.ErrRestingOrderNoLongerAvailable
+	}
+	return nil
 }
 
 // insertIncomingOrder grava a ordem recebida como uma nova linha de
-// order_book. Price é o limite informado pelo usuário pra ordem limitada;
-// pra ordem a mercado (sem preço próprio — Type == market ignora Price,
-// orderbook.go) é o preço médio ponderado de execução, porque a coluna é
-// NOT NULL e não existe "o preço" de uma ordem a mercado antes de executar.
-func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) error {
+// order_book e devolve o id gerado (tarefa O.3, RETURNING id — antes desta
+// tarefa o id nunca era lido de volta, então POST /orders não tinha como
+// ecoá-lo pro cliente). Price é o limite informado pelo usuário pra ordem
+// limitada; pra ordem a mercado (sem preço próprio — Type == market ignora
+// Price, orderbook.go) é o preço médio ponderado de execução, porque a
+// coluna é NOT NULL e não existe "o preço" de uma ordem a mercado antes de
+// executar. simulated_day (achado 005 parte A) vem de req.SimulatedDay,
+// carimbado por Service.SubmitWithContext a partir do Context recém-
+// carregado — todo order_book novo já nasce sabendo em que dia simulado
+// nasceu, insumo que ExpireStaleOrders precisa pra nunca deixar ordem
+// acumular indefinidamente.
+func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Request, outcome orderexecution.Outcome) (string, error) {
 	status := "pending"
+	var cancelReason *orderexecution.CancelReason
 	switch {
 	case outcome.FilledQuantity >= req.Quantity:
 		status = "filled"
 	case outcome.FilledQuantity > 0:
 		status = "partially_filled"
+	case req.Type == orderbook.TypeMarket:
+		// Ordem a mercado nunca fica pendurada esperando contraparte (RF04,
+		// tarefa A.2) — sem nenhum fill real, a sobra não vai executar
+		// depois (loadRestingOrders só lê type = 'limit'), então "pending"
+		// seria enganoso pra sempre; 'cancelled' reflete que já está
+		// definitivamente resolvida, com cancel_reason = no_liquidity
+		// (tarefa O.3) marcando a causa pra tela "Minhas Ordens" (O.4).
+		status = "cancelled"
+		reason := orderexecution.CancelReasonNoLiquidity
+		cancelReason = &reason
 	}
 
 	price := req.Price
@@ -310,12 +769,20 @@ func insertIncomingOrder(ctx context.Context, tx *sql.Tx, req orderexecution.Req
 		price = weightedAveragePrice(outcome.Fills)
 	}
 
-	_, err := tx.ExecContext(ctx,
-		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status,
-	)
-	return err
+	var cancelReasonParam *string
+	if cancelReason != nil {
+		r := string(*cancelReason)
+		cancelReasonParam = &r
+	}
+
+	var orderID string
+	err := tx.QueryRowContext(ctx,
+		`INSERT INTO order_book (asset_id, user_id, type, side, quantity, filled_quantity, price, status, simulated_day, cancel_reason)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 RETURNING id`,
+		req.AssetID, req.UserID, req.Type, req.Side, req.Quantity, outcome.FilledQuantity, price, status, req.SimulatedDay, cancelReasonParam,
+	).Scan(&orderID)
+	return orderID, err
 }
 
 func weightedAveragePrice(fills []orderexecution.Fill) float64 {
@@ -329,4 +796,91 @@ func weightedAveragePrice(fills []orderexecution.Fill) float64 {
 		return 0
 	}
 	return totalCost / float64(totalQuantity)
+}
+
+// AdminCancelOrder cancela por intervenção administrativa a ordem orderID,
+// qualquer que seja o dono (tarefa N.10). Mesma leitura com FOR UPDATE de
+// CancelOrder, pra distinguir "não existe" de "já não está em repouso" e pra
+// serializar contra um fill concorrente (fillRestingOrder checa o status).
+func (r *OrderExecutionRepository) AdminCancelOrder(ctx context.Context, orderID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var status string
+	err = tx.QueryRowContext(ctx, `SELECT status FROM order_book WHERE id = $1 FOR UPDATE`, orderID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return orderexecution.ErrOrderNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != "pending" && status != "partially_filled" {
+		return orderexecution.ErrOrderNotCancellable
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'admin' WHERE id = $1`, orderID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// AdminCancelBatch cancela, numa transação, as ordens em repouso do filtro (ativo,
+// dono ou os dois) e devolve os ids cancelados (tarefa N.10). Trava as linhas
+// com FOR UPDATE e lê no máximo max+1: se vier mais que max, recusa o lote
+// inteiro sem cancelar nenhuma. Reaproveitado pela N.1 ao tirar um ativo de um
+// Market Maker (filtro dono + ativo).
+func (r *OrderExecutionRepository) AdminCancelBatch(ctx context.Context, filter orderexecution.CancelFilter, max int) ([]string, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	rows, err := tx.QueryContext(ctx,
+		`SELECT id FROM order_book
+		 WHERE status IN ('pending', 'partially_filled')
+		   AND ($1 = '' OR asset_id::text = $1)
+		   AND ($2 = '' OR user_id::text = $2)
+		 ORDER BY created_at
+		 LIMIT $3
+		 FOR UPDATE`,
+		filter.AssetID, filter.UserID, max+1,
+	)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+
+	if len(ids) > max {
+		return nil, &orderexecution.BatchTooLargeError{Matched: len(ids), Max: max}
+	}
+	if len(ids) == 0 {
+		return ids, nil
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE order_book SET status = 'cancelled', cancel_reason = 'admin' WHERE id = ANY($1)`, pq.Array(ids),
+	); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }

@@ -48,6 +48,12 @@ describe('MacroEventTriggerForm (tela 10.2)', () => {
         expect(screen.queryByPlaceholderText(/Ex: Nova legislação/)).not.toBeInTheDocument()
     })
 
+    it('só pede ações ao catálogo pro seletor de ativo (FII/ETF/renda fixa não são alvos válidos)', async () => {
+        renderForm()
+        await waitFor(() => expect(listAssets).toHaveBeenCalled())
+        expect(vi.mocked(listAssets).mock.calls.every((call) => call[1] === 'acao')).toBe(true)
+    })
+
     it('alterna pro modo avulso e mostra os campos textuais', () => {
         renderForm()
         fireEvent.click(screen.getByRole('button', { name: 'Criar evento avulso' }))
@@ -115,6 +121,45 @@ describe('MacroEventTriggerForm (tela 10.2)', () => {
             }),
         )
         await waitFor(() => expect(onTriggered).toHaveBeenCalled())
+    })
+
+    it('só oferece a antecedência de aparição num evento agendado e a manda ao motor (N.25)', async () => {
+        vi.mocked(triggerMacroEvent).mockResolvedValue({
+            event: {
+                id: 'e1',
+                title: 'x',
+                narrative: 'x',
+                direction: 'positivo',
+                magnitude_band: 'moderado',
+                affects_price: true,
+                affects_fundamentals: true,
+                status: 'pendente',
+                triggered_on_day: 130,
+                duration_days: 2,
+                targets: [{ sector: 'Mineração' }],
+            },
+        })
+        renderForm()
+        selectOption('Template', 'Minério de ferro dispara no mercado internacional')
+        selectOption('Setor', 'Mineração')
+
+        expect(screen.queryByLabelText(/Dias de antecedência/)).not.toBeInTheDocument()
+        fireEvent.change(screen.getByLabelText(/Dia simulado em que o efeito começa/), { target: { value: '130' } })
+        fireEvent.change(screen.getByLabelText(/Dias de antecedência/), { target: { value: '7' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Agendar evento' }))
+
+        const dialog = await screen.findByRole('dialog')
+        expect(within(dialog).getByText('7 dias antes do efeito')).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar agendamento' }))
+
+        await waitFor(() =>
+            expect(triggerMacroEvent).toHaveBeenCalledWith('token', {
+                template_key: 'alta-minerio-ferro',
+                targets: [{ sector: 'Mineração' }],
+                apply_on_day: 130,
+                reveal_lead_days: 7,
+            }),
+        )
     })
 
     it('erro do backend mantém a confirmação aberta e mostra a mensagem', async () => {

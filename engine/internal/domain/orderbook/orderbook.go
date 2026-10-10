@@ -25,9 +25,14 @@ const (
 
 // Order é a ordem submetida ao book. Price é ignorado (não é lido) pra
 // ordens a mercado — quem determina o preço de execução é sempre a ordem
-// que já está pendurada no book do lado oposto.
+// que já está pendurada no book do lado oposto. UserID é opcional (string
+// vazia = dono desconhecido/não rastreado, ex: testes deste pacote que não
+// envolvem prevenção de self-trade) — quando preenchido dos dois lados de
+// um cruzamento em potencial, match() pula esse par em vez de executar (ver
+// match), sem removê-lo do book.
 type Order struct {
 	ID       string
+	UserID   string
 	Side     Side
 	Type     Type
 	Price    float64
@@ -99,12 +104,27 @@ func (b *Book) Submit(order Order) []Trade {
 // sempre o da ordem passiva (a que já estava no book) — convenção padrão
 // de mercado, e a que dá sentido a "ordens a mercado casam contra a melhor
 // oferta": a melhor oferta é quem dita o preço, não quem chega agora.
+//
+// Prevenção de self-trade: quando o dono de `incoming` é conhecido
+// (UserID != "") e coincide com o dono da ordem no topo do lado oposto,
+// esse par nunca executa — ninguém deveria ser a própria contraparte
+// (corromperia average_price, já que ApplyBuy/ApplySell tratam o preço
+// médio de forma assimétrica, e criaria um trade em market_events sem
+// contraparte real de fato). A ordem própria some da fila de matching
+// desta chamada mas continua pendurada no book (`i++` em vez de dequeue),
+// pra ainda poder casar contra a ordem de outro dono, de pior prioridade,
+// que esteja atrás dela.
 func (b *Book) match(incoming *restingOrder, opposite *[]*restingOrder, crosses func(restingPrice float64) bool) []Trade {
 	var trades []Trade
-	for incoming.Quantity > 0 && len(*opposite) > 0 {
-		resting := (*opposite)[0]
+	i := 0
+	for incoming.Quantity > 0 && i < len(*opposite) {
+		resting := (*opposite)[i]
 		if !crosses(resting.Price) {
 			break
+		}
+		if incoming.UserID != "" && resting.UserID == incoming.UserID {
+			i++
+			continue
 		}
 
 		quantity := incoming.Quantity
@@ -123,7 +143,9 @@ func (b *Book) match(incoming *restingOrder, opposite *[]*restingOrder, crosses 
 		incoming.Quantity -= quantity
 		resting.Quantity -= quantity
 		if resting.Quantity == 0 {
-			*opposite = (*opposite)[1:]
+			*opposite = append((*opposite)[:i], (*opposite)[i+1:]...)
+		} else {
+			i++
 		}
 	}
 	return trades

@@ -43,8 +43,9 @@ const (
 type Status string
 
 const (
-	StatusPendente Status = "pendente"
-	StatusAplicado Status = "aplicado"
+	StatusPendente  Status = "pendente"
+	StatusAplicado  Status = "aplicado"
+	StatusCancelado Status = "cancelado"
 )
 
 // Metric espelha o enum Postgres macro_target_metric — qual indicador um
@@ -63,11 +64,12 @@ const (
 )
 
 var (
-	ErrMissingTitle         = errors.New("título do evento macro é obrigatório")
-	ErrMissingNarrative     = errors.New("narrativa do evento macro é obrigatória")
-	ErrNoEffectEnabled      = errors.New("evento macro precisa afetar preço e/ou fundamentos")
-	ErrNoTarget             = errors.New("evento macro precisa de pelo menos um alvo")
-	ErrTargetScopeAmbiguous = errors.New("alvo de evento macro deve preencher exatamente um entre setor, risk_class e ativo")
+	ErrMissingTitle                = errors.New("título do evento macro é obrigatório")
+	ErrMissingNarrative            = errors.New("narrativa do evento macro é obrigatória")
+	ErrNoEffectEnabled             = errors.New("evento macro precisa afetar preço e/ou fundamentos")
+	ErrNoTarget                    = errors.New("evento macro precisa de pelo menos um alvo")
+	ErrTargetScopeAmbiguous        = errors.New("alvo de evento macro deve preencher exatamente um entre setor, risk_class e ativo")
+	ErrTargetDirectionMustBeSigned = errors.New("direção própria de alvo de evento macro deve ser positivo ou negativo, nunca misto")
 )
 
 // Target é um alvo de um evento macro (macro_event_targets) — exatamente
@@ -75,16 +77,35 @@ var (
 // macro_target_scope_chk do banco, replicado aqui a nível de aplicação,
 // mesmo padrão de fii.NewDetails pro CHECK fii_type_fields_chk). "Empresa
 // específica" como alvo não tem campo próprio — ver nota do pacote.
+//
+// Direction é a direção própria do alvo (proposta seção 3, tarefa E.1) —
+// nil na maioria dos eventos (o alvo simplesmente herda Event.Direction,
+// sem UX nova no caso simples — nenhum dado por alvo é sorteado nesse
+// caso, ver PriceEffectPct/FundamentalsEffectPct abaixo). Só é preenchido
+// quando o admin declara um sinal específico pra este alvo dentro de um
+// evento "misto" (ex: setor Exportador positivo, Importador negativo, no
+// mesmo evento — o caso didático da spec de câmbio). PriceEffectPct/
+// FundamentalsEffectPct espelham os campos de mesmo nome em Event, mas
+// amostrados com a direção própria deste alvo — só preenchidos quando
+// Direction != nil (targets que herdam a direção do evento continuam
+// usando Event.PriceEffectPct/FundamentalsEffectPct como sempre, sem
+// nenhum dado redundante gravado por alvo).
 type Target struct {
-	Sector         *catalog.Sector
-	RiskClass      *string
-	AssetID        *string
-	AffectedMetric Metric
+	Sector                *catalog.Sector
+	RiskClass             *string
+	AssetID               *string
+	AffectedMetric        Metric
+	Direction             *Direction
+	PriceEffectPct        *float64
+	FundamentalsEffectPct *float64
 }
 
 // NewTarget valida a exclusividade mútua de escopo (setor XOR risk_class
-// XOR ativo) antes de montar o Target.
-func NewTarget(sector *catalog.Sector, riskClass *string, assetID *string, affectedMetric Metric) (Target, error) {
+// XOR ativo) e, quando direction é informado, que ele é um sinal (positivo
+// ou negativo) — misto não faz sentido como direção própria de um único
+// alvo, só como composição de 2+ alvos de sinais opostos (E.1) — antes de
+// montar o Target.
+func NewTarget(sector *catalog.Sector, riskClass *string, assetID *string, affectedMetric Metric, direction *Direction) (Target, error) {
 	filled := 0
 	if sector != nil {
 		filled++
@@ -98,8 +119,11 @@ func NewTarget(sector *catalog.Sector, riskClass *string, assetID *string, affec
 	if filled != 1 {
 		return Target{}, ErrTargetScopeAmbiguous
 	}
+	if direction != nil && *direction != DirectionPositivo && *direction != DirectionNegativo {
+		return Target{}, ErrTargetDirectionMustBeSigned
+	}
 
-	return Target{Sector: sector, RiskClass: riskClass, AssetID: assetID, AffectedMetric: affectedMetric}, nil
+	return Target{Sector: sector, RiskClass: riskClass, AssetID: assetID, AffectedMetric: affectedMetric, Direction: direction}, nil
 }
 
 // Event é um evento macro (macro_events) — a definição do evento em si
@@ -125,11 +149,19 @@ type Event struct {
 	// 4.4), a partir do dia simulado corrente do Temporizador (3.11) e do
 	// sorteio/tabela de duração por banda de magnitude (tarefa 4.2) —
 	// ficam zero-valued/nil num Event recém-criado por NewEvent.
+	// TriggeredOnDay é o dia simulado corrente + 1 (o primeiro dia que um
+	// tick futuro de fato avalia), não o dia simulado corrente em si — ver
+	// comentário em macroeventtrigger.Service.Trigger.
 	TriggeredOnDay        int
 	DurationDays          int
 	PriceEffectPct        *float64
 	FundamentalsEffectPct *float64
 	FundamentalsReportDay *int
+
+	// RevealLeadDays (N.25) é com quantos dias de antecedência do primeiro dia de efeito o
+	// jogador passa a ver o evento (IsPubliclyVisible). Escolhido pelo admin ao agendar;
+	// NewEvent deixa DefaultRevealLeadDays.
+	RevealLeadDays int
 }
 
 // Record é um Event já persistido, pareado com o id e o created_at gerados
@@ -174,5 +206,6 @@ func NewEvent(templateKey *string, title, narrative string, direction Direction,
 		Status:              StatusPendente,
 		CreatedBy:           createdBy,
 		Targets:             targets,
+		RevealLeadDays:      DefaultRevealLeadDays,
 	}, nil
 }

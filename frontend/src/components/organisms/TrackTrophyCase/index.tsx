@@ -11,8 +11,8 @@ export type { TrackTrophyCaseProps } from './types'
 // Diferente de `AchievementsGrid` (sempre mostra a lista cheia, bloqueada
 // ou não), aqui só a trilha *concluída* existe de verdade — sem estado
 // "bloqueado" pra desenhar. Sem nenhuma trilha concluída, a seção inteira
-// some (mesmo padrão de `ResumeLessonCard`/`TrackChart` — nunca um "nenhuma
-// trilha concluída" vazio, critério de aceite explícito da tarefa).
+// some (mesmo padrão de `ResumeLessonCard`/Mapa da Trilha — nunca um
+// "nenhuma trilha concluída" vazio, critério de aceite explícito da tarefa).
 export function TrackTrophyCase({ completedTracks }: TrackTrophyCaseProps) {
     const trophies = TRACKS.filter((track) => completedTracks.includes(track.number))
 

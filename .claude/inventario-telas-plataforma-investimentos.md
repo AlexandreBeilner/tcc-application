@@ -21,6 +21,7 @@ Cinco itens — mesmo número da spec original, com "Trilha" adicionada como nov
 
 - Logo/nome do app
 - **Ícone de notícias/eventos** (com badge de novidade) → Feed de Notícias
+- **Relógio do mercado** (tarefa S.12, tela 4.11): chip com o dia simulado, a data e o tempo até o próximo dia ("Dia 135 · qua 20/05 · próximo dia em 2h14"), com ponteiro que avança; no fim de semana simulado vira o selo tracejado "Mercado fechado" com quando reabre. Toque abre o Calendário (4.11). No mobile (375px, com logo, dois sinos e avatar) vira duas linhas curtas: "Dia 135" / "qua 20/05" (fechado: "Fechado" / "sáb 23/05"); o texto completo fica no tablet, no desktop e no rótulo de acessibilidade.
 - **Avatar do usuário** → menu suspenso:
   - Meu Perfil
   - Amigos
@@ -95,9 +96,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** nav primária ("Portfólio"), destino padrão após login recorrente.
 - **Conteúdo:**
   - Card de patrimônio do **mercado ao vivo** (o que conta pro ranking) — saldo total, variação percentual, total investido.
-  - Card separado, visualmente distinto (ex: fundo diferente, selo "modo aprendizado"), de patrimônio do **sandbox** — reforça a separação exigida na seção 3.1 da spec.
+  - **Faixa compacta** (não card), visualmente distinta (fundo diferente, selo "modo aprendizado"), de patrimônio do **sandbox** — reforça a separação exigida na seção 3.1 da spec. Só aparece com posição de treino aberta e leva a `/extrato?escopo=aprendizado`; sem posição, vira uma dica de uma linha, nunca "R$ 0,00" (decisões D5 opção B e D7 da revisão de trilhas, 2026-10-03; RC.7.4).
   - Indicador de **XP/nível** e **streak diário** (mecânicas da seção 6, hoje sem espaço em nenhuma tela).
-  - Gráfico de rosca de distribuição de investimentos (herdado do wireframe original, Fig. 3).
+  - Gráfico de rosca de distribuição de investimentos (herdado do wireframe original, Fig. 3), **interativo** (RC.7.3): anel em SVG, furo com o total investido por padrão e, ao passar o mouse, tocar ou focar uma fatia, o nome, o R$ e a %; legenda sempre com R$ e %; teclado (Tab, setas, Enter, Esc). Só mercado ao vivo, a preço de mercado (a soma bate com "Investido" do card).
   - Atalho "Retomar lição" se a trilha não estiver concluída — link direto pra **4.2 Lição** no ponto onde o usuário parou.
   - Botões "Investir" e "Conquistas".
 - **Ações:**
@@ -105,7 +106,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - "Conquistas" → **8.1 Conquistas**.
   - "Retomar lição" → **4.2 Lição** (estado atual do usuário).
   - Clique no card de patrimônio → **5.8 Extrato/Histórico** (ver o que compõe aquele número).
-- **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, incentivando ir pro Mercado ou pra Trilha).
+- **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, incentivando ir pro Mercado ou pra Trilha); carregamento com placeholders de altura próxima da final. **Composição por breakpoint (RC.7.5):** coluna única em mobile e tablet; a partir de 1024px, 2 colunas (patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita).
 - **Dados envolvidos:** `accounts`, `positions`, `assets` (join pro gráfico de distribuição).
 
 ---
@@ -116,9 +117,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Objetivo:** dar corpo visual à progressão pedagógica (RF11) — é a tela que substitui a ausência total de UI pra esse conceito hoje.
 - **Acesso:** nav primária ("Trilha"), ou via atalho do Portfólio (2.1).
 - **Conteúdo:**
-  - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) como seções/módulos expansíveis.
-  - Cada uma das 33 lições como um "nó" no formato mapa de progressão (concluída / disponível / bloqueada), mostrando o que cada lição desbloqueia (ex: "Tesouro Selic" ao lado da lição 1.2).
-  - Indicador de progresso geral (ex: "12 de 33 lições concluídas").
+  - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) mais a Trilha F paralela (Finanças do dia a dia, sem desbloqueio, em qualquer ordem) como seções/módulos expansíveis.
+  - Cada uma das 43 lições como um "nó" no formato mapa de progressão (concluída / disponível / bloqueada), mostrando o que cada lição desbloqueia (ex: "Tesouro Selic" ao lado da lição 1.2).
+  - Indicador de progresso geral (ex: "12 de 43 lições concluídas").
 - **Ações:**
   - Clique em lição disponível → **3.2 Lição**.
   - Clique em lição bloqueada → estado informativo (o que falta pra desbloquear), sem navegação.
@@ -127,7 +128,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Dados envolvidos:** `lessons`, `user_lesson_progress`.
 
 ### 3.2 Lição (componente genérico reutilizável)
-- **Objetivo:** ensinar um conceito através do padrão "aprender fazendo" (seção 5.2 da spec) — reutilizado pelas 33 lições e por produtos parecidos (CDB/LCI/LCA/CRI/CRA compartilham a mesma estrutura de tela).
+- **Objetivo:** ensinar um conceito através do padrão "aprender fazendo" (seção 5.2 da spec) — reutilizado pelas 43 lições e por produtos parecidos (CDB/LCI/LCA/CRI/CRA compartilham a mesma estrutura de tela).
 - **Acesso:** a partir do Mapa da Trilha (3.1) ou do atalho "Retomar lição" (2.1).
 - **Conteúdo, em 4 estados sequenciais dentro da mesma tela:**
   1. **Cenário/gatilho** — texto + ilustração da situação simulada.
@@ -137,7 +138,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Ações:**
   - "Continuar" ao final → próxima lição (3.2, nova instância) ou volta ao **3.1 Mapa da Trilha** se for a última do bloco.
   - "Usar agora" no passo de desbloqueio → leva direto pra tela recém-liberada (ex: lição 1.2 desbloqueia Tesouro Selic → **5.3 Detalhe de Ativo**).
-- **Estados especiais:** lição já concluída antes (modo revisão, sem repetir XP/conquista).
+- **Estados especiais:** lição já concluída antes (modo revisão, sem repetir XP/conquista; pode ser revista e o aluno pode voltar de passo, RC.2.1/RC.2.2). Conteúdo em `blocks` (texto curto, widgets, perguntas intermediárias que só avançam ao acertar, bloco "Na plataforma"); item travado pela trilha usa o `LockedGate` único. No Mapa, a etiqueta "Você está aqui" fica acima do nó atual e a grade de fundo usa o token `--grid-line` nos dois temas (RC.7.1).
 - **Dados envolvidos:** `lessons`, `user_lesson_progress`; grava progresso a cada etapa (permite retomar no meio).
 
 ---
@@ -145,12 +146,14 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 ## 4. Mercado
 
 ### 4.1 Navegação de Mercado (hub)
-- **Objetivo:** roteador principal entre Renda Fixa e Renda Variável (herdado do wireframe original, Fig. 4).
+- **Objetivo:** roteador principal entre Renda Fixa, Renda Variável, os indicadores macro por trás dos dois e o histórico de ordens do usuário (herdado do wireframe original, Fig. 4, com extensão das tarefas M.4/O.4).
 - **Acesso:** nav primária ("Mercado"), ou via "Investir" no Portfólio (2.1).
-- **Conteúdo:** dois cards — Renda Fixa e Renda Variável — com descrição curta de cada um.
+- **Conteúdo:** quatro cards — Renda Fixa, Renda Variável, Indicadores Econômicos e Minhas Ordens — com descrição curta de cada um.
 - **Ações:**
   - Card Renda Fixa → **4.2 Lista de Renda Fixa**.
   - Card Renda Variável → **4.4 Lista de Renda Variável**.
+  - Card Indicadores Econômicos → **4.9 Indicadores Econômicos**.
+  - Card Minhas Ordens → **4.10 Minhas Ordens**.
 - **Estados especiais:** produtos ainda bloqueados pela trilha aparecem visualmente atenuados dentro das listas (não nesta tela-hub, que se mantém simples).
 - **Dados envolvidos:** nenhum dado próprio, só roteamento.
 
@@ -228,10 +231,48 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** a partir do Portfólio (2.1, clique no card de patrimônio), ou item de menu dentro de Mercado.
 - **Conteúdo:** lista cronológica reversa de eventos (compra, venda, dividendo recebido, imposto pago, resgate de renda fixa), com filtro por tipo e por período.
 - **Ações:** clique num item → detalhe expandido inline (sem navegação nova, é só um "accordion").
-- **Estados especiais:** sem transações ainda (estado vazio).
+- **Estados especiais:** sem transações ainda (estado vazio). Filtro de **escopo** (Tudo, Modo Aprendizado, Mercado Ao Vivo) lido de `?escopo=`, usado pela faixa do Sandbox no Portfólio (RC.7.4).
 - **Dados envolvidos:** `market_events` (fonte de verdade, Event Sourcing).
 
+### 4.9 Indicadores Econômicos
+- **Objetivo:** tornar visíveis os dois indicadores macro que o motor já simula por trás do rendimento/preço de todo produto (Selic e IPCA) — hoje o usuário só sente o efeito indireto deles, nunca vê o número (tarefa M.4, pedido do autor além da proposta original, 2026-09-13).
+- **Acesso:** card "Indicadores Econômicos" no hub de Mercado (4.1).
+- **Conteúdo:**
+  - 4 cards de valor corrente: Selic (meta anual), IPCA mensal, IPCA acumulado 12m, e a data do próximo Copom simulado (derivada no cliente a partir do último dia simulado conhecido, cadência fixa de 21 dias — o motor só marca reuniões já ocorridas).
+  - 2 gráficos de linha histórica (mesmo motivo visual "papel de gráfico" do gráfico de preço, 4.5, sem a semântica de ganho/perda): Selic ao longo do tempo, IPCA acumulado 12m ao longo do tempo — com seletor de intervalo (3M/6M/1A) compartilhado entre os dois.
+- **Ações:** nenhuma navegação a partir daqui — tela só de leitura.
+- **Estados especiais:** motor recém-subido, sem nenhum tick ainda (cards mostram "Aguardando primeiro tick", gráficos mostram estado vazio, sem erro).
+- **Dados envolvidos:** `market_indicator_history` (via `GET /market/indicators`, proxy do motor — `.docs/backend/market.md`).
+
+### 4.10 Minhas Ordens
+- **Objetivo:** fecha o achado 012 (`pontos-em-aberto-decisao-produto.md`) junto com a O.3 — sem uma tela real, o cancelamento manual de ordem (O.1) fica correto no motor mas inutilizável ponta a ponta, já que nenhum cliente tinha como descobrir qual `order_id` passar (tarefa O.4, 2026-09-21).
+- **Acesso:** card "Minhas Ordens" no hub de Mercado (4.1).
+- **Conteúdo:**
+  - Três abas — **Pendentes** (`pending`/`partially_filled`), **Executadas** (`filled`), **Recusadas** (`cancelled`, qualquer `cancel_reason`) — mesma tela-tipo "lista com abas" de 4.2/4.4 (identidade-visual-padroes.md).
+  - Tabela por ordem (desktop) / cards empilhados (mobile/tablet, mesma dupla responsiva de 4.2/4.4): ativo (ticker/nome), lado (compra/venda), tipo (mercado/limitada), quantidade (preenchida/total quando `partially_filled`), preço.
+  - Aba Recusadas ganha uma coluna a mais: motivo humanizado a partir de `cancel_reason` (`user_cancelled` → "Cancelada por você"; `expired` → "Expirada no fechamento do dia"; `no_liquidity` → "Sem liquidez disponível"; `requoted` nunca aparece pra um usuário real).
+  - Aba Pendentes ganha um botão "Cancelar ordem" por linha, com confirmação leve em duas etapas (clicar de novo confirma, mesmo padrão de "Desfazer amizade" em 8.1 — sem `window.confirm` nativo).
+- **Ações:** "Cancelar ordem" (confirmado) → `POST /market/orders/:id/cancel` (O.1); a linha sai de Pendentes e entra em Recusadas com o motivo "Cancelada por você" assim que a lista refaz o fetch.
+- **Estados especiais:** aba sem nenhuma ordem naquele grupo (mensagem vazia própria por aba); erro ao carregar `GET /market/orders`; erro ao cancelar (mensagem inline, a linha permanece em Pendentes).
+- **Dados envolvidos:** `order_book` (via `GET /market/orders`, proxy enriquecido do motor — `.docs/backend/market.md`).
+
 ---
+
+### 4.11 Calendário do Mercado
+
+- **Objetivo:** dizer em uma olhada em que dia do mercado simulado estamos, que o tempo é acelerado (1 dia real = 5 dias de mercado), por que o mercado às vezes está fechado (sábado e domingo simulados) e o que aconteceu e vem aí (tarefa S.12, decisão do autor de 2026-09-26). Mockup vivo (mobile, tablet e desktop, virada de dia e passo de onboarding): https://claude.ai/artifact/CqcmBmoJfpEKeUBAnks8zn
+- **Acesso:** chip do relógio no TopBar (0.2), em qualquer tela autenticada. Não é rota do menu: mobile abre como bottom sheet sobre a tela de origem, tablet como painel abaixo da barra, desktop como coluna lateral fixa à direita (o conteúdo da tela segue interativo) que traz a grade do trimestre inteiro no topo do próprio painel.
+- **Conteúdo:**
+  - Sem barra de progresso do trimestre: o último dia dele (dia de relatório) é um bloco dourado com o rótulo "fim do trim." na faixa de dias, na grade e na legenda.
+  - Faixa horizontal de dias (7 atrás, hoje, 6 à frente) com marcadores por tipo, sempre ícone mais texto: evento de mercado, Copom, balanço, provento, suas ordens, renda fixa. Fim de semana com fundo cinza, borda tracejada e o texto "fechado". Futuro tracejado.
+  - Detalhe do dia escolhido: listas "Aconteceu" e "Vem aí" (fatos do usuário com a etiqueta VOCÊ; futuro só com o que é determinístico: Copom, relatório, proventos anunciados e vencimentos do usuário, nunca evento macro que ainda não aconteceu).
+  - Desktop: "visão geral dos dias" (uma coluna por semana, sólido passado e tracejado futuro, bloco dourado no fim do trimestre).
+  - Legenda e a linha fixa "cada dia real equivale a 5 dias de mercado".
+  - **"Para você" (RC.6.1 a RC.6.4):** faixa em destaque com o que afeta o usuário (posição em ação, FII, renda fixa a vencer, salário), separado do que é só do mercado; seletor Meus/Todos. Proventos e balanços saem em dias diferentes por ativo (política trimestral, semestral ou anual por empresa; FIIs no mês real), com valor exato após a data ex e estimativa antes dela.
+- **Teatro de recompensa leve:** na virada de dia, o ponteiro do relógio gira e aparece um toast "Novo dia: Selic X%" (dourado, só aqui); no fim de semana, "Mercado fechado até segunda. Hora de estudar." Respeita `prefers-reduced-motion`.
+- **Onboarding (1.2):** um passo novo explicando o tempo acelerado, o fim de semana fechado e o que segue aberto (lições, Modo Aprendizado, cancelar ordem).
+- **Estados especiais:** motor sem nenhum tick (dia 0, sem histórico); agenda automática desligada (sem "próximo dia em", o relógio mostra só o dia).
+- **Dados envolvidos:** `GET /market/clock` e `GET /market/calendar` (`.docs/backend/market.md`, tarefas S.10 e S.11).
 
 ## 5. Feed de Notícias / Eventos de Mercado
 
@@ -366,23 +407,128 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ## 10. Painel Administrativo
 
-### 10.1 Painel Admin — Eventos Macro (hub)
-- **Objetivo:** cumprir RF14, escopo já delimitado na seção 3.3.3 da spec (só eventos macro, nada de cadastro de empresas/usuários nesta fase).
-- **Acesso:** menu do avatar, visível apenas para `role = admin`.
-- **Conteúdo:** lista de eventos disparados (histórico), com status (pendente/aplicado), botão "Novo evento".
-- **Ações:** "Novo evento" → **10.2 Criar/Disparar Evento**.
-- **Estados especiais:** nenhum evento disparado ainda.
+### 10.1 Painel Admin — Visão geral (hub)
+- **Objetivo:** porta de entrada do painel administrativo, que a Fase N de `backlog-motor-mercado-realista.md` amplia pra centro de controle geral da aplicação (spec 3.3.3, nota de revisão de 2026-10-03). Desde a N.3 o painel tem um shell próprio (navegação por seções) em volta de todas as telas 10.x.
+- **Acesso:** menu do avatar, visível apenas para `role = admin`; rota `/admin` protegida por `role = admin`.
+- **Conteúdo:** navegação por seções (Visão geral, Tempo, Mercado, Bots, Usuários, Conteúdo, Gamificação, Sistema, Auditoria) — barra lateral fixa no desktop, faixa horizontal no tablet, gaveta no mobile; seção sem tela ainda aparece desabilitada com "Em breve". Desde a N.5 a tela em si é o dashboard de entrada: (1) **faixa de saúde** com backend, motor, banco de usuários, banco de mercado e Redis (cada um "No ar", "Lento" ou "Fora", com latência e o motivo da falha); (2) cartões **Mercado** (dia simulado, Selic, IPCA no mês e em 12 meses, eventos macro pendentes, ativos sem Market Maker), **Tempo** (agenda ativa/pausada/desligada, próximo tick, ritmo, tick em andamento, último tick), **Negociação** (negócios, volume e ordens abertas no dia simulado, bots ativos) e **Usuários** (total, cadastros em 24 h e 7 dias). Atualiza sozinha por polling de 15 s.
+- **Ações:** abrir a seção de um cartão ("Eventos macro", "Controlar o tempo").
+- **Estados especiais:** carregando; backend fora do ar (aviso no lugar da faixa e do resumo); **fonte fora do ar** (o cartão daquela fonte mostra "Indisponível: motivo" e os demais seguem). Composição própria por breakpoint: 2 colunas de cartões a partir de 768 px, 5 chips lado a lado na faixa de saúde.
+- **Dados envolvidos:** `GET /admin/system/health` e `GET /admin/overview` (`.docs/backend/admin.md`), que agregam `GET /admin/overview` do motor (`.docs/engine/admin.md`), `GET /admin/scheduler`, o último item de `GET /admin/ticks` e a contagem de usuários.
+
+### 10.6 Mercado (monitor ao vivo)
+- **Objetivo:** ver o mercado simulado inteiro numa tela, só leitura (N.8). Seção "Mercado" do painel, rota `/admin/mercado`; o preço só se forma por negociação, então a tela não tem botão que o altere.
+- **Conteúdo:** filtros por classe (ação, ETF, FII), setor e texto; tabela de todos os ativos negociáveis com último preço, variação, melhor compra/venda e spread, ordens abertas (e quantas são de bots), negociado no dia, cotas em circulação versus posse de bots e usuários, e o indicador da classe (P/L da ação, ágio/deságio do ETF, P/VP do FII); aviso dos ativos sem Market Maker ativo; seção de indicadores macro (Selic, IPCA, próximo Copom e gráfico da Selic); coluna lateral "Próximos eventos" com os fatos globais futuros do calendário. Link "Eventos macro" para a 10.3.
+- **Ações:** ordenar pelos cabeçalhos; abrir um ativo (**10.7**).
+- **Estados especiais:** carregando; motor fora do ar (aviso no lugar da tabela); ativo sem cotação ou book (campos com traço, nunca quebra); lista filtrada vazia. Tabela no tablet/desktop e cartões no mobile; no desktop os indicadores ficam à esquerda e o calendário em coluna lateral.
+- **Dados envolvidos:** `GET /admin/market/assets`, `GET /market/indicators`, `GET /market/clock`, `GET /market/calendar` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
+### 10.7 Detalhe do Ativo no Monitor
+- **Objetivo:** inspecionar um ativo (N.8), rota `/admin/mercado/ativos/:id`.
+- **Conteúdo:** resumo (último negócio, melhor compra/venda, negociado no dia, ordens abertas, cotas com bots/usuários/livres, indicador da classe); book completo agregado por preço com a parcela de bots (nunca o dono de uma ordem); últimos 30 negócios; gráfico das cotações (30 e 60 dias); para ETF, tabela de NAV e ágio.
+- **Estados especiais:** ativo inexistente ou fora do universo negociável (mensagem e volta ao monitor); sem Market Maker (aviso); book e negócios vazios.
+- **Dados envolvidos:** `GET /admin/market/assets/:id`.
+
+### 10.8 Ordens do Book
+- **Objetivo:** achar e cancelar ordens por intervenção (N.10). Rota `/admin/mercado/ordens`, dentro da seção "Mercado"; link na 10.6 e, com o ativo já filtrado, na 10.7.
+- **Conteúdo:** filtros de status (abertas por padrão), lado, ativo e dono (UUID do usuário ou bot); tabela de ordens com ativo, lado e tipo, executado/total, preço, dono (bot com arquétipo ou usuário com id curto), status com o motivo do cancelamento e data. Cancelar tira a ordem do book sem mexer em saldo nem posição (nenhuma ordem em repouso reserva nada).
+- **Ações:** cancelar uma ordem em repouso (confirmação); cancelar em lote as ordens abertas de um ativo e/ou dono (só com um dos dois filtros, exige digitar o ticker ou "CANCELAR", teto de 500 por lote). Tudo vai pra auditoria, o lote como uma linha com a lista de ids.
+- **Estados especiais:** carregando; lista vazia; ordem já executada ou cancelada no meio do caminho (409, mensagem e lista atualizada); lote acima do teto (mensagem com a contagem, nada é cancelado); id de dono inválido (aviso, filtro ignorado). Tabela no tablet/desktop e cartões no mobile.
+- **Dados envolvidos:** `GET /admin/orders`, `POST /admin/orders/:id/cancel`, `POST /admin/orders/cancel-batch` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
+### 10.9 Pausas de Negociação
+- **Objetivo:** disjuntor operacional (N.9). Rota `/admin/mercado/pausas`, dentro da seção "Mercado"; link na 10.6, que também mostra uma faixa quando há pausa vigente.
+- **Conteúdo:** aviso das consequências (a pausa não suspende o tick, ordens em repouso expiram a cada tick, o book pode ficar vazio ao retomar); formulário com motivo obrigatório, "Pausar ativo" (escolha do ativo) e "Pausar tudo"; lista de pausas vigentes com "Retomar" e as últimas encerradas.
+- **Ações:** pausar tudo (digitar PAUSAR TUDO), pausar um ativo (digitar o ticker), retomar (confirmação). Tudo na auditoria.
+- **Estados especiais:** carregando; sem pausa vigente; pausa duplicada ou já retomada (409, mensagem e lista atualizada); mercado já pausado (botão desabilitado). Para o usuário, o detalhe do ativo (4.5) mostra "Negociação pausada" e desabilita a ordem.
+- **Dados envolvidos:** `GET/POST /admin/halts`, `POST /admin/halts/:id/lift`, `GET /market/halts`.
+
+### 10.10 Bots
+- **Objetivo:** operar os bots de liquidez (N.2). Rota `/admin/bots`, seção própria "Bots" do painel.
+- **Conteúdo:** resumo ("X de Y bots ativos"); painel "Saúde dos bots" (N.14: cartões tracejados de bots parados, bots sem caixa e Market Maker sem ações de um ativo coberto, cada bot clicável abre o desempenho dele; seção recolhível com quem provê a liquidez em repouso de cada ativo e as maiores concentrações de float em um bot); aviso tracejado dos ativos negociáveis sem Market Maker ativo cobrindo; filtros de arquétipo e de status; tabela de bots com arquétipo e id curto (link pra tela de ordens filtrada pelo bot), escopo (setores, risco, classes de ativo e fatia da atividade), caixa, posições, cobertura (`N de teto` e os tickers, só Market Maker) e status; formulário de criação (arquétipo, escopo, atividade no escopo 85 a 90%, conhecimento só no Fundamentalista, posição máxima, preferência por ordem a mercado, spread, teto de cobertura só no Market Maker, caixa inicial; percentuais digitados em %).
+- **Ações:** **Desempenho** por bot (N.14: expande abaixo da linha ou do cartão; janela de 7, 30 ou 90 dias simulados; patrimônio, capital aportado e P&L desde a criação, ordens por situação e motivo de cancelamento, taxa de execução, negócios e volume, última ordem e, no Market Maker, a cotação atual por ativo com spread e inventário contra o alvo); **Editar** (N.15: diálogo com o escopo e os números atuais, só envia o que mudou; a preferência por ordem a mercado não é editável, achado 001; vale na próxima rodada); **Aportar** (N.15: caixa e/ou uma posição, só soma e nunca remove; entra por evento imutável e conta como capital aportado; aporte de posição é recusado se passar do total de cotas em circulação); ativar (direto) e desativar (confirmação: sai da próxima rodada, caixa e posição ficam; num Market Maker avisa que a cobertura deixa de valer); editar cobertura e teto de um Market Maker num diálogo (conjunto final de ativos; avisa que tirar um ativo cancela as ordens dele nele); criar bot. O bot novo nasce só com caixa (sem posição inicial) e entra na rodada seguinte; Market Maker novo nasce sem cobertura. Tudo na auditoria (`bot.create`, `bot.update`, `bot.fund`).
+- **Estados especiais:** carregando; falha ao carregar; sem bot com os filtros; sem ativo disponível pra cobrir; bot inexistente (404), ativo já coberto por outro Market Maker (409) ou ordens demais pra cancelar (422), todos com mensagem e lista atualizada; recusa do motor na criação aparece no formulário. Tabela no tablet/desktop e cartões no mobile; desktop: lista à esquerda e formulário fixo à direita, tablet/mobile: formulário abre pelo botão "Novo bot" acima da lista.
+- **Dados envolvidos:** `GET/POST /admin/bots`, `PATCH /admin/bots/:id`, `GET /admin/bots/summary`, `GET /admin/bots/:id/activity`, `POST /admin/bots/:id/funding` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
+### 10.3 Histórico de Eventos Macro
+- **Objetivo:** cumprir RF14 — lista de eventos disparados (era o conteúdo do hub 10.1 antes da N.3). Seção "Mercado" do painel, rota `/admin/eventos`.
+- **Conteúdo:** lista de eventos (histórico), paginada, com a situação de cada um (**agendado**, pendente, aplicado ou **cancelado**, N.11), filtros por status, alvo (setor, classe de risco ou ativo) e período em dias simulados, botão "Novo evento", e, no fim, o **catálogo de templates** em somente leitura (a edição segue via código, spec 3.3.3).
+- **Ações:** "Novo evento" → **10.2 Criar/Disparar Evento**; "Ver detalhe" em cada evento → **10.12 Detalhe do Evento Macro**; filtrar e limpar filtros.
+- **Estados especiais:** nenhum evento para o filtro; período inválido (aviso, filtro de período ignorado).
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`.
 
 ### 10.2 Criar/Disparar Evento Macro
 - **Objetivo:** formalizar RF13 — criação e disparo manual de evento.
-- **Acesso:** a partir de 10.1.
+- **Acesso:** a partir de 10.3.
 - **Conteúdo:** seleção de template do catálogo (seção 3.3.2 da spec, 10 templates pré-definidos) OU criação avulsa (título, narrativa, setor/ativo-alvo, banda de magnitude — Leve/Moderado/Severo, tipo de efeito — preço/fundamentos/ambos).
-- **Ações:** "Disparar agora" → confirma e retorna a **10.1**, evento aparece no topo do histórico com status "aplicado".
-- **Estados especiais:** validação de campos obrigatórios ao criar evento avulso.
+- **Ações:** "Disparar agora" → confirma e retorna a **10.3**, evento aparece no topo do histórico. Com um **dia de aplicação** preenchido (N.11) o botão vira "Agendar evento": o evento nasce pendente, só começa a produzir efeito naquele dia simulado e só aparece pros jogadores quando faltar a **antecedência** escolhida (campo "dias de antecedência", N.25; vazio usa a véspera, 0 só mostra quando o efeito começa); vazio, dispara já (efeito a partir do próximo tick).
+- **Estados especiais:** validação de campos obrigatórios ao criar evento avulso; dia de aplicação que não é posterior ao dia simulado atual (recusado na tela e no motor).
 - **Dados envolvidos:** `macro_events`, `macro_event_targets`, `companies` (para segmentar por setor).
 
+### 10.4 Auditoria
+- **Objetivo:** log das ações administrativas (N.4, regra transversal "nenhuma escrita sem auditoria"). Seção "Auditoria" do painel, rota `/admin/auditoria`, somente leitura (o log é append-only no banco).
+- **Conteúdo:** lista paginada, mais recentes primeiro: resultado (sucesso/falha, falha com selo tracejado e motivo), ação, admin e data; detalhe expansível com o alvo e o payload em JSON. Filtros: ação, resultado e período.
+- **Ações:** filtrar, paginar, expandir uma entrada.
+- **Estados especiais:** nenhum registro para o filtro; período invertido (aviso, filtro de datas ignorado); falha ao carregar.
+- **Dados envolvidos:** `admin_audit_log`.
+
+### 10.5 Tempo
+- **Objetivo:** controlar o Temporizador do mercado simulado sem reiniciar o motor (N.6). Seção "Tempo" do painel, rota `/admin/tempo`.
+- **Conteúdo:** estado da agenda (ativa, pausada ou desligada no ambiente), próximo tick agendado, último tick, ritmo (ticks por dia real e fuso), limite de recuperação e, se houver, quando foi retomada; aviso quando há tick em andamento. Histórico paginado de ticks, mais recente primeiro: dia simulado, gatilho (agendado, recuperação ou manual), resultado (falha com selo tracejado e motivo), duração e, no detalhe, os contadores do tick (cotações, rodadas, negócios de bots, ordens expiradas, proventos etc.) e o descarte do limite de recuperação.
+- **Ações:** "Pausar/Retomar agenda" (só vale pro tick agendado; persiste entre restarts), "Disparar 1 tick" e "Avançar N dias" (1 a 30), os dois últimos com confirmação que avisa que o mercado é compartilhado e afeta todos os usuários.
+- **Estados especiais:** agenda desligada no ambiente (pausa desabilitada), tick em andamento (ações travadas), falha no meio de "avançar" (informa quantos dias já rodaram), erro ao carregar.
+- **Dados envolvidos:** `scheduler_control`, `tick_runs`, `market_calendar`.
+
+### 10.11 Parâmetros de simulação
+- **Objetivo:** ver e ajustar o ritmo do Temporizador sem reiniciar o motor (N.7). Rota `/admin/tempo/parametros`, dentro da seção "Tempo" (link na tela 10.5).
+- **Conteúdo:** dois cartões editáveis, **dias simulados por dia real** (1 a 24) e **recuperação máxima depois de uma parada** (1 a 30), cada um com valor atual, padrão do ambiente, faixa permitida e quando foi alterado; abaixo, a lista **somente leitura** (semente da simulação, capital inicial, intervalo do Copom, teto de spread do bot, teto de ordem do bot sobre o volume, teto de avançar dias, teto do lote de cancelamento) com o motivo de cada um, sem nenhum controle de edição.
+- **Ações:** salvar (valida a faixa na tela e no motor, confirma antes de enviar e avisa que afeta todos os usuários a partir do próximo tick agendado) e restaurar o padrão (só habilitado quando o valor foi alterado, com confirmação). Tudo na auditoria (`settings.update`, `settings.reset`).
+- **Estados especiais:** valor fora da faixa (mensagem da faixa), recusa do motor (mostra a mensagem dele), erro ao carregar.
+- **Dados envolvidos:** `engine_settings`.
+
+### 10.12 Detalhe do Evento Macro
+- **Objetivo:** olhar um evento macro de perto e, se ainda der tempo, cancelá-lo (N.11). Rota `/admin/eventos/:id`, dentro da seção "Mercado".
+- **Conteúdo:** situação (agendado, pendente, aplicado, cancelado) e data de criação; **ciclo de vida** (dia simulado agora, dia em que o efeito começa, duração, dia e data do relatório de fundamentos, se os jogadores já enxergam o evento); **o que foi sorteado** (narrativa, direção, magnitude, template, efeitos de preço e de fundamentos, alvos); **o que o jogador vê hoje** (a mesma versão redigida do feed: enquanto o evento está pendente, sem direção, magnitude, efeitos nem alvos); **impacto realizado no preço** por alvo e por ativo, entre o último dia antes do efeito e a janela escolhida (5, 10 ou 30 dias), que só aparece depois de o mercado chegar ao fim da janela.
+- **Ações:** trocar a janela do impacto; **cancelar evento** (confirmação; só enquanto o evento é pendente e o efeito ainda não começou; o evento não é apagado, deixa de produzir efeito e some do feed). O cancelamento fica na auditoria (`macro_event.cancel`).
+- **Estados especiais:** cancelar desabilitado com o motivo (já aplicado, já cancelado, efeito em andamento); impacto indisponível (cancelado, evento só de fundamentos, janela ainda aberta); recusa do motor ao cancelar (tick em andamento) mostra o motivo; evento inexistente; erro ao carregar.
+- **Dados envolvidos:** `macro_events`, `macro_event_targets`, `asset_quotes`.
+
+### 10.13 Usuários
+- **Objetivo:** achar uma conta e abrir o detalhe (N.16). Rota `/admin/usuarios`, seção "Usuários".
+- **Conteúdo:** busca por nome, e-mail, username ou id; filtros de papel, status, provedor de login e data de cadastro; lista paginada (tabela no tablet e no desktop, cartões no mobile).
+- **Ações:** abrir o detalhe de uma conta.
+- **Estados especiais:** conta suspensa com borda tracejada; conta excluída (LGPD) aparece como "Conta excluída"; lista vazia; erro ao carregar.
+- **Dados envolvidos:** `users`, `user_identities`.
+
+### 10.14 Detalhe do usuário
+- **Objetivo:** ver uma conta por inteiro e atuar sobre ela (N.16 e N.17). Rota `/admin/usuarios/:id`.
+- **Conteúdo:** cartões de conta, progressão, carteira (o administrador **vê o patrimônio absoluto**, exceção deliberada à RNF09), ordens abertas e linha do tempo de ações do painel sobre a conta; abaixo, **Correções de conta** (N.17): crédito de caixa sem teto, ajuste de XP, definir streak, conceder conquista (sem revogar, N.26), concluir ou reabrir lição.
+- **Ações:** suspender (motivo obrigatório), reativar, encerrar sessões, excluir a pedido (LGPD, digitando o username) e cada correção, todas com senha recente (exceto reativar) e na auditoria. O crédito pede confirmação mostrando o valor formatado; concluir lição não dá XP e reabrir pode tirar o acesso à lição seguinte (avisado na tela). Resetar carteira não existe.
+- **Estados especiais:** conta de administrador não é suspensa nem excluída pelo painel; motor fora do ar (carteira e ordens vêm vazias, o resto segue); recusa do backend aparece no formulário; conta excluída não mostra as correções.
+- **Dados envolvidos:** `users`, `user_progression`, `user_achievements`, `user_lesson_progress`, `admin_audit_log`, e `accounts`/`market_events` (via motor).
+
+### 10.15 Gamificação
+- **Objetivo:** operar o catálogo de conquistas e de missões diárias e olhar o ranking (N.19). Rota `/admin/gamificacao`, seção "Gamificação". Três abas; cada uma só consulta quando aberta.
+- **Conteúdo:** **Conquistas**: nome, regra e meta, quantos usuários ganharam, status. **Missões diárias**: título, tipo de conferência (só leitura), XP, quantos concluíram (no total e hoje), status. **Ranking**: ranking global da janela corrente (semana ou mês, em UTC, com início e fim), por critério (geral, renda fixa, renda variável, nível), paginado, só nível, XP e rentabilidade percentual.
+- **Ações:** criar e editar conquista (a regra vem de uma lista fechada, nunca expressão livre), ativar e desativar conquista e missão (desativar pede confirmação e explica que ninguém perde o que já ganhou), editar título, descrição e XP da missão. Tudo na auditoria (`achievement.create`, `achievement.update`, `mission.update`). O ranking é somente leitura: é calculado na hora, sem janela gravada, então não há fechar nem recalcular. Não existe criar missão nova.
+- **Estados especiais:** desativada com borda tracejada; meta inválida (inteiro nos critérios de contagem, reais no patrimônio); nome de conquista repetido (409) mostrado no formulário; ranking vazio; erro ao carregar.
+- **Dados envolvidos:** `achievements`, `user_achievements`, `daily_missions`, `user_mission_progress`.
+
 ---
+
+### 10.16 Catálogo de ativos
+- **Objetivo:** consultar os parâmetros de todos os ativos e ajustar uma lista fechada de campos (N.12). Rota `/admin/mercado/catalogo`, dentro da seção "Mercado"; link na 10.6.
+- **Conteúdo:** filtros de classe (ações, FIIs, ETFs, renda fixa) e busca por ticker ou nome; um cartão por ativo com o bloco da classe (RF21: ação com empresa, setor, crescimento base e multiplicador de qualidade; ETF com índice, taxa, rebalanceamento, cesta e metodologia; FII com tipo, segmento, indexador ou vacância; renda fixa com emissor, taxa, vencimento e aplicação mínima). Os campos estruturais (ticker, setor, cotas em circulação, ciclo de relatório) aparecem separados por borda tracejada, sem controle de edição. Ativo do sandbox vem marcado e travado.
+- **Ações:** editar nome (todos), crescimento base e multiplicador de qualidade (ação; valem pra empresa emissora, ou seja, ON e PN), metodologia (ETF). Confirmação com o de/para antes de gravar, e a alteração vai pra auditoria. **Cadastrar ativo novo (N.13):** formulário por classe (ação com empresa, CNPJ, setor, float, crescimento e qualidade; FII de tijolo com segmento e vacância; FII de papel com indexador; ETF com índice, metodologia e cesta de ações/FIIs já cadastrados), preview do que será criado (bots novos, Market Maker que cobre, float distribuído) e confirmação digitando o ticker. Não há exclusão de ativo.
+- **Estados especiais:** carregando; erro de carga; filtro sem resultado; valor fora da regra (recusado na tela e, se passar, com a mensagem do motor); ativo removido no meio do caminho. Cartões em 1, 2 ou 3 colunas conforme o breakpoint.
+- **Dados envolvidos:** `GET /admin/catalog`, `PATCH /admin/catalog/:id`, `POST /admin/catalog/preview`, `POST /admin/catalog` (`.docs/backend/admin.md`, `.docs/engine/admin.md`).
+
+### 10.17 Sistema
+- **Objetivo:** avisar todos os usuários de algo que vai acontecer, pôr a plataforma em manutenção (N.20), provar que o estado financeiro bate com o histórico e exportar dados (N.21). Rota `/admin/sistema`, seção "Sistema", uma página só com quatro blocos.
+- **Conteúdo:** **Modo de manutenção** (formulário ou, com uma manutenção em aberto, o resumo dela com "Encerrar manutenção"); **Integridade financeira** (botão "Verificar agora", a última verificação, o resumo do que foi conferido, uma contagem por categoria de divergência mesmo quando zero, e a lista de divergências com esperado e encontrado); **Exportar dados em CSV** (conjunto, período, limite de linhas, o que o conjunto contém e o que nunca contém); **Novo comunicado** (título até 80 e texto até 280 caracteres, só texto, severidade, início, fim, "o usuário pode dispensar"); **lista de comunicados** com o estado de cada um (no ar com selo sólido; agendado e encerrado com selo tracejado).
+- **Ações:** publicar, editar (menos a manutenção), encerrar, cancelar um agendado; iniciar e encerrar manutenção. Iniciar manutenção com a pausa de negociação liga a pausa global (N.9) e pede digitar `PAUSAR TUDO` e senha recente; encerrar a manutenção levanta a pausa que ela abriu. Verificar integridade só lê (nunca há botão de corrigir) e roda em segundo plano, com a tela consultando a cada 2 segundos enquanto roda; só uma por vez. Baixar CSV entrega o arquivo ao navegador e informa quantas linhas vieram e se o teto cortou; a exportação de usuários (traz e-mail) pede senha recente. Tudo na auditoria (`announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`, `integrity.check`, `export.csv`).
+- **No app do usuário:** faixa no topo de todas as telas autenticadas (e no WebView do app mobile, que carrega o mesmo frontend), com o rótulo da severidade em texto (Aviso, Atenção, Importante, Manutenção). Comunicado dispensável tem botão de fechar e não volta na mesma sessão do navegador; a manutenção é crítica e não dispensável. Fora da janela de início e fim o comunicado não aparece.
+- **Estados especiais:** texto com `<` ou `>` recusado na tela e no servidor; fim antes do início; segunda manutenção em aberto (409); integridade sem verificação anterior, em andamento, falha, zero divergências, mais de 200 divergências (lista cortada, contagens exatas); exportação com período invertido, arquivo cortado pelo teto, senha não confirmada; carregando; erro de carga.
+- **Dados envolvidos:** `announcements`; `GET/POST/PATCH /admin/announcements`, `POST /admin/announcements/:id/end`, `POST /admin/maintenance`, `GET /announcements`, `POST/GET /admin/integrity/check` e `GET /admin/exports/:dataset` (`.docs/backend/admin.md`, `.docs/backend/announcements.md`, `.docs/engine/admin.md`).
 
 ## 11. Resumo — todas as telas numeradas
 
@@ -401,6 +547,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 4.6 | Perfil da Empresa | Mercado |
 | 4.7 | Confirmação de Ordem | Mercado |
 | 4.8 | Extrato/Histórico | Mercado |
+| 4.11 | Calendário do Mercado | Mercado |
 | 5.1 | Feed de Notícias | Eventos |
 | 6.1 | Calculadora — simples | Calculadora |
 | 6.2 | Calculadora — comparação | Calculadora |
@@ -414,10 +561,25 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 9.1 | Meu Perfil | Perfil |
 | 9.2 | Configurações de Conta | Perfil |
 | 9.3 | Privacidade e LGPD | Perfil |
-| 10.1 | Painel Admin — hub | Admin |
+| 10.1 | Painel Admin — Visão geral (hub) | Admin |
 | 10.2 | Criar/Disparar Evento | Admin |
+| 10.3 | Histórico de Eventos Macro | Admin |
+| 10.4 | Auditoria | Admin |
+| 10.5 | Tempo | Admin |
+| 10.6 | Mercado (monitor ao vivo) | Admin |
+| 10.7 | Detalhe do Ativo no Monitor | Admin |
+| 10.8 | Ordens do Book | Admin |
+| 10.9 | Pausas de Negociação | Admin |
+| 10.10 | Bots | Admin |
+| 10.11 | Parâmetros de simulação | Admin |
+| 10.12 | Detalhe do Evento Macro | Admin |
+| 10.13 | Usuários | Admin |
+| 10.14 | Detalhe do usuário | Admin |
+| 10.15 | Gamificação | Admin |
+| 10.16 | Catálogo de ativos | Admin |
+| 10.17 | Sistema | Admin |
 
-**Total: 28 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 41 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

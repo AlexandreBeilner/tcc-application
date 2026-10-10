@@ -75,6 +75,28 @@ func TestNewFixedIncomeProduct_TesouroECDB_LCI_LCA_DispensamClassificacaoDeRisco
 	}
 }
 
+func TestIsPrefixado(t *testing.T) {
+	tests := []struct {
+		productType ProductType
+		want        bool
+	}{
+		{ProductTesouroPrefixado, true},
+		{ProductTesouroSelic, false},
+		{ProductTesouroIPCA, false},
+		{ProductCDB, false},
+		{ProductLCI, false},
+		{ProductLCA, false},
+		{ProductCRI, false},
+		{ProductCRA, false},
+	}
+
+	for _, tt := range tests {
+		if got := IsPrefixado(tt.productType); got != tt.want {
+			t.Errorf("IsPrefixado(%q) = %v, want %v", tt.productType, got, tt.want)
+		}
+	}
+}
+
 func TestRequiresCreditRiskRating(t *testing.T) {
 	tests := []struct {
 		productType ProductType

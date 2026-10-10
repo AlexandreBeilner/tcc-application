@@ -46,16 +46,6 @@
     color: var(--color-text-muted);
 }
 
-/* Motivo do bloqueio visível, não só em aria-label (tarefa J.2) — legenda
-   pequena com o código da lição, visível por padrão (tablet/desktop,
-   barra horizontal com espaço de sobra) e escondida abaixo de 768px na
-   media query da barra inferior fixa. */
-.lockHint {
-    font-size: var(--font-size-xs);
-    font-weight: 400;
-    color: var(--color-text-muted);
-}
-
 /* Abaixo de 768px (tarefa 6.3.3): barra inferior fixa, padrão de app
    mobile nativo — tab bar fixa no topo é ruim de alcançar com o polegar
    (decisão revertida nesta sessão, ver backlog 6.3.3). Itens divididos em
@@ -95,9 +85,5 @@
     .active {
         border-top-color: var(--color-brand-500);
         border-bottom-color: transparent;
-    }
-
-    .lockHint {
-        display: none;
     }
 }

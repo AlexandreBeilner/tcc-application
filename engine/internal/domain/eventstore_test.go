@@ -17,6 +17,9 @@ func TestMarketEventType_CasaComEnumPostgres(t *testing.T) {
 		{EventFixedIncomePurchase, "fixed_income_purchase"},
 		{EventFixedIncomeRedemption, "fixed_income_redemption"},
 		{EventDividendPayment, "dividend_payment"},
+		{EventBotInitialAllocation, "bot_initial_allocation"},
+		{EventBotInitialCash, "bot_initial_cash"},
+		{EventSalaryPayment, "salary_payment"},
 	}
 
 	for _, tt := range tests {

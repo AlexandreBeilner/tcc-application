@@ -10,6 +10,66 @@
     margin: 0 auto;
 }
 
+/* Desktop não é mobile esticado (identidade-visual-padroes.md): a partir de
+   1024px o Portfólio ganha duas colunas, patrimônio e distribuição à
+   esquerda, missões e retomar lição à direita (RC.7.5). */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1080px;
+    }
+}
+
+.columns {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.mainColumn,
+.sideColumn {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .columns {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        align-items: start;
+    }
+}
+
+/* Placeholders com a altura aproximada do conteúdo final, para a tela não
+   saltar quando os dados chegam. */
+@keyframes portfolioSkeleton {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.skeletonCard,
+.skeletonSummary {
+    display: block;
+    background: var(--color-bg-surface-elevated);
+    border-radius: var(--radius-lg);
+    animation: portfolioSkeleton 1.4s ease-in-out infinite;
+}
+
+.skeletonCard {
+    height: 150px;
+}
+
+.skeletonSummary {
+    width: 220px;
+    height: 56px;
+}
+
 .header {
     display: flex;
     align-items: center;
@@ -21,6 +81,21 @@
 .title {
     font-size: var(--font-size-3xl);
     color: var(--color-text-primary);
+}
+
+.headerRight {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+/* Em tablet/desktop o resumo fica à direita do título; no mobile ele quebra
+   para baixo e alinha à esquerda, sem buraco ao lado do título. */
+@media (min-width: 768px) {
+    .headerRight {
+        align-items: flex-end;
+    }
 }
 
 .loading,

@@ -31,18 +31,20 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
 // da fatia.
 export const CATEGORY_ORDER: AssetCategory[] = ['tesouro', 'cdbLcaLci', 'criCra', 'acao', 'etf', 'fii']
 
-// Valor de cada posição = quantidade × preço médio de aquisição (custo),
-// não marcação a mercado — `GET /market/me/account` (6.0.3) não devolve
-// preço atual por posição, só o motor de catálogo (`GET /market/assets/:id`)
-// tem isso, e chamar essa rota uma vez por posição pra um gráfico de
-// distribuição é escopo de uma tarefa futura (6.5), não desta.
+// Valor de cada posição = quantidade × preço de mercado (`markPrice`, tarefa
+// S.6) quando presente, senão o preço médio de aquisição (renda fixa e
+// posição sem cotação), a mesma base dos cards de patrimônio
+// (`calculateAccountTotals`, decisão D6 da revisão de trilhas). Posição de
+// treino (`isSandbox`) fica fora: o donut mostra só o Mercado Ao Vivo, então a
+// soma das fatias bate com o card "Mercado Ao Vivo".
 export function groupPositionsByCategory(positions: PositionLike[], fixedIncomePositions: PositionLike[]): CategorySlice[] {
     const totalsByCategory = new Map<AssetCategory, number>()
 
     for (const position of [...positions, ...fixedIncomePositions]) {
+        if (position.isSandbox) continue
         const category = CATEGORY_BY_TYPE[position.type]
         if (!category) continue
-        const value = position.quantity * position.averagePrice
+        const value = position.quantity * (position.markPrice ?? position.averagePrice)
         totalsByCategory.set(category, (totalsByCategory.get(category) ?? 0) + value)
     }
 

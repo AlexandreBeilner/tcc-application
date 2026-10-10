@@ -1,0 +1,330 @@
+/* Uma árvore, três composições por breakpoint (identidade-visual-padroes.md):
+   mobile < 768px: bottom sheet com fundo; tablet 768-1023px: painel em fluxo
+   abaixo da barra; desktop >= 1024px: coluna lateral fixa. O pai (`AppShell`)
+   só decide a ordem e o eixo do contêiner. */
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-strong);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(6, 10, 20, 0.6);
+}
+
+.grabber {
+    width: 40px;
+    height: 4px;
+    margin: -6px auto -6px;
+    border-radius: 2px;
+    background: var(--color-border-strong);
+}
+
+@media (max-width: 767px) {
+    .panel {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        max-height: calc(100dvh - 72px);
+        border-bottom: 0;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.25);
+        padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (min-width: 768px) {
+    .scrim,
+    .grabber {
+        display: none;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .panel {
+        flex: none;
+        max-height: 60%;
+        margin: var(--space-4) var(--space-4) 0;
+        border-radius: 14px;
+        border-color: var(--color-border);
+    }
+}
+
+@media (min-width: 1024px) {
+    .panel {
+        order: 2;
+        flex: none;
+        width: 440px;
+        border-width: 0 0 0 1px;
+        border-color: var(--color-border);
+        padding: var(--space-6);
+    }
+}
+
+.head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.title {
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.subtitle {
+    margin: 2px 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.actions {
+    display: flex;
+    flex: none;
+    gap: var(--space-2);
+    margin-left: auto;
+}
+
+.iconButton {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.iconButton:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+}
+
+.dayHead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.dayTitle {
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 12px;
+    background: var(--color-bg-base);
+    color: var(--color-text-secondary);
+    font-size: 11.5px;
+    font-weight: 500;
+}
+
+.pillOpen {
+    border-color: transparent;
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+}
+
+.pillClosed {
+    border-style: dashed;
+    background: var(--color-bg-surface-elevated);
+}
+
+.pillReport {
+    border-color: var(--color-gamify-500);
+    background: var(--color-gamify-100);
+    color: var(--color-gamify-500);
+}
+
+.lists {
+    display: grid;
+    gap: var(--space-4);
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .lists {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.groupTitle {
+    margin: 0 0 var(--space-2);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.empty {
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.foot {
+    display: grid;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.accel {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.accel svg {
+    flex: none;
+    color: var(--color-brand-300);
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    list-style: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.swatch {
+    width: 22px;
+    height: 12px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 4px;
+}
+
+.swatchDashed {
+    border-style: dashed;
+}
+
+.swatchReport {
+    border-color: var(--color-gamify-500);
+    background: var(--color-gamify-100);
+}
+
+/* "Para você": a faixa em destaque do painel (borda e fundo da marca, título com
+   contagem). "No mercado" é secundário: sem fundo, recolhível, tracejado. */
+.mine {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-brand-500);
+    border-radius: var(--radius-md);
+    background: var(--color-brand-100);
+}
+
+.mineTitle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+}
+
+.count {
+    padding: 0 8px;
+    border-radius: 10px;
+    background: var(--color-brand-500);
+    color: var(--color-bg-base);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.payout {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.market {
+    padding: var(--space-3);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+}
+
+.marketSummary {
+    min-height: 32px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.market[open] .marketSummary {
+    margin-bottom: var(--space-3);
+}
+
+.note {
+    margin: var(--space-2) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-brand-300);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.swatchMine {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+    box-shadow: inset 0 -3px 0 var(--color-brand-500);
+}

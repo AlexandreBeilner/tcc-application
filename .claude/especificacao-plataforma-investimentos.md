@@ -159,6 +159,8 @@ Escopo enxuto para esta fase, focado apenas no requisito da banca (evitar que o 
 
 Essa divisão é uma decisão de fase, não definitiva: cadastro de empresas/ativos, gestão de usuários e edição do catálogo de templates são candidatos naturais a ganhar interface própria numa evolução futura da plataforma, quando o volume de conteúdo justificar sair do script para uma tela de administração.
 
+**Revisão (2026-10-03):** o autor ampliou o escopo do painel para centro de controle geral da aplicação (tempo, mercado, bots, catálogo, usuários, conteúdo, gamificação, sistema). As tarefas estão na Fase N de `backlog-motor-mercado-realista.md` (N.3 a N.22); as decisões ainda abertas estão no achado 029 de `pontos-em-aberto-decisao-produto.md`.
+
 ### 3.4 Event Sourcing / CQRS
 
 Mantido do TCC original, mas com escopo de implementação simplificado no MVP: log de eventos append-only real desde o início; separação plena de read models (CQRS completo) pode entrar de forma incremental, não precisa estar pronta no dia 1.
@@ -177,6 +179,18 @@ O RF07 do TCC original (indicadores fundamentalistas) foi desenhado pensando em 
   - **Tijolo** (ativos físicos): segmento (Shopping, Logístico, Lajes Corporativas, Outros), patrimônio líquido do fundo, taxa de vacância.
   - **Papel** (recebíveis, tipo CRI/CRA): indexador da carteira (CDI, IPCA+, prefixado); taxa de vacância não se aplica.
   - Ambos os perfis exibem Dividend Yield e a relação cota/valor patrimonial (análoga ao P/VP das ações).
+
+### 3.7 Salário Mensal Simulado
+
+Único mecanismo de injeção externa de capital além do depósito inicial (3.5) — sem ele, todo crescimento de patrimônio dependeria exclusivamente da rentabilidade de investimento, o que não reflete a vida real (a maior parte da capacidade de investir de uma pessoa vem de renda de trabalho, não de retorno sobre capital já investido).
+
+- **Valor:** cresce com o nível de gamificação (seção 6), em degraus sem teto — nível 1-10 soma R$100 por nível, nível 10-20 soma R$200 por nível, nível 20-30 soma R$300 por nível, e assim por diante (tier k = ⌈nível/10⌉, incremento por nível dentro do tier = R$100×k). Referência: nível 10 → R$1.000/mês, nível 20 → R$3.000/mês, nível 30 → R$6.000/mês. Decisão explícita do autor: aceitável que, para um usuário muito engajado por muito tempo, o salário eventualmente supere qualquer retorno de investimento razoável.
+- **Cadência:** 5º dia útil de cada mês-calendário simulado (o dia simulado mapeia 1:1 para uma data real de calendário, seção 3.2.1 — não reaproveita o bloco de 30 dias fixos usado internamente pelo cálculo do IPCA).
+- **Efeito no caixa, não na rentabilidade:** creditado como caixa livre (evento próprio de Event Sourcing, análogo ao depósito inicial de 3.5), nunca contabilizado como capital de risco. Isso exige que a rentabilidade percentual (RF17) passe a ser calculada apenas sobre capital que já foi de risco em algum momento — compras históricas, líquidas de vendas/resgates realizados e dividendos — nunca sobre caixa nunca investido (nem o salário, nem a parcela do depósito inicial que permaneça sem investir). Lucro já realizado numa venda e mantido em caixa continua contando: só o caixa que nunca foi de risco é excluído.
+- **Sem novo ranking:** o salário não cria ranking por patrimônio absoluto — permanece intocada a garantia de RNF09 de que o valor absoluto nunca é exposto a outro usuário.
+- **Visibilidade:** aparece na tela Calendário (seção 3.2.1) como fato do próprio usuário, com teatro de recompensa no momento em que o nível sobe (seção 6) e indicador do próximo pagamento na tela inicial.
+
+Quebra completa em tarefas executáveis na Fase T de `backlog-motor-mercado-realista.md` (decisões fechadas com o autor em 2026-09-27).
 
 ---
 
@@ -205,6 +219,8 @@ Além das entidades já modeladas (`users`, `accounts`, `positions`, `assets`, `
 | `fii_details` (nova tabela, estende `variable_income_assets`) | `fii_type` (tijolo/papel), `segment`, `net_worth`, `vacancy_rate` (nulo se papel), `indexador` (nulo se tijolo) | Diferencia FII de tijolo e de papel, cada um com métricas próprias (seção 3.6) |
 | `daily_missions` (nova tabela) | Catálogo de missões (título, critério de conclusão, recompensa em XP) | Base do sistema de missões diárias (seção 6) |
 | `user_mission_progress` (nova tabela) | Liga `users` e `daily_missions`, com data e status de conclusão | Registra o progresso diário individual nas missões |
+| `salary_payment` (novo tipo de evento) | `market_events` | Crédito mensal de caixa proporcional ao nível — nunca soma a capital de risco (3.7) |
+| `total_disinvested` (novo campo) | `accounts` | Soma bruta de vendas/resgates realizados — junto com `total_invested`/`total_dividends_received` já existentes, sustenta o cálculo de rentabilidade sobre capital de risco (3.7, RF17) |
 
 ---
 
@@ -224,19 +240,21 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 0.4 | Rendimento nominal vs real | Descontar a inflação do retorno | — |
 | 0.5 | Por que a poupança geralmente perde | Comparação direta poupança vs Selic/CDI | Acesso à Trilha 1 (Renda Fixa) |
 
-**Trilha 1: Renda Fixa (9 lições)**
+**Trilha 1: Renda Fixa (11 lições)**
 
 | # | Lição | Conceito central | Desbloqueia |
 |---|---|---|---|
 | 1.1 | O que é renda fixa | Emprestar dinheiro a um emissor | Tesouro Selic |
 | 1.2 | Tesouro Selic | O "porto seguro", liquidez diária | Primeira operação real de Renda Fixa |
-| 1.3 | CDB e o CDI | Remuneração bancária, garantia FGC | CDB |
-| 1.4 | Tributação regressiva de IR | Tabela regressiva, líquido vs bruto | — |
-| 1.5 | LCI e LCA | Isenção de IR — comparação de retorno líquido | LCI/LCA |
-| 1.6 | Tesouro Prefixado | Deságio, taxa travada na compra | Tesouro Prefixado |
-| 1.7 | Marcação a mercado | Risco de vender antes do vencimento | — |
-| 1.8 | Tesouro IPCA+ | Proteção contra inflação, VNA | Tesouro IPCA+ |
-| 1.9 | CRI e CRA | Risco de crédito sem FGC, maior remuneração | CRI/CRA, acesso à Trilha 2 (Renda Variável) |
+| 1.3 | Como a Selic é formada | Reunião do Copom reagindo ao desvio do IPCA frente à meta (tarefa M.5) | — |
+| 1.4 | CDB e o CDI | Remuneração bancária, garantia FGC | CDB |
+| 1.5 | Tributação regressiva de IR | Tabela regressiva, líquido vs bruto | — |
+| 1.6 | LCI e LCA | Isenção de IR — comparação de retorno líquido | LCI/LCA |
+| 1.7 | Tesouro Prefixado | Deságio, taxa travada na compra | Tesouro Prefixado |
+| 1.8 | Marcação a mercado | Risco de vender antes do vencimento | — |
+| 1.9 | O que é o IPCA | Índice de preços ao consumidor (IBGE), referência da meta de inflação (tarefa M.5) | — |
+| 1.10 | Tesouro IPCA+ | Proteção contra inflação, VNA | Tesouro IPCA+ |
+| 1.11 | CRI e CRA | Risco de crédito sem FGC, maior remuneração | CRI/CRA, acesso à Trilha 2 (Renda Variável) |
 
 **Trilha 2: Renda Variável (15 lições)**
 
@@ -267,7 +285,69 @@ Cada lição segue o mesmo padrão pedagógico (5.2: cenário → micro-decisão
 | 3.3 | Comparando produtos na prática | Ex: CDB 110% CDI líquido vs LCI 90% CDI isento — qual rende mais? | — |
 | 3.4 | Desafio final da trilha | Cenário combinando renda fixa + variável + um evento macro | Conclusão da trilha guiada, mundo aberto liberado por completo |
 
-**Total: 33 lições** (5 + 9 + 15 + 4), todas reaproveitando o mesmo componente de UI (5.2).
+**Total: 43 lições** (6 + 12 + 18 + 5 + 2). **Revisão das trilhas (2026-10-03 a 2026-10-07, `backlog-revisao-trilhas-e-ux.md`):** as tabelas acima são o currículo original (35 lições, v0.5); a lista abaixo é a numeração vigente, com as lições novas (Juros, Selic, CDI e TR; Reserva de emergência; B3, corretora e ordens; Custos de investir; Imposto em renda variável; Cabeça de investidor; e a Trilha F paralela, sem desbloqueio de ativo, aberta em qualquer ordem) e a Trilha 3 reescrita como planejamento real (perfil conservador, moderado ou arrojado por questionário, sem "Sofisticado"). O conteúdo de cada lição passou a ser em `blocks` (cartões curtos, widgets interativos, bloco "Na plataforma" separando o mundo real do que a plataforma simplifica, fatos regulatórios com fonte primária em `regulatoryFacts.ts`).
+
+**Trilha 0: Fundamentos**
+
+- 0.1 O que é investir
+- 0.2 Juros simples vs compostos
+- 0.3 Inflação e poder de compra
+- 0.4 Rendimento nominal vs real
+- 0.5 Juros, Selic, CDI e TR
+- 0.6 Poupança: quando ela perde e quando não
+
+**Trilha 1: Renda Fixa**
+
+- 1.1 O que é renda fixa
+- 1.2 Tesouro Selic
+- 1.3 Reserva de emergência: quanto e onde
+- 1.4 Como a Selic é formada
+- 1.5 CDB e o CDI
+- 1.6 Tributação regressiva de IR
+- 1.7 LCI e LCA
+- 1.8 Tesouro Prefixado
+- 1.9 Marcação a mercado
+- 1.10 O que é o IPCA
+- 1.11 Tesouro IPCA+
+- 1.12 CRI e CRA
+
+**Trilha 2: Renda Variável**
+
+- 2.1 O que é uma ação
+- 2.2 Nomenclatura de tickers
+- 2.3 IPO
+- 2.4 Como a ação é negociada: B3, corretora e ordens
+- 2.5 Oferta e demanda
+- 2.6 Lendo notícias de mercado
+- 2.7.1 Lendo um balanço
+- 2.7.2 Margens de rentabilidade
+- 2.7.3 Endividamento
+- 2.7.4 Retorno sobre patrimônio (ROE)
+- 2.7.5 Indicadores de preço (P/L e P/VP)
+- 2.7.6 Dividendos, JCP e data ex
+- 2.7.7 Dividend Yield
+- 2.8 Setores e ciclicidade
+- 2.9 ETFs
+- 2.10 FIIs
+- 2.11 O que custa investir
+- 2.12 Imposto em renda variável
+
+**Trilha 3: Estratégia e Tributação**
+
+- 3.1 Diversificação
+- 3.2 Perfil de risco
+- 3.3 Comparando produtos na prática
+- 3.4 Cabeça de investidor
+- 3.5 Desafio final da trilha
+
+**Trilha F: Finanças do dia a dia (paralela)**
+
+- F.1 Para onde vai seu dinheiro
+- F.2 Dívida: os juros do outro lado
+
+Todas reaproveitam o mesmo componente de UI (5.2).
+
+**Fonte da verdade do conteúdo (N.23, decisão do autor de 2026-10-03):** o conteúdo das lições vive no **banco**, não em arquivo. O `seedLessons.ts` é só a importação inicial (insere o que falta, por `stable_key`, e nunca sobrescreve uma lição existente); a edição e a criação de lições são feitas no painel administrativo (`/admin/conteudo`), com histórico de revisões (`lesson_revisions`) e a regra de dispensa da N.24 pra lição criada no meio do currículo.
 
 ### 5.2 Padrão de lição ("aprender fazendo")
 
@@ -277,6 +357,8 @@ Toda lição segue o mesmo formato, reaproveitável entre produtos parecidos (CD
 2. **Micro-decisão** — interação restrita ao conceito da lição (calculadora, comparação).
 3. **Revelação** — resultado numérico real, usando as fórmulas do cap. 2 do TCC.
 4. **Desbloqueio** — libera a operação real daquele produto no mercado ao vivo.
+
+**Regras do player (revisão das trilhas, 2026-10):** (a) a lição é feita de `blocks` por fase (texto curto, widgets e perguntas `check`); (b) **errar não avança**: a pergunta da micro-decisão e as perguntas intermediárias só liberam a próxima fase ao acerto, com tentativas ilimitadas, XP fixo (nunca punição) e gabarito/explicação só depois do acerto; (c) lição concluída pode ser **revista** (sem alterar XP, streak nem progresso) e o aluno pode **voltar** de passo; (d) o conteúdo travado pela trilha usa um único `LockedGate`; (e) a progressão aceita lição **dispensada** (`waived_at`) e inserção de lição nova no meio da trilha sem quebrar quem já avançou; (f) nenhuma conta é feita fora da plataforma: o cálculo vem de um widget.
 
 ### 5.3 Trilha guiada + mundo aberto
 
@@ -317,12 +399,13 @@ Os requisitos funcionais e não funcionais do capítulo 6.2 do TCC (RF01–RF10,
 | RF14 | Painel Administrativo de Eventos | O sistema deve prover interface restrita a usuários com papel administrativo para criação, disparo manual e histórico de eventos macro. |
 | RF15 | Relatórios Trimestrais Simulados | O sistema deve gerar periodicamente novos dados fundamentalistas para cada empresa cadastrada, combinando crescimento sintético, o fator sistêmico da Selic e efeitos pendentes de eventos macro. |
 | RF16 | Feed de Notícias de Mercado | O sistema deve exibir ao usuário um registro dos eventos de mercado relevantes (macro, Copom, relatórios), explicando o contexto e o possível impacto. |
-| RF17 | Ranking por Janela Fixa | O sistema deve calcular e exibir a classificação de usuários por rentabilidade percentual em uma janela de tempo fixa (ex: semanal/mensal), não cumulativa desde a criação da conta. |
+| RF17 | Ranking por Janela Fixa | O sistema deve calcular e exibir a classificação de usuários por rentabilidade percentual em uma janela de tempo fixa (ex: semanal/mensal), não cumulativa desde a criação da conta. A partir da introdução do salário mensal simulado (3.7), a rentabilidade considera apenas capital que já foi de risco em algum momento, nunca caixa nunca investido (RF23). |
 | RF18 | Amizade entre Usuários | O sistema deve permitir buscar usuários por `username`, enviar solicitação de amizade e aceitar ou recusar solicitações recebidas. |
 | RF19 | Ranking por Escopo Social | O sistema deve permitir alternar a exibição do ranking entre escopo Global e escopo Amigos, mantendo a mesma janela fixa (RF17) em ambos. |
 | RF20 | Perfil Público de Usuário | O sistema deve exibir o perfil público de outro usuário mostrando rentabilidade percentual, nível e conquistas, nunca o valor absoluto de patrimônio. |
 | RF21 | Indicadores por Classe de Ativo | O sistema deve exibir, na tela de detalhe de ativo, indicadores diferentes conforme a classe: fundamentalistas tradicionais para Ações, índice de referência e composição sintética para ETFs, e segmento/patrimônio/vacância (tijolo) ou indexador (papel) para FIIs, além de Dividend Yield para ambos os perfis de FII (seção 3.6). |
 | RF22 | Missões Diárias | O sistema deve apresentar um conjunto de missões diárias renovadas a cada dia, registrar seu progresso e conclusão por usuário, e recompensar XP ao completá-las. |
+| RF23 | Salário Mensal Simulado | O sistema deve creditar automaticamente, no 5º dia útil de cada mês-calendário simulado, um valor de caixa proporcional ao nível de gamificação do usuário — renda independente do desempenho de investimento, nunca contabilizada como capital de risco na rentabilidade percentual (RF17, seção 3.7). |
 
 **Requisitos não funcionais adicionais**
 
@@ -386,7 +469,7 @@ Dado o prazo de ~2 meses com Claude Code e a preferência por não reduzir o esc
 - Eventos macro completos: motor, regras de defasagem preço↔fundamentos, catálogo inicial de 10 templates, painel administrativo (3.3).
 - Capital inicial padronizado (3.5) e ranking por janela fixa (seção 6).
 - Sandbox reaproveitando as tabelas reais com ativos isolados (3.1).
-- As 33 lições do currículo completo (5.1).
+- As 43 lições do currículo completo (5.1).
 - Sistema social completo: amizade bilateral com aceite, busca por `username`, visibilidade de perfil, ranking com escopo Global/Amigos (seção 8, RF18–RF20, RNF09).
 - Missões diárias formalizadas (`daily_missions`/`user_mission_progress`, seção 6.1, RF22).
 - Indicadores diferenciados por classe de ativo — Ações/ETFs/FIIs tijolo e papel (seção 3.6, RF21).
@@ -427,3 +510,5 @@ Dado o prazo de ~2 meses com Claude Code e a preferência por não reduzir o esc
 - **v0.3** — Adição do sistema social (seção 8): amizade bilateral com aceite, visibilidade de perfil, ranking com escopo Global/Amigos, requisitos formais RF18–RF20/RNF09. Incluído no MVP (seção 9) e distribuído nas semanas 5–6 do roadmap (seção 10). Bloqueio de usuários deferido para Fase 2.
 - **v0.4** — Simplificação da visibilidade de perfil (8.2): removida a opção de perfil privado/somente-amigos nesta fase — todo perfil é público por decisão explícita, sem campo `profile_visibility` no modelo de dados. Mantida a garantia de que o valor absoluto de patrimônio nunca é exposto (RNF09 revisado). Controle de privacidade configurável passa a candidato de Fase 2.
 - **v0.5** — Formalização de dois pontos que estavam pendentes: (1) missões diárias como extensão completa no MVP, com `daily_missions`/`user_mission_progress` e RF22 (seção 6.1); (2) indicadores por classe de ativo (seção 3.6, RF21) — Ações mantêm os indicadores fundamentalistas tradicionais; ETFs passam a exibir índice de referência, metodologia e composição sintética (`etf_details`/`etf_holdings`) em vez de indicadores de empresa; FIIs se dividem em tijolo (segmento, patrimônio, vacância) e papel (indexador), ambos com Dividend Yield e relação cota/valor patrimonial (`fii_details`). Ambos os pontos refletidos no corte de MVP e no roadmap (semanas 3, 5 e 6).
+- **v0.6** — Adição do salário mensal simulado (3.7, RF23): renda recorrente independente de investimento, crescendo em degraus sem teto com o nível de gamificação, paga no 5º dia útil do mês-calendário simulado — único mecanismo de injeção externa de capital além do depósito inicial (3.5). Exige recalcular a rentabilidade percentual (RF17, revisado) sobre capital de risco apenas (compras históricas líquidas de vendas/resgates/dividendos), excluindo caixa nunca investido, mas preservando lucro já realizado e guardado em caixa. Sem ranking por patrimônio absoluto — RNF09 mantido intocado. Novo tipo de evento `salary_payment` e campo `accounts.total_disinvested` (seção 4). Decisões fechadas com o autor em 2026-09-27, quebradas em 11 tarefas executáveis na Fase T de `backlog-motor-mercado-realista.md`.
+- **v0.7** — Revisão das trilhas e da UX (2026-10-03 a 2026-10-07, `backlog-revisao-trilhas-e-ux.md`, decisões D1 a D13): currículo de 35 para 43 lições (5.1), conteúdo em `blocks` com widgets e bloco "Na plataforma", fatos regulatórios versionados, regras do player (5.2), calendário com relevância "Para você" e escalonamento de proventos por ativo (políticas de dividendo, balanço por empresa, FIIs no mês real), donut do Portfólio interativo em R$ e a separação do Sandbox em faixa compacta que só aparece com posição (3.1).

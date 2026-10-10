@@ -1,0 +1,146 @@
+.trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.trigger:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-strong);
+}
+
+/* Mesmo padrão de overlay de "confirmação de ação importante"
+   (identidade-visual-padroes.md §7, `OrderConfirmationDialog`): bottom
+   sheet subindo de baixo em mobile/tablet, modal central em desktop. */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(6, 10, 20, 0.6);
+    animation: fadeIn 0.15s ease;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-6) var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--color-bg-surface-elevated);
+    animation: slideUp 0.2s ease;
+}
+
+@media (min-width: 1024px) {
+    .backdrop {
+        justify-content: center;
+        align-items: center;
+    }
+
+    .panel {
+        max-width: 360px;
+        border-radius: var(--radius-lg);
+        padding: var(--space-6);
+        animation: scaleIn 0.15s ease;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(16px);
+        opacity: 0;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.96);
+        opacity: 0;
+    }
+}
+
+.panelHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    flex: none;
+}
+
+.close:hover {
+    color: var(--color-text-primary);
+}
+
+.legend {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.legendLine {
+    width: 18px;
+    height: 3px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}
+
+.legendLineDashed {
+    width: 18px;
+    height: 0;
+    border-top: 2px dashed var(--color-border-strong);
+    flex-shrink: 0;
+}
+
+.legendDot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+}

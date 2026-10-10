@@ -14,13 +14,20 @@ export function AuthCallback() {
     const { login } = useAuth()
     const navigate = useNavigate()
     const [failed, setFailed] = useState(false)
+    // Login com Google de conta suspensa pelo painel (N.16): o backend redireciona com `#error=account_suspended`.
+    const [suspended, setSuspended] = useState(false)
     const handled = useRef(false)
 
     useEffect(() => {
         if (handled.current) return
         handled.current = true
 
-        const token = new URLSearchParams(window.location.hash.slice(1)).get('token')
+        const params = new URLSearchParams(window.location.hash.slice(1))
+        if (params.get('error') === 'account_suspended') {
+            setSuspended(true)
+            return
+        }
+        const token = params.get('token')
         if (!token) {
             setFailed(true)
             return
@@ -32,6 +39,14 @@ export function AuthCallback() {
         // login/cadastro por e-mail, nunca duplicada aqui.
         navigate('/', { replace: true })
     }, [login, navigate])
+
+    if (suspended) {
+        return (
+            <main>
+                <p>Sua conta está suspensa. Fale com o suporte para entender o motivo.</p>
+            </main>
+        )
+    }
 
     if (failed) {
         return (

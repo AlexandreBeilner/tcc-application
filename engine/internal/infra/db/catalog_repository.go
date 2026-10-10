@@ -9,6 +9,8 @@ import (
 	"tcc-investimentos/engine/internal/domain/etf"
 	"tcc-investimentos/engine/internal/domain/fii"
 	"tcc-investimentos/engine/internal/domain/fixedincome"
+	"tcc-investimentos/engine/internal/domain/fundamentals"
+	"tcc-investimentos/engine/internal/domain/simcalendar"
 )
 
 // listAssetsColumns é reaproveitada por ListAssets/FindAssetByID — mesma
@@ -61,13 +63,54 @@ func (r *CatalogRepository) FindCompanyByCNPJ(ctx context.Context, cnpj string) 
 }
 
 func (r *CatalogRepository) CreateCompany(ctx context.Context, c catalog.Company) (string, error) {
+	policy := c.DividendPolicy
+	if policy == "" {
+		policy = catalog.DividendQuarterly
+	}
 	var id string
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO companies (name, cnpj, sector, report_frequency_days)
-		 VALUES ($1, $2, $3, $4) RETURNING id`,
-		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays,
+		`INSERT INTO companies (name, cnpj, sector, report_frequency_days, base_growth_pct, quality_multiplier,
+		                        report_offset_days, dividend_policy, com_lag_days, payment_lag_days, schedule_assigned)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+		c.Name, c.CNPJ, string(c.Sector), c.ReportFrequencyDays, c.BaseGrowthPct, c.QualityMultiplier,
+		c.ReportOffsetDays, string(policy), c.ComLagDays, c.PaymentLagDays, c.ScheduleAssigned,
 	).Scan(&id)
 	return id, err
+}
+
+// AssignCompanyScheduleIfUnassigned (RC.6.7) grava a agenda de balanço e proventos derivada do
+// ticker numa empresa que ainda não recebeu uma (schedule_assigned = false), e só nela:
+// o seed idempotente leva empresas criadas antes da migration 000048 para a agenda escalonada
+// sem sobrescrever o que um admin tenha editado. Devolve se alterou. É dado cadastral, não
+// move saldo nem posição, então não passa por market_events.
+func (r *CatalogRepository) AssignCompanyScheduleIfUnassigned(ctx context.Context, id string, c catalog.Company) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE companies
+		    SET report_offset_days = $2, dividend_policy = $3, com_lag_days = $4, payment_lag_days = $5,
+		        schedule_assigned = true
+		  WHERE id = $1 AND schedule_assigned = false`,
+		id, c.ReportOffsetDays, string(c.DividendPolicy), c.ComLagDays, c.PaymentLagDays,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// AssignFIIScheduleIfUnassigned é o equivalente de AssignCompanyScheduleIfUnassigned para o dia
+// útil de pagamento do FII (fii_details.payout_business_day).
+func (r *CatalogRepository) AssignFIIScheduleIfUnassigned(ctx context.Context, assetID string, payoutBusinessDay int) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE fii_details SET payout_business_day = $2, schedule_assigned = true
+		  WHERE asset_id = $1 AND schedule_assigned = false`,
+		assetID, payoutBusinessDay,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // FindAssetByTicker devolve o id do ativo já cadastrado com este ticker,
@@ -140,8 +183,8 @@ func (r *CatalogRepository) CreateETFDetails(ctx context.Context, assetID string
 
 	for _, h := range details.Holdings {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO etf_holdings (etf_asset_id, constituent_name, weight_pct) VALUES ($1, $2, $3)`,
-			assetID, h.ConstituentName, h.WeightPct,
+			`INSERT INTO etf_holdings (etf_asset_id, constituent_name, asset_id, weight_pct) VALUES ($1, $2, $3, $4)`,
+			assetID, h.ConstituentName, h.AssetID, h.WeightPct,
 		); err != nil {
 			return err
 		}
@@ -150,13 +193,114 @@ func (r *CatalogRepository) CreateETFDetails(ctx context.Context, assetID string
 	return tx.Commit()
 }
 
+// ReplaceETFHoldings troca a composição de um ETF já existente pela de
+// details, na mesma transação — usado pelo seed (tarefa R.1) pra migrar a
+// cesta antiga do SINT11, que tinha renda fixa, para uma cesta só de Ação e
+// FII num banco que já rodava antes da Fase R. Quem chama já validou details
+// por etf.NewDetails.
+func (r *CatalogRepository) ReplaceETFHoldings(ctx context.Context, assetID string, details etf.Details) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM etf_holdings WHERE etf_asset_id = $1`, assetID); err != nil {
+		return err
+	}
+	for _, h := range details.Holdings {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO etf_holdings (etf_asset_id, constituent_name, asset_id, weight_pct) VALUES ($1, $2, $3, $4)`,
+			assetID, h.ConstituentName, h.AssetID, h.WeightPct,
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// FindETFFundAccountID devolve a conta de fundo do ETF (etf_details.
+// fund_account_id, tarefa R.1). found = false quando o ETF não existe ou ainda
+// não tem fundo ligado (banco anterior à migration 000026, antes do seed).
+func (r *CatalogRepository) FindETFFundAccountID(ctx context.Context, assetID string) (string, bool, error) {
+	var fundAccountID sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT fund_account_id FROM etf_details WHERE asset_id = $1`, assetID,
+	).Scan(&fundAccountID)
+	if err == sql.ErrNoRows || (err == nil && !fundAccountID.Valid) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return fundAccountID.String, true, nil
+}
+
+// AttachETFFundAccount liga a conta de fundo (já criada em accounts) ao ETF e,
+// se outstanding_shares ainda é NULL, fixa o número de cotas na soma das
+// posições existentes (zero num ETF sem ninguém posicionado) — o total de cotas
+// em posições passa a ser sempre igual a outstanding_shares (R.2). Idempotente:
+// não mexe em cotas já definidas.
+func (r *CatalogRepository) AttachETFFundAccount(ctx context.Context, assetID, fundAccountID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE etf_details SET fund_account_id = $2 WHERE asset_id = $1`, assetID, fundAccountID,
+	); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE variable_income_assets
+		 SET outstanding_shares = (SELECT COALESCE(SUM(quantity), 0) FROM positions WHERE asset_id = $1)
+		 WHERE asset_id = $1 AND outstanding_shares IS NULL`, assetID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *CatalogRepository) CreateFIIDetails(ctx context.Context, assetID string, details fii.Details) error {
+	payoutDay, assigned := details.PayoutBusinessDay, true
+	if payoutDay == 0 {
+		payoutDay, assigned = fii.DefaultPayoutBusinessDay, false
+	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		`INSERT INTO fii_details (asset_id, fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value,
+		                          payout_business_day, schedule_assigned)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		assetID, string(details.Type), details.Segment, details.NetWorth, details.VacancyRate, details.Indexador, details.PortfolioValue,
+		payoutDay, assigned,
 	)
 	return err
+}
+
+// RecalibrateFIIBaseValueIfNeverQuoted (tarefa U.5) grava o valor-base inicial
+// do FII (net_worth no tijolo, portfolio_value no papel) só se o ativo ainda
+// não tem nenhuma cotação (asset_quotes): um volume que já rodou ticks teve o
+// valor-base evoluído pelo motor (Selic, ruído), e sobrescrevê-lo apagaria
+// histórico de fundamento. Devolve se alterou. É dado de fundamento, não move
+// saldo nem posição, então não passa por market_events.
+func (r *CatalogRepository) RecalibrateFIIBaseValueIfNeverQuoted(ctx context.Context, assetID string, baseValue float64) (bool, error) {
+	// $2 é arredondado a 2 casas (escala das colunas numeric): sem isso a
+	// comparação com o valor já gravado nunca bate e a chamada nunca é idempotente.
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE fii_details
+		    SET net_worth = CASE WHEN fii_type = 'tijolo' THEN ROUND($2::numeric, 2) ELSE net_worth END,
+		        portfolio_value = CASE WHEN fii_type = 'papel' THEN ROUND($2::numeric, 2) ELSE portfolio_value END
+		  WHERE asset_id = $1
+		    AND NOT EXISTS (SELECT 1 FROM asset_quotes WHERE asset_id = $1)
+		    AND ((fii_type = 'tijolo' AND net_worth IS DISTINCT FROM ROUND($2::numeric, 2))
+		      OR (fii_type = 'papel' AND portfolio_value IS DISTINCT FROM ROUND($2::numeric, 2)))`,
+		assetID, baseValue)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // ListAssets devolve os ativos do catálogo, opcionalmente filtrados por
@@ -205,16 +349,28 @@ func (r *CatalogRepository) FindAssetByID(ctx context.Context, id string) (catal
 }
 
 // FindFixedIncomeSpecialization devolve a especialização de renda fixa de
-// assetID, se existir — usado por GET /assets/:id pra ativos de renda fixa
-// (tarefa 3.10, RF21).
+// assetID, se existir — usado por GET /assets/:id (tela 3.10, RF21) e por
+// GET /fixed-income/simulate (handleFixedIncomeSimulate), os dois únicos
+// consumidores de InterestRate fora da compra/resgate real. InterestRate
+// (tarefa L.4) deixa de ser sempre o dado cru do catálogo pra Prefixado/
+// IPCA+: reprecificaOfertaParaExibicao (abaixo) devolve a mesma taxa
+// ofertada hoje que fixedincomeexecution.Purchase travaria numa compra
+// nova (fixedincome.OfferedRate/FisherRealRate — mesmas fórmulas, mesma
+// fonte de Selic/IPCA), garantindo que listagem/simulador nunca mostrem um
+// número diferente do que a compra de verdade cobraria. Pós-fixado e
+// sandbox não passam por essa reprecificação (nota do doc de
+// reprecificarOfertaParaExibicao).
 func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, assetID string) (catalog.FixedIncomeSpecialization, bool, error) {
 	var spec catalog.FixedIncomeSpecialization
 	var issuerType string
 	var creditRiskRating sql.NullString
+	var productType string
+	var isSandbox bool
 	err := r.db.QueryRowContext(ctx,
-		`SELECT interest_rate, maturity_date, issuer_type, tax_exempt, credit_risk_rating, minimum_investment
-		 FROM fixed_income_assets WHERE asset_id = $1`, assetID,
-	).Scan(&spec.InterestRate, &spec.MaturityDate, &issuerType, &spec.TaxExempt, &creditRiskRating, &spec.MinimumInvestment)
+		`SELECT fia.interest_rate, fia.maturity_date, fia.issuer_type, fia.tax_exempt, fia.credit_risk_rating, fia.minimum_investment, a.type, a.is_sandbox
+		 FROM fixed_income_assets fia JOIN assets a ON a.id = fia.asset_id
+		 WHERE fia.asset_id = $1`, assetID,
+	).Scan(&spec.InterestRate, &spec.MaturityDate, &issuerType, &spec.TaxExempt, &creditRiskRating, &spec.MinimumInvestment, &productType, &isSandbox)
 	if err == sql.ErrNoRows {
 		return catalog.FixedIncomeSpecialization{}, false, nil
 	}
@@ -225,7 +381,70 @@ func (r *CatalogRepository) FindFixedIncomeSpecialization(ctx context.Context, a
 	if creditRiskRating.Valid {
 		spec.CreditRiskRating = &creditRiskRating.String
 	}
+	if !isSandbox && spec.InterestRate != nil {
+		if offered, ok, err := r.reprecificarOfertaParaExibicao(ctx, fixedincome.ProductType(productType), *spec.InterestRate); err != nil {
+			return catalog.FixedIncomeSpecialization{}, false, err
+		} else if ok {
+			spec.InterestRate = &offered
+		}
+	}
 	return spec, true, nil
+}
+
+// CurrentSelicRatePct devolve a Selic simulada corrente (%), lida de
+// market_calendar — exposta como método público (em vez de só o helper
+// pacote-privado currentSelicRatePct) pra handleFixedIncomeSimulate
+// (achado do teste de ponta a ponta da Fase L, httpserver/fixedincome.go)
+// poder projetar produto pós-fixado sem duplicar a query. ok = false (sem
+// erro) antes do primeiro tick do Temporizador — mesmo contrato de
+// currentSelicRatePct.
+func (r *CatalogRepository) CurrentSelicRatePct(ctx context.Context) (float64, bool, error) {
+	return currentSelicRatePct(ctx, r.db)
+}
+
+// CurrentSimulatedDay devolve market_calendar.current_day (0 antes do primeiro
+// tick) — o "agora" das leituras de catálogo que dependem de tempo (ex:
+// Dividend Yield dos últimos 12 meses simulados, tarefa S.1).
+func (r *CatalogRepository) CurrentSimulatedDay(ctx context.Context) (int, error) {
+	return loadSimulatedDay(ctx, r.db)
+}
+
+// reprecificarOfertaParaExibicao aplica fixedincome.OfferedRate/
+// FisherRealRate (tarefa L.4) sobre o spread do catálogo (spreadPct),
+// mesma fórmula que fixedincomeexecution.Purchase usa pra travar a taxa
+// contratada de uma compra nova — só pra Prefixado (benchmark = Selic
+// nominal corrente) e IPCA+ (benchmark = taxa real via Fisher, Selic
+// nominal + IPCA acumulado em 12 meses, M.1). Pós-fixado (spread já é "%
+// do CDI", L.1 — sem benchmark a somar) devolve ok=false, sem reprecificar
+// — spec.InterestRate fica com o valor cru do catálogo. ok=false também
+// quando o Temporizador ainda não rodou nenhum tick (currentSelicRatePct/
+// currentIPCAAccumulated12m sem linha) — diferente de Purchase/Redeem
+// (que tratam essa falta de precondição como erro via
+// ErrMarketCalendarNotInitialized), aqui é só exibição: melhor mostrar o
+// spread cru do que devolver 500 numa tela de listagem antes do primeiro
+// tick.
+func (r *CatalogRepository) reprecificarOfertaParaExibicao(ctx context.Context, productType fixedincome.ProductType, spreadPct float64) (float64, bool, error) {
+	switch {
+	case fixedincome.IsPrefixado(productType):
+		selic, ok, err := currentSelicRatePct(ctx, r.db)
+		if err != nil || !ok {
+			return 0, false, err
+		}
+		return fixedincome.OfferedRate(spreadPct/100, selic/100) * 100, true, nil
+	case fixedincome.IsIPCAMais(productType):
+		selic, ok, err := currentSelicRatePct(ctx, r.db)
+		if err != nil || !ok {
+			return 0, false, err
+		}
+		accumulated, ok, err := currentIPCAAccumulated12m(ctx, r.db)
+		if err != nil || !ok {
+			return 0, false, err
+		}
+		realBenchmark := fixedincome.FisherRealRate(selic/100, accumulated)
+		return fixedincome.OfferedRate(spreadPct/100, realBenchmark) * 100, true, nil
+	default:
+		return 0, false, nil
+	}
 }
 
 // FindEquitySpecialization devolve a especialização de ação de assetID
@@ -271,7 +490,7 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 	}
 
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT constituent_name, weight_pct FROM etf_holdings WHERE etf_asset_id = $1 ORDER BY weight_pct DESC`, assetID,
+		`SELECT constituent_name, asset_id, weight_pct FROM etf_holdings WHERE etf_asset_id = $1 ORDER BY weight_pct DESC`, assetID,
 	)
 	if err != nil {
 		return etf.Details{}, false, err
@@ -281,8 +500,12 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 	var holdings []etf.Holding
 	for rows.Next() {
 		var h etf.Holding
-		if err := rows.Scan(&h.ConstituentName, &h.WeightPct); err != nil {
+		var holdingAssetID sql.NullString
+		if err := rows.Scan(&h.ConstituentName, &holdingAssetID, &h.WeightPct); err != nil {
 			return etf.Details{}, false, err
+		}
+		if holdingAssetID.Valid {
+			h.AssetID = &holdingAssetID.String
 		}
 		holdings = append(holdings, h)
 	}
@@ -297,14 +520,36 @@ func (r *CatalogRepository) FindETFDetails(ctx context.Context, assetID string) 
 	}, true, nil
 }
 
+// FindLatestETFNAV devolve o NAV mais recente do ETF e as cotas emitidas
+// (tarefa R.3). found = false enquanto o ETF não tem NAV (sem emissão ou antes
+// do primeiro tick depois dela).
+func (r *CatalogRepository) FindLatestETFNAV(ctx context.Context, assetID string) (catalog.ETFNAV, bool, error) {
+	var n catalog.ETFNAV
+	err := r.db.QueryRowContext(ctx,
+		`SELECT h.simulated_day, h.nav, h.premium_pct, h.tracking_error_pct, via.outstanding_shares
+		 FROM etf_nav_history h JOIN variable_income_assets via ON via.asset_id = h.etf_asset_id
+		 WHERE h.etf_asset_id = $1 ORDER BY h.simulated_day DESC LIMIT 1`, assetID,
+	).Scan(&n.SimulatedDay, &n.NAV, &n.PremiumPct, &n.TrackingErrorPct, &n.OutstandingShares)
+	if err == sql.ErrNoRows {
+		return catalog.ETFNAV{}, false, nil
+	}
+	if err != nil {
+		return catalog.ETFNAV{}, false, err
+	}
+	return n, true, nil
+}
+
 // FindFIIDetails devolve fii_details de assetID, se existir — usado por GET
 // /assets/:id pra ativos type = 'fii' (tarefa 3.10, RF21).
 func (r *CatalogRepository) FindFIIDetails(ctx context.Context, assetID string) (fii.Details, bool, error) {
 	var d fii.Details
 	var fiiType string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT fii_type, segment, net_worth, vacancy_rate, indexador, portfolio_value FROM fii_details WHERE asset_id = $1`, assetID,
-	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue)
+		`SELECT f.fii_type, f.segment, f.net_worth, f.vacancy_rate, f.indexador, f.portfolio_value, v.outstanding_shares
+		   FROM fii_details f
+		   LEFT JOIN variable_income_assets v ON v.asset_id = f.asset_id
+		  WHERE f.asset_id = $1`, assetID,
+	).Scan(&fiiType, &d.Segment, &d.NetWorth, &d.VacancyRate, &d.Indexador, &d.PortfolioValue, &d.OutstandingShares)
 	if err == sql.ErrNoRows {
 		return fii.Details{}, false, nil
 	}
@@ -531,6 +776,48 @@ func (r *CatalogRepository) FindLatestFundamentals(ctx context.Context, companyI
 		return catalog.FundamentalsSnapshot{}, false, err
 	}
 	return f, true, nil
+}
+
+// sqlExecer é o subconjunto de *sql.DB/*sql.Tx que insertCompanyFundamentals
+// precisa — deixa a mesma query reaproveitável fora (CreateInitialFundamentals,
+// sem transação) e dentro (TickRepository.SaveTick, tick_repository.go,
+// dentro da transação do tick) de uma transação, sem duplicar o SQL.
+type sqlExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// insertCompanyFundamentals grava uma linha nova de company_fundamentals —
+// única fonte do INSERT (mesmas 8 colunas, mesma ordem) usada tanto por
+// CreateInitialFundamentals (achado de review: estava duplicado à mão aqui e
+// em TickRepository.SaveTick, tick_repository.go) quanto pelo ciclo diário
+// de relatório do Temporizador.
+func insertCompanyFundamentals(ctx context.Context, exec sqlExecer, companyID string, periodDate time.Time, f fundamentals.Financials) error {
+	_, err := exec.ExecContext(ctx,
+		`INSERT INTO company_fundamentals (company_id, period_date, net_revenue, net_income, ebit, net_equity, gross_debt, cash_equivalents)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		companyID, periodDate, f.NetRevenue, f.NetIncome, f.EBIT, f.NetEquity, f.GrossDebt, f.CashEquivalents,
+	)
+	return err
+}
+
+// CreateInitialFundamentals grava a primeira linha de company_fundamentals
+// de uma empresa fora do ciclo do Temporizador (achado da sessão D.2, seed)
+// — sem isso, uma empresa recém-cadastrada cai no fallback genérico
+// fundamentals.DefaultBaseRevenue (calibrado pra uma empresa pequena
+// qualquer, nunca contra o outstanding_shares real de um ativo específico
+// do catálogo) até o primeiro dia de relatório dela, produzindo um preço
+// justo (bot.FundamentalistFairPrice, Fase D.2) sem nenhuma relação com o
+// preço de mercado seedado. period_date é a data do dia simulado
+// corrente (mesma convenção de SaveTick/company_fundamentals). Não passa por Event
+// Sourcing (mesmo raciocínio de dado cadastral já documentado no resto
+// deste arquivo). Chame só depois de confirmar via FindLatestFundamentals
+// que a empresa ainda não tem nenhum ciclo — não é idempotente sozinha.
+func (r *CatalogRepository) CreateInitialFundamentals(ctx context.Context, companyID string, f fundamentals.Financials) error {
+	today, err := loadSimulatedDay(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	return insertCompanyFundamentals(ctx, r.db, companyID, simcalendar.DateOf(today), f)
 }
 
 // ListDividendHistory devolve o histórico de dividend_events de assetID,

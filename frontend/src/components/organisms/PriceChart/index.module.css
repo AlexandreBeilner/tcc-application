@@ -40,7 +40,7 @@
 /* Camada recortada à parte do hover (guia/tooltip abaixo) — se o
    `overflow: hidden` ficasse no mesmo elemento que a linha-guia/tooltip, um
    ponto perto da borda cortaria o próprio tooltip (mesma convenção de
-   `TrackChart.chartBg`). */
+   `GrowthChart.canvas`). */
 .canvas {
     position: absolute;
     inset: 0;

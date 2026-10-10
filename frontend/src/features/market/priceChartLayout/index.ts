@@ -3,10 +3,11 @@ import type { PriceChartLayout } from './types'
 
 export type { PriceChartLayout, PriceChartPoint } from './types'
 
-// Unidades virtuais do sparkline de preço (tela 4.5) — mesma convenção de
-// `features/lessons/trackChartLayout`: o componente escala isso pra 100%
-// do container via viewBox, então o mesmo layout serve pro card estreito
-// do mobile e pro card largo do desktop (identidade-visual-padroes.md §7).
+// Unidades virtuais do sparkline de preço (tela 4.5) — mesma convenção dos
+// motores de layout da Trilha (`features/lessons/trackPathLayout`): o
+// componente escala isso pra 100% do container via viewBox, então o mesmo
+// layout serve pro card estreito do mobile e pro card largo do desktop
+// (identidade-visual-padroes.md §7).
 export const PRICE_CHART_WIDTH = 1000
 export const PRICE_CHART_HEIGHT = 400
 

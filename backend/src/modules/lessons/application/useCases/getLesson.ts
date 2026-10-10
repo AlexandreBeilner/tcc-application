@@ -1,5 +1,5 @@
 import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
-import { buildLessonView, type LessonView } from '../../domain/lesson'
+import { buildLessonView, buildProgression, type LessonView } from '../../domain/lesson'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface GetLessonInput {
@@ -16,10 +16,16 @@ export class GetLessonUseCase {
       throw new LessonNotFoundError('lição não encontrada')
     }
 
-    const progress = await this.lessonRepository.listProgressForUser(input.userId)
-    const completedCount = progress.filter((p) => p.completedAt !== null).length
+    const [lessons, progress] = await Promise.all([
+      this.lessonRepository.listAll(),
+      this.lessonRepository.listProgressForUser(input.userId),
+    ])
     const own = progress.find((p) => p.lessonId === input.lessonId)
-    const view = buildLessonView(lesson, own, completedCount)
+    const checkpoints = await this.lessonRepository.listCheckpointsForUser(
+      input.userId,
+      input.lessonId,
+    )
+    const view = buildLessonView(lesson, own, buildProgression(lessons, progress), checkpoints)
 
     // Lição bloqueada nunca é exposta em detalhe (tela 3.2) — mesmo status
     // 404 de "não encontrada", pra não distinguir "não existe" de

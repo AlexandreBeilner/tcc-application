@@ -8,7 +8,7 @@ vi.mock('../../../services/auth', () => ({
     getCurrentUser: vi.fn(),
 }))
 
-const TOKEN_STORAGE_KEY = 'tcc.auth.token'
+const TOKEN_STORAGE_KEY = 'app.auth.token'
 
 function Consumer() {
     const { token, user, isLoading, login, logout } = useAuth()

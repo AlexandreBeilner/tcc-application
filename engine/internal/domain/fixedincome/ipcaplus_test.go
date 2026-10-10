@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"tcc-investimentos/engine/internal/domain/ipca"
 )
 
 func TestVNAMonthlySeries_Composicao(t *testing.T) {
@@ -146,4 +148,165 @@ func TestTaxaRealPermaneceInalteradaApenasVNAAtualiza(t *testing.T) {
 	// chamada a IPCAQuote em ambas usa exatamente annualRealRate, a mesma
 	// constante — não há como o teste "trapacear" recalculando uma taxa
 	// diferente, o que já comprova estruturalmente o critério de aceite.
+}
+
+func TestMonthsBetween(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b time.Time
+		want int
+	}{
+		{"mesmo mês", date(2026, time.March, 15), date(2026, time.March, 15), 0},
+		{"mês seguinte", date(2026, time.March, 15), date(2026, time.April, 15), 1},
+		{"vira o ano", date(2026, time.November, 15), date(2027, time.January, 15), 2},
+		{"vários anos", date(2000, time.July, 15), date(2026, time.July, 15), 26 * 12},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := monthsBetween(tt.a, tt.b); got != tt.want {
+				t.Errorf("monthsBetween(%v, %v) = %d, want %d", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
+// ipcaTestConfig usa Volatility = 0 (série sem ruído, sempre exatamente
+// MonthlyTarget — ver ipca.TestMonthlySeries_SemRuidoFicaExatamenteNaMeta)
+// pra deixar os testes de CurrentVNAWindow determinísticos por construção,
+// sem depender da seed.
+var ipcaTestConfig = ipca.Config{MonthlyTarget: 0.004, MaxDeviation: 0.01, Volatility: 0, Seed: 1}
+
+// TestCurrentVNAWindow_NaJanelaDaEpocaDevolveFaceValue confere o caso-base:
+// `now` ainda dentro da primeira janela (entre VNAEpoch e o mês seguinte) —
+// vnaBase é o próprio FaceValue (nenhum mês fechou ainda desde a
+// data-base), monthlyIPCA é o IPCA do primeiro mês da série.
+func TestCurrentVNAWindow_NaJanelaDaEpocaDevolveFaceValue(t *testing.T) {
+	now := VNAEpoch.AddDate(0, 0, 10) // ainda dentro da janela [VNAEpoch, VNAEpoch+1 mês)
+
+	vnaBase, monthlyIPCA := CurrentVNAWindow(ipcaTestConfig, now)
+
+	if vnaBase != FaceValue {
+		t.Errorf("vnaBase = %v, want %v (nenhum mês fechado ainda desde VNAEpoch)", vnaBase, FaceValue)
+	}
+	wantIPCA := ipca.MonthlySeries(ipcaTestConfig, 1)[0]
+	if monthlyIPCA != wantIPCA {
+		t.Errorf("monthlyIPCA = %v, want %v", monthlyIPCA, wantIPCA)
+	}
+}
+
+// TestCurrentVNAWindow_ConsistenteComVNAMonthlySeries confere que, N meses
+// depois de VNAEpoch, CurrentVNAWindow devolve exatamente o VNA que
+// VNAMonthlySeries computaria encadeando a mesma série de IPCA — a fórmula
+// não pode divergir do jeito "manual" de compor o VNA mês a mês.
+func TestCurrentVNAWindow_ConsistenteComVNAMonthlySeries(t *testing.T) {
+	const windowIndex = 5
+	base := VNAEpoch.AddDate(0, windowIndex, 0)
+	now := base.AddDate(0, 0, 3) // dentro da janela que começa em `base`
+
+	series := ipca.MonthlySeries(ipcaTestConfig, windowIndex+1)
+	vnas := VNAMonthlySeries(FaceValue, series[:windowIndex])
+	wantVNABase := vnas[windowIndex-1]
+	wantMonthlyIPCA := series[windowIndex]
+
+	gotVNABase, gotMonthlyIPCA := CurrentVNAWindow(ipcaTestConfig, now)
+
+	if math.Abs(gotVNABase-wantVNABase) > 1e-9 {
+		t.Errorf("vnaBase = %v, want %v", gotVNABase, wantVNABase)
+	}
+	if gotMonthlyIPCA != wantMonthlyIPCA {
+		t.Errorf("monthlyIPCA = %v, want %v", gotMonthlyIPCA, wantMonthlyIPCA)
+	}
+}
+
+// TestCurrentVNAWindow_Deterministico confere RNF08: a mesma cfg e a mesma
+// data sempre devolvem o mesmo par (vnaBase, monthlyIPCA) — nenhum estado
+// mutável entre chamadas (a série inteira é recomputada a cada chamada a
+// partir de VNAEpoch).
+func TestCurrentVNAWindow_Deterministico(t *testing.T) {
+	now := VNAEpoch.AddDate(1, 3, 0)
+
+	vnaBaseA, ipcaA := CurrentVNAWindow(ipcaTestConfig, now)
+	vnaBaseB, ipcaB := CurrentVNAWindow(ipcaTestConfig, now)
+
+	if vnaBaseA != vnaBaseB || ipcaA != ipcaB {
+		t.Errorf("chamadas repetidas divergiram: (%v, %v) != (%v, %v)", vnaBaseA, ipcaA, vnaBaseB, ipcaB)
+	}
+}
+
+// TestCurrentVNAWindow_VNACresceComOTempo confere o núcleo do critério de
+// aceite da L.2: o VNA usado pra precificar Tesouro IPCA+ reage à inflação
+// simulada acumulada, não fica parado num valor único — com IPCA positivo
+// (ipcaTestConfig.MonthlyTarget > 0, sem ruído), o VNA num instante mais
+// distante de VNAEpoch tem que ser estritamente maior.
+func TestCurrentVNAWindow_VNACresceComOTempo(t *testing.T) {
+	cedo, _ := CurrentVNAWindow(ipcaTestConfig, VNAEpoch.AddDate(0, 2, 0))
+	tarde, _ := CurrentVNAWindow(ipcaTestConfig, VNAEpoch.AddDate(2, 0, 0))
+
+	if !(tarde > cedo) {
+		t.Errorf("vnaBase não cresceu com o tempo: cedo (2 meses) = %v, tarde (24 meses) = %v", cedo, tarde)
+	}
+}
+
+// TestCurrentVNAWindow_ProjecaoUsaOVNAJaComposto confere que VNAProjected,
+// alimentado pelo par que CurrentVNAWindow devolve, produz um VNA "de hoje"
+// maior que o FaceValue original depois de vários meses de inflação
+// simulada acumulada — a ponta a ponta da composição
+// CurrentVNAWindow → VNAProjected que Purchase/Redeem (fixedincomeexecution)
+// usam de verdade.
+func TestCurrentVNAWindow_ProjecaoUsaOVNAJaComposto(t *testing.T) {
+	now := VNAEpoch.AddDate(3, 0, 0)
+	vnaBase, monthlyIPCA := CurrentVNAWindow(ipcaTestConfig, now)
+
+	vnaHoje := VNAProjected(vnaBase, monthlyIPCA, now)
+	if !(vnaHoje > FaceValue) {
+		t.Errorf("VNAProjected = %v, want > FaceValue (%v) depois de 3 anos de IPCA positivo", vnaHoje, FaceValue)
+	}
+}
+
+// Cenário comum aos testes de IPCAEarlyRedemption: título IPCA+ comprado
+// com taxa real de 6% a.a. e prazo de 252 DU, resgatado na metade (126 DU
+// restantes) — só a taxa de mercado real no dia do resgate varia, mesmo
+// raciocínio de purchaseRate/purchaseTerm/remainingTerm (markingtomarket_
+// test.go), mas sobre VNA em vez de Valor Nominal fixo.
+const ipcaPurchaseRealRate = 0.06
+
+var (
+	ipcaVNAAtPurchase = 1200.0 // VNA hipotético no dia da compra
+	ipcaPurchasePrice = IPCAPrice(ipcaVNAAtPurchase, IPCAQuote(ipcaPurchaseRealRate, purchaseTerm))
+)
+
+func TestIPCAEarlyRedemption_TaxaRealSubiu_RentabilidadeInferiorAContratada(t *testing.T) {
+	vnaNow := ipcaVNAAtPurchase // VNA parado só pra isolar o efeito da taxa
+	got := IPCAEarlyRedemption(ipcaPurchasePrice, ipcaPurchaseRealRate, 0.09, vnaNow, remainingTerm)
+
+	if got.VsContractedRate >= 0 {
+		t.Errorf("VsContractedRate = %v, want negativo (taxa real de mercado subiu)", got.VsContractedRate)
+	}
+}
+
+func TestIPCAEarlyRedemption_TaxaRealCaiu_GanhoExtraordinario(t *testing.T) {
+	vnaNow := ipcaVNAAtPurchase
+	got := IPCAEarlyRedemption(ipcaPurchasePrice, ipcaPurchaseRealRate, 0.03, vnaNow, remainingTerm)
+
+	if got.VsContractedRate <= 0 {
+		t.Errorf("VsContractedRate = %v, want positivo (ganho extraordinário)", got.VsContractedRate)
+	}
+}
+
+// TestIPCAEarlyRedemption_VNAMaiorAumentaOPrecoMesmoComTaxaInalterada
+// confere a diferença estrutural pro Prefixado (markingtomarket.go): o
+// preço de um IPCA+ pode subir mesmo com a taxa real de mercado igual à
+// contratada, se o VNA cresceu (inflação acumulada) — algo que
+// EarlyRedemption (Valor Nominal fixo) nunca poderia expressar.
+func TestIPCAEarlyRedemption_VNAMaiorAumentaOPrecoMesmoComTaxaInalterada(t *testing.T) {
+	semInflacao := IPCAEarlyRedemption(ipcaPurchasePrice, ipcaPurchaseRealRate, ipcaPurchaseRealRate, ipcaVNAAtPurchase, remainingTerm)
+	comInflacao := IPCAEarlyRedemption(ipcaPurchasePrice, ipcaPurchaseRealRate, ipcaPurchaseRealRate, ipcaVNAAtPurchase*1.05, remainingTerm)
+
+	if !(comInflacao.MarkToMarketPrice > semInflacao.MarkToMarketPrice) {
+		t.Errorf("MarkToMarketPrice com VNA maior (%v) não superou o cenário sem inflação (%v)", comInflacao.MarkToMarketPrice, semInflacao.MarkToMarketPrice)
+	}
+	if math.Abs(semInflacao.VsContractedRate) >= 1e-6 {
+		t.Errorf("VsContractedRate (sem inflação, taxa inalterada) = %v, want ≈0", semInflacao.VsContractedRate)
+	}
 }

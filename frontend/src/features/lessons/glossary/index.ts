@@ -1,16 +1,374 @@
-// Catálogo estático (tarefa C.1 do backlog de engajamento) — mesmo espírito
-// de `engine/internal/domain/macroevent/templates.go`: dado fixo em código,
-// não tabela de banco. Cobre termos hoje reexplicados por extenso em mais de
-// uma lição de `backend/src/db/seedLessons.ts`; a chave é o texto exato
-// usado entre chaves duplas no conteúdo, ex. `{{FGC}}`.
-export const glossary: Record<string, string> = {
-    FGC: 'Fundo Garantidor de Créditos: cobre CDB, LCI e LCA em até R$250.000,00 por CPF e por instituição financeira, mesmo que o emissor quebre.',
-    'marcação a mercado':
-        'Recálculo diário do preço de um título prefixado pela taxa de mercado vigente, que pode ficar acima ou abaixo do que a taxa contratada renderia até aquele dia.',
-    deságio:
-        'Diferença entre o valor de face de um título prefixado e o preço menor que você paga por ele hoje; é essa diferença que forma a rentabilidade contratada.',
-    'taxa bruta equivalente':
-        'Taxa que um produto tributado precisaria pagar pra empatar, líquido de IR, com um produto isento: taxa isenta dividida por (1 menos a alíquota).',
-    EBIT: 'Lucro operacional da empresa, antes de descontar juros e impostos.',
-    'Dividend Yield': 'Soma dos dividendos pagos por ação ou cota nos últimos 12 meses, dividida pelo preço atual.',
+// Catálogo estático (tarefas C.1 do backlog de engajamento e RC.3.5 do de
+// revisão): dado fixo em código, não tabela de banco. A chave é o texto exato
+// usado entre chaves duplas no conteúdo, ex. `{{FGC}}`. `definition` é a frase
+// curta do popover; `example` só aparece na página de glossário;
+// `originLesson` é o código da lição que ensina o termo (ausente enquanto a
+// lição que vai defini-lo não existe, ver RC.4.1/RC.4.2). Texto de aprendizado
+// segue `.claude/diretrizes-redacao-licoes.md` (sem mecânica da plataforma).
+export interface GlossaryEntry {
+    definition: string
+    example?: string
+    originLesson?: string
+}
+
+export const glossary: Record<string, GlossaryEntry> = {
+    FGC: {
+        definition:
+            'Fundo Garantidor de Créditos: cobre CDB, LCI e LCA em até R$250.000,00 por CPF e por instituição financeira, mesmo que o emissor quebre.',
+        originLesson: '1.5',
+    },
+    'marcação a mercado': {
+        definition:
+            'Recálculo diário do preço de um título prefixado pela taxa de mercado vigente, que pode ficar acima ou abaixo do que a taxa contratada renderia até aquele dia.',
+        originLesson: '1.9',
+    },
+    deságio: {
+        definition:
+            'Diferença entre o valor de face de um título prefixado e o preço menor que você paga por ele hoje; é essa diferença que forma a rentabilidade contratada.',
+        example: 'Um título de face R$1.000,00 comprado por R$900,00 tem deságio de R$100,00.',
+        originLesson: '1.8',
+    },
+    'taxa bruta equivalente': {
+        definition:
+            'Taxa que um produto tributado precisaria pagar pra empatar, líquido de IR, com um produto isento: taxa isenta dividida por (1 menos a alíquota).',
+        example: 'Uma LCI isenta de 9% ao ano equivale a um CDB tributado a 15% de IR pagando 9 / 0,85, cerca de 10,59% ao ano.',
+        originLesson: '1.7',
+    },
+    EBIT: { definition: 'Lucro operacional da empresa, antes de descontar juros e impostos.', originLesson: '2.7.1' },
+    'receita líquida': {
+        definition: 'Tudo o que a empresa vendeu no período, já sem os impostos sobre a venda.',
+        originLesson: '2.7.1',
+    },
+    'lucro líquido': {
+        definition: 'O que sobra da receita depois de descontar custos, despesas, juros e impostos.',
+        originLesson: '2.7.1',
+    },
+    'patrimônio líquido': {
+        definition: 'Valor contábil dos sócios: o que a empresa tem menos o que ela deve. Não é o valor dela na bolsa.',
+        example: 'Bens e direitos de R$900 milhões e dívidas de R$600 milhões dão patrimônio líquido de R$300 milhões.',
+        originLesson: '2.7.1',
+    },
+    margem: {
+        definition: 'Lucro de uma etapa do resultado dividido pela receita líquida. Mostra quanto de cada real vendido vira lucro.',
+        example: 'Receita de R$800 milhões e EBIT de R$120 milhões dão margem EBIT de 15%.',
+        originLesson: '2.7.2',
+    },
+    'dívida líquida': {
+        definition: 'Dívida bruta menos o caixa. Pode ser negativa quando a empresa tem mais dinheiro guardado do que deve.',
+        originLesson: '2.7.3',
+    },
+    LPA: {
+        definition: 'Lucro por ação: lucro líquido dividido pelo número de ações da empresa.',
+        originLesson: '2.7.5',
+    },
+    VPA: {
+        definition: 'Valor patrimonial por ação: patrimônio líquido dividido pelo número de ações da empresa.',
+        originLesson: '2.7.5',
+    },
+    'Dividend Yield': {
+        definition: 'Soma dos dividendos pagos por ação ou cota nos últimos 12 meses, dividida pelo preço atual.',
+        example: 'R$3,00 de dividendos em 12 meses sobre uma ação de R$50,00 dá Dividend Yield de 6%.',
+        originLesson: '2.7.7',
+    },
+    Selic: {
+        definition:
+            'Taxa básica de juros da economia brasileira. O Copom, do Banco Central, define a meta, e a Selic efetiva é a média das operações de um dia com títulos públicos. Serve de referência para a renda fixa e o crédito.',
+        originLesson: '0.5',
+    },
+    CDI: {
+        definition: 'Taxa média dos empréstimos entre bancos por um dia. Anda colada na Selic e é o benchmark da maior parte dos CDBs.',
+        example: 'Um CDB que paga 100% do CDI rende o mesmo que a taxa CDI do período.',
+        originLesson: '0.5',
+    },
+    TR: {
+        definition:
+            'Taxa Referencial: calculada pelo Banco Central a partir dos juros dos títulos públicos prefixados. Fica perto de zero quando os juros estão baixos e sobe com eles. Entra na poupança e em financiamentos.',
+        originLesson: '0.5',
+    },
+    IPCA: {
+        definition: 'Índice oficial de inflação do Brasil, medido pelo IBGE. Mostra quanto os preços subiram em um período.',
+        originLesson: '0.3',
+    },
+    ticker: {
+        definition: 'Código de negociação de um ativo na bolsa, formado por letras e número.',
+        example: 'No ticker VALR3, as letras identificam a empresa e o número, o tipo de papel.',
+        originLesson: '2.1',
+    },
+    'ON e PN': {
+        definition:
+            'Ações ordinárias (ON, terminam em 3) dão direito a voto. Preferenciais (PN, terminam em 4) podem ter preferência no recebimento de dividendos e, em geral, não votam.',
+        originLesson: '2.2',
+    },
+    'ação ordinária': {
+        definition: 'Ação ON, com ticker terminado em 3. Dá direito a voto nas decisões da empresa.',
+        originLesson: '2.2',
+    },
+    'ação preferencial': {
+        definition: 'Ação PN, com ticker terminado em 4. Pode ter preferência no dividendo e, em geral, não dá direito a voto.',
+        originLesson: '2.2',
+    },
+    IPO: {
+        definition: 'Oferta pública inicial: a primeira vez que uma empresa oferece ações ao público e passa a ser de capital aberto.',
+        originLesson: '2.3',
+    },
+    'oferta primária': {
+        definition: 'Oferta de ações novas, emitidas pela empresa. O dinheiro entra no caixa dela.',
+        originLesson: '2.3',
+    },
+    'oferta secundária': {
+        definition: 'Oferta de ações que já existiam, vendidas por sócios. O dinheiro vai para quem vende, e não para a empresa.',
+        originLesson: '2.3',
+    },
+    bookbuilding: {
+        definition: 'Processo que forma o preço de uma oferta: investidores dizem quantas ações querem e o preço máximo que aceitam.',
+        originLesson: '2.3',
+    },
+    'mercado primário': {
+        definition: 'Onde as empresas vendem ações novas ao público pela primeira vez e captam recursos para o próprio caixa.',
+        originLesson: '2.3',
+    },
+    'mercado secundário': {
+        definition:
+            'Onde os investidores compram e vendem entre si ações que já existem. O dinheiro vai para quem vende, e não para a empresa.',
+        originLesson: '2.3',
+    },
+    'valor de face': {
+        definition: 'Valor que o título paga no vencimento, também chamado de valor nominal.',
+        example: 'Um título prefixado de face R$1.000,00 devolve R$1.000,00 no vencimento.',
+        originLesson: '1.8',
+    },
+    VNA: {
+        definition: 'Valor Nominal Atualizado: o valor de face de um título já corrigido pelo indexador, como o IPCA, até hoje.',
+        originLesson: '1.11',
+    },
+    alavancagem: {
+        definition: 'Uso de dívida para financiar a operação. Aumenta o retorno quando tudo vai bem e amplia o prejuízo quando não vai.',
+        originLesson: '2.7.3',
+    },
+    payout: {
+        definition: 'Parte do lucro da empresa distribuída aos acionistas como dividendos.',
+        example: 'Lucro de R$100 milhões e R$40 milhões distribuídos dão payout de 40%.',
+        originLesson: '2.7.6',
+    },
+    JCP: {
+        definition: 'Juros sobre Capital Próprio: forma de a empresa remunerar o acionista, com imposto retido na fonte.',
+        originLesson: '2.7.6',
+    },
+    'ITR e DFP': {
+        definition: 'Demonstrações financeiras que a empresa de capital aberto publica: o ITR é trimestral e a DFP é anual.',
+        originLesson: '2.7.1',
+    },
+    'valor de mercado': {
+        definition: 'Preço da ação multiplicado pelo número de ações da empresa: quanto o mercado diz que ela vale hoje.',
+        example: '10 milhões de ações a R$20,00 dão valor de mercado de R$200 milhões.',
+        originLesson: '2.1',
+    },
+    cíclico: {
+        definition: 'Setor cujas vendas e lucros sobem e descem junto com a economia, como o varejo.',
+        originLesson: '2.8',
+    },
+    defensivo: {
+        definition: 'Setor cujas vendas variam pouco ao longo do ciclo da economia, como a energia.',
+        originLesson: '2.8',
+    },
+    'participante autorizado': {
+        definition: 'Instituição que cria ou resgata cotas de um ETF trocando-as pela cesta de ativos, o que mantém o preço perto do NAV.',
+        originLesson: '2.9',
+    },
+    NAV: {
+        definition: 'Valor patrimonial por cota de um fundo ou ETF: o valor dos ativos da carteira dividido pelo número de cotas.',
+        originLesson: '2.9',
+    },
+    ágio: {
+        definition:
+            'Quando o preço de negociação fica acima do valor de referência, como o NAV de um ETF. Abaixo dele, fala-se em desconto.',
+        originLesson: '2.9',
+    },
+    spread: {
+        definition: 'Diferença entre dois preços ou taxas. Na bolsa, é a distância entre a melhor oferta de compra e a de venda.',
+        originLesson: '2.4',
+    },
+    liquidez: {
+        definition: 'Facilidade de transformar um ativo em dinheiro rapidamente, sem precisar vender com desconto.',
+        originLesson: '1.3',
+    },
+    'ordem a mercado': {
+        definition: 'Ordem para comprar ou vender já, ao preço que estiver sendo praticado no mercado naquele momento.',
+        example: 'Uma compra a mercado de 500 ações pode passar por mais de um nível de preço do livro de ofertas.',
+        originLesson: '2.4',
+    },
+    'ordem limite': {
+        definition: 'Ordem que só executa no preço que você definir ou melhor. Se ninguém aceita esse preço, ela espera na fila.',
+        example: 'Uma compra limite a R$ 9,50 nunca paga mais que R$ 9,50 por ação.',
+        originLesson: '2.4',
+    },
+    duration: {
+        definition: 'Prazo médio ponderado em que o título devolve o dinheiro. Quanto maior, mais o preço oscila quando os juros mudam.',
+        originLesson: '1.9',
+    },
+    'conglomerado financeiro': {
+        definition: 'Grupo de instituições do mesmo controlador. A garantia do FGC vale por conglomerado, não por banco do grupo.',
+        originLesson: '1.12',
+    },
+    securitizadora: {
+        definition: 'Empresa que compra recebíveis e emite títulos, como CRI e CRA, lastreados neles para vender a investidores.',
+        originLesson: '1.12',
+    },
+    indexador: {
+        definition: 'Índice ou taxa que corrige a rentabilidade de um título, como o CDI, a Selic ou o IPCA.',
+        originLesson: '1.1',
+    },
+    prefixado: {
+        definition: 'Título cuja taxa é conhecida no momento da compra, antes de saber o que acontecerá com os juros.',
+        originLesson: '1.8',
+    },
+    'pós-fixado': {
+        definition: 'Título cuja rentabilidade acompanha um indicador, como o CDI ou a Selic, e só é conhecida no fim.',
+        originLesson: '1.2',
+    },
+    carência: {
+        definition: 'Período em que o dinheiro aplicado não pode ser resgatado.',
+        originLesson: '1.7',
+    },
+    rating: {
+        definition: 'Nota de uma agência de classificação sobre a capacidade de o emissor pagar suas dívidas.',
+        originLesson: '1.12',
+    },
+    'juros compostos': {
+        definition: 'Juros calculados sobre o capital mais os juros já acumulados, o famoso juros sobre juros.',
+        example: 'R$1.000,00 a 10% ao ano viram R$1.210,00 em dois anos, e não R$1.200,00.',
+        originLesson: '0.2',
+    },
+    inflação: {
+        definition: 'Aumento geral dos preços ao longo do tempo, que reduz o que o mesmo dinheiro compra.',
+        originLesson: '0.3',
+    },
+    'rendimento real': {
+        definition: 'Rendimento depois de descontar a inflação do período. É o ganho de poder de compra.',
+        example: 'Rendimento de 10% com inflação de 4% dá rendimento real de cerca de 5,8%.',
+        originLesson: '0.4',
+    },
+    alíquota: {
+        definition: 'Percentual do imposto que incide sobre o rendimento.',
+        originLesson: '1.6',
+    },
+    vencimento: {
+        definition: 'Data em que o título termina e devolve o valor ao investidor.',
+        originLesson: '1.1',
+    },
+    lastro: {
+        definition: 'Direito ou crédito que garante um título. Um CRI, por exemplo, é lastreado em créditos imobiliários.',
+        originLesson: '1.12',
+    },
+    ROE: {
+        definition:
+            'Retorno sobre o patrimônio: lucro líquido dividido pelo patrimônio líquido. Mede o quanto a empresa rende ao dinheiro dos sócios.',
+        originLesson: '2.7.4',
+    },
+    'P/L': {
+        definition: 'Preço da ação dividido pelo lucro por ação. Indica quantos anos de lucro o preço atual representa.',
+        originLesson: '2.7.5',
+    },
+    'P/VP': {
+        definition: 'Preço da ação dividido pelo patrimônio líquido por ação. Abaixo de 1, o mercado paga menos que o patrimônio contábil.',
+        originLesson: '2.7.5',
+    },
+    'data com': {
+        definition: 'Último dia em que comprar a ação ainda garante o direito ao provento anunciado.',
+        originLesson: '2.7.6',
+    },
+    'data ex': {
+        definition: 'Primeiro dia em que a ação é negociada sem o direito ao provento. O preço costuma cair o valor do dividendo.',
+        originLesson: '2.7.6',
+    },
+    ETF: {
+        definition: 'Fundo de índice negociado em bolsa como uma ação, que reproduz a carteira de um índice de referência.',
+        originLesson: '2.9',
+    },
+    FII: {
+        definition:
+            'Fundo de investimento imobiliário: reúne dinheiro de cotistas para investir em imóveis ou títulos imobiliários e distribui rendimentos.',
+        originLesson: '2.10',
+    },
+    proventos: {
+        definition: 'Tudo o que a empresa ou o fundo paga ao dono da ação ou da cota: dividendos, JCP e rendimentos de FII.',
+        originLesson: '2.7.6',
+    },
+    dividendo: {
+        definition: 'Parte do lucro que a empresa paga em dinheiro aos acionistas.',
+        originLesson: '2.7.6',
+    },
+    diversificação: {
+        definition: 'Dividir o dinheiro entre ativos diferentes para que o problema de um não derrube toda a carteira.',
+        originLesson: '3.1',
+    },
+    'risco específico': {
+        definition: 'Risco que vem de uma empresa ou setor só, como uma fraude ou uma safra perdida. A diversificação reduz esse risco.',
+        originLesson: '3.1',
+    },
+    'risco de mercado': {
+        definition: 'Risco de queda que atinge o mercado inteiro ao mesmo tempo, como numa crise. Diversificar não elimina.',
+        originLesson: '3.1',
+    },
+    'perfil do investidor': {
+        definition:
+            'Resultado do questionário da corretora (suitability) sobre seus objetivos, sua situação financeira e seu conhecimento. É da pessoa, não do produto.',
+        originLesson: '3.2',
+    },
+    'aversão à perda': {
+        definition: 'Tendência de sentir a perda com mais força do que o ganho do mesmo tamanho, o que leva a decisões precipitadas.',
+        originLesson: '3.4',
+    },
+    ancoragem: {
+        definition: 'Prender-se a uma referência, como o preço que você pagou, mesmo quando ela não ajuda a decidir.',
+        originLesson: '3.4',
+    },
+    'autoconfiança excessiva': {
+        definition: 'Acreditar que sabe mais ou acerta mais do que de fato, o que leva a negociar demais e a ignorar o acaso.',
+        originLesson: '3.4',
+    },
+    volatilidade: {
+        definition: 'Intensidade das oscilações do preço de um ativo. Quanto maior, mais incerto o resultado no curto prazo.',
+        originLesson: '3.1',
+    },
+    'swing trade': {
+        definition:
+            'Comprar e vender em dias diferentes. No imposto, é o tratamento padrão: 15% sobre o lucro, com isenção para ações até R$ 20 mil vendidos no mês.',
+        originLesson: '2.12',
+    },
+    'day trade': {
+        definition: 'Comprar e vender o mesmo ativo no mesmo dia. Paga 20% sobre o lucro e nunca tem a isenção de R$ 20 mil.',
+        originLesson: '2.12',
+    },
+    DARF: {
+        definition:
+            'Guia da Receita Federal usada para pagar o imposto devido sobre ganhos em renda variável, até o último dia útil do mês seguinte à venda.',
+        originLesson: '2.12',
+    },
+    'dedo-duro': {
+        definition:
+            'Retenção pequena de imposto que a corretora faz na venda (0,005% do valor vendido no swing trade), que avisa a Receita e abate do imposto devido.',
+        originLesson: '2.12',
+    },
+    orçamento: {
+        definition:
+            'Conta simples de quanto entra e quanto sai por mês. O objetivo básico é gastar menos do que se recebe: o que sobra é o que dá para poupar ou investir.',
+        example: 'Renda de R$ 4.000 e gastos de R$ 3.400 deixam uma sobra de R$ 600, ou 15% da renda.',
+        originLesson: 'F.1',
+    },
+    rotativo: {
+        definition:
+            'Crédito automático do cartão quando você paga menos que o total da fatura: o que sobra vira dívida com juros muito altos.',
+        originLesson: 'F.2',
+    },
+    'cheque especial': {
+        definition:
+            'Limite que o banco empresta quando o saldo da conta fica negativo. Os juros são altos e cobrados todo mês sobre o valor usado.',
+        originLesson: 'F.2',
+    },
+    consignado: {
+        definition:
+            'Empréstimo com parcela descontada direto da folha de pagamento ou do benefício, o que reduz o risco do banco e costuma baixar os juros.',
+        originLesson: 'F.2',
+    },
 }

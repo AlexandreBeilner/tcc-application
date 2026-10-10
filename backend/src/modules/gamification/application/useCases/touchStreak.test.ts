@@ -121,6 +121,29 @@ describe('TouchStreakUseCase', () => {
     ])
   })
 
+  it('mantém o streak tocado mesmo se a checagem de conquistas falhar', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T12:00:00Z'))
+    const progressionRepository = createFakeProgressionRepository()
+    const achievementChecker = {
+      calls: [] as string[],
+      async checkAndUnlock(userId: string) {
+        achievementChecker.calls.push(userId)
+        throw new Error('engine indisponível')
+      },
+    }
+    const useCase = new TouchStreakUseCase(progressionRepository, achievementChecker)
+
+    const result = await useCase.execute({ userId: 'u1' })
+
+    expect(result).toEqual({
+      currentStreak: 1,
+      longestStreak: 1,
+      milestoneReached: null,
+      unlockedAchievements: [],
+    })
+  })
+
   it('preserva xp/nível ao tocar o streak — não é dono desses campos', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-24T12:00:00Z'))

@@ -1,4 +1,4 @@
-import { formatRatePercent } from '../../../features/market/format'
+import { formatPriceToBook, formatRatePercent } from '../../../features/market/format'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
 import type { FiiIndicatorsPanelProps } from './types'
 import styles from './index.module.css'
@@ -7,7 +7,8 @@ export type { FiiIndicatorsPanelProps } from './types'
 
 // Especialização de FII (RF21, tela 4.5) — tijolo mostra segmento/
 // patrimônio/vacância, papel mostra indexador; os dois mostram Dividend
-// Yield e cota/valor patrimonial (CLAUDE.md: nunca reaproveitar o layout
+// Yield, P/VP (cotação sobre o valor patrimonial por cota, a âncora do preço
+// justo do Fundamentalista, tarefa U.6) e cota/valor patrimonial (CLAUDE.md: nunca reaproveitar o layout
 // de indicadores de Ações; `net_worth`/`portfolio_value` são a mesma
 // grandeza numérica sob nomes diferentes por perfil, `.docs/engine/
 // catalog.md`). `vacancy_rate` chega em pontos percentuais já prontos
@@ -38,6 +39,12 @@ export function FiiIndicatorsPanel({ fii }: FiiIndicatorsPanelProps) {
                     <div className={styles.item}>
                         <div className={styles.label}>Patrimônio</div>
                         <div className={`${styles.value} tabular-nums`}>{formatCurrency(netWorthPerProfile)}</div>
+                    </div>
+                )}
+                {fii.price_to_book_value !== undefined && (
+                    <div className={styles.item}>
+                        <div className={styles.label}>P/VP</div>
+                        <div className={`${styles.value} tabular-nums`}>{formatPriceToBook(fii.price_to_book_value)}</div>
                     </div>
                 )}
                 {fii.fii_type === 'tijolo' && fii.vacancy_rate !== undefined && (

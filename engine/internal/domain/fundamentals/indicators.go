@@ -2,7 +2,7 @@ package fundamentals
 
 // Indicadores fundamentalistas de ação (RF21, lições 2.6.1–2.6.6 do
 // currículo) — funções puras, sem I/O, mesmo padrão de
-// ReportSurprise/ReportDayPriceEffect (reportcycle.go). Cada uma devolve
+// ActualGrowthWithMacroEffect/IsReportDay (reportcycle.go). Cada uma devolve
 // ok = false quando o denominador é inválido (zero ou, pra
 // PriceToEarnings/PriceToBookValue, um LPA/VPA não-positivo — P/L e P/VP
 // não têm leitura útil sobre prejuízo/patrimônio negativo nesta fase) em

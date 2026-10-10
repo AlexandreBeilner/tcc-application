@@ -2,19 +2,22 @@ import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../atoms/Button'
-import { LockedAssetPanel } from '../../molecules/LockedAssetPanel'
+import { LockedGate } from '../LockedGate'
 import { OrderSummaryList } from '../OrderSummaryList'
 import type { OrderSummaryRow } from '../OrderSummaryList'
 import { OrderSuccessOverlay } from '../OrderSuccessOverlay'
 import { useAssetQuery } from '../../../features/market/useAssetQuery'
+import { useAssetBookQuery } from '../../../features/market/useAssetBookQuery'
 import { usePlaceOrderMutation } from '../../../features/market/usePlaceOrderMutation'
 import { asProductLockedError } from '../../../features/market/productLockedError'
+import { formatApiError } from '../../../utils/formatApiError'
+import { classifyOrderRejection, describeOrderRejection } from '../../../features/market/orderRejection'
+import { averageFillPrice } from '../../../features/market/orderBook'
 import type { ProductLockedErrorBody } from '../../../services/market'
 import { usePurchaseFixedIncomeMutation } from '../../../features/market/usePurchaseFixedIncomeMutation'
 import { useRedeemFixedIncomeMutation } from '../../../features/market/useRedeemFixedIncomeMutation'
 import { useMyAccountQuery } from '../../../features/portfolio/useMyAccountQuery'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
-import { ApiError } from '../../../services/client'
 import type { OrderConfirmationDialogProps, OrderDraft } from './types'
 import styles from './index.module.css'
 
@@ -28,6 +31,7 @@ export type {
 
 const SIDE_LABEL = { buy: 'Comprar', sell: 'Vender' } as const
 const VERB_LABEL = { buy: 'comprou', sell: 'vendeu' } as const
+const PARTICIPLE_LABEL = { buy: 'comprada', sell: 'vendida' } as const
 
 // Confirmação de ordem (tela 4.7, âncora — mockup vivo em identidade-
 // visual-padroes.md §0/§7) — overlay (bottom sheet mobile/tablet, modal
@@ -52,6 +56,11 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
     // `refetch` explícito porque a tela de origem (4.5) já populou o cache
     // desse mesmo `queryKey` com um preço potencialmente desatualizado.
     const assetQuery = useAssetQuery(draft.assetId, { enabled: draft.kind === 'order' })
+    // Book do ativo (tarefa S.5/S.7) — insumo da mensagem clara de 422 de
+    // saldo insuficiente (achado 021: "comprar o máximo" pelo último preço
+    // caía em erro genérico), calculada pela mesma profundidade real do
+    // painel "Nova ordem".
+    const bookQuery = useAssetBookQuery(draft.assetId, { enabled: draft.kind === 'order' })
     const placeOrder = usePlaceOrderMutation()
     const purchaseFixedIncome = usePurchaseFixedIncomeMutation()
     const redeemFixedIncome = useRedeemFixedIncomeMutation()
@@ -72,6 +81,8 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
     }, [isSubmitting, onClose])
 
     const cashBalance = accountQuery.data?.cashBalance
+    const ownedQuantity =
+        draft.kind === 'order' ? accountQuery.data?.positions.find((position) => position.assetId === draft.assetId)?.quantity : undefined
 
     const handleConfirm = async () => {
         setError(null)
@@ -95,9 +106,19 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
             const locked = asProductLockedError(err)
             if (locked) {
                 setLockedError(locked)
-            } else {
-                setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação agora.')
+                return
             }
+            // Achado 021 (`pontos-em-aberto-decisao-produto.md`)/tarefa S.7:
+            // "saldo insuficiente"/"posição insuficiente" genérico do motor
+            // ganha a quantidade máxima real (calculada pela mesma
+            // profundidade do book do painel "Nova ordem", ou pela posição
+            // em carteira do lado da venda) em vez do texto cru do motor.
+            const rejection = draft.kind === 'order' ? classifyOrderRejection(err) : null
+            if (rejection) {
+                setError(describeOrderRejection(rejection, draft.ticker, bookQuery.data?.book, cashBalance, ownedQuantity))
+                return
+            }
+            setError(formatApiError(err, 'Não foi possível concluir a operação agora.'))
         }
     }
 
@@ -119,6 +140,30 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
         )
     }
 
+    // Trava só descoberta na confirmação (Fase Q, reversão da J.3: ex.
+    // acesso direto por URL) vira parede total do próprio diálogo — nada de
+    // resumo da ordem/ações de confirmar, só o card explicando o que falta
+    // pra liberar + um jeito de fechar.
+    if (lockedError) {
+        return (
+            <div className={styles.backdrop} onMouseDown={handleBackdropClick}>
+                <div className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="order-confirmation-title">
+                    <h1 id="order-confirmation-title" className={styles.title}>
+                        Confirmar ordem
+                    </h1>
+
+                    <LockedGate variant="inline" lessonTitle={lockedError.unlockingLesson?.title} />
+
+                    <div className={styles.actions}>
+                        <Button variant="secondary" onClick={onClose}>
+                            Fechar
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     const currentPrice = draft.kind === 'order' ? (assetQuery.data?.asset.current_price ?? draft.unitPrice) : undefined
     const rows = buildRows(draft, currentPrice, cashBalance)
 
@@ -130,8 +175,6 @@ export function OrderConfirmationDialog({ draft, onClose }: OrderConfirmationDia
                 </h1>
 
                 <OrderSummaryList rows={rows} />
-
-                {lockedError && <LockedAssetPanel lessonCode={lockedError.unlockingLesson?.code} />}
 
                 {error && (
                     <p className={styles.error} role="alert">
@@ -200,7 +243,25 @@ function successMessage(
     redemptionResult: ReturnType<typeof useRedeemFixedIncomeMutation>['data'],
 ): string {
     if (draft.kind === 'order' && orderResult) {
-        return `Você ${VERB_LABEL[draft.side]} ${orderResult.filled_quantity} ${draft.ticker}.`
+        const { filled_quantity: filled, remaining_quantity: remaining, fills } = orderResult
+        // Tarefa A.2 (backlog-motor-mercado-realista): ordem a mercado do
+        // Mercado Ao Vivo pode não achar contraparte real suficiente — sem
+        // preenchimento sintético, `remaining_quantity` reporta a sobra não
+        // executada. Mensagem clara em vez de só citar `filled_quantity`
+        // (que já refletia a quantidade real desde antes desta tarefa, mas
+        // sem explicar por que ficou menor que o pedido).
+        if (remaining > 0 && filled === 0) {
+            return `Não havia liquidez suficiente pra negociar ${draft.ticker} agora. Nenhuma unidade foi ${PARTICIPLE_LABEL[draft.side]}. Tente novamente mais tarde.`
+        }
+        // Tarefa S.7 (achado 021): preço médio executado, não o preço
+        // unitário estático de antes da confirmação — a ordem a mercado
+        // executa contra o book (spread), nunca exatamente no último negócio.
+        const avgPrice = averageFillPrice(fills)
+        const priceSuffix = avgPrice !== null ? ` a preço médio de ${formatCurrency(avgPrice)}` : ''
+        if (remaining > 0) {
+            return `Você ${VERB_LABEL[draft.side]} ${filled} de ${draft.quantity} ${draft.ticker}${priceSuffix}. O restante não achou liquidez suficiente e não foi executado.`
+        }
+        return `Você ${VERB_LABEL[draft.side]} ${filled} ${draft.ticker}${priceSuffix}.`
     }
     if (draft.kind === 'fixed_income_purchase' && purchaseResult) {
         return `Você investiu ${formatCurrency(draft.amount)} em ${draft.ticker}.`

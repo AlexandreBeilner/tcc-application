@@ -37,4 +37,6 @@ export interface RankingResult {
     pageSize: number
     totalEntries: number
     totalPages: number
+    // Quando o job calculou o ranking (ISO). `null` se foi calculado na hora.
+    updatedAt: string | null
 }

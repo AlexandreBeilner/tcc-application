@@ -1,3 +1,4 @@
+import { AccountSuspendedError } from '../../domain/errors'
 import type { User } from '../../domain/user'
 import type { AccountProvisioner } from '../ports/accountProvisioner'
 import type { GoogleIdentityProvider } from '../ports/googleIdentityProvider'
@@ -53,6 +54,11 @@ export class LoginWithGoogleUseCase {
       await this.accountProvisioner.provision(user.id)
     }
 
+    // Antes de vincular identidade nova: conta suspensa não ganha provedor novo.
+    if (user.status === 'suspended') {
+      throw new AccountSuspendedError('account_suspended')
+    }
+
     if (!existingIdentity) {
       await this.userRepository.createIdentity({
         userId: user.id,
@@ -61,7 +67,11 @@ export class LoginWithGoogleUseCase {
       })
     }
 
-    const token = this.tokenIssuer.issue({ sub: user.id, role: user.role })
+    const token = this.tokenIssuer.issue({
+      sub: user.id,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    })
     return { user, token }
   }
 }

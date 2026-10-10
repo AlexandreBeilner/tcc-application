@@ -1,6 +1,9 @@
 package catalog
 
-import "errors"
+import (
+	"errors"
+	"math"
+)
 
 // Sector espelha o enum Postgres company_sector — lista fixa exigida pela
 // spec 3.3.2 pra casar com o catálogo de templates de evento macro.
@@ -29,16 +32,73 @@ func IsValidSector(sector Sector) bool {
 }
 
 // DefaultReportFrequencyDays é o default do schema (company_fundamentals
-// migration 000001) e o valor fixado pela spec 3.3.1 (ciclo quinzenal
-// global, tarefa 3.6) — não configurável por empresa nesta fase.
-const DefaultReportFrequencyDays = 14
+// migration 000033) e o valor fixado pela spec 3.3.1 (ciclo global, tarefa
+// 3.6) — um trimestre real de 91 dias simulados desde a tarefa S.2; não
+// configurável por empresa nesta fase.
+const DefaultReportFrequencyDays = 91
 
 const cnpjDigits = 14
 
+// DefaultBaseGrowthPct é o default do schema (companies.base_growth_pct,
+// migration 000035) — mesmo crescimento_base ilustrativo (3% ao ciclo) que
+// fundamentals.DefaultBaseGrowth já expressava como fração antes desta
+// tarefa (0.03 == 3.00%), duplicado aqui como constante independente
+// porque fundamentals importa catalog, não o contrário (mesma convenção de
+// etf.InitialSharePrice duplicar tick.DefaultInitialPrice). Toda empresa
+// seedada antes da tarefa 7.2 (Mineradora Vale do Rio, Banco Nordeste
+// Digital) usa este valor, preservando o comportamento anterior a
+// base_growth_pct existir.
+const DefaultBaseGrowthPct = 3.00
+
+// minBaseGrowthPct é o piso de baseGrowthPct: abaixo de -100% o fator
+// (1+crescimento) usado por fundamentals.BootstrapFinancialsForTargetPrice/
+// NextGrowth zera ou inverte, sem leitura financeira útil (mesma restrição
+// de fundamentals.ErrInvalidGrowthRate).
+const minBaseGrowthPct = -100.0
+
+// DefaultQualityMultiplier é o default do schema (companies.
+// quality_multiplier, migration 000039): empresa na média do setor, com os
+// coeficientes de fundamentals.CoefficientsBySector sem ajuste.
+const DefaultQualityMultiplier = 1.00
+
+// maxQualityMultiplier é o teto de qualityMultiplier: acima disso a margem
+// líquida do setor mais rentável (Bancário, 22%) passaria de 44% e deixaria
+// de ser plausível pra uma empresa sintética.
+const maxQualityMultiplier = 2.0
+
+// DividendPolicy é a periodicidade do provento de ação (companies.dividend_policy,
+// migration 000048). Quais balanços pagam é regra de paymentschedule.
+type DividendPolicy string
+
+const (
+	DividendQuarterly  DividendPolicy = "quarterly"
+	DividendSemiannual DividendPolicy = "semiannual"
+	DividendAnnual     DividendPolicy = "annual"
+)
+
+// IsValid diz se p é uma das três políticas.
+func (p DividendPolicy) IsValid() bool {
+	return p == DividendQuarterly || p == DividendSemiannual || p == DividendAnnual
+}
+
+// Limites da agenda por empresa, os mesmos CHECKs da migration 000048. Os valores
+// padrão do legado (sem escalonamento) são o offset 0, a política trimestral, data-com
+// no dia da declaração e pagamento 5 dias depois.
+const (
+	MaxReportOffsetDays = 31
+	MaxComLagDays       = 10
+	MaxPaymentLagDays   = 40
+	// DefaultPaymentLagDays é o legado: a data-ex fica 5 dias antes do pagamento.
+	DefaultPaymentLagDays = 5
+)
+
 var (
-	ErrMissingCompanyName = errors.New("nome da empresa é obrigatório")
-	ErrInvalidCNPJ        = errors.New("CNPJ deve ter 14 dígitos")
-	ErrUnknownSector      = errors.New("setor de empresa desconhecido")
+	ErrMissingCompanyName       = errors.New("nome da empresa é obrigatório")
+	ErrInvalidCNPJ              = errors.New("CNPJ deve ter 14 dígitos")
+	ErrUnknownSector            = errors.New("setor de empresa desconhecido")
+	ErrInvalidBaseGrowthPct     = errors.New("crescimento_base da empresa não pode zerar ou inverter o fator (1+crescimento)")
+	ErrInvalidQualityMultiplier = errors.New("multiplicador de qualidade da empresa precisa estar em (0, 2]")
+	ErrInvalidPaymentSchedule   = errors.New("agenda de proventos da empresa fora das faixas permitidas")
 )
 
 // Company é o cadastro de uma empresa emissora de ações (companies) —
@@ -49,12 +109,72 @@ type Company struct {
 	CNPJ                string
 	Sector              Sector
 	ReportFrequencyDays int
+	// BaseGrowthPct (tarefa 7.2, migration 000035) é o crescimento_base
+	// desta empresa por ciclo de relatório, em % (ex: 8.00 = 8% ao
+	// trimestre) — substitui o único valor global que toda empresa usava
+	// (fundamentals.DefaultBaseGrowth) por um grau de liberdade por
+	// empresa — junto de QualityMultiplier (achado 025), que varia ROE/
+	// margem/alavancagem, expressa "empresa boa/média/ruim" dentro de um
+	// mesmo setor. Uma empresa com crescimento mais alto sustenta um preço
+	// justo mais alto (fundamentals.BootstrapFinancialsForTargetPrice/
+	// bot.FundamentalistFairPrice), lido todo dia pelo Fundamentalista
+	// (tick.companyRoundContexts), não só no dia de relatório.
+	BaseGrowthPct float64
+	// QualityMultiplier (achado 025, migration 000039) escala a rentabilidade
+	// e a alavancagem do setor pra esta empresa (fundamentals.
+	// CoefficientsForCompany): 1.00 é a média do setor, acima disso a
+	// empresa tem margem/ROE maiores e menos dívida, abaixo o contrário.
+	// Complementa BaseGrowthPct: sem ele, ROE/margem/alavancagem eram
+	// idênticos pra toda empresa do mesmo setor.
+	QualityMultiplier float64
+	// Agenda de balanço e proventos (RC.6.7, migration 000048). O legado (offset 0,
+	// trimestral, data-com no dia da declaração, pagamento em 5 dias) é o que NewCompany
+	// devolve; WithPaymentSchedule troca pela agenda derivada do ticker. Os atrasos são
+	// em dias úteis.
+	ReportOffsetDays int
+	DividendPolicy   DividendPolicy
+	ComLagDays       int
+	PaymentLagDays   int
+	// ScheduleAssigned marca que a agenda veio de WithPaymentSchedule (e não do legado
+	// padrão), gravado em companies.schedule_assigned.
+	ScheduleAssigned bool
+}
+
+// WithPaymentSchedule devolve a empresa com a agenda dada, validada nas mesmas faixas
+// dos CHECKs do banco. Quem deriva a agenda (paymentschedule.DefaultsFor) chama isto.
+func (c Company) WithPaymentSchedule(reportOffsetDays int, policy DividendPolicy, comLagDays, paymentLagDays int) (Company, error) {
+	if reportOffsetDays < 0 || reportOffsetDays > MaxReportOffsetDays || !policy.IsValid() ||
+		comLagDays < 0 || comLagDays > MaxComLagDays || paymentLagDays < 0 || paymentLagDays > MaxPaymentLagDays {
+		return Company{}, ErrInvalidPaymentSchedule
+	}
+	c.ReportOffsetDays, c.DividendPolicy, c.ComLagDays, c.PaymentLagDays = reportOffsetDays, policy, comLagDays, paymentLagDays
+	c.ScheduleAssigned = true
+	return c, nil
+}
+
+// ValidateBaseGrowthPct confere a regra de crescimento_base que NewCompany e a edição do
+// painel (N.12) compartilham: o fator (1+crescimento) não pode zerar nem inverter.
+func ValidateBaseGrowthPct(baseGrowthPct float64) error {
+	if math.IsNaN(baseGrowthPct) || math.IsInf(baseGrowthPct, 0) || baseGrowthPct <= minBaseGrowthPct {
+		return ErrInvalidBaseGrowthPct
+	}
+	return nil
+}
+
+// ValidateQualityMultiplier confere que o multiplicador de qualidade está em (0, 2].
+func ValidateQualityMultiplier(qualityMultiplier float64) error {
+	if math.IsNaN(qualityMultiplier) || qualityMultiplier <= 0 || qualityMultiplier > maxQualityMultiplier {
+		return ErrInvalidQualityMultiplier
+	}
+	return nil
 }
 
 // NewCompany valida os invariantes mínimos de uma empresa cadastrada —
 // nome não vazio, CNPJ com 14 dígitos (sem validar dígito verificador,
-// fora de escopo pra dado sintético), setor dentre os 6 valores fixos.
-func NewCompany(name, cnpj string, sector Sector) (Company, error) {
+// fora de escopo pra dado sintético), setor dentre os 6 valores fixos,
+// baseGrowthPct que não zere/inverta o fator (1+crescimento) (tarefa 7.2),
+// qualityMultiplier em (0, 2] (achado 025).
+func NewCompany(name, cnpj string, sector Sector, baseGrowthPct, qualityMultiplier float64) (Company, error) {
 	if name == "" {
 		return Company{}, ErrMissingCompanyName
 	}
@@ -69,11 +189,21 @@ func NewCompany(name, cnpj string, sector Sector) (Company, error) {
 	if !validSectors[sector] {
 		return Company{}, ErrUnknownSector
 	}
+	if err := ValidateBaseGrowthPct(baseGrowthPct); err != nil {
+		return Company{}, err
+	}
+	if err := ValidateQualityMultiplier(qualityMultiplier); err != nil {
+		return Company{}, err
+	}
 
 	return Company{
 		Name:                name,
 		CNPJ:                cnpj,
 		Sector:              sector,
 		ReportFrequencyDays: DefaultReportFrequencyDays,
+		BaseGrowthPct:       baseGrowthPct,
+		QualityMultiplier:   qualityMultiplier,
+		DividendPolicy:      DividendQuarterly,
+		PaymentLagDays:      DefaultPaymentLagDays,
 	}, nil
 }

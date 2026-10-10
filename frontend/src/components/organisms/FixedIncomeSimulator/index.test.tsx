@@ -9,6 +9,20 @@ describe('FixedIncomeSimulator', () => {
         expect(screen.getByRole('button', { name: 'Investir' })).toBeDisabled()
     })
 
+    it('mercado fechado: desabilita "Investir" mesmo com valor válido e mostra o motivo', () => {
+        render(
+            <FixedIncomeSimulator
+                minimumInvestment={1000}
+                amount={2000}
+                onAmountChange={vi.fn()}
+                onInvest={vi.fn()}
+                closedReason="Mercado fechado: fim de semana simulado. Abre segunda 12/01"
+            />,
+        )
+        expect(screen.getByRole('button', { name: 'Investir' })).toBeDisabled()
+        expect(screen.getByRole('status')).toHaveTextContent('Abre segunda 12/01')
+    })
+
     it('mostra a projeção quando há simulação e o valor é válido', () => {
         render(
             <FixedIncomeSimulator

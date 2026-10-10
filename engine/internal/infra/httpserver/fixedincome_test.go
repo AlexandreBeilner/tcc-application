@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
+	"tcc-investimentos/engine/internal/domain/fixedincome"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
 )
 
@@ -21,6 +22,11 @@ type fakeFixedIncomeExecutor struct {
 	redeemOutcome fixedincomeexecution.RedeemOutcome
 	redeemErr     error
 	gotRedeemReq  fixedincomeexecution.RedeemRequest
+
+	gotSimulateReq fixedincomeexecution.SimulateRequest
+
+	valueOutcomes map[string]fixedincomeexecution.RedeemOutcome
+	valueErr      error
 }
 
 func (f *fakeFixedIncomeExecutor) Purchase(_ context.Context, req fixedincomeexecution.Request) (fixedincomeexecution.PurchaseOutcome, error) {
@@ -31,6 +37,23 @@ func (f *fakeFixedIncomeExecutor) Purchase(_ context.Context, req fixedincomeexe
 func (f *fakeFixedIncomeExecutor) Redeem(_ context.Context, req fixedincomeexecution.RedeemRequest) (fixedincomeexecution.RedeemOutcome, error) {
 	f.gotRedeemReq = req
 	return f.redeemOutcome, f.redeemErr
+}
+
+func (f *fakeFixedIncomeExecutor) Value(_ context.Context, _, assetID string) (fixedincomeexecution.RedeemOutcome, error) {
+	return f.valueOutcomes[assetID], f.valueErr
+}
+
+// Simulate delega pra fixedincomeexecution.Simulate de verdade, não um
+// outcome canônico (diferente de Purchase/Redeem acima) — desde o teste de
+// ponta a ponta da Fase L, GET /fixed-income/simulate passou a depender de
+// fixedIncomeExecutor.Simulate (Tesouro IPCA+ precisa do VNA, que só o
+// *fixedincomeexecution.Service resolve, ver nota do doc do handler) em
+// vez de chamar a função pura direto — os testes de simulate continuam
+// verificando o CÁLCULO real, não um valor canônico. vnaBase/monthlyIPCA
+// zero-value bastam pra Prefixado/pós-fixado (ignorados nessas branches).
+func (f *fakeFixedIncomeExecutor) Simulate(req fixedincomeexecution.SimulateRequest, ctx fixedincomeexecution.SimulateContext) (fixedincomeexecution.SimulateOutcome, error) {
+	f.gotSimulateReq = req
+	return fixedincomeexecution.Simulate(req, ctx, time.Now(), 0, 0, 0, 0)
 }
 
 func fixedIncomeAssetReader() *fakeCatalogReader {
@@ -44,7 +67,7 @@ func postFixedIncome(t *testing.T, path string, reader catalogReader, exec fixed
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, exec, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -150,6 +173,7 @@ func TestHandleFixedIncomePurchase_ErrosDeExecucao(t *testing.T) {
 		{"saldo insuficiente", fixedincomeexecution.ErrInsufficientBalance, http.StatusUnprocessableEntity},
 		{"valor inválido", fixedincomeexecution.ErrInvalidAmount, http.StatusBadRequest},
 		{"conta não encontrada", fixedincomeexecution.ErrAccountNotFound, http.StatusNotFound},
+		{"temporizador nunca rodou (S.9, achado do e2e: não pode virar 500 opaco)", fixedincomeexecution.ErrMarketNotInitialized, http.StatusServiceUnavailable},
 		{"erro interno inesperado", context.DeadlineExceeded, http.StatusInternalServerError},
 	}
 
@@ -260,6 +284,7 @@ func TestHandleFixedIncomeRedemption_ErrosDeExecucao(t *testing.T) {
 		want int
 	}{
 		{"posição não encontrada", fixedincomeexecution.ErrPositionNotFound, http.StatusNotFound},
+		{"temporizador nunca rodou (S.9, achado do e2e: não pode virar 500 opaco)", fixedincomeexecution.ErrMarketNotInitialized, http.StatusServiceUnavailable},
 		{"erro interno inesperado", context.DeadlineExceeded, http.StatusInternalServerError},
 	}
 
@@ -273,22 +298,35 @@ func TestHandleFixedIncomeRedemption_ErrosDeExecucao(t *testing.T) {
 	}
 }
 
+// fixedIncomeSimulateReader devolve um leitor pra CDB (produto pós-fixado,
+// L.1) — rate aqui é "% do CDI" (convenção da L.1), não "% a.a.", por isso
+// selicRateOK/selicRate também precisam vir preenchidos (achado do teste de
+// ponta a ponta da Fase L: handleFixedIncomeSimulate agora lê a Selic
+// corrente pra produto pós-fixado, nota 3.2 do doc do pacote
+// fixedincomeexecution).
 func fixedIncomeSimulateReader() *fakeCatalogReader {
-	rate := 10.0
+	rate := 110.0
 	maturity := time.Now().AddDate(1, 0, 0)
 	return &fakeCatalogReader{
 		asset:         catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "CDB2027", Name: "CDB Banco Invest 2027", Type: catalog.AssetCDB}},
 		assetFound:    true,
 		fixedIncome:   catalog.FixedIncomeSpecialization{InterestRate: &rate, MaturityDate: &maturity, TaxExempt: false},
 		fixedIncomeOK: true,
+		selicRate:     10.0,
+		selicRateOK:   true,
 	}
 }
 
 func getFixedIncomeSimulate(t *testing.T, reader catalogReader, query string) *httptest.ResponseRecorder {
 	t.Helper()
+	return getFixedIncomeSimulateWithExecutor(t, reader, &fakeFixedIncomeExecutor{}, query)
+}
+
+func getFixedIncomeSimulateWithExecutor(t *testing.T, reader catalogReader, exec fixedIncomeExecutor, query string) *httptest.ResponseRecorder {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/fixed-income/simulate?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, reader, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, reader, nil, nil, exec, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -304,6 +342,52 @@ func TestHandleFixedIncomeSimulate(t *testing.T) {
 	}
 	if body.UnitPrice <= 0 || body.QuantityPurchased <= 0 || body.GrossProjectedValue <= 0 {
 		t.Errorf("resposta com valores não positivos inesperados: %+v", body)
+	}
+}
+
+// TestHandleFixedIncomeSimulate_PosFixadoUsaPostFixedValueNaoDesagioNominal
+// é o achado do teste de ponta a ponta da Fase L: antes desta correção,
+// Simulate alimentava fixedincome.PrefixedPrice com o número cru de
+// fixed_income_assets.interest_rate pra QUALQUER produto — depois da L.1
+// reinterpretar esse campo pra pós-fixado ("% do CDI", ex: 110), isso virava
+// literalmente "110% a.a." de deságio, uma ordem de grandeza maior que o
+// retorno real (CDB 110% CDI sobre Selic 10% rende ~11% a.a.). Compra ao
+// par (UnitPrice = FaceValue) é a assinatura mais direta de que a correção
+// está em vigor — deságio nominal nunca precifica exatamente no valor de
+// face.
+func TestHandleFixedIncomeSimulate_PosFixadoUsaPostFixedValueNaoDesagioNominal(t *testing.T) {
+	rec := getFixedIncomeSimulate(t, fixedIncomeSimulateReader(), "asset_id="+validAssetID+"&amount=2000&days_held=360")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var body simulateFixedIncomeResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.UnitPrice != fixedincome.FaceValue {
+		t.Errorf("UnitPrice = %v, want %v (comprado ao par, produto pós-fixado)", body.UnitPrice, fixedincome.FaceValue)
+	}
+	// CDB 110% CDI sobre Selic 10% simulada ~1 ano ≈ 11% a.a. — bem longe
+	// da distorção antiga (~110% a.a., grossValue > 4000 pra um aporte de
+	// 2000).
+	if body.GrossProjectedValue <= 2000 || body.GrossProjectedValue > 2400 {
+		t.Errorf("GrossProjectedValue = %v, want algo perto de 11%% sobre 2000 (~2220), não ~110%% (achado da Fase L)", body.GrossProjectedValue)
+	}
+}
+
+// TestHandleFixedIncomeSimulate_PosFixadoSemTickDoTemporizadorDevolve503 —
+// achado do teste de ponta a ponta da Fase L: sem a Selic corrente
+// (temporizador nunca rodou), não tem como projetar um produto pós-fixado —
+// mesmo tratamento de precondição que Purchase/Redeem já davam
+// (ErrMarketCalendarNotInitialized), agora também em Simulate.
+func TestHandleFixedIncomeSimulate_PosFixadoSemTickDoTemporizadorDevolve503(t *testing.T) {
+	reader := fixedIncomeSimulateReader()
+	reader.selicRateOK = false
+
+	rec := getFixedIncomeSimulate(t, reader, "asset_id="+validAssetID+"&amount=2000&days_held=360")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
 	}
 }
 
@@ -360,13 +444,15 @@ func TestHandleFixedIncomeSimulate_SemEspecializacao(t *testing.T) {
 }
 
 func TestHandleFixedIncomeSimulate_AtivoIsentoNuncaAplicaImposto(t *testing.T) {
-	rate := 10.0
+	rate := 90.0
 	maturity := time.Now().AddDate(1, 0, 0)
 	reader := &fakeCatalogReader{
 		asset:         catalog.AssetRecord{ID: validAssetID, Asset: catalog.Asset{Ticker: "LCI2027", Name: "LCI Banco Invest 2027", Type: catalog.AssetLCI}},
 		assetFound:    true,
 		fixedIncome:   catalog.FixedIncomeSpecialization{InterestRate: &rate, MaturityDate: &maturity, TaxExempt: true},
 		fixedIncomeOK: true,
+		selicRate:     10.0,
+		selicRateOK:   true,
 	}
 
 	rec := getFixedIncomeSimulate(t, reader, "asset_id="+validAssetID+"&amount=2000&days_held=360")
@@ -393,6 +479,18 @@ func TestHandleFixedIncomeSimulate_SemCatalogReader(t *testing.T) {
 	}
 }
 
+// TestHandleFixedIncomeSimulate_SemExecutor — achado do teste de ponta a
+// ponta da Fase L: GET /fixed-income/simulate passou a depender de
+// fixedIncomeExecutor (Tesouro IPCA+ precisa do VNA, que só o Service
+// resolve), então ganhou a mesma checagem de dependência ausente que
+// Purchase/Redeem já tinham.
+func TestHandleFixedIncomeSimulate_SemExecutor(t *testing.T) {
+	rec := getFixedIncomeSimulateWithExecutor(t, fixedIncomeSimulateReader(), nil, "asset_id="+validAssetID+"&amount=2000&days_held=180")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
 func TestHandleFixedIncomeRedemption_SemDependencias(t *testing.T) {
 	t.Run("sem catalogReader", func(t *testing.T) {
 		rec := postFixedIncome(t, "/fixed-income/redemptions", nil, &fakeFixedIncomeExecutor{}, validRedeemBody())
@@ -413,7 +511,7 @@ func getFixedIncomeTaxRate(t *testing.T, query string) *httptest.ResponseRecorde
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/fixed-income/tax-rate?"+query, nil)
 	rec := httptest.NewRecorder()
-	New("", nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
+	New("", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).Handler.ServeHTTP(rec, req)
 	return rec
 }
 

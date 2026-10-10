@@ -1,0 +1,481 @@
+/* Controles compartilhados pelos widgets de cálculo das lições (RC.3.4a). */
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .fields {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.field input {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    font-variant-numeric: tabular-nums;
+}
+
+.presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.preset {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.preset[aria-pressed='true'] {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-500);
+    font-weight: 600;
+}
+
+.result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface-elevated);
+    font-variant-numeric: tabular-nums;
+}
+
+.result p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+}
+
+.headline {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    color: var(--color-text-secondary);
+}
+
+.table th {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.table .current,
+.table .current td,
+.table .current th {
+    color: var(--color-text-primary);
+    font-weight: 600;
+    background: var(--color-bg-surface-elevated);
+}
+
+.tableWrap {
+    overflow-x: auto;
+}
+
+.visuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* RC.3.4c: barras, gráfico de linhas e linha do tempo. */
+.bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.barRow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+@media (min-width: 768px) {
+    .barRow {
+        grid-template-columns: 11rem 1fr 5rem;
+        align-items: center;
+        gap: var(--space-3);
+    }
+}
+
+.barTrack {
+    display: block;
+    height: 0.75rem;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+    overflow: hidden;
+}
+
+.barFill,
+.barFillNegative {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-500);
+}
+
+/* Negativo fica listrado, para não depender só de cor. */
+.barFillNegative {
+    background: repeating-linear-gradient(45deg, var(--color-brand-500) 0 4px, transparent 4px 8px);
+}
+
+.barValue {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.swatchSolid,
+.swatchDashed,
+.swatchBand {
+    display: inline-block;
+    width: 1.5rem;
+    height: 0;
+    border-top: 3px solid var(--color-brand-500);
+}
+
+.swatchDashed {
+    border-top-style: dashed;
+}
+
+.swatchBand {
+    height: 0.75rem;
+    border-top: 0;
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border-strong);
+}
+
+.chartSvg {
+    width: 100%;
+    height: 14rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+@media (min-width: 1024px) {
+    .chartSvg {
+        height: 18rem;
+    }
+}
+
+.chartBand {
+    fill: var(--color-bg-surface-elevated);
+}
+
+.chartTarget {
+    stroke: var(--color-border-strong);
+    stroke-width: 1;
+    stroke-dasharray: 2 4;
+}
+
+.chartSelic,
+.chartIpca {
+    stroke: var(--color-brand-500);
+    stroke-width: 2.5;
+}
+
+.chartIpca {
+    stroke-dasharray: 8 6;
+}
+
+.timeline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.timelineMark {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.timelineMark[aria-pressed='true'] {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-500);
+    font-weight: 600;
+}
+
+.productList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .productList {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.productItem {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+}
+
+/* RC.3.4b: gangorra, barra do FGC e régua de rating. */
+.seesawSvg {
+    width: 100%;
+    height: 9rem;
+    color: var(--color-text-secondary);
+}
+
+.seesawBeam {
+    transition: transform 0.3s ease;
+    transform-origin: 160px 80px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .seesawBeam {
+        transition: none;
+    }
+}
+
+.seesawBar {
+    stroke: var(--color-brand-500);
+    stroke-width: 6;
+    stroke-linecap: round;
+}
+
+.seesawPivot {
+    fill: var(--color-border-strong);
+}
+
+.seesawLabel {
+    fill: currentColor;
+    font-size: 11px;
+}
+
+.stack {
+    display: flex;
+    height: 0.75rem;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+    overflow: hidden;
+}
+
+.stackCovered {
+    height: 100%;
+    background: var(--color-brand-500);
+}
+
+/* Trecho sem cobertura fica listrado, para não depender só de cor. */
+.stackUncovered {
+    height: 100%;
+    background: repeating-linear-gradient(45deg, var(--color-text-secondary) 0 3px, transparent 3px 7px);
+}
+
+.ruler {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+@media (min-width: 768px) {
+    .ruler {
+        grid-template-columns: repeat(10, 1fr);
+    }
+}
+
+.rulerMark {
+    width: 100%;
+    min-height: 2.75rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+    cursor: pointer;
+}
+
+.rulerMark[aria-pressed='true'] {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-500);
+    font-weight: 600;
+}
+
+/* Grau especulativo: borda tracejada, a diferença não depende só de cor. */
+.rulerMarkSpeculative {
+    border-style: dashed;
+}
+
+.swatchStriped {
+    display: inline-block;
+    width: 1.5rem;
+    height: 0.75rem;
+    background: repeating-linear-gradient(45deg, var(--color-text-secondary) 0 3px, transparent 3px 7px);
+}
+
+/* RC.3.4e: livro de ofertas e classificações. */
+.bookGrid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .bookGrid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.bookSide {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.bookSide li {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+}
+
+.bookBid {
+    border-left: 3px solid var(--color-brand-500);
+}
+
+/* Venda: borda tracejada, a diferença do lado da compra não depende só de cor. */
+.bookAsk {
+    border-left: 3px dashed var(--color-text-secondary);
+}
+
+.bookTitle {
+    margin: 0 0 var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.bookMid {
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* RC.3.4g: marcos de um provento (anúncio, data com, data ex, pagamento). */
+.milestones {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+@media (min-width: 768px) {
+    .milestones {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.milestone {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.milestone strong {
+    color: var(--color-text-primary);
+}

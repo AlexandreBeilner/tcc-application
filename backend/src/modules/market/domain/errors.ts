@@ -3,13 +3,19 @@
 // pro cliente do gateway. `market` não tem regra de negócio própria: a
 // regra de fato (matching, precificação, Event Sourcing) vive inteira no
 // engine/ — este módulo só autentica e repassa (tarefa 6.0.3).
+//
+// `details` são os campos extras estruturados que o motor devolve ao lado de
+// `error` (ex: `code: 'market_closed'`, `opens_on`, `days_until_open` — tarefa
+// S.11), repassados 1:1 pro cliente poder agir sem parsear a mensagem.
 export class EngineRequestError extends Error {
   readonly status: number
+  readonly details: Record<string, unknown>
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, details: Record<string, unknown> = {}) {
     super(message)
     this.name = 'EngineRequestError'
     this.status = status
+    this.details = details
   }
 }
 

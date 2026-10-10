@@ -8,12 +8,9 @@ import type { AdvanceLessonResult } from '../../../services/lessons'
 import { LESSONS_QUERY_KEY } from '../useLessonsQuery'
 import { lessonQueryKey } from '../useLessonQuery'
 
-// Variáveis da mutation — `selectedOption` (backlog engajamento B.2) só faz
-// sentido saindo do passo Micro-decisão de uma lição com aposta real;
-// ausente em toda outra transição de passo.
+// A escolha da Micro-decisão não viaja mais aqui (RC.2.3: `useAnswerMicroDecision`).
 export interface AdvanceLessonVariables {
     step: number
-    selectedOption?: number
 }
 
 // `POST /lessons/:id/progress` (`.docs/backend/lessons.md`) — o backend já
@@ -31,14 +28,7 @@ export function useAdvanceLesson(lessonId: string): UseMutationResult<AdvanceLes
     const { show } = useRewardReveal()
 
     return useMutation({
-        // Não repassa `selectedOption` quando ausente (em vez de sempre
-        // passar, mesmo `undefined`) — preserva a chamada de 3 argumentos de
-        // toda transição sem aposta real, sem mudar o formato pra quem já
-        // depende dela.
-        mutationFn: ({ step, selectedOption }: AdvanceLessonVariables) =>
-            selectedOption === undefined
-                ? advanceLesson(token as string, lessonId, step)
-                : advanceLesson(token as string, lessonId, step, selectedOption),
+        mutationFn: ({ step }: AdvanceLessonVariables) => advanceLesson(token as string, lessonId, step),
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: lessonQueryKey(lessonId) })
             queryClient.invalidateQueries({ queryKey: LESSONS_QUERY_KEY })

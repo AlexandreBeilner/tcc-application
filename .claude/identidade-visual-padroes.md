@@ -9,14 +9,25 @@
 
 ## 0. Referência viva
 
-Mapa da Trilha e Detalhe de Ativo + Confirmação de Ordem foram prototipados — mobile e desktop,
-clicáveis — e fixam o padrão que este documento descreve:
+Mapa da Trilha (versão original, gráfico horizontal — hoje histórico, ver abaixo) e Detalhe de
+Ativo + Confirmação de Ordem foram prototipados — mobile e desktop, clicáveis — e fixam o padrão
+que este documento descreve:
 https://claude.ai/code/artifact/b3c04cbc-2185-4165-a8d8-eff0cadf1ccf
 
 Sempre que uma dúvida de composição não estiver resolvida aqui, comparar contra esse mockup
 antes de decidir algo novo. Ele é a prova de que os tokens (seção 1 do doc de tokens:
 "sobriedade na base, energia nos acentos") se traduzem em UI de verdade — os tokens sozinhos não
 garantem identidade, a composição é que garante.
+
+**Mapa da Trilha foi redesenhado (backlog de engajamento, Fase O)** — o acordeão com gráfico
+horizontal acima virou duas telas (hub de trilhas + mapa vertical por trilha), retiradas de
+verdade na tarefa O.4. A referência viva atual do Mapa da Trilha é o mockup da O.0:
+https://claude.ai/code/artifact/19e34a0c-55f0-474f-8ea1-bcec10ae40ab — o mockup original acima
+continua valendo só pra Detalhe de Ativo + Confirmação de Ordem.
+
+**Calendário do Mercado (tarefa S.12, tela 4.11)** tem mockup vivo próprio, com o relógio do TopBar, o
+bottom sheet mobile, o painel do tablet, o painel lateral fixo com a grade do trimestre no desktop, a
+virada de dia e o passo de onboarding: https://claude.ai/artifact/CqcmBmoJfpEKeUBAnks8zn
 
 ## 1. Princípio geral
 
@@ -76,9 +87,9 @@ expectativa, não um histórico.
 (`frontend/src/features/ranking/podiumSparkline`) generaliza a mesma técnica pra qualquer caso
 com só **2** marcos reais (não uma sequência inteira como a trilha) — início da janela (sempre
 0%) e agora (`profitabilityPct` real), com ruído determinístico (hash da seed, nunca
-`Math.random`) inserido só entre as duas âncoras. Confirma que o padrão não é exclusivo de
-`TrackChart`: qualquer visualização com pelo menos 2 pontos reais de uma progressão pode (e deve)
-usar ruído entre eles em vez de uma reta.
+`Math.random`) inserido só entre as duas âncoras. Confirma que o padrão não é exclusivo do Mapa da
+Trilha: qualquer visualização com pelo menos 2 pontos reais de uma progressão pode (e deve) usar
+ruído entre eles em vez de uma reta.
 
 ## 4a. Pódio/ranking — pedestal físico por posição (tarefa 6.8.4)
 
@@ -109,6 +120,46 @@ nunca um `Select` que esconde as opções por trás de um dropdown. Composição
 horizontal acima do conteúdo em mobile/tablet, painel lateral fixo/sticky em desktop (≥1024px,
 mesmo padrão de "conteúdo + coluna de apoio" do §7). Referência viva:
 `frontend/src/pages/Classificacao`.
+
+## 4c. Lista com abas — tabela (desktop) / cards (mobile-tablet), nunca linha clicável junto de ação por item (tarefa O.4)
+
+Padrão já em uso desde a 6.5 (`pages/EquityList`/`pages/FixedIncomeList`, abas Ações/ETFs/FIIs e
+Tesouro Direto/CDBs.../CRI e CRA) mas nunca escrito aqui até a tarefa O.4 ("Minhas Ordens")
+precisar dele de novo e o backlog apontar a lacuna de documentação. Fica formalizado como padrão
+reaproveitável, não específico de nenhuma das três telas:
+
+- **Abas sempre visíveis**, nunca um `Select` escondendo as opções (mesmo raciocínio do §4b) —
+  fileira de pills horizontais (`overflow-x: auto` em vez de quebrar linha, cabe qualquer número
+  de abas em mobile), pill ativa reaproveita o token de destaque (`--color-brand-500` borda,
+  `--color-brand-100` fundo, `--color-brand-300` texto) já usado pelo grupo de filtros do §4b —
+  mesma cor, papel diferente: aqui a aba troca o conjunto de itens mostrado (navegação dentro da
+  tela), lá o pill filtra sem trocar o "tipo" de conteúdo.
+- **Duas marcações sempre no DOM, uma escondida por media query** (nunca por JS/`matchMedia`, pra
+  não depender de mock em teste): `<table>` com `display: none` até `1024px`, lista de `.cards`
+  empilhados com `display: none` a partir de `1024px` — a mesma técnica de `AssetTable`
+  (organism-base de 4.2/4.4), cada `.card`/linha reaproveitando as mesmas colunas (`{ key, header,
+  render }`) que alimentam as células da tabela, pra nunca divergir dado entre as duas.
+- **Diferença de "Minhas Ordens" (O.4) vs. `AssetTable`:** `AssetTable` é pensado pra linha/card
+  navegável — a linha inteira é clicável (`<tr onClick>` desktop, `<button>` envolvendo o card no
+  mobile) e leva pra uma tela de detalhe. Uma lista com **ação por item** (aqui, "Cancelar ordem")
+  não pode reaproveitar isso: um `<button>` de ação dentro de outro `<button>` de navegação é
+  elemento interativo aninhado, inválido e ambíguo pro clique. Regra geral daqui pra frente: se a
+  lista precisa de um botão de ação por linha, ela **não é navegável por clique na linha inteira**
+  — o item mostra dado + ação lado a lado (célula/linha de cards dedicada à ação), nunca os dois
+  papéis empilhados no mesmo elemento clicável. `OrdersList` (`components/organisms/OrdersList`) é
+  a referência viva desta variante; `AssetTable` continua a referência da variante navegável.
+- **Confirmação de ação destrutiva por item da lista** (cancelar, desfazer) segue a mesma
+  confirmação leve em duas etapas já usada por "Desfazer amizade" (tarefa 6.9.3,
+  `components/organisms/FriendsList`) — nunca `window.confirm` nativo, sem precedente no app.
+
+## 4d. Bloqueio pela trilha, "Na plataforma", mapa e donut (revisão das trilhas, 2026-10)
+
+- **`LockedGate` (RC.2.5):** um único card de bloqueio pela trilha, com três variantes (`screen`, `section`, `inline`), cada uma com largura máxima, ícone (48, 32, 20px) e padding próprios. Em tela travada ele é a única coisa exibida, nunca cita o código da lição (só o título) e o CTA vai para a lição quando ela é alcançável, senão para o Mapa. Não criar painel de bloqueio novo.
+- **`PlatformNote` (RC.3.3):** o único lugar da lição que fala da mecânica da plataforma, em três linhas fixas (No Brasil, Aqui, Por quê), com selo e borda tracejada (tracejado = "isto é da plataforma, não do mundo real") e sem as cores de ganho e perda.
+- **Mapa da Trilha (RC.7.1):** a etiqueta "Você está aqui" é filha do nó atual, centrada acima do círculo; a grade quadriculada é `background-image` do canvas com o token `--grid-line` (claro e escuro), nunca um `pattern` do SVG.
+- **Donut do Portfólio (RC.7.3):** o anel é SVG; o furo mostra o total por padrão e a fatia ativa (nome, R$ e %) em hover, toque ou foco; nenhuma informação vive só no hover (a legenda traz R$ e %); fatias esmaecem (não somem) quando outra está ativa.
+- **Faixa do Sandbox (RC.7.4):** o Modo Aprendizado é uma faixa compacta (selo, valor, "Não conta pro ranking", seta) que só existe com posição aberta; sem posição, uma linha de dica. Nunca um card grande com "R$ 0,00".
+- **Calendário "Para você" (RC.6.4):** o que afeta o usuário ganha faixa própria em destaque (sólido para valor exato, tracejado para estimativa), separada do que é só do mercado.
 
 ## 5. Cor — reforço da regra de não-sobreposição (tokens, seção 2.3)
 
@@ -157,7 +208,11 @@ SVG inline estilo `lucide-react` (stroke-based, grid 24, `stroke-width` ~1.6–2
 ## 10. Telas-âncora
 
 Mapa da Trilha e Detalhe de Ativo + Confirmação de Ordem são as telas-âncora (backlog) que fixam
-este padrão. Qualquer tela nova compara contra elas — e contra o mockup da seção 0 — antes de
+este padrão. Qualquer tela nova compara contra elas — e contra os mockups da seção 0 — antes de
 divergir. Se uma tela nova genuinamente não se encaixa em nenhum padrão daqui, isso é decisão de
 produto: parar e perguntar (regra geral do `CLAUDE.md`), e documentar a decisão de volta neste
 arquivo.
+
+Mapa da Trilha, especificamente, hoje é **duas** telas-âncora (hub de trilhas + mapa vertical por
+trilha, backlog de engajamento Fase O) — o mockup da O.0 (seção 0) é a referência viva atual; o
+gráfico horizontal do mockup original foi retirado de verdade (tarefa O.4) e vira histórico.

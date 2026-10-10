@@ -26,6 +26,7 @@ const lessonMission = {
   completionCriteria: 'Concluir qualquer lição hoje',
   xpReward: 30,
   requiresLessonCompletion: true,
+  isActive: true,
 }
 
 const feedMission = {
@@ -36,6 +37,7 @@ const feedMission = {
   completionCriteria: 'Abrir o feed de notícias',
   xpReward: 20,
   requiresLessonCompletion: false,
+  isActive: true,
 }
 
 const reviewMission = {
@@ -46,6 +48,7 @@ const reviewMission = {
   completionCriteria: 'Reabrir e revisar hoje uma lição antiga',
   xpReward: 30,
   requiresLessonCompletion: false,
+  isActive: true,
 }
 
 const streakMission = {
@@ -56,6 +59,7 @@ const streakMission = {
   completionCriteria: '3 acertos seguidos hoje na Micro-decisão',
   xpReward: 30,
   requiresLessonCompletion: false,
+  isActive: true,
 }
 
 function build(
@@ -113,6 +117,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -139,6 +144,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -165,6 +171,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -181,6 +188,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 20,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -209,6 +217,7 @@ describe('CompleteMissionUseCase', () => {
       status: 'completed',
       xpAwarded: 20,
       leveledUp: true,
+      newLevel: 2,
       streakMilestone: 7,
       unlockedAchievements: [
         { id: 'a1', name: 'Primeiros Passos', description: null },

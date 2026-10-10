@@ -26,6 +26,7 @@ const catalog = [
     completionCriteria: 'Concluir qualquer lição hoje',
     xpReward: 30,
     requiresLessonCompletion: true,
+    isActive: true,
   },
   {
     id: 'm2',
@@ -35,6 +36,7 @@ const catalog = [
     completionCriteria: 'Abrir o feed de notícias',
     xpReward: 20,
     requiresLessonCompletion: false,
+    isActive: true,
   },
   {
     id: 'm3',
@@ -44,6 +46,7 @@ const catalog = [
     completionCriteria: 'Reabrir e revisar hoje uma lição antiga',
     xpReward: 30,
     requiresLessonCompletion: false,
+    isActive: true,
   },
   {
     id: 'm4',
@@ -53,6 +56,7 @@ const catalog = [
     completionCriteria: '3 acertos seguidos hoje na Micro-decisão',
     xpReward: 30,
     requiresLessonCompletion: false,
+    isActive: true,
   },
 ]
 
@@ -138,6 +142,7 @@ describe('missions routes', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -167,6 +172,7 @@ describe('missions routes', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })
@@ -196,6 +202,7 @@ describe('missions routes', () => {
       status: 'completed',
       xpAwarded: 30,
       leveledUp: false,
+      newLevel: 1,
       streakMilestone: null,
       unlockedAchievements: [],
     })

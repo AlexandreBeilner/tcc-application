@@ -1,0 +1,31 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.previewTitle {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+}
+
+@media (min-width: 1024px) {
+    .root {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: start;
+        gap: var(--space-8, 2rem);
+    }
+
+    .preview {
+        position: sticky;
+        top: var(--space-4);
+    }
+}

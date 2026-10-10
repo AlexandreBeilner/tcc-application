@@ -17,12 +17,13 @@ export interface UseLockedAssetGateResult {
 // Semana 7): as duas telas repetiam `isLocked` e o cadeado da coluna
 // Ticker/Produto — reflexo de UX, a garantia de verdade continua sendo o
 // 403 do backend (`ProductLockedError`, `.docs/backend/market.md`).
-// `selectAsset` navega sempre pro Detalhe, travado ou não (tarefa J.3,
-// achado da auditoria: o usuário nunca chegava a ver indicadores/gráfico
-// de um ativo travado, tudo somente leitura — a trava real é só no POST de
-// ordem/compra). `AssetDetail` usa `unlockingLessonFor` pra montar o
-// banner "Travado — desbloqueia na lição X" que substitui o painel de
-// compra quando `isLocked` é verdadeiro.
+// `selectAsset` navega sempre pro Detalhe, travado ou não (a lista nunca
+// desabilita a linha — o bloqueio é da "funcionalidade" ativo travado, não
+// do clique em si) — mas desde a Fase Q o Detalhe (`AssetDetail`/
+// `FixedIncomeDetail`) vira parede total quando `isLocked`, substituindo
+// TODO o conteúdo (chart/indicadores/simulador) pelo card de
+// `LockedGate` via `unlockingLessonFor`, reversão da "prévia, não
+// parede" da Fase J.
 export function useLockedAssetGate(): UseLockedAssetGateResult {
     const navigate = useNavigate()
     const { unlockedKeys, lessons } = useUnlockedKeys()
@@ -34,10 +35,7 @@ export function useLockedAssetGate(): UseLockedAssetGateResult {
 
     const unlockingLessonFor = useCallback((asset: AssetSummary) => findLessonUnlocking(assetUnlockKey(asset.type), lessons), [lessons])
 
-    const lockedBadge = useCallback(
-        (asset: AssetSummary) => (isLocked(asset) ? <LockedAssetBadge lessonCode={unlockingLessonFor(asset)?.code} /> : null),
-        [isLocked, unlockingLessonFor],
-    )
+    const lockedBadge = useCallback((asset: AssetSummary) => (isLocked(asset) ? <LockedAssetBadge /> : null), [isLocked])
 
     const selectAsset = useCallback((detailPath: string) => navigate(detailPath), [navigate])
 

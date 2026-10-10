@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { listAssets, listMyEvents } from '../../services/market'
@@ -8,11 +9,13 @@ import { Statement } from '.'
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/market', () => ({ listMyEvents: vi.fn(), listAssets: vi.fn() }))
 
-function renderPage() {
+function renderPage(initialEntry = '/extrato') {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
         <QueryClientProvider client={queryClient}>
-            <Statement />
+            <MemoryRouter initialEntries={[initialEntry]}>
+                <Statement />
+            </MemoryRouter>
         </QueryClientProvider>,
     )
 }
@@ -95,5 +98,29 @@ describe('Statement (tela 4.8)', () => {
         vi.mocked(listMyEvents).mockResolvedValue({ events: [] })
         renderPage()
         await waitFor(() => expect(screen.getByText('Você ainda não tem nenhuma transação registrada.')).toBeInTheDocument())
+    })
+
+    it('?escopo=aprendizado mostra só eventos de ativo Sandbox', async () => {
+        vi.mocked(listMyEvents).mockResolvedValue({
+            events: [
+                ...events,
+                {
+                    id: 'e3',
+                    event_type: 'sell_order_executed',
+                    asset_id: 's1',
+                    quantity: 1,
+                    unit_value: 5,
+                    timestamp: new Date().toISOString(),
+                },
+            ],
+        })
+        vi.mocked(listAssets).mockResolvedValue({
+            assets: [{ id: 's1', ticker: 'SAND3', name: 'Sandbox SA', type: 'acao', is_sandbox: true }],
+        })
+        renderPage('/extrato?escopo=aprendizado')
+
+        await waitFor(() => expect(screen.getByText('Venda executada')).toBeInTheDocument())
+        expect(screen.queryByText('Depósito inicial')).not.toBeInTheDocument()
+        expect(screen.queryByText('Compra executada')).not.toBeInTheDocument()
     })
 })

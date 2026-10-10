@@ -81,13 +81,12 @@ func DurationDays(band Band) (int, error) {
 
 // sampleMagnitudeAndSign sorteia um valor uniforme dentro de r e aplica o
 // sinal de direction — positivo sempre soma, negativo sempre subtrai,
-// misto sorteia o sinal 50/50. A spec 3.3.2 descreve "misto" só como
-// "câmbio beneficia exportador, prejudica importador simultaneamente" —
-// sem nenhum critério de setor/ativo pra decidir qual lado fica positivo
-// e qual fica negativo num evento específico; essa granularidade (aplicar
-// sinais diferentes por Target dentro do mesmo evento misto) fica fora de
-// escopo desta tarefa, documentada aqui como limitação conhecida — misto
-// aplica um único sinal sorteado a todos os alvos do evento.
+// misto sorteia o sinal 50/50. Quem decide *qual* direção entra aqui é
+// quem chama: SamplePriceEffectPct/SampleFundamentalsEffectPct continuam
+// recebendo uma Direction "crua", sem saber se veio de Event.Direction
+// (caso comum) ou de Target.Direction (evento "misto" com sinal próprio
+// por alvo, E.1) — a granularidade por alvo é resolvida por quem orquestra
+// o disparo (macroeventtrigger.Service.sampleTargetEffects), não aqui.
 func sampleMagnitudeAndSign(r EffectRange, direction Direction, rng *rand.Rand) float64 {
 	magnitude := r.MinPct + rng.Float64()*(r.MaxPct-r.MinPct)
 

@@ -42,7 +42,7 @@ func TestAppendEvent(t *testing.T) {
 	if ex.query != insertEventSQL {
 		t.Errorf("query = %q, want %q", ex.query, insertEventSQL)
 	}
-	want := []any{event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue}
+	want := []any{event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue, event.ReferenceMonth}
 	if len(ex.args) != len(want) {
 		t.Fatalf("args = %+v, want %+v", ex.args, want)
 	}

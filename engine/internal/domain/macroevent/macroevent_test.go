@@ -11,7 +11,7 @@ func ptr[T any](v T) *T { return &v }
 
 func validTarget(t *testing.T) Target {
 	t.Helper()
-	tg, err := NewTarget(nil, ptr("Conservador"), nil, MetricPrice)
+	tg, err := NewTarget(nil, ptr("Conservador"), nil, MetricPrice, nil)
 	if err != nil {
 		t.Fatalf("target de apoio inválido: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestNewTarget_ExclusividadeDeEscopo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewTarget(tt.sector, tt.riskClass, tt.assetID, MetricPrice)
+			got, err := NewTarget(tt.sector, tt.riskClass, tt.assetID, MetricPrice, nil)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Fatalf("err = %v, want %v", err, tt.wantErr)
@@ -113,7 +113,7 @@ func TestNewEvent_TresEscoposDeAlvo(t *testing.T) {
 		{
 			name: "setor",
 			target: func(t *testing.T) Target {
-				tg, err := NewTarget(&sector, nil, nil, MetricPrice)
+				tg, err := NewTarget(&sector, nil, nil, MetricPrice, nil)
 				if err != nil {
 					t.Fatalf("NewTarget setor: %v", err)
 				}
@@ -123,7 +123,7 @@ func TestNewEvent_TresEscoposDeAlvo(t *testing.T) {
 		{
 			name: "empresa específica, via asset_id emitido por ela",
 			target: func(t *testing.T) Target {
-				tg, err := NewTarget(nil, nil, ptr("asset-empresa-x"), MetricNetIncome)
+				tg, err := NewTarget(nil, nil, ptr("asset-empresa-x"), MetricNetIncome, nil)
 				if err != nil {
 					t.Fatalf("NewTarget empresa/ativo: %v", err)
 				}
@@ -133,7 +133,7 @@ func TestNewEvent_TresEscoposDeAlvo(t *testing.T) {
 		{
 			name: "ativo específico",
 			target: func(t *testing.T) Target {
-				tg, err := NewTarget(nil, nil, ptr("asset-1"), MetricPrice)
+				tg, err := NewTarget(nil, nil, ptr("asset-1"), MetricPrice, nil)
 				if err != nil {
 					t.Fatalf("NewTarget ativo: %v", err)
 				}
@@ -150,6 +150,43 @@ func TestNewEvent_TresEscoposDeAlvo(t *testing.T) {
 			}
 			if len(evt.Targets) != 1 {
 				t.Fatalf("len(Targets) = %d, want 1", len(evt.Targets))
+			}
+		})
+	}
+}
+
+// TestNewTarget_DirecaoPropria cobre o critério de aceite da tarefa E.1:
+// um alvo pode declarar uma direção própria (positivo/negativo), mas não
+// misto — misto só faz sentido como composição de 2+ alvos de sinais
+// opostos, nunca como o sinal de um único alvo.
+func TestNewTarget_DirecaoPropria(t *testing.T) {
+	sector := catalog.SectorTecnologia
+
+	tests := []struct {
+		name      string
+		direction *Direction
+		wantErr   error
+	}{
+		{"sem direção própria (herda do evento)", nil, nil},
+		{"positivo", ptr(DirectionPositivo), nil},
+		{"negativo", ptr(DirectionNegativo), nil},
+		{"misto rejeitado", ptr(DirectionMisto), ErrTargetDirectionMustBeSigned},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewTarget(&sector, nil, nil, MetricPrice, tt.direction)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if got.Direction != tt.direction {
+				t.Errorf("Direction = %v, want %v", got.Direction, tt.direction)
 			}
 		})
 	}

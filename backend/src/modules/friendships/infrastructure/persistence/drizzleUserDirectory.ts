@@ -13,6 +13,15 @@ function toSummary(row: typeof users.$inferSelect): UserSummary {
   }
 }
 
+// Username aceita "_" (schemas.ts, regex /^[a-z0-9_]+$/), que o Postgres
+// ILIKE trata como wildcard de 1 caractere — sem escapar, buscar por um
+// username com "_" casa qualquer caractere naquela posição, devolvendo
+// resultados incorretos. "\" escapado primeiro pra não dobrar o escape das
+// duas trocas seguintes.
+export function escapeLikePattern(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
 // Todo usuário é buscável — não há perfil privado nesta fase (spec 8.2,
 // CLAUDE.md). Busca por `username` (ILIKE, contains), não por `name`.
 export function createDrizzleUserDirectory(db: Database): UserDirectory {
@@ -39,7 +48,14 @@ export function createDrizzleUserDirectory(db: Database): UserDirectory {
       const rows = await db
         .select()
         .from(users)
-        .where(and(ilike(users.username, `%${query}%`), ne(users.id, excludeUserId)))
+        .where(
+          and(
+            ilike(users.username, `%${escapeLikePattern(query)}%`),
+            ne(users.id, excludeUserId),
+            // Conta suspensa pelo painel (N.16) não aparece na busca de amigos.
+            eq(users.status, 'active'),
+          ),
+        )
         .limit(20)
       return rows.map(toSummary)
     },

@@ -6,6 +6,7 @@ import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { AwardXpUseCase } from '../../application/useCases/awardXp'
 import { GetProgressionUseCase } from '../../application/useCases/getProgression'
 import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
+import { createFakeMonthlySalaryReader } from '../../test/fakes/fakeMonthlySalaryReader'
 import { createFakeProgressionRepository } from '../../test/fakes/fakeProgressionRepository'
 import { createProgressionRouter } from './progressionRouter'
 
@@ -14,11 +15,12 @@ function buildApp() {
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const getProgression = new GetProgressionUseCase(progressionRepository)
+  const monthlySalaryReader = createFakeMonthlySalaryReader()
   const awardXp = new AwardXpUseCase(progressionRepository, createFakeAchievementChecker())
 
   const app = express()
   app.use(express.json())
-  app.use(createProgressionRouter({ getProgression, authMiddleware }))
+  app.use(createProgressionRouter({ getProgression, monthlySalaryReader, authMiddleware }))
   return { app, tokenIssuer, awardXp }
 }
 
@@ -50,6 +52,7 @@ describe('progression routes', () => {
       currentStreak: 0,
       longestStreak: 0,
       lastQualifyingActivityDate: null,
+      monthlySalary: 200,
     })
   })
 
@@ -67,6 +70,7 @@ describe('progression routes', () => {
       currentStreak: 0,
       longestStreak: 0,
       lastQualifyingActivityDate: null,
+      monthlySalary: 100,
     })
     expect(res.body).not.toHaveProperty('netWorth')
     expect(res.body).not.toHaveProperty('balance')

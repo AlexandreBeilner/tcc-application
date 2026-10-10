@@ -31,12 +31,21 @@ function buildApp() {
     }),
     createFakeAssetPriceHistoryReader(),
     createFakeCurrentAccountStateReader({
+      // investedCost/variableIncomeValue (tarefa T.1): os R$10.000 do
+      // depósito inicial foram inteiramente investidos e hoje valem
+      // R$11.000 — baseline (replay do único evento, initial_deposit) tem
+      // investedCost 0 (nenhuma compra no extrato do fake), então o
+      // retorno da janela é só o ganho de agora sobre o capital investido
+      // agora: (11000 - 10000)/10000 * 100 = 10%.
       u1: {
-        cash: 11000,
-        variableIncomeValue: 0,
+        cash: 0,
+        variableIncomeValue: 11000,
         fixedIncomeValue: 0,
         tradesExecuted: 0,
         total: 11000,
+        investedCost: 10000,
+        disinvestedProceeds: 0,
+        dividendsReceived: 0,
       },
     }),
   )
@@ -107,6 +116,7 @@ describe('ranking routes', () => {
       pageSize: 25,
       totalEntries: 1,
       totalPages: 1,
+      updatedAt: null,
     })
   })
 

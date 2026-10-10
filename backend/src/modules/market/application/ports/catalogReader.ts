@@ -52,6 +52,12 @@ export interface EtfDetails {
   benchmark_index: string
   methodology_summary?: string
   holdings: Array<{ constituent_name: string; weight_pct: number }>
+  nav?: number
+  premium_pct?: number
+  nav_day?: number
+  shares_outstanding?: number
+  tracking_error_pct?: number
+  dividend_history: DividendEvent[]
 }
 
 export interface FiiDetails {
@@ -62,6 +68,7 @@ export interface FiiDetails {
   indexador?: string
   portfolio_value?: number
   dividend_yield?: number
+  price_to_book_value?: number
   dividend_history: DividendEvent[]
 }
 
@@ -70,6 +77,25 @@ export interface AssetDetail extends AssetSummary {
   equity?: EquityDetails
   etf?: EtfDetails
   fii?: FiiDetails
+}
+
+export interface PriceLevel {
+  price: number
+  quantity: number
+}
+
+// Espelha `GET /assets/:id/book` do motor (`.docs/engine/orders.md`, tarefa
+// S.5). Ativo sandbox devolve só `price` (preço do roteiro), o resto fica
+// `null` — nunca tem book real (RF12/RNF08). `bids`/`asks` vêm `null`
+// (não `[]`) quando o lado está vazio.
+export interface AssetBook {
+  is_sandbox: boolean
+  price: number | null
+  best_bid: number | null
+  best_ask: number | null
+  mid_price: number | null
+  bids: PriceLevel[] | null
+  asks: PriceLevel[] | null
 }
 
 export interface QuotePoint {
@@ -93,4 +119,8 @@ export interface CatalogReader {
   getAsset(id: string): Promise<AssetDetail>
   getAssetQuotes(id: string, days?: number): Promise<QuotePoint[]>
   getCompany(id: string): Promise<CompanyDetail>
+  // userId (tarefa S.5) resolve o dia do roteiro sandbox específico desse
+  // usuário — o backend sempre passa o id do token, nunca um id vindo da
+  // requisição (mesmo padrão de MarketCalendarReader.getCalendar).
+  getAssetBook(id: string, userId: string): Promise<AssetBook>
 }

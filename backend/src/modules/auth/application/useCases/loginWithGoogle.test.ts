@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { AccountSuspendedError } from '../../domain/errors'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeGoogleIdentityProvider } from '../../test/fakes/fakeGoogleIdentityProvider'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
@@ -88,5 +89,27 @@ describe('LoginWithGoogleUseCase', () => {
     const identity = await userRepository.findIdentity('google', PROFILE.providerAccountId)
     expect(identity?.userId).toBe(result.user.id)
     expect(accountProvisioner.provisionedUserIds).toEqual([result.user.id])
+  })
+
+  it('recusa conta suspensa e não vincula identidade nova a ela (N.16)', async () => {
+    const userRepository = createFakeUserRepository()
+    const suspended = await userRepository.createUser({
+      name: 'Suspenso',
+      email: PROFILE.email,
+      username: 'suspenso',
+      passwordHash: null,
+    })
+    await userRepository.updateUser(suspended.id, { status: 'suspended' })
+    const useCase = new LoginWithGoogleUseCase(
+      userRepository,
+      createFakeGoogleIdentityProvider(PROFILE),
+      createFakeTokenIssuer(),
+      createFakeAccountProvisioner(),
+    )
+
+    await expect(useCase.execute({ code: 'auth-code' })).rejects.toBeInstanceOf(
+      AccountSuspendedError,
+    )
+    expect(await userRepository.findIdentity('google', PROFILE.providerAccountId)).toBeUndefined()
   })
 })

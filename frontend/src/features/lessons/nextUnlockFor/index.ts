@@ -1,4 +1,5 @@
 import type { Lesson } from '../../../services/lessons'
+import { isParallelTrack } from '../../../utils/tracks'
 import type { NextUnlock } from './types'
 
 export type { NextUnlock } from './types'
@@ -11,15 +12,19 @@ export type { NextUnlock } from './types'
 // `unlocksDescription` também está preenchido (par sempre junto, ver
 // `seedLessons.ts`), então checar só a description já cobre o critério
 // original ("unlocksKeys/unlocksDescription não é vazio").
-// `GET /lessons` já devolve ordenado por `sortOrder` (mesma premissa de
-// `trackGroups`), e a trilha é estritamente sequencial (backend:
-// `lessonStatus`), então a distância até a lição-alvo é só a diferença
-// entre o `sortOrder` dela e a quantidade já concluída.
-export function nextUnlockFor(lessons: Lesson[]): NextUnlock | null {
-    const completedCount = lessons.filter((lesson) => lesson.status === 'completed').length
-    const target = lessons.find((lesson) => lesson.status !== 'completed' && Boolean(lesson.unlocksDescription))
+// `GET /lessons` já devolve só as publicadas, ordenadas por `sortOrder`
+// (mesma premissa de `trackGroups`), e a trilha é estritamente sequencial
+// (backend: `buildProgression`), então a distância até a lição-alvo é a
+// posição dela na lista menos a quantidade já satisfeita (concluída ou
+// dispensada, N.24). Lição dispensada nunca é alvo: o usuário já passou dela
+// e o desbloqueio dela já vale.
+export function nextUnlockFor(allLessons: Lesson[]): NextUnlock | null {
+    // Trilha paralela (RC.4.4) não desbloqueia nada e não entra na corrente.
+    const lessons = allLessons.filter((lesson) => !isParallelTrack(lesson.trackNumber))
+    const satisfiedCount = lessons.filter((lesson) => lesson.status === 'completed' || lesson.waived).length
+    const targetIndex = lessons.findIndex((lesson) => lesson.status !== 'completed' && !lesson.waived && Boolean(lesson.unlocksDescription))
 
-    if (!target) return null
+    if (targetIndex === -1) return null
 
-    return { description: target.unlocksDescription, lessonsRemaining: target.sortOrder - completedCount }
+    return { description: lessons[targetIndex].unlocksDescription, lessonsRemaining: targetIndex + 1 - satisfiedCount }
 }

@@ -5,13 +5,18 @@ import { EquityIndicatorsPanel } from '../../components/organisms/EquityIndicato
 import { EtfCompositionPanel } from '../../components/organisms/EtfCompositionPanel'
 import { FiiIndicatorsPanel } from '../../components/organisms/FiiIndicatorsPanel'
 import { DividendHistoryList } from '../../components/organisms/DividendHistoryList'
+import { PositionSummaryCard } from '../../components/organisms/PositionSummaryCard'
 import { EquityOrderTicket } from '../../components/organisms/EquityOrderTicket'
-import { LockedAssetPanel } from '../../components/molecules/LockedAssetPanel'
+import { LockedGate } from '../../components/organisms/LockedGate'
 import { OrderConfirmationDialog } from '../../components/organisms/OrderConfirmationDialog'
 import type { OrderDraftOrder } from '../../components/organisms/OrderConfirmationDialog'
 import { useAssetQuery } from '../../features/market/useAssetQuery'
+import { useAssetBookQuery } from '../../features/market/useAssetBookQuery'
+import { useMarketClosedReason } from '../../features/market/useMarketClosedReason'
+import { useTradingHaltReason } from '../../features/market/useTradingHaltQuery'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
+import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { formatCurrency } from '../../features/portfolio/format'
 import { formatSignedPercent } from '../../features/market/format'
 import type { OrderSide } from '../../services/market'
@@ -27,22 +32,37 @@ const RANGES = [
 // gráfico de preço e fluxo de compra comuns às 3 classes de renda
 // variável; a seção de indicadores varia por `asset.type` (RF21, CLAUDE.md:
 // nunca reaproveitar o layout de indicadores de Ações pra ETF/FII).
-// Ativo travado (tarefa J.3) chega aqui normalmente — `EquityList` não
-// redireciona mais pra lição, indicadores/gráfico continuam somente
-// leitura (a trava real é só no POST de ordem, RF12/7.0.1) — só o painel
-// de compra é trocado pelo banner `LockedAssetPanel`.
+// Ativo travado (Fase Q, reversão da J.3 "prévia, não parede") chega aqui
+// pelo clique na linha de `EquityList` — mas a tela inteira vira parede:
+// nada de ticker/preço/gráfico/indicadores, só o card `LockedGate`
+// explicando o que falta pra liberar. A versão original da J.3 mantinha
+// tudo visível (só leitura) e trocava apenas o painel de compra — decisão
+// revertida pelo autor (2026-09-12): "a única coisa que aparece na tela é
+// o card, até liberar".
 export function AssetDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
     const assetId = id as string
 
     const assetQuery = useAssetQuery(assetId)
+    const bookQuery = useAssetBookQuery(assetId)
+    const accountQuery = useMyAccountQuery()
     const [rangeDays, setRangeDays] = useState(RANGES[0].days)
     const quotesQuery = useAssetQuotesQuery(assetId, rangeDays)
     const [draft, setDraft] = useState<OrderDraftOrder | null>(null)
     const gate = useLockedAssetGate()
 
     const asset = assetQuery.data?.asset
+    // Mercado fechado (fim de semana) ou negociação pausada pela administração: os dois
+    // desabilitam a ordem com o motivo em texto, o de calendário primeiro.
+    const marketClosedReason = useMarketClosedReason(asset?.is_sandbox ?? false)
+    const haltReason = useTradingHaltReason(assetId, asset?.is_sandbox ?? false)
+    const closedReason = marketClosedReason ?? haltReason
+    // Book real (tarefa S.5/S.7) — insumo do custo estimado e de "Usar o
+    // máximo" do `EquityOrderTicket`; ausente/sandbox cai no fallback de
+    // sempre (último negócio), já tratado no próprio componente.
+    const position = accountQuery.data?.positions.find((position) => position.assetId === assetId)
+    const ownedQuantity = position?.quantity
 
     if (assetQuery.isError) {
         return (
@@ -64,6 +84,17 @@ export function AssetDetail() {
 
     const locked = gate.isLocked(asset)
     const unlockingLesson = gate.unlockingLessonFor(asset)
+
+    if (locked) {
+        return (
+            <LockedGate
+                variant="section"
+                lessonId={unlockingLesson?.id}
+                lessonTitle={unlockingLesson?.title}
+                reachable={unlockingLesson?.reachable}
+            />
+        )
+    }
 
     function handleSubmitOrder(side: OrderSide, quantity: number) {
         setDraft({
@@ -108,6 +139,21 @@ export function AssetDetail() {
                         onRangeChange={setRangeDays}
                     />
 
+                    {/* `positions` nunca é deletada numa venda total (UPSERT no motor,
+                        `order_execution_repository.go`) — a linha fica com `quantity: 0` e
+                        `average_price` do último preço médio, então `position.quantity > 0`
+                        é obrigatório aqui: sem essa checagem o card apareceria pra um ativo
+                        que o usuário não tem mais, dividindo por `averagePrice * 0` no
+                        retorno total (tarefa S.16, achado revisado nesta sessão). */}
+                    {position && !position.isSandbox && position.quantity > 0 && (
+                        <PositionSummaryCard
+                            quantity={position.quantity}
+                            averagePrice={position.averagePrice}
+                            markPrice={position.markPrice}
+                            dividendsReceived={position.dividendsReceived}
+                        />
+                    )}
+
                     {asset.equity && (
                         <>
                             <EquityIndicatorsPanel indicators={asset.equity.indicators} />
@@ -125,7 +171,15 @@ export function AssetDetail() {
                         </>
                     )}
 
-                    {asset.etf && <EtfCompositionPanel etf={asset.etf} />}
+                    {asset.etf && (
+                        <>
+                            <EtfCompositionPanel etf={asset.etf} />
+                            <section className={styles.dividends}>
+                                <span className={styles.dividendsTitle}>Proventos distribuídos</span>
+                                <DividendHistoryList history={asset.etf.dividend_history} />
+                            </section>
+                        </>
+                    )}
 
                     {asset.fii && (
                         <>
@@ -139,11 +193,14 @@ export function AssetDetail() {
                 </div>
 
                 <aside className={styles.sidebar}>
-                    {locked ? (
-                        <LockedAssetPanel lessonId={unlockingLesson?.id} lessonCode={unlockingLesson?.code} />
-                    ) : (
-                        <EquityOrderTicket unitPrice={asset.current_price} onSubmit={handleSubmitOrder} />
-                    )}
+                    <EquityOrderTicket
+                        unitPrice={asset.current_price}
+                        book={bookQuery.data?.book}
+                        cashBalance={accountQuery.data?.cashBalance}
+                        ownedQuantity={ownedQuantity}
+                        closedReason={closedReason}
+                        onSubmit={handleSubmitOrder}
+                    />
                 </aside>
             </div>
 

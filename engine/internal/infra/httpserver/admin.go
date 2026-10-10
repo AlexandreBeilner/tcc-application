@@ -2,7 +2,9 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"time"
 
 	"tcc-investimentos/engine/internal/domain/tick"
 )
@@ -37,6 +39,42 @@ type tickResponse struct {
 	// e quantos venceram e foram pagos (payment_day == day) neste tick.
 	DividendsGeneratedCount int `json:"dividends_generated_count"`
 	DividendsPaidCount      int `json:"dividends_paid_count"`
+	// BotFillsCount (Fase D.2) é quantos fills reais aconteceram nas rodadas
+	// de negociação de bot deste tick, somando todas as rodadas sorteadas
+	// (tick.IntradayRounds, Fase D.1) — só observabilidade; os fills em si
+	// já estão em order_book/market_events (Event Sourcing), reconstituíveis
+	// sem depender deste contador. 0 quando o catálogo ainda não tem nenhuma
+	// Ação (Fases G/H vão estender o mesmo mecanismo pra FII/ETF).
+	BotFillsCount int `json:"bot_fills_count"`
+	// ExpiredOrdersCount (achado 005 parte A.3) é quantas ordens
+	// pendentes/parciais de um dia simulado anterior foram canceladas antes
+	// das rodadas deste tick rodarem — só observabilidade, mesma natureza
+	// de BotFillsCount.
+	ExpiredOrdersCount int `json:"expired_orders_count"`
+	// UncoveredAssetsCount (tarefa P.3) é quantos ativos negociáveis ficaram
+	// sem Market Maker ativo cobrindo neste tick, só observabilidade.
+	UncoveredAssetsCount int `json:"uncovered_assets_count"`
+	// IntradayRoundsCount (tarefa P.7) é quantas rodadas de negociação
+	// (1 a 4, tick.IntradayRounds) o tick sorteou, só observabilidade: o
+	// benchmark de cobertura precisa dela pra calcular o custo por
+	// ativo-rodada do Market Maker.
+	IntradayRoundsCount int `json:"intraday_rounds_count"`
+}
+
+// adminTickWriteTimeout é o prazo de escrita da resposta de POST /admin/tick
+// (tarefa P.10). O WriteTimeout global do servidor (5 s) cobre as rotas de
+// leitura, mas o tick roda síncrono dentro da requisição e cresce com o
+// catálogo (proposta-cobertura-market-maker.md, seção 6.1): com ~2 ms por
+// comando de banco, o disparo manual estouraria os 5 s com pouco mais de 20
+// ativos cotados. O tick automático diário (scheduler) não passa por HTTP e
+// não tem esse limite.
+const adminTickWriteTimeout = 2 * time.Minute
+
+// extendWriteDeadline levanta o prazo de escrita só da requisição atual.
+// http.ErrNotSupported (ResponseWriter sem suporte, como o httptest.Recorder)
+// é ignorado: nesse caso não existe prazo de servidor a estourar.
+func extendWriteDeadline(w http.ResponseWriter, d time.Duration) {
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(d))
 }
 
 // handleAdminTick serve POST /admin/tick — força um tick fora do
@@ -49,21 +87,37 @@ func handleAdminTick(t ticker) http.HandlerFunc {
 			return
 		}
 
+		extendWriteDeadline(w, adminTickWriteTimeout)
+
 		result, err := t.Run(r.Context())
+		if errors.Is(err, tick.ErrTickInProgress) {
+			writeCatalogError(w, http.StatusConflict, "já existe um tick em andamento")
+			return
+		}
 		if err != nil {
 			writeCatalogError(w, http.StatusInternalServerError, "erro ao executar tick")
 			return
 		}
 
-		writeJSON(w, http.StatusOK, tickResponse{
-			Day:                     result.State.Day,
-			SelicRate:               result.State.SelicRate,
-			QuotesCount:             len(result.Quotes),
-			FundamentalsCount:       len(result.Fundamentals),
-			IsCopomDay:              result.IsCopomDay,
-			IsReportDay:             result.IsReportDay,
-			DividendsGeneratedCount: len(result.NewDividends),
-			DividendsPaidCount:      len(result.DuePayments),
-		})
+		writeJSON(w, http.StatusOK, toTickResponse(result))
+	}
+}
+
+// toTickResponse monta o corpo de POST /admin/tick (e de cada item de POST
+// /admin/tick/advance) a partir do resultado do tick.
+func toTickResponse(result tick.Result) tickResponse {
+	return tickResponse{
+		Day:                     result.State.Day,
+		SelicRate:               result.State.SelicRate,
+		QuotesCount:             len(result.Quotes),
+		FundamentalsCount:       len(result.Fundamentals),
+		IsCopomDay:              result.IsCopomDay,
+		IsReportDay:             result.IsReportDay,
+		DividendsGeneratedCount: len(result.NewDividends),
+		DividendsPaidCount:      len(result.DuePayments),
+		BotFillsCount:           result.IntradayFillsCount,
+		ExpiredOrdersCount:      result.ExpiredOrdersCount,
+		UncoveredAssetsCount:    result.UncoveredAssetsCount,
+		IntradayRoundsCount:     len(result.IntradayRounds),
 	}
 }

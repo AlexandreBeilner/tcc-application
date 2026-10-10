@@ -9,11 +9,26 @@ package position
 import "errors"
 
 // ErrInsufficientQuantity é devolvido por ApplySell quando a venda excede a
-// quantidade em carteira — nunca deveria acontecer de fato, porque
-// orderexecution.Execute já valida saldo/posição antes de chegar aqui; serve
-// de guarda de invariante contra chamada incorreta, não de validação de
-// borda de negócio (essa já aconteceu antes).
+// quantidade em carteira. orderexecution.Execute valida a posição do usuário
+// da ordem recebida contra o snapshot de LoadContext antes de chegar aqui,
+// mas isso NÃO cobre a contraparte de um Fill: db.OrderExecutionRepository.
+// Persist chama ApplySell de novo, pro lado da contraparte, contra a posição
+// real lida com FOR UPDATE dentro da própria transação — se a posição dela
+// mudou desde que a ordem pendurada foi originalmente aceita (outro Fill já
+// consumiu parte, achado confirmado ao vivo via docker compose up depois de
+// ~50 ticks de negociação real de bot), este erro acontece de fato, não é só
+// guarda de invariante. orderexecution.ErrInsufficientPosition redeclara
+// este mesmo valor (mesmo padrão de ErrFloatExceeded) exatamente pra quem
+// chama Persist (ex: tick.businessRejection, rounds.go) conseguir
+// reconhecer essa rejeição de negócio via errors.Is, sem precisar importar
+// este pacote.
 var ErrInsufficientQuantity = errors.New("quantidade em posição insuficiente para a venda")
+
+// ErrFloatExceeded é devolvido por ValidateFloatCeiling quando a soma das
+// posições de todos os detentores de um ativo ultrapassaria
+// outstanding_shares — o float finito (tarefa A.3, proposta
+// motor-mercado-realista 2.2).
+var ErrFloatExceeded = errors.New("soma das posições excede outstanding_shares do ativo")
 
 // Position é a posição de um usuário num único ativo.
 type Position struct {
@@ -41,6 +56,21 @@ func ApplySell(current Position, quantity int) (Position, error) {
 	return Position{Quantity: current.Quantity - quantity, AveragePrice: current.AveragePrice}, nil
 }
 
+// ValidateFloatCeiling confirma que a soma das posições de todos os
+// detentores de um ativo (usuários + bots) nunca excede outstandingShares —
+// float finito (tarefa A.3). Uma ordem normal nunca deveria violar isso:
+// orderexecution.Execute só transfere quantidade já existente de um
+// detentor pra outro (nunca cria posição do nada, exceto liquidez sintética
+// de sandbox, fora do escopo desse teto), então essa validação só pode
+// falhar por uma distribuição inicial malformada (Fase B) — é proteção de
+// invariante, não regra de negócio que trava negociação legítima.
+func ValidateFloatCeiling(totalHeld, outstandingShares int64) error {
+	if totalHeld > outstandingShares {
+		return ErrFloatExceeded
+	}
+	return nil
+}
+
 // Record é uma Position enriquecida com a identificação do ativo (ticker,
 // nome, tipo) pra leitura (GET /positions, tarefa 4.7) — os três campos
 // vêm crus (não catalog.AssetType) pra este pacote não precisar importar
@@ -48,12 +78,16 @@ func ApplySell(current Position, quantity int) (Position, error) {
 // tick.AssetForPricing.Sector. IsSandbox (tarefa 4.11, RF12) distingue
 // posição de sandbox de posição do Mercado Ao Vivo — insumo pra tela 2.1
 // (inventário) separar visualmente as duas, e pro futuro replay de ranking
-// (backlog 5.x) filtrar sandbox fora do cálculo.
+// (backlog 5.x) filtrar sandbox fora do cálculo. DividendsReceived (tarefa
+// S.15) é a soma de quantity*unit_value dos eventos dividend_payment desse
+// usuário nesse ativo — fica em Record, não em Position, porque não entra
+// na álgebra de ApplyBuy/ApplySell, é só agregação de leitura.
 type Record struct {
-	AssetID     string
-	AssetTicker string
-	AssetName   string
-	AssetType   string
-	IsSandbox   bool
+	AssetID           string
+	AssetTicker       string
+	AssetName         string
+	AssetType         string
+	IsSandbox         bool
+	DividendsReceived float64
 	Position
 }

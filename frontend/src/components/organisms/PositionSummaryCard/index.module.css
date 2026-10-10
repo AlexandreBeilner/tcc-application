@@ -1,0 +1,65 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.title {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Os dois retornos lado a lado (tarefa S.16) — `flex-wrap` garante que
+   caibam empilhados sem precisar de uma media query dedicada nos 375px de
+   mobile, mesmo padrão de `.priceRow` (AssetDetail). */
+.returns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+}
+
+.returnItem {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1 1 140px;
+}
+
+.returnLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.returnValue {
+    align-self: flex-start;
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+}
+
+.gain {
+    background: var(--color-gain-100);
+    color: var(--color-gain-500);
+}
+
+.loss {
+    background: var(--color-loss-100);
+    color: var(--color-loss-500);
+}
+
+.explanation {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}

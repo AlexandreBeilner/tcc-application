@@ -37,6 +37,9 @@ export interface CompleteMissionResult {
     // `unlockedAchievements` ainda sem consumidor (I.4/I.5).
     xpAwarded?: number
     leveledUp?: boolean
+    // Nível após este crédito (tarefa T.10) — mesma finalidade de
+    // `AdvanceLessonResult.newLevel`.
+    newLevel?: number
     streakMilestone?: number | null
     unlockedAchievements?: UnlockedAchievement[]
 }

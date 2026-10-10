@@ -10,7 +10,7 @@ import type { AssetDetail } from '../../../services/market'
 // ao vivo do passo Revelação (`microDecisionAssetTicker`, tipo
 // `live_indicator`). `ticker` nulo mantém as duas queries desabilitadas.
 export function useAssetByTicker(ticker: string | null): { asset: AssetDetail | undefined; isLoading: boolean; isError: boolean } {
-    const assetsQuery = useAssetsQuery(undefined, { enabled: ticker !== null })
+    const assetsQuery = useAssetsQuery(undefined, { enabled: ticker !== null, includeSandbox: true })
     const summary = ticker ? assetsQuery.data?.assets.find((candidate) => candidate.ticker === ticker) : undefined
     const detailQuery = useAssetQuery(summary?.id ?? '', { enabled: summary !== undefined })
 

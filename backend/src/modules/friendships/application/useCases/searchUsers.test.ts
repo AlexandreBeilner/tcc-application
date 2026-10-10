@@ -15,4 +15,16 @@ describe('SearchUsersUseCase', () => {
 
     expect(result.map((u) => u.id)).toEqual([alicia.id])
   })
+
+  it('conta de bot nunca aparece na busca (tarefa A.1, backlog-motor-mercado-realista) — bot só existe em `accounts` no motor, nunca em `users` aqui', async () => {
+    // Sem nenhum bot no seed — reflete a realidade de produção: bot nunca
+    // passa pelo fluxo de cadastro que popula `users`. A busca por um termo
+    // que casaria com a convenção de nome de bot não pode retornar nada.
+    const userDirectory = createFakeUserDirectory([alice, bob])
+    const useCase = new SearchUsersUseCase(userDirectory)
+
+    const result = await useCase.execute({ userId: alice.id, query: 'bot_market_maker' })
+
+    expect(result).toEqual([])
+  })
 })
