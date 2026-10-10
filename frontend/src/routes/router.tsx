@@ -10,6 +10,8 @@ import { BuscarAmigos } from '../pages/BuscarAmigos'
 import { Calculator } from '../pages/Calculator'
 import { CancelarInscricao } from '../pages/CancelarInscricao'
 import { Classificacao } from '../pages/Classificacao'
+import { LigaDetalhe } from '../pages/LigaDetalhe'
+import { Ligas } from '../pages/Ligas'
 import { CompanyProfile } from '../pages/CompanyProfile'
 import { Configuracoes } from '../pages/Configuracoes'
 import { Conquistas } from '../pages/Conquistas'
@@ -155,6 +157,9 @@ export const router = createBrowserRouter([
                         children: [{ path: '/calculadora', element: <Calculator /> }],
                     },
                     { path: '/classificacao', element: <Classificacao /> },
+                    // Ligas privadas do PRO (MO.5.2c): participar é de graça, criar é PRO.
+                    { path: '/ligas', element: <Ligas /> },
+                    { path: '/ligas/:id', element: <LigaDetalhe /> },
                     // Notícias só desbloqueia de verdade na lição que libera
                     // `news_feed` (Fase Q, reversão da decisão original de
                     // 7.0.1 de tratar o feed como "sempre acessível, só

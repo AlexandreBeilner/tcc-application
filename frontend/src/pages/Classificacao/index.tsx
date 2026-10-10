@@ -1,5 +1,6 @@
 import { formatUpdatedAgo } from '../../utils/formatUpdatedAgo'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { RankingBoard } from '../../components/organisms/RankingBoard'
 import { useRankingQuery } from '../../features/ranking/useRankingQuery'
 import { useAuth } from '../../features/auth/AuthContext'
@@ -139,6 +140,9 @@ export function Classificacao() {
                 </div>
 
                 <aside className={styles.filters} aria-label="Filtros da classificação">
+                    <Link className={styles.leaguesLink} to="/ligas">
+                        Ligas com amigos
+                    </Link>
                     <PillGroup label="Escopo" options={SCOPE_OPTIONS} value={scope} onChange={changeScope} />
                     <PillGroup label="Critério" options={CRITERION_OPTIONS} value={criterion} onChange={changeCriterion} />
                     <PillGroup
