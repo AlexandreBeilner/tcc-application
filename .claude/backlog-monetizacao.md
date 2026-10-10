@@ -199,13 +199,15 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
 
 ## Fase C — Web: planos, compra e gerenciamento
 
-### MO.3.1 · Tela de planos (`/planos`)
+### MO.3.1 · Tela de planos (`/planos`) ✅ (2026-10-10)
 - **Descrição:** tela nova nos três breakpoints (CLAUDE.md), seguindo `identidade-visual-*`. Mostra
   o que o PRO inclui, mensal e anual lado a lado (anual com o desconto calculado do preço real,
   nunca texto fixo), e deixa explícito o que continua grátis para sempre. Sem escassez, sem contador.
 - **Aceite:** tela responsiva; textos sem travessão e sem jargão; preços vêm do Offering (não
   hardcoded); estado "você já é PRO" mostra o plano atual em vez do botão de compra.
 - **Dependências:** MO.2.3.
+
+- **Entregável:** rota `/planos` (`pages/Planos`, dentro do `AppShell`, sempre aberta): benefícios do PRO (todas as âncoras como incluídas, decisão do autor de que tudo sai junto antes do lançamento), o que segue grátis, e o painel de planos (lateral fixa no desktop, coluna única no mobile). Preços **não vêm do backend**: `features/billing/webPurchases` envolve o SDK web `@revenuecat/purchases-js@1.70.0` (chave pública em `VITE_REVENUECAT_WEB_PUBLIC_KEY`, configurado já com `appUserId = users.id`, nunca anônimo) e lê `getOfferings().current`; o SDK é importado dinamicamente (fora do bundle principal). Desconto do anual e "equivale a X por mês" calculados dos preços reais (`annualDiscountPercent`, `annualPerMonth`). Estados: cobrança desligada (`billingEnabled=false`) mostra aviso e nenhum preço; já PRO mostra plano e renovação/fim em vez da compra; erro de preço mostra mensagem. `vite.config.ts` ganhou o namespace `billing` no proxy. Testes: 4 da tela + 3 das funções puras. **Ressalva:** a documentação do RevenueCat confirma `configure(apiKey, appUserId)`, `getOfferings` e `purchase`, mas não foi testada contra o RevenueCat real (sem conta); pendente quando existir a chave: conferir que o Offering `default` devolve pacotes `$rc_monthly` e `$rc_annual` (outro identificador de pacote é ignorado pela tela).
 
 ### MO.3.2 · Compra na web e retorno
 - **Descrição:** botão de assinar abre o Stripe Checkout pelo fluxo do RevenueCat (M12), com

@@ -35,6 +35,8 @@ const BACKEND_ROUTE_NAMESPACES = [
     'news',
     // EM.6.1 — `POST /email/unsubscribe` (cancelar inscrição); a página é `/cancelar-inscricao`, sem colisão.
     'email',
+    // MO.2.3 — `GET /billing/status` e o webhook do RevenueCat; a página é `/planos`, sem colisão.
+    'billing',
     // Tarefa 6.10.8 — arquivos servidos por `express.static('/avatars', ...)`
     // no backend (`app.ts`), não uma rota de API "de verdade", mas ainda
     // assim um namespace que só o gateway sabe responder.

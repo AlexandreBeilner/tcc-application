@@ -47,6 +47,7 @@ import { News } from '../pages/News'
 import { NotFound } from '../pages/NotFound'
 import { Onboarding } from '../pages/Onboarding'
 import { PerfilPublico } from '../pages/PerfilPublico'
+import { Planos } from '../pages/Planos'
 import { Portfolio } from '../pages/Portfolio'
 import { RedefinirSenha } from '../pages/RedefinirSenha'
 import { VerificarEmail } from '../pages/VerificarEmail'
@@ -133,6 +134,8 @@ export const router = createBrowserRouter([
                     // rota própria: é `OrderConfirmationDialog`, overlay renderizado
                     // por `AssetDetail`/`FixedIncomeDetail` sobre a própria tela de
                     // origem (identidade-visual-padroes.md §7 — bottom sheet/modal).
+                    // Plano PRO (MO.3.1): sempre aberta, é a vitrine da assinatura, não produto travado.
+                    { path: '/planos', element: <Planos /> },
                     { path: '/mercado', element: <Market /> },
                     { path: '/mercado/renda-fixa', element: <FixedIncomeList /> },
                     { path: '/mercado/renda-fixa/:id', element: <FixedIncomeDetail /> },
