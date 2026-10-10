@@ -1,5 +1,7 @@
 import { emailTokenProblem } from '../../domain/emailToken'
 import { InvalidEmailTokenError } from '../../domain/errors'
+import { notifySafely } from '../notifySafely'
+import type { AccountMailer } from '../ports/accountMailer'
 import type { AuthEmailTokenRepository } from '../ports/authEmailTokenRepository'
 import type { EmailTokenGenerator } from '../ports/emailTokenGenerator'
 import type { UserRepository } from '../ports/userRepository'
@@ -16,6 +18,7 @@ export class VerifyEmailUseCase {
     private readonly userRepository: UserRepository,
     private readonly tokens: AuthEmailTokenRepository,
     private readonly tokenGenerator: EmailTokenGenerator,
+    private readonly accountMailer: AccountMailer,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -37,6 +40,10 @@ export class VerifyEmailUseCase {
 
     if (user.emailVerifiedAt === null) {
       await this.userRepository.updateUser(user.id, { emailVerifiedAt: now })
+      // Boas-vindas (E5) só na primeira verificação; o link reaberto depois não reenvia.
+      await notifySafely('as boas-vindas', () =>
+        this.accountMailer.sendWelcome({ userId: user.id, to: user.email, name: user.name }),
+      )
     }
   }
 }

@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
 import express from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
@@ -61,6 +62,7 @@ function buildApp(options: { googleEmailVerified?: boolean } = {}) {
         googleIdentityProvider,
         tokenIssuer,
         accountProvisioner,
+        createFakeAccountMailer(),
       ),
       reauthenticate: new ReauthenticateUseCase(userRepository, passwordHasher, tokenIssuer),
       requestPasswordReset: new RequestPasswordResetUseCase(
@@ -77,7 +79,12 @@ function buildApp(options: { googleEmailVerified?: boolean } = {}) {
         authMailer,
       ),
       sendEmailVerification,
-      verifyEmail: new VerifyEmailUseCase(userRepository, authEmailTokens, emailTokenGenerator),
+      verifyEmail: new VerifyEmailUseCase(
+        userRepository,
+        authEmailTokens,
+        emailTokenGenerator,
+        createFakeAccountMailer(),
+      ),
       googleIdentityProvider,
       authMiddleware,
     }),

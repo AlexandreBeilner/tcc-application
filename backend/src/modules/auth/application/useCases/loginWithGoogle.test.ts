@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
 import { describe, expect, it } from 'vitest'
 import { AccountSuspendedError, GoogleEmailNotVerifiedError } from '../../domain/errors'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
@@ -17,11 +18,13 @@ describe('LoginWithGoogleUseCase', () => {
   it('cria um novo usuário quando não existe conta nem identidade, e abre conta no motor (RNF06)', async () => {
     const userRepository = createFakeUserRepository()
     const accountProvisioner = createFakeAccountProvisioner()
+    const accountMailer = createFakeAccountMailer()
     const useCase = new LoginWithGoogleUseCase(
       userRepository,
       createFakeGoogleIdentityProvider(PROFILE),
       createFakeTokenIssuer(),
       accountProvisioner,
+      accountMailer,
     )
 
     const result = await useCase.execute({ code: 'auth-code' })
@@ -33,6 +36,33 @@ describe('LoginWithGoogleUseCase', () => {
     const identity = await userRepository.findIdentity('google', PROFILE.providerAccountId)
     expect(identity?.userId).toBe(result.user.id)
     expect(accountProvisioner.provisionedUserIds).toEqual([result.user.id])
+    // Boas-vindas (E5): o Google garantiu o e-mail, então a conta já nasce verificada.
+    expect(accountMailer.welcomes).toEqual([
+      { userId: result.user.id, to: PROFILE.email, name: PROFILE.name },
+    ])
+  })
+
+  it('não manda boas-vindas a quem só vinculou uma conta que já existia', async () => {
+    const userRepository = createFakeUserRepository()
+    await userRepository.createUser({
+      name: 'Já cadastrado',
+      email: PROFILE.email,
+      username: 'jacadastrado',
+      passwordHash: 'hashed:senha-forte-123',
+      emailVerified: true,
+    })
+    const accountMailer = createFakeAccountMailer()
+    const useCase = new LoginWithGoogleUseCase(
+      userRepository,
+      createFakeGoogleIdentityProvider(PROFILE),
+      createFakeTokenIssuer(),
+      createFakeAccountProvisioner(),
+      accountMailer,
+    )
+
+    await useCase.execute({ code: 'auth-code' })
+
+    expect(accountMailer.welcomes).toEqual([])
   })
 
   it('vincula a identidade a uma conta já existente com o mesmo e-mail, sem reabrir conta', async () => {
@@ -49,6 +79,7 @@ describe('LoginWithGoogleUseCase', () => {
       createFakeGoogleIdentityProvider(PROFILE),
       createFakeTokenIssuer(),
       accountProvisioner,
+      createFakeAccountMailer(),
     )
 
     const result = await useCase.execute({ code: 'auth-code' })
@@ -67,6 +98,7 @@ describe('LoginWithGoogleUseCase', () => {
       createFakeGoogleIdentityProvider(PROFILE),
       createFakeTokenIssuer(),
       accountProvisioner,
+      createFakeAccountMailer(),
     )
 
     const first = await useCase.execute({ code: 'auth-code' })
@@ -90,6 +122,7 @@ describe('LoginWithGoogleUseCase', () => {
       createFakeGoogleIdentityProvider(PROFILE),
       createFakeTokenIssuer(),
       createFakeAccountProvisioner(),
+      createFakeAccountMailer(),
     )
 
     await expect(useCase.execute({ code: 'auth-code' })).rejects.toBeInstanceOf(
@@ -106,6 +139,7 @@ describe('LoginWithGoogleUseCase', () => {
         createFakeGoogleIdentityProvider(profile),
         createFakeTokenIssuer(),
         createFakeAccountProvisioner(),
+        createFakeAccountMailer(),
       )
       return { userRepository, useCase }
     }
@@ -182,6 +216,7 @@ describe('LoginWithGoogleUseCase', () => {
         createFakeGoogleIdentityProvider({ ...PROFILE, emailVerified: false }),
         createFakeTokenIssuer(),
         createFakeAccountProvisioner(),
+        createFakeAccountMailer(),
       )
 
       const second = await again.execute({ code: 'auth-code' })

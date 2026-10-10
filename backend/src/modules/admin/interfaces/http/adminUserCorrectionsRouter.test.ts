@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
 import express from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -56,12 +57,42 @@ async function buildApp() {
   app.use(express.json())
   app.use(
     createAdminUserCorrectionsRouter({
-      creditUserCash: new CreditUserCashUseCase(userRepository, cashCreditor, record),
-      adjustUserXp: new AdjustUserXpUseCase(userRepository, corrections, record),
-      setUserStreak: new SetUserStreakUseCase(userRepository, corrections, record),
-      grantUserAchievement: new GrantUserAchievementUseCase(userRepository, corrections, record),
-      completeUserLesson: new CompleteUserLessonUseCase(userRepository, corrections, record),
-      reopenUserLesson: new ReopenUserLessonUseCase(userRepository, corrections, record),
+      creditUserCash: new CreditUserCashUseCase(
+        userRepository,
+        cashCreditor,
+        record,
+        createFakeAccountMailer(),
+      ),
+      adjustUserXp: new AdjustUserXpUseCase(
+        userRepository,
+        corrections,
+        record,
+        createFakeAccountMailer(),
+      ),
+      setUserStreak: new SetUserStreakUseCase(
+        userRepository,
+        corrections,
+        record,
+        createFakeAccountMailer(),
+      ),
+      grantUserAchievement: new GrantUserAchievementUseCase(
+        userRepository,
+        corrections,
+        record,
+        createFakeAccountMailer(),
+      ),
+      completeUserLesson: new CompleteUserLessonUseCase(
+        userRepository,
+        corrections,
+        record,
+        createFakeAccountMailer(),
+      ),
+      reopenUserLesson: new ReopenUserLessonUseCase(
+        userRepository,
+        corrections,
+        record,
+        createFakeAccountMailer(),
+      ),
       getCorrectionContext: new GetUserCorrectionContextUseCase(userRepository, corrections),
       authMiddleware,
     }),

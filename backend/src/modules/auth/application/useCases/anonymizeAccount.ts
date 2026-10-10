@@ -1,4 +1,6 @@
 import { UserNotFoundError } from '../../domain/errors'
+import { notifySafely } from '../notifySafely'
+import type { AccountMailer } from '../ports/accountMailer'
 import type { AvatarStorage } from '../ports/avatarStorage'
 import type { UserRepository } from '../ports/userRepository'
 
@@ -22,6 +24,7 @@ export class AnonymizeAccountUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly avatarStorage: AvatarStorage,
+    private readonly accountMailer: AccountMailer,
   ) {}
 
   async execute(input: AnonymizeAccountInput): Promise<void> {
@@ -29,6 +32,17 @@ export class AnonymizeAccountUseCase {
     if (!user) {
       throw new UserNotFoundError('usuário não encontrado')
     }
+
+    // Confirmação da exclusão (E7) vai ao endereço real, por isso antes de ele virar `.invalid`.
+    // O outbox guarda o endereço de entrega, então o envio acontece mesmo depois da anonimização.
+    // Conta já anonimizada cai na recusa de `.invalid` do enfileiramento, sem e-mail.
+    await notifySafely('a confirmação de exclusão', () =>
+      this.accountMailer.sendAccountDeleted({
+        userId: user.id,
+        to: user.email,
+        eventId: user.id,
+      }),
+    )
 
     // Sufixo curto do próprio id garante e-mail/username sintéticos únicos
     // sem precisar checar colisão contra outras contas já anonimizadas.

@@ -332,6 +332,7 @@ import { RequestPasswordResetUseCase } from './modules/auth/application/useCases
 import { ResetPasswordUseCase } from './modules/auth/application/useCases/resetPassword'
 import { SendEmailVerificationUseCase } from './modules/auth/application/useCases/sendEmailVerification'
 import { VerifyEmailUseCase } from './modules/auth/application/useCases/verifyEmail'
+import { createNotificationsAccountMailer } from './modules/auth/infrastructure/notifications/notificationsAccountMailer'
 import { createNotificationsAuthMailer } from './modules/auth/infrastructure/notifications/notificationsAuthMailer'
 import { createDrizzleAuthEmailTokenRepository } from './modules/auth/infrastructure/persistence/drizzleAuthEmailTokenRepository'
 import { createCryptoEmailTokenGenerator } from './modules/auth/infrastructure/security/cryptoEmailTokenGenerator'
@@ -447,12 +448,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
-  const loginWithGoogle = new LoginWithGoogleUseCase(
-    userRepository,
-    googleIdentityProvider,
-    tokenIssuer,
-    accountProvisioner,
-  )
   const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
@@ -480,13 +475,26 @@ export function createApp(deps: AppDeps = {}): Express {
     enqueueEmail,
     appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   })
+  const accountMailer = createNotificationsAccountMailer({ enqueueEmail })
+  const loginWithGoogle = new LoginWithGoogleUseCase(
+    userRepository,
+    googleIdentityProvider,
+    tokenIssuer,
+    accountProvisioner,
+    accountMailer,
+  )
   const sendEmailVerification = new SendEmailVerificationUseCase(
     userRepository,
     authEmailTokens,
     emailTokenGenerator,
     authMailer,
   )
-  const verifyEmail = new VerifyEmailUseCase(userRepository, authEmailTokens, emailTokenGenerator)
+  const verifyEmail = new VerifyEmailUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    accountMailer,
+  )
   const registerUser = new RegisterUserUseCase(
     userRepository,
     passwordHasher,
@@ -771,7 +779,7 @@ export function createApp(deps: AppDeps = {}): Express {
   const avatarStorageDir = process.env.AVATAR_STORAGE_DIR ?? '/data/avatars'
   const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage, accountMailer)
   // Reaproveitados pelo detalhe de usuário do painel admin (N.16).
   const progressionExporter = createInProcessProgressionExporter(getProgression)
   const achievementsExporter = createInProcessAchievementsExporter(
@@ -787,6 +795,7 @@ export function createApp(deps: AppDeps = {}): Express {
     achievementsExporter,
     friendshipsExporter,
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
+    accountMailer,
   )
 
   // Sem isso, o build de produção do frontend (vite build + preview, ou
@@ -935,23 +944,37 @@ export function createApp(deps: AppDeps = {}): Express {
         userRepository,
         createEngineUserCashCreditor(engineUrl),
         recordAdminAction,
+        accountMailer,
       ),
-      adjustUserXp: new AdjustUserXpUseCase(userRepository, userCorrections, recordAdminAction),
-      setUserStreak: new SetUserStreakUseCase(userRepository, userCorrections, recordAdminAction),
+      adjustUserXp: new AdjustUserXpUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+        accountMailer,
+      ),
+      setUserStreak: new SetUserStreakUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+        accountMailer,
+      ),
       grantUserAchievement: new GrantUserAchievementUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
+        accountMailer,
       ),
       completeUserLesson: new CompleteUserLessonUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
+        accountMailer,
       ),
       reopenUserLesson: new ReopenUserLessonUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
+        accountMailer,
       ),
       getCorrectionContext: new GetUserCorrectionContextUseCase(userRepository, userCorrections),
       authMiddleware,
@@ -1032,8 +1055,8 @@ export function createApp(deps: AppDeps = {}): Express {
         orderAdmin,
         auditLogRepository,
       ),
-      suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction),
-      reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction),
+      suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction, accountMailer),
+      reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction, accountMailer),
       forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction, authMailer),
       deleteUserAccount: new DeleteUserAccountUseCase(
         userRepository,

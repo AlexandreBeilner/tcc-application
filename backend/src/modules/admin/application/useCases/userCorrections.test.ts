@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
 import { describe, expect, it } from 'vitest'
 import { createFakeUserRepository } from '../../../auth/test/fakes/fakeUserRepository'
 import {
@@ -38,18 +39,28 @@ async function build() {
     username: 'fulano',
     passwordHash: 'x',
   })
+  const mailer = createFakeAccountMailer()
+  let seq = 0
+  const newEventId = () => `evento-${++seq}`
   return {
     auditLog,
+    mailer,
     corrections,
     cashCreditor,
     admin,
     user,
-    credit: new CreditUserCashUseCase(userRepository, cashCreditor, record),
-    adjustXp: new AdjustUserXpUseCase(userRepository, corrections, record),
-    setStreak: new SetUserStreakUseCase(userRepository, corrections, record),
-    grant: new GrantUserAchievementUseCase(userRepository, corrections, record),
-    complete: new CompleteUserLessonUseCase(userRepository, corrections, record),
-    reopen: new ReopenUserLessonUseCase(userRepository, corrections, record),
+    credit: new CreditUserCashUseCase(userRepository, cashCreditor, record, mailer, newEventId),
+    adjustXp: new AdjustUserXpUseCase(userRepository, corrections, record, mailer, newEventId),
+    setStreak: new SetUserStreakUseCase(userRepository, corrections, record, mailer, newEventId),
+    grant: new GrantUserAchievementUseCase(userRepository, corrections, record, mailer, newEventId),
+    complete: new CompleteUserLessonUseCase(
+      userRepository,
+      corrections,
+      record,
+      mailer,
+      newEventId,
+    ),
+    reopen: new ReopenUserLessonUseCase(userRepository, corrections, record, mailer, newEventId),
     context: new GetUserCorrectionContextUseCase(userRepository, corrections),
   }
 }
@@ -72,6 +83,37 @@ describe('CreditUserCashUseCase', () => {
       adminId: admin.id,
       result: 'success',
       payload: { amount: 1234.567, reason: 'reparo do bug 0042', credited: 1234.57 },
+    })
+  })
+
+  it('avisa o usuário do valor creditado, sem o motivo interno do admin (E10)', async () => {
+    const { credit, mailer, admin, user } = await build()
+
+    await credit.execute(admin.id, user.id, { amount: 1234.567, reason: 'reparo do bug 0042' })
+
+    expect(mailer.adjustments).toHaveLength(1)
+    expect(mailer.adjustments[0]).toMatchObject({ userId: user.id, to: 'fulano@example.com' })
+    expect(mailer.adjustments[0].summary).toMatch(/1\.234,57/)
+    expect(mailer.adjustments[0].summary).not.toContain('bug')
+  })
+
+  it('crédito recusado pelo motor não avisa ninguém', async () => {
+    const { credit, cashCreditor, mailer, admin, user } = await build()
+    cashCreditor.failWith = new CashCreditRejectedError('valor de crédito inválido')
+
+    await expect(credit.execute(admin.id, user.id, { amount: 0 })).rejects.toBeInstanceOf(
+      CashCreditRejectedError,
+    )
+
+    expect(mailer.adjustments).toEqual([])
+  })
+
+  it('falha ao enfileirar o aviso não desfaz o crédito', async () => {
+    const { credit, mailer, admin, user } = await build()
+    mailer.failWith(new Error('outbox fora do ar'))
+
+    await expect(credit.execute(admin.id, user.id, { amount: 10 })).resolves.toEqual({
+      credited: 10,
     })
   })
 
@@ -189,5 +231,37 @@ describe('correções de gamificação e lição', () => {
 
     expect(context.achievements).toHaveLength(1)
     expect(context.lessons).toHaveLength(1)
+  })
+})
+
+describe('aviso das correções de conta (E10)', () => {
+  it('cada correção bem-sucedida avisa o usuário, sem o motivo interno', async () => {
+    const { adjustXp, setStreak, complete, reopen, mailer, admin, user } = await build()
+
+    await adjustXp.execute(admin.id, user.id, { delta: 50, reason: 'nota interna A' })
+    await setStreak.execute(admin.id, user.id, { value: 7, reason: 'nota interna B' })
+    await complete.execute(admin.id, user.id, 'lesson-1', 'nota interna C')
+    await reopen.execute(admin.id, user.id, 'lesson-1', 'nota interna D')
+
+    expect(mailer.adjustments).toHaveLength(4)
+    expect(mailer.adjustments.map((m) => m.eventId)).toEqual([
+      'evento-1',
+      'evento-2',
+      'evento-3',
+      'evento-4',
+    ])
+    expect(mailer.adjustments[0].summary).toContain('+50')
+    expect(mailer.adjustments[1].summary).toContain('7')
+    expect(JSON.stringify(mailer.adjustments)).not.toContain('nota interna')
+  })
+
+  it('usuário inexistente não gera aviso', async () => {
+    const { adjustXp, mailer, admin } = await build()
+
+    await expect(
+      adjustXp.execute(admin.id, 'sem-usuario', { delta: 1, reason: 'x' }),
+    ).rejects.toBeInstanceOf(AdminUserNotFoundError)
+
+    expect(mailer.adjustments).toEqual([])
   })
 })

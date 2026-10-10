@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
 import express from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
@@ -50,9 +51,14 @@ async function buildApp() {
     createFakeAchievementsExporter(),
     createFakeFriendshipsExporter(),
     createFakeMissionProgressExporter(),
+    createFakeAccountMailer(),
   )
   const { storage: avatarStorage, saved: savedAvatars } = createFakeAvatarStorage()
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  const anonymizeAccount = new AnonymizeAccountUseCase(
+    userRepository,
+    avatarStorage,
+    createFakeAccountMailer(),
+  )
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)

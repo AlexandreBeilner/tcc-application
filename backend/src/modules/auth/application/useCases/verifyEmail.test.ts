@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
 import { describe, expect, it } from 'vitest'
 import { InvalidEmailTokenError } from '../../domain/errors'
 import { createFakeAuthEmailTokenRepository } from '../../test/fakes/fakeAuthEmailTokenRepository'
@@ -11,7 +12,14 @@ async function setup() {
   const userRepository = createFakeUserRepository()
   const tokens = createFakeAuthEmailTokenRepository()
   const generator = createFakeEmailTokenGenerator()
-  const useCase = new VerifyEmailUseCase(userRepository, tokens, generator, () => NOW)
+  const accountMailer = createFakeAccountMailer()
+  const useCase = new VerifyEmailUseCase(
+    userRepository,
+    tokens,
+    generator,
+    accountMailer,
+    () => NOW,
+  )
   const user = await userRepository.createUser({
     name: 'Ana',
     email: 'ana@exemplo.com',
@@ -28,7 +36,7 @@ async function setup() {
     },
     NOW,
   )
-  return { userRepository, tokens, useCase, user, token }
+  return { userRepository, tokens, useCase, user, token, accountMailer }
 }
 
 describe('VerifyEmailUseCase', () => {
@@ -39,6 +47,25 @@ describe('VerifyEmailUseCase', () => {
 
     expect((await userRepository.findById(user.id))?.emailVerifiedAt).toEqual(NOW)
     expect(tokens.rows[0].usedAt).toEqual(NOW)
+  })
+
+  it('envia as boas-vindas (E5) só na primeira verificação', async () => {
+    const { useCase, user, token, accountMailer } = await setup()
+
+    await useCase.execute({ token })
+
+    expect(accountMailer.welcomes).toEqual([
+      { userId: user.id, to: 'ana@exemplo.com', name: 'Ana' },
+    ])
+  })
+
+  it('falha ao enfileirar as boas-vindas não desfaz a verificação', async () => {
+    const { userRepository, useCase, user, token, accountMailer } = await setup()
+    accountMailer.failWith(new Error('outbox fora do ar'))
+
+    await useCase.execute({ token })
+
+    expect((await userRepository.findById(user.id))?.emailVerifiedAt).toEqual(NOW)
   })
 
   it('token desconhecido é recusado como invalid', async () => {
@@ -67,6 +94,15 @@ describe('VerifyEmailUseCase', () => {
     const { tokens, useCase, token } = await setup()
     tokens.rows[0].kind = 'password_reset'
     await expect(useCase.execute({ token })).rejects.toMatchObject({ reason: 'invalid' })
+  })
+
+  it('conta já verificada não recebe boas-vindas de novo', async () => {
+    const { userRepository, useCase, user, token, accountMailer } = await setup()
+    await userRepository.updateUser(user.id, { emailVerifiedAt: new Date('2026-01-01') })
+
+    await useCase.execute({ token })
+
+    expect(accountMailer.welcomes).toEqual([])
   })
 
   it('não regrava a data de uma conta que já estava verificada', async () => {

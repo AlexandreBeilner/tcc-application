@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { UserNotFoundError } from '../../domain/errors'
+import { notifySafely } from '../notifySafely'
+import type { AccountMailer } from '../ports/accountMailer'
 import type { UserRole } from '../../domain/user'
 import type { AchievementsExporter, ExportedAchievement } from '../ports/achievementsExporter'
 import type { ExportedFriendship, FriendshipsExporter } from '../ports/friendshipsExporter'
@@ -50,6 +53,8 @@ export class ExportUserDataUseCase {
     private readonly achievementsExporter: AchievementsExporter,
     private readonly friendshipsExporter: FriendshipsExporter,
     private readonly missionProgressExporter: MissionProgressExporter,
+    private readonly accountMailer: AccountMailer,
+    private readonly newEventId: () => string = randomUUID,
   ) {}
 
   async execute(input: ExportUserDataInput): Promise<ExportedUserData> {
@@ -67,6 +72,16 @@ export class ExportUserDataUseCase {
         this.friendshipsExporter.exportForUser(input.userId),
         this.missionProgressExporter.exportForUser(input.userId),
       ])
+
+    // Aviso de segurança (E7): cada exportação gera um, para quem não a pediu perceber.
+    await notifySafely('o aviso de exportação', () =>
+      this.accountMailer.sendDataExported({
+        userId: user.id,
+        to: user.email,
+        name: user.name,
+        eventId: this.newEventId(),
+      }),
+    )
 
     return {
       user: {

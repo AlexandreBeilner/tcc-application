@@ -120,6 +120,144 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       }
     },
   },
+  // Ciclo de vida da conta (EM.5.1). Nenhum leva link com token; os botões só apontam para telas
+  // públicas ou para a trilha. "Como contestar" é responder ao e-mail (`EMAIL_REPLY_TO`).
+  welcome: {
+    category: 'transactional',
+    sample: { name: 'Ana' },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      return {
+        subject: 'Bem-vindo à plataforma',
+        preheader: 'Seu e-mail foi confirmado. O primeiro passo da trilha te espera.',
+        blocks: [
+          { type: 'heading', text: 'Seu e-mail foi confirmado' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}Sua conta está pronta. Você começa com R$ 10.000,00 simulados para investir sem risco e aprende pela trilha de lições.`,
+          },
+          {
+            type: 'paragraph',
+            text: 'O melhor jeito de começar é a primeira lição da trilha: leva poucos minutos.',
+          },
+          { type: 'button', label: 'Começar a trilha', url: `${appUrl}/trilha` },
+        ],
+      }
+    },
+  },
+  account_suspended: {
+    category: 'security',
+    sample: { name: 'Ana', reason: 'Mensagens repetidas no feed social.' },
+    build(payload) {
+      const name = optionalString(payload, 'name')
+      const reason = requireString(payload, 'reason')
+      return {
+        subject: 'Sua conta foi suspensa',
+        preheader: 'Veja o motivo e como contestar.',
+        blocks: [
+          { type: 'heading', text: 'Sua conta foi suspensa' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}A equipe da plataforma suspendeu o acesso à sua conta. As sessões abertas foram encerradas e você não consegue entrar por enquanto.`,
+          },
+          { type: 'paragraph', text: `Motivo registrado: ${reason}` },
+          {
+            type: 'paragraph',
+            text: 'Seu progresso, suas conquistas e sua carteira continuam guardados. Se você acha que houve um engano, responda a este e-mail explicando a situação.',
+          },
+        ],
+      }
+    },
+  },
+  account_reactivated: {
+    category: 'security',
+    sample: { name: 'Ana' },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      return {
+        subject: 'Sua conta foi reativada',
+        preheader: 'Você já pode entrar de novo.',
+        blocks: [
+          { type: 'heading', text: 'Sua conta foi reativada' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}O acesso à sua conta foi restabelecido, com todo o seu progresso como estava. Entre de novo para continuar.`,
+          },
+          { type: 'button', label: 'Entrar', url: `${appUrl}/login` },
+        ],
+      }
+    },
+  },
+  // Enviado antes da anonimização, para o endereço real que está prestes a deixar de existir.
+  // Sem nome no payload: o outbox não guarda dado pessoal além do endereço de entrega.
+  account_deleted: {
+    category: 'security',
+    sample: {},
+    build() {
+      return {
+        subject: 'Sua conta foi excluída',
+        preheader: 'Confirmação do pedido de exclusão.',
+        blocks: [
+          { type: 'heading', text: 'Sua conta foi excluída' },
+          {
+            type: 'paragraph',
+            text: 'Confirmamos a exclusão da sua conta. Nome, e-mail, nome de usuário, foto e logins externos foram removidos e as sessões abertas, encerradas.',
+          },
+          {
+            type: 'paragraph',
+            text: 'O histórico simulado de operações fica sem identificação, sem ligação com você. Este é o último e-mail que enviamos a este endereço sobre a conta.',
+          },
+          {
+            type: 'note',
+            text: 'Se você não pediu a exclusão, responda a este e-mail o quanto antes.',
+          },
+        ],
+      }
+    },
+  },
+  data_exported: {
+    category: 'transactional',
+    sample: { name: 'Ana' },
+    build(payload) {
+      const name = optionalString(payload, 'name')
+      return {
+        subject: 'Você exportou seus dados',
+        preheader: 'Aviso de segurança sobre a exportação.',
+        blocks: [
+          { type: 'heading', text: 'Você exportou seus dados' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}Acabamos de gerar uma cópia dos dados da sua conta a pedido de quem estava logado.`,
+          },
+          {
+            type: 'paragraph',
+            text: 'Se foi você, não precisa fazer nada. Se não reconhece, troque sua senha e encerre as sessões abertas.',
+          },
+        ],
+      }
+    },
+  },
+  account_adjusted: {
+    category: 'transactional',
+    sample: { name: 'Ana', summary: 'R$ 50,00 foram creditados no seu caixa.' },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const summary = requireString(payload, 'summary')
+      return {
+        subject: 'A equipe fez um ajuste na sua conta',
+        preheader: summary,
+        blocks: [
+          { type: 'heading', text: 'Ajuste feito na sua conta' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}A equipe da plataforma fez um ajuste na sua conta: ${summary}`,
+          },
+          { type: 'button', label: 'Ver meu perfil', url: `${appUrl}/perfil` },
+          { type: 'note', text: 'Se tiver dúvida sobre o ajuste, responda a este e-mail.' },
+        ],
+      }
+    },
+  },
   system_test: {
     category: 'transactional',
     sample: { name: 'Ana' },

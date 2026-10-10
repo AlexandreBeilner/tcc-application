@@ -1,5 +1,7 @@
 import { AccountSuspendedError, GoogleEmailNotVerifiedError } from '../../domain/errors'
 import type { User } from '../../domain/user'
+import { notifySafely } from '../notifySafely'
+import type { AccountMailer } from '../ports/accountMailer'
 import type { AccountProvisioner } from '../ports/accountProvisioner'
 import type { GoogleIdentityProvider } from '../ports/googleIdentityProvider'
 import type { TokenIssuer } from '../ports/tokenIssuer'
@@ -21,6 +23,7 @@ export class LoginWithGoogleUseCase {
     private readonly googleIdentityProvider: GoogleIdentityProvider,
     private readonly tokenIssuer: TokenIssuer,
     private readonly accountProvisioner: AccountProvisioner,
+    private readonly accountMailer: AccountMailer,
   ) {}
 
   async execute(input: LoginWithGoogleInput): Promise<LoginWithGoogleResult> {
@@ -74,6 +77,17 @@ export class LoginWithGoogleUseCase {
       // Capital inicial padronizado (RNF06) — só na criação, nunca ao
       // reaproveitar uma conta/identidade já existente.
       await this.accountProvisioner.provision(user.id)
+      // Boas-vindas (E5): só quando o Google garantiu o e-mail (conta nasce verificada).
+      if (profile.emailVerified) {
+        const created = user
+        await notifySafely('as boas-vindas', () =>
+          this.accountMailer.sendWelcome({
+            userId: created.id,
+            to: created.email,
+            name: created.name,
+          }),
+        )
+      }
     }
 
     if (!existingIdentity) {

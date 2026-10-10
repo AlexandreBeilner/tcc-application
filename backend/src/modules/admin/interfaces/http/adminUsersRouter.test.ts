@@ -1,3 +1,4 @@
+import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
 import express from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -73,12 +74,16 @@ async function buildApp() {
         createFakeOrderAdmin(),
         auditLog,
       ),
-      suspendUser: new SuspendUserUseCase(userRepository, record),
-      reactivateUser: new ReactivateUserUseCase(userRepository, record),
+      suspendUser: new SuspendUserUseCase(userRepository, record, createFakeAccountMailer()),
+      reactivateUser: new ReactivateUserUseCase(userRepository, record, createFakeAccountMailer()),
       forceLogoutUser: new ForceLogoutUserUseCase(userRepository, record, createFakeAuthMailer()),
       deleteUserAccount: new DeleteUserAccountUseCase(
         userRepository,
-        new AnonymizeAccountUseCase(userRepository, createFakeAvatarStorage()),
+        new AnonymizeAccountUseCase(
+          userRepository,
+          createFakeAvatarStorage(),
+          createFakeAccountMailer(),
+        ),
         record,
       ),
       authMiddleware,

@@ -98,12 +98,12 @@ Seis rotas. Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` 
 #### `POST /admin/users/:id/suspend`
 
 - **Payload:** `{ reason }`, 3 a 500 caracteres (obrigatório; vai pro log e pra tela).
-- **Sucesso:** `204`. Grava `status = suspended`, `suspended_reason`, `suspended_at` e **revoga as sessões** (um token antigo não volta a valer na reativação). A conta sai do ranking e da busca de amigos, perde o login (`403 account_suspended`) e todo token existente passa a receber `403 account_suspended`; o progresso não é tocado. **Não cancela ordens em repouso** (use `POST /admin/orders/cancel-batch`, N.10). Auditoria: `user.suspend` com `payload.reason`.
+- **Sucesso:** `204`. Grava `status = suspended`, `suspended_reason`, `suspended_at` e **revoga as sessões** (um token antigo não volta a valer na reativação). A conta sai do ranking e da busca de amigos, perde o login (`403 account_suspended`) e todo token existente passa a receber `403 account_suspended`; o progresso não é tocado. **Não cancela ordens em repouso** (use `POST /admin/orders/cancel-batch`, N.10). Auditoria: `user.suspend` com `payload.reason`. *(EM.5.1.)* Enfileira o aviso `account_suspended` (E6, segurança) com o motivo registrado e a orientação de contestar respondendo ao e-mail (depende de `EMAIL_REPLY_TO`); é o único e-mail que a conta suspensa recebe. Falha ao enfileirar só é logada.
 - **Erros:** `400` sem motivo; `401 reauth_required`; `404`; `409` conta já suspensa; `422 { code: "admin_account_protected" }` alvo é `admin` (evita se trancar fora).
 
 #### `POST /admin/users/:id/reactivate`
 
-- **Sucesso:** `204`. Volta a `active`, limpa motivo e instante, **sem perda** de progresso, conquistas, amizades ou posições. As sessões antigas continuam encerradas: a pessoa loga de novo. Auditoria: `user.reactivate`.
+- **Sucesso:** `204`. Volta a `active`, limpa motivo e instante, **sem perda** de progresso, conquistas, amizades ou posições. As sessões antigas continuam encerradas: a pessoa loga de novo. Auditoria: `user.reactivate`. *(EM.5.1.)* Enfileira o aviso `account_reactivated` (E6).
 - **Erros:** `404`; `409` conta que não está suspensa.
 
 #### `POST /admin/users/:id/force-logout`
@@ -124,7 +124,7 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 #### `POST /admin/users/:id/credit`
 
 - **Payload:** `{ amount, reason? }`. `amount` é um número positivo e finito (`NaN` e infinito nem existem em JSON); `reason` até 500 caracteres.
-- **Sucesso:** `200` → `{ user_id, credited }`, onde `credited` é o valor de fato creditado (o motor arredonda pra centavos). **Sem teto de negócio** (decisão do autor, achado 029 item 5); o único limite é físico (R$ 1 trilhão por crédito, e saldo final dentro de `numeric(15,2)`). O motor grava o evento imutável `admin_credit` antes de somar em `current_balance` (`POST /admin/accounts/{user_id}/credit`, `.docs/engine/account.md`). É caixa livre: não toca `total_invested` e companhia, então **não altera a rentabilidade do ranking**. No extrato aparece com `event_type = "admin_credit"`, nunca como salário. Auditoria: `user.credit` com `amount`, `reason` (se houver) e `credited`.
+- **Sucesso:** `200` → `{ user_id, credited }`, onde `credited` é o valor de fato creditado (o motor arredonda pra centavos). **Sem teto de negócio** (decisão do autor, achado 029 item 5); o único limite é físico (R$ 1 trilhão por crédito, e saldo final dentro de `numeric(15,2)`). O motor grava o evento imutável `admin_credit` antes de somar em `current_balance` (`POST /admin/accounts/{user_id}/credit`, `.docs/engine/account.md`). É caixa livre: não toca `total_invested` e companhia, então **não altera a rentabilidade do ranking**. No extrato aparece com `event_type = "admin_credit"`, nunca como salário. Auditoria: `user.credit` com `amount`, `reason` (se houver) e `credited`. *(EM.5.1.)* Depois de creditar, enfileira o aviso `account_adjusted` (E10) com o valor creditado; o `reason` é nota interna e **não** vai no e-mail. As correções de XP, streak, conquista e lição (`/xp`, `/streak`, `/grant`, `/complete`, `/reopen`) avisam do mesmo jeito, só com uma frase do que mudou. Falha ao enfileirar só é logada.
 - **Erros:** `400` valor inválido na borda (zero, negativo, texto, ausente); `401 reauth_required`; `404` usuário inexistente (ou sem conta no motor); `422 { code: "credit_rejected" }` o motor recusou o valor; `422 { code: "balance_overflow" }` o crédito estouraria o saldo.
 
 #### `POST /admin/users/:id/xp`
