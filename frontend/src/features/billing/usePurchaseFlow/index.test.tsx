@@ -1,0 +1,83 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuth } from '../../auth/AuthContext'
+import { getBillingStatus } from '../../../services/billing'
+import type { BillingStatus } from '../../../services/billing'
+import { useWebPurchases } from '../useWebPurchases'
+import type { WebPlan, WebPurchases } from '../webPurchases'
+import { usePurchaseFlow } from '.'
+
+vi.mock('../../auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn() }))
+vi.mock('../useWebPurchases', () => ({ useWebPurchases: vi.fn() }))
+
+const FREE: BillingStatus = {
+    isPro: false,
+    state: 'none',
+    plan: null,
+    store: null,
+    expiresAt: null,
+    willRenew: false,
+    managementUrl: null,
+    billingEnabled: true,
+}
+const PRO: BillingStatus = { ...FREE, isPro: true, state: 'active', plan: 'monthly', store: 'stripe' }
+const PLAN: WebPlan = { id: 'monthly', formattedPrice: 'R$ 19,97', amountMicros: 19_970_000, currency: 'BRL', handle: {} }
+
+function wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+}
+
+describe('usePurchaseFlow (MO.3.2)', () => {
+    let purchases: WebPurchases
+
+    beforeEach(() => {
+        vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
+        purchases = { loadPlans: vi.fn(), purchase: vi.fn() }
+        vi.mocked(useWebPurchases).mockReturnValue(purchases)
+    })
+
+    afterEach(() => vi.clearAllMocks())
+
+    it('depois do pagamento espera o servidor confirmar o PRO, sem recarregar', async () => {
+        vi.mocked(purchases.purchase).mockResolvedValue('purchased')
+        vi.mocked(getBillingStatus).mockResolvedValueOnce(FREE).mockResolvedValue(PRO)
+        const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+        await act(() => result.current.start(PLAN))
+
+        expect(getBillingStatus).toHaveBeenCalledTimes(2)
+        expect(result.current.phase).toBe('idle')
+    })
+
+    it('cancelar a janela de pagamento volta sem consultar nem errar', async () => {
+        vi.mocked(purchases.purchase).mockResolvedValue('cancelled')
+        const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+        await act(() => result.current.start(PLAN))
+
+        expect(getBillingStatus).not.toHaveBeenCalled()
+        expect(result.current.phase).toBe('idle')
+    })
+
+    it('para de esperar no limite de tempo e avisa', async () => {
+        vi.mocked(purchases.purchase).mockResolvedValue('purchased')
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 40 }), { wrapper })
+
+        await act(() => result.current.start(PLAN))
+
+        await waitFor(() => expect(result.current.phase).toBe('timeout'))
+    })
+
+    it('erro no checkout vira fase de erro', async () => {
+        vi.mocked(purchases.purchase).mockRejectedValue(new Error('boom'))
+        const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 40 }), { wrapper })
+
+        await act(() => result.current.start(PLAN))
+
+        expect(result.current.phase).toBe('error')
+    })
+})

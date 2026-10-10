@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -87,6 +87,32 @@ describe('Planos (MO.3.1)', () => {
         expect(await screen.findByText('Você já é PRO')).toBeInTheDocument()
         expect(screen.getByText(/Plano anual/)).toBeInTheDocument()
         expect(screen.queryByText('Escolha seu plano')).not.toBeInTheDocument()
+    })
+
+    it('assinar leva ao checkout do plano escolhido e libera o PRO sem recarregar', async () => {
+        const purchase = vi.fn().mockResolvedValue('purchased')
+        vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([MONTHLY, ANNUAL]), purchase })
+        vi.mocked(getBillingStatus)
+            .mockResolvedValueOnce(FREE)
+            .mockResolvedValue({ ...FREE, isPro: true, state: 'active', plan: 'annual', store: 'stripe' })
+        renderPage()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Assinar anual' }))
+
+        await waitFor(() => expect(purchase).toHaveBeenCalledWith(ANNUAL))
+        expect(await screen.findByText('Você já é PRO', {}, { timeout: 5000 })).toBeInTheDocument()
+    })
+
+    it('dentro do app não oferece pagamento web', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        Object.defineProperty(window, 'ReactNativeWebView', { value: {}, configurable: true })
+        try {
+            renderPage()
+            expect(await screen.findByText('R$ 19,97')).toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: /Assinar/ })).not.toBeInTheDocument()
+        } finally {
+            delete (window as unknown as Record<string, unknown>).ReactNativeWebView
+        }
     })
 
     it('mostra erro se o preço não carrega', async () => {

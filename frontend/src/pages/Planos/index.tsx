@@ -1,5 +1,8 @@
 import { ArrowLeft, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { Button } from '../../components/atoms/Button'
+import { isNativeApp } from '../../features/billing/isNativeApp'
+import { usePurchaseFlow } from '../../features/billing/usePurchaseFlow'
 import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useWebPlansQuery } from '../../features/billing/useWebPlans'
 import { annualDiscountPercent, annualPerMonth } from '../../features/billing/webPurchases'
@@ -47,28 +50,42 @@ function CurrentPlan({ status }: { status: BillingStatus }) {
     )
 }
 
-function PlanCard({ plan, caption }: { plan: WebPlan; caption: string | null }) {
+interface PlanCardProps {
+    plan: WebPlan
+    caption: string | null
+    onChoose: ((plan: WebPlan) => void) | null
+    busy: boolean
+}
+
+function PlanCard({ plan, caption, onChoose, busy }: PlanCardProps) {
     return (
         <article className={styles.planCard}>
             <h3 className={styles.planName}>{plan.id === 'monthly' ? 'Mensal' : 'Anual'}</h3>
             <p className={styles.price}>{plan.formattedPrice}</p>
             <p className={styles.period}>{plan.id === 'monthly' ? 'por mês' : 'por ano'}</p>
             {caption && <p className={styles.caption}>{caption}</p>}
+            {onChoose && (
+                <Button onClick={() => onChoose(plan)} disabled={busy}>
+                    Assinar {plan.id === 'monthly' ? 'mensal' : 'anual'}
+                </Button>
+            )}
         </article>
     )
 }
 
-function PlanOptions({ plans }: { plans: WebPlan[] }) {
+function PlanOptions({ plans, onChoose, busy }: { plans: WebPlan[]; onChoose: PlanCardProps['onChoose']; busy: boolean }) {
     const monthly = plans.find((plan) => plan.id === 'monthly')
     const annual = plans.find((plan) => plan.id === 'annual')
     const discount = monthly && annual ? annualDiscountPercent(monthly, annual) : null
 
     return (
         <div className={styles.plans}>
-            {monthly && <PlanCard plan={monthly} caption={null} />}
+            {monthly && <PlanCard plan={monthly} caption={null} onChoose={onChoose} busy={busy} />}
             {annual && (
                 <PlanCard
                     plan={annual}
+                    onChoose={onChoose}
+                    busy={busy}
                     caption={`Equivale a ${annualPerMonth(annual)} por mês${discount ? `, ${discount}% a menos que pagar mês a mês` : ''}`}
                 />
             )}
@@ -83,6 +100,9 @@ export function Planos() {
     const status = statusQuery.data
     const billingEnabled = status?.billingEnabled ?? false
     const plansQuery = useWebPlansQuery(billingEnabled && !status?.isPro)
+    const purchase = usePurchaseFlow()
+    const inApp = isNativeApp()
+    const busy = purchase.phase === 'checkout' || purchase.phase === 'confirming'
 
     return (
         <main className={styles.page}>
@@ -138,7 +158,29 @@ export function Planos() {
                             {plansQuery.isError && (
                                 <p className={styles.error}>Não foi possível carregar os preços agora. Tente novamente em instantes.</p>
                             )}
-                            {plansQuery.data && plansQuery.data.length > 0 && <PlanOptions plans={plansQuery.data} />}
+                            {plansQuery.data && plansQuery.data.length > 0 && (
+                                <PlanOptions
+                                    plans={plansQuery.data}
+                                    onChoose={purchase.canPurchase && !inApp ? purchase.start : null}
+                                    busy={busy}
+                                />
+                            )}
+                            {inApp && <p className={styles.note}>A assinatura pelo app chega em breve.</p>}
+                            {purchase.phase === 'confirming' && (
+                                <p className={styles.notice}>Pagamento recebido. Estamos liberando o seu PRO, só um instante.</p>
+                            )}
+                            {purchase.phase === 'timeout' && (
+                                <p className={styles.notice}>
+                                    Seu pagamento está demorando para ser confirmado. Não pague de novo: volte em alguns minutos. Se o PRO
+                                    não aparecer, fale com o suporte.
+                                </p>
+                            )}
+                            {purchase.phase === 'error' && (
+                                <p className={styles.error}>
+                                    Não foi possível concluir a assinatura agora. Confira o seu plano em alguns minutos antes de tentar de
+                                    novo.
+                                </p>
+                            )}
                         </section>
                     ) : null}
                 </aside>
