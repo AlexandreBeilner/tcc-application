@@ -1,0 +1,148 @@
+.page {
+    min-height: 100vh;
+    padding: var(--space-6) var(--space-4);
+    background: var(--color-bg-base);
+    color: var(--color-text-secondary);
+}
+
+.doc {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+}
+
+.doc p,
+.doc ul {
+    margin: 0;
+}
+
+.doc ul {
+    padding-left: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.doc a {
+    color: var(--color-brand-300);
+}
+
+.doc strong {
+    color: var(--color-text-primary);
+}
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.brand {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+    color: var(--color-brand-300);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.meta {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.section h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.tableWrap {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-xs);
+}
+
+.table th,
+.table td {
+    padding: var(--space-3);
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.table th {
+    color: var(--color-text-primary);
+}
+
+/* Mobile: cada linha vira um bloco empilhado (label vem de data-label),
+   sem scroll horizontal numa tabela de 3 colunas de texto corrido. */
+@media (max-width: 767px) {
+    .table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+
+    .table,
+    .table tbody,
+    .table tr,
+    .table td {
+        display: block;
+    }
+
+    .table tr {
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .table td {
+        padding: var(--space-1) 0;
+        border: 0;
+    }
+
+    .table td::before {
+        content: attr(data-label) ': ';
+        color: var(--color-text-primary);
+        font-weight: 600;
+    }
+}
+
+@media (min-width: 1024px) {
+    .page {
+        padding: var(--space-8) var(--space-6);
+    }
+
+    .doc {
+        font-size: var(--font-size-base);
+    }
+}

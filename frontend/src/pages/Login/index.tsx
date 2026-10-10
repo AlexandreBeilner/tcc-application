@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { isAccountSuspendedError } from '../../services/client'
@@ -193,7 +193,9 @@ export function Login() {
                     {mode === 'login' ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar'}
                 </button>
 
-                <p className={styles.terms}>Ao continuar, você concorda com os Termos de Uso e a Política de Privacidade.</p>
+                <p className={styles.terms}>
+                    Ao continuar, você concorda com a <Link to="/privacidade">Política de Privacidade</Link>.
+                </p>
             </div>
         </main>
     )
