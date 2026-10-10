@@ -338,7 +338,10 @@ import { createMarketRouter } from './modules/market/interfaces/http/marketRoute
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 import { createBillingModule } from './modules/billing/composition'
 import { createCosmeticsModule } from './modules/cosmetics/composition'
+import { createDuelsModule } from './modules/duels/composition'
 import { createLeaguesModule } from './modules/leagues/composition'
+import { MeasurePeriodReturnUseCase } from './modules/ranking/application/useCases/measurePeriodReturn'
+import { RecordDuelResultUseCase } from './modules/socialfeed/application/useCases/recordDuelResult'
 import { RankingScorer } from './modules/ranking/application/rankingScorer'
 import { RankUsersByProfitabilityUseCase } from './modules/ranking/application/useCases/rankUsersByProfitability'
 import { createInProcessCosmeticsReader } from './shared/publicCosmetics'
@@ -868,6 +871,18 @@ export function createApp(deps: AppDeps = {}): Express {
     cosmeticsReader,
   })
 
+  // Duelos entre amigos (MO.5.3): rentabilidade medida por replay nos instantes de início e fim
+  // (sem cache de patrimônio: o resultado tem de ser exato), XP e feed por portas em processo.
+  const duels = createDuelsModule({
+    db,
+    authMiddleware,
+    proAccess: billing.proAccessGuard,
+    friendshipRepository,
+    measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
+    awardXp,
+    recordDuelResult: new RecordDuelResultUseCase(socialFeedEventRepository),
+    cosmeticsReader,
+  })
   const getPublicProfile = new GetPublicProfileUseCase(
     createDrizzleProfileUserDirectory(db),
     createInProcessGamificationReader(getProgression),
@@ -1201,6 +1216,9 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(billing.router)
   app.use(cosmetics.router)
   app.use(leagues.router)
+  app.use(duels.router)
+  // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).
+  app.locals.settleDueDuels = duels.settleDueDuels
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))

@@ -39,6 +39,8 @@ const BACKEND_ROUTE_NAMESPACES = [
     'billing',
     // MO.5.2 — API das ligas privadas (`/leagues`); as páginas são `/ligas`, sem colisão.
     'leagues',
+    // MO.5.3 — API dos duelos (`/duels`); as páginas são `/duelos`, sem colisão.
+    'duels',
     // Tarefa 6.10.8 — arquivos servidos por `express.static('/avatars', ...)`
     // no backend (`app.ts`), não uma rota de API "de verdade", mas ainda
     // assim um namespace que só o gateway sabe responder.

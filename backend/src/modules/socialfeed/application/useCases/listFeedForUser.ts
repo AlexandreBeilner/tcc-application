@@ -3,7 +3,7 @@ import {
   type CosmeticsReader,
   type PublicCosmetics,
 } from '../../../../shared/publicCosmetics'
-import type { SocialFeedEventType } from '../../domain/socialFeedEvent'
+import type { DuelFeedData, SocialFeedEventType } from '../../domain/socialFeedEvent'
 import type { FriendGraphReader } from '../ports/friendGraphReader'
 import type { SocialFeedEventRepository } from '../ports/socialFeedEventRepository'
 import type { UserDirectory } from '../ports/userDirectory'
@@ -15,6 +15,8 @@ export interface ListFeedForUserInput {
 export interface SocialFeedItem {
   type: SocialFeedEventType
   trackNumber: number | null
+  // Resultado de duelo (MO.5.3), nulo nos demais tipos.
+  duel: DuelFeedData | null
   occurredAt: Date
   userId: string
   username: string
@@ -59,6 +61,7 @@ export class ListFeedForUserUseCase {
         return {
           type: event.type,
           trackNumber: event.trackNumber,
+          duel: event.data,
           occurredAt: event.occurredAt,
           userId: event.userId,
           username: user.username,

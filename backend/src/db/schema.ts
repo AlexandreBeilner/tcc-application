@@ -409,6 +409,9 @@ export const socialFeedEvents = pgTable('social_feed_events', {
     .references(() => users.id),
   type: text('type').notNull(),
   trackNumber: integer('track_number'),
+  // Dados extras de um tipo de evento (ex: o resultado de um duelo, MO.5.3). Nulo em
+  // `track_completed`. Nunca carrega valor financeiro absoluto (RNF09).
+  data: jsonb('data'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -792,5 +795,51 @@ export const leagueMembers = pgTable(
     primaryKey({ columns: [table.leagueId, table.userId] }),
     index('league_members_user_idx').on(table.userId),
     check('league_members_status_chk', sql`${table.status} IN ('invited', 'active')`),
+  ],
+)
+
+// Duelos entre amigos (MO.5.3): desafio 1 contra 1 de 7 dias, vence a maior rentabilidade
+// percentual do período. Criar é PRO, aceitar nunca. O resultado é gravado uma única vez, no
+// encerramento, e depois nunca muda (arquivar, nunca apagar). `status`: pending (aguardando
+// aceite), active, finished, declined, cancelled (o desafiante desistiu) e expired (ninguém
+// respondeu a tempo).
+export const duels = pgTable(
+  'duels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    challengerId: uuid('challenger_id')
+      .notNull()
+      .references(() => users.id),
+    opponentId: uuid('opponent_id')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // Prazo para o convidado responder.
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    // challenger | opponent | draw
+    outcome: text('outcome'),
+    // profitability | abandonment | tie | both_inactive
+    reason: text('reason'),
+    challengerPct: doublePrecision('challenger_pct'),
+    opponentPct: doublePrecision('opponent_pct'),
+    challengerOperated: boolean('challenger_operated'),
+    opponentOperated: boolean('opponent_operated'),
+    // XP de participação já creditado (idempotência do encerramento).
+    xpAwardedAt: timestamp('xp_awarded_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('duels_challenger_idx').on(table.challengerId),
+    index('duels_opponent_idx').on(table.opponentId),
+    index('duels_status_ends_idx').on(table.status, table.endsAt),
+    check(
+      'duels_status_chk',
+      sql`${table.status} IN ('pending', 'active', 'finished', 'declined', 'cancelled', 'expired')`,
+    ),
+    check('duels_outcome_chk', sql`${table.outcome} IN ('challenger', 'opponent', 'draw')`),
+    check('duels_distinct_players_chk', sql`${table.challengerId} <> ${table.opponentId}`),
   ],
 )

@@ -24,3 +24,7 @@ Módulo: `backend/src/modules/socialfeed/`. Backlog engajamento G.1 (Impulso 5).
 `RecordTrackCompletedUseCase.execute({ userId, trackNumber })` — consumida em processo por `modules/lessons` via port própria de `lessons` (`SocialFeedRecorder`), implementada aqui do lado de fora (`lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder.ts`) — direção invertida do padrão usual (`missions`/`market`/`profile` consomem `lessons`; aqui é `lessons` quem consome `socialfeed`).
 
 Leitura do grafo de amigos aceitos reaproveita `modules/friendships`' `FriendshipRepository.listAccepted` direto (não `ListFriendsUseCase`, que é paginado) via port própria (`FriendGraphReader`, `infrastructure/friendships/inProcessFriendGraphReader.ts`) — mesmo padrão de `modules/ranking`'s `inProcessFriendGraphReader.ts` (achado 6.9.1).
+
+## Resultado de duelo no feed (MO.5.3)
+
+`GET /social-feed` passou a trazer `duel: { duelId, opponentUsername, opponentName, reason } | null` em cada item e dois tipos novos de `type` além de `track_completed`: `duel_won` (a pessoa venceu um duelo; `reason`: `profitability` ou `abandonment`) e `duel_draw` (empate por `tie`; entra uma vez, na linha de quem desafiou). O feed celebra: **quem perdeu nunca vira item**, e duelo em que nenhum dos dois operou não vira item nenhum. `trackNumber` é `null` nesses tipos. Só nomes e desfecho: nunca patrimônio nem percentual (RNF09). Coluna nova `social_feed_events.data` (jsonb, nula em `track_completed`).

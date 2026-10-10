@@ -1,4 +1,4 @@
-import type { SocialFeedEvent, SocialFeedEventType } from '../../domain/socialFeedEvent'
+import type { DuelFeedData, SocialFeedEvent, SocialFeedEventType } from '../../domain/socialFeedEvent'
 import type { SocialFeedEventRepository } from '../../application/ports/socialFeedEventRepository'
 
 export function createFakeSocialFeedEventRepository(): SocialFeedEventRepository & {
@@ -7,12 +7,13 @@ export function createFakeSocialFeedEventRepository(): SocialFeedEventRepository
   const events: SocialFeedEvent[] = []
   return {
     events,
-    async record(userId, type: SocialFeedEventType, trackNumber) {
+    async record(userId, type: SocialFeedEventType, trackNumber, data?: DuelFeedData) {
       events.push({
         id: `event-${events.length + 1}`,
         userId,
         type,
         trackNumber,
+        data: data ?? null,
         occurredAt: new Date(),
       })
     },

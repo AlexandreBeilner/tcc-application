@@ -112,7 +112,7 @@ describe('Amigos (tela 8.1)', () => {
         renderPage()
 
         expect(await screen.findByText('Atividade recente')).toBeInTheDocument()
-        expect(screen.getByText('Quando seus amigos concluírem uma trilha, aparece por aqui.')).toBeInTheDocument()
+        expect(screen.getByText('Quando seus amigos concluírem uma trilha ou vencerem um duelo, aparece por aqui.')).toBeInTheDocument()
     })
 
     it('lista eventos de trilha concluída de amigos na seção de atividade recente', async () => {
@@ -123,6 +123,7 @@ describe('Amigos (tela 8.1)', () => {
                 {
                     type: 'track_completed',
                     trackNumber: 1,
+                    duel: null,
                     occurredAt: '2026-02-10T00:00:00.000Z',
                     userId: 'u2',
                     username: 'bia',

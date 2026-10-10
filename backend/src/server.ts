@@ -18,6 +18,8 @@ import { createBillingReconciliation } from './modules/billing/composition'
 import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
 import { createRedisClient } from './infra/redisClient'
+import { startDuelScheduler } from './modules/duels/infrastructure/scheduler/duelScheduler'
+import type { SettleDueDuelsUseCase } from './modules/duels/application/useCases/settleDueDuels'
 import { createPayrollComposition } from './modules/payroll/composition'
 import { startPayrollScheduler } from './modules/payroll/infrastructure/scheduler/payrollScheduler'
 
@@ -29,6 +31,9 @@ const port = Number(process.env.PORT) || 3000
 const DEFAULT_PAYROLL_CHECK_INTERVAL_MS = 60 * 60 * 1000
 // Cadência do job que recalcula o ranking (3h). A tela lê o snapshot, nunca recalcula.
 const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
+// Cadência do job que encerra duelos vencidos e expira desafios (MO.5.3). O resultado é medido nos
+// instantes de início e fim, então não importa a hora em que roda; 1h dá uma espera curta.
+const DEFAULT_DUEL_SETTLE_INTERVAL_MS = 60 * 60 * 1000
 // Cadência da reconciliação de assinaturas (MO.2.5): rede de segurança do webhook, não precisa ser fina.
 const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 
@@ -74,12 +79,13 @@ async function main() {
     webhook,
   })
 
-  createApp({
+  const app = createApp({
     userRepository,
     emailWebhookRouter,
     enqueueEmail,
     emailSpacingMs: emailConfig.delayBetweenSendsMs,
-  }).listen(port, () => {
+  })
+  app.listen(port, () => {
     console.log(`backend gamificado escutando na porta ${port}`)
   })
 
@@ -107,6 +113,12 @@ async function main() {
     DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS
   const { computeRankingSnapshot } = createRankingSnapshotComposition(db, engineUrl)
   startRankingSnapshotScheduler(computeRankingSnapshot, rankingSnapshotIntervalMs)
+
+  // Duelos (MO.5.3): encerra os vencidos, expira desafios sem resposta e credita o XP.
+  startDuelScheduler(
+    app.locals.settleDueDuels as SettleDueDuelsUseCase,
+    Number(process.env.DUEL_SETTLE_INTERVAL_MS || Number.NaN) || DEFAULT_DUEL_SETTLE_INTERVAL_MS,
+  )
 
   // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
   const billingConfig = loadBillingConfig(process.env)

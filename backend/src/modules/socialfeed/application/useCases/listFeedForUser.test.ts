@@ -3,6 +3,7 @@ import { createFakeFriendGraphReader } from '../../test/fakes/fakeFriendGraphRea
 import { createFakeSocialFeedEventRepository } from '../../test/fakes/fakeSocialFeedEventRepository'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { ListFeedForUserUseCase } from './listFeedForUser'
+import { RecordDuelResultUseCase } from './recordDuelResult'
 
 describe('ListFeedForUserUseCase', () => {
   it('lista eventos só de amigos aceitos, com username/nome resolvidos', async () => {
@@ -64,6 +65,7 @@ describe('ListFeedForUserUseCase', () => {
       [
         'avatarUrl',
         'cosmetics',
+        'duel',
         'name',
         'occurredAt',
         'trackNumber',
@@ -92,5 +94,37 @@ describe('ListFeedForUserUseCase', () => {
     const [item] = await useCase.execute({ userId: 'user-1' })
 
     expect(item.cosmetics).toEqual({ isPro: true, frame: 'frame_oceano', title: 'Mente Curiosa' })
+  })
+
+  it('resultado de duelo aparece como item do feed, só com nomes e desfecho', async () => {
+    const repository = createFakeSocialFeedEventRepository()
+    await new RecordDuelResultUseCase(repository).execute({
+      userId: 'friend-1',
+      kind: 'won',
+      data: {
+        duelId: 'd1',
+        opponentUsername: 'rival',
+        opponentName: 'Rival',
+        reason: 'profitability',
+      },
+    })
+    const useCase = new ListFeedForUserUseCase(
+      createFakeFriendGraphReader({ 'user-1': ['friend-1'] }),
+      repository,
+      createFakeUserDirectory([
+        { id: 'friend-1', username: 'amigo1', name: 'Amigo Um', avatarUrl: null },
+      ]),
+    )
+
+    const [item] = await useCase.execute({ userId: 'user-1' })
+
+    expect(item.type).toBe('duel_won')
+    expect(item.trackNumber).toBeNull()
+    expect(item.duel).toEqual({
+      duelId: 'd1',
+      opponentUsername: 'rival',
+      opponentName: 'Rival',
+      reason: 'profitability',
+    })
   })
 })

@@ -1,7 +1,7 @@
 import { desc, inArray } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { socialFeedEvents } from '../../../../db/schema'
-import type { SocialFeedEvent, SocialFeedEventType } from '../../domain/socialFeedEvent'
+import type { DuelFeedData, SocialFeedEvent, SocialFeedEventType } from '../../domain/socialFeedEvent'
 import type { SocialFeedEventRepository } from '../../application/ports/socialFeedEventRepository'
 
 function toEvent(row: typeof socialFeedEvents.$inferSelect): SocialFeedEvent {
@@ -12,14 +12,15 @@ function toEvent(row: typeof socialFeedEvents.$inferSelect): SocialFeedEvent {
     // o cast pro union fechado do domínio fica aqui, na borda de leitura.
     type: row.type as SocialFeedEventType,
     trackNumber: row.trackNumber,
+    data: (row.data as DuelFeedData | null) ?? null,
     occurredAt: row.occurredAt,
   }
 }
 
 export function createDrizzleSocialFeedEventRepository(db: Database): SocialFeedEventRepository {
   return {
-    async record(userId, type, trackNumber) {
-      await db.insert(socialFeedEvents).values({ userId, type, trackNumber })
+    async record(userId, type, trackNumber, data) {
+      await db.insert(socialFeedEvents).values({ userId, type, trackNumber, data: data ?? null })
     },
 
     async listForUsers(userIds, limit) {

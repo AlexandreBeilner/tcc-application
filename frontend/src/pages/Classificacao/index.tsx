@@ -143,6 +143,9 @@ export function Classificacao() {
                     <Link className={styles.leaguesLink} to="/ligas">
                         Ligas com amigos
                     </Link>
+                    <Link className={styles.leaguesLink} to="/duelos">
+                        Duelos com amigos
+                    </Link>
                     <PillGroup label="Escopo" options={SCOPE_OPTIONS} value={scope} onChange={changeScope} />
                     <PillGroup label="Critério" options={CRITERION_OPTIONS} value={criterion} onChange={changeCriterion} />
                     <PillGroup
