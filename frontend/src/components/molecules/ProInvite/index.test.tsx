@@ -76,10 +76,10 @@ describe('ProInvite (MO.5.5)', () => {
         expect(screen.queryByText('Faz parte do plano PRO.')).toBeNull()
     })
 
-    it('dentro do app mostra só o texto, sem link para /planos', async () => {
+    it('dentro do app leva à mesma rota interna /planos (a compra lá é nativa)', async () => {
         ;(window as unknown as Record<string, unknown>).ReactNativeWebView = {}
         renderInvite()
         expect(await screen.findByText('Faz parte do plano PRO.')).toBeInTheDocument()
-        expect(screen.queryByRole('link')).toBeNull()
+        expect(screen.getByRole('link', { name: 'Conhecer o PRO' })).toHaveAttribute('href', '/planos')
     })
 })

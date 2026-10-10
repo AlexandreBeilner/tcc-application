@@ -1,7 +1,6 @@
 import { ArrowLeft, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
-import { isNativeApp } from '../../features/billing/isNativeApp'
 import { usePurchaseFlow } from '../../features/billing/usePurchaseFlow'
 import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useWebPlansQuery } from '../../features/billing/useWebPlans'
@@ -94,14 +93,14 @@ function PlanOptions({ plans, onChoose, busy }: { plans: WebPlan[]; onChoose: Pl
 }
 
 // Tela de planos (MO.3.1). Os preços vêm do Offering do RevenueCat, nunca de texto fixo; a
-// compra em si entra na MO.3.2. Sem escassez, sem contador: só o convite.
+// compra é a web (MO.3.2) ou, dentro do app, a nativa pela ponte (MO.4.2), com o preço da loja.
+// Sem escassez, sem contador: só o convite.
 export function Planos() {
     const statusQuery = useBillingStatusQuery()
     const status = statusQuery.data
     const billingEnabled = status?.billingEnabled ?? false
     const plansQuery = useWebPlansQuery(billingEnabled && !status?.isPro)
     const purchase = usePurchaseFlow()
-    const inApp = isNativeApp()
     const busy = purchase.phase === 'checkout' || purchase.phase === 'confirming'
 
     return (
@@ -149,7 +148,7 @@ export function Planos() {
                 <aside className={styles.side}>
                     {status?.isPro ? (
                         <CurrentPlan status={status} />
-                    ) : status && !billingEnabled ? (
+                    ) : status && (!billingEnabled || !purchase.canPurchase) ? (
                         <p className={styles.notice}>A assinatura ainda não está disponível. Avisamos assim que abrir.</p>
                     ) : status ? (
                         <section className={styles.card} aria-label="Escolha seu plano">
@@ -159,13 +158,8 @@ export function Planos() {
                                 <p className={styles.error}>Não foi possível carregar os preços agora. Tente novamente em instantes.</p>
                             )}
                             {plansQuery.data && plansQuery.data.length > 0 && (
-                                <PlanOptions
-                                    plans={plansQuery.data}
-                                    onChoose={purchase.canPurchase && !inApp ? purchase.start : null}
-                                    busy={busy}
-                                />
+                                <PlanOptions plans={plansQuery.data} onChoose={purchase.start} busy={busy} />
                             )}
-                            {inApp && <p className={styles.note}>A assinatura pelo app chega em breve.</p>}
                             {purchase.phase === 'confirming' && (
                                 <p className={styles.notice}>Pagamento recebido. Estamos liberando o seu PRO, só um instante.</p>
                             )}

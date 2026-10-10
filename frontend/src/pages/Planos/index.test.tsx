@@ -93,7 +93,8 @@ describe('Planos (MO.3.1)', () => {
         const purchase = vi.fn().mockResolvedValue('purchased')
         vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([MONTHLY, ANNUAL]), purchase })
         vi.mocked(getBillingStatus)
-            .mockResolvedValueOnce(FREE)
+            .mockResolvedValueOnce(FREE) // abertura da tela
+            .mockResolvedValueOnce(FREE) // conferência antes da compra
             .mockResolvedValue({ ...FREE, isPro: true, state: 'active', plan: 'annual', store: 'stripe' })
         renderPage()
 
@@ -103,13 +104,30 @@ describe('Planos (MO.3.1)', () => {
         expect(await screen.findByText('Você já é PRO', {}, { timeout: 5000 })).toBeInTheDocument()
     })
 
-    it('dentro do app não oferece pagamento web', async () => {
+    it('sem meio de compra neste ambiente, não mostra preço nem fica carregando', async () => {
         vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        vi.mocked(useWebPurchases).mockReturnValue(null)
+        renderPage()
+
+        expect(await screen.findByText(/ainda não está disponível/)).toBeInTheDocument()
+        expect(screen.queryByText(/Carregando preços/)).not.toBeInTheDocument()
+    })
+
+    it('dentro do app a compra vai pela camada nativa e libera o PRO', async () => {
+        const purchase = vi.fn().mockResolvedValue('purchased')
+        vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([MONTHLY, ANNUAL]), purchase })
+        vi.mocked(getBillingStatus)
+            .mockResolvedValueOnce(FREE) // abertura da tela
+            .mockResolvedValueOnce(FREE) // conferência antes da compra
+            .mockResolvedValue({ ...FREE, isPro: true, state: 'active', plan: 'monthly', store: 'play_store' })
         Object.defineProperty(window, 'ReactNativeWebView', { value: {}, configurable: true })
         try {
             renderPage()
-            expect(await screen.findByText('R$ 19,97')).toBeInTheDocument()
-            expect(screen.queryByRole('button', { name: /Assinar/ })).not.toBeInTheDocument()
+            fireEvent.click(await screen.findByRole('button', { name: 'Assinar mensal' }))
+
+            await waitFor(() => expect(purchase).toHaveBeenCalledWith(MONTHLY))
+            expect(await screen.findByText('Você já é PRO', {}, { timeout: 5000 })).toBeInTheDocument()
+            expect(screen.queryByRole('link', { name: /pagamento|checkout/i })).not.toBeInTheDocument()
         } finally {
             delete (window as unknown as Record<string, unknown>).ReactNativeWebView
         }

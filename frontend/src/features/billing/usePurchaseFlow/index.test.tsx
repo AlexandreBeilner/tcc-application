@@ -43,23 +43,45 @@ describe('usePurchaseFlow (MO.3.2)', () => {
 
     it('depois do pagamento espera o servidor confirmar o PRO, sem recarregar', async () => {
         vi.mocked(purchases.purchase).mockResolvedValue('purchased')
-        vi.mocked(getBillingStatus).mockResolvedValueOnce(FREE).mockResolvedValue(PRO)
+        // 1ª: conferência antes de abrir a folha; 2ª: primeira espera (ainda free); 3ª: PRO.
+        vi.mocked(getBillingStatus).mockResolvedValueOnce(FREE).mockResolvedValueOnce(FREE).mockResolvedValue(PRO)
         const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
 
         await act(() => result.current.start(PLAN))
 
-        expect(getBillingStatus).toHaveBeenCalledTimes(2)
+        expect(getBillingStatus).toHaveBeenCalledTimes(3)
         expect(result.current.phase).toBe('idle')
     })
 
     it('cancelar a janela de pagamento volta sem consultar nem errar', async () => {
         vi.mocked(purchases.purchase).mockResolvedValue('cancelled')
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
         const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
 
         await act(() => result.current.start(PLAN))
 
-        expect(getBillingStatus).not.toHaveBeenCalled()
+        expect(getBillingStatus).toHaveBeenCalledTimes(1) // só a conferência prévia
         expect(result.current.phase).toBe('idle')
+    })
+
+    it('quem já é PRO (por outra plataforma) não abre a compra', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue({ ...PRO, store: 'app_store' })
+        const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+        await act(() => result.current.start(PLAN))
+
+        expect(purchases.purchase).not.toHaveBeenCalled()
+        expect(result.current.phase).toBe('idle')
+    })
+
+    it('se a conferência prévia falha, não compra e mostra erro', async () => {
+        vi.mocked(getBillingStatus).mockRejectedValue(new Error('rede'))
+        const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 1000 }), { wrapper })
+
+        await act(() => result.current.start(PLAN))
+
+        expect(purchases.purchase).not.toHaveBeenCalled()
+        expect(result.current.phase).toBe('error')
     })
 
     it('para de esperar no limite de tempo e avisa', async () => {
@@ -74,6 +96,7 @@ describe('usePurchaseFlow (MO.3.2)', () => {
 
     it('erro no checkout vira fase de erro', async () => {
         vi.mocked(purchases.purchase).mockRejectedValue(new Error('boom'))
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
         const { result } = renderHook(() => usePurchaseFlow({ intervalMs: 5, timeoutMs: 40 }), { wrapper })
 
         await act(() => result.current.start(PLAN))

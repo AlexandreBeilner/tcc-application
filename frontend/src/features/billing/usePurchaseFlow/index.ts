@@ -55,6 +55,16 @@ export function usePurchaseFlow({ intervalMs = 2000, timeoutMs = 60_000 }: Purch
             if (!webPurchases) return
             setPhase('checkout')
             try {
+                // Confere o plano com o servidor ANTES de abrir a folha de pagamento: quem já é PRO
+                // (inclusive por outra plataforma, com a tela desatualizada) nunca paga de novo. Se
+                // a conferência falha, não compra: erro, e a pessoa tenta de novo.
+                const current = await getBillingStatus(token as string)
+                queryClient.setQueryData(BILLING_STATUS_QUERY_KEY, current)
+                if (current.isPro) {
+                    if (!aborted.current) setPhase('idle')
+                    return
+                }
+
                 const outcome = await webPurchases.purchase(plan)
                 if (aborted.current) return
                 if (outcome === 'cancelled') {
@@ -66,7 +76,7 @@ export function usePurchaseFlow({ intervalMs = 2000, timeoutMs = 60_000 }: Purch
                 if (!aborted.current) setPhase('error')
             }
         },
-        [webPurchases, confirm],
+        [webPurchases, confirm, token, queryClient],
     )
 
     return { phase, start, canPurchase: webPurchases !== null }
