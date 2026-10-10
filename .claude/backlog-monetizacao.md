@@ -351,6 +351,36 @@ compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend 
   `proposta-engajamento-licoes.md`.
 - **Dependências:** MO.5.1, MO.3.1.
 
+### MO.5.6 · Validação completa da Fase E no WebView, em resolução mobile
+- **Descrição:** a Fase E foi conferida no navegador do desktop e, pontualmente, em 390 px. Esta tarefa
+  valida **tudo da fase dentro do app** (React Native + WebView, Android primeiro, iOS quando houver
+  ambiente) em resolução de celular, porque o WebView muda coisas que o navegador esconde: área segura
+  (notch e barra de gestos), teclado cobrindo formulário, `navigator.share`/download de arquivo, canvas,
+  toque em vez de passar o mouse, rolagem e a `TabBar` fixa embaixo.
+- **O que validar (roteiro, uma passada por tela, com conta gratuita e com conta PRO):**
+  - **Identidade (5.1):** seletor em Configurações (molduras e títulos tocáveis, sem corte), selo/moldura/título
+    no ranking, na lista e busca de amigos, no feed e no perfil público; cancelar o PRO esconde, reativar volta.
+  - **Ligas (5.2):** `/ligas` (convite, criar, lista), `/ligas/:id` (classificação sem quebrar o nome longo,
+    botão "Tirar", convidar amigo, renomear, encerrar, sair), convite aceito por conta gratuita; liga pausada.
+  - **Duelos (5.3):** `/duelos` (convite, desafiar, em andamento, histórico), `/duelos/:id` (placar lado a lado
+    legível em tela estreita, aceitar, recusar, cancelar), item de duelo no feed.
+  - **Retrospectiva (5.4):** `/retrospectiva` (troca de mês, calendário de dias, cartões), **compartilhar a imagem**:
+    confirmar se o menu de compartilhar abre no WebView; se não abrir, se o download funciona, e se não funcionar,
+    abrir a pendência na tarefa 2.x do app (download de arquivo) e **registrar o desvio aqui**; conferir a imagem
+    gerada (1080x1350) no aparelho.
+  - **Convites ao PRO (5.5):** aparecem, dispensam e lembram a escolha; **nenhum link de pagamento web dentro do
+    app** (regra das lojas): o convite no app não pode levar a `/planos` com checkout web, e sim ao fluxo nativo
+    da Fase D ou a uma mensagem neutra enquanto a Fase D não existir.
+  - **Geral:** 3 breakpoints continuam corretos fora do app (320, 390, 768, 1024 px); sem rolagem horizontal; alvos de
+    toque de pelo menos 44 px; texto sem travessão e sem jargão; tema claro e escuro; rede lenta e offline (mensagens
+    de erro amigáveis); girar a tela.
+- **Aceite:** roteiro executado e registrado (data, aparelho/emulador, versão do app, o que passou e o que falhou
+  com captura de tela); todo defeito encontrado corrigido ou aberto como tarefa/ponto em aberto com dono; compartilhar
+  imagem com desfecho definido (funciona, ou fallback documentado); checklist assinado antes de a Fase E ser dada como
+  pronta para publicação.
+- **Dependências:** MO.5.1 a 5.5; `backlog-app-mobile.md` Fase 1 (app rodando no emulador) e, para o compartilhar/baixar
+  imagem, a tarefa de download de arquivo (Fase 2). A parte de compra nativa (MO.4.x) não entra aqui.
+
 ---
 
 ## Fase F — Assembleia de Acionistas (PRO decide, todos veem)
@@ -496,7 +526,7 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
 
 ## Sequência sugerida
 
-`MO.1.1 → 1.3 → 2.1 → 2.2 → 2.3 → 2.4 → 3.1 → 3.2 → 3.3 → 5.1 → 5.2 → 1.2 → 3.4 → 2.5 → 5.3 → 5.4 → 5.5 → (app) 4.1 → 4.2 → 4.3 → 4.4 → 7.1 → 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 6.6 → 6.7 → 6.8 → 6.9 → 7.2 → 7.3`
+`MO.1.1 → 1.3 → 2.1 → 2.2 → 2.3 → 2.4 → 3.1 → 3.2 → 3.3 → 5.1 → 5.2 → 1.2 → 3.4 → 2.5 → 5.3 → 5.4 → 5.5 → 5.6 → (app) 4.1 → 4.2 → 4.3 → 4.4 → 7.1 → 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 6.6 → 6.7 → 6.8 → 6.9 → 7.2 → 7.3`
 
 Racional: fundação e web primeiro, porque RevenueCat em sandbox valida o desenho inteiro sem o app.
 Identidade e ligas vêm antes por serem a base social que vende o PRO. A Fase F fica depois da
