@@ -1,4 +1,4 @@
-import { and, eq, lt, notInArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, ne, notInArray, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { emailOutbox } from '../../../../db/schema'
 import type { EmailOutboxRepository } from '../../application/ports/emailOutboxRepository'
@@ -149,6 +149,22 @@ export function createDrizzleEmailOutboxRepository(db: Database): EmailOutboxRep
             keepTemplateKeys.length > 0
               ? notInArray(emailOutbox.templateKey, [...keepTemplateKeys])
               : undefined,
+          ),
+        )
+        .returning({ id: emailOutbox.id })
+      return rows.length
+    },
+
+    // Fechamento = envio, ou a criação para o que nunca foi enviado (falha, supressão).
+    async scrubClosedBefore(closedBefore) {
+      const rows = await db
+        .update(emailOutbox)
+        .set({ toAddress: '', payload: {} })
+        .where(
+          and(
+            inArray(emailOutbox.status, ['sent', 'failed', 'suppressed']),
+            lt(sql`COALESCE(${emailOutbox.sentAt}, ${emailOutbox.createdAt})`, closedBefore),
+            ne(emailOutbox.toAddress, ''),
           ),
         )
         .returning({ id: emailOutbox.id })

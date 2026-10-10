@@ -31,6 +31,7 @@ import {
   createMarketDatabaseProbe,
   createRedisProbe,
 } from './modules/admin/infrastructure/health/probes'
+import { createDrizzleEmailOutboxHealthReader } from './modules/admin/infrastructure/health/emailOutboxHealthReader'
 import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
 import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
 import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
@@ -552,12 +553,15 @@ export function createApp(deps: AppDeps = {}): Express {
   // Visão geral e saúde (N.5): só leitura. O banco "market" é sondado pela mesma
   // leitura da visão geral do motor (só o motor fala com ele).
   const marketOverviewReader = createEngineMarketOverviewReader(engineUrl)
-  const getSystemHealth = new GetSystemHealthUseCase({
-    engine: createEngineHealthProbe(engineUrl),
-    gamification_db: createDatabaseProbe(db),
-    market_db: createMarketDatabaseProbe(marketOverviewReader),
-    redis: createRedisProbe(redisClient),
-  })
+  const getSystemHealth = new GetSystemHealthUseCase(
+    {
+      engine: createEngineHealthProbe(engineUrl),
+      gamification_db: createDatabaseProbe(db),
+      market_db: createMarketDatabaseProbe(marketOverviewReader),
+      redis: createRedisProbe(redisClient),
+    },
+    createDrizzleEmailOutboxHealthReader(db),
+  )
   // Monitor do mercado (N.8): só leitura.
   const marketMonitorReader = createEngineMarketMonitorReader(engineUrl)
   const listMarketMonitor = new ListMarketMonitorUseCase(marketMonitorReader)

@@ -5,6 +5,7 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { GetAdminOverviewUseCase } from '../../application/useCases/getAdminOverview'
 import { GetSystemHealthUseCase } from '../../application/useCases/getSystemHealth'
+import { createFakeEmailOutboxHealthReader } from '../../test/fakes/fakeEmailOutboxHealthReader'
 import { createFakeMarketOverviewReader } from '../../test/fakes/fakeMarketOverviewReader'
 import { createFakeSchedulerAdmin } from '../../test/fakes/fakeSchedulerAdmin'
 import { createFakeUserStatsReader } from '../../test/fakes/fakeUserStatsReader'
@@ -17,16 +18,19 @@ function buildApp() {
   const app = express()
   app.use(
     createAdminSystemRouter({
-      getSystemHealth: new GetSystemHealthUseCase({
-        engine: ok,
-        gamification_db: ok,
-        market_db: ok,
-        redis: {
-          check: async () => {
-            throw new Error('redis fora')
+      getSystemHealth: new GetSystemHealthUseCase(
+        {
+          engine: ok,
+          gamification_db: ok,
+          market_db: ok,
+          redis: {
+            check: async () => {
+              throw new Error('redis fora')
+            },
           },
         },
-      }),
+        createFakeEmailOutboxHealthReader(),
+      ),
       getAdminOverview: new GetAdminOverviewUseCase(
         market,
         createFakeSchedulerAdmin(),
@@ -61,6 +65,7 @@ describe('GET /admin/system/health', () => {
     const byKey = Object.fromEntries(res.body.components.map((c: { key: string }) => [c.key, c]))
     expect(byKey.backend.status).toBe('ok')
     expect(byKey.redis).toMatchObject({ status: 'fora', detail: 'redis fora' })
+    expect(byKey.email_outbox.status).toBe('ok')
   })
 })
 

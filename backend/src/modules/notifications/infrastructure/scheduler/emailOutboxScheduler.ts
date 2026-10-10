@@ -1,4 +1,8 @@
 import type { DeliverPendingEmailsUseCase } from '../../application/useCases/deliverPendingEmails'
+import type { PurgeOldEmailsUseCase } from '../../application/useCases/purgeOldEmails'
+
+// A retenção (EM.8.1) anda junto do worker, mas só uma vez por hora: limpar não tem pressa.
+export const PURGE_INTERVAL_MS = 60 * 60_000
 
 // Agendamento do worker do outbox: infra de tempo, nunca a regra (isso é
 // `DeliverPendingEmailsUseCase`). Mesmo espírito de `startRankingSnapshotScheduler`: roda uma vez
@@ -8,8 +12,10 @@ import type { DeliverPendingEmailsUseCase } from '../../application/useCases/del
 export function startEmailOutboxScheduler(
   deliverPendingEmails: DeliverPendingEmailsUseCase,
   intervalMs: number,
+  purgeOldEmails?: PurgeOldEmailsUseCase,
 ): NodeJS.Timeout {
   let running = false
+  let lastPurgeAt = Number.NEGATIVE_INFINITY
   const attempt = async () => {
     if (running) return
     running = true
@@ -22,9 +28,18 @@ export function startEmailOutboxScheduler(
       }
     } catch (err) {
       console.error('e-mail: erro ao processar o outbox', err)
-    } finally {
-      running = false
     }
+    // Falha da limpeza nunca atrapalha a entrega (e vice-versa): cada uma tem o seu try.
+    if (purgeOldEmails && Date.now() - lastPurgeAt >= PURGE_INTERVAL_MS) {
+      lastPurgeAt = Date.now()
+      try {
+        const { scrubbed } = await purgeOldEmails.execute()
+        if (scrubbed > 0) console.log(`e-mail: ${scrubbed} linha(s) antiga(s) do outbox limpa(s)`)
+      } catch (err) {
+        console.error('e-mail: erro ao limpar o outbox antigo', err)
+      }
+    }
+    running = false
   }
 
   void attempt()

@@ -9,6 +9,7 @@ import {
 import { EnqueueEmailUseCase } from './application/useCases/enqueueEmail'
 import { EraseEmailDataUseCase } from './application/useCases/eraseEmailData'
 import { GetEmailPreferencesUseCase } from './application/useCases/getEmailPreferences'
+import { PurgeOldEmailsUseCase } from './application/useCases/purgeOldEmails'
 import { UnsubscribeByTokenUseCase } from './application/useCases/unsubscribeByToken'
 import { UpdateEmailPreferencesUseCase } from './application/useCases/updateEmailPreferences'
 import type { EmailLinksConfig } from './infrastructure/config/emailLinksConfig'
@@ -142,5 +143,7 @@ export function createNotificationsComposition(db: Database, deps: Notifications
       ),
     })
 
-  return { enqueueEmail, deliverPendingEmails, emailWebhookRouter }
+  const purgeOldEmails = new PurgeOldEmailsUseCase(outbox)
+
+  return { enqueueEmail, deliverPendingEmails, purgeOldEmails, emailWebhookRouter }
 }

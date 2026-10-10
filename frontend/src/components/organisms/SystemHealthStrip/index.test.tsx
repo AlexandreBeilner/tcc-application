@@ -21,4 +21,24 @@ describe('SystemHealthStrip', () => {
         expect(items[1]).toHaveTextContent('MotorLento1500 ms')
         expect(items[2]).toHaveTextContent('RedisForaECONNREFUSED')
     })
+
+    it('mostra a fila de e-mail com rótulo próprio, os contadores e sem latência', () => {
+        render(
+            <SystemHealthStrip
+                components={[
+                    {
+                        key: 'email_outbox',
+                        status: 'degradado',
+                        latency_ms: 4,
+                        detail: 'pendente mais antigo espera há 12 min (3 pendente(s), 0 falha(s) em 24 h)',
+                    },
+                ]}
+            />,
+        )
+
+        const item = screen.getByRole('listitem')
+        expect(item).toHaveTextContent('Fila de e-mailAtenção')
+        expect(item).toHaveTextContent('espera há 12 min')
+        expect(item).not.toHaveTextContent('4 ms')
+    })
 })

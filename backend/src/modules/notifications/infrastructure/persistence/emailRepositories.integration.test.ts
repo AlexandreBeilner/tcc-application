@@ -6,6 +6,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { createDrizzleEmailOutboxHealthReader } from '../../../admin/infrastructure/health/emailOutboxHealthReader'
 import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxRepository'
 import { createDrizzleEmailPreferencesRepository } from './drizzleEmailPreferencesRepository'
 import { createDrizzleEmailSuppressionRepository } from './drizzleEmailSuppressionRepository'
@@ -296,6 +297,69 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
       expect(deleted).toBe(1)
       const keys = (await db.select().from(schema.emailOutbox)).map((r) => r.idempotencyKey).sort()
       expect(keys).toEqual(['a2', 'b1', 'sem-usuario'])
+    })
+  })
+
+  it('scrubClosedBefore zera endereço e payload só do que fechou antes do corte', async () => {
+    const repo = createDrizzleEmailOutboxRepository(db)
+    const old = new Date('2026-08-01T00:00:00Z')
+    const cutoff = new Date('2026-09-10T00:00:00Z')
+    const oldSent = await repo.enqueue(base('old-sent'))
+    const oldFailed = await repo.enqueue(base('old-failed'))
+    const recent = await repo.enqueue(base('recent'))
+    const open = await repo.enqueue(base('open'))
+    await db
+      .update(schema.emailOutbox)
+      .set({ status: 'sent', sentAt: old })
+      .where(eq(schema.emailOutbox.id, oldSent.id))
+    await db
+      .update(schema.emailOutbox)
+      .set({ status: 'failed', createdAt: old })
+      .where(eq(schema.emailOutbox.id, oldFailed.id))
+    await db
+      .update(schema.emailOutbox)
+      .set({ status: 'sent', sentAt: new Date('2026-10-01T00:00:00Z') })
+      .where(eq(schema.emailOutbox.id, recent.id))
+    await db
+      .update(schema.emailOutbox)
+      .set({ createdAt: old })
+      .where(eq(schema.emailOutbox.id, open.id))
+
+    expect(await repo.scrubClosedBefore(cutoff)).toBe(2)
+    expect(await repo.scrubClosedBefore(cutoff)).toBe(0)
+
+    const rows = Object.fromEntries(
+      (await db.select().from(schema.emailOutbox)).map((r) => [r.id, r]),
+    )
+    expect(rows[oldSent.id]).toMatchObject({ toAddress: '', payload: {}, status: 'sent' })
+    expect(rows[oldFailed.id]).toMatchObject({ toAddress: '', payload: {}, status: 'failed' })
+    expect(rows[recent.id].toAddress).toBe('ana@exemplo.com')
+    expect(rows[open.id].toAddress).toBe('ana@exemplo.com')
+  })
+
+  it('o leitor de saúde conta só pendente vencida e falha das últimas 24 h', async () => {
+    const repo = createDrizzleEmailOutboxRepository(db)
+    const reader = createDrizzleEmailOutboxHealthReader(db)
+    const now = new Date('2026-10-10T12:00:00Z')
+    await repo.enqueue({ ...base('due-old'), sendAt: new Date('2026-10-10T11:40:00Z') })
+    await repo.enqueue({ ...base('due-new'), sendAt: new Date('2026-10-10T11:58:00Z') })
+    await repo.enqueue({ ...base('future'), sendAt: new Date('2026-10-10T15:00:00Z') })
+    const recentFail = await repo.enqueue(base('fail-recent'))
+    const oldFail = await repo.enqueue(base('fail-old'))
+    await db
+      .update(schema.emailOutbox)
+      .set({ status: 'failed', createdAt: new Date('2026-10-10T08:00:00Z') })
+      .where(eq(schema.emailOutbox.id, recentFail.id))
+    await db
+      .update(schema.emailOutbox)
+      .set({ status: 'failed', createdAt: new Date('2026-10-01T08:00:00Z') })
+      .where(eq(schema.emailOutbox.id, oldFail.id))
+    // As duas de `base` com sendAt 11:00 estão pendentes e vencidas até virarem failed acima.
+
+    expect(await reader.read(now)).toEqual({
+      pending: 2,
+      failedLast24h: 1,
+      oldestPendingAgeMs: 20 * 60_000,
     })
   })
 })

@@ -71,4 +71,10 @@ Duas categorias de e-mail são **opcionais**: `social` (ex.: pedido de amizade) 
 
 ### Exportação e exclusão de conta (LGPD)
 
-`GET /me/export` ganhou `emailPreferences` (`.docs/backend/auth.md`). `DELETE /me` (e a exclusão pelo admin) apaga a linha de `email_preferences` e as linhas do `email_outbox` do usuário (endereço e payload são dado pessoal), **menos** a confirmação `account_deleted`, que ainda precisa sair; a limpeza dessa última é da retenção (EM.8.2). A supressão por endereço fica: é do endereço, não da pessoa.
+`GET /me/export` ganhou `emailPreferences` (`.docs/backend/auth.md`). `DELETE /me` (e a exclusão pelo admin) apaga a linha de `email_preferences` e as linhas do `email_outbox` do usuário (endereço e payload são dado pessoal), **menos** a confirmação `account_deleted`, que ainda precisa sair; a limpeza dessa última é feita pela retenção abaixo (30 dias depois de enviada). A supressão por endereço fica: é do endereço, não da pessoa.
+
+### Retenção do outbox (EM.8.1)
+
+`PurgeOldEmailsUseCase`: linhas **fechadas** (`sent`, `failed` ou `suppressed`) há mais de **30 dias** perdem `to_address` (vira `''`) e `payload` (vira `{}`), porque endereço e conteúdo são dado pessoal que não precisa ficar depois que o e-mail saiu ou desistiu de sair. A linha mínima (id, `user_id`, template, categoria, status, datas, `last_error`, `provider_message_id`) fica para auditoria. O fechamento conta por `sent_at` (ou `created_at` para o que nunca foi enviado). Linhas `pending`/`sending` nunca são limpas. Idempotente (não reconta linhas já limpas). Roda no mesmo processo do worker (`startEmailOutboxScheduler`), na subida e depois no máximo uma vez por hora, com falha isolada da entrega. Isso também elimina o endereço residual do `account_deleted`.
+
+A saúde da fila (pendentes, falhas, pendente mais antigo) aparece em `GET /admin/system/health` (`.docs/backend/admin.md`).

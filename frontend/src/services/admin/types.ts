@@ -224,7 +224,7 @@ export interface AdvanceTicksResult {
 
 // Visão geral e saúde (N.5, `.docs/backend/admin.md#visao-geral-e-saude-do-sistema-tarefa-n5`).
 export type HealthStatus = 'ok' | 'degradado' | 'fora'
-export type HealthComponentKey = 'backend' | 'engine' | 'gamification_db' | 'market_db' | 'redis'
+export type HealthComponentKey = 'backend' | 'engine' | 'gamification_db' | 'market_db' | 'redis' | 'email_outbox'
 
 export interface ComponentHealth {
     key: HealthComponentKey

@@ -49,7 +49,8 @@ async function main() {
       'e-mail: RESEND_WEBHOOK_SECRET ausente. Bounces e reclamações não serão processados e a lista de supressão não se alimenta: configure antes de enviar para usuários reais.',
     )
   }
-  const { enqueueEmail, deliverPendingEmails, emailWebhookRouter } = createNotificationsComposition(
+  const { enqueueEmail, deliverPendingEmails, purgeOldEmails, emailWebhookRouter } =
+    createNotificationsComposition(
     db,
     {
       emailSender: createEmailSender(emailConfig),
@@ -78,7 +79,7 @@ async function main() {
   const { runPayrollCheck } = createPayrollComposition(db, engineUrl)
   startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
 
-  startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs)
+  startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails)
 
   const rankingSnapshotIntervalMs =
     Number(process.env.RANKING_SNAPSHOT_INTERVAL_MS || Number.NaN) ||

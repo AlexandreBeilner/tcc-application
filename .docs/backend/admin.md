@@ -278,9 +278,10 @@ Duas rotas de leitura da tela de entrada do painel. Exigem Bearer token + `role:
 
 #### `GET /admin/system/health`
 
-- **Sucesso:** `200` → `{ checked_at, components: [{ key, status, latency_ms | null, detail | null }] }`, sempre nesta ordem: `backend`, `engine`, `gamification_db`, `market_db`, `redis`. `status` é `ok`, `degradado` (respondeu, mas em mais de 1000 ms) ou `fora` (falhou ou não respondeu em 3 s; `latency_ms` vira `null` e `detail` traz o motivo).
+- **Sucesso:** `200` → `{ checked_at, components: [{ key, status, latency_ms | null, detail | null }] }`, sempre nesta ordem: `backend`, `engine`, `gamification_db`, `market_db`, `redis`, `email_outbox`. `status` é `ok`, `degradado` (respondeu, mas em mais de 1000 ms) ou `fora` (falhou ou não respondeu em 3 s; `latency_ms` vira `null` e `detail` traz o motivo).
 - **Erros:** nenhum próprio. Um componente fora **não** derruba a resposta, só aparece como `fora`.
 - **Regra:** `GetSystemHealthUseCase` sonda os componentes em paralelo por `HealthProbe` (porta): `engine` = `GET /health` do motor; `gamification_db` = `select 1` no pool do backend; `redis` = `PING`; `market_db` = a leitura da visão geral do motor (só o motor fala com esse banco, então se ela responde o banco está de pé). O `backend` é `ok` por definição.
+  - **`email_outbox` (EM.8.1)** não é uma sonda de resposta, é uma leitura de contadores da fila de e-mail (`EmailOutboxHealthReader`, porta; adapter Drizzle sobre `email_outbox`). `detail` sempre traz o resumo (`"N pendente(s), M falha(s) em 24 h"`); `latency_ms` é o tempo da leitura. **Pendente** = linha `pending` já vencida (`next_attempt_at <= agora`); um reenvio agendado pra daqui a horas não conta. `degradado` (alerta, não queda) quando a pendente vencida mais antiga espera **há mais de 10 min** (fila parada: worker fora ou provedor recusando) ou quando há **5 ou mais** falhas definitivas (`failed`) nas últimas 24 h ("falhas acumulando"; o `detail` diz qual). Leitura que falha vira `fora`, como qualquer componente.
 
 #### `GET /admin/overview`
 

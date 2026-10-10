@@ -41,4 +41,9 @@ export interface EmailOutboxRepository {
   // Exclusão de conta (LGPD): apaga as linhas do usuário, menos as dos templates em
   // `keepTemplateKeys` (a confirmação de exclusão, que ainda precisa sair). Devolve quantas apagou.
   deleteByUser(userId: string, options: { keepTemplateKeys: readonly string[] }): Promise<number>
+  // Retenção (LGPD, minimização): zera `toAddress` e `payload` das linhas já fechadas
+  // (`sent`, `failed`, `suppressed`) cuja data de fechamento (`sentAt`, ou a criação quando
+  // nunca foi enviada) é anterior a `closedBefore`. A linha mínima (id, template, status,
+  // datas, erro) fica para auditoria. Idempotente: não reconta linhas já limpas.
+  scrubClosedBefore(closedBefore: Date): Promise<number>
 }

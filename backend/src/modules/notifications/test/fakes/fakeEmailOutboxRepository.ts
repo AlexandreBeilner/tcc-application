@@ -10,6 +10,7 @@ export interface FakeOutboxRow extends OutboxEmail {
   providerMessageId: string | null
   lastError: string | null
   sentAt: Date | null
+  createdAt: Date
   deliveredAt: Date | null
 }
 
@@ -57,6 +58,7 @@ export function createFakeEmailOutboxRepository(
         providerMessageId: null,
         lastError: input.suppressedBy ? `suppressed:${input.suppressedBy}` : null,
         sentAt: null,
+        createdAt: now(),
         deliveredAt: null,
       }
       rows.push(row)
@@ -122,6 +124,19 @@ export function createFakeEmailOutboxRepository(
       )
       for (const row of doomed) rows.splice(rows.indexOf(row), 1)
       return doomed.length
+    },
+    async scrubClosedBefore(closedBefore) {
+      const closed = rows.filter(
+        (r) =>
+          ['sent', 'failed', 'suppressed'].includes(r.status) &&
+          r.toAddress !== '' &&
+          (r.sentAt ?? r.createdAt) < closedBefore,
+      )
+      for (const row of closed) {
+        row.toAddress = ''
+        row.payload = {}
+      }
+      return closed.length
     },
   }
 }
