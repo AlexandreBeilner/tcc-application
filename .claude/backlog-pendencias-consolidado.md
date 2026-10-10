@@ -202,6 +202,17 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 - **Estado (2026-10-07):** todas as tarefas de conteúdo e UI (Fases 1 a 7) e a Fase 8 (RC.8.1 e RC.8.2) estão ✅, em PRs encadeados #86 a #103 (P1 a P14), a mesclar em ordem. Só resta a RC.3.6 (P15, bloqueada até a N.23) e a opcional RC.6.12.
 ---
 
+## Prioridade 8 — Gateway de e-mail (Resend), decidido em 2026-10-09
+
+- **Local:** `.claude/backlog-email.md` (22 tarefas EM.1.1 a EM.8.2 em 8 fases) e o "porquê" em
+  `.claude/plano-gateway-email.md` (decisões D1-D9 já fechadas pelo autor).
+- **Resumo:** módulo `notifications` com outbox no Postgres e worker, adapter Resend atrás de port,
+  recuperação de senha, verificação de e-mail (conta por e-mail e senha só loga verificada; Google
+  loga direto), avisos de segurança, ciclo de vida, preferências/descadastro e e-mails de
+  engajamento opt-in. Fecha o ponto 043 (pré-sequestro de conta pelo vínculo Google).
+- **Começar por:** Fase A (EM.1.1 a EM.1.4), depois Fases B e C (P0). Pré-requisito do autor: domínio
+  de envio e DNS (SPF/DKIM/DMARC) antes de validar a EM.1.4 com envio real.
+
 ## Housekeeping (não é backlog de produto, mas vale resolver de passagem)
 
 ### H.1 · `main` local desatualizada em relação a `origin/main`
@@ -229,6 +240,8 @@ não apagar sem essa checagem.
 6. **P1.3** (Semana 8, polimento) — só depois do passo 1 fechado.
 7. **P6.1 → P6.2 → P6.3 → P6.4** — trilha mobile, independente de tudo acima; entra quando houver
    sessão dedicada a ela.
-8. **H.1, H.2** — a qualquer momento, leva minutos.
+8. **P8** (Gateway de e-mail) — Fases A a C primeiro; independente das demais trilhas, mas a Fase C
+   altera o cadastro e o login, então rodar os e2e inteiros depois dela.
+9. **H.1, H.2** — a qualquer momento, leva minutos.
 
 `P5.2` (D.0) fica fora da sequência — só entra quando houver uso real em produção pra avaliar.
