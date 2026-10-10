@@ -81,4 +81,22 @@ describe('AuthCallback', () => {
         await waitFor(() => expect(screen.getByText('Não foi possível concluir o login com Google.')).toBeInTheDocument())
         expect(authLogin).not.toHaveBeenCalled()
     })
+
+    it('Google sem e-mail verificado numa conta existente mostra a mensagem própria e não chama login (EM.3.2)', async () => {
+        window.location.hash = '#error=google_email_not_verified'
+        const authLogin = vi.fn()
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: authLogin,
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderCallback()
+
+        expect(await screen.findByText(/O Google não confirmou o seu e-mail/)).toBeInTheDocument()
+        expect(authLogin).not.toHaveBeenCalled()
+    })
 })

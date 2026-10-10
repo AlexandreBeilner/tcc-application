@@ -6,6 +6,7 @@ import type {
     Identity,
     LoginInput,
     RegisterInput,
+    RegisterResult,
     ResetPasswordInput,
     AuthUser,
     UpdateProfileInput,
@@ -15,6 +16,7 @@ export type {
     AuthUser,
     AuthResult,
     RegisterInput,
+    RegisterResult,
     LoginInput,
     ResetPasswordInput,
     UpdateProfileInput,
@@ -23,12 +25,23 @@ export type {
     AccountExport,
 } from './types'
 
-export function register(input: RegisterInput): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/auth/register', { method: 'POST', body: input })
+export function register(input: RegisterInput): Promise<RegisterResult> {
+    return apiRequest<RegisterResult>('/auth/register', { method: 'POST', body: input })
 }
 
 export function login(input: LoginInput): Promise<AuthResult> {
     return apiRequest<AuthResult>('/auth/login', { method: 'POST', body: input })
+}
+
+// Verificação de e-mail (EM.3.1/EM.3.3). O reenvio responde 202 sempre igual (conta existente ou
+// não, já verificada ou não); `verifyEmail` recebe o token do fragmento do link: 401 = desconhecido,
+// 410 = expirado ou já usado. Não devolve sessão: depois de verificar a pessoa entra pelo login.
+export function resendVerification(email: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/resend-verification', { method: 'POST', body: { email } })
+}
+
+export function verifyEmail(token: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/verify-email', { method: 'POST', body: { token } })
 }
 
 // Recuperação de senha (EM.2.2/EM.2.3). O backend responde 202 sempre igual, exista a conta ou

@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { completeOnboarding, getCurrentUser, login, register, requestPasswordReset, resetPassword } from '.'
+import {
+    completeOnboarding,
+    getCurrentUser,
+    login,
+    register,
+    requestPasswordReset,
+    resendVerification,
+    resetPassword,
+    verifyEmail,
+} from '.'
 
 describe('api/auth', () => {
     afterEach(() => {
@@ -10,7 +19,7 @@ describe('api/auth', () => {
         const fetchMock = vi.fn().mockResolvedValue({
             ok: true,
             status: 201,
-            json: async () => ({ token: 'jwt', user: { id: '1' } }),
+            json: async () => ({ user: { id: '1' }, emailVerificationRequired: true }),
         })
         vi.stubGlobal('fetch', fetchMock)
 
@@ -30,7 +39,7 @@ describe('api/auth', () => {
             username: 'ana',
             password: 'senha1234',
         })
-        expect(result).toEqual({ token: 'jwt', user: { id: '1' } })
+        expect(result).toEqual({ user: { id: '1' }, emailVerificationRequired: true })
     })
 
     it('login faz POST /auth/login com e-mail e senha', async () => {
@@ -103,5 +112,28 @@ describe('api/auth', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/auth/reset-password')
         expect(JSON.parse(init.body)).toEqual({ token: 'tok', newPassword: 'senha-nova-123' })
+    })
+
+    it('resendVerification faz POST /auth/resend-verification só com o e-mail', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202, json: async () => ({ message: 'ok' }) })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await resendVerification('ana@example.com')
+
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/auth/resend-verification')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ email: 'ana@example.com' })
+    })
+
+    it('verifyEmail faz POST /auth/verify-email com o token', async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: 'ok' }) })
+        vi.stubGlobal('fetch', fetchMock)
+
+        await verifyEmail('abc')
+
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/auth/verify-email')
+        expect(JSON.parse(init.body)).toEqual({ token: 'abc' })
     })
 })

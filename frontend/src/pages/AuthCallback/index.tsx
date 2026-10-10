@@ -16,6 +16,8 @@ export function AuthCallback() {
     const [failed, setFailed] = useState(false)
     // Login com Google de conta suspensa pelo painel (N.16): o backend redireciona com `#error=account_suspended`.
     const [suspended, setSuspended] = useState(false)
+    // Google não verificou o e-mail e já existe conta local com ele (EM.3.2): `#error=google_email_not_verified`.
+    const [emailNotVerified, setEmailNotVerified] = useState(false)
     const handled = useRef(false)
 
     useEffect(() => {
@@ -25,6 +27,10 @@ export function AuthCallback() {
         const params = new URLSearchParams(window.location.hash.slice(1))
         if (params.get('error') === 'account_suspended') {
             setSuspended(true)
+            return
+        }
+        if (params.get('error') === 'google_email_not_verified') {
+            setEmailNotVerified(true)
             return
         }
         const token = params.get('token')
@@ -44,6 +50,17 @@ export function AuthCallback() {
         return (
             <main>
                 <p>Sua conta está suspensa. Fale com o suporte para entender o motivo.</p>
+            </main>
+        )
+    }
+
+    if (emailNotVerified) {
+        return (
+            <main>
+                <p>
+                    O Google não confirmou o seu e-mail, então não foi possível entrar com ele numa conta que já existe. Entre com o e-mail
+                    e a senha, ou confirme o e-mail na sua conta do Google e tente de novo.
+                </p>
             </main>
         )
     }

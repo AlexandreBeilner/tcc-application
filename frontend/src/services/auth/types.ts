@@ -15,6 +15,12 @@ export interface AuthResult {
     user: AuthUser
 }
 
+// `POST /auth/register` não devolve sessão (EM.3.1): a conta só entra depois de verificar o e-mail.
+export interface RegisterResult {
+    user: AuthUser
+    emailVerificationRequired: true
+}
+
 export interface RegisterInput {
     name: string
     email: string
@@ -25,6 +31,10 @@ export interface RegisterInput {
 export interface LoginInput {
     email: string
     password: string
+}
+
+export interface VerifyEmailInput {
+    token: string
 }
 
 export interface ResetPasswordInput {

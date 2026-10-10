@@ -48,6 +48,7 @@ import { Onboarding } from '../pages/Onboarding'
 import { PerfilPublico } from '../pages/PerfilPublico'
 import { Portfolio } from '../pages/Portfolio'
 import { RedefinirSenha } from '../pages/RedefinirSenha'
+import { VerificarEmail } from '../pages/VerificarEmail'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
@@ -79,6 +80,11 @@ export const router = createBrowserRouter([
     {
         path: '/redefinir-senha',
         element: <RedefinirSenha />,
+    },
+    // Verificação de e-mail (EM.3.3): pública, o token vem no fragmento do link.
+    {
+        path: '/verificar-email',
+        element: <VerificarEmail />,
     },
     {
         path: '/auth/callback',

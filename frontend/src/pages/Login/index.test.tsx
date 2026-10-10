@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../services/client'
-import { googleLoginUrl, login, register } from '../../services/auth'
+import { googleLoginUrl, login, register, resendVerification } from '../../services/auth'
 import { useAuth } from '../../features/auth/AuthContext'
 import { Login } from '.'
 
@@ -10,6 +10,7 @@ vi.mock('../../services/auth', () => ({
     googleLoginUrl: vi.fn(() => '/auth/google'),
     login: vi.fn(),
     register: vi.fn(),
+    resendVerification: vi.fn(),
 }))
 
 vi.mock('../../features/auth/AuthContext', () => ({
@@ -236,5 +237,77 @@ describe('Login (tela 1.1)', () => {
 
         fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Abcdefghijkl1!' } })
         expect(screen.getByText('Força da senha: Forte')).toBeInTheDocument()
+    })
+
+    function mockLoggedOut() {
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+    }
+
+    it('cadastro não cria sessão: mostra o aviso "enviamos um link" com o reenvio à mão (EM.3.3)', async () => {
+        const authLogin = vi.fn()
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: authLogin,
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+        vi.mocked(register).mockResolvedValue({
+            user: {
+                id: '1',
+                name: 'Ana',
+                email: 'ana@example.com',
+                username: 'ana',
+                role: 'user',
+                onboardingCompleted: false,
+                avatarUrl: null,
+            },
+            emailVerificationRequired: true,
+        })
+        vi.mocked(resendVerification).mockResolvedValue({ message: 'ok' })
+
+        renderLogin()
+        fireEvent.click(screen.getByText('Não tem conta? Cadastre-se'))
+        fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ana' } })
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
+        fireEvent.change(screen.getByLabelText('Nome de usuário'), { target: { value: 'ana' } })
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+        fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'senha1234' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+        expect(await screen.findByText('Enviamos um link para ana@example.com')).toBeInTheDocument()
+        expect(authLogin).not.toHaveBeenCalled()
+        expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Reenviar e-mail de confirmação' }))
+        await waitFor(() => expect(resendVerification).toHaveBeenCalledWith('ana@example.com'))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Já confirmei, quero entrar' }))
+        expect(await screen.findByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+    })
+
+    it('login de conta não verificada (403 email_not_verified) mostra o aviso e o reenvio, sem navegar (EM.3.3)', async () => {
+        mockLoggedOut()
+        vi.mocked(login).mockRejectedValue(new ApiError(403, 'email_not_verified'))
+        vi.mocked(resendVerification).mockResolvedValue({ message: 'ok' })
+
+        renderLogin()
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+
+        expect(await screen.findByText('Falta confirmar seu e-mail')).toBeInTheDocument()
+        expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Reenviar e-mail de confirmação' }))
+        await waitFor(() => expect(resendVerification).toHaveBeenCalledWith('ana@example.com'))
     })
 })

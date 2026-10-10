@@ -78,6 +78,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - Login com credencial inválida → estado de erro inline, sem navegação.
 - **Estados especiais:** carregando (aguardando resposta do provedor OAuth), erro de credencial.
 - **Dados envolvidos:** `users`, `user_identities`.
+- **Verificação de e-mail (EM.3.3, D2):** o cadastro **não cria sessão**: o cartão vira o aviso "Enviamos um link para X" (vale 24 h) com "Reenviar e-mail de confirmação" e "Já confirmei, quero entrar". Login de conta por e-mail e senha ainda não verificada (`403 email_not_verified`, só depois de a senha conferir) mostra "Falta confirmar seu e-mail" e o mesmo reenvio, sempre visível. Reenvio com limite (429) tem mensagem própria. Login com Google sem `email_verified` numa conta existente volta de `/auth/callback` com mensagem própria (nada é vinculado).
 - **Recuperação de senha (EM.2.3):** no modo "Entrar" há o link "Esqueci minha senha" (abaixo do campo de senha), que leva à **1.3**.
 
 ### 1.3 Esqueci minha senha (`/esqueci-senha`)
@@ -97,6 +98,14 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** enviando; senhas diferentes (validação local); limite de tentativas (429); link inválido.
 - **Responsivo:** mesmo cartão único da 1.3.
 - **Dados envolvidos:** `POST /auth/reset-password`.
+
+### 1.5 Verificar e-mail (`/verificar-email#token=...`)
+- **Objetivo:** confirmar que o e-mail da conta é de quem se cadastrou, com o link recebido.
+- **Acesso:** link do e-mail. O token vem no **fragmento**, é consumido ao abrir (uma única chamada, mesmo em StrictMode) e removido da barra de endereço. Pública, fora do shell. Não cria sessão.
+- **Conteúdo:** "Só um instante..." enquanto confirma; sucesso → "Pronto, seu e-mail foi confirmado" com botão para a **1.1**. Link vencido (410 `token_expired`), sem token ou desconhecido (401) → "Este link não vale mais"; já usado (410 `token_used`) → "Este link já foi usado". Nos dois últimos há o reenvio com campo de e-mail, sempre visível, e o caminho de volta.
+- **Estados especiais:** verificando; sucesso; expirado; usado; inválido; erro de rede ou 5xx ("Tentar de novo" repete com o token em memória, sem dizer que o link morreu); limite de reenvios (429).
+- **Responsivo:** mesmo cartão único da 1.3.
+- **Dados envolvidos:** `POST /auth/verify-email`, `POST /auth/resend-verification`.
 
 ### 1.2 Onboarding / Boas-vindas
 - **Objetivo:** contextualizar o novo usuário antes de cair "sem explicação" no Portfólio — explicar que existe um saldo simulado de R$10.000 (equidade de partida, seção 3.5 da spec) e que o aprendizado acontece pela Trilha.
@@ -557,6 +566,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 1.2 | Onboarding | Auth |
 | 1.3 | Esqueci minha senha | Auth |
 | 1.4 | Redefinir senha | Auth |
+| 1.5 | Verificar e-mail | Auth |
 | 2.1 | Portfólio | Home |
 | 3.1 | Mapa da Trilha | Trilha |
 | 3.2 | Lição (genérica) | Trilha |
