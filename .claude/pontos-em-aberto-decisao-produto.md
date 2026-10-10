@@ -967,11 +967,11 @@ Nenhum ponto em aberto no momento.
 - **Decisão do autor (2026-10-09):** opção (b), líquido de IR dos dois lados, revertendo o "bruto de IR" da decisão de 2026-10-08; a tela de Classificação avisa que a renda fixa entra descontado o IR.
 - **Status:** ✅ resolvido (2026-10-09): `engineCurrentAccountStateReader` soma `net_value`; amostras de começo de janela gravadas antes da mudança ficam em bruto até a próxima virada de semana/mês.
 
-### 043 · Vínculo do Google por e-mail sem verificar o e-mail (pré-sequestro de conta), achado na análise do gateway de e-mail (2026-10-09)
+### 043 · Vínculo do Google por e-mail sem verificar o e-mail (pré-sequestro de conta) ✅, achado na análise do gateway de e-mail (2026-10-09)
 
 - **Local:** `backend/src/modules/auth/application/useCases/loginWithGoogle.ts` (casamento por `findByEmail`) e `backend/src/modules/auth/infrastructure/google/googleIdentityProviderAdapter.ts` (não lê `email_verified`); `RegisterUserUseCase` não confirma o e-mail.
 - **O que acontece:** alguém se cadastra com o e-mail de outra pessoa e uma senha própria; quando a vítima entra com o Google, a identidade dela é vinculada à conta do atacante, que ainda conhece a senha.
 - **Por que não foi corrigido:** a correção completa depende de verificação de e-mail (não existe envio de e-mail hoje) e de decidir o que fazer com a senha local de uma conta não verificada ao vincular.
 - **Opções:** (a) recusar o vínculo se a conta local não estiver verificada; (b) vincular e zerar a senha local, só com `email_verified` do Google; (c) manter.
 - **Recomendação (D3 em `.claude/plano-gateway-email.md`):** (b). Entra na tarefa EM.3.2 do plano.
-- **Status:** decisão tomada (2026-10-09, D3 do plano: vincular e zerar a senha local); a correção entra na tarefa EM.3.2 do plano, depois da verificação de e-mail (EM.3.1).
+- **Status:** ✅ resolvido (2026-10-10, EM.3.2): `LoginWithGoogleUseCase` só vincula conta local com `email_verified` do Google; conta local não verificada tem a senha zerada, as sessões encerradas e o e-mail marcado como verificado. Teste do pré-sequestro em `loginWithGoogle.test.ts`.

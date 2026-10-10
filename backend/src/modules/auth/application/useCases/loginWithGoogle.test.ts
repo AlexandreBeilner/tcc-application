@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AccountSuspendedError } from '../../domain/errors'
+import { AccountSuspendedError, GoogleEmailNotVerifiedError } from '../../domain/errors'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakeGoogleIdentityProvider } from '../../test/fakes/fakeGoogleIdentityProvider'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
@@ -10,6 +10,7 @@ const PROFILE = {
   providerAccountId: 'google-123',
   email: 'user@example.com',
   name: 'Usuário Google',
+  emailVerified: true,
 }
 
 describe('LoginWithGoogleUseCase', () => {
@@ -95,5 +96,97 @@ describe('LoginWithGoogleUseCase', () => {
       AccountSuspendedError,
     )
     expect(await userRepository.findIdentity('google', PROFILE.providerAccountId)).toBeUndefined()
+  })
+
+  describe('vínculo seguro por e-mail (ponto 043, D3)', () => {
+    function build(profile = PROFILE) {
+      const userRepository = createFakeUserRepository()
+      const useCase = new LoginWithGoogleUseCase(
+        userRepository,
+        createFakeGoogleIdentityProvider(profile),
+        createFakeTokenIssuer(),
+        createFakeAccountProvisioner(),
+      )
+      return { userRepository, useCase }
+    }
+
+    it('pré-sequestro: conta local não verificada perde a senha e as sessões quando o titular entra pelo Google', async () => {
+      const { userRepository, useCase } = build()
+      const attacker = await userRepository.createUser({
+        name: 'Atacante',
+        email: PROFILE.email,
+        username: 'atacante',
+        passwordHash: 'hashed:senha-do-atacante',
+      })
+
+      const result = await useCase.execute({ code: 'auth-code' })
+
+      expect(result.user.id).toBe(attacker.id)
+      const after = await userRepository.findById(attacker.id)
+      expect(after?.passwordHash).toBeNull()
+      expect(after?.emailVerifiedAt).not.toBeNull()
+      expect(after?.tokenVersion).toBe(1)
+      // O token novo já nasce com a versão nova, senão cairia na hora.
+      expect(result.token).toMatch(/:1$/)
+      expect(await userRepository.findIdentity('google', PROFILE.providerAccountId)).toBeDefined()
+    })
+
+    it('conta local já verificada vincula normal e mantém a senha', async () => {
+      const { userRepository, useCase } = build()
+      const owner = await userRepository.createUser({
+        name: 'Dona',
+        email: PROFILE.email,
+        username: 'dona',
+        passwordHash: 'hashed:minha-senha',
+        emailVerified: true,
+      })
+
+      await useCase.execute({ code: 'auth-code' })
+
+      const after = await userRepository.findById(owner.id)
+      expect(after?.passwordHash).toBe('hashed:minha-senha')
+      expect(after?.tokenVersion).toBe(0)
+    })
+
+    it('Google sem email_verified não vincula conta existente, nem a modifica', async () => {
+      const { userRepository, useCase } = build({ ...PROFILE, emailVerified: false })
+      const local = await userRepository.createUser({
+        name: 'Local',
+        email: PROFILE.email,
+        username: 'local',
+        passwordHash: 'hashed:senha',
+      })
+
+      await expect(useCase.execute({ code: 'auth-code' })).rejects.toBeInstanceOf(
+        GoogleEmailNotVerifiedError,
+      )
+      expect(await userRepository.findIdentity('google', PROFILE.providerAccountId)).toBeUndefined()
+      expect((await userRepository.findById(local.id))?.passwordHash).toBe('hashed:senha')
+    })
+
+    it('conta nova só nasce verificada se o Google garantiu o e-mail', async () => {
+      const verified = await build().useCase.execute({ code: 'auth-code' })
+      const unverified = await build({ ...PROFILE, emailVerified: false }).useCase.execute({
+        code: 'auth-code',
+      })
+
+      expect(verified.user.emailVerifiedAt).not.toBeNull()
+      expect(unverified.user.emailVerifiedAt).toBeNull()
+    })
+
+    it('identidade já vinculada continua entrando mesmo que o Google reporte e-mail não verificado', async () => {
+      const { userRepository, useCase } = build()
+      const first = await useCase.execute({ code: 'auth-code' })
+      const again = new LoginWithGoogleUseCase(
+        userRepository,
+        createFakeGoogleIdentityProvider({ ...PROFILE, emailVerified: false }),
+        createFakeTokenIssuer(),
+        createFakeAccountProvisioner(),
+      )
+
+      const second = await again.execute({ code: 'auth-code' })
+
+      expect(second.user.id).toBe(first.user.id)
+    })
   })
 })

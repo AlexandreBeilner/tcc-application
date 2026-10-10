@@ -21,7 +21,7 @@ import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
 import { createAuthRouter } from './authRouter'
 
-function buildApp() {
+function buildApp(options: { googleEmailVerified?: boolean } = {}) {
   const userRepository = createFakeUserRepository()
   const passwordHasher = createFakePasswordHasher()
   const tokenIssuer = createFakeTokenIssuer()
@@ -30,6 +30,7 @@ function buildApp() {
     providerAccountId: 'google-123',
     email: 'google@example.com',
     name: 'Usuário Google',
+    emailVerified: options.googleEmailVerified ?? true,
   })
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   const authEmailTokens = createFakeAuthEmailTokenRepository()
@@ -313,6 +314,22 @@ describe('auth routes', () => {
     const res = await request(buildApp()).get('/auth/google/callback?code=auth-code')
     expect(res.status).toBe(302)
     expect(res.headers.location).toContain('/auth/callback#token=')
+  })
+
+  it('GET /auth/google/callback redireciona com erro quando o Google não verificou o e-mail de uma conta existente', async () => {
+    const app = buildApp({ googleEmailVerified: false })
+    await request(app).post('/auth/register').send({
+      name: 'Local',
+      email: 'google@example.com',
+      username: 'localuser',
+      password: 'senha-forte-123',
+    })
+
+    const res = await request(app).get('/auth/google/callback?code=x')
+
+    expect(res.status).toBe(302)
+    expect(res.headers.location).toContain('/auth/callback#error=google_email_not_verified')
+    expect(res.headers.location).not.toContain('token=')
   })
 
   describe('POST /auth/reauth', () => {

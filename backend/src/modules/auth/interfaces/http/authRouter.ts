@@ -6,6 +6,7 @@ import {
   AccountSuspendedError,
   EmailAlreadyInUseError,
   EmailNotVerifiedError,
+  GoogleEmailNotVerifiedError,
   InvalidEmailTokenError,
   InvalidCredentialsError,
   UsernameAlreadyInUseError,
@@ -234,6 +235,11 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       if (err instanceof AccountSuspendedError) {
         const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
         res.redirect(`${frontendUrl}/auth/callback#error=account_suspended`)
+        return
+      }
+      if (err instanceof GoogleEmailNotVerifiedError) {
+        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
+        res.redirect(`${frontendUrl}/auth/callback#error=google_email_not_verified`)
         return
       }
       console.error('falha na troca de código OAuth do Google:', err)

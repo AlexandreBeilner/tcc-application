@@ -16,3 +16,5 @@ export class InvalidEmailTokenError extends Error {
 }
 // Senha conferiu, mas a conta criada por e-mail e senha ainda não confirmou o e-mail (EM.3.1, D2).
 export class EmailNotVerifiedError extends Error {}
+// Login com Google cujo e-mail o próprio Google não verificou: não pode se vincular a conta existente (EM.3.2).
+export class GoogleEmailNotVerifiedError extends Error {}

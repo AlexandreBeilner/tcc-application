@@ -1,4 +1,4 @@
-import { AccountSuspendedError } from '../../domain/errors'
+import { AccountSuspendedError, GoogleEmailNotVerifiedError } from '../../domain/errors'
 import type { User } from '../../domain/user'
 import type { AccountProvisioner } from '../ports/accountProvisioner'
 import type { GoogleIdentityProvider } from '../ports/googleIdentityProvider'
@@ -32,10 +32,31 @@ export class LoginWithGoogleUseCase {
     )
     // Sem identidade ainda: tenta casar por e-mail (conta criada antes via
     // e-mail/senha) antes de criar um usuário novo — evita conta duplicada
-    // pra mesma pessoa.
+    // pra mesma pessoa. Só casa se o Google garante o e-mail (ponto 043).
     let user = existingIdentity
       ? await this.userRepository.findById(existingIdentity.userId)
       : await this.userRepository.findByEmail(profile.email)
+
+    // Antes de vincular identidade nova ou mexer na conta: conta suspensa não ganha provedor novo.
+    if (user?.status === 'suspended') {
+      throw new AccountSuspendedError('account_suspended')
+    }
+
+    if (user && !existingIdentity) {
+      if (!profile.emailVerified) {
+        throw new GoogleEmailNotVerifiedError('google_email_not_verified')
+      }
+      // Conta local que nunca confirmou o e-mail pode ter sido aberta por outra pessoa (pré-
+      // sequestro, ponto 043): o titular real acabou de provar o e-mail pelo Google, então a
+      // senha local some, as sessões caem e a conta passa a ser dele (D3).
+      if (user.emailVerifiedAt === null) {
+        await this.userRepository.revokeSessions(user.id)
+        user = await this.userRepository.updateUser(user.id, {
+          passwordHash: null,
+          emailVerifiedAt: new Date(),
+        })
+      }
+    }
 
     if (!user) {
       const username = await generateUniqueUsername(
@@ -47,17 +68,12 @@ export class LoginWithGoogleUseCase {
         email: profile.email,
         username,
         passwordHash: null,
-        // O Google já confirmou o e-mail da conta que ele mesmo criou.
-        emailVerified: true,
+        // Só nasce verificada se o Google garantiu o e-mail.
+        emailVerified: profile.emailVerified,
       })
       // Capital inicial padronizado (RNF06) — só na criação, nunca ao
       // reaproveitar uma conta/identidade já existente.
       await this.accountProvisioner.provision(user.id)
-    }
-
-    // Antes de vincular identidade nova: conta suspensa não ganha provedor novo.
-    if (user.status === 'suspended') {
-      throw new AccountSuspendedError('account_suspended')
     }
 
     if (!existingIdentity) {

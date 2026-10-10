@@ -41,6 +41,8 @@ export function createGoogleIdentityProvider(config: GoogleOAuthConfig): GoogleI
         providerAccountId: payload.sub,
         email: payload.email,
         name: payload.name ?? payload.email,
+        // Só `true` literal conta: campo ausente ou qualquer outro valor é não verificado.
+        emailVerified: payload.email_verified === true,
       }
       return profile
     },
