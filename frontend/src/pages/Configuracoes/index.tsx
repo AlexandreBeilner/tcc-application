@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
 import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
+import { CosmeticsPicker } from '../../components/organisms/CosmeticsPicker'
 import { PlanSection } from '../../components/organisms/PlanSection'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
@@ -308,6 +309,7 @@ export function Configuracoes() {
                     </section>
 
                     <PlanSection />
+                    <CosmeticsPicker username={user.username} avatarUrl={user.avatarUrl} />
                     <EmailPreferencesSection />
 
                     <section className={styles.section}>

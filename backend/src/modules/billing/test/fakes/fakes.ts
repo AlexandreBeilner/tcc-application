@@ -23,6 +23,9 @@ export function createFakeSubscriptionRepository(
     async find(userId) {
       return rows.get(userId) ?? null
     },
+    async findMany(userIds) {
+      return userIds.flatMap((id) => rows.get(id) ?? [])
+    },
     async upsert(subscription) {
       rows.set(subscription.userId, subscription)
     },

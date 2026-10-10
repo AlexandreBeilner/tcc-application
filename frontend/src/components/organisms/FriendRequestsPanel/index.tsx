@@ -6,6 +6,7 @@ import { Button } from '../../atoms/Button'
 import { Pagination } from '../../molecules/Pagination'
 import type { FriendRequestsPanelProps } from './types'
 import styles from './index.module.css'
+import { CosmeticTags } from '../../molecules/CosmeticTags'
 
 export type { FriendRequestsPanelProps } from './types'
 
@@ -44,10 +45,11 @@ export function FriendRequestsPanel({
                         {received.map((request) => (
                             <li key={request.friendshipId} className={styles.row}>
                                 <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${request.userId}`)}>
-                                    <Avatar username={request.username} avatarUrl={request.avatarUrl} />
+                                    <Avatar username={request.username} avatarUrl={request.avatarUrl} frame={request.cosmetics.frame} />
                                     <span className={styles.info}>
                                         <span className={styles.name}>{request.name}</span>
                                         <span className={styles.username}>@{request.username}</span>
+                                        <CosmeticTags cosmetics={request.cosmetics} />
                                     </span>
                                 </button>
                                 <div className={styles.actions}>
@@ -86,10 +88,11 @@ export function FriendRequestsPanel({
                         {sent.map((request) => (
                             <li key={request.friendshipId} className={styles.row}>
                                 <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${request.userId}`)}>
-                                    <Avatar username={request.username} avatarUrl={request.avatarUrl} />
+                                    <Avatar username={request.username} avatarUrl={request.avatarUrl} frame={request.cosmetics.frame} />
                                     <span className={styles.info}>
                                         <span className={styles.name}>{request.name}</span>
                                         <span className={styles.username}>@{request.username}</span>
+                                        <CosmeticTags cosmetics={request.cosmetics} />
                                     </span>
                                 </button>
                                 <Button

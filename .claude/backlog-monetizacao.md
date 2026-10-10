@@ -288,7 +288,7 @@ mostrar), não ser só uma lista de utilidades. Nenhuma tarefa esconde algo já 
 seguem a regra de cancelamento (arquivar, nunca apagar). Dependem da Fase B; as que têm tela de
 compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend (três breakpoints).
 
-### MO.5.1 · Identidade visível (cosméticos, molduras, títulos e selo PRO)
+### MO.5.1 · Identidade visível (cosméticos, molduras, títulos e selo PRO) ✅ (2026-10-10)
 - **Descrição:** tabelas `cosmetic_items` e `user_cosmetics` (nunca reusar o catálogo de conquistas;
   emblema de conquista real continua grátis). Itens: temas, molduras de avatar, títulos e o selo PRO.
   Extensão do módulo `profile`. **O que vende é a visibilidade:** moldura, título e selo aparecem
@@ -298,6 +298,8 @@ compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend 
   arquiva, reativar restaura; nenhum cosmético muda a ordem do ranking nem expõe patrimônio absoluto
   (RNF09); testes do arquivamento e da reativação.
 - **Dependências:** MO.2.4.
+
+- **Entregável:** módulo novo `backend/src/modules/cosmetics` (DDD lite; **desvio:** o backlog dizia "extensão do `profile`", mas ranking, feed, amizades e perfil precisam ler a vitrine por porta, então um módulo próprio ficou mais limpo). Tabelas `cosmetic_items` (catálogo como dado, inserido pela migração `0037`: 6 molduras e 8 títulos) e `user_cosmetics` (uma escolha por tipo). **Selo PRO não é item:** aparece sozinho para quem é PRO. Rotas `GET/PUT/DELETE /me/cosmetics` (`.docs/backend/cosmetics.md`); equipar exige PRO (`403 requer plano PRO` via `ProAccessGuard`), tirar nunca. **Arquivamento sem escrita:** a escolha fica guardada e a leitura pública (`GetCosmeticDisplaysUseCase`, 3 consultas fixas por página) só a mostra enquanto a pessoa é PRO agora, então cancelar esconde e reativar restaura sozinho. Billing ganhou `SubscriptionRepository.findMany` e `ListActiveProUserIdsUseCase` (leitura em lote). Campo `cosmetics: { isPro, frame, title }` entra em `GET /ranking`, `/social-feed`, `/users/search`, `/friendships`, `/friendships/requests` e nos perfis; `shared/publicCosmetics.ts` guarda o tipo e o adapter em processo (ports opcionais no fim dos construtores existentes). Ordem do ranking provada intacta por teste. Frontend: átomos `ProSeal`, `UserTitle`, `AvatarFrame` (`Avatar` ganhou `frame`), molécula `CosmeticTags`, organismo `CosmeticsPicker` em Configurações (PRO escolhe; quem não é PRO vê a vitrine com convite; quem cancelou vê "escolhas guardadas"); some com cobrança desligada. Tokens `--frame-*` na seção 2.7 de `identidade-visual-tokens.md`. Validado de ponta a ponta com docker compose e no navegador (ranking, perfil, busca, cancelar e reativar). **Proposta de catálogo, para sua revisão:** molduras Aurora, Oceano, Crepúsculo, Ametista, Coral, Grafite; títulos Investidor Paciente, Mente Curiosa, Diversificador, Leitor de Balanços, Caçador de Dividendos, Visão de Longo Prazo, Estrategista, Sangue Frio (sem promessa de ganho). Troquei "Âmbar" por "Crepúsculo" para nenhuma moldura ser dourada (dourado é conquista). **Ressalvas:** o status de plano tem cache de 30 s, então equipar logo após assinar por inserção direta no banco pode dar 403 até expirar (o webhook invalida em produção); molduras só aparecem em `Avatar`, ranking e perfil, não existe avatar na lista de ranking por linha (só selo e título).
 
 ### MO.5.2 · Ligas privadas (3 sessões)
 - **a) Domínio e dados:** módulo novo `leagues` (consome `ranking` por porta): `leagues`,

@@ -57,6 +57,7 @@ const received: FriendRequest = {
     username: 'bia',
     name: 'Bia Souza',
     avatarUrl: null,
+    cosmetics: { isPro: false, frame: null, title: null },
     createdAt: '2026-01-01',
 }
 const sent: FriendRequest = {
@@ -65,6 +66,7 @@ const sent: FriendRequest = {
     username: 'caio',
     name: 'Caio Lima',
     avatarUrl: null,
+    cosmetics: { isPro: false, frame: null, title: null },
     createdAt: '2026-01-02',
 }
 

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { subscriptions } from '../../../../db/schema'
 import type { SubscriptionRepository } from '../../application/ports/subscriptionRepository'
@@ -34,6 +34,15 @@ export function createDrizzleSubscriptionRepository(db: Database): SubscriptionR
         .where(eq(subscriptions.userId, userId))
         .limit(1)
       return row ? toSubscription(row) : null
+    },
+
+    async findMany(userIds) {
+      if (userIds.length === 0) return []
+      const rows = await db
+        .select()
+        .from(subscriptions)
+        .where(inArray(subscriptions.userId, userIds))
+      return rows.map(toSubscription)
     },
 
     async upsert(subscription) {

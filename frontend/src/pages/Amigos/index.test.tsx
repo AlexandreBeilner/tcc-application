@@ -51,7 +51,15 @@ describe('Amigos (tela 8.1)', () => {
     it('mostra o contador de solicitações recebidas e navega pra Buscar/Solicitações', async () => {
         vi.mocked(listFriends).mockResolvedValue({
             friends: [
-                { friendshipId: 'f0', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, friendsSince: '2026-01-01' },
+                {
+                    friendshipId: 'f0',
+                    userId: 'u2',
+                    username: 'bia',
+                    name: 'Bia Souza',
+                    avatarUrl: null,
+                    cosmetics: { isPro: false, frame: null, title: null },
+                    friendsSince: '2026-01-01',
+                },
             ],
             page: 1,
             pageSize: 20,
@@ -60,7 +68,17 @@ describe('Amigos (tela 8.1)', () => {
         })
         vi.mocked(listFriendRequests).mockResolvedValue({
             received: {
-                items: [{ friendshipId: 'f1', userId: 'u3', username: 'caio', name: 'Caio', avatarUrl: null, createdAt: '2026-01-01' }],
+                items: [
+                    {
+                        friendshipId: 'f1',
+                        userId: 'u3',
+                        username: 'caio',
+                        name: 'Caio',
+                        avatarUrl: null,
+                        cosmetics: { isPro: false, frame: null, title: null },
+                        createdAt: '2026-01-01',
+                    },
+                ],
                 page: 1,
                 pageSize: 20,
                 totalEntries: 1,
@@ -110,6 +128,7 @@ describe('Amigos (tela 8.1)', () => {
                     username: 'bia',
                     name: 'Bia Souza',
                     avatarUrl: null,
+                    cosmetics: { isPro: false, frame: null, title: null },
                 },
             ],
         })

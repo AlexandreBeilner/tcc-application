@@ -110,7 +110,16 @@ describe('ranking routes', () => {
       window: 'week',
       scope: 'global',
       criterion: 'overall',
-      entries: [{ userId: 'u1', username: 'alice', level: 2, xp: 250, profitabilityPct: 10 }],
+      entries: [
+        {
+          userId: 'u1',
+          username: 'alice',
+          level: 2,
+          xp: 250,
+          profitabilityPct: 10,
+          cosmetics: { isPro: false, frame: null, title: null },
+        },
+      ],
       requestingUserPosition: 1,
       page: 1,
       pageSize: 25,
@@ -132,7 +141,14 @@ describe('ranking routes', () => {
     expect(res.body.scope).toBe('friends')
     // Sem amigos aceitos, só o próprio usuário aparece.
     expect(res.body.entries).toEqual([
-      { userId: 'u1', username: 'alice', level: 2, xp: 250, profitabilityPct: 10 },
+      {
+        userId: 'u1',
+        username: 'alice',
+        level: 2,
+        xp: 250,
+        profitabilityPct: 10,
+        cosmetics: { isPro: false, frame: null, title: null },
+      },
     ])
   })
 
@@ -147,7 +163,14 @@ describe('ranking routes', () => {
     expect(res.status).toBe(200)
     expect(res.body.window).toBeNull()
     expect(res.body.entries).toEqual([
-      { userId: 'u1', username: 'alice', level: 2, xp: 250, profitabilityPct: null },
+      {
+        userId: 'u1',
+        username: 'alice',
+        level: 2,
+        xp: 250,
+        profitabilityPct: null,
+        cosmetics: { isPro: false, frame: null, title: null },
+      },
     ])
   })
 

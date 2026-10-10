@@ -342,3 +342,8 @@
         box-shadow: 0 0 0 1px rgba(240, 162, 2, 0.3);
     }
 }
+
+/* Título (MO.5.1) dentro da linha: fica depois do nome, com respiro. */
+.rowName > span:last-child {
+    margin-left: var(--space-2);
+}

@@ -1,3 +1,8 @@
+import {
+  NO_COSMETICS,
+  type CosmeticsReader,
+  type PublicCosmetics,
+} from '../../../../shared/publicCosmetics'
 import { paginate } from '../../../../shared/pagination'
 import type { FriendshipRepository } from '../ports/friendshipRepository'
 import type { UserDirectory } from '../ports/userDirectory'
@@ -10,6 +15,7 @@ export interface FriendRequestItem {
   name: string
   avatarUrl: string | null
   createdAt: Date
+  cosmetics: PublicCosmetics
 }
 
 export interface PaginatedFriendRequests {
@@ -42,6 +48,7 @@ export class ListFriendRequestsUseCase {
   constructor(
     private readonly friendshipRepository: FriendshipRepository,
     private readonly userDirectory: UserDirectory,
+    private readonly cosmeticsReader?: CosmeticsReader,
   ) {}
 
   async execute(input: ListFriendRequestsInput): Promise<ListFriendRequestsResult> {
@@ -94,6 +101,9 @@ export class ListFriendRequestsUseCase {
     // `findByIds`, não uma por solicitação pendente.
     const users = await this.userDirectory.findByIds(pageEntries.map((entry) => entry.otherUserId))
     const userById = new Map(users.map((user) => [user.id, user]))
+    const displays =
+      (await this.cosmeticsReader?.findDisplays(users.map((user) => user.id))) ??
+      new Map<string, PublicCosmetics>()
 
     const items = pageEntries
       .map((entry): FriendRequestItem | undefined => {
@@ -108,6 +118,7 @@ export class ListFriendRequestsUseCase {
           name: user.name,
           avatarUrl: user.avatarUrl,
           createdAt: entry.createdAt,
+          cosmetics: displays.get(user.id) ?? NO_COSMETICS,
         }
       })
       .filter((item): item is FriendRequestItem => item !== undefined)

@@ -708,3 +708,41 @@ export const billingWebhookEvents = pgTable('billing_webhook_events', {
   eventType: varchar('event_type', { length: 60 }).notNull(),
   processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Catálogo de cosméticos do PRO (MO.5.1): moldura de avatar e título. Tabela própria, nunca o
+// catálogo de conquistas (`achievements`): emblema de conquista real continua grátis. A chave é
+// estável e legível (o frontend mapeia a moldura pelo visual, o texto vem daqui). Os itens são
+// dado, inseridos na própria migração.
+export const cosmeticItems = pgTable(
+  'cosmetic_items',
+  {
+    key: varchar('key', { length: 40 }).primaryKey(),
+    kind: text('kind').notNull(),
+    name: varchar('name', { length: 60 }).notNull(),
+    description: varchar('description', { length: 200 }).notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+  },
+  (table) => [check('cosmetic_items_kind_chk', sql`${table.kind} IN ('frame', 'title')`)],
+)
+
+// O que cada pessoa equipou: no máximo um item por tipo. Cancelar o PRO não apaga estas linhas
+// (arquivar, nunca apagar): a leitura pública só mostra o item de quem é PRO agora, então
+// reativar restaura o visual sem escrever nada.
+export const userCosmetics = pgTable(
+  'user_cosmetics',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind').notNull(),
+    itemKey: varchar('item_key', { length: 40 })
+      .notNull()
+      .references(() => cosmeticItems.key),
+    equippedAt: timestamp('equipped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind] }),
+    check('user_cosmetics_kind_chk', sql`${table.kind} IN ('frame', 'title')`),
+  ],
+)

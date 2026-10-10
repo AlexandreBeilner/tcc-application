@@ -11,6 +11,7 @@ const bia: SocialFeedEvent = {
     username: 'bia',
     name: 'Bia Souza',
     avatarUrl: null,
+    cosmetics: { isPro: false, frame: null, title: null },
 }
 
 describe('RecentActivityFeed (backlog engajamento G.2)', () => {

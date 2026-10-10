@@ -100,6 +100,23 @@
     --chart-series-4: #c98500;
     --chart-series-5: #d55181;
     --chart-series-6: #008300;
+
+    /* Molduras de avatar do PRO (MO.5.1, tokens doc seção 2.7): dois tons por moldura, só
+     decorativos. De propósito fora dos hues semânticos (verde de ganho, vermelho de perda,
+     dourado de conquista), pra cosmético nunca parecer resultado nem conquista. Mesmos valores
+     nos dois temas: o anel tem contraste próprio contra fundo claro e escuro. */
+    --frame-aurora-a: #2dd4bf;
+    --frame-aurora-b: #3b82f6;
+    --frame-oceano-a: #1d4fc4;
+    --frame-oceano-b: #60a5fa;
+    --frame-crepusculo-a: #8b5cf6;
+    --frame-crepusculo-b: #ec4899;
+    --frame-ametista-a: #7c3aed;
+    --frame-ametista-b: #c4b5fd;
+    --frame-coral-a: #fb7185;
+    --frame-coral-b: #f472b6;
+    --frame-grafite-a: #6b7280;
+    --frame-grafite-b: #d1d5db;
 }
 
 :root[data-theme='light'] {

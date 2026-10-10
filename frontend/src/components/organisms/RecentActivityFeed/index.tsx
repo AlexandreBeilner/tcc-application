@@ -3,6 +3,7 @@ import { Avatar } from '../../atoms/Avatar'
 import { trackNameFor } from '../../../utils/tracks'
 import type { RecentActivityFeedProps } from './types'
 import styles from './index.module.css'
+import { ProSeal } from '../../atoms/ProSeal'
 
 export type { RecentActivityFeedProps } from './types'
 
@@ -30,11 +31,12 @@ export function RecentActivityFeed({ events }: RecentActivityFeedProps) {
             <ul className={styles.list}>
                 {events.map((event, index) => (
                     <li key={`${event.userId}-${event.occurredAt}-${index}`} className={styles.row}>
-                        <Avatar username={event.username} avatarUrl={event.avatarUrl} />
+                        <Avatar username={event.username} avatarUrl={event.avatarUrl} frame={event.cosmetics.frame} />
                         <span className={styles.body}>
                             <GraduationCap className={styles.icon} size={16} strokeWidth={2} aria-hidden="true" />
                             <span className={styles.text}>
-                                <strong>{event.name}</strong> completou a Trilha {event.trackNumber}:{' '}
+                                <strong>{event.name}</strong>
+                                {event.cosmetics.isPro && <ProSeal />} completou a Trilha {event.trackNumber}:{' '}
                                 {event.trackNumber !== null ? trackNameFor(event.trackNumber) : ''}
                             </span>
                         </span>

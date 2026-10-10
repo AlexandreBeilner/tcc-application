@@ -6,6 +6,7 @@ import { Button } from '../../atoms/Button'
 import { Pagination } from '../../molecules/Pagination'
 import type { FriendsListProps } from './types'
 import styles from './index.module.css'
+import { CosmeticTags } from '../../molecules/CosmeticTags'
 
 export type { FriendsListProps } from './types'
 
@@ -49,10 +50,11 @@ export function FriendsList({ friends, page, totalPages, onPageChange }: Friends
                     return (
                         <li key={friend.userId} className={styles.row}>
                             <button type="button" className={styles.profileLink} onClick={() => navigate(`/perfil/${friend.userId}`)}>
-                                <Avatar username={friend.username} avatarUrl={friend.avatarUrl} />
+                                <Avatar username={friend.username} avatarUrl={friend.avatarUrl} frame={friend.cosmetics.frame} />
                                 <span className={styles.info}>
                                     <span className={styles.name}>{friend.name}</span>
                                     <span className={styles.username}>@{friend.username}</span>
+                                    <CosmeticTags cosmetics={friend.cosmetics} />
                                 </span>
                                 <span className={styles.since}>Amigos desde {dateFormatter.format(new Date(friend.friendsSince))}</span>
                             </button>

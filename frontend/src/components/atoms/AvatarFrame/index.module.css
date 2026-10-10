@@ -1,0 +1,39 @@
+.frame {
+    --frame-a: var(--color-border-strong);
+    --frame-b: var(--color-border);
+    display: inline-flex;
+    flex: none;
+    padding: 3px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--frame-a), var(--frame-b));
+}
+
+.frame[data-frame='frame_aurora'] {
+    --frame-a: var(--frame-aurora-a);
+    --frame-b: var(--frame-aurora-b);
+}
+
+.frame[data-frame='frame_oceano'] {
+    --frame-a: var(--frame-oceano-a);
+    --frame-b: var(--frame-oceano-b);
+}
+
+.frame[data-frame='frame_crepusculo'] {
+    --frame-a: var(--frame-crepusculo-a);
+    --frame-b: var(--frame-crepusculo-b);
+}
+
+.frame[data-frame='frame_ametista'] {
+    --frame-a: var(--frame-ametista-a);
+    --frame-b: var(--frame-ametista-b);
+}
+
+.frame[data-frame='frame_coral'] {
+    --frame-a: var(--frame-coral-a);
+    --frame-b: var(--frame-coral-b);
+}
+
+.frame[data-frame='frame_grafite'] {
+    --frame-a: var(--frame-grafite-a);
+    --frame-b: var(--frame-grafite-b);
+}

@@ -6,6 +6,7 @@ import { useRespondToFriendRequestMutation } from '../../../features/friendships
 import { useSendFriendRequestMutation } from '../../../features/friendships/useSendFriendRequestMutation'
 import type { UserSearchResultsProps } from './types'
 import styles from './index.module.css'
+import { CosmeticTags } from '../../molecules/CosmeticTags'
 
 export type { UserSearchResultsProps } from './types'
 
@@ -40,10 +41,11 @@ export function UserSearchResults({ results, currentUserId, friends, sentRequest
                 return (
                     <li key={user.id} className={styles.row}>
                         <button type="button" className={styles.identity} onClick={() => navigate(`/perfil/${user.id}`)}>
-                            <Avatar username={user.username} avatarUrl={user.avatarUrl} />
+                            <Avatar username={user.username} avatarUrl={user.avatarUrl} frame={user.cosmetics.frame} />
                             <span className={styles.info}>
                                 <span className={styles.name}>{user.name}</span>
                                 <span className={styles.username}>@{user.username}</span>
+                                <CosmeticTags cosmetics={user.cosmetics} />
                             </span>
                         </button>
 

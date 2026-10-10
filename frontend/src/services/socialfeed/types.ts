@@ -1,3 +1,4 @@
+import type { PublicCosmetics } from '../cosmetics'
 // Espelha `.docs/backend/socialfeed.md` (`GET /social-feed`). `type` é
 // texto livre no backend (não enum) pra caber tipo futuro sem migration
 // nova — só `'track_completed'` existe hoje. `trackNumber` é só o número
@@ -12,6 +13,7 @@ export interface SocialFeedEvent {
     username: string
     name: string
     avatarUrl: string | null
+    cosmetics: PublicCosmetics
 }
 
 export interface GetSocialFeedResult {

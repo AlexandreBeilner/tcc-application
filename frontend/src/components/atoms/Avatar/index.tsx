@@ -1,6 +1,7 @@
 import { resolveMediaUrl } from '../../../services/client'
 import type { AvatarProps } from './types'
 import styles from './index.module.css'
+import { AvatarFrame } from '../AvatarFrame'
 
 export type { AvatarProps } from './types'
 
@@ -17,19 +18,23 @@ function initials(username: string): string {
 // `avatarUrl` (tarefa 6.10.8) troca as iniciais por uma foto real quando
 // presente — fallback pras iniciais é sempre as mesmas iniciais de sempre,
 // nunca um ícone genérico.
-export function Avatar({ username, size = 'sm', avatarUrl }: AvatarProps) {
+export function Avatar({ username, size = 'sm', avatarUrl, frame }: AvatarProps) {
     const resolvedUrl = resolveMediaUrl(avatarUrl ?? null)
     if (resolvedUrl) {
         return (
-            <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`}>
-                <img className={styles.image} src={resolvedUrl} alt={`Foto de perfil de ${username}`} />
-            </span>
+            <AvatarFrame frame={frame}>
+                <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`}>
+                    <img className={styles.image} src={resolvedUrl} alt={`Foto de perfil de ${username}`} />
+                </span>
+            </AvatarFrame>
         )
     }
 
     return (
-        <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`} aria-hidden="true">
-            {initials(username)}
-        </span>
+        <AvatarFrame frame={frame}>
+            <span className={`${styles.avatar} ${size === 'lg' ? styles.lg : styles.sm}`} aria-hidden="true">
+                {initials(username)}
+            </span>
+        </AvatarFrame>
     )
 }

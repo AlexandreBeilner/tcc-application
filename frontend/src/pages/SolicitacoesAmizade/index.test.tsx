@@ -37,7 +37,17 @@ describe('SolicitacoesAmizade (tela 8.3)', () => {
     it('mostra recebidas e enviadas', async () => {
         vi.mocked(listFriendRequests).mockResolvedValue({
             received: {
-                items: [{ friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, createdAt: '2026-01-01' }],
+                items: [
+                    {
+                        friendshipId: 'f1',
+                        userId: 'u2',
+                        username: 'bia',
+                        name: 'Bia Souza',
+                        avatarUrl: null,
+                        cosmetics: { isPro: false, frame: null, title: null },
+                        createdAt: '2026-01-01',
+                    },
+                ],
                 page: 1,
                 pageSize: 20,
                 totalEntries: 1,
@@ -45,7 +55,15 @@ describe('SolicitacoesAmizade (tela 8.3)', () => {
             },
             sent: {
                 items: [
-                    { friendshipId: 'f2', userId: 'u3', username: 'caio', name: 'Caio Lima', avatarUrl: null, createdAt: '2026-01-02' },
+                    {
+                        friendshipId: 'f2',
+                        userId: 'u3',
+                        username: 'caio',
+                        name: 'Caio Lima',
+                        avatarUrl: null,
+                        cosmetics: { isPro: false, frame: null, title: null },
+                        createdAt: '2026-01-02',
+                    },
                 ],
                 page: 1,
                 pageSize: 20,

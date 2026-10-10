@@ -64,6 +64,7 @@ describe('GetPublicProfileUseCase', () => {
       profitabilityPct: 12.5,
       window: 'week',
       completedTracks: [0, 1],
+      cosmetics: { isPro: false, frame: null, title: null },
     })
   })
 
@@ -133,5 +134,23 @@ describe('GetPublicProfileUseCase', () => {
     for (const forbidden of forbiddenKeys) {
       expect(keys).not.toContain(forbidden.toLowerCase())
     }
+  })
+
+  it('perfil de assinante PRO inclui selo, moldura e título (MO.5.1)', async () => {
+    const useCase = new GetPublicProfileUseCase(
+      createFakeUserDirectory([user]),
+      createFakeGamificationReader({ u1: { level: 3, xp: 350, currentStreak: 5 } }),
+      createFakeAchievementsReader({ u1: [] }),
+      createFakeProfitabilityReader({ u1: 12.5 }),
+      createFakeTrackCompletionReader({ u1: [] }),
+      {
+        findDisplays: async () =>
+          new Map([['u1', { isPro: true, frame: 'frame_aurora', title: 'Estrategista' }]]),
+      },
+    )
+
+    const profile = await useCase.execute({ userId: 'u1' })
+
+    expect(profile.cosmetics).toEqual({ isPro: true, frame: 'frame_aurora', title: 'Estrategista' })
   })
 })

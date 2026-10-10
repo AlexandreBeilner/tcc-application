@@ -98,6 +98,19 @@ Tarefa F.1 (backlog de engajamento, Fase F — sala de troféus no Perfil). Cada
 
 Tons 0 e 2 reaproveitam o hex exato de `--color-brand-300`/`--color-loss-500` (mesmo padrão da seção 2.3a — hue idêntico, token separado por semântica, já com contraste comprovado). Tons 1 e 3 **não** reaproveitam `--color-gain-500`/`--color-gamify-500` no tema claro: o valor original fica em ~3.45:1/~3.64:1 contra fundo branco, abaixo do AA de texto normal (4.5:1) — só serviria pra elemento gráfico/texto grande (limiar 3:1). Por isso o tom claro de `--color-track-1`/`--color-track-3` é uma variação mais escura da mesma família, calculada pra ficar acima de 4.5:1. Fundo suave do emblema, se precisar, reaproveita o `-100` da família de origem (`--color-brand-100`, `--color-gain-100`, `--color-loss-100`, `--color-gamify-100`) — não é um token novo.
 
+### 2.7 Molduras de avatar do PRO (MO.5.1)
+
+Cosmético decorativo: dois tons por moldura (`--frame-<nome>-a` e `-b`, gradiente de 135°), iguais nos dois temas. De propósito **fora** dos hues semânticos (verde de ganho, vermelho de perda, dourado de conquista), para um cosmético nunca parecer resultado nem conquista real (regra da estratégia de monetização). O selo PRO usa o azul de marca (`--color-brand-100`/`--color-brand-300`), nunca dourado.
+
+| Moldura | Chave | Tom A | Tom B |
+|---|---|---|---|
+| Aurora | `frame_aurora` | `#2DD4BF` | `#3B82F6` |
+| Oceano | `frame_oceano` | `#1D4FC4` | `#60A5FA` |
+| Crepúsculo | `frame_crepusculo` | `#8B5CF6` | `#EC4899` |
+| Ametista | `frame_ametista` | `#7C3AED` | `#C4B5FD` |
+| Coral | `frame_coral` | `#FB7185` | `#F472B6` |
+| Grafite | `frame_grafite` | `#6B7280` | `#D1D5DB` |
+
 ## 3. Tipografia
 
 Duas famílias, papéis bem separados — evita depender de cor sozinha pra diferenciar "dado sério" de "elemento de jogo".

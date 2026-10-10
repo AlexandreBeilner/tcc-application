@@ -62,6 +62,16 @@ describe.skipIf(!databaseUrl)('repositórios de cobrança (banco real)', () => {
     expect(await repo.find(userId)).toEqual(sub)
   })
 
+  it('findMany devolve só as assinaturas dos ids pedidos (e lista vazia não consulta)', async () => {
+    const repo = createDrizzleSubscriptionRepository(db)
+    await repo.upsert(buildSubscription(userId, entitlement(), NOW, null))
+
+    expect(await repo.findMany([])).toEqual([])
+    expect(await repo.findMany(['00000000-0000-4000-8000-000000000000'])).toEqual([])
+    const found = await repo.findMany([userId])
+    expect(found.map((s) => s.userId)).toEqual([userId])
+  })
+
   it('upsert de novo substitui a linha (uma por usuário)', async () => {
     const repo = createDrizzleSubscriptionRepository(db)
     await repo.upsert(

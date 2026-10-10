@@ -12,6 +12,8 @@ import { Button } from '../../atoms/Button'
 import { TrackTrophyCase } from '../TrackTrophyCase'
 import type { PublicProfileCardProps } from './types'
 import styles from './index.module.css'
+import { CosmeticTags } from '../../molecules/CosmeticTags'
+import { AvatarFrame } from '../../atoms/AvatarFrame'
 
 export type { PublicProfileCardProps } from './types'
 
@@ -89,17 +91,20 @@ export function PublicProfileCard({
     return (
         <div className={styles.card}>
             <div className={styles.header}>
-                <div
-                    className={styles.avatarRing}
-                    style={ringStyle}
-                    title={`Nível ${profile.level}, ${profile.xp.toLocaleString('pt-BR')} XP`}
-                >
-                    <Avatar username={profile.username} avatarUrl={profile.avatarUrl} size="lg" />
-                </div>
+                <AvatarFrame frame={profile.cosmetics.frame}>
+                    <div
+                        className={styles.avatarRing}
+                        style={ringStyle}
+                        title={`Nível ${profile.level}, ${profile.xp.toLocaleString('pt-BR')} XP`}
+                    >
+                        <Avatar username={profile.username} avatarUrl={profile.avatarUrl} size="lg" />
+                    </div>
+                </AvatarFrame>
 
                 <div className={styles.identity}>
                     <span className={styles.username}>@{profile.username}</span>
                     <span className={styles.levelPill}>Nível {profile.level}</span>
+                    <CosmeticTags cosmetics={profile.cosmetics} />
                 </div>
 
                 <div className={styles.friendAction}>

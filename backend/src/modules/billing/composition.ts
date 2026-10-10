@@ -5,6 +5,7 @@ import { createDrizzleRecipientDirectory } from '../notifications/infrastructure
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import { ProAccessGuard } from './application/proAccessGuard'
 import { GetSubscriptionStatusUseCase } from './application/useCases/getSubscriptionStatus'
+import { ListActiveProUserIdsUseCase } from './application/useCases/listActiveProUserIds'
 import { HandleBillingWebhookUseCase } from './application/useCases/handleBillingWebhook'
 import { ReconcileSubscriptionsUseCase } from './application/useCases/reconcileSubscriptions'
 import { SyncSubscriptionUseCase } from './application/useCases/syncSubscription'
@@ -67,7 +68,14 @@ function createBillingCore(deps: BillingCoreDeps) {
     createDrizzleReconciliationAudience(deps.db),
     syncSubscription,
   )
-  return { getSubscriptionStatus, syncSubscription, handleWebhook, reconcileSubscriptions }
+  const listActiveProUserIds = new ListActiveProUserIdsUseCase(subscriptions)
+  return {
+    getSubscriptionStatus,
+    syncSubscription,
+    handleWebhook,
+    reconcileSubscriptions,
+    listActiveProUserIds,
+  }
 }
 
 // Job de reconciliação (`server.ts`): só existe com o provedor ligado, senão não há o que reconsultar.
@@ -98,6 +106,7 @@ export function createBillingModule(deps: BillingCompositionDeps) {
     router,
     getSubscriptionStatus: core.getSubscriptionStatus,
     syncSubscription: core.syncSubscription,
+    listActiveProUserIds: core.listActiveProUserIds,
     proAccessGuard: new ProAccessGuard(core.getSubscriptionStatus),
   }
 }

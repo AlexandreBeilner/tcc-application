@@ -337,6 +337,8 @@ import { createInProcessProductUnlockReader } from './modules/market/infrastruct
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 import { createBillingModule } from './modules/billing/composition'
+import { createCosmeticsModule } from './modules/cosmetics/composition'
+import { createInProcessCosmeticsReader } from './shared/publicCosmetics'
 import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
 import { noStore } from './shared/http/noStore'
@@ -497,6 +499,15 @@ export function createApp(deps: AppDeps = {}): Express {
     authMiddleware,
     enqueueEmail,
   })
+  // Identidade visível do PRO (MO.5.1): selo, moldura e título que os outros veem no ranking, no
+  // feed, na busca/lista de amigos e no perfil público.
+  const cosmetics = createCosmeticsModule({
+    db,
+    authMiddleware,
+    proAccess: billing.proAccessGuard,
+    listActiveProUserIds: billing.listActiveProUserIds,
+  })
+  const cosmeticsReader = createInProcessCosmeticsReader(cosmetics.getCosmeticDisplays)
   const { getEmailPreferences, eraseEmailData, emailPreferencesRouter } =
     createEmailPreferencesComposition(db, emailLinks, authMiddleware)
   const authEmailTokens = createDrizzleAuthEmailTokenRepository(db)
@@ -735,6 +746,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessSocialFeedFriendGraphReader(friendshipRepository),
     socialFeedEventRepository,
     createDrizzleSocialFeedUserDirectory(db),
+    cosmeticsReader,
   )
 
   // Tempo mínimo entre avanços de passo de lição (S.4); env inválida ou
@@ -775,7 +787,7 @@ export function createApp(deps: AppDeps = {}): Express {
   )
 
   const friendshipUserDirectory = createDrizzleFriendshipUserDirectory(db)
-  const searchUsers = new SearchUsersUseCase(friendshipUserDirectory)
+  const searchUsers = new SearchUsersUseCase(friendshipUserDirectory, cosmeticsReader)
   // Aviso por e-mail de pedido de amizade (EM.6.2). O `getPublicProfile` é declarado mais abaixo
   // (depende do ranking), então o leitor de perfil resolve na hora do envio.
   const friendRequestMailer = createNotificationsFriendRequestMailer({
@@ -796,10 +808,15 @@ export function createApp(deps: AppDeps = {}): Express {
     friendRequestMailer,
   )
   const removeFriendship = new RemoveFriendshipUseCase(friendshipRepository)
-  const listFriends = new ListFriendsUseCase(friendshipRepository, friendshipUserDirectory)
+  const listFriends = new ListFriendsUseCase(
+    friendshipRepository,
+    friendshipUserDirectory,
+    cosmeticsReader,
+  )
   const listFriendRequests = new ListFriendRequestsUseCase(
     friendshipRepository,
     friendshipUserDirectory,
+    cosmeticsReader,
   )
 
   // Cache de leitura (tarefa 5.7) só pra GetRankingUseCase — decora a
@@ -823,6 +840,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessFriendGraphReader(friendshipRepository),
     createDrizzleRankingSnapshotStore(db),
     createDrizzleRankingValuationSampleStore(db),
+    cosmeticsReader,
   )
 
   const getPublicProfile = new GetPublicProfileUseCase(
@@ -831,6 +849,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
     createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
+    cosmeticsReader,
   )
 
   const updateProfile = new UpdateProfileUseCase(userRepository)
@@ -1155,6 +1174,7 @@ export function createApp(deps: AppDeps = {}): Express {
   // Cobrança (MO.2.3): plano do usuário e webhook do RevenueCat. Desligada por padrão
   // (`BILLING_PROVIDER`), caso em que ninguém é PRO e o webhook responde 503.
   app.use(billing.router)
+  app.use(cosmetics.router)
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
