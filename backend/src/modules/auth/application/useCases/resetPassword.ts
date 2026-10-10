@@ -11,10 +11,9 @@ export interface ResetPasswordInput {
   newPassword: string
 }
 
-// Conclui a redefinição: o token é de uso único, vale 30 minutos, grava a senha nova, encerra
-// todas as sessões abertas (`revokeSessions`) e avisa por e-mail (E4). Conta sem senha local
-// (só Google) ganha aqui a primeira senha (D4). Marcar o e-mail como verificado entra com a
-// coluna `email_verified_at` (EM.3.1).
+// Conclui a redefinição: o token é de uso único, vale 30 minutos, grava a senha nova, marca o
+// e-mail como verificado, encerra todas as sessões abertas (`revokeSessions`) e avisa por e-mail (E4). Conta sem senha local
+// (só Google) ganha aqui a primeira senha (D4).
 export class ResetPasswordUseCase {
   constructor(
     private readonly userRepository: UserRepository,
@@ -43,7 +42,11 @@ export class ResetPasswordUseCase {
     // Consome antes de gravar: duas requisições simultâneas com o mesmo link, só uma passa.
     if (!(await this.tokens.markUsed(record.id, now))) throw new InvalidEmailTokenError('used')
 
-    await this.userRepository.updateUser(user.id, { passwordHash })
+    // Quem leu o link provou controlar a caixa de e-mail: a conta também fica verificada.
+    await this.userRepository.updateUser(user.id, {
+      passwordHash,
+      ...(user.emailVerifiedAt === null && { emailVerifiedAt: now }),
+    })
     await this.userRepository.revokeSessions(user.id)
 
     // A senha já mudou: falha em enfileirar o aviso não pode desfazer nem derrubar o reset.

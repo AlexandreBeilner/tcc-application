@@ -26,7 +26,14 @@ async function main() {
   }
 
   const passwordHash = await createBcryptPasswordHasher().hash(password)
-  const admin = await repository.createUser({ name, email, username, passwordHash, role: 'admin' })
+  const admin = await repository.createUser({
+    name,
+    email,
+    username,
+    passwordHash,
+    role: 'admin',
+    emailVerified: true,
+  })
   console.log(`usuário admin criado: ${admin.email} (id ${admin.id})`)
   process.exit(0)
 }

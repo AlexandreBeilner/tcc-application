@@ -27,6 +27,8 @@ describe('LoginWithGoogleUseCase', () => {
 
     expect(result.user.email).toBe(PROFILE.email)
     expect(result.user.passwordHash).toBeNull()
+    // O Google já confirmou o e-mail da conta que ele mesmo criou (EM.3.1).
+    expect(result.user.emailVerifiedAt).not.toBeNull()
     const identity = await userRepository.findIdentity('google', PROFILE.providerAccountId)
     expect(identity?.userId).toBe(result.user.id)
     expect(accountProvisioner.provisionedUserIds).toEqual([result.user.id])

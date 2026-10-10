@@ -84,6 +84,9 @@ export const users = pgTable(
     // Incrementado por "forçar logout" (N.16): o token carrega a versão com que
     // foi emitido e o `authMiddleware` recusa token de versão antiga.
     tokenVersion: integer('token_version').notNull().default(0),
+    // Quando o dono provou controlar a caixa de e-mail (EM.3.1): link de verificação, reset de
+    // senha concluído, e-mail confirmado pelo Google ou seed do admin. `null` = não verificado.
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check('users_status_chk', sql`${table.status} IN ('active', 'suspended')`)],

@@ -26,6 +26,7 @@ function toDomainUser(row: typeof users.$inferSelect): User {
     suspendedReason: row.suspendedReason,
     suspendedAt: row.suspendedAt,
     tokenVersion: row.tokenVersion,
+    emailVerifiedAt: row.emailVerifiedAt,
     createdAt: row.createdAt,
   }
 }
@@ -56,6 +57,7 @@ export function createDrizzleUserRepository(db: Database): UserRepository {
           username: input.username,
           passwordHash: input.passwordHash,
           role: input.role ?? 'user',
+          emailVerifiedAt: input.emailVerified ? new Date() : null,
         })
         .returning()
       return toDomainUser(row)

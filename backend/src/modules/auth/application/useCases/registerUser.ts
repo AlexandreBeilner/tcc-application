@@ -2,8 +2,8 @@ import { EmailAlreadyInUseError, UsernameAlreadyInUseError } from '../../domain/
 import type { User } from '../../domain/user'
 import type { AccountProvisioner } from '../ports/accountProvisioner'
 import type { PasswordHasher } from '../ports/passwordHasher'
-import type { TokenIssuer } from '../ports/tokenIssuer'
 import type { UserRepository } from '../ports/userRepository'
+import type { SendEmailVerificationUseCase } from './sendEmailVerification'
 
 export interface RegisterUserInput {
   name: string
@@ -12,17 +12,17 @@ export interface RegisterUserInput {
   password: string
 }
 
+// Sem token: a conta só entra depois de verificar o e-mail (D2).
 export interface RegisterUserResult {
   user: User
-  token: string
 }
 
 export class RegisterUserUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly passwordHasher: PasswordHasher,
-    private readonly tokenIssuer: TokenIssuer,
     private readonly accountProvisioner: AccountProvisioner,
+    private readonly emailVerification: Pick<SendEmailVerificationUseCase, 'sendToUser'>,
   ) {}
 
   async execute(input: RegisterUserInput): Promise<RegisterUserResult> {
@@ -47,11 +47,13 @@ export class RegisterUserUseCase {
     // mesmo saldo simulado, aberta no motor de simulação.
     await this.accountProvisioner.provision(user.id)
 
-    const token = this.tokenIssuer.issue({
-      sub: user.id,
-      role: user.role,
-      tokenVersion: user.tokenVersion,
-    })
-    return { user, token }
+    // Falha ao enfileirar o link nunca derruba o cadastro: a conta já existe e a pessoa pede
+    // outro link pela tela de login (reenvio).
+    try {
+      await this.emailVerification.sendToUser(user)
+    } catch (err) {
+      console.error('[auth] falha ao enfileirar o e-mail de verificação', err)
+    }
+    return { user }
   }
 }

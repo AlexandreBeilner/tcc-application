@@ -1,20 +1,15 @@
-import {
-  EmailAlreadyInUseError,
-  UsernameAlreadyInUseError,
-  UserNotFoundError,
-} from '../../domain/errors'
+import { UsernameAlreadyInUseError, UserNotFoundError } from '../../domain/errors'
 import type { User } from '../../domain/user'
 import type { UserRepository } from '../ports/userRepository'
 
 export interface UpdateProfileInput {
   userId: string
   name?: string
-  email?: string
   username?: string
   onboardingCompleted?: boolean
 }
 
-// Checagem de conflito de e-mail/username antes de persistir — a UNIQUE do
+// Não troca e-mail (D6): trocar por aqui burlaria a verificação. Checagem de conflito de username antes de persistir — a UNIQUE do
 // banco é a garantia final, mas devolve um erro de negócio claro (409, tela
 // 9.2) em vez de deixar o Postgres estourar a constraint crua.
 export class UpdateProfileUseCase {
@@ -26,13 +21,6 @@ export class UpdateProfileUseCase {
       throw new UserNotFoundError('usuário não encontrado')
     }
 
-    if (input.email && input.email !== current.email) {
-      const existing = await this.userRepository.findByEmail(input.email)
-      if (existing) {
-        throw new EmailAlreadyInUseError('e-mail já cadastrado')
-      }
-    }
-
     if (input.username && input.username !== current.username) {
       const existing = await this.userRepository.findByUsername(input.username)
       if (existing) {
@@ -42,7 +30,6 @@ export class UpdateProfileUseCase {
 
     return this.userRepository.updateUser(input.userId, {
       name: input.name,
-      email: input.email,
       username: input.username,
       onboardingCompleted: input.onboardingCompleted,
     })

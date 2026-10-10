@@ -232,6 +232,13 @@
       "when": 1792400000000,
       "tag": "0032_add_auth_email_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0033_add_users_email_verified_at",
+      "breakpoints": true
     }
   ]
 }

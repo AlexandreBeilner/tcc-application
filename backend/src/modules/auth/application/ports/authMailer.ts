@@ -19,7 +19,19 @@ export interface PasswordChangedMail {
   eventId: string
 }
 
+export interface EmailVerificationMail {
+  userId: string
+  to: string
+  name: string
+  // Token em claro, só pra montar o link (fragmento da URL). Nunca é gravado como está.
+  token: string
+  // Id do registro do token: chave de idempotência do e-mail.
+  tokenId: string
+  expiresAt: Date
+}
+
 export interface AuthMailer {
+  sendEmailVerification(mail: EmailVerificationMail): Promise<void>
   sendPasswordReset(mail: PasswordResetMail): Promise<void>
   sendPasswordChanged(mail: PasswordChangedMail): Promise<void>
 }

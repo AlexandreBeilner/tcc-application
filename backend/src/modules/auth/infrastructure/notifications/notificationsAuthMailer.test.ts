@@ -17,6 +17,34 @@ function setup() {
 }
 
 describe('notificationsAuthMailer', () => {
+  it('monta o link de verificação com o token no fragmento e enfileira como segurança', async () => {
+    const { enqueued, mailer } = setup()
+
+    await mailer.sendEmailVerification({
+      userId: 'u1',
+      to: 'ana@exemplo.com',
+      name: 'Ana',
+      token: 'abc123',
+      tokenId: 't1',
+      expiresAt: new Date(),
+    })
+
+    expect(enqueued).toEqual([
+      {
+        userId: 'u1',
+        to: 'ana@exemplo.com',
+        templateKey: 'email_verification',
+        category: 'security',
+        payload: {
+          name: 'Ana',
+          verifyUrl: 'https://app.exemplo.com/verificar-email#token=abc123',
+          expiresInHours: 24,
+        },
+        idempotencyKey: 'email-verification:t1',
+      },
+    ])
+  })
+
   it('monta o link de reset com o token no fragmento e enfileira como segurança', async () => {
     const { enqueued, mailer } = setup()
 

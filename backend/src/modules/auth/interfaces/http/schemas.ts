@@ -27,7 +27,6 @@ export const reauthBodySchema = z.object({
 export const updateProfileBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
-    email: z.email().trim().toLowerCase().max(100).optional(),
     username: z
       .string()
       .trim()
@@ -41,7 +40,6 @@ export const updateProfileBodySchema = z
   .refine(
     (data) =>
       data.name !== undefined ||
-      data.email !== undefined ||
       data.username !== undefined ||
       data.onboardingCompleted !== undefined,
     {
@@ -63,4 +61,13 @@ export const resetPasswordBodySchema = z.object({
   token: z.string().trim().min(1).max(200),
   // Mesma regra do cadastro e da troca de senha: 8 a 72 (limite do bcrypt).
   newPassword: z.string().min(8).max(72),
+})
+
+export const verifyEmailBodySchema = z.object({
+  // Mesmo formato do token de reset: 43 caracteres, teto só barra lixo grande.
+  token: z.string().trim().min(1).max(200),
+})
+
+export const resendVerificationBodySchema = z.object({
+  email: z.email().trim().toLowerCase().max(100),
 })

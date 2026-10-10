@@ -9,6 +9,8 @@ import { ReauthenticateUseCase } from '../../application/useCases/reauthenticate
 import { RegisterUserUseCase } from '../../application/useCases/registerUser'
 import { RequestPasswordResetUseCase } from '../../application/useCases/requestPasswordReset'
 import { ResetPasswordUseCase } from '../../application/useCases/resetPassword'
+import { SendEmailVerificationUseCase } from '../../application/useCases/sendEmailVerification'
+import { VerifyEmailUseCase } from '../../application/useCases/verifyEmail'
 import { createFakeAuthEmailTokenRepository } from '../../test/fakes/fakeAuthEmailTokenRepository'
 import { createFakeAuthMailer } from '../../test/fakes/fakeAuthMailer'
 import { createFakeEmailTokenGenerator } from '../../test/fakes/fakeEmailTokenGenerator'
@@ -34,6 +36,13 @@ function buildApp() {
   const authMailer = createFakeAuthMailer()
   const emailTokenGenerator = createFakeEmailTokenGenerator()
 
+  const sendEmailVerification = new SendEmailVerificationUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    authMailer,
+  )
+
   const app = express()
   app.use(express.json())
   app.use(
@@ -41,8 +50,8 @@ function buildApp() {
       registerUser: new RegisterUserUseCase(
         userRepository,
         passwordHasher,
-        tokenIssuer,
         accountProvisioner,
+        sendEmailVerification,
       ),
       loginUser: new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer),
       getCurrentUser: new GetCurrentUserUseCase(userRepository),
@@ -66,11 +75,28 @@ function buildApp() {
         passwordHasher,
         authMailer,
       ),
+      sendEmailVerification,
+      verifyEmail: new VerifyEmailUseCase(userRepository, authEmailTokens, emailTokenGenerator),
       googleIdentityProvider,
       authMiddleware,
     }),
   )
   return Object.assign(app, { authMailer, authEmailTokens, userRepository })
+}
+
+// Cadastro novo não entra sem verificar o e-mail (D2): os testes que precisam de sessão
+// confirmam a conta direto no repositório e fazem o login de verdade.
+async function registerVerified(
+  app: ReturnType<typeof buildApp>,
+  body: { name: string; email: string; username: string; password: string },
+): Promise<string> {
+  await request(app).post('/auth/register').send(body)
+  const user = await app.userRepository.findByEmail(body.email)
+  await app.userRepository.updateUser(user!.id, { emailVerifiedAt: new Date() })
+  const login = await request(app)
+    .post('/auth/login')
+    .send({ email: body.email, password: body.password })
+  return login.body.token as string
 }
 
 describe('auth routes', () => {
@@ -90,7 +116,9 @@ describe('auth routes', () => {
     expect(res.status).toBe(201)
     expect(res.body.user.role).toBe('user')
     expect(res.body.user.onboardingCompleted).toBe(false)
-    expect(typeof res.body.token).toBe('string')
+    // Sem sessão (D2): a conta só entra depois de verificar o e-mail.
+    expect(res.body.token).toBeUndefined()
+    expect(res.body.emailVerificationRequired).toBe(true)
   })
 
   it('POST /auth/register recusa e-mail duplicado', async () => {
@@ -120,7 +148,7 @@ describe('auth routes', () => {
 
   it('POST /auth/login retorna token com credenciais corretas', async () => {
     const app = buildApp()
-    await request(app).post('/auth/register').send({
+    await registerVerified(app, {
       name: 'Alexandre',
       email: 'login@example.com',
       username: 'loginuser',
@@ -151,6 +179,109 @@ describe('auth routes', () => {
     expect(res.status).toBe(401)
   })
 
+  describe('verificação de e-mail (EM.3.1)', () => {
+    const payload = {
+      name: 'Ana',
+      email: 'ana@example.com',
+      username: 'anaa',
+      password: 'senha-forte-123',
+    }
+
+    it('cadastro enfileira o link; login antes de verificar dá 403 email_not_verified', async () => {
+      const app = buildApp()
+      await request(app).post('/auth/register').send(payload)
+
+      expect(app.authMailer.verifications).toHaveLength(1)
+      const wrong = await request(app)
+        .post('/auth/login')
+        .send({ email: payload.email, password: 'errada-123' })
+      const pending = await request(app)
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+
+      expect(wrong.status).toBe(401)
+      expect(pending.status).toBe(403)
+      expect(pending.body).toEqual({ error: 'email_not_verified' })
+    })
+
+    it('POST /auth/verify-email libera o login', async () => {
+      const app = buildApp()
+      await request(app).post('/auth/register').send(payload)
+      const { token } = app.authMailer.verifications[0]
+
+      const verify = await request(app).post('/auth/verify-email').send({ token })
+      const login = await request(app)
+        .post('/auth/login')
+        .send({ email: payload.email, password: payload.password })
+
+      expect(verify.status).toBe(200)
+      expect(login.status).toBe(200)
+      expect(typeof login.body.token).toBe('string')
+    })
+
+    it('POST /auth/verify-email: sem token 400, desconhecido 401, usado 410, vencido 410', async () => {
+      const app = buildApp()
+      await request(app).post('/auth/register').send(payload)
+      const { token } = app.authMailer.verifications[0]
+
+      expect((await request(app).post('/auth/verify-email').send({})).status).toBe(400)
+      const unknown = await request(app).post('/auth/verify-email').send({ token: 'nao-existe' })
+      expect(unknown.status).toBe(401)
+      expect(unknown.body).toEqual({ error: 'invalid_token' })
+
+      await request(app).post('/auth/verify-email').send({ token })
+      const used = await request(app).post('/auth/verify-email').send({ token })
+      expect(used.status).toBe(410)
+      expect(used.body).toEqual({ error: 'token_used' })
+
+      // Token vencido: força a data no repositório fake.
+      const fresh = buildApp()
+      await request(fresh).post('/auth/register').send(payload)
+      fresh.authEmailTokens.rows[0].expiresAt = new Date(Date.now() - 1000)
+      const expired = await request(fresh)
+        .post('/auth/verify-email')
+        .send({ token: fresh.authMailer.verifications[0].token })
+      expect(expired.status).toBe(410)
+      expect(expired.body).toEqual({ error: 'token_expired' })
+    })
+
+    it('POST /auth/resend-verification responde 202 igual para qualquer e-mail e reenvia só se pendente', async () => {
+      const app = buildApp()
+      await request(app).post('/auth/register').send(payload)
+
+      const pending = await request(app)
+        .post('/auth/resend-verification')
+        .send({ email: payload.email })
+      const missing = await request(app)
+        .post('/auth/resend-verification')
+        .send({ email: 'ninguem@example.com' })
+
+      expect(pending.status).toBe(202)
+      expect(missing.status).toBe(202)
+      expect(missing.body).toEqual(pending.body)
+      expect(app.authMailer.verifications).toHaveLength(2)
+
+      // O link novo anulou o do cadastro.
+      const [first, second] = app.authMailer.verifications
+      expect(
+        (await request(app).post('/auth/verify-email').send({ token: first.token })).status,
+      ).toBe(410)
+      expect(
+        (await request(app).post('/auth/verify-email').send({ token: second.token })).status,
+      ).toBe(200)
+
+      await request(app).post('/auth/resend-verification').send({ email: payload.email })
+      expect(app.authMailer.verifications).toHaveLength(2)
+    })
+
+    it('POST /auth/resend-verification recusa e-mail inválido com 400', async () => {
+      const res = await request(buildApp())
+        .post('/auth/resend-verification')
+        .send({ email: 'nao-e-email' })
+      expect(res.status).toBe(400)
+    })
+  })
+
   it('GET /auth/me exige token', async () => {
     const res = await request(buildApp()).get('/auth/me')
     expect(res.status).toBe(401)
@@ -158,16 +289,14 @@ describe('auth routes', () => {
 
   it('GET /auth/me retorna o usuário autenticado', async () => {
     const app = buildApp()
-    const registerRes = await request(app).post('/auth/register').send({
+    const token = await registerVerified(app, {
       name: 'Alexandre',
       email: 'me@example.com',
       username: 'meuser',
       password: 'senha-forte-123',
     })
 
-    const res = await request(app)
-      .get('/auth/me')
-      .set('Authorization', `Bearer ${registerRes.body.token}`)
+    const res = await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
     expect(res.body.user.email).toBe('me@example.com')
@@ -188,13 +317,12 @@ describe('auth routes', () => {
 
   describe('POST /auth/reauth', () => {
     async function registerAndLogin(app: ReturnType<typeof buildApp>) {
-      const res = await request(app).post('/auth/register').send({
+      return registerVerified(app, {
         name: 'Alexandre',
         email: 'reauth@example.com',
         username: 'reauth',
         password: 'senha-forte-123',
       })
-      return res.body.token as string
     }
 
     it('devolve token novo quando a senha confere', async () => {
@@ -326,7 +454,9 @@ describe('auth routes', () => {
       await registered(app)
       await request(app).post('/auth/forgot-password').send({ email: 'ana@example.com' })
       const { token } = app.authMailer.resets[0]
-      app.authEmailTokens.rows[0].expiresAt = new Date(Date.now() - 1000)
+      app.authEmailTokens.rows.find((row) => row.kind === 'password_reset')!.expiresAt = new Date(
+        Date.now() - 1000,
+      )
 
       const res = await request(app)
         .post('/auth/reset-password')

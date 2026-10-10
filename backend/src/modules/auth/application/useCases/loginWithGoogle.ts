@@ -47,6 +47,8 @@ export class LoginWithGoogleUseCase {
         email: profile.email,
         username,
         passwordHash: null,
+        // O Google já confirmou o e-mail da conta que ele mesmo criou.
+        emailVerified: true,
       })
       // Capital inicial padronizado (RNF06) — só na criação, nunca ao
       // reaproveitar uma conta/identidade já existente.

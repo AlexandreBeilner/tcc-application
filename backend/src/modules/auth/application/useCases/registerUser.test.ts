@@ -2,24 +2,29 @@ import { describe, expect, it } from 'vitest'
 import { EmailAlreadyInUseError, UsernameAlreadyInUseError } from '../../domain/errors'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
-import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
 import { RegisterUserUseCase } from './registerUser'
 
-function build() {
+function build(options: { verificationFails?: boolean } = {}) {
   const userRepository = createFakeUserRepository()
   const accountProvisioner = createFakeAccountProvisioner()
+  const sentTo: string[] = []
   const useCase = new RegisterUserUseCase(
     userRepository,
     createFakePasswordHasher(),
-    createFakeTokenIssuer(),
     accountProvisioner,
+    {
+      async sendToUser(user) {
+        if (options.verificationFails) throw new Error('outbox fora do ar')
+        sentTo.push(user.id)
+      },
+    },
   )
-  return { userRepository, accountProvisioner, useCase }
+  return { userRepository, accountProvisioner, useCase, sentTo }
 }
 
 describe('RegisterUserUseCase', () => {
-  it('cria usuário comum, faz hash da senha e emite token', async () => {
+  it('cria usuário comum não verificado, faz hash da senha e não emite token', async () => {
     const { useCase } = build()
 
     const result = await useCase.execute({
@@ -31,7 +36,34 @@ describe('RegisterUserUseCase', () => {
 
     expect(result.user.role).toBe('user')
     expect(result.user.passwordHash).toBe('hashed:senha-forte-123')
-    expect(result.token).toMatch(new RegExp(`^fake-token:${result.user.id}:user:\\d+:0$`))
+    expect(result.user.emailVerifiedAt).toBeNull()
+    expect(result).not.toHaveProperty('token')
+  })
+
+  it('dispara o e-mail de verificação para a conta nova', async () => {
+    const { useCase, sentTo } = build()
+
+    const result = await useCase.execute({
+      name: 'Alexandre',
+      email: 'alexandre@example.com',
+      username: 'alexandreb',
+      password: 'senha-forte-123',
+    })
+
+    expect(sentTo).toEqual([result.user.id])
+  })
+
+  it('falha ao enfileirar o e-mail nunca derruba o cadastro', async () => {
+    const { useCase, userRepository } = build({ verificationFails: true })
+
+    const result = await useCase.execute({
+      name: 'Alexandre',
+      email: 'alexandre@example.com',
+      username: 'alexandreb',
+      password: 'senha-forte-123',
+    })
+
+    expect(await userRepository.findById(result.user.id)).toBeDefined()
   })
 
   it('abre conta no motor de simulação com capital inicial padronizado (RNF06)', async () => {

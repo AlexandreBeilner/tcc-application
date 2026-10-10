@@ -37,6 +37,37 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       }
     },
   },
+  // Verificação de e-mail (EM.3.1, E1). Categoria `security`: sem ela a conta nem entra, então
+  // não é desligável. `verifyUrl` carrega o token e é apagado do outbox ao fechar a linha.
+  email_verification: {
+    category: 'security',
+    sample: {
+      name: 'Ana',
+      verifyUrl: 'https://app.exemplo.com/verificar-email#token=exemplo',
+      expiresInHours: 24,
+    },
+    sensitiveFields: ['verifyUrl'],
+    build(payload) {
+      const name = optionalString(payload, 'name')
+      const hours = typeof payload.expiresInHours === 'number' ? payload.expiresInHours : 24
+      return {
+        subject: 'Confirme seu e-mail',
+        preheader: 'Falta só confirmar seu endereço para entrar.',
+        blocks: [
+          { type: 'heading', text: 'Confirme seu e-mail' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}Para começar a usar a plataforma, confirme que este endereço é seu usando o botão abaixo.`,
+          },
+          { type: 'button', label: 'Confirmar e-mail', url: requireString(payload, 'verifyUrl') },
+          {
+            type: 'note',
+            text: `O link vale por ${hours} horas e só pode ser usado uma vez. Se você não criou uma conta, ignore este e-mail.`,
+          },
+        ],
+      }
+    },
+  },
   // Aviso de senha alterada (EM.2.1, E4). Sem link com token: só orienta a quem não reconhece.
   password_changed: {
     category: 'security',

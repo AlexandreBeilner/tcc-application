@@ -107,16 +107,23 @@ describe('account routes', () => {
     expect(res.body.user.onboardingCompleted).toBe(true)
   })
 
-  it('PATCH /me retorna 409 pra e-mail já em uso por outro usuário', async () => {
+  it('PATCH /me não aceita trocar o e-mail (D6): só o e-mail no corpo vira 400, junto com outro campo é ignorado', async () => {
     const { app, tokenIssuer, alice, bob } = await buildApp()
     const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
 
-    const res = await request(app)
+    const only = await request(app)
       .patch('/me')
       .set('Authorization', `Bearer ${token}`)
       .send({ email: bob.email })
+    expect(only.status).toBe(400)
 
-    expect(res.status).toBe(409)
+    const mixed = await request(app)
+      .patch('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Alice Nova', email: 'novo@example.com' })
+    expect(mixed.status).toBe(200)
+    expect(mixed.body.user.name).toBe('Alice Nova')
+    expect(mixed.body.user.email).toBe(alice.email)
   })
 
   it('PATCH /me retorna 400 sem nenhum campo', async () => {

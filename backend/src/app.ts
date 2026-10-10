@@ -330,6 +330,8 @@ import { createRateLimiter } from './shared/http/rateLimit'
 import { ReauthenticateUseCase } from './modules/auth/application/useCases/reauthenticate'
 import { RequestPasswordResetUseCase } from './modules/auth/application/useCases/requestPasswordReset'
 import { ResetPasswordUseCase } from './modules/auth/application/useCases/resetPassword'
+import { SendEmailVerificationUseCase } from './modules/auth/application/useCases/sendEmailVerification'
+import { VerifyEmailUseCase } from './modules/auth/application/useCases/verifyEmail'
 import { createNotificationsAuthMailer } from './modules/auth/infrastructure/notifications/notificationsAuthMailer'
 import { createDrizzleAuthEmailTokenRepository } from './modules/auth/infrastructure/persistence/drizzleAuthEmailTokenRepository'
 import { createCryptoEmailTokenGenerator } from './modules/auth/infrastructure/security/cryptoEmailTokenGenerator'
@@ -444,12 +446,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
   const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
-  const registerUser = new RegisterUserUseCase(
-    userRepository,
-    passwordHasher,
-    tokenIssuer,
-    accountProvisioner,
-  )
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
   const loginWithGoogle = new LoginWithGoogleUseCase(
     userRepository,
@@ -484,6 +480,19 @@ export function createApp(deps: AppDeps = {}): Express {
     enqueueEmail,
     appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   })
+  const sendEmailVerification = new SendEmailVerificationUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    authMailer,
+  )
+  const verifyEmail = new VerifyEmailUseCase(userRepository, authEmailTokens, emailTokenGenerator)
+  const registerUser = new RegisterUserUseCase(
+    userRepository,
+    passwordHasher,
+    accountProvisioner,
+    sendEmailVerification,
+  )
   const requestPasswordReset = new RequestPasswordResetUseCase(
     userRepository,
     authEmailTokens,
@@ -805,6 +814,9 @@ export function createApp(deps: AppDeps = {}): Express {
   // Recuperação de senha (EM.2.2): teto por IP e por e-mail no pedido, por IP na troca.
   app.use('/auth/forgot-password', ...createForgotPasswordRateLimiters())
   app.use('/auth/reset-password', createResetPasswordRateLimiter())
+  // Verificação de e-mail (EM.3.1): reenvio com o mesmo teto por IP e por e-mail do reset.
+  app.use('/auth/resend-verification', ...createForgotPasswordRateLimiters())
+  app.use('/auth/verify-email', createResetPasswordRateLimiter())
   app.use(
     createAuthRouter({
       registerUser,
@@ -814,6 +826,8 @@ export function createApp(deps: AppDeps = {}): Express {
       reauthenticate,
       requestPasswordReset,
       resetPassword,
+      sendEmailVerification,
+      verifyEmail,
       googleIdentityProvider,
       authMiddleware,
     }),

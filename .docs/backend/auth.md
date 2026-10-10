@@ -13,13 +13,13 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `username`: string, 3–30 caracteres, só `a-z`, `0-9` e `_`. Normalizado pra minúsculo.
   - `password`: string, 8–72 caracteres (72 = limite do bcrypt; senhas maiores são rejeitadas, não truncadas em silêncio).
   - Qualquer outro campo enviado (ex: `role`) é **descartado** pelo schema Zod antes de chegar no caso de uso — não é possível se autopromover a admin por aqui.
-- **Sucesso:** `201` → `{ token, user: { id, name, email, username, role, onboardingCompleted } }`.
+- **Sucesso:** `201` → `{ user: { id, name, email, username, role, onboardingCompleted, avatarUrl }, emailVerificationRequired: true }`. **Sem `token`** (EM.3.1, D2): a conta só entra depois de verificar o e-mail.
 - **Erros:**
   - `400` — payload não bate com o schema (campo faltando, e-mail inválido, senha curta, username com caractere inválido etc).
   - `409` — e-mail já cadastrado.
   - `409` — username já em uso.
   - `500` — motor de simulação indisponível ao abrir a conta (ver regra abaixo) — cai no handler de erro padrão do Express.
-- **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). `onboarding_completed` sempre nasce `false` (default da coluna, tarefa 6.0.4) — controla se o pós-login (frontend, 6.2) cai na tela de onboarding (1.2) ou direto no Portfólio (2.1). Em seguida abre a conta do usuário no motor de simulação (`POST /accounts`, ver `.docs/engine/account.md`) com o capital inicial padronizado (RNF06) — se essa chamada falhar, o cadastro inteiro falha (não fica usuário sem conta). Emite JWT válido por 7 dias assinado com `{ sub: userId, role }`.
+- **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). `onboarding_completed` sempre nasce `false` (default da coluna, tarefa 6.0.4) — controla se o pós-login (frontend, 6.2) cai na tela de onboarding (1.2) ou direto no Portfólio (2.1). Em seguida abre a conta do usuário no motor de simulação (`POST /accounts`, ver `.docs/engine/account.md`) com o capital inicial padronizado (RNF06) — se essa chamada falhar, o cadastro inteiro falha (não fica usuário sem conta). A conta nasce com `email_verified_at` nulo e o caso de uso enfileira o e-mail de verificação (`SendEmailVerificationUseCase`); falha ao enfileirar nunca derruba o cadastro, a pessoa pede outro link por `POST /auth/resend-verification`. Não emite JWT.
 
 ---
 
@@ -31,6 +31,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Erros:**
   - `400` — `email`/`password` ausentes ou em formato inválido.
   - `401` — credenciais inválidas: e-mail não encontrado, senha incorreta, **ou** conta criada só via Google (sem `password_hash` local) tentando logar por senha. As três situações retornam a mesma mensagem genérica, de propósito (não vazar se um e-mail existe).
+  - `403` — `{ error: "email_not_verified" }`: senha correta, mas a conta criada por e-mail e senha ainda não confirmou o e-mail (EM.3.1, D2). O frontend oferece reenviar o link (`POST /auth/resend-verification`). Também só aparece depois de a senha conferir; a suspensão tem precedência. Conta criada pelo Google, admin do seed e conta que concluiu um reset de senha já são verificadas.
   - `403` — `{ error: "account_suspended" }`: senha correta, mas a conta foi suspensa pelo painel admin (N.16). Só aparece depois de a senha conferir, então quem erra a senha nunca descobre que a conta está suspensa. No login com Google o callback redireciona para `${FRONTEND_URL}/auth/callback#error=account_suspended`.
 - **Regra:** `LoginUserUseCase`. O token carrega `tokenVersion` (versão de sessão da conta, N.16) e `authTime` (momento da conferência da senha) e expira em **7 dias** para `role: 'user'` e em **2 horas** para `role: 'admin'` (N.22). Login e tentativa falha de uma conta `admin` são gravados no `admin_audit_log` (`admin.login`, `admin.login_failed`).
 
@@ -66,6 +67,36 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 
 ---
 
+### `POST /auth/resend-verification`
+
+*(EM.3.1.)* Pede um novo link de verificação de e-mail. Anula o link anterior.
+
+- **Autenticação:** público.
+- **Payload (JSON):** `email` (formato válido, ≤100 caracteres, normalizado pra minúsculo).
+- **Sucesso:** `202` → `{ message }`, **sempre a mesma resposta**: exista a conta ou não, já esteja verificada ou não, esteja suspensa ou não (sem enumeração de e-mail). O e-mail só é enfileirado para conta existente, pendente e não suspensa.
+- **Erros:**
+  - `400` — `email` ausente ou em formato inválido.
+  - `429` — teto de 20 pedidos por IP e 3 por e-mail (conta mesmo se o e-mail não existe) em 15 minutos, com `Retry-After`.
+- **Regra:** `SendEmailVerificationUseCase`. Token de 32 bytes aleatórios (só o SHA-256 vai ao banco, tabela `auth_email_tokens`, `kind = email_verification`), uso único, TTL de 24 h. O link é `${FRONTEND_URL}/verificar-email#token=...` (fragmento, não vai ao servidor nem ao `Referer`) e o e-mail é da categoria `security` (não desligável).
+
+---
+
+### `POST /auth/verify-email`
+
+*(EM.3.1.)* Consome o link de verificação e libera o login da conta.
+
+- **Autenticação:** público (o token é a credencial).
+- **Payload (JSON):** `token` (texto, 1–200 caracteres).
+- **Sucesso:** `200` → `{ message: "e-mail verificado" }`. Não devolve sessão: depois de verificar, a pessoa entra pelo login normal.
+- **Erros:**
+  - `400` — `token` ausente.
+  - `401` — `{ error: "invalid_token" }`: token desconhecido (ou de outro tipo, como o de reset).
+  - `410` — `{ error: "token_expired" }` (passou das 24 h) ou `{ error: "token_used" }` (já usado ou substituído por um reenvio). O frontend oferece reenviar.
+  - `429` — mais de 20 tentativas em 15 minutos pelo mesmo IP.
+- **Regra:** `VerifyEmailUseCase`. Consumo atômico do token (dois cliques simultâneos, só um passa) e grava `users.email_verified_at`.
+
+---
+
 ### `POST /auth/reset-password`
 
 *(EM.2.2.)* Conclui a redefinição com o token do link.
@@ -78,7 +109,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `401` — `{ error: "invalid_token" }`: token desconhecido (ou de conta admin).
   - `410` — `{ error: "token_expired" }` (passou dos 30 minutos) ou `{ error: "token_used" }` (link já usado ou substituído por um pedido mais novo). O frontend oferece pedir outro link.
   - `429` — mais de 20 tentativas em 15 minutos pelo mesmo IP.
-- **Regra:** `ResetPasswordUseCase`. Consome o token de forma atômica (duas requisições com o mesmo link: só uma passa), grava a senha nova, encerra **todas** as sessões abertas (`revokeSessions`, o JWT antigo passa a ser recusado) e enfileira o aviso "sua senha foi alterada" (`password_changed`, sem token no corpo). Falha ao enfileirar o aviso não desfaz a troca.
+- **Regra:** `ResetPasswordUseCase`. Consome o token de forma atômica (duas requisições com o mesmo link: só uma passa), grava a senha nova, marca o e-mail como verificado (quem leu o link provou controlar a caixa), encerra **todas** as sessões abertas (`revokeSessions`, o JWT antigo passa a ser recusado) e enfileira o aviso "sua senha foi alterada" (`password_changed`, sem token no corpo). Falha ao enfileirar o aviso não desfaz a troca.
 
 ---
 
@@ -100,7 +131,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Erros:**
   - `400` — `code` ausente na query.
   - `502` — falha ao trocar o `code` por token junto ao Google, ou payload do Google incompleto (sem `sub`/`email`).
-- **Regra:** `LoginWithGoogleUseCase`. Se já existe `user_identities` pra esse `(google, sub)`, reaproveita o usuário. Senão, tenta casar por e-mail com uma conta já existente (criada via e-mail/senha) — se achar, só cria a identidade nova, sem duplicar o usuário. Se não achar nada, cria usuário novo com `password_hash: null` e username derivado do e-mail (com sufixo numérico se já estiver em uso) — só nesse caso (usuário novo) abre conta no motor de simulação com o capital inicial padronizado (RNF06), igual ao `POST /auth/register`. Sempre `role: 'user'`.
+- **Regra:** `LoginWithGoogleUseCase`. Se já existe `user_identities` pra esse `(google, sub)`, reaproveita o usuário. Senão, tenta casar por e-mail com uma conta já existente (criada via e-mail/senha) — se achar, só cria a identidade nova, sem duplicar o usuário. Se não achar nada, cria usuário novo com `password_hash: null` e username derivado do e-mail (com sufixo numérico se já estiver em uso) — só nesse caso (usuário novo) abre conta no motor de simulação com o capital inicial padronizado (RNF06), igual ao `POST /auth/register`. Conta nova nasce com o e-mail verificado (o Google já confirmou). Sempre `role: 'user'`.
 
 ---
 
@@ -123,13 +154,13 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 ### `PATCH /me`
 
 - **Autenticação:** Bearer token.
-- **Payload (JSON):** `name?`, `email?`, `username?`, `onboardingCompleted?` (boolean, tarefa 6.0.4) — mesmas regras de formato do cadastro pros três primeiros; pelo menos um campo obrigatório.
+- **Payload (JSON):** `name?`, `username?`, `onboardingCompleted?` (boolean, tarefa 6.0.4) — mesmas regras de formato do cadastro pros dois primeiros; pelo menos um campo obrigatório. **`email` não é aceito** (EM.3.1, D6): trocar o e-mail por aqui burlaria a verificação, então o campo é descartado pelo schema (e um corpo só com `email` cai no `400`).
 - **Sucesso:** `200` → `{ user: { id, name, email, username, role, onboardingCompleted, avatarUrl } }`.
 - **Erros:**
   - `400` — payload inválido ou nenhum campo enviado.
   - `401` — token ausente ou inválido/expirado.
-  - `409` — e-mail ou username já em uso por **outro** usuário (reenviar o próprio e-mail/username atual é permitido, não conflita consigo mesmo).
-- **Regra:** `UpdateProfileUseCase`. Checa conflito antes de persistir — a `UNIQUE` do banco é a garantia final, mas o caso de uso devolve um erro de negócio claro em vez de deixar o Postgres estourar a constraint crua. `onboardingCompleted` não passa por essa checagem de conflito (não é um campo único) — é um campo de perfil como outro qualquer, sem endpoint dedicado (decisão da tarefa 6.0.4: não justifica rota própria).
+  - `409` — username já em uso por **outro** usuário (reenviar o próprio username atual é permitido, não conflita consigo mesmo).
+- **Regra:** `UpdateProfileUseCase`. Checa conflito de username antes de persistir — a `UNIQUE` do banco é a garantia final, mas o caso de uso devolve um erro de negócio claro em vez de deixar o Postgres estourar a constraint crua. `onboardingCompleted` não passa por essa checagem de conflito (não é um campo único) — é um campo de perfil como outro qualquer, sem endpoint dedicado (decisão da tarefa 6.0.4: não justifica rota própria).
 
 ---
 

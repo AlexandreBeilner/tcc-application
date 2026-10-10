@@ -71,6 +71,15 @@ describe('ResetPasswordUseCase', () => {
     ])
   })
 
+  it('marca o e-mail como verificado: quem leu o link provou controlar a caixa', async () => {
+    const { userRepository, useCase, user, token } = await setup()
+    expect(user.emailVerifiedAt).toBeNull()
+
+    await useCase.execute({ token, newPassword: 'senha-nova-123' })
+
+    expect((await userRepository.findById(user.id))?.emailVerifiedAt).toEqual(NOW)
+  })
+
   it('conta só-Google cria a primeira senha (D4)', async () => {
     const { userRepository, useCase, user, token } = await setup({ passwordHash: null })
 

@@ -39,6 +39,7 @@ export function createFakeUserRepository(): UserRepository {
         suspendedReason: null,
         suspendedAt: null,
         tokenVersion: 0,
+        emailVerifiedAt: input.emailVerified ? new Date() : null,
         createdAt: new Date(),
       }
       usersById.set(user.id, user)
@@ -63,6 +64,7 @@ export function createFakeUserRepository(): UserRepository {
         ...(input.status !== undefined && { status: input.status }),
         ...(input.suspendedReason !== undefined && { suspendedReason: input.suspendedReason }),
         ...(input.suspendedAt !== undefined && { suspendedAt: input.suspendedAt }),
+        ...(input.emailVerifiedAt !== undefined && { emailVerifiedAt: input.emailVerifiedAt }),
       }
       usersById.set(id, updated)
       return updated

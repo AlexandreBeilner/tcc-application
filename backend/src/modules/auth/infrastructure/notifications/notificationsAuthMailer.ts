@@ -14,6 +14,21 @@ export interface NotificationsAuthMailerOptions {
 export function createNotificationsAuthMailer(options: NotificationsAuthMailerOptions): AuthMailer {
   const appUrl = options.appUrl.replace(/\/+$/, '')
   return {
+    async sendEmailVerification(mail) {
+      await options.enqueueEmail.execute({
+        userId: mail.userId,
+        to: mail.to,
+        templateKey: 'email_verification',
+        category: 'security',
+        payload: {
+          name: mail.name,
+          verifyUrl: `${appUrl}/verificar-email#token=${mail.token}`,
+          expiresInHours: EMAIL_TOKEN_TTL_MS.email_verification / 3_600_000,
+        },
+        idempotencyKey: `email-verification:${mail.tokenId}`,
+      })
+    },
+
     async sendPasswordReset(mail) {
       await options.enqueueEmail.execute({
         userId: mail.userId,
