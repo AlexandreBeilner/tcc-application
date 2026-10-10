@@ -161,10 +161,12 @@ D1 Resend atrás de port · D2 conta por e-mail e senha só loga com e-mail veri
 
 ## Fase G, engajamento (P2, só depois da Fase F)
 
-### EM.7.1 · Resumo semanal (E12)
+### EM.7.1 · Resumo semanal (E12) ✅ (2026-10-10)
 - **Descrição:** job semanal lendo `ranking_snapshots`; só percentuais, nível e missão pendente.
 - **Dependências:** EM.6.1.
 - **Aceite:** só opt-in; nenhum valor absoluto de patrimônio; tom de evolução, não de perda.
+- **Entregável:** `SendWeeklyDigestUseCase` + template `weekly_digest` (categoria `engagement`) + port `WeeklyDigestAudience` (adapter Drizzle) + `startEngagementScheduler` (novo, reaproveitado pela EM.7.3; cadência `EMAIL_ENGAGEMENT_INTERVAL_MS`, padrão 15 min). Janela: segunda de 9h às 20h59 de Brasília; chave `weekly-digest:<usuário>:<segunda>`, então repetir a checagem, reiniciar ou ter réplicas nunca duplica. A audiência é uma consulta em lote (conta ativa, e-mail verificado, não anonimizada, `engagement` ligado), em páginas por cursor de `id`, que reaproveita o filtro com `selectEngagementAudience` (base da EM.7.3). Conteúdo só com nível, rentabilidade percentual da semana (último `ranking_snapshots`, critério geral) e uma missão do dia pendente; rentabilidade negativa vira texto neutro, sem número nem palavra de perda. Helpers de calendário de Brasília em `domain/engagement/`. Testes: domínio da janela e da semana, caso de uso (fora da janela, idempotência, desligou no meio, paginação de 450, falha isolada), template (negativo sem número, sem `R$`, sem travessão), config e 2 de integração em banco real (filtros da audiência e cursor). `.docs/backend/notifications.md` e `docker-compose.yml` atualizados. Validado no `docker compose up` (`EMAIL_PROVIDER=log`): com o relógio do caso de uso fixado numa segunda às 10h, um usuário com `engagement` ligado recebeu o resumo (nível, `+5,7%`, missão do dia, `List-Unsubscribe`), e rodar de novo não duplicou.
+  - **Decisão minha, para você confirmar:** a janela (segunda 9h a 21h, Brasília) e o conteúdo (sem posição no ranking, só nível, percentual e missão, como o aceite pede). Quem não está no último snapshot recebe o resumo sem o percentual.
 
 ### EM.7.2 · Salário mensal e conquista rara (E11, E14)
 - **Descrição:** aviso do salário creditado pelo job `payroll` e de conquista rara desbloqueada.

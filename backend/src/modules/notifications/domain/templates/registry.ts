@@ -214,6 +214,61 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       }
     },
   },
+  // Resumo semanal (EM.7.1, E12). Categoria `engagement`: só sai para quem ligou. Leva apenas o
+  // nível, a rentabilidade percentual da semana (RNF09, nunca patrimônio) e uma missão do dia. O
+  // tom é de evolução: rentabilidade negativa não é mostrada como número nem como perda.
+  weekly_digest: {
+    category: 'engagement',
+    sample: {
+      name: 'Ana',
+      level: 12,
+      weeklyReturnPct: 2.4,
+      pendingMissions: 2,
+      missionTitle: 'Conclua uma lição',
+    },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const level = typeof payload.level === 'number' ? payload.level : undefined
+      const returnPct =
+        typeof payload.weeklyReturnPct === 'number' ? payload.weeklyReturnPct : undefined
+      const pending = typeof payload.pendingMissions === 'number' ? payload.pendingMissions : 0
+      const missionTitle = optionalString(payload, 'missionTitle')
+
+      const blocks: EmailContent['blocks'] = [
+        { type: 'heading', text: 'Seu resumo da semana' },
+        {
+          type: 'paragraph',
+          text: `${name ? `Olá, ${name}. ` : ''}${level !== undefined ? `Você está no nível ${level}. ` : ''}Mais uma semana de aprendizado na plataforma.`,
+        },
+      ]
+      if (returnPct !== undefined && returnPct >= 0) {
+        blocks.push({
+          type: 'paragraph',
+          text: `Sua rentabilidade na semana foi de ${formatSignedPct(returnPct)}.`,
+        })
+      } else if (returnPct !== undefined) {
+        blocks.push({
+          type: 'paragraph',
+          text: 'O mercado se mexeu bastante nesta semana. Vale rever sua carteira com calma e ver o que a trilha tem a ensinar sobre isso.',
+        })
+      }
+      if (pending > 0) {
+        const more = pending > 1 ? ` e mais ${pending - 1}` : ''
+        blocks.push({
+          type: 'paragraph',
+          text: missionTitle
+            ? `Hoje tem missão esperando: ${missionTitle}${more}.`
+            : `Hoje há ${pending} ${pending === 1 ? 'missão esperando' : 'missões esperando'} por você.`,
+        })
+      }
+      blocks.push({ type: 'button', label: 'Abrir a plataforma', url: `${appUrl}/trilha` })
+      return {
+        subject: 'Seu resumo da semana',
+        preheader: 'Seu nível, a evolução da semana e a missão de hoje.',
+        blocks,
+      }
+    },
+  },
   welcome: {
     category: 'transactional',
     sample: { name: 'Ana' },

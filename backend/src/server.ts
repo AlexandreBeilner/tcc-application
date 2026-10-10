@@ -8,6 +8,7 @@ import {
 } from './modules/notifications/composition'
 import { loadEmailLinksConfig } from './modules/notifications/infrastructure/config/emailLinksConfig'
 import { loadEmailConfig } from './modules/notifications/infrastructure/config/emailConfig'
+import { startEngagementScheduler } from './modules/notifications/infrastructure/scheduler/engagementScheduler'
 import { startEmailOutboxScheduler } from './modules/notifications/infrastructure/scheduler/emailOutboxScheduler'
 import { createHtmlEmailRenderer } from './modules/notifications/infrastructure/templates/htmlEmailRenderer'
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
@@ -49,20 +50,22 @@ async function main() {
       'e-mail: RESEND_WEBHOOK_SECRET ausente. Bounces e reclamações não serão processados e a lista de supressão não se alimenta: configure antes de enviar para usuários reais.',
     )
   }
-  const { enqueueEmail, deliverPendingEmails, purgeOldEmails, emailWebhookRouter } =
-    createNotificationsComposition(
-    db,
-    {
-      emailSender: createEmailSender(emailConfig),
-      emailRenderer: createHtmlEmailRenderer({
-        brandName: EMAIL_BRAND_NAME,
-        appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
-      }),
-      links: loadEmailLinksConfig(process.env),
-      deliverOptions: { delayBetweenSendsMs: emailConfig.delayBetweenSendsMs },
-      webhook,
-    },
-  )
+  const {
+    enqueueEmail,
+    deliverPendingEmails,
+    purgeOldEmails,
+    sendWeeklyDigest,
+    emailWebhookRouter,
+  } = createNotificationsComposition(db, {
+    emailSender: createEmailSender(emailConfig),
+    emailRenderer: createHtmlEmailRenderer({
+      brandName: EMAIL_BRAND_NAME,
+      appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    }),
+    links: loadEmailLinksConfig(process.env),
+    deliverOptions: { delayBetweenSendsMs: emailConfig.delayBetweenSendsMs },
+    webhook,
+  })
 
   createApp({
     userRepository,
@@ -80,6 +83,10 @@ async function main() {
   startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
 
   startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails)
+  startEngagementScheduler(
+    [{ name: 'resumo semanal', execute: () => sendWeeklyDigest.execute() }],
+    emailConfig.engagementIntervalMs,
+  )
 
   const rankingSnapshotIntervalMs =
     Number(process.env.RANKING_SNAPSHOT_INTERVAL_MS || Number.NaN) ||

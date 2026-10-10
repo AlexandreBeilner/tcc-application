@@ -19,7 +19,7 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 | Segredos | O link com token de um e-mail de segurança fica no `payload` só até a linha fechar (`sensitiveFields` do template): depois de `sent` ou `failed`, o token em claro some do banco. |
 | Log | Os adapters não registram destinatário completo nem token. |
 
-**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test` (transacional); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
+**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test` (transacional); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social); `weekly_digest` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
 
 **Configuração.**
 
@@ -30,6 +30,7 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 | `RESEND_WEBHOOK_SECRET` | `whsec_...` do endpoint de webhook; sem ele a rota não existe e o backend avisa no log. |
 | `EMAIL_FROM`, `EMAIL_REPLY_TO` | Remetente (obrigatório com `resend`) e resposta humana opcional. |
 | `EMAIL_SEND_RPS`, `EMAIL_OUTBOX_INTERVAL_MS` | Cadência do worker (padrões acima). |
+| `EMAIL_ENGAGEMENT_INTERVAL_MS` | De quanto em quanto tempo os jobs de engajamento checam se estão na janela (padrão 15 min). |
 
 ---
 
@@ -97,6 +98,14 @@ Duas categorias de e-mail são **opcionais**: `social` (ex.: pedido de amizade) 
 | `PUBLIC_API_URL` | URL pública do gateway, base do link de cancelar (o `List-Unsubscribe-Post` precisa de uma URL que aceite POST). Padrão `http://localhost:8000`. |
 | `EMAIL_UNSUBSCRIBE_SECRET` | Segredo do HMAC do token. Vazio usa o `JWT_SECRET`. |
 | `FRONTEND_URL` | Destino do redirecionamento do `GET`. |
+
+## E-mails de engajamento (EM.7.x)
+
+Categoria `engagement`: sempre opt-in (D8), com `List-Unsubscribe` e o link de cancelar no rodapé. Os jobs não são rotas: `startEngagementScheduler` (processo do backend) chama os casos de uso a cada `EMAIL_ENGAGEMENT_INTERVAL_MS`; cada caso de uso decide se está na janela, e a **chave de idempotência** do e-mail garante que repetir a checagem, reiniciar o processo ou ter mais de uma réplica nunca duplica. Falha de um usuário ou de um job não derruba os outros. O horário é o de Brasília (UTC-3). A audiência é pré-filtrada em SQL (conta ativa, e-mail verificado, não anonimizada, `engagement` ligado, em páginas de 200 por cursor de `id`) e `EnqueueEmailUseCase` confere tudo de novo ao enfileirar, então quem desligou entre a leitura e o envio não recebe.
+
+### Resumo semanal (EM.7.1, E12)
+
+`SendWeeklyDigestUseCase`, template `weekly_digest`. **Janela:** segunda-feira, das 9h às 20h59 de Brasília (quem liga a opção na segunda à tarde ainda recebe o da semana). **Chave:** `weekly-digest:<userId>:<segunda de Brasília>`, um por pessoa por semana. **Conteúdo (RNF09):** nível, rentabilidade percentual da semana (do último `ranking_snapshots`, critério geral, janela semanal, sem chamar o motor) e uma missão do dia ainda pendente (a de maior XP, mais a contagem das outras). Sem valor absoluto de patrimônio. **Tom:** rentabilidade negativa nunca aparece como número nem como perda, a mensagem fala do mercado e convida a rever a carteira com calma; quem não está no ranking recebe sem o percentual.
 
 ### Exportação e exclusão de conta (LGPD)
 

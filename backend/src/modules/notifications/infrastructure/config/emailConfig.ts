@@ -14,6 +14,8 @@ interface CommonEmailConfig {
   // Pausa entre envios que respeita o limite de requisições por segundo do provedor.
   delayBetweenSendsMs: number
   outboxIntervalMs: number
+  // Cadência com que os jobs de engajamento (resumo semanal, EM.7.x) checam se estão na janela.
+  engagementIntervalMs: number
 }
 
 export interface ResendEmailConfig extends CommonEmailConfig {
@@ -29,6 +31,7 @@ export interface LogEmailConfig extends CommonEmailConfig {
 
 const DEFAULT_SEND_RPS = 2
 const DEFAULT_OUTBOX_INTERVAL_MS = 5_000
+const DEFAULT_ENGAGEMENT_INTERVAL_MS = 15 * 60_000
 const DEFAULT_LOG_FROM = 'Plataforma <no-reply@localhost>'
 
 export function loadEmailConfig(env: NodeJS.ProcessEnv): EmailConfig {
@@ -48,10 +51,18 @@ export function loadEmailConfig(env: NodeJS.ProcessEnv): EmailConfig {
     problems,
   )
 
+  const engagementIntervalMs = positiveNumber(
+    env,
+    'EMAIL_ENGAGEMENT_INTERVAL_MS',
+    DEFAULT_ENGAGEMENT_INTERVAL_MS,
+    problems,
+  )
+
   const common = {
     replyTo: read('EMAIL_REPLY_TO'),
     delayBetweenSendsMs: Math.ceil(1000 / sendRps),
     outboxIntervalMs,
+    engagementIntervalMs,
   }
 
   if (provider === 'resend') {

@@ -9,6 +9,8 @@ import {
 import { EnqueueEmailUseCase } from './application/useCases/enqueueEmail'
 import { EraseEmailDataUseCase } from './application/useCases/eraseEmailData'
 import { GetEmailPreferencesUseCase } from './application/useCases/getEmailPreferences'
+import { SendWeeklyDigestUseCase } from './application/useCases/sendWeeklyDigest'
+import { createDrizzleWeeklyDigestAudience } from './infrastructure/persistence/drizzleWeeklyDigestAudience'
 import { PurgeOldEmailsUseCase } from './application/useCases/purgeOldEmails'
 import { UnsubscribeByTokenUseCase } from './application/useCases/unsubscribeByToken'
 import { UpdateEmailPreferencesUseCase } from './application/useCases/updateEmailPreferences'
@@ -144,6 +146,17 @@ export function createNotificationsComposition(db: Database, deps: Notifications
     })
 
   const purgeOldEmails = new PurgeOldEmailsUseCase(outbox)
+  // Jobs de engajamento (EM.7.x): só enfileiram, e só para quem ligou a categoria.
+  const sendWeeklyDigest = new SendWeeklyDigestUseCase(
+    createDrizzleWeeklyDigestAudience(db),
+    enqueueEmail,
+  )
 
-  return { enqueueEmail, deliverPendingEmails, purgeOldEmails, emailWebhookRouter }
+  return {
+    enqueueEmail,
+    deliverPendingEmails,
+    purgeOldEmails,
+    sendWeeklyDigest,
+    emailWebhookRouter,
+  }
 }

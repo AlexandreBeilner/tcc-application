@@ -11,6 +11,7 @@ import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxReposito
 import { createDrizzleEmailPreferencesRepository } from './drizzleEmailPreferencesRepository'
 import { createDrizzleEmailSuppressionRepository } from './drizzleEmailSuppressionRepository'
 import { createDrizzleRecipientDirectory } from './drizzleRecipientDirectory'
+import { createDrizzleWeeklyDigestAudience } from './drizzleWeeklyDigestAudience'
 
 // Teste de integração (EM.1.1 e EM.1.4): outbox e supressão num arquivo só, porque dois arquivos migrando o mesmo banco em paralelo colidem. Só roda com TEST_DATABASE_URL apontando pra um banco
 // DESCARTÁVEL (apaga `email_outbox`). Cobre o que os fakes não provam: idempotência pela UNIQUE
@@ -360,6 +361,129 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
       pending: 2,
       failedLast24h: 1,
       oldestPendingAgeMs: 20 * 60_000,
+    })
+  })
+
+  describe('audiência do resumo semanal (EM.7.1)', () => {
+    const NOW = new Date('2026-10-12T13:00:00Z')
+    const create = async (
+      suffix: string,
+      extra: Partial<typeof schema.users.$inferInsert> = {},
+      engagement = true,
+    ) => {
+      const [user] = await db
+        .insert(schema.users)
+        .values({
+          name: `Bia ${suffix}`,
+          email: `em71-${suffix}@exemplo.com`,
+          username: `em71_${suffix}`,
+          emailVerifiedAt: new Date('2026-01-01T00:00:00Z'),
+          ...extra,
+        })
+        .onConflictDoUpdate({
+          target: schema.users.email,
+          set: { status: 'active', emailVerifiedAt: new Date('2026-01-01T00:00:00Z'), ...extra },
+        })
+        .returning()
+      await db
+        .insert(schema.emailPreferences)
+        .values({ userId: user.id, engagement })
+        .onConflictDoUpdate({ target: schema.emailPreferences.userId, set: { engagement } })
+      return user
+    }
+
+    it('lista só quem pode e quer receber, com nível, rentabilidade da semana e missão pendente', async () => {
+      await db.delete(schema.userMissionProgress)
+      await db.delete(schema.dailyMissions)
+      await db.delete(schema.rankingSnapshots)
+      const ok = await create('ok')
+      const noOptIn = await create('noopt', {}, false)
+      const suspended = await create('susp', { status: 'suspended' })
+      const unverified = await create('unver', { emailVerifiedAt: null })
+      const anonymized = await create('anon', { email: 'em71-anon@anonimo.invalid' })
+      await db.insert(schema.userProgression).values({ userId: ok.id, level: 7 })
+
+      const [big, small] = await db
+        .insert(schema.dailyMissions)
+        .values([
+          { key: 'em71_big', title: 'Missão grande', completionCriteria: 'x', xpReward: 50 },
+          { key: 'em71_small', title: 'Missão pequena', completionCriteria: 'x', xpReward: 10 },
+        ])
+        .returning()
+      await db.insert(schema.userMissionProgress).values({
+        userId: ok.id,
+        missionId: big.id,
+        missionDate: '2026-10-12',
+        status: 'completed',
+      })
+      const runId = '11111111-1111-4111-8111-111111111111'
+      await db.insert(schema.rankingSnapshots).values([
+        {
+          runId,
+          computedAt: NOW,
+          windowKind: 'week',
+          criterion: 'overall',
+          userId: ok.id,
+          position: 1,
+          username: 'em71_ok',
+          level: 7,
+          xp: 0,
+          profitabilityPct: 2.5,
+          sortKey: 2.5,
+        },
+        {
+          runId,
+          computedAt: NOW,
+          windowKind: 'month',
+          criterion: 'overall',
+          userId: ok.id,
+          position: 1,
+          username: 'em71_ok',
+          level: 7,
+          xp: 0,
+          profitabilityPct: 9,
+          sortKey: 9,
+        },
+      ])
+
+      const page = await createDrizzleWeeklyDigestAudience(db, () => NOW).listPage(null, 100)
+      const mine = page.filter((c) => c.address.startsWith('em71-'))
+
+      expect(mine.map((c) => c.userId)).toEqual([ok.id])
+      expect([noOptIn, suspended, unverified, anonymized].map((u) => u.id)).not.toContain(
+        mine[0]?.userId,
+      )
+      expect(mine[0]).toMatchObject({
+        level: 7,
+        weeklyReturnPct: 2.5,
+        pendingMissions: 1,
+        pendingMissionTitle: small.title,
+      })
+      expect(Object.keys(mine[0]).sort()).toEqual(
+        [
+          'address',
+          'level',
+          'name',
+          'pendingMissionTitle',
+          'pendingMissions',
+          'userId',
+          'weeklyReturnPct',
+        ].sort(),
+      )
+    })
+
+    it('pagina por cursor de userId, sem repetir nem pular ninguém', async () => {
+      const users = await Promise.all([create('p1'), create('p2'), create('p3')])
+      const audience = createDrizzleWeeklyDigestAudience(db, () => NOW)
+
+      const first = await audience.listPage(null, 2)
+      const second = await audience.listPage(first[first.length - 1].userId, 2)
+      const ids = [...first, ...second]
+        .map((c) => c.userId)
+        .filter((id) => users.some((u) => u.id === id))
+
+      expect(new Set(ids).size).toBe(ids.length)
+      expect(ids.sort()).toEqual(users.map((u) => u.id).sort())
     })
   })
 })

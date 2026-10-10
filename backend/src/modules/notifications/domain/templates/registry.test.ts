@@ -158,3 +158,34 @@ describe('e-mails de amizade (EM.6.2)', () => {
     ).not.toContain('—')
   })
 })
+
+describe('resumo semanal (EM.7.1)', () => {
+  const template = EMAIL_TEMPLATES.weekly_digest
+
+  it('é de engajamento (opt-in) e só carrega nível, percentual e missão', () => {
+    const text = bodyText('weekly_digest', template.sample)
+
+    expect(template.category).toBe('engagement')
+    expect(text).toContain('nível 12')
+    expect(text).toContain('+2,4%')
+    expect(text).toContain('Conclua uma lição e mais 1')
+    expect(text).not.toContain('R$')
+    expect(text).not.toContain('—')
+  })
+
+  it('rentabilidade negativa não vira número nem palavra de perda', () => {
+    const text = bodyText('weekly_digest', { ...template.sample, weeklyReturnPct: -3.1 })
+
+    expect(text).not.toContain('3,1')
+    expect(text).not.toMatch(/perd|prejuízo|queda/i)
+    expect(text).toContain('O mercado se mexeu')
+  })
+
+  it('sem ranking e sem missão pendente, só o essencial', () => {
+    const text = bodyText('weekly_digest', { name: 'Ana', level: 3, pendingMissions: 0 })
+
+    expect(text).toContain('nível 3')
+    expect(text).not.toContain('rentabilidade')
+    expect(text).not.toContain('missão')
+  })
+})

@@ -14,6 +14,7 @@ describe('loadEmailConfig', () => {
       replyTo: undefined,
       delayBetweenSendsMs: 500,
       outboxIntervalMs: 5_000,
+      engagementIntervalMs: 900_000,
     })
   })
 
@@ -45,6 +46,7 @@ describe('loadEmailConfig', () => {
       webhookSecret: 'whsec_1',
       delayBetweenSendsMs: 250,
       outboxIntervalMs: 2_000,
+      engagementIntervalMs: 900_000,
     })
   })
 
