@@ -1,6 +1,7 @@
 import { createApp } from './app'
 import { createDb } from './db/client'
 import { runMigrations } from './db/migrate'
+import { loadEmailConfig } from './modules/notifications/infrastructure/config/emailConfig'
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createRankingSnapshotComposition } from './modules/ranking/composition'
 import { startRankingSnapshotScheduler } from './modules/ranking/infrastructure/scheduler/rankingSnapshotScheduler'
@@ -17,6 +18,12 @@ const DEFAULT_PAYROLL_CHECK_INTERVAL_MS = 60 * 60 * 1000
 const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
 
 async function main() {
+  // Configuração de e-mail (EM.1.2): valida na subida, pra uma chave faltando derrubar o
+  // processo aqui e não na primeira requisição. O worker em si é ligado na EM.1.3, quando o
+  // renderer de templates existir.
+  const emailConfig = loadEmailConfig(process.env)
+  console.log(`e-mail: provedor "${emailConfig.provider}" configurado`)
+
   const databaseUrl = process.env.DATABASE_URL
   if (databaseUrl) {
     await runMigrations(databaseUrl)

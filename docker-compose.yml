@@ -65,6 +65,16 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/auth/google/callback}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # EM.1.2 (gateway de e-mail). `log` é o padrão de desenvolvimento: imprime o e-mail
+      # (com os links) no log em vez de enviar. Em produção, EMAIL_PROVIDER=resend com chave e
+      # remetente de um domínio verificado; nunca deixar `log` fora de desenvolvimento.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      EMAIL_SEND_RPS: ${EMAIL_SEND_RPS:-}
+      EMAIL_OUTBOX_INTERVAL_MS: ${EMAIL_OUTBOX_INTERVAL_MS:-}
       # Tarefa 6.10.8 (upload de foto de perfil) — volume nomeado abaixo,
       # não bind mount: sobrevive a `docker compose down` sem `-v`, mesmo
       # tratamento de `postgres_data`/`redis_data`.

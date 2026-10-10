@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "email:test": "tsx src/scripts/sendTestEmail.ts",
     "db:generate": "drizzle-kit generate",
     "db:seed:admin": "tsx src/db/seed.ts",
     "db:seed:lessons": "tsx src/db/seedLessons.ts",
@@ -32,6 +33,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.3.0",
     "pg": "^8.23.0",
+    "resend": "^6.32.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
