@@ -9,6 +9,7 @@ import { ListIdentitiesUseCase } from '../../application/useCases/listIdentities
 import { UpdateProfileUseCase } from '../../application/useCases/updateProfile'
 import { MAX_AVATAR_SIZE_BYTES, UploadAvatarUseCase } from '../../application/useCases/uploadAvatar'
 import { createFakeAchievementsExporter } from '../../test/fakes/fakeAchievementsExporter'
+import { createFakeAuthMailer } from '../../test/fakes/fakeAuthMailer'
 import { createFakeAvatarStorage } from '../../test/fakes/fakeAvatarStorage'
 import { createFakeFriendshipsExporter } from '../../test/fakes/fakeFriendshipsExporter'
 import { createFakeLessonProgressExporter } from '../../test/fakes/fakeLessonProgressExporter'
@@ -36,7 +37,11 @@ async function buildApp() {
   })
 
   const updateProfile = new UpdateProfileUseCase(userRepository)
-  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher)
+  const changePassword = new ChangePasswordUseCase(
+    userRepository,
+    passwordHasher,
+    createFakeAuthMailer(),
+  )
   const listIdentities = new ListIdentitiesUseCase(userRepository)
   const exportUserData = new ExportUserDataUseCase(
     userRepository,

@@ -174,7 +174,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `400` — payload inválido.
   - `401` — token ausente ou inválido/expirado (sessão, não a senha atual).
   - `403` — `currentPassword` ausente numa conta com senha local, ou `currentPassword` incorreta (as duas não trocam nada). **Nunca `401`** — decisão da tarefa 6.10 (frontend, tela 9.2): o client HTTP trata todo `401` de endpoint autenticado como sessão inválida e desloga o usuário (`services/client`) — um `401` aqui deslogaria só por errar a senha atual digitada.
-- **Regra:** `ChangePasswordUseCase`. Conta só-OAuth (`password_hash IS NULL`) pode setar a primeira senha sem informar `currentPassword` — passa a ter os dois métodos de login disponíveis dali em diante, sem tirar o OAuth.
+- **Regra:** `ChangePasswordUseCase`. Conta só-OAuth (`password_hash IS NULL`) pode setar a primeira senha sem informar `currentPassword` — passa a ter os dois métodos de login disponíveis dali em diante, sem tirar o OAuth. *(EM.4.1.)* Depois de gravar a senha, enfileira o aviso `password_changed` (E4) para o e-mail da conta, um por troca, sem token no corpo e com o texto sem afirmar que outras sessões foram encerradas (esta rota não as revoga). Falha ao enfileirar o aviso é só logada e não desfaz a troca.
 
 ---
 

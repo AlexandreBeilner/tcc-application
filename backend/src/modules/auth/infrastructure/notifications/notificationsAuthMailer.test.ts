@@ -81,12 +81,32 @@ describe('notificationsAuthMailer', () => {
       to: 'ana@exemplo.com',
       name: 'Ana',
       eventId: 't1',
+      sessionsEnded: true,
     })
 
     expect(enqueued[0]).toMatchObject({
       templateKey: 'password_changed',
       category: 'security',
       idempotencyKey: 'password-changed:t1',
+    })
+    expect(enqueued[0].payload).toEqual({ name: 'Ana', sessionsEnded: true })
+    expect(JSON.stringify(enqueued[0].payload)).not.toContain('token')
+  })
+
+  it('aviso de sessões encerradas é idempotente por evento e sem token', async () => {
+    const { enqueued, mailer } = setup()
+
+    await mailer.sendSessionsEnded({
+      userId: 'u1',
+      to: 'ana@exemplo.com',
+      name: 'Ana',
+      eventId: 'e1',
+    })
+
+    expect(enqueued[0]).toMatchObject({
+      templateKey: 'sessions_ended',
+      category: 'security',
+      idempotencyKey: 'sessions-ended:e1',
     })
     expect(JSON.stringify(enqueued[0].payload)).not.toContain('token')
   })

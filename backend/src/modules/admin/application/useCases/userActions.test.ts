@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AnonymizeAccountUseCase } from '../../../auth/application/useCases/anonymizeAccount'
+import { createFakeAuthMailer } from '../../../auth/test/fakes/fakeAuthMailer'
 import { createFakeAvatarStorage } from '../../../auth/test/fakes/fakeAvatarStorage'
 import { createFakeUserRepository } from '../../../auth/test/fakes/fakeUserRepository'
 import {
@@ -18,6 +19,8 @@ import { SuspendUserUseCase } from './suspendUser'
 async function build() {
   const userRepository = createFakeUserRepository()
   const auditLog = createFakeAuditLogRepository()
+  const mailer = createFakeAuthMailer()
+  let seq = 0
   const record = new RecordAdminActionUseCase(auditLog)
   const admin = await userRepository.createUser({
     name: 'Admin',
@@ -36,11 +39,17 @@ async function build() {
   return {
     userRepository,
     auditLog,
+    mailer,
     admin,
     user,
     suspend: new SuspendUserUseCase(userRepository, record, () => now),
     reactivate: new ReactivateUserUseCase(userRepository, record),
-    forceLogout: new ForceLogoutUserUseCase(userRepository, record),
+    forceLogout: new ForceLogoutUserUseCase(
+      userRepository,
+      record,
+      mailer,
+      () => `evento-${++seq}`,
+    ),
     remove: new DeleteUserAccountUseCase(
       userRepository,
       new AnonymizeAccountUseCase(userRepository, createFakeAvatarStorage()),
@@ -123,6 +132,38 @@ describe('ForceLogoutUserUseCase', () => {
       'user.force_logout',
       'user.force_logout',
     ])
+  })
+
+  it('avisa o usuário por e-mail, um aviso por ação (E4)', async () => {
+    const { forceLogout, mailer, user, admin } = await build()
+
+    await forceLogout.execute(admin.id, user.id)
+    await forceLogout.execute(admin.id, user.id)
+
+    expect(mailer.sessionsEnded).toEqual([
+      { userId: user.id, to: 'fulano@example.com', name: 'Fulano', eventId: 'evento-1' },
+      { userId: user.id, to: 'fulano@example.com', name: 'Fulano', eventId: 'evento-2' },
+    ])
+  })
+
+  it('falha ao enfileirar o aviso não desfaz o logout nem a auditoria', async () => {
+    const { forceLogout, mailer, userRepository, user, admin, auditLog } = await build()
+    mailer.sendSessionsEnded = async () => {
+      throw new Error('outbox fora do ar')
+    }
+
+    await forceLogout.execute(admin.id, user.id)
+
+    expect((await userRepository.findById(user.id))?.tokenVersion).toBe(1)
+    expect(auditLog.entries.map((e) => e.action)).toEqual(['user.force_logout'])
+  })
+
+  it('usuário inexistente não gera aviso', async () => {
+    const { forceLogout, mailer, admin } = await build()
+    await expect(forceLogout.execute(admin.id, 'nao-existe')).rejects.toBeInstanceOf(
+      AdminUserNotFoundError,
+    )
+    expect(mailer.sessionsEnded).toEqual([])
   })
 
   it('falha com usuário inexistente', async () => {

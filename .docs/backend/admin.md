@@ -108,7 +108,7 @@ Seis rotas. Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` 
 
 #### `POST /admin/users/:id/force-logout`
 
-- **Sucesso:** `204`. Incrementa `users.token_version` (atômico); o `authMiddleware` compara a versão do token com a do banco e devolve `401 sessão encerrada` pra qualquer token emitido antes. A pessoa pode logar de novo. Auditoria: `user.force_logout`.
+- **Sucesso:** `204`. Incrementa `users.token_version` (atômico); o `authMiddleware` compara a versão do token com a do banco e devolve `401 sessão encerrada` pra qualquer token emitido antes. A pessoa pode logar de novo. Auditoria: `user.force_logout`. *(EM.4.1.)* Também enfileira o aviso `sessions_ended` (E4) para o e-mail do usuário, um por ação, sem token, sem revelar quem agiu nem o motivo; falha ao enfileirar é só logada e não desfaz o logout nem a auditoria.
 - **Erros:** `401 reauth_required`; `404`.
 
 #### `DELETE /admin/users/:id`

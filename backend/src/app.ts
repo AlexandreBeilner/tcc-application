@@ -764,7 +764,7 @@ export function createApp(deps: AppDeps = {}): Express {
   )
 
   const updateProfile = new UpdateProfileUseCase(userRepository)
-  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher)
+  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher, authMailer)
   const listIdentities = new ListIdentitiesUseCase(userRepository)
   // Tarefa 6.10.8 — volume Docker persistente (docker-compose.yml), servido
   // de volta por `express.static('/avatars', ...)` logo abaixo.
@@ -1034,7 +1034,7 @@ export function createApp(deps: AppDeps = {}): Express {
       ),
       suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction),
       reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction),
-      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction),
+      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction, authMailer),
       deleteUserAccount: new DeleteUserAccountUseCase(
         userRepository,
         anonymizeAccount,

@@ -50,8 +50,19 @@ export function createNotificationsAuthMailer(options: NotificationsAuthMailerOp
         to: mail.to,
         templateKey: 'password_changed',
         category: 'security',
-        payload: { name: mail.name },
+        payload: { name: mail.name, sessionsEnded: mail.sessionsEnded },
         idempotencyKey: `password-changed:${mail.eventId}`,
+      })
+    },
+
+    async sendSessionsEnded(mail) {
+      await options.enqueueEmail.execute({
+        userId: mail.userId,
+        to: mail.to,
+        templateKey: 'sessions_ended',
+        category: 'security',
+        payload: { name: mail.name },
+        idempotencyKey: `sessions-ended:${mail.eventId}`,
       })
     },
   }

@@ -108,10 +108,13 @@ D1 Resend atrás de port · D2 conta por e-mail e senha só loga com e-mail veri
 
 ## Fase D, avisos de segurança
 
-### EM.4.1 · Avisos de senha alterada e sessões encerradas (E4)
+### EM.4.1 · Avisos de senha alterada e sessões encerradas (E4) ✅ (2026-10-10)
 - **Descrição:** troca de senha (`ChangePasswordUseCase`), reset concluído e "forçar logout" do admin (`forceLogoutUser`) enfileiram o aviso "não foi você? redefina a senha".
 - **Dependências:** EM.2.1.
 - **Aceite:** um e-mail por evento, idempotente, sem token no corpo.
+- **Entregável:** o reset já enfileirava `password_changed` (EM.2.1); a tarefa fechou os outros dois gatilhos. `ChangePasswordUseCase` recebe o `AuthMailer` e enfileira `password_changed` depois de gravar a senha; `ForceLogoutUserUseCase` (admin) enfileira o template novo `sessions_ended` depois de `revokeSessions`. Port `AuthMailer` ganhou `sendSessionsEnded` e `PasswordChangedMail.sessionsEnded`; adapter com chaves `password-changed:<eventId>` e `sessions-ended:<eventId>`. Idempotência: o reset usa o id do token; troca e logout forçado geram um id de evento por ação (`newEventId`, `randomUUID` por padrão, injetável nos testes), então o mesmo evento nunca duplica e duas ações distintas geram dois avisos. Falha ao enfileirar só é logada e não desfaz a troca nem o logout (nem a auditoria). Textos: `password_changed` só afirma que as outras sessões foram encerradas quando foram (reset sim, troca com a sessão aberta não, `sessionsEnded` no payload); `sessions_ended` não revela quem agiu nem o motivo e não leva link com token, só o botão para a tela de entrada. 12 testes novos/ajustados (casos de uso, adapter, templates, fakes); suíte (3163), lint e build passando. `.docs/backend/auth.md` e `admin.md` atualizados. Validado no `docker compose up` com `EMAIL_PROVIDER=log`: duas trocas de senha seguidas geraram dois e-mails `sent`, payload sem token e texto sem "sessões encerradas".
+  - **Ressalva:** o "forçar logout" foi validado só por testes de caso de uso e de router (exige admin com reautenticação, fora do fluxo de curl); vale um clique no painel.
+  - **Fora de escopo, de propósito:** suspensão/reativação têm aviso próprio na EM.5.1 (E5); `POST /me/password` continua sem revogar as outras sessões (comportamento anterior).
 
 ---
 

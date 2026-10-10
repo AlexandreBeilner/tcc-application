@@ -15,7 +15,17 @@ export interface PasswordChangedMail {
   userId: string
   to: string
   name: string
-  // Id do fato (token usado): um aviso por evento.
+  // Id do fato (token usado, ou id gerado a cada troca): um aviso por evento.
+  eventId: string
+  // Reset encerra as outras sessões; a troca de senha com a sessão aberta não. O texto muda.
+  sessionsEnded: boolean
+}
+
+export interface SessionsEndedMail {
+  userId: string
+  to: string
+  name: string
+  // Id do fato (um por "forçar logout"): um aviso por evento.
   eventId: string
 }
 
@@ -34,4 +44,5 @@ export interface AuthMailer {
   sendEmailVerification(mail: EmailVerificationMail): Promise<void>
   sendPasswordReset(mail: PasswordResetMail): Promise<void>
   sendPasswordChanged(mail: PasswordChangedMail): Promise<void>
+  sendSessionsEnded(mail: SessionsEndedMail): Promise<void>
 }

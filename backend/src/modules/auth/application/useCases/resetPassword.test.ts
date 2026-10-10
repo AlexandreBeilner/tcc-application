@@ -67,6 +67,7 @@ describe('ResetPasswordUseCase', () => {
         userId: user.id,
         to: 'ana@exemplo.com',
         eventId: tokens.rows[0].id,
+        sessionsEnded: true,
       }),
     ])
   })

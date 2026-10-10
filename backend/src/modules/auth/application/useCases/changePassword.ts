@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { InvalidCredentialsError, UserNotFoundError } from '../../domain/errors'
 import { hasLocalPassword } from '../../domain/user'
+import type { AuthMailer } from '../ports/authMailer'
 import type { PasswordHasher } from '../ports/passwordHasher'
 import type { UserRepository } from '../ports/userRepository'
 
@@ -14,6 +16,9 @@ export class ChangePasswordUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly passwordHasher: PasswordHasher,
+    private readonly mailer: AuthMailer,
+    // Cada troca é um evento novo: o id só serve de chave de idempotência do aviso.
+    private readonly newEventId: () => string = randomUUID,
   ) {}
 
   async execute(input: ChangePasswordInput): Promise<void> {
@@ -41,5 +46,20 @@ export class ChangePasswordUseCase {
 
     const passwordHash = await this.passwordHasher.hash(input.newPassword)
     await this.userRepository.updateUser(input.userId, { passwordHash })
+
+    // A senha já mudou: falha em enfileirar o aviso (E4) não pode desfazer nem derrubar a troca.
+    // As outras sessões seguem abertas (quem trocou continua logado), por isso o texto não diz
+    // que foram encerradas.
+    try {
+      await this.mailer.sendPasswordChanged({
+        userId: user.id,
+        to: user.email,
+        name: user.name,
+        eventId: this.newEventId(),
+        sessionsEnded: false,
+      })
+    } catch (err) {
+      console.error('[auth] falha ao enfileirar o aviso de senha alterada', err)
+    }
   }
 }

@@ -69,11 +69,14 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
     },
   },
   // Aviso de senha alterada (EM.2.1, E4). Sem link com token: só orienta a quem não reconhece.
+  // `sessionsEnded` é verdadeiro no reset (que derruba as outras sessões) e falso na troca feita
+  // por quem está logado.
   password_changed: {
     category: 'security',
-    sample: { name: 'Ana' },
+    sample: { name: 'Ana', sessionsEnded: true },
     build(payload, { appUrl }) {
       const name = optionalString(payload, 'name')
+      const sessionsEnded = payload.sessionsEnded === true
       return {
         subject: 'Sua senha foi alterada',
         preheader: 'Se não foi você, redefina a senha agora.',
@@ -81,11 +84,36 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
           { type: 'heading', text: 'Sua senha foi alterada' },
           {
             type: 'paragraph',
-            text: `${name ? `Olá, ${name}. ` : ''}A senha da sua conta acabou de ser alterada e as sessões abertas em outros aparelhos foram encerradas.`,
+            text: `${name ? `Olá, ${name}. ` : ''}A senha da sua conta acabou de ser alterada${sessionsEnded ? ' e as sessões abertas em outros aparelhos foram encerradas' : ''}.`,
           },
           {
             type: 'paragraph',
             text: 'Se foi você, não precisa fazer nada. Se não reconhece essa alteração, peça uma nova senha agora pela tela de entrada.',
+          },
+          { type: 'button', label: 'Ir para a tela de entrada', url: `${appUrl}/login` },
+        ],
+      }
+    },
+  },
+  // Aviso de "forçar logout" feito pelo administrador (EM.4.1, E4). Não revela quem nem por quê
+  // (o motivo é interno): só diz que as sessões acabaram e como proteger a conta.
+  sessions_ended: {
+    category: 'security',
+    sample: { name: 'Ana' },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      return {
+        subject: 'Suas sessões foram encerradas',
+        preheader: 'Entre de novo para continuar. Se não reconhece, troque a senha.',
+        blocks: [
+          { type: 'heading', text: 'Suas sessões foram encerradas' },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}A equipe da plataforma encerrou as sessões abertas da sua conta. Você precisa entrar de novo para continuar.`,
+          },
+          {
+            type: 'paragraph',
+            text: 'Seus dados e seu progresso continuam como estavam. Se você não reconhece essa situação, peça uma nova senha pela tela de entrada.',
           },
           { type: 'button', label: 'Ir para a tela de entrada', url: `${appUrl}/login` },
         ],

@@ -56,6 +56,7 @@ export class ResetPasswordUseCase {
         to: user.email,
         name: user.name,
         eventId: record.id,
+        sessionsEnded: true,
       })
     } catch (err) {
       console.error('[auth] falha ao enfileirar o aviso de senha alterada', err)
