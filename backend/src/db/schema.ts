@@ -561,3 +561,45 @@ export const rankingValuationSamples = pgTable(
     index('ranking_valuation_samples_user_idx').on(table.userId),
   ],
 )
+
+// Fila de e-mails a enviar (EM.1.1, `.claude/plano-gateway-email.md` 4.3). Quem precisa de um
+// e-mail só grava uma linha aqui (na mesma transação da escrita de negócio, quando houver); um
+// worker entrega depois, com retry e backoff. `idempotency_key` única impede enviar duas vezes o
+// mesmo fato. `claimed_at` marca quando o worker pegou a linha: uma `sending` velha é de um
+// processo que caiu e volta pra `pending`. `payload` guarda só o que o template precisa e é
+// limpo junto do endereço depois da retenção (EM.8.1). Texto + CHECK em vez de enum, como
+// `users.status`: um estado novo não exige migration de tipo.
+export const emailOutbox = pgTable(
+  'email_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id),
+    toAddress: varchar('to_address', { length: 320 }).notNull(),
+    templateKey: varchar('template_key', { length: 60 }).notNull(),
+    category: text('category').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    idempotencyKey: varchar('idempotency_key', { length: 200 }).notNull().unique(),
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    providerMessageId: varchar('provider_message_id', { length: 200 }),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'email_outbox_status_chk',
+      sql`${table.status} IN ('pending', 'sending', 'sent', 'failed', 'suppressed')`,
+    ),
+    check(
+      'email_outbox_category_chk',
+      sql`${table.category} IN ('security', 'transactional', 'social', 'engagement')`,
+    ),
+    index('email_outbox_pending_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'pending'`),
+    index('email_outbox_user_idx').on(table.userId),
+  ],
+)

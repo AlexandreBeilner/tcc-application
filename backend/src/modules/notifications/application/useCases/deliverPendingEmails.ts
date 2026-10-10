@@ -1,0 +1,110 @@
+import { EmailSendError } from '../../domain/errors'
+import type { OutboxEmail } from '../../domain/emailMessage'
+import { MAX_DELIVERY_ATTEMPTS, nextRetryDelayMs } from '../../domain/retryPolicy'
+import type { EmailOutboxRepository } from '../ports/emailOutboxRepository'
+import type { EmailRenderer } from '../ports/emailRenderer'
+import type { EmailSender } from '../ports/emailSender'
+
+export interface DeliverPendingEmailsOptions {
+  batchSize: number
+  // Linha `sending` mais velha que isso é considerada de um processo que caiu.
+  stuckAfterMs: number
+  // Espaço mínimo entre envios, pra respeitar o limite de requisições por segundo do provedor
+  // (EM.1.2 liga isso a `EMAIL_SEND_RPS`).
+  delayBetweenSendsMs: number
+}
+
+export interface DeliverPendingEmailsResult {
+  claimed: number
+  sent: number
+  retried: number
+  failed: number
+  recovered: number
+}
+
+export const DEFAULT_DELIVER_OPTIONS: DeliverPendingEmailsOptions = {
+  batchSize: 20,
+  stuckAfterMs: 10 * 60_000,
+  delayBetweenSendsMs: 0,
+}
+
+// Worker do outbox. Um ciclo: devolve linhas presas, reivindica um lote, renderiza e envia cada
+// uma. Erro permanente (ou tentativas esgotadas) => `failed`; erro transitório => reagenda com
+// backoff. Nenhuma exceção de uma linha impede as seguintes.
+export class DeliverPendingEmailsUseCase {
+  constructor(
+    private readonly outbox: EmailOutboxRepository,
+    private readonly renderer: EmailRenderer,
+    private readonly sender: EmailSender,
+    private readonly options: DeliverPendingEmailsOptions = DEFAULT_DELIVER_OPTIONS,
+    private readonly now: () => Date = () => new Date(),
+    private readonly sleep: (ms: number) => Promise<void> = (ms) =>
+      new Promise((resolve) => setTimeout(resolve, ms)),
+  ) {}
+
+  async execute(): Promise<DeliverPendingEmailsResult> {
+    const startedAt = this.now()
+    const recovered = await this.outbox.recoverStuck(
+      new Date(startedAt.getTime() - this.options.stuckAfterMs),
+      MAX_DELIVERY_ATTEMPTS,
+    )
+    const batch = await this.outbox.claimBatch(this.options.batchSize, startedAt)
+
+    const result: DeliverPendingEmailsResult = {
+      claimed: batch.length,
+      sent: 0,
+      retried: 0,
+      failed: 0,
+      recovered,
+    }
+    for (const [index, email] of batch.entries()) {
+      if (index > 0 && this.options.delayBetweenSendsMs > 0) {
+        await this.sleep(this.options.delayBetweenSendsMs)
+      }
+      const outcome = await this.deliverOne(email)
+      result[outcome] += 1
+    }
+    return result
+  }
+
+  private async deliverOne(email: OutboxEmail): Promise<'sent' | 'retried' | 'failed'> {
+    let rendered
+    try {
+      rendered = this.renderer.render(email.templateKey, email.payload)
+    } catch (err) {
+      // Template inexistente ou payload quebrado não melhora com o tempo.
+      await this.outbox.markFailed(email.id, `render: ${describe(err)}`)
+      return 'failed'
+    }
+
+    try {
+      const { providerMessageId } = await this.sender.send({
+        to: email.toAddress,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        headers: rendered.headers,
+        idempotencyKey: email.id,
+      })
+      await this.outbox.markSent(email.id, providerMessageId, this.now())
+      return 'sent'
+    } catch (err) {
+      const permanent = err instanceof EmailSendError && err.permanent
+      const delayMs = permanent ? null : nextRetryDelayMs(email.attempts)
+      if (delayMs === null) {
+        await this.outbox.markFailed(email.id, describe(err))
+        return 'failed'
+      }
+      await this.outbox.markForRetry(
+        email.id,
+        describe(err),
+        new Date(this.now().getTime() + delayMs),
+      )
+      return 'retried'
+    }
+  }
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
