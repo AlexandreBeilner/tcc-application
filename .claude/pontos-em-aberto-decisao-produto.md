@@ -1053,6 +1053,7 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Origem:** o ensaio de calibração de 12 meses simulados (`tmp/relatorio-calibracao-assembleia.md`) mostrou que das 34 opções ativas, 33 têm efeito de sentido positivo (crescimento ou qualidade sobem) e 1 negativo. Toda decisão aprovada melhora a empresa; o mercado inteiro deriva para cima (crescimento médio +0,23 p.p., qualidade +2% em 12 meses). O texto "o que ganha, o que perde" não tem contrapartida na mecânica.
 - **Opções:** (a) reescrever as pautas com troca real (um lado sobe uma métrica e baixa a outra) e acrescentar pautas, chegando a 25 ou mais; (b) manter e aceitar a deriva positiva (limitada pelo teto de 2 decisões por empresa por ano); (c) decaimento lento do fundamento de volta ao valor de cadastro.
 - **Status:** decidido em 2026-10-11 (opção (a), com extensão): pautas com troca real, 28 ou mais, em vozes variadas, **e** assembleia que decide também o payout, a política de dividendo e o prêmio da PN, com efeito composto de até 2 efeitos por opção e declaração de dividendo adiada durante a votação. Virou a Fase F2 do `backlog-monetizacao.md` (MO.6.10 a MO.6.15); o ponto fecha na MO.6.15, depois da nova calibração.
+- **Fechado em 2026-10-11 (MO.6.15):** as 28 pautas novas (migração `0051`) têm troca real e, ao acaso, o catálogo não deriva (crescimento 48 sobem e 52 descem); a recalibração de 12 meses (`tmp/relatorio-recalibracao-assembleia.md`) foi aprovada pelo autor. Só um eleitorado que vota sempre no mesmo lado empurra o mercado, o que é esperado e fica dentro do ruído do ranking.
 
 ### 054 · Recompra e emissão de ações como pauta da Assembleia (melhoria futura), registrado em 2026-10-11
 
@@ -1060,3 +1061,10 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Origem:** ao ampliar as alavancas da assembleia (Fase F2), o autor deixou recompra e emissão de ações **de fora desta rodada**. Mexer em ações em circulação muda float, liquidez dos bots, lucro por ação, ETFs que contêm o ativo e posições de usuários.
 - **Para quando voltar:** definir se a recompra cancela ações (reduz o float) ou vira ação em tesouraria, quem vende (a conta de uma contraparte técnica, nunca usuário), como fica o snapshot de acionistas e o dividendo por ação, e recalibrar. Hoje a pauta "Captar emitindo ações novas" do rascunho usa só o efeito em qualidade e deve ser reescrita sem prometer emissão.
 - **Status:** adiado por decisão do autor (melhoria futura), sem tarefa aberta.
+
+### 055 · Pauta do prêmio da PN sorteada para empresa que só tem ações ordinárias (MO.6.15), achado em 2026-10-11
+
+- **Local:** `agenda_templates` (pauta `lucro_premio_pn`, migração `0051`) e `pickTemplate` em `backend/src/modules/assemblies/domain/lifecycle.ts`.
+- **Origem:** o sorteio da pauta filtra só por setor. Numa empresa sem ação PN o efeito do prêmio é ignorado pelo motor (`skipped_not_applicable`) e a pauta fica só com o outro efeito (crescimento). No ensaio da recalibração quase todos os efeitos de prêmio caíram assim, porque o mundo sintético quase não tem PN.
+- **Opções:** (a) filtrar a pauta por empresas que têm PN (regra nova no sorteio e nas propostas); (b) manter, aceitando que a pauta vale só pelo crescimento nessas empresas; (c) reescrever a pauta para não depender de a empresa ter PN.
+- **Status:** aberto. Minha recomendação (e do relatório) é manter (b) por ora e revisar com dados reais; o autor aprovou o relatório sem pedir a regra nova.
