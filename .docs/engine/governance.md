@@ -59,3 +59,7 @@ Quatro chaves novas, editáveis em runtime pelo mesmo mecanismo do ritmo do Temp
 ## Tabelas (migration `000051`)
 
 `governance_snapshot_runs` (uma por assembleia, mesmo vazia) e `governance_snapshot_holdings` (uma por usuário com posição); `governance_decisions` (uma por assembleia, `assembly_id` único, com o andamento da rampa); `market_events.reference_id` (uuid, id da assembleia) e o valor `assembly_decision` do enum `market_event_type`. A **conta técnica de governança** (`00000000-0000-4000-8000-00000000a550`, `is_bot`, inativa, sem linha em `users`) é criada na primeira decisão, não na migração, e não conta como bot de liquidez no painel nem entra em ranking ou social.
+
+## Valores de lançamento aprovados (MO.6.9, 2026-10-11)
+
+O autor aprovou como **padrão de lançamento** (não calibração final): degrau de crescimento 50 (0,50 p.p.), degrau de qualidade 5 (0,05), rampa de 30 ticks e cooldown de 90 dias simulados. Base: ensaio de 12 meses simulados com 84 empresas e 200 usuários (`tmp/relatorio-calibracao-assembleia.md`). Os valores já são os padrões do código (`DefaultGovernance*` em `enginesetting`) e agora há um teste com os números literais. Revisar com dado de eleitorado real.

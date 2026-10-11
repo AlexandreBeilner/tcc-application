@@ -80,3 +80,11 @@ describe('parâmetros editáveis das assembleias', () => {
     expect(isAssemblySettingKey('governance_ramp_ticks')).toBe(false)
   })
 })
+
+// Quórum de lançamento aprovado pelo autor em 2026-10-11 (MO.6.9). Literal de propósito: mudar o
+// padrão exige mudar este teste junto. Vem de um eleitorado simulado; revisar com base real.
+describe('padrões de lançamento da Assembleia (MO.6.9)', () => {
+  it('mantém o mínimo de 3 votantes aprovado', () => {
+    expect(DEFAULT_ASSEMBLY_PARAMS.minVoters).toBe(3)
+  })
+})

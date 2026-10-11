@@ -151,3 +151,24 @@ func TestService_GovernancaPadraoEOverride(t *testing.T) {
 		t.Fatalf("rampa = %d, esperado o padrão", got.GovernanceRampTicks)
 	}
 }
+
+// Valores de lançamento da Assembleia de Acionistas aprovados pelo autor em 2026-10-11 (MO.6.9).
+// Os literais ficam aqui de propósito: mudar um padrão exige mudar este teste junto, de forma
+// consciente, e não só a constante.
+func TestGovernanceDefaults_ValoresDeLancamentoAprovados(t *testing.T) {
+	cases := []struct {
+		name string
+		got  int
+		want int
+	}{
+		{"degrau de crescimento (0,50 p.p., em centésimos)", DefaultGovernanceGrowthStepCentiPP, 50},
+		{"degrau de qualidade (0,05, em centésimos)", DefaultGovernanceQualityStepCenti, 5},
+		{"rampa em ticks", DefaultGovernanceRampTicks, 30},
+		{"cooldown em dias simulados", DefaultGovernanceCooldownDays, 90},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s = %d, aprovado %d", c.name, c.got, c.want)
+		}
+	}
+}

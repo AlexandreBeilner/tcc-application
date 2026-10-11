@@ -155,3 +155,7 @@ Rotas em `.docs/backend/admin.md#assembleias-tarefa-mo68` (admin, auditadas). O 
 - **`assemblies.min_voters`**: coluna nova (nula em assembleias antigas).
 
 O catálogo editável (`agenda_templates`) ganha `AgendaCatalogAdmin` (todas as pautas, com o uso) e validação em `domain/agendaTemplates.ts`; o ciclo continua lendo só as ativas (`AgendaCatalog.listActive`).
+
+## Valores de lançamento aprovados (MO.6.9, 2026-10-11)
+
+Mínimo de **3 votantes** (`ASSEMBLY_MIN_VOTERS`, `assembly_settings.min_voters`) aprovado como padrão de lançamento. O número vem de um eleitorado simulado (com ~12 acionistas por empresa, 72% das assembleias atingem 3; com 5 seriam 29%). **Revisar** para cerca de 40% da mediana de votantes quando houver base real. Os parâmetros do motor estão em `.docs/engine/governance.md`.
