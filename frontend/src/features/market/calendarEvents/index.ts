@@ -26,6 +26,9 @@ const KIND_LABEL: Record<CalendarEventKind, string> = {
     fixed_income_redemption: 'Renda fixa',
     fixed_income_maturity: 'Renda fixa',
     salary_payment: 'Salário',
+    assembly_open: 'Assembleia',
+    assembly_close: 'Assembleia',
+    assembly_effect: 'Assembleia',
 }
 
 const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
@@ -99,6 +102,13 @@ function describeKind(event: CalendarEvent): Omit<CalendarEventView, 'amount' | 
             return { title: `Resgate de ${ticker}`, subtitle: 'Renda fixa', label, mine }
         case 'fixed_income_maturity':
             return { title: `Vencimento de ${ticker}`, subtitle: 'Seu título vence e é resgatado', label, mine }
+        // O título já vem pronto do servidor ("Empresa: pauta"); sem valor em reais.
+        case 'assembly_open':
+            return { title: event.title ?? 'Assembleia de acionistas', subtitle: 'Abre a votação', label, mine }
+        case 'assembly_close':
+            return { title: event.title ?? 'Assembleia de acionistas', subtitle: 'Fecha a votação', label, mine }
+        case 'assembly_effect':
+            return { title: event.title ?? 'Assembleia de acionistas', subtitle: 'O efeito da decisão começa', label, mine }
         case 'salary_payment': {
             if (event.future) return { title: 'Dia de pagamento', subtitle: 'Salário do mês', label, mine }
             // reference_month (achado 025) pode divergir do dia deste evento num

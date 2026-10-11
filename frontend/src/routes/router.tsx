@@ -14,6 +14,8 @@ import { LigaDetalhe } from '../pages/LigaDetalhe'
 import { Ligas } from '../pages/Ligas'
 import { Retrospectiva } from '../pages/Retrospectiva'
 import { DuelDetalhe } from '../pages/DuelDetalhe'
+import { AssembleiaDetalhe } from '../pages/AssembleiaDetalhe'
+import { Assembleias } from '../pages/Assembleias'
 import { Duelos } from '../pages/Duelos'
 import { CompanyProfile } from '../pages/CompanyProfile'
 import { Configuracoes } from '../pages/Configuracoes'
@@ -173,6 +175,9 @@ export const router = createBrowserRouter([
                     { path: '/ligas/:id', element: <LigaDetalhe /> },
                     // Duelos entre amigos (MO.5.3): aceitar é de graça, desafiar é PRO.
                     { path: '/duelos', element: <Duelos /> },
+                    // Assembleia de Acionistas (MO.6.6): leitura pública, voto nas regras do servidor.
+                    { path: '/assembleias', element: <Assembleias /> },
+                    { path: '/assembleias/:id', element: <AssembleiaDetalhe /> },
                     // Retrospectiva mensal (MO.5.4): versão simples para todos, completa no PRO.
                     { path: '/retrospectiva', element: <Retrospectiva /> },
                     { path: '/duelos/:id', element: <DuelDetalhe /> },

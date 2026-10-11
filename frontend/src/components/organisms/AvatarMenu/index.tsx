@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { useAssembliesAvailable } from '../../../features/assemblies/useAssemblies'
 import { useProgressionQuery } from '../../../features/portfolio/useProgressionQuery'
 import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
 import { resolveMediaUrl } from '../../../services/client'
@@ -16,6 +17,8 @@ export function AvatarMenu() {
     const { user, logout } = useAuth()
     const progressionQuery = useProgressionQuery()
     const navigate = useNavigate()
+    // Só aparece com o recurso ligado no servidor.
+    const assembliesAvailable = useAssembliesAvailable()
     const [open, setOpen] = useState(false)
     const rootRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +82,11 @@ export function AvatarMenu() {
                     <Link to="/conquistas" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
                         Conquistas
                     </Link>
+                    {assembliesAvailable && (
+                        <Link to="/assembleias" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
+                            Assembleias
+                        </Link>
+                    )}
                     <Link to="/configuracoes" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
                         Configurações e Privacidade
                     </Link>

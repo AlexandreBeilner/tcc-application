@@ -1077,7 +1077,7 @@ export const funnelEvents = pgTable(
     ),
     check(
       'funnel_events_source_chk',
-      sql`${table.source} IS NULL OR ${table.source} IN ('league', 'duel', 'cosmetics', 'retrospective', 'direct')`,
+      sql`${table.source} IS NULL OR ${table.source} IN ('league', 'duel', 'cosmetics', 'retrospective', 'assembly', 'direct')`,
     ),
     check(
       'funnel_events_plan_chk',

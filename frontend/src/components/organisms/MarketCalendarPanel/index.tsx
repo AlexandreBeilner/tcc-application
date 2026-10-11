@@ -37,6 +37,7 @@ const LEGEND: { kind: CalendarEventKind; label: string }[] = [
     { kind: 'order_executed', label: 'Suas ordens' },
     { kind: 'fixed_income_purchase', label: 'Renda fixa' },
     { kind: 'salary_payment', label: 'Salário' },
+    { kind: 'assembly_open', label: 'Assembleia' },
 ]
 
 function daysLabel(days: number): string {

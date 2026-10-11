@@ -5,6 +5,7 @@ export const SOURCE_LABELS: Record<FunnelSource, string> = {
     duel: 'Duelos',
     cosmetics: 'Identidade (selo, moldura, título)',
     retrospective: 'Retrospectiva',
+    assembly: 'Assembleias e propostas',
     direct: 'Direto em /planos',
 }
 

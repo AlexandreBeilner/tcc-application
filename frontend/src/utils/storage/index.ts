@@ -9,6 +9,8 @@ export const STORAGE_KEYS = {
     theme: { current: 'app.theme', legacy: 'tcc.theme' },
     authToken: { current: 'app.auth.token', legacy: 'tcc.auth.token' },
     lastSeenNewsId: { current: 'app.news.lastSeenId', legacy: 'tcc.news.lastSeenId' },
+    // Assembleias abertas já vistas em Notícias (MO.6.6): JSON de ids, só para acender o sino.
+    assembliesSeen: { current: 'app.assemblies.seen', legacy: 'tcc.assemblies.seen' },
     // Convites ao PRO dispensados (MO.5.5): JSON { [contexto]: timestamp }. A chave `tcc.` nunca existiu
     // (o tipo exige o par); a leitura dela é inofensiva.
     proInviteDismissed: { current: 'app.proInvite.dismissed', legacy: 'tcc.proInvite.dismissed' },

@@ -58,12 +58,12 @@ Para testar o app sem contas de loja nem RevenueCat. Fora do modo `dev` estas ro
 
 ## Funil e painel de conversão (MO.1.3 / MO.7.1)
 
-Medição própria no Postgres (`funnel_events`), sem ferramenta de terceiro: nenhum dado de usuário sai da plataforma. Um evento guarda só quem, qual passo, de que ponto de convite e (na compra) qual plano; **nunca valor em reais nem patrimônio** (RNF09). Passos: `invite_viewed`, `plans_opened`, `purchase_started` (reportados pelo app) e `subscribed`, `cancelled` (gravados só pelo servidor, a partir dos mesmos fatos que geram o e-mail de boas-vindas e o de encerramento; assinatura de teste das lojas e concessão promocional não geram evento). Pontos de convite (`source`): `league`, `duel`, `cosmetics`, `retrospective` (os quatro convites) e `direct` (abriu `/planos` sem passar por um convite). A gravação é idempotente por `dedupe_key`.
+Medição própria no Postgres (`funnel_events`), sem ferramenta de terceiro: nenhum dado de usuário sai da plataforma. Um evento guarda só quem, qual passo, de que ponto de convite e (na compra) qual plano; **nunca valor em reais nem patrimônio** (RNF09). Passos: `invite_viewed`, `plans_opened`, `purchase_started` (reportados pelo app) e `subscribed`, `cancelled` (gravados só pelo servidor, a partir dos mesmos fatos que geram o e-mail de boas-vindas e o de encerramento; assinatura de teste das lojas e concessão promocional não geram evento). Pontos de convite (`source`): `league`, `duel`, `cosmetics`, `retrospective` e `assembly` (os cinco convites) e `direct` (abriu `/planos` sem passar por um convite). A gravação é idempotente por `dedupe_key`.
 
 ### `POST /billing/funnel`
 
 - **Autenticação:** Bearer token
-- **Payload:** `{ event: 'invite_viewed' | 'plans_opened' | 'purchase_started', source?: 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'direct', plan?: 'monthly' | 'annual' }`
+- **Payload:** `{ event: 'invite_viewed' | 'plans_opened' | 'purchase_started', source?: 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'assembly' | 'direct', plan?: 'monthly' | 'annual' }`
 - **Sucesso:** `204`
 - **Erros:** `400` corpo fora do contrato (inclusive `subscribed`/`cancelled`, que o cliente não pode reportar); `401` token ausente ou inválido
 - **Regra:** no máximo um evento por pessoa, evento, origem e dia (UTC); repetir o mesmo no dia não grava de novo e responde `204` igual. Não depende de a pessoa ser PRO nem de a cobrança estar ligada.

@@ -13,7 +13,14 @@ export type FunnelEventName = ClientFunnelEvent | 'subscribed' | 'cancelled'
 
 // Ponto do app de onde a pessoa chegou ao PRO: os quatro convites (cada um é uma âncora do plano) e
 // `direct` (abriu /planos sem passar por um convite, ex.: pelo menu de configurações).
-export const FUNNEL_SOURCES = ['league', 'duel', 'cosmetics', 'retrospective', 'direct'] as const
+export const FUNNEL_SOURCES = [
+  'league',
+  'duel',
+  'cosmetics',
+  'retrospective',
+  'assembly',
+  'direct',
+] as const
 export type FunnelSource = (typeof FUNNEL_SOURCES)[number]
 
 export interface FunnelEvent {

@@ -250,6 +250,7 @@ describe.skipIf(!databaseUrl)('repositórios de cobrança (banco real)', () => {
         'duel',
         'cosmetics',
         'retrospective',
+        'assembly',
         'direct',
       ])
     })
@@ -264,7 +265,7 @@ describe.skipIf(!databaseUrl)('repositórios de cobrança (banco real)', () => {
         subscribed: 0,
         cancelled: 0,
       })
-      expect(summary.bySource).toHaveLength(5)
+      expect(summary.bySource).toHaveLength(6)
     })
   })
 })

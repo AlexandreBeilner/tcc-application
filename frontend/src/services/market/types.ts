@@ -361,6 +361,10 @@ export type CalendarEventKind =
     | 'fixed_income_redemption'
     | 'fixed_income_maturity'
     | 'salary_payment'
+    // Marcos das assembleias de acionistas (MO.6.3): fatos globais, só com o recurso ligado.
+    | 'assembly_open'
+    | 'assembly_close'
+    | 'assembly_effect'
 
 export interface CalendarEvent {
     kind: CalendarEventKind

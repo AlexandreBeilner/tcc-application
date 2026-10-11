@@ -316,6 +316,13 @@
       "when": 1793600000000,
       "tag": "0044_add_agenda_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0045_add_assembly_funnel_source",
+      "breakpoints": true
     }
   ]
 }
