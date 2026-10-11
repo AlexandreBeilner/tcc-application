@@ -15,6 +15,7 @@
     font-family: inherit;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
+    font-weight: 600;
 }
 
 /* Cabeçalho tipo cotação (mockup O.0) — ticker/nome à esquerda, percentual

@@ -135,7 +135,8 @@
     font-family: inherit;
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
-    text-decoration: underline;
+    font-weight: 600;
+    text-decoration: none;
     cursor: pointer;
 }
 

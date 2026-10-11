@@ -108,4 +108,5 @@
 
 .origin a {
     color: var(--color-brand-500);
+    font-weight: 600;
 }

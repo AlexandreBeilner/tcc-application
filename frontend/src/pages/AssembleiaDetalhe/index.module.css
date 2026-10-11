@@ -10,6 +10,7 @@
 .back {
     color: var(--color-brand-300);
     font-size: var(--font-size-sm);
+    font-weight: 600;
 }
 
 .header {
@@ -25,6 +26,7 @@
 
 .company a {
     color: var(--color-text-secondary);
+    font-weight: 600;
 }
 
 .title {

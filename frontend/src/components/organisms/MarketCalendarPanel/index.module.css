@@ -319,7 +319,8 @@
     background: none;
     color: var(--color-brand-300);
     font: inherit;
-    text-decoration: underline;
+    font-weight: 600;
+    text-decoration: none;
     cursor: pointer;
 }
 

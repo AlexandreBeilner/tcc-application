@@ -38,6 +38,7 @@
 
 .link {
     color: var(--color-brand-500);
+    font-weight: 600;
 }
 
 .dismiss {

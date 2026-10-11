@@ -211,3 +211,8 @@
 .terms a {
     color: var(--color-brand-300);
 }
+
+/* Tela de entrada mantém o padrão de links sublinhados (menos o botão do Google, que é botão). */
+.page a:not(.google) {
+    text-decoration: underline;
+}

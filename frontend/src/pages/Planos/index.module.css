@@ -20,6 +20,7 @@
     align-self: flex-start;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
+    font-weight: 600;
 }
 
 .title {
@@ -32,6 +33,11 @@
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
+}
+
+/* Link dentro da frase do aviso legal: texto corrido, sublinhado. */
+.note a {
+    text-decoration: underline;
 }
 
 /* Mobile/tablet: coluna única, planos logo depois dos benefícios. Desktop: benefícios à esquerda
@@ -152,6 +158,7 @@
 .link {
     color: var(--color-brand-500);
     font-size: var(--font-size-sm);
+    font-weight: 600;
 }
 
 .notice {

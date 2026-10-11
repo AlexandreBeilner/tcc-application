@@ -175,6 +175,13 @@
     box-sizing: border-box;
 }
 
+/* Link de navegação e de ação não leva sublinhado (convenção de app, principalmente no celular):
+   a cor e o peso sinalizam o toque. Quem precisa do sublinhado (texto corrido de documento legal,
+   rodapé de aviso, tela de entrada) o pede no próprio módulo. */
+a {
+    text-decoration: none;
+}
+
 body {
     margin: 0;
     min-height: 100vh;

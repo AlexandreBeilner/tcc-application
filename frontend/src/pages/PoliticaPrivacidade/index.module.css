@@ -28,9 +28,12 @@
     gap: var(--space-2);
 }
 
-.doc a {
+.doc a:not(.back) {
     color: var(--color-brand-300);
+    text-decoration: underline;
 }
+
+/* Voltar não é texto corrido: fica sem sublinhado, como os demais links de navegação. */
 
 .doc strong {
     color: var(--color-text-primary);
