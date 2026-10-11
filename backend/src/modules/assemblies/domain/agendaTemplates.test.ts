@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  COMPANY_SECTORS,
   validateTemplateInput,
   validateTemplateKey,
   type AgendaTemplateInput,
@@ -40,6 +41,18 @@ describe('validação das pautas do painel', () => {
   it('setor vazio vira pauta geral', () => {
     expect(validateTemplateInput({ ...valid, sector: '  ' }).sector).toBeNull()
     expect(validateTemplateInput({ ...valid, sector: null }).sector).toBeNull()
+  })
+
+  it('setor fora da lista do motor é recusado (erro de digitação nunca vira pauta órfã)', () => {
+    expect(() => validateTemplateInput({ ...valid, sector: 'varejo' })).toThrow(
+      InvalidAgendaTemplateError,
+    )
+    expect(() => validateTemplateInput({ ...valid, sector: 'Saúde' })).toThrow(
+      /Bancário\/Financeiro/,
+    )
+    for (const sector of COMPANY_SECTORS) {
+      expect(validateTemplateInput({ ...valid, sector }).sector).toBe(sector)
+    }
   })
 
   it('o efeito guarda só métrica, sentido e intensidade', () => {

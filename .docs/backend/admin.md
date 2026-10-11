@@ -437,7 +437,7 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum) e **fun
 
 #### `POST /admin/assemblies/agenda-templates`
 
-- **Payload (JSON):** `key`, `sector` (texto ou `null` para qualquer setor), `title`, `description`, `options` (de 2 a 4), cada uma com `key`, `label`, `gain`, `loss` e `effect` `{ metric, direction, intensity }`; formato validado por `createAgendaTemplateBodySchema`.
+- **Payload (JSON):** `key`, `sector` (um dos 6 setores do motor: Mineração, Agronegócio, Bancário/Financeiro, Varejo, Energia, Tecnologia; vazio ou `null` vale para qualquer setor; outro texto é recusado com `400`, ponto 051), `title`, `description`, `options` (de 2 a 4), cada uma com `key`, `label`, `gain`, `loss` e `effect` `{ metric, direction, intensity }`; formato validado por `createAgendaTemplateBodySchema`.
 - **Regra (módulo `assemblies`, `validateTemplateInput`):** chave da pauta de 3 a 60 caracteres (minúsculas, números e `_`, começando por letra) e **definitiva**; chave de opção de 2 a 40, única na pauta; título 3-120, descrição 10-500, setor 2-40, rótulo 3-100, ganho e perda 3-200; **sem travessão** em nenhum texto (aparece no app); efeito só em `base_growth_pct` ou `quality_multiplier`, `direction` 1 ou -1, `intensity` em (0, 1] (fração da faixa do motor; o motor valida de novo ao aplicar). O `effect` guardado tem só esses três campos.
 - **Sucesso:** `201` → a pauta criada, ativa.
 - **Erros:** `400` — formato; `409` — já existe pauta com a chave; `422` — regra acima.

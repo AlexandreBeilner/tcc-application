@@ -29,7 +29,6 @@ const OPTION_KEY_PATTERN = /^[a-z][a-z0-9_]{1,39}$/
 const DASHES = /[–—]/
 
 export const TEMPLATE_LIMITS = {
-  sector: { min: 2, max: 40 },
   title: { min: 3, max: 120 },
   description: { min: 10, max: 500 },
   optionLabel: { min: 3, max: 100 },
@@ -61,12 +60,32 @@ export function validateTemplateKey(key: string): string {
   return key
 }
 
+// Setores do motor (enum `company_sector`, spec 3.3.2): lista fechada, para um erro de digitação
+// nunca criar uma pauta que não é sorteada (ponto 051, decisão 2026-10-11). Vazio ou nulo vale
+// para qualquer setor.
+export const COMPANY_SECTORS = [
+  'Mineração',
+  'Agronegócio',
+  'Bancário/Financeiro',
+  'Varejo',
+  'Energia',
+  'Tecnologia',
+] as const
+
+function validateSector(raw: string | null): string | null {
+  if (raw === null || raw.trim() === '') return null
+  const sector = raw.trim()
+  if (!(COMPANY_SECTORS as readonly string[]).includes(sector)) {
+    throw new InvalidAgendaTemplateError(
+      `o setor precisa ser um de: ${COMPANY_SECTORS.join(', ')} (ou ficar vazio para valer em qualquer setor)`,
+    )
+  }
+  return sector
+}
+
 // Normaliza (aparar espaços) e valida o conteúdo de uma pauta. Devolve o conteúdo limpo.
 export function validateTemplateInput(input: AgendaTemplateInput): AgendaTemplateInput {
-  const sector =
-    input.sector === null || input.sector.trim() === ''
-      ? null
-      : text(input.sector, 'o setor', TEMPLATE_LIMITS.sector)
+  const sector = validateSector(input.sector)
   const title = text(input.title, 'o título', TEMPLATE_LIMITS.title)
   const description = text(input.description, 'a descrição', TEMPLATE_LIMITS.description)
   const { min, max } = TEMPLATE_LIMITS.options

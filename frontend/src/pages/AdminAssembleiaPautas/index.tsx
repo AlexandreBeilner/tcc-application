@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { Select } from '../../components/atoms/Select'
@@ -16,6 +16,7 @@ import {
     toDraft,
 } from '../../features/admin/assemblies'
 import type { OptionDraft, TemplateDraft } from '../../features/admin/assemblies'
+import { MACRO_EVENT_SECTORS } from '../../features/admin/targetOptions'
 import {
     useAgendaTemplatesQuery,
     useCreateAgendaTemplateMutation,
@@ -24,6 +25,8 @@ import {
 } from '../../features/admin/useAgendaTemplates'
 import type { AgendaTemplate } from '../../services/admin'
 import styles from './index.module.css'
+
+const SECTOR_OPTIONS = [{ value: '', label: 'Qualquer setor' }, ...MACRO_EVENT_SECTORS.map((sector) => ({ value: sector, label: sector }))]
 
 // Tela do catálogo de pautas (MO.6.8): criar, editar e ativar ou desativar pautas das assembleias.
 // Nunca se apaga: propostas e assembleias referenciam a chave. A edição vale para as próximas
@@ -44,7 +47,6 @@ export function AdminAssembleiaPautas() {
     const setActive = useSetAgendaTemplateActiveMutation()
     const busy = create.isPending || update.isPending || setActive.isPending
 
-    const sectors = useMemo(() => [...new Set((query.data ?? []).flatMap((t) => (t.sector ? [t.sector] : [])))].sort(), [query.data])
     const editingTemplate = (query.data ?? []).find((t) => t.key === editing)
 
     function startNew() {
@@ -209,18 +211,13 @@ export function AdminAssembleiaPautas() {
                         />
                     </label>
                     <label className={styles.field}>
-                        <span>Setor (vazio vale para qualquer empresa)</span>
-                        <input
-                            className={styles.input}
-                            list="assembly-sectors"
+                        <span>Setor</span>
+                        <Select
+                            aria-label="Setor da pauta"
                             value={draft.sector}
-                            onChange={(event) => patch({ sector: event.target.value })}
+                            options={SECTOR_OPTIONS}
+                            onChange={(sector) => patch({ sector })}
                         />
-                        <datalist id="assembly-sectors">
-                            {sectors.map((sector) => (
-                                <option key={sector} value={sector} />
-                            ))}
-                        </datalist>
                     </label>
                     <label className={styles.field}>
                         <span>Descrição</span>
