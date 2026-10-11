@@ -189,7 +189,7 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
 - **Dependências:** MO.2.3.
 
 - **Entregável:** `GetSubscriptionStatusUseCase` com cache Redis de 30 s que guarda os **fatos** (a decisão usa a hora de agora, então vencimento no meio do TTL não vira PRO), invalidado pelo webhook; `ProAccessGuard.assertPro(userId)` lança `ProRequiredError`, que o `jsonErrorHandler` converte em `403 { error: 'requer plano PRO' }`. Testes: cancelamento vale na próxima leitura sem depender do token, vencimento no TTL, Redis fora do ar cai pro banco.
-### MO.2.5 · Reconciliação e concessão administrativa (parcial: reconciliação ✅ 2026-10-10, concessão pendente)
+### MO.2.5 · Reconciliação e concessão administrativa ✅ (reconciliação 2026-10-10, concessão 2026-10-11)
 - **Descrição:** rede de segurança e ferramenta de suporte.
 - **O que fazer:**
   - Job periódico (mesmo padrão dos jobs Node existentes, ex.: snapshot de ranking) que reconsulta
@@ -202,6 +202,8 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
 - **Dependências:** MO.2.3.
 
 - **Entregável (parcial):** `ReconcileSubscriptionsUseCase` + `startBillingReconciliationScheduler`, ligado no `server.ts` só com `BILLING_PROVIDER=revenuecat` (a cada 6 h, `BILLING_RECONCILE_INTERVAL_MS`): reconsulta quem tem projeção parada há mais de 12 h e vigência ativa ou vencida há menos de 3 dias, em lotes de 200, mais velhos primeiro; falha isolada não para o lote. **Pendente:** concessão de PRO promocional pelo painel admin. A referência do endpoint de concessão do RevenueCat não abriu pela ferramenta de leitura (404 nas páginas v1 e v2.3); só há indício, por fontes secundárias, de `POST /v1/subscribers/{id}/entitlements/{ent}/promotional` e da regra de que a nova concessão só vale se vencer 2 h depois da existente. Não escrevi adapter de memória: conferir a documentação atual (v1 ou a API v2 de concessão e revogação) com a chave em mãos e depois ligar ao painel com auditoria.
+- **Entregável da concessão (2026-10-11):** rotas `GET /admin/users/:id/pro` (plano atual, lido do `GetSubscriptionStatusUseCase`) e `POST /admin/users/:id/pro-grants` (`{ days, reason }`, 1 a 90 dias, motivo de 5 a 500 caracteres, senha recente), documentadas em `.docs/backend/admin.md` e `billing.md`. Decisões do autor: qualquer admin concede, teto de 90 dias por concessão (empilha, então períodos longos se fazem repetindo), motivo e senha recente obrigatórios, sem revogação pelo painel, sem e-mail à pessoa. Backend: porta `UserProGrants` (admin), adaptador `createInProcessUserProGrants` sobre o `GrantPromotionalProUseCase` do `billing` (traduz `BillingDisabledError` em 503 e `BillingProviderError` em 502), casos de uso `GetUserProStatusUseCase` e `GrantUserProUseCase`, auditoria `billing.grant_promotional` (`days`, `reason`, `ends_at`, `previous_access_end`), testes de caso de uso, adaptador e rota (27). Frontend: cartão "Plano PRO" no detalhe do usuário (`AdminUserPro`, plano atual ao lado do formulário em tablet e desktop, empilhado no celular), confirmação antes de conceder, rótulo na linha do tempo e na auditoria. **Verificado no navegador real** nos três tamanhos, contra uma stack descartável: a concessão aparece em `GET /billing/status` (`store: promotional`) e na linha do tempo. **Pendente fora do código:** validar o adaptador contra o RevenueCat real com a chave (hoje só `fetch` simulado).
+
 ---
 
 ## Fase C — Web: planos, compra e gerenciamento
