@@ -86,14 +86,15 @@ func TestGovernanceRepository_SnapshotDecisaoERampa(t *testing.T) {
 	// Decisão: evento antes do efeito, na conta de governança, idempotente.
 	svc := corporategovernance.NewService(repo, govSettings{enginesetting.Values{
 		GovernanceGrowthStepCentiPP: 50, GovernanceQualityStepCenti: 5, GovernanceRampTicks: 4, GovernanceCooldownDays: 90,
+		GovernancePayoutStepCentiPP: 1000, GovernancePayoutMinPct: 20, GovernancePayoutMaxPct: 90, GovernancePayoutCooldownDays: 90,
 	}})
 	exec(`INSERT INTO market_calendar (id, current_day, selic_rate) VALUES (1, 10, 10.75) ON CONFLICT (id) DO UPDATE SET current_day = 10`)
 	in := corporategovernance.DecisionInput{
 		AssemblyID: assembly1, CompanyID: company, OptionKey: "reinvestir",
-		Effect: corporategovernance.Effect{Metric: corporategovernance.MetricBaseGrowthPct, Direction: 1, Intensity: 1},
+		Effects: []corporategovernance.Effect{{Metric: corporategovernance.MetricBaseGrowthPct, Direction: 1, Intensity: 1}},
 	}
 	d, created, err := svc.RecordDecision(ctx, in)
-	if err != nil || !created || d.Status != corporategovernance.StatusScheduled || d.TotalDelta != 50 || d.StartDay != 11 {
+	if err != nil || !created || len(d.Effects) != 1 || d.Effects[0].Status != corporategovernance.StatusScheduled || d.Effects[0].TotalDelta != 50 || d.Effects[0].StartDay != 11 {
 		t.Fatalf("RecordDecision: %+v created=%v err=%v", d, created, err)
 	}
 	if _, created, err := svc.RecordDecision(ctx, in); err != nil || created {
@@ -131,7 +132,7 @@ func TestGovernanceRepository_SnapshotDecisaoERampa(t *testing.T) {
 	in2 := in
 	in2.AssemblyID = assembly2
 	skipped, created, err := svc.RecordDecision(ctx, in2)
-	if err != nil || !created || skipped.Status != corporategovernance.StatusSkippedCooldown || skipped.TotalDelta != 0 {
+	if err != nil || !created || skipped.Effects[0].Status != corporategovernance.StatusSkippedCooldown || skipped.Effects[0].TotalDelta != 0 {
 		t.Fatalf("cooldown: %+v created=%v err=%v", skipped, created, err)
 	}
 	scan(&events, `SELECT COUNT(*) FROM market_events WHERE event_type = 'assembly_decision'`)
@@ -156,8 +157,8 @@ func TestGovernanceRepository_SnapshotDecisaoERampa(t *testing.T) {
 	}
 	var status string
 	var applied int
-	scan(&status, `SELECT status FROM governance_decisions WHERE assembly_id = $1`, assembly1)
-	scan(&applied, `SELECT applied_delta FROM governance_decisions WHERE assembly_id = $1`, assembly1)
+	scan(&status, `SELECT e.status FROM governance_decision_effects e JOIN governance_decisions d ON d.id = e.decision_id WHERE d.assembly_id = $1`, assembly1)
+	scan(&applied, `SELECT e.applied_delta FROM governance_decision_effects e JOIN governance_decisions d ON d.id = e.decision_id WHERE d.assembly_id = $1`, assembly1)
 	if status != "completed" || applied != 50 {
 		t.Errorf("decisão concluída: status=%s applied_delta=%d", status, applied)
 	}
@@ -255,9 +256,15 @@ func TestGovernanceRepository_CompanyStanding(t *testing.T) {
 	}
 
 	// Último efeito que valeu: skipped_cooldown não conta.
-	exec(`INSERT INTO governance_decisions (assembly_id, company_id, option_key, metric, direction, intensity, status, total_delta, ramp_ticks, start_day)
-		VALUES (gen_random_uuid(), $1, 'a', 'base_growth_pct', 1, 1, 'completed', 50, 30, 100),
-		       (gen_random_uuid(), $1, 'b', 'base_growth_pct', 1, 1, 'skipped_cooldown', 0, 30, 125)`, company)
+	exec(`WITH d AS (
+		  INSERT INTO governance_decisions (assembly_id, company_id, option_key)
+		  VALUES (gen_random_uuid(), $1, 'a'), (gen_random_uuid(), $1, 'b') RETURNING id, option_key)
+		INSERT INTO governance_decision_effects (decision_id, company_id, position, metric, direction, intensity, status, total_delta, ramp_ticks, start_day)
+		SELECT id, $1, 0, 'base_growth_pct', 1, 1,
+		       CASE option_key WHEN 'a' THEN 'completed' ELSE 'skipped_cooldown' END,
+		       CASE option_key WHEN 'a' THEN 50 ELSE 0 END, 30,
+		       CASE option_key WHEN 'a' THEN 100 ELSE 125 END
+		FROM d`, company)
 	rec, _, err = repo.CompanyStanding(ctx, company, ana)
 	if err != nil || rec.LastEffectStartDay == nil || *rec.LastEffectStartDay != 100 {
 		t.Fatalf("último efeito: %+v err=%v", rec, err)
@@ -266,5 +273,140 @@ func TestGovernanceRepository_CompanyStanding(t *testing.T) {
 	st, err := svc.Standing(ctx, company, ana)
 	if err != nil || st.CooldownDaysLeft != 60 || !st.HoldsShares {
 		t.Errorf("standing: %+v err=%v", st, err)
+	}
+}
+
+// Decisão composta (MO.6.10): um evento por efeito, payout aplicado de uma vez e crescimento
+// em rampa, cada um com o seu cooldown (o payout recente não trava os fundamentos), e o
+// payout nunca sai da faixa válida.
+func TestGovernanceRepository_DecisaoCompostaComPayout(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	scan := func(dest any, query string, args ...any) {
+		t.Helper()
+		if err := conn.QueryRowContext(ctx, query, args...).Scan(dest); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	var company, asset string
+	scan(&company, `INSERT INTO companies (name, cnpj, sector, base_growth_pct, quality_multiplier)
+		VALUES ('Acme', '11111111000111', 'Tecnologia', 3.00, 1.00) RETURNING id`)
+	scan(&asset, `INSERT INTO assets (ticker, name, type) VALUES ('ACME3', 'Acme ON', 'acao') RETURNING id`)
+	exec(`INSERT INTO variable_income_assets (asset_id, company_id, share_class, outstanding_shares) VALUES ($1, $2, 'ON', 1000)`, asset, company)
+	exec(`INSERT INTO market_calendar (id, current_day, selic_rate) VALUES (1, 10, 10.75) ON CONFLICT (id) DO UPDATE SET current_day = 10`)
+
+	var payout float64
+	scan(&payout, `SELECT payout_ratio_pct::float8 FROM companies WHERE id = $1`, company)
+	if payout != 50 {
+		t.Fatalf("payout inicial = %v, esperado 50 (o padrão histórico)", payout)
+	}
+
+	repo := NewGovernanceRepository(conn)
+	svc := corporategovernance.NewService(repo, govSettings{enginesetting.Values{
+		GovernanceGrowthStepCentiPP: 50, GovernanceQualityStepCenti: 5, GovernanceRampTicks: 4, GovernanceCooldownDays: 90,
+		GovernancePayoutStepCentiPP: 1000, GovernancePayoutMinPct: 20, GovernancePayoutMaxPct: 90, GovernancePayoutCooldownDays: 90,
+	}})
+	const a1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1"
+	const a2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2"
+	in := corporategovernance.DecisionInput{AssemblyID: a1, CompanyID: company, OptionKey: "reinvestir", Effects: []corporategovernance.Effect{
+		{Metric: corporategovernance.MetricPayoutRatioPct, Direction: -1, Intensity: 1},
+		{Metric: corporategovernance.MetricBaseGrowthPct, Direction: 1, Intensity: 1},
+	}}
+	d, created, err := svc.RecordDecision(ctx, in)
+	if err != nil || !created || len(d.Effects) != 2 {
+		t.Fatalf("RecordDecision: %+v created=%v err=%v", d, created, err)
+	}
+	if d.Effects[0].Metric != corporategovernance.MetricPayoutRatioPct || d.Effects[0].TotalDelta != -1000 || d.Effects[0].RampTicks != 1 ||
+		d.Effects[1].Metric != corporategovernance.MetricBaseGrowthPct || d.Effects[1].TotalDelta != 50 || d.Effects[1].RampTicks != 4 {
+		t.Errorf("efeitos = %+v", d.Effects)
+	}
+	if _, created, err := svc.RecordDecision(ctx, in); err != nil || created {
+		t.Fatalf("repetida: created=%v err=%v", created, err)
+	}
+
+	// Um evento por efeito, antes de qualquer mudança, com a mudança total em centésimos.
+	rows, err := conn.QueryContext(ctx, `SELECT ev.quantity, ev.reference_id::text FROM governance_decision_effects e
+		JOIN market_events ev ON ev.id = e.event_id ORDER BY e.position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var quantities []int
+	for rows.Next() {
+		var q int
+		var ref string
+		if err := rows.Scan(&q, &ref); err != nil {
+			t.Fatal(err)
+		}
+		if ref != a1 {
+			t.Errorf("reference_id = %s", ref)
+		}
+		quantities = append(quantities, q)
+	}
+	_ = rows.Close()
+	if len(quantities) != 2 || quantities[0] != -1000 || quantities[1] != 50 {
+		t.Errorf("eventos = %v, esperado [-1000 50]", quantities)
+	}
+	scan(&payout, `SELECT payout_ratio_pct::float8 FROM companies WHERE id = $1`, company)
+	if payout != 50 {
+		t.Fatalf("registrar a decisão não pode mexer na empresa: payout = %v", payout)
+	}
+
+	// Primeiro tick: o payout vale inteiro, o crescimento anda 1/4 da rampa.
+	if n, err := svc.ApplyDue(ctx, 11); err != nil || n != 2 {
+		t.Fatalf("ApplyDue(11): n=%d err=%v", n, err)
+	}
+	var growth float64
+	scan(&payout, `SELECT payout_ratio_pct::float8 FROM companies WHERE id = $1`, company)
+	scan(&growth, `SELECT base_growth_pct::float8 FROM companies WHERE id = $1`, company)
+	if payout != 40 || growth != 3.13 {
+		t.Errorf("depois do tick 11: payout=%v crescimento=%v, esperado 40 e 3.13", payout, growth)
+	}
+	for day := 12; day <= 15; day++ {
+		if _, err := svc.ApplyDue(ctx, day); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scan(&payout, `SELECT payout_ratio_pct::float8 FROM companies WHERE id = $1`, company)
+	scan(&growth, `SELECT base_growth_pct::float8 FROM companies WHERE id = $1`, company)
+	if payout != 40 || growth != 3.5 {
+		t.Errorf("final: payout=%v crescimento=%v, esperado 40 e 3.50", payout, growth)
+	}
+
+	// Cooldown por grupo: os dois grupos mudaram no dia 11, então uma segunda decisão (dia 20)
+	// só registra. Com o calendário em 130, os dois liberam de novo.
+	exec(`UPDATE market_calendar SET current_day = 20 WHERE id = 1`)
+	in2 := in
+	in2.AssemblyID = a2
+	skipped, _, err := svc.RecordDecision(ctx, in2)
+	if err != nil || skipped.Effects[0].Status != corporategovernance.StatusSkippedCooldown || skipped.Effects[1].Status != corporategovernance.StatusSkippedCooldown {
+		t.Fatalf("cooldown dos dois grupos: %+v err=%v", skipped, err)
+	}
+
+	// O payout nunca sai da faixa: de 40 desce a 20 em dois degraus e o terceiro é ignorado.
+	exec(`UPDATE market_calendar SET current_day = 200 WHERE id = 1`)
+	for i, assembly := range []string{"cccccccc-cccc-4ccc-8ccc-ccccccccccc1", "cccccccc-cccc-4ccc-8ccc-ccccccccccc2", "cccccccc-cccc-4ccc-8ccc-ccccccccccc3"} {
+		exec(`UPDATE market_calendar SET current_day = $1 WHERE id = 1`, 200+i*100)
+		dec, _, err := svc.RecordDecision(ctx, corporategovernance.DecisionInput{AssemblyID: assembly, CompanyID: company, OptionKey: "o",
+			Effects: []corporategovernance.Effect{{Metric: corporategovernance.MetricPayoutRatioPct, Direction: -1, Intensity: 1}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.ApplyDue(ctx, dec.Effects[0].StartDay); err != nil {
+			t.Fatal(err)
+		}
+		scan(&payout, `SELECT payout_ratio_pct::float8 FROM companies WHERE id = $1`, company)
+		want := []float64{30, 20, 20}[i]
+		if payout != want {
+			t.Errorf("degrau %d: payout = %v, esperado %v", i+1, payout, want)
+		}
+		if i == 2 && dec.Effects[0].Status != corporategovernance.StatusSkippedOutOfRange {
+			t.Errorf("abaixo do piso deveria ser ignorado: %s", dec.Effects[0].Status)
+		}
 	}
 }

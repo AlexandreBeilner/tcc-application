@@ -39,6 +39,13 @@ const (
 	// GovernanceCooldownDays é o intervalo mínimo, em dias simulados, entre duas mudanças
 	// de uma mesma empresa (90 = no máximo uma por trimestre).
 	GovernanceCooldownDays Key = "governance_cooldown_days"
+
+	// Payout por empresa (MO.6.10). O degrau é em centésimos de p.p. (1000 = 10 p.p.); a
+	// faixa válida do payout da empresa é em % inteiros; o cooldown é próprio do payout.
+	GovernancePayoutStepCentiPP  Key = "governance_payout_step_centipp"
+	GovernancePayoutMinPct       Key = "governance_payout_min_pct"
+	GovernancePayoutMaxPct       Key = "governance_payout_max_pct"
+	GovernancePayoutCooldownDays Key = "governance_payout_cooldown_days"
 )
 
 // Padrões da governança, aplicados por NewService quando o chamador não informa o valor.
@@ -48,6 +55,11 @@ const (
 	DefaultGovernanceQualityStepCenti  = 5
 	DefaultGovernanceRampTicks         = 30
 	DefaultGovernanceCooldownDays      = 90
+
+	DefaultGovernancePayoutStepCentiPP  = 1000
+	DefaultGovernancePayoutMinPct       = 20
+	DefaultGovernancePayoutMaxPct       = 90
+	DefaultGovernancePayoutCooldownDays = 90
 )
 
 // ErrUnknownKey: a chave não é um parâmetro editável.
@@ -78,6 +90,10 @@ var definitions = []Definition{
 	{Key: GovernanceQualityStepCenti, Min: 1, Max: 50},
 	{Key: GovernanceRampTicks, Min: 1, Max: 365},
 	{Key: GovernanceCooldownDays, Min: 0, Max: 720},
+	{Key: GovernancePayoutStepCentiPP, Min: 1, Max: 5000},
+	{Key: GovernancePayoutMinPct, Min: 0, Max: 100},
+	{Key: GovernancePayoutMaxPct, Min: 0, Max: 100},
+	{Key: GovernancePayoutCooldownDays, Min: 0, Max: 720},
 }
 
 // Definitions devolve os parâmetros editáveis na ordem de exibição.
@@ -115,6 +131,11 @@ type Values struct {
 	GovernanceQualityStepCenti  int
 	GovernanceRampTicks         int
 	GovernanceCooldownDays      int
+
+	GovernancePayoutStepCentiPP  int
+	GovernancePayoutMinPct       int
+	GovernancePayoutMaxPct       int
+	GovernancePayoutCooldownDays int
 }
 
 // withGovernanceDefaults completa os campos de governança que o chamador deixou em zero.
@@ -135,6 +156,20 @@ func (v Values) withGovernanceDefaults() Values {
 	if unset {
 		v.GovernanceCooldownDays = DefaultGovernanceCooldownDays
 	}
+	// Payout: a faixa só vale se o máximo foi informado (mínimo 0 é válido); cooldown 0 é
+	// válido, então só ganha padrão se nenhum parâmetro de payout veio.
+	payoutUnset := v.GovernancePayoutStepCentiPP == 0 && v.GovernancePayoutMinPct == 0 &&
+		v.GovernancePayoutMaxPct == 0 && v.GovernancePayoutCooldownDays == 0
+	if v.GovernancePayoutStepCentiPP == 0 {
+		v.GovernancePayoutStepCentiPP = DefaultGovernancePayoutStepCentiPP
+	}
+	if v.GovernancePayoutMaxPct == 0 {
+		v.GovernancePayoutMaxPct = DefaultGovernancePayoutMaxPct
+	}
+	if payoutUnset {
+		v.GovernancePayoutMinPct = DefaultGovernancePayoutMinPct
+		v.GovernancePayoutCooldownDays = DefaultGovernancePayoutCooldownDays
+	}
 	return v
 }
 
@@ -152,6 +187,14 @@ func (v Values) get(key Key) int {
 		return v.GovernanceRampTicks
 	case GovernanceCooldownDays:
 		return v.GovernanceCooldownDays
+	case GovernancePayoutStepCentiPP:
+		return v.GovernancePayoutStepCentiPP
+	case GovernancePayoutMinPct:
+		return v.GovernancePayoutMinPct
+	case GovernancePayoutMaxPct:
+		return v.GovernancePayoutMaxPct
+	case GovernancePayoutCooldownDays:
+		return v.GovernancePayoutCooldownDays
 	}
 	return 0
 }
@@ -170,6 +213,14 @@ func (v *Values) set(key Key, value int) {
 		v.GovernanceRampTicks = value
 	case GovernanceCooldownDays:
 		v.GovernanceCooldownDays = value
+	case GovernancePayoutStepCentiPP:
+		v.GovernancePayoutStepCentiPP = value
+	case GovernancePayoutMinPct:
+		v.GovernancePayoutMinPct = value
+	case GovernancePayoutMaxPct:
+		v.GovernancePayoutMaxPct = value
+	case GovernancePayoutCooldownDays:
+		v.GovernancePayoutCooldownDays = value
 	}
 }
 

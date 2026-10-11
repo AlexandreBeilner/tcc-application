@@ -78,7 +78,9 @@ func TestService_SetEReset(t *testing.T) {
 		t.Fatalf("padrão = %+v", got)
 	}
 	if got.GovernanceGrowthStepCentiPP != DefaultGovernanceGrowthStepCentiPP || got.GovernanceQualityStepCenti != DefaultGovernanceQualityStepCenti ||
-		got.GovernanceRampTicks != DefaultGovernanceRampTicks || got.GovernanceCooldownDays != DefaultGovernanceCooldownDays {
+		got.GovernanceRampTicks != DefaultGovernanceRampTicks || got.GovernanceCooldownDays != DefaultGovernanceCooldownDays ||
+		got.GovernancePayoutStepCentiPP != DefaultGovernancePayoutStepCentiPP || got.GovernancePayoutMinPct != DefaultGovernancePayoutMinPct ||
+		got.GovernancePayoutMaxPct != DefaultGovernancePayoutMaxPct || got.GovernancePayoutCooldownDays != DefaultGovernancePayoutCooldownDays {
 		t.Fatalf("padrões de governança = %+v", got)
 	}
 	if err := svc.Set(ctx, TicksPerDay, 12, "admin-1"); err != nil {
@@ -165,6 +167,11 @@ func TestGovernanceDefaults_ValoresDeLancamentoAprovados(t *testing.T) {
 		{"degrau de qualidade (0,05, em centésimos)", DefaultGovernanceQualityStepCenti, 5},
 		{"rampa em ticks", DefaultGovernanceRampTicks, 30},
 		{"cooldown em dias simulados", DefaultGovernanceCooldownDays, 90},
+		// Payout (MO.6.10, decisões do autor em 2026-10-11).
+		{"degrau do payout (10 p.p., em centésimos)", DefaultGovernancePayoutStepCentiPP, 1000},
+		{"piso do payout (%)", DefaultGovernancePayoutMinPct, 20},
+		{"teto do payout (%)", DefaultGovernancePayoutMaxPct, 90},
+		{"cooldown do payout em dias simulados", DefaultGovernancePayoutCooldownDays, 90},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

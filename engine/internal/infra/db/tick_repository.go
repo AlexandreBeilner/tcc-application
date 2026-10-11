@@ -170,7 +170,7 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.base_growth_pct, c.quality_multiplier, c.report_offset_days,
+		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.payout_ratio_pct, c.base_growth_pct, c.quality_multiplier, c.report_offset_days,
 		        COALESCE((SELECT schedule_cutover_day FROM market_calendar WHERE id = 1), 0), f.net_revenue,
 		        c.schedule_assigned, c.dividend_policy, c.com_lag_days, c.payment_lag_days,
 		        ARRAY(SELECT net_income FROM company_fundamentals
@@ -194,7 +194,7 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
 		var policy string
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.ReportOffsetDays, &c.ScheduleCutoverDay, &c.LastRevenue,
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.PayoutRatioPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.ReportOffsetDays, &c.ScheduleCutoverDay, &c.LastRevenue,
 			&c.ScheduleAssigned, &policy, &c.ComLagDays, &c.PaymentLagDays, pq.Array(&c.PriorNetIncomes)); err != nil {
 			return nil, err
 		}

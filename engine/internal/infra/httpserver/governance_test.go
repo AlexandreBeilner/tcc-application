@@ -37,15 +37,18 @@ func (f *fakeGovernance) GetSnapshot(_ context.Context, a string) (corporategove
 
 func (f *fakeGovernance) RecordDecision(_ context.Context, in corporategovernance.DecisionInput) (corporategovernance.Decision, bool, error) {
 	f.gotDecision = in
-	return corporategovernance.Decision{
-		AssemblyID: in.AssemblyID, CompanyID: in.CompanyID, OptionKey: in.OptionKey, Metric: in.Effect.Metric,
-		Direction: in.Effect.Direction, Intensity: in.Effect.Intensity, Status: corporategovernance.StatusScheduled,
-		TotalDelta: 50, RampTicks: 30, StartDay: 8,
-	}, f.decisionCreated, f.err
+	d := corporategovernance.Decision{AssemblyID: in.AssemblyID, CompanyID: in.CompanyID, OptionKey: in.OptionKey}
+	for i, e := range in.Effects {
+		d.Effects = append(d.Effects, corporategovernance.EffectRecord{
+			Position: i, Metric: e.Metric, Direction: e.Direction, Intensity: e.Intensity,
+			Status: corporategovernance.StatusScheduled, TotalDelta: 50, RampTicks: 30, StartDay: 8,
+		})
+	}
+	return d, f.decisionCreated, f.err
 }
 
 func (f *fakeGovernance) GetDecision(_ context.Context, a string) (corporategovernance.Decision, bool, error) {
-	return corporategovernance.Decision{AssemblyID: a, Status: corporategovernance.StatusCompleted}, f.decisionFound, f.err
+	return corporategovernance.Decision{AssemblyID: a, Effects: []corporategovernance.EffectRecord{{Status: corporategovernance.StatusCompleted}}}, f.decisionFound, f.err
 }
 
 func (f *fakeGovernance) RecentReports(_ context.Context, minDays, maxDays int) (corporategovernance.ReportsResult, error) {
@@ -184,14 +187,14 @@ func TestGovernance_Decision(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
 	}
-	if fake.gotDecision.OptionKey != "reinvestir" || fake.gotDecision.Effect.Metric != corporategovernance.MetricBaseGrowthPct || fake.gotDecision.Effect.Direction != 1 {
+	if fake.gotDecision.OptionKey != "reinvestir" || len(fake.gotDecision.Effects) != 1 || fake.gotDecision.Effects[0].Metric != corporategovernance.MetricBaseGrowthPct || fake.gotDecision.Effects[0].Direction != 1 {
 		t.Errorf("repassou = %+v", fake.gotDecision)
 	}
 	var resp decisionResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.Status != "scheduled" || resp.TotalDelta != 50 || resp.RampTicks != 30 || resp.StartDay != 8 {
+	if len(resp.Effects) != 1 || resp.Effects[0].Status != "scheduled" || resp.Effects[0].TotalDelta != 50 || resp.Effects[0].RampTicks != 30 || resp.Effects[0].StartDay != 8 {
 		t.Errorf("resposta = %+v", resp)
 	}
 
@@ -210,5 +213,31 @@ func TestGovernance_Decision(t *testing.T) {
 	}
 	if rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/decisions/"+govAssembly, ""); rec.Code != http.StatusNotFound {
 		t.Errorf("GET inexistente = %d", rec.Code)
+	}
+}
+
+const composedDecisionBody = `{"assembly_id":"` + govAssembly + `","company_id":"` + govCompany + `","option_key":"reinvestir","effects":[` +
+	`{"metric":"payout_ratio_pct","direction":-1,"intensity":0.5},{"metric":"base_growth_pct","direction":1,"intensity":1}]}`
+
+func TestGovernance_DecisionComposta(t *testing.T) {
+	fake := &fakeGovernance{decisionCreated: true}
+	rec := callGovernance(t, fake, http.MethodPost, "/governance/decisions", composedDecisionBody)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if len(fake.gotDecision.Effects) != 2 || fake.gotDecision.Effects[0].Metric != corporategovernance.MetricPayoutRatioPct || fake.gotDecision.Effects[1].Metric != corporategovernance.MetricBaseGrowthPct {
+		t.Errorf("repassou = %+v", fake.gotDecision.Effects)
+	}
+	var resp decisionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Effects) != 2 || resp.Effects[0].Metric != "payout_ratio_pct" || resp.Effects[0].Intensity != 0.5 {
+		t.Errorf("resposta = %+v", resp)
+	}
+	// Efeitos inválidos chegam ao serviço, que devolve 400.
+	bad := &fakeGovernance{err: corporategovernance.ErrInvalidInput}
+	if rec := callGovernance(t, bad, http.MethodPost, "/governance/decisions", composedDecisionBody); rec.Code != http.StatusBadRequest {
+		t.Errorf("entrada inválida = %d, esperado 400", rec.Code)
 	}
 }

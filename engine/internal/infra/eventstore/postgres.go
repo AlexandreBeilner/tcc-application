@@ -54,6 +54,15 @@ func AppendTx(ctx context.Context, tx *sql.Tx, event domain.MarketEvent) error {
 	return appendEvent(ctx, tx, event)
 }
 
+// AppendTxReturningID é AppendTx devolvendo o id do evento gravado, para quem precisa ligar o
+// evento a uma linha de projeção (governança: um evento por efeito de decisão).
+func AppendTxReturningID(ctx context.Context, tx *sql.Tx, event domain.MarketEvent) (string, error) {
+	var id string
+	err := tx.QueryRowContext(ctx, insertEventSQL+` RETURNING id`,
+		event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue, event.ReferenceMonth, event.ReferenceID).Scan(&id)
+	return id, err
+}
+
 // ErrInvalidBatch é devolvido por AppendBatchTx quando os eventos não podem ir
 // num único INSERT em lote.
 var ErrInvalidBatch = errors.New("eventos do lote precisam ter o mesmo tipo e todos os campos preenchidos")

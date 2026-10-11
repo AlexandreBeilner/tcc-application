@@ -30,20 +30,20 @@ type Snapshot struct {
 	Holdings     []Holding
 }
 
-// DecisionInput é o que o backend manda quando uma assembleia aprova uma opção.
+// DecisionInput é o que o backend manda quando uma assembleia aprova uma opção: de 1 a
+// MaxEffectsPerOption efeitos, em alavancas diferentes.
 type DecisionInput struct {
 	AssemblyID string
 	CompanyID  string
 	OptionKey  string
-	Effect     Effect
+	Effects    []Effect
 }
 
-// Decision é a decisão registrada, com o andamento da rampa.
-type Decision struct {
+// EffectRecord é um efeito de uma decisão já registrado, com o andamento da rampa.
+type EffectRecord struct {
 	ID           string
 	AssemblyID   string
-	CompanyID    string
-	OptionKey    string
+	Position     int
 	Metric       Metric
 	Direction    int
 	Intensity    float64
@@ -53,14 +53,24 @@ type Decision struct {
 	StartDay     int
 	AppliedTicks int
 	AppliedDelta int
-	DecidedAt    time.Time
+}
+
+// Decision é a decisão registrada: a opção vencedora e o andamento de cada efeito.
+type Decision struct {
+	ID         string
+	AssemblyID string
+	CompanyID  string
+	OptionKey  string
+	Effects    []EffectRecord
+	DecidedAt  time.Time
 }
 
 // PlanFunc é executada pelo repositório DENTRO da transação, depois de travar a empresa e
-// ler o estado, para o plano usar o estado que de fato vale.
-type PlanFunc func(CompanyState) (Plan, error)
+// ler o estado, para o plano usar o estado que de fato vale. Devolve um plano por efeito, na
+// ordem da entrada.
+type PlanFunc func(CompanyState) ([]Plan, error)
 
-// StepApplication é um passo da rampa a aplicar numa decisão.
+// StepApplication é um passo da rampa a aplicar num efeito.
 type StepApplication struct {
 	Delta        int
 	AppliedTicks int
@@ -73,14 +83,15 @@ type Repository interface {
 	// TakeSnapshot tira o snapshot da assembleia ou devolve o que já existe.
 	TakeSnapshot(ctx context.Context, assemblyID, companyID string) (Snapshot, bool, error)
 	GetSnapshot(ctx context.Context, assemblyID string) (Snapshot, bool, error)
-	// RecordDecision grava o evento em market_events e a decisão, na mesma transação, depois
-	// de chamar plan. `created` é falso se a assembleia já tinha decisão.
+	// RecordDecision grava um evento em market_events por efeito e a decisão, na mesma
+	// transação, depois de chamar plan. `created` é falso se a assembleia já tinha decisão.
 	RecordDecision(ctx context.Context, in DecisionInput, plan PlanFunc) (Decision, bool, error)
 	GetDecision(ctx context.Context, assemblyID string) (Decision, bool, error)
-	ListScheduled(ctx context.Context) ([]Decision, error)
-	// ApplyStep aplica um passo na empresa e avança a decisão na mesma transação; só vale se
-	// a decisão ainda estava em `previousTicks`. `false` se outro processo chegou antes.
-	ApplyStep(ctx context.Context, decisionID string, previousTicks int, step StepApplication) (bool, error)
+	ListScheduled(ctx context.Context) ([]EffectRecord, error)
+	// ApplyStep aplica um passo na empresa e avança o efeito na mesma transação; só vale se
+	// o efeito ainda estava em `previousTicks`. `false` se outro processo chegou antes. `l`
+	// traz a faixa válida do payout.
+	ApplyStep(ctx context.Context, effectID string, previousTicks int, step StepApplication, l Limits) (bool, error)
 	// CompanyStanding lê a empresa e a posição ATUAL de `userID` nela (não a do snapshot).
 	CompanyStanding(ctx context.Context, companyID, userID string) (StandingRecord, bool, error)
 }
@@ -122,17 +133,30 @@ func (s *Service) RecordDecision(ctx context.Context, in DecisionInput) (Decisio
 	if in.AssemblyID == "" || in.CompanyID == "" || in.OptionKey == "" {
 		return Decision{}, false, fmt.Errorf("%w: assembleia, empresa e opção são obrigatórias", ErrInvalidInput)
 	}
-	if err := in.Effect.Validate(); err != nil {
+	if err := ValidateEffects(in.Effects); err != nil {
 		return Decision{}, false, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 	values, err := s.settings.Current(ctx)
 	if err != nil {
 		return Decision{}, false, err
 	}
-	limits := Limits{GrowthStep: values.GovernanceGrowthStepCentiPP, QualityStep: values.GovernanceQualityStepCenti}
-	return s.repo.RecordDecision(ctx, in, func(c CompanyState) (Plan, error) {
-		return PlanDecision(c, in.Effect, limits, values.GovernanceRampTicks, values.GovernanceCooldownDays)
+	limits, cooldowns := LimitsFrom(values), CooldownsFrom(values)
+	return s.repo.RecordDecision(ctx, in, func(c CompanyState) ([]Plan, error) {
+		return PlanDecision(c, in.Effects, limits, values.GovernanceRampTicks, cooldowns)
 	})
+}
+
+// LimitsFrom monta as faixas de efeito a partir dos parâmetros vigentes.
+func LimitsFrom(v enginesetting.Values) Limits {
+	return Limits{
+		GrowthStep: v.GovernanceGrowthStepCentiPP, QualityStep: v.GovernanceQualityStepCenti,
+		PayoutStep: v.GovernancePayoutStepCentiPP, PayoutMin: v.GovernancePayoutMinPct * 100, PayoutMax: v.GovernancePayoutMaxPct * 100,
+	}
+}
+
+// CooldownsFrom monta os cooldowns por grupo a partir dos parâmetros vigentes.
+func CooldownsFrom(v enginesetting.Values) Cooldowns {
+	return Cooldowns{Fundamentals: v.GovernanceCooldownDays, Payout: v.GovernancePayoutCooldownDays}
 }
 
 // ApplyDue aplica, no tick que leva o mercado ao dia `newDay`, o passo da rampa de cada
@@ -143,6 +167,14 @@ func (s *Service) ApplyDue(ctx context.Context, newDay int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if len(scheduled) == 0 {
+		return 0, nil
+	}
+	values, err := s.settings.Current(ctx)
+	if err != nil {
+		return 0, err
+	}
+	limits := LimitsFrom(values)
 	applied := 0
 	var firstErr error
 	for _, d := range scheduled {
@@ -155,7 +187,7 @@ func (s *Service) ApplyDue(ctx context.Context, newDay int) (int, error) {
 			AppliedTicks: elapsed,
 			Done:         elapsed >= d.RampTicks,
 		}
-		ok, err := s.repo.ApplyStep(ctx, d.ID, d.AppliedTicks, step)
+		ok, err := s.repo.ApplyStep(ctx, d.ID, d.AppliedTicks, step, limits)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("decisão %s: %w", d.AssemblyID, err)

@@ -13,6 +13,7 @@ func TestEffect_Validate(t *testing.T) {
 	}{
 		{"crescimento válido", Effect{MetricBaseGrowthPct, 1, 1}, nil},
 		{"qualidade negativa válida", Effect{MetricQualityMultiplier, -1, 0.5}, nil},
+		{"payout válido", Effect{MetricPayoutRatioPct, -1, 1}, nil},
 		{"métrica desconhecida", Effect{"price", 1, 1}, ErrInvalidMetric},
 		{"direção zero", Effect{MetricBaseGrowthPct, 0, 1}, ErrInvalidDirection},
 		{"direção 2", Effect{MetricBaseGrowthPct, 2, 1}, ErrInvalidDirection},
@@ -29,7 +30,7 @@ func TestEffect_Validate(t *testing.T) {
 }
 
 func TestTotalDelta_NuncaPassaDaFaixa(t *testing.T) {
-	limits := Limits{GrowthStep: 50, QualityStep: 5}
+	limits := Limits{GrowthStep: 50, QualityStep: 5, PayoutStep: 1000}
 	tests := []struct {
 		name string
 		e    Effect
@@ -40,6 +41,8 @@ func TestTotalDelta_NuncaPassaDaFaixa(t *testing.T) {
 		{"faixa cheia de qualidade", Effect{MetricQualityMultiplier, 1, 1}, 5},
 		{"qualidade com arredondamento", Effect{MetricQualityMultiplier, -1, 0.5}, -3},
 		{"intensidade mínima ainda mexe", Effect{MetricBaseGrowthPct, 1, 0.02}, 1},
+		{"payout, degrau cheio de 10 p.p.", Effect{MetricPayoutRatioPct, 1, 1}, 1000},
+		{"payout, para baixo, 30% do degrau", Effect{MetricPayoutRatioPct, -1, 0.3}, -300},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -48,8 +51,11 @@ func TestTotalDelta_NuncaPassaDaFaixa(t *testing.T) {
 				t.Errorf("TotalDelta = %d, esperado %d", got, tt.want)
 			}
 			step := limits.GrowthStep
-			if tt.e.Metric == MetricQualityMultiplier {
+			switch tt.e.Metric {
+			case MetricQualityMultiplier:
 				step = limits.QualityStep
+			case MetricPayoutRatioPct:
+				step = limits.PayoutStep
 			}
 			if got > step || got < -step {
 				t.Errorf("TotalDelta %d passou da faixa %d", got, step)
@@ -83,6 +89,25 @@ func TestCheckValue(t *testing.T) {
 				t.Errorf("erro %v não é ErrOutOfRange", err)
 			}
 		})
+	}
+}
+
+func TestCheckValueWithLimits_Payout(t *testing.T) {
+	l := Limits{PayoutMin: 2000, PayoutMax: 9000}
+	for value, wantErr := range map[int]bool{1999: true, 2000: false, 5000: false, 9000: false, 9001: true} {
+		err := CheckValueWithLimits(MetricPayoutRatioPct, value, l)
+		if (err != nil) != wantErr {
+			t.Errorf("payout %d: erro = %v, esperado erro=%v", value, err, wantErr)
+		}
+		if wantErr && !errors.Is(err, ErrOutOfRange) {
+			t.Errorf("payout %d: %v não é ErrOutOfRange", value, err)
+		}
+	}
+}
+
+func TestGroupOf(t *testing.T) {
+	if GroupOf(MetricPayoutRatioPct) != GroupPayout || GroupOf(MetricBaseGrowthPct) != GroupFundamentals || GroupOf(MetricQualityMultiplier) != GroupFundamentals {
+		t.Error("crescimento e qualidade dividem o cooldown de fundamentos; o payout tem o seu")
 	}
 }
 

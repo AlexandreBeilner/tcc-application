@@ -121,6 +121,10 @@ type CompanyForFundamentals struct {
 	// (Lei 6.404/76, art. 17), consumida por dividend.EquityValuePerShare.
 	// Empresa só-ON nunca chega a usar esse valor (pnShares = 0 no cálculo).
 	PnDividendPremiumPct float64
+	// PayoutRatioPct é companies.payout_ratio_pct (MO.6.10): a fração do lucro, em %,
+	// distribuída em cada balanço, decidida por empresa em assembleia. Zero (campo não
+	// preenchido) vale o padrão histórico de 50% (dividend.ResolvePayoutRatio).
+	PayoutRatioPct float64
 	// BaseGrowthPct é companies.base_growth_pct (tarefa 7.2) — crescimento_base
 	// desta empresa por ciclo, em % (fundamentalsConfig converte pra fração).
 	// Substitui o único valor global (fundamentals.DefaultBaseGrowth) que toda
@@ -652,7 +656,7 @@ func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex int, c 
 		if daysSinceEx < 0 || daysSinceEx >= dividendPriceEffectBandDays {
 			return 0
 		}
-		return dividend.EquityPriceEffectPct(financials.NetIncome*float64(cycle.PoolCycles), financials.NetEquity)
+		return dividend.EquityPriceEffectPct(financials.NetIncome*float64(cycle.PoolCycles), financials.NetEquity, dividend.ResolvePayoutRatio(c.PayoutRatioPct))
 	}
 	// Nenhum relatório (e portanto nenhum dividendo) aconteceu ainda pra esta empresa.
 	return 0
@@ -957,7 +961,7 @@ func equityShareClassesByCompany(payers []DividendPayerAsset) map[string]equityS
 // nem FII sem NetWorth nem PortfolioValue preenchidos, mesmo tratamento de
 // "indicador omitido, não erro nem 0" já dado a dado de origem ausente em
 // outros lugares do RF21.
-func dividendRecordsForCycle(payers []DividendPayerAsset, payoutsByCompany map[string]equityPayout, pnPremiumPctByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
+func dividendRecordsForCycle(payers []DividendPayerAsset, payoutsByCompany map[string]equityPayout, pnPremiumPctByCompany, payoutRatioPctByCompany map[string]float64, dayIndex, newDay int) []DividendRecord {
 	fiiPayoutDay := fundamentals.IsReportDay(dayIndex, dividend.FIIPayoutIntervalDays)
 	shareClasses := equityShareClassesByCompany(payers)
 
@@ -982,7 +986,7 @@ func dividendRecordsForCycle(payers []DividendPayerAsset, payoutsByCompany map[s
 			netIncome := payout.PoolNetIncome
 			recordPaymentDay, recordExDay = payout.PayDay, payout.ExDay
 			classes := shareClasses[*a.CompanyID]
-			onValue, pnValue, valueOK := dividend.EquityValuePerShare(netIncome, classes.On, classes.Pn, pnPremiumPctByCompany[*a.CompanyID])
+			onValue, pnValue, valueOK := dividend.EquityValuePerShare(netIncome, classes.On, classes.Pn, pnPremiumPctByCompany[*a.CompanyID], dividend.ResolvePayoutRatio(payoutRatioPctByCompany[*a.CompanyID]))
 			if a.ShareClass != nil && *a.ShareClass == "PN" {
 				value, ok = pnValue, valueOK
 			} else {
@@ -1262,8 +1266,10 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
 	payoutsByCompany := make(map[string]equityPayout, len(companies))
 	pnPremiumPctByCompany := make(map[string]float64, len(companies))
+	payoutRatioPctByCompany := make(map[string]float64, len(companies))
 	for _, c := range companies {
 		pnPremiumPctByCompany[c.CompanyID] = c.PnDividendPremiumPct
+		payoutRatioPctByCompany[c.CompanyID] = c.PayoutRatioPct
 
 		cycle, reports := reportCycles[c.CompanyID]
 		if !reports {
@@ -1365,7 +1371,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		IsCopomDay:            selic.IsCopomMeetingDay(dayIndex),
 		IsReportDay:           fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
 		AppliedMacroEventIDs:  appliedMacroEventIDs,
-		NewDividends:          dividendRecordsForCycle(dividendPayers, payoutsByCompany, pnPremiumPctByCompany, dayIndex, newDay),
+		NewDividends:          dividendRecordsForCycle(dividendPayers, payoutsByCompany, pnPremiumPctByCompany, payoutRatioPctByCompany, dayIndex, newDay),
 		DuePayments:           duePaymentsForDay(pendingDividends, newDay),
 		NetWorthUpdates:       netWorthUpdates,
 		PortfolioValueUpdates: portfolioValueUpdates,

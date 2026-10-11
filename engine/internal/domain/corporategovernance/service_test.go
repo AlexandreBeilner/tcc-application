@@ -3,6 +3,7 @@ package corporategovernance
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/enginesetting"
@@ -15,7 +16,7 @@ func (f fakeSettings) Current(context.Context) (enginesetting.Values, error) { r
 type fakeRepo struct {
 	company   CompanyState
 	decisions map[string]*Decision
-	events    []string // ids de assembleia, na ordem em que o evento foi gravado
+	events    []string // ids de assembleia, um por efeito, na ordem em que o evento foi gravado
 	knob      map[Metric]int
 	failApply map[string]bool
 	standing  *StandingRecord
@@ -23,7 +24,7 @@ type fakeRepo struct {
 
 func newFakeRepo(c CompanyState) *fakeRepo {
 	return &fakeRepo{company: c, decisions: map[string]*Decision{}, knob: map[Metric]int{
-		MetricBaseGrowthPct: c.BaseGrowthPct, MetricQualityMultiplier: c.QualityMultiplier,
+		MetricBaseGrowthPct: c.BaseGrowthPct, MetricQualityMultiplier: c.QualityMultiplier, MetricPayoutRatioPct: c.PayoutRatioPct,
 	}}
 }
 
@@ -45,22 +46,28 @@ func (r *fakeRepo) RecordDecision(_ context.Context, in DecisionInput, plan Plan
 	if d, ok := r.decisions[in.AssemblyID]; ok {
 		return *d, false, nil
 	}
-	p, err := plan(r.company)
+	plans, err := plan(r.company)
 	if err != nil {
 		return Decision{}, false, err
 	}
-	// Evento antes de qualquer efeito.
-	r.events = append(r.events, in.AssemblyID)
-	d := &Decision{
-		ID: "dec-" + in.AssemblyID, AssemblyID: in.AssemblyID, CompanyID: in.CompanyID, OptionKey: in.OptionKey,
-		Metric: in.Effect.Metric, Direction: in.Effect.Direction, Intensity: in.Effect.Intensity,
-		Status: p.Status, TotalDelta: p.TotalDelta, RampTicks: p.RampTicks, StartDay: p.StartDay,
+	d := &Decision{ID: "dec-" + in.AssemblyID, AssemblyID: in.AssemblyID, CompanyID: in.CompanyID, OptionKey: in.OptionKey}
+	for i, e := range in.Effects {
+		p := plans[i]
+		// Evento antes de qualquer efeito, uma linha por efeito.
+		r.events = append(r.events, in.AssemblyID)
+		d.Effects = append(d.Effects, EffectRecord{
+			ID: fmt.Sprintf("%s-%d", d.ID, i), AssemblyID: in.AssemblyID, Position: i,
+			Metric: e.Metric, Direction: e.Direction, Intensity: e.Intensity,
+			Status: p.Status, TotalDelta: p.TotalDelta, RampTicks: p.RampTicks, StartDay: p.StartDay,
+		})
+		if p.Status == StatusScheduled {
+			if r.company.LastStartDay == nil {
+				r.company.LastStartDay = map[Group]int{}
+			}
+			r.company.LastStartDay[GroupOf(e.Metric)] = p.StartDay
+		}
 	}
 	r.decisions[in.AssemblyID] = d
-	if p.Status == StatusScheduled {
-		last := p.StartDay
-		r.company.LastEffectStartDay = &last
-	}
 	return *d, true, nil
 }
 
@@ -71,33 +78,38 @@ func (r *fakeRepo) CompanyStanding(context.Context, string, string) (StandingRec
 	return *r.standing, true, nil
 }
 
-func (r *fakeRepo) ListScheduled(context.Context) ([]Decision, error) {
-	var out []Decision
+func (r *fakeRepo) ListScheduled(context.Context) ([]EffectRecord, error) {
+	var out []EffectRecord
 	for _, d := range r.decisions {
-		if d.Status == StatusScheduled {
-			out = append(out, *d)
+		for _, e := range d.Effects {
+			if e.Status == StatusScheduled {
+				out = append(out, e)
+			}
 		}
 	}
 	return out, nil
 }
 
-func (r *fakeRepo) ApplyStep(_ context.Context, id string, prev int, step StepApplication) (bool, error) {
+func (r *fakeRepo) ApplyStep(_ context.Context, id string, prev int, step StepApplication, _ Limits) (bool, error) {
 	for _, d := range r.decisions {
-		if d.ID != id {
-			continue
+		for i := range d.Effects {
+			e := &d.Effects[i]
+			if e.ID != id {
+				continue
+			}
+			if r.failApply[d.AssemblyID] {
+				return false, errors.New("falha de banco")
+			}
+			if e.AppliedTicks != prev {
+				return false, nil
+			}
+			r.knob[e.Metric] += step.Delta
+			e.AppliedTicks, e.AppliedDelta = step.AppliedTicks, e.AppliedDelta+step.Delta
+			if step.Done {
+				e.Status = StatusCompleted
+			}
+			return true, nil
 		}
-		if r.failApply[d.AssemblyID] {
-			return false, errors.New("falha de banco")
-		}
-		if d.AppliedTicks != prev {
-			return false, nil
-		}
-		r.knob[d.Metric] += step.Delta
-		d.AppliedTicks, d.AppliedDelta = step.AppliedTicks, d.AppliedDelta+step.Delta
-		if step.Done {
-			d.Status = StatusCompleted
-		}
-		return true, nil
 	}
 	return false, nil
 }
@@ -107,16 +119,18 @@ func newService(c CompanyState, ramp int) (*Service, *fakeRepo) {
 	values := enginesetting.Values{
 		GovernanceGrowthStepCentiPP: 50, GovernanceQualityStepCenti: 5,
 		GovernanceRampTicks: ramp, GovernanceCooldownDays: 90,
+		GovernancePayoutStepCentiPP: 1000, GovernancePayoutMinPct: 20, GovernancePayoutMaxPct: 90, GovernancePayoutCooldownDays: 90,
 	}
 	return NewService(repo, fakeSettings{values}), repo
 }
 
 var growthUp = Effect{MetricBaseGrowthPct, 1, 1}
+var payoutDown = Effect{MetricPayoutRatioPct, -1, 1}
 
 func TestService_RecordDecision_IdempotentePelaAssembleia(t *testing.T) {
 	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10}, 10)
 	ctx := context.Background()
-	in := DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "reinvestir", Effect: growthUp}
+	in := DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "reinvestir", Effects: []Effect{growthUp}}
 
 	first, created, err := svc.RecordDecision(ctx, in)
 	if err != nil || !created {
@@ -137,10 +151,12 @@ func TestService_RecordDecision_IdempotentePelaAssembleia(t *testing.T) {
 func TestService_RecordDecision_Validacao(t *testing.T) {
 	svc, repo := newService(CompanyState{}, 10)
 	for name, in := range map[string]DecisionInput{
-		"sem assembleia":  {CompanyID: "c", OptionKey: "o", Effect: growthUp},
-		"sem empresa":     {AssemblyID: "a", OptionKey: "o", Effect: growthUp},
-		"sem opção":       {AssemblyID: "a", CompanyID: "c", Effect: growthUp},
-		"efeito inválido": {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effect: Effect{"price", 1, 1}},
+		"sem assembleia":  {CompanyID: "c", OptionKey: "o", Effects: []Effect{growthUp}},
+		"sem empresa":     {AssemblyID: "a", OptionKey: "o", Effects: []Effect{growthUp}},
+		"sem opção":       {AssemblyID: "a", CompanyID: "c", Effects: []Effect{growthUp}},
+		"sem efeito":      {AssemblyID: "a", CompanyID: "c", OptionKey: "o"},
+		"mesma alavanca":  {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effects: []Effect{growthUp, {MetricBaseGrowthPct, -1, 1}}},
+		"efeito inválido": {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effects: []Effect{{"price", 1, 1}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := svc.RecordDecision(context.Background(), in)
@@ -157,7 +173,7 @@ func TestService_RecordDecision_Validacao(t *testing.T) {
 func TestService_ApplyDue_RampaGradualFechaNoTotal(t *testing.T) {
 	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10}, 10)
 	ctx := context.Background()
-	if _, _, err := svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effect: growthUp}); err != nil {
+	if _, _, err := svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effects: []Effect{growthUp}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -175,8 +191,8 @@ func TestService_ApplyDue_RampaGradualFechaNoTotal(t *testing.T) {
 	if repo.knob[MetricBaseGrowthPct] != 350 {
 		t.Errorf("fundamento final = %d, esperado 350", repo.knob[MetricBaseGrowthPct])
 	}
-	if repo.decisions["a1"].Status != StatusCompleted {
-		t.Errorf("status = %s", repo.decisions["a1"].Status)
+	if repo.decisions["a1"].Effects[0].Status != StatusCompleted {
+		t.Errorf("status = %s", repo.decisions["a1"].Effects[0].Status)
 	}
 	// Depois de concluída, nada mais acontece.
 	if n, _ := svc.ApplyDue(ctx, 21); n != 0 || repo.knob[MetricBaseGrowthPct] != 350 {
@@ -188,7 +204,7 @@ func TestService_ApplyDue_RecuperacaoEmLoteIgualPassoAPasso(t *testing.T) {
 	run := func(days []int) int {
 		svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10}, 10)
 		ctx := context.Background()
-		_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effect: growthUp})
+		_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effects: []Effect{growthUp}})
 		for _, d := range days {
 			if _, err := svc.ApplyDue(ctx, d); err != nil {
 				t.Fatal(err)
@@ -204,15 +220,14 @@ func TestService_ApplyDue_RecuperacaoEmLoteIgualPassoAPasso(t *testing.T) {
 }
 
 func TestService_ApplyDue_CooldownNaoAplicaNada(t *testing.T) {
-	last := 5
-	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10, LastEffectStartDay: &last}, 10)
+	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10, LastStartDay: map[Group]int{GroupFundamentals: 5}}, 10)
 	ctx := context.Background()
-	d, created, err := svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effect: growthUp})
+	d, created, err := svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effects: []Effect{growthUp}})
 	if err != nil || !created {
 		t.Fatalf("created=%v err=%v", created, err)
 	}
-	if d.Status != StatusSkippedCooldown || len(repo.events) != 1 {
-		t.Errorf("status=%s eventos=%d (a decisão fica registrada mesmo sem efeito)", d.Status, len(repo.events))
+	if d.Effects[0].Status != StatusSkippedCooldown || len(repo.events) != 1 {
+		t.Errorf("status=%s eventos=%d (a decisão fica registrada mesmo sem efeito)", d.Effects[0].Status, len(repo.events))
 	}
 	if n, _ := svc.ApplyDue(ctx, 11); n != 0 || repo.knob[MetricBaseGrowthPct] != 300 {
 		t.Errorf("cooldown não pode mudar nada: n=%d valor=%d", n, repo.knob[MetricBaseGrowthPct])
@@ -222,10 +237,10 @@ func TestService_ApplyDue_CooldownNaoAplicaNada(t *testing.T) {
 func TestService_ApplyDue_FalhaDeUmaNaoImpedeAsOutras(t *testing.T) {
 	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10}, 10)
 	ctx := context.Background()
-	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effect: growthUp})
+	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effects: []Effect{growthUp}})
 	// Segunda decisão de outra métrica, em outra "empresa" (o fake guarda uma só; zera o cooldown).
-	repo.company.LastEffectStartDay = nil
-	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a2", CompanyID: "c2", OptionKey: "o", Effect: Effect{MetricQualityMultiplier, 1, 1}})
+	repo.company.LastStartDay = nil
+	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a2", CompanyID: "c2", OptionKey: "o", Effects: []Effect{{MetricQualityMultiplier, 1, 1}}})
 	repo.failApply = map[string]bool{"a1": true}
 
 	n, err := svc.ApplyDue(ctx, 11)
@@ -234,5 +249,45 @@ func TestService_ApplyDue_FalhaDeUmaNaoImpedeAsOutras(t *testing.T) {
 	}
 	if n != 1 || repo.knob[MetricQualityMultiplier] == 100 {
 		t.Errorf("a outra decisão deveria ter aplicado: n=%d qualidade=%d", n, repo.knob[MetricQualityMultiplier])
+	}
+}
+
+// Decisão composta: um evento por efeito, os dois aplicados, e o payout vale inteiro no
+// primeiro tick (sem rampa) enquanto o crescimento segue a rampa.
+func TestService_DecisaoComposta(t *testing.T) {
+	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, PayoutRatioPct: 5000, Today: 10}, 10)
+	ctx := context.Background()
+	in := DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "reinvestir", Effects: []Effect{payoutDown, growthUp}}
+	d, created, err := svc.RecordDecision(ctx, in)
+	if err != nil || !created || len(d.Effects) != 2 {
+		t.Fatalf("created=%v err=%v efeitos=%d", created, err, len(d.Effects))
+	}
+	if len(repo.events) != 2 {
+		t.Errorf("um evento por efeito: %d", len(repo.events))
+	}
+	if repo.knob[MetricPayoutRatioPct] != 5000 || repo.knob[MetricBaseGrowthPct] != 300 {
+		t.Fatal("registrar a decisão não pode mexer em nada")
+	}
+
+	if n, err := svc.ApplyDue(ctx, 11); err != nil || n != 2 {
+		t.Fatalf("primeiro tick: aplicados=%d err=%v", n, err)
+	}
+	if repo.knob[MetricPayoutRatioPct] != 4000 {
+		t.Errorf("payout = %d, esperado 4000 já no primeiro tick", repo.knob[MetricPayoutRatioPct])
+	}
+	if repo.knob[MetricBaseGrowthPct] != 305 {
+		t.Errorf("crescimento = %d, esperado 305 (1/10 da rampa)", repo.knob[MetricBaseGrowthPct])
+	}
+	for day := 12; day <= 20; day++ {
+		if _, err := svc.ApplyDue(ctx, day); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if repo.knob[MetricBaseGrowthPct] != 350 || repo.knob[MetricPayoutRatioPct] != 4000 {
+		t.Errorf("final: crescimento=%d payout=%d", repo.knob[MetricBaseGrowthPct], repo.knob[MetricPayoutRatioPct])
+	}
+	// Repetir a decisão não gera evento nem efeito novo.
+	if _, created, _ := svc.RecordDecision(ctx, in); created || len(repo.events) != 2 {
+		t.Errorf("idempotência: created=%v eventos=%d", created, len(repo.events))
 	}
 }

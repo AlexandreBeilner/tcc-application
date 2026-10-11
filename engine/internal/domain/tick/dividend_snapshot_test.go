@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
@@ -82,6 +83,30 @@ func TestService_Run_ProventoLegadoRecebeOsElegiveisDoDia(t *testing.T) {
 	}
 }
 
+// O payout é por empresa (MO.6.10): duas empresas com o mesmo lucro e as mesmas ações pagam
+// valores diferentes por ação, e a empresa sem payout gravado paga como antes (50%).
+func TestDividendRecordsForCycle_PayoutPorEmpresa(t *testing.T) {
+	shares := int64(1_000)
+	payers := []DividendPayerAsset{}
+	payouts := map[string]equityPayout{}
+	payoutPct := map[string]float64{"baixo": 20, "alto": 90, "legado": 0}
+	for id := range payoutPct {
+		cid := id
+		payers = append(payers, DividendPayerAsset{AssetID: "a-" + id, Type: "acao", CompanyID: &cid, OutstandingShares: &shares})
+		payouts[id] = equityPayout{PoolNetIncome: 100_000, ExDay: 101, PayDay: 106}
+	}
+	got := map[string]float64{}
+	for _, r := range dividendRecordsForCycle(payers, payouts, nil, payoutPct, 100, 101) {
+		got[r.AssetID] = r.ValuePerShare
+	}
+	want := map[string]float64{"a-baixo": 20, "a-alto": 90, "a-legado": 50}
+	for asset, v := range want {
+		if math.Abs(got[asset]-v) > 1e-9 {
+			t.Errorf("%s: dividendo por ação = %v, esperado %v", asset, got[asset], v)
+		}
+	}
+}
+
 func BenchmarkDividendRecordsForCycle_1000Ativos(b *testing.B) {
 	payers := make([]DividendPayerAsset, 0, 1000)
 	payouts := map[string]equityPayout{}
@@ -92,6 +117,6 @@ func BenchmarkDividendRecordsForCycle_1000Ativos(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		dividendRecordsForCycle(payers, payouts, nil, 100, 101)
+		dividendRecordsForCycle(payers, payouts, nil, nil, 100, 101)
 	}
 }

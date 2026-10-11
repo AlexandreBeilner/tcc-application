@@ -61,33 +61,59 @@ type decisionEffectRequest struct {
 	Intensity float64 `json:"intensity"`
 }
 
+// decisionRequest aceita `effects` (de 1 a 2, alavancas diferentes) ou, por compatibilidade
+// com o formato anterior, um `effect` único.
 type decisionRequest struct {
-	AssemblyID string                `json:"assembly_id"`
-	CompanyID  string                `json:"company_id"`
-	OptionKey  string                `json:"option_key"`
-	Effect     decisionEffectRequest `json:"effect"`
+	AssemblyID string                  `json:"assembly_id"`
+	CompanyID  string                  `json:"company_id"`
+	OptionKey  string                  `json:"option_key"`
+	Effect     *decisionEffectRequest  `json:"effect"`
+	Effects    []decisionEffectRequest `json:"effects"`
+}
+
+func (r decisionRequest) effects() []corporategovernance.Effect {
+	reqs := r.Effects
+	if len(reqs) == 0 && r.Effect != nil {
+		reqs = []decisionEffectRequest{*r.Effect}
+	}
+	out := make([]corporategovernance.Effect, 0, len(reqs))
+	for _, e := range reqs {
+		out = append(out, corporategovernance.Effect{Metric: corporategovernance.Metric(e.Metric), Direction: e.Direction, Intensity: e.Intensity})
+	}
+	return out
+}
+
+type decisionEffectResponse struct {
+	Metric       string  `json:"metric"`
+	Direction    int     `json:"direction"`
+	Intensity    float64 `json:"intensity"`
+	Status       string  `json:"status"`
+	TotalDelta   int     `json:"total_delta"`
+	RampTicks    int     `json:"ramp_ticks"`
+	StartDay     int     `json:"start_day"`
+	AppliedTicks int     `json:"applied_ticks"`
+	AppliedDelta int     `json:"applied_delta"`
 }
 
 type decisionResponse struct {
-	AssemblyID   string                `json:"assembly_id"`
-	CompanyID    string                `json:"company_id"`
-	OptionKey    string                `json:"option_key"`
-	Effect       decisionEffectRequest `json:"effect"`
-	Status       string                `json:"status"`
-	TotalDelta   int                   `json:"total_delta"`
-	RampTicks    int                   `json:"ramp_ticks"`
-	StartDay     int                   `json:"start_day"`
-	AppliedTicks int                   `json:"applied_ticks"`
-	AppliedDelta int                   `json:"applied_delta"`
-	DecidedAt    time.Time             `json:"decided_at"`
+	AssemblyID string                   `json:"assembly_id"`
+	CompanyID  string                   `json:"company_id"`
+	OptionKey  string                   `json:"option_key"`
+	Effects    []decisionEffectResponse `json:"effects"`
+	DecidedAt  time.Time                `json:"decided_at"`
 }
 
 func toDecisionResponse(d corporategovernance.Decision) decisionResponse {
+	effects := make([]decisionEffectResponse, 0, len(d.Effects))
+	for _, e := range d.Effects {
+		effects = append(effects, decisionEffectResponse{
+			Metric: string(e.Metric), Direction: e.Direction, Intensity: e.Intensity, Status: string(e.Status),
+			TotalDelta: e.TotalDelta, RampTicks: e.RampTicks, StartDay: e.StartDay,
+			AppliedTicks: e.AppliedTicks, AppliedDelta: e.AppliedDelta,
+		})
+	}
 	return decisionResponse{
-		AssemblyID: d.AssemblyID, CompanyID: d.CompanyID, OptionKey: d.OptionKey,
-		Effect: decisionEffectRequest{Metric: string(d.Metric), Direction: d.Direction, Intensity: d.Intensity},
-		Status: string(d.Status), TotalDelta: d.TotalDelta, RampTicks: d.RampTicks, StartDay: d.StartDay,
-		AppliedTicks: d.AppliedTicks, AppliedDelta: d.AppliedDelta, DecidedAt: d.DecidedAt.UTC(),
+		AssemblyID: d.AssemblyID, CompanyID: d.CompanyID, OptionKey: d.OptionKey, Effects: effects, DecidedAt: d.DecidedAt.UTC(),
 	}
 }
 
@@ -179,10 +205,7 @@ func handleGovernanceRecordDecision(m governanceManager) http.HandlerFunc {
 			return
 		}
 		decision, created, err := m.RecordDecision(r.Context(), corporategovernance.DecisionInput{
-			AssemblyID: req.AssemblyID, CompanyID: req.CompanyID, OptionKey: req.OptionKey,
-			Effect: corporategovernance.Effect{
-				Metric: corporategovernance.Metric(req.Effect.Metric), Direction: req.Effect.Direction, Intensity: req.Effect.Intensity,
-			},
+			AssemblyID: req.AssemblyID, CompanyID: req.CompanyID, OptionKey: req.OptionKey, Effects: req.effects(),
 		})
 		if err != nil {
 			writeGovernanceError(w, err)

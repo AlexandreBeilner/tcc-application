@@ -57,18 +57,33 @@ const (
 // vale pra pnValue sem ativo PN; ok = false só quando nenhuma das duas
 // classes tem ação em circulação, mesmo tratamento de "sem dado, não
 // divisão por zero" de fundamentals.LPA/VPA.
-func EquityValuePerShare(netIncome float64, onShares, pnShares int64, pnPremiumPct float64) (onValue, pnValue float64, ok bool) {
+//
+// payoutRatio é a fração do lucro distribuída (companies.payout_ratio_pct / 100,
+// MO.6.10): cada empresa tem o seu, decidido em assembleia; ResolvePayoutRatio
+// devolve o padrão (DefaultEquityPayoutRatio) pra empresa sem valor gravado.
+func EquityValuePerShare(netIncome float64, onShares, pnShares int64, pnPremiumPct, payoutRatio float64) (onValue, pnValue float64, ok bool) {
 	if onShares < 0 || pnShares < 0 || (onShares == 0 && pnShares == 0) {
 		return 0, 0, false
 	}
 
-	pool := netIncome * DefaultEquityPayoutRatio
+	pool := netIncome * payoutRatio
 	premiumFactor := 1 + pnPremiumPct/100
 	denom := float64(onShares) + float64(pnShares)*premiumFactor
 
 	onValue = pool / denom
 	pnValue = onValue * premiumFactor
 	return onValue, pnValue, true
+}
+
+// ResolvePayoutRatio converte companies.payout_ratio_pct (em %) na fração usada pelas
+// fórmulas. Valor não positivo (campo nunca preenchido, como nos testes) vale o padrão
+// de antes da MO.6.10 (DefaultEquityPayoutRatio), mesmo tratamento de "zero é neutro" do
+// quality_multiplier; a faixa válida (20% a 90% por padrão) é do cadastro e da assembleia.
+func ResolvePayoutRatio(payoutRatioPct float64) float64 {
+	if payoutRatioPct <= 0 {
+		return DefaultEquityPayoutRatio
+	}
+	return payoutRatioPct / 100
 }
 
 // FIIValuePerShare deriva o provento por cota do ciclo a partir da
@@ -133,7 +148,7 @@ const MinEquityPriceEffectPct = -100.0
 // (bot.FundamentalistFairPrice) — conservação de valor, não um degrau
 // direto de preço (a mesma arquitetura que já veta multiplicador direto
 // pra evento macro/balanço, ver doc do pacote tick): o pool distribuído
-// (netIncome × DefaultEquityPayoutRatio) sai do caixa da empresa,
+// (netIncome × payout da empresa) sai do caixa da empresa,
 // reduzindo seu patrimônio líquido na mesma proporção — e como VPA =
 // netEquity / ações em circulação, o preço justo cai por essa mesma fração
 // percentual pra QUALQUER classe (ON ou PN), sem precisar saber a base de
@@ -146,11 +161,11 @@ const MinEquityPriceEffectPct = -100.0
 // Quem chama decide a janela de dias em que este efeito fica ativo
 // (tick.companyRoundContexts) — esta função não sabe de calendário, só da
 // proporção do valor distribuído.
-func EquityPriceEffectPct(netIncome, netEquity float64) float64 {
+func EquityPriceEffectPct(netIncome, netEquity, payoutRatio float64) float64 {
 	if netEquity <= 0 {
 		return 0
 	}
-	pool := netIncome * DefaultEquityPayoutRatio
+	pool := netIncome * payoutRatio
 	effect := -(pool / netEquity) * 100
 	if effect < MinEquityPriceEffectPct {
 		return MinEquityPriceEffectPct

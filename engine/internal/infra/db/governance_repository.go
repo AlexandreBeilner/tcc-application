@@ -120,30 +120,80 @@ func loadSnapshot(ctx context.Context, q governanceQuerier, assemblyID string) (
 	return snap, true, rows.Err()
 }
 
-const decisionColumns = `id, assembly_id, company_id, option_key, metric, direction, intensity::float8, status,
-	total_delta, ramp_ticks, start_day, applied_ticks, applied_delta, decided_at`
+const decisionColumns = `id, assembly_id, company_id, option_key, decided_at`
 
-func scanDecision(scan func(dest ...any) error) (corporategovernance.Decision, error) {
+const effectColumns = `id, position, metric, direction, intensity::float8, status, total_delta, ramp_ticks, start_day, applied_ticks, applied_delta`
+
+func scanDecisionHeader(scan func(dest ...any) error) (corporategovernance.Decision, error) {
 	var d corporategovernance.Decision
-	var metric, status string
-	err := scan(&d.ID, &d.AssemblyID, &d.CompanyID, &d.OptionKey, &metric, &d.Direction, &d.Intensity, &status,
-		&d.TotalDelta, &d.RampTicks, &d.StartDay, &d.AppliedTicks, &d.AppliedDelta, &d.DecidedAt)
-	d.Metric = corporategovernance.Metric(metric)
-	d.Status = corporategovernance.Status(status)
+	err := scan(&d.ID, &d.AssemblyID, &d.CompanyID, &d.OptionKey, &d.DecidedAt)
 	return d, err
 }
 
-func (r *GovernanceRepository) GetDecision(ctx context.Context, assemblyID string) (corporategovernance.Decision, bool, error) {
-	d, err := scanDecision(r.db.QueryRowContext(ctx,
+func scanEffect(scan func(dest ...any) error) (corporategovernance.EffectRecord, error) {
+	var e corporategovernance.EffectRecord
+	var metric, status string
+	err := scan(&e.ID, &e.Position, &metric, &e.Direction, &e.Intensity, &status, &e.TotalDelta, &e.RampTicks, &e.StartDay, &e.AppliedTicks, &e.AppliedDelta)
+	e.Metric = corporategovernance.Metric(metric)
+	e.Status = corporategovernance.Status(status)
+	return e, err
+}
+
+// loadDecision lê a decisão da assembleia com os efeitos, na ordem de posição.
+func loadDecision(ctx context.Context, q governanceQuerier, assemblyID string) (corporategovernance.Decision, bool, error) {
+	d, err := scanDecisionHeader(q.QueryRowContext(ctx,
 		`SELECT `+decisionColumns+` FROM governance_decisions WHERE assembly_id = $1`, assemblyID).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return corporategovernance.Decision{}, false, nil
 	}
-	return d, err == nil, err
+	if err != nil {
+		return corporategovernance.Decision{}, false, err
+	}
+	rows, err := q.QueryContext(ctx,
+		`SELECT `+effectColumns+` FROM governance_decision_effects WHERE decision_id = $1 ORDER BY position`, d.ID)
+	if err != nil {
+		return corporategovernance.Decision{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		e, err := scanEffect(rows.Scan)
+		if err != nil {
+			return corporategovernance.Decision{}, false, err
+		}
+		e.AssemblyID = d.AssemblyID
+		d.Effects = append(d.Effects, e)
+	}
+	return d, true, rows.Err()
 }
 
-// RecordDecision grava o evento imutável e a decisão na mesma transação, nessa ordem: o
-// evento vem ANTES de qualquer efeito (que só acontece nos ticks seguintes, em ApplyStep).
+func (r *GovernanceRepository) GetDecision(ctx context.Context, assemblyID string) (corporategovernance.Decision, bool, error) {
+	return loadDecision(ctx, r.db, assemblyID)
+}
+
+// lastStartDays lê o início do último efeito aplicado (ou em aplicação) de cada grupo de
+// cooldown da empresa.
+func lastStartDays(ctx context.Context, q governanceQuerier, companyID string) (map[corporategovernance.Group]int, error) {
+	var fundamentals, payout sql.NullInt64
+	if err := q.QueryRowContext(ctx,
+		`SELECT MAX(start_day) FILTER (WHERE metric <> 'payout_ratio_pct'),
+		        MAX(start_day) FILTER (WHERE metric = 'payout_ratio_pct')
+		 FROM governance_decision_effects WHERE company_id = $1 AND status IN ('scheduled', 'completed')`,
+		companyID).Scan(&fundamentals, &payout); err != nil {
+		return nil, err
+	}
+	out := map[corporategovernance.Group]int{}
+	if fundamentals.Valid {
+		out[corporategovernance.GroupFundamentals] = int(fundamentals.Int64)
+	}
+	if payout.Valid {
+		out[corporategovernance.GroupPayout] = int(payout.Int64)
+	}
+	return out, nil
+}
+
+// RecordDecision grava os eventos imutáveis (um por efeito) e a decisão na mesma transação,
+// nessa ordem: o evento vem ANTES de qualquer efeito (que só acontece nos ticks seguintes, em
+// ApplyStep).
 func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporategovernance.DecisionInput, plan corporategovernance.PlanFunc) (corporategovernance.Decision, bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -154,45 +204,40 @@ func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporateg
 		return corporategovernance.Decision{}, false, err
 	}
 
-	existing, err := scanDecision(tx.QueryRowContext(ctx,
-		`SELECT `+decisionColumns+` FROM governance_decisions WHERE assembly_id = $1`, in.AssemblyID).Scan)
-	if err == nil {
-		return existing, false, tx.Commit()
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	existing, found, err := loadDecision(ctx, tx, in.AssemblyID)
+	if err != nil {
 		return corporategovernance.Decision{}, false, err
+	}
+	if found {
+		return existing, false, tx.Commit()
 	}
 
 	// Trava a empresa: duas decisões de assembleias diferentes sobre a mesma empresa se
 	// serializam, então o cooldown enxerga a anterior.
-	var growth, quality int
+	var growth, quality, payout int
 	err = tx.QueryRowContext(ctx,
-		`SELECT ROUND(base_growth_pct * 100)::int, ROUND(quality_multiplier * 100)::int
-		 FROM companies WHERE id = $1 FOR UPDATE`, in.CompanyID).Scan(&growth, &quality)
+		`SELECT ROUND(base_growth_pct * 100)::int, ROUND(quality_multiplier * 100)::int, ROUND(payout_ratio_pct * 100)::int
+		 FROM companies WHERE id = $1 FOR UPDATE`, in.CompanyID).Scan(&growth, &quality, &payout)
 	if errors.Is(err, sql.ErrNoRows) {
 		return corporategovernance.Decision{}, false, corporategovernance.ErrUnknownCompany
 	}
 	if err != nil {
 		return corporategovernance.Decision{}, false, err
 	}
-	state := corporategovernance.CompanyState{BaseGrowthPct: growth, QualityMultiplier: quality}
+	state := corporategovernance.CompanyState{BaseGrowthPct: growth, QualityMultiplier: quality, PayoutRatioPct: payout}
 	if state.Today, err = loadSimulatedDay(ctx, tx); err != nil {
 		return corporategovernance.Decision{}, false, err
 	}
-	var last sql.NullInt64
-	if err := tx.QueryRowContext(ctx,
-		`SELECT MAX(start_day) FROM governance_decisions WHERE company_id = $1 AND status IN ('scheduled', 'completed')`,
-		in.CompanyID).Scan(&last); err != nil {
+	if state.LastStartDay, err = lastStartDays(ctx, tx, in.CompanyID); err != nil {
 		return corporategovernance.Decision{}, false, err
-	}
-	if last.Valid {
-		day := int(last.Int64)
-		state.LastEffectStartDay = &day
 	}
 
-	p, err := plan(state)
+	plans, err := plan(state)
 	if err != nil {
 		return corporategovernance.Decision{}, false, err
+	}
+	if len(plans) != len(in.Effects) {
+		return corporategovernance.Decision{}, false, fmt.Errorf("plano com %d efeitos para %d pedidos", len(plans), len(in.Effects))
 	}
 
 	// A conta técnica nasce na primeira decisão (idempotente).
@@ -209,54 +254,89 @@ func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporateg
 		in.CompanyID).Scan(&assetID); err != nil {
 		return corporategovernance.Decision{}, false, fmt.Errorf("empresa sem ativo de renda variável: %w", err)
 	}
-	total := p.TotalDelta
-	if err := eventstore.AppendTx(ctx, tx, domain.MarketEvent{
-		UserID:      domain.GovernanceAccountID,
-		AssetID:     &assetID,
-		EventType:   domain.EventAssemblyDecision,
-		Quantity:    &total,
-		ReferenceID: &in.AssemblyID,
-	}); err != nil {
-		return corporategovernance.Decision{}, false, err
+	// Uma linha de evento por efeito; governance_decision_effects.event_id liga cada uma à
+	// sua métrica (o evento só carrega a mudança total em `quantity`).
+	eventIDs := make([]string, 0, len(plans))
+	for _, p := range plans {
+		total := p.TotalDelta
+		eventID, err := eventstore.AppendTxReturningID(ctx, tx, domain.MarketEvent{
+			UserID:      domain.GovernanceAccountID,
+			AssetID:     &assetID,
+			EventType:   domain.EventAssemblyDecision,
+			Quantity:    &total,
+			ReferenceID: &in.AssemblyID,
+		})
+		if err != nil {
+			return corporategovernance.Decision{}, false, err
+		}
+		eventIDs = append(eventIDs, eventID)
 	}
 
-	decision, err := scanDecision(tx.QueryRowContext(ctx,
-		`INSERT INTO governance_decisions
-		   (assembly_id, company_id, option_key, metric, direction, intensity, status, total_delta, ramp_ticks, start_day)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		 RETURNING `+decisionColumns,
-		in.AssemblyID, in.CompanyID, in.OptionKey, string(in.Effect.Metric), in.Effect.Direction, in.Effect.Intensity,
-		string(p.Status), p.TotalDelta, p.RampTicks, p.StartDay).Scan)
+	var decisionID string
+	if err := tx.QueryRowContext(ctx,
+		`INSERT INTO governance_decisions (assembly_id, company_id, option_key) VALUES ($1, $2, $3) RETURNING id`,
+		in.AssemblyID, in.CompanyID, in.OptionKey).Scan(&decisionID); err != nil {
+		return corporategovernance.Decision{}, false, err
+	}
+	for i, e := range in.Effects {
+		p := plans[i]
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO governance_decision_effects
+			   (decision_id, company_id, position, event_id, metric, direction, intensity, status, total_delta, ramp_ticks, start_day)
+			 VALUES ($1, $2, $3, $11, $4, $5, $6, $7, $8, $9, $10)`,
+			decisionID, in.CompanyID, i, string(e.Metric), e.Direction, e.Intensity,
+			string(p.Status), p.TotalDelta, p.RampTicks, p.StartDay, eventIDs[i]); err != nil {
+			return corporategovernance.Decision{}, false, err
+		}
+	}
+	decision, _, err := loadDecision(ctx, tx, in.AssemblyID)
 	if err != nil {
 		return corporategovernance.Decision{}, false, err
 	}
 	return decision, true, tx.Commit()
 }
 
-func (r *GovernanceRepository) ListScheduled(ctx context.Context) ([]corporategovernance.Decision, error) {
+func (r *GovernanceRepository) ListScheduled(ctx context.Context) ([]corporategovernance.EffectRecord, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT `+decisionColumns+` FROM governance_decisions WHERE status = 'scheduled' ORDER BY start_day, assembly_id`)
+		`SELECT e.id, e.position, e.metric, e.direction, e.intensity::float8, e.status, e.total_delta, e.ramp_ticks,
+		        e.start_day, e.applied_ticks, e.applied_delta, d.assembly_id
+		 FROM governance_decision_effects e JOIN governance_decisions d ON d.id = e.decision_id
+		 WHERE e.status = 'scheduled' ORDER BY e.start_day, d.assembly_id, e.position`)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []corporategovernance.Decision
+	var out []corporategovernance.EffectRecord
 	for rows.Next() {
-		d, err := scanDecision(rows.Scan)
-		if err != nil {
+		var e corporategovernance.EffectRecord
+		var metric, status string
+		if err := rows.Scan(&e.ID, &e.Position, &metric, &e.Direction, &e.Intensity, &status, &e.TotalDelta, &e.RampTicks,
+			&e.StartDay, &e.AppliedTicks, &e.AppliedDelta, &e.AssemblyID); err != nil {
 			return nil, err
 		}
-		out = append(out, d)
+		e.Metric, e.Status = corporategovernance.Metric(metric), corporategovernance.Status(status)
+		out = append(out, e)
 	}
 	return out, rows.Err()
 }
 
-// ApplyStep aplica um passo da rampa na empresa e avança a decisão na mesma transação. Só
-// vale se a decisão ainda está em `previousTicks` (outro processo que chegou antes não é
+// metricColumn é a coluna de companies que a métrica mexe, e a escala em centésimos dela.
+func metricColumn(m corporategovernance.Metric) string {
+	switch m {
+	case corporategovernance.MetricQualityMultiplier:
+		return "quality_multiplier"
+	case corporategovernance.MetricPayoutRatioPct:
+		return "payout_ratio_pct"
+	}
+	return "base_growth_pct"
+}
+
+// ApplyStep aplica um passo da rampa na empresa e avança o efeito na mesma transação. Só
+// vale se o efeito ainda está em `previousTicks` (outro processo que chegou antes não é
 // aplicado duas vezes). Se o passo levaria o valor para fora da faixa válida (ex.: alguém
-// editou a empresa no meio da rampa), a decisão é encerrada como `skipped_out_of_range` e
+// editou a empresa no meio da rampa), o efeito é encerrado como `skipped_out_of_range` e
 // nada muda.
-func (r *GovernanceRepository) ApplyStep(ctx context.Context, decisionID string, previousTicks int, step corporategovernance.StepApplication) (bool, error) {
+func (r *GovernanceRepository) ApplyStep(ctx context.Context, effectID string, previousTicks int, step corporategovernance.StepApplication, limits corporategovernance.Limits) (bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -266,8 +346,8 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, decisionID string,
 	var companyID, metric string
 	var applied int
 	err = tx.QueryRowContext(ctx,
-		`SELECT company_id, metric, applied_ticks FROM governance_decisions
-		 WHERE id = $1 AND status = 'scheduled' FOR UPDATE`, decisionID).Scan(&companyID, &metric, &applied)
+		`SELECT company_id, metric, applied_ticks FROM governance_decision_effects
+		 WHERE id = $1 AND status = 'scheduled' FOR UPDATE`, effectID).Scan(&companyID, &metric, &applied)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -278,19 +358,16 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, decisionID string,
 		return false, nil
 	}
 
-	column := "base_growth_pct"
-	if corporategovernance.Metric(metric) == corporategovernance.MetricQualityMultiplier {
-		column = "quality_multiplier"
-	}
+	column := metricColumn(corporategovernance.Metric(metric))
 	var current int
 	if err := tx.QueryRowContext(ctx,
 		`SELECT ROUND(`+column+` * 100)::int FROM companies WHERE id = $1 FOR UPDATE`, companyID).Scan(&current); err != nil {
 		return false, err
 	}
 	next := current + step.Delta
-	if err := corporategovernance.CheckValue(corporategovernance.Metric(metric), next); err != nil {
+	if err := corporategovernance.CheckValueWithLimits(corporategovernance.Metric(metric), next, limits); err != nil {
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE governance_decisions SET status = 'skipped_out_of_range' WHERE id = $1`, decisionID); err != nil {
+			`UPDATE governance_decision_effects SET status = 'skipped_out_of_range' WHERE id = $1`, effectID); err != nil {
 			return false, err
 		}
 		return false, tx.Commit()
@@ -304,9 +381,9 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, decisionID string,
 		status = corporategovernance.StatusCompleted
 	}
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE governance_decisions
+		`UPDATE governance_decision_effects
 		 SET applied_ticks = $2, applied_delta = applied_delta + $3, status = $4 WHERE id = $1`,
-		decisionID, step.AppliedTicks, step.Delta, string(status)); err != nil {
+		effectID, step.AppliedTicks, step.Delta, string(status)); err != nil {
 		return false, err
 	}
 	return true, tx.Commit()
@@ -367,14 +444,11 @@ func (r *GovernanceRepository) CompanyStanding(ctx context.Context, companyID, u
 	if rec.Today, err = loadSimulatedDay(ctx, r.db); err != nil {
 		return corporategovernance.StandingRecord{}, false, err
 	}
-	var last sql.NullInt64
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT MAX(start_day) FROM governance_decisions WHERE company_id = $1 AND status IN ('scheduled', 'completed')`,
-		companyID).Scan(&last); err != nil {
+	last, err := lastStartDays(ctx, r.db, companyID)
+	if err != nil {
 		return corporategovernance.StandingRecord{}, false, err
 	}
-	if last.Valid {
-		day := int(last.Int64)
+	if day, ok := last[corporategovernance.GroupFundamentals]; ok {
 		rec.LastEffectStartDay = &day
 	}
 	return rec, true, nil

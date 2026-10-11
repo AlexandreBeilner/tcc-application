@@ -45,7 +45,7 @@ func TestEquityValuePerShare(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			gotOn, gotPn, ok := EquityValuePerShare(tt.netIncome, tt.onShares, tt.pnShares, tt.pnPremiumPct)
+			gotOn, gotPn, ok := EquityValuePerShare(tt.netIncome, tt.onShares, tt.pnShares, tt.pnPremiumPct, DefaultEquityPayoutRatio)
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}
@@ -117,7 +117,7 @@ func TestEquityPriceEffectPct(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := EquityPriceEffectPct(tt.netIncome, tt.netEquity)
+			got := EquityPriceEffectPct(tt.netIncome, tt.netEquity, DefaultEquityPayoutRatio)
 			if math.Abs(got-tt.want) > 1e-9 {
 				t.Errorf("got = %v, want %v", got, tt.want)
 			}
@@ -164,6 +164,32 @@ func TestFIIPriceEffectPct(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := FIIPriceEffectPct(tt.perShare, tt.vpsPS); math.Abs(got-tt.want) > 1e-9 {
 				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// O payout é da empresa (MO.6.10): o mesmo lucro rende dividendo proporcional ao payout,
+// tanto no valor por ação quanto no efeito de preço, e a empresa sem valor vale o padrão.
+func TestPayoutDaEmpresa(t *testing.T) {
+	for name, tt := range map[string]struct {
+		payoutPct float64
+		wantOn    float64
+		wantPrice float64
+	}{
+		"padrão (sem valor gravado)": {payoutPct: 0, wantOn: 50, wantPrice: -5},
+		"50%":                        {payoutPct: 50, wantOn: 50, wantPrice: -5},
+		"20%":                        {payoutPct: 20, wantOn: 20, wantPrice: -2},
+		"90%":                        {payoutPct: 90, wantOn: 90, wantPrice: -9},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ratio := ResolvePayoutRatio(tt.payoutPct)
+			on, _, ok := EquityValuePerShare(100_000, 1_000, 0, DefaultPnDividendPremiumPct, ratio)
+			if !ok || math.Abs(on-tt.wantOn) > 1e-9 {
+				t.Errorf("onValue = %v (ok=%v), want %v", on, ok, tt.wantOn)
+			}
+			if got := EquityPriceEffectPct(100_000, 1_000_000, ratio); math.Abs(got-tt.wantPrice) > 1e-9 {
+				t.Errorf("efeito de preço = %v, want %v", got, tt.wantPrice)
 			}
 		})
 	}
