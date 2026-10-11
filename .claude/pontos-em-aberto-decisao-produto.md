@@ -1046,3 +1046,10 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Local:** `.claude/backlog-monetizacao.md` (MO.7.2).
 - **Origem:** o gatilho da indicação é só verificar o e-mail e a recompensa em PRO não tem teto, então dava para fabricar PRO com e-mails descartáveis.
 - **Status:** ✅ resolvido (2026-10-11, decisão do autor): (1) **freio:** a indicação só conta quando a pessoa indicada **conclui a primeira lição** (além de verificar o e-mail ou entrar com Google); **sem limite por IP/dispositivo**. Risco aceito: um script paciente que conclua uma lição por conta ainda passa; observar no painel e revisar se aparecer abuso. (2) **escada:** 5, 20 e 50 indicações (1 semana de PRO cada), e acima de 50 **+1 semana a cada 50** (100, 150, 200...), como dado no banco. (3) **cosméticos por marco:** uma **conquista por marco e um título novo por marco**, nada de moldura nova.
+
+### 053 · O catálogo de pautas só empurra os fundamentos para cima (MO.6.9), achado em 2026-10-11
+
+- **Local:** tabela `agenda_templates` (migração `0043`) e `engine/internal/domain/corporategovernance`.
+- **Origem:** o ensaio de calibração de 12 meses simulados (`tmp/relatorio-calibracao-assembleia.md`) mostrou que das 34 opções ativas, 33 têm efeito de sentido positivo (crescimento ou qualidade sobem) e 1 negativo. Toda decisão aprovada melhora a empresa; o mercado inteiro deriva para cima (crescimento médio +0,23 p.p., qualidade +2% em 12 meses). O texto "o que ganha, o que perde" não tem contrapartida na mecânica.
+- **Opções:** (a) reescrever as pautas com troca real (um lado sobe uma métrica e baixa a outra) e acrescentar pautas, chegando a 25 ou mais; (b) manter e aceitar a deriva positiva (limitada pelo teto de 2 decisões por empresa por ano); (c) decaimento lento do fundamento de volta ao valor de cadastro.
+- **Status:** em aberto, aguardando decisão do autor. Não impede ligar a Assembleia, mas deve entrar antes de escalar a base.
