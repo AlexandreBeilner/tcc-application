@@ -52,6 +52,7 @@ describe('DuelDetalhe (MO.5.3)', () => {
         } as ReturnType<typeof useAuth>)
         vi.mocked(getMyCosmetics).mockResolvedValue({
             isPro: true,
+            referralCount: 0,
             catalog: [],
             selection: { frame: null, title: null },
             display: { isPro: true, frame: null, title: null },

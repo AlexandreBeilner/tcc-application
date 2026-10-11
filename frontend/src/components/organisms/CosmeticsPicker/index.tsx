@@ -109,20 +109,27 @@ export function CosmeticsPicker({ username, avatarUrl }: CosmeticsPickerProps) {
                             <span className={styles.optionLabel}>Sem título</span>
                         </button>
                     </li>
-                    {titles.map((item) => (
-                        <li key={item.key}>
-                            <button
-                                type="button"
-                                className={styles.titleOption}
-                                aria-pressed={mine.selection.title === item.key}
-                                disabled={!mine.isPro || change.isPending}
-                                onClick={() => choose('title', item)}
-                            >
-                                <span className={styles.optionLabel}>{item.name}</span>
-                                <span className={styles.optionHint}>{item.description}</span>
-                            </button>
-                        </li>
-                    ))}
+                    {titles.map((item) => {
+                        const locked = item.unlockReferrals !== null && item.unlockReferrals > mine.referralCount
+                        return (
+                            <li key={item.key}>
+                                <button
+                                    type="button"
+                                    className={styles.titleOption}
+                                    aria-pressed={mine.selection.title === item.key}
+                                    disabled={!mine.isPro || change.isPending || locked}
+                                    onClick={() => choose('title', item)}
+                                >
+                                    <span className={styles.optionLabel}>{item.name}</span>
+                                    <span className={styles.optionHint}>
+                                        {locked
+                                            ? `Libera com ${item.unlockReferrals} amigos que concluírem a primeira lição (você tem ${mine.referralCount}).`
+                                            : item.description}
+                                    </span>
+                                </button>
+                            </li>
+                        )
+                    })}
                 </ul>
             </div>
 

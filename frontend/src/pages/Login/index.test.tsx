@@ -17,13 +17,13 @@ vi.mock('../../features/auth/AuthContext', () => ({
     useAuth: vi.fn(),
 }))
 
-function renderLogin() {
+function renderLogin(entry = '/login') {
     const router = createMemoryRouter(
         [
             { path: '/login', element: <Login /> },
             { path: '/', element: <div>tela protegida</div> },
         ],
-        { initialEntries: ['/login'] },
+        { initialEntries: [entry] },
     )
     return render(<RouterProvider router={router} />)
 }
@@ -31,6 +31,7 @@ function renderLogin() {
 describe('Login (tela 1.1)', () => {
     afterEach(() => {
         vi.clearAllMocks()
+        sessionStorage.clear()
     })
 
     it('modo padrão é login: só e-mail e senha, mais o link do Google', () => {
@@ -309,5 +310,63 @@ describe('Login (tela 1.1)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Reenviar e-mail de confirmação' }))
         await waitFor(() => expect(resendVerification).toHaveBeenCalledWith('ana@example.com'))
+    })
+
+    describe('convite por link (MO.7.2)', () => {
+        function mockLoggedOutUser() {
+            vi.mocked(useAuth).mockReturnValue({
+                token: null,
+                user: null,
+                isLoading: false,
+                login: vi.fn(),
+                logout: vi.fn(),
+                setUser: vi.fn(),
+            })
+        }
+
+        it('abre direto no cadastro e leva o código no cadastro e no link do Google', async () => {
+            mockLoggedOutUser()
+            vi.mocked(register).mockResolvedValue({
+                user: {
+                    id: '1',
+                    name: 'Ana',
+                    email: 'ana@example.com',
+                    username: 'ana',
+                    role: 'user',
+                    onboardingCompleted: false,
+                    avatarUrl: null,
+                },
+                emailVerificationRequired: true,
+            })
+
+            renderLogin('/login?ref=abcd2345')
+
+            expect(screen.getByRole('button', { name: 'Criar conta' })).toBeInTheDocument()
+            expect(googleLoginUrl).toHaveBeenCalledWith('ABCD2345')
+
+            fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ana' } })
+            fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
+            fireEvent.change(screen.getByLabelText('Nome de usuário'), { target: { value: 'ana' } })
+            fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+            fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'senha1234' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+            await waitFor(() =>
+                expect(register).toHaveBeenCalledWith({
+                    name: 'Ana',
+                    email: 'ana@example.com',
+                    username: 'ana',
+                    password: 'senha1234',
+                    referralCode: 'ABCD2345',
+                }),
+            )
+        })
+
+        it('código de formato inválido é ignorado e a tela abre em login', () => {
+            mockLoggedOutUser()
+            renderLogin('/login?ref=curto')
+            expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+            expect(googleLoginUrl).toHaveBeenCalledWith(null)
+        })
     })
 })

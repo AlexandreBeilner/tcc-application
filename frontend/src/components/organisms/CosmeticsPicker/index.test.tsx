@@ -19,13 +19,22 @@ vi.mock('../../../services/cosmetics', () => ({
 }))
 
 const CATALOG: MyCosmetics['catalog'] = [
-    { key: 'frame_aurora', kind: 'frame', name: 'Aurora', description: 'Verde-água e azul.', sortOrder: 10 },
-    { key: 'title_estrategista', kind: 'title', name: 'Estrategista', description: 'Monta o plano antes.', sortOrder: 10 },
+    { key: 'frame_aurora', kind: 'frame', name: 'Aurora', description: 'Verde-água e azul.', sortOrder: 10, unlockReferrals: null },
+    {
+        key: 'title_estrategista',
+        kind: 'title',
+        name: 'Estrategista',
+        description: 'Monta o plano antes.',
+        sortOrder: 10,
+        unlockReferrals: null,
+    },
+    { key: 'title_mensageiro', kind: 'title', name: 'Mensageiro', description: 'Trouxe 5 amigos.', sortOrder: 90, unlockReferrals: 5 },
 ]
 
 function mine(overrides: Partial<MyCosmetics> = {}): MyCosmetics {
     return {
         isPro: true,
+        referralCount: 0,
         catalog: CATALOG,
         selection: { frame: null, title: null },
         display: { isPro: true, frame: null, title: null },
@@ -88,6 +97,19 @@ describe('CosmeticsPicker (MO.5.1)', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Sem título' }))
 
         await waitFor(() => expect(unequipCosmetic).toHaveBeenCalledWith('token', 'title'))
+    })
+
+    it('título liberado por convites aparece bloqueado com o motivo e libera ao alcançar o marco', async () => {
+        vi.mocked(getMyCosmetics).mockResolvedValue(mine({ referralCount: 2 }))
+        const { unmount } = renderPicker()
+        const locked = await screen.findByRole('button', { name: /Mensageiro/ })
+        expect(locked).toBeDisabled()
+        expect(locked).toHaveTextContent('Libera com 5 amigos')
+        unmount()
+
+        vi.mocked(getMyCosmetics).mockResolvedValue(mine({ referralCount: 5 }))
+        renderPicker()
+        expect(await screen.findByRole('button', { name: /Mensageiro/ })).toBeEnabled()
     })
 
     it('quem não é PRO vê a vitrine sem poder escolher, com convite para conhecer o plano', async () => {

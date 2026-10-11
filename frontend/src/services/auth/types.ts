@@ -26,6 +26,8 @@ export interface RegisterInput {
     email: string
     username: string
     password: string
+    // Código do link de indicação (MO.7.2); o servidor ignora o que não reconhecer.
+    referralCode?: string
 }
 
 export interface LoginInput {

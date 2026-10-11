@@ -12,6 +12,7 @@ import { CancelarInscricao } from '../pages/CancelarInscricao'
 import { Classificacao } from '../pages/Classificacao'
 import { LigaDetalhe } from '../pages/LigaDetalhe'
 import { Ligas } from '../pages/Ligas'
+import { Convidar } from '../pages/Convidar'
 import { Retrospectiva } from '../pages/Retrospectiva'
 import { DuelDetalhe } from '../pages/DuelDetalhe'
 import { AssembleiaDetalhe } from '../pages/AssembleiaDetalhe'
@@ -174,6 +175,8 @@ export const router = createBrowserRouter([
                         children: [{ path: '/calculadora', element: <Calculator /> }],
                     },
                     { path: '/classificacao', element: <Classificacao /> },
+                    // Indicação entre amigos (MO.7.2): qualquer pessoa convida por link.
+                    { path: '/convidar', element: <Convidar /> },
                     // Ligas privadas do PRO (MO.5.2c): participar é de graça, criar é PRO.
                     { path: '/ligas', element: <Ligas /> },
                     { path: '/ligas/:id', element: <LigaDetalhe /> },

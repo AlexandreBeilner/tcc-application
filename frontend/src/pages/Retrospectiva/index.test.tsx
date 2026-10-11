@@ -51,6 +51,7 @@ describe('Retrospectiva (MO.5.4)', () => {
         })
         vi.mocked(getMyCosmetics).mockResolvedValue({
             isPro: false,
+            referralCount: 0,
             catalog: [],
             selection: { frame: null, title: null },
             display: { isPro: false, frame: null, title: null },

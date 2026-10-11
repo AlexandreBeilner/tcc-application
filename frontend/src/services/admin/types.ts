@@ -761,6 +761,7 @@ export type AchievementCriteriaType =
     | 'track_completed_no_errors'
     | 'lesson_reviewed'
     | 'assemblies_participated'
+    | 'referrals_qualified'
 
 export interface AchievementCriterionOption {
     type: AchievementCriteriaType

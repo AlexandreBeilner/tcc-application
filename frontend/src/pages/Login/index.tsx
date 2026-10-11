@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
+import { captureReferralCode, clearReferralCode } from '../../features/referral/referralCode'
 import { isAccountSuspendedError, isEmailNotVerifiedError } from '../../services/client'
 import { formatApiError } from '../../utils/formatApiError'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
@@ -40,7 +41,11 @@ const SUSPENDED_MESSAGE = 'Sua conta está suspensa. Fale com o suporte para ent
 // `email_not_verified`, só depois da senha conferir) mostra o aviso no próprio formulário, com o
 // reenvio sempre visível.
 export function Login() {
-    const [mode, setMode] = useState<Mode>('login')
+    // Convite (MO.7.2): quem chega por `/login?ref=CODIGO` abre direto no cadastro, e o código
+    // acompanha a pessoa até o envio (ou até o login com Google, que o leva na URL).
+    const { search } = useLocation()
+    const [referralCode] = useState(() => captureReferralCode(search))
+    const [mode, setMode] = useState<Mode>(referralCode ? 'register' : 'login')
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [username, setUsername] = useState('')
@@ -76,7 +81,8 @@ export function Login() {
         try {
             if (mode === 'register') {
                 // Sem sessão: a conta só entra depois de confirmar o e-mail.
-                await registerRequest({ name, email, username, password })
+                await registerRequest({ name, email, username, password, ...(referralCode ? { referralCode } : {}) })
+                clearReferralCode()
                 setPassword('')
                 setConfirmPassword('')
                 setRegistered(true)
@@ -133,7 +139,7 @@ export function Login() {
                 </h1>
                 <p className={styles.subtitle}>{mode === 'login' ? 'Entre na sua conta' : 'Crie sua conta'}</p>
 
-                <a className={styles.google} href={googleLoginUrl()}>
+                <a className={styles.google} href={googleLoginUrl(referralCode)}>
                     Entrar com Google
                 </a>
 

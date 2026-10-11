@@ -82,6 +82,9 @@ export function AvatarMenu() {
                     <Link to="/conquistas" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
                         Conquistas
                     </Link>
+                    <Link to="/convidar" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
+                        Convidar amigos
+                    </Link>
                     {assembliesAvailable && (
                         <Link to="/assembleias" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
                             Assembleias

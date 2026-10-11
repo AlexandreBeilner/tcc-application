@@ -80,8 +80,11 @@ export function completeOnboarding(token: string): Promise<{ user: AuthUser }> {
 // Sem caso de uso próprio no backend (delegação pura pro Google) — aqui
 // também não é uma chamada `fetch`, é a URL de um redirecionamento de
 // navegador inteiro (`<a href={googleLoginUrl()}>`), tela 1.1 (tarefa 6.2).
-export function googleLoginUrl(): string {
-    return `${API_BASE_URL}/auth/google`
+//
+// Indicação (MO.7.2): com `referralCode`, ele vai na URL e o backend o carrega pelo `state` do OAuth;
+// só vale se esse login criar a conta.
+export function googleLoginUrl(referralCode?: string | null): string {
+    return referralCode ? `${API_BASE_URL}/auth/google?ref=${encodeURIComponent(referralCode)}` : `${API_BASE_URL}/auth/google`
 }
 
 // Tela 9.2 (tarefa 6.10) — `accountRouter.ts`, mesmo módulo `auth`

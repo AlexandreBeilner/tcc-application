@@ -16,6 +16,8 @@ export interface CosmeticItem {
     name: string
     description: string
     sortOrder: number
+    // Quantos convites válidos liberam o item (MO.7.2); nulo = livre para todo PRO.
+    unlockReferrals: number | null
 }
 
 export interface CosmeticSelection {
@@ -25,6 +27,8 @@ export interface CosmeticSelection {
 
 export interface MyCosmetics {
     isPro: boolean
+    // Convites válidos da pessoa: item com `unlockReferrals` maior que isto aparece bloqueado.
+    referralCount: number
     catalog: CosmeticItem[]
     // Escolha guardada, mesmo de quem cancelou o PRO (arquivada).
     selection: CosmeticSelection
