@@ -12,6 +12,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `email`: string, formato de e-mail válido, ≤100 caracteres. Normalizado pra minúsculo.
   - `username`: string, 3–30 caracteres, só `a-z`, `0-9` e `_`. Normalizado pra minúsculo.
   - `password`: string, 8–72 caracteres (72 = limite do bcrypt; senhas maiores são rejeitadas, não truncadas em silêncio).
+  - `referralCode`: string opcional (≤32), o código do link de indicação (MO.7.2, ver `referrals.md`). Formato errado, código desconhecido ou o da própria conta **nunca recusam o cadastro**: só são ignorados.
   - Qualquer outro campo enviado (ex: `role`) é **descartado** pelo schema Zod antes de chegar no caso de uso — não é possível se autopromover a admin por aqui.
 - **Sucesso:** `201` → `{ user: { id, name, email, username, role, onboardingCompleted, avatarUrl }, emailVerificationRequired: true }`. **Sem `token`** (EM.3.1, D2): a conta só entra depois de verificar o e-mail.
 - **Erros:**
@@ -132,6 +133,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `400` — `code` ausente na query.
   - `302` para `${FRONTEND_URL}/auth/callback#error=google_email_not_verified` — o Google não marcou o e-mail como verificado (`email_verified` do ID token) e já existe uma conta local com esse e-mail: nada é vinculado nem alterado (EM.3.2).
   - `502` — falha ao trocar o `code` por token junto ao Google, ou payload do Google incompleto (sem `sub`/`email`).
+- **Indicação (MO.7.2):** `GET /auth/google?ref=<código>` leva o código no `state` do OAuth (`<uuid>.<código>`), que o Google devolve no callback; `POST /auth/google/token` aceita `referralCode` (opcional). O código só vale quando a chamada **cria** a conta; em conta existente é ignorado.
 - **Regra:** `LoginWithGoogleUseCase`. Se já existe `user_identities` pra esse `(google, sub)`, reaproveita o usuário. Senão, tenta casar por e-mail com uma conta já existente (criada via e-mail/senha) — se achar, **só vincula se o Google informou `email_verified = true`** (ponto 043). Se a conta local nunca confirmou o e-mail, ela pode ter sido aberta por outra pessoa: o vínculo **zera o `password_hash`**, encerra as sessões (`revokeSessions`) e marca o e-mail como verificado, de modo que a senha de quem cadastrou antes deixa de valer (D3); conta local já verificada vincula normal e mantém a senha. Conta suspensa é checada antes de qualquer alteração. Sem conta pra casar, cria só a identidade nova, sem duplicar o usuário. Se não achar nada, cria usuário novo com `password_hash: null` e username derivado do e-mail (com sufixo numérico se já estiver em uso) — só nesse caso (usuário novo) abre conta no motor de simulação com o capital inicial padronizado (RNF06), igual ao `POST /auth/register`. Conta nova nasce com o e-mail verificado se o Google informou `email_verified`, e nesse caso recebe as boas-vindas `welcome` (EM.5.1, uma por conta). Quem só vinculou conta já existente não recebe. Sempre `role: 'user'`.
 
 ---

@@ -242,4 +242,45 @@ describe('LoginWithGoogleUseCase', () => {
       expect(second.user.id).toBe(first.user.id)
     })
   })
+
+  describe('indicação (MO.7.2)', () => {
+    function buildWith(userRepository = createFakeUserRepository()) {
+      const attributed: Array<[string, unknown]> = []
+      const useCase = new LoginWithGoogleUseCase(
+        userRepository,
+        createFakeGoogleIdentityProvider(PROFILE),
+        createFakeTokenIssuer(),
+        createFakeAccountProvisioner(),
+        createFakeAccountMailer(),
+        {
+          async attribute(userId, code) {
+            attributed.push([userId, code])
+          },
+        },
+      )
+      return { useCase, attributed }
+    }
+
+    it('atribui a indicação só quando a chamada cria a conta', async () => {
+      const { useCase, attributed } = buildWith()
+      const first = await useCase.execute({ code: 'c', referralCode: 'ABCD2345' })
+      expect(attributed).toEqual([[first.user.id, 'ABCD2345']])
+      await useCase.execute({ code: 'c', referralCode: 'EFGH6789' })
+      expect(attributed).toHaveLength(1)
+    })
+
+    it('não atribui quando o e-mail já tinha conta (vínculo)', async () => {
+      const userRepository = createFakeUserRepository()
+      await userRepository.createUser({
+        name: 'Já cadastrado',
+        email: PROFILE.email,
+        username: 'jacadastrado',
+        passwordHash: 'hashed:x',
+        emailVerified: true,
+      })
+      const { useCase, attributed } = buildWith(userRepository)
+      await useCase.execute({ code: 'c', referralCode: 'ABCD2345' })
+      expect(attributed).toEqual([])
+    })
+  })
 })

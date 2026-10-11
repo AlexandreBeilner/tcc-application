@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EmailAlreadyInUseError, UsernameAlreadyInUseError } from '../../domain/errors'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
@@ -115,5 +115,51 @@ describe('RegisterUserUseCase', () => {
         password: 'senha-forte-123',
       }),
     ).rejects.toBeInstanceOf(UsernameAlreadyInUseError)
+  })
+
+  describe('indicação (MO.7.2)', () => {
+    const input = {
+      name: 'Alexandre',
+      email: 'alexandre@example.com',
+      username: 'alexandreb',
+      password: 'senha-forte-123',
+    }
+
+    function buildWithReferral(fails = false) {
+      const attributed: Array<[string, unknown]> = []
+      const useCase = new RegisterUserUseCase(
+        createFakeUserRepository(),
+        createFakePasswordHasher(),
+        createFakeAccountProvisioner(),
+        { async sendToUser() {} },
+        {
+          async attribute(userId, code) {
+            if (fails) throw new Error('indicação fora do ar')
+            attributed.push([userId, code])
+          },
+        },
+      )
+      return { useCase, attributed }
+    }
+
+    it('registra a indicação quando o cadastro traz um código', async () => {
+      const { useCase, attributed } = buildWithReferral()
+      const { user } = await useCase.execute({ ...input, referralCode: 'ABCD2345' })
+      expect(attributed).toEqual([[user.id, 'ABCD2345']])
+    })
+
+    it('sem código não chama o módulo de indicação', async () => {
+      const { useCase, attributed } = buildWithReferral()
+      await useCase.execute(input)
+      expect(attributed).toEqual([])
+    })
+
+    it('falha na indicação nunca derruba o cadastro', async () => {
+      const { useCase } = buildWithReferral(true)
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { user } = await useCase.execute({ ...input, referralCode: 'ABCD2345' })
+      spy.mockRestore()
+      expect(user.email).toBe(input.email)
+    })
   })
 })

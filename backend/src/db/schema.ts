@@ -43,6 +43,8 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'lesson_reviewed',
   // Participação em assembleias (MO.6.7): quantas assembleias distintas a pessoa votou.
   'assemblies_participated',
+  // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
+  'referrals_qualified',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
 // padrão (sem widget embutido); os outros três embutem um componente já
@@ -731,6 +733,9 @@ export const cosmeticItems = pgTable(
     description: varchar('description', { length: 200 }).notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
     active: boolean('active').notNull().default(true),
+    // Título liberado por indicações (MO.7.2): só quem tem pelo menos N indicações válidas equipa.
+    // Nulo = livre pra todo PRO (o catálogo da MO.5.1).
+    unlockReferrals: integer('unlock_referrals'),
   },
   (table) => [check('cosmetic_items_kind_chk', sql`${table.kind} IN ('frame', 'title')`)],
 )
@@ -1132,5 +1137,66 @@ export const funnelEvents = pgTable(
     ),
     index('funnel_events_name_created_idx').on(table.name, table.createdAt),
     index('funnel_events_user_idx').on(table.userId),
+  ],
+)
+
+// Indicação entre amigos (MO.7.2). O código é do dono, gerado na primeira leitura. Uma conta
+// indicada só existe uma vez em `referrals` (`referred_id` único), então cada conta conta uma vez
+// para um único indicador. `qualified` = a pessoa indicada concluiu a primeira lição (ponto 052).
+export const referralCodes = pgTable('referral_codes', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  code: varchar('code', { length: 12 }).notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const referrals = pgTable(
+  'referrals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => users.id),
+    referredId: uuid('referred_id')
+      .notNull()
+      .unique()
+      .references(() => users.id),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    qualifiedAt: timestamp('qualified_at', { withTimezone: true }),
+  },
+  (table) => [
+    check('referrals_status_chk', sql`${table.status} IN ('pending', 'qualified')`),
+    check('referrals_not_self_chk', sql`${table.referrerId} <> ${table.referredId}`),
+    index('referrals_referrer_status_idx').on(table.referrerId, table.status),
+  ],
+)
+
+// Escada de marcos: dado, não código. Acima do último marco a regra continua no domínio
+// (`+1 semana a cada 50`). Cada marco só é concedido uma vez por pessoa (`referral_rewards`).
+export const referralMilestones = pgTable('referral_milestones', {
+  threshold: integer('threshold').primaryKey(),
+  rewardDays: integer('reward_days').notNull(),
+})
+
+export const referralRewards = pgTable(
+  'referral_rewards',
+  {
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => users.id),
+    threshold: integer('threshold').notNull(),
+    rewardDays: integer('reward_days').notNull(),
+    status: text('status').notNull().default('pending'),
+    // Fim do PRO promocional, calculado e gravado ANTES de chamar o provedor: repetir a chamada
+    // com o mesmo fim é tratado como duplicata (não concede duas vezes).
+    promoEndsAt: timestamp('promo_ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    grantedAt: timestamp('granted_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.referrerId, table.threshold] }),
+    check('referral_rewards_status_chk', sql`${table.status} IN ('pending', 'granted')`),
   ],
 )

@@ -3,12 +3,16 @@ import type { User } from '../../domain/user'
 import { notifySafely } from '../notifySafely'
 import type { AccountMailer } from '../ports/accountMailer'
 import type { AccountProvisioner } from '../ports/accountProvisioner'
+import type { ReferralAttributor } from '../ports/referralAttributor'
 import type { GoogleIdentityProvider } from '../ports/googleIdentityProvider'
 import type { TokenIssuer } from '../ports/tokenIssuer'
 import type { UserRepository } from '../ports/userRepository'
 import { generateUniqueUsername, usernameFromEmail } from '../services/usernameGenerator'
 
-export type LoginWithGoogleInput = { code: string } | { idToken: string }
+// `referralCode` (MO.7.2) só vale quando a chamada cria a conta; em conta existente é ignorado.
+export type LoginWithGoogleInput = ({ code: string } | { idToken: string }) & {
+  referralCode?: string
+}
 
 export interface LoginWithGoogleResult {
   user: User
@@ -22,6 +26,7 @@ export class LoginWithGoogleUseCase {
     private readonly tokenIssuer: TokenIssuer,
     private readonly accountProvisioner: AccountProvisioner,
     private readonly accountMailer: AccountMailer,
+    private readonly referralAttributor?: ReferralAttributor,
   ) {}
 
   async execute(input: LoginWithGoogleInput): Promise<LoginWithGoogleResult> {
@@ -78,6 +83,13 @@ export class LoginWithGoogleUseCase {
       // Capital inicial padronizado (RNF06) — só na criação, nunca ao
       // reaproveitar uma conta/identidade já existente.
       await this.accountProvisioner.provision(user.id)
+      if (input.referralCode && this.referralAttributor) {
+        try {
+          await this.referralAttributor.attribute(user.id, input.referralCode)
+        } catch (err) {
+          console.error('[auth] falha ao registrar a indicação', err)
+        }
+      }
       // Boas-vindas (E5): só quando o Google garantiu o e-mail (conta nasce verificada).
       if (profile.emailVerified) {
         const created = user

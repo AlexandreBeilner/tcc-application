@@ -13,6 +13,8 @@ export const registerBodySchema = z.object({
   // max(72): bcrypt ignora silenciosamente bytes além do 72º — rejeitar
   // aqui em vez de truncar sem avisar.
   password: z.string().min(8).max(72),
+  // Código do link de indicação (MO.7.2): formato errado não recusa o cadastro, só é ignorado.
+  referralCode: z.string().trim().max(32).optional(),
 })
 
 export const loginBodySchema = z.object({
@@ -22,6 +24,7 @@ export const loginBodySchema = z.object({
 
 export const googleTokenBodySchema = z.object({
   idToken: z.string().min(1),
+  referralCode: z.string().trim().max(32).optional(),
 })
 
 export const reauthBodySchema = z.object({

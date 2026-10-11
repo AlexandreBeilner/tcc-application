@@ -113,6 +113,31 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     criteriaType: 'assemblies_participated',
     criteriaValue: '3',
   },
+  // Indicação (MO.7.2): amigos que concluíram a primeira lição. Os marcos 5, 20 e 50 espelham a
+  // escada de `referral_milestones`.
+  {
+    seedKey: 'referrals_qualified_5',
+    name: 'Convidou os Primeiros',
+    description: 'Traga 5 amigos que concluíram a primeira lição.',
+    criteriaType: 'referrals_qualified',
+    criteriaValue: '5',
+  },
+  {
+    seedKey: 'referrals_qualified_20',
+    name: 'Comunidade em Crescimento',
+    description: 'Traga 20 amigos que concluíram a primeira lição.',
+    criteriaType: 'referrals_qualified',
+    criteriaValue: '20',
+    isRare: true,
+  },
+  {
+    seedKey: 'referrals_qualified_50',
+    name: 'Fundador de Turma',
+    description: 'Traga 50 amigos que concluíram a primeira lição.',
+    criteriaType: 'referrals_qualified',
+    criteriaValue: '50',
+    isRare: true,
+  },
 ]
 
 // Idempotente por seedKey (N.19), só insere: nunca atualiza uma conquista que o painel

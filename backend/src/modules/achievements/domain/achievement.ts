@@ -10,6 +10,8 @@ export type AchievementCriteriaType =
   | 'lesson_reviewed'
   // Assembleias distintas em que a pessoa votou (MO.6.7), só por participar, nunca por vencer.
   | 'assemblies_participated'
+  // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
+  | 'referrals_qualified'
 
 export interface Achievement {
   id: string
@@ -37,6 +39,7 @@ export interface ProgressSnapshot {
   tracksCompletedNoErrors: number
   lessonsReviewed: number
   assembliesParticipated: number
+  referralsQualified: number
 }
 
 export function progressValueFor(
@@ -60,6 +63,8 @@ export function progressValueFor(
       return snapshot.lessonsReviewed
     case 'assemblies_participated':
       return snapshot.assembliesParticipated
+    case 'referrals_qualified':
+      return snapshot.referralsQualified
   }
 }
 

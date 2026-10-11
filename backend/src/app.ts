@@ -359,6 +359,7 @@ import { createInProcessProductUnlockReader } from './modules/market/infrastruct
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
 import { createBillingModule } from './modules/billing/composition'
+import { createReferralsCore, createReferralsModule } from './modules/referrals/composition'
 import { createCosmeticsModule } from './modules/cosmetics/composition'
 import { createDuelsModule } from './modules/duels/composition'
 import { createRetrospectivesModule } from './modules/retrospectives/composition'
@@ -539,6 +540,9 @@ export function createApp(deps: AppDeps = {}): Express {
     authMiddleware,
     enqueueEmail,
   })
+  // Indicação (MO.7.2): leitura do contador e atribuição no cadastro; o módulo completo (recompensa
+  // e rota) nasce depois, quando as conquistas existem.
+  const referralsCore = createReferralsCore(db)
   // Identidade visível do PRO (MO.5.1): selo, moldura e título que os outros veem no ranking, no
   // feed, na busca/lista de amigos e no perfil público.
   const cosmetics = createCosmeticsModule({
@@ -546,6 +550,7 @@ export function createApp(deps: AppDeps = {}): Express {
     authMiddleware,
     proAccess: billing.proAccessGuard,
     listActiveProUserIds: billing.listActiveProUserIds,
+    referralUnlocks: { qualifiedCount: referralsCore.countQualified },
   })
   const cosmeticsReader = createInProcessCosmeticsReader(cosmetics.getCosmeticDisplays)
   const { getEmailPreferences, eraseEmailData, emailPreferencesRouter } =
@@ -563,6 +568,11 @@ export function createApp(deps: AppDeps = {}): Express {
     tokenIssuer,
     accountProvisioner,
     accountMailer,
+    {
+      attribute: async (userId, code) => {
+        await referralsCore.attribute.execute(userId, code)
+      },
+    },
   )
   const sendEmailVerification = new SendEmailVerificationUseCase(
     userRepository,
@@ -581,6 +591,11 @@ export function createApp(deps: AppDeps = {}): Express {
     passwordHasher,
     accountProvisioner,
     sendEmailVerification,
+    {
+      attribute: async (userId, code) => {
+        await referralsCore.attribute.execute(userId, code)
+      },
+    },
   )
   const requestPasswordReset = new RequestPasswordResetUseCase(
     userRepository,
@@ -755,6 +770,7 @@ export function createApp(deps: AppDeps = {}): Express {
     countAssembliesParticipated: {
       count: (userId) => createDrizzleAssemblyRepository(db).countVotedAssemblies(userId),
     },
+    countReferralsQualified: { count: referralsCore.countQualified },
     getNetWorth,
     sandboxAssetReader,
   })
@@ -807,12 +823,24 @@ export function createApp(deps: AppDeps = {}): Express {
   const getLesson = new GetLessonUseCase(lessonRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
+  // Indicação (MO.7.2): recompensa do indicador quando a pessoa indicada conclui a primeira lição.
+  const referrals = createReferralsModule({
+    db,
+    authMiddleware,
+    grantPromotionalPro: billing.grantPromotionalPro,
+    checkAndUnlockAchievements,
+  })
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     xpAwarder,
     streakTracker,
     createInProcessSocialFeedRecorder(recordTrackCompleted),
-    { minStepIntervalMs: lessonMinStepIntervalMs },
+    {
+      minStepIntervalMs: lessonMinStepIntervalMs,
+      completionListener: {
+        onLessonCompleted: (userId) => referrals.qualify.execute(userId),
+      },
+    },
   )
   const reviewLesson = new ReviewLessonUseCase(
     lessonRepository,
@@ -1315,6 +1343,7 @@ export function createApp(deps: AppDeps = {}): Express {
   // (`BILLING_PROVIDER`), caso em que ninguém é PRO e o webhook responde 503.
   app.use(billing.router)
   app.use(cosmetics.router)
+  app.use(referrals.router)
   app.use(leagues.router)
   app.use(duels.router)
   if (assemblies) {

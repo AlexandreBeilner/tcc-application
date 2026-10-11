@@ -344,6 +344,13 @@
       "when": 1794000000000,
       "tag": "0048_add_achievement_is_rare",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0049_add_referrals",
+      "breakpoints": true
     }
   ]
 }

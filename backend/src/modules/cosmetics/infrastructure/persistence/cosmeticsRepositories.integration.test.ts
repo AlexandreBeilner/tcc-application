@@ -55,10 +55,10 @@ describe.skipIf(!databaseUrl)('repositórios de cosméticos (banco real)', () =>
     await pool.end()
   })
 
-  it('a migração entrega 6 molduras e 8 títulos ativos', async () => {
+  it('a migração entrega 6 molduras e 11 títulos (8 livres e 3 por indicação) ativos', async () => {
     const items = await createDrizzleCosmeticCatalogRepository(db).listActive()
     expect(items.filter((i) => i.kind === 'frame')).toHaveLength(6)
-    expect(items.filter((i) => i.kind === 'title')).toHaveLength(8)
+    expect(items.filter((i) => i.kind === 'title')).toHaveLength(11)
   })
 
   it('item desativado some da vitrine', async () => {

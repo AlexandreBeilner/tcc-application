@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   CheckpointUnsolvedError,
   MicroDecisionUnsolvedError,
@@ -120,6 +120,38 @@ describe('AdvanceLessonUseCase', () => {
     // l1 não é a última lição da Trilha 0 (l2 ainda falta) — nenhum evento
     // de trilha concluída ainda.
     expect(socialFeedRecorder.recorded).toEqual([])
+  })
+
+  it('avisa o ouvinte só quando esta chamada conclui a lição, e a falha dele não derruba a conclusão', async () => {
+    const clock = createClock()
+    const completed: string[] = []
+    let fail = false
+    const useCase = new AdvanceLessonUseCase(
+      createFakeLessonRepository(lessons, clock.now),
+      createFakeXpAwarder(),
+      createFakeStreakTracker(),
+      createFakeSocialFeedRecorder(),
+      {
+        clock: clock.now,
+        completionListener: {
+          async onLessonCompleted(userId) {
+            completed.push(userId)
+            if (fail) throw new Error('ouvinte fora do ar')
+          },
+        },
+      },
+    )
+    const harness = { clock, useCase }
+
+    await walk(harness, 'u1', 'l1', LESSON_UNLOCK_STEP - 1)
+    expect(completed).toEqual([])
+
+    fail = true
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const result = await walk(harness, 'u2', 'l1', LESSON_UNLOCK_STEP)
+    spy.mockRestore()
+    expect(result?.completed).toBe(true)
+    expect(completed).toEqual(['u2'])
   })
 
   it('propaga leveledUp, streakMilestone e a união das conquistas devolvidas por xpAwarder/streakTracker', async () => {

@@ -18,6 +18,7 @@ export const ACHIEVEMENT_CRITERIA: Record<
   track_completed_no_errors: { label: 'Trilhas concluídas sem erro', valueKind: 'integer' },
   lesson_reviewed: { label: 'Lições revisadas', valueKind: 'integer' },
   assemblies_participated: { label: 'Assembleias em que votou', valueKind: 'integer' },
+  referrals_qualified: { label: 'Amigos indicados que concluíram a 1ª lição', valueKind: 'integer' },
 }
 
 export const ACHIEVEMENT_CRITERIA_TYPES = Object.keys(

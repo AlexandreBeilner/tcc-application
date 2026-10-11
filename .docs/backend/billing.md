@@ -104,6 +104,10 @@ A chave é a do **fato**, então webhook repetido, reconciliação ou reenvio n�
 
 - **Reconciliação** (rede de segurança do webhook): a cada 6 h (só com `BILLING_PROVIDER=revenuecat`) reconsulta quem tem projeção parada há mais de 12 h e vigência ativa ou vencida há menos de 3 dias, em lote de 200, mais velhos primeiro, com 200 ms entre consultas. Uma falha isolada não para o lote.
 
+## Concessão de PRO promocional (MO.2.5 e MO.7.2)
+
+`GrantPromotionalProUseCase` (sem rota HTTP ainda): `currentAccessEnd(userId)` devolve o fim do acesso PRO de agora (ou `null`) e `grantUntil(userId, endsAt)` concede até a data. Adapter do RevenueCat: `POST /v1/subscribers/{app_user_id}/entitlements/{entitlement}/promotional` com `{ end_time_ms }` (documentação conferida em 2026-10-11; `duration` e `start_time_ms` são os campos descontinuados; um fim a menos de 2 h de uma concessão promocional ativa é tratado como duplicata e não estende), resposta `201`, e em seguida reconsulta a assinatura para a projeção local enxergar a concessão (`store: promotional`). Com `BILLING_PROVIDER=dev` grava a projeção direto; com `disabled` falha com `BillingDisabledError`. Hoje o único consumidor é a recompensa da indicação (`referrals.md`).
+
 ## Pendente (MO.2.5)
 
-Concessão promocional pelo painel admin: não implementada porque a referência do endpoint de concessão do RevenueCat não estava acessível na hora da implementação. Conferir a documentação atual antes de escrever o adapter.
+Só a **tela do painel admin** para conceder PRO promocional (com auditoria), que reaproveita o caso de uso acima. Não validado contra o RevenueCat real (sem chave nesta fase): o adapter tem teste com `fetch` simulado.

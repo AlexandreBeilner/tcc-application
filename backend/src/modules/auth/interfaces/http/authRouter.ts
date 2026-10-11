@@ -48,6 +48,18 @@ export interface AuthRouterDeps {
   authMiddleware: AuthMiddleware
 }
 
+// Extrai o código de indicação do `state` do OAuth ("<uuid>.<código>"). Sem código, `undefined`.
+function referralFromState(state: unknown): string | undefined {
+  if (typeof state !== 'string') return undefined
+  const dot = state.indexOf('.')
+  if (dot < 0) return undefined
+  try {
+    return decodeURIComponent(state.slice(dot + 1)).slice(0, 32) || undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function createAuthRouter(deps: AuthRouterDeps): Router {
   const router = Router()
 
@@ -216,8 +228,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
 
   // Sem caso de uso próprio: montar a URL de autorização não tem regra de
   // negócio, só delega pro adapter — um RequestHandler cobre o suficiente.
-  router.get('/auth/google', (_req, res) => {
-    const state = randomUUID()
+  router.get('/auth/google', (req, res) => {
+    // O código de indicação (MO.7.2) viaja no `state`, que o Google devolve intacto no callback.
+    const ref = typeof req.query.ref === 'string' ? req.query.ref.trim().slice(0, 32) : ''
+    const state = ref ? `${randomUUID()}.${encodeURIComponent(ref)}` : randomUUID()
     res.redirect(deps.googleIdentityProvider.buildAuthUrl(state))
   })
 
@@ -229,7 +243,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     }
 
     try {
-      const result = await deps.loginWithGoogle.execute({ code })
+      const result = await deps.loginWithGoogle.execute({
+        code,
+        referralCode: referralFromState(req.query.state),
+      })
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
       res.redirect(`${frontendUrl}/auth/callback#token=${result.token}`)
     } catch (err) {
@@ -260,7 +277,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     }
 
     try {
-      const result = await deps.loginWithGoogle.execute({ idToken: parsed.data.idToken })
+      const result = await deps.loginWithGoogle.execute({
+        idToken: parsed.data.idToken,
+        referralCode: parsed.data.referralCode,
+      })
       res.status(200).json({ token: result.token, user: toPublicUser(result.user) })
     } catch (err) {
       console.error('falha na verificação do idToken do Google:', err)

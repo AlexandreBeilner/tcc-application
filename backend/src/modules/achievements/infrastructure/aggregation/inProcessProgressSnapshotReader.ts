@@ -25,6 +25,8 @@ export function createInProcessProgressSnapshotReader(deps: {
   countReviewedLessons: CountReviewedLessonsUseCase
   // Assembleias distintas em que a pessoa votou (MO.6.7); 0 com o recurso desligado.
   countAssembliesParticipated: { count(userId: string): Promise<number> }
+  // Indicações válidas (MO.7.2).
+  countReferralsQualified: { count(userId: string): Promise<number> }
   getNetWorth: NetWorthReader
   sandboxAssetReader: SandboxAssetReader
 }): ProgressSnapshotReader {
@@ -37,6 +39,7 @@ export function createInProcessProgressSnapshotReader(deps: {
         tracksCompletedNoErrors,
         lessonsReviewed,
         assembliesParticipated,
+        referralsQualified,
         sandboxAssetIds,
       ] = await Promise.all([
         deps.getProgression.execute({ userId }),
@@ -45,6 +48,7 @@ export function createInProcessProgressSnapshotReader(deps: {
         deps.getTracksCompletedWithoutErrorsCount.execute({ userId }),
         deps.countReviewedLessons.execute({ userId }),
         deps.countAssembliesParticipated.count(userId),
+        deps.countReferralsQualified.count(userId),
         deps.sandboxAssetReader.listSandboxAssetIds(),
       ])
 
@@ -63,6 +67,7 @@ export function createInProcessProgressSnapshotReader(deps: {
         tracksCompletedNoErrors,
         lessonsReviewed,
         assembliesParticipated,
+        referralsQualified,
       }
     },
   }

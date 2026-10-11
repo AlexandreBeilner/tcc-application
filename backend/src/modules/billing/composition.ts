@@ -28,6 +28,10 @@ import { createDrizzleReconciliationAudience } from './infrastructure/persistenc
 import { createDrizzleSubscriptionRepository } from './infrastructure/persistence/drizzleSubscriptionRepository'
 import { createDisabledEntitlementProvider } from './infrastructure/revenuecat/disabledEntitlementProvider'
 import { createRevenueCatEntitlementProvider } from './infrastructure/revenuecat/revenueCatEntitlementProvider'
+import { GrantPromotionalProUseCase } from './application/useCases/grantPromotionalPro'
+import { createDevPromotionalGranter } from './infrastructure/persistence/devPromotionalGranter'
+import { createDisabledPromotionalGranter } from './infrastructure/revenuecat/disabledPromotionalGranter'
+import { createRevenueCatPromotionalGranter } from './infrastructure/revenuecat/revenueCatPromotionalGranter'
 import { createWebhookAuthorizer } from './infrastructure/revenuecat/webhookAuthorization'
 import { createBillingRouter } from './interfaces/http/billingRouter'
 
@@ -83,7 +87,23 @@ function createBillingCore(deps: BillingCoreDeps) {
     syncSubscription,
   )
   const listActiveProUserIds = new ListActiveProUserIdsUseCase(subscriptions)
+  // Concessão de PRO promocional (MO.7.2; o painel admin da MO.2.5 reaproveita). Cada provedor
+  // tem a sua: o RevenueCat concede e reconsulta, o `dev` grava a projeção, o desligado recusa.
+  const promotionalGranter =
+    deps.config.provider === 'revenuecat'
+      ? createRevenueCatPromotionalGranter({
+          secretKey: deps.config.secretKey,
+          entitlementId: deps.config.entitlementId,
+          apiBaseUrl: deps.config.apiBaseUrl,
+          requestTimeoutMs: deps.config.requestTimeoutMs,
+          afterGrant: (userId) => syncSubscription.execute(userId),
+        })
+      : deps.config.provider === 'dev'
+        ? createDevPromotionalGranter(subscriptions, cache)
+        : createDisabledPromotionalGranter()
+  const grantPromotionalPro = new GrantPromotionalProUseCase(subscriptions, promotionalGranter)
   return {
+    grantPromotionalPro,
     subscriptions,
     cache,
     getSubscriptionStatus,
@@ -140,6 +160,7 @@ export function createBillingModule(deps: BillingCompositionDeps) {
     router,
     getSubscriptionStatus: core.getSubscriptionStatus,
     syncSubscription: core.syncSubscription,
+    grantPromotionalPro: core.grantPromotionalPro,
     listActiveProUserIds: core.listActiveProUserIds,
     proAccessGuard: new ProAccessGuard(core.getSubscriptionStatus),
   }

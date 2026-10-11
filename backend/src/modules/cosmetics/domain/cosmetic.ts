@@ -12,6 +12,8 @@ export interface CosmeticItem {
   name: string
   description: string
   sortOrder: number
+  // Quantas indicações válidas liberam o item (MO.7.2). Ausente/nulo = livre pra todo PRO.
+  unlockReferrals?: number | null
 }
 
 // O que a pessoa escolheu em cada espaço (chaves de item), independente de ser PRO agora.

@@ -1,6 +1,7 @@
 import type { Database } from '../../db/client'
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import type { ProAccess } from './application/ports/proAccess'
+import type { ReferralUnlocks } from './application/ports/referralUnlocks'
 import { EquipCosmeticUseCase } from './application/useCases/equipCosmetic'
 import { GetCosmeticDisplaysUseCase } from './application/useCases/getCosmeticDisplays'
 import { ListMyCosmeticsUseCase } from './application/useCases/listMyCosmetics'
@@ -16,6 +17,8 @@ export interface CosmeticsCompositionDeps {
   // Do módulo `billing`: gate de PRO e leitura em lote de quem é PRO.
   proAccess: ProAccess
   listActiveProUserIds: { execute(userIds: string[]): Promise<Set<string>> }
+  // Do módulo `referrals`: libera títulos por indicações válidas (MO.7.2).
+  referralUnlocks?: ReferralUnlocks
 }
 
 // Composição do módulo `cosmetics` (único lugar que instancia os adapters concretos). Devolve o
@@ -27,10 +30,10 @@ export function createCosmeticsModule(deps: CosmeticsCompositionDeps) {
   const membership = createInProcessProMembershipReader(deps.listActiveProUserIds)
 
   const getCosmeticDisplays = new GetCosmeticDisplaysUseCase(catalog, selections, membership)
-  const listMyCosmetics = new ListMyCosmeticsUseCase(catalog, selections, membership)
+  const listMyCosmetics = new ListMyCosmeticsUseCase(catalog, selections, membership, deps.referralUnlocks)
   const router = createCosmeticsRouter({
     listMyCosmetics,
-    equipCosmetic: new EquipCosmeticUseCase(deps.proAccess, catalog, selections),
+    equipCosmetic: new EquipCosmeticUseCase(deps.proAccess, catalog, selections, deps.referralUnlocks),
     unequipCosmetic: new UnequipCosmeticUseCase(selections),
     authMiddleware: deps.authMiddleware,
   })

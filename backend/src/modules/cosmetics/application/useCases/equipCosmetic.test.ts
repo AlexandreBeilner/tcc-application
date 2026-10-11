@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CosmeticItemNotFoundError } from '../../domain/errors'
+import { CosmeticItemNotFoundError, CosmeticLockedError } from '../../domain/errors'
 import {
   createFakeCatalog,
   createFakeProAccess,
@@ -52,5 +52,56 @@ describe('UnequipCosmeticUseCase', () => {
     selections.rows.set('ex', { frame: 'frame_aurora', title: 'title_paciente' })
     await unequip.execute('ex', 'frame')
     expect(selections.rows.get('ex')).toEqual({ frame: null, title: 'title_paciente' })
+  })
+})
+
+describe('EquipCosmeticUseCase com título liberado por indicações', () => {
+  const lockedCatalog = createFakeCatalog([
+    {
+      key: 'title_mensageiro',
+      kind: 'title',
+      name: 'Mensageiro',
+      description: '',
+      sortOrder: 90,
+      unlockReferrals: 5,
+    },
+  ])
+
+  function setup(referralCount: number) {
+    const selections = createFakeSelections()
+    return {
+      selections,
+      equip: new EquipCosmeticUseCase(createFakeProAccess(['pro']), lockedCatalog, selections, {
+        qualifiedCount: async () => referralCount,
+      }),
+    }
+  }
+
+  it('recusa enquanto faltam indicações válidas', async () => {
+    const { equip, selections } = setup(4)
+    await expect(
+      equip.execute({ userId: 'pro', kind: 'title', itemKey: 'title_mensageiro' }),
+    ).rejects.toBeInstanceOf(CosmeticLockedError)
+    expect(selections.rows.size).toBe(0)
+  })
+
+  it('libera ao alcançar o número de indicações', async () => {
+    const { equip, selections } = setup(5)
+    await equip.execute({ userId: 'pro', kind: 'title', itemKey: 'title_mensageiro' })
+    expect(selections.rows.get('pro')?.title).toBe('title_mensageiro')
+  })
+
+  it('o PRO continua sendo exigido mesmo com as indicações', async () => {
+    const equip = new EquipCosmeticUseCase(
+      createFakeProAccess([]),
+      lockedCatalog,
+      createFakeSelections(),
+      {
+        qualifiedCount: async () => 99,
+      },
+    )
+    await expect(
+      equip.execute({ userId: 'free', kind: 'title', itemKey: 'title_mensageiro' }),
+    ).rejects.toMatchObject({ code: 'PRO_REQUIRED' })
   })
 })

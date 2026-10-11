@@ -1,6 +1,7 @@
 import { EmailAlreadyInUseError, UsernameAlreadyInUseError } from '../../domain/errors'
 import type { User } from '../../domain/user'
 import type { AccountProvisioner } from '../ports/accountProvisioner'
+import type { ReferralAttributor } from '../ports/referralAttributor'
 import type { PasswordHasher } from '../ports/passwordHasher'
 import type { UserRepository } from '../ports/userRepository'
 import type { SendEmailVerificationUseCase } from './sendEmailVerification'
@@ -10,6 +11,8 @@ export interface RegisterUserInput {
   email: string
   username: string
   password: string
+  // Código do link de indicação (MO.7.2); opcional e ignorado se inválido.
+  referralCode?: string
 }
 
 // Sem token: a conta só entra depois de verificar o e-mail (D2).
@@ -23,6 +26,7 @@ export class RegisterUserUseCase {
     private readonly passwordHasher: PasswordHasher,
     private readonly accountProvisioner: AccountProvisioner,
     private readonly emailVerification: Pick<SendEmailVerificationUseCase, 'sendToUser'>,
+    private readonly referralAttributor?: ReferralAttributor,
   ) {}
 
   async execute(input: RegisterUserInput): Promise<RegisterUserResult> {
@@ -47,6 +51,8 @@ export class RegisterUserUseCase {
     // mesmo saldo simulado, aberta no motor de simulação.
     await this.accountProvisioner.provision(user.id)
 
+    await this.attributeReferral(user.id, input.referralCode)
+
     // Falha ao enfileirar o link nunca derruba o cadastro: a conta já existe e a pessoa pede
     // outro link pela tela de login (reenvio).
     try {
@@ -55,5 +61,15 @@ export class RegisterUserUseCase {
       console.error('[auth] falha ao enfileirar o e-mail de verificação', err)
     }
     return { user }
+  }
+
+  // Indicação nunca derruba o cadastro: a conta já existe.
+  private async attributeReferral(userId: string, referralCode: string | undefined) {
+    if (!referralCode || !this.referralAttributor) return
+    try {
+      await this.referralAttributor.attribute(userId, referralCode)
+    } catch (err) {
+      console.error('[auth] falha ao registrar a indicação', err)
+    }
   }
 }

@@ -4,7 +4,7 @@ import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import type { EquipCosmeticUseCase } from '../../application/useCases/equipCosmetic'
 import type { ListMyCosmeticsUseCase } from '../../application/useCases/listMyCosmetics'
 import type { UnequipCosmeticUseCase } from '../../application/useCases/unequipCosmetic'
-import { CosmeticItemNotFoundError } from '../../domain/errors'
+import { CosmeticItemNotFoundError, CosmeticLockedError } from '../../domain/errors'
 import { equipBodySchema, unequipBodySchema } from './schemas'
 
 export interface CosmeticsRouterDeps {
@@ -40,6 +40,10 @@ export function createCosmeticsRouter(deps: CosmeticsRouterDeps): Router {
     } catch (err) {
       if (err instanceof CosmeticItemNotFoundError) {
         res.status(404).json({ error: err.message })
+        return
+      }
+      if (err instanceof CosmeticLockedError) {
+        res.status(403).json({ error: err.message })
         return
       }
       throw err

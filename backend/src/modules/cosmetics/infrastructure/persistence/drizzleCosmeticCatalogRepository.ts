@@ -18,6 +18,7 @@ export function createDrizzleCosmeticCatalogRepository(db: Database): CosmeticCa
         name: row.name,
         description: row.description,
         sortOrder: row.sortOrder,
+        unlockReferrals: row.unlockReferrals,
       }))
     },
   }
